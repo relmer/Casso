@@ -85,6 +85,9 @@ public:
     void                      RemoveDeleted (const std::vector<std::string> &) override  {}
     int                       CountUserSet  () override                                { return 0; }
     HRESULT                   Clear         (bool) override                            { return S_OK; }
+    size_t                    GetQueued     () override                                { return queued; }
+
+    size_t  queued = 0;
 
 private:
     std::mutex                                 m_lock;

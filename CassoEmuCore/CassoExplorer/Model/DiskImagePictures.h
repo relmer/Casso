@@ -33,6 +33,13 @@ public:
     void  AddTarget    (HWND hwnd, UINT message) override;
     void  RemoveTarget (HWND hwnd) override;
 
+    //  The count GetQueued returns comes from the function set here; 0 with
+    //  none set.
+    using CountFn = std::function<size_t()>;
+
+    void    SetQueuedCount (CountFn count) { m_count = std::move (count); }
+    size_t  GetQueued      () override     { return m_count ? m_count() : 0; }
+
     bool                      IsUserSet     (const std::wstring & path) override;
     HRESULT                   RemoveUserSet (const std::wstring & path) override;
     std::vector<std::string>  GetKeys       (const std::vector<std::wstring> & paths) override;
@@ -80,6 +87,7 @@ private:
 
     ThumbnailStore          & m_store;
     QueueFn                   m_queue;
+    CountFn                   m_count;
     std::mutex                m_lock;
     std::vector<Target>       m_targets;
     std::set<std::wstring>    m_queued;      // each image passed to the queue function, by path, size and time

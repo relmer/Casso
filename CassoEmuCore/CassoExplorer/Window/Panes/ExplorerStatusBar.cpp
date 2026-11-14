@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "Seams/IDiskPictures.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
@@ -66,7 +67,7 @@ void ExplorerStatusBar::Create()
 
 void ExplorerStatusBar::Configure()
 {
-    m_status->SetFields ({ { L"", 0, false, -1, true }, { L"", 0, false, -1, true }, { L"", 0, true },
+    m_status->SetFields ({ { L"", 0, false, -1, true }, { L"", 0, false, -1, true }, { L"", 0, false, -1, true }, { L"", 0, true },
                            { L"", kStatusFreeDip, false }, { L"", kStatusDetailDip, false }, { L"", kStatusZoomDip, false } });
 }
 
@@ -178,10 +179,26 @@ void ExplorerStatusBar::Fill()
 
     m_status->SetText (kStatusCount,    status.selection);
     m_status->SetText (kStatusSelected, status.selected);
+    m_status->SetText (kStatusThumbnails, DescribeThumbnails (m_context.app.pictures != nullptr ? m_context.app.pictures->GetQueued() : 0));
     m_status->SetText (kStatusFree,     status.freeSpace);
     m_status->SetText (kStatusDetail,   detail);
     m_status->SetText (kStatusZoom,     std::format (L"{}%", m_context.preview.GetShownZoom()));
     m_status->SetText (kStatusFill,     m_context.cassoLinkManager.GetLatestActivity());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerStatusBar::DescribeThumbnails
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ExplorerStatusBar::DescribeThumbnails (size_t queued)
+{
+    return queued == 0 ? std::wstring() : std::format (L"Capturing thumbnails: {}", queued);
 }
 
 
@@ -212,6 +229,7 @@ void ExplorerStatusBar::Layout (const RECT & band)
     //  the two it draws in the middle of its sash, since the darker one is the
     //  color of the panes beside it. The two dividers then meet.
     m_status->SetFields ({ { L"", 0, false, -1, true },
+                           { L"", 0, false, -1, true },
                            { L"", 0, false, -1, true },
                            { L"", 0, true },
                            { L"", kStatusFreeDip, false },

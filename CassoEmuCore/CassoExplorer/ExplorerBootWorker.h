@@ -44,8 +44,9 @@ public:
         std::vector<std::string>  missing;      // each machine that couldn't be built, with why
     };
 
-    using DoneFn = std::function<void (const Result &)>;
-    using BusyFn = std::function<bool()>;
+    using DoneFn  = std::function<void (const Result &)>;
+    using BusyFn  = std::function<bool()>;
+    using CountFn = std::function<void()>;
 
     ExplorerBootWorker (ThumbnailStore & store, BootCheck::MachineFn build);
     ~ExplorerBootWorker ();
@@ -55,6 +56,10 @@ public:
 
     void    SetDone       (DoneFn done);
     void    SetBusy       (BusyFn isBusy);
+
+    //  Called on the thread that queued an image, and on the worker's after
+    //  each image, when the count GetPending returns changes.
+    void    SetOnCount    (CountFn onCount);
     void    SetManifestIo (IDiskFileIo * fileIo);
     void    SetLimits     (const BootProbe::Limits & limits);
 
@@ -107,6 +112,7 @@ private:
     BootCheck::MachineFn       m_build;
     DoneFn                     m_done;
     BusyFn                     m_isBusy;
+    CountFn                    m_onCount;
     IDiskFileIo              * m_fileIo  = nullptr;
     GivenNames               * m_given   = nullptr;
     BootProbe::Limits          m_limits;

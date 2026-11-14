@@ -66,6 +66,7 @@ public:
         std::mutex                               lock;
         std::vector<ExplorerBootWorker::Result>  results;
         std::atomic<bool>                        isBusy    { true };
+        std::vector<size_t>                      counts;
 
 
 
@@ -89,6 +90,7 @@ public:
             ExplorerBootWorker  worker (store, BuildFromFixtures);
 
             worker.SetBusy ([&isBusy]() { return isBusy.load(); });
+            worker.SetOnCount ([&lock, &counts, &worker]() { std::lock_guard  guard (lock); counts.push_back (worker.GetPending()); });
             worker.SetDone ([&lock, &results] (const ExplorerBootWorker::Result & result)
             {
                 std::lock_guard  guard (lock);
@@ -106,6 +108,7 @@ public:
             worker.WaitUntilIdle();
 
             Assert::AreEqual ((size_t) 2, results.size());
+            Assert::IsTrue (!counts.empty() && counts.front() == 1 && counts.back() == 0, L"The count is reported as images are queued, and 0 once both are done");
             Assert::IsTrue (results[0].hasReport && results[0].verdict == BootVerdict::Booted, TextEncoding::NarrowToWide (results[0].reason).c_str());
             Assert::AreEqual (std::string ("Apple2eEnhanced"), results[0].machine);
             Assert::AreEqual (std::string ("Modem"), results[0].source);

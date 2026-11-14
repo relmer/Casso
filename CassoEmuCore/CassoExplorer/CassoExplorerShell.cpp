@@ -146,6 +146,8 @@ void CassoExplorerShell::StartBootWorker()
     m_bootWorker     = std::make_unique<ExplorerBootWorker> (m_thumbnails, BootCheck::BuildInstalled);
 
     m_bootWorker->SetManifestIo (&m_fileIo);
+    m_bootWorker->SetOnCount ([this]() { m_pictures.NotifyReady (IDiskPictures::kQueueChanged); });
+    m_pictures.SetQueuedCount ([this]() { return m_bootWorker != nullptr ? m_bootWorker->GetPending() : 0; });
     m_bootWorker->SetGivenNames (&m_givenNames);
     m_bootWorker->SetDone ([this] (const ExplorerBootWorker::Result & result)
     {

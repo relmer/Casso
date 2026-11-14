@@ -23,15 +23,17 @@ class ExplorerStatusBar
 public:
     explicit ExplorerStatusBar (ExplorerContext & context);
 
-    //  The fields, left to right: Explorer's item count and selection,
-    //  flowing from the left; the space between; then free space, the
-    //  preview's detail and its zoom.
-    static constexpr size_t  kStatusCount    = 0;
-    static constexpr size_t  kStatusSelected = 1;
-    static constexpr size_t  kStatusFill     = 2;
-    static constexpr size_t  kStatusFree     = 3;
-    static constexpr size_t  kStatusDetail   = 4;
-    static constexpr size_t  kStatusZoom     = 5;
+    //  The fields, left to right: Explorer's item count and selection, and
+    //  the count of disk images waiting to be booted for a thumbnail, flowing
+    //  from the left; the space between; then free space, the preview's
+    //  detail and its zoom.
+    static constexpr size_t  kStatusCount      = 0;
+    static constexpr size_t  kStatusSelected   = 1;
+    static constexpr size_t  kStatusThumbnails = 2;
+    static constexpr size_t  kStatusFill       = 3;
+    static constexpr size_t  kStatusFree       = 4;
+    static constexpr size_t  kStatusDetail     = 5;
+    static constexpr size_t  kStatusZoom       = 6;
 
     //  Field widths: free space, and the preview's detail and zoom when the
     //  preview is hidden and they cannot follow its edge.
@@ -52,6 +54,10 @@ public:
     void  SetDetail   (const std::wstring & text) { m_status->SetText (kStatusDetail, text); }
     void  SetActivity (const std::wstring & text) { m_status->SetText (kStatusFill, text); }
     void  UpdateTip   (const DxuiMouseEvent & ev, POINT point);
+
+    //  The thumbnails field: Capturing thumbnails and the count waiting, or
+    //  empty with none.
+    static std::wstring  DescribeThumbnails (size_t queued);
 
 private:
     bool  HandleZoomClick     (const DxuiMouseEvent & ev);

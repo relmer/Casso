@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/ExplorerWindowParts.h"
+#include "Seams/IDiskPictures.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
@@ -355,6 +356,12 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
     if (msg == (UINT) AppMessage::ExplorerIconsLoaded)
     {
         listPane.HandleIconsLoaded();
+        return true;
+    }
+
+    if (msg == (UINT) AppMessage::ExplorerPicturesReady && wParam == IDiskPictures::kQueueChanged)
+    {
+        statusBar.Fill();
         return true;
     }
 

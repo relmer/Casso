@@ -161,6 +161,10 @@ void ExplorerBootWorker::SetLimits (const BootProbe::Limits & limits)
 
 void ExplorerBootWorker::Queue (const std::wstring & path, const std::string & model, const std::string & source)
 {
+    CountFn  onCount;
+
+
+
     {
         std::lock_guard  lock (m_lock);
         bool             isWaiting = std::any_of (m_queue.begin(), m_queue.end(), [&path] (const Item & item) { return _wcsicmp (item.path.c_str(), path.c_str()) == 0; });
@@ -179,9 +183,35 @@ void ExplorerBootWorker::Queue (const std::wstring & path, const std::string & m
         {
             m_queue.push_front ({ path, model, source });
         }
+
+        onCount = m_onCount;
     }
 
     m_wake.notify_all();
+
+    if (onCount)
+    {
+        onCount();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::SetOnCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::SetOnCount (CountFn onCount)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    m_onCount = std::move (onCount);
 }
 
 
@@ -493,10 +523,11 @@ void ExplorerBootWorker::Run()
 
     for (;;)
     {
-        Item    item;
-        DoneFn  done;
-        BusyFn  isBusy;
-        Result  result;
+        Item     item;
+        DoneFn   done;
+        BusyFn   isBusy;
+        CountFn  onCount;
+        Result   result;
 
         {
             std::unique_lock  lock (m_lock);
@@ -546,5 +577,16 @@ void ExplorerBootWorker::Run()
         }
 
         m_idle.notify_all();
+
+        {
+            std::lock_guard  lock (m_lock);
+
+            onCount = m_onCount;
+        }
+
+        if (onCount)
+        {
+            onCount();
+        }
     }
 }
