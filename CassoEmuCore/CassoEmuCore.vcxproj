@@ -1233,6 +1233,8 @@
     <ClCompile Include="Devices\BlockDevice\Ncr5380.cpp" />
     <ClCompile Include="Devices\BlockDevice\ScsiHardDisk.cpp" />
     <ClCompile Include="Devices\BlockDevice\AppleScsiCard.cpp" />
+    <ClCompile Include="Devices\BlockDevice\BlockDeviceAttachments.cpp" />
+    <ClCompile Include="Devices\BlockDevice\StockHardDiskImage.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
@@ -2141,6 +2143,8 @@
     <ClInclude Include="Devices\BlockDevice\Ncr5380.h" />
     <ClInclude Include="Devices\BlockDevice\ScsiHardDisk.h" />
     <ClInclude Include="Devices\BlockDevice\AppleScsiCard.h" />
+    <ClInclude Include="Devices\BlockDevice\BlockDeviceAttachments.h" />
+    <ClInclude Include="Devices\BlockDevice\StockHardDiskImage.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CassoLink\Apple\Program.s" />

@@ -849,6 +849,7 @@ extern "C" int WINAPI wCassoMain (
     // --title: set before the window exists, so the first caption the shell
     // composes already carries the launcher's label.
     shell->SetWindowTitlePrefix (titlePrefix);
+    shell->SetRunBlockAttachments (parsed.hdAttachments, parsed.smartPortAttachments);
 
     // --serial-log: opened before the machine is built, so the bridges built
     // with it write to the file from the first byte.

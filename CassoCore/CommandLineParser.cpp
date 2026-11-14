@@ -316,6 +316,8 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     "machine",
     "disk1",
     "disk2",
+    "hd",
+    "smartport",
     "tape",
     "trace",
     "seed",
@@ -352,6 +354,8 @@ static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRul
     { "machine",        CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "disk1",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "disk2",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "hd",             CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "smartport",      CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "tape",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "trace",          CommandLineParser::OptionValue::OptionalSize, CommandLineParser::RelaunchRule::Repeat },
     { "seed",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
@@ -378,6 +382,13 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
     { "--machine", " <name>",  "Which machine to boot, such as Apple2e." },
     { "--disk1",   " <image>", "Insert this image into drive 1." },
     { "--disk2",   " <image>", "Insert this image into drive 2." },
+    { "--hd",      " <slot>[.<unit>]=<image>",
+                               "Attach this image to the hard disk or UniDisk 3.5 card "
+                               "in the slot, for this run. The unit is a SCSI ID or a "
+                               "drive number." },
+    { "--smartport", " <n>=<image>",
+                               "Attach this image to the nth drive on the //c disk port, "
+                               "for this run." },
     { "--tape",    " <file>",  "Insert this WAV, AIFF, MP3, or FLAC recording into the cassette recorder." },
     { "--trace",   " [size]",  "Record a CPU execution trace, written to the desktop "
                               "by Debug > Save CPU trace or on a crash. A size takes "
@@ -4432,6 +4443,8 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         else if (arg == "--disk1"   && hasValue) { parsed.disk1   = argv[++i]; }
         else if (arg == "--disk2"   && hasValue) { parsed.disk2   = argv[++i]; }
         else if (arg == "--tape"    && hasValue) { parsed.tape    = argv[++i]; }
+        else if (arg == "--hd"        && hasValue) { ApplyBlockAttachment (argv[++i], false, parsed); }
+        else if (arg == "--smartport" && hasValue) { ApplyBlockAttachment (argv[++i], true,  parsed); }
         else if (arg == "--explore" && hasValue) { parsed.explore = argv[++i]; }
         else if (arg == "--trace")
         {
@@ -4585,7 +4598,8 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
     else if (canonical == "--machine" || canonical == "--disk1"
           || canonical == "--disk2"   || canonical == "--title"
           || canonical == "--tape"    || canonical == "--seed"
-          || canonical == "--cleanup-old")
+          || canonical == "--cleanup-old" || canonical == "--hd"
+          || canonical == "--smartport")
     {
         parsed.refusalMessage = "Error: missing value for " + raw;
     }
@@ -4901,6 +4915,95 @@ void CommandLineParser::ApplySeed (const std::string                   & text,
     {
         parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
         parsed.refusalMessage = "Error: invalid seed " + text;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ApplyBlockAttachment
+//
+//  An --hd value is <slot>=<image> or <slot>.<unit>=<image>, with a slot
+//  from 1 to 7 and a unit from 0 to 6; a --smartport value is <n>=<image>,
+//  with n from 1 to 4. Anything else refuses the command line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ApplyBlockAttachment (const std::string                   & text,
+                                              bool                                  isSmartPort,
+                                              CommandLineOptions::EmulatorOptions & parsed)
+{
+    constexpr int                                         kMaxSlot   = 7;
+    constexpr int                                         kMaxUnit   = 6;
+    constexpr int                                         kMaxChain  = 4;
+    size_t                                                equals     = text.find ('=');
+    std::string                                           target     = text.substr (0, std::min (equals, text.size()));
+    size_t                                                dot        = target.find ('.');
+    int                                                   first      = 0;
+    int                                                   second     = -1;
+    bool                                                  isValid    = equals != std::string::npos && equals + 1 < text.size() && !target.empty();
+    CommandLineOptions::EmulatorOptions::BlockAttachment  attachment;
+
+
+
+    if (isValid)
+    {
+        std::string            head   = target.substr (0, std::min (dot, target.size()));
+        std::from_chars_result result = std::from_chars (head.data(), head.data() + head.size(), first);
+
+
+
+        isValid = result.ec == std::errc() && result.ptr == head.data() + head.size();
+
+        if (isValid && dot != std::string::npos)
+        {
+            std::string  tail = target.substr (dot + 1);
+
+
+
+            result  = std::from_chars (tail.data(), tail.data() + tail.size(), second);
+            isValid = !isSmartPort && !tail.empty() && result.ec == std::errc() && result.ptr == tail.data() + tail.size();
+        }
+    }
+
+    if (isValid)
+    {
+        isValid = isSmartPort ? (first >= 1 && first <= kMaxChain)
+                              : (first >= 1 && first <= kMaxSlot && second >= -1 && second <= kMaxUnit);
+    }
+
+    if (!isValid)
+    {
+        if (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
+        {
+            parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
+            parsed.refusalMessage = isSmartPort
+                ? "Error: illegal --smartport value " + text + "\n"
+                  "       The value is <n>=<image>, where n is a drive's position on\n"
+                  "       the disk port, from 1 to 4."
+                : "Error: illegal --hd value " + text + "\n"
+                  "       The value is <slot>=<image> or <slot>.<unit>=<image>, with a\n"
+                  "       slot from 1 to 7 and a unit from 0 to 6.";
+        }
+
+        return;
+    }
+
+    attachment.image = text.substr (equals + 1);
+
+    if (isSmartPort)
+    {
+        attachment.chain = first;
+        parsed.smartPortAttachments.push_back (attachment);
+    }
+    else
+    {
+        attachment.slot = first;
+        attachment.unit = second;
+        parsed.hdAttachments.push_back (attachment);
     }
 }
 

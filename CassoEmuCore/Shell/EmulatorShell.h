@@ -21,6 +21,7 @@
 #include "Shell/CpuManager.h"
 #include "Shell/ShellInspectorHost.h"
 #include "Shell/MachineHost.h"
+#include "CommandLineOptions.h"
 #include "Ui/UiShell.h"
 #include "Ui/UiCommandTypes.h"
 
@@ -204,6 +205,10 @@ public:
     // not refresh the caption itself.
     void  SetWindowTitlePrefix (const wstring & prefix);
 
+    //  The --hd and --smartport images, applied to the first machine built.
+    void  SetRunBlockAttachments (const std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment> & hd,
+                                  const std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment> & smartPort);
+
     // The preferences and the Settings dialog: the global preferences, the
     // config store, the theme catalog and the Settings sheet.
     ShellSettings &  GetSettings();
@@ -355,6 +360,8 @@ private:
 
     HRESULT BuildMachineDevices             (const MachineConfig & config);
     void    QueueUthernetNotices            ();
+    void    QueueNotice                     (std::wstring text);
+    void    QueueBlockMediaNotices          ();
     HRESULT InitializeUiShell               ();
     HRESULT WireUiShellChromeAndThemes      ();
     void    RestoreColorTextPref            ();
@@ -767,7 +774,9 @@ private:
     ListenGate              m_listenGate;   // the firewall's verdicts, for the Uthernet II's CPU-thread listens
 
     //  Notices raised before the window exists, displayed once it does.
-    std::vector<std::wstring>  m_pendingNotices;
+    std::vector<std::wstring>                                          m_pendingNotices;
+    std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment>  m_runHdAttachments;
+    std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment>  m_runSmartPortAttachments;
 
     //  The emulated machine: bus, CPU, devices, video modes, and the
     //  configuration and identity that say which machine this is. Everything

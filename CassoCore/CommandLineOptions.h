@@ -350,6 +350,19 @@ struct CommandLineOptions
         std::string  disk1;                            // --disk1 <image>
         std::string  disk2;                            // --disk2 <image>
         std::string  tape;                             // --tape <file>
+
+        //  An image for one unit of a block device card, or for one device
+        //  on a //c disk port chain, for this run only.
+        struct BlockAttachment
+        {
+            int          slot    = 0;                  // --hd: the card's slot
+            int          unit    = -1;                 // --hd: SCSI ID or drive; -1 for the card's first unit
+            int          chain   = 0;                  // --smartport: the position, from 1
+            std::string  image;
+        };
+
+        std::vector<BlockAttachment>  hdAttachments;        // --hd <slot>[.<unit>]=<image>
+        std::vector<BlockAttachment>  smartPortAttachments; // --smartport <n>=<image>
         std::string  explore;                          // --explore <image>: open it in Casso Explorer instead
         size_t       traceEntries = 0;                 // --trace [size]; 0 = off
 

@@ -311,6 +311,11 @@ public:
     //  a notice; cleared at each build.
     std::vector<std::wstring> &  GetBlockMediaProblems () noexcept { return m_blockMediaProblems; }
 
+    //  Where the stock hard disk image is made and found; empty leaves an
+    //  HD20SC that lists "stock" without an image.
+    void                 SetStockImageFolder (const std::string & folder) { m_stockImageFolder = folder; }
+    const std::string &  GetStockImageFolder () const noexcept            { return m_stockImageFolder; }
+
     void  SetCurrentMachineName (const std::wstring & name) { m_currentMachineName = name; }
     void  SetAssetBaseDir       (const std::wstring & dir)  { m_assetBaseDir = dir; }
 
@@ -400,6 +405,7 @@ private:
     IDiskFileIo                     * m_blockFileIo        = nullptr;
     WriteProtectProbe                 m_blockProbe;
     std::vector<std::wstring>         m_blockMediaProblems;
+    std::string                       m_stockImageFolder;
 
     std::wstring  m_currentMachineName;
     std::wstring  m_assetBaseDir;

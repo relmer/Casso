@@ -52,6 +52,7 @@
 #include "Devices/BlockDevice/AppleScsiCard.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/BlockDevice/ScsiHardDisk.h"
+#include "Devices/BlockDevice/StockHardDiskImage.h"
 #include "Print/PrintJobStore.h"
 #include "Print/PrinterWorker.h"
 #include "WasapiAudio.h"
@@ -2167,18 +2168,35 @@ void MachineBuilder::WireAppleScsiCard (const SlotConfig & slot, AppleScsiCard &
     {
         const PortConfig  & port   = slot.ports[id];
         ScsiHardDisk      & target = card.GetTarget ((int) id);
+        std::string         image  = port.image;
         std::wstring        error;
 
 
 
         target.SetRealTiming (port.realTiming, m_host.GetConfig().clockSpeed, 0);
 
-        if (port.device.empty() || port.image.empty() || port.image == kpszStockImage)
+        if (port.device.empty() || image.empty())
         {
             continue;
         }
 
-        hr = target.GetMedia().Attach (m_host.GetBlockMediaFileIo(), port.image, drive->maxBlocks, m_host.ProbeBlockMedia (port.image), error);
+        if (image == kpszStockImage)
+        {
+            if (m_host.GetStockImageFolder().empty())
+            {
+                continue;
+            }
+
+            hr = StockHardDiskImage::Ensure (m_host.GetBlockMediaFileIo(), m_host.GetStockImageFolder(), image);
+
+            if (FAILED (hr))
+            {
+                m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, SCSI ID {}: the stock hard disk image can't be made.", slot.slot, id));
+                continue;
+            }
+        }
+
+        hr = target.GetMedia().Attach (m_host.GetBlockMediaFileIo(), image, drive->maxBlocks, m_host.ProbeBlockMedia (image), error);
 
         if (FAILED (hr))
         {

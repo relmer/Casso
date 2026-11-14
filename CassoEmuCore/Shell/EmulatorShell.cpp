@@ -79,6 +79,7 @@
 #include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
+#include "Devices/BlockDevice/BlockDeviceAttachments.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/IProcessProbe.h"
@@ -1030,12 +1031,23 @@ void EmulatorShell::RegisterChromeDock()
 
 void EmulatorShell::InitAssetPathsAndStores()
 {
-    fs::path  assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
+    fs::path         assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
+    fs::path         stockDir     = assetBaseDir / L"Disks";
+    std::error_code  ec;
 
 
 
     m_machine.SetAssetBaseDir (assetBaseDir.wstring());
     m_settings->CreateConfigStore (assetBaseDir.wstring());
+
+    // The stock hard disk image is made here the first time a machine lists
+    // it. A folder that can't be made leaves those drives empty.
+    fs::create_directories (stockDir, ec);
+
+    if (!ec)
+    {
+        m_machine.SetStockImageFolder (stockDir.string());
+    }
 
     m_disks->Initialize (*m_settings->GetConfigStore(), m_settings->GetFileSystem(), m_imageWatchDisabled);
 
@@ -1147,12 +1159,32 @@ Error:
 
 HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
 {
-    HRESULT  hr = S_OK;
+    HRESULT        hr        = S_OK;
+    HRESULT        hrAttach  = S_OK;
+    MachineConfig  built     = config;
+    std::string    error;
 
 
 
-    hr = m_machineBuilder->Build (config);
+    // --hd and --smartport apply to the first machine only, and are never
+    // saved: the copy built from has them, the config does not.
+    if (!m_runHdAttachments.empty() || !m_runSmartPortAttachments.empty())
+    {
+        hrAttach = BlockDeviceAttachments::Apply (m_runHdAttachments, m_runSmartPortAttachments, built, error);
+
+        if (FAILED (hrAttach))
+        {
+            QueueNotice (TextEncoding::NarrowToWide (error));
+        }
+
+        m_runHdAttachments.clear();
+        m_runSmartPortAttachments.clear();
+    }
+
+    hr = m_machineBuilder->Build (built);
     CHR (hr);
+
+    QueueBlockMediaNotices();
 
     // The Super Serial Card's infobar reads the card's state from the build
     // just finished; the UI thread displays it on its next frame.
@@ -1191,17 +1223,80 @@ void EmulatorShell::QueueUthernetNotices()
 
     for (const std::string & error : m_machine.GetRefs().uthernet->GetNetworkErrors())
     {
-        std::wstring  text = TextEncoding::NarrowToWide (error);
+        QueueNotice (TextEncoding::NarrowToWide (error));
+    }
+}
 
-        if (m_hwnd != nullptr && m_chrome != nullptr)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  QueueNotice
+//
+//  Posts a notice to the window, or keeps it for the end of
+//  InitializeUiShell when the window does not exist yet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::QueueNotice (std::wstring text)
+{
+    if (m_hwnd != nullptr && m_chrome != nullptr)
+    {
+        m_chrome->PostNotice (text);
+    }
+    else
+    {
+        m_pendingNotices.push_back (std::move (text));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  QueueBlockMediaNotices
+//
+//  An image the machine file lists that did not attach, and a card that
+//  could not be installed, each as a notice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::QueueBlockMediaNotices()
+{
+    for (const std::wstring & problem : m_machine.GetBlockMediaProblems())
+    {
+        QueueNotice (problem);
+    }
+
+    for (const SlotConfig & slot : m_machine.GetConfig().slots)
+    {
+        if (!slot.deviceProblem.empty())
         {
-            m_chrome->PostNotice (text);
-        }
-        else
-        {
-            m_pendingNotices.push_back (std::move (text));
+            QueueNotice (std::format (L"Slot {}: {}", slot.slot, TextEncoding::NarrowToWide (slot.deviceProblem)));
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetRunBlockAttachments
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetRunBlockAttachments (
+    const std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment> & hd,
+    const std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment> & smartPort)
+{
+    m_runHdAttachments        = hd;
+    m_runSmartPortAttachments = smartPort;
 }
 
 
