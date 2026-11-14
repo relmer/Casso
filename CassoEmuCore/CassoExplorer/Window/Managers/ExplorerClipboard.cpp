@@ -336,6 +336,15 @@ void ExplorerClipboard::PasteIntoVolume()
         return;
     }
 
+    //  Files with no path, as a ZIP member copied in File Explorer, are
+    //  written to a temporary folder first, as a drop writes them.
+    m_context.dragDrop.RemoveVirtualFiles();
+
+    if (source.isVirtual && !m_context.dragDrop.WriteVirtualFiles (data.Get(), source))
+    {
+        return;
+    }
+
     if (m_context.browser.IsAppleDriveLocation())
     {
         outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
@@ -343,6 +352,7 @@ void ExplorerClipboard::PasteIntoVolume()
 
         m_context.commandManager.ReportOutcome (outcome, L"Put");
         ReportPasted (data.Get(), outcome);
+        m_context.dragDrop.RemoveVirtualFiles();
         return;
     }
 
@@ -351,6 +361,7 @@ void ExplorerClipboard::PasteIntoVolume()
     if (!m_context.browser.GetOperations().List (TextEncoding::WideToNarrow (location.path), inner, listing, targetKind).Succeeded())
     {
         m_context.window.ShowMessage (L"The disk image could not be read.", MB_ICONWARNING);
+        m_context.dragDrop.RemoveVirtualFiles();
         return;
     }
 
@@ -366,6 +377,7 @@ void ExplorerClipboard::PasteIntoVolume()
         ReportPasted (data.Get(), outcome);
     }
 
+    m_context.dragDrop.RemoveVirtualFiles();
     m_context.folderSync.RefreshAfterHostChange();
 }
 

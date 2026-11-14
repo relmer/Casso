@@ -65,6 +65,8 @@ struct ParsedHostName;
 ////////////////////////////////////////////////////////////////////////////////
 
 class IIntentChannel;
+class BlockBuffer;
+class CardVolumeEdit;
 
 
 class DiskCommandRunner
@@ -378,6 +380,10 @@ private:
 
     //  Puts --user on a CP/M name. An error on any other file system.
     HRESULT  ApplyUser (const CommandLineOptions & options, VolumeKind kind, std::string & inOutName, DiskCommandResult & result);
+
+    //  The blocks a change to a card partition's volume touched written to
+    //  the card, or the reason the commit failed set in the result.
+    static HRESULT  CommitCard (const std::string & imagePath, CardVolumeEdit & card, const BlockBuffer & edited, DiskCommandResult & result);
 
     //  The path `get`, `delete` and `boot` act on, and the name used in their
     //  messages: the name as typed, or with --index the entry at that position.

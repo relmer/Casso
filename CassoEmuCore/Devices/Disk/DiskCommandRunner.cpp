@@ -13,6 +13,8 @@
 #include "Machines/Apple2/Common/NativeListing.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Devices/Disk/BlockBuffer.h"
+#include "Devices/Disk/Partitions/CardVolumeEdit.h"
 #include "DiskImageStore.h"
 #include "Core/AppleSingleCodec.h"
 #include "Devices/Disk/Archives/ArchiveVolume.h"
@@ -903,21 +905,33 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
     FilePath                       path;
     std::string                    typed;
     vector<Byte>                   staged;
+    VolumeKind                     kind     = VolumeKind::Unknown;
+    CardVolumeEdit                 card;
+    BlockBuffer                    cardStaged;
+    bool                           isCard   = false;
 
 
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<path>", result));
 
-    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
-    CHR (hr);
+    //  A ProDOS volume on a card partition is changed by the block.
+    isCard = card.TryOpen (m_fileIo, options.disk.imagePath);
 
-    isProDos = opened.kind == VolumeKind::ProDos;
+    if (!isCard)
+    {
+        hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+        CHR (hr);
+    }
+
+    kind = isCard ? VolumeKind::ProDos : opened.kind;
+
+    isProDos = kind == VolumeKind::ProDos;
 
     CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
             result.FailAction (options.disk.imagePath, "create " + options.disk.path,
-                               std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (opened.kind))));
+                               std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (kind))));
 
-    hr = ResolveVolumePath (options, opened.kind, opened.sectors, options.disk.path, typed, result);
+    hr = ResolveVolumePath (options, kind, isCard ? card.GetImage() : BlockImage (opened.sectors), options.disk.path, typed, result);
     CHR (hr);
 
     path   = FilePath::Parse (typed);
@@ -925,13 +939,15 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
 
     for (i = 1; i <= path.GetDepth(); i++)
     {
-        ProDosVolume   step (staged);
-        VolumeListing  listing;
-        std::string    prefix;
-        vector<Byte>   next;
-        HRESULT        probe   = S_OK;
-        size_t         j       = 0;
-        bool           there   = false;
+        std::unique_ptr<ProDosVolume>  over    = !isCard ? std::make_unique<ProDosVolume> (staged) : madeAny ? std::make_unique<ProDosVolume> (BlockImage (cardStaged)) : nullptr;
+        const ProDosVolume           & step    = over != nullptr ? *over : card.GetVolume();
+        VolumeListing                  listing;
+        std::string                    prefix;
+        vector<Byte>                   next;
+        BlockBuffer                    cardNext;
+        HRESULT                        probe   = S_OK;
+        size_t                         j       = 0;
+        bool                           there   = false;
 
         for (j = 0; j < i; j++)
         {
@@ -946,19 +962,20 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
             continue;
         }
 
-        hr = step.CreateDirectory (FilePath::Parse (prefix), next);
+        hr = isCard ? step.CreateDirectory (FilePath::Parse (prefix), cardNext) : step.CreateDirectory (FilePath::Parse (prefix), next);
 
         CHRF (hr, result.FailAction (options.disk.imagePath, "create " + prefix,
-                              ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
+                              ApplyPrefix (DescribeVolumeRefusal (hr, kind))));
 
-        staged  = next;
-        madeAny = true;
+        staged     = next;
+        cardStaged = cardNext;
+        madeAny    = true;
     }
 
     CBRFEx (madeAny, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS),
             result.FailAction (options.disk.imagePath, "create " + options.disk.path, "it is already on this volume"));
 
-    hr = m_session.SaveAndCommit (opened, staged, result);
+    hr = isCard ? CommitCard (options.disk.imagePath, card, cardStaged, result) : m_session.SaveAndCommit (opened, staged, result);
     CHR (hr);
 
 Error:
@@ -1000,25 +1017,42 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
     std::string                    typed;
     std::string                    declined;
     char                           note[128]   = {};
+    bool                           isCard      = false;
+    VolumeKind                     kind        = VolumeKind::Unknown;
+    CardVolumeEdit                 card;
+    BlockBuffer                    cardEdited;
 
 
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<path>", result));
 
-    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
-    CHR (hr);
+    //  A ProDOS volume on a card partition is changed by the block.
+    isCard = card.TryOpen (m_fileIo, options.disk.imagePath);
 
-    isProDos = opened.kind == VolumeKind::ProDos;
+    if (!isCard)
+    {
+        hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+        CHR (hr);
+    }
+
+    kind = isCard ? VolumeKind::ProDos : opened.kind;
+
+    isProDos = kind == VolumeKind::ProDos;
 
     CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
             result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
-                               std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (opened.kind))));
+                               std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (kind))));
 
-    hr = ResolveVolumePath (options, opened.kind, opened.sectors, options.disk.path, typed, result);
+    hr = ResolveVolumePath (options, kind, isCard ? card.GetImage() : BlockImage (opened.sectors), options.disk.path, typed, result);
     CHR (hr);
 
     path = FilePath::Parse (typed);
 
+    if (isCard)
+    {
+        hr = card.GetVolume().BuildRemovalPlan (path, plan);
+    }
+    else
     {
         ProDosVolume  volume (opened.sectors);
 
@@ -1026,7 +1060,7 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
     }
 
     CHRF (hr, result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
-                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
+                          ApplyPrefix (DescribeVolumeRefusal (hr, kind))));
 
     holdsThings = plan.entries.size() > 1;
     permitted   = !holdsThings || options.disk.recurse;
@@ -1062,6 +1096,11 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
     CBRFEx (confirmed, HRESULT_FROM_WIN32 (ERROR_CANCELLED),
             result.Fail (options.disk.imagePath, options.disk.path, ApplyPrefix (declined)));
 
+    if (isCard)
+    {
+        hr = card.GetVolume().RemoveDirectory (path, options.disk.force, cardEdited, outcome);
+    }
+    else
     {
         ProDosVolume  volume (opened.sectors);
 
@@ -1069,9 +1108,9 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
     }
 
     CHRF (hr, result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
-                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
+                          ApplyPrefix (DescribeVolumeRefusal (hr, kind))));
 
-    hr = m_session.SaveAndCommit (opened, edited, result);
+    hr = isCard ? CommitCard (options.disk.imagePath, card, cardEdited, result) : m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
 
     for (const std::string & warning : outcome.warnings)
@@ -2246,6 +2285,31 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::CommitCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::CommitCard (const std::string & imagePath, CardVolumeEdit & card, const BlockBuffer & edited, DiskCommandResult & result)
+{
+    std::string  refusal;
+    HRESULT      hr      = card.Commit (edited, refusal);
+
+
+
+    if (FAILED (hr))
+    {
+        DiskImageSession::RefuseCommit (imagePath, refusal, result);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::RunPut
 //
 //  Placing a file from the host on the disk: read it, convert it if asked, let the
@@ -2275,6 +2339,10 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     vector<Byte>                   edited;
     std::wstring                   importError;
     bool                           imported  = false;
+    bool                           isCard    = false;
+    VolumeKind                     kind      = VolumeKind::Unknown;
+    CardVolumeEdit                 card;
+    BlockBuffer                    cardEdited;
 
 
 
@@ -2283,10 +2351,18 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     hostForm = ApplyHostFileName (effective, parsed);
     diskName = GetOnDiskName (effective);
 
-    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
-    CHR (hr);
+    //  A ProDOS volume on a card partition is changed by the block.
+    isCard = card.TryOpen (m_fileIo, options.disk.imagePath);
 
-    hr = ApplyUser (options, opened.kind, diskName, result);
+    if (!isCard)
+    {
+        hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+        CHR (hr);
+    }
+
+    kind = isCard ? VolumeKind::ProDos : opened.kind;
+
+    hr = ApplyUser (options, kind, diskName, result);
     CHR (hr);
 
     hr = m_fileIo.ReadAllBytes (options.disk.hostFile, hostBytes);
@@ -2299,21 +2375,21 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     imported = hostForm && parsed.converted == ParsedHostName::ConvertedKind::Format
             && options.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim
             && options.disk.typeName.empty() && !options.disk.hasLoadAddress
-            && HostFileNaming::CanImport (parsed.format, opened.kind);
+            && HostFileNaming::CanImport (parsed.format, kind);
 
     if (imported)
     {
         if (options.disk.path.empty())
         {
-            diskName = HostFileNaming::MakeImportName (diskName, parsed.format, opened.kind);
+            diskName = HostFileNaming::MakeImportName (diskName, parsed.format, kind);
         }
 
-        hr = FileFormatTable::Import (parsed.format, opened.kind, hostBytes, payload, importError);
+        hr = FileFormatTable::Import (parsed.format, kind, hostBytes, payload, importError);
         CHRF (hr, result.FailAction (options.disk.imagePath, "write " + diskName, TextEncoding::WideToNarrow (importError)));
     }
     else
     {
-        hr = BuildPutPayload (effective, opened.kind, hostBytes, payload, result);
+        hr = BuildPutPayload (effective, kind, hostBytes, payload, result);
         CHR (hr);
     }
 
@@ -2322,22 +2398,27 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     if (hostForm && parsed.hasType && effective.disk.typeName.empty() && !effective.disk.hasLoadAddress
         && effective.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim)
     {
-        hr = ApplyHostFileType (parsed, opened.kind, payload);
+        hr = ApplyHostFileType (parsed, kind, payload);
         CHRF (hr, result.FailAction (options.disk.imagePath, "write " + diskName, "it has a ProDOS type that DOS 3.3 has no file type for"));
     }
 
     path = FilePath::Parse (diskName);
 
+    if (isCard)
     {
-        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
+        hr = card.GetVolume().Write (path, payload, cardEdited);
+    }
+    else
+    {
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (kind, opened.sectors);
 
         hr = volume->Write (path, payload, edited);
     }
 
     CHRF (hr, result.FailAction (options.disk.imagePath, "write " + diskName,
-                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
+                          ApplyPrefix (DescribeVolumeRefusal (hr, kind))));
 
-    hr = m_session.SaveAndCommit (opened, edited, result);
+    hr = isCard ? CommitCard (options.disk.imagePath, card, cardEdited, result) : m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
 
 Error:
@@ -2373,29 +2454,44 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
     std::string                    name;
     DeleteOutcome                  outcome;
     vector<Byte>                   edited;
+    bool                           isCard  = false;
+    VolumeKind                     kind    = VolumeKind::Unknown;
+    CardVolumeEdit                 card;
+    BlockBuffer                    cardEdited;
 
 
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<name>", result));
 
-    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
-    CHR (hr);
+    //  A ProDOS volume on a card partition is changed by the block.
+    isCard = card.TryOpen (m_fileIo, options.disk.imagePath);
 
-    hr = ResolveEntryPath (options, opened.kind, opened.sectors, path, name, result);
-    CHR (hr);
-
+    if (!isCard)
     {
-        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
+        hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+        CHR (hr);
+    }
 
+    kind = isCard ? VolumeKind::ProDos : opened.kind;
 
+    hr = ResolveEntryPath (options, kind, isCard ? card.GetImage() : BlockImage (opened.sectors), path, name, result);
+    CHR (hr);
+
+    if (isCard)
+    {
+        hr = card.GetVolume().Delete (path, cardEdited, outcome);
+    }
+    else
+    {
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (kind, opened.sectors);
 
         hr = volume->Delete (path, edited, outcome);
     }
 
     CHRF (hr, result.FailAction (options.disk.imagePath, "delete " + name,
-                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
+                          ApplyPrefix (DescribeVolumeRefusal (hr, kind))));
 
-    hr = m_session.SaveAndCommit (opened, edited, result);
+    hr = isCard ? CommitCard (options.disk.imagePath, card, cardEdited, result) : m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
 
     for (const std::string & warning : outcome.warnings)

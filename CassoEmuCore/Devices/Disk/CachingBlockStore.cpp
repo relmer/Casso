@@ -24,6 +24,10 @@ HRESULT CachingBlockStore::ReadBlocks (uint32_t first, uint32_t count, std::span
 
     CBRAEx (inside, E_INVALIDARG);
     CBRAEx (sized,  E_INVALIDARG);
+    BAIL_OUT_IF (count == 0, S_OK);
+
+    hr = LoadChunks (first / kChunkBlocks, (first + count - 1) / kChunkBlocks);
+    CHR (hr);
 
     for (i = 0; i < count; i++)
     {
@@ -127,7 +131,7 @@ HRESULT CachingBlockStore::Commit()
         first = it->first;
         run.clear();
 
-        while (it != m_changed.end() && it->first == first + run.size() / kBlockBytes && run.size() < (size_t) kChunkBlocks * kBlockBytes)
+        while (it != m_changed.end() && it->first == first + run.size() / kBlockBytes && run.size() < (size_t) kRunBlocks * kBlockBytes)
         {
             run.insert (run.end(), it->second.begin(), it->second.end());
             ++it;
@@ -150,6 +154,65 @@ HRESULT CachingBlockStore::Commit()
 Error:
     m_changed.clear();
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CachingBlockStore::LoadChunks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CachingBlockStore::LoadChunks (uint32_t first, uint32_t last)
+{
+    HRESULT            hr    = S_OK;
+    uint32_t           chunk = first;
+    uint32_t           end   = 0;
+    uint32_t           block = 0;
+    uint32_t           count = 0;
+    std::vector<Byte>  bytes;
+
+
+
+    while (chunk <= last)
+    {
+        if (m_chunks.contains (chunk))
+        {
+            chunk++;
+            continue;
+        }
+
+        end = chunk;
+
+        while (end + 1 <= last && !m_chunks.contains (end + 1))
+        {
+            end++;
+        }
+
+        block = chunk * kChunkBlocks;
+        count = std::min ((end - chunk + 1) * kChunkBlocks, GetBlockCount() - block);
+
+        bytes.assign ((size_t) count * kBlockBytes, 0);
+
+        hr = m_inner.ReadBlocks (block, count, bytes);
+        CHR (hr);
+
+        for (uint32_t c = chunk; c <= end; c++)
+        {
+            size_t  offset = (size_t) (c - chunk) * kChunkBlocks * kBlockBytes;
+            size_t  length = std::min ((size_t) kChunkBlocks * kBlockBytes, bytes.size() - offset);
+
+            m_chunks.emplace (c, std::vector<Byte> (bytes.begin() + (ptrdiff_t) offset, bytes.begin() + (ptrdiff_t) (offset + length)));
+        }
+
+        chunk = end + 1;
+    }
+
+Error:
     return hr;
 }
 

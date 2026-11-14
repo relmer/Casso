@@ -529,6 +529,9 @@ void ActionsCopy::AttachAppleDouble (const std::wstring & hostPath, const std::v
 
         CassoExplorerActions::SetTypedPayload (inOutPlan, data, single.hasProDosInfo ? (Byte) single.fileType : finderType, true,
                                                single.hasProDosInfo ? (Word) single.auxType : finderAux, kind == VolumeKind::Dos33);
+
+        //  The type sets the address, so no address prompt follows.
+        inOutPlan.guessedAddress = false;
     }
     else if (!inOutPlan.usePayload)
     {

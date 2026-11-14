@@ -1192,6 +1192,7 @@ public:
         std::string                    written;
         FilePayload                    back;
         CassoExplorerActions::Outcome  outcome;
+        bool                           asked = false;
 
 
 
@@ -1216,8 +1217,9 @@ public:
         Assert::IsTrue  (std::vector<Byte> (written.begin(), written.end()) == sidecar, L"the AppleDouble entry is beside the copy");
 
         host.OpenImage();
-        outcome = host.actions.PutFiles ({ L"C:\\Drop\\NOTES" });
-        Assert::IsTrue (outcome.Succeeded(), outcome.message.c_str());
+        outcome = host.actions.PutFiles ({ L"C:\\Drop\\NOTES" }, [&asked] (const std::wstring &, Word, Word &) { asked = true; return false; });
+        Assert::IsTrue  (outcome.Succeeded(), outcome.message.c_str());
+        Assert::IsFalse (asked, L"a text file is put without a load address question");
 
         AssertSucceeded (Dos33Volume (host.io.files["C:\\Disks\\dos33.dsk"]).Read (FilePath::Parse ("NOTES"), back));
         Assert::AreEqual (Dos33Volume::kTypeText, back.type, L"the Finder type TEXT");

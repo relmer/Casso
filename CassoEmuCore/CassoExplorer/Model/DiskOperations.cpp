@@ -6,6 +6,7 @@
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/BlockVolumeOpener.h"
 #include "Devices/Disk/FilePath.h"
+#include "Devices/Disk/Partitions/CardVolumeEdit.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -270,6 +271,57 @@ DiskOperations::Result DiskOperations::CommitEdit (
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskOperations::TryEditCardVolume
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskOperations::TryEditCardVolume (const std::string & imagePath, const std::string & failure, const CardEditFn & edit, Result & outResult)
+{
+    CardVolumeEdit  card;
+    BlockBuffer     edited;
+    std::string     refusal;
+    HRESULT         hr      = S_OK;
+
+
+
+    if (!card.TryOpen (m_fileIo, imagePath))
+    {
+        return false;
+    }
+
+    outResult = Result();
+    hr        = edit (card.GetVolume(), edited);
+
+    if (FAILED (hr))
+    {
+        outResult.hr      = hr;
+        outResult.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("{}: {}", failure, DescribeVolumeRefusal (hr, VolumeKind::ProDos)));
+        return true;
+    }
+
+    hr = card.Commit (edited, refusal);
+
+    if (FAILED (hr))
+    {
+        outResult.hr      = hr;
+        outResult.message = DiskCommandResult::FormatFailure (imagePath, "", refusal);
+        return true;
+    }
+
+    if (m_intentChannel != nullptr)
+    {
+        m_intentChannel->StateIntent (imagePath, ExternalChangeIntent::ReloadInPlace);
+    }
+
+    return true;
 }
 
 
@@ -888,11 +940,19 @@ DiskOperations::Result DiskOperations::WritePayload (
     const FilePayload  & payload)
 {
     DiskImageSession::OpenedImage  opened;
-    Result                         result = OpenVolume (imagePath, opened);
+    Result                         result;
     HRESULT                        hr     = S_OK;
     std::vector<Byte>              edited;
 
 
+
+    if (TryEditCardVolume (imagePath, std::format ("Unable to write {}", name),
+                           [&] (const ProDosVolume & volume, BlockBuffer & outEdited) { return volume.Write (FilePath::Parse (name), payload, outEdited); }, result))
+    {
+        return result;
+    }
+
+    result = OpenVolume (imagePath, opened);
 
     if (result.Succeeded())
     {
@@ -932,11 +992,19 @@ DiskOperations::Result DiskOperations::Rename (
     size_t               catalogIndex)
 {
     DiskImageSession::OpenedImage  opened;
-    Result                         result = OpenVolume (imagePath, opened);
+    Result                         result;
     HRESULT                        hr     = S_OK;
     std::vector<Byte>              edited;
 
 
+
+    if (TryEditCardVolume (imagePath, std::format ("Unable to rename {} to {}", from, to),
+                           [&] (const ProDosVolume & volume, BlockBuffer & outEdited) { return volume.Rename (MakeEntryPath (VolumeKind::ProDos, from, catalogIndex), to, outEdited); }, result))
+    {
+        return result;
+    }
+
+    result = OpenVolume (imagePath, opened);
 
     if (result.Succeeded())
     {
@@ -976,11 +1044,19 @@ DiskOperations::Result DiskOperations::SetAttributes (
     size_t                  catalogIndex)
 {
     DiskImageSession::OpenedImage  opened;
-    Result                         result = OpenVolume (imagePath, opened);
+    Result                         result;
     HRESULT                        hr     = S_OK;
     std::vector<Byte>              edited;
 
 
+
+    if (TryEditCardVolume (imagePath, std::format ("Unable to change {}", name),
+                           [&] (const ProDosVolume & volume, BlockBuffer & outEdited) { return volume.SetAttributes (MakeEntryPath (VolumeKind::ProDos, name, catalogIndex), attributes, outEdited); }, result))
+    {
+        return result;
+    }
+
+    result = OpenVolume (imagePath, opened);
 
     if (result.Succeeded())
     {
