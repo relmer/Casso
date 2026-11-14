@@ -96,6 +96,9 @@ struct CassoExplorerPrefs
     //  of earlier builds is not read.
     FolderViews            folderViews;
     Placement              placement;
+
+    //  Where the Full Send window was last put: its x and y alone.
+    Placement              fullSendWindow;
     int                    treeWidthDip    = kDefaultTreeWidthDip;
     int                    previewWidthDip = kDefaultPreviewWidthDip;
 

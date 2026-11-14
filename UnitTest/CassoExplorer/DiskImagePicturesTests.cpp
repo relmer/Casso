@@ -154,4 +154,93 @@ public:
             CoUninitialize();
         }
     }
+
+
+
+    //  Remove thumbnail restores the booted picture; Clear removes the
+    //  booted ones, and those the user set only with includeUserSet; a deleted
+    //  image's thumbnail is removed by its key.
+    TEST_METHOD (AThumbnail_IsRemovedClearedAndDeleted)
+    {
+        std::filesystem::path      root    = std::filesystem::temp_directory_path() / std::format (L"CassoPicturesClear{}", ::GetCurrentProcessId());
+        std::filesystem::path      image   = root / L"0001.dsk";
+        std::filesystem::path      other   = root / L"0002.dsk";
+        std::vector<Byte>         booted    = { 0x89, 'P', 'N', 'G', 1 };
+        std::vector<Byte>         byUser    = { 0x89, 'P', 'N', 'G', 2 };
+        std::vector<Byte>         found;
+        ThumbnailRecord           record;
+        bool                      isUserSet = false;
+        std::vector<std::string>  keys;
+
+
+
+        std::filesystem::remove_all (root);
+        std::filesystem::create_directories (root);
+
+        {
+            std::ofstream  out (image, std::ios::binary);
+
+            out << std::string (143360, 'Z');
+        }
+
+        {
+            std::ofstream  out (other, std::ios::binary);
+
+            out << std::string (143360, 'Y');
+        }
+
+        {
+            ThumbnailStore     store (root / L"cache");
+            DiskImagePictures  pictures (store, nullptr);
+
+            AssertSucceeded (store.Store (image, booted, ThumbnailRecord()));
+            AssertSucceeded (store.SetByUser (image, byUser));
+            AssertSucceeded (store.Store (other, booted, ThumbnailRecord()));
+
+            Assert::IsTrue  (pictures.IsUserSet (image.wstring()));
+            Assert::IsFalse (pictures.IsUserSet (other.wstring()));
+            Assert::AreEqual (1, pictures.CountUserSet());
+
+            AssertSucceeded (pictures.RemoveUserSet (image.wstring()));
+            Assert::IsFalse (pictures.IsUserSet (image.wstring()));
+            AssertSucceeded (store.Find (image, found, record, isUserSet));
+            Assert::IsTrue  (found == booted, L"The booted one again");
+
+            AssertSucceeded (store.SetByUser (image, byUser));
+            AssertSucceeded (pictures.Clear (false));
+            Assert::AreEqual (1, pictures.CountUserSet(), L"Not removed without includeUserSet");
+
+            AssertSucceeded (pictures.Clear (true));
+            Assert::AreEqual (0, pictures.CountUserSet());
+
+            std::filesystem::remove (other.wstring() + ThumbnailStore::kStreamName);
+            AssertSucceeded (store.Store (other, booted, ThumbnailRecord()));
+            std::filesystem::remove (other.wstring() + ThumbnailStore::kStreamName);
+
+            keys = pictures.GetKeys ({ other.wstring(), (root / L"missing.dsk").wstring() });
+            Assert::AreEqual ((size_t) 1, keys.size(), L"A key for the file that is there");
+
+            pictures.RemoveDeleted (keys);
+            AssertSucceeded (store.Find (other, found, record, isUserSet));
+            Assert::IsTrue  (found.empty(), L"No thumbnail in the cache or the stream");
+        }
+
+        std::filesystem::remove_all (root);
+    }
+
+
+
+    TEST_METHOD (TheClearQuestion_HasTheCountOfThumbnailsTheUserSet)
+    {
+        std::wstring  none = DiskImagePictures::GetClearQuestion (0);
+        std::wstring  one  = DiskImagePictures::GetClearQuestion (1);
+        std::wstring  many = DiskImagePictures::GetClearQuestion (3);
+
+
+
+        Assert::IsTrue (one.starts_with (none));
+        Assert::IsTrue (one.find (L"1 thumbnail ") != std::wstring::npos);
+        Assert::IsTrue (many.find (L"3 thumbnails ") != std::wstring::npos);
+        Assert::IsTrue (none.find (L"\n") == std::wstring::npos, L"No count with none");
+    }
 };

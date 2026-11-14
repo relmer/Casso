@@ -27,6 +27,7 @@
 #include "CassoExplorer/CassoExplorerCommands.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Seams/IDiskPictures.h"
 
 
 
@@ -832,6 +833,19 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
             m_context.menus.AddMenuCommand (items, L"&Disk properties", [this, path]() { m_context.properties.ShowWozProperties (path, WozPropertiesDialog::kInfoTab); });
             m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
+        }
+
+        //  Remove thumbnail restores the thumbnail made by booting.
+        if (selectedPaths.size() == 1 && m_context.app.pictures != nullptr && m_context.app.pictures->IsUserSet (selectedPaths[0]))
+        {
+            std::wstring  path = selectedPaths[0];
+
+            m_context.menus.AddMenuCommand (items, L"Remove thum&bnail", [this, path]()
+            {
+                HRESULT  removed = m_context.app.pictures->RemoveUserSet (path);
+
+                IGNORE_RETURN_VALUE (removed, S_OK);
+            });
         }
 
         if (m_context.browser.GetSelectedRows().size() > 1 && m_context.browser.IsVolumeLocation())

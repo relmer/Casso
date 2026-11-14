@@ -58,6 +58,10 @@ public:
     //  is next drawn. Whether there were any.
     bool  ForgetMissingPictures ();
 
+    //  Every disk image's picture is loaded again when it is next drawn, as
+    //  after a thumbnail is removed.
+    void  ForgetPictures        ();
+
     //  Home draws a folder's plain icon, and sync marks on its items.
     void  SetPlainFolders (bool plain) { m_plainFolders = plain; }
 

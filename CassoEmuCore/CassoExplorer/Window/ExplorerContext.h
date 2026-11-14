@@ -9,6 +9,7 @@ class CassoExplorerBrowser;
 class CassoExplorerCommands;
 class CassoLinkConnections;
 class CassoLinkManager;
+class GivenNames;
 class IDiskPictures;
 class ExplorerAddressBar;
 class ExplorerCommandManager;
@@ -75,6 +76,7 @@ public:
     FirewallMonitor            * firewall    = nullptr;   // without it, no connection is reported blocked by Windows Firewall
     PhysicalCards              * cards       = nullptr;   // without it, no card can be opened
     IDiskPictures              * pictures    = nullptr;   // without it, a disk image has the floppy icon in every view
+    GivenNames                 * givenNames  = nullptr;   // without it, a renamed image's name isn't stored for its disk's fingerprint
 };
 
 

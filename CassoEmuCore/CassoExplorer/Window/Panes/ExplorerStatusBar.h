@@ -55,6 +55,7 @@ public:
 
 private:
     bool  HandleZoomClick     (const DxuiMouseEvent & ev);
+    bool  HandleSummaryClick  (const DxuiMouseEvent & ev);
     bool  HandleActivityClick (const DxuiMouseEvent & ev);
 
     ExplorerContext  & m_context;

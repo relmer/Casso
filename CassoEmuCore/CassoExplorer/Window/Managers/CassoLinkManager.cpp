@@ -26,6 +26,11 @@
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "Core/AppTimerIds.h"
+#include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoLink/FullSend/FullSendManifest.h"
+#include "CassoExplorer/WozPropertiesDialog.h"
+#include "CassoExplorer/Window/Managers/ExplorerProperties.h"
+#include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 
 
 
@@ -2346,21 +2351,148 @@ void CassoLinkManager::OpenFullSendOnStart()
 
 void CassoLinkManager::ShowFullSendWindow (bool activate)
 {
+    POINT          position = { m_context.prefs.fullSendWindow.x, m_context.prefs.fullSendWindow.y };
+    const POINT  * saved    = m_context.prefs.fullSendWindow.valid ? &position : nullptr;
+
+
+
     if (m_fullSendWindow != nullptr && m_fullSendWindow->IsCreated())
     {
         m_fullSendWindow->ShowModelessDialog (IDCANCEL, activate);
         return;
     }
 
+    m_fullSendFilled = false;
     m_fullSendWindow = FullSendDialog::Open (m_context.window.GetHwnd(), m_context.theme, activate,
-                                             [this] (FullSendPanel::View & ioView) { return FillFullSendView (ioView); },
+                                             [this] (FullSendPanel::View & ioView) { return FillFullSendView (ioView) || FillFromManifest (ioView); },
                                              [this]() { EndFullSend(); },
-                                             [this]()
-    {
-        std::wstring  folder = m_context.prefs.fullSendFolder.empty() ? GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
+                                             [this]() { m_context.addressBar.GoToLocation (Location::MakeHostFolder (GetFullSendFolder())); },
+                                             saved);
 
-        m_context.addressBar.GoToLocation (Location::MakeHostFolder (folder));
+    if (m_fullSendWindow == nullptr)
+    {
+        return;
+    }
+
+    m_fullSendWindow->SetDiskAction ([this] (const std::string & file, FullSendDialog::DiskAction action) { RunFullSendDisk (file, action); });
+    m_fullSendWindow->SetOnMoved ([this] (POINT topLeft)
+    {
+        m_context.prefs.fullSendWindow.x     = topLeft.x;
+        m_context.prefs.fullSendWindow.y     = topLeft.y;
+        m_context.prefs.fullSendWindow.valid = true;
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::GetFullSendFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoLinkManager::GetFullSendFolder() const
+{
+    return m_context.prefs.fullSendFolder.empty() ? GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::IsFullSendRunning
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::IsFullSendRunning()
+{
+    FullSendPanel::View  view;
+
+
+
+    return FillFullSendView (view) && FullSendDialog::IsRunning (view.snapshot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::FillFromManifest
+//
+//  With no session, the window has the disks in the Full Send folder's
+//  manifest, read once while no session runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::FillFromManifest (FullSendPanel::View & ioView)
+{
+    HRESULT            hr     = S_OK;
+    std::string        path   = TextEncoding::WideToNarrow (GetFullSendFolder()) + "\\" + FullSendManifest::kFileName;
+    std::vector<Byte>  bytes;
+    bool               filled = false;
+
+
+
+    BAIL_OUT_IF (m_fullSendFilled, S_OK);
+
+    m_fullSendFilled = true;
+
+    hr = m_context.browser.GetOperations().GetFileIo().ReadAllBytes (path, bytes);
+    CHR (hr);
+
+    filled = FullSendPanel::MakeManifestView (bytes, ioView.snapshot);
+
+    ioView.connection.clear();
+    ioView.machine.clear();
+
+Error:
+    return filled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::RunFullSendDisk
+//
+//  The image is selected in the Full Send folder, then opened, inspected, or
+//  opened in Disk properties, as from its menu there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::RunFullSendDisk (const std::string & file, FullSendDialog::DiskAction action)
+{
+    std::wstring  folder   = GetFullSendFolder();
+    std::wstring  name     = TextEncoding::NarrowToWide (file);
+    bool          selected = false;
+
+
+
+    m_context.addressBar.GoToLocation (Location::MakeHostFolder (folder));
+    m_context.listPane.FillList();
+
+    selected = m_context.listPane.SelectRowNamed (name);
+
+    if (!selected)
+    {
+        return;
+    }
+
+    switch (action)
+    {
+        case FullSendDialog::DiskAction::Open:       m_context.opener.OpenSelectedEntries();                                                         break;
+        case FullSendDialog::DiskAction::Inspect:    m_context.opener.InspectSelected();                                                             break;
+        case FullSendDialog::DiskAction::Properties: m_context.properties.ShowWozProperties ((std::filesystem::path (folder) / name).wstring(), WozPropertiesDialog::kInfoTab); break;
+        default:                                                                                                                                     break;
+    }
 }
 
 

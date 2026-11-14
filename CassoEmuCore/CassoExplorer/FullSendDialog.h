@@ -78,10 +78,31 @@ public:
     //  Seconds as 1:05, or 1:02:05 from an hour.
     static std::wstring  FormatSeconds    (double seconds);
 
+    //  The activity lines as text, each after its time, one to a line.
+    static std::wstring  FormatActivity   (const FullSendSnapshot & snapshot);
+
+    //  A folder's manifest as the disks done, newest first, for the window
+    //  with no session. False for bytes that aren't a manifest.
+    static bool          MakeManifestView (std::span<const Byte> manifest, FullSendSnapshot & outSnapshot);
+
     void  SetView    (View view);
 
     //  The tip a map cell under the pointer has.
     void  SetTooltip (DxuiTooltip * tooltip) { m_tooltip = tooltip; }
+
+    //  A double-click on a disk's row, by its file; and a right-click on a
+    //  disk's row or on the activity list, by the row's file or an empty one
+    //  for the list, at the point clicked.
+    using DiskFn = std::function<void (const std::string & file)>;
+    using MenuFn = std::function<void (const std::string & file, POINT pointPx)>;
+
+    void  SetOnOpenDisk (DiskFn open) { m_onOpen = std::move (open); }
+    void  SetOnMenu     (MenuFn menu) { m_onMenu = std::move (menu); }
+
+    //  The file of the disk's row under a point, as last painted; false for
+    //  none, or for a duplicate's row, which has no image.
+    bool  TryGetDiskAt   (POINT pointPx, std::string & outFile) const;
+    bool  IsOverActivity (POINT pointPx) const;
 
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
@@ -105,11 +126,25 @@ private:
     };
 
     void   AddCell       (float left, float top, float width, float height, int number, int position) const;
+    bool   HandleClick   (const DxuiMouseEvent & ev);
+
+    //  A disk's row as it was last painted.
+    struct Row
+    {
+        RECT         bounds = {};
+        std::string  file;
+    };
 
     View                       m_view;
     DxuiDpiScaler              m_scaler;
-    DxuiTooltip              * m_tooltip = nullptr;
+    DxuiTooltip              * m_tooltip     = nullptr;
     mutable std::vector<Cell>  m_cells;
+    mutable std::vector<Row>   m_rows;
+    mutable RECT               m_activity    = {};
+    DiskFn                     m_onOpen;
+    MenuFn                     m_onMenu;
+    std::string                m_lastClicked;
+    int64_t                    m_lastClickMs = 0;
 };
 
 
@@ -140,6 +175,13 @@ public:
     using SnapshotFn = std::function<bool (FullSendPanel::View & outView)>;
     using ActionFn   = std::function<void()>;
 
+    //  The actions on a disk's row: a double-click selects its image in the
+    //  folder, and its menu has Open, Inspect disk image and Disk properties.
+    enum class DiskAction { Select, Open, Inspect, Properties };
+
+    using DiskActionFn = std::function<void (const std::string & file, DiskAction action)>;
+    using MovedFn      = std::function<void (POINT topLeftPx)>;
+
     //  The snapshot function returns false when no connection has a session
     //  to draw, and the view it was given is drawn as it is.
     void  Configure (const IDxuiTheme * theme, SnapshotFn snapshot, ActionFn endSession, ActionFn openFolder);
@@ -147,22 +189,39 @@ public:
     //  Whether a session is in progress, so End session applies.
     static bool  IsRunning (const FullSendSnapshot & snapshot);
 
-    static std::unique_ptr<FullSendDialog>  Open (HWND owner, const IDxuiTheme * theme, bool activate, SnapshotFn snapshot, ActionFn endSession, ActionFn openFolder);
+    //  At position, the window's top left on the screen, when it is on a
+    //  monitor; centered on the owner otherwise.
+    static std::unique_ptr<FullSendDialog>  Open (HWND owner, const IDxuiTheme * theme, bool activate, SnapshotFn snapshot, ActionFn endSession, ActionFn openFolder,
+                                                  const POINT * position = nullptr);
+
+    void  SetDiskAction (DiskActionFn action) { m_diskAction = std::move (action); }
+    void  SetOnMoved    (MovedFn moved)       { m_onMoved = std::move (moved); }
+
+    //  The menu of a disk's row, or of the activity list for an empty file.
+    std::vector<DxuiPopupMenuItem>  MakeMenu (const std::string & file);
+
+    FullSendPanel  * GetPanel () const { return m_panel; }
 
 protected:
     void  OnCreate     () override;
     void  OnDialogTick () override;
 
 private:
-    void  Refresh ();
+    void  Refresh      ();
+    void  NoteMoved    ();
+    void  AddCommand   (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch);
 
-    const IDxuiTheme  * m_theme     = nullptr;
-    SnapshotFn          m_snapshot;
-    ActionFn            m_endSession;
-    ActionFn            m_openFolder;
-    FullSendPanel::View m_view;
-    FullSendPanel     * m_panel     = nullptr;
-    DxuiButton        * m_endButton = nullptr;
-    DxuiTooltip         m_tooltip;
-    UINT                m_ticks     = 0;
+    const IDxuiTheme                           * m_theme        = nullptr;
+    SnapshotFn                                   m_snapshot;
+    ActionFn                                     m_endSession;
+    ActionFn                                     m_openFolder;
+    FullSendPanel::View                          m_view;
+    FullSendPanel                              * m_panel        = nullptr;
+    DxuiButton                                 * m_endButton    = nullptr;
+    DxuiTooltip                                  m_tooltip;
+    UINT                                         m_ticks        = 0;
+    DiskActionFn                                 m_diskAction;
+    MovedFn                                      m_onMoved;
+    POINT                                        m_lastTopLeft  = { LONG_MIN, LONG_MIN };
+    std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;   // the open menu's commands
 };

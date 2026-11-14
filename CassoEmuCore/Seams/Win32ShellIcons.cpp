@@ -296,6 +296,23 @@ bool Win32ShellIcons::ForgetMissingPictures()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellIcons::ForgetPictures
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellIcons::ForgetPictures()
+{
+    std::erase_if (m_cache, [] (const auto & entry) { return entry.first.find (L"|*disk:") != std::wstring::npos; });
+
+    m_lastThumbnails.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellIcons::HasThumbnail
 //
 //  Whether the shell has a thumbnail provider for the type, as it has for

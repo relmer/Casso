@@ -655,6 +655,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_SALVAGE2: return m_disks->IsSalvageOffered (1);
             case IDM_DISK_INSPECT1: return m_disks->GetManager()->HasSlot6Controller();
             case IDM_DISK_INSPECT2: return m_disks->GetManager()->HasSlot6Controller() && m_disks->ShouldShowExternalDrive();
+            case IDM_DISK_THUMBNAIL1: return !m_disks->GetMountedImagePath (0).empty();
+            case IDM_DISK_THUMBNAIL2: return m_disks->ShouldShowExternalDrive() && !m_disks->GetMountedImagePath (1).empty();
             case IDM_STORAGE_DRIVE2:   return m_disks->IsSecondDriveOffered();
             case IDM_STORAGE_RECORDER: return m_tapeDeck->MachineHasCassettePort();
             case IDM_DISK_INSERT2:     return m_disks->ShouldShowExternalDrive();

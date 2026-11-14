@@ -309,6 +309,18 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         " after it is one of its Issues, tab-separated: the track, the category, the sector, the cell and the finding. A field"
         " the finding doesn't have is a hyphen.",
         "CassoCli disk inspect Capture.woz"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::Thumbnail,
+        "thumbnail",
+        "Set, remove, or save a disk image's thumbnail",
+        "CassoCli disk thumbnail <image> [<picture>] [%Lremove] [%Lout <file>]",
+        "  %Lremove                Remove the thumbnail the user set, so the image has the one made by booting it\n"
+        "  %Lout <file>            Write the image's thumbnail to <file> as a PNG\n",
+        "A <picture> in PNG, JPEG, BMP, GIF, or TIFF becomes the image's thumbnail in Casso Explorer, marked as set by the user,"
+        " in place of the one made by booting the image. Use one of <picture>, %Lremove, and %Lout.",
+        "CassoCli disk thumbnail Archon.woz title.png"
     },};
 
 

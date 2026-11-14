@@ -3,9 +3,13 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellWindow.h"
 #include "Ui/DiskInspector/DiskInspectorWindow.h"
+#include "Ui/Chrome/ChromeMetrics.h"
+#include "Devices/Disk/DiskThumbnailCommand.h"
+#include "DiskCheck/ThumbnailStore.h"
 
 
 
@@ -32,6 +36,45 @@ void EmulatorShell::OpenDiskInspector (int drive)
 
 
     ShowDiskInspector (drive, activate);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetDiskThumbnail
+//
+//  The frame last drawn, as Casso Explorer draws it in place of the image's
+//  icon and in its preview.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDiskThumbnail (int drive)
+{
+    static constexpr int  kWidth  = ChromeMetrics::kFramebufferWidthPx;
+    static constexpr int  kHeight = ChromeMetrics::kFramebufferHeightPx;
+
+
+
+    HRESULT            hr       = S_OK;
+    std::wstring       image    = m_disks->GetMountedImagePath (drive);
+    const uint32_t   * pixels   = m_renderer->GetUiFramebufferPixels();
+    bool               hasImage = !image.empty();
+    bool               hasFrame = pixels != nullptr;
+    ThumbnailStore     store (ThumbnailStore::GetDefaultFolder());
+
+
+
+    CBR (hasImage);
+    CBR (hasFrame);
+
+    hr = DiskThumbnailCommand::SetFromScreen (store, image, std::span<const uint32_t> (pixels, (size_t) kWidth * kHeight), kWidth, kHeight);
+    CHRF (hr, DxuiMessageBox (m_hwnd, &m_chrome->GetTheme(), L"The thumbnail couldn't be saved.", L"Make the screen the disk's thumbnail", MB_OK | MB_ICONWARNING));
+
+Error:
+    return;
 }
 
 

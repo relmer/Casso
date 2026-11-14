@@ -29,6 +29,7 @@
 #include "CassoExplorer/WozPropertiesDialog.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Seams/IDiskPictures.h"
 
 
 
@@ -913,6 +914,12 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         m_context.menus.AddOpenRows (items, location, false);
     }
 
+    //  The Full Send folder's row under CassoLink opens the Full Send window.
+    if (hasLocation && TreeModel::StripLinkCopy (id).starts_with (TreeModel::kAdtProId) && _wcsicmp (location.path.c_str(), m_context.cassoLinkManager.GetFullSendFolder().c_str()) == 0)
+    {
+        m_context.menus.AddMenuCommand (items, L"Full Send &status", [this]() { m_context.cassoLinkManager.ShowFullSendWindow (true); });
+    }
+
     //  A storage card is erased and given an Apple layout. It doesn't have a
     //  disk image's commands.
     //  A drive letter on a storage card can be initialized too, as a card
@@ -982,6 +989,16 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         {
             m_context.menus.AddMenuCommand (items, L"&Disk properties", [this, image]() { m_context.properties.ShowWozProperties (image, WozPropertiesDialog::kInfoTab); });
             m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
+        }
+
+        if (m_context.app.pictures != nullptr && m_context.app.pictures->IsUserSet (image))
+        {
+            m_context.menus.AddMenuCommand (items, L"Remove thum&bnail", [this, image]()
+            {
+                HRESULT  removed = m_context.app.pictures->RemoveUserSet (image);
+
+                IGNORE_RETURN_VALUE (removed, S_OK);
+            });
         }
     }
 

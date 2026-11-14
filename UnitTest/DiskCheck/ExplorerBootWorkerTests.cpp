@@ -4,7 +4,10 @@
 #include "../EmuTests/GuestSession.h"
 #include "../EmuTests/TestMachine.h"
 #include "CassoExplorer/ExplorerBootWorker.h"
+#include "CassoLink/FullSend/FullSendManifestFile.h"
 #include "Core/TextEncoding.h"
+#include "DiskCheck/GivenNames.h"
+#include "Seams/Win32DiskFileIo.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -114,6 +117,78 @@ public:
             Assert::IsFalse (png.empty(), L"The thumbnail is stored");
             Assert::AreEqual (std::string ("booted"), record.verdict);
         }
+
+        std::filesystem::remove_all (root);
+    }
+
+    TEST_METHOD (ANumberedName_TakesAGivenNameAsWritten)
+    {
+        Assert::AreEqual (std::string ("0031 Archon (side A).woz"), ExplorerBootWorker::MakeNumberedName ("0031.woz", "Archon (side A)"));
+        Assert::AreEqual (std::string ("0031 AC DC.dsk"), ExplorerBootWorker::MakeNumberedName ("0031.dsk", "AC/DC"));
+        Assert::IsTrue (ExplorerBootWorker::MakeNumberedName ("0031 Archon.woz", "Archon").empty(), L"A name that isn't a number alone");
+    }
+
+    //  A raw capture saved as a number, whose disk's fingerprint has the
+    //  user's name for an earlier capture, is renamed to its number and that
+    //  name, in the folder and in its manifest row.
+    TEST_METHOD (ARawCapture_TakesTheNameGivenToItsFingerprint)
+    {
+        std::filesystem::path       root        = std::filesystem::temp_directory_path() / std::format (L"CassoBootGiven{}", ::GetCurrentProcessId());
+        std::filesystem::path       image       = root / L"0031.dsk";
+        std::string                 fingerprint = std::string (64, 'a');
+        std::vector<Byte>           master      = GuestSession::RequireDos33Master();
+        FullSendManifest            manifest;
+        FullSendRow                 row;
+        std::vector<Byte>           text;
+        Win32DiskFileIo             io;
+        ExplorerBootWorker::Result  result;
+        std::string                 found;
+        bool                        isRaw       = false;
+
+
+
+        std::filesystem::remove_all (root);
+        std::filesystem::create_directories (root);
+
+        {
+            std::ofstream  out (image, std::ios::binary);
+
+            out.write ((const char *) master.data(), (std::streamsize) master.size());
+        }
+
+        row.sequence    = 31;
+        row.file        = "0031.dsk";
+        row.fingerprint = fingerprint;
+        row.hash        = std::string (64, 'b');
+        row.time        = "2026-11-14T10:00:00";
+        row.status      = FullSendManifest::kStatusRawCapture;
+        manifest.Add (row);
+        text = manifest.Format();
+
+        {
+            std::ofstream  out (root / FullSendManifest::kFileName, std::ios::binary);
+
+            out.write ((const char *) text.data(), (std::streamsize) text.size());
+        }
+
+        {
+            ThumbnailStore      store (root / L"cache");
+            GivenNames          given (root / L"cache");
+            ExplorerBootWorker  worker (store, BuildFromFixtures);
+
+            AssertSucceeded (given.Set (fingerprint, "Archon"));
+
+            worker.SetManifestIo (&io);
+            worker.SetGivenNames (&given);
+
+            result = worker.Check (image.wstring(), "Apple //e enhanced");
+        }
+
+        Assert::AreEqual (std::string ("0031.dsk"), result.renamedFrom);
+        Assert::IsTrue (std::filesystem::exists (root / L"0031 Archon.dsk"), L"Renamed in the folder");
+
+        AssertSucceeded (FullSendManifestFile::FindFingerprint (io, root.string(), "0031 Archon.dsk", found, isRaw));
+        Assert::AreEqual (fingerprint, found, L"Renamed in the manifest");
 
         std::filesystem::remove_all (root);
     }

@@ -14,6 +14,7 @@
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoExplorer/Model/CassoExplorerSession.h"
 #include "Config/Win32FileSystem.h"
+#include "DiskCheck/GivenNames.h"
 #include "Devices/Disk/Win32ImageWatcher.h"
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32DiskFileIo.h"
@@ -253,6 +254,7 @@ private:
     CassoLinkFolder                           m_linkFolder;
     CassoLinkConnections                      m_links;
     ThumbnailStore                            m_thumbnails     { ThumbnailStore::GetDefaultFolder() };
+    GivenNames                                m_givenNames     { ThumbnailStore::GetDefaultFolder() };
     std::unique_ptr<ExplorerBootWorker>       m_bootWorker;
     std::vector<Byte>                         m_bootedSound;     // each as a WAV file, computed once
     std::vector<Byte>                         m_notBootedSound;

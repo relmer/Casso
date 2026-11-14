@@ -47,7 +47,7 @@ void ExplorerStatusBar::Create()
 
     m_context.window.SetMouseHandler (m_status, [this] (const DxuiMouseEvent & ev)
     {
-        return HandleZoomClick (ev) || HandleActivityClick (ev) || m_status->OnMouse (ev);
+        return HandleZoomClick (ev) || HandleSummaryClick (ev) || HandleActivityClick (ev) || m_status->OnMouse (ev);
     });
 
     m_status->SetDividers (false);
@@ -93,6 +93,31 @@ bool ExplorerStatusBar::HandleZoomClick (const DxuiMouseEvent & ev)
     }
 
     m_context.commandManager.Dispatch (CassoExplorerCommands::kZoomReset);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerStatusBar::HandleSummaryClick
+//
+//  A Full Send's line opens the Full Send window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerStatusBar::HandleSummaryClick (const DxuiMouseEvent & ev)
+{
+    if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left
+        || !ExplorerLayout::Contains (m_status->GetFieldRect (kStatusDetail), ev.positionDip) || !m_context.cassoLinkManager.IsFullSendRunning())
+    {
+        return false;
+    }
+
+    m_context.cassoLinkManager.ShowFullSendWindow (true);
 
     return true;
 }

@@ -224,6 +224,10 @@ public:
     // The disk inspector for a drive: created on first use, then shown and
     // pointed at that drive.
     void OpenDiskInspector (int drive);
+
+    // The screen as it is now, as the thumbnail of the drive's image, marked
+    // as set by the user.
+    void SetDiskThumbnail (int drive);
 private:
 
     //  The shell the EHM notification sink forwards to. One per process; set

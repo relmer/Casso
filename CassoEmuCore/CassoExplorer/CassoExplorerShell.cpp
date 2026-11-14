@@ -142,6 +142,7 @@ void CassoExplorerShell::StartBootWorker()
     m_bootWorker     = std::make_unique<ExplorerBootWorker> (m_thumbnails, BootCheck::BuildInstalled);
 
     m_bootWorker->SetManifestIo (&m_fileIo);
+    m_bootWorker->SetGivenNames (&m_givenNames);
     m_bootWorker->SetDone ([this] (const ExplorerBootWorker::Result & result)
     {
         std::string  file = TextEncoding::WideToNarrow (std::filesystem::path (result.path).filename().wstring());
@@ -1131,6 +1132,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     context.firewall    = &m_firewall;
     context.cards       = &m_cards;
     context.pictures    = &m_pictures;
+    context.givenNames  = &m_givenNames;
 
     slot->window = std::make_unique<CassoExplorerWindow> (*slot->browser, *slot->actions, m_prefs, std::move (context));
 

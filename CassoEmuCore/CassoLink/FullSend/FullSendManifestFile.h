@@ -44,6 +44,10 @@ public:
     static HRESULT  NoteDelete  (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, FullSendRemoval & outRemoval);
     static HRESULT  NoteRestore (IDiskFileIo & fileIo, const std::string & folder, const FullSendRemoval & removal);
 
+    //  The fingerprint of the row of a file in `folder`, and whether the row
+    //  is a raw capture's. Empty with no manifest or no row for the file.
+    static HRESULT  FindFingerprint (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, std::string & outFingerprint, bool & outIsRawCapture);
+
 private:
     static HRESULT  Read  (IDiskFileIo & fileIo, const std::string & path, FullSendManifest & outManifest, bool & outExists);
     static HRESULT  Write (IDiskFileIo & fileIo, const std::string & path, const FullSendManifest & manifest);

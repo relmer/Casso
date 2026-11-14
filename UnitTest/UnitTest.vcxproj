@@ -433,6 +433,8 @@
     <ClCompile Include="CassoLink\CassoLinkTraceTests.cpp" />
     <ClCompile Include="CassoLink\FullSendTests.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStoreTests.cpp" />
+    <ClCompile Include="DiskCheck\GivenNamesTests.cpp" />
+    <ClCompile Include="DiskCheck\DiskThumbnailCommandTests.cpp" />
     <ClCompile Include="DiskCheck\BootCheckTests.cpp" />
     <ClCompile Include="DiskCheck\ExplorerBootWorkerTests.cpp" />
     <ClCompile Include="CassoExplorer\DiskImagePicturesTests.cpp" />
@@ -537,6 +539,7 @@
     <ClInclude Include="CassoExplorer\FakeRecycleBin.h" />
     <ClInclude Include="CassoExplorer\RecordingExplorerServices.h" />
     <ClInclude Include="CassoExplorer\FakeFolderWatcher.h" />
+    <ClInclude Include="CassoExplorer\FakeDiskPictures.h" />
     <ClCompile Include="CassoExplorer\CassoTargetingTests.cpp" />
     <ClCompile Include="CassoExplorer\DragPayloadTests.cpp" />
     <ClCompile Include="UiTests\IntentReplyTests.cpp" />

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/FullSendDialog.h"
+#include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/TextEncoding.h"
 
 
@@ -203,6 +204,11 @@ bool FullSendPanel::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+    if (HandleClick (ev))
+    {
+        return true;
+    }
+
     if (m_tooltip == nullptr)
     {
         return false;
@@ -223,6 +229,151 @@ bool FullSendPanel::OnMouse (const DxuiMouseEvent & ev)
     m_tooltip->RequestHide (now);
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::HandleClick
+//
+//  A second press on a disk's row within the double-click time opens it; a
+//  right press on a row or on the activity list opens its menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::HandleClick (const DxuiMouseEvent & ev)
+{
+    int64_t      now     = (int64_t) GetTickCount64();
+    POINT        pt      = { ev.positionDip.x, ev.positionDip.y };
+    std::string  file;
+    bool         onRow   = TryGetDiskAt (pt, file);
+    bool         handled = false;
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Down)
+    {
+        return false;
+    }
+
+    if (ev.button == DxuiMouseButton::Left && onRow)
+    {
+        handled = file == m_lastClicked && now - m_lastClickMs <= (int64_t) GetDoubleClickTime();
+
+        m_lastClicked = handled ? std::string() : file;
+        m_lastClickMs = now;
+
+        if (handled && m_onOpen)
+        {
+            m_onOpen (file);
+        }
+    }
+    else if (ev.button == DxuiMouseButton::Right && (onRow || IsOverActivity (pt)) && m_onMenu)
+    {
+        m_onMenu (onRow ? file : std::string(), pt);
+        handled = true;
+    }
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::TryGetDiskAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::TryGetDiskAt (POINT pointPx, std::string & outFile) const
+{
+    auto  found = std::find_if (m_rows.begin(), m_rows.end(), [pointPx] (const Row & row) { return PtInRect (&row.bounds, pointPx) != FALSE; });
+
+
+
+    outFile = (found != m_rows.end()) ? found->file : std::string();
+
+    return found != m_rows.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::IsOverActivity
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::IsOverActivity (POINT pointPx) const
+{
+    return PtInRect (&m_activity, pointPx) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::FormatActivity
+//
+//  Every line of the session, not only those the list has room for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FullSendPanel::FormatActivity (const FullSendSnapshot & snapshot)
+{
+    std::wstring  text;
+
+
+
+    for (const auto & line : snapshot.lines)
+    {
+        text += TextEncoding::NarrowToWide (line.time) + L"  " + TextEncoding::NarrowToWide (line.text) + L"\r\n";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::MakeManifestView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::MakeManifestView (std::span<const Byte> manifest, FullSendSnapshot & outSnapshot)
+{
+    HRESULT           hr     = S_OK;
+    FullSendManifest  parsed;
+
+
+
+    outSnapshot = FullSendSnapshot();
+
+    hr = parsed.Parse (manifest);
+    CHR (hr);
+
+    for (auto row = parsed.GetRows().rbegin(); row != parsed.GetRows().rend(); row++)
+    {
+        FullSendDoneDisk  disk;
+
+        disk.row = *row;
+        outSnapshot.disks.push_back (std::move (disk));
+    }
+
+Error:
+    return SUCCEEDED (hr);
 }
 
 
@@ -525,6 +676,8 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     }
 
     m_cells.clear();
+    m_rows.clear();
+    m_activity = {};
 
     DrawLine (text, DescribeActivity (m_view.snapshot, m_view.machine), left, top, width, theme.Foreground(), true);
 
@@ -741,7 +894,12 @@ float FullSendPanel::PaintDisks (IDxuiTextRenderer & text, const IDxuiTheme & th
             DrawLine (text, name, left + number, top, file, theme.Foreground());
             DrawLine (text, TextEncoding::NarrowToWide (disk.fileSystem), left + number + file, top, system, theme.ForegroundMuted());
             DrawLine (text, DescribeStatus (disk.row), left + number + file + system, top, status, theme.ForegroundMuted());
-            DrawLine (text, FormatSeconds (disk.seconds), left + width - took, top, took, theme.ForegroundMuted(), false, DxuiTextHAlign::Right);
+            DrawLine (text, (disk.seconds > 0.0) ? FormatSeconds (disk.seconds) : std::wstring(), left + width - took, top, took, theme.ForegroundMuted(), false, DxuiTextHAlign::Right);
+
+            if (!disk.row.file.empty())
+            {
+                m_rows.push_back ({ RECT { (LONG) left, (LONG) top, (LONG) (left + width), (LONG) (top + lineH) }, disk.row.file });
+            }
         }
 
         top += lineH;
@@ -781,6 +939,8 @@ float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme &
 
     DrawLine (text, L"Activity", left, top, width, theme.HeadingForeground(), true);
     top += m_scaler.ToPxf (kHeadingDip);
+
+    m_activity = RECT { (LONG) left, (LONG) top, (LONG) (left + width), (LONG) (top + lineH * kActivityRows) };
 
     while (first > 0)
     {
@@ -881,6 +1041,17 @@ void FullSendDialog::OnCreate()
     }
 
     m_panel->SetTooltip (&m_tooltip);
+    m_panel->SetOnOpenDisk ([this] (const std::string & file)
+    {
+        if (m_diskAction)
+        {
+            m_diskAction (file, DiskAction::Select);
+        }
+    });
+    m_panel->SetOnMenu ([this] (const std::string & file, POINT pointPx)
+    {
+        DxuiContextMenu::Show (*GetPopupHost(), pointPx.x, pointPx.y, MakeMenu (file));
+    });
     m_endButton = AddDialogButton (L"End session", kEndId);
     folder      = AddDialogButton (L"Open folder", kFolderId);
 
@@ -921,11 +1092,109 @@ void FullSendDialog::OnCreate()
 void FullSendDialog::OnDialogTick()
 {
     m_tooltip.Tick ((int64_t) GetTickCount64());
+    NoteMoved();
 
     if (m_ticks++ % (kTickMs / kTipTickMs) == 0)
     {
         Refresh();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDialog::AddCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendDialog::AddCommand (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch)
+{
+    std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+
+
+    command->label    = label;
+    command->dispatch = std::move (dispatch);
+
+    items.push_back (DxuiPopupMenuItem::ForCommand (command));
+    m_menuCommands.push_back (std::move (command));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDialog::MakeMenu
+//
+//  A disk's row has Open, Inspect disk image and, for a WOZ image, Disk
+//  properties, as the image's menu in the folder has them. The activity
+//  list has Copy, which copies every line of the session.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> FullSendDialog::MakeMenu (const std::string & file)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+    std::filesystem::path           name = file;
+
+
+
+    m_menuCommands.clear();
+
+    if (file.empty())
+    {
+        AddCommand (items, L"&Copy", [this]() { DxuiClipboard::SetText (GetHwnd(), FullSendPanel::FormatActivity (m_view.snapshot)); });
+        return items;
+    }
+
+    AddCommand (items, L"&Open",               [this, file]() { if (m_diskAction) { m_diskAction (file, DiskAction::Open); } });
+    AddCommand (items, L"&Inspect disk image", [this, file]() { if (m_diskAction) { m_diskAction (file, DiskAction::Inspect); } });
+
+    if (_wcsicmp (name.extension().c_str(), L".woz") == 0)
+    {
+        AddCommand (items, L"&Disk properties", [this, file]() { if (m_diskAction) { m_diskAction (file, DiskAction::Properties); } });
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDialog::NoteMoved
+//
+//  The window's top left, passed on each time it changes, so it opens there
+//  the next time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendDialog::NoteMoved()
+{
+    RECT  frame   = {};
+    BOOL  hasRect = (GetHwnd() != nullptr) ? GetWindowRect (GetHwnd(), &frame) : FALSE;
+    POINT topLeft = { frame.left, frame.top };
+
+
+
+    if (!hasRect || !m_onMoved || (topLeft.x == m_lastTopLeft.x && topLeft.y == m_lastTopLeft.y))
+    {
+        return;
+    }
+
+    if (m_lastTopLeft.x != LONG_MIN)
+    {
+        m_onMoved (topLeft);
+    }
+
+    m_lastTopLeft = topLeft;
 }
 
 
@@ -966,11 +1235,13 @@ void FullSendDialog::Refresh()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<FullSendDialog> FullSendDialog::Open (HWND owner, const IDxuiTheme * theme, bool activate, SnapshotFn snapshot, ActionFn endSession, ActionFn openFolder)
+std::unique_ptr<FullSendDialog> FullSendDialog::Open (HWND owner, const IDxuiTheme * theme, bool activate, SnapshotFn snapshot, ActionFn endSession, ActionFn openFolder,
+                                                      const POINT * position)
 {
-    HRESULT                          hr     = S_OK;
-    std::unique_ptr<FullSendDialog>  dialog = std::make_unique<FullSendDialog>();
+    HRESULT                          hr       = S_OK;
+    std::unique_ptr<FullSendDialog>  dialog   = std::make_unique<FullSendDialog>();
     DxuiWindow::CreateParams         params;
+    bool                             isPlaced = position != nullptr && MonitorFromPoint (*position, MONITOR_DEFAULTTONULL) != nullptr;
 
 
 
@@ -991,6 +1262,12 @@ std::unique_ptr<FullSendDialog> FullSendDialog::Open (HWND owner, const IDxuiThe
     CHRA (hr);
 
     dialog->SetTheme (theme);
+
+    if (isPlaced)
+    {
+        SetWindowPos (dialog->GetHwnd(), nullptr, position->x, position->y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+
     dialog->ShowModelessDialog (IDCANCEL, activate);
 
 Error:

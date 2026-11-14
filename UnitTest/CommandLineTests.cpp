@@ -3017,6 +3017,7 @@ namespace CommandLineTests
                 { "dupes",       CommandLineOptions::DiskOptions::Command::Dupes       },
                 { "search",      CommandLineOptions::DiskOptions::Command::Search      },
                 { "inspect",     CommandLineOptions::DiskOptions::Command::Inspect     },
+                { "thumbnail",   CommandLineOptions::DiskOptions::Command::Thumbnail   },
             };
 
             for (const auto & form : kSpellings)
@@ -3047,7 +3048,7 @@ namespace CommandLineTests
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
             }
 
-            Assert::AreEqual (size_t (30), CommandLineParser::GetAllDiskCommands().size(),
+            Assert::AreEqual (size_t (31), CommandLineParser::GetAllDiskCommands().size(),
                 L"and the table holds exactly the forms swept above");
         }
 

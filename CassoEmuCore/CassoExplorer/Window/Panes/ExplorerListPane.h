@@ -120,7 +120,7 @@ public:
 
     void  HandleShellListed           (const std::wstring & key);
     void  HandleIconsLoaded           ();
-    void  HandlePicturesReady         ();
+    void  HandlePicturesReady         (WPARAM wParam);
     void  HandleContentDetailsArrived ();
     bool  HandleMessageMouse          (const DxuiMouseEvent & ev);
     bool  HandleCharKey               (const DxuiKeyEvent & ev);

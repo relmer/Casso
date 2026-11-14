@@ -33,8 +33,19 @@ public:
     void  AddTarget    (HWND hwnd, UINT message) override;
     void  RemoveTarget (HWND hwnd) override;
 
+    bool                      IsUserSet     (const std::wstring & path) override;
+    HRESULT                   RemoveUserSet (const std::wstring & path) override;
+    std::vector<std::string>  GetKeys       (const std::vector<std::wstring> & paths) override;
+    void                      RemoveDeleted (const std::vector<std::string> & keys) override;
+    int                       CountUserSet  () override;
+    HRESULT                   Clear         (bool includeUserSet) override;
+
     //  Posts each target its message.
-    void  NotifyReady  ();
+    void  NotifyReady  (WPARAM wParam = 0);
+
+    //  The text of Clear thumbnails' confirmation, with the count of
+    //  thumbnails the user set.
+    static std::wstring  GetClearQuestion (int userSet);
 
     //  Every image queued before can be queued again, as after ROMs are
     //  installed.
@@ -55,6 +66,8 @@ private:
     //  The image's thumbnail, decoded. False with none, once the image has
     //  been passed to the queue function.
     bool  Read (const std::wstring & path, RgbaImage & outPicture, ThumbnailRecord & outRecord, bool & outIsUserSet);
+
+    static bool  IsCandidate (const std::filesystem::path & file);
 
     struct Target
     {

@@ -136,6 +136,12 @@ public:
     bool                  IsOverPlatter (POINT pointPx) const;
     const std::wstring  & GetPath       () const { return m_path; }
 
+    //  The screen's picture as it is laid out, empty when it isn't drawn, and
+    //  the result line under it.
+    bool                  IsScreenShown () const { return HasScreen(); }
+    RECT                  GetScreenRect () const { return HasScreen() ? m_screen->GetBounds() : RECT {}; }
+    const std::wstring  & GetResultLine () const { return m_bootLine->GetText(); }
+
 private:
     bool  HandlePlatterMouse (const DxuiMouseEvent & ev);
 
