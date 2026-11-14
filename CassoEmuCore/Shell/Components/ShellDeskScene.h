@@ -70,7 +70,7 @@ public:
     // A 3.5-inch drive on the desk, by its index among the desk's extra
     // drives: a click opens the file dialog and inserts the chosen image, as
     // a dropped image is.
-    static bool  IsFloppy35 (const DeskDrive & drive);
+    static bool  IsFloppy35         (const DeskDrive & drive);
     void         BrowseExtraDrive   (int index);
     void         InsertInExtraDrive (int index, const std::wstring & path);
 

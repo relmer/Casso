@@ -127,6 +127,7 @@ public:
     int                GetExtraCount   () const { return (int) m_extras.size(); }
     const DeskDrive  & GetExtraDrive   (int index) const { return m_extras[(size_t) index].drive; }
     void               SetExtraVisuals (int index, bool lampOn, const std::wstring & label);
+
     bool  IsRecorderLoaded   () const { return m_hasRecorder; }
     void  SetRecorderShown   (bool shown);
 
