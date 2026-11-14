@@ -622,6 +622,7 @@ hardware.
 - Q: What counts as booted? -> A: The screen changed from its power-on state and the drive stopped seeking. Did not boot: the screen never changed, the machine stopped in the monitor or at a BASIC prompt with an error, or the drive sought without end. Anything else is unclear (the owner's choice of three, 2026-11-13; a verdict from any change of the screen would pass a loader that draws a logo and stops).
 - Q: Which machine is an image booted on? -> A: An enhanced //e with 128K, and once more on a ][+ when it did not boot there, so an older title that fails on a //e isn't reported as bad (the owner's choice, 2026-11-13).
 - Q: Where is a thumbnail the user set stored? -> A: In the cache and the image file's alternate data stream, as every thumbnail is, marked as set by the user; no picture file beside the image and no folder of pictures (the owner, 2026-11-13). A file beside the image was set aside: a capture is a bare number until its thumbnail is seen, and a second file with that number would be one more file to rename. The cost accepted: a thumbnail the user set is gone when the stream is dropped and the image is opened on another PC, where a new one is made by booting.
+- Q: What happens when the ROMs the boot check uses aren't installed? -> A: Casso Explorer offers them in the dialog Casso has for a machine's missing ROMs (the owner, 2026-11-13). Once in a run, not for each image; a Full Send goes on while the dialog is open; the images that waited are booted when the ROMs arrive.
 - Q: Is a separate rename feature built for captures saved as numbers? -> A: No. With the thumbnail beside the file, rename is F2.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -2492,6 +2493,9 @@ as they arrive.
   thumbnail along; one changed by another program gets a new one.
 - **A boot that never settles**: an animated title is captured after a set
   time, not when the screen stops changing.
+- **No ROMs installed**: the dialog Casso has for missing ROMs is offered
+  once. Declined, each image's result is unclear with that reason, and the
+  thumbnails wait; no image is reported as did not boot because a ROM is missing.
 - **A blank or unformatted disk**: no image is saved, so there is nothing
   to boot (FR-273 and the blank disk rule of the Full Send).
 - **Many images at once**: boots in the background are limited so the list
@@ -3611,6 +3615,12 @@ as they arrive.
 - **FR-275**: The boot MUST use an enhanced //e with 128K. An image that
   did not boot there MUST be booted once more on a ][+ before its result
   is written, and the result is the better of the two.
+- **FR-288**: When an image is first to be booted and the ROMs of the enhanced //e
+  or the ][+ aren't installed, Casso Explorer MUST offer them in the dialog
+  Casso has for a machine's missing ROMs, once in a run of the program. A
+  Full Send in progress MUST NOT wait for the answer. Until the ROMs are
+  installed, an image's result is unclear, with the missing ROMs as its
+  reason, and each such image is booted once they are.
 - **FR-276**: A Full Send's manifest, its window's list of disks done and
   its activity list MUST have each image's boot result, and the Apple's
   screen MUST have a result of did not boot at the next pause.
