@@ -1255,6 +1255,7 @@
     <ClCompile Include="Audio\HardDiskAudioSource.cpp" />
     <ClCompile Include="Ui\Settings\SlotCards.cpp" />
     <ClCompile Include="Shell\StorageCardWiring.cpp" />
+    <ClCompile Include="Ui\Scene\DeskDrivePlan.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
@@ -2189,6 +2190,7 @@
     <ClInclude Include="Audio\HardDiskAudioSource.h" />
     <ClInclude Include="Ui\Settings\SlotCards.h" />
     <ClInclude Include="Shell\StorageCardWiring.h" />
+    <ClInclude Include="Ui\Scene\DeskDrivePlan.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CassoLink\Apple\Program.s" />

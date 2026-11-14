@@ -875,6 +875,7 @@
     <ClCompile Include="Audio\DeviceAudioSourceTests.cpp" />
     <ClCompile Include="UiTests\SlotCardsTests.cpp" />
     <ClCompile Include="EmuTests\IdleDevicePerformanceTests.cpp" />
+    <ClCompile Include="UiTests\DeskDrivePlanTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
