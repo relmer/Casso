@@ -56,6 +56,9 @@ public:
     //  Whether a Full Send saves a raw capture's reads beside its image.
     void  SetFullSendReads  (bool on);
 
+    //  Whether the Apple sounds a tone for an image's boot result.
+    void  SetAppleBootSounds (bool on) { m_appleBootSounds = on; }
+
     //  Called for each disk image a connection writes, a Full Send's or a
     //  raw capture's, on the connection's thread: the connection, the
     //  image's path and the model of the Apple.
@@ -322,6 +325,7 @@ private:
         void  OnDone               (const std::shared_ptr<LinkOperation> & operation) override;
         bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override;
         bool  HasFullSendReadsOn   () override;
+        bool  HasAppleBootSounds   () override { return m_owner.m_appleBootSounds; }
         bool  OnImageWritten       (const std::string & path, const std::string & model) override;
         void  OnOperationQueued    (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnActivity           (const std::string & text) override;
@@ -399,6 +403,7 @@ private:
     std::string           m_fullSendFolder;
     std::string           m_fullSendExtension;
     bool                  m_fullSendReads      = false;
+    std::atomic<bool>     m_appleBootSounds    { false };
     bool                  m_verifyReads        = false;
     bool                  m_verifyWrites       = false;
     bool                  m_autoVerify         = true;

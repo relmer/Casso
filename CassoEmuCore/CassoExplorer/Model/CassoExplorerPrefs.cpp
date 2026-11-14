@@ -542,7 +542,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("verifyReads", JsonValue (verifyReads));
     root.emplace_back ("verifyWrites", JsonValue (verifyWrites));
     root.emplace_back ("autoVerify", JsonValue (autoVerify));
-    root.emplace_back ("bootSounds", JsonValue (bootSounds));
+    root.emplace_back ("bootSoundPlace", JsonValue ((double) bootSoundPlace));
 
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
     root.emplace_back ("cffaAdapter",    JsonValue ((double) cffaAdapter));
@@ -800,7 +800,13 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("verifyReads", verifyReads);
     root.HasBool ("verifyWrites", verifyWrites);
     root.HasBool ("autoVerify", autoVerify);
-    root.HasBool ("bootSounds", bootSounds);
+    //  One of the places, and the PC for a number that isn't.
+    {
+        double  place = bootSoundPlace;
+
+        root.HasNumber ("bootSoundPlace", place);
+        bootSoundPlace = (place >= kBootSoundPc && place <= kBootSoundNeither) ? (int) place : (int) kBootSoundPc;
+    }
 
 
     if (root.HasString ("fullSendExtension", text) && (text.empty() || text == ".dsk" || text == ".do" || text == ".po" || text == ".woz" || text == ".nib" || text == ".nb2"))

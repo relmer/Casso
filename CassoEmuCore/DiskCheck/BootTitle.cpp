@@ -73,26 +73,43 @@ std::string BootTitle::Find (const std::vector<std::string> & rows, bool isTextM
 
 std::string BootTitle::ToName (const std::string & title)
 {
-    std::string  kept     = Trim (title.substr (0, title.find (':')));
-    bool         hasSmall = std::any_of (kept.begin(), kept.end(), [] (char each) { return islower ((unsigned char) each) != 0; });
+    bool         hasSmall = std::any_of (title.begin(), title.end(), [] (char each) { return islower ((unsigned char) each) != 0; });
     std::string  name;
-    size_t       at       = 0;
+    size_t       from     = 0;
 
 
 
-    if (hasSmall)
+    //  Each part between colons, with the spaces at its ends dropped.
+    while (from <= title.size())
     {
-        return kept;
-    }
+        size_t       colon = title.find (':', from);
+        size_t       end   = (colon == std::string::npos) ? title.size() : colon;
+        std::string  part  = Trim (title.substr (from, end - from));
+        size_t       at    = 0;
 
-    while (at < kept.size())
-    {
-        size_t  end = kept.find (' ', at);
+        from = end + 1;
 
-        end   = (end == std::string::npos) ? kept.size() : end;
-        name += ToTitleCase (kept.substr (at, end - at), at == 0);
-        name += (end < kept.size()) ? " " : "";
-        at    = end + 1;
+        if (part.empty())
+        {
+            continue;
+        }
+
+        name += name.empty() ? "" : " - ";
+
+        while (at < part.size())
+        {
+            size_t  space = part.find (' ', at);
+
+            space = (space == std::string::npos) ? part.size() : space;
+
+            if (space > at)
+            {
+                name += (at == 0) ? "" : " ";
+                name += hasSmall ? part.substr (at, space - at) : ToTitleCase (part.substr (at, space - at), at == 0);
+            }
+
+            at = space + 1;
+        }
     }
 
     return name;

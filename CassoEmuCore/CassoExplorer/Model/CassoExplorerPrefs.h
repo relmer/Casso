@@ -78,8 +78,17 @@ struct CassoExplorerPrefs
     bool                   verifyWrites = false;
     bool                   autoVerify   = true;
 
-    //  A sound for the boot result of each image a connection writes.
-    bool                   bootSounds   = true;
+    //  Where the sound for the boot result of each image a connection
+    //  writes is played.
+    enum BootSoundPlace : int
+    {
+        kBootSoundPc,
+        kBootSoundApple,
+        kBootSoundBoth,
+        kBootSoundNeither,
+    };
+
+    int                    bootSoundPlace = kBootSoundPc;
 
 
     //  Each folder's view as last chosen, most recent first. A folder with

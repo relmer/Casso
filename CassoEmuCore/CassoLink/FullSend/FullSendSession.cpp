@@ -1242,11 +1242,18 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
         hr = m_link.ShowScreen (m_screen);
         CHR (hr);
 
+        m_latestBoot.clear();
+
         hr = m_link.AwaitBoot (row.file);
         CHR (hr);
 
-        m_screen.tone = tone;
         ApplyBoots();
+
+        //  The result's tone in place of the disk's, where the Apple sounds it.
+        m_screen.tone = !m_link.HasBootTones()                             ? tone
+                      : m_latestBoot == FullSendManifest::kBootBooted      ? FullSendTone::Booted
+                      : m_latestBoot == FullSendManifest::kBootDidNotBoot  ? FullSendTone::DidNotBoot
+                                                                           : tone;
     }
 
     //  A raw capture has every track, so its row has no map of bad sectors.
@@ -1612,6 +1619,7 @@ void FullSendSession::ApplyBoots()
         auto                              found = std::find_if (rows.begin(), rows.end(), [&boot] (const FullSendRow & row) { return _stricmp (row.file.c_str(), boot.first.c_str()) == 0; });
 
         m_manifest.SetBoot (boot.first, boot.second);
+        m_latestBoot = boot.second;
 
         if (boot.second == FullSendManifest::kBootDidNotBoot)
         {

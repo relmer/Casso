@@ -42,6 +42,7 @@ public:
     HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) override;
     bool     NoteImage      (const std::string & path) override;
     HRESULT  AwaitBoot      (const std::string & file) override;
+    bool     HasBootTones   () override;
     void     Report         (const std::string & text) override;
 
     //  The time for a manifest's row: UTC, in ISO 8601.

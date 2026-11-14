@@ -23,8 +23,9 @@ class BootTitle
 public:
     static std::string  Find (const std::vector<std::string> & rows, bool isTextMode);
 
-    //  A title as a name for its disk: up to its first colon, and a title
-    //  with no small letters in title case, as The Witness from
+    //  A title as a name for its disk: each colon is a hyphen with one
+    //  space on each side, and a title with no small letters is in title
+    //  case, as The Witness - An Interlogic Mystery from
     //  THE WITNESS: AN INTERLOGIC MYSTERY. A Roman numeral and DOS are left
     //  in capitals.
     static std::string  ToName (const std::string & title);
