@@ -105,7 +105,6 @@ for i in range(SIDE_GROOVES):
                             .box(SIDE_GROOVE_DEPTH + 1.0, D - 40.0, SIDE_GROOVE_H, centered=(False, False, False))
                             .translate((x, 20.0, z)))
 
-m.add("case_bottom", bottom, CASE, angular=CORNER_ANG)
 m.add("case_lid",    lid,    CASE, angular=CORNER_ANG)
 m.add("seam",        seam,   SEAM)
 
@@ -183,6 +182,78 @@ for row, bits in enumerate(_rows):
 for stripe, solids in sorted(_by_stripe.items()):
     m.add(f"badge{stripe}", cq.Compound.makeCompound(solids), _stripes[stripe])
 
+# ------------------------------------------------------------------ the back
+#
+# From the rear photograph (computers.popcorn.cx/apple/peripherals/drives/
+# hard-disk-20sc/hard-disk-20sc-02.jpg), laid out as seen from behind and
+# mirrored across the centerline into the model's x: a grid of vents at the
+# left; the two Centronics 50-pin SCSI connectors stacked left of center,
+# each with its wire bails, the SCSI ID selector to their right and a
+# barcode label under them; a row of vents at the upper right over the IEC
+# power inlet and the rocker switch.
+
+BACK_DARK  = (0.060, 0.060, 0.060)
+BACK_METAL = (0.720, 0.720, 0.720)
+BACK_LABEL = (0.950, 0.945, 0.930)
+
+
+def back_add(name, solid, rgb):
+    m.add(name, solid.mirror("YZ", (W * 0.5, 0, 0)), rgb)
+
+
+def back_box(name, x0, x1, z0, z1, depth, rgb, y = 0.0):
+    back_add(name,
+             cq.Workplane("XY").box(x1 - x0, depth, z1 - z0, centered=(False, False, False))
+               .translate((x0, D + y, z0)),
+             rgb)
+
+
+for i in range(12):
+    back_box(f"back_vent_left{i}", W * 0.04 + i * W * 0.017, W * 0.04 + i * W * 0.017 + 1.6, H * 0.12, H * 0.52, 0.4, BACK_DARK)
+
+for i in range(20):
+    back_box(f"back_vent_right{i}", W * 0.60 + i * W * 0.019, W * 0.60 + i * W * 0.019 + 1.6, H * 0.38, H * 0.53, 0.4, BACK_DARK)
+
+for name, z0 in (("scsi_upper", H * 0.36), ("scsi_lower", H * 0.18)):
+    back_box(name + "_shell",  W * 0.28, W * 0.55, z0, z0 + H * 0.12, 2.5, BACK_METAL)
+    back_box(name + "_insert", W * 0.30, W * 0.53, z0 + H * 0.025, z0 + H * 0.095, 0.5, BACK_DARK, y = 2.5)
+    back_box(name + "_bail_l", W * 0.265, W * 0.275, z0 + H * 0.02, z0 + H * 0.10, 4.0, BACK_METAL)
+    back_box(name + "_bail_r", W * 0.555, W * 0.565, z0 + H * 0.02, z0 + H * 0.10, 4.0, BACK_METAL)
+
+back_box("scsi_id_selector", W * 0.575, W * 0.60, H * 0.12, H * 0.20, 1.5, BACK_DARK)
+back_box("barcode_label",    W * 0.31,  W * 0.55, H * 0.03, H * 0.13, 0.3, BACK_LABEL)
+back_box("iec_inlet",        W * 0.64,  W * 0.74, H * 0.10, H * 0.30, 2.0, BACK_DARK)
+back_box("power_switch",     W * 0.83,  W * 0.88, H * 0.12, H * 0.30, 2.0, BACK_DARK)
+back_box("power_rocker",     W * 0.84,  W * 0.87, H * 0.15, H * 0.24, 1.0, (0.20, 0.20, 0.20), y = 2.0)
+
+# ---------------------------------------------------------------- the bottom
+#
+# From the underside photograph (hard-disk-20sc-03.jpg): grooves front to
+# back, the product label in the middle, the "Made in USA" sticker toward the
+# front left, and a row of vent slots near the front edge.
+
+for i in range(16):
+    x = W * 0.08 + i * (W * 0.84) / 15 - 0.7
+    bottom = bottom.cut(cq.Workplane("XY").box(1.4, D * 0.55, 1.6, centered=(False, False, False))
+                        .translate((x, D * 0.36, -0.8)))
+
+m.add("case_bottom", bottom, CASE, angular=CORNER_ANG)
+
+m.add("bottom_label",
+      cq.Workplane("XY").box(W * 0.36, D * 0.11, 0.3, centered=(False, False, False))
+        .translate((W * 0.40, D * 0.51, -0.25)),
+      BACK_LABEL)
+m.add("bottom_made_in_usa",
+      cq.Workplane("XY").box(W * 0.17, D * 0.03, 0.3, centered=(False, False, False))
+        .translate((W * 0.64, D * 0.31, -0.25)),
+      BACK_LABEL)
+
+for i in range(22):
+    m.add(f"bottom_vent{i}",
+          cq.Workplane("XY").box(1.4, D * 0.09, 0.4, centered=(False, False, False))
+            .translate((W * 0.10 + i * W * 0.037, D * 0.16, -0.3)),
+          BACK_DARK)
+
 # ------------------------------------------------------------------ anchors
 #
 # The case's front plane, for the scene to line drives up on, buried inside
@@ -194,13 +265,14 @@ m.add("front_anchor",
 
 # --------------------------------------------------------------- underside
 
-FOOT_R, FOOT_H, FOOT_IN = 7.0, 3.0, 18.0
+# Four rectangular feet near the corners, as on the underside photograph.
+FOOT_W, FOOT_D, FOOT_H, FOOT_IN = 12.0, 22.0, 3.0, 10.0
 
-for fx in (FOOT_IN, W - FOOT_IN):
-    for fy in (FOOT_IN, D - FOOT_IN):
+for fx in (FOOT_IN, W - FOOT_IN - FOOT_W):
+    for fy in (FOOT_IN, D - FOOT_IN - FOOT_D):
         m.add(f"foot_{fx:.0f}_{fy:.0f}",
               cq.Workplane("XY")
-                .cylinder(FOOT_H, FOOT_R, centered=(True, True, False))
+                .box(FOOT_W, FOOT_D, FOOT_H, centered=(False, False, False))
                 .translate((fx, fy, -FOOT_H)),
               FOOT)
 

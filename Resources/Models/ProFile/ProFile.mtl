@@ -1,16 +1,26 @@
 newmtl case
 Ka 0 0 0 
-Kd 0.86 0.83 0.75
+Kd 0.88 0.85 0.76
+d 1
+
+newmtl vent_shadow_263
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl vent_shadow_20
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
 d 1
 
 newmtl logo_plate
 Ka 0 0 0 
-Kd 0.12 0.115 0.11
+Kd 0.42 0.385 0.34
 d 1
 
-newmtl badge_plate
+newmtl name_plate
 Ka 0 0 0 
-Kd 0.12 0.115 0.11
+Kd 0.42 0.385 0.34
 d 1
 
 newmtl badge0
@@ -43,14 +53,19 @@ Ka 0 0 0
 Kd 0 0.615686 0.862745
 d 1
 
-newmtl lettering
+newmtl name_lettering
 Ka 0 0 0 
-Kd 0.88 0.87 0.84
+Kd 0.7 0.68 0.64
 d 1
 
 newmtl ready_plate
 Ka 0 0 0 
-Kd 0.12 0.115 0.11
+Kd 0.42 0.385 0.34
+d 1
+
+newmtl ready_lettering
+Ka 0 0 0 
+Kd 0.95 0.945 0.925
 d 1
 
 newmtl lamp
@@ -58,28 +73,318 @@ Ka 0 0 0
 Kd 0.9 0.12 0.1
 d 1
 
+newmtl back_panel_16
+Ka 0 0 0 
+Kd 0.33 0.29 0.25
+d 1
+
+newmtl screw_21
+Ka 0 0 0 
+Kd 0.65 0.65 0.65
+d 1
+
+newmtl screw_171
+Ka 0 0 0 
+Kd 0.65 0.65 0.65
+d 1
+
+newmtl back_panel_202
+Ka 0 0 0 
+Kd 0.33 0.29 0.25
+d 1
+
+newmtl screw_207
+Ka 0 0 0 
+Kd 0.65 0.65 0.65
+d 1
+
+newmtl screw_414
+Ka 0 0 0 
+Kd 0.65 0.65 0.65
+d 1
+
+newmtl left_vent0
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent1
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent2
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent3
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent4
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent5
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent6
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent7
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent8
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent9
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent10
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent11
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent12
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent13
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent14
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent15
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent16
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent17
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent0
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent1
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent2
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent3
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent4
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent5
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent6
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent7
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent8
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent9
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent10
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent11
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent12
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent13
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_name
+Ka 0 0 0 
+Kd 0.95 0.945 0.925
+d 1
+
+newmtl back_apple
+Ka 0 0 0 
+Kd 0.95 0.945 0.925
+d 1
+
+newmtl model_label
+Ka 0 0 0 
+Kd 0.95 0.945 0.925
+d 1
+
+newmtl model_text
+Ka 0 0 0 
+Kd 0.12 0.12 0.13
+d 1
+
+newmtl maker_text
+Ka 0 0 0 
+Kd 0.12 0.12 0.13
+d 1
+
+newmtl db25_shell
+Ka 0 0 0 
+Kd 0.76 0.66 0.4
+d 1
+
+newmtl db25_insert
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl voltage_label
+Ka 0 0 0 
+Kd 0.95 0.945 0.925
+d 1
+
+newmtl voltage_text
+Ka 0 0 0 
+Kd 0.12 0.12 0.13
+d 1
+
+newmtl caution_label
+Ka 0 0 0 
+Kd 0.95 0.945 0.925
+d 1
+
+newmtl caution_band
+Ka 0 0 0 
+Kd 0.33 0.29 0.25
+d 1
+
+newmtl caution_text
+Ka 0 0 0 
+Kd 0.95 0.78 0.15
+d 1
+
+newmtl caution_triangle
+Ka 0 0 0 
+Kd 0.95 0.78 0.15
+d 1
+
+newmtl iec_inlet
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl switch_frame
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl switch_rocker
+Ka 0 0 0 
+Kd 0.2 0.2 0.2
+d 1
+
+newmtl switch_on
+Ka 0 0 0 
+Kd 0.95 0.945 0.925
+d 1
+
+newmtl switch_off
+Ka 0 0 0 
+Kd 0.95 0.945 0.925
+d 1
+
 newmtl front_anchor
 Ka 0 0 0 
 Kd 0.98 0.01 0.24
 d 1
 
-newmtl foot_30_22
+newmtl foot_31_27
 Ka 0 0 0 
-Kd 0.15 0.14 0.13
+Kd 0.12 0.11 0.1
 d 1
 
-newmtl foot_30_202
+newmtl foot_31_197
 Ka 0 0 0 
-Kd 0.15 0.14 0.13
+Kd 0.12 0.11 0.1
 d 1
 
-newmtl foot_409_22
+newmtl foot_219_27
 Ka 0 0 0 
-Kd 0.15 0.14 0.13
+Kd 0.12 0.11 0.1
 d 1
 
-newmtl foot_409_202
+newmtl foot_219_197
 Ka 0 0 0 
-Kd 0.15 0.14 0.13
+Kd 0.12 0.11 0.1
+d 1
+
+newmtl foot_408_27
+Ka 0 0 0 
+Kd 0.12 0.11 0.1
+d 1
+
+newmtl foot_408_197
+Ka 0 0 0 
+Kd 0.12 0.11 0.1
 d 1
 

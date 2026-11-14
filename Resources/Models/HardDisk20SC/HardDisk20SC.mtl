@@ -1,8 +1,3 @@
-newmtl case_bottom
-Ka 0 0 0 
-Kd 0.835 0.815 0.76
-d 1
-
 newmtl case_lid
 Ka 0 0 0 
 Kd 0.835 0.815 0.76
@@ -48,27 +43,377 @@ Ka 0 0 0
 Kd 0 0.615686 0.862745
 d 1
 
+newmtl back_vent_left0
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_left1
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_left2
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_left3
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_left4
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_left5
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_left6
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_left7
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_left8
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_left9
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_left10
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_left11
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right0
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right1
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right2
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right3
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right4
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right5
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right6
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right7
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right8
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right9
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right10
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right11
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right12
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right13
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right14
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right15
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right16
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right17
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right18
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl back_vent_right19
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl scsi_upper_shell
+Ka 0 0 0 
+Kd 0.72 0.72 0.72
+d 1
+
+newmtl scsi_upper_insert
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl scsi_upper_bail_l
+Ka 0 0 0 
+Kd 0.72 0.72 0.72
+d 1
+
+newmtl scsi_upper_bail_r
+Ka 0 0 0 
+Kd 0.72 0.72 0.72
+d 1
+
+newmtl scsi_lower_shell
+Ka 0 0 0 
+Kd 0.72 0.72 0.72
+d 1
+
+newmtl scsi_lower_insert
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl scsi_lower_bail_l
+Ka 0 0 0 
+Kd 0.72 0.72 0.72
+d 1
+
+newmtl scsi_lower_bail_r
+Ka 0 0 0 
+Kd 0.72 0.72 0.72
+d 1
+
+newmtl scsi_id_selector
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl barcode_label
+Ka 0 0 0 
+Kd 0.95 0.945 0.93
+d 1
+
+newmtl iec_inlet
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl power_switch
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl power_rocker
+Ka 0 0 0 
+Kd 0.2 0.2 0.2
+d 1
+
+newmtl case_bottom
+Ka 0 0 0 
+Kd 0.835 0.815 0.76
+d 1
+
+newmtl bottom_label
+Ka 0 0 0 
+Kd 0.95 0.945 0.93
+d 1
+
+newmtl bottom_made_in_usa
+Ka 0 0 0 
+Kd 0.95 0.945 0.93
+d 1
+
+newmtl bottom_vent0
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent1
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent2
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent3
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent4
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent5
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent6
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent7
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent8
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent9
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent10
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent11
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent12
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent13
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent14
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent15
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent16
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent17
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent18
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent19
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent20
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl bottom_vent21
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
 newmtl front_anchor
 Ka 0 0 0 
 Kd 0.98 0.01 0.24
 d 1
 
-newmtl foot_18_18
+newmtl foot_10_10
 Ka 0 0 0 
 Kd 0.18 0.18 0.19
 d 1
 
-newmtl foot_18_272
+newmtl foot_10_258
 Ka 0 0 0 
 Kd 0.18 0.18 0.19
 d 1
 
-newmtl foot_227_18
+newmtl foot_223_10
 Ka 0 0 0 
 Kd 0.18 0.18 0.19
 d 1
 
-newmtl foot_227_272
+newmtl foot_223_258
 Ka 0 0 0 
 Kd 0.18 0.18 0.19
 d 1

@@ -1,5 +1,5 @@
-"""The case the UniDisk 3.5 and the Apple 3.5 Drive share, as a solid model.
-X right, Y back, Z up; front face at y = 0.
+"""The case the UniDisk 3.5 and the Apple 3.5 Drive share, as a solid model,
+all six sides. X right, Y back, Z up; front face at y = 0.
 
 MODELED FROM PHOTOGRAPHS, for the owner's review (T108):
 
@@ -9,26 +9,39 @@ MODELED FROM PHOTOGRAPHS, for the owner's review (T108):
 
 What the photographs settle:
 
-  - THE TWO SHELLS. The lid comes down over the top sixth of the front as a
-    band, standing a little proud of the lower front.
-  - THE SLOT, directly under the band, from 11% to 88% of the width, about
-    5 mm tall.
-  - THE EJECT BLOCK to the slot's right: a small square boss under the band,
-    with a pinhole.
-  - THE BADGE, the rainbow Apple, at the lower left of the front.
-  - THE TOP, ten grooves front to back inside a plain border.
-  - The two drives are one case in two colors: the UniDisk 3.5 in the //c's
-    Snow White, the Apple 3.5 Drive in Platinum. The dimensions are the Apple
-    3.5 Drive's from the Computer History Museum's catalog entry 102735399,
-    4 3/4 in wide, 2 1/4 in high and 8 1/4 in deep.
+  FRONT. One flat face. The lid's seam crosses it a sixth of the way down.
+  Directly under the seam, the slot runs from 11% to 83% of the width; to
+  its right, the eject button is a rectangle as tall as the slot, and to its
+  left the activity LED sits in line with it. The rainbow Apple is at the
+  lower left.
 
-The activity lamp is a small red window at the left end of the band, where
-the teardown at ifixit.com puts the LED.
+  TOP. Ten grooves front to back inside a plain border.
 
-Sub-mesh identity is by part NAME and color: `lamp` is the activity lamp in
+  BACK. The lid comes down to about the middle of the back. Below the seam:
+  the 19-pin daisy-chain socket in a rimmed opening at the lower left (the
+  photograph has its rare dust cover on; the socket is modeled bare) with
+  the drive mark above it; the Kensington lock loop right of center; and
+  the cable's strain relief boot at the right. The iFixit teardown of the
+  Apple 3.5 Drive lists the three.
+
+  BOTTOM. A white label at the front end with the name; four felt pads at
+  the corners; four screws; grooves along the length; and a shallow
+  rounded panel at the back.
+
+  SIDES. Plain, with the lid's seam falling from the front's height to the
+  back's.
+
+  The two drives are one case in two colors: the UniDisk 3.5 in the //c's
+  Snow White, the Apple 3.5 Drive in Platinum. The dimensions are the Apple
+  3.5 Drive's from the Computer History Museum's catalog entry 102735399,
+  4 3/4 in wide, 2 1/4 in high and 8 1/4 in deep.
+
+Sub-mesh identity is by part NAME and color: `lamp` is the activity LED in
 the drive-lamp color and `front_anchor` the front plane the scene lines
 devices up on.
 """
+
+import math
 
 import cadquery as cq
 from cadkit import KD, Model
@@ -40,84 +53,179 @@ W, D, H    = 4.75 * INCH, 8.25 * INCH, 2.25 * INCH
 CORNER_ANG = 0.14
 EDGE_R     = INCH * 3.0 / 32.0
 
-SLOT_C     = (0.070, 0.070, 0.075)
-FOOT_C     = (0.180, 0.180, 0.190)
+DARK       = (0.070, 0.070, 0.075)
+FELT       = (0.820, 0.800, 0.760)
+LABEL      = (0.950, 0.945, 0.930)
+INK        = (0.150, 0.150, 0.160)
+METAL      = (0.700, 0.700, 0.700)
 
-BAND_Z     = H * 0.83          # the lid's lower edge on the front
-RECESS     = 2.5               # the lower front behind the band
+SEAM_FRONT = H * 0.83          # the lid's lower edge on the front
+SEAM_BACK  = H * 0.54          # and on the back
+SEAM_W     = 0.7
+
+
+def seam_cut(case):
+    # The seam on the front, the back, and down each side between them.
+    case = case.cut(cq.Workplane("XY").box(W + 2.0, 1.4, SEAM_W, centered=(False, False, False))
+                    .translate((-1.0, -0.8, SEAM_FRONT)))
+    case = case.cut(cq.Workplane("XY").box(W + 2.0, 1.4, SEAM_W, centered=(False, False, False))
+                    .translate((-1.0, D - 0.6, SEAM_BACK)))
+
+    drop  = SEAM_FRONT - SEAM_BACK
+    angle = math.degrees(math.atan2(drop, D))
+    run   = math.hypot(D, drop)
+
+    for x in (-0.8, W - 0.6):
+        side = (cq.Workplane("XY").box(1.4, run, SEAM_W, centered=(False, False, False))
+                .rotate((0, 0, 0), (1, 0, 0), -angle)
+                .translate((x, 0, SEAM_FRONT)))
+        case = case.cut(side)
+
+    return case
 
 
 def build(case_rgb):
     m = Model()
 
-    lower = (cq.Workplane("XY")
-             .box(W, D - RECESS, BAND_Z, centered=(False, False, False))
-             .translate((0, RECESS, 0))
-             .edges("|Z").fillet(EDGE_R)
-             .edges("<Z").fillet(EDGE_R * 0.5))
+    case = (cq.Workplane("XY")
+            .box(W, D, H, centered=(False, False, False))
+            .edges("|Z").fillet(EDGE_R)
+            .edges(">Z").fillet(EDGE_R)
+            .edges("<Z").fillet(EDGE_R * 0.5))
 
-    lid = (cq.Workplane("XY")
-           .box(W, D, H - BAND_Z, centered=(False, False, False))
-           .translate((0, 0, BAND_Z))
-           .edges("|Z").fillet(EDGE_R)
-           .edges(">Z").fillet(EDGE_R))
+    case = seam_cut(case)
 
-    # Ten grooves front to back inside a border: 10 mm at the sides, 14 mm
-    # at the front, 8 mm at the back.
+    # Top: ten grooves front to back, 10 mm in from the sides, 12 mm from
+    # the front, 8 mm from the back.
     grooves, groove_w, depth = 10, 4.0, 2.0
     x0, x1 = 10.0, W - 10.0
 
     for i in range(grooves):
         x = x0 + (i + 0.5) * (x1 - x0) / grooves - groove_w * 0.5
-        lid = lid.cut(cq.Workplane("XY")
-                      .box(groove_w, D - 22.0, depth + 1.0, centered=(False, False, False))
-                      .translate((x, 14.0, H - depth)))
+        case = case.cut(cq.Workplane("XY")
+                        .box(groove_w, D - 20.0, depth + 1.0, centered=(False, False, False))
+                        .translate((x, 12.0, H - depth)))
 
-    m.add("case_lower", lower, case_rgb, angular=CORNER_ANG)
-    m.add("case_lid",   lid,   case_rgb, angular=CORNER_ANG)
+    # Bottom: grooves along the length between the pads and screws.
+    for i in range(8):
+        x = W * 0.16 + i * (W * 0.68) / 7 - 0.8
+        case = case.cut(cq.Workplane("XY")
+                        .box(1.6, D * 0.62, 1.8, centered=(False, False, False))
+                        .translate((x, D * 0.20, -0.8)))
 
-    # The slot, a dark opening in the lower front right under the band.
-    slot_x0, slot_x1 = W * 0.11, W * 0.88
+    # Front: the slot under the seam.
+    slot_x0, slot_x1 = W * 0.11, W * 0.83
     slot_h           = 5.0
-    m.add("slot",
-          cq.Workplane("XY")
-            .box(slot_x1 - slot_x0, 0.4, slot_h, centered=(False, False, False))
-            .translate((slot_x0, RECESS - 0.25, BAND_Z - slot_h)),
-          SLOT_C)
+    slot_z0          = SEAM_FRONT - 1.5 - slot_h
+    case = case.cut(cq.Workplane("XY")
+                    .box(slot_x1 - slot_x0, 8.0, slot_h, centered=(False, False, False))
+                    .translate((slot_x0, -1.0, slot_z0)))
 
-    # The eject block: a boss to the slot's right with a pinhole.
-    block_x0 = W * 0.895
+    m.add("case", case, case_rgb, angular=CORNER_ANG)
+    m.add("slot_back",
+          cq.Workplane("XY").box(slot_x1 - slot_x0, 0.5, slot_h, centered=(False, False, False))
+            .translate((slot_x0, 6.5, slot_z0)),
+          DARK)
+
+    # The eject button: a rectangle as tall as the slot, to its right.
     m.add("eject",
-          cq.Workplane("XY")
-            .box(W * 0.075, RECESS + 0.6, 8.0, centered=(False, False, False))
-            .translate((block_x0, -0.6, BAND_Z - 8.5)),
+          cq.Workplane("XY").box(W * 0.085, 1.0, slot_h, centered=(False, False, False))
+            .translate((W * 0.85, -0.5, slot_z0)),
           case_rgb)
     m.add("eject_hole",
-          cq.Workplane("XZ").circle(0.6).extrude(0.3)
-            .translate((block_x0 + W * 0.0375, -0.6, BAND_Z - 4.5)),
-          SLOT_C)
+          cq.Workplane("XZ").circle(0.55).extrude(0.3)
+            .translate((W * 0.8925, -0.6, slot_z0 + slot_h * 0.5)),
+          DARK)
 
-    # The lamp at the band's left end.
+    # The activity LED, in line with the slot at its left.
     m.add("lamp",
-          cq.Workplane("XY")
-            .box(3.5, 0.5, 1.6, centered=(False, False, False))
-            .translate((W * 0.05, -0.3, BAND_Z + 1.6)),
+          cq.Workplane("XY").box(3.5, 0.5, 2.0, centered=(False, False, False))
+            .translate((W * 0.05, -0.3, slot_z0 + slot_h * 0.5 - 1.0)),
           KD["drive_lamp"])
 
-    badge(m, W * 0.10, H * 0.10, 11.0, y = RECESS - 0.35)
+    badge(m, W * 0.10, H * 0.10, 11.0)
+
+    # Back: the socket's rimmed opening, the mark above it, the lock loop
+    # and the strain relief boot, laid out as seen from behind, as in the
+    # photograph, and mirrored across the centerline into the model's x.
+    def back_add(name, solid, rgb):
+        m.add(name, solid.mirror("YZ", (W * 0.5, 0, 0)), rgb)
+
+    plate_x0, plate_x1 = W * 0.13, W * 0.57
+    plate_z0, plate_z1 = H * 0.13, H * 0.46
+    rim = (cq.Workplane("XY").box(plate_x1 - plate_x0, 0.6, plate_z1 - plate_z0, centered=(False, False, False))
+           .edges("|Y").fillet(2.0)
+           .translate((plate_x0, D, plate_z0)))
+    inner = (cq.Workplane("XY").box(plate_x1 - plate_x0 - 2.0, 1.0, plate_z1 - plate_z0 - 2.0, centered=(False, False, False))
+             .edges("|Y").fillet(1.5)
+             .translate((plate_x0 + 1.0, D + 0.3, plate_z0 + 1.0)))
+    back_add("back_plate", rim.cut(inner), case_rgb)
+
+    # The 19-pin D socket in the opening: its metal shell and dark insert.
+    db_w, db_h = 33.0, 9.0
+    db_x0      = (plate_x0 + plate_x1) * 0.5 - db_w * 0.5
+    db_z0      = (plate_z0 + plate_z1) * 0.5 - db_h * 0.5
+    back_add("db19_opening",
+          cq.Workplane("XY").box(plate_x1 - plate_x0 - 2.0, 0.3, plate_z1 - plate_z0 - 2.0, centered=(False, False, False))
+            .translate((plate_x0 + 1.0, D + 0.05, plate_z0 + 1.0)),
+          DARK)
+    back_add("db19_shell",
+          cq.Workplane("XZ").polyline([(0, db_h), (db_w, db_h), (db_w - 3.0, 0), (3.0, 0)]).close().extrude(-1.2)
+            .translate((db_x0, D + 0.3, db_z0)),
+          METAL)
+    back_add("db19_insert",
+          cq.Workplane("XZ").polyline([(1.5, db_h - 1.5), (db_w - 1.5, db_h - 1.5), (db_w - 3.8, 1.5), (3.8, 1.5)]).close().extrude(-0.4)
+            .translate((db_x0, D + 1.5, db_z0)),
+          DARK)
+    back_add("back_mark",
+          cq.Workplane("XY").box(3.0, 0.4, 4.0, centered=(False, False, False))
+            .translate((W * 0.34, D, H * 0.50)),
+          case_rgb)
+
+    clip = (cq.Workplane("XY").box(W * 0.19, 9.0, H * 0.22, centered=(False, False, False))
+            .translate((W * 0.62, D, H * 0.46)))
+    clip = clip.cut(cq.Workplane("XY").box(W * 0.19 - 5.0, 10.0, H * 0.22 - 5.0, centered=(False, False, False))
+                    .translate((W * 0.62 + 2.5, D - 0.5, H * 0.46 + 2.5)))
+    back_add("lock_loop", clip, case_rgb)
+
+    boot = (cq.Workplane("XY").box(W * 0.13, 12.0, H * 0.20, centered=(False, False, False))
+            .edges("|Y").fillet(2.5)
+            .translate((W * 0.82, D, H * 0.52)))
+    back_add("cable_boot", boot, (0.740, 0.735, 0.715))
+
+    # Bottom: the label, the felt pads, the screws, and the back panel.
+    m.add("bottom_label",
+          cq.Workplane("XY").box(W * 0.84, D * 0.13, 0.3, centered=(False, False, False))
+            .translate((W * 0.08, D * 0.02, -0.25)),
+          LABEL)
+    m.add("bottom_label_text",
+          cq.Workplane("XY").text("Apple 3.5 Drive", 4.0, 0.2, font="Times New Roman", halign="left", valign="center")
+            .mirror("XZ")
+            .translate((W * 0.36, D * 0.08, -0.45)),
+          INK)
+
+    for fx in (W * 0.06, W * 0.84):
+        for fy in (D * 0.16, D * 0.76):
+            m.add(f"pad_{fx:.0f}_{fy:.0f}",
+                  cq.Workplane("XY").box(W * 0.10, D * 0.075, 2.0, centered=(False, False, False))
+                    .translate((fx, fy, -2.0)),
+                  FELT)
+
+    for sx in (W * 0.23, W * 0.77):
+        for sy in (D * 0.19, D * 0.72):
+            m.add(f"screw_{sx:.0f}_{sy:.0f}",
+                  cq.Workplane("XY").cylinder(0.4, 2.4, centered=(True, True, False))
+                    .translate((sx, sy, -0.35)),
+                  METAL)
+
+    m.add("bottom_panel",
+          cq.Workplane("XY").box(W * 0.46, D * 0.09, 0.3, centered=(False, False, False))
+            .edges("|Z").fillet(2.0)
+            .translate((W * 0.30, D * 0.80, -0.25)),
+          case_rgb)
 
     m.add("front_anchor",
-          cq.Workplane("XY").box(1.0, 1.0, 1.0).translate((W * 0.5, RECESS + 4.0, H * 0.5)),
+          cq.Workplane("XY").box(1.0, 1.0, 1.0).translate((W * 0.5, 6.0, H * 0.5)),
           KD["front_anchor"])
-
-    foot_w, foot_d, foot_h, foot_in = 9.0, 14.0, 2.0, 10.0
-
-    for fx in (foot_in, W - foot_in - foot_w):
-        for fy in (foot_in, D - foot_in - foot_d):
-            m.add(f"foot_{fx:.0f}_{fy:.0f}",
-                  cq.Workplane("XY")
-                    .box(foot_w, foot_d, foot_h, centered=(False, False, False))
-                    .translate((fx, fy, -foot_h)),
-                  FOOT_C)
 
     return m

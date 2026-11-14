@@ -2354,6 +2354,13 @@ HRESULT DeskScene::DrawShadows (const DeskSceneComposition & comp,
 
     for (int drive = 0; drive < comp.driveCount && !m_driveShadowVerts.empty(); drive++)
     {
+        // A drive standing on another in a desk stack casts no shadow on
+        // the desk; only the stack's bottom drive does.
+        if (&comp == &m_comp && m_driveSpot != DeskDriveSpot::UnderMonitor && m_driveLevel[drive] != 0)
+        {
+            continue;
+        }
+
         SceneCamera::Mul44 (comp.driveWorld[drive], comp.viewProj, mvp);
 
         hr = m_renderer.DrawStatic (m_driveShadowMesh, m_driveShadowVerts.data(), m_driveShadowVerts.size(), m_geometryRev,

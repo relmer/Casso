@@ -1,14 +1,9 @@
-newmtl case_lower
+newmtl case
 Ka 0 0 0 
 Kd 0.88 0.87 0.835
 d 1
 
-newmtl case_lid
-Ka 0 0 0 
-Kd 0.88 0.87 0.835
-d 1
-
-newmtl slot
+newmtl slot_back
 Ka 0 0 0 
 Kd 0.07 0.07 0.075
 d 1
@@ -58,28 +53,98 @@ Ka 0 0 0
 Kd 0 0.615686 0.862745
 d 1
 
+newmtl back_plate
+Ka 0 0 0 
+Kd 0.88 0.87 0.835
+d 1
+
+newmtl db19_opening
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl db19_shell
+Ka 0 0 0 
+Kd 0.7 0.7 0.7
+d 1
+
+newmtl db19_insert
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl back_mark
+Ka 0 0 0 
+Kd 0.88 0.87 0.835
+d 1
+
+newmtl lock_loop
+Ka 0 0 0 
+Kd 0.88 0.87 0.835
+d 1
+
+newmtl cable_boot
+Ka 0 0 0 
+Kd 0.74 0.735 0.715
+d 1
+
+newmtl bottom_label
+Ka 0 0 0 
+Kd 0.95 0.945 0.93
+d 1
+
+newmtl bottom_label_text
+Ka 0 0 0 
+Kd 0.15 0.15 0.16
+d 1
+
+newmtl pad_7_34
+Ka 0 0 0 
+Kd 0.82 0.8 0.76
+d 1
+
+newmtl pad_7_159
+Ka 0 0 0 
+Kd 0.82 0.8 0.76
+d 1
+
+newmtl pad_101_34
+Ka 0 0 0 
+Kd 0.82 0.8 0.76
+d 1
+
+newmtl pad_101_159
+Ka 0 0 0 
+Kd 0.82 0.8 0.76
+d 1
+
+newmtl screw_28_40
+Ka 0 0 0 
+Kd 0.7 0.7 0.7
+d 1
+
+newmtl screw_28_151
+Ka 0 0 0 
+Kd 0.7 0.7 0.7
+d 1
+
+newmtl screw_93_40
+Ka 0 0 0 
+Kd 0.7 0.7 0.7
+d 1
+
+newmtl screw_93_151
+Ka 0 0 0 
+Kd 0.7 0.7 0.7
+d 1
+
+newmtl bottom_panel
+Ka 0 0 0 
+Kd 0.88 0.87 0.835
+d 1
+
 newmtl front_anchor
 Ka 0 0 0 
 Kd 0.98 0.01 0.24
-d 1
-
-newmtl foot_10_10
-Ka 0 0 0 
-Kd 0.18 0.18 0.19
-d 1
-
-newmtl foot_10_186
-Ka 0 0 0 
-Kd 0.18 0.18 0.19
-d 1
-
-newmtl foot_102_10
-Ka 0 0 0 
-Kd 0.18 0.18 0.19
-d 1
-
-newmtl foot_102_186
-Ka 0 0 0 
-Kd 0.18 0.18 0.19
 d 1
 
