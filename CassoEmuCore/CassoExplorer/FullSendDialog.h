@@ -30,6 +30,7 @@ public:
     struct View
     {
         std::wstring      connection;
+        std::wstring      machine;      // the Apple's model, as Apple //c (ROM 3); empty when it isn't known
         FullSendSnapshot  snapshot;
     };
 
@@ -52,8 +53,10 @@ public:
     static uint32_t      GetColor (FullSendTrackMark mark, const IDxuiTheme & theme);
     static uint32_t      GetColor (FullSendPositionMark mark, const IDxuiTheme & theme);
 
-    //  What the session is doing or what it waits for, as a sentence.
-    static std::wstring  DescribeActivity (const FullSendSnapshot & snapshot);
+    //  What the session is doing or what it waits for, as a sentence. The
+    //  machine is the Apple's model, without its ROM in parentheses; with
+    //  none, the sentence has the Apple.
+    static std::wstring  DescribeActivity (const FullSendSnapshot & snapshot, const std::wstring & machine = std::wstring());
 
     //  A drive's state, as Sending, with verification; its times, as 0:21 elapsed,
     //  about 0:14 left; and where its raw capture is.

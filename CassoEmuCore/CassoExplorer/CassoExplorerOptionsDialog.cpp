@@ -578,7 +578,7 @@ void CassoExplorerOptionsDialog::WireFullSend()
     m_fullSendFolderLabel.SetText (L"Save images to");
     ExplorerTextStyles::Apply (m_fullSendFolderLabel, ExplorerTextStyles::kFormLabel);
 
-    m_fullSendReads.SetLabel   (L"Save the reads of a raw capture beside its image");
+    m_fullSendReads.SetLabel   (L"Save a diagnostic file (.reads) with each raw capture");
     m_fullSendReads.SetChecked (m_choices.fullSendReads);
 
     m_fullSendFormatLabel.SetText (L"Image type");

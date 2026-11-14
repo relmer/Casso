@@ -2257,6 +2257,7 @@ bool CassoLinkManager::FillFullSendView (FullSendPanel::View & ioView)
         if (running || !found)
         {
             ioView.connection = entry.name;
+            ioView.machine    = session->GetModelName();
             ioView.snapshot   = std::move (snapshot);
             found             = true;
         }
