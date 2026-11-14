@@ -3617,7 +3617,8 @@ as they arrive.
   is written, and the result is the better of the two.
 - **FR-288**: When an image is first to be booted and the ROMs of the enhanced //e
   or the ][+ aren't installed, Casso Explorer MUST offer them in the dialog
-  Casso has for a machine's missing ROMs, once in a run of the program. A
+  Casso has for a machine's missing ROMs, once in a run of the program,
+  with the missing ROMs of both machines in the one dialog. A
   Full Send in progress MUST NOT wait for the answer. Until the ROMs are
   installed, an image's result is unclear, with the missing ROMs as its
   reason, and each such image is booted once they are.
