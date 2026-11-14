@@ -298,6 +298,21 @@ public:
         Assert::IsTrue (comp.recorderRectPx.right <= wide.right);
     }
 
+    static void AddExtra (DeskSceneMetrics & metrics, DeskDriveModel model, DeskDriveSpot spot, int level, float w, float d, float h)
+    {
+        DeskExtraMetrics  & extra = metrics.extras[metrics.extraCount++];
+
+
+
+        extra.model  = model;
+        extra.spot   = spot;
+        extra.level  = level;
+        extra.max[0] = w;
+        extra.max[1] = d;
+        extra.max[2] = h;
+    }
+
+
     //  THE HD20SC SITS TO THE LEFT OF THE STACK, clear of the drives, and
     //  inside the frame, in the fitted and the sliding compositions alike.
     TEST_METHOD (HardDisk_Sits_Left_Of_The_Stack)
@@ -308,22 +323,74 @@ public:
 
 
 
-        metrics.hasHardDisk    = true;
-        metrics.hardDiskMin[0] = 0.0f;   metrics.hardDiskMax[0] = 245.0f;
-        metrics.hardDiskMin[1] = 0.0f;   metrics.hardDiskMax[1] = 290.0f;
-        metrics.hardDiskMin[2] = 0.0f;   metrics.hardDiskMax[2] = 76.0f;
+        AddExtra (metrics, DeskDriveModel::HardDisk20SC, DeskDriveSpot::LeftStack, 0, 245.0f, 290.0f, 76.0f);
 
         AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
 
-        Assert::AreEqual (1, comp.hasHardDisk);
-        Assert::IsTrue   (comp.hardDiskRectPx.right <= comp.driveRectPx[0].left, L"the hard disk is left of the drives, without overlap");
-        Assert::IsTrue   (comp.hardDiskRectPx.left  >= vp.left,                  L"and inside the frame");
+        Assert::AreEqual (1, comp.extraCount);
+        Assert::IsTrue   (comp.extraRectPx[0].right <= comp.driveRectPx[0].left, L"the hard disk is left of the drives, without overlap");
+        Assert::IsTrue   (comp.extraRectPx[0].left  >= vp.left,                  L"and inside the frame");
 
         AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f, kSlideClearPx, comp));
 
-        Assert::AreEqual (1, comp.hasHardDisk);
-        Assert::IsTrue   (comp.hardDiskRectPx.left  >= vp.left);
-        Assert::IsTrue   (comp.hardDiskRectPx.right <= comp.driveRectPx[0].left);
+        Assert::AreEqual (1, comp.extraCount);
+        Assert::IsTrue   (comp.extraRectPx[0].left  >= vp.left);
+        Assert::IsTrue   (comp.extraRectPx[0].right <= comp.driveRectPx[0].left);
+    }
+
+
+    //  A ProFile under the monitor lifts it by the ProFile's height, and the
+    //  Disk II pair stacks on the right, the upper drive standing on the
+    //  lower.
+    TEST_METHOD (ProFile_UnderTheMonitor_DrivesStackOnTheRight)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1600, 900 };
+        DeskSceneComposition  comp;
+        DeskSceneComposition  plain;
+
+
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 0, metrics, plain));
+
+        AddExtra (metrics, DeskDriveModel::ProFile, DeskDriveSpot::UnderMonitor, 0, 439.0f, 225.0f, 114.0f);
+        metrics.driveSpot     = DeskDriveSpot::RightStack;
+        metrics.driveLevel[0] = 0;
+        metrics.driveLevel[1] = 1;
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
+
+        Assert::AreEqual (1, comp.extraCount);
+        Assert::AreEqual (114.0f, comp.monitorWorld[13], 0.01f, L"the monitor stands on the ProFile");
+        Assert::IsTrue   (comp.driveWorld[1][13] > comp.driveWorld[0][13], L"drive 2 stands on drive 1");
+        Assert::AreEqual (comp.driveWorld[0][12], comp.driveWorld[1][12], 0.01f, L"in one column");
+        Assert::IsTrue   (comp.driveRectPx[0].left >= comp.extraRectPx[0].right - 1, L"right of the ProFile");
+    }
+
+
+    //  Hard disks on the left and floppies on the right, each a stack, with
+    //  nothing under the monitor.
+    TEST_METHOD (Stacks_OnBothSides)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1600, 900 };
+        DeskSceneComposition  comp;
+
+
+
+        AddExtra (metrics, DeskDriveModel::ProFile,      DeskDriveSpot::LeftStack,  0, 439.0f, 225.0f, 114.0f);
+        AddExtra (metrics, DeskDriveModel::HardDisk20SC, DeskDriveSpot::LeftStack,  1, 245.0f, 290.0f, 76.0f);
+        AddExtra (metrics, DeskDriveModel::UniDisk35,    DeskDriveSpot::RightStack, 0, 175.0f, 200.0f, 50.0f);
+        metrics.driveSpot     = DeskDriveSpot::RightStack;
+        metrics.driveLevel[0] = 1;
+        metrics.driveLevel[1] = 2;
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
+
+        Assert::AreEqual (0.0f, comp.monitorWorld[13], 0.01f, L"the monitor is on the desk");
+        Assert::AreEqual (114.0f, comp.extraWorld[1][13], 0.01f, L"the HD20SC stands on the ProFile");
+        Assert::IsTrue   (comp.driveWorld[0][13] >= 50.0f - 0.01f, L"drive 1 stands on the UniDisk");
+        Assert::IsTrue   (comp.extraRectPx[0].right <= comp.driveRectPx[0].left, L"the left stack is left of the right one");
     }
 
     TEST_METHOD (Empty_Viewport_Reports_S_FALSE)

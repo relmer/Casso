@@ -67,8 +67,7 @@ void DeskScene::Shutdown()
 HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
                                std::span<const uint8_t>   monitorMesh,
                                std::span<const uint8_t>   driveMesh,
-                               std::span<const uint8_t>   recorderMesh,
-                               std::span<const uint8_t>   hardDiskMesh)
+                               std::span<const uint8_t>   recorderMesh)
 {
     DeskDeviceKind  driveKind = (monitorKind == DeskDeviceKind::Monitor2c)
                                 ? DeskDeviceKind::Disk2c : DeskDeviceKind::DiskII;
@@ -92,16 +91,8 @@ HRESULT DeskScene::LoadModels (DeskDeviceKind             monitorKind,
         m_hasRecorder = true;
     }
 
-    m_hasHardDisk = false;
-    m_hardDisk    = DeskSceneModel {};
-
-    if (!hardDiskMesh.empty())
-    {
-        hr = m_hardDisk.Load (DeskDeviceKind::HardDisk20SC, hardDiskMesh);
-        CHRA (hr);
-
-        m_hasHardDisk = true;
-    }
+    m_hasExtraModel.fill (false);
+    m_extraModels.fill (DeskSceneModel {});
 
     // The drive that comes with the monitor. They are never mixed -- the //c
     // stands over its platinum 5.25s and the //e over Disk IIs -- so pairing
@@ -166,8 +157,8 @@ HRESULT DeskScene::AdoptModelsFrom (const DeskScene & other)
 
     m_recorder    = other.m_recorder;
     m_hasRecorder = other.m_hasRecorder;
-    m_hardDisk    = other.m_hardDisk;
-    m_hasHardDisk = other.m_hasHardDisk;
+    m_extraModels   = other.m_extraModels;
+    m_hasExtraModel = other.m_hasExtraModel;
 
     m_driveLabelVerts[0] = other.m_driveLabelVerts[0];
     m_driveLabelVerts[1] = other.m_driveLabelVerts[1];
@@ -226,12 +217,15 @@ void DeskScene::BuildDerivedGeometry()
                             m_recorderShadowVerts);
     }
 
-    m_hardDiskShadowVerts.clear();
-
-    if (m_hasHardDisk)
+    for (int kind = 0; kind < kModelKinds; kind++)
     {
-        BuildContactShadow (m_hardDisk, kShadowMarginSideMm, kShadowMarginDepthMm,
-                            m_hardDiskShadowVerts);
+        m_extraShadowVerts[(size_t) kind].clear();
+
+        if (m_hasExtraModel[(size_t) kind])
+        {
+            BuildContactShadow (m_extraModels[(size_t) kind], kShadowMarginSideMm, kShadowMarginDepthMm,
+                                m_extraShadowVerts[(size_t) kind]);
+        }
     }
 
     m_modelsLoaded = true;
@@ -305,12 +299,29 @@ DeskSceneMetrics DeskScene::Metrics() const
     metrics.drivePadDepthMm   = kShadowMarginDepthMm;
 
     metrics.hasRecorder = HasRecorder();
-    metrics.hasHardDisk = HasHardDisk();
+    // Every desk drive is listed, a missing model's with empty bounds, so
+    // the composition's extras are in the plan's order.
+    metrics.extraCount    = (int) std::min (m_extras.size(), (size_t) kMaxDeskExtras);
+    metrics.driveSpot     = m_driveSpot;
+    metrics.driveLevel[0] = m_driveLevel[0];
+    metrics.driveLevel[1] = m_driveLevel[1];
 
-    if (HasHardDisk())
+    for (int i = 0; i < metrics.extraCount; i++)
     {
-        m_hardDisk.BoundsMin (metrics.hardDiskMin);
-        m_hardDisk.BoundsMax (metrics.hardDiskMax);
+        const ExtraDrive  & extra = m_extras[(size_t) i];
+        size_t              kind  = (size_t) extra.drive.model;
+
+
+
+        metrics.extras[i].model = extra.drive.model;
+        metrics.extras[i].spot  = extra.spot;
+        metrics.extras[i].level = extra.level;
+
+        if (m_hasExtraModel[kind])
+        {
+            m_extraModels[kind].BoundsMin (metrics.extras[i].min);
+            m_extraModels[kind].BoundsMax (metrics.extras[i].max);
+        }
     }
 
     if (HasRecorder())
@@ -1145,9 +1156,16 @@ void DeskScene::SceneBoundsWorld (const DeskSceneComposition & comp,
         accumulate (m_recorder, comp.recorderWorld);
     }
 
-    if (comp.hasHardDisk != 0 && HasHardDisk())
+    for (int i = 0; i < comp.extraCount && i < (int) m_extras.size(); i++)
     {
-        accumulate (m_hardDisk, comp.hardDiskWorld);
+        size_t  kind = (size_t) m_extras[(size_t) i].drive.model;
+
+
+
+        if (m_hasExtraModel[kind])
+        {
+            accumulate (m_extraModels[kind], comp.extraWorld[i]);
+        }
     }
 }
 
@@ -1332,13 +1350,22 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
                                         m_geometryRev, mvp, false, viewport, true);
         }
 
-        if (comp.hasHardDisk != 0 && HasHardDisk() && SUCCEEDED (hr))
+        for (int i = 0; i < comp.extraCount && i < (int) m_extras.size() && SUCCEEDED (hr); i++)
         {
-            SceneCamera::Mul44 (comp.hardDiskWorld, m_lightVp[k], mvp);
+            size_t  kind = (size_t) m_extras[(size_t) i].drive.model;
 
-            hr = m_renderer.DrawStatic (m_hardDiskOpaqueMesh,
-                                        m_hardDisk.OpaqueVerts().data(),
-                                        m_hardDisk.OpaqueVerts().size(),
+
+
+            if (!m_hasExtraModel[kind])
+            {
+                continue;
+            }
+
+            SceneCamera::Mul44 (comp.extraWorld[i], m_lightVp[k], mvp);
+
+            hr = m_renderer.DrawStatic (m_extraOpaqueMesh[kind],
+                                        m_extraModels[kind].OpaqueVerts().data(),
+                                        m_extraModels[kind].OpaqueVerts().size(),
                                         m_geometryRev, mvp, false, viewport, true);
         }
 
@@ -1787,48 +1814,57 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DeskScene::DrawHardDisk
-//
-//  The HD20SC's case, then its lamp, tinted by whether the drive is busy.
+//  DeskScene::DrawExtras
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DeskScene::DrawHardDisk (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport)
+HRESULT DeskScene::DrawExtras (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport)
 {
-    HRESULT   hr      = S_OK;
-    float     mvp[16] = {};
+    HRESULT  hr = S_OK;
 
 
-
-    BAIL_OUT_IF (comp.hasHardDisk == 0 || !HasHardDisk(), S_OK);
-
-    SceneCamera::Mul44 (comp.hardDiskWorld, comp.viewProj, mvp);
-
-    SetModelLighting (m_hardDisk, comp.hardDiskWorld);
-
-    hr = m_renderer.DrawStatic (m_hardDiskOpaqueMesh,
-                                m_hardDisk.OpaqueVerts().data(),
-                                m_hardDisk.OpaqueVerts().size(),
-                                m_geometryRev, mvp, false, viewport, true);
-    CHRA (hr);
 
     if (m_lampsDirty)
     {
         RebuildLampVerts();
     }
 
-    if (!m_hardDiskLabelVerts.empty())
+    for (int i = 0; i < comp.extraCount && i < (int) m_extras.size(); i++)
     {
-        hr = m_renderer.DrawStatic (m_hardDiskLabelMesh, m_hardDiskLabelVerts.data(), m_hardDiskLabelVerts.size(),
-                                    m_geometryRev, mvp, false, viewport, true);
-        CHRA (hr);
-    }
+        const ExtraDrive  & extra   = m_extras[(size_t) i];
+        size_t              kind    = (size_t) extra.drive.model;
+        size_t              lit     = extra.lampOn ? 1 : 0;
+        float               mvp[16] = {};
 
-    if (!m_hardDiskLampVerts.empty())
-    {
-        hr = m_renderer.DrawStatic (m_hardDiskLampMesh, m_hardDiskLampVerts.data(), m_hardDiskLampVerts.size(),
+
+
+        if (!m_hasExtraModel[kind])
+        {
+            continue;
+        }
+
+        SceneCamera::Mul44 (comp.extraWorld[i], comp.viewProj, mvp);
+        SetModelLighting (m_extraModels[kind], comp.extraWorld[i]);
+
+        hr = m_renderer.DrawStatic (m_extraOpaqueMesh[kind],
+                                    m_extraModels[kind].OpaqueVerts().data(),
+                                    m_extraModels[kind].OpaqueVerts().size(),
                                     m_geometryRev, mvp, false, viewport, true);
         CHRA (hr);
+
+        if (!extra.labelVerts.empty())
+        {
+            hr = m_renderer.DrawStatic (m_extraLabelMesh[(size_t) i], extra.labelVerts.data(), extra.labelVerts.size(),
+                                        m_geometryRev, mvp, false, viewport, true);
+            CHRA (hr);
+        }
+
+        if (!m_extraLampVerts[kind][lit].empty())
+        {
+            hr = m_renderer.DrawStatic (m_extraLampMesh[kind][lit], m_extraLampVerts[kind][lit].data(), m_extraLampVerts[kind][lit].size(),
+                                        m_geometryRev, mvp, false, viewport, true);
+            CHRA (hr);
+        }
     }
 
 Error:
@@ -1841,17 +1877,30 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DeskScene::SetHardDiskShown
+//  DeskScene::LoadExtraModel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskScene::SetHardDiskShown (bool shown)
+HRESULT DeskScene::LoadExtraModel (DeskDriveModel model, std::span<const uint8_t> mesh)
 {
-    if (shown != m_hardDiskShown)
-    {
-        m_hardDiskShown = shown;
-        TouchGeometry();
-    }
+    HRESULT  hr   = S_OK;
+    size_t   kind = (size_t) model;
+
+
+
+    hr = m_extraModels[kind].Load (DeskDeviceKind::HardDisk20SC, mesh);
+    CHRA (hr);
+
+    m_hasExtraModel[kind] = true;
+
+    m_extraShadowVerts[kind].clear();
+    BuildContactShadow (m_extraModels[kind], kShadowMarginSideMm, kShadowMarginDepthMm, m_extraShadowVerts[kind]);
+
+    m_lampsDirty = true;
+    TouchGeometry();
+
+Error:
+    return hr;
 }
 
 
@@ -1860,22 +1909,93 @@ void DeskScene::SetHardDiskShown (bool shown)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DeskScene::SetHardDiskVisuals
+//  DeskScene::SetDrivePlan
+//
+//  The Disk II pair's drives in a stack are at the plan's levels;
+//  the other drives on the desk are the extras.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskScene::SetHardDiskVisuals (bool lampOn, const std::wstring & label)
+void DeskScene::SetDrivePlan (const std::vector<DeskDrivePlacement> & plan)
 {
-    if (lampOn != m_hardDiskLamp)
+    m_extras.clear();
+    m_driveSpot     = DeskDriveSpot::UnderMonitor;
+    m_driveLevel[0] = 0;
+    m_driveLevel[1] = 1;
+
+    for (const DeskDrivePlacement & placed : plan)
     {
-        m_hardDiskLamp = lampOn;
-        m_lampsDirty   = true;
+        bool  isDiskII = placed.drive.model == DeskDriveModel::DiskII || placed.drive.model == DeskDriveModel::Disk2c;
+
+
+
+        if (placed.spot == DeskDriveSpot::DriveBar)
+        {
+            continue;
+        }
+
+        if (isDiskII)
+        {
+            m_driveSpot = placed.spot;
+
+            if (placed.drive.drive >= 0 && placed.drive.drive < 2)
+            {
+                m_driveLevel[placed.drive.drive] = placed.level;
+            }
+        }
+        else if (m_extras.size() < (size_t) kMaxDeskExtras)
+        {
+            ExtraDrive  extra;
+
+
+
+            extra.drive = placed.drive;
+            extra.spot  = placed.spot;
+            extra.level = placed.level;
+            m_extras.push_back (std::move (extra));
+        }
     }
 
-    if (label != m_hardDiskLabel)
+    TouchGeometry();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::SetExtraVisuals
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskScene::SetExtraVisuals (int index, bool lampOn, const std::wstring & label)
+{
+    ExtraDrive  * extra = (index >= 0 && index < (int) m_extras.size()) ? &m_extras[(size_t) index] : nullptr;
+
+
+
+    if (extra == nullptr)
     {
-        m_hardDiskLabel = label;
-        DeskSceneModel::StampHardDiskLabel (m_hardDiskLabelVerts, label);
+        return;
+    }
+
+    if (lampOn != extra->lampOn)
+    {
+        extra->lampOn = lampOn;
+        InvalidatePlate();
+    }
+
+    if (label != extra->label)
+    {
+        extra->label = label;
+        extra->labelVerts.clear();
+
+        if (extra->drive.model == DeskDriveModel::HardDisk20SC)
+        {
+            DeskSceneModel::StampHardDiskLabel (extra->labelVerts, label);
+        }
+
         TouchGeometry();
     }
 }
@@ -2250,11 +2370,22 @@ HRESULT DeskScene::DrawShadows (const DeskSceneComposition & comp,
         CHRA (hr);
     }
 
-    if (comp.hasHardDisk != 0 && !m_hardDiskShadowVerts.empty())
+    // A drive standing on another casts its shadow on that one, so only a
+    // stack's bottom drive gets a contact shadow on the desk.
+    for (int i = 0; i < comp.extraCount && i < (int) m_extras.size(); i++)
     {
-        SceneCamera::Mul44 (comp.hardDiskWorld, comp.viewProj, mvp);
+        size_t  kind = (size_t) m_extras[(size_t) i].drive.model;
 
-        hr = m_renderer.DrawStatic (m_hardDiskShadowMesh, m_hardDiskShadowVerts.data(), m_hardDiskShadowVerts.size(),
+
+
+        if (m_extras[(size_t) i].level != 0 || m_extraShadowVerts[kind].empty())
+        {
+            continue;
+        }
+
+        SceneCamera::Mul44 (comp.extraWorld[i], comp.viewProj, mvp);
+
+        hr = m_renderer.DrawStatic (m_extraShadowMesh[kind], m_extraShadowVerts[kind].data(), m_extraShadowVerts[kind].size(),
                                     m_geometryRev, mvp, false, viewport, false);
         CHRA (hr);
     }
@@ -2364,7 +2495,7 @@ HRESULT DeskScene::RenderStrip (ID3D11RenderTargetView * dstRtv, const DeskScene
     hr = DrawRecorder (strip, viewport);
     CHRA (hr);
 
-    hr = DrawHardDisk (strip, viewport);
+    hr = DrawExtras (strip, viewport);
     CHRA (hr);
 
     hr = DrawLampGlows (strip, viewport, false);
@@ -2391,7 +2522,12 @@ void DeskScene::RebuildLampVerts()
     TintInto (m_monitor.LampVerts(), m_powerLampOn ? 1.0f : kLampOffDim, m_monitorLampVerts);
     TintInto (m_drive.LampVerts(),   m_driveActive[0] ? 1.0f : kLampOffDim, m_driveLampVerts[0]);
     TintInto (m_drive.LampVerts(),   m_driveActive[1] ? 1.0f : kLampOffDim, m_driveLampVerts[1]);
-    TintInto (m_hardDisk.LampVerts(), m_hardDiskLamp ? 1.0f : kLampOffDim, m_hardDiskLampVerts);
+
+    for (int kind = 0; kind < kModelKinds; kind++)
+    {
+        TintInto (m_extraModels[(size_t) kind].LampVerts(), kLampOffDim, m_extraLampVerts[(size_t) kind][0]);
+        TintInto (m_extraModels[(size_t) kind].LampVerts(), 1.0f,        m_extraLampVerts[(size_t) kind][1]);
+    }
 
     m_lampsDirty = false;
 
@@ -2596,7 +2732,7 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
         hr = DrawRecorder (m_comp, viewport);
         CHRA (hr);
 
-        hr = DrawHardDisk (m_comp, viewport);
+        hr = DrawExtras (m_comp, viewport);
         CHRA (hr);
     }
 
@@ -2732,14 +2868,14 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
             hr = DrawRecorder (m_comp, viewport);
             CHRA (hr);
 
-            hr = DrawHardDisk (m_comp, viewport);
+            hr = DrawExtras (m_comp, viewport);
             CHRA (hr);
         }
 
         // Glass only, the sliding drives and recorder are the only bodies,
         // and they are in front of the tube: they go in this plate, over the
         // raster, depth-tested against the glass already in the buffer.
-        if (glassOnly && (m_comp.driveCount > 0 || m_comp.hasRecorder != 0 || m_comp.hasHardDisk != 0))
+        if (glassOnly && (m_comp.driveCount > 0 || m_comp.hasRecorder != 0 || m_comp.extraCount > 0))
         {
             hr = DrawDrives (m_comp, viewport);
             CHRA (hr);
@@ -2747,7 +2883,7 @@ HRESULT DeskScene::RenderPlate (const D3D11_VIEWPORT & viewport, int width, int 
             hr = DrawRecorder (m_comp, viewport);
             CHRA (hr);
 
-            hr = DrawHardDisk (m_comp, viewport);
+            hr = DrawExtras (m_comp, viewport);
             CHRA (hr);
         }
 
@@ -3068,7 +3204,7 @@ HRESULT DeskScene::DrawEnvironmentFace (const DeskSceneComposition & comp, const
     hr = DrawRecorder (comp, viewport);
     CHRA (hr);
 
-    hr = DrawHardDisk (comp, viewport);
+    hr = DrawExtras (comp, viewport);
     CHRA (hr);
 
 Error:

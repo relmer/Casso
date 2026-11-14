@@ -1792,11 +1792,21 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
             driveTook = true;
         }
 
-        // The 3.5-inch drive beside the stack picks a disk for its drive.
-        else if (!inStrip && m_scene->IsSideDeviceFloppy() && PtInRect (&m_scene->m_deskScene.Composition().hardDiskRectPx, pt))
+        // A 3.5-inch drive on the desk picks a disk for itself.
+        else if (!inStrip)
         {
-            m_scene->BrowseSideDevice();
-            driveTook = true;
+            const DeskSceneComposition  & comp = m_scene->m_deskScene.Composition();
+
+
+
+            for (int i = 0; i < comp.extraCount && i < m_scene->m_deskScene.GetExtraCount() && !driveTook; i++)
+            {
+                if (ShellDeskScene::IsFloppy35 (m_scene->m_deskScene.GetExtraDrive (i)) && PtInRect (&comp.extraRectPx[i], pt))
+                {
+                    m_scene->BrowseExtraDrive (i);
+                    driveTook = true;
+                }
+            }
         }
 
         m_scene->m_stripBrowseOpen = false;

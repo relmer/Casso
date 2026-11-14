@@ -289,9 +289,9 @@ bool DeskSceneLayout::GetSlideTanRange (const DeskSceneComposition  & comp,
         ok = GetBoxTanRange (comp.view, comp.recorderWorld, metrics.recorderMin, metrics.recorderMax, offsetMm, axis, outLo, outHi);
     }
 
-    if (ok && comp.hasHardDisk != 0)
+    for (int i = 0; ok && i < comp.extraCount; i++)
     {
-        ok = GetBoxTanRange (comp.view, comp.hardDiskWorld, metrics.hardDiskMin, metrics.hardDiskMax, offsetMm, axis, outLo, outHi);
+        ok = GetBoxTanRange (comp.view, comp.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max, offsetMm, axis, outLo, outHi);
     }
 
     return ok;
@@ -375,13 +375,14 @@ void DeskSceneLayout::ScaleSlideDevices (DeskSceneComposition & comp,
 
 
 
-    for (int i = -2; i < driveCount; i++)
+    // Below -1 are the extra drives, -1 the recorder, and from 0 the drives.
+    for (int i = -1 - comp.extraCount; i < driveCount; i++)
     {
-        float  * world = (i == -2) ? comp.hardDiskWorld : (i < 0) ? comp.recorderWorld : comp.driveWorld[i];
+        float  * world = (i < -1) ? comp.extraWorld[-2 - i] : (i < 0) ? comp.recorderWorld : comp.driveWorld[i];
 
 
 
-        if ((i == -2 && comp.hasHardDisk == 0) || (i == -1 && comp.hasRecorder == 0))
+        if (i == -1 && comp.hasRecorder == 0)
         {
             continue;
         }
@@ -457,10 +458,8 @@ void DeskSceneLayout::PlaceSlidingDevices (const DeskSceneMetrics & metrics,
         PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, stackMin, stackMax, spareMin, spareMax, out);
     }
 
-    if (metrics.hasHardDisk)
-    {
-        PlaceHardDisk (metrics, forwardMm - metrics.driveFrontY, stackMin, stackMax, spareMin, spareMax, out);
-    }
+    PlaceStack (metrics, DeskDriveSpot::LeftStack, true, 0, forwardMm, forwardMm - metrics.driveFrontY,
+                stackMin, stackMax, spareMin, spareMax, out);
 
     shiftX = -(stackMin[0] + stackMax[0]) * 0.5f;
 
@@ -471,7 +470,10 @@ void DeskSceneLayout::PlaceSlidingDevices (const DeskSceneMetrics & metrics,
 
     out.recorderWorld[12] += shiftX;
 
-    out.hardDiskWorld[12] += shiftX;
+    for (int i = 0; i < out.extraCount; i++)
+    {
+        out.extraWorld[i][12] += shiftX;
+    }
 }
 
 
@@ -531,7 +533,10 @@ int DeskSceneLayout::SlideDevices (DeskSceneComposition   & out,
 
     out.recorderWorld[12] += centerXMm;
 
-    out.hardDiskWorld[12] += centerXMm;
+    for (int i = 0; i < out.extraCount; i++)
+    {
+        out.extraWorld[i][12] += centerXMm;
+    }
 
     if (eyeDistMm > depthMm)
     {
@@ -556,13 +561,16 @@ int DeskSceneLayout::SlideDevices (DeskSceneComposition   & out,
 
     out.recorderWorld[13] += offsetMm;
 
-    out.hardDiskWorld[13] += offsetMm;
+    for (int i = 0; i < out.extraCount; i++)
+    {
+        out.extraWorld[i][13] += offsetMm;
+    }
 
     if (slideProgress <= 0.0f)
     {
         driveCount      = 0;
         out.hasRecorder = 0;
-        out.hasHardDisk = 0;
+        out.extraCount  = 0;
     }
 
     out.driveCount = driveCount;
@@ -619,10 +627,10 @@ void DeskSceneLayout::ProjectDeviceRects (DeskSceneComposition   & out,
                          out.viewProj, viewportPx, out.recorderRectPx);
     }
 
-    if (out.hasHardDisk != 0)
+    for (int i = 0; i < out.extraCount; i++)
     {
-        ProjectModelBox (out.hardDiskWorld, metrics.hardDiskMin, metrics.hardDiskMax,
-                         out.viewProj, viewportPx, out.hardDiskRectPx);
+        ProjectModelBox (out.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max,
+                         out.viewProj, viewportPx, out.extraRectPx[i]);
     }
 }
 
@@ -650,15 +658,16 @@ bool DeskSceneLayout::GetSlideFrontTopPx (const DeskSceneComposition & comp,
 
 
 
-    for (int i = -2; i < comp.driveCount; i++)
+    // Below -1 are the extra drives, -1 the recorder, and from 0 the drives.
+    for (int i = -1 - comp.extraCount; i < comp.driveCount; i++)
     {
-        const float  * world  = (i == -2) ? comp.hardDiskWorld : (i < 0) ? comp.recorderWorld : comp.driveWorld[i];
-        const float  * boxMin = (i == -2) ? metrics.hardDiskMin : (i < 0) ? metrics.recorderMin : metrics.driveMin;
-        const float  * boxMax = (i == -2) ? metrics.hardDiskMax : (i < 0) ? metrics.recorderMax : metrics.driveMax;
+        const float  * world  = (i < -1) ? comp.extraWorld[-2 - i] : (i < 0) ? comp.recorderWorld : comp.driveWorld[i];
+        const float  * boxMin = (i < -1) ? metrics.extras[-2 - i].min : (i < 0) ? metrics.recorderMin : metrics.driveMin;
+        const float  * boxMax = (i < -1) ? metrics.extras[-2 - i].max : (i < 0) ? metrics.recorderMax : metrics.driveMax;
 
 
 
-        if ((i == -2 && comp.hasHardDisk == 0) || (i == -1 && comp.hasRecorder == 0))
+        if (i == -1 && comp.hasRecorder == 0)
         {
             continue;
         }
@@ -832,6 +841,8 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     float    eyeZ          = 0.0f;
     float    forwardMm     = 0.0f;
     float    monitorLiftMm = 0.0f;
+    int      underExtra    = -1;
+    int      driveUnder    = 0;
     float    sceneMin[3]   = {};
     float    sceneMax[3]   = {};
     float    deviceMin[3]  = {};
@@ -865,11 +876,28 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     //
     // Sliding, the monitor stays on the desk and the drives are in front of
     // it, so there is no stack to lift it onto.
-    monitorLiftMm = (driveCount > 0 && !sliding) ? (metrics.driveMax[2] - metrics.driveMin[2]) : 0.0f;
+    //
+    // A hard disk the drive plan put under the monitor lifts it by its height
+    // instead, and then no drive is under it.
+    for (int i = 0; i < metrics.extraCount && !sliding; i++)
+    {
+        if (metrics.extras[i].spot == DeskDriveSpot::UnderMonitor)
+        {
+            underExtra = i;
+        }
+    }
 
-    if (driveCount > 0 && !sliding && metrics.driveDoorRiseMm > 0.0f)
+    driveUnder    = (underExtra < 0 && metrics.driveSpot == DeskDriveSpot::UnderMonitor) ? driveCount : 0;
+    monitorLiftMm = (driveUnder > 0 && !sliding) ? (metrics.driveMax[2] - metrics.driveMin[2]) : 0.0f;
+
+    if (driveUnder > 0 && !sliding && metrics.driveDoorRiseMm > 0.0f)
     {
         monitorLiftMm += metrics.driveDoorRiseMm + kDoorRiseMarginMm;
+    }
+
+    if (underExtra >= 0)
+    {
+        monitorLiftMm = metrics.extras[underExtra].max[2] - metrics.extras[underExtra].min[2];
     }
 
     MakeDeviceWorld (-monitorCx, monitorLiftMm, 0.0f, 1.0f, out.monitorWorld);
@@ -899,7 +927,7 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     // so measuring the mesh marched the drives most of an inch toward the
     // viewer -- out of the plane the stack is supposed to share. Each model
     // names its own frame plane; see DeskSceneModel::FrontPlaneY.
-    driveTx[0] = (driveCount == 2) ? -(driveW + kDriveGapMm) * 0.5f : 0.0f;
+    driveTx[0] = (driveUnder == 2) ? -(driveW + kDriveGapMm) * 0.5f : 0.0f;
     driveTx[1] = (driveW + kDriveGapMm) * 0.5f;
     forwardMm  = metrics.driveFrontY - metrics.monitorFrontY;
 
@@ -911,7 +939,7 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
 
     (void) dropMm;
 
-    for (int i = 0; i < driveCount; i++)
+    for (int i = 0; i < driveUnder; i++)
     {
         MakeDeviceWorld (driveTx[i] - driveCx, 0.0f, forwardMm, 1.0f, out.driveWorld[i]);
     }
@@ -956,7 +984,7 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
 
     // Sliding, the drives and the recorder are excluded from the framing;
     // PlaceSlidingDevices puts them in front of the monitor afterward.
-    for (int i = 0; i < driveCount; i++)
+    for (int i = 0; i < driveUnder; i++)
     {
         float   dlo[3] = { metrics.driveMin[0] - driveCx + driveTx[i],
                            metrics.driveMin[2],
@@ -977,6 +1005,38 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
         }
     }
 
+    // The hard disk under the monitor, centered on it, its front in the
+    // drives' front plane.
+    if (underExtra >= 0)
+    {
+        const DeskExtraMetrics  & extra = metrics.extras[underExtra];
+        float                     tx    = -(extra.min[0] + extra.max[0]) * 0.5f;
+        float                     tz    = forwardMm - metrics.driveFrontY;
+        float                     lo[3] = { extra.min[0] + tx, extra.min[2], tz - extra.max[1] };
+        float                     hi[3] = { extra.max[0] + tx, extra.max[2], tz - extra.min[1] };
+
+
+
+        MakeDeviceWorld (tx, 0.0f, tz, 1.0f, out.extraWorld[underExtra]);
+        out.extraCount = metrics.extraCount;
+
+        for (int axis = 0; axis < 3; axis++)
+        {
+            deviceMin[axis] = std::min (deviceMin[axis], lo[axis]);
+            deviceMax[axis] = std::max (deviceMax[axis], hi[axis]);
+            sceneMin[axis]  = std::min (sceneMin[axis],  lo[axis]);
+            sceneMax[axis]  = std::max (sceneMax[axis],  hi[axis]);
+        }
+    }
+
+    // The stacks beside the monitor, the right one first so the recorder
+    // lies outside it.
+    if (!sliding)
+    {
+        PlaceStack (metrics, DeskDriveSpot::RightStack, false, driveCount - driveUnder, forwardMm, forwardMm - metrics.driveFrontY,
+                    deviceMin, deviceMax, sceneMin, sceneMax, out);
+    }
+
     // The cassette recorder joins both bounds, so the camera fit contains it
     // and its shadow exactly as it does the stack.
     if (metrics.hasRecorder && !sliding)
@@ -985,10 +1045,10 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                        sceneMin, sceneMax, out);
     }
 
-    if (metrics.hasHardDisk && !sliding)
+    if (!sliding)
     {
-        PlaceHardDisk (metrics, forwardMm - metrics.driveFrontY, deviceMin, deviceMax,
-                       sceneMin, sceneMax, out);
+        PlaceStack (metrics, DeskDriveSpot::LeftStack, false, 0, forwardMm, forwardMm - metrics.driveFrontY,
+                    deviceMin, deviceMax, sceneMin, sceneMax, out);
     }
 
     if (sliding)
@@ -1187,10 +1247,10 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                     memcpy (out.recorderWorld, rotated, sizeof (rotated));
                 }
 
-                if (out.hasHardDisk != 0)
+                for (int i = 0; i < out.extraCount; i++)
                 {
-                    SceneCamera::Mul44 (out.hardDiskWorld, rot, rotated);
-                    memcpy (out.hardDiskWorld, rotated, sizeof (rotated));
+                    SceneCamera::Mul44 (out.extraWorld[i], rot, rotated);
+                    memcpy (out.extraWorld[i], rotated, sizeof (rotated));
                 }
             }
         }
@@ -1353,39 +1413,96 @@ void DeskSceneLayout::PlaceRecorder (const DeskSceneMetrics & metrics,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DeskSceneLayout::PlaceHardDisk
+//  DeskSceneLayout::PlaceStack
 //
-//  The hard disk sits on the desk to the left of the stack, its right edge
-//  kRecorderGapMm clear of the stack's left edge and its front in line with
-//  the drives' front plane, `frontZ`. Grows both bounds by it.
+//  A stack beside the devices placed so far, kRecorderGapMm clear of their
+//  left or right edge: the extra drives with `spot`, or with `everyExtra`
+//  all of them, and the first `driveCount` Disk II drives when their spot is
+//  `spot`. Level 0 is on the desk and each level is on top of the one below,
+//  each centered on the stack's column. The Disk II drives' fronts are at
+//  `driveZ` and the extras' at `frontZ`, the drives' front plane. Grows both
+//  bounds by the stack.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskSceneLayout::PlaceHardDisk (const DeskSceneMetrics & metrics,
-                                     float                    frontZ,
-                                     float                    deviceMin[3],
-                                     float                    deviceMax[3],
-                                     float                    sceneMin[3],
-                                     float                    sceneMax[3],
-                                     DeskSceneComposition   & out)
+void DeskSceneLayout::PlaceStack (const DeskSceneMetrics & metrics,
+                                  DeskDriveSpot            spot,
+                                  bool                     everyExtra,
+                                  int                      driveCount,
+                                  float                    driveZ,
+                                  float                    frontZ,
+                                  float                    deviceMin[3],
+                                  float                    deviceMax[3],
+                                  float                    sceneMin[3],
+                                  float                    sceneMax[3],
+                                  DeskSceneComposition   & out)
 {
-    float   tx     = deviceMin[0] - kRecorderGapMm - metrics.hardDiskMax[0];
-    float   tz     = frontZ;
-    float   lo[3]  = { metrics.hardDiskMin[0] + tx, metrics.hardDiskMin[2], tz - metrics.hardDiskMax[1] };
-    float   hi[3]  = { metrics.hardDiskMax[0] + tx, metrics.hardDiskMax[2], tz - metrics.hardDiskMin[1] };
-
-
-
-    MakeDeviceWorld (tx, 0.0f, tz, 1.0f, out.hardDiskWorld);
-    out.hasHardDisk = 1;
-
-    for (int axis = 0; axis < 3; axis++)
+    struct Item
     {
-        deviceMin[axis] = std::min (deviceMin[axis], lo[axis]);
-        deviceMax[axis] = std::max (deviceMax[axis], hi[axis]);
-        sceneMin[axis]  = std::min (sceneMin[axis],  lo[axis]);
-        sceneMax[axis]  = std::max (sceneMax[axis],  hi[axis]);
+        int            level;
+        float        * world;
+        const float  * lo;
+        const float  * hi;
+        float          z;
+    };
+
+    std::vector<Item>  items;
+    float              columnW = 0.0f;
+    float              columnX = 0.0f;
+    float              y       = 0.0f;
+
+
+
+    for (int i = 0; i < metrics.extraCount; i++)
+    {
+        if (everyExtra || metrics.extras[i].spot == spot)
+        {
+            items.push_back ({ metrics.extras[i].level, out.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max, frontZ });
+        }
     }
+
+    for (int i = 0; i < driveCount && i < 2 && !everyExtra && metrics.driveSpot == spot; i++)
+    {
+        items.push_back ({ metrics.driveLevel[i], out.driveWorld[i], metrics.driveMin, metrics.driveMax, driveZ });
+    }
+
+    if (items.empty())
+    {
+        return;
+    }
+
+    std::stable_sort (items.begin(), items.end(), [] (const Item & a, const Item & b) { return a.level < b.level; });
+
+    for (const Item & item : items)
+    {
+        columnW = std::max (columnW, item.hi[0] - item.lo[0]);
+    }
+
+    columnX = (spot == DeskDriveSpot::RightStack) ? deviceMax[0] + kRecorderGapMm + columnW * 0.5f
+                                                  : deviceMin[0] - kRecorderGapMm - columnW * 0.5f;
+
+    for (const Item & item : items)
+    {
+        float  tx    = columnX - (item.lo[0] + item.hi[0]) * 0.5f;
+        float  ty    = y - item.lo[2];
+        float  lo[3] = { item.lo[0] + tx, y, item.z - item.hi[1] };
+        float  hi[3] = { item.hi[0] + tx, y + (item.hi[2] - item.lo[2]), item.z - item.lo[1] };
+
+
+
+        MakeDeviceWorld (tx, ty, item.z, 1.0f, item.world);
+        y = hi[1];
+
+        for (int axis = 0; axis < 3; axis++)
+        {
+            deviceMin[axis] = std::min (deviceMin[axis], lo[axis]);
+            deviceMax[axis] = std::max (deviceMax[axis], hi[axis]);
+            sceneMin[axis]  = std::min (sceneMin[axis],  lo[axis]);
+            sceneMax[axis]  = std::max (sceneMax[axis],  hi[axis]);
+        }
+    }
+
+    out.extraCount = metrics.extraCount;
 }
 
 
@@ -1711,15 +1828,15 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
     // that shows the drives shows it too. The row is then shifted sideways to
     // center the whole group, since the camera solve below points straight
     // down the middle.
-    if (metrics.hasHardDisk)
-    {
-        PlaceHardDisk (metrics, -metrics.driveFrontY, deviceMin, deviceMax, sceneMin, sceneMax, out);
-    }
+    PlaceStack (metrics, DeskDriveSpot::LeftStack, true, 0, 0.0f, -metrics.driveFrontY, deviceMin, deviceMax, sceneMin, sceneMax, out);
 
     if (metrics.hasRecorder)
     {
         PlaceRecorder (metrics, -metrics.driveFrontY, deviceMin, deviceMax, sceneMin, sceneMax, out);
+    }
 
+    if (metrics.hasRecorder || out.extraCount > 0)
+    {
         shiftX       = -(sceneMin[0] + sceneMax[0]) * 0.5f;
         sceneMin[0] += shiftX;
         sceneMax[0] += shiftX;
@@ -1731,7 +1848,10 @@ HRESULT DeskSceneLayout::ComputeStrip (const RECT             & viewportPx,
 
         out.recorderWorld[12] += shiftX;
 
-        out.hardDiskWorld[12] += shiftX;
+        for (int i = 0; i < out.extraCount; i++)
+        {
+            out.extraWorld[i][12] += shiftX;
+        }
     }
 
     rowCy = (sceneMin[1] + sceneMax[1]) * 0.5f;

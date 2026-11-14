@@ -2,6 +2,7 @@
 
 #include "Devices/BlockDevice/AppleScsiCard.h"
 #include "Devices/BlockDevice/ProFileCard.h"
+#include "Devices/BlockDevice/ScsiHardDisk.h"
 #include "Devices/Floppy35/Apple2cPlusDiskPort.h"
 #include "Devices/Floppy35/Apple2cSmartPort.h"
 #include "Devices/Floppy35/Apple35ControllerCard.h"
@@ -203,13 +204,6 @@ HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
     std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
                                                                                    : IDR_MODEL_DISKII_MESH);
     std::span<const uint8_t>  recorderMesh;
-    SideDevice                side         = ChooseSideDevice (m_shell.m_machine.GetRefs());
-    int                       sideMeshId   = (side == SideDevice::ProFile)   ? IDR_MODEL_PROFILE_MESH
-                                           : (side == SideDevice::UniDisk35) ? IDR_MODEL_UNIDISK35_MESH
-                                           : (side == SideDevice::Apple35)   ? (m_shell.m_machine.GetRefs().apple2cPlusDiskPort != nullptr ? IDR_MODEL_APPLE35PLUS_MESH
-                                                                                                                                              : IDR_MODEL_APPLE35_MESH)
-                                                                             : IDR_MODEL_HARDDISK20SC_MESH;
-    std::span<const uint8_t>  hardDiskMesh = PrinterPanel::LoadBinaryResource (sideMeshId);
     bool                      haveMeshes   = false;
     bool                      haveTape     = false;
 
@@ -227,15 +221,12 @@ HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
         CBRA (haveTape);
     }
 
-    hr = m_deskScene.LoadModels (monitor.sceneKind, monitorMesh, driveMesh, recorderMesh, hardDiskMesh);
+    hr = m_deskScene.LoadModels (monitor.sceneKind, monitorMesh, driveMesh, recorderMesh);
     CHRA (hr);
-
-    // The side device's model takes the hard disk's place beside the stack.
-    m_sideDevice = side;
-    m_deskScene.SetHardDiskShown (side != SideDevice::None);
 
     m_deskSceneMachineIsC = isC;
 
+    // The plan is made from the monitor's width, so after the models load.
     PlanDrives();
 
     // The monitor that just loaded brings its own tilt with it.
@@ -1015,7 +1006,7 @@ void ShellDeskScene::ResetSceneView()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int ShellDeskScene::DeskSceneDriveCount() const
+int ShellDeskScene::CountDiskIiDrives() const
 {
     bool  hasDisk = (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
 
@@ -1037,6 +1028,40 @@ int ShellDeskScene::DeskSceneDriveCount() const
     // A card with every port empty reports zero, which is the point of being
     // able to detach a drive at all.
     return m_shell.m_machine.GetConfig().AttachedDiskIiDriveCount();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::DeskSceneDriveCount
+//
+//  The Disk II drives on the desk: none while the floppies are on the drive
+//  bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDeskScene::DeskSceneDriveCount() const
+{
+    bool  onBar = false;
+
+
+
+    for (const DeskDrivePlacement & placed : m_drivePlan)
+    {
+        bool  isDiskII = placed.drive.model == DeskDriveModel::DiskII || placed.drive.model == DeskDriveModel::Disk2c;
+
+
+
+        if (isDiskII && placed.spot == DeskDriveSpot::DriveBar)
+        {
+            onBar = true;
+        }
+    }
+
+    return onBar ? 0 : CountDiskIiDrives();
 }
 
 
@@ -1369,9 +1394,12 @@ void ShellDeskScene::SyncSceneDriveChrome()
         }
     }
 
-    if (IsSideDeviceFloppy() && comp.hasHardDisk != 0 && !IsRectEmpty (&comp.hardDiskRectPx))
+    for (int i = 0; i < comp.extraCount && i < m_deskScene.GetExtraCount(); i++)
     {
-        m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { comp.hardDiskRectPx, DxuiHitSlot::Custom, kSideDeviceDropTag });
+        if (IsFloppy35 (m_deskScene.GetExtraDrive (i)) && !IsRectEmpty (&comp.extraRectPx[i]))
+        {
+            m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { comp.extraRectPx[i], DxuiHitSlot::Custom, kExtraDropTagBase + i });
+        }
     }
 
     m_shell.m_tapeDeck->RegisterTapeDropTarget();
@@ -3228,183 +3256,6 @@ void ShellDeskScene::UpdateSceneOrbit (int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDeskScene::ChooseSideDevice
-//
-//  A //c Plus's internal drive is an Apple 3.5 Drive; a //c's UniDisk on the
-//  disk port, a UniDisk card's chain or a 3.5 controller card's drive is the
-//  model of its first drive.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-ShellDeskScene::SideDevice ShellDeskScene::ChooseSideDevice (const MachineRefs & refs)
-{
-    bool  hasScsi    = !refs.scsiCards.empty() && refs.scsiCards[0]->HasDrive();
-    bool  hasUniDisk = !refs.lironCards.empty() || (refs.apple2cSmartPort != nullptr && refs.apple2cSmartPort->GetPort().GetDriveCount() > 0);
-    bool  hasApple35 = !refs.apple35Cards.empty() || refs.apple2cPlusDiskPort != nullptr;
-
-
-
-    return hasScsi                    ? SideDevice::Scsi
-         : !refs.proFileCards.empty() ? SideDevice::ProFile
-         : hasUniDisk                 ? SideDevice::UniDisk35
-         : hasApple35                 ? SideDevice::Apple35
-                                      : SideDevice::None;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDeskScene::IsSideDeviceBusy
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellDeskScene::IsSideDeviceBusy (uint64_t now, uint64_t windowCycles) const
-{
-    const MachineRefs  & refs = m_shell.m_machine.GetRefs();
-    bool                 busy = false;
-    uint64_t             last = 0;
-
-
-
-    switch (m_sideDevice)
-    {
-        case SideDevice::Scsi:
-            busy = refs.scsiCards[0]->IsBusy (now, windowCycles);
-            break;
-
-        case SideDevice::ProFile:
-            last = refs.proFileCards[0]->GetDrive().GetLastActivityCycle();
-            busy = last != 0 && now >= last && now - last < windowCycles;
-            break;
-
-        case SideDevice::UniDisk35:
-            if (!refs.lironCards.empty())
-            {
-                for (size_t i = 0; !busy && i < refs.lironCards[0]->GetDriveCount(); ++i)
-                {
-                    busy = refs.lironCards[0]->GetDrive (i).GetMechanism().IsMotorOn();
-                }
-            }
-            else
-            {
-                for (size_t i = 0; !busy && i < refs.apple2cSmartPort->GetPort().GetDriveCount(); ++i)
-                {
-                    busy = refs.apple2cSmartPort->GetPort().GetDrive (i).GetMechanism().IsMotorOn();
-                }
-            }
-
-            break;
-
-        case SideDevice::Apple35:
-            busy = (refs.apple2cPlusDiskPort != nullptr) ? refs.apple2cPlusDiskPort->GetInternalDrive().IsMotorOn()
-                 : (refs.apple35Cards[0]->GetCardMemory().GetDrive (0).IsMotorOn() || refs.apple35Cards[0]->GetCardMemory().GetDrive (1).IsMotorOn());
-            break;
-
-        default:
-            break;
-    }
-
-    return busy;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDeskScene::GetSideDeviceSlot
-//
-//  The slot MachineHost::FindFloppy35 takes for the side device's drives: its
-//  card's slot, or 0 for the //c disk port.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int ShellDeskScene::GetSideDeviceSlot (const MachineRefs & refs, SideDevice side)
-{
-    int  slot = 0;
-
-
-
-    if (side == SideDevice::UniDisk35 && !refs.lironCards.empty())
-    {
-        slot = refs.lironCards[0]->GetSlot();
-    }
-    else if (side == SideDevice::Apple35 && refs.apple2cPlusDiskPort == nullptr && !refs.apple35Cards.empty())
-    {
-        slot = refs.apple35Cards[0]->GetSlot();
-    }
-
-    return slot;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDeskScene::BrowseSideDevice
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDeskScene::BrowseSideDevice()
-{
-    HRESULT         hr     = S_OK;
-    FileDialogSpec  spec;
-    fs::path        chosen;
-    bool            picked = false;
-
-
-
-    BAIL_OUT_IF (!IsSideDeviceFloppy(), S_OK);
-
-    spec.filters = { { L"3.5-inch disk image", L"*.po;*.2mg;*.2img;*.dc;*.dc42;*.image;*.dsk;*.woz" }, { L"All files", L"*.*" } };
-
-    hr = m_shell.m_hostDialogs.PickFileToOpen (m_shell.m_hwnd, spec, chosen, picked);
-    CHR (hr);
-    BAIL_OUT_IF (!picked, S_OK);
-
-    InsertInSideDevice (chosen.wstring());
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDeskScene::InsertInSideDevice
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDeskScene::InsertInSideDevice (const std::wstring & path)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    BAIL_OUT_IF (!IsSideDeviceFloppy(), S_OK);
-
-    hr = m_shell.m_disks->Mount (GetSideDeviceSlot (m_shell.m_machine.GetRefs(), m_sideDevice), 0, path);
-    CHR (hr);
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ShellDeskScene::PlanDrives
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3422,10 +3273,38 @@ void ShellDeskScene::PlanDrives()
     m_deskScene.MonitorModel().BoundsMax (hi);
     monitor = hi[0] - lo[0];
 
-    m_drivePlan = DeskDrivePlan::Place (DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), DeskSceneDriveCount(), m_shell.m_disks->MachineHasBuiltInDrive()),
+    m_drivePlan = DeskDrivePlan::Place (DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), CountDiskIiDrives(), m_shell.m_disks->MachineHasBuiltInDrive()),
                                         DeskDrivePlan::ParsePlace (prefs.deskFloppies),
                                         DeskDrivePlan::ParsePlace (prefs.deskHardDisks),
                                         monitor);
+
+    for (const DeskDrivePlacement & placed : m_drivePlan)
+    {
+        int  meshId = 0;
+
+
+
+        switch (placed.drive.model)
+        {
+            case DeskDriveModel::HardDisk20SC: meshId = IDR_MODEL_HARDDISK20SC_MESH; break;
+            case DeskDriveModel::ProFile:      meshId = IDR_MODEL_PROFILE_MESH;      break;
+            case DeskDriveModel::UniDisk35:    meshId = IDR_MODEL_UNIDISK35_MESH;    break;
+            case DeskDriveModel::Apple35Drive: meshId = IDR_MODEL_APPLE35_MESH;      break;
+            case DeskDriveModel::Apple35Plus:  meshId = IDR_MODEL_APPLE35PLUS_MESH;  break;
+            default:                           break;
+        }
+
+        if (meshId != 0 && placed.spot != DeskDriveSpot::DriveBar)
+        {
+            HRESULT  hr = m_deskScene.LoadExtraModel (placed.drive.model, PrinterPanel::LoadBinaryResource (meshId));
+
+
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+
+    m_deskScene.SetDrivePlan (m_drivePlan);
 }
 
 
@@ -3486,4 +3365,130 @@ void ShellDeskScene::ToggleClassOnDesk (DeskDriveClass driveClass)
         (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left), (UINT) (rcClient.bottom - rcClient.top));
         m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsFloppy35
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsFloppy35 (const DeskDrive & drive)
+{
+    return drive.model == DeskDriveModel::UniDisk35 || drive.model == DeskDriveModel::Apple35Drive || drive.model == DeskDriveModel::Apple35Plus;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsDriveBusy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsDriveBusy (const DeskDrive & drive, uint64_t now, uint64_t windowCycles) const
+{
+    const MachineRefs  & refs = m_shell.m_machine.GetRefs();
+    bool                 busy = false;
+    uint64_t             last = 0;
+    Sony35Drive        * sony = nullptr;
+
+
+
+    switch (drive.model)
+    {
+        case DeskDriveModel::HardDisk20SC:
+            for (AppleScsiCard * card : refs.scsiCards)
+            {
+                last = card->GetTarget (drive.drive).GetLastActivityCycle();
+                busy = busy || (last != 0 && now >= last && now - last < windowCycles);
+            }
+
+            break;
+
+        case DeskDriveModel::ProFile:
+            for (ProFileCard * card : refs.proFileCards)
+            {
+                last = card->GetDrive().GetLastActivityCycle();
+                busy = busy || (last != 0 && now >= last && now - last < windowCycles);
+            }
+
+            break;
+
+        case DeskDriveModel::UniDisk35:
+        case DeskDriveModel::Apple35Drive:
+        case DeskDriveModel::Apple35Plus:
+            sony = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+            busy = sony != nullptr && sony->IsMotorOn();
+            break;
+
+        default:
+            break;
+    }
+
+    return busy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::BrowseExtraDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::BrowseExtraDrive (int index)
+{
+    HRESULT         hr     = S_OK;
+    FileDialogSpec  spec;
+    fs::path        chosen;
+    bool            picked = false;
+
+
+
+    BAIL_OUT_IF (index < 0 || index >= m_deskScene.GetExtraCount() || !IsFloppy35 (m_deskScene.GetExtraDrive (index)), S_OK);
+
+    spec.filters = { { L"3.5-inch disk image", L"*.po;*.2mg;*.2img;*.dc;*.dc42;*.image;*.dsk;*.woz" }, { L"All files", L"*.*" } };
+
+    hr = m_shell.m_hostDialogs.PickFileToOpen (m_shell.m_hwnd, spec, chosen, picked);
+    CHR (hr);
+    BAIL_OUT_IF (!picked, S_OK);
+
+    InsertInExtraDrive (index, chosen.wstring());
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::InsertInExtraDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::InsertInExtraDrive (int index, const std::wstring & path)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (index < 0 || index >= m_deskScene.GetExtraCount() || !IsFloppy35 (m_deskScene.GetExtraDrive (index)), S_OK);
+
+    hr = m_shell.m_disks->Mount (m_deskScene.GetExtraDrive (index).slot, m_deskScene.GetExtraDrive (index).drive, path);
+    CHR (hr);
+
+Error:
+    return;
 }

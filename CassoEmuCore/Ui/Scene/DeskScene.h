@@ -51,8 +51,11 @@ public:
     HRESULT  LoadModels (DeskDeviceKind             monitorKind,
                          std::span<const uint8_t>   monitorMesh,
                          std::span<const uint8_t>   driveMesh,
-                         std::span<const uint8_t>   recorderMesh = {},
-                         std::span<const uint8_t>   hardDiskMesh = {});
+                         std::span<const uint8_t>   recorderMesh = {});
+
+    // The model for the hard disks or 3.5-inch drives of `model`; LoadModels
+    // drops every one loaded before.
+    HRESULT  LoadExtraModel (DeskDriveModel model, std::span<const uint8_t> mesh);
 
     // Share another scene's parsed models rather than parsing the same text
     // again. The data is pure CPU vertex arrays, so a scene on a different
@@ -116,11 +119,14 @@ public:
     // Loaded follows the machine's cassette port; shown follows whether it
     // is attached, and flips without reloading anything.
     bool                    HasRecorder      () const { return m_hasRecorder && m_recorderShown; }
-    bool                    HasHardDisk      () const { return m_hasHardDisk && m_hardDiskShown; }
 
-    // Whether the HD20SC is on the desk, and its lamp.
-    void  SetHardDiskShown   (bool shown);
-    void  SetHardDiskVisuals (bool lampOn, const std::wstring & label);
+    // The drives other than the Disk II pair, from the drive plan: the ones
+    // on the desk in plan order, each with its lamp and, for an HD20SC, its
+    // size label ("20SC"); and the Disk II pair's spot and levels.
+    void               SetDrivePlan    (const std::vector<DeskDrivePlacement> & plan);
+    int                GetExtraCount   () const { return (int) m_extras.size(); }
+    const DeskDrive  & GetExtraDrive   (int index) const { return m_extras[(size_t) index].drive; }
+    void               SetExtraVisuals (int index, bool lampOn, const std::wstring & label);
     bool  IsRecorderLoaded   () const { return m_hasRecorder; }
     void  SetRecorderShown   (bool shown);
 
@@ -523,7 +529,7 @@ private:
     void     BuildGlassSheen      (const CurvedDisplaySurface & surface, float tiltRad);
     HRESULT  DrawDrives           (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
     HRESULT  DrawRecorder         (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
-    HRESULT  DrawHardDisk         (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    HRESULT  DrawExtras           (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
 
     // Appends `in` turned by `angleRad` about the model's left-right axis
     // through (pivotY, pivotZ), positive turning the front (low Y) down.
@@ -663,11 +669,26 @@ private:
     DeskSceneModel          m_recorder;
     bool                    m_hasRecorder   = false;
     bool                    m_recorderShown = true;
-    DeskSceneModel          m_hardDisk;
-    bool                    m_hasHardDisk   = false;
-    bool                    m_hardDiskShown = false;
-    bool                    m_hardDiskLamp  = false;
-    std::wstring            m_hardDiskLabel;
+
+    // One drive other than the Disk II pair, on the desk.
+    struct ExtraDrive
+    {
+        DeskDrive                            drive;
+        DeskDriveSpot                        spot   = DeskDriveSpot::LeftStack;
+        int                                  level  = 0;
+        bool                                 lampOn = false;
+        std::wstring                         label;
+        std::vector<Dxui3DRenderer::Vertex>  labelVerts;
+    };
+
+    static constexpr int  kModelKinds = (int) DeskDriveModel::ProFile + 1;
+
+    std::vector<ExtraDrive>                  m_extras;
+    DeskDriveSpot                            m_driveSpot     = DeskDriveSpot::UnderMonitor;
+    int                                      m_driveLevel[2] = {};
+    std::array<DeskSceneModel, kModelKinds>  m_extraModels;
+    std::array<bool, kModelKinds>            m_hasExtraModel = {};
+
     DeskSceneComposition    m_comp;
     bool                    m_modelsLoaded  = false;
 
@@ -696,9 +717,10 @@ private:
     std::vector<Dxui3DRenderer::Vertex>   m_monitorShadowVerts;
     std::vector<Dxui3DRenderer::Vertex>   m_driveShadowVerts;
     std::vector<Dxui3DRenderer::Vertex>   m_recorderShadowVerts;
-    std::vector<Dxui3DRenderer::Vertex>   m_hardDiskShadowVerts;
-    std::vector<Dxui3DRenderer::Vertex>   m_hardDiskLampVerts;
-    std::vector<Dxui3DRenderer::Vertex>   m_hardDiskLabelVerts;
+
+    std::array<std::vector<Dxui3DRenderer::Vertex>, kModelKinds>                 m_extraShadowVerts;
+    std::array<std::array<std::vector<Dxui3DRenderer::Vertex>, 2>, kModelKinds>  m_extraLampVerts;   // [model][lit]
+
     bool                                  m_powerLampOn     = false;
     bool                                  m_driveActive[2]  = {};
     bool                                  m_lampsDirty      = true;
@@ -743,10 +765,12 @@ private:
     Dxui3DRenderer::StaticMesh            m_monitorOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_recorderOpaqueMesh;
-    Dxui3DRenderer::StaticMesh            m_hardDiskOpaqueMesh;
-    Dxui3DRenderer::StaticMesh            m_hardDiskLampMesh;
-    Dxui3DRenderer::StaticMesh            m_hardDiskLabelMesh;
-    Dxui3DRenderer::StaticMesh            m_hardDiskShadowMesh;
+
+    std::array<Dxui3DRenderer::StaticMesh, kModelKinds>                 m_extraOpaqueMesh;
+    std::array<Dxui3DRenderer::StaticMesh, kModelKinds>                 m_extraShadowMesh;
+    std::array<std::array<Dxui3DRenderer::StaticMesh, 2>, kModelKinds>  m_extraLampMesh;
+    std::array<Dxui3DRenderer::StaticMesh, kMaxDeskExtras>              m_extraLabelMesh;
+
     Dxui3DRenderer::StaticMesh            m_padlockMesh;
 
     // The mounted image's name: its quad in WORLD space, and the texture the

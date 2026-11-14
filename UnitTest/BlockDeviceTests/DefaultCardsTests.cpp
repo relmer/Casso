@@ -5,7 +5,6 @@
 #include "Devices/Floppy35/LironCard.h"
 #include "Devices/Floppy35/Gcr35Track.h"
 #include "Devices/Floppy35/Sony35Drive.h"
-#include "Shell/Components/ShellDeskScene.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "../EmuTests/TestMachine.h"
 
@@ -61,24 +60,6 @@ public:
             Assert::IsTrue (machine.GetRefs().lironCards.empty(), name.c_str());
             Assert::IsNull (machine.GetRefs().apple2cSmartPort, name.c_str());
         }
-    }
-
-
-    //  The desk's side device is the hard disk where there is one, then a
-    //  UniDisk 3.5 or an Apple 3.5 Drive.
-    TEST_METHOD (SideDevice_FollowsTheStorage)
-    {
-        using Side = ShellDeskScene::SideDevice;
-
-        TestMachine  iie ("Apple2e");
-        TestMachine  plus ("Apple2Plus");
-        TestMachine  cplus ("Apple2cPlus");
-
-
-
-        Assert::IsTrue (ShellDeskScene::ChooseSideDevice (iie.GetRefs())   == Side::Scsi);
-        Assert::IsTrue (ShellDeskScene::ChooseSideDevice (plus.GetRefs())  == Side::None);
-        Assert::IsTrue (ShellDeskScene::ChooseSideDevice (cplus.GetRefs()) == Side::Apple35);
     }
 
 

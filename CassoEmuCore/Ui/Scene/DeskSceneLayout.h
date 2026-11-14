@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Render/CurvedDisplayMath.h"
+#include "Ui/Scene/DeskDrivePlan.h"
 
 
 
@@ -33,6 +34,22 @@
 //  form so the whole scene is contained at any viewport shape.
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+//  The most drives other than the Disk II pair the desk places.
+static constexpr int  kMaxDeskExtras = 16;
+
+
+//  One drive other than the Disk II pair: its model, where the drive plan put
+//  it, its level in a stack (0 the bottom), and its model bounds.
+struct DeskExtraMetrics
+{
+    DeskDriveModel  model  = DeskDriveModel::HardDisk20SC;
+    DeskDriveSpot   spot   = DeskDriveSpot::LeftStack;
+    int             level  = 0;
+    float           min[3] = {};
+    float           max[3] = {};
+};
+
 
 //
 //  Measured model dimensions the layout composes with -- passed in rather
@@ -91,11 +108,15 @@ struct DeskSceneMetrics
     float                 recorderPadSideMm   = 0.0f;
     float                 recorderPadDepthMm  = 0.0f;
 
-    // An Apple Hard Disk 20SC, on the desk to the left of the stack, its front
-    // in line with the drives'. Absent unless `hasHardDisk`.
-    bool                  hasHardDisk         = false;
-    float                 hardDiskMin[3]      = {};
-    float                 hardDiskMax[3]      = {};
+    // The hard disks and 3.5-inch drives on the desk, their fronts in line
+    // with the drives'. Each is under the monitor, which then sits on top,
+    // or in the left or right stack, built up from the desk. The Disk II
+    // pair's spot is `driveSpot`, under the monitor or in the right stack,
+    // where each drive's level is `driveLevel`.
+    int                   extraCount          = 0;
+    DeskExtraMetrics      extras[kMaxDeskExtras];
+    DeskDriveSpot         driveSpot           = DeskDriveSpot::UnderMonitor;
+    int                   driveLevel[2]       = {};
 };
 
 
@@ -180,10 +201,11 @@ struct DeskSceneComposition
     float  recorderWorld[16]  = {};
     RECT   recorderRectPx     = {};
 
-    // The hard disk beside the stack, on the left. The same int reason.
-    int    hasHardDisk        = 0;
-    float  hardDiskWorld[16]  = {};
-    RECT   hardDiskRectPx     = {};
+    // The extra drives, in DeskSceneMetrics::extras order. A count for the
+    // same memcmp reason.
+    int    extraCount                      = 0;
+    float  extraWorld[kMaxDeskExtras][16]  = {};
+    RECT   extraRectPx[kMaxDeskExtras]     = {};
 };
 
 
@@ -469,7 +491,11 @@ private:
                                      float                    sceneMin[3],
                                      float                    sceneMax[3],
                                      DeskSceneComposition   & out);
-    static void     PlaceHardDisk   (const DeskSceneMetrics & metrics,
+    static void     PlaceStack      (const DeskSceneMetrics & metrics,
+                                     DeskDriveSpot            spot,
+                                     bool                     everyExtra,
+                                     int                      driveCount,
+                                     float                    driveZ,
                                      float                    frontZ,
                                      float                    deviceMin[3],
                                      float                    deviceMax[3],

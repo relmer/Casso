@@ -52,12 +52,6 @@ public:
     bool  IsReady    () const { return m_deskSceneReady; }
     bool  IsMachineC () const { return m_deskSceneMachineIsC; }
 
-    // The storage device beside the stack, on the left: the machine's SCSI
-    // hard disk, ProFile, UniDisk 3.5 or Apple 3.5 Drive, in that order of
-    // preference. Its lamp is lit while the device was active within
-    // `windowCycles` of `now`, or while a 3.5-inch drive's motor is on.
-    enum class SideDevice { None, Scsi, ProFile, UniDisk35, Apple35 };
-
     // Where each of the machine's drives goes (DeskDrivePlan), made when the
     // machine's models load; a class's place toggles between the desk and
     // the drive bar from the drives' right-click menu.
@@ -66,18 +60,22 @@ public:
     bool                                     IsClassOnDesk     (DeskDriveClass driveClass) const;
     void                                     ToggleClassOnDesk (DeskDriveClass driveClass);
 
-    static SideDevice  ChooseSideDevice    (const MachineRefs & refs);
-    static int         GetSideDeviceSlot   (const MachineRefs & refs, SideDevice side);
-    bool               IsSideDeviceBusy    (uint64_t now, uint64_t windowCycles) const;
-    bool               IsSideDeviceFloppy  () const { return m_sideDevice == SideDevice::UniDisk35 || m_sideDevice == SideDevice::Apple35; }
+    // The Disk II drives the machine has, on the desk or not.
+    int   CountDiskIiDrives () const;
 
-    // Opens the file dialog for the 3.5-inch side device's first drive and
-    // inserts the chosen image; a dropped image goes into the same drive.
-    void               BrowseSideDevice    ();
-    void               InsertInSideDevice  (const std::wstring & path);
+    // Whether a drive was active within `windowCycles` of `now`: a hard disk
+    // after a command, a 3.5-inch drive while its motor runs.
+    bool  IsDriveBusy (const DeskDrive & drive, uint64_t now, uint64_t windowCycles) const;
 
-    // The drop tag of the 3.5-inch side device, after the tape's.
-    static constexpr int  kSideDeviceDropTag = 3;
+    // A 3.5-inch drive on the desk, by its index among the desk's extra
+    // drives: a click opens the file dialog and inserts the chosen image, as
+    // a dropped image is.
+    static bool  IsFloppy35 (const DeskDrive & drive);
+    void         BrowseExtraDrive   (int index);
+    void         InsertInExtraDrive (int index, const std::wstring & path);
+
+    // The drop tags of the desk's extra drives start after the tape's.
+    static constexpr int  kExtraDropTagBase = 3;
 
     // The overlays drawn over the scene, which the chrome hides and lays out
     // with the rest of what sits over the picture, and the user's framing.
@@ -426,7 +424,6 @@ private:
     // Which machine family the loaded models belong to, so a switch that
     // does not cross the //c boundary skips the reload.
     bool                             m_deskSceneMachineIsC = false;
-    SideDevice                       m_sideDevice          = SideDevice::None;
     std::vector<DeskDrivePlacement>  m_drivePlan;
     int                              m_deskSceneDebug      = 0;   // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
 

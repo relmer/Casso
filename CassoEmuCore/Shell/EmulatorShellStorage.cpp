@@ -40,9 +40,9 @@ void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
             m_tapeDeck->InsertTape (path);
         }
     }
-    else if (tag == ShellDeskScene::kSideDeviceDropTag)
+    else if (tag >= ShellDeskScene::kExtraDropTagBase)
     {
-        m_scene->InsertInSideDevice (path);
+        m_scene->InsertInExtraDrive (tag - ShellDeskScene::kExtraDropTagBase, path);
     }
     else if (IsSupportedDiskImageExtension (path))
     {

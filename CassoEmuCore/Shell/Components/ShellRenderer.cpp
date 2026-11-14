@@ -778,19 +778,27 @@ bool ShellRenderer::TryPresentUiFrame()
             m_shell.m_scene->m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
         }
 
-        // The side device's lamp is lit for a tenth of a second after each
-        // hard disk command, so a run of reads reads as steady activity, and
-        // while a 3.5-inch drive's motor runs.
+        // Each desk drive's lamp is lit for a tenth of a second after a hard
+        // disk command, so a run of reads reads as steady activity, and while
+        // a 3.5-inch drive's motor runs. An HD20SC's front has its card's
+        // model label ("20SC").
         {
             const auto  & cards  = m_shell.m_machine.GetRefs().scsiCards;
             uint64_t      now    = m_shell.m_machine.GetCpu() != nullptr ? *m_shell.m_machine.GetCpu()->GetBusCyclePtr() : 0;
             uint64_t      window = m_shell.m_machine.GetConfig().clockSpeed / 10;
-            bool          busy   = m_shell.m_scene->IsSideDeviceBusy (now, window);
-            std::wstring  label  = cards.empty() ? std::wstring() : cards[0]->GetModelLabel();
+            DeskScene   & scene  = m_shell.m_scene->m_deskScene;
 
 
 
-            m_shell.m_scene->m_deskScene.SetHardDiskVisuals (busy, label);
+            for (int i = 0; i < scene.GetExtraCount(); i++)
+            {
+                const DeskDrive  & drive = scene.GetExtraDrive (i);
+                std::wstring       label = (drive.model == DeskDriveModel::HardDisk20SC && !cards.empty()) ? cards[0]->GetModelLabel() : std::wstring();
+
+
+
+                scene.SetExtraVisuals (i, m_shell.m_scene->IsDriveBusy (drive, now, window), label);
+            }
         }
 
         // The volume wheel stands where the tape volume is, however it was
