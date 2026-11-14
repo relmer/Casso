@@ -121,6 +121,12 @@ public:
 
     static HRESULT  BuildWoz (const std::vector<Position> & positions, int lastPosition, const std::string & imageDate, Byte drive, Result & outResult);
 
+    //  An earlier capture's reads of the same disk added after the reads
+    //  each position has, so a WOZ built from them has both captures' reads
+    //  to take each byte and sector from. A position only the earlier capture
+    //  read is added whole.
+    static void     MergeReads (std::vector<Position> & ioPositions, const std::vector<Position> & earlier);
+
     //  A capture's reads as a file, so a WOZ can be built from them again:
     //  "CRAW", a version, then each position, its reads and each read's delay
     //  and bytes, little-endian. Parsing fails with ERROR_INVALID_DATA for

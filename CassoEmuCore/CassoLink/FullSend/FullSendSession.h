@@ -159,8 +159,10 @@ public:
 
     //  A drive's disk captured raw as a WOZ. outReads has every read of the
     //  capture, as CassoLinkCapture::SerializeReads writes them, when reads
-    //  are saved, and is empty otherwise.
-    virtual HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) = 0;
+    //  are saved, and is empty otherwise. With withEarlier, the WOZ is built
+    //  from this capture's reads and those of the drive's capture before it,
+    //  which was of the same disk.
+    virtual HRESULT  CaptureRaw     (int drive, bool withEarlier, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) = 0;
 
     //  An image the session wrote, by its path, for the boot check. True
     //  when the image is booted, and AwaitBoot then returns once its result
@@ -284,6 +286,7 @@ private:
     HRESULT  CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw);
     HRESULT  WriteImage       (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile);
     void     ApplyBoots       ();
+    HRESULT  SendAgain        (int drive, const CheckedDisk & disk);
     HRESULT  WriteManifest    ();
     void     Report           (const std::string & text);
     void     MarkTracks       (int drive, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report);
@@ -321,7 +324,10 @@ private:
     std::array<bool, 2>         m_swapped    = { false, false };   // and of those, the disks that changed during their read
     std::array<std::string, 2>  m_counted;                         // the repeat each drive last added to the duplicates
     std::array<bool, 2>         m_blank      = { false, false };   // drives whose last check found a blank disk
-    std::vector<std::string>    m_unbooted;                        // images that did not boot, for the next pause's lines
+    std::vector<std::string>    m_unbooted;                        // a line for each image that did not boot, for the next pause
+    std::string                 m_retryPrint;                      // the fingerprint of the disk the pause offers to read again
+    std::set<std::string>       m_retried;                         // the fingerprint of each disk read again
+    bool                        m_deeper     = false;              // the disk being sent is one read again
     std::string                 m_latestBoot;                      // the boot result ApplyBoots took last
     std::array<std::string, 2>  m_blankDisk;                       // the blank each drive last added to the blanks
     uint64_t                    m_commitTag  = 1;

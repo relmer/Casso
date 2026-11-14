@@ -243,6 +243,18 @@ public:
 
         AssertSucceeded (CassoLinkCapture::ParseReads (file, positions));
 
+        //  With CASSO_CAPTURE_READS_EARLIER, the reads of an earlier capture
+        //  of the disk too, as a disk read again has.
+        if (!GetSetting ("CASSO_CAPTURE_READS_EARLIER", "").empty())
+        {
+            std::ifstream                            in (GetSetting ("CASSO_CAPTURE_READS_EARLIER", ""), std::ios::binary);
+            std::vector<Byte>                        earlierFile ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char>());
+            std::vector<CassoLinkCapture::Position>  earlier;
+
+            AssertSucceeded (CassoLinkCapture::ParseReads (earlierFile, earlier));
+            CassoLinkCapture::MergeReads (positions, earlier);
+        }
+
         for (const CassoLinkCapture::Position & position : positions)
         {
             if (position.position % 4 == 0)

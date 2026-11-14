@@ -39,7 +39,7 @@ public:
     bool     IsVerifying    () override { return m_verifying; }
     void     ToggleVerify   () override { m_verifying = !m_verifying; }
     bool     IsBootstrapped () override;
-    HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) override;
+    HRESULT  CaptureRaw     (int drive, bool withEarlier, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) override;
     bool     NoteImage      (const std::string & path) override;
     HRESULT  AwaitBoot      (const std::string & file) override;
     bool     HasBootTones   () override;
@@ -70,4 +70,8 @@ private:
     bool                 m_barFull   = false;   // the next request draws the drive's bar full
     FullSendScreen       m_lastScreen;
     FullSendStatus       m_status    { GetSeconds, GetClockTime };
+
+    //  The reads of each drive's latest raw capture, for a capture of the
+    //  same disk again.
+    std::array<std::vector<CassoLinkCapture::Position>, 2>  m_lastReads;
 };

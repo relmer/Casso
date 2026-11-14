@@ -45,35 +45,36 @@ public:
 
     struct ScriptedLink : IFullSendLink
     {
-        std::array<Image, 2>                  drives;
-        std::array<bool, 2>                   present        = { true, true };
-        std::deque<FullSendKey>               keys;
-        std::vector<int>                      diskReads;     // the drive of each whole-disk read, in order
-        std::vector<int>                      trackDrives;   // the drive of each track read
-        std::vector<FullSendScreen>           screens;
-        std::vector<std::string>              reports;
-        std::vector<std::pair<int, int>>      badSectors;    // reported on every disk read of badDisk
-        Image                                 badDisk;
-        int                                   waits          = 0;
-        bool                                  begun          = false;
-        bool                                  verifying      = false;
-        std::vector<SectorMark>               reportMarks;
-        int                                   reportVerified = 0;
-        int                                   reportEmpty    = 0;
-        bool                                  bootstrapped   = false;
-        FullSendKey                           beginKey       = FullSendKey::Space;
-        std::vector<std::string>              entryLines;
-        std::vector<std::vector<std::string>> pauseLines;
-        std::deque<Byte>                      typed;                      // the codes of a line typed after P
-        std::vector<std::vector<std::string>> typedLines;
-        bool                                  wholeTracksBad = false;     // badDisk's tracks are not read whole in a check
-        std::vector<int>                      tracksRead;                 // the tracks of the whole-disk reads
-        std::set<int>                         blankTracks;                // tracks with no sector that reads, as on some protected disks
-        std::vector<int>                      captures;                   // the drive of each raw capture
-        Image                                 rawWoz         = { 'W', 'O', 'Z', '2', 0xFF, 0x0A, 0x0D, 0x0A };
-        Image                                 rawReads;                   // a raw capture's reads, empty when they aren't saved
-        std::string                           rawMarks;                   // what a raw capture marked
-        std::vector<std::string>              noted;                      // the path of each image written
+        std::array<Image, 2>                   drives;
+        std::array<bool, 2>                    present             = { true, true };
+        std::deque<FullSendKey>                keys;
+        std::vector<int>                       diskReads;   // the drive of each whole-disk read, in order
+        std::vector<int>                       trackDrives;   // the drive of each track read
+        std::vector<FullSendScreen>            screens;
+        std::vector<std::string>               reports;
+        std::vector<std::pair<int, int>>       badSectors;   // reported on every disk read of badDisk
+        Image                                  badDisk;
+        int                                    waits               = 0;
+        bool                                   begun               = false;
+        bool                                   verifying           = false;
+        std::vector<SectorMark>                reportMarks;
+        int                                    reportVerified      = 0;
+        int                                    reportEmpty         = 0;
+        bool                                   bootstrapped        = false;
+        FullSendKey                            beginKey            = FullSendKey::Space;
+        std::vector<std::string>               entryLines;
+        std::vector<std::vector<std::string>>  pauseLines;
+        std::deque<Byte>                       typed;   // the codes of a line typed after P
+        std::vector<std::vector<std::string>>  typedLines;
+        bool                                   wholeTracksBad      = false;   // badDisk's tracks are not read whole in a check
+        std::vector<int>                       tracksRead;   // the tracks of the whole-disk reads
+        std::set<int>                          blankTracks;   // tracks with no sector that reads, as on some protected disks
+        std::vector<int>                       captures;   // the drive of each raw capture
+        int                                    capturesWithEarlier = 0;   // and how many were built with the capture before
+        Image                                  rawWoz              = { 'W', 'O', 'Z', '2', 0xFF, 0x0A, 0x0D, 0x0A };
+        Image                                  rawReads;   // a raw capture's reads, empty when they aren't saved
+        std::string                            rawMarks;   // what a raw capture marked
+        std::vector<std::string>               noted;   // the path of each image written
         std::function<void (const std::string &)>  onAwait;               // with one, each image is booted, and this is the wait for its result
         bool                                  bootTones      = false;
 
@@ -164,9 +165,10 @@ public:
 
         bool     IsBootstrapped() override { return bootstrapped; }
 
-        HRESULT  CaptureRaw (int drive, Image & outWoz, Image & outReads, std::string & outMarks) override
+        HRESULT  CaptureRaw (int drive, bool withEarlier, Image & outWoz, Image & outReads, std::string & outMarks) override
         {
             captures.push_back (drive);
+            capturesWithEarlier += withEarlier ? 1 : 0;
             outWoz   = rawWoz;
             outReads = rawReads;
             outMarks = rawMarks;
@@ -959,17 +961,18 @@ public:
         Assert::IsTrue (rig.link.noted == std::vector<std::string> { "C:\\Box\\0001.woz" }, L"The image is noted for the boot check");
     }
 
-    //  A boot result arrives while the Apple is at a pause: an image that did
-    //  not boot is on the Apple at the pause after that one, once.
+    //  A boot result arrives while the Apple is at a pause, for an image the
+    //  manifest lacks: the image is on the Apple at the pause after that
+    //  one, once, with no offer to read its disk again.
     TEST_METHOD (Session_AnImageThatDidNotBoot_IsListedAtTheNextPause)
     {
         Rig          rig;
-        std::string  line = "0001 DID NOT BOOT, SEND IT AGAIN.";
+        std::string  line = "0007 DID NOT BOOT.";
         auto         has  = [&line] (const std::vector<std::string> & lines) { return std::find (lines.begin(), lines.end(), line) != lines.end(); };
 
         rig.link.drives[0]    = Other (1);
         rig.link.present[1]   = false;
-        rig.link.beforeKey[1] = [&rig] (ScriptedLink &) { rig.status.SetBoot ("0001.dsk", FullSendManifest::kBootDidNotBoot); };
+        rig.link.beforeKey[1] = [&rig] (ScriptedLink &) { rig.status.SetBoot ("0007.dsk", FullSendManifest::kBootDidNotBoot); };
         rig.link.keys         = { FullSendKey::Space, FullSendKey::Space };
 
         rig.Run();
@@ -1004,7 +1007,35 @@ public:
                         L"No tone for the result unless the Apple has them on");
         Assert::IsTrue (rig.link.screens.back().drives[0] != FullSendDriveState::Validating);
         Assert::AreEqual ((size_t) 1, rig.link.pauseLines.size());
-        Assert::IsTrue (std::find (rig.link.pauseLines[0].begin(), rig.link.pauseLines[0].end(), "0001 DID NOT BOOT, SEND IT AGAIN.") != rig.link.pauseLines[0].end());
+        Assert::IsTrue (std::find (rig.link.pauseLines[0].begin(), rig.link.pauseLines[0].end(), "0001 DID NOT BOOT. PRESS SPACE TO READ") != rig.link.pauseLines[0].end());
+    }
+
+    //  Space with the disk that did not boot in its drive reads it again,
+    //  once: a raw capture is built with the capture before it, the image
+    //  is a second file, and a second failure has no offer.
+    TEST_METHOD (Session_SpaceOnADiskThatDidNotBoot_ReadsItAgainOnce)
+    {
+        Rig   rig;
+        auto  has = [] (const std::vector<std::string> & lines, const char * line) { return std::find (lines.begin(), lines.end(), line) != lines.end(); };
+
+        rig.link.drives[0]   = Other (1);
+        rig.link.badDisk     = rig.link.drives[0];
+        rig.link.badSectors  = { { 5, 0 }, { 6, 0 } };
+        rig.link.reportEmpty = 3;
+        rig.link.present[1]  = false;
+        rig.link.onAwait     = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
+        rig.link.keys        = { FullSendKey::Space, FullSendKey::Space };
+
+        auto  session = rig.Run();
+
+        Assert::AreEqual ((size_t) 2, rig.link.captures.size(), L"Captured, and captured again");
+        Assert::AreEqual (1, rig.link.capturesWithEarlier, L"The second with the reads of the first");
+        Assert::AreEqual ((size_t) 3, rig.link.pauseLines.size());
+        Assert::IsTrue (has (rig.link.pauseLines[0], "0001 DID NOT BOOT. PRESS SPACE TO READ"));
+        Assert::IsTrue (has (rig.link.pauseLines[1], "0002 STILL DOES NOT BOOT."));
+        Assert::IsFalse (has (rig.link.pauseLines[2], "0002 STILL DOES NOT BOOT."), L"Space after that is a repeat's");
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001.woz") && rig.io.files.contains ("C:\\Box\\0002.woz"), L"Each capture has its image");
+        Assert::AreEqual ((size_t) 2, session->GetManifest().GetRows().size());
     }
 
     TEST_METHOD (Session_WithBootTonesOnTheApple_TheResultsToneIsInPlaceOfTheDisks)

@@ -533,6 +533,7 @@ HRESULT FullSendSession::Pause()
     int                       chosen = 0;
     CheckedDisk               disk;
     std::vector<std::string>  lines;
+    std::string               retry;
 
 
 
@@ -574,6 +575,8 @@ HRESULT FullSendSession::Pause()
         }
 
         m_unbooted.clear();
+        retry = m_retryPrint;
+        m_retryPrint.clear();
 
         if (key == FullSendKey::Space)
         {
@@ -585,6 +588,16 @@ HRESULT FullSendSession::Pause()
                 if (disk.check == DiskCheck::New)
                 {
                     hr = SendDisk (drive, disk, false);
+                    CHR (hr);
+                    BAIL_OUT_IF (true, S_OK);
+                }
+
+                //  The disk whose image did not boot, left in its drive, is
+                //  read again, once: a raw capture with the reads of the one
+                //  before it, and a sector image with verified reads.
+                if (disk.check == DiskCheck::Repeat && !retry.empty() && disk.fingerprint == retry)
+                {
+                    hr = SendAgain (drive, disk);
                     CHR (hr);
                     BAIL_OUT_IF (true, S_OK);
                 }
@@ -621,6 +634,52 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendSession::SendAgain
+//
+//  A disk whose image did not boot, sent as a new image beside the first. A
+//  raw capture is built from its reads and the first capture's. A sector
+//  image is read with verification on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::SendAgain (int drive, const CheckedDisk & disk)
+{
+    HRESULT  hr        = S_OK;
+    bool     wasVerify = m_link.IsVerifying();
+
+
+
+    m_retried.insert (disk.fingerprint);
+    m_repeats[(size_t) drive - 1] = false;
+    m_deeper                      = true;
+
+    Report (std::format ("The image of the disk in drive {} did not boot, so the disk is read again, more carefully.", drive));
+
+    if (!wasVerify)
+    {
+        m_link.ToggleVerify();
+    }
+
+    hr = SendDisk (drive, disk, true);
+
+    if (!wasVerify && m_link.IsVerifying())
+    {
+        m_link.ToggleVerify();
+    }
+
+    m_deeper = false;
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendSession::GetPauseLines
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -634,10 +693,7 @@ std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 
 
 
     //  The notes, what to do, and a blank row before the quip.
-    for (const std::string & image : m_unbooted)
-    {
-        lines.push_back (std::format ("{} DID NOT BOOT, SEND IT AGAIN.", image));
-    }
+    lines.insert (lines.end(), m_unbooted.begin(), m_unbooted.end());
 
     for (int d : { 1, 2 })
     {
@@ -1347,7 +1403,7 @@ HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
 
-    hr = m_link.CaptureRaw (drive, outRaw, m_rawReads, m_rawMarks);
+    hr = m_link.CaptureRaw (drive, m_deeper, outRaw, m_rawReads, m_rawMarks);
     CHR (hr);
 
     SetDriveState (drive, FullSendDriveState::Sending);
@@ -1607,7 +1663,8 @@ const FullSendRow * FullSendSession::FindWithImage (const std::function<bool (co
 //  Each boot result that arrived since the last call is set in the manifest
 //  in memory, for a write of it before the next reload. The thread that
 //  booted the image writes the result to the manifest's file. An image that did not boot is listed
-//  on the Apple at the next pause, by its number.
+//  on the Apple at the next pause, by its number, with the offer to read
+//  its disk again the first time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1623,7 +1680,22 @@ void FullSendSession::ApplyBoots()
 
         if (boot.second == FullSendManifest::kBootDidNotBoot)
         {
-            m_unbooted.push_back (found != rows.end() ? std::format ("{:04}", found->sequence) : boot.first.substr (0, boot.first.find_last_of ('.')));
+            std::string  image   = found != rows.end() ? std::format ("{:04}", found->sequence) : boot.first.substr (0, boot.first.find_last_of ('.'));
+            bool         isAgain = found != rows.end() && m_retried.contains (found->fingerprint);
+
+            //  A disk is read again once. The image of one read again that
+            //  did not boot either is as good as this session makes it.
+            if (isAgain || found == rows.end())
+            {
+                m_unbooted.push_back (image + (isAgain ? " STILL DOES NOT BOOT." : " DID NOT BOOT."));
+            }
+            else
+            {
+                m_retryPrint = found->fingerprint;
+
+                m_unbooted.push_back (std::format ("{} DID NOT BOOT. PRESS SPACE TO READ", image));
+                m_unbooted.push_back ("IT AGAIN, OR PUT IN THE NEXT DISK.");
+            }
         }
     }
 }
