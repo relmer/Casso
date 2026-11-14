@@ -717,21 +717,23 @@ void DxuiListView::CenterOnRow (int row)
 //
 //  GetCursorForPoint  (IDxuiControl override)
 //
-//  Advertises the horizontal resize cursor when the point (in list-local
-//  px, as the hosting panel translates for OnMouse) is over a column
-//  divider; otherwise no preference. Uses the same grab tolerance as the
-//  resize-drag hit test so the cursor and the drag agree.
+//  Advertises the horizontal resize cursor when the point (in the parent's
+//  coordinates, as OnMouse takes it) is over a column divider; otherwise no
+//  preference. Uses the same grab tolerance as the resize-drag hit test so
+//  the cursor matches the drag.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR DxuiListView::GetCursorForPoint (POINT localPx) const
+LPCWSTR DxuiListView::GetCursorForPoint (POINT clientPx) const
 {
     LPCWSTR  cursor  = nullptr;
     int      grabTol = m_scaler.ToPx (s_kResizeGrabDip);
+    int      lx      = clientPx.x - m_boundsDip.left;
+    int      ly      = clientPx.y - m_boundsDip.top;
 
 
 
-    if (m_header.HitTestColumnResize (localPx.x, localPx.y, grabTol) >= 0)
+    if (m_header.HitTestColumnResize (lx, ly, grabTol) >= 0)
     {
         cursor = IDC_SIZEWE;
     }
@@ -1187,18 +1189,18 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //
 //  DxuiListView::OnMouse  (IDxuiControl override)
 //
-//  Self-contained mouse handling. ev.positionDip is widget-relative (the
-//  host subtracts the list's own origin first, matching the 0-based
-//  hit-test accessors), so the coordinates pass straight through.
-//  Dispatches by event kind and returns true when the list consumed it.
+//  Self-contained mouse handling. ev.positionDip is in the parent's
+//  coordinates, as for every control; the list subtracts its bounds to get
+//  the 0-based point its hit-test accessors take. Dispatches by event kind
+//  and returns true when the list consumed it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiListView::OnMouse (const DxuiMouseEvent & ev)
 {
     bool  handled  = false;
-    int   lx       = ev.positionDip.x;
-    int   ly       = ev.positionDip.y;
+    int   lx       = ev.positionDip.x - m_boundsDip.left;
+    int   ly       = ev.positionDip.y - m_boundsDip.top;
     int   widthPx  = m_boundsDip.right  - m_boundsDip.left;
     int   heightPx = m_boundsDip.bottom - m_boundsDip.top;
     bool  inside   = (lx >= 0 && lx < widthPx && ly >= 0 && ly < heightPx);

@@ -455,7 +455,7 @@ bool ExplorerListPane::HandleCapturedMouse (const DxuiMouseEvent & ev)
     //  pane transfers the drag to the pane under the pointer.
     if (m_list->IsInteracting())
     {
-        m_list->OnMouse (ExplorerLayout::ToLocal (ev, m_list->GetBounds()));
+        m_list->AsControl().OnMouse (ev);
         m_context.window.Invalidate();
         return true;
     }
@@ -493,7 +493,7 @@ void ExplorerListPane::ClearHoverOutside (const DxuiMouseEvent & ev)
     }
 
     leave.kind = DxuiMouseEventKind::Leave;
-    m_list->OnMouse (leave);
+    m_list->AsControl().OnMouse (leave);
 }
 
 
@@ -594,7 +594,7 @@ bool ExplorerListPane::HandleMouse (const DxuiMouseEvent & ev)
             m_dragStart          = point;
         }
 
-        m_list->OnMouse (local);
+        m_list->AsControl().OnMouse (ev);
         m_context.window.Invalidate();
         return true;
     }
@@ -1827,22 +1827,16 @@ std::wstring ExplorerListPane::GetEmptyLocationMessage (Location::Kind kind)
 //
 //  ExplorerListPane::GetCursorForPoint
 //
-//  The list tests points relative to its bounds.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 LPCWSTR ExplorerListPane::GetCursorForPoint (POINT clientPx) const
 {
-    RECT  bounds = m_list->GetBounds();
-
-
-
-    if (!m_list->IsVisible() || !ExplorerLayout::Contains (bounds, clientPx))
+    if (!m_list->IsVisible() || !ExplorerLayout::Contains (m_list->GetBounds(), clientPx))
     {
         return nullptr;
     }
 
-    return m_list->GetCursorForPoint (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top });
+    return m_list->AsControl().GetCursorForPoint (clientPx);
 }
 
 
@@ -1907,12 +1901,14 @@ int ExplorerListPane::HitTestRow (POINT client) const
 void ExplorerListPane::ReleasePress()
 {
     DxuiMouseEvent  release;
+    RECT            bounds = m_list->GetBounds();
 
 
 
-    release.kind   = DxuiMouseEventKind::Up;
-    release.button = DxuiMouseButton::Left;
-    m_list->OnMouse (release);
+    release.kind        = DxuiMouseEventKind::Up;
+    release.button      = DxuiMouseButton::Left;
+    release.positionDip = POINT { bounds.left, bounds.top };
+    m_list->AsControl().OnMouse (release);
 }
 
 

@@ -425,13 +425,13 @@ public:
     //  hidden column.
     bool  GetCellTextRectPx   (int row, size_t column, RECT & outRect) const { return m_columnSizing.GetCellTextRectPx (row, column, outRect); }
 
-    // Self-contained mouse input. Forward widget-relative mouse events
-    // (positionDip = the point minus the list's own origin) via OnMouse;
-    // the list owns scrolling, thumb / column-resize drags, hover, and
-    // selection, and reports semantic outcomes through these callbacks.
+    // Self-contained mouse input. Mouse events arrive through
+    // IDxuiControl::OnMouse in the parent's coordinates, as for every other
+    // control; the list runs scrolling, thumb / column-resize drags, hover,
+    // and selection, and reports semantic outcomes through these callbacks.
     // OnMouse returns true when it consumed the event so the host can
-    // repaint and claim focus; IsInteracting is true mid-drag so a Win32
-    // host knows to hold mouse capture.
+    // repaint and move focus to the list; IsInteracting is true mid-drag,
+    // while a Win32 host sets mouse capture.
     void  SetOnSelectionChanged (std::function<void (int)>  cb)  { m_onSelectionChanged = std::move (cb); }
 
     //  Selects nothing and reports it, as a click on the list's empty space
@@ -507,25 +507,33 @@ public:
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
     //
-    //  IDxuiControl overrides. OnMouse makes the list self-contained:
-    //  the host forwards widget-relative mouse events and the list runs
-    //  its own hit-test / scroll / drag / selection routing, raising the
-    //  callbacks above for the semantic outcomes. OnKey drives the opt-in
-    //  keyboard column navigation (see SetKeyboardColumnNav); it is inert
-    //  unless that flag is set, so existing consumers are unaffected.
+    //  IDxuiControl overrides. OnMouse makes the list self-contained: it
+    //  takes events in the parent's coordinates, subtracts its bounds, and
+    //  runs the hit-test / scroll / drag / selection routing, raising
+    //  the callbacks above for the semantic outcomes. OnKey drives the
+    //  opt-in keyboard column navigation (see SetKeyboardColumnNav); it is
+    //  inert unless that flag is set, so existing consumers are unaffected.
+    //
+    //  OnMouse and GetCursorForPoint are private, so they are reachable only
+    //  through IDxuiControl: a DxuiPanel parent, or AsControl() for a host
+    //  that calls the list directly. A caller written for the old
+    //  list-relative convention, `list.OnMouse (local)`, fails to compile
+    //  with C2248.
     //
     DxuiListView() { m_focusable = true; }
     ~DxuiListView () override = default;
 
     void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool                OnMouse        (const DxuiMouseEvent & ev) override;
 
-    //  Windows' scrollbar menu when the point is on one of the bars, in the
-    //  coordinates OnMouse takes; empty elsewhere. Its rows scroll the view.
+    IDxuiControl        & AsControl    ()       { return *this; }
+    const IDxuiControl  & AsControl    () const { return *this; }
+
+    //  Windows' scrollbar menu when the point is on one of the bars, relative
+    //  to the list's top-left, as the HitTest* helpers take it; empty
+    //  elsewhere. Its rows scroll the view.
     std::vector<DxuiPopupMenuItem>  GetScrollbarMenu  (POINT pt);
     bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (POINT { pt.x - m_boundsDip.left, pt.y - m_boundsDip.top })); }
-    LPCWSTR                         GetCursorForPoint (POINT clientPx) const       override;
     bool                            OnKey             (const DxuiKeyEvent   & ev) override;
 
     //  A dialog passes typed characters here rather than to OnKey.
@@ -536,6 +544,9 @@ public:
     DxuiAccessibleRole              GetAccessibleRole () const override { return DxuiAccessibleRole::ListView; }
 
 private:
+    bool     OnMouse           (const DxuiMouseEvent & ev) override;
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const      override;
+
     static constexpr int    s_kRowHeightDip          = 30;
     static constexpr int    s_kHeaderHeightDip       = 32;
     static constexpr int    s_kHeaderGapDip          = 2;
