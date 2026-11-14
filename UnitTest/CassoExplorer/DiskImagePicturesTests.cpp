@@ -83,6 +83,11 @@ public:
         Assert::AreEqual (std::wstring (L"Did not boot on the Apple //c. The machine stopped at the monitor's prompt."), DiskImagePictures::DescribeRecord (record, false));
 
         Assert::AreEqual (std::wstring (L"The picture was set in Casso."), DiskImagePictures::DescribeRecord (record, true));
+        record.verdict = "unclear";
+        record.reason  = "The screen changed, and the drive was running at the time limit.";
+        Assert::AreEqual (std::wstring (L"It is unclear whether it boots on the Apple //c. The screen changed, and the drive was running at the time limit."),
+                          DiskImagePictures::DescribeRecord (record, false));
+
         Assert::IsTrue (DiskImagePictures::DescribeRecord (ThumbnailRecord(), false).empty());
     }
 

@@ -387,7 +387,7 @@ std::string ExplorerBootWorker::Describe (const Result & result)
         case BootVerdict::Booted:      text = std::format ("{} booted on the {}.", name, machine);                           break;
         case BootVerdict::DidNotBoot:  text = std::format ("{} did not boot on the {}. {}", name, machine, result.reason);   break;
         case BootVerdict::NotBootable: text = std::format ("{} is not a bootable disk. {}", name, result.reason);           break;
-        default:                       text = std::format ("{} may not boot on the {}. {}", name, machine, result.reason);   break;
+        default:                       text = std::format ("It is unclear whether {} boots on the {}. {}", name, machine, result.reason); break;
     }
 
     return text;

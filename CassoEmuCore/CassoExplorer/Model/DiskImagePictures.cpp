@@ -119,7 +119,7 @@ std::wstring DiskImagePictures::DescribeRecord (const ThumbnailRecord & record, 
     }
     else if (!record.verdict.empty())
     {
-        text = std::format ("May not boot on the {}. {}", machine, record.reason);
+        text = std::format ("It is unclear whether it boots on the {}. {}", machine, record.reason);
     }
 
     return TextEncoding::NarrowToWide (text);

@@ -206,6 +206,7 @@ public:
     void                   InspectDiskImages   (HWND hwnd, const std::vector<std::wstring> & paths, const DxuiTheme & theme) override;
     void                   CompareDiskImages   (HWND hwnd, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme) override;
     void                   SetInspectorTheme   (const DxuiTheme & theme) override;
+    void                   OfferBootRoms       (HWND hwnd, const DxuiTheme * theme) override;
 
     static constexpr const wchar_t *  kWindowClass   = L"CassoExplorerWindow";
     static constexpr const wchar_t *  kTestCopyClass = L"CassoExplorerTestCopyWindow";
@@ -231,6 +232,7 @@ private:
     void                                     StartBootWorker      ();
     void                                     QueueBoot            (const std::wstring & path);
     void                                     PlayBootSound        (BootVerdict verdict);
+    void                                     NoteUnbooted         (const ExplorerBootWorker::Result & result, const std::string & model);
     void                                     ReleaseClosedWindows ();
     static void                              CloseDialogs         ();
     static BOOL CALLBACK                     CloseDialog          (HWND hwnd, LPARAM param);
@@ -254,6 +256,19 @@ private:
     std::unique_ptr<ExplorerBootWorker>       m_bootWorker;
     std::vector<Byte>                         m_bootedSound;     // each as a WAV file, computed once
     std::vector<Byte>                         m_notBootedSound;
+
+    //  The images that couldn't be booted for a machine's missing ROMs, for
+    //  the boot again once the ROMs are installed.
+    struct Unbooted
+    {
+        std::wstring  path;
+        std::string   source;
+    };
+
+    std::mutex                                m_unbootedLock;
+    std::vector<Unbooted>                     m_unbooted;
+    std::atomic<bool>                         m_romsWanted     { false };
+    bool                                      m_romsOffered    = false;
     DiskImagePictures                         m_pictures       { m_thumbnails, [this] (const std::wstring & path) { QueueBoot (path); } };
     Win32ProcessProbe                         m_processProbe;
     RunningCassoRegistry                      m_running;

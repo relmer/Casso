@@ -315,6 +315,18 @@ public:
                                                bool               & outDownloaded,
                                                string             & outError);
 
+    // The startup download dialog for every ROM the machines lack, each
+    // machine a group, with `title` and `intro` in place of the startup
+    // wording and Cancel in place of Exit. Modal on `owner`. `outDownloaded`
+    // is true when every ROM was written, and false with nothing missing.
+    static HRESULT   OfferMachineRoms (HWND                    owner,
+                                       const IDxuiTheme      * theme,
+                                       const vector<wstring> & machineNames,
+                                       const wstring         & title,
+                                       const wstring         & intro,
+                                       bool                  & outDownloaded,
+                                       string                & outError);
+
     // Whether that ROM is in its device folder under the asset base, at the
     // size the catalog lists.
     static bool      IsOptionalRomInstalled (string_view cassoName);

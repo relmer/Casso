@@ -362,6 +362,12 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
     {
         listPane.HandlePicturesReady();
         preview.HandlePicturesReady();
+
+        if (context.app.host != nullptr)
+        {
+            context.app.host->OfferBootRoms (context.window.GetHwnd(), context.theme);
+        }
+
         return true;
     }
 

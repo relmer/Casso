@@ -161,7 +161,17 @@ void CassoExplorerShell::StartBootWorker()
             PlayBootSound (result.verdict);
         }
 
-        if (result.hasReport)
+        //  An image no machine could be built for waits for the ROMs, which
+        //  a window offers when it is posted the message.
+        if (!result.hasReport && !result.missing.empty())
+        {
+            std::lock_guard  lock (m_unbootedLock);
+
+            m_unbooted.push_back ({ result.path, result.source });
+            m_romsWanted = true;
+        }
+
+        if (result.hasReport || !result.missing.empty())
         {
             m_pictures.NotifyReady();
         }
@@ -218,6 +228,61 @@ void CassoExplorerShell::PlayBootSound (BootVerdict verdict)
     if (sound != nullptr && !sound->empty() && m_prefs.bootSounds)
     {
         PlaySoundW ((LPCWSTR) sound->data(), nullptr, SND_MEMORY | SND_ASYNC | SND_NOSTOP | SND_NODEFAULT);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::OfferBootRoms
+//
+//  The ROMs of the enhanced //e and the ][+, in one dialog, once in a run.
+//  With them installed, each image that waited is booted again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::OfferBootRoms (HWND hwnd, const DxuiTheme * theme)
+{
+    HRESULT                hr         = S_OK;
+    bool                   downloaded = false;
+    std::string            error;
+    std::vector<Unbooted>  waiting;
+
+
+
+    if (!m_romsWanted || m_romsOffered)
+    {
+        return;
+    }
+
+    m_romsOffered = true;
+
+    hr = AssetBootstrap::OfferMachineRoms (hwnd, theme, { TextEncoding::NarrowToWide (BootCheck::kEnhanced), TextEncoding::NarrowToWide (BootCheck::kPlus) },
+                                           L"ROMs for checking disk images",
+                                           L"Casso Explorer boots each disk image on an emulated Apple to check that it runs and to make its picture. "
+                                           L"The ROMs of these machines aren't installed. Download them?",
+                                           downloaded, error);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (downloaded)
+    {
+        {
+            std::lock_guard  lock (m_unbootedLock);
+
+            waiting.swap (m_unbooted);
+        }
+
+        m_pictures.ForgetQueued();
+
+        for (const Unbooted & image : waiting)
+        {
+            m_bootWorker->Queue (image.path, std::string(), image.source);
+        }
+
+        m_pictures.NotifyReady();
     }
 }
 

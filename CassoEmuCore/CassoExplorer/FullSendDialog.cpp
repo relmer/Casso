@@ -408,7 +408,7 @@ std::wstring FullSendPanel::DescribeStatus (const FullSendRow & row)
     const wchar_t  * boot = row.boot == FullSendManifest::kBootBooted      ? L", boots"
                           : row.boot == FullSendManifest::kBootDidNotBoot  ? L", did not boot"
                           : row.boot == FullSendManifest::kBootNotBootable ? L", not bootable"
-                          : row.boot == FullSendManifest::kBootUnclear     ? L", may not boot"
+                          : row.boot == FullSendManifest::kBootUnclear     ? L", boot unclear"
                                                                            : L"";
 
 
