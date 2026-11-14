@@ -69,6 +69,10 @@ public:
     bool          CanBootstrapConnection  (const std::string & name) const;
     std::wstring  GetLatestActivity       () const;
     std::wstring  FormatActivity          (size_t lines) const;
+
+    //  The status bar's text for the pending operations: a Full Send's
+    //  summary while one is in progress, the first operation's otherwise.
+    std::wstring  DescribeJobs            ();
     void          ShowActivityLog         ();
     void          StartConnections        ();
     void          SaveConnectionState     ();
@@ -108,10 +112,6 @@ public:
     //  The Full Send window, opened or brought to the front. Without
     //  activation the keyboard focus is where it was.
     void  ShowFullSendWindow      (bool activate);
-
-    //  The status bar's text for the pending operations: a Full Send's
-    //  summary while one is in progress, the first operation's otherwise.
-    std::wstring  DescribeJobs    ();
     void  HandleRunningChanged    ();
 
 private:
