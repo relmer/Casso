@@ -505,6 +505,11 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz)
         m_status.MarkPosition (drive, position, FullSendPositionMark::Weak);
     }
 
+    for (const auto & [position, sector] : result.replaced)
+    {
+        m_status.AddLine (std::format ("Track {} sector {} was taken from another read", CassoLinkDiskTransfer::FormatPosition (position), sector));
+    }
+
     for (int position : result.unstable)
     {
         m_status.MarkPosition (drive, position, FullSendPositionMark::Unstable);

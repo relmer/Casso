@@ -207,6 +207,49 @@ void CassoLinkCapture::SerializeReads (const std::vector<Position> & positions, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkCapture::DescribeResult
+//
+//  The WOZ's notes, one line: where the capture came from, each sector
+//  taken from another read, and the tracks with weak bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkCapture::DescribeResult (const Result & result, Byte drive)
+{
+    std::string  notes = std::format ("Raw capture by Casso Explorer from drive {} over CassoLink.", drive);
+    std::string  weak;
+
+
+
+    auto  getTrack = [] (int position)
+    {
+        return (position % 4 == 0) ? std::to_string (position / 4) : std::format ("{:.2f}", position / 4.0);
+    };
+
+    for (const auto & [position, sector] : result.replaced)
+    {
+        notes += std::format (" Track {} sector {} taken from another read.", getTrack (position), sector);
+    }
+
+    for (int position : result.weak)
+    {
+        weak += (weak.empty() ? "" : ", ") + getTrack (position);
+    }
+
+    if (!weak.empty())
+    {
+        notes += std::format (" Weak bits on {} {}.", result.weak.size() == 1 ? "track" : "tracks", weak);
+    }
+
+    return notes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCapture::ParseReads
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -921,6 +964,7 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
     outResult.unstable.clear();
     outResult.weak.clear();
     outResult.streams.clear();
+    outResult.replaced.clear();
 
     for (const Position & position : positions)
     {
@@ -967,6 +1011,11 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
         if (hasWeak)
         {
             outResult.weak.push_back (position.position);
+        }
+
+        for (int sector : stream.replaced)
+        {
+            outResult.replaced.push_back ({ position.position, sector });
         }
 
         streams.emplace (position.position, std::move (stream));
@@ -1043,7 +1092,7 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
     CHR (hr);
 
     edits.meta.push_back ({ "image_date", imageDate });
-    edits.meta.push_back ({ "notes", std::format ("Raw capture by Casso Explorer from drive {} over CassoLink", drive) });
+    edits.meta.push_back ({ "notes", DescribeResult (outResult, drive) });
 
     hr = WozLoader::ApplyEdits (outResult.woz, edits);
     CHR (hr);
