@@ -71,6 +71,7 @@ public:
         std::set<int>                         blankTracks;                // tracks with no sector that reads, as on some protected disks
         std::vector<int>                      captures;                   // the drive of each raw capture
         Image                                 rawWoz         = { 'W', 'O', 'Z', '2', 0xFF, 0x0A, 0x0D, 0x0A };
+        Image                                 rawReads;                   // a raw capture's reads, empty when they aren't saved
 
         //  Called at the end of the Nth whole-disk read, counted from 1, and
         //  at the Nth wait for a key.
@@ -159,10 +160,11 @@ public:
 
         bool     IsBootstrapped() override { return bootstrapped; }
 
-        HRESULT  CaptureRaw (int drive, Image & outWoz) override
+        HRESULT  CaptureRaw (int drive, Image & outWoz, Image & outReads) override
         {
             captures.push_back (drive);
-            outWoz = rawWoz;
+            outWoz   = rawWoz;
+            outReads = rawReads;
             return S_OK;
         }
 
@@ -796,6 +798,26 @@ public:
         Assert::AreEqual (std::string (FullSendManifest::kStatusDamaged),   std::string (FullSendDisk::AssessDamage (Dos ("HELLO"), 0, 2)));
     }
 
+    //  A raw capture's reads, when the link returns them, are written beside
+    //  the image with .reads added to its file.
+    TEST_METHOD (Session_ARawCapturesReads_AreWrittenBesideItsImage)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]   = Other (1);
+        rig.link.badDisk     = rig.link.drives[0];
+        rig.link.badSectors  = { { 5, 0 }, { 6, 0 } };
+        rig.link.reportEmpty = 3;
+        rig.link.present[1]  = false;
+        rig.link.rawReads    = { 'C', 'R', 'A', 'W', 3, 0 };
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (rig.io.files["C:\\Box\\0001.woz"] == rig.link.rawWoz, L"The image is the capture");
+        Assert::IsTrue (rig.io.files["C:\\Box\\0001.woz.reads"] == rig.link.rawReads, L"The reads are beside it");
+        Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size(), L"The reads have no row");
+    }
+
     //  A likely copy-protected disk is captured raw: its image is the WOZ, its
     //  row is a raw capture, and the session goes on. A damaged disk with a
     //  file system isn't captured.
@@ -824,6 +846,7 @@ public:
                         L"The Apple's screen has the capture while it runs");
         Assert::IsTrue (session->GetScreen().maps[0].empty(), L"No map of bad sectors");
         Assert::IsFalse (rig.io.files.contains ("C:\\Box\\0001.woz.unreadable.txt"), L"No list of unreadable sectors");
+        Assert::IsFalse (rig.io.files.contains ("C:\\Box\\0001.woz.reads"), L"No reads file when the link has no reads");
 
         FullSendSnapshot  snapshot = rig.status.GetSnapshot();
 

@@ -539,6 +539,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
     root.emplace_back ("fullSendFolder", JsonValue (TextEncoding::WideToUtf8 (fullSendFolder)));
     root.emplace_back ("fullSendExtension", JsonValue (fullSendExtension));
+    root.emplace_back ("fullSendReads", JsonValue (fullSendReads));
     root.emplace_back ("verifyReads", JsonValue (verifyReads));
     root.emplace_back ("verifyWrites", JsonValue (verifyWrites));
     root.emplace_back ("autoVerify", JsonValue (autoVerify));
@@ -798,6 +799,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
 
     root.HasBool ("verifyReads", verifyReads);
     root.HasBool ("verifyWrites", verifyWrites);
+    root.HasBool ("fullSendReads", fullSendReads);
     root.HasBool ("autoVerify", autoVerify);
 
 

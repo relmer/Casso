@@ -153,8 +153,10 @@ public:
     //  Whether this PC bootstrapped the Apple, so no CassoLink disk was booted.
     virtual bool     IsBootstrapped () = 0;
 
-    //  A drive's disk captured raw as a WOZ.
-    virtual HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz) = 0;
+    //  A drive's disk captured raw as a WOZ. outReads has every read of the
+    //  capture, as CassoLinkCapture::SerializeReads writes them, when reads
+    //  are saved, and is empty otherwise.
+    virtual HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads) = 0;
 
     //  A line for the activity log.
     virtual void     Report     (const std::string & text) = 0;
@@ -251,6 +253,7 @@ private:
     static constexpr size_t  kPrefixLength     = 16;
 
     static constexpr const char *  kRawExtension = ".woz";    // a raw capture's
+    static constexpr const char *  kReadsSuffix  = ".reads";  // added to a raw capture's file for its reads
 
     HRESULT  LoadManifest     ();
     HRESULT  ReloadManifest   ();
@@ -301,6 +304,7 @@ private:
     std::array<bool, 2>         m_swapped    = { false, false };   // and of those, the disks that changed during their read
     std::array<std::string, 2>  m_counted;                         // the repeat each drive last added to the duplicates
     uint64_t                    m_commitTag  = 1;
+    std::vector<Byte>           m_rawReads;                        // the last raw capture's reads, until its image is written
     std::mt19937                m_random     { std::random_device{}() };
     std::vector<Byte>           m_quips;         // the prompt lines left before any repeats
     Byte                        m_lastQuip   = 0;

@@ -1224,7 +1224,7 @@ HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
 
-    hr = m_link.CaptureRaw (drive, outRaw);
+    hr = m_link.CaptureRaw (drive, outRaw, m_rawReads);
     CHR (hr);
 
     SetDriveState (drive, FullSendDriveState::Sending);
@@ -1249,7 +1249,8 @@ Error:
 //  session or the user is already at the title, the next number in parentheses
 //  is added. The list of unreadable sectors goes beside the image, as for
 //  Read disk to image. A raw capture is written as the image, a WOZ, with
-//  no list, as it has every sector the disk has.
+//  no list, as it has every sector the disk has; its reads, when the link
+//  returned them, go beside it with kReadsSuffix added.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1282,6 +1283,14 @@ HRESULT FullSendSession::WriteImage (const std::string & title, const std::vecto
 
     hr = DurableCommit::Commit (m_fileIo, GetPath (outFile), bytes, m_commitTag++, CommitMode::CreateNew, progress);
     CHR (hr);
+
+    if (!raw.empty() && !m_rawReads.empty())
+    {
+        hr = DurableCommit::Commit (m_fileIo, GetPath (outFile + kReadsSuffix), m_rawReads, m_commitTag++, CommitMode::Replace, progress);
+        CHR (hr);
+
+        m_rawReads.clear();
+    }
 
     if (raw.empty() && (!unreadable.empty() || !marks.empty()))
     {
