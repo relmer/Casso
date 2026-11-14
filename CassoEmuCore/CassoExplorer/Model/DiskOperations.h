@@ -7,6 +7,9 @@
 #include "Devices/Disk/DiskImageSession.h"
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/IBlockStore.h"
+
+class BlockBuffer;
+class ProDosVolume;
 #include "Machines/Apple2/Common/SectorReadObserver.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
@@ -170,6 +173,13 @@ private:
 
     Result  CommitEdit (const std::string & imagePath, const DiskImageSession::OpenedImage & opened,
                         const std::vector<Byte> & edited);
+
+    //  A change to a ProDOS volume on a partition of a card, made by the
+    //  block through CardVolumeEdit. False, with nothing done, for any other
+    //  image. `failure` begins the message when the change fails.
+    using CardEditFn = std::function<HRESULT (const ProDosVolume & volume, BlockBuffer & outEdited)>;
+
+    bool  TryEditCardVolume (const std::string & imagePath, const std::string & failure, const CardEditFn & edit, Result & outResult);
 
     static void  FillNewDisk (const NewDiskRequest & request, CommandLineOptions & inOutOptions);
 

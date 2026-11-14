@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/IVolume.h"
+#include "Devices/Disk/BlockBuffer.h"
 #include "Devices/Disk/ChainWalkGuard.h"
 
 class ProDosVolume;
@@ -29,16 +30,16 @@ public:
 
     HRESULT  RemoveDirectory  (const FilePath  & path,
                                bool              force,
-                               vector<Byte>    & outBuffer,
+                               BlockBuffer     & outBuffer,
                                DeleteOutcome   & outOutcome) const;
 
-    HRESULT  Delete    (const FilePath & path, vector<Byte> & outBuffer) const;
+    HRESULT  Delete    (const FilePath & path, BlockBuffer  & outBuffer) const;
 
     //  Delete, plus an account of what it freed, what it refused to free, and
     //  the conditions that bound the answer. The interface form forwards here
     //  and throws the account away; anything reporting to a user wants it.
     HRESULT  Delete    (const FilePath  & path,
-                        vector<Byte>    & outBuffer,
+                        BlockBuffer     & outBuffer,
                         DeleteOutcome   & outOutcome) const;
 
 private:
@@ -61,13 +62,13 @@ private:
     //  already been answered on.
     HRESULT  DeleteEntry (const FilePath  & path,
                           bool              force,
-                          vector<Byte>    & outBuffer,
+                          BlockBuffer     & outBuffer,
                           DeleteOutcome   & outOutcome) const;
 
     //  Removes a directory that holds nothing: its chain of blocks goes back to
     //  the free map and its record in the parent becomes a tombstone.
     HRESULT  RemoveEmptyDirectory (const FilePath  & path,
-                                   vector<Byte>    & outBuffer,
+                                   BlockBuffer     & outBuffer,
                                    DeleteOutcome   & outOutcome) const;
 
     const ProDosVolume  & m_volume;

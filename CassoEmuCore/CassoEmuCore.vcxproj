@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -862,6 +862,8 @@
     <ClCompile Include="Devices\Disk\MemoryBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\OffsetBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\CachingBlockStore.cpp" />
+    <ClCompile Include="Devices\Disk\BlockBuffer.cpp" />
+    <ClCompile Include="Devices\Disk\Partitions\CardVolumeEdit.cpp" />
     <ClCompile Include="Devices\Disk\BlockImage.cpp" />
     <ClCompile Include="Machines\Apple2\Common\HfsBTree.cpp" />
     <ClCompile Include="Machines\Apple2\Common\HfsBTreeEditor.cpp" />
@@ -1622,6 +1624,8 @@
     <ClInclude Include="Devices\Disk\MemoryBlockStore.h" />
     <ClInclude Include="Devices\Disk\OffsetBlockStore.h" />
     <ClInclude Include="Devices\Disk\CachingBlockStore.h" />
+    <ClInclude Include="Devices\Disk\BlockBuffer.h" />
+    <ClInclude Include="Devices\Disk\Partitions\CardVolumeEdit.h" />
     <ClInclude Include="Devices\Disk\BlockImage.h" />
     <ClInclude Include="Machines\Apple2\Common\HfsBTree.h" />
     <ClInclude Include="Machines\Apple2\Common\HfsBTreeEditor.h" />

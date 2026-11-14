@@ -75,7 +75,7 @@ void ProDosVolumeRemover::AppendDeleteWarnings (DeleteOutcome & inOutOutcome)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ProDosVolumeRemover::Delete (const FilePath & path, vector<Byte> & outBuffer) const
+HRESULT ProDosVolumeRemover::Delete (const FilePath & path, BlockBuffer  & outBuffer) const
 {
     DeleteOutcome  outcome;
 
@@ -120,7 +120,7 @@ HRESULT ProDosVolumeRemover::Delete (const FilePath & path, vector<Byte> & outBu
 
 HRESULT ProDosVolumeRemover::Delete (
     const FilePath  & path,
-    vector<Byte>    & outBuffer,
+    BlockBuffer     & outBuffer,
     DeleteOutcome   & outOutcome) const
 {
     return DeleteEntry (path, false, outBuffer, outOutcome);
@@ -139,7 +139,7 @@ HRESULT ProDosVolumeRemover::Delete (
 HRESULT ProDosVolumeRemover::DeleteEntry (
     const FilePath  & path,
     bool              force,
-    vector<Byte>    & outBuffer,
+    BlockBuffer     & outBuffer,
     DeleteOutcome   & outOutcome) const
 {
     HRESULT                         hr          = S_OK;
@@ -157,7 +157,7 @@ HRESULT ProDosVolumeRemover::DeleteEntry (
     vector<ProDosVolume::RawEntry>  entries;
     vector<ProDosVolume::RawEntry>  all;
     vector<std::string>             damage;
-    vector<Byte>                    result;
+    BlockBuffer                     result;
     VolumeIntegrityReport           report;
 
 
@@ -206,7 +206,7 @@ HRESULT ProDosVolumeRemover::DeleteEntry (
     outOutcome                    = DeleteOutcome();
     outOutcome.catalogFullyParsed = report.IsCatalogFullyParsed();
 
-    result = m_volume.m_sectors.ToVector();
+    result = BlockBuffer (m_volume.m_sectors);
 
     // The report walks the same directory in the same order over the same
     // buffer, so an owner index names the same entry on both sides.
@@ -413,7 +413,7 @@ Error:
 
 HRESULT ProDosVolumeRemover::RemoveEmptyDirectory (
     const FilePath  & path,
-    vector<Byte>    & outBuffer,
+    BlockBuffer     & outBuffer,
     DeleteOutcome   & outOutcome) const
 {
     HRESULT                         hr          = S_OK;
@@ -428,7 +428,7 @@ HRESULT ProDosVolumeRemover::RemoveEmptyDirectory (
     vector<ProDosVolume::RawEntry>  entries;
     vector<ProDosVolume::RawEntry>  all;
     vector<std::string>             damage;
-    vector<Byte>                    result;
+    BlockBuffer                     result;
     VolumeIntegrityReport           report;
 
 
@@ -455,7 +455,7 @@ HRESULT ProDosVolumeRemover::RemoveEmptyDirectory (
     hr = m_volume.BuildIntegrityReport (report);
     CHRA (hr);
 
-    result = m_volume.m_sectors.ToVector();
+    result = BlockBuffer (m_volume.m_sectors);
 
     for (uint32_t block : report.GetClaimsOf (owner))
     {
@@ -511,7 +511,7 @@ Error:
 HRESULT ProDosVolumeRemover::RemoveDirectory (
     const FilePath  & path,
     bool              force,
-    vector<Byte>    & outBuffer,
+    BlockBuffer     & outBuffer,
     DeleteOutcome   & outOutcome) const
 {
     HRESULT               hr          = S_OK;
@@ -519,7 +519,7 @@ HRESULT ProDosVolumeRemover::RemoveDirectory (
     bool                  sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
     bool                  permitted   = false;
     size_t                i           = 0;
-    vector<Byte>          staged;
+    BlockBuffer           staged;
     DirectoryRemovalPlan  plan;
 
 
@@ -535,14 +535,14 @@ HRESULT ProDosVolumeRemover::RemoveDirectory (
     outOutcome                    = DeleteOutcome();
     outOutcome.catalogFullyParsed = plan.catalogFullyParsed;
 
-    staged = m_volume.m_sectors.ToVector();
+    staged = BlockBuffer (m_volume.m_sectors);
 
     for (i = 0; i < plan.entries.size(); i++)
     {
-        ProDosVolume   step (staged);
+        ProDosVolume   step { BlockImage (staged) };
         FilePath       entryPath = FilePath::Parse (plan.entries[i].path);
         DeleteOutcome  removal;
-        vector<Byte>   next;
+        BlockBuffer    next;
 
         if (plan.entries[i].isDirectory)
         {

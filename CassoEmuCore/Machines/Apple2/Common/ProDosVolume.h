@@ -64,23 +64,32 @@ public:
     HRESULT  Read               (const FilePath & path, FilePayload & outPayload) const override;
 
     //  Placement goes to the writer and removal to the remover.
-    HRESULT  CreateDirectory   (const FilePath & path, vector<Byte> & outBuffer) const override { return m_writer.CreateDirectory (path, outBuffer); }
-    HRESULT  Write             (const FilePath & path, const FilePayload & payload, vector<Byte> & outBuffer) const override { return m_writer.Write (path, payload, outBuffer); }
-    HRESULT  SetStartupProgram (const FilePath & path, vector<Byte> & outBuffer) const override { return m_writer.SetStartupProgram (path, outBuffer); }
-    HRESULT  Rename            (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const override { return m_writer.Rename (from, to, outBuffer); }
-    HRESULT  SetAttributes     (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const override { return m_writer.SetAttributes (path, attributes, outBuffer); }
+    HRESULT  CreateDirectory   (const FilePath & path, vector<Byte> & outBuffer) const override;
+    HRESULT  Write             (const FilePath & path, const FilePayload & payload, vector<Byte> & outBuffer) const override;
+    HRESULT  SetStartupProgram (const FilePath & path, vector<Byte> & outBuffer) const override;
+    HRESULT  Rename            (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const override;
+    HRESULT  SetAttributes     (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const override;
+
+    //  The same, into a buffer of the blocks the change touches, which is all
+    //  a write to a large volume over a store reads.
+    HRESULT  CreateDirectory   (const FilePath & path, BlockBuffer & outBuffer) const { return m_writer.CreateDirectory (path, outBuffer); }
+    HRESULT  Write             (const FilePath & path, const FilePayload & payload, BlockBuffer & outBuffer) const { return m_writer.Write (path, payload, outBuffer); }
+    HRESULT  Rename            (const FilePath & from, const std::string & to, BlockBuffer & outBuffer) const { return m_writer.Rename (from, to, outBuffer); }
+    HRESULT  SetAttributes     (const FilePath & path, const FileAttributes & attributes, BlockBuffer & outBuffer) const { return m_writer.SetAttributes (path, attributes, outBuffer); }
+    HRESULT  RemoveDirectory   (const FilePath & path, bool force, BlockBuffer & outBuffer, DeleteOutcome & outOutcome) const { return m_remover.RemoveDirectory (path, force, outBuffer, outOutcome); }
+    HRESULT  Delete            (const FilePath & path, BlockBuffer & outBuffer, DeleteOutcome & outOutcome) const { return m_remover.Delete (path, outBuffer, outOutcome); }
 
     //  ProDOS's rule for a new name, the one Rename applies.
     static bool  IsValidName (const std::string & name) { std::string stored; return ProDosVolumeWriter::TryEncodeDirectoryName (name, stored); }
 
     HRESULT  BuildRemovalPlan (const FilePath & path, DirectoryRemovalPlan & outPlan) const override { return m_remover.BuildRemovalPlan (path, outPlan); }
-    HRESULT  RemoveDirectory  (const FilePath & path, bool force, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const override { return m_remover.RemoveDirectory (path, force, outBuffer, outOutcome); }
-    HRESULT  Delete           (const FilePath & path, vector<Byte> & outBuffer) const override { return m_remover.Delete (path, outBuffer); }
+    HRESULT  RemoveDirectory  (const FilePath & path, bool force, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const override;
+    HRESULT  Delete           (const FilePath & path, vector<Byte> & outBuffer) const override;
 
     //  Delete, plus an account of what it freed, what it refused to free, and
     //  the conditions that bound the answer. The interface form forwards here
     //  and throws the account away; anything reporting to a user wants it.
-    HRESULT  Delete           (const FilePath & path, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const override { return m_remover.Delete (path, outBuffer, outOutcome); }
+    HRESULT  Delete           (const FilePath & path, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const override;
 
     HRESULT  BuildIntegrityReport (VolumeIntegrityReport & outReport) const override;
 
@@ -107,6 +116,9 @@ public:
     static HRESULT  HandBackVerifiedResult (const VolumeIntegrityReport  & before,
                                             const vector<Byte>           & result,
                                             vector<Byte>                 & outBuffer);
+    static HRESULT  HandBackVerifiedResult (const VolumeIntegrityReport  & before,
+                                            const BlockBuffer            & result,
+                                            BlockBuffer                  & outBuffer);
 
     //  The ProDOS file types this feature names on the command line. The full
     //  set is 256 values; these are the ones a developer places or extracts.

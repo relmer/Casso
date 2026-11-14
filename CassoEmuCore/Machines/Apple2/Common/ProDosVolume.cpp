@@ -42,6 +42,205 @@ ProDosVolume::ProDosVolume (const BlockImage & image)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProDosVolume::CreateDirectory
+//
+//  Each change through the vector forms of IVolume is made into a buffer
+//  over the volume's image and copied out whole.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::CreateDirectory (const FilePath & path, vector<Byte> & outBuffer) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_writer.CreateDirectory (path, buffer);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::Write
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::Write (const FilePath & path, const FilePayload & payload, vector<Byte> & outBuffer) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_writer.Write (path, payload, buffer);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::SetStartupProgram
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::SetStartupProgram (const FilePath & path, vector<Byte> & outBuffer) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_writer.SetStartupProgram (path, buffer);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::Rename
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::Rename (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_writer.Rename (from, to, buffer);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::SetAttributes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::SetAttributes (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_writer.SetAttributes (path, attributes, buffer);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::RemoveDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::RemoveDirectory (const FilePath & path, bool force, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_remover.RemoveDirectory (path, force, buffer, outOutcome);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::Delete
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::Delete (const FilePath & path, vector<Byte> & outBuffer) const
+{
+    DeleteOutcome  outcome;
+
+
+
+    return Delete (path, outBuffer, outcome);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::Delete
+//
+//  With the account of what the delete freed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::Delete (const FilePath & path, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_remover.Delete (path, buffer, outOutcome);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProDosVolume::ReadByte
 //
 //  Refuses a block the volume cannot hold rather than indexing past the end of
@@ -1073,6 +1272,42 @@ bool ProDosVolume::TryFindEntry (
 //  requires, and a volume that already carried a disagreement would become
 //  permanently uneditable -- on the degraded disks this feature exists to
 //  recover. The comparison is against the input, on the sets that matter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::HandBackVerifiedResult (
+    const VolumeIntegrityReport  & before,
+    const BlockBuffer            & result,
+    BlockBuffer                  & outBuffer)
+{
+    HRESULT                hr   = S_OK;
+    ProDosVolume           volume { BlockImage (result) };
+    bool                   safe = false;
+    VolumeIntegrityReport  after;
+
+
+
+    hr = volume.BuildIntegrityReport (after);
+    CHRA (hr);
+
+    safe = after.IsSafeToCommitAfter (before);
+    CBRAEx (safe, E_UNEXPECTED);
+
+    outBuffer = result;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::HandBackVerifiedResult
+//
+//  Over a vector, for a result made as a vector.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
