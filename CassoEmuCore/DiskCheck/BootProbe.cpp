@@ -271,7 +271,7 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
     else if ((IsSettled (trace, limits) || IsHeadAtRest (trace, limits)) && IsStuck (trace))
     {
         verdict   = BootVerdict::DidNotBoot;
-        outReason = "The program stopped in a short loop with no input or output.";
+        outReason = "The program did not appear to be running valid code: it stopped in a short loop with no input or output.";
     }
     else if (IsSettled (trace, limits))
     {

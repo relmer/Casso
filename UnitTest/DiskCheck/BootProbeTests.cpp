@@ -83,7 +83,7 @@ public:
         //  reads the keyboard.
         booted.loopBytes = { 0xD5, 0xAA, 0xD5, 0xAA, 0xFF, 0xFF };
         Assert::IsTrue (BootProbe::Judge (booted, limits, reason) == BootVerdict::DidNotBoot, L"A short loop with no I/O");
-        Assert::AreEqual (std::string ("The program stopped in a short loop with no input or output."), reason);
+        Assert::AreEqual (std::string ("The program did not appear to be running valid code: it stopped in a short loop with no input or output."), reason);
 
         booted.loopBytes = { 0xAD, 0x00, 0xC0, 0x10, 0xFB };
         Assert::IsTrue (BootProbe::Judge (booted, limits, reason) == BootVerdict::Booted, L"A loop that reads the keyboard");

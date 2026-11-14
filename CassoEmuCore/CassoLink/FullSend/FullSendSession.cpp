@@ -644,8 +644,10 @@ Error:
 
 HRESULT FullSendSession::SendAgain (int drive, const CheckedDisk & disk)
 {
-    HRESULT  hr        = S_OK;
-    bool     wasVerify = m_link.IsVerifying();
+    HRESULT              hr        = S_OK;
+    bool                 wasVerify = m_link.IsVerifying();
+    const FullSendRow  * before    = FindWithImage ([&disk] (const FullSendRow & row) { return row.fingerprint == disk.fingerprint; });
+    bool                 wasRaw    = before != nullptr && before->status == FullSendManifest::kStatusRawCapture;
 
 
 
@@ -653,7 +655,7 @@ HRESULT FullSendSession::SendAgain (int drive, const CheckedDisk & disk)
     m_repeats[(size_t) drive - 1] = false;
     m_deeper                      = true;
 
-    Report (std::format ("The image of the disk in drive {} did not boot, so the disk is read again, more carefully.", drive));
+    Report (std::format ("The image {} the disk in drive {} did not boot, so the disk is being read again, more carefully.", wasRaw ? "captured from" : "read from", drive));
 
     if (!wasVerify)
     {
