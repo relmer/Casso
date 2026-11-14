@@ -219,6 +219,7 @@ public:
 
             keys = pictures.GetKeys ({ other.wstring(), (root / L"missing.dsk").wstring() });
             Assert::AreEqual ((size_t) 1, keys.size(), L"A key for the file that is there");
+            Assert::AreEqual ((size_t) 2, pictures.GetKeys ({ root.wstring() }).size(), L"A folder's keys are its disk images'");
 
             pictures.RemoveDeleted (keys);
             AssertSucceeded (store.Find (other, found, record, isUserSet));

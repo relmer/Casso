@@ -213,4 +213,85 @@ public:
 
         Assert::AreEqual (S_OK, ThumbnailStore::CopyStream (rig.root / L"missing.dsk", rig.image), L"No stream is no error");
     }
+
+    //  A thumbnail the user set is the user's after a write, with the record
+    //  of the image's boot.
+    TEST_METHOD (AWriteThroughATemporaryFile_KeepsTheUsersMarkAndTheRecord)
+    {
+        Rig                   rig;
+        ThumbnailStore        store (rig.root / L"cache");
+        std::vector<Byte>     booted    = { 0x89, 'P', 'N', 'G', 1 };
+        std::vector<Byte>     chosen    = { 0x89, 'P', 'N', 'G', 2 };
+        std::vector<Byte>     found;
+        ThumbnailRecord       record;
+        ThumbnailRecord       read;
+        bool                  isUserSet = false;
+        Win32DiskFileIo       io;
+        CommitPlan::Progress  progress;
+
+
+
+        record.verdict = "booted";
+        record.title   = "ARCHON";
+
+        AssertSucceeded (store.Store (rig.image, booted, record));
+        AssertSucceeded (store.SetByUser (rig.image, chosen));
+        AssertSucceeded (DurableCommit::Commit (io, rig.image.string(), std::vector<Byte> (4096, 0x22), 1, CommitMode::Replace, progress));
+
+        AssertSucceeded (store.Find (rig.image, found, read, isUserSet));
+        Assert::IsTrue (found == chosen);
+        Assert::IsTrue (isUserSet, L"Set by the user under the new hash");
+        Assert::AreEqual (std::string ("booted"), read.verdict);
+        Assert::AreEqual (std::string ("ARCHON"), read.title);
+        Assert::AreEqual (2, store.CountUserSet(), L"The old bytes' as well, for a copy of them elsewhere");
+    }
+
+    //  An image's streams from before a clear aren't taken into the cache,
+    //  and a clear removes only the cache files that begin with an image's hash.
+    TEST_METHOD (AClear_IgnoresTheStreamsFromBeforeIt_AndKeepsOtherFiles)
+    {
+        Rig                    rig;
+        ThumbnailStore         store (rig.root / L"cache");
+        std::vector<Byte>      chosen    = { 0x89, 'P', 'N', 'G', 3 };
+        std::vector<Byte>      found;
+        ThumbnailRecord        read;
+        bool                   isUserSet = false;
+        int                    userSet   = 0;
+        std::filesystem::path  given     = rig.root / L"cache" / L"given.json";
+
+
+
+        AssertSucceeded (store.SetByUser (rig.image, chosen));
+        Rig::Write (given, { '{', '}' });
+
+        AssertSucceeded (store.Clear (true, userSet));
+        Assert::AreEqual (1, userSet);
+        Assert::IsTrue (std::filesystem::exists (given), L"A file whose name isn't a hash is left");
+
+        AssertSucceeded (store.Find (rig.image, found, read, isUserSet));
+        Assert::IsTrue (found.empty(), L"The stream is from before the clear");
+        Assert::AreEqual (0, store.CountUserSet());
+    }
+
+    //  Removing the thumbnail the user set from an image with no booted one
+    //  deletes the streams, so it isn't taken from them again.
+    TEST_METHOD (Remove_WithNoBootedThumbnail_DeletesTheStreams)
+    {
+        Rig                rig;
+        ThumbnailStore     store (rig.root / L"cache");
+        std::vector<Byte>  chosen    = { 0x89, 'P', 'N', 'G', 4 };
+        std::vector<Byte>  found;
+        ThumbnailRecord    read;
+        bool               isUserSet = false;
+
+
+
+        AssertSucceeded (store.SetByUser (rig.image, chosen));
+        AssertSucceeded (store.Remove (rig.image));
+
+        Assert::IsFalse (std::filesystem::exists (rig.GetStream (rig.image)));
+
+        AssertSucceeded (store.Find (rig.image, found, read, isUserSet));
+        Assert::IsTrue (found.empty());
+    }
 };

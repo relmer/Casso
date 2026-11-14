@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Core/JsonValue.h"
+
 
 
 
@@ -38,11 +40,14 @@ struct ThumbnailRecord
 //  PNG for that hash, and is the one returned while it exists.
 //
 //  A copy of the thumbnail returned is in the image file's alternate data
-//  stream, so it goes with the file through a move or a copy on an NTFS
-//  volume. A copy of a file's bytes alone, a zip and a FAT volume have no
-//  stream; Find writes it again from the cache, and takes a stream the
-//  cache lacks into the cache. The file's last write
-//  time is restored after a write to the stream.
+//  stream, and its record in a second stream, with whether the user set it
+//  and the cache's clear count when it was written. The streams go with the
+//  file through a move or a copy on an NTFS volume, and through a write that
+//  replaces the file, which changes its hash. A copy of a file's bytes alone,
+//  a zip and a FAT volume have no streams; Find writes them again from the
+//  cache, and takes streams the cache lacks into the cache, unless they were
+//  written before the cache was last cleared. The file's last write time is
+//  restored after a write to the streams.
 //
 //  The hash of a file is stored with its path, size and last write time,
 //  so a file with the same three isn't read again.
@@ -52,7 +57,8 @@ struct ThumbnailRecord
 class ThumbnailStore
 {
 public:
-    static constexpr const wchar_t *  kStreamName = L":casso.thumbnail";
+    static constexpr const wchar_t *  kStreamName       = L":casso.thumbnail";
+    static constexpr const wchar_t *  kRecordStreamName = L":casso.thumbnail.json";
 
     explicit ThumbnailStore (std::filesystem::path folder);
 
@@ -83,7 +89,7 @@ public:
 
     int      CountUserSet     () const;
 
-    //  The stream of one file written to another, for a write that replaces
+    //  The streams of one file written to another, for a write that replaces
     //  an image with a temporary file. A file with no stream isn't an error.
     static HRESULT  CopyStream (const std::filesystem::path & from, const std::filesystem::path & to);
 
@@ -95,16 +101,26 @@ private:
         std::string  hash;
     };
 
-    std::filesystem::path  GetPath     (const std::string & hash, const wchar_t * suffix) const;
-    static HRESULT         ReadFile    (const std::filesystem::path & path, std::vector<Byte> & outBytes);
-    static HRESULT         WriteFile   (const std::filesystem::path & path, std::span<const Byte> bytes);
-    static HRESULT         WriteStream (const std::filesystem::path & image, std::span<const Byte> png);
-    HRESULT                ReadRecord  (const std::string & hash, ThumbnailRecord & outRecord) const;
-    HRESULT                WriteRecord (const std::string & hash, const ThumbnailRecord & record) const;
+    using Fields = std::vector<std::pair<std::string, JsonValue>>;
+
+    std::filesystem::path  GetPath           (const std::string & hash, const wchar_t * suffix) const;
+    int                    GetClears         () const;
+    std::string            FormatStreamRecord (const ThumbnailRecord & record, bool isUserSet) const;
+    static HRESULT         ReadFile          (const std::filesystem::path & path, std::vector<Byte> & outBytes);
+    static HRESULT         WriteFile         (const std::filesystem::path & path, std::span<const Byte> bytes);
+    static HRESULT         WriteStreams      (const std::filesystem::path & image, std::span<const Byte> png, const std::string & record);
+    static HRESULT         ParseRecord       (std::span<const Byte> bytes, ThumbnailRecord & outRecord, bool & outIsUserSet, int & outClears);
+    static Fields          GetRecordFields   (const ThumbnailRecord & record);
+    static bool            IsHashName        (const std::wstring & file);
+    HRESULT                ReadRecord        (const std::string & hash, ThumbnailRecord & outRecord) const;
+    HRESULT                WriteRecord       (const std::string & hash, const ThumbnailRecord & record) const;
+    HRESULT                RefreshStreams    (const std::filesystem::path & image, std::span<const Byte> png, const ThumbnailRecord & record, bool isUserSet) const;
 
     static constexpr const wchar_t *  s_kBooted = L".png";
     static constexpr const wchar_t *  s_kByUser = L".user.png";
     static constexpr const wchar_t *  s_kRecord = L".json";
+    static constexpr const wchar_t *  s_kClears = L"clears.txt";
+    static constexpr size_t           s_kHashChars = 64;
 
     std::filesystem::path                m_folder;
     mutable std::mutex                   m_lock;

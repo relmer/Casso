@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Model/DiskImagePictures.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Printer/PngCodec.h"
 #include "DiskCheck/BootCheck.h"
 
@@ -346,26 +347,47 @@ Error:
 //
 //  DiskImagePictures::GetKeys
 //
-//  A file that can't be read, or isn't a disk image, has no key.
+//  A file that can't be read, or isn't a disk image, has no key. A folder's
+//  keys are those of the disk images anywhere under it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::string> DiskImagePictures::GetKeys (const std::vector<std::wstring> & paths)
 {
-    std::vector<std::string>  keys;
-    std::string               hash;
-    HRESULT                   hr = S_OK;
+    std::vector<std::string>   keys;
+    std::vector<std::wstring>  files;
+    std::string                hash;
+    std::error_code            error;
+    DiskFormat                 format = {};
+    HRESULT                    hr     = S_OK;
 
 
 
     for (const std::wstring & path : paths)
     {
-        if (!IsCandidate (path))
+        if (!std::filesystem::is_directory (path, error))
+        {
+            files.push_back (path);
+            continue;
+        }
+
+        for (const std::filesystem::directory_entry & entry : std::filesystem::recursive_directory_iterator (path, std::filesystem::directory_options::skip_permission_denied, error))
+        {
+            if (entry.is_regular_file (error) && SUCCEEDED (DiskImageStore::GetSourceFormatByExtension (TextEncoding::WideToNarrow (entry.path().wstring()), format)))
+            {
+                files.push_back (entry.path().wstring());
+            }
+        }
+    }
+
+    for (const std::wstring & file : files)
+    {
+        if (!IsCandidate (file))
         {
             continue;
         }
 
-        hr = m_store.GetHash (path, hash);
+        hr = m_store.GetHash (file, hash);
 
         if (SUCCEEDED (hr))
         {
