@@ -167,9 +167,12 @@ struct DeviceConfig
 //
 struct PortConfig
 {
-    string  name;      // "disk", "serial1", "joystick"; empty for numbered ports
-    string  device;    // what is attached; empty for an unoccupied port
-    string  path;      // a host file, for the serial file attachments
+    string              name;                 // "disk", "serial1", "joystick"; empty for numbered ports
+    string              device;               // what is attached; empty for an unoccupied port
+    string              path;                 // a host file, for the serial file attachments
+    string              image;                // a disk image for a block device or 3.5-inch drive; "stock" for the stock hard disk
+    bool                realTiming = false;   // a hard disk's spin-up and seek delays
+    vector<PortConfig>  chain;                // a //c disk port's SmartPort chain, in order
 };
 
 
@@ -267,6 +270,9 @@ struct SlotConfig
     // The Uthernet II's settings, from the slot entry's `network` object;
     // defaults for any other device.
     NetworkCardSettings  network;
+    // Why a card or a drive the entry lists was not installed; empty when
+    // everything was.
+    string              deviceProblem;
 };
 
 
@@ -677,6 +683,18 @@ private:
     static void    ResolveSlotFirmware (const vector<fs::path> & searchPaths,
                                         const FileResolver     & resolver,
                                         SlotConfig             & slot);
+
+    // A SmartPort or hard disk card's ROM, its host machine and its drives.
+    // A card the machine cannot host is removed from the slot, and a drive
+    // the card does not accept from its port, with the reason in the slot's
+    // `deviceProblem`. Never fails the load.
+    static void    ResolveBlockCard    (const string           & machineId,
+                                        const vector<fs::path> & searchPaths,
+                                        const FileResolver     & resolver,
+                                        SlotConfig             & slot);
+
+    static void    ParsePort           (const JsonValue & entry, PortConfig & outPort);
+    static void    ParsePortArray      (const JsonValue & portsArray, vector<PortConfig> & outPorts);
 
     // Reads a slot's optional `switches` object into its text fields.
     static void    ParseSwitches      (const JsonValue & owner, SlotConfig & slot);

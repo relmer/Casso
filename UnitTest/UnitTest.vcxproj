@@ -856,6 +856,8 @@
     <ClCompile Include="NetworkTests\MacAddressTests.cpp" />
     <ClCompile Include="NetworkTests\NetworkCardSettingsTests.cpp" />
     <ClCompile Include="UiTests\NetworkPageTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\BlockDeviceEventRingTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\BlockDeviceMediaTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />

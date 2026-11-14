@@ -1227,6 +1227,8 @@
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
       <DisableSpecificWarnings>4244;4456;4457;4701;4702;4706;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
+    <ClCompile Include="Devices\BlockDevice\BlockDeviceCatalog.cpp" />
+    <ClCompile Include="Devices\BlockDevice\BlockDeviceMedia.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
@@ -2121,6 +2123,15 @@
     <ClInclude Include="Devices\Network\W5100SocketBridge.h" />
     <ClInclude Include="Machines\Apple2\Common\UthernetCard.h" />
     <ClInclude Include="Ui\Settings\NetworkPage.h" />
+    <ClInclude Include="Devices\BlockDevice\BlockDeviceCatalog.h" />
+    <ClInclude Include="Core\SpscEventRing.h" />
+    <ClInclude Include="Devices\BlockDevice\BlockDeviceEvent.h" />
+    <ClInclude Include="Devices\BlockDevice\IBlockDeviceEventSink.h" />
+    <ClInclude Include="Devices\BlockDevice\BlockDeviceEventRing.h" />
+    <ClInclude Include="Devices\Floppy35\Floppy35Event.h" />
+    <ClInclude Include="Devices\Floppy35\IFloppy35EventSink.h" />
+    <ClInclude Include="Devices\Floppy35\Floppy35EventRing.h" />
+    <ClInclude Include="Devices\BlockDevice\BlockDeviceMedia.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CassoLink\Apple\Program.s" />

@@ -25,7 +25,9 @@ class IByteStream;
 class Apple2eMmu;
 class AppleMouse;
 class SiriusJoyport;
+class IBlockDeviceEventSink;
 class IDisk2EventSink;
+class IFloppy35EventSink;
 class IInputEventSink;
 class Prng;
 
@@ -48,8 +50,10 @@ class Prng;
 
 struct MachineObservers
 {
-    IDisk2EventSink  *  disk  = nullptr;
-    IInputEventSink  *  input = nullptr;
+    IDisk2EventSink        *  disk        = nullptr;
+    IInputEventSink        *  input       = nullptr;
+    IBlockDeviceEventSink  *  blockDevice = nullptr;
+    IFloppy35EventSink     *  floppy35    = nullptr;
 };
 
 

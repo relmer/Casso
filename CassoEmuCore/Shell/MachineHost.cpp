@@ -4,7 +4,9 @@
 #include "CassoLink/RunningCassoRegistry.h"
 
 #include "Core/Prng.h"
+#include "Devices/BlockDevice/IBlockDeviceEventSink.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Floppy35/IFloppy35EventSink.h"
 #include "Devices/RamDevice.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/VideoScanner.h"
@@ -1084,6 +1086,16 @@ void MachineHost::AttachObservers (const MachineObservers & observers)
     if (m_refs.gamePort != nullptr)
     {
         m_refs.gamePort->SetInputEventSink (observers.input);
+    }
+
+    for (IBlockDeviceEventSource * source : m_refs.blockDeviceSources)
+    {
+        source->SetBlockDeviceEventSink (observers.blockDevice);
+    }
+
+    for (IFloppy35EventSource * source : m_refs.floppy35Sources)
+    {
+        source->SetFloppy35EventSink (observers.floppy35);
     }
 }
 
