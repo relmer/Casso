@@ -225,6 +225,7 @@ public:
 
         Assert::IsTrue (FileFormatTable::Identify (MakeEntry ("SRC.S", 0x04), VolumeKind::ProDos, merlin) == FileFormat::Merlin);
         Assert::IsTrue (FileFormatTable::Identify (MakeEntry ("T.SRC", 0x04), VolumeKind::Dos33, merlin) == FileFormat::Merlin);
+        Assert::IsTrue (FileFormatTable::Identify (MakeEntry ("SRC.S", 0x04), VolumeKind::Dos33, merlin) == FileFormat::Merlin, L"Merlin Pro's name on DOS 3.3");
         Assert::IsTrue (FileFormatTable::Identify (MakeEntry ("SRC", 0x04), VolumeKind::ProDos, merlin) == FileFormat::None, L"No .S");
         Assert::IsTrue (FileFormatTable::Identify (MakeEntry ("X.TEXT", 3), VolumeKind::Pascal, textfile) == FileFormat::PascalText);
         Assert::IsTrue (FileFormatTable::Identify (MakeEntry ("X.TEXT", 3), VolumeKind::Pascal, std::vector<Byte> (100, 0)) == FileFormat::None, L"Too short");

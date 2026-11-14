@@ -13,14 +13,14 @@
 //  MerlinSource::Matches
 //
 //  A ProDOS text file ending .S, or a DOS 3.3 binary file starting T.,
-//  either with Merlin's bytes.
+//  Merlin 8's form, or ending .S, Merlin Pro's, with Merlin's bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MerlinSource::Matches (const FileFacts & facts, std::span<const Byte> bytes)
 {
     bool  typed = (facts.HasProDosType (kProDosText) && facts.IsNameEnding (".S"))
-               || (facts.IsDos33() && facts.type == kDosBinary && facts.IsNameStarting ("T."));
+               || (facts.IsDos33() && facts.type == kDosBinary && (facts.IsNameStarting ("T.") || facts.IsNameEnding (".S")));
 
 
 
