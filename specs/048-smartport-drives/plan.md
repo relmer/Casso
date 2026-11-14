@@ -60,10 +60,9 @@ each card over in-memory images; MAME 0.289 reference boots through
 
 **Project Type**: Desktop application over static core libraries.
 
-**Performance Goals**: An idle device costs nothing per cycle (FR-024
-assumption and SC-007). A UniDisk 3.5 or 3.5 controller card adds one 65C02
-stepped only while its device is active. A 32 MB ProDOS boot with real timing
-off is faster than MAME's.
+**Performance Goals**: An idle device costs nothing per cycle (the spec's
+performance assumption). A UniDisk 3.5 or 3.5 controller card adds one 65C02
+stepped only while its device is active.
 
 **Constraints**: Clean-room (FR-004). ROMs fetched, never committed (FR-002).
 No serial port is opened and none of the CassoLink capture files are touched

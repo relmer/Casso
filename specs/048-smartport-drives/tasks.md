@@ -50,7 +50,7 @@ every device uses. No story starts before this phase is done.
 
 ### Media
 
-- [ ] T004 [P] Tests in `UnitTest/BlockDeviceTests/BlockDeviceMediaTests.cpp`: detect `.po`, `.hdv`, ProDOS-order `.2mg`, DiskCopy 4.2 and WOZ 2 3.5-inch by header then extension; fail the attach of a DOS-order 2IMG and of a size over the drive's capacity ("At most 65,535 (32 MB) per ProDOS unit; at most the ProFile model's capacity"); report the 2IMG locked flag and a read-only host file as write protection with the Disk II's wording; fail a second attach of one path ("One writer per path across all drives (FR-018)"); and confirm the file is byte-identical after every failed attach. All over in-memory files through `IDiskFileIo`
+- [ ] T004 [P] Tests in `UnitTest/BlockDeviceTests/BlockDeviceMediaTests.cpp`: detect `.po`, `.hdv`, ProDOS-order `.2mg`, DiskCopy 4.2 and WOZ 2 3.5-inch by header then extension; fail the attach of a DOS-order 2IMG and of a size over the drive's capacity ("At most 65,535 (32 MB) per ProDOS unit; at most the ProFile model's capacity"); report the 2IMG locked flag and a read-only host file as write protection with the Disk II's wording; fail a second attach of one path ("One writer per path across all drives (FR-018)"); confirm the file is byte-identical after every failed attach; a machine reset in the middle of a block write results in the whole block or the old block, never a mix; and an image changed on the host while attached goes through spec 033's external change handling. All over in-memory files through `IDiskFileIo`
 - [ ] T005 Implement `BlockDeviceMedia` in `CassoEmuCore/Devices/BlockDevice/BlockDeviceMedia.h/.cpp` over spec 033's `CachingBlockStore`, `FileBlockStore` and `OffsetBlockStore`, committing through the durable commit path the Disk II uses (FR-009)
 - [ ] T006 [P] Tests in `UnitTest/Floppy35Tests/DiskCopy42ImageTests.cpp`: read the header, data and tag checksums of a DiskCopy 4.2 image; write blocks and recompute both checksums; fail the attach of an image with a bad checksum as damaged media
 - [ ] T007 Implement `DiskCopy42Image` in `CassoEmuCore/Devices/Floppy35/DiskCopy42Image.h/.cpp` as an `IBlockStore`
@@ -130,18 +130,20 @@ card in Casso.
 - [ ] T042 [US3] Find where `Disk2Controller` and `WozLoader` apply the write-protect and save rules to a 5.25-inch WOZ image, and write the locations into `research.md` R9
 - [ ] T043 [P] [US3] Tests in `UnitTest/Floppy35Tests/Woz35Tests.cpp`: a WOZ 2 3.5-inch image loads per track and side with its bit counts; the INFO chunk's write protection is applied; writes change its bits and are saved by the rules found in T042 (FR-008)
 - [ ] T044 [US3] Extend `WozLoader` in `CassoEmuCore/Machines/Apple2/Common/WozLoader.h/.cpp` for the 3.5-inch disk type, and add `Floppy35Media` in `CassoEmuCore/Devices/Floppy35/Floppy35Media.h/.cpp`, saving through the code T042 found
+- [ ] T045 [P] [US3] Tests in `UnitTest/BlockDeviceTests/BlockDeviceMediaTests.cpp`: a 3.5-inch WOZ image attached to a SCSI disk or a ProFile is decoded to blocks when every block decodes, and the attach fails with the unreadable block numbers otherwise
+- [ ] T046 [US3] Add the WOZ decode to `BlockDeviceMedia` through `Gcr35Track`
 
 ### SWIM, the card's CPU and the card
 
-- [ ] T045 [P] [US3] Tests in `UnitTest/Floppy35Tests/DeviceCpuTests.cpp`: a `Cpu65C02` over a separate `MemoryBus` steps at its clock ratio against the host cycle count, parks while inactive ("`Parked` while the device is inactive, `Running` while active"), and resumes on activity
-- [ ] T046 [US3] Implement `DeviceCpu` in `CassoEmuCore/Devices/Floppy35/DeviceCpu.h/.cpp`
-- [ ] T047 [P] [US3] Tests in `UnitTest/Floppy35Tests/SwimTests.cpp`: IWM mode matches `Iwm` register for register, and the sequence that switches the chip to ISM mode
-- [ ] T048 [US3] Implement `Swim` in `CassoEmuCore/Devices/Floppy35/Swim.h/.cpp` over `Iwm`
-- [ ] T049 [P] [US3] Tests in `UnitTest/Floppy35Tests/Apple35ControllerCardTests.cpp` for the map checked in research R11: 32 KB RAM at the card CPU's `$0000-$7FFF` and ROM at `$8000-$FFFF`; SWIM at `$0A00-$0A0F`; head select at `$0A40` and `$0A41`; the Apple's `$Cn00-$CnFF` reads card RAM `$7B00-$7BFF` and writes there have no effect; any access to `$C0n0-$C0nF` latches the bank; `$C800-$CBFF` is card RAM at the bank times `$400`; `$CC00-$CFFF` is card RAM `$7C00-$7FFF`; the card CPU runs at 2.046 MHz from reset until the slot page is filled
-- [ ] T050 [US3] Implement `Apple35ControllerCard` in `CassoEmuCore/Devices/Floppy35/Apple35ControllerCard.h/.cpp`, and register `apple35-card` and `apple35-drive`
-- [ ] T051 [US3] Run 341-0438-A on the card with an 800K Apple 3.5 Drive and a log of SWIM accesses, write into `research.md` R8 whether the firmware depends on ISM mode, and add the ISM register behavior it uses to T047 and T048
-- [ ] T052 [US3] Scenario tests in `ScenarioTests/Floppy35BootTests.cpp`: an 800K `.po`, a DiskCopy 4.2 image and a WOZ 2 3.5-inch image boot on a //e and an enhanced //e; a written file round-trips with DiskCopy checksums updated; write the comparison with MAME's `superdrive` card into `validation.md`
-- [ ] T053 [US3] Find a WOZ image of a copy-protected 3.5-inch 8-bit disk, confirm it boots on MAME's `superdrive` card, and add a scenario boot for it against `%USERPROFILE%\Downloads\Casso` (SC-004)
+- [ ] T047 [P] [US3] Tests in `UnitTest/Floppy35Tests/DeviceCpuTests.cpp`: a `Cpu65C02` over a separate `MemoryBus` steps at its clock ratio against the host cycle count, parks while inactive ("`Parked` while the device is inactive, `Running` while active"), and resumes on activity
+- [ ] T048 [US3] Implement `DeviceCpu` in `CassoEmuCore/Devices/Floppy35/DeviceCpu.h/.cpp`
+- [ ] T049 [P] [US3] Tests in `UnitTest/Floppy35Tests/SwimTests.cpp`: IWM mode matches `Iwm` register for register, and the sequence that switches the chip to ISM mode
+- [ ] T050 [US3] Implement `Swim` in `CassoEmuCore/Devices/Floppy35/Swim.h/.cpp` over `Iwm`
+- [ ] T051 [P] [US3] Tests in `UnitTest/Floppy35Tests/Apple35ControllerCardTests.cpp` for the map checked in research R11: 32 KB RAM at the card CPU's `$0000-$7FFF` and ROM at `$8000-$FFFF`; SWIM at `$0A00-$0A0F`; head select at `$0A40` and `$0A41`; the Apple's `$Cn00-$CnFF` reads card RAM `$7B00-$7BFF` and writes there have no effect; any access to `$C0n0-$C0nF` latches the bank; `$C800-$CBFF` is card RAM at the bank times `$400`; `$CC00-$CFFF` is card RAM `$7C00-$7FFF`; the card CPU runs at 2.046 MHz from reset until the slot page is filled
+- [ ] T052 [US3] Implement `Apple35ControllerCard` in `CassoEmuCore/Devices/Floppy35/Apple35ControllerCard.h/.cpp`, and register `apple35-card` and `apple35-drive`
+- [ ] T053 [US3] Run 341-0438-A on the card with an 800K Apple 3.5 Drive and a log of SWIM accesses, write into `research.md` R8 whether the firmware depends on ISM mode, and add the ISM register behavior it uses to T049 and T050
+- [ ] T054 [US3] Scenario tests in `ScenarioTests/Floppy35BootTests.cpp`: an 800K `.po`, a DiskCopy 4.2 image and a WOZ 2 3.5-inch image boot on a //e and an enhanced //e; a written file round-trips with DiskCopy checksums updated; write the comparison with MAME's `superdrive` card into `validation.md`
+- [ ] T055 [US3] Find a WOZ image of a copy-protected 3.5-inch 8-bit disk and confirm it boots on MAME's `superdrive` card. Where it has a stable download, fetch it in `scripts/FetchStockDisks.ps1` with a checksum and add a scenario boot for it; otherwise boot it manually and write the image's source, checksum and result into `validation.md` (SC-004)
 
 ---
 
@@ -150,15 +152,16 @@ card in Casso.
 **Goal**: A UniDisk 3.5 boots on the //c disk port and on the Liron card, and
 chains.
 
-- [ ] T054 [US2] Read the SmartPort chapters of the Apple IIc Technical Reference and the Apple IIgs Firmware Reference, and write into `research.md` R10 the bus handshake timing, the packet layout byte by byte, and the chain limit in Apple's manuals and in the //c ROM 4 and Liron firmware
-- [ ] T055 [P] [US2] Tests in `UnitTest/Floppy35Tests/SmartPortBusTests.cpp`: REQ on phase 0, bus enable on phases 1 and 3, ACK on the sense line, the packet layout from T054 (sync, `$C3`, 7-byte groups and odd bytes, checksum, `$C8`), INIT assigning unit numbers down the chain, and reset clearing them
-- [ ] T056 [US2] Implement `SmartPortBus` and `SmartPortChain` in `CassoEmuCore/Devices/Floppy35/SmartPortBus.h/.cpp`
-- [ ] T057 [P] [US2] Tests in `UnitTest/Floppy35Tests/UniDisk35DriveTests.cpp` for the map checked in research R11: 8 KB ROM at `$E000-$FFFF`, gate array at `$0800-$0801` with its bits in each direction, IWM at `$0A00-$0A0F`; and a firmware run that replies to a SmartPort STATUS packet and a READ BLOCK
-- [ ] T058 [US2] Implement `UniDisk35Drive` in `CassoEmuCore/Devices/Floppy35/UniDisk35Drive.h/.cpp`: `DeviceCpu`, gate array, internal `Iwm`, `Sony35Drive`, on the chain. Set the clock from the firmware's timing loops against the bit cell, and write the figure into `research.md` R11
-- [ ] T059 [P] [US2] Tests in `UnitTest/Floppy35Tests/LironCardTests.cpp`: the 4 KB ROM (slot page and `$C800` space, released by `$CFFF`), the IWM at `$C080-$C08F` plus the slot offset, and the boot code's rule ("requires its first byte to be 1 and its second to be nonzero, and otherwise returns to the monitor's slot scan")
-- [ ] T060 [US2] Implement `LironCard` in `CassoEmuCore/Devices/Floppy35/LironCard.h/.cpp`, and register `liron-card` and `unidisk35`
-- [ ] T061 [US2] Connect the //c disk port to a `SmartPortChain` that ends in an optional 5.25-inch drive (`disk-iic`), in `CassoEmuCore/Machines/Apple2/Apple2c/` and `MachineConfig`, with the chain limit from T054
-- [ ] T062 [US2] Scenario tests in `ScenarioTests/Floppy35BootTests.cpp`: an 800K image boots on a //c with a UniDisk 3.5 on the disk port; the same image boots from the Liron card in slot 5 of a ][+, a //e and an enhanced //e; two chained UniDisks are online; a 5.25-inch drive at the chain's end boots; a SmartPort eject call ejects the disk; an empty UniDisk in slot 5 and a floppy in slot 6 boot the floppy (SC-003)
+- [ ] T056 [US2] Read the SmartPort chapters of the Apple IIc Technical Reference and the Apple IIgs Firmware Reference, and write into `research.md` R10 the bus handshake timing, the packet layout byte by byte, and the chain limit in Apple's manuals and in the //c ROM 4 and Liron firmware
+- [ ] T057 [P] [US2] Tests in `UnitTest/Floppy35Tests/SmartPortBusTests.cpp`: REQ on phase 0, bus enable on phases 1 and 3, ACK on the sense line, the packet layout from T056 (sync, `$C3`, 7-byte groups and odd bytes, checksum, `$C8`), INIT assigning unit numbers down the chain, and reset clearing them
+- [ ] T058 [US2] Implement `SmartPortBus` and `SmartPortChain` in `CassoEmuCore/Devices/Floppy35/SmartPortBus.h/.cpp`
+- [ ] T059 [P] [US2] Tests in `UnitTest/Floppy35Tests/UniDisk35DriveTests.cpp` for the map checked in research R11: 8 KB ROM at `$E000-$FFFF`, gate array at `$0800-$0801` with its bits in each direction, IWM at `$0A00-$0A0F`; and a firmware run that replies to a SmartPort STATUS packet and a READ BLOCK
+- [ ] T060 [US2] Implement `UniDisk35Drive` in `CassoEmuCore/Devices/Floppy35/UniDisk35Drive.h/.cpp`: `DeviceCpu`, gate array, internal `Iwm`, `Sony35Drive`, on the chain. Set the clock from the firmware's timing loops against the bit cell, and write the figure into `research.md` R11
+- [ ] T061 [P] [US2] Tests in `UnitTest/Floppy35Tests/LironCardTests.cpp`: the 4 KB ROM (slot page and `$C800` space, released by `$CFFF`), the IWM at `$C080-$C08F` plus the slot offset, and the boot code's rule ("requires its first byte to be 1 and its second to be nonzero, and otherwise returns to the monitor's slot scan")
+- [ ] T062 [US2] Implement `LironCard` in `CassoEmuCore/Devices/Floppy35/LironCard.h/.cpp`, and register `liron-card` and `unidisk35`
+- [ ] T063 [P] [US2] Tests in `UnitTest/EmuTests/Apple2cDiskPortTests.cpp`: the //c disk port builds a `SmartPortChain` from the machine file's `chain`, SmartPort devices first and at most one 5.25-inch drive last; a chain over the limit fails to load with the limit in the error; the internal drive is first in boot order
+- [ ] T064 [US2] Connect the //c disk port to a `SmartPortChain` that ends in an optional 5.25-inch drive (`disk-iic`), in `CassoEmuCore/Machines/Apple2/Apple2c/` and `MachineConfig`, with the chain limit from T056
+- [ ] T065 [US2] Scenario tests in `ScenarioTests/Floppy35BootTests.cpp`: an 800K image boots on a //c with a UniDisk 3.5 on the disk port; the same image boots from the Liron card in slot 5 of a ][+, a //e and an enhanced //e; two chained UniDisks are online; a 5.25-inch drive at the chain's end boots; a SmartPort eject call ejects the disk; an empty UniDisk in slot 5 and a floppy in slot 6 boot the floppy (SC-003)
 
 ---
 
@@ -166,14 +169,14 @@ chains.
 
 **Goal**: The //c Plus boots from its internal 3.5-inch drive at 4 MHz.
 
-- [ ] T063 [P] [US4] Tests in `UnitTest/EmuTests/MigChipTests.cpp` for the map checked in research R12: the 32-byte RAM window at `$CE00-$CE1F`, the advancing window at `$CE20-$CE3F` wrapping at 2 KB, the page reset at `$CEA0`, the internal drive on at `$CC80-$CC9F` and off at `$CCC0-$CCDF`, head select by reads and 3.5-inch select by writes at `$CE40-$CE7F`, and the IWM reset at `$CC40`
-- [ ] T064 [US4] Implement `MigChip` in `CassoEmuCore/Machines/Apple2/Apple2cPlus/MigChip.h/.cpp`
-- [ ] T065 [P] [US4] Tests in `UnitTest/EmuTests/Apple2cPlusAcceleratorTests.cpp`: unlock by `$5A` four times at `$C05A` and lock by `$A5`; fast by `$08` at `$C05B` and normal by `$08` at `$C05A`; the slowdown mask at `$C05C`, with accesses to a masked slot or the speaker at 1 MHz; Esc down at reset starts normal; and Casso's setting ("Authentic" is 4 MHz when `fast`, 1 MHz otherwise; "2x" is 8 MHz; "Max" is unthrottled)
-- [ ] T066 [US4] Implement `Apple2cPlusAccelerator` in `CassoEmuCore/Machines/Apple2/Apple2cPlus/Apple2cPlusAccelerator.h/.cpp` within the existing CPU speed modes, and display 4 MHz for the //c Plus in the Machine tab's hardware rows
-- [ ] T067 [P] [US4] Tests in `UnitTest/EmuTests/Apple2cPlusTests.cpp`: ROM 05 banking, the internal Apple 3.5 Drive on the IWM through `MigChip`, and the external port chain accepting `apple35-drive`, `unidisk35` and `disk-iic` in the order the firmware supports
-- [ ] T068 [US4] Implement `Apple2cPlus` in `CassoEmuCore/Machines/Apple2/Apple2cPlus/Apple2cPlus.h/.cpp` and `Resources/Machines/Apple2cPlus/Apple2cPlus.json`, and register it in the machine catalog
-- [ ] T069 [US4] Install the //c Plus ROM in MAME's roms folder from the fetch, boot `apple2cp`, and write into `research.md` R12 the slowdown durations and the external chain's order rules
-- [ ] T070 [US4] Scenario tests in `ScenarioTests/Apple2cPlusTests.cpp`: an 800K image boots from the internal drive and from an external Apple 3.5 Drive; a timing loop runs four times as fast as on the //c; write the comparison with MAME's `apple2cp` into `validation.md` (SC-005a)
+- [ ] T066 [P] [US4] Tests in `UnitTest/EmuTests/MigChipTests.cpp` for the map checked in research R12: the 32-byte RAM window at `$CE00-$CE1F`, the advancing window at `$CE20-$CE3F` wrapping at 2 KB, the page reset at `$CEA0`, the internal drive on at `$CC80-$CC9F` and off at `$CCC0-$CCDF`, head select by reads and 3.5-inch select by writes at `$CE40-$CE7F`, and the IWM reset at `$CC40`
+- [ ] T067 [US4] Implement `MigChip` in `CassoEmuCore/Machines/Apple2/Apple2cPlus/MigChip.h/.cpp`
+- [ ] T068 [P] [US4] Tests in `UnitTest/EmuTests/Apple2cPlusAcceleratorTests.cpp`: unlock by `$5A` four times at `$C05A` and lock by `$A5`; fast by `$08` at `$C05B` and normal by `$08` at `$C05A`; the slowdown mask at `$C05C`, with accesses to a masked slot or the speaker at 1 MHz; Esc down at reset starts normal; and Casso's setting ("Authentic" is 4 MHz when `fast`, 1 MHz otherwise; "2x" is 8 MHz; "Max" is unthrottled), and the Machine tab's clock row for the //c Plus reads 4 MHz
+- [ ] T069 [US4] Implement `Apple2cPlusAccelerator` in `CassoEmuCore/Machines/Apple2/Apple2cPlus/Apple2cPlusAccelerator.h/.cpp` within the existing CPU speed modes, and display 4 MHz for the //c Plus in the Machine tab's hardware rows
+- [ ] T070 [P] [US4] Tests in `UnitTest/EmuTests/Apple2cPlusTests.cpp`: ROM 05 banking, the internal Apple 3.5 Drive on the IWM through `MigChip`, and the external port chain accepting `apple35-drive`, `unidisk35` and `disk-iic` in the order the firmware supports
+- [ ] T071 [US4] Implement `Apple2cPlus` in `CassoEmuCore/Machines/Apple2/Apple2cPlus/Apple2cPlus.h/.cpp` and `Resources/Machines/Apple2cPlus/Apple2cPlus.json`, and register it in the machine catalog
+- [ ] T072 [US4] Install the //c Plus ROM in MAME's roms folder from the fetch, boot `apple2cp`, and write into `research.md` R12 the slowdown durations and the external chain's order rules
+- [ ] T073 [US4] Scenario tests in `ScenarioTests/Apple2cPlusTests.cpp`: an 800K image boots from the internal drive and from an external Apple 3.5 Drive; a timing loop runs four times as fast as on the //c; write the comparison with MAME's `apple2cp` into `validation.md` (SC-005a)
 
 ---
 
@@ -182,13 +185,13 @@ chains.
 **Goal**: Every card and drive is reachable from the Machine tab, the desk
 and the command line, and persists.
 
-- [ ] T071 [P] [US6] Tests in `UnitTest/Settings/HardwarePageModelTests.cpp`: the device tree lists each card with its ports (SCSI IDs 0-6, chain positions), offers a card only on a machine in its host list with a tip that lists the machines that accept it, confirms before replacing a card in a filled slot, and limits a chain to its length limit with the limit in the tip
-- [ ] T072 [US6] Extend the device tree in `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp` and `SettingsPanelState` with cards, drives, image attach, and the per-drive real timing switch (FR-023b)
-- [ ] T073 [P] [US6] Tests in `UnitTest/EmuTests/CommandLineTests.cpp`: `--hd <slot>=`, `--hd <slot>.<unit>=` and `--smartport <n>=` per `contracts/command-line.md`, each error in the fixed error layout, and the saved configuration untouched after the run
-- [ ] T074 [US6] Implement the flags in core beside `--disk1`
-- [ ] T075 [P] [US6] Tests in `UnitTest/Ui/DriveWidgetStateTests.cpp`: dropping an image on a drive attaches it with the same validation as the Machine tab (FR-017), and a missing image file results in an empty drive and a notice
-- [ ] T076 [US6] Extend `DriveWidgetState` and `IDriveCommandSink` in `CassoEmuCore/Ui/` for block devices and 3.5-inch drives
-- [ ] T077 [US6] Persistence test in `UnitTest/EmuTests/MachineConfigTests.cpp`: configure every card and drive, write and reload the machine file, and compare (FR-014)
+- [ ] T074 [P] [US6] Tests in `UnitTest/Settings/HardwarePageModelTests.cpp`: the device tree lists each card with its ports (SCSI IDs 0-6, chain positions), offers a card only on a machine in its host list with a tip that lists the machines that accept it, confirms before replacing a card in a filled slot, limits a chain to its length limit with the limit in the tip, and has a real timing switch on each hard disk, off by default and saved with the machine
+- [ ] T075 [US6] Extend the device tree in `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp` and `SettingsPanelState` with cards, drives, image attach, and the per-drive real timing switch (FR-023b)
+- [ ] T076 [P] [US6] Tests in `UnitTest/EmuTests/CommandLineTests.cpp`: `--hd <slot>=`, `--hd <slot>.<unit>=` and `--smartport <n>=` per `contracts/command-line.md`, each error in the fixed error layout, the saved configuration untouched after the run, and both flags in the `--help` text
+- [ ] T077 [US6] Implement the flags in core beside `--disk1`, and add them to the `--help` text
+- [ ] T078 [P] [US6] Tests in `UnitTest/Ui/DriveWidgetStateTests.cpp`: dropping an image on a drive attaches it with the same validation as the Machine tab (FR-017), and a missing image file results in an empty drive and a notice
+- [ ] T079 [US6] Extend `DriveWidgetState` and `IDriveCommandSink` in `CassoEmuCore/Ui/` for block devices and 3.5-inch drives
+- [ ] T080 [US6] Persistence test in `UnitTest/EmuTests/MachineConfigTests.cpp`: configure every card and drive, write and reload the machine file, and compare (FR-014)
 
 ---
 
@@ -199,29 +202,31 @@ interaction, sounds and events.
 
 ### Models
 
-- [ ] T078 [P] [US7] Write `scripts/modelgen/cad_unidisk35.py` from measurements of reference photographs (proportions written in the script), render with `preview.py`, and check the render before wiring
-- [ ] T079 [P] [US7] Write `scripts/modelgen/cad_apple35.py` the same way, with a //c Plus color variant for its internal drive
-- [ ] T080 [P] [US7] Write `scripts/modelgen/cad_hd20sc.py` the same way, from the owner's reference photograph (`https://macs.billiehawkins.com/wp-content/uploads/2018/11/20sc.jpg`), with the model number left off the mesh
-- [ ] T081 [P] [US7] Write `scripts/modelgen/cad_profile.py` in CadQuery, replacing `gen_profile.py`, and update the table in `scripts/modelgen/README.md`
-- [ ] T082 [US7] Check every model color against the `DeskSceneModel` palette ("at least a channel clear of the palette" per the modelgen README), bake the models in `Resources/Models/`, and add each to the `BakedMesh` list in `Casso/Casso.vcxproj` and `Casso.rc`
-- [ ] T083 [P] [US7] Tests in `UnitTest/Ui/DeskSceneModelTests.cpp` and `DeskSceneLayoutTests.cpp`: each new `DeskDeviceKind` loads with its lamp and, for removable media, its door or slot; automatic placement of every configuration the Machine tab allows has no overlap (FR-024)
-- [ ] T084 [US7] Add `UniDisk35`, `Apple35Drive`, `HardDisk20SC` and `ProFile` to `DeskDeviceKind` in `CassoEmuCore/Ui/Scene/DeskSceneModel.h` and place them in `DeskSceneLayout`
-- [ ] T085 [P] [US7] Tests in `UnitTest/Ui/DeskSceneFaceLabelTests.cpp`: the HD20SC's front label is `modelLabel` in the position and lettering of the reference photograph: "20SC" for a 20 MB image and for an empty drive, "32SC" for 32 MB, "5SC" for 5 MB
-- [ ] T086 [US7] Draw the HD20SC's model number as a face label in `CassoEmuCore/Ui/Scene/DeskSceneFaceLabels.h`, as the Disk II's "DRIVE n" is drawn
-- [ ] T087 [P] [US7] Tests in `UnitTest/Ui/DeskSceneHitTesterTests.cpp`: hover, eject-click, body-click and drop on each new drive match the Disk II's behavior and tip wording
-- [ ] T088 [US7] Wire hit testing and tips in `DeskSceneHitTester` and `ShellDeskScene`
-- [ ] T089 [US7] Compact theme widgets for each new drive in `CassoEmuCore/Ui/Chrome/DriveWidget.h/.cpp`, with tests of the tip and clicks (FR-023)
+- [ ] T081 [P] [US7] Write `scripts/modelgen/cad_unidisk35.py` from measurements of reference photographs (proportions written in the script), render with `preview.py`, and check the render before wiring
+- [ ] T082 [P] [US7] Write `scripts/modelgen/cad_apple35.py` the same way, with a //c Plus color variant for its internal drive
+- [ ] T083 [P] [US7] Write `scripts/modelgen/cad_hd20sc.py` the same way, from the owner's reference photograph (`https://macs.billiehawkins.com/wp-content/uploads/2018/11/20sc.jpg`), with the model number left off the mesh
+- [ ] T084 [P] [US7] Write `scripts/modelgen/cad_profile.py` in CadQuery, replacing `gen_profile.py`, and update the table in `scripts/modelgen/README.md`
+- [ ] T085 [US7] Check every model color against the `DeskSceneModel` palette ("at least a channel clear of the palette" per the modelgen README), bake the models in `Resources/Models/`, and add each to the `BakedMesh` list in `Casso/Casso.vcxproj` and `Casso.rc`
+- [ ] T086 [P] [US7] Tests in `UnitTest/Ui/DeskSceneModelTests.cpp` and `DeskSceneLayoutTests.cpp`: each new `DeskDeviceKind` loads with its lamp and, for removable media, its door or slot; automatic placement of every configuration the Machine tab allows has no overlap (FR-024)
+- [ ] T087 [US7] Add `UniDisk35`, `Apple35Drive`, `HardDisk20SC` and `ProFile` to `DeskDeviceKind` in `CassoEmuCore/Ui/Scene/DeskSceneModel.h` and place them in `DeskSceneLayout`
+- [ ] T088 [P] [US7] Tests in `UnitTest/Ui/DeskSceneLayoutTests.cpp`: the //c Plus scene has its monitor and its internal drive as an `Apple35Drive` in the //c Plus colors, and each drive on its external chain beside it
+- [ ] T089 [US7] Build the //c Plus scene in `ShellDeskScene` and `DeskSceneLayout`
+- [ ] T090 [P] [US7] Tests in `UnitTest/Ui/DeskSceneFaceLabelTests.cpp`: the HD20SC's front label is `modelLabel` in the position and lettering of the reference photograph: "20SC" for a 20 MB image and for an empty drive, "32SC" for 32 MB, "5SC" for 5 MB
+- [ ] T091 [US7] Draw the HD20SC's model number as a face label in `CassoEmuCore/Ui/Scene/DeskSceneFaceLabels.h`, as the Disk II's "DRIVE n" is drawn
+- [ ] T092 [P] [US7] Tests in `UnitTest/Ui/DeskSceneHitTesterTests.cpp`: hover, eject-click, body-click and drop on each new drive match the Disk II's behavior and tip wording
+- [ ] T093 [US7] Wire hit testing and tips in `DeskSceneHitTester` and `ShellDeskScene`
+- [ ] T094 [US7] Compact theme widgets for each new drive in `CassoEmuCore/Ui/Chrome/DriveWidget.h/.cpp`, with tests of the tip and clicks (FR-023)
 
 ### Audio
 
-- [ ] T090 [US7] Search for CC0 or CC-BY recordings of a Sony 800K drive, an HD20SC and a ProFile, and read the two drives' service manuals for spin-up and seek times; write the sources, licenses and times into `research.md` R13 and R15, or that none exists
-- [ ] T091 [P] [US7] Tests in `UnitTest/Audio/Floppy35AudioSourceTests.cpp` and `HardDiskAudioSourceTests.cpp`: spin-up, seek, stepping and eject events produce sound, with samples and with synthesis; the drive audio switch silences both
-- [ ] T092 [US7] Implement `Floppy35AudioSource` and `HardDiskAudioSource` in `CassoEmuCore/Audio/`, panned by desk position through `DriveAudioMixer`, and the sample fetch in `AssetBootstrap`
+- [ ] T095 [US7] Search for CC0 or CC-BY recordings of a Sony 800K drive, an HD20SC and a ProFile, and read the two drives' service manuals for spin-up and seek times; write the sources, licenses and times into `research.md` R13 and R15, or that none exists
+- [ ] T096 [P] [US7] Tests in `UnitTest/Audio/Floppy35AudioSourceTests.cpp` and `HardDiskAudioSourceTests.cpp`: spin-up, seek, stepping and eject events produce sound, with samples and with synthesis; the drive audio switch silences both
+- [ ] T097 [US7] Implement `Floppy35AudioSource` and `HardDiskAudioSource` in `CassoEmuCore/Audio/`, panned by desk position through `DriveAudioMixer`, and the sample fetch in `AssetBootstrap`
 
 ### Events
 
-- [ ] T093 [US7] Feed the drive lamps and audio sources from the block device and floppy event feeds, with tests that a read lights the lamp and a seek starts its sound
-- [ ] T094 [US7] Write a note in `specs/048-smartport-drives/handoff.md` for spec 035 that lists the two feeds, their event structs, and where `MachineHost::AttachObservers` attaches them, so 035's debugger can log them as it logs `Disk2Event` (FR-022, research R14)
+- [ ] T098 [US7] Feed the drive lamps and audio sources from the block device and floppy event feeds, with tests that a read lights the lamp and a seek starts its sound
+- [ ] T099 [US7] Write a note in `specs/048-smartport-drives/handoff.md` for spec 035 that lists the two feeds, their event structs, and where `MachineHost::AttachObservers` attaches them, so 035's debugger can log them as it logs `Disk2Event` (FR-022, research R14)
 
 ---
 
@@ -231,24 +236,24 @@ interaction, sounds and events.
 FR-014c, research R18). Last among the feature phases, so every earlier phase
 runs on machines as they ship today.
 
-- [ ] T095 [P] Tests in `UnitTest/BlockDeviceTests/StockHardDiskImageTests.cpp`: first use creates an empty ProDOS volume of 65,535 blocks with a blank block 0 ("Created on first use, never overwritten"); a second use of an edited image results in a byte-identical file; a create that fails results in an empty drive and a notice. Over an in-memory file system
-- [ ] T096 Implement `StockHardDiskImage` in `CassoEmuCore/Devices/BlockDevice/StockHardDiskImage.h/.cpp` through the code `casso disk create --size 32M` runs, and resolve `"image": "stock"` to it in `MachineConfig`
-- [ ] T097 [P] Tests in `UnitTest/EmuTests/MachineConfigUpgradeTests.cpp`: the //e and enhanced //e defaults have the SCSI card in slot 7 with an `hd20sc` at ID 6 on the stock image and the Liron card in slot 5 with one `unidisk35`, enabled; a user copy with slot 5 or 7 configured is not changed in that slot; a user copy with them unconfigured gains the entries; the //c default is not changed
-- [ ] T098 Add the two slot entries to `Resources/Machines/Apple2e/Apple2e.json` and `Resources/Machines/Apple2eEnhanced/Apple2eEnhanced.json`, raise `$cassoMachineVersion`, and update `MachineConfigUpgrade` in `CassoEmuCore/Core/MachineConfigUpgrade.h/.cpp`
-- [ ] T099 Update `TestMachine`'s `Slots::AsShipped` and every test that depends on the as-shipped slots, and add scenario tests in `ScenarioTests/BlockDeviceBootTests.cpp`: an as-shipped //e and enhanced //e boot a floppy in slot 6 first, and the stock volume is online in ProDOS
-- [ ] T100 Check the startup download path in `AssetBootstrap` and `StartupDownloadDialog`: the two default cards' ROMs are fetched with the machine ROMs, and a failed download results in a notice and a machine that runs without that card
+- [ ] T100 [P] Tests in `UnitTest/BlockDeviceTests/StockHardDiskImageTests.cpp`: first use creates an empty ProDOS volume of 65,535 blocks with a blank block 0 ("Created on first use, never overwritten"); a second use of an edited image results in a byte-identical file; a create that fails results in an empty drive and a notice. Over an in-memory file system
+- [ ] T101 Implement `StockHardDiskImage` in `CassoEmuCore/Devices/BlockDevice/StockHardDiskImage.h/.cpp` through the code `casso disk create --size 32M` runs, and resolve `"image": "stock"` to it in `MachineConfig`
+- [ ] T102 [P] Tests in `UnitTest/EmuTests/MachineConfigUpgradeTests.cpp`: the //e and enhanced //e defaults have the SCSI card in slot 7 with an `hd20sc` at ID 6 on the stock image and the Liron card in slot 5 with one `unidisk35`, enabled; a user copy with slot 5 or 7 configured is not changed in that slot; a user copy with them unconfigured gains the entries; the //c default is not changed; a machine outside a card's verified host list (T025, T065) does not have that card by default
+- [ ] T103 Add the two slot entries to `Resources/Machines/Apple2e/Apple2e.json` and `Resources/Machines/Apple2eEnhanced/Apple2eEnhanced.json`, raise `$cassoMachineVersion`, and update `MachineConfigUpgrade` in `CassoEmuCore/Core/MachineConfigUpgrade.h/.cpp`
+- [ ] T104 Update `TestMachine`'s `Slots::AsShipped` and every test that depends on the as-shipped slots, and add scenario tests in `ScenarioTests/BlockDeviceBootTests.cpp`: an as-shipped //e and enhanced //e boot a floppy in slot 6 first, and the stock volume is online in ProDOS
+- [ ] T105 [P] Tests in `UnitTest/EmuTests/AssetBootstrapTests.cpp`: the download catalog has every ROM of `contracts/firmware-fetch.md` with its checksum; the two default cards' ROMs are fetched at startup with the machine ROMs; selecting a card or machine whose ROM is absent starts its download; a failed download or a checksum mismatch results in a notice and a machine that runs without that card (FR-002a, FR-016)
+- [ ] T106 Add the ROMs to the catalog in `CassoEmuCore/AssetBootstrap.cpp` and start a download from the Machine tab's card and machine selection through `StartupDownloadDialog`
 
 ---
 
 ## Phase 11: Polish and cross-cutting
 
-- [ ] T101 Performance test in `UnitTest/EmuTests/IdleDevicePerformanceTests.cpp`: a machine with every card attached and idle runs as fast as one without, within measurement noise
-- [ ] T102 Real-timing check: a 32 MB boot on the SCSI card with real timing on is within 10 percent of MAME's time (SC-007)
-- [ ] T103 Owner review of each desk model beside reference photographs (SC-008)
-- [ ] T104 Run the 033 block device scenario tests (T573) on the SCSI card (SC-009), in coordination with whoever is working on spec 033's Story 23
-- [ ] T105 Confirm that no "to verify" marker is left in `research.md`, and that `data-model.md` matches it
-- [ ] T106 `CHANGELOG.md` and `README.md` entries for the new cards, drives and machine, terse, after the owner approves the text
-- [ ] T107 Pre-merge gate: `scripts/CheckStyle.ps1 -Mode Tree`, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, `scripts/RunTests.ps1 -Build`, `scripts/RunTests.ps1 -Build -Scenario`, `scripts/RunTests.ps1 -Build -Sanitize -Configuration Release -Scenario`
+- [ ] T107 Performance test in `UnitTest/EmuTests/IdleDevicePerformanceTests.cpp`: a machine with every card attached and idle runs as fast as one without, within measurement noise
+- [ ] T108 Owner review of each desk model beside reference photographs (SC-008)
+- [ ] T109 Run the 033 block device scenario tests (T573) on the SCSI card (SC-009), in coordination with whoever is working on spec 033's Story 23
+- [ ] T110 Confirm that no "to verify" marker is left in `research.md`, and that `data-model.md` matches it
+- [ ] T111 `CHANGELOG.md` and `README.md` entries for the new cards, drives and machine, terse, after the owner approves the text
+- [ ] T112 Pre-merge gate: `scripts/CheckStyle.ps1 -Mode Tree`, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, `scripts/RunTests.ps1 -Build`, `scripts/RunTests.ps1 -Build -Scenario`, `scripts/RunTests.ps1 -Build -Sanitize -Configuration Release -Scenario`
 
 ---
 
@@ -256,40 +261,41 @@ runs on machines as they ship today.
 
 | Requirement | Tasks |
 |---|---|
-| FR-001 real firmware | T002, T021, T031, T050, T058, T060, T068 |
-| FR-002 ROMs fetched | T002, T003, T100 |
-| FR-003 hardware at register level | T016-T021, T027-T031, T035, T036, T047-T050, T057-T060, T063-T066 |
+| FR-001 real firmware | T002, T021, T031, T052, T060, T062, T071 |
+| FR-002 ROMs fetched | T002, T003 |
+| FR-002a ROMs downloaded by the app | T105, T106 |
+| FR-003 hardware at register level | T016-T021, T027-T031, T035, T036, T049-T052, T059-T062, T066-T069 |
 | FR-004 clean-room | A rule for every task; MAME is read for behavior and its sources are deleted after use |
-| FR-005 SmartPort at signal level | T054-T058 |
+| FR-005 SmartPort at signal level | T056-T060 |
 | FR-006 3.5-inch mechanism | T037-T041 |
-| FR-007 block images | T004-T007 |
+| FR-007 block images | T004-T007, T045, T046 |
 | FR-008 WOZ 3.5 | T042-T044 |
 | FR-009 durable writes | T005 |
 | FR-010 capacity limits | T004, T019, T028, T040 |
-| FR-013 host machines | T025, T027, T052, T061, T062 |
-| FR-013a //c Plus | T063-T070 |
-| FR-014 configure and persist | T071-T077 |
-| FR-014a, FR-014b, FR-014c defaults | T024, T095-T100 |
-| FR-015 card offered per machine | T071 |
-| FR-016 missing ROM | T014, T100 |
-| FR-017, FR-018 attach rules | T004, T075 |
-| FR-019 models | T078-T084 |
-| FR-020 desk interaction | T087, T088 |
-| FR-021 sounds | T090-T092 |
-| FR-022 event feeds | T008-T010, T093, T094 |
-| FR-023 compact widgets | T089 |
-| FR-023b real timing | T018, T072 |
-| FR-024 placement | T083, T084 |
+| FR-013 host machines | T025, T027, T054, T063, T064, T065 |
+| FR-013a //c Plus | T066-T073 |
+| FR-014 configure and persist | T074-T080 |
+| FR-014a, FR-014b, FR-014c defaults | T024, T100-T105 |
+| FR-015 card offered per machine | T074 |
+| FR-016 missing ROM | T014, T105, T106 |
+| FR-017, FR-018 attach rules | T004, T078 |
+| FR-019 models | T081-T087 |
+| FR-020 desk interaction | T092, T093 |
+| FR-021 sounds | T095-T097 |
+| FR-022 event feeds | T008-T010, T098, T099 |
+| FR-023 compact widgets | T094 |
+| FR-023b real timing | T018, T075 |
+| FR-024 placement | T086, T087, T088, T089 |
 | FR-025 cards in tests | T015 |
-| FR-026 MAME comparison | T026, T052, T070 |
+| FR-026 MAME comparison | T026, T054, T073 |
 | SC-001 | T023, T026 |
-| SC-003 | T052, T062 |
-| SC-004 | T053 |
-| SC-005, SC-005a | T032, T070 |
-| SC-006 guest writes | T023, T032, T052, T062 |
-| SC-007 | T102 |
-| SC-008 | T103 |
-| SC-009 | T104 |
+| SC-003 | T054, T065 |
+| SC-004 | T055 |
+| SC-005, SC-005a | T032, T073 |
+| SC-006 guest writes | T023, T032, T054, T065 |
+| SC-007 | T018, T075 |
+| SC-008 | T108 |
+| SC-009 | T109 |
 
 ## Dependencies and execution order
 
@@ -301,14 +307,14 @@ runs on machines as they ship today.
   Plus) depends on Phases 5 and 6.
 - Phase 8 (configuration) depends on the devices it configures; its tasks
   for a device can follow that device's phase.
-- Phase 9 (desk, audio, events): models (T078-T081) can start any time;
+- Phase 9 (desk, audio, events): models (T081-T084) can start any time;
   wiring follows each device's phase.
 - Phase 10 (defaults) depends on Phases 3 and 6.
 - Phase 11 is last.
 
 ## Parallel opportunities
 
-- The four CAD models (T078-T081) run alongside any device work.
+- The four CAD models (T081-T084) run alongside any device work.
 - Within Phase 2, the media, event and config test tasks marked [P] are in
   separate files.
 - The block stack and the 3.5-inch stack share only Phase 2, so they can run

@@ -190,8 +190,8 @@ drive, and a second image on an external Apple 3.5 Drive.
 1. **Given** the //c Plus with a bootable 800K image in its internal drive,
    **When** the machine starts, **Then** ProDOS boots from it.
 2. **Given** acceleration on, **When** a timing loop runs, **Then** it runs at
-   the //c Plus's accelerated speed, and at 1 MHz with acceleration off, while
-   disk access runs at 1 MHz as on the real machine.
+   the //c Plus's accelerated speed, and at 1 MHz with acceleration off, with
+   the real accelerator's slowdowns for slot and speaker accesses.
 3. **Given** an Apple 3.5 Drive, a UniDisk 3.5 or a 5.25-inch drive on the
    external port, **When** the machine starts, **Then** each is online.
 4. **Given** the desk scene, **When** the //c Plus is selected, **Then** its
@@ -261,8 +261,8 @@ a realistic model of the real unit: the UniDisk 3.5, the Apple 3.5 Drive, the
 HD20SC and the ProFile. Each has the Disk II's interaction: an activity lamp,
 a visible loaded or empty state for removable media, a tip with the mounted
 image and write-protect state, click to eject and browse, and click the body
-to browse. Each has a set of sounds, mixed with the Disk II's. The debugger
-logs each device's events, as it logs the Disk II's. In the compact
+to browse. Each has a set of sounds, mixed with the Disk II's. Each emits
+an event feed, built as the Disk II's is, for the debugger of spec 035. In the compact
 themes each drive is a 2D widget in the drive band.
 
 **Why this priority**: Per the owner, every drive gets the full desk scene
@@ -270,7 +270,8 @@ treatment the Disk II has. It is P2 because the drives must work before there
 is anything to draw.
 
 **Independent Test**: Attach each drive in the desk scene, boot, and check the
-lamp, the tip, the clicks, the sounds and the log against the Disk II.
+lamp, the tip, the clicks and the sounds against the Disk II, and the events
+on each device's feed.
 
 **Acceptance Scenarios**:
 
@@ -283,8 +284,9 @@ lamp, the tip, the clicks, the sounds and the log against the Disk II.
    starts, **Then** the firmware waits for the spin-up as on real hardware;
    with the default setting the drive is ready at once and seeks without
    delay.
-4. **Given** the debugger's log, **When** a block device is read, **Then** the log
-   entry contains the device, unit, operation and block number.
+4. **Given** a sink attached to a block device's event feed, **When** a block
+   is read, **Then** the event contains the device, unit, operation and block
+   number.
 5. **Given** the compact theme, **When** drives are attached, **Then** each has
    a widget in the drive band with the same tip and clicks.
 
@@ -307,10 +309,9 @@ lamp, the tip, the clicks, the sounds and the log against the Disk II.
 - A 2IMG image's header specifies DOS order or a locked flag: a DOS-order 2IMG
   fails to attach to a block device, and the locked flag is presented as write
   protection.
-- A WOZ image is attached to a block device that cannot read flux (the SCSI
-  card, the UniDisk 3.5's host side): Casso converts what it can decode to
-  blocks when every block decodes, and otherwise fails the attach with the unreadable
-  block numbers.
+- A 3.5-inch WOZ image is attached to a drive that cannot read flux (a SCSI
+  disk or a ProFile): Casso decodes it to blocks when every block decodes, and
+  otherwise fails the attach with the unreadable block numbers.
 - A machine reset mid-write: the block in progress is written whole or not at
   all, never in part.
 - A required ROM is missing: the card appears in the Machine tab with the
@@ -334,6 +335,9 @@ lamp, the tip, the clicks, the sounds and the log against the Disk II.
   //c Plus's ROM for its internal and external drives.
 - **FR-002**: ROMs not licensed for redistribution MUST be fetched by
   `scripts/FetchRoms.ps1` and never committed.
+- **FR-002a**: Casso MUST download each new ROM itself, as it downloads the
+  machine ROMs: a default card's ROM at startup, and any other card's or
+  machine's ROM when the user selects it.
 - **FR-003**: The hardware each firmware drives MUST be emulated at the
   register and timing level the firmware depends on: the NCR 5380 and SCSI bus
   phases for the SCSI card; the IWM for the //c disk port, the UniDisk 3.5
@@ -378,18 +382,19 @@ lamp, the tip, the clicks, the sounds and the log against the Disk II.
   never committed), its built-in 3.5-inch drive on its internal disk
   controller, its external disk port accepting the Apple 3.5 Drive, the UniDisk
   3.5 and a 5.25-inch drive, and its accelerator at the real machine's speed,
-  with acceleration switchable as on the real machine and disk access slowed
-  to 1 MHz as the real accelerator does. Casso's CPU speed setting on the //c
+  with acceleration switchable as on the real machine and the slowdowns the
+  real accelerator applies to slot and speaker accesses. Casso's CPU speed setting on the //c
   Plus MUST map "Authentic" to 4 MHz, displayed as 4 MHz in the Machine tab,
   "2x" to 8 MHz, and "Max" to the maximum speed.
 - **FR-014**: Users MUST be able to add each card to a slot, attach drives to
   it, and attach an image to each drive from the Machine tab, from the desk
   scene and drive band, and from the command line, and the configuration MUST
-  persist across launches.
+  persist across launches. The command-line flags MUST be in `--help`.
 - **FR-014a**: The //e and enhanced //e MUST ship with the SCSI card enabled in
   slot 7 with an HD20SC at ID 6, and the UniDisk 3.5 interface card enabled in
   slot 5 with one UniDisk 3.5. A user's existing machine copy MUST gain them
-  only where slots 5 and 7 are unconfigured.
+  only where slots 5 and 7 are unconfigured. A machine on which a card's real
+  firmware does not boot MUST NOT have that card by default.
 - **FR-014b**: The default HD20SC MUST have a stock image, created per user on
   first use: an empty 32 MB ProDOS volume with a blank boot block. With it
   attached, a floppy in slot 6 MUST boot as it does without the card. If
@@ -446,6 +451,9 @@ lamp, the tip, the clicks, the sounds and the log against the Disk II.
 
 - **Block device card**: A slot card whose firmware presents ProDOS block
   devices: the SCSI card and the ProFile card. It has a ROM, its bus interface, and the drives attached to it.
+- **Card aliases**: UniDisk 3.5 interface card and Liron card are one card,
+  device id `liron-card`. Apple II 3.5 Disk Controller Card, 3.5 controller
+  card and SuperDrive card are one card, device id `apple35-card`.
 - **SmartPort chain**: The ordered list of SmartPort devices on a //c disk port
   or a UniDisk 3.5 interface card, ending optionally in a 5.25-inch drive.
 - **Drive**: A device the user attaches an image to: a 3.5-inch drive, a SCSI
@@ -470,9 +478,9 @@ lamp, the tip, the clicks, the sounds and the log against the Disk II.
   from an external Apple 3.5 Drive.
 - **SC-006**: A file written by a guest on each device is present in the image
   after Casso quits, and Casso Explorer reports the volume clean.
-- **SC-007**: With real timing on, a ProDOS boot from a 32 MB hard disk at
-  authentic speed is no slower in Casso than the same boot in MAME, to within
-  10 percent. With the default setting it is faster.
+- **SC-007**: With real timing on, the firmware waits for a hard disk's
+  spin-up before it boots; with the default setting the disk is ready at
+  power-on.
 - **SC-008**: In the desk scene, each external drive is recognizable as the
   real unit to the owner, judged side by side with reference photographs.
 - **SC-009**: Spec 033's block device scenario tests run on at least one card
