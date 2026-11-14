@@ -68,6 +68,15 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
                                     [this, &operation] (const CassoLinkCapture::Progress & where) { ReportCapture (operation, where); }, result);
     CHR (hr);
 
+    //  A capture with no track that repeats is an empty drive or a disk with
+    //  nothing written on it, and no image is written for it.
+    if (result.streams.empty())
+    {
+        operation.message = std::format ("Nothing was found on the disk in drive {}, so no image was written. The drive may be empty, or the disk unformatted.", operation.drive);
+    }
+
+    CBREx (!result.streams.empty(), HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
     m_session.Report (operation, 100);
 
     hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, result.woz, m_commitTag++, CommitMode::Replace, progress);
