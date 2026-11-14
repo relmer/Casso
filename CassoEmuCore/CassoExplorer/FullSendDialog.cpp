@@ -97,7 +97,7 @@ std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int
         {
             case FullSendPositionMark::Read:     state = L"read";                                                        break;
             case FullSendPositionMark::Skipped:  state = L"not read, the tracks beside it are complete";                 break;
-            case FullSendPositionMark::Weak:     state = L"the reads disagree in places, written as random bits";        break;
+            case FullSendPositionMark::Weak:     state = L"weak bits, which read differently every time, as on the disk"; break;
             case FullSendPositionMark::Unstable: state = L"the reads differ in length";                                  break;
             default:                                                                                                      break;
         }

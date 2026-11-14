@@ -210,8 +210,11 @@ void CassoLinkCapture::AlignAll (const Position & position, const std::vector<By
 //
 //  CassoLinkCapture::MakeConsensus
 //
-//  The stream with each stretch most alignments differ on replaced by the
-//  bytes most of them read there, when more than half read the same. A
+//  The stream with each stretch most reads differ on replaced by the bytes
+//  most of them read there, when more than half read the same. A read is
+//  counted once however many of its revolutions align: both revolutions of
+//  one read are framed alike, so a read that framed a sector otherwise than
+//  two others did would tie with them by revolutions. A
 //  stretch is the bytes the alignments mark as differing, read with more
 //  or fewer, or missing, within s_kConsensusGap of each other; each
 //  alignment's version is the read's bytes between those of the stretch's
@@ -223,6 +226,8 @@ void CassoLinkCapture::MakeConsensus (const Position & position, const std::vect
 {
     size_t                  length = revolution.size();
     std::vector<size_t>     marked (length, 0);
+    std::vector<size_t>     seen   (length, SIZE_MAX);
+    std::set<size_t>        readers;
     std::vector<size_t>     region;
     size_t                  copied = 0;
 
@@ -241,13 +246,19 @@ void CassoLinkCapture::MakeConsensus (const Position & position, const std::vect
 
             odd = odd || (at > 0 && mine >= 0 && alignment.map[at - 1] >= 0 && mine - alignment.map[at - 1] > 1);
 
-            marked[at] += odd ? 1 : 0;
+            if (odd && seen[at] != alignment.read)
+            {
+                marked[at]++;
+                seen[at] = alignment.read;
+            }
         }
+
+        readers.insert (alignment.read);
     }
 
     for (size_t at = 1; at + 1 < length; at++)
     {
-        if (marked[at] * 2 > alignments.size())
+        if (marked[at] * 2 > readers.size())
         {
             region.push_back (at);
         }
@@ -255,14 +266,14 @@ void CassoLinkCapture::MakeConsensus (const Position & position, const std::vect
 
     for (size_t first = 0; first < region.size(); )
     {
-        size_t                                last   = first;
-        size_t                                before = 0;
-        size_t                                after  = 0;
-        std::map<std::vector<Byte>, size_t>   votes;
-        std::vector<Byte>                     mineBytes;
-        const std::vector<Byte>             * winner = nullptr;
-        size_t                                most   = 0;
-        size_t                                cast   = 0;
+        size_t                                         last   = first;
+        size_t                                         before = 0;
+        size_t                                         after  = 0;
+        std::map<std::vector<Byte>, std::set<size_t>>  votes;
+        std::set<size_t>                               voters;
+        std::vector<Byte>                              mineBytes;
+        const std::vector<Byte>                      * winner = nullptr;
+        size_t                                         most   = 0;
 
         while (last + 1 < region.size() && region[last + 1] - region[last] <= s_kConsensusGap)
         {
@@ -295,20 +306,20 @@ void CassoLinkCapture::MakeConsensus (const Position & position, const std::vect
                 theirs.push_back (bytes[(size_t) at] | 0x80);
             }
 
-            votes[theirs]++;
-            cast++;
+            votes[theirs].insert (alignment.read);
+            voters.insert (alignment.read);
         }
 
-        for (const auto & [bytes, count] : votes)
+        for (const auto & [bytes, from] : votes)
         {
-            if (count > most)
+            if (from.size() > most)
             {
-                most   = count;
+                most   = from.size();
                 winner = &bytes;
             }
         }
 
-        if (winner == nullptr || *winner == mineBytes || most * 2 <= cast)
+        if (winner == nullptr || *winner == mineBytes || most * 2 <= voters.size())
         {
             continue;
         }
