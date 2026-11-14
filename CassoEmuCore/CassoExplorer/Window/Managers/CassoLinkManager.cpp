@@ -2481,8 +2481,11 @@ void CassoLinkManager::RunFullSendDisk (const std::string & file, FullSendDialog
 
     selected = m_context.listPane.SelectRowNamed (name);
 
+    //  A row's file renamed or deleted outside Casso Explorer is in the
+    //  manifest under its old name.
     if (!selected)
     {
+        m_context.window.ShowMessage (std::format (L"{} isn't in the Full Send folder. It may have been renamed or deleted outside Casso Explorer.", name), MB_ICONINFORMATION);
         return;
     }
 
