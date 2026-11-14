@@ -406,6 +406,47 @@ bool ExplorerDragDrop::IsProgramPath (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerDragDrop::GetDroppedParsingNames
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> ExplorerDragDrop::GetDroppedParsingNames (IDataObject * data)
+{
+    std::vector<std::wstring>   names;
+    ComPtr<IShellItemArray>     items;
+    DWORD                       count = 0;
+    HRESULT                     hr    = (data != nullptr) ? SHCreateShellItemArrayFromDataObject (data, IID_PPV_ARGS (&items)) : E_POINTER;
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        hr = items->GetCount (&count);
+    }
+
+    for (DWORD i = 0; SUCCEEDED (hr) && i < count; i++)
+    {
+        ComPtr<IShellItem>  item;
+        PWSTR               name   = nullptr;
+        HRESULT             hrItem = items->GetItemAt (i, &item);
+        HRESULT             hrName = SUCCEEDED (hrItem) ? item->GetDisplayName (SIGDN_DESKTOPABSOLUTEPARSING, &name) : hrItem;
+
+        if (SUCCEEDED (hrName))
+        {
+            names.push_back (name);
+            CoTaskMemFree (name);
+        }
+    }
+
+    return names;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerDragDrop::GetDroppedNames
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -871,6 +912,10 @@ bool ExplorerDragDrop::WriteVirtualFiles (IDataObject * data, DropSource & ioSou
         m_context.window.ShowMessage (outcome.message, MB_ICONWARNING);
         return false;
     }
+
+    //  A ZIP member on the PC, dragged from its ZIP folder, comes with no
+    //  AppleDouble entry; the entry is read from the ZIP and written beside it.
+    m_context.actions.WriteZipSidecars (GetDroppedParsingNames (data), created);
 
     for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (folder, error))
     {

@@ -76,6 +76,10 @@ public:
     //  The names the dropped items have, files' or virtual files' alike;
     //  a virtual file inside a dragged folder is not listed.
     static std::vector<std::wstring>        GetDroppedNames      (IDataObject * data);
+
+    //  The shell's parsing name of each dropped item, as `C:\Disks\set.zip\WIZ`
+    //  for a ZIP member, or none for data with no shell items.
+    static std::vector<std::wstring>        GetDroppedParsingNames (IDataObject * data);
     static bool                             IsDraggedFromFolder  (IDataObject * data, const std::wstring & folder);
     static bool                             IsDraggedItem        (IDataObject * data, const std::wstring & target);
     void                                    BeginTreeDrag        (const Location & location);

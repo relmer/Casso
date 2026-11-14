@@ -31,27 +31,17 @@ bool ZipAppleDouble::IsSidecar (const std::string & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ZipAppleDouble::Apply
-//
-//  The `__MACOSX` form is looked for first. A member whose AppleDouble file
-//  doesn't decode is treated as a member without one.
+//  ZipAppleDouble::FindSidecar
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ZipAppleDouble::Apply (const std::vector<ZipEntry> & entries, const std::string & member, FilePayload & inOutPayload)
+const ZipEntry * ZipAppleDouble::FindSidecar (const std::vector<ZipEntry> & entries, const std::string & member)
 {
-    HRESULT            hr       = S_OK;
     size_t             slash    = member.find_last_of ('/');
     std::string        folder   = (slash == std::string::npos) ? std::string() : member.substr (0, slash + 1);
     std::string        leaf     = (slash == std::string::npos) ? member : member.substr (slash + 1);
     std::string        paths[]  = { kMacFolder + folder + kPrefix + leaf, folder + kPrefix + leaf };
     const ZipEntry *   sidecar  = nullptr;
-    AppleSingleFile    single;
-    std::string        error;
-    Byte               type     = 0;
-    Word               auxType  = 0;
-    bool               isDouble = false;
-    bool               decoded  = false;
 
 
 
@@ -65,6 +55,35 @@ bool ZipAppleDouble::Apply (const std::vector<ZipEntry> & entries, const std::st
             }
         }
     }
+
+    return sidecar;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ZipAppleDouble::Apply
+//
+//  A member whose AppleDouble file doesn't decode is treated as a member
+//  without one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ZipAppleDouble::Apply (const std::vector<ZipEntry> & entries, const std::string & member, FilePayload & inOutPayload)
+{
+    HRESULT            hr       = S_OK;
+    const ZipEntry *   sidecar  = FindSidecar (entries, member);
+    AppleSingleFile    single;
+    std::string        error;
+    Byte               type     = 0;
+    Word               auxType  = 0;
+    bool               isDouble = false;
+    bool               decoded  = false;
+
+
 
     if (sidecar == nullptr)
     {

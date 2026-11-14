@@ -11,6 +11,8 @@
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Core/AppleSingleCodec.h"
+#include "Devices/Disk/Archives/ZipAppleDouble.h"
+#include "Update/ZipArchive.h"
 
 
 
@@ -405,6 +407,77 @@ bool ActionsCopy::IsAppleDoubleBesideItsFile (const std::wstring & hostPath) con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ActionsCopy::WriteZipSidecars
+//
+//  The ZIP is the first part of the source's path that is a file ending in
+//  `.zip`, and the member is the rest, with '/' between its folders. A ZIP
+//  inside another is left alone. Each ZIP is read once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ActionsCopy::WriteZipSidecars (const std::vector<std::wstring> & sources, const std::vector<std::wstring> & copies)
+{
+    static constexpr std::wstring_view               kZip = L".zip";
+    std::map<std::wstring, std::vector<ZipEntry>>    archives;
+
+
+
+    for (const std::wstring & source : sources)
+    {
+        std::wstring       zip;
+        std::string        member;
+        std::wstring       leaf    = std::filesystem::path (source).filename().wstring();
+        size_t             at      = 0;
+        bool               found   = false;
+        const ZipEntry   * sidecar = nullptr;
+
+        while (!found && at != std::wstring::npos)
+        {
+            at    = source.find (L'\\', at + 1);
+            zip   = source.substr (0, at);
+            found = zip.size() > kZip.size() && _wcsicmp (zip.c_str() + zip.size() - kZip.size(), kZip.data()) == 0 && m_actions.m_fs.Exists (zip);
+        }
+
+        if (!found || at == std::wstring::npos)
+        {
+            continue;
+        }
+
+        member = TextEncoding::WideToUtf8 (source.substr (at + 1));
+        std::replace (member.begin(), member.end(), '\\', '/');
+
+        if (!archives.contains (zip))
+        {
+            std::string  bytes;
+            HRESULT      hrRead    = m_actions.m_fs.ReadAllText (zip, bytes);
+            HRESULT      hrExtract = SUCCEEDED (hrRead) ? ZipArchive::Extract (std::span<const Byte> ((const Byte *) bytes.data(), bytes.size()), archives[zip]) : hrRead;
+
+            IGNORE_RETURN_VALUE (hrExtract, S_OK);
+        }
+
+        sidecar = ZipAppleDouble::FindSidecar (archives[zip], member);
+
+        for (const std::wstring & copy : copies)
+        {
+            HRESULT  hrWrite = S_OK;
+
+            if (sidecar == nullptr || _wcsicmp (std::filesystem::path (copy).filename().wstring().c_str(), leaf.c_str()) != 0)
+            {
+                continue;
+            }
+
+            hrWrite = m_actions.m_fs.WriteAllText (GetAppleDoublePath (copy), std::string (sidecar->data.begin(), sidecar->data.end()));
+            IGNORE_RETURN_VALUE (hrWrite, S_OK);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ActionsCopy::AttachAppleDouble
 //
 //  The resource fork, Finder information and ProDOS type from `._NAME` beside
@@ -412,14 +485,18 @@ bool ActionsCopy::IsAppleDoubleBesideItsFile (const std::wstring & hostPath) con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ActionsCopy::AttachAppleDouble (const std::wstring & hostPath, const std::vector<Byte> & bytes, ActionsTypes::PutPlan & inOutPlan) const
+void ActionsCopy::AttachAppleDouble (const std::wstring & hostPath, const std::vector<Byte> & bytes, VolumeKind kind, ActionsTypes::PutPlan & inOutPlan) const
 {
-    HRESULT          hr       = S_OK;
-    std::wstring     sidecar  = GetAppleDoublePath (hostPath);
-    bool             isDouble = false;
-    std::string      content;
-    std::string      error;
-    AppleSingleFile  single;
+    HRESULT            hr            = S_OK;
+    std::wstring       sidecar       = GetAppleDoublePath (hostPath);
+    bool               isDouble      = false;
+    bool               hasFinderType = false;
+    Byte               finderType    = 0;
+    Word               finderAux     = 0;
+    std::vector<Byte>  data;
+    std::string        content;
+    std::string        error;
+    AppleSingleFile    single;
 
 
 
@@ -437,13 +514,27 @@ void ActionsCopy::AttachAppleDouble (const std::wstring & hostPath, const std::v
     hr = AppleSingleCodec::Decode (std::span<const Byte> ((const Byte *) content.data(), content.size()), single, error);
     CHR (hr);
 
-    if (!inOutPlan.usePayload)
+    //  Without a ProDOS file info entry, as from a Mac, the Finder type
+    //  indicates the ProDOS type where it has one.
+    if (!single.hasProDosInfo)
     {
-        inOutPlan.usePayload         = true;
-        inOutPlan.payload.bytes      = bytes;
-        inOutPlan.payload.type       = single.hasProDosInfo ? (Byte) single.fileType : ProDosVolume::kTypeBinary;
-        inOutPlan.payload.auxType    = (Word) single.auxType;
-        inOutPlan.payload.hasAuxType = single.hasProDosInfo;
+        hasFinderType = ZipAppleDouble::TryGetProDosType (single.finderInfo, finderType, finderAux);
+    }
+
+    //  A type the AppleDouble file indicates replaces the one guessed from
+    //  the content, in the volume's file types.
+    if (single.hasProDosInfo || hasFinderType)
+    {
+        data = inOutPlan.usePayload ? inOutPlan.payload.bytes : bytes;
+
+        CassoExplorerActions::SetTypedPayload (inOutPlan, data, single.hasProDosInfo ? (Byte) single.fileType : finderType, true,
+                                               single.hasProDosInfo ? (Word) single.auxType : finderAux, kind == VolumeKind::Dos33);
+    }
+    else if (!inOutPlan.usePayload)
+    {
+        inOutPlan.usePayload    = true;
+        inOutPlan.payload.bytes = bytes;
+        inOutPlan.payload.type  = ProDosVolume::kTypeBinary;
     }
 
     inOutPlan.payload.resourceFork    = single.resourceFork;
@@ -736,7 +827,7 @@ void ActionsCopy::PutItems (
         plan = (conversion == ActionsTypes::Conversion::ByContent) ? CassoExplorerActions::PlanPut (hostPath, bytes, kind)
                                                      : CassoExplorerActions::PlanForced (hostPath, bytes, kind, conversion);
 
-        AttachAppleDouble (hostPath, bytes, plan);
+        AttachAppleDouble (hostPath, bytes, kind, plan);
 
         if (!plan.refusal.empty())
         {

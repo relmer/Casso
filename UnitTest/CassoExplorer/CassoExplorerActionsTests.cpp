@@ -17,6 +17,7 @@
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Tape/OggVorbisCodec.h"
 #include "Devices/Tape/TapeRecordingVolume.h"
+#include "Update/ZipArchive.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1171,6 +1172,55 @@ public:
         Assert::IsTrue (outcome.Succeeded(), outcome.message.c_str());
         Assert::IsTrue (host.fs.DirectoryExists (L"C:\\Disks\\prodos\\SUBDIR"));
         Assert::IsTrue (inside > 0, L"the directory's files are inside its folder");
+    }
+
+
+    //  A ZIP member dropped from its ZIP folder arrives without its
+    //  AppleDouble entry. The entry is read from the ZIP and written beside
+    //  the copy, and the put takes the Finder type it indicates: `TEXT` puts
+    //  bytes that read as binary as a text file.
+    TEST_METHOD (WriteZipSidecars_PutsAZipMemberWithItsFinderType)
+    {
+        static constexpr Byte  kEmptyZip[22] = { 0x50, 0x4B, 0x05, 0x06 };
+
+        Host               host;
+        AppleSingleFile    single;
+        std::vector<Byte>  member;
+        std::vector<Byte>  sidecar;
+        std::vector<Byte>  one;
+        std::vector<Byte>  zip;
+        std::string                    written;
+        FilePayload                    back;
+        CassoExplorerActions::Outcome  outcome;
+
+
+
+        for (int i = 0; i < 300; i++)
+        {
+            member.push_back ((Byte) (i * 7));
+        }
+
+        single.finderInfo = { 'T', 'E', 'X', 'T', 't', 't', 'x', 't' };
+        single.finderInfo.resize (32, 0);
+
+        AppleSingleCodec::EncodeDouble (single, sidecar);
+        AssertSucceeded (ZipArchive::Replace (kEmptyZip, "GAMES/NOTES", member, one));
+        AssertSucceeded (ZipArchive::Replace (one, "__MACOSX/GAMES/._NOTES", sidecar, zip));
+
+        host.SeedBytes (zip, L"C:\\In\\set.zip");
+        host.SeedBytes (member, L"C:\\Drop\\NOTES");
+
+        host.actions.WriteZipSidecars ({ L"C:\\In\\set.zip\\GAMES\\NOTES" }, { L"C:\\Drop\\NOTES" });
+
+        AssertSucceeded (host.fs.ReadAllText (L"C:\\Drop\\._NOTES", written));
+        Assert::IsTrue  (std::vector<Byte> (written.begin(), written.end()) == sidecar, L"the AppleDouble entry is beside the copy");
+
+        host.OpenImage();
+        outcome = host.actions.PutFiles ({ L"C:\\Drop\\NOTES" });
+        Assert::IsTrue (outcome.Succeeded(), outcome.message.c_str());
+
+        AssertSucceeded (Dos33Volume (host.io.files["C:\\Disks\\dos33.dsk"]).Read (FilePath::Parse ("NOTES"), back));
+        Assert::AreEqual (Dos33Volume::kTypeText, back.type, L"the Finder type TEXT");
     }
 
 

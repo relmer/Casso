@@ -57,6 +57,7 @@ public:
     //  paste's undo.
     Outcome  PasteVirtualFiles (IDataObject * data, const std::wstring & hostFolder, const CollisionFn & collision,
                                 std::vector<std::wstring> & outCreated) { return m_copier.PasteVirtualFiles (data, hostFolder, collision, outCreated); }
+    void     WriteZipSidecars  (const std::vector<std::wstring> & sources, const std::vector<std::wstring> & copies) { m_copier.WriteZipSidecars (sources, copies); }
 
     //  Copy every file on the image into a new folder beside it, called after the
     //  image without its extension, and its directories as folders inside.
