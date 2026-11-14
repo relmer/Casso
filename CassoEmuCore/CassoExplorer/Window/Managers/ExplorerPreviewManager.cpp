@@ -53,11 +53,13 @@ void ExplorerPreviewManager::Create()
         view->Create();
     }
 
-    m_message = m_context.window.CreatePaneRoutedChild<DxuiSelectableText>();
+    m_message = m_context.window.CreateChild<DxuiSelectableText>();
     ExplorerTextStyles::Apply (*m_message, ExplorerTextStyles::kPaneMessage);
     m_message->SetAlign    (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
 
-    m_summary = m_context.window.CreatePaneRoutedChild<DxuiTextView>();
+    m_context.window.SetMouseHandler (m_message, [this] (const DxuiMouseEvent & ev) { return HandleMessageMouse (ev); });
+
+    m_summary = m_context.window.CreateChild<DxuiTextView>();
     ExplorerTextStyles::Apply (*m_summary, ExplorerTextStyles::kPreviewText);
     m_summary->SetProportional (true);
     m_summary->SetVisible      (false);
@@ -624,28 +626,24 @@ uint32_t ExplorerPreviewManager::GetBackground (const IDxuiTheme & theme)
 //
 //  ExplorerPreviewManager::HandleMessageMouse
 //
-//  A preview's message selects with the mouse, as text does, and has the
-//  text's menu. The window routes events to the message ahead of its other
-//  panes.
+//  The message's mouse handler. A preview's message selects with the mouse,
+//  as text does, and has the text's menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExplorerPreviewManager::HandleMessageMouse (const DxuiMouseEvent & ev)
 {
-    POINT  point = ev.positionDip;
+    POINT  point   = ev.positionDip;
+    bool   handled = false;
 
 
-
-    if (!m_message->IsVisible() || (!m_message->IsInteracting() && !ExplorerLayout::Contains (m_message->GetBounds(), point)))
-    {
-        return false;
-    }
 
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right)
     {
         std::vector<DxuiPopupMenuItem>  items;
 
         m_context.input.SetFocusPane (ExplorerPane::Preview);
+        m_context.input.ReleasePressed();
         m_context.menus.GetMenuCommands().clear();
         m_context.menus.AddMenuCommand (items, L"&Copy",       [this]() { m_message->Copy(); });
         m_context.menus.AddMenuCommand (items, L"Select &all", [this]() { m_message->SelectAll(); m_context.window.Invalidate(); });
@@ -658,54 +656,14 @@ bool ExplorerPreviewManager::HandleMessageMouse (const DxuiMouseEvent & ev)
         m_context.input.SetFocusPane (ExplorerPane::Preview);
     }
 
-    if (!m_message->OnMouse (ev))
-    {
-        return false;
-    }
+    handled = m_message->OnMouse (ev);
 
-    m_context.window.Invalidate();
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerPreviewManager::HandleMouse
-//
-//  Events go to a view mid-drag until the button comes up, wherever the
-//  pointer is, and otherwise to the view under the pointer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerPreviewManager::HandleMouse (const DxuiMouseEvent & ev)
-{
-    //  A click on the small platter opens the inspector (FR-072).
-    if (m_thumbnail.IsOverPlatter (ev.positionDip))
-    {
-        if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left)
-        {
-            m_context.commandManager.InspectDiskImages ({ m_thumbnail.GetPath() });
-        }
-
-        return true;
-    }
-
-    if (m_listing.IsArchive() && m_listing.GetArchive().HandleMouse (ev, ev.positionDip))
+    if (handled)
     {
         m_context.window.Invalidate();
-        return true;
     }
 
-    return m_listing.HandleCapturedMouse (ev)
-        || m_hex.HandleCapturedMouse     (ev)
-        || m_picture.HandleMouse         (ev)
-        || m_text.HandleCapturedMouse    (ev)
-        || m_hex.HandleMouse             (ev)
-        || m_text.HandleMouse            (ev)
-        || m_listing.HandleMouse         (ev);
+    return handled;
 }
 
 

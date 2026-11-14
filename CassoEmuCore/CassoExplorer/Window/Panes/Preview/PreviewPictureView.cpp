@@ -44,12 +44,14 @@ PreviewPictureView::PreviewPictureView (ExplorerPreviewManager & manager, Explor
 
 void PreviewPictureView::Create()
 {
-    CassoExplorerNamedControl<DxuiFramebufferView>  * picture = m_context.window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiFramebufferView>>();
+    CassoExplorerNamedControl<DxuiFramebufferView>  * picture = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiFramebufferView>>();
 
 
 
     picture->SetAccessibleName (L"Picture preview");
     m_picture = picture;
+
+    m_context.window.SetMouseHandler (m_picture, [this] (const DxuiMouseEvent & ev) { return HandlePictureMouse (ev); });
 }
 
 
@@ -229,47 +231,37 @@ void PreviewPictureView::SetZoom (float zoom)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreviewPictureView::HandleMouse
+//  PreviewPictureView::HandlePictureMouse
 //
-//  A double hi-res picture's menu switches it between color and its bits,
-//  whichever the file's name or dots chose. A zoomed picture keeps the
-//  pointer while a drag is under way.
+//  The picture's mouse handler. A right-click opens the picture's menu
+//  where it has one; a press the picture takes moves focus to the preview.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PreviewPictureView::HandleMouse (const DxuiMouseEvent & ev)
+bool PreviewPictureView::HandlePictureMouse (const DxuiMouseEvent & ev)
 {
-    POINT  point = ev.positionDip;
-    bool   press = ev.kind == DxuiMouseEventKind::Down;
+    POINT  point   = ev.positionDip;
+    bool   press   = ev.kind == DxuiMouseEventKind::Down;
+    bool   handled = false;
 
 
 
-    if (press && ev.button == DxuiMouseButton::Right && m_picture->IsVisible() && ExplorerLayout::Contains (m_picture->GetBounds(), point)
-        && m_context.browser.CanTogglePictureColor())
+    if (press && ev.button == DxuiMouseButton::Right && m_context.browser.CanTogglePictureColor())
     {
         m_context.input.SetFocusPane (ExplorerPane::Preview);
+        m_context.input.ReleasePressed();
         ShowContextMenu (point.x, point.y);
         return true;
     }
 
-    if (!m_picture->IsInteracting()
-        && !(m_picture->IsVisible() && ExplorerLayout::Contains (m_picture->GetBounds(), point) && m_picture->OnMouse (ev)))
-    {
-        return false;
-    }
+    handled = m_picture->OnMouse (ev);
 
-    if (m_picture->IsInteracting())
-    {
-        m_picture->OnMouse (ev);
-    }
-
-    if (press)
+    if (press && handled)
     {
         m_context.input.SetFocusPane (ExplorerPane::Preview);
     }
 
-    m_context.window.Invalidate();
-    return true;
+    return handled;
 }
 
 

@@ -39,6 +39,21 @@ public:
     template <typename T, typename... Args>
     T *  CreateChild (Args &&... args) { return GetChildPanel().template CreateChild<T> (std::forward<Args> (args)...); }
 
+    //  A pane's handling of the mouse for a control made by CreateChild, which
+    //  ExplorerInput calls in place of the control's OnMouse: the pane's
+    //  focus, menus and drags, and a call to the control's OnMouse for the
+    //  rest. It is offered the same events the control would be.
+    using MouseHandler = std::function<bool (const DxuiMouseEvent & ev)>;
+
+    void  SetMouseHandler (const IDxuiControl * control, MouseHandler handler) { m_mouseHandlers[control] = std::move (handler); }
+
+    bool  OfferMouse (IDxuiControl & control, const DxuiMouseEvent & ev) const
+    {
+        auto  handler = m_mouseHandlers.find (&control);
+
+        return handler != m_mouseHandlers.end() ? handler->second (ev) : control.OnMouse (ev);
+    }
+
     //  A control whose pane routes the mouse to it, in a call from
     //  ExplorerInput::HandleMouse, for what a press there does besides: the
     //  pane's focus, its menus, its drags. ExplorerInput doesn't offer it
@@ -55,5 +70,6 @@ public:
     bool  IsPaneRouted (const IDxuiControl * control) const { return m_paneRouted.contains (control); }
 
 private:
-    std::unordered_set<const IDxuiControl *>  m_paneRouted;
+    std::unordered_set<const IDxuiControl *>                m_paneRouted;
+    std::unordered_map<const IDxuiControl *, MouseHandler>  m_mouseHandlers;
 };

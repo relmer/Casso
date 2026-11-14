@@ -65,10 +65,10 @@ public:
         list.SetOnColumnsReordered ([&reported] (const std::vector<size_t> & order) { reported = order; });
 
         //  A pressed, carried past the middle of C, dropped.
-        list.OnMouse (MakeMouse (DxuiMouseEventKind::Down, 50,  s_kHeaderY));
-        list.OnMouse (MakeMouse (DxuiMouseEventKind::Move, 150, s_kHeaderY));
-        list.OnMouse (MakeMouse (DxuiMouseEventKind::Move, 280, s_kHeaderY));
-        list.OnMouse (MakeMouse (DxuiMouseEventKind::Up,   280, s_kHeaderY));
+        list.AsControl().OnMouse (MakeMouse (DxuiMouseEventKind::Down, 50,  s_kHeaderY));
+        list.AsControl().OnMouse (MakeMouse (DxuiMouseEventKind::Move, 150, s_kHeaderY));
+        list.AsControl().OnMouse (MakeMouse (DxuiMouseEventKind::Move, 280, s_kHeaderY));
+        list.AsControl().OnMouse (MakeMouse (DxuiMouseEventKind::Up,   280, s_kHeaderY));
 
         Assert::AreEqual ((size_t) 3, list.GetColumnOrder().size());
         Assert::AreEqual ((size_t) 1, list.GetColumnOrder()[0], L"B first");
@@ -86,10 +86,10 @@ public:
         ConfigureList (list);
         list.SetOnSortColumn ([&sorted] (int column) { sorted = column; });
 
-        list.OnMouse (MakeMouse (DxuiMouseEventKind::Down, 150, s_kHeaderY));
+        list.AsControl().OnMouse (MakeMouse (DxuiMouseEventKind::Down, 150, s_kHeaderY));
         Assert::AreEqual (-1, sorted, L"nothing sorts on the press");
 
-        list.OnMouse (MakeMouse (DxuiMouseEventKind::Up, 152, s_kHeaderY));
+        list.AsControl().OnMouse (MakeMouse (DxuiMouseEventKind::Up, 152, s_kHeaderY));
 
         Assert::AreEqual (1, sorted, L"the release sorts by B");
         Assert::AreEqual ((size_t) 0, list.GetColumnOrder()[0], L"and the order is unchanged");

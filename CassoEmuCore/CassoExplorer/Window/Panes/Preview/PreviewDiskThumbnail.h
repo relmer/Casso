@@ -105,6 +105,8 @@ public:
     const std::wstring  & GetPath       () const { return m_path; }
 
 private:
+    bool  HandlePlatterMouse (const DxuiMouseEvent & ev);
+
     enum class State
     {
         Analyzing,

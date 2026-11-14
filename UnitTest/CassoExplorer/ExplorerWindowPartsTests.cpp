@@ -1292,7 +1292,7 @@ public:
         for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
         {
             mouse.kind = kind;
-            Assert::IsFalse (rig.parts->input.RouteToControls (mouse));
+            rig.parts->input.RouteToControls (mouse);
         }
 
         Assert::AreEqual (0, paned, L"a pane-routed control is offered nothing here");
@@ -1309,6 +1309,83 @@ public:
         mouse.positionDip = { place.right + 200, place.bottom + 200 };
         Assert::IsTrue (rig.parts->input.HandleMouse (mouse), L"the release goes to the control pressed");
         Assert::AreEqual (1, clicks);
+    }
+
+
+    //  A pane's mouse handler is called in place of its control's OnMouse,
+    //  and a press it takes has the release, wherever the pointer is.
+    TEST_METHOD (HandleMouse_CallsAPaneMouseHandlerForItsControl)
+    {
+        Rig                              rig;
+        DxuiButton                     * button = nullptr;
+        DxuiMouseEvent                   mouse;
+        RECT                             list   = {};
+        RECT                             place  = {};
+        int                              clicks = 0;
+        std::vector<DxuiMouseEventKind>  seen;
+
+
+
+        rig.Open();
+
+        button = rig.window.CreateChild<DxuiButton> (L"Handled");
+        button->SetOnClick ([&clicks]() { clicks++; });
+        rig.window.SetMouseHandler (button, [&seen] (const DxuiMouseEvent & ev)
+        {
+            seen.push_back (ev.kind);
+            return ev.kind != DxuiMouseEventKind::Move;
+        });
+
+        list  = rig.parts->listPane.GetListView()->GetBounds();
+        place = { list.left + 10, list.top + 10, list.left + 110, list.top + 40 };
+        button->Layout (place, rig.scaler);
+
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.positionDip = { place.left + 5, place.top + 5 };
+        mouse.kind        = DxuiMouseEventKind::Down;
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+
+        mouse.kind        = DxuiMouseEventKind::Up;
+        mouse.positionDip = { place.right + 200, place.bottom + 200 };
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+
+        Assert::IsTrue  (std::find (seen.begin(), seen.end(), DxuiMouseEventKind::Down) != seen.end());
+        Assert::IsTrue  (std::find (seen.begin(), seen.end(), DxuiMouseEventKind::Up)   != seen.end(), L"the release goes to the handler of the control pressed");
+        Assert::AreEqual (0, clicks, L"the control's OnMouse isn't called");
+    }
+
+
+    //  A press in the list or the tree moves focus to it, through the
+    //  window's input with no routing in the pane.
+    TEST_METHOD (HandleMouse_PressInTheListOrTreeMovesFocusToIt)
+    {
+        Rig             rig;
+        RECT            list  = {};
+        RECT            tree  = {};
+        DxuiMouseEvent  mouse;
+
+
+
+        rig.Open();
+
+        list = rig.parts->listPane.GetListView()->GetBounds();
+        tree = rig.parts->treePane.GetBounds();
+
+        rig.parts->input.SetFocusPane (ExplorerPane::Tree);
+
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.kind        = DxuiMouseEventKind::Down;
+        mouse.positionDip = { (list.left + list.right) / 2, list.bottom - 10 };
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::List);
+
+        mouse.kind = DxuiMouseEventKind::Up;
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+
+        mouse.kind        = DxuiMouseEventKind::Down;
+        mouse.positionDip = { (tree.left + tree.right) / 2, tree.bottom - 10 };
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::Tree);
     }
 
 

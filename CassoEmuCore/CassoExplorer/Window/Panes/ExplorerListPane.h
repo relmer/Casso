@@ -120,9 +120,7 @@ public:
     void  HandleShellListed           (const std::wstring & key);
     void  HandleIconsLoaded           ();
     void  HandleContentDetailsArrived ();
-    bool  HandleCapturedMouse         (const DxuiMouseEvent & ev);
-    bool  HandleMouse                 (const DxuiMouseEvent & ev);
-    void  ClearHoverOutside           (const DxuiMouseEvent & ev);
+    bool  HandleMessageMouse          (const DxuiMouseEvent & ev);
     bool  HandleCharKey               (const DxuiKeyEvent & ev);
     bool  HandleShortcutKey           (const DxuiKeyEvent & ev);
     bool  HandleKey                   (const DxuiKeyEvent & ev) { return m_list->OnKey (ev); }
@@ -138,6 +136,10 @@ private:
         int    group   = -1;      // pressed on a group's header
         POINT  start   = {};
     };
+
+    bool  HandleListMouse  (const DxuiMouseEvent & ev);
+    bool  HandleRightPress (const DxuiMouseEvent & ev);
+    void  PressRight       (POINT local, POINT point);
 
 
     ExplorerContext            & m_context;

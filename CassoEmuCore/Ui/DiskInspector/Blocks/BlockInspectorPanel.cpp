@@ -579,12 +579,18 @@ void BlockInspectorPanel::BuildStatus()
     std::array<Byte, BlockImageFile::kTagBytesPerBlock>      tags   = {};
     int                                                      edits  = m_model->GetEdits().CountChangedBytes();
     wchar_t                                                  hex[4] = {};
+    LPCWSTR                                                  label  = m_model->GetMapLabel (block);
 
 
 
     std::replace (owners.begin(), owners.end(), L'\n', L',');
 
-    m_status = L"Block " + std::to_wstring (block) + L": " + BlockMapGrid::GetRoleName (m_model->GetRole (block));
+    if (label == nullptr)
+    {
+        label = BlockMapGrid::GetRoleName (m_model->GetRole (block));
+    }
+
+    m_status = L"Block " + std::to_wstring (block) + L": " + label;
 
     if (!owners.empty())
     {

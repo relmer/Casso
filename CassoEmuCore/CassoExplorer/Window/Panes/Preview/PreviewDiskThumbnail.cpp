@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/Panes/Preview/PreviewDiskThumbnail.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
+#include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "Core/AppMessages.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
 #include "Ui/DiskInspector/PlatterCells.h"
@@ -141,8 +142,10 @@ PreviewDiskThumbnail::PreviewDiskThumbnail (ExplorerContext & context) :
 
 void PreviewDiskThumbnail::Create()
 {
-    m_platter = m_context.window.CreatePaneRoutedChild<ThumbnailPlatterView> (m_view, m_context.theme);
-    m_chips   = m_context.window.CreatePaneRoutedChild<ThumbnailChips> (m_view.palette);
+    m_platter = m_context.window.CreateChild<ThumbnailPlatterView> (m_view, m_context.theme);
+    m_chips   = m_context.window.CreateChild<ThumbnailChips> (m_view.palette);
+
+    m_context.window.SetMouseHandler (m_platter, [this] (const DxuiMouseEvent & ev) { return HandlePlatterMouse (ev); });
 
     m_platter->SetSelectionShown (false);
     m_platter->SetVisible (false);
@@ -368,4 +371,31 @@ bool PreviewDiskThumbnail::IsOverPlatter (POINT pointPx) const
 
 
     return m_state == State::Ready && m_platter->IsVisible() && PtInRect (&bounds, pointPx) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::HandlePlatterMouse
+//
+//  A click on the small platter opens the inspector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::HandlePlatterMouse (const DxuiMouseEvent & ev)
+{
+    if (!IsOverPlatter (ev.positionDip))
+    {
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left)
+    {
+        m_context.commandManager.InspectDiskImages ({ m_path });
+    }
+
+    return true;
 }

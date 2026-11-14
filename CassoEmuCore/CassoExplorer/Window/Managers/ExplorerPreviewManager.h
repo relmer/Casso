@@ -100,7 +100,6 @@ public:
     int   GetShownZoom           () const;
 
     bool                            HandleMessageMouse    (const DxuiMouseEvent & ev);
-    bool                            HandleMouse           (const DxuiMouseEvent & ev);
     bool                            HandleShortcutKey     (const DxuiKeyEvent & ev);
     bool                            HandleTabKey          (const DxuiKeyEvent & ev) { return m_hex.HandleTabKey (ev); }
     void                            HandleFocusEntered    (bool forward)            { m_hex.HandleFocusEntered (forward); }

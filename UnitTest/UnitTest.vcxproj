@@ -436,7 +436,7 @@
     <ClCompile Include="CassoLink\TrackVerifierTests.cpp" />
     <ClCompile Include="CassoLink\LinkedDiskTests.cpp" />
     <ClCompile Include="CassoLink\AdtProServerSessionTests.cpp" />
-    <ClCompile Include="CassoLink\BootDiskTests.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkBootDiskTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkFaultTests.cpp" />
     <ClCompile Include="CassoLink\FakeAppleContractTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSectorTests.cpp" />
@@ -695,6 +695,8 @@
     <ClCompile Include="UiTests\AutoMountTests.cpp" />
     <ClCompile Include="UiTests\SettingsPanelStateTests.cpp" />
     <ClCompile Include="UiTests\SerialCardNoticeTests.cpp" />
+    <ClCompile Include="UiTests\CommandLineHelpLayoutTests.cpp" />
+    <ClCompile Include="UiTests\CommandLineHelpPanelTests.cpp" />
     <ClCompile Include="UiTests\DialogBodyContentTests.cpp" />
     <ClCompile Include="UiTests\SerialCardPageTests.cpp" />
     <ClCompile Include="UiTests\SscSettingsModelTests.cpp" />
@@ -779,6 +781,7 @@
     <ClCompile Include="Dxui\DxuiListViewBrowserShapeTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewFocusScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewColumnFitTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewPanelRoutingTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarEdgeGrabTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewTypeAheadTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewCheckBoxTests.cpp" />

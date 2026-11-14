@@ -36,10 +36,12 @@
     PLATFORM BUILT. Use -Target Rebuild: an incremental build does not
     reanalyze unchanged files.
 
-    CI analyses four of them: Debug and Release, each on x64 and ARM64. Pair
-    this with -Target RebuildAll to cover the same ground before merging; a
-    single-configuration run can pass while CI fails on one it did not
-    compile, and ARM64 is build-only here, so nothing else exercises it.
+    CI analyzes x64 Debug only. On its 4-core runners, analysis took most of
+    every job.
+    The other three configurations, Release and ARM64, are analyzed nowhere
+    but here. Pair this with -Target RebuildAll before merging; the analyzers
+    can disagree between configurations, and a single-configuration run can
+    pass where another fails.
 
 .PARAMETER Sanitize
     Build the AddressSanitizer flavor (-p:CassoSanitize=Address) into
@@ -49,6 +51,16 @@
     whole solution, so Casso.exe and CassoCli.exe land beside UnitTest.dll,
     which the suite runs. Run it with RunTests.ps1 -Build -Sanitize. See
     docs/testing.md.
+
+.PARAMETER BinaryLog
+    Write an MSBuild binary log to this path (-bl). Open it in MSBuild
+    Structured Log Viewer for the project timeline and per-target times. A run
+    with more than one leg writes one log per leg, with the configuration and
+    platform inserted before the extension.
+
+.PARAMETER Property
+    Extra MSBuild properties, each as Name=Value, passed as -p:Name=Value.
+    For build experiments, for example -Property WholeProgramOptimization=false.
 
 .PARAMETER NormalPriority
     Run at the shell's own priority instead of below it. For CI, which has
@@ -85,6 +97,10 @@ param(
     [switch]$RunCodeAnalysis,
 
     [switch]$Sanitize,
+
+    [string]$BinaryLog,
+
+    [string[]]$Property = @(),
 
     [switch]$NormalPriority,
 
@@ -307,6 +323,21 @@ foreach ($config in $configsToBuild) {
 
         if ($Sanitize) {
             $msbuildArgs += '-p:CassoSanitize=Address'
+        }
+
+        foreach ($extraProperty in $Property) {
+            $msbuildArgs += "-p:$extraProperty"
+        }
+
+        if ($BinaryLog) {
+            $binaryLogPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($BinaryLog)
+
+            if ($configsToBuild.Count * $platformsToBuild.Count -gt 1) {
+                $binaryLogPath = Join-Path ([System.IO.Path]::GetDirectoryName($binaryLogPath)) `
+                    ("{0}-{1}-{2}.binlog" -f [System.IO.Path]::GetFileNameWithoutExtension($binaryLogPath), $config, $platformToBuild)
+            }
+
+            $msbuildArgs += "-bl:$binaryLogPath"
         }
 
         $flavorText = if ($Sanitize) { ' AddressSanitizer' } else { '' }

@@ -345,6 +345,9 @@ public:
         Assert::AreEqual (0, model.GetBands()[2].volume);
         Assert::IsTrue (model.GetRole (1) == SectorRole::VtocOrKeyBlock);
         Assert::IsTrue (model.GetRole (kFirst + 2) == SectorRole::VtocOrKeyBlock);
+        Assert::AreEqual (L"Driver descriptor", model.GetMapLabel (0));
+        Assert::AreEqual (L"Partition map",     model.GetMapLabel (1));
+        Assert::IsNull   (model.GetMapLabel (kFirst));
 
         fields = GetFields (model, 2);
         first  = FindField (fields, L"Partition map: first block");

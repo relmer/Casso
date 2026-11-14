@@ -60,12 +60,14 @@ ExplorerTreePane::ExplorerTreePane (ExplorerContext & context)
 
 void ExplorerTreePane::Create()
 {
-    CassoExplorerNamedControl<DxuiTreeView>  * tree = m_context.window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiTreeView>>();
+    CassoExplorerNamedControl<DxuiTreeView>  * tree = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiTreeView>>();
 
 
 
     tree->SetAccessibleName (L"Folders and disk images");
     m_tree = tree;
+
+    m_context.window.SetMouseHandler (m_tree, [this] (const DxuiMouseEvent & ev) { return HandleTreeMouse (ev); });
 }
 
 
@@ -220,19 +222,26 @@ void ExplorerTreePane::UpdateLabelTip (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerTreePane::HandleCapturedMouse
+//  ExplorerTreePane::HandleTreeMouse
 //
-//  A press on a drive's, a folder's or an image's node drags it once the
-//  pointer has moved far enough, as a list row's press drags the list's
-//  selection. The tree's events are in the window's coordinates, as its press
-//  was, so a drag that started there has the same origin. The hover is
-//  cleared as the pointer moves off the tree, as in Explorer.
+//  The tree's mouse handler. A press on a drive's, a folder's or an image's
+//  node drags it once the pointer has moved far enough, as a list row's
+//  press drags the list's selection. The hover is cleared as the pointer
+//  moves off the tree, as in Explorer.
+//
+//  A right-click neither selects nor moves focus, as in Explorer: the hover
+//  stays on the node under the pointer, and the menu is the node's. Below
+//  the last node, the menu has the pane's options, as Explorer's has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerTreePane::HandleCapturedMouse (const DxuiMouseEvent & ev)
+bool ExplorerTreePane::HandleTreeMouse (const DxuiMouseEvent & ev)
 {
-    POINT  point = ev.positionDip;
+    POINT                 point = ev.positionDip;
+    bool                  press = ev.kind == DxuiMouseEventKind::Down;
+    int                   row   = -1;
+    const DxuiTreeNode  * node  = nullptr;
+    Location              at;
 
 
 
@@ -253,49 +262,15 @@ bool ExplorerTreePane::HandleCapturedMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    if (m_tree->IsInteracting())
+    if (ev.kind == DxuiMouseEventKind::Leave || (ev.kind == DxuiMouseEventKind::Move && !ExplorerLayout::Contains (m_tree->GetBounds(), point)))
     {
-        m_tree->OnMouse (ev);
-        m_context.window.Invalidate();
-        return true;
-    }
+        if (m_tree->GetHoverRow() >= 0 && !m_tree->IsInteracting())
+        {
+            m_tree->SetHoverRow (-1);
+            m_context.window.Invalidate();
+        }
 
-    if (m_tree->GetHoverRow() >= 0 && (ev.kind == DxuiMouseEventKind::Leave || !ExplorerLayout::Contains (m_tree->GetBounds(), point)))
-    {
-        m_tree->SetHoverRow (-1);
-        m_context.window.Invalidate();
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerTreePane::HandleMouse
-//
-//  A right-click neither selects nor moves focus, as in Explorer: the hover
-//  stays on the node under the pointer, and the menu is the node's. Below
-//  the last node, the menu has the pane's options, as Explorer's has.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerTreePane::HandleMouse (const DxuiMouseEvent & ev)
-{
-    POINT                 point = ev.positionDip;
-    bool                  press = ev.kind == DxuiMouseEventKind::Down;
-    int                   row   = -1;
-    const DxuiTreeNode  * node  = nullptr;
-    Location              at;
-
-
-
-    if (!ExplorerLayout::Contains (m_tree->GetBounds(), point))
-    {
-        return false;
+        return m_tree->IsInteracting() && m_tree->OnMouse (ev);
     }
 
     if (press)
@@ -311,12 +286,15 @@ bool ExplorerTreePane::HandleMouse (const DxuiMouseEvent & ev)
 
     if (press && ev.button == DxuiMouseButton::Right && row < 0)
     {
+        m_context.input.ReleasePressed();
         ShowTreeEmptyMenu (point.x, point.y);
         return true;
     }
 
     if (press && ev.button == DxuiMouseButton::Right)
     {
+        m_context.input.ReleasePressed();
+
         if (node != nullptr)
         {
             m_tree->SetHoverRow (row);
@@ -335,10 +313,7 @@ bool ExplorerTreePane::HandleMouse (const DxuiMouseEvent & ev)
         m_drag.location = at;
     }
 
-    m_tree->OnMouse (ev);
-    m_context.window.Invalidate();
-
-    return true;
+    return m_tree->OnMouse (ev) || ev.kind != DxuiMouseEventKind::Move;
 }
 
 
@@ -494,6 +469,7 @@ void ExplorerTreePane::ReleasePress()
     release.kind   = DxuiMouseEventKind::Up;
     release.button = DxuiMouseButton::Left;
     m_tree->OnMouse (release);
+    m_context.input.ReleasePressed();
 }
 
 
