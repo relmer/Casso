@@ -612,6 +612,9 @@ hardware.
 - Q: What does the A2Pico do with the card's files that aren't set as drives? -> A: Nothing. ProDOS on the Apple reads only the eight drives' images, as volumes. The firmware's configuration utility on the Apple lists the card's folders and the .po, .hdv and .2mg files in them, for setting a drive, and hides every other file. With the A2retroNET-Link firmware the A2Pico is also a card reader for a PC or a phone over USB, which lists every file. So other files on the card are storage, such as images to switch to.
 - Q: What does an A2Pico card contain, and what are its size limits? -> A: Loose files on one FAT12, FAT16, FAT32 or exFAT volume: `A2retroNET.txt` in the root, and ProDOS block images of up to 32 MB each (65,535 blocks) in the root or in folders, with long file names. Up to eight are drives at one time, and the card can have any number more. The firmware's FatFs build has exFAT and 64-bit block addresses on (`ffconf.h` in FarLeftLane/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico, which its CMakeLists.txt fetches), so the card's size isn't limited by the firmware. It mounts the first volume on the card, so the card has one partition.
 - Q: Is Full Send's raw capture of a likely copy-protected disk a setting in Options? -> A: No. It always happens, and the setting first built for it is removed. A protected disk's sector image rarely runs, so a Full Send without the capture writes an image nobody can use, and a raw capture of a damaged disk assessed alike has more of it than a sector image. The capture's minutes are the cost. The Full Send page's intro is rewritten: many protections are detected and imaged, and Capture raw disk is for the rest.
+- Q: Is an image an A2Pico can't read converted as it is copied to the card? -> A: Yes, after a question (owner, 2026-11-13): "A2Pico doesn't support users.dsk. Would you like to convert it to users.po?" On a yes the copy on the card is replaced by the .po, and the file it was copied from isn't touched. The question follows a copy, paste or drop in Casso Explorer once Windows has finished writing the file. An image copied in File Explorer, or left after a no, has the Write as .po infobar, which writes the .po beside it.
+- Q: Why did the buttons in the infobars above the list take no clicks, and how is that prevented? -> A: Casso Explorer's window routes the mouse to each pane in ExplorerInput::HandleMouse, one line of code per pane, and a control with no line there was offered nothing. A control made with the window's CreateChild is now offered the mouse where it is, with nothing more written, and a pane that routes its controls makes them with CreatePaneRoutedChild (owner, 2026-11-13). Moving each pane's routing into its controls waits on DxuiListView, which takes its events relative to its origin where other controls take the window's coordinates. Changing that compiles on every branch with a list view and breaks its clicks without an error, so it isn't done on 033, and when to do it is the owner's call.
+- Q: Does Initialize card's adapter list have "I'm not sure"? -> A: No (owner, 2026-11-13). It listed every adapter's support at once, which wasn't useful. The list starts on the adapter chosen last, or CFFA3000 the first time.
 - Q: Where is a Full Send's progress on the PC? -> A: In a Full Send window, since one line in the status bar can't list both drives, the disks done and the time left. It opens without taking focus when a session starts, and closing it doesn't end the session. It has a state line with what the session is doing or what it waits for, a panel per drive with the disk's title, a track map, a progress bar, the time elapsed and the time left, the session's totals, a list of the disks done, and an activity list with each event's time. The status bar has a one-line summary, and a click on it opens the window.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -2118,8 +2121,9 @@ The owner has no A2Pico, so nothing is checked on the hardware.
    an image is set for a drive, a drive is cleared, drives are reordered, a
    drive is switched to one of its commented-out images, and the number of
    drives and the boot delay are set. Comment lines remain in the file.
-   **When** Edit as text is chosen, **Then** the file opens in the user's
-   text editor, and the dialog reads it again after it is saved.
+   **When** the Edit button is chosen, labeled with the program Windows
+   opens text files in, as "Edit in Notepad...", **Then** the file opens in
+   that program, and the dialog reads it again after it is saved.
 6. **Given** a storage card, **When** Initialize card for Apple is run with
    the A2Pico adapter, **Then** the card is one FAT32 partition with an
    `A2retroNET.txt` of the firmware's defaults and no drives set.
@@ -3740,18 +3744,24 @@ status bar, and compare the list with the manifest when the session ends.
   changing it, clear a drive, reorder by dragging
   the drives, switch a drive to one of its commented-out images, and set
   the number of drives (2, 4, 6 or 8) and the boot delay (0 to 9 seconds).
-  Edit as text MUST open the file in the user's text editor, and the
-  drives MUST be read again when it is saved.
-- **FR-261**: A copy of a disk image to an A2Pico card MUST offer to write
-  a block volume the firmware can't read as a `.po`, in an infobar in the
-  folder the copy is in. An image with no
-  block volume MUST be copied as it is, and MUST NOT be offered as a drive.
+  An Edit button MUST open the file in the program Windows opens `.txt`
+  files in, with that program in its label, as "Edit in Notepad...", and
+  the drives MUST be read again when it is saved.
+- **FR-261**: A copy, paste or drop in Casso Explorer of a disk image to
+  an A2Pico card, with a block volume in a form the firmware can't read,
+  MUST be followed by a question about converting it, and on a yes MUST replace the copy on the
+  card with a `.po`. An image in that form that is on the card already, as
+  after a copy in File Explorer or a no, MUST be offered as a `.po` beside
+  it, in an infobar in its folder. An image with no block volume MUST be
+  copied as it is, and MUST NOT be offered as a drive.
 - **FR-262**: Renaming or moving a drive's image on the card in Casso
   Explorer, by dragging too, MUST update the drive's path, and deleting it MUST clear the
   drive after a confirmation that lists the drive.
 - **FR-263**: Initialize card for Apple MUST offer an A2Pico adapter: one
-  FAT32 partition and an `A2retroNET.txt` of the firmware's defaults, with
-  the adapter's row in the compatibility grid.
+  FAT32 partition labeled A2PICO and an `A2retroNET.txt` of the firmware's
+  defaults, with the adapter's row in the compatibility grid. The adapter
+  list MUST have only adapters, with no entry for an adapter that isn't
+  known.
 
 **Collection tools**
 
