@@ -63,8 +63,12 @@ public:
     bool               IsSideDeviceFloppy  () const { return m_sideDevice == SideDevice::UniDisk35 || m_sideDevice == SideDevice::Apple35; }
 
     // Opens the file dialog for the 3.5-inch side device's first drive and
-    // inserts the chosen image.
+    // inserts the chosen image; a dropped image goes into the same drive.
     void               BrowseSideDevice    ();
+    void               InsertInSideDevice  (const std::wstring & path);
+
+    // The drop tag of the 3.5-inch side device, after the tape's.
+    static constexpr int  kSideDeviceDropTag = 3;
 
     // The overlays drawn over the scene, which the chrome hides and lays out
     // with the rest of what sits over the picture, and the user's framing.

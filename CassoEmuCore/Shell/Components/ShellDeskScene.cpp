@@ -1367,6 +1367,11 @@ void ShellDeskScene::SyncSceneDriveChrome()
         }
     }
 
+    if (IsSideDeviceFloppy() && comp.hasHardDisk != 0 && !IsRectEmpty (&comp.hardDiskRectPx))
+    {
+        m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { comp.hardDiskRectPx, DxuiHitSlot::Custom, kSideDeviceDropTag });
+    }
+
     m_shell.m_tapeDeck->RegisterTapeDropTarget();
 }
 
@@ -3350,7 +3355,6 @@ void ShellDeskScene::BrowseSideDevice()
     FileDialogSpec  spec;
     fs::path        chosen;
     bool            picked = false;
-    int             slot   = GetSideDeviceSlot (m_shell.m_machine.GetRefs(), m_sideDevice);
 
 
 
@@ -3362,7 +3366,31 @@ void ShellDeskScene::BrowseSideDevice()
     CHR (hr);
     BAIL_OUT_IF (!picked, S_OK);
 
-    hr = m_shell.m_disks->Mount (slot, 0, chosen.wstring());
+    InsertInSideDevice (chosen.wstring());
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::InsertInSideDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::InsertInSideDevice (const std::wstring & path)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (!IsSideDeviceFloppy(), S_OK);
+
+    hr = m_shell.m_disks->Mount (GetSideDeviceSlot (m_shell.m_machine.GetRefs(), m_sideDevice), 0, path);
     CHR (hr);
 
 Error:

@@ -7,6 +7,7 @@
 #include "Shell/DiskManager.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/TapeManager.h"
@@ -38,6 +39,10 @@ void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
         {
             m_tapeDeck->InsertTape (path);
         }
+    }
+    else if (tag == ShellDeskScene::kSideDeviceDropTag)
+    {
+        m_scene->InsertInSideDevice (path);
     }
     else if (IsSupportedDiskImageExtension (path))
     {
