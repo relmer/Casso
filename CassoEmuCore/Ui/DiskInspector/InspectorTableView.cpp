@@ -332,15 +332,7 @@ void InspectorTableView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text
 
 bool InspectorTableView::OnMouse (const DxuiMouseEvent & ev)
 {
-    RECT            list   = m_list.GetBounds();
-    DxuiMouseEvent  listEv = ev;
-
-
-
-    //  The list hit-tests in its own coordinates, from its top-left corner.
-    listEv.positionDip = { ev.positionDip.x - list.left, ev.positionDip.y - list.top };
-
-    bool  isHandled = m_list.OnMouse (listEv);
+    bool  isHandled = m_list.AsControl().OnMouse (ev);
 
 
 

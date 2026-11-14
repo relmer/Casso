@@ -76,10 +76,10 @@ public:
             ev.positionDip = POINT { kDividerX, 10 };   // inside the header strip
 
             ev.kind = DxuiMouseEventKind::Down;
-            list.OnMouse (ev);
+            list.AsControl().OnMouse (ev);
 
             ev.kind = DxuiMouseEventKind::Up;
-            list.OnMouse (ev);
+            list.AsControl().OnMouse (ev);
         }
     };
 
@@ -189,7 +189,7 @@ public:
         //  Name absorbs the spare width by default, which is no reason it
         //  cannot be given a width of its own.
         Assert::IsTrue (x >= 0, L"The Name column's divider can be grabbed");
-        Assert::IsTrue (list.GetCursorForPoint (POINT { x, 10 }) == IDC_SIZEWE, L"and shows the resize cursor");
+        Assert::IsTrue (list.AsControl().GetCursorForPoint (POINT { x, 10 }) == IDC_SIZEWE, L"and shows the resize cursor");
     }
 
 
@@ -209,14 +209,14 @@ public:
 
         ev.kind        = DxuiMouseEventKind::Down;
         ev.positionDip = POINT { x, 10 };
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         ev.kind        = DxuiMouseEventKind::Move;
         ev.positionDip = POINT { x - 60, 10 };
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         ev.kind = DxuiMouseEventKind::Up;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         Assert::IsTrue (list.GetColumnOverrideWidthPx (0) > 0, L"The drag gave Name a width of its own");
     }

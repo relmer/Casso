@@ -849,7 +849,7 @@ bool PreviewListingView::HandleCapturedMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    m_list->OnMouse (ExplorerLayout::ToLocal (ev, m_list->GetBounds()));
+    m_list->AsControl().OnMouse (ev);
     m_context.window.Invalidate();
     return true;
 }
@@ -883,7 +883,7 @@ bool PreviewListingView::HandleMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    m_list->OnMouse (ExplorerLayout::ToLocal (ev, m_list->GetBounds()));
+    m_list->AsControl().OnMouse (ev);
     m_context.window.Invalidate();
     return true;
 }
@@ -940,7 +940,7 @@ bool PreviewListingView::HandleShortcutKey (const DxuiKeyEvent & ev)
 //
 //  PreviewListingView::GetCursorForPoint
 //
-//  The list tests points in its own terms. Over a catalog's lines the cursor
+//  The list's HitTest* helpers take a point relative to its top-left. Over a catalog's lines the cursor
 //  is the I-beam, as over text; over an archive's or a VAR file's rows, and
 //  over the column titles, it is the arrow, as over the file list's.
 //
@@ -960,7 +960,7 @@ LPCWSTR PreviewListingView::GetCursorForPoint (POINT clientPx) const
         return nullptr;
     }
 
-    cursor = m_list->GetCursorForPoint (local);
+    cursor = m_list->AsControl().GetCursorForPoint (clientPx);
 
     return (cursor != nullptr || m_list->IsOverScrollbar (local)) ? cursor : (arrow ? IDC_ARROW : IDC_IBEAM);
 }
@@ -973,8 +973,7 @@ LPCWSTR PreviewListingView::GetCursorForPoint (POINT clientPx) const
 //
 //  PreviewListingView::TryGetScrollbarMenu
 //
-//  The list takes points relative to its own bounds, as its HandleMouse
-//  does.
+//  GetScrollbarMenu takes a point relative to the list's top-left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

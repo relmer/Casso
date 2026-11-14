@@ -3,7 +3,6 @@
 #include "Core/ThreadName.h"
 
 #include "AssetBootstrap.h"
-#include "CommandLineHelp.h"
 #include "CommandLineParser.h"
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -22,6 +21,9 @@
 #include "Shell/DiskMru.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "Ui/Chrome/CassoTheme.h"
+#include "Ui/Dialogs/CommandLineHelpDialog.h"
+#include "Shell/Components/ShellWindow.h"
+#include "resource.h"
 #include "Seams/Win32FirewallHelper.h"
 #include "Seams/Win32ProcessLauncher.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
@@ -155,8 +157,8 @@ Error:
 //
 //  ShowCommandLineDialog
 //
-//  The usage text, in the themed box the rest of startup uses, with a refusal
-//  above it when there is one.
+//  The command-line help dialog, with the refusal above the options when
+//  there is one.
 //
 //  IT RUNS BEFORE ANYTHING ELSE OF STARTUP, which is why it loads the theme
 //  itself rather than taking one. Nothing has read preferences yet at this
@@ -165,23 +167,25 @@ Error:
 //  cannot be read falls back to the same default CassoTheme::MakeByName gives
 //  every other caller.
 //
-//  THE TEXT IS BUILT IN CORE, from the parser's own option table, so this
-//  function chooses a window and a glyph and describes nothing.
+//  THE TEXT IS BUILT IN CORE, from the parser's option table, by
+//  CommandLineHelpDialog::MakeContent. This function loads the logo from the
+//  module and shows the dialog.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static void ShowCommandLineDialog (const CommandLineOptions::EmulatorOptions & parsed)
+static void ShowCommandLineDialog (HINSTANCE hInstance, const CommandLineOptions::EmulatorOptions & parsed)
 {
-    GlobalUserPrefs  prefs;
-    Win32FileSystem  fsPrefs;
-    std::wstring     title   = std::wstring (L"Casso ") + s_kchEmDash + L" Command Line";
-    std::wstring     body;
-    std::string      usage   = CommandLineHelp::BuildEmulatorHelp (parsed.flagPrefix);
-    HRESULT          hrPrefs = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(),
-                                           fsPrefs);
-    bool             refused = parsed.verdict
-                            == CommandLineOptions::EmulatorOptions::Verdict::Refused;
-    CassoTheme       theme;
+    constexpr int                  kLogoSourcePx = 256;
+    GlobalUserPrefs                prefs;
+    Win32FileSystem                fsPrefs;
+    HRESULT                        hrPrefs = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(),
+                                                         fsPrefs);
+    bool                           refused = parsed.verdict
+                                          == CommandLineOptions::EmulatorOptions::Verdict::Refused;
+    CommandLineHelpPanel::Content  content = CommandLineHelpDialog::MakeContent (parsed.flagPrefix,
+                                                                                 refused ? parsed.refusalMessage : std::string());
+    HRESULT                        hr      = S_OK;
+    CassoTheme                     theme;
 
 
 
@@ -189,16 +193,13 @@ static void ShowCommandLineDialog (const CommandLineOptions::EmulatorOptions & p
 
     theme = CassoTheme::MakeByName (prefs.activeTheme);
 
-    if (refused)
-    {
-        body  = TextEncoding::NarrowToWide (parsed.refusalMessage);
-        body += L"\n\n";
-    }
+    //  A logo that cannot be loaded leaves the dialog without one.
+    hr = ShellWindow::LoadIconAsPremulBgra (hInstance, IDI_CASSO_PHOTOREAL, kLogoSourcePx,
+                                            content.logoPixels, content.logoWidth, content.logoHeight);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
-    body += TextEncoding::NarrowToWide (usage);
-
-    (void) DxuiMessageBox (nullptr, &theme, body.c_str(), title.c_str(),
-                           MB_OK | (refused ? MB_ICONWARNING : MB_ICONINFORMATION));
+    hr = CommandLineHelpDialog::Show (hInstance, &theme, content);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -809,7 +810,7 @@ extern "C" int WINAPI wCassoMain (
 
     if (answered)
     {
-        ShowCommandLineDialog (parsed);
+        ShowCommandLineDialog (hInstance, parsed);
 
         // A help request was answered, so it succeeded. A refusal exits on the
         // status CassoCli spends on a command line it could not take, rather
