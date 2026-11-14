@@ -56,6 +56,7 @@ enum class FullSendDiskState : Byte
     Sent,
     Duplicate,
     Empty,
+    Blank,
 };
 
 
@@ -127,6 +128,7 @@ struct FullSendTotals
     int       sent        = 0;
     int       duplicates  = 0;
     int       rawCaptures = 0;
+    int       blanks      = 0;      // formatted disks with no files, which weren't sent
     int       badSectors  = 0;      // disks with an unreadable or unreliable sector
     double    elapsed     = 0.0;
     double    average     = 0.0;    // seconds a disk, over the disks sent; 0 with none
@@ -217,6 +219,9 @@ public:
 
     //  A drive with no disk, or a disk left unsent.
     void  ClearDisk      (int drive, FullSendDiskState state);
+
+    //  A blank disk, counted in the totals.
+    void  AddBlank       ();
 
     void  AddLine        (const std::string & text);
 

@@ -264,13 +264,55 @@ public:
         return next;
     }
 
+    //  A ProDOS disk with one file, so it isn't blank.
     static Image  ProDos (const char * volume)
+    {
+        Image        buffer (NibblizationLayer::kImageByteSize, 0);
+        Image        next;
+        FilePayload  payload;
+
+        payload.type           = ProDosVolume::kTypeBinary;
+        payload.loadAddress    = 0x2000;
+        payload.hasLoadAddress = true;
+        payload.bytes.assign (600, 1);
+
+        AssertSucceeded (ProDosSkeleton::Write (buffer, volume));
+        AssertSucceeded (ProDosVolume (buffer).Write (FilePath::Parse ("DATA"), payload, next));
+
+        return next;
+    }
+
+    //  A formatted disk with no files.
+    static Image  BlankProDos (const char * volume)
     {
         Image  buffer (NibblizationLayer::kImageByteSize, 0);
 
         AssertSucceeded (ProDosSkeleton::Write (buffer, volume));
 
         return buffer;
+    }
+
+    static Image  BlankDos()
+    {
+        Image  buffer (NibblizationLayer::kImageByteSize, 0);
+
+        AssertSucceeded (Dos33Skeleton::Write (buffer, 254));
+
+        return buffer;
+    }
+
+    //  A DOS 3.3 disk whose one file is a BASIC program with the given bytes.
+    static Image  DosProgram (std::initializer_list<Byte> program)
+    {
+        Image        next;
+        FilePayload  payload;
+
+        payload.type  = Dos33Volume::kTypeApplesoft;
+        payload.bytes = program;
+
+        AssertSucceeded (Dos33Volume (BlankDos()).Write (FilePath::Parse ("HELLO"), payload, next));
+
+        return next;
     }
 
     //  An unrecognized disk, with bytes of its seed in every sector.
@@ -796,6 +838,57 @@ public:
         Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear),   std::string (FullSendDisk::AssessDamage (Other (1), 0, 2)));
         Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear),   std::string (FullSendDisk::AssessDamage (Dos ("HELLO"), 4, 64)));
         Assert::AreEqual (std::string (FullSendManifest::kStatusDamaged),   std::string (FullSendDisk::AssessDamage (Dos ("HELLO"), 0, 2)));
+    }
+
+    //  A formatted disk with no files is blank, whatever its file system. A
+    //  DOS 3.3 disk whose one file is a BASIC program with no lines is blank
+    //  once that program's track is read, and one with a line isn't. A disk
+    //  with a file isn't, and neither is one of no file system.
+    TEST_METHOD (Blank_IsAFormattedDiskWithNoFiles_OrOnlyAProgramWithNoLines)
+    {
+        std::string       system;
+        std::vector<int>  all (NibblizationLayer::kTrackCount);
+        Image             empty   = DosProgram ({ 0x00, 0x00 });
+        Image             written = DosProgram ({ 0x0A, 0x08, 0x0A, 0x00, 0xBA, 0x00, 0x00, 0x00 });
+
+        std::iota (all.begin(), all.end(), 0);
+
+        Assert::IsTrue (FullSendDisk::IsBlank (BlankDos(), {}, system));
+        Assert::AreEqual (std::string ("DOS 3.3"), system);
+        Assert::IsTrue (FullSendDisk::IsBlank (BlankProDos ("EMPTY"), {}, system));
+        Assert::AreEqual (std::string ("ProDOS"), system);
+
+        Assert::IsFalse (FullSendDisk::IsBlank (Dos ("HELLO"), all, system), L"A disk with a file");
+        Assert::IsFalse (FullSendDisk::IsBlank (ProDos ("FULL"), all, system), L"A ProDOS disk with a file");
+        Assert::IsFalse (FullSendDisk::IsBlank (Other (1), all, system), L"No file system");
+
+        Assert::IsTrue (FullSendDisk::FindLoneProgramTrack (empty) >= 0, L"The program's track is found");
+        Assert::IsFalse (FullSendDisk::IsBlank (empty, {}, system), L"Not before the program's track is read");
+        Assert::IsTrue (FullSendDisk::IsBlank (empty, all, system), L"A program with no lines");
+        Assert::IsFalse (FullSendDisk::IsBlank (written, all, system), L"A program with a line");
+    }
+
+    //  A blank disk isn't sent: its drive's row and the status have it, with
+    //  its file system, no image is written, and the totals count it. The
+    //  drive's number on the Apple sends it.
+    TEST_METHOD (Session_ABlankDisk_IsReportedAndNotSent_UntilItsDriveIsPressed)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = BlankDos();
+        rig.link.present[1] = false;
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (rig.io.files.empty() || !rig.io.files.contains ("C:\\Box\\0001.dsk"), L"No image");
+        Assert::IsTrue (session->GetManifest().GetRows().empty(), L"No row");
+        Assert::IsTrue (session->GetScreen().drives[0] == FullSendDriveState::Blank);
+        Assert::IsTrue (session->GetScreen().GetRows()[3].starts_with ("D1: BLANK, DOS 3.3"), TextEncoding::NarrowToWide (session->GetScreen().GetRows()[3]).c_str());
+
+        FullSendSnapshot  snapshot = rig.status.GetSnapshot();
+
+        Assert::AreEqual (1, snapshot.totals.blanks);
+        Assert::AreEqual (0, snapshot.totals.sent);
     }
 
     //  A raw capture's reads, when the link returns them, are written beside
