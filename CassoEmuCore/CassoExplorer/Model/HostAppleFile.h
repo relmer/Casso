@@ -52,6 +52,10 @@ public:
     static void     ToProDosDate   (int32_t seconds, Word & outDate, Word & outTime);
     static int32_t  FromProDosDate (Word date, Word time);
 
+    //  A file on the PC, written at `unixSeconds`, dated in the payload in
+    //  this PC's local time, as both its creation and its modification.
+    static void     SetHostDates   (int64_t unixSeconds, FilePayload & inOutPayload);
+
     Form             form = Form::None;
     std::wstring     leafName;
     FileEntry        entry;

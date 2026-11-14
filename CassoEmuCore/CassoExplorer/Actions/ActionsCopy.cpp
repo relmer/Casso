@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Model/CopyOutConversion.h"
 #include "CassoExplorer/Model/CrossVolumeCopy.h"
+#include "CassoExplorer/Model/HostAppleFile.h"
 
 #include "CassoExplorer/Actions/ActionsCopy.h"
 #include "CassoExplorer/CassoExplorerActions.h"
@@ -805,6 +806,7 @@ void ActionsCopy::PutItems (
         std::vector<Byte>      bytes;
         ActionsTypes::PutPlan  plan;
         HRESULT                hr      = S_OK;
+        FileStamp              stamp;
 
         if (IsHostFolder (hostPath))
         {
@@ -848,6 +850,18 @@ void ActionsCopy::PutItems (
         //  under a name no entry there has.
         plan.catalogName = CassoExplorerActions::MakeFreeEntryName (plan.catalogName, m_actions.GetEntryNames (image, directory), kind, false);
         plan.catalogName = directory.empty() ? plan.catalogName : directory + "/" + plan.catalogName;
+
+        //  A file with no Apple dates is dated when it was last written on the
+        //  PC. A put through the command runner is dated there.
+        if (plan.usePayload && !plan.payload.hasDates)
+        {
+            hr = m_actions.m_browser.GetOperations().GetFileIo().Stat (TextEncoding::WideToNarrow (hostPath), stamp);
+
+            if (SUCCEEDED (hr))
+            {
+                HostAppleFile::SetHostDates (stamp.modifiedUnix, plan.payload);
+            }
+        }
 
         if (plan.usePayload)
         {

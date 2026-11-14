@@ -13,6 +13,7 @@
 #include "Machines/Apple2/Common/NativeListing.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/ProDosTypeNames.h"
 #include "Devices/Disk/BlockBuffer.h"
 #include "Devices/Disk/Partitions/CardVolumeEdit.h"
 #include "DiskImageStore.h"
@@ -34,6 +35,7 @@
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
+#include "CassoExplorer/Model/HostAppleFile.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "FileTypes/FileFormatTable.h"
 #include "IntegerBasicDetokenizer.h"
@@ -359,7 +361,7 @@ std::string DiskCommandRunner::FormatDos33Entry (const FileEntry & entry)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry)
+std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry, size_t nameWidth)
 {
     char         detail[96] = {};
     std::string  text;
@@ -368,7 +370,7 @@ std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry)
 
     text = std::string (entry.isLocked ? "*" : " ") + entry.name;
 
-    while (text.size() < 18)
+    while (text.size() < nameWidth + 1)
     {
         text += " ";
     }
@@ -596,6 +598,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     std::string                    directory;
     char                           summary[128] = {};
     bool                           isFlat       = false;
+    size_t                         nameWidth    = kNameWidth;
     std::string                    note;
 
 
@@ -645,7 +648,15 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         hr = ResolveVolumePath (options, opened.kind, opened.sectors, options.disk.path, directory, result);
         CHR (hr);
 
-        hr = AppendDirectoryRows (*volume, opened.kind, directory, options.disk.recurse, result);
+        if (options.disk.recurse)
+        {
+            hr = MeasureNameWidth (*volume, directory, nameWidth);
+        }
+
+        if (SUCCEEDED (hr))
+        {
+            hr = AppendDirectoryRows (*volume, opened.kind, directory, options.disk.recurse, nameWidth, result);
+        }
 
         CHRF (hr, result.FailAction (options.disk.imagePath, "list " + options.disk.path,
                               ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
@@ -822,6 +833,7 @@ HRESULT DiskCommandRunner::AppendDirectoryRows (
     VolumeKind           kind,
     const std::string  & directory,
     bool                 recurse,
+    size_t               nameWidth,
     DiskCommandResult  & result)
 {
     HRESULT        hr        = S_OK;
@@ -848,7 +860,7 @@ HRESULT DiskCommandRunner::AppendDirectoryRows (
             shown.name = directory + "/" + entry.name;
         }
 
-        result.output += (kind == VolumeKind::Dos33) ? FormatDos33Entry (shown) : FormatProDosEntry (shown);
+        result.output += (kind == VolumeKind::Dos33) ? FormatDos33Entry (shown) : FormatProDosEntry (shown, nameWidth);
 
         //  A name that several entries share cannot select one of them, so
         //  each such entry is listed with its index. A unique name has none.
@@ -869,9 +881,47 @@ HRESULT DiskCommandRunner::AppendDirectoryRows (
 
             if (entry.isDirectory)
             {
-                hr = AppendDirectoryRows (volume, kind, below, true, result);
+                hr = AppendDirectoryRows (volume, kind, below, true, nameWidth, result);
                 CHR (hr);
             }
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::MeasureNameWidth
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::MeasureNameWidth (const IVolume & volume, const std::string & directory, size_t & inOutWidth)
+{
+    HRESULT        hr = S_OK;
+    VolumeListing  listing;
+
+
+
+    hr = volume.EnumerateDirectory (FilePath::Parse (directory), listing);
+    CHR (hr);
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        std::string  shown = directory.empty() ? entry.name : directory + "/" + entry.name;
+
+        //  The two spaces after a 15-character ProDOS name in a flat listing.
+        inOutWidth = std::max (inOutWidth, shown.size() + 2);
+
+        if (entry.isDirectory)
+        {
+            hr = MeasureNameWidth (volume, shown, inOutWidth);
+            CHR (hr);
         }
     }
 
@@ -1984,7 +2034,7 @@ HRESULT DiskCommandRunner::ResolveFileType (
         else if (form == "A" || form == "BAS") { outType = ProDosVolume::kTypeBasic; }
         else if (form == "I" || form == "INT") { outType = kProDosIntegerType; }
         else if (form == "S" || form == "SYS") { outType = ProDosVolume::kTypeSystem; }
-        else                                           { recognized = false; }
+        else                                   { recognized = ProDosTypeNames::TryParse (form, outType); }
     }
 
     if (!recognized)
@@ -1992,7 +2042,7 @@ HRESULT DiskCommandRunner::ResolveFileType (
         result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Ltype ", options.flagPrefix) + options.disk.typeName
                             + " means nothing on this volume: "
                             + (isDos ? "DOS 3.3 takes T, I, A, B or R"
-                                     : "ProDOS takes TXT, BIN, BAS, INT or SYS")
+                                     : "ProDOS takes a type's abbreviation, such as TXT, BIN, BAS, INT or SYS, or its number, such as $C0")
                             + "\n";
 
         result.exitStatus   = DiskCommandResult::kNoOutput;
@@ -2290,9 +2340,10 @@ Error:
 //
 //  Read a host name in one of the forms Casso Explorer writes on Copy or a
 //  drag: `NAME.Applesoft BASIC.txt`, `NAME#062000`, `NAME.Binary.$2000.bin`
-//  and the rest. With no --as, the entry takes NAME, and a listing's form
-//  selects its conversion when the command line selects none. Any other host
-//  name is left as it is: `PROG.BIN` goes in as PROG.BIN.
+//  and the rest. With no --as, the entry takes NAME. With or without it,
+//  the conversion of a listing's form applies when the command line has no
+//  conversion switch.
+//  Any other host name is left as it is: `PROG.BIN` goes in as PROG.BIN.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2306,7 +2357,7 @@ bool DiskCommandRunner::ApplyHostFileName (CommandLineOptions & inOutOptions, Pa
 
 
 
-    if (!inOutOptions.disk.path.empty() || !HostFileNaming::Parse (TextEncoding::NarrowToWide (leaf), outParsed) || outParsed.catalogName.empty())
+    if (!HostFileNaming::Parse (TextEncoding::NarrowToWide (leaf), outParsed) || outParsed.catalogName.empty())
     {
         return false;
     }
@@ -2318,7 +2369,10 @@ bool DiskCommandRunner::ApplyHostFileName (CommandLineOptions & inOutOptions, Pa
         return false;
     }
 
-    inOutOptions.disk.path = outParsed.catalogName;
+    if (inOutOptions.disk.path.empty())
+    {
+        inOutOptions.disk.path = outParsed.catalogName;
+    }
 
     if (unconverted && outParsed.converted == ParsedHostName::ConvertedKind::ApplesoftListing)
     {
@@ -2442,6 +2496,8 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     VolumeKind                     kind      = VolumeKind::Unknown;
     CardVolumeEdit                 card;
     BlockBuffer                    cardEdited;
+    FileStamp                      hostStamp;
+    HRESULT                        hrStamp   = S_OK;
 
 
 
@@ -2502,6 +2558,17 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     }
 
     ReadAppleDouble (options, payload);
+
+    //  A file with no Apple dates is dated when it was last written on the PC.
+    if (!payload.hasDates)
+    {
+        hrStamp = m_fileIo.Stat (options.disk.hostFile, hostStamp);
+
+        if (SUCCEEDED (hrStamp))
+        {
+            HostAppleFile::SetHostDates (hostStamp.modifiedUnix, payload);
+        }
+    }
 
     path = FilePath::Parse (diskName);
 

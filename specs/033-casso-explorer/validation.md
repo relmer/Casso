@@ -970,10 +970,10 @@ Fixed during the walk:
 | Step | Result |
 |---|---|
 | 1. Images | On an 800K and a 32 MB ProDOS image and an 800K Disk Copy 4.2 image made by CiderPress II, a folder made and a file copied in and out with `disk mkdir`, `put` and `get`; `cp2 test` passes each |
-| 2. MAME's //c Plus | Not walked: MAME has no //c or //c Plus ROMs here, and Casso's //c Plus brings its serial ports, which stay unset while the owner's //c is on COM3 |
+| 2. MAME's //c Plus | Passed 2026-11-13 in MAME 0.289's apple2cp, with the archive.org ROM set: an 800K image Casso made booted ProDOS, and CAT through a STARTUP program listed WALK/DEEP and HELLO. CAT's listing has `<NO DATE>` for each file (T754) |
 | 3. Forks | A Teach file got from the archive with its `._NAME`, put on the 800K image, has the original's data fork, resource fork and type in `cp2 extract`, after the `disk put` fix. Finder information isn't in cp2's extraction, so it wasn't compared. `ResourceForkTests` covers the host name styles |
 | 4. Archives | Every file of `test-files.sdk` against CiderPress II's extraction: `ArchiveTests`. Add to ShrinkIt archive and Make a ShrinkIt disk, on Release, wrote a `.shk` and an `.sdk` that pass `cp2 test`. NuLib2 isn't installed; `cp2 test` is used in place of `nulib2 t` |
-| 5. An archive on an image in a ZIP | Fails: the ZIP and the image open in place, and the archive on the image doesn't, as `NOTES` or as `NOTES.SHK`. See the findings |
+| 5. An archive on an image in a ZIP | Failed: the ZIP and the image opened in place, and the archive on the image didn't, as `NOTES` or as `NOTES.SHK`. Passed 2026-11-14 after T759: NOTES on a ProDOS image opens in place and lists its records |
 
 ### 7f. CassoLink additions
 
@@ -985,7 +985,7 @@ emulator targets are that session's.
 | Step | Result |
 |---|---|
 | 1. Each file system and layout | `PartitionTests`, `Dos32Tests`, `SosTests`, `RdosTests` and `LargeVolumeTests`, which change each writable one, run `cp2 test` and compare with CiderPress II's extraction; and the images of 7e |
-| 2. GS/OS on a changed HFS image | Not walked: KEGS and GSplus aren't installed, and MAME's IIgs lacks two ROMs |
+| 2. GS/OS on a changed HFS image | In part, 2026-11-13: MAME 0.289's apple2gs booted GS/OS 6.0.1 from a hard disk image on a CFFA2 card, with HFS.FST added by CiderPress II, and the Finder mounted an 800K HFS image Casso made, "Casso Walk". Its files weren't opened, as MAME took no typed keys on the IIgs |
 | 3. Gutenberg | Not walked: a Gutenberg volume is read-only |
 | 4. A CF card | Not walked: the owner's card reader is required |
 
@@ -993,13 +993,15 @@ emulator targets are that session's.
 
 | Step | Result |
 |---|---|
-| 1. VisiCalc | Not walked: no VisiCalc disk is in the tree (T565) |
+| 1. VisiCalc | Passed 2026-11-13: VisiCalc 1984 from archive.org booted in the Casso //e, and each sample sheet, loaded with /SL and recalculated with !, draws the values Casso's preview has in columns A to D. Row 1's `/GCC5` cell was drawn as ERROR in Casso, a column width the 80-column version saves at a cell; fixed |
 | 2. The expanded preview | On Release: expanded on a hi-res picture, a step to the next file and back, and Escape back to the list with the selection as it was. `ExpandedPreview_StepsWithinHalfASecond` measures the steps |
 | 3. Disk list and Find duplicates | `CollectionScaleTests` |
 | 4. Tokenize and renumber | `GuestVisibleBasicToolsTests` and `BasicCorpusFixtureTests` |
 | 5. Wizardry and Infocom | `GameDataTests` |
 
 ### Findings left open
+
+T751 to T756 and T759 were fixed 2026-11-14. T757 and T758 are open.
 
 - Bold and italic runs overlap the text after them in an AppleWorks or Teach
   document's preview (T751).

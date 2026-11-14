@@ -86,10 +86,10 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "                                   [%Ltext | %Lbasic] [%Lon-change <action>]",
         "  %Las <name>             Store the file as <name> on the disk. Without it, the file is stored under its host name;"
                                    " a name Casso Explorer writes, such as HELLO.Applesoft BASIC.txt, PROG.Binary.$6000.bin or PROG#062000,"
-                                   " is stored under the part before the suffix, with the type, load address and conversion in the suffix\n"
+                                   " is stored under the part before the suffix. The type, load address and conversion in such a suffix apply either way\n"
         "  %Ltype <t>              CassoCli detects a file's type automatically; this switch overrides that. For DOS 3.3 the types are"
                                    " T (text), I (Integer BASIC), A (Applesoft BASIC), B (binary) and R (relocatable); for ProDOS,"
-                                   " TXT, BIN, BAS, INT and SYS; for Apple Pascal, BAD, CODE, TEXT, INFO, DATA, GRAF and FOTO; for CP/M, the attributes RO and SYS,"
+                                   " a type's abbreviation, such as TXT, BIN, BAS, INT, SYS or PNT, or its number, such as $C0; for Apple Pascal, BAD, CODE, TEXT, INFO, DATA, GRAF and FOTO; for CP/M, the attributes RO and SYS,"
                                    " with a comma for both. A file it cannot identify is stored as a binary\n"
         "  %Luser <n>              On CP/M, the user to store the file in, 0 to 15\n"
         "  %Lload $XXXX            Load address for a binary file, written as $6000 or 0x6000\n"

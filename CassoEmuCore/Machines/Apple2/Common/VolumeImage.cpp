@@ -170,6 +170,7 @@ HRESULT VolumeImage::Load (
     bool                hasData  = size != 0;
     bool                thirteen = IsThirteenSectorFile (path);
     ImageContainerKind  kind     = ImageContainer::GetKind (path, size);
+    HRESULT             hrFormat = DiskImageStore::GetSourceFormatByExtension (path, format);
     DiskImage           image;
 
 
@@ -178,6 +179,13 @@ HRESULT VolumeImage::Load (
 
     outDiagnosis              = MountDiagnosis();
     outDiagnosis.fileByteSize = size;
+
+    //  An archive on an image is often stored with no extension, as NOTES
+    //  with ShrinkIt's type, so its bytes select its format.
+    if (kind == ImageContainerKind::None && !thirteen && FAILED (hrFormat) && ArchiveVolume::IsArchive (fileBytes))
+    {
+        kind = ImageContainerKind::Archive;
+    }
 
     if (kind != ImageContainerKind::None)
     {

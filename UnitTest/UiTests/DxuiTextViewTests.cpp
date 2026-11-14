@@ -72,6 +72,24 @@ public:
     }
 
 
+    //  A row's wrap indent starts each wrapped line that many characters past
+    //  the last cell's first, as source code wraps under its operand.
+    TEST_METHOD (WrapIndent_StartsAWrappedLinePastTheCellsFirstCharacter)
+    {
+        DxuiTextView       view;
+        DxuiTextView::Row  row = MakeRow ({ L"10", L"X LDA AAAA BBBB" });
+
+        row.wrapIndent = 6;
+
+        LayOut (view, 12 + 16 * 8, 400);
+        view.SetRows ({ row });
+
+        Assert::AreEqual (2, view.GetLineCount());
+        Assert::AreEqual (14, view.HitTest (POINT { 6 + 10 * 8, 6 + 16 + 4 }).offset, L"BBBB starts under the first A");
+        Assert::AreEqual (15, view.HitTest (POINT { 6 + 11 * 8, 6 + 16 + 4 }).offset);
+    }
+
+
     //  A span draws its characters in its own color, and the rest of the cell
     //  in the text color, each stretch of one color as one string.
     TEST_METHOD (Span_DrawsItsCharactersInItsColor)
@@ -154,6 +172,29 @@ public:
 
         view.SelectAll();
         Assert::AreEqual (std::wstring (L"Format\tWOZ 2\r\n\tsecond line"), view.GetSelectionText());
+    }
+
+
+    //  A bold run is measured bold, so the text after it starts where the
+    //  bold run ends, not where the same characters end in the regular face.
+    TEST_METHOD (Proportional_MeasuresABoldRunBold)
+    {
+        DxuiTextView          view;
+        DxuiTextView::Row     row = MakeRow ({ L"XXXYY" });
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+        row.spans.push_back ({ 0, 0, 3, 0, true });
+        text.SetBoldGlyphWidth (9.0f);
+
+        LayOut (view, 400, 400);
+        view.SetProportional (true);
+        view.SetRows ({ row });
+        view.Paint (painter, text, theme);
+
+        Assert::AreEqual (2, view.HitTest (POINT { 6 + 18, 6 + 4 }).offset, L"Two bold characters are 18 wide, not 14");
+        Assert::AreEqual (4, view.HitTest (POINT { 6 + 27 + 7, 6 + 4 }).offset, L"and a regular one after them starts at 27");
     }
 
 

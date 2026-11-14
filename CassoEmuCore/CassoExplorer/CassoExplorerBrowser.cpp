@@ -4,6 +4,7 @@
 #include "CassoExplorer/Model/CollectionQuery.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Archives/ContainerPath.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 
 #pragma comment(lib, "shlwapi.lib")
@@ -1274,6 +1275,20 @@ bool CassoExplorerBrowser::TryGetRowLocation (int row, Location & outLocation)
 
         inner       += (inner.empty() ? "" : "/") + TextEncoding::WideToNarrow (m_rows[row].name);
         outLocation  = Location::MakeDiskDirectory (location.path, inner);
+    }
+    else if (location.kind == Location::Kind::DiskImage || location.kind == Location::Kind::DiskDirectory)
+    {
+        //  A file on an image that is itself an archive or an image, such as
+        //  a ShrinkIt archive, opens in place, as one in a ZIP file does.
+        std::wstring  inner = (location.kind == Location::Kind::DiskDirectory) ? TextEncoding::NarrowToWide (location.innerPath) + L"/" : std::wstring();
+        std::wstring  path  = location.path + (wchar_t) ContainerPath::kPathSeparator + inner + m_rows[row].name;
+
+        found = m_loader.CanListImage (path);
+
+        if (found)
+        {
+            outLocation = Location::MakeDiskImage (path);
+        }
     }
     else if (location.kind == Location::Kind::AppleDrive && m_rows[row].isDirectory)
     {

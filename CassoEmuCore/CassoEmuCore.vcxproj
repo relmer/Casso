@@ -373,6 +373,7 @@
     <ClCompile Include="Machines\Apple2\Common\Dos33Geometry.cpp" />
     <ClCompile Include="CassoExplorer\Model\FilesystemChoices.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AssembledFilePlacement.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\ProDosTypeNames.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolumeRemover.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolumeWriter.cpp" />
@@ -1428,6 +1429,7 @@
     <ClInclude Include="Machines\Apple2\Common\ThirteenSectorCodec.h" />
     <ClInclude Include="Machines\Apple2\Common\Dos33Geometry.h" />
     <ClInclude Include="CassoExplorer\Model\FilesystemChoices.h" />
+    <ClInclude Include="Machines\Apple2\Common\ProDosTypeNames.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolume.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolumeRemover.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolumeWriter.h" />

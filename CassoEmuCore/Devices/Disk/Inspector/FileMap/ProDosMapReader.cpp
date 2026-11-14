@@ -2,6 +2,7 @@
 
 #include "Devices/Disk/Inspector/FileMap/ProDosMapReader.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/ProDosTypeNames.h"
 
 
 
@@ -438,28 +439,5 @@ std::wstring ProDosMapReader::ReadName (const Byte * entry)
 
 std::wstring ProDosMapReader::GetTypeName (Byte type)
 {
-    std::wstring  name = std::format (L"${:02X}", type);
-
-
-
-    switch (type)
-    {
-        case 0x04: name = L"TXT"; break;
-        case 0x06: name = L"BIN"; break;
-        case 0x0F: name = L"DIR"; break;
-        case 0x19: name = L"ADB"; break;
-        case 0x1A: name = L"AWP"; break;
-        case 0x1B: name = L"ASP"; break;
-        case 0xEF: name = L"PAS"; break;
-        case 0xF0: name = L"CMD"; break;
-        case 0xFA: name = L"INT"; break;
-        case 0xFB: name = L"IVR"; break;
-        case 0xFC: name = L"BAS"; break;
-        case 0xFD: name = L"VAR"; break;
-        case 0xFE: name = L"REL"; break;
-        case 0xFF: name = L"SYS"; break;
-        default:                  break;
-    }
-
-    return name;
+    return ProDosTypeNames::Format (type);
 }
