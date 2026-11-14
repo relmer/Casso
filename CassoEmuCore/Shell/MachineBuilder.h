@@ -169,21 +169,15 @@ public:
 
     void     SelectVideoMode      ();
 
+    //  Puts a card's $Cn00 page and its share of the $C800-$CFFF expansion
+    //  space on the machine.
+    void     AddExpansionRomCard  (int slot, IExpansionRomCard & card, SlotRomPage & slotPage);
+
 private:
 
     void  WireParallelPrinter   (const SlotConfig & slot, PrinterCard & card);
     void  WireSuperSerialCard   (const SlotConfig & slot, SuperSerialCard & card);
     void  AttachSerialEndpoint  (const SlotConfig & slot, SuperSerialCard & card);
-    void  WireAppleScsiCard     (const SlotConfig & slot, AppleScsiCard & card);
-    void  WireProFileCard       (const SlotConfig & slot, ProFileCard & card);
-    void  WireApple35Card       (const SlotConfig & slot, Apple35ControllerCard & card);
-    void  WireLironCard         (const SlotConfig & slot, LironCard & card);
-    void  WireDiskPortChain     (Disk2Controller & controller);
-    void  WireApple2cPlusDrives (Apple2cPlusDiskPort & port);
-    void  WireMig               ();
-    void  WireDeviceAudio       ();
-    void  AddChainDrives        (const PortConfig & port, SmartPortHost & host);
-    void  AddExpansionRomCard   (int slot, IExpansionRomCard & card, SlotRomPage & slotPage);
 
     MachineHost          &  m_host;
     MachineBuildServices    m_services;
