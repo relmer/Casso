@@ -95,17 +95,23 @@ HRESULT PhysicalCardFileIo::WriteAllBytes (const std::string & path, const std::
 //
 //  PhysicalCardFileIo::WriteAt
 //
-//  A partition is written whole, never in place.
+//  A partition is written in place through PhysicalCards, as the disk
+//  inspector's block mode writes its blocks. Nothing else on a drive is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT PhysicalCardFileIo::WriteAt (const std::string & path, uint64_t offset, std::span<const Byte> bytes)
 {
-    bool  isOnDrive = Resolve (path).kind != PhysicalCards::PathKind::None;
+    Target  target = Resolve (path);
 
 
 
-    return isOnDrive ? HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED) : m_inner.WriteAt (path, offset, bytes);
+    if (target.kind == PhysicalCards::PathKind::Partition)
+    {
+        return m_cards.WritePartitionAt (target.drive, target.partition, offset, bytes);
+    }
+
+    return target.kind != PhysicalCards::PathKind::None ? HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED) : m_inner.WriteAt (path, offset, bytes);
 }
 
 

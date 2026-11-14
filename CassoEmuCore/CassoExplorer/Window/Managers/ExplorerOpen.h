@@ -73,6 +73,10 @@ public:
     //  again after a save.
     void  EditA2retroNetDrives  (const std::wstring & root);
 
+    //  Inspect disk image for the selected partition, the open image, or the
+    //  selected images.
+    void  InspectSelected       ();
+
 private:
     static constexpr ULONGLONG        kProgressPostMs = 250;
     static constexpr const wchar_t  * kA2PicoLabel    = L"A2PICO";

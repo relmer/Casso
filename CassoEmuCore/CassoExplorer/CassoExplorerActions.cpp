@@ -66,6 +66,14 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         if (isPartition)
         {
             verbs.push_back (Verb::Open);
+
+            //  A partition, of a card image or of a card in a reader, opens
+            //  in the disk inspector's block mode.
+            if (InspectorWindowSet::CanInspect (partition))
+            {
+                verbs.push_back (Verb::InspectDiskImage);
+            }
+
             verbs.push_back (Verb::CopyPartitionToImage);
 
             if (!m_browser.IsWriteProtected())
@@ -382,6 +390,15 @@ bool CassoExplorerActions::CanInspectSelected() const
 
 bool CassoExplorerActions::CanInspect() const
 {
+    std::wstring  partition;
+
+
+
+    if (m_browser.IsPartitionListLocation())
+    {
+        return m_partitions.TryGetTarget (partition) && InspectorWindowSet::CanInspect (partition);
+    }
+
     if (m_browser.IsImageLocation())
     {
         return InspectorWindowSet::CanInspect (m_browser.GetLocation().path);

@@ -697,6 +697,39 @@ void ExplorerOpen::EditA2retroNetDrives (const std::wstring & root)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerOpen::InspectSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::InspectSelected()
+{
+    std::vector<std::wstring>  paths;
+    std::wstring               partition;
+
+
+
+    if (m_context.browser.IsPartitionListLocation() && m_context.actions.TryGetPartition (partition))
+    {
+        paths.push_back (partition);
+    }
+    else if (m_context.browser.IsImageLocation())
+    {
+        paths.push_back (m_context.browser.GetLocation().path);
+    }
+    else
+    {
+        m_context.browser.GetSelectedHostPaths (paths);
+    }
+
+    m_context.commandManager.InspectDiskImages (paths);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerOpen::FindInitializedRoot
 //
 ////////////////////////////////////////////////////////////////////////////////

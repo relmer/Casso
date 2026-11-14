@@ -3,6 +3,7 @@
 #include "FakeDiskFileIo.h"
 #include "PartitionCard.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "Devices/Disk/MemoryBlockStore.h"
 #include "Devices/Disk/Partitions/PhysicalCardFileIo.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
@@ -238,6 +239,49 @@ public:
             AssertSucceeded (io.ReadAllBytes ("\\\\.\\PhysicalDrive2|#2.po", bytes));
             Assert::IsTrue (bytes == PartitionCard::GetSecond (host.card));
         }
+    }
+
+
+    //  A partition of a card in a reader opens in the disk inspector's block
+    //  mode through the card's file access, its blocks read through the
+    //  card's cache, and a block written there is on the card after a commit.
+    TEST_METHOD (BlockImageFile_OpensAPartitionOfAnOpenCard)
+    {
+        static constexpr const char *  kPath = "\\\\.\\PhysicalDrive2|#2.po";
+
+
+
+        FakeCardHost                     host;
+        PhysicalCards                    cards (host);
+        FakeDiskFileIo                   unused;
+        std::unique_ptr<BlockImageFile>  file;
+        std::wstring                     error;
+        std::vector<Byte>                block (IBlockStore::kBlockBytes, 0);
+        std::vector<Byte>                second;
+
+        cards.SetConfirmWrite ([] (const PhysicalDrive &) { return true; });
+        AssertSucceeded (cards.Open (2, nullptr));
+
+        {
+            PhysicalCardFileIo  io (unused, cards);
+
+            Assert::IsTrue   (BlockImageFile::IsBlockImage (io, kPath), L"an 800K partition opens in block mode");
+            AssertSucceeded  (BlockImageFile::Open (io, kPath, file, error));
+            Assert::AreEqual (PartitionCard::kSecondBlocks, file->GetBlockCount());
+
+            second = PartitionCard::GetSecond (host.card);
+
+            AssertSucceeded (file->GetStore().ReadBlocks (2, 1, block));
+            Assert::IsTrue  (std::equal (block.begin(), block.end(), second.begin() + 2 * IBlockStore::kBlockBytes), L"block 2 is the volume's directory");
+
+            block.assign (IBlockStore::kBlockBytes, 0xA5);
+            AssertSucceeded (file->GetStore().WriteBlocks (700, block));
+            AssertSucceeded (file->GetStore().Commit());
+
+            file.reset();
+        }
+
+        Assert::AreEqual ((Byte) 0xA5, host.store->GetBytes()[(size_t) (PartitionCard::kSecondStart + 700) * IBlockStore::kBlockBytes], L"the block is on the card");
     }
 
 

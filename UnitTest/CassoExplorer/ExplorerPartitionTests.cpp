@@ -181,6 +181,8 @@ public:
         Assert::IsTrue (host.HasVerb (ActionsTypes::Verb::Open));
         Assert::IsTrue (host.HasVerb (ActionsTypes::Verb::CopyPartitionToImage));
         Assert::IsTrue (host.HasVerb (ActionsTypes::Verb::ReplacePartition));
+        Assert::IsTrue (host.HasVerb (ActionsTypes::Verb::InspectDiskImage), L"a partition opens in the disk inspector");
+        Assert::IsTrue (host.actions.CanInspect());
     }
 
 

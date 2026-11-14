@@ -1425,21 +1425,8 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::InspectDiskImage:
-        {
-            std::vector<std::wstring>  paths;
-
-            if (m_context.browser.IsImageLocation())
-            {
-                paths.push_back (m_context.browser.GetLocation().path);
-            }
-            else
-            {
-                m_context.browser.GetSelectedHostPaths (paths);
-            }
-
-            InspectDiskImages (paths);
+            m_context.opener.InspectSelected();
             break;
-        }
 
         case CassoExplorerActions::Verb::CompareDiskImages:
             CompareSelectedDiskImages();
