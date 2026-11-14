@@ -947,6 +947,18 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
             continue;
         }
 
+        //  A read that doesn't align isn't reported for a track whose every
+        //  sector decodes: the checksums vouch for the stream, and a track of
+        //  empty sectors, each like the next, has little to align a read by.
+        if (unstable)
+        {
+            bool  thirteen  = false;
+            int   addressed = 0;
+            int   sectors   = CountSectors (stream.bytes, position.position / 4, thirteen, addressed);
+
+            unstable = sectors != (thirteen ? 13 : 16);
+        }
+
         if (unstable)
         {
             outResult.unstable.push_back (position.position);

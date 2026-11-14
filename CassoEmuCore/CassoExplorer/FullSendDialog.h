@@ -5,6 +5,7 @@
 #include "CassoLink/FullSend/FullSendStatus.h"
 
 class IDxuiTheme;
+class DxuiTooltip;
 
 
 
@@ -63,10 +64,19 @@ public:
     static std::wstring  DescribeTotals   (const FullSendTotals & totals);
     static std::wstring  DescribeStatus   (const FullSendRow & row);
 
+    //  A map cell's tip: its track, as 12 or 12.25, and what its mark means.
+    //  The position is in quarter tracks.
+    static std::wstring  DescribeCell     (const FullSendDriveStatus & drive, int position);
+
     //  Seconds as 1:05, or 1:02:05 from an hour.
     static std::wstring  FormatSeconds    (double seconds);
 
-    void  SetView (View view);
+    void  SetView    (View view);
+
+    //  The tip a map cell under the pointer has.
+    void  SetTooltip (DxuiTooltip * tooltip) { m_tooltip = tooltip; }
+
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
 
     void  Layout  (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -78,8 +88,21 @@ private:
     float  PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
     void   DrawLine      (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, bool heading = false, DxuiTextHAlign align = DxuiTextHAlign::Left) const;
 
-    View           m_view;
-    DxuiDpiScaler  m_scaler;
+    //  A map cell as it was last painted: its drive's index and its position
+    //  in quarter tracks.
+    struct Cell
+    {
+        RECT  bounds   = {};
+        int   drive    = 0;
+        int   position = 0;
+    };
+
+    void   AddCell       (float left, float top, float width, float height, int number, int position) const;
+
+    View                       m_view;
+    DxuiDpiScaler              m_scaler;
+    DxuiTooltip              * m_tooltip = nullptr;
+    mutable std::vector<Cell>  m_cells;
 };
 
 
@@ -105,6 +128,7 @@ public:
     static constexpr int   kEndId     = 1001;
     static constexpr int   kFolderId  = 1002;
     static constexpr UINT  kTickMs    = 250;
+    static constexpr UINT  kTipTickMs = 50;     // the tooltip's timer; the view is drawn again every kTickMs
 
     using SnapshotFn = std::function<bool (FullSendPanel::View & outView)>;
     using ActionFn   = std::function<void()>;
@@ -132,4 +156,6 @@ private:
     FullSendPanel::View m_view;
     FullSendPanel     * m_panel     = nullptr;
     DxuiButton        * m_endButton = nullptr;
+    DxuiTooltip         m_tooltip;
+    UINT                m_ticks     = 0;
 };
