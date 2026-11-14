@@ -134,7 +134,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "CassoCli disk mkdir <image> <path>",
         nullptr,
         "Directories along the path are made as well when they are not there yet, so mkdir GAMES/CHESS/SAVES makes all three."
-        " ProDOS disks only: DOS 3.3, Apple Pascal, and CP/M have no directories.",
+        " ProDOS and HFS disks only: DOS 3.3, Apple Pascal, and CP/M have no directories.",
         "CassoCli disk mkdir mydisk.po GAMES/CHESS"
     },
 
@@ -148,7 +148,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lyes                   Answer the confirmation, for a script with nobody at the keyboard\n",
         "A directory holding anything needs %Lrecurse, and -r and -s do the same. Before removing a subtree, rmdir lists what"
         " would go, marks the locked entries and totals the blocks, then asks; %Lyes, or -y, answers it in advance."
-        " ProDOS disks only.",
+        " ProDOS and HFS disks only.",
         "CassoCli disk rmdir mydisk.po GAMES %Lrecurse %Lyes"
     },
 
