@@ -537,6 +537,8 @@ HRESULT FullSendSession::Pause()
 
     for (;;)
     {
+        ApplyBoots();
+
         m_state         = State::Paused;
         m_status.SetActivity (FullSendActivity::WaitingForDisk);
         m_screen.quip   = PickQuip();
@@ -569,6 +571,8 @@ HRESULT FullSendSession::Pause()
             CHR (hr);
             continue;
         }
+
+        m_unbooted.clear();
 
         if (key == FullSendKey::Space)
         {
@@ -629,6 +633,11 @@ std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 
 
 
     //  The notes, what to do, and a blank row before the quip.
+    for (const std::string & image : m_unbooted)
+    {
+        lines.push_back (std::format ("{} DID NOT BOOT, SEND IT AGAIN.", image));
+    }
+
     for (int d : { 1, 2 })
     {
         if (repeats[(size_t) d - 1] && m_swapped[(size_t) d - 1])
@@ -1570,6 +1579,34 @@ const FullSendRow * FullSendSession::FindWithImage (const std::function<bool (co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendSession::ApplyBoots
+//
+//  Each boot result that arrived since the last call is set in the manifest
+//  in memory, for a write of it before the next reload. The thread that
+//  booted the image writes the result to the manifest's file. An image that did not boot is listed on the
+//  Apple at the next pause, by its file name with no extension.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendSession::ApplyBoots()
+{
+    for (const std::pair<std::string, std::string> & boot : m_status.TakeBoots())
+    {
+        m_manifest.SetBoot (boot.first, boot.second);
+
+        if (boot.second == FullSendManifest::kBootDidNotBoot)
+        {
+            m_unbooted.push_back (boot.first.substr (0, boot.first.find_last_of ('.')));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendSession::WriteManifest
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1580,6 +1617,8 @@ HRESULT FullSendSession::WriteManifest()
     CommitPlan::Progress  progress;
 
 
+
+    ApplyBoots();
 
     hr = DurableCommit::Commit (m_fileIo, GetPath (FullSendManifest::kFileName), m_manifest.Format(), m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);

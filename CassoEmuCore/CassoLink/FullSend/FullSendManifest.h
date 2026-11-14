@@ -90,6 +90,10 @@ public:
     static constexpr const char *  kVerifyNone      = "none";
     static constexpr const char *  kVerifyFull      = "verified";
     static constexpr const char *  kVerifyPartial   = "partly-verified";
+    static constexpr const char *  kBootBooted      = "booted";
+    static constexpr const char *  kBootDidNotBoot  = "did-not-boot";
+    static constexpr const char *  kBootNotBootable = "not-bootable";
+    static constexpr const char *  kBootUnclear     = "unclear";
 
     //  ERROR_INVALID_DATA for anything but a whole manifest, with no rows then.
     HRESULT            Parse           (std::span<const Byte> bytes);

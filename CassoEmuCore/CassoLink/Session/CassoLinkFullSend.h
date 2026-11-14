@@ -48,6 +48,7 @@ public:
 
     //  The Full Send window's model of this connection's session.
     const FullSendStatus &  GetStatus () const { return m_status; }
+    FullSendStatus       &  GetStatus ()       { return m_status; }
 
 private:
     HRESULT  CheckStop     ();

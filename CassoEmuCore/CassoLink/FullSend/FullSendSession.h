@@ -274,6 +274,7 @@ private:
     HRESULT  SendDisk         (int drive, const CheckedDisk & checked, bool anyway);
     HRESULT  CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw);
     HRESULT  WriteImage       (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile);
+    void     ApplyBoots       ();
     HRESULT  WriteManifest    ();
     void     Report           (const std::string & text);
     void     MarkTracks       (int drive, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report);
@@ -311,6 +312,7 @@ private:
     std::array<bool, 2>         m_swapped    = { false, false };   // and of those, the disks that changed during their read
     std::array<std::string, 2>  m_counted;                         // the repeat each drive last added to the duplicates
     std::array<bool, 2>         m_blank      = { false, false };   // drives whose last check found a blank disk
+    std::vector<std::string>    m_unbooted;                        // images that did not boot, for the next pause's lines
     std::array<std::string, 2>  m_blankDisk;                       // the blank each drive last added to the blanks
     uint64_t                    m_commitTag  = 1;
     std::vector<Byte>           m_rawReads;                        // the last raw capture's reads, until its image is written

@@ -7,6 +7,7 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/ExplorerBootWorker.h"
 #include "CassoExplorer/ICassoExplorerHost.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
@@ -226,6 +227,7 @@ private:
 
     void                                     ConfigureBrowser     (CassoExplorerBrowser & browser);
     void                                     StartLinkFaults      ();
+    void                                     StartBootWorker      ();
     void                                     ReleaseClosedWindows ();
     static void                              CloseDialogs         ();
     static BOOL CALLBACK                     CloseDialog          (HWND hwnd, LPARAM param);
@@ -245,6 +247,8 @@ private:
     Win32ByteStreamFactory                    m_streams;
     CassoLinkFolder                           m_linkFolder;
     CassoLinkConnections                      m_links;
+    ThumbnailStore                            m_thumbnails     { ThumbnailStore::GetDefaultFolder() };
+    std::unique_ptr<ExplorerBootWorker>       m_bootWorker;
     Win32ProcessProbe                         m_processProbe;
     RunningCassoRegistry                      m_running;
     Win32NetworkChanges                       m_networkChanges;

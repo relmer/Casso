@@ -403,6 +403,14 @@ std::wstring FullSendPanel::DescribeTotals (const FullSendTotals & totals)
 
 std::wstring FullSendPanel::DescribeStatus (const FullSendRow & row)
 {
+    const wchar_t  * boot = row.boot == FullSendManifest::kBootBooted      ? L", boots"
+                          : row.boot == FullSendManifest::kBootDidNotBoot  ? L", did not boot"
+                          : row.boot == FullSendManifest::kBootNotBootable ? L", not bootable"
+                          : row.boot == FullSendManifest::kBootUnclear     ? L", may not boot"
+                                                                           : L"";
+
+
+
     if (row.status == FullSendManifest::kStatusDuplicate)
     {
         return L"Duplicate of " + TextEncoding::NarrowToWide (row.duplicateOf);
@@ -410,25 +418,25 @@ std::wstring FullSendPanel::DescribeStatus (const FullSendRow & row)
 
     if (row.status == FullSendManifest::kStatusRawCapture)
     {
-        return L"Raw capture";
+        return std::wstring (L"Raw capture") + boot;
     }
 
     if (row.status == FullSendManifest::kStatusProtected)
     {
-        return L"Likely copy-protected";
+        return std::wstring (L"Likely copy-protected") + boot;
     }
 
     if (row.unreadable != 0)
     {
-        return std::format (L"{} unreadable {}", row.unreadable, row.unreadable == 1 ? L"sector" : L"sectors");
+        return std::format (L"{} unreadable {}", row.unreadable, row.unreadable == 1 ? L"sector" : L"sectors") + boot;
     }
 
     if (row.unreliable != 0)
     {
-        return std::format (L"{} unreliable {}", row.unreliable, row.unreliable == 1 ? L"sector" : L"sectors");
+        return std::format (L"{} unreliable {}", row.unreliable, row.unreliable == 1 ? L"sector" : L"sectors") + boot;
     }
 
-    return row.verification == FullSendManifest::kVerifyFull ? L"Sent, verified" : L"Sent";
+    return std::wstring (row.verification == FullSendManifest::kVerifyFull ? L"Sent, verified" : L"Sent") + boot;
 }
 
 

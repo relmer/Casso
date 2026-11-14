@@ -485,6 +485,56 @@ void FullSendStatus::AddLine (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendStatus::SetBoot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::SetBoot (const std::string & file, const std::string & boot)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    for (FullSendDoneDisk & disk : m_snapshot.disks)
+    {
+        if (disk.row.file == file)
+        {
+            disk.row.boot = boot;
+        }
+    }
+
+    m_boots.push_back ({ file, boot });
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::TakeBoots
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<std::string, std::string>> FullSendStatus::TakeBoots()
+{
+    std::lock_guard                                   lock (m_lock);
+    std::vector<std::pair<std::string, std::string>>  boots = std::move (m_boots);
+
+
+
+    m_boots.clear();
+
+    return boots;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendStatus::AddTimedLine
 //
 //  Called with the lock taken.

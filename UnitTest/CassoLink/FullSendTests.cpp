@@ -949,6 +949,27 @@ public:
         Assert::IsTrue (rig.link.noted == std::vector<std::string> { "C:\\Box\\0001.woz" }, L"The image is noted for the boot check");
     }
 
+    //  A boot result arrives while the Apple is at a pause: an image that did
+    //  not boot is on the Apple at the pause after that one, once.
+    TEST_METHOD (Session_AnImageThatDidNotBoot_IsListedAtTheNextPause)
+    {
+        Rig          rig;
+        std::string  line = "0001 DID NOT BOOT, SEND IT AGAIN.";
+        auto         has  = [&line] (const std::vector<std::string> & lines) { return std::find (lines.begin(), lines.end(), line) != lines.end(); };
+
+        rig.link.drives[0]    = Other (1);
+        rig.link.present[1]   = false;
+        rig.link.beforeKey[1] = [&rig] (ScriptedLink &) { rig.status.SetBoot ("0001.dsk", FullSendManifest::kBootDidNotBoot); };
+        rig.link.keys         = { FullSendKey::Space, FullSendKey::Space };
+
+        rig.Run();
+
+        Assert::AreEqual ((size_t) 3, rig.link.pauseLines.size());
+        Assert::IsFalse (has (rig.link.pauseLines[0]), L"The result arrived after the first pause was drawn");
+        Assert::IsTrue (has (rig.link.pauseLines[1]), L"The next pause has the image");
+        Assert::IsFalse (has (rig.link.pauseLines[2]), L"And the one after it doesn't");
+    }
+
     //  A likely copy-protected disk is captured raw: its image is the WOZ, its
     //  row is a raw capture, and the session goes on. A damaged disk with a
     //  file system isn't captured.

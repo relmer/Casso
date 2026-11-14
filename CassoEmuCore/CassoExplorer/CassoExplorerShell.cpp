@@ -78,6 +78,8 @@ CassoExplorerShell::CassoExplorerShell()
 
     m_cards.SetConfirmWrite ([this] (const PhysicalDrive & drive) { return ConfirmCardWrite (drive); });
     m_cards.SetConfirmElevation ([this] (const PhysicalDrive & drive) { return ConfirmElevation (drive); });
+
+    StartBootWorker();
 }
 
 
@@ -100,6 +102,10 @@ CassoExplorerShell::~CassoExplorerShell()
 
 
 
+    //  The worker's thread calls into m_links, so it ends first.
+    m_links.SetImageHandler (nullptr);
+    m_bootWorker.reset();
+
     m_windows.clear();
 
     if (m_oleInitialized)
@@ -110,6 +116,43 @@ CassoExplorerShell::~CassoExplorerShell()
         OleUninitialize();
         m_oleInitialized = false;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::StartBootWorker
+//
+//  Each disk image a connection writes is booted with no window on the
+//  worker's thread, and the result goes to the connection it came through.
+//  A boot isn't put off while a connection is busy: a Full Send is a pending
+//  job for as long as its session lasts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::StartBootWorker()
+{
+    m_bootWorker = std::make_unique<ExplorerBootWorker> (m_thumbnails, BootCheck::BuildInstalled);
+
+    m_bootWorker->SetManifestIo (&m_fileIo);
+    m_bootWorker->SetDone ([this] (const ExplorerBootWorker::Result & result)
+    {
+        std::string  file = TextEncoding::WideToNarrow (std::filesystem::path (result.path).filename().wstring());
+        std::string  boot = result.hasReport ? BootProbe::GetVerdictName (result.verdict) : "";
+
+        if (!result.source.empty())
+        {
+            m_links.NoteBoot (result.source, file, boot, ExplorerBootWorker::Describe (result));
+        }
+    });
+
+    m_links.SetImageHandler ([this] (const std::string & link, const std::string & path, const std::string & model)
+    {
+        m_bootWorker->Queue (TextEncoding::NarrowToWide (path), model, link);
+    });
 }
 
 

@@ -138,7 +138,7 @@ void ExplorerBootWorker::SetLimits (const BootProbe::Limits & limits)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerBootWorker::Queue (const std::wstring & path, const std::string & model)
+void ExplorerBootWorker::Queue (const std::wstring & path, const std::string & model, const std::string & source)
 {
     {
         std::lock_guard  lock (m_lock);
@@ -149,7 +149,7 @@ void ExplorerBootWorker::Queue (const std::wstring & path, const std::string & m
             return;
         }
 
-        m_queue.push_back ({ path, model });
+        m_queue.push_back ({ path, model, source });
     }
 
     m_wake.notify_all();
@@ -281,6 +281,47 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerBootWorker::Describe
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ExplorerBootWorker::Describe (const Result & result)
+{
+    std::string  name    = TextEncoding::WideToNarrow (std::filesystem::path (result.path).filename().wstring());
+    std::string  machine = BootCheck::GetMachineName (result.machine);
+    std::string  text;
+
+
+
+    if (!result.hasReport)
+    {
+        text = std::format ("{} wasn't booted.", name);
+
+        for (const std::string & missing : result.missing)
+        {
+            text += " " + missing;
+        }
+
+        return text;
+    }
+
+    switch (result.verdict)
+    {
+        case BootVerdict::Booted:      text = std::format ("{} booted on the {}.", name, machine);                           break;
+        case BootVerdict::DidNotBoot:  text = std::format ("{} did not boot on the {}. {}", name, machine, result.reason);   break;
+        case BootVerdict::NotBootable: text = std::format ("{} is not a bootable disk. {}", name, result.reason);           break;
+        default:                       text = std::format ("{} may not boot on the {}. {}", name, machine, result.reason);   break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerBootWorker::Run
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -321,7 +362,8 @@ void ExplorerBootWorker::Run()
             }
         }
 
-        result = Check (item.path, item.model);
+        result        = Check (item.path, item.model);
+        result.source = item.source;
 
         {
             std::lock_guard  lock (m_lock);

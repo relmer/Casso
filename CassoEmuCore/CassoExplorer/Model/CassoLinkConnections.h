@@ -56,6 +56,18 @@ public:
     //  Whether a Full Send saves a raw capture's reads beside its image.
     void  SetFullSendReads  (bool on);
 
+    //  Called for each disk image a connection writes, a Full Send's or a
+    //  raw capture's, on the connection's thread: the connection, the
+    //  image's path and the model of the Apple.
+    using ImageFn = std::function<void (const std::string & link, const std::string & path, const std::string & model)>;
+
+    void  SetImageHandler   (ImageFn handler);
+
+    //  An image's boot result, from any thread: set in its row of the
+    //  connection's Full Send, with a line in that session's activity list
+    //  and in the activity log.
+    void  NoteBoot          (const std::string & link, const std::string & file, const std::string & boot, const std::string & text);
+
     //  Verified transfers for every connection that doesn't override them.
     void  SetVerifyDefaults (bool reads, bool writes, bool autoReads);
 
@@ -309,6 +321,7 @@ private:
         void  OnDone               (const std::shared_ptr<LinkOperation> & operation) override;
         bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override;
         bool  HasFullSendReadsOn   () override;
+        void  OnImageWritten       (const std::string & path, const std::string & model) override;
         void  OnOperationQueued    (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnActivity           (const std::string & text) override;
         void  OnTrace              (bool sent, const std::string & text) override;
@@ -389,6 +402,7 @@ private:
     bool                  m_verifyWrites       = false;
     bool                  m_autoVerify         = true;
     MakeFolderFn          m_makeFullSendFolder;
+    ImageFn               m_imageHandler;
     std::vector<Job>      m_jobs;
     std::deque<Activity>  m_activity;
     CassoLinkLogFile      m_logFile;

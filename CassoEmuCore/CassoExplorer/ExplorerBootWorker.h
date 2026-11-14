@@ -33,6 +33,7 @@ public:
     struct Result
     {
         std::wstring              path;
+        std::string               source;       // as given to Queue
         bool                      hasReport = false;
         BootVerdict               verdict   = BootVerdict::Unclear;
         std::string               reason;
@@ -55,8 +56,10 @@ public:
     void    SetLimits     (const BootProbe::Limits & limits);
 
     //  An image by its path, and the model of Apple it was captured from,
-    //  empty when that isn't known. A path already waiting isn't added.
-    void    Queue         (const std::wstring & path, const std::string & model);
+    //  empty when that isn't known. The source is returned with the result,
+    //  as the connection the image came through. A path already waiting
+    //  isn't added.
+    void    Queue         (const std::wstring & path, const std::string & model, const std::string & source = std::string());
 
     size_t  GetPending    () const;
 
@@ -66,11 +69,15 @@ public:
     //  One image: read, booted, stored. The thread's body, and a test's.
     Result  Check         (const std::wstring & path, const std::string & model);
 
+    //  A result as a line for an activity list.
+    static std::string  Describe (const Result & result);
+
 private:
     struct Item
     {
         std::wstring  path;
         std::string   model;
+        std::string   source;
     };
 
     void  Run ();

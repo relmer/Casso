@@ -198,6 +198,12 @@ public:
         row.status = FullSendManifest::kStatusRawCapture;
         Assert::AreEqual (std::wstring (L"Raw capture"), FullSendPanel::DescribeStatus (row));
 
+        row.boot = FullSendManifest::kBootBooted;
+        Assert::AreEqual (std::wstring (L"Raw capture, boots"), FullSendPanel::DescribeStatus (row));
+
+        row.boot = FullSendManifest::kBootDidNotBoot;
+        Assert::AreEqual (std::wstring (L"Raw capture, did not boot"), FullSendPanel::DescribeStatus (row));
+
         row.status      = FullSendManifest::kStatusDuplicate;
         row.duplicateOf = "0001 HELLO.dsk";
         Assert::AreEqual (std::wstring (L"Duplicate of 0001 HELLO.dsk"), FullSendPanel::DescribeStatus (row));

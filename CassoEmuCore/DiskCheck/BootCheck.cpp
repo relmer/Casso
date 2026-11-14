@@ -147,6 +147,26 @@ std::string BootCheck::GetMachineId (const std::string & model)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BootCheck::GetMachineName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BootCheck::GetMachineName (const std::string & machineId)
+{
+    return machineId == "Apple2c" ? "Apple //c"
+         : machineId == kEnhanced ? "enhanced Apple //e"
+         : machineId == "Apple2e" ? "Apple //e"
+         : machineId == kPlus     ? "Apple ][+"
+         : machineId == "Apple2"  ? "Apple ]["
+                                  : machineId;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BootCheck::GetMachines
 //
 ////////////////////////////////////////////////////////////////////////////////
