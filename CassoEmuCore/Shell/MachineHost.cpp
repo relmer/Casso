@@ -1293,3 +1293,103 @@ void MachineHost::StopTape()
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::FindFloppy35
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Sony35Drive * MachineHost::FindFloppy35 (int slot, int drive)
+{
+    Sony35Drive  * found = nullptr;
+    size_t         index = (size_t) drive;
+
+
+
+    if (slot == 0 && m_refs.apple2cPlusDiskPort != nullptr)
+    {
+        if (drive == 0)
+        {
+            found = &m_refs.apple2cPlusDiskPort->GetInternalDrive();
+        }
+        else if (index - 1 < m_refs.apple2cPlusDiskPort->GetPort().GetDriveCount())
+        {
+            found = &m_refs.apple2cPlusDiskPort->GetPort().GetDrive (index - 1).GetMechanism();
+        }
+    }
+    else if (slot == 0 && m_refs.apple2cSmartPort != nullptr && index < m_refs.apple2cSmartPort->GetPort().GetDriveCount())
+    {
+        found = &m_refs.apple2cSmartPort->GetPort().GetDrive (index).GetMechanism();
+    }
+
+    for (LironCard * card : m_refs.lironCards)
+    {
+        if (card->GetSlot() == slot && index < card->GetDriveCount())
+        {
+            found = &card->GetDrive (index).GetMechanism();
+        }
+    }
+
+    for (Apple35ControllerCard * card : m_refs.apple35Cards)
+    {
+        if (card->GetSlot() == slot && (drive == 0 || drive == 1))
+        {
+            found = &card->GetCardMemory().GetDrive (drive);
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::InsertFloppy35
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::InsertFloppy35 (int slot, int drive, const std::string & path, std::wstring & outError)
+{
+    HRESULT        hr     = S_OK;
+    Sony35Drive  * target = FindFloppy35 (slot, drive);
+
+
+
+    CBREx (target != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    hr = target->Insert (GetBlockMediaFileIo(), path, ProbeBlockMedia (path), outError);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::EjectFloppy35
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::EjectFloppy35 (int slot, int drive)
+{
+    HRESULT        hr     = S_OK;
+    Sony35Drive  * target = FindFloppy35 (slot, drive);
+
+
+
+    CBREx (target != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    hr = target->Eject();
+    CHR (hr);
+
+Error:
+    return hr;
+}

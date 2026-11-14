@@ -95,6 +95,11 @@ public:
     virtual HRESULT  ToggleImageWriteProtect  (int drive)                            = 0;
     virtual void     ResolvePendingChange     (int slot, int drive, int action,
                                                const std::string & savePath)        = 0;
+
+    //  A 3.5-inch drive's disk, by its card's slot and drive (MachineHost::
+    //  FindFloppy35).
+    virtual void     InsertFloppy35           (int slot, int drive, const std::string & path) = 0;
+    virtual void     EjectFloppy35            (int slot, int drive)                            = 0;
 };
 
 

@@ -74,6 +74,11 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
             IGNORE_RETURN_VALUE (hr, S_OK);
             break;
 
+        case IDM_FLOPPY35_INSERT:
+        case IDM_FLOPPY35_EJECT:
+            DispatchFloppy35 (cmd, targets.disks);
+            break;
+
         case IDM_DISK_EJECT1:
         case IDM_DISK_EJECT2:
             targets.disks.EjectDisk ((cmd.id == IDM_DISK_EJECT1) ? 0 : 1);
@@ -412,4 +417,41 @@ void CpuCommandDispatcher::DispatchNetworkConfigure (const std::string & payload
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchFloppy35
+//
+//  The payload is "slot drive" for an eject and "slot drive path" for an
+//  insert.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchFloppy35 (const EmulatorCommand & cmd, ICpuDiskCommands & disks)
+{
+    int     slot     = 0;
+    int     drive    = 0;
+    int     consumed = 0;
+    int     fields   = sscanf_s (cmd.payload.c_str(), "%d %d %n", &slot, &drive, &consumed);
+
+
+
+    if (fields != 2)
+    {
+        return;
+    }
+
+    if (cmd.id == IDM_FLOPPY35_INSERT)
+    {
+        disks.InsertFloppy35 (slot, drive, cmd.payload.substr ((size_t) consumed));
+    }
+    else
+    {
+        disks.EjectFloppy35 (slot, drive);
+    }
 }

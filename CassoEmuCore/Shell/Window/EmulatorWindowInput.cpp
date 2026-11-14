@@ -1792,6 +1792,13 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
             driveTook = true;
         }
 
+        // The 3.5-inch drive beside the stack picks a disk for its drive.
+        else if (!inStrip && m_scene->IsSideDeviceFloppy() && PtInRect (&m_scene->m_deskScene.Composition().hardDiskRectPx, pt))
+        {
+            m_scene->BrowseSideDevice();
+            driveTook = true;
+        }
+
         m_scene->m_stripBrowseOpen = false;
     }
     else

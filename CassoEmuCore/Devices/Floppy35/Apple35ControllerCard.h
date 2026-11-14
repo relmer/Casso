@@ -74,6 +74,7 @@ public:
     Apple35CardMemory  & GetCardMemory () { return m_memory; }
     DeviceCpu          & GetCardCpu    () { return m_cpu; }
     SlotRomPage        & GetSlotPage   () { return m_slotPage; }
+    int                  GetSlot       () const { return m_slot; }
     Byte                 GetBank       () const { return m_bank; }
 
 private:

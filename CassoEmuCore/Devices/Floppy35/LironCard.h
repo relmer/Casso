@@ -73,6 +73,7 @@ public:
     SmartPortBus    & GetBus        () { return m_port.GetBus(); }
     Iwm             & GetIwm        () { return m_port.GetIwm(); }
     SlotRomPage     & GetSlotPage   () { return m_slotPage; }
+    int               GetSlot       () const { return m_slot; }
 
 private:
     static constexpr Word  kSlotIoBase   = 0xC080;

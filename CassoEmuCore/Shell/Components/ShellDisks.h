@@ -89,6 +89,8 @@ public:
     void     EjectDisk               (int drive) override;
     HRESULT  ToggleImageWriteProtect (int drive) override;
     void     ResolvePendingChange    (int slot, int drive, int action, const std::string & savePath) override;
+    void     InsertFloppy35          (int slot, int drive, const std::string & path) override;
+    void     EjectFloppy35           (int slot, int drive) override;
 
     // IDriveCommandSink
     // UI-thread entry points the drive widgets call into when the user

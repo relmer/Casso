@@ -58,7 +58,13 @@ public:
     enum class SideDevice { None, Scsi, ProFile, UniDisk35, Apple35 };
 
     static SideDevice  ChooseSideDevice    (const MachineRefs & refs);
+    static int         GetSideDeviceSlot   (const MachineRefs & refs, SideDevice side);
     bool               IsSideDeviceBusy    (uint64_t now, uint64_t windowCycles) const;
+    bool               IsSideDeviceFloppy  () const { return m_sideDevice == SideDevice::UniDisk35 || m_sideDevice == SideDevice::Apple35; }
+
+    // Opens the file dialog for the 3.5-inch side device's first drive and
+    // inserts the chosen image.
+    void               BrowseSideDevice    ();
 
     // The overlays drawn over the scene, which the chrome hides and lays out
     // with the rest of what sits over the picture, and the user's framing.

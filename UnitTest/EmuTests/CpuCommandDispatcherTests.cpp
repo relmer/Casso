@@ -234,6 +234,24 @@ public:
     }
 
 
+    //  A 3.5-inch drive's insert has its slot, drive and a path with
+    //  spaces; an eject has the slot and drive.
+    TEST_METHOD (Floppy35InsertAndEjectReachTheDisks)
+    {
+        Notebook  target;
+
+
+
+        Dispatch (IDM_FLOPPY35_INSERT, "5 1 C:\\My Disks\\800k disk.po", target);
+        Dispatch (IDM_FLOPPY35_EJECT,  "0 0", target);
+        Dispatch (IDM_FLOPPY35_EJECT,  "junk", target);
+
+        Assert::AreEqual ((size_t) 2, target.calls.size());
+        Assert::AreEqual (std::string ("InsertFloppy35 5 1 C:\\My Disks\\800k disk.po"), target.calls[0]);
+        Assert::AreEqual (std::string ("EjectFloppy35 0 0"), target.calls[1]);
+    }
+
+
     TEST_METHOD (AChangeResolutionThatDoesNotParseAsksForNothing)
     {
         Notebook  target;
@@ -404,6 +422,16 @@ private:
         void     ResolvePendingChange (int slot, int drive, int action, const std::string & savePath) override
         {
             calls.push_back (std::format ("ResolvePendingChange {} {} {} {}", slot, drive, action, savePath));
+        }
+
+        void     InsertFloppy35 (int slot, int drive, const std::string & path) override
+        {
+            calls.push_back (std::format ("InsertFloppy35 {} {} {}", slot, drive, path));
+        }
+
+        void     EjectFloppy35 (int slot, int drive) override
+        {
+            calls.push_back (std::format ("EjectFloppy35 {} {}", slot, drive));
         }
 
         void     SetDriveAudioEnabled (bool enabled) override

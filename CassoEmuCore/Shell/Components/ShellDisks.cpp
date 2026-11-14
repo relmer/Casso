@@ -1723,3 +1723,48 @@ void ShellDisks::ResolvePendingChange (int slot, int drive, int action, const st
 {
     m_shell.m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InsertFloppy35
+//
+//  CPU thread. A disk that doesn't go in is reported in a notice, and the
+//  drive stays empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::InsertFloppy35 (int slot, int drive, const std::string & path)
+{
+    std::wstring  error;
+    HRESULT       hr = m_shell.m_machine.InsertFloppy35 (slot, drive, path, error);
+
+
+
+    if (FAILED (hr))
+    {
+        m_shell.m_chrome->PostNotice (error.empty() ? std::wstring (L"The disk could not be inserted.") : error);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EjectFloppy35
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::EjectFloppy35 (int slot, int drive)
+{
+    HRESULT  hr = m_shell.m_machine.EjectFloppy35 (slot, drive);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}

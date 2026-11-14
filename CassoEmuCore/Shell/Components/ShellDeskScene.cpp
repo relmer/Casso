@@ -3302,3 +3302,69 @@ bool ShellDeskScene::IsSideDeviceBusy (uint64_t now, uint64_t windowCycles) cons
 
     return busy;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetSideDeviceSlot
+//
+//  The slot MachineHost::FindFloppy35 takes for the side device's drives: its
+//  card's slot, or 0 for the //c disk port.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDeskScene::GetSideDeviceSlot (const MachineRefs & refs, SideDevice side)
+{
+    int  slot = 0;
+
+
+
+    if (side == SideDevice::UniDisk35 && !refs.lironCards.empty())
+    {
+        slot = refs.lironCards[0]->GetSlot();
+    }
+    else if (side == SideDevice::Apple35 && refs.apple2cPlusDiskPort == nullptr && !refs.apple35Cards.empty())
+    {
+        slot = refs.apple35Cards[0]->GetSlot();
+    }
+
+    return slot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::BrowseSideDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::BrowseSideDevice()
+{
+    HRESULT         hr     = S_OK;
+    FileDialogSpec  spec;
+    fs::path        chosen;
+    bool            picked = false;
+    int             slot   = GetSideDeviceSlot (m_shell.m_machine.GetRefs(), m_sideDevice);
+
+
+
+    BAIL_OUT_IF (!IsSideDeviceFloppy(), S_OK);
+
+    spec.filters = { { L"3.5-inch disk image", L"*.po;*.2mg;*.2img;*.dc;*.dc42;*.image;*.dsk;*.woz" }, { L"All files", L"*.*" } };
+
+    hr = m_shell.m_hostDialogs.PickFileToOpen (m_shell.m_hwnd, spec, chosen, picked);
+    CHR (hr);
+    BAIL_OUT_IF (!picked, S_OK);
+
+    hr = m_shell.m_disks->Mount (slot, 0, chosen.wstring());
+    CHR (hr);
+
+Error:
+    return;
+}

@@ -317,6 +317,14 @@ public:
     //  a notice; cleared at each build.
     std::vector<std::wstring> &  GetBlockMediaProblems () noexcept { return m_blockMediaProblems; }
 
+    //  The 3.5-inch drive at `drive` of the UniDisk 3.5 or 3.5 controller
+    //  card in `slot`, or for slot 0 the //c disk port's: the //c Plus's
+    //  internal drive as drive 0, then the drives on the chain. Null for a
+    //  slot or drive without one. Inserting or ejecting runs on the CPU thread.
+    class Sony35Drive *  FindFloppy35   (int slot, int drive);
+    HRESULT              InsertFloppy35 (int slot, int drive, const std::string & path, std::wstring & outError);
+    HRESULT              EjectFloppy35  (int slot, int drive);
+
     //  Where the stock hard disk image is made and found; empty leaves an
     //  HD20SC that lists "stock" without an image.
     void                 SetStockImageFolder (const std::string & folder) { m_stockImageFolder = folder; }
