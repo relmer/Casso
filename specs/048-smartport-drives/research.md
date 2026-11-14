@@ -91,10 +91,10 @@ slot 6):
   drive at ID 1 was attached in that run), and 2.8 s with the card and the blank
   hard disk at ID 6.
 
-**Risk for the owner**: FR-014c allows 1 second. MAME's card adds 1.4 to 2.7
-seconds. Part of that is the ROM's selection timeout for each empty SCSI
+**Owner's decision (2026-11-13)**: the delay is accepted and the SCSI card
+stays on by default. MAME's card adds 1.4 to 2.7 seconds. Part of that is the ROM's selection timeout for each empty SCSI
 ID, which is 6502 code and runs at the speed of the CPU. Casso's figure with
-real timing off is unknown until the card runs. See R18.
+real timing off is measured once the card runs (R18).
 
 **To verify**: the card on a ][+ and an unenhanced //e. MAME's ROMs for those
 machines are not installed here, so the check is a boot on Casso's ][+ and
@@ -340,10 +340,9 @@ blank boot block. The //c's default does not change.
 - A missing card ROM on a default card is a notice, not a failed start: the
   machine runs without that card (FR-016).
 
-**Boot delay (FR-014c)**: measured figures are in R5. The first SCSI boot task
-measures Casso's figure with real timing off. If it is over 1 second, the
-choice goes back to the owner: accept the figure, ship the SCSI card disabled,
-or run the CPU unthrottled while the card's ROM scans the bus.
+**Boot delay (FR-014c)**: MAME's figures are in R5. A SCSI boot task measures
+Casso's figure with real timing off and writes it into `validation.md`. The
+owner set no limit on it.
 
 ## R19. Host machines for each card
 

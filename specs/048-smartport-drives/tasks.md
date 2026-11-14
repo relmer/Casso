@@ -88,7 +88,7 @@ card in Casso.
 - [ ] T021 [US1] Implement `AppleScsiCard` in `CassoEmuCore/Devices/BlockDevice/AppleScsiCard.h/.cpp`, and register `apple-scsi-card` and `hd20sc` in `CassoEmuCore/Core/ComponentRegistry.cpp`
 - [ ] T022 [US1] Boot Apple's ROM on the card in a test machine with a command log on the SCSI target, and write the commands the ROM and ProDOS issue into `research.md` R5; add any command missing from T018 and T019
 - [ ] T023 [US1] Scenario tests in `ScenarioTests/BlockDeviceBootTests.cpp`: each image of spec 033's MAME table boots on the SCSI card in slot 7 of an enhanced //e to the same screen; images at two IDs are both online; a file written by the guest is in the image afterward and spec 033's integrity check reports it clean; with no image attached, and with a blank-boot-block image attached, the floppy in slot 6 boots
-- [ ] T024 [US1] Measure Casso's emulated time from power-on to the first instruction of the Disk II boot ROM with real timing off, in the three setups of research R5 (no card, card with no disk, card with the blank-boot disk), write the figures into `research.md` R18, and report them to the owner if the card adds over 1 second (FR-014c)
+- [ ] T024 [US1] Measure Casso's emulated time from power-on to the first instruction of the Disk II boot ROM with real timing off, in the three setups of research R5 (no card, card with no disk, card with the blank-boot disk), and write the figures into `validation.md` beside MAME's from research R5 (FR-014c)
 - [ ] T025 [US1] Boot the card on Casso's ][+ and unenhanced //e, set the card's host-machine list from the result, and write it into `research.md` R19
 - [ ] T026 [US1] Run each image in MAME with `scripts/MameSnapshot.ps1` and in Casso, and write the comparison into `specs/048-smartport-drives/validation.md` (FR-026, SC-001)
 
@@ -235,7 +235,7 @@ runs on machines as they ship today.
 - [ ] T096 Implement `StockHardDiskImage` in `CassoEmuCore/Devices/BlockDevice/StockHardDiskImage.h/.cpp` through the code `casso disk create --size 32M` runs, and resolve `"image": "stock"` to it in `MachineConfig`
 - [ ] T097 [P] Tests in `UnitTest/EmuTests/MachineConfigUpgradeTests.cpp`: the //e and enhanced //e defaults have the SCSI card in slot 7 with an `hd20sc` at ID 6 on the stock image and the Liron card in slot 5 with one `unidisk35`, enabled; a user copy with slot 5 or 7 configured is not changed in that slot; a user copy with them unconfigured gains the entries; the //c default is not changed
 - [ ] T098 Add the two slot entries to `Resources/Machines/Apple2e/Apple2e.json` and `Resources/Machines/Apple2eEnhanced/Apple2eEnhanced.json`, raise `$cassoMachineVersion`, and update `MachineConfigUpgrade` in `CassoEmuCore/Core/MachineConfigUpgrade.h/.cpp`
-- [ ] T099 Update `TestMachine`'s `Slots::AsShipped` and every test that depends on the as-shipped slots, and add scenario tests in `ScenarioTests/BlockDeviceBootTests.cpp`: an as-shipped //e and enhanced //e boot a floppy in slot 6 first, the stock volume is online in ProDOS, and the added boot time is within the limit the owner accepted in T024
+- [ ] T099 Update `TestMachine`'s `Slots::AsShipped` and every test that depends on the as-shipped slots, and add scenario tests in `ScenarioTests/BlockDeviceBootTests.cpp`: an as-shipped //e and enhanced //e boot a floppy in slot 6 first, and the stock volume is online in ProDOS
 - [ ] T100 Check the startup download path in `AssetBootstrap` and `StartupDownloadDialog`: the two default cards' ROMs are fetched with the machine ROMs, and a failed download results in a notice and a machine that runs without that card
 
 ---
@@ -303,8 +303,7 @@ runs on machines as they ship today.
   for a device can follow that device's phase.
 - Phase 9 (desk, audio, events): models (T078-T081) can start any time;
   wiring follows each device's phase.
-- Phase 10 (defaults) depends on Phases 3 and 6, and on the owner's answer to
-  the boot delay figure from T024.
+- Phase 10 (defaults) depends on Phases 3 and 6.
 - Phase 11 is last.
 
 ## Parallel opportunities

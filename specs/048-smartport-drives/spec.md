@@ -59,8 +59,8 @@ the interaction, sound and event log the Disk II already has.
   4 MHz and the Machine tab displays 4 MHz, not 1. "2x" is 8 MHz. "Max" is max.
 - Q: Are the new cards part of a machine's default setup? A: Yes, on by
   default on the //e and enhanced //e: the SCSI card in slot 7 with an HD20SC,
-  and the UniDisk 3.5 interface card in slot 5 with a UniDisk 3.5. An empty
-  card must add little to a floppy boot.
+  and the UniDisk 3.5 interface card in slot 5 with a UniDisk 3.5. The time the
+  cards add to a floppy boot is measured and reported, with no limit set.
 - Q: What does the default HD20SC contain? A: A stock image: an empty ProDOS
   volume with a blank boot block, so it is not bootable and floppies boot as
   they do today. A bootable image the user attaches boots ahead of the floppy,
@@ -395,9 +395,9 @@ lamp, the tip, the clicks, the sounds and the log against the Disk II.
   attached, a floppy in slot 6 MUST boot as it does without the card. If
   Apple's SCSI ROM does not pass over a disk with a blank boot block, the
   default HD20SC ships with no image.
-- **FR-014c**: With the default cards enabled and no bootable hard disk, the
-  time from power-on to the start of a floppy boot MUST be within 1 second of
-  the time without the cards.
+- **FR-014c**: The time the default cards add to a floppy boot MUST be
+  measured and written into this spec's `validation.md`. It has no limit; the
+  owner accepted the delay of Apple's ROM scanning the SCSI bus.
 - **FR-015**: The Machine tab MUST offer a card only on a machine that can host
   it, and MUST state why a card is unavailable in its tip.
 - **FR-016**: A missing ROM MUST be reported with the file name and the places

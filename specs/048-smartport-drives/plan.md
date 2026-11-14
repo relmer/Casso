@@ -32,9 +32,9 @@ remaining "to verify" item has a task ahead of the code that depends on it.
 
 Two owner decisions from the clarify pass affect every machine: the //e and
 enhanced //e ship with the SCSI card and the Liron card enabled, and the
-default HD20SC has a stock empty image (research R18). MAME measurements put
-the SCSI card's added boot time over the 1 second FR-014c allows, so the first
-SCSI boot task measures Casso's figure and the result goes to the owner.
+default HD20SC has a stock empty image (research R18). In MAME the SCSI card
+adds 1.4 to 2.7 seconds to a floppy boot. The owner accepted that delay, so
+Casso's figure is measured and written up, with no limit.
 
 ## Technical Context
 
