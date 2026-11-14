@@ -221,6 +221,29 @@ public:
 
 
 
+    //  A //c draws small letters as sent, and an inverse row's as capitals,
+    //  as the inverse characters have no small letters.
+    TEST_METHOD (ASessionScreen_HasSmallLetters_AndInverseCapitals)
+    {
+        ProgramRig                rig (Dos33());
+        std::vector<std::string>  rows    = { "Full Send", std::string ("\xC1\xE2\xE3", 3) };
+        std::string               inverse = std::string ("\x01\x02\x03", 3);
+        std::string               screen;
+
+
+
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+        AssertSucceeded (rig.host->SendSessionScreen (true, 0, rows));
+        AssertSucceeded (rig.host->SendSessionScreen (true, 0, rows));
+
+        screen = ReadScreen (rig);
+
+        Assert::IsTrue (screen.find ("Full Send") != std::string::npos, L"The small letters are drawn");
+        Assert::IsTrue (screen.find (inverse) != std::string::npos, L"The inverse row is drawn in capitals");
+    }
+
+
+
     //  The row for an image being booted is drawn on the Apple, and the
     //  tones for a boot result sound: each takes the cycles of its notes
     //  longer than a screen with no tone, the buzz longer than the beeps.
@@ -234,7 +257,7 @@ public:
         ProgramRig                rig (Dos33());
         FullSendScreen            session;
         std::vector<std::string>  kRows;
-        std::string  wanted = "D1: VALIDATING IMAGE ON PC, PLEASE WAIT";
+        std::string  wanted = "D1: Validating image on PC, please wait";
         std::string  screen;
         uint64_t     start  = 0;
         uint64_t     quiet  = 0;
@@ -279,7 +302,7 @@ public:
     //  40-column row and is drawn while the Apple waits for Space.
     TEST_METHOD (ThePauseAfterAFailedBoot_IsDrawnOnTheApple)
     {
-        static const std::vector<std::string>  kLines = { "0024 DID NOT BOOT. CAPTURE IT AGAIN", "OR PUT IN A NEW DISK, THEN PRESS SPACE.", "0025 STILL DOES NOT BOOT." };
+        static const std::vector<std::string>  kLines = { "0024 did not boot. Capture it again", "or put in a new disk, then press Space.", "0025 STILL DOES NOT BOOT." };
 
         ProgramRig   rig (Dos33());
         std::string  screen;

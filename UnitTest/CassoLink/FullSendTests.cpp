@@ -762,14 +762,14 @@ public:
 
         std::vector<std::string>  rows = screen.GetRows();
 
-        Assert::AreEqual (std::string ("FULL SEND    VERIFY: OFF  PREFIX: NONE"), rows[0]);
-        Assert::AreEqual (std::string ("SENT 12   DUP 0   BAD 0"), rows[1]);
+        Assert::AreEqual (std::string ("Full Send    Verify: off  Prefix: none"), rows[0]);
+        Assert::AreEqual (std::string ("Sent 12   Dup 0   Bad 0"), rows[1]);
         Assert::AreEqual (std::string (40, '-'), rows[2]);
-        Assert::AreEqual (std::string ("D1: SENDING 13 GAMES DISK"), rows[3]);
-        Assert::AreEqual (std::string ("D2: ON DECK--INSERT A DISK TO SEND NEXT"), rows[5]);
+        Assert::AreEqual (std::string ("D1: Sending 13 GAMES DISK"), rows[3]);
+        Assert::AreEqual (std::string ("D2: On deck--Insert a disk to send next"), rows[5]);
 
         screen.quip = 6;
-        Assert::AreEqual (std::string ("D2: ON DECK--FEED ME, SEYMOUR!"), screen.GetRows()[5]);
+        Assert::AreEqual (std::string ("D2: On deck--Feed me, Seymour!"), screen.GetRows()[5]);
     }
 
     TEST_METHOD (Session_ScreenName_HasNoLeadingZeros_AndTheMapMarksABadTrack)
@@ -930,7 +930,7 @@ public:
         Assert::IsTrue (rig.io.files.empty() || !rig.io.files.contains ("C:\\Box\\0001.dsk"), L"No image");
         Assert::IsTrue (session->GetManifest().GetRows().empty(), L"No row");
         Assert::IsTrue (session->GetScreen().drives[0] == FullSendDriveState::Blank);
-        Assert::IsTrue (session->GetScreen().GetRows()[3].starts_with ("D1: DOS 3.3, BLANK"), TextEncoding::NarrowToWide (session->GetScreen().GetRows()[3]).c_str());
+        Assert::IsTrue (session->GetScreen().GetRows()[3].starts_with ("D1: DOS 3.3, blank"), TextEncoding::NarrowToWide (session->GetScreen().GetRows()[3]).c_str());
 
         FullSendSnapshot  snapshot = rig.status.GetSnapshot();
 
@@ -967,7 +967,7 @@ public:
     TEST_METHOD (Session_AnImageThatDidNotBoot_IsListedAtTheNextPause)
     {
         Rig          rig;
-        std::string  line = "0007 DID NOT BOOT.";
+        std::string  line = "0007 did not boot.";
         auto         has  = [&line] (const std::vector<std::string> & lines) { return std::find (lines.begin(), lines.end(), line) != lines.end(); };
 
         rig.link.drives[0]    = Other (1);
@@ -1007,7 +1007,7 @@ public:
                         L"No tone for the result unless the Apple has them on");
         Assert::IsTrue (rig.link.screens.back().drives[0] != FullSendDriveState::Validating);
         Assert::AreEqual ((size_t) 1, rig.link.pauseLines.size());
-        Assert::IsTrue (std::find (rig.link.pauseLines[0].begin(), rig.link.pauseLines[0].end(), "0001 DID NOT BOOT. CAPTURE IT AGAIN") != rig.link.pauseLines[0].end());
+        Assert::IsTrue (std::find (rig.link.pauseLines[0].begin(), rig.link.pauseLines[0].end(), "0001 did not boot. Capture it again") != rig.link.pauseLines[0].end());
     }
 
     //  Space with the disk that did not boot in its drive reads it again,
@@ -1031,9 +1031,9 @@ public:
         Assert::AreEqual ((size_t) 2, rig.link.captures.size(), L"Captured, and captured again");
         Assert::AreEqual (1, rig.link.capturesWithEarlier, L"The second with the reads of the first");
         Assert::AreEqual ((size_t) 3, rig.link.pauseLines.size());
-        Assert::IsTrue (has (rig.link.pauseLines[0], "0001 DID NOT BOOT. CAPTURE IT AGAIN"));
-        Assert::IsTrue (has (rig.link.pauseLines[1], "0002 STILL DOES NOT BOOT."));
-        Assert::IsFalse (has (rig.link.pauseLines[2], "0002 STILL DOES NOT BOOT."), L"Space after that is a repeat's");
+        Assert::IsTrue (has (rig.link.pauseLines[0], "0001 did not boot. Capture it again"));
+        Assert::IsTrue (has (rig.link.pauseLines[1], "0002 still does not boot."));
+        Assert::IsFalse (has (rig.link.pauseLines[2], "0002 still does not boot."), L"Space after that is a repeat's");
         Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001.woz") && rig.io.files.contains ("C:\\Box\\0002.woz"), L"Each capture has its image");
         Assert::AreEqual ((size_t) 2, session->GetManifest().GetRows().size());
     }
@@ -1170,8 +1170,8 @@ public:
         booted.Run();
         bootstrapped.Run();
 
-        Assert::AreEqual (std::string ("REMOVE THE CASSOLINK DISK"), booted.link.entryLines[4]);
-        Assert::AreEqual (std::string ("INSERT DISKS TO BE SENT INTO THE DRIVES"), bootstrapped.link.entryLines[4]);
+        Assert::AreEqual (std::string ("Remove the CassoLink disk"), booted.link.entryLines[4]);
+        Assert::AreEqual (std::string ("Insert disks to be sent into the drives"), bootstrapped.link.entryLines[4]);
     }
 
     //  Space with the disk just sent still in the drive changes nothing.
@@ -1187,8 +1187,8 @@ public:
 
         Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1 }));
         Assert::AreEqual (0, session->GetScreen().duplicates);
-        Assert::AreEqual (std::string ("D1 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines.back()[0]);
-        Assert::AreEqual (std::string ("OR PRESS 1 TO SEND D1 ANYWAY."), rig.link.pauseLines.back()[4]);
+        Assert::AreEqual (std::string ("D1 may already have been sent."), rig.link.pauseLines.back()[0]);
+        Assert::AreEqual (std::string ("or press 1 to send D1 anyway."), rig.link.pauseLines.back()[4]);
     }
 
     //  Two Apples sending to one folder at once: the second session runs from
@@ -1247,7 +1247,7 @@ public:
         second.Run();
 
         Assert::IsTrue   (second.link.diskReads.empty(), L"The disk the first session sent isn't read again");
-        Assert::AreEqual (std::string ("D1 MAY ALREADY HAVE BEEN SENT."), second.link.pauseLines.back()[0]);
+        Assert::AreEqual (std::string ("D1 may already have been sent."), second.link.pauseLines.back()[0]);
     }
 
     //  A protected disk whose catalog track has no sector that reads: the read
@@ -1280,7 +1280,7 @@ public:
         Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1, 1 }));
         Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "0001.dsk", "0002.dsk", "manifest.fullsend" }));
         Assert::AreEqual (0, session->GetScreen().duplicates);
-        Assert::AreEqual (std::string ("D1: SENT 2"), session->GetScreen().GetRows()[3]);
+        Assert::AreEqual (std::string ("D1: Sent 2"), session->GetScreen().GetRows()[3]);
     }
 
     TEST_METHOD (Session_DriveKey_WithNoDiskListed_DoesNothing)
@@ -1307,10 +1307,10 @@ public:
         rig.Run();
 
         //  The drive just sent isn't checked again before the first pause.
-        Assert::AreEqual (std::string ("D1 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines[0][0]);
-        Assert::AreEqual (std::string ("D1: DUPE OF 0001.dsk?"), rig.link.screens[rig.link.screens.size() - 1].GetRows()[3]);
-        Assert::AreEqual (std::string ("D1 AND D2 MAY ALREADY HAVE BEEN SENT."), rig.link.pauseLines[1][0]);
-        Assert::AreEqual (std::string ("OR PRESS 1 OR 2 TO SEND D1 OR D2 ANYWAY."), rig.link.pauseLines[1][4]);
+        Assert::AreEqual (std::string ("D1 may already have been sent."), rig.link.pauseLines[0][0]);
+        Assert::AreEqual (std::string ("D1: Dupe of 0001.dsk?"), rig.link.screens[rig.link.screens.size() - 1].GetRows()[3]);
+        Assert::AreEqual (std::string ("D1 and D2 may already have been sent."), rig.link.pauseLines[1][0]);
+        Assert::AreEqual (std::string ("or press 1 or 2 to send D1 or D2 anyway."), rig.link.pauseLines[1][4]);
         Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1, 2, 2 }));
     }
 
@@ -1501,9 +1501,9 @@ public:
 
         Assert::AreEqual (std::string ("BOX-"), session->GetPrefix());
         Assert::IsTrue   (rig.io.files.contains ("C:\\Box\\BOX-0001 HELLO.dsk"));
-        Assert::AreEqual (std::string ("PREFIX: _"), rig.link.typedLines[0][1]);
-        Assert::AreEqual (std::string ("PREFIX: BOX-_"), rig.link.typedLines.back()[1]);
-        Assert::AreEqual (std::string ("P: FILE NAME PREFIX: BOX-"), rig.link.pauseLines[0][2]);
+        Assert::AreEqual (std::string ("Prefix: _"), rig.link.typedLines[0][1]);
+        Assert::AreEqual (std::string ("Prefix: BOX-_"), rig.link.typedLines.back()[1]);
+        Assert::AreEqual (std::string ("P: File name prefix: BOX-"), rig.link.pauseLines[0][2]);
     }
 
     TEST_METHOD (Session_PrefixLine_EscPutsThePrefixBack)
@@ -1519,7 +1519,7 @@ public:
         auto  session = rig.Run();
 
         Assert::AreEqual (std::string ("OLD-"), session->GetPrefix());
-        Assert::AreEqual (std::string ("PREFIX: OLDX_"), rig.link.typedLines.back()[1]);
+        Assert::AreEqual (std::string ("Prefix: OLDX_"), rig.link.typedLines.back()[1]);
     }
 
     TEST_METHOD (Title_Prefix_IsCleaned_AndEmptyAddsNothing)    {
@@ -1595,7 +1595,7 @@ public:
         auto  session = rig.Run();
 
         Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "0001.dsk", "0002.dsk", "manifest.fullsend" }));
-        Assert::AreEqual (std::string ("D1: SENT 2, DUPE OF 0001.dsk"), session->GetScreen().GetRows()[3]);
+        Assert::AreEqual (std::string ("D1: Sent 2, dupe of 0001.dsk"), session->GetScreen().GetRows()[3]);
 
         const auto  & rows = session->GetManifest().GetRows();
 

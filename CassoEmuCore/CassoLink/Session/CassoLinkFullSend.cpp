@@ -54,7 +54,7 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
 
     operation.message         = session.GetMessage();
     operation.imagePrefix     = session.GetPrefix();
-    operation.fullSendSummary = std::format ("{} SENT, {} BAD, {} DUP", session.GetScreen().sent, session.GetScreen().bad, session.GetScreen().duplicates);
+    operation.fullSendSummary = std::format ("{} sent, {} bad, {} dup", session.GetScreen().sent, session.GetScreen().bad, session.GetScreen().duplicates);
     m_session.m_sink.OnActivity (operation.message);
     m_operation       = nullptr;
 

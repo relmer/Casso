@@ -921,7 +921,7 @@ HRESULT CassoLinkHost::SendLabel (const std::string & text)
             break;
         }
 
-        label.push_back ((ch >= ' ' && ch <= '~') ? (Byte) toupper ((unsigned char) ch) : (Byte) '?');
+        label.push_back (ToAppleChar (ch, false));
     }
 
     hr = AwaitReady();
@@ -958,7 +958,7 @@ HRESULT CassoLinkHost::SendLog (int hour, int minute, const std::string & text)
             break;
         }
 
-        line.push_back ((ch >= ' ' && ch <= '~') ? (Byte) toupper ((unsigned char) ch) : (Byte) '?');
+        line.push_back (ToAppleChar (ch, false));
     }
 
     hr = AwaitReady();
@@ -1023,7 +1023,7 @@ HRESULT CassoLinkHost::SendSessionScreen (bool active, Byte tone, const std::vec
 
             ch &= 0x7F;
 
-            screen.push_back ((ch >= ' ' && ch <= '~') ? (Byte) (toupper (ch) | inverse) : (Byte) '?');
+            screen.push_back ((ch >= ' ' && ch <= '~') ? (Byte) (ToAppleChar ((char) ch, inverse != 0) | inverse) : (Byte) '?');
         }
 
         screen.push_back (0);
@@ -1098,7 +1098,7 @@ HRESULT CassoLinkHost::WaitForKeyOnce (const std::vector<std::string> & lines, B
     {
         for (size_t i = 0; i < line.size() && i < CassoLinkCodec::kSessionRowLength; i++)
         {
-            prompt.push_back ((line[i] >= ' ' && line[i] <= '~') ? (Byte) toupper ((unsigned char) line[i]) : (Byte) '?');
+            prompt.push_back (ToAppleChar (line[i], false));
         }
 
         prompt.push_back (0);
@@ -1829,6 +1829,47 @@ HRESULT CassoLinkHost::LoadProgram()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::ToAppleChar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte CassoLinkHost::ToAppleChar (char ch, bool isInverse) const
+{
+    Byte  byte = (Byte) ch;
+    bool  caps = isInverse || !m_client.HasLowercase();
+
+
+
+    return (byte < ' ' || byte > '~') ? (Byte) '?' : caps ? (Byte) toupper (byte) : byte;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkClient::HasLowercase
+//
+//  $FBB3 is 6 on a //e, a //c and a IIgs, and $38 on a ][ and a ][+.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkClient::HasLowercase() const
+{
+    static constexpr Byte  kFamilyIIe = 0x06;
+
+
+
+    return hasRomId && romId[0] == kFamilyIIe;
 }
 
 

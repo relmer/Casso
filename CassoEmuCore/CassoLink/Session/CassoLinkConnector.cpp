@@ -331,7 +331,7 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     columns = m_session.m_host->SetColumns (!m_session.m_settings.use40);
     IGNORE_RETURN_VALUE (columns, S_OK);
 
-    logged = LogOnApple ("PC CONNECTED");
+    logged = LogOnApple ("PC connected");
     IGNORE_RETURN_VALUE (logged, S_OK);
 
 Error:

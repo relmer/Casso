@@ -77,6 +77,10 @@ struct CassoLinkClient
 
     //  The model the bytes identify, as Apple //c (ROM 4); empty without them.
     std::wstring  GetModelName () const;
+
+    //  True for a //e, //c or IIgs, whose screen has small letters; false
+    //  for a ][ or ][+, and without the bytes.
+    bool          HasLowercase () const;
 };
 
 struct CassoLinkStatus
@@ -199,6 +203,11 @@ public:
     //  made.
     bool             HasAdtProClient () const { return m_adtProServer.m_adtProClient; }
     CassoLinkClient  GetClient       () const { return m_client; }
+
+    //  A character of text for the Apple's screen: ? for one outside
+    //  printable ASCII, and a capital for inverse text or an Apple with no
+    //  small letters.
+    Byte             ToAppleChar     (char ch, bool isInverse) const;
 
     //  How long since the last byte arrived from the Apple.
     DWORD    GetSilenceMs () const;

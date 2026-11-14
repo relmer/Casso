@@ -853,7 +853,7 @@ void CassoLinkSession::StartFullSendFromApple()
     }
     else
     {
-        logged = m_connector.LogOnApple ("ERR FULL SEND: NO FOLDER ON THE PC");
+        logged = m_connector.LogOnApple ("ERR Full Send: no folder on the PC");
         IGNORE_RETURN_VALUE (logged, S_OK);
     }
 }
@@ -954,26 +954,26 @@ std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation
 
     switch (operation.kind)
     {
-        case LinkOperationKind::Enumerate:       text = path.empty() ? std::format ("{} THE CATALOG OF {}", finished ? "READ" : "READING", drive)
-                                                                     : std::format ("{} {}", finished ? "LISTED" : "LISTING", path);       break;
-        case LinkOperationKind::ReadFile:        text = std::format ("{} {} FROM {}", finished ? "COPIED" : "COPYING", path, drive);         break;
-        case LinkOperationKind::WriteFile:       text = std::format ("{} {} TO {}", finished ? "COPIED" : "COPYING", path, drive);           break;
-        case LinkOperationKind::Delete:          text = std::format ("{} {}", finished ? "DELETED" : "DELETING", path);                     break;
-        case LinkOperationKind::Rename:          text = std::format ("{} {} TO {}", finished ? "RENAMED" : "RENAMING", path, operation.newName); break;
-        case LinkOperationKind::SetAttributes:   text = std::format ("{} {}", finished ? "CHANGED" : "CHANGING", path);                     break;
-        case LinkOperationKind::MakeDirectory:   text = std::format ("{} FOLDER {}", finished ? "MADE" : "MAKING", path);                   break;
-        case LinkOperationKind::RemoveDirectory: text = std::format ("{} FOLDER {}", finished ? "DELETED" : "DELETING", path);              break;
-        case LinkOperationKind::ReadDisk:        text = std::format ("{} {} TO PC", finished ? "SENT" : "SENDING", drive);                  break;
+        case LinkOperationKind::Enumerate:       text = path.empty() ? std::format ("{} the catalog of {}", finished ? "Read" : "Reading", drive)
+                                                                     : std::format ("{} {}", finished ? "Listed" : "Listing", path);       break;
+        case LinkOperationKind::ReadFile:        text = std::format ("{} {} from {}", finished ? "Copied" : "Copying", path, drive);         break;
+        case LinkOperationKind::WriteFile:       text = std::format ("{} {} to {}", finished ? "Copied" : "Copying", path, drive);           break;
+        case LinkOperationKind::Delete:          text = std::format ("{} {}", finished ? "Deleted" : "Deleting", path);                     break;
+        case LinkOperationKind::Rename:          text = std::format ("{} {} to {}", finished ? "Renamed" : "Renaming", path, operation.newName); break;
+        case LinkOperationKind::SetAttributes:   text = std::format ("{} {}", finished ? "Changed" : "Changing", path);                     break;
+        case LinkOperationKind::MakeDirectory:   text = std::format ("{} folder {}", finished ? "Made" : "Making", path);                   break;
+        case LinkOperationKind::RemoveDirectory: text = std::format ("{} folder {}", finished ? "Deleted" : "Deleting", path);              break;
+        case LinkOperationKind::ReadDisk:        text = std::format ("{} {} to PC", finished ? "Sent" : "Sending", drive);                  break;
         case LinkOperationKind::WriteDisk:       text = !operation.formatted.empty()
-                                                          ? std::format ("{} {} IN D{}", finished ? "FORMATTED" : "FORMATTING", operation.formatted, operation.drive)
-                                                          : std::format ("{} IMAGE {} TO D{}", finished ? "WROTE" : "WRITING", image, operation.drive); break;
-        case LinkOperationKind::CheckLinkDisk:   text = std::format ("{} THE DISK IN {}", finished ? "CHECKED" : "CHECKING", drive);        break;
-        case LinkOperationKind::FullSend:        text = !finished                         ? std::string ("FULL SEND TO PC")
-                                                      : operation.fullSendSummary.empty() ? std::string ("FULL SEND DONE")
-                                                                                          : "FULL SEND: " + operation.fullSendSummary; break;
-        case LinkOperationKind::Krunch:          text = std::format ("{} {}", finished ? "KRUNCHED" : "KRUNCHING", drive);                 break;
-        case LinkOperationKind::CaptureDisk:     text = std::format ("{} {} TO PC", finished ? "CAPTURED" : "CAPTURING", drive);            break;
-        default:                                 text = "WORKING";                                                                          break;
+                                                          ? std::format ("{} {} in D{}", finished ? "Formatted" : "Formatting", operation.formatted, operation.drive)
+                                                          : std::format ("{} image {} to D{}", finished ? "Wrote" : "Writing", image, operation.drive); break;
+        case LinkOperationKind::CheckLinkDisk:   text = std::format ("{} the disk in {}", finished ? "Checked" : "Checking", drive);        break;
+        case LinkOperationKind::FullSend:        text = !finished                         ? std::string ("Full Send to PC")
+                                                      : operation.fullSendSummary.empty() ? std::string ("Full Send done")
+                                                                                          : "Full Send: " + operation.fullSendSummary; break;
+        case LinkOperationKind::Krunch:          text = std::format ("{} {}", finished ? "Krunched" : "Krunching", drive);                 break;
+        case LinkOperationKind::CaptureDisk:     text = std::format ("{} {} to PC", finished ? "Captured" : "Capturing", drive);            break;
+        default:                                 text = "Working";                                                                          break;
     }
 
     return text;
@@ -1001,7 +1001,7 @@ std::string CassoLinkSession::DescribeDrive (int drive, const std::optional<Volu
     }
     else if (listing.has_value() && listing->hasVolumeNumber)
     {
-        text += std::format (" (VOL {})", listing->volumeNumber);
+        text += std::format (" (vol {})", listing->volumeNumber);
     }
 
     return text;
