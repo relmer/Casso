@@ -2,6 +2,7 @@
 
 
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "DiskCheck/BootSounds.h"
 #include "AssetBootstrap.h"
 #include "BuildInfo.h"
 #include "Core/TextEncoding.h"
@@ -136,7 +137,9 @@ CassoExplorerShell::~CassoExplorerShell()
 
 void CassoExplorerShell::StartBootWorker()
 {
-    m_bootWorker = std::make_unique<ExplorerBootWorker> (m_thumbnails, BootCheck::BuildInstalled);
+    m_bootedSound    = BootSounds::MakeBooted();
+    m_notBootedSound = BootSounds::MakeDidNotBoot();
+    m_bootWorker     = std::make_unique<ExplorerBootWorker> (m_thumbnails, BootCheck::BuildInstalled);
 
     m_bootWorker->SetManifestIo (&m_fileIo);
     m_bootWorker->SetDone ([this] (const ExplorerBootWorker::Result & result)
@@ -151,6 +154,11 @@ void CassoExplorerShell::StartBootWorker()
         else if (!result.source.empty())
         {
             m_links.NoteBoot (result.source, result.renamedFrom, boot, ExplorerBootWorker::Describe (result), file);
+        }
+
+        if (!result.source.empty() && result.hasReport)
+        {
+            PlayBootSound (result.verdict);
         }
 
         if (result.hasReport)
@@ -182,6 +190,34 @@ void CassoExplorerShell::QueueBoot (const std::wstring & path)
     if (m_bootWorker != nullptr)
     {
         m_bootWorker->Queue (path, std::string());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::PlayBootSound
+//
+//  The sound for an image a connection wrote, where Options has the sounds
+//  on. A sound in progress, as a cassette bootstrap's is, isn't stopped for
+//  it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::PlayBootSound (BootVerdict verdict)
+{
+    const std::vector<Byte>  * sound = verdict == BootVerdict::Booted     ? &m_bootedSound
+                                     : verdict == BootVerdict::DidNotBoot ? &m_notBootedSound
+                                                                          : nullptr;
+
+
+
+    if (sound != nullptr && !sound->empty() && m_prefs.bootSounds)
+    {
+        PlaySoundW ((LPCWSTR) sound->data(), nullptr, SND_MEMORY | SND_ASYNC | SND_NOSTOP | SND_NODEFAULT);
     }
 }
 

@@ -230,6 +230,7 @@ private:
     void                                     StartLinkFaults      ();
     void                                     StartBootWorker      ();
     void                                     QueueBoot            (const std::wstring & path);
+    void                                     PlayBootSound        (BootVerdict verdict);
     void                                     ReleaseClosedWindows ();
     static void                              CloseDialogs         ();
     static BOOL CALLBACK                     CloseDialog          (HWND hwnd, LPARAM param);
@@ -251,6 +252,8 @@ private:
     CassoLinkConnections                      m_links;
     ThumbnailStore                            m_thumbnails     { ThumbnailStore::GetDefaultFolder() };
     std::unique_ptr<ExplorerBootWorker>       m_bootWorker;
+    std::vector<Byte>                         m_bootedSound;     // each as a WAV file, computed once
+    std::vector<Byte>                         m_notBootedSound;
     DiskImagePictures                         m_pictures       { m_thumbnails, [this] (const std::wstring & path) { QueueBoot (path); } };
     Win32ProcessProbe                         m_processProbe;
     RunningCassoRegistry                      m_running;

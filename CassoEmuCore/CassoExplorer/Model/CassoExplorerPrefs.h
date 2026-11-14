@@ -78,6 +78,9 @@ struct CassoExplorerPrefs
     bool                   verifyWrites = false;
     bool                   autoVerify   = true;
 
+    //  A sound for the boot result of each image a connection writes.
+    bool                   bootSounds   = true;
+
 
     //  Each folder's view as last chosen, most recent first. A folder with
     //  none opens in its type's view, as Explorer's do; the single listView

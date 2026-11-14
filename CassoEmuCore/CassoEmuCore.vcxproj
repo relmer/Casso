@@ -281,6 +281,7 @@
     <ClCompile Include="DiskCheck\BootCheck.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerBootWorker.cpp" />
     <ClCompile Include="DiskCheck\BootTitle.cpp" />
+    <ClCompile Include="DiskCheck\BootSounds.cpp" />
     <ClCompile Include="DiskCheck\BootProbe.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendDisk.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendManifest.cpp" />
@@ -1781,6 +1782,7 @@
     <ClInclude Include="DiskCheck\BootCheck.h" />
     <ClInclude Include="CassoExplorer\ExplorerBootWorker.h" />
     <ClInclude Include="DiskCheck\BootTitle.h" />
+    <ClInclude Include="DiskCheck\BootSounds.h" />
     <ClInclude Include="DiskCheck\BootProbe.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendDisk.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendManifest.h" />
