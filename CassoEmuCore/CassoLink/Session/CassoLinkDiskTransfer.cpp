@@ -46,6 +46,7 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
     std::vector<Byte>         module;
     CassoLinkCapture::Result  result;
     CommitPlan::Progress      progress;
+    bool                      hasData  = false;
     std::string               date     = std::format ("{:%Y-%m-%dT%H:%M:%SZ}", std::chrono::floor<std::chrono::seconds> (std::chrono::system_clock::now()));
     auto                      listTracks = [] (const std::vector<int> & positions)
     {
@@ -70,12 +71,14 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
 
     //  A capture with no track that repeats is an empty drive or a disk with
     //  nothing written on it, and no image is written for it.
-    if (result.streams.empty())
+    hasData = !result.streams.empty();
+
+    if (!hasData)
     {
         operation.message = std::format ("Nothing was found on the disk in drive {}, so no image was written. The drive may be empty, or the disk unformatted.", operation.drive);
     }
 
-    CBREx (!result.streams.empty(), HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+    CBREx (hasData, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
 
     m_session.Report (operation, 100);
 
