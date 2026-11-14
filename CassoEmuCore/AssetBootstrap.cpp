@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "AssetBootstrap.h"
 #include "Shell/RepoCheckout.h"
 #include "Config/GlobalUserPrefs.h"
@@ -88,6 +89,10 @@ struct RomSpec
     // in its place; anything else, including a regional variant the user
     // chose, is left alone.
     string_view  supersededSha256 = {};
+
+    // SHA-256 the download must have; empty checks the size only. A download
+    // that does not match is not written.
+    string_view  expectedSha256   = {};
 };
 
 
@@ -138,6 +143,43 @@ static constexpr RomSpec s_kRomCatalog[] =
       "mirrors.apple2.org.za",
       "/Apple%20II%20Documentation%20Project/Interface%20Cards/Serial/Apple%20II%20Super%20Serial%20Card/ROM%20Images/Apple%20II%20Super%20Serial%20Card%20ROM%20-%20341-0065-A.bin",
       "apple2.org.za" },
+    // The SmartPort and hard disk cards' firmware and the //c Plus ROMs, from
+    // the same mirror, each with the SHA-256 the download must match: MAME's
+    // files for the SCSI card, the 3.5 controller card and the //c Plus, the
+    // a2-liron disassembly's for the Liron card and the UniDisk 3.5, and the
+    // first fetch's for the ProFile cards.
+    { "",                 "341-0437-A.rom",        "",                           "Devices/AppleScsiCard",     16384, "Apple II SCSI Card ROM (341-0437-A)",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Interface%20Cards/SCSI%20Controllers/Apple%20II%20SCSI%20Card/ROM%20Images/Apple%20II%20SCSI%20Card%20ROM%20Rev.%20C%20-%20341-0437-A.bin",
+      "apple2.org.za", {}, "5e1efe51b2c8be901ab4283c671bd84364a574845b7269f92bdddc4dae9ae5d5" },
+    { "",                 "341-0438-A.rom",        "",                           "Devices/Apple35Card",       32768, "Apple II 3.5 Disk Controller Card ROM (341-0438-A)",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Interface%20Cards/Disk%20Drive%20Controllers/Apple%20II%203.5%20Disk%20Controller%20Card/ROM%20Images/Apple%20II%203.5%20Disk%20Controller%20Card%20ROM%20-%20341-0438-A.bin",
+      "apple2.org.za", {}, "084587835c1d2c92f5708a9745fdd43ba32136fcdb861a12ee7d690de22dc172" },
+    { "",                 "Liron.rom",             "",                           "Devices/LironCard",          4096, "UniDisk 3.5 interface card ROM",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Interface%20Cards/Disk%20Drive%20Controllers/Apple%203.5%20Floppy%20Disk%20Drive%20Interface%20Card/ROM%20Images/Apple%203.5%20Floppy%20Disk%20Drive%20Interface%20Card%20ROM.bin",
+      "apple2.org.za", {}, "42c1ae66c6bec932669239599eb8989a5364752d56fa5c8997bb23d8dfc0b657" },
+    { "",                 "UniDisk35.rom",         "",                           "Devices/UniDisk35",          8192, "UniDisk 3.5 drive controller ROM",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Peripherals/Disk%20Drives/Apple%20UniDisk%203.5/ROM%20Images/Apple%20UniDisk%203.5%20ROM.bin",
+      "apple2.org.za", {}, "9f9f9160938f0b69c6f532f9acf194e3b48de8b195b6b47faad8423d6c1e3cce" },
+    { "",                 "341-0271-A.rom",        "",                           "Devices/ProFileCard",        2048, "ProFile interface card ROM, 5 MB (341-0271-A)",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Interface%20Cards/Hard%20Disk%20Drive%20Controllers/Apple%20II%20ProFile%20Interface%20Card/ROM%20Images/Apple%20II%20Interface%20341-0271-A%20ROM%202716%20for%205MB%20Profile.bin",
+      "apple2.org.za", {}, "6cfb995ff58ac3414fdd9f905563e1c9d57bf8fc4066c08c2480a24538897ae3" },
+    { "",                 "341-0299-B.rom",        "",                           "Devices/ProFileCard",        2048, "ProFile interface card ROM, 10 MB (341-0299-B)",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Interface%20Cards/Hard%20Disk%20Drive%20Controllers/Apple%20II%20ProFile%20Interface%20Card/ROM%20Images/Apple%20II%20Interface%20341-0299-B%20ROM%202716%20for%2010MB%20Profile.bin",
+      "apple2.org.za", {}, "b920145fb5999e35d73c1b861d770c7f02d96eb773ccb8de2b8491c6ca3272e2" },
+    { "Apple2cPlus",      "Apple2cPlus.rom",       "",                           "Machines/Apple2cPlus",      32768, "Apple //c Plus ROM 05 (342-0625-A)",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIc%20plus/ROM%20Images/Apple%20IIc%20plus%20ROM%2005%20-%20342-0625-A%20-%201988.bin",
+      "apple2.org.za", {}, "5a62070f6a0b07784681d4df4bf2ce88b2809bec0cbaa65fcb963e804ed60374" },
+    { "Apple2cPlus",      "Apple2cPlus_Video.rom", "",                           "Machines/Apple2cPlus",       4096, "Apple //c Plus Character Generator + MouseText (342-0265-A)",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIc%20plus/ROM%20Images/Apple%20IIc%20plus%20Video%20ROM%20-%20342-0265-A.bin",
+      "apple2.org.za", {}, "52c3b87900ac939f6525402cab1ccfd8f8259290fc6df54da48fb4c98ae3ed0f" },
 };
 
 
@@ -595,6 +637,40 @@ Error:
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CheckRomSha256
+//
+//  A downloaded ROM against the SHA-256 its catalog row lists. A row with
+//  none passes; a mismatch fails with the file's name, and the caller then
+//  writes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT CheckRomSha256 (const RomSpec & spec, const vector<Byte> & payload, string & outError)
+{
+    HRESULT  hr      = S_OK;
+    string   bytes   (reinterpret_cast<const char *> (payload.data()), payload.size());
+    string   hex;
+    bool     matches = false;
+
+
+
+    BAIL_OUT_IF (spec.expectedSha256.empty(), S_OK);
+
+    hex     = MachineConfigUpgrade::BytesToHex (ComputeSha256 (bytes));
+    matches = hex == spec.expectedSha256;
+
+    CBRF (matches, outError = format ("The download of {} doesn't match its checksum, so it was not saved.", spec.cassoName));
+
+Error:
+    return hr;
 }
 
 
@@ -2327,6 +2403,9 @@ HRESULT AssetBootstrap::DownloadOptionalRom (
                        outError);
     CHR (hr);
 
+    hr = CheckRomSha256 (*spec, payload, outError);
+    CHR (hr);
+
     outPath = GetAssetBaseDirectory() / string (spec->localRelDir) / string (spec->cassoName);
     fs::create_directories (outPath.parent_path(), ec);
 
@@ -3915,6 +3994,9 @@ static StartupAssetEntry::DownloadFn MakeRomDownloadFn (const RomSpec * spec, fs
                            &cancel);
         CHR (hr);
 
+        hr = CheckRomSha256 (*spec, payload, err);
+        CHR (hr);
+
         fs::create_directories (destPath.parent_path(), ecLocal);
         hr = WriteFileBytes (destPath, payload);
         CHRF (hr, err = format ("Cannot write {}", destPath.string()));
@@ -4026,6 +4108,115 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryGetCatalogRom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssetBootstrap::TryGetCatalogRom (string_view cassoName, size_t & outSize, bool & outHasSha256)
+{
+    const RomSpec  * spec = FindRomSpec ("", cassoName);
+
+
+
+    outSize      = spec != nullptr ? spec->expectedSize : 0;
+    outHasSha256 = spec != nullptr && !spec->expectedSha256.empty();
+
+    return spec != nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddCardRomEntries
+//
+//  A row for each SmartPort or hard disk card ROM the machine's enabled
+//  cards list and the asset folders don't have. Each can be unchecked: the
+//  machine runs without the card, whose slot scan then passes over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssetBootstrap::AddCardRomEntries (
+    HINSTANCE                hInstance,
+    const wstring          & machineName,
+    const vector<fs::path> & searchPaths,
+    const fs::path         & assetBaseDir,
+    StartupDownloadSet     & set)
+{
+    HRESULT            hr     = S_OK;
+    JsonValue          merged;
+    string             error;
+    const JsonValue  * slots  = nullptr;
+    bool               hasArr = false;
+    bool               loaded = false;
+
+
+
+    hr     = LoadMergedConfig (hInstance, machineName, merged, error);
+    loaded = SUCCEEDED (hr);
+    BAIL_OUT_IF (!loaded, S_OK);
+
+    hasArr = merged.HasArray ("slots", slots);
+    BAIL_OUT_IF (!hasArr, S_OK);
+
+    for (size_t i = 0; i < slots->GetArraySize(); i++)
+    {
+        const JsonValue      & slot    = slots->GetArrayElement (i);
+        const BlockCardSpec  * card    = nullptr;
+        const RomSpec        * spec    = nullptr;
+        string                 device;
+        string                 rom;
+        bool                   enabled = true;
+        StartupAssetEntry      entry;
+
+
+
+        if (slot.GetType() != JsonType::Object || !slot.HasString ("device", device))
+        {
+            continue;
+        }
+
+        card = BlockDeviceCatalog::FindCard (device);
+
+        if (card == nullptr || (slot.HasBool ("enabled", enabled) && !enabled))
+        {
+            continue;
+        }
+
+        rom  = slot.HasString ("rom", rom) ? rom : string (card->defaultFirmware);
+        spec = FindRomSpec ("", rom);
+
+        if (spec == nullptr || !PathResolver::FindFile (searchPaths, fs::path (string (spec->localRelDir)) / spec->cassoName).empty())
+        {
+            continue;
+        }
+
+        entry.kind          = StartupAssetKind::Rom;
+        entry.groupLabel    = L"Card ROMs";
+        entry.displayName   = AsciiToWide (spec->description);
+        entry.kindLabel     = L"ROM";
+        entry.source        = AsciiToWide (spec->sourceLabel);
+        entry.selectable    = true;
+        entry.selected      = true;
+        entry.destPaths.push_back (assetBaseDir / string (spec->localRelDir) / spec->cassoName);
+        entry.expectedBytes = (std::uint64_t) spec->expectedSize;
+        entry.downloadFn    = MakeRomDownloadFn (spec, entry.destPaths.front());
+
+        set.entries.push_back (std::move (entry));
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RunStartupDownloader
 //
 //  Unified entry point: scans for every missing ROM and every missing
@@ -4115,6 +4306,8 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
         set.entries.push_back (std::move (entry));
     }
+
+    AddCardRomEntries (hInstance, machineName, searchPaths, assetBaseDir, set);
 
     if (considerDiskAudio && prefs.audioDownloadConsent != "decline")
     {

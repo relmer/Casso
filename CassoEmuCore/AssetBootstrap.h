@@ -319,9 +319,20 @@ public:
     // size the catalog lists.
     static bool      IsOptionalRomInstalled (string_view cassoName);
 
+    // A device ROM's row in the download catalog: its size, and whether a
+    // download is checked against a SHA-256. False when there is no row.
+    static bool      TryGetCatalogRom      (string_view cassoName, size_t & outSize, bool & outHasSha256);
+
 private:
     static HRESULT  LoadMergedConfig      (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            JsonValue              & outMerged,
                                            string                 & outError);
+
+    // The startup download rows for the machine's missing card ROMs.
+    static void     AddCardRomEntries     (HINSTANCE                hInstance,
+                                           const wstring          & machineName,
+                                           const vector<fs::path> & searchPaths,
+                                           const fs::path         & assetBaseDir,
+                                           struct StartupDownloadSet & set);
 };

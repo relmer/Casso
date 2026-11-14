@@ -8,6 +8,7 @@
 #include "EmbeddedMachineConfigs.h"
 #include "EmbeddedMachineJson.h"
 #include "Core/TextEncoding.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -34,6 +35,33 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 TEST_CLASS (AssetBootstrapTests)
 {
 public:
+
+    //  EVERY SMARTPORT AND HARD DISK CARD'S FIRMWARE IS IN THE DOWNLOAD
+    //  CATALOG, at the size the card takes and with a SHA-256 the download is
+    //  checked against. The sweep is over the card table, so a card added
+    //  without a catalog row fails here.
+    TEST_METHOD (Catalog_HasEveryCardsFirmwareWithAChecksum)
+    {
+        std::span<const BlockCardSpec>  cards = BlockDeviceCatalog::GetCards();
+
+
+
+        Assert::IsTrue (cards.size() > 0, L"a sweep over an empty table checks nothing");
+
+        for (const BlockCardSpec & card : cards)
+        {
+            size_t  size      = 0;
+            bool    hasSha256 = false;
+            bool    found     = AssetBootstrap::TryGetCatalogRom (card.defaultFirmware, size, hasSha256);
+
+
+
+            Assert::IsTrue   (found, TextEncoding::NarrowToWide (card.defaultFirmware).c_str());
+            Assert::AreEqual (card.firmwareSize, size);
+            Assert::IsTrue   (hasSha256);
+        }
+    }
+
 
     TEST_METHOD (Embedded_AppleII_RequiresSystemCharacterAndDisk2Rom)
     {
