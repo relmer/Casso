@@ -231,17 +231,11 @@ public:
 
 
 
-    TEST_METHOD (TheClearQuestion_HasTheCountOfThumbnailsTheUserSet)
+    //  The confirmation's question is about the thumbnails made by booting;
+    //  its checkbox has the count of those the user set.
+    TEST_METHOD (TheClearConfirmation_HasACheckboxWithTheCountTheUserSet)
     {
-        std::wstring  none = DiskImagePictures::GetClearQuestion (0);
-        std::wstring  one  = DiskImagePictures::GetClearQuestion (1);
-        std::wstring  many = DiskImagePictures::GetClearQuestion (3);
-
-
-
-        Assert::IsTrue (one.starts_with (none));
-        Assert::IsTrue (one.find (L"1 thumbnail ") != std::wstring::npos);
-        Assert::IsTrue (many.find (L"3 thumbnails ") != std::wstring::npos);
-        Assert::IsTrue (none.find (L"\n") == std::wstring::npos, L"No count with none");
+        Assert::IsTrue (DiskImagePictures::GetClearQuestion().find (L"booting") != std::wstring::npos);
+        Assert::AreEqual (std::wstring (L"Also remove manually assigned thumbnails (3)"), DiskImagePictures::GetClearCheck (3));
     }
 };

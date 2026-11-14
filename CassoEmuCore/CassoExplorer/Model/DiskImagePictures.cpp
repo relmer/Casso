@@ -477,22 +477,24 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DiskImagePictures::GetClearQuestion (int userSet)
+std::wstring DiskImagePictures::GetClearQuestion()
 {
-    std::wstring  question = L"Remove every thumbnail made by booting a disk image? An image is booted again for a new one the next time it's in view.";
+    return L"Remove every thumbnail Casso Explorer captured by booting a disk image? Each image is booted again for a new one the next time it's in view.";
+}
 
 
 
-    if (userSet == 1)
-    {
-        question += L"\n\n1 thumbnail was set in Casso or with CassoCli. Remove it too?";
-    }
-    else if (userSet > 1)
-    {
-        question += std::format (L"\n\n{} thumbnails were set in Casso or with CassoCli. Remove them too?", userSet);
-    }
 
-    return question;
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::GetClearCheck
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskImagePictures::GetClearCheck (int userSet)
+{
+    return std::format (L"Also remove manually assigned thumbnails ({})", userSet);
 }
 
 

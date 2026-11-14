@@ -10,6 +10,7 @@
 #include "Theme/IDxuiTheme.h"
 #include "Theme/DxuiColor.h"
 #include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiCheckbox.h"
 
 
 
@@ -41,6 +42,8 @@ static constexpr int  s_kGlyphSizeDip    =  28;
 // the glyph in too small a cell and clips the top of the icon.
 static constexpr int  s_kGlyphRowDip     =  44;
 static constexpr int  s_kLineHeightDip   =  20;
+static constexpr int  s_kCheckRowDip     =  28;   // the checkbox's row under the text
+static constexpr int  s_kCheckGapDip     =  12;   // between the text and the checkbox
 static constexpr int  s_kChromeHeightDip = 124;   // caption + button row + a margin above and below the content
 static constexpr int  s_kMinHeightDip    = 148;
 static constexpr int  s_kMaxHeightDip    = 560;
@@ -67,11 +70,34 @@ public:
         m_severity = severity;
     }
 
+    //  A checkbox under the text, for a box that has one.
+    void  SetCheck (const std::wstring & label, bool checked)
+    {
+        m_check.SetLabel   (label);
+        m_check.SetChecked (checked);
+
+        m_hasCheck = true;
+        Adopt (m_check);
+    }
+
+    void  SetOnCheckChange (DxuiCheckbox::ChangeFn change) { m_check.SetOnChange (std::move (change)); }
+
+    //  The text above the checkbox's row, and the row at the bottom, under
+    //  the text's column.
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
     {
+        int  textLeft = boundsPx.left + (m_severity != DxuiMessageSeverity::None ? scaler.ToPx (s_kIconColDip) + scaler.ToPx (s_kIconTextGapDip) : 0);
+        int  rowTop   = boundsPx.bottom - scaler.ToPx (s_kCheckRowDip);
+
         m_bounds = boundsPx;
         m_scaler = scaler;
         SetBounds (boundsPx);
+
+        if (m_hasCheck)
+        {
+            m_bounds.bottom = rowTop - scaler.ToPx (s_kCheckGapDip);
+            m_check.Layout (RECT { textLeft, rowTop, boundsPx.right, boundsPx.bottom }, scaler);
+        }
     }
 
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override
@@ -79,8 +105,6 @@ public:
         HRESULT  hr      = S_OK;
         RECT     tr      = m_bounds;
         bool     laidOut = false;
-
-        UNREFERENCED_PARAMETER (painter);
 
         if (m_severity != DxuiMessageSeverity::None)
         {
@@ -153,6 +177,11 @@ true);
 
             hr = text.PopClipRect();
             IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        if (m_hasCheck)
+        {
+            m_check.Paint (painter, text, theme);
         }
     }
 
@@ -232,6 +261,8 @@ private:
     RECT                 m_bounds    = {};
     DxuiDpiScaler        m_scaler;
     int                  m_overrunPx = 0;
+    DxuiCheckbox         m_check     { L"" };
+    bool                 m_hasCheck  = false;
 };
 
 
@@ -245,7 +276,8 @@ private:
 //  The text wrapped at the width Paint draws it at, beside the glyph column
 //  when there is a glyph, measured as Paint lays it out: a message with
 //  semibold runs a word at a time, as PaintRuns draws it. The glyph row is
-//  the floor for a short message.
+//  the floor for a short message, and a checkbox adds its row and the gap
+//  above it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -284,6 +316,11 @@ bool DxuiMessageBoxBody::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDx
     if (m_severity != DxuiMessageSeverity::None)
     {
         heightPx = std::max (heightPx, m_scaler.ToPx (s_kGlyphRowDip));
+    }
+
+    if (m_hasCheck)
+    {
+        heightPx += m_scaler.ToPx (s_kCheckGapDip) + m_scaler.ToPx (s_kCheckRowDip);
     }
 
 Error:
@@ -365,12 +402,21 @@ public:
         m_buttons  = std::move (buttons);
     }
 
+    void  SetCheck  (std::wstring label, bool checked) { m_checkLabel = std::move (label); m_checked = checked; }
+    bool  IsChecked () const                           { return m_checked; }
+
 protected:
     void  OnCreate() override
     {
         m_body = CreateDialogContent<DxuiMessageBoxBody> ();
 
         m_body->Set (m_text, m_severity);
+
+        if (!m_checkLabel.empty())
+        {
+            m_body->SetCheck (m_checkLabel, m_checked);
+            m_body->SetOnCheckChange ([this] (bool checked) { m_checked = checked; });
+        }
 
         for (const ButtonSpec & b : m_buttons)
         {
@@ -402,6 +448,8 @@ private:
     std::wstring              m_text;
     DxuiMessageSeverity       m_severity  = DxuiMessageSeverity::None;
     std::vector<ButtonSpec>   m_buttons;
+    std::wstring              m_checkLabel;
+    bool                      m_checked   = false;
 };
 
 
@@ -693,7 +741,7 @@ static std::wstring StripRunMarks (const std::wstring & text)
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, const wchar_t * caption, UINT uType,
-                    const std::vector<const wchar_t *> & buttonLabels, int dangerButton)
+                    const std::vector<const wchar_t *> & buttonLabels, int dangerButton, const wchar_t * checkLabel, bool * ioChecked)
 {
     using                     ButtonSpec = DxuiMessageBoxWindow::ButtonSpec;
     DxuiMessageSeverity       severity   = DxuiMessageSeverity::None;
@@ -766,6 +814,11 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
 
     dlg.Configure (body, severity, buttons);
 
+    if (checkLabel != nullptr)
+    {
+        dlg.SetCheck (checkLabel, ioChecked != nullptr && *ioChecked);
+    }
+
     params.title                    = (caption != nullptr) ? caption : L"";
     params.hInstance                = hInst;
     params.ownerHwnd                = owner;
@@ -824,6 +877,11 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
         }
 
         choice = dlg.ShowModalDialog (defaultCmd);
+    }
+
+    if (ioChecked != nullptr && checkLabel != nullptr)
+    {
+        *ioChecked = dlg.IsChecked();
     }
 
     return choice;

@@ -50,9 +50,10 @@ public:
     //  Posts each target its message.
     void  NotifyReady  (WPARAM wParam = 0);
 
-    //  The text of Clear thumbnails' confirmation, with the count of
-    //  thumbnails the user set.
-    static std::wstring  GetClearQuestion (int userSet);
+    //  The text of Clear thumbnails' confirmation, and its checkbox's label,
+    //  with the count of thumbnails the user set.
+    static std::wstring  GetClearQuestion ();
+    static std::wstring  GetClearCheck    (int userSet);
 
     //  Every image queued before can be queued again, as after ROMs are
     //  installed.
