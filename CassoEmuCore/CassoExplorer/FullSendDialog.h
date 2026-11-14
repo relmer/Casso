@@ -20,18 +20,25 @@ class DxuiTooltip;
 //  tracks, a progress bar and its times, the map's legend, the session's
 //  totals, the disks done, newest first, and the latest activity lines.
 //  In a raw capture a drive's map has a second row, a cell for each
-//  position between two tracks that was read.
+//  position between two tracks that was read. Each other connection with a
+//  session in progress has a section after the drives: its state, its
+//  drives and its totals.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class FullSendPanel : public DxuiPanel
 {
 public:
-    struct View
+    struct Section
     {
         std::wstring      connection;
         std::wstring      machine;      // the Apple's model, as Apple //c (ROM 3); empty when it isn't known
         FullSendSnapshot  snapshot;
+    };
+
+    struct View : Section
+    {
+        std::vector<Section>  others;   // each other connection with a session in progress
     };
 
     static constexpr float  kHeadingDip     = 26.0f;
@@ -46,6 +53,7 @@ public:
     static constexpr float  kHeadingFontDip = 14.0f;
     static constexpr int    kDiskRows       = 6;
     static constexpr int    kActivityRows   = 6;
+    static constexpr float  kOtherDip       = 215.0f;   // an other connection's section
 
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 
@@ -110,22 +118,25 @@ public:
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:
-    float  PaintDrive    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int number, const FullSendDriveStatus & drive, float left, float top, float width) const;
+    float  PaintDrives   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int section, const FullSendSnapshot & snapshot, float top) const;
+    float  PaintDrive    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int section, int number, const FullSendDriveStatus & drive, float left, float top, float width) const;
     float  PaintLegend   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
     float  PaintDisks    (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
     float  PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
     void   DrawLine      (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, bool heading = false, DxuiTextHAlign align = DxuiTextHAlign::Left) const;
 
-    //  A map cell as it was last painted: its drive's index and its position
+    //  A map cell as it was last painted: its section, 0 for the view's
+    //  connection and 1 on for the others, its drive's index and its position
     //  in quarter tracks.
     struct Cell
     {
         RECT  bounds   = {};
+        int   section  = 0;
         int   drive    = 0;
         int   position = 0;
     };
 
-    void   AddCell       (float left, float top, float width, float height, int number, int position) const;
+    void   AddCell       (float left, float top, float width, float height, int section, int number, int position) const;
     bool   HandleClick   (const DxuiMouseEvent & ev);
 
     //  A disk's row as it was last painted.
@@ -223,5 +234,6 @@ private:
     DiskActionFn                                 m_diskAction;
     MovedFn                                      m_onMoved;
     POINT                                        m_lastTopLeft  = { LONG_MIN, LONG_MIN };
+    size_t                                       m_othersRoom   = 0;    // the other connections' sections the window has grown for
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;   // the open menu's commands
 };

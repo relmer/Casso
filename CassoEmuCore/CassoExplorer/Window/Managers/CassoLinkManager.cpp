@@ -2224,16 +2224,17 @@ void CassoLinkManager::HandleConnectionChanged()
 //
 //  CassoLinkManager::FillFullSendView
 //
-//  The view of the connection with a session in progress, or with none, of
-//  one whose session ended. False, and the view as it was, when no
-//  connection has either.
+//  The view of the first connection with a session in progress, or with
+//  none, of one whose session ended, and each other connection with a
+//  session in progress. False, and the view as it was, when no connection
+//  has either.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoLinkManager::FillFullSendView (FullSendPanel::View & ioView)
 {
-    bool  found   = false;
-    bool  running = false;
+    std::vector<FullSendPanel::Section>  running;
+    std::vector<FullSendPanel::Section>  ended;
 
 
 
@@ -2244,33 +2245,36 @@ bool CassoLinkManager::FillFullSendView (FullSendPanel::View & ioView)
 
     for (const LinkTreeEntry & entry : m_context.app.links->BuildTreeEntries())
     {
-        CassoLinkSession  * session = m_context.app.links->GetSession (TextEncoding::WideToNarrow (entry.name));
-        FullSendSnapshot    snapshot;
+        CassoLinkSession       * session = m_context.app.links->GetSession (TextEncoding::WideToNarrow (entry.name));
+        FullSendPanel::Section   section;
 
-        if (session == nullptr || running)
+        if (session == nullptr)
         {
             continue;
         }
 
-        snapshot = session->GetFullSendStatus().GetSnapshot();
+        section.snapshot = session->GetFullSendStatus().GetSnapshot();
 
-        if (snapshot.activity == FullSendActivity::None)
+        if (section.snapshot.activity == FullSendActivity::None)
         {
             continue;
         }
 
-        running = FullSendDialog::IsRunning (snapshot);
+        section.connection = entry.name;
+        section.machine    = session->GetModelName();
 
-        if (running || !found)
-        {
-            ioView.connection = entry.name;
-            ioView.machine    = session->GetModelName();
-            ioView.snapshot   = std::move (snapshot);
-            found             = true;
-        }
+        (FullSendDialog::IsRunning (section.snapshot) ? running : ended).push_back (std::move (section));
     }
 
-    return found;
+    if (running.empty() && ended.empty())
+    {
+        return false;
+    }
+
+    static_cast<FullSendPanel::Section &> (ioView) = running.empty() ? std::move (ended.front()) : std::move (running.front());
+    ioView.others.assign (running.empty() ? running.end() : running.begin() + 1, running.end());
+
+    return true;
 }
 
 
@@ -2450,6 +2454,7 @@ bool CassoLinkManager::FillFromManifest (FullSendPanel::View & ioView)
 
     ioView.connection.clear();
     ioView.machine.clear();
+    ioView.others.clear();
 
 Error:
     return filled;

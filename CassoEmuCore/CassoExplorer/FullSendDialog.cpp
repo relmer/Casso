@@ -172,13 +172,14 @@ std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FullSendPanel::AddCell (float left, float top, float width, float height, int number, int position) const
+void FullSendPanel::AddCell (float left, float top, float width, float height, int section, int number, int position) const
 {
     Cell  cell;
 
 
 
     cell.bounds   = { (LONG) left, (LONG) top, (LONG) (left + width + 1.0f), (LONG) (top + height + 1.0f) };
+    cell.section  = section;
     cell.drive    = number - 1;
     cell.position = position;
 
@@ -218,9 +219,11 @@ bool FullSendPanel::OnMouse (const DxuiMouseEvent & ev)
     {
         for (const Cell & cell : m_cells)
         {
+            const FullSendSnapshot  & snapshot = cell.section == 0 ? m_view.snapshot : m_view.others[(size_t) cell.section - 1].snapshot;
+
             if (PtInRect (&cell.bounds, pt))
             {
-                m_tooltip->RequestShow (cell.bounds, DescribeCell (m_view.snapshot.drives[(size_t) cell.drive], cell.position), now);
+                m_tooltip->RequestShow (cell.bounds, DescribeCell (snapshot.drives[(size_t) cell.drive], cell.position), now);
                 return false;
             }
         }
@@ -661,12 +664,9 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     RECT   bounds  = GetBounds();
     float  left    = (float) bounds.left;
     float  width   = (float) (bounds.right - bounds.left);
-    float  gap     = m_scaler.ToPxf (kColumnGapDip);
     float  section = m_scaler.ToPxf (kSectionGapDip);
-    float  column  = (width - gap) * 0.5f;
     float  top     = (float) bounds.top;
-    float  first   = 0.0f;
-    float  second  = 0.0f;
+    int    other   = 0;
 
 
 
@@ -687,22 +687,21 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     }
 
     top += m_scaler.ToPxf (kHeadingDip) + section;
+    top  = PaintDrives (painter, text, theme, 0, m_view.snapshot, top);
 
-    //  A drive the Apple lacks is omitted, and the other one is at the left.
-    first  = top;
-    second = top;
-
-    if (m_view.snapshot.present[0])
+    for (const Section & each : m_view.others)
     {
-        first = PaintDrive (painter, text, theme, 1, m_view.snapshot.drives[0], left, top, column);
-    }
+        other++;
 
-    if (m_view.snapshot.present[1])
-    {
-        second = PaintDrive (painter, text, theme, 2, m_view.snapshot.drives[1], m_view.snapshot.present[0] ? left + column + gap : left, top, column);
-    }
+        DrawLine (text, DescribeActivity (each.snapshot, each.machine), left, top, width, theme.Foreground(), true);
+        DrawLine (text, each.connection, left, top, width, theme.ForegroundMuted(), false, DxuiTextHAlign::Right);
+        top += m_scaler.ToPxf (kHeadingDip) + section;
 
-    top = std::max (first, second) + section * 0.5f;
+        top = PaintDrives (painter, text, theme, other, each.snapshot, top);
+
+        DrawLine (text, DescribeTotals (each.snapshot.totals), left, top, width, theme.Foreground());
+        top += m_scaler.ToPxf (kLineDip) + section;
+    }
 
     top = PaintLegend (painter, text, theme, top) + section;
 
@@ -720,6 +719,43 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendPanel::PaintDrives
+//
+//  A connection's drives side by side. A drive the Apple lacks is omitted,
+//  and the other one is at the left. Returns the bottom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float FullSendPanel::PaintDrives (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int section, const FullSendSnapshot & snapshot, float top) const
+{
+    RECT   bounds = GetBounds();
+    float  left   = (float) bounds.left;
+    float  gap    = m_scaler.ToPxf (kColumnGapDip);
+    float  column = ((float) (bounds.right - bounds.left) - gap) * 0.5f;
+    float  first  = top;
+    float  second = top;
+
+
+
+    if (snapshot.present[0])
+    {
+        first = PaintDrive (painter, text, theme, section, 1, snapshot.drives[0], left, top, column);
+    }
+
+    if (snapshot.present[1])
+    {
+        second = PaintDrive (painter, text, theme, section, 2, snapshot.drives[1], snapshot.present[0] ? left + column + gap : left, top, column);
+    }
+
+    return std::max (first, second) + m_scaler.ToPxf (kSectionGapDip) * 0.5f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendPanel::PaintDrive
 //
 //  A drive's heading and state, its disk's title, the map of its tracks and
@@ -728,7 +764,7 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int number, const FullSendDriveStatus & drive, float left, float top, float width) const
+float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int section, int number, const FullSendDriveStatus & drive, float left, float top, float width) const
 {
     float         lineH   = m_scaler.ToPxf (kLineDip);
     float         cellH   = m_scaler.ToPxf (kMapCellDip);
@@ -756,7 +792,7 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
         uint32_t  color = drive.positions.empty() ? GetColor (drive.tracks[(size_t) track], theme) : GetColor (drive.positions[(size_t) track * 4], theme);
 
         painter.FillRect (left + track * pitch, top, pitch - space, cellH, color);
-        AddCell (left + track * pitch, top, pitch - space, cellH, number, track * 4);
+        AddCell (left + track * pitch, top, pitch - space, cellH, section, number, track * 4);
     }
 
     top += cellH + space;
@@ -773,7 +809,7 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
         }
 
         painter.FillRect (left + position * quarter, top, std::max (1.0f, quarter - space), rawH, GetColor (mark, theme));
-        AddCell (left + position * quarter, top, std::max (1.0f, quarter - space), rawH, number, (int) position);
+        AddCell (left + position * quarter, top, std::max (1.0f, quarter - space), rawH, section, number, (int) position);
     }
 
     top += rawH + space * 4.0f;
@@ -1211,9 +1247,23 @@ void FullSendDialog::NoteMoved()
 
 void FullSendDialog::Refresh()
 {
+    HRESULT  hr = S_OK;
+
+
+
     if (m_snapshot)
     {
         m_snapshot (m_view);
+    }
+
+    //  The window grows for each other connection's section, and doesn't
+    //  shrink when a session ends.
+    if (m_view.others.size() > m_othersRoom && GetHwnd() != nullptr)
+    {
+        hr = GrowHeightBy (MulDiv ((int) FullSendPanel::kOtherDip, (int) GetDpiForWindow (GetHwnd()), USER_DEFAULT_SCREEN_DPI) * (int) (m_view.others.size() - m_othersRoom));
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        m_othersRoom = m_view.others.size();
     }
 
     m_panel->SetView (m_view);
