@@ -74,6 +74,7 @@ public:
         Image                                 rawReads;                   // a raw capture's reads, empty when they aren't saved
         std::string                           rawMarks;                   // what a raw capture marked
         std::vector<std::string>              noted;                      // the path of each image written
+        std::function<void (const std::string &)>  onAwait;               // with one, each image is booted, and this is the wait for its result
 
         //  Called at the end of the Nth whole-disk read, counted from 1, and
         //  at the Nth wait for a key.
@@ -171,7 +172,13 @@ public:
             return S_OK;
         }
 
-        void     NoteImage (const std::string & path) override { noted.push_back (path); }
+        bool     NoteImage (const std::string & path) override { noted.push_back (path); return (bool) onAwait; }
+
+        HRESULT  AwaitBoot (const std::string & file) override
+        {
+            onAwait (file);
+            return S_OK;
+        }
 
         HRESULT  WaitForKey (const std::vector<std::string> & lines, FullSendKey & outKey) override
         {
@@ -968,6 +975,31 @@ public:
         Assert::IsFalse (has (rig.link.pauseLines[0]), L"The result arrived after the first pause was drawn");
         Assert::IsTrue (has (rig.link.pauseLines[1]), L"The next pause has the image");
         Assert::IsFalse (has (rig.link.pauseLines[2]), L"And the one after it doesn't");
+    }
+
+    //  An image that is booted is awaited with VALIDATING on the Apple, and
+    //  one that did not boot is on the Apple at the pause that follows.
+    TEST_METHOD (Session_AnImageBeingBooted_IsAwaited_AndItsResultIsAtThePauseThatFollows)
+    {
+        Rig   rig;
+        bool  validating = false;
+
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+        rig.link.onAwait    = [&rig, &validating] (const std::string & file)
+        {
+            validating = rig.link.screens.back().drives[0] == FullSendDriveState::Validating
+                         && rig.status.GetSnapshot().activity == FullSendActivity::Validating;
+
+            rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot);
+        };
+
+        rig.Run();
+
+        Assert::IsTrue (validating, L"The Apple and the window have the wait");
+        Assert::IsTrue (rig.link.screens.back().drives[0] != FullSendDriveState::Validating);
+        Assert::AreEqual ((size_t) 1, rig.link.pauseLines.size());
+        Assert::IsTrue (std::find (rig.link.pauseLines[0].begin(), rig.link.pauseLines[0].end(), "0001 DID NOT BOOT, SEND IT AGAIN.") != rig.link.pauseLines[0].end());
     }
 
     //  A likely copy-protected disk is captured raw: its image is the WOZ, its

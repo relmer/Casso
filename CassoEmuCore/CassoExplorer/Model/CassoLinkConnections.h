@@ -322,7 +322,7 @@ private:
         void  OnDone               (const std::shared_ptr<LinkOperation> & operation) override;
         bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override;
         bool  HasFullSendReadsOn   () override;
-        void  OnImageWritten       (const std::string & path, const std::string & model) override;
+        bool  OnImageWritten       (const std::string & path, const std::string & model) override;
         void  OnOperationQueued    (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnActivity           (const std::string & text) override;
         void  OnTrace              (bool sent, const std::string & text) override;

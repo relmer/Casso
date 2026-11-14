@@ -25,6 +25,7 @@ enum class FullSendActivity : Byte
     Capturing,
     WaitingForDisk,
     WaitingForApple,
+    Validating,         // the image just written is being booted on the PC
     EditingPrefix,
     Ended,
 };
@@ -234,6 +235,10 @@ public:
 
     std::vector<std::pair<std::string, std::string>>  TakeBoots ();
 
+    //  Whether a boot result has arrived for the file, under the name it
+    //  was written with.
+    bool  HasBoot        (const std::string & file) const;
+
     FullSendSnapshot  GetSnapshot () const;
 
 private:
@@ -261,6 +266,7 @@ private:
     double                                            m_sentSeconds = 0.0;   // over every disk sent
     std::vector<Sample>                               m_samples;   // the sector images sent
     std::vector<std::pair<std::string, std::string>>  m_boots;   // each boot result the session hasn't taken
+    std::set<std::string>                             m_booted;  // each file with a boot result
     std::array<int, 2>                                m_baseCount   = { 0, 0 };   // the tracks each drive's disk began with
     std::array<double, 2>                             m_lastMark    = { 0.0, 0.0 };   // when each drive's latest track or read was marked
 };

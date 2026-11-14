@@ -328,7 +328,7 @@ std::string ExplorerBootWorker::MakeTitledName (const std::string & name, const 
 
 
 
-    for (char each : title)
+    for (char each : BootTitle::ToName (title))
     {
         bool  isSpace = each == ' ' || (unsigned char) each < ' ' || s_kInvalid.find (each) != std::string_view::npos;
 

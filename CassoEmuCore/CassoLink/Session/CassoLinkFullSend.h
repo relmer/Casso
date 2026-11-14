@@ -40,7 +40,8 @@ public:
     void     ToggleVerify   () override { m_verifying = !m_verifying; }
     bool     IsBootstrapped () override;
     HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) override;
-    void     NoteImage      (const std::string & path) override;
+    bool     NoteImage      (const std::string & path) override;
+    HRESULT  AwaitBoot      (const std::string & file) override;
     void     Report         (const std::string & text) override;
 
     //  The time for a manifest's row: UTC, in ISO 8601.
@@ -57,6 +58,9 @@ private:
 
     static double       GetSeconds   ();
     static std::string  GetClockTime ();
+
+    static constexpr DWORD  s_kBootWaitMs = 90000;
+    static constexpr DWORD  s_kBootPollMs = 100;
 
     CassoLinkSession   & m_session;
     LinkOperation      * m_operation = nullptr;

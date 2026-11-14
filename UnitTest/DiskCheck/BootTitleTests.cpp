@@ -70,6 +70,16 @@ public:
         Assert::IsTrue (BootTitle::Find (Screen ({ { 1, "COPYRIGHT 1984 SOMEONE" } }), true).empty(), L"A copyright line alone");
     }
 
+    TEST_METHOD (ATitleAsAName_IsUpToItsColon_AndInTitleCase)
+    {
+        Assert::AreEqual (std::string ("The Witness"), BootTitle::ToName ("THE WITNESS: AN INTERLOGIC MYSTERY"));
+        Assert::AreEqual (std::string ("Wizardry"), BootTitle::ToName ("Wizardry"), L"A title with small letters is as drawn");
+        Assert::AreEqual (std::string ("Ultima III"), BootTitle::ToName ("ULTIMA III"));
+        Assert::AreEqual (std::string ("Lord of the Rings"), BootTitle::ToName ("LORD OF THE RINGS"));
+        Assert::AreEqual (std::string ("DOS 3.3 System Master"), BootTitle::ToName ("DOS 3.3 SYSTEM MASTER"));
+        Assert::AreEqual (std::string ("One-On-One"), BootTitle::ToName ("ONE-ON-ONE"));
+    }
+
     TEST_METHOD (AScreenInAGraphicsMode_HasNoTitle)
     {
         Assert::IsTrue (BootTitle::Find (Screen ({ { 1, "DOS 3.3 SYSTEM MASTER" } }), false).empty());

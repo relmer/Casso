@@ -194,8 +194,9 @@ public:
     virtual bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) { UNREFERENCED_PARAMETER (outFolder); UNREFERENCED_PARAMETER (outExtension); return false; }
 
     //  A disk image the session wrote, by its path, and the model of Apple
-    //  it was read from, as Apple //c (ROM 3), for the boot check.
-    virtual void  OnImageWritten       (const std::string & path, const std::string & model) { UNREFERENCED_PARAMETER (path); UNREFERENCED_PARAMETER (model); }
+    //  it was read from, as Apple //c (ROM 3), for the boot check. True
+    //  when the image is booted.
+    virtual bool  OnImageWritten       (const std::string & path, const std::string & model) { UNREFERENCED_PARAMETER (path); UNREFERENCED_PARAMETER (model); return false; }
 
     //  Whether a Full Send saves a raw capture's reads beside its image.
     virtual bool  HasFullSendReadsOn   () { return false; }

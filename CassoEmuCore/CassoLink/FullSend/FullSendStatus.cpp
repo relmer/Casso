@@ -47,6 +47,8 @@ void FullSendStatus::Begin()
     m_lastMark          = { m_began, m_began };
 
     m_samples.clear();
+    m_boots.clear();
+    m_booted.clear();
 }
 
 
@@ -505,7 +507,27 @@ void FullSendStatus::SetBoot (const std::string & file, const std::string & boot
     }
 
     m_boots.push_back ({ file, boot });
+    m_booted.insert (file);
     m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::HasBoot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendStatus::HasBoot (const std::string & file) const
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    return m_booted.contains (file);
 }
 
 

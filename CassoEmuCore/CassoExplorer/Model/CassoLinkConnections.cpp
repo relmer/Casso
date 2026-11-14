@@ -2180,7 +2180,7 @@ void CassoLinkConnections::SetImageHandler (ImageFn handler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkConnections::Sink::OnImageWritten (const std::string & path, const std::string & model)
+bool CassoLinkConnections::Sink::OnImageWritten (const std::string & path, const std::string & model)
 {
     ImageFn  handler;
 
@@ -2196,6 +2196,8 @@ void CassoLinkConnections::Sink::OnImageWritten (const std::string & path, const
     {
         handler (m_name, path, model);
     }
+
+    return (bool) handler;
 }
 
 

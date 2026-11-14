@@ -67,6 +67,79 @@ std::string BootTitle::Find (const std::vector<std::string> & rows, bool isTextM
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BootTitle::ToName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BootTitle::ToName (const std::string & title)
+{
+    std::string  kept     = Trim (title.substr (0, title.find (':')));
+    bool         hasSmall = std::any_of (kept.begin(), kept.end(), [] (char each) { return islower ((unsigned char) each) != 0; });
+    std::string  name;
+    size_t       at       = 0;
+
+
+
+    if (hasSmall)
+    {
+        return kept;
+    }
+
+    while (at < kept.size())
+    {
+        size_t  end = kept.find (' ', at);
+
+        end   = (end == std::string::npos) ? kept.size() : end;
+        name += ToTitleCase (kept.substr (at, end - at), at == 0);
+        name += (end < kept.size()) ? " " : "";
+        at    = end + 1;
+    }
+
+    return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BootTitle::ToTitleCase
+//
+//  A short joining word after the first is in small letters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BootTitle::ToTitleCase (const std::string & word, bool isFirst)
+{
+    static constexpr std::array<std::string_view, 9>  s_kSmall   = { "A", "AN", "AND", "IN", "OF", "ON", "OR", "THE", "TO" };
+    bool                                              isNumeral  = !word.empty() && word.find_first_not_of ("IVX") == std::string::npos;
+    bool                                              isSmall    = !isFirst && std::find (s_kSmall.begin(), s_kSmall.end(), word) != s_kSmall.end();
+    std::string                                       cased      = word;
+    bool                                              isStart    = true;
+
+
+
+    if (isNumeral || word == "DOS")
+    {
+        return word;
+    }
+
+    for (char & each : cased)
+    {
+        each    = (isStart && !isSmall) ? each : (char) tolower ((unsigned char) each);
+        isStart = isalnum ((unsigned char) each) == 0;
+    }
+
+    return cased;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BootTitle::IsBlank
 //
 ////////////////////////////////////////////////////////////////////////////////

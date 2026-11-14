@@ -545,9 +545,42 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkFullSend::NoteImage (const std::string & path)
+bool CassoLinkFullSend::NoteImage (const std::string & path)
 {
-    m_session.m_sink.OnImageWritten (path, TextEncoding::WideToNarrow (m_session.GetModelName()));
+    return m_session.m_sink.OnImageWritten (path, TextEncoding::WideToNarrow (m_session.GetModelName()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::AwaitBoot
+//
+//  The result arrives from the thread that boots the image. With none by the
+//  time limit, the session goes on, and the result is in the window when it
+//  arrives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkFullSend::AwaitBoot (const std::string & file)
+{
+    HRESULT    hr    = S_OK;
+    ULONGLONG  began = GetTickCount64();
+
+
+
+    while (!m_status.HasBoot (file) && GetTickCount64() - began < s_kBootWaitMs)
+    {
+        hr = CheckStop();
+        CHR (hr);
+
+        Sleep (s_kBootPollMs);
+    }
+
+Error:
+    return hr;
 }
 
 

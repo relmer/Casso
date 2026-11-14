@@ -35,6 +35,7 @@ enum class FullSendDriveState : Byte
     Changed,
     Capturing,
     Blank,
+    Validating,     // the image is being booted on the PC
 };
 
 enum class FullSendTone : Byte
@@ -159,8 +160,11 @@ public:
     //  are saved, and is empty otherwise.
     virtual HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) = 0;
 
-    //  An image the session wrote, by its path, for the boot check.
-    virtual void     NoteImage      (const std::string & path) { UNREFERENCED_PARAMETER (path); }
+    //  An image the session wrote, by its path, for the boot check. True
+    //  when the image is booted, and AwaitBoot then returns once its result
+    //  is in the session's status, or after a time limit.
+    virtual bool     NoteImage      (const std::string & path) { UNREFERENCED_PARAMETER (path); return false; }
+    virtual HRESULT  AwaitBoot      (const std::string & file) { UNREFERENCED_PARAMETER (file); return S_OK; }
 
     //  A line for the activity log.
     virtual void     Report     (const std::string & text) = 0;
