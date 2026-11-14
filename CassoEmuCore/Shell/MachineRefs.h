@@ -56,6 +56,9 @@ struct MachineRefs
     std::vector<class IBlockDeviceEventSource *>  blockDeviceSources;
     std::vector<class IFloppy35EventSource *>     floppy35Sources;
 
+    // The SCSI cards, given the CPU's cycle count once the CPU exists.
+    std::vector<class AppleScsiCard *>            scsiCards;
+
     // The $D000 bank split every Apple II has. Resolved once by
     // WireLanguageCard, which is the only code that knows which owned device
     // it is -- everything downstream reads this rather than casting its way

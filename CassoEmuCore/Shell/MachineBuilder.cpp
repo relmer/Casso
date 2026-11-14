@@ -49,6 +49,9 @@
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Machines/Apple2/Common/SscSwitches.h"
 #include "Machines/Apple2/Common/SuperSerialCard.h"
+#include "Devices/BlockDevice/AppleScsiCard.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Devices/BlockDevice/ScsiHardDisk.h"
 #include "Print/PrintJobStore.h"
 #include "Print/PrinterWorker.h"
 #include "WasapiAudio.h"
@@ -94,6 +97,7 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
     //  `continue`. The machine that needs the factories is the one being
     //  built, and this is where it is built.
     ComponentRegistry::RegisterBuiltinDevices (m_host.GetRegistry());
+    m_host.GetBlockMediaProblems().clear();
 
     hr = CreateMemoryDevices (config);
     CHR (hr);
@@ -451,6 +455,10 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
                 if (slot.device == kpszSuperSerialCardDevice)
                 {
                     WireSuperSerialCard (slot, *static_cast<SuperSerialCard *> (raw));
+                }
+                else if (slot.device == kpszAppleScsiCardDevice)
+                {
+                    WireAppleScsiCard (slot, *static_cast<AppleScsiCard *> (raw));
                 }
             }
         }
@@ -1632,6 +1640,11 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
     // owns both the EmuCpu and the device list, so this is the right
     // wiring point -- the controller is cached into the refs' diskController
     // just above in AddDevices.
+    for (AppleScsiCard * scsiCard : m_host.GetRefs().scsiCards)
+    {
+        scsiCard->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
+    }
+
     if (m_host.GetRefs().diskController != nullptr)
     {
         m_host.GetRefs().diskController->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
@@ -2043,6 +2056,45 @@ void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCa
 
     card.SetSwitches (switches);
 
+    AddExpansionRomCard (slot.slot, card, card.GetSlotPage());
+
+    hr = card.GetAcia().AttachInterruptController (&m_host.GetInterruptController());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    card.GetAcia().SetCpuClockHz (m_host.GetConfig().clockSpeed);
+    refs.serialChips.push_back (&card.GetAcia());
+
+    if (refs.superSerialCard == nullptr)
+    {
+        refs.superSerialCard = &card;
+    }
+
+    m_host.SetSerialPort (slot.slot, &card.GetAcia(), true);
+    AttachSerialEndpoint (slot, card);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddExpansionRomCard
+//
+//  Puts a card's $Cn00 page and its share of the $C800-$CFFF expansion space
+//  on the machine. On the //e the CxxxRomRouter owns $C100-$CFFF and passes
+//  the card's page and the expansion space to it under the //e's ROM
+//  switches; on the ][ and ][+ both are plain bus devices. The expansion bus
+//  is made with the first card that needs it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::AddExpansionRomCard (int slot, IExpansionRomCard & card, MemoryDevice & slotPage)
+{
+    MachineRefs  & refs = m_host.GetRefs();
+
+
+
     if (refs.expansionRomBus == nullptr)
     {
         auto  bus = std::make_unique<ExpansionRomBus> (m_host.GetMemoryBus());
@@ -2065,26 +2117,77 @@ void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCa
 
     if (m_host.GetMmu() != nullptr)
     {
-        m_host.GetMmu()->GetCxxxRouter()->SetSlotIoDevice (slot.slot, &card.GetSlotPage());
+        m_host.GetMmu()->GetCxxxRouter()->SetSlotIoDevice (slot, &slotPage);
     }
     else
     {
-        m_host.GetMemoryBus().AddDevice (&card.GetSlotPage());
+        m_host.GetMemoryBus().AddDevice (&slotPage);
     }
+}
 
-    hr = card.GetAcia().AttachInterruptController (&m_host.GetInterruptController());
-    IGNORE_RETURN_VALUE (hr, S_OK);
 
-    card.GetAcia().SetCpuClockHz (m_host.GetConfig().clockSpeed);
-    refs.serialChips.push_back (&card.GetAcia());
 
-    if (refs.superSerialCard == nullptr)
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireAppleScsiCard
+//
+//  Connects an Apple II SCSI Card the registry just created: its firmware,
+//  its page and the expansion space, and an image on each SCSI ID its ports
+//  list. A missing firmware file leaves the card without firmware, so the
+//  slot scan passes over it. An image that fails to attach leaves its drive
+//  empty, with the reason added to the machine's media problems.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireAppleScsiCard (const SlotConfig & slot, AppleScsiCard & card)
+{
+    HRESULT                hr      = S_OK;
+    const BlockDriveSpec * drive   = BlockDeviceCatalog::FindDrive (kpszHd20scDevice);
+    vector<Byte>           firmware;
+
+
+
+    if (slot.firmwareStatus == SlotFirmwareStatus::Present)
     {
-        refs.superSerialCard = &card;
+        hr = ReadRomFileBytes (slot.firmwarePath, firmware);
+
+        if (SUCCEEDED (hr))
+        {
+            hr = card.SetFirmware (move (firmware));
+        }
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    m_host.SetSerialPort (slot.slot, &card.GetAcia(), true);
-    AttachSerialEndpoint (slot, card);
+    AddExpansionRomCard (slot.slot, card, card.GetSlotPage());
+
+    for (size_t id = 0; id < slot.ports.size() && id < (size_t) AppleScsiCard::kTargets; id++)
+    {
+        const PortConfig  & port   = slot.ports[id];
+        ScsiHardDisk      & target = card.GetTarget ((int) id);
+        std::wstring        error;
+
+
+
+        target.SetRealTiming (port.realTiming, m_host.GetConfig().clockSpeed, 0);
+
+        if (port.device.empty() || port.image.empty() || port.image == kpszStockImage)
+        {
+            continue;
+        }
+
+        hr = target.GetMedia().Attach (m_host.GetBlockMediaFileIo(), port.image, drive->maxBlocks, m_host.ProbeBlockMedia (port.image), error);
+
+        if (FAILED (hr))
+        {
+            m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, SCSI ID {}: {}", slot.slot, id, error));
+        }
+    }
+
+    m_host.GetRefs().scsiCards.push_back (&card);
+    m_host.GetRefs().blockDeviceSources.push_back (&card);
 }
 
 

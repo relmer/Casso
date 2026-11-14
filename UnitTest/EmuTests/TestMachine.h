@@ -113,12 +113,30 @@ public:
 
     //  The builder that built this machine, for the accessors the shell reads
     //  through it.
-    MachineBuilder  &  GetBuilder() noexcept { return m_builder; }
+    //  A SmartPort or hard disk card for a slot, by its device id, with what
+    //  is attached to its ports. Its firmware resolves out of the fixtures.
+    struct BlockCard
+    {
+        int                      slot = 0;
+        std::string              device;
+        std::vector<PortConfig>  ports;
+    };
+
+    //  The machine with each card in its slot, replacing what the slot had,
+    //  and every image read and written through `fileIo`, so a test can run
+    //  a card over in-memory images.
+    TestMachine (const std::string             & machineId,
+                 Slots                           slots,
+                 const std::vector<BlockCard>  & cards,
+                 IDiskFileIo                   & fileIo);
+
+        MachineBuilder  &  GetBuilder() noexcept { return m_builder; }
 
 private:
 
-    static void  LoadConfig (const std::string & machineId, MachineConfig & outConfig);
-    void         BuildFrom  (const std::string & machineId, const MachineConfig & config);
+    static void                               LoadConfig          (const std::string & machineId, MachineConfig & outConfig);
+    static MachineConfigLoader::FileResolver  MakeFixtureResolver ();
+    void                                      BuildFrom           (const std::string & machineId, const MachineConfig & config);
 
     static MachineBuildServices  MakeServices (const std::string & machineId, const Customize & customize);
 

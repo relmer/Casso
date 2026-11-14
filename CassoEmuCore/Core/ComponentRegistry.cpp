@@ -17,6 +17,8 @@
 #include "../Devices/Acia6551.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Machines/Apple2/Common/SuperSerialCard.h"
+#include "Devices/BlockDevice/AppleScsiCard.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
 
@@ -139,5 +141,6 @@ void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
     registry.Register ("mockingboard",         MockingboardCard::Create);
     registry.Register ("mockingboard-c",       MockingboardCard::CreateSpeech);
     registry.Register ("super-serial-card",    SuperSerialCard::Create);
+    registry.Register (kpszAppleScsiCardDevice, AppleScsiCard::Create);
     registry.Register ("uthernet2",            UthernetCard::Create);
 }

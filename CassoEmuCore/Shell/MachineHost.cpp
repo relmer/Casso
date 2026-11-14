@@ -6,6 +6,8 @@
 #include "Core/Prng.h"
 #include "Devices/BlockDevice/IBlockDeviceEventSink.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Seams/Win32DiskFileIo.h"
+#include "Shell/DiskManager.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
 #include "Devices/RamDevice.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
@@ -73,6 +75,81 @@ MachineHost::MachineHost() :
 
 MachineHost::~MachineHost()
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SetBlockMediaFileIo
+//
+//  Null restores the host's file system and its write-protect probe.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetBlockMediaFileIo (IDiskFileIo * fileIo, WriteProtectProbe probe)
+{
+    m_blockFileIo = fileIo;
+    m_blockProbe  = std::move (probe);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::GetBlockMediaFileIo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDiskFileIo & MachineHost::GetBlockMediaFileIo()
+{
+    if (m_blockFileIo != nullptr)
+    {
+        return *m_blockFileIo;
+    }
+
+    if (m_hostBlockFileIo == nullptr)
+    {
+        m_hostBlockFileIo = std::make_unique<Win32DiskFileIo>();
+    }
+
+    return *m_hostBlockFileIo;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ProbeBlockMedia
+//
+//  The host file's read-only attribute and write permission, for the host's
+//  file system; nothing for an in-memory one without a probe.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+WriteProtectInfo MachineHost::ProbeBlockMedia (const std::string & path) const
+{
+    WriteProtectInfo  info;
+
+
+
+    if (m_blockProbe)
+    {
+        return m_blockProbe (path);
+    }
+
+    if (m_blockFileIo == nullptr)
+    {
+        DiskManager::ProbeFileWritability (path, info.readOnlyFile, info.noPermission);
+    }
+
+    return info;
 }
 
 

@@ -84,8 +84,14 @@ The first draft of this plan had the RAM and ROM windows the other way round.
 chip from its data sheet, and `ScsiBus` the SCSI-1 phases. IIgs block mode is
 decoded and has no effect, since Casso has no 65816. Each target is a
 `ScsiHardDisk`: TEST UNIT READY, REQUEST SENSE, INQUIRY, READ(6), READ(10),
-WRITE(6), WRITE(10), READ CAPACITY and MODE SENSE. **To verify**: the exact
-command set Apple's ROM and ProDOS issue, by logging them on the first boot.
+WRITE(6), WRITE(10), READ CAPACITY and MODE SENSE.
+
+**Checked** (Casso, 2026-11-13, a command log on the target): booting ProDOS
+1.0.1 and ProDOS 2 from a hard disk at ID 6, Apple's ROM issues TEST UNIT
+READY twice, INQUIRY, READ(6) of block 0, READ CAPACITY and INQUIRY again,
+then ProDOS reads with READ(6). A guest `CREATE` writes with WRITE(6). No
+10-byte command, REQUEST SENSE or MODE SENSE was issued; the target answers
+them anyway, since other software may issue them.
 
 **Checked** in MAME (enhanced //e, card in slot 7, bootable ProDOS floppy in
 slot 6):
@@ -104,9 +110,18 @@ stays on by default. MAME's card adds 1.4 to 2.7 seconds. Part of that is the RO
 ID, which is 6502 code and runs at the speed of the CPU. Casso's figure with
 real timing off is measured once the card runs (R18).
 
-**To verify**: the card on a ][+ and an unenhanced //e. MAME's ROMs for those
-machines are not installed here, so the check is a boot on Casso's ][+ and
-//e once the card exists.
+**Checked** (Casso, 2026-11-13): the card boots ProDOS on the ][+ and the
+unenhanced //e with `PR#7`. Neither machine's ROM starts it at power-on,
+since their slot scan looks for the Disk II's signature byte at `$Cn07`,
+which the SCSI card's ROM does not have; the enhanced //e's scan boots it at
+power-on. A floppy in slot 6 therefore boots first on those two machines
+whatever the card has.
+
+**Measured** in Casso with real timing off, from power-on to the first
+instruction of the Disk II ROM on an enhanced //e: 0.13 s with no card, 4.8 s
+with the card and no hard disk, and 1.2 s with the card and a blank 32 MB hard
+disk at ID 6. The empty card is slower than in MAME, whose run had a CD drive
+at ID 1; the ROM's wait for an empty bus is 6502 code.
 
 ## R6. ProFile
 
@@ -356,7 +371,7 @@ owner set no limit on it.
 
 | Card | Machines | Status |
 |---|---|---|
-| Apple II SCSI Card | ][+, //e, enhanced //e | Enhanced //e **checked** in MAME; the others **to verify** in Casso |
+| Apple II SCSI Card | ][+, //e, enhanced //e | **Checked**: boots on all three in Casso; the ][+ and //e need `PR#7` (R5) |
 | UniDisk 3.5 interface card | ][+, //e, enhanced //e | The ROM is 6502 code (a2-liron assembles it for the 6502); boots **to verify** in Casso |
 | 3.5 controller card | //e, enhanced //e | **To verify**; Apple sold it for the //e and IIgs |
 | ProFile interface card | **To verify** (R6) | |

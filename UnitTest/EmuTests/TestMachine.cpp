@@ -4,6 +4,7 @@
 
 #include "Core/Prng.h"
 #include "Core/TextEncoding.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "EmbeddedMachineConfigs.h"
 
 #include "EmbeddedMachineJson.h"
@@ -50,6 +51,54 @@ TestMachine::TestMachine (
       m_builder          (*this, m_nothingListening)
 {
     Construct (machineId, slots, customize);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::TestMachine (block cards)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TestMachine::TestMachine (
+    const std::string             & machineId,
+    Slots                           slots,
+    const std::vector<BlockCard>  & cards,
+    IDiskFileIo                   & fileIo)
+    : m_builder (*this, m_nothingListening)
+{
+    FixtureProvider  fixtures;
+    fs::path         root = fs::path (fixtures.GetRoot());
+
+
+
+    SetBlockMediaFileIo (&fileIo);
+
+    Construct (machineId, slots, [&] (MachineConfig & config, MachineBuildServices &)
+    {
+        for (const BlockCard & card : cards)
+        {
+            const BlockCardSpec  * spec = BlockDeviceCatalog::FindCard (card.device);
+            SlotConfig             slot;
+
+
+
+            Assert::IsNotNull (spec, L"a block card the catalog lists");
+
+            slot.slot     = card.slot;
+            slot.device   = card.device;
+            slot.ports    = card.ports;
+            slot.firmware = spec->defaultFirmware;
+
+            std::erase_if (config.slots, [&card] (const SlotConfig & existing) { return existing.slot == card.slot; });
+
+            MachineConfigLoader::ResolveBlockCard (machineId, { root }, MakeFixtureResolver(), slot);
+            config.slots.push_back (slot);
+        }
+    });
 }
 
 
@@ -252,13 +301,7 @@ void TestMachine::LoadConfig (const std::string & machineId, MachineConfig & out
 
     jsonText = EmbeddedMachineJson::Load (resourceId);
 
-    auto  resolveFlat = [root] (const std::vector<fs::path> &,
-                                const fs::path & romRelPath) -> fs::path
-    {
-        fs::path  candidate = root / romRelPath.filename();
-
-        return (fs::exists (candidate) ? candidate : fs::path());
-    };
+    auto  resolveFlat = MakeFixtureResolver();
 
     hr = MachineConfigLoader::Load (jsonText,
                                     machineId,
@@ -272,3 +315,38 @@ void TestMachine::LoadConfig (const std::string & machineId, MachineConfig & out
                      TextEncoding::NarrowToWide (machineId),
                      TextEncoding::NarrowToWide (error)).c_str());
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::MakeFixtureResolver
+//
+//  Resolves a ROM by its file name in UnitTest/Fixtures, which keeps the
+//  ROMs flat.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MachineConfigLoader::FileResolver TestMachine::MakeFixtureResolver()
+{
+    FixtureProvider  fixtures;
+    fs::path         root = fs::path (fixtures.GetRoot());
+
+
+
+    return [root] (const std::vector<fs::path> &, const fs::path & romRelPath) -> fs::path
+    {
+        fs::path  candidate = root / romRelPath.filename();
+
+
+
+        return (fs::exists (candidate) ? candidate : fs::path());
+    };
+}
+
+
+
+
+

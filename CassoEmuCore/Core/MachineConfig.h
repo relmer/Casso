@@ -574,6 +574,15 @@ public:
     using FileResolver = function<fs::path (const vector<fs::path> &,
                                             const fs::path &)>;
 
+    // A SmartPort or hard disk card's ROM, its host machine and its drives.
+    // A card the machine cannot host is removed from the slot, and a drive
+    // the card does not accept from its port, with the reason in the slot's
+    // `deviceProblem`. Never fails the load.
+    static void    ResolveBlockCard (const string           & machineId,
+                                     const vector<fs::path> & searchPaths,
+                                     const FileResolver     & resolver,
+                                     SlotConfig             & slot);
+
     // `machineName` selects the per-machine ROM subdir
     // (Machines/<machineName>/<file>) used to resolve systemRom and
     // characterRom files. Slot ROMs whose device is "disk-ii" resolve
@@ -684,14 +693,6 @@ private:
                                         const FileResolver     & resolver,
                                         SlotConfig             & slot);
 
-    // A SmartPort or hard disk card's ROM, its host machine and its drives.
-    // A card the machine cannot host is removed from the slot, and a drive
-    // the card does not accept from its port, with the reason in the slot's
-    // `deviceProblem`. Never fails the load.
-    static void    ResolveBlockCard    (const string           & machineId,
-                                        const vector<fs::path> & searchPaths,
-                                        const FileResolver     & resolver,
-                                        SlotConfig             & slot);
 
     static void    ParsePort           (const JsonValue & entry, PortConfig & outPort);
     static void    ParsePortArray      (const JsonValue & portsArray, vector<PortConfig> & outPorts);

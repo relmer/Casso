@@ -1229,6 +1229,10 @@
     </ClCompile>
     <ClCompile Include="Devices\BlockDevice\BlockDeviceCatalog.cpp" />
     <ClCompile Include="Devices\BlockDevice\BlockDeviceMedia.cpp" />
+    <ClCompile Include="Devices\BlockDevice\ScsiBus.cpp" />
+    <ClCompile Include="Devices\BlockDevice\Ncr5380.cpp" />
+    <ClCompile Include="Devices\BlockDevice\ScsiHardDisk.cpp" />
+    <ClCompile Include="Devices\BlockDevice\AppleScsiCard.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
@@ -2132,6 +2136,11 @@
     <ClInclude Include="Devices\Floppy35\IFloppy35EventSink.h" />
     <ClInclude Include="Devices\Floppy35\Floppy35EventRing.h" />
     <ClInclude Include="Devices\BlockDevice\BlockDeviceMedia.h" />
+    <ClInclude Include="Devices\BlockDevice\IScsiTarget.h" />
+    <ClInclude Include="Devices\BlockDevice\ScsiBus.h" />
+    <ClInclude Include="Devices\BlockDevice\Ncr5380.h" />
+    <ClInclude Include="Devices\BlockDevice\ScsiHardDisk.h" />
+    <ClInclude Include="Devices\BlockDevice\AppleScsiCard.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CassoLink\Apple\Program.s" />

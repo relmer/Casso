@@ -8,6 +8,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/IDiskImage.h"
 #include "Devices/IAciaEndpoint.h"
 #include "Devices/Printer/PrinterByteRing.h"
 #include "Devices/Tape/TapeDeck.h"
@@ -27,6 +28,7 @@ class AppleMouse;
 class SiriusJoyport;
 class IBlockDeviceEventSink;
 class IDisk2EventSink;
+class IDiskFileIo;
 class IFloppy35EventSink;
 class IInputEventSink;
 class Prng;
@@ -295,6 +297,20 @@ public:
     //  or a shutdown: <assetBase>/Machines/<machine>/PendingPrint.
     std::filesystem::path  GetPendingPrintDir() const;
 
+    //  How the machine's hard disks and 3.5-inch drives reach their image
+    //  files, and how a file's write protection is found. Both default to the
+    //  host's file system; a test passes an in-memory one, whose probe
+    //  reports every file writable unless the test supplies its own.
+    using WriteProtectProbe = std::function<WriteProtectInfo (const std::string & path)>;
+
+    void                SetBlockMediaFileIo (IDiskFileIo * fileIo, WriteProtectProbe probe = nullptr);
+    IDiskFileIo       & GetBlockMediaFileIo ();
+    WriteProtectInfo    ProbeBlockMedia     (const std::string & path) const;
+
+    //  Why an image the machine file lists did not attach, one line each, for
+    //  a notice; cleared at each build.
+    std::vector<std::wstring> &  GetBlockMediaProblems () noexcept { return m_blockMediaProblems; }
+
     void  SetCurrentMachineName (const std::wstring & name) { m_currentMachineName = name; }
     void  SetAssetBaseDir       (const std::wstring & dir)  { m_assetBaseDir = dir; }
 
@@ -380,6 +396,10 @@ private:
     // so it outlives every rebuild and every change of connector. 64 KB, so
     // on the heap.
     std::unique_ptr<PrinterByteRing>  m_printerRing;
+    std::unique_ptr<IDiskFileIo>      m_hostBlockFileIo;
+    IDiskFileIo                     * m_blockFileIo        = nullptr;
+    WriteProtectProbe                 m_blockProbe;
+    std::vector<std::wstring>         m_blockMediaProblems;
 
     std::wstring  m_currentMachineName;
     std::wstring  m_assetBaseDir;

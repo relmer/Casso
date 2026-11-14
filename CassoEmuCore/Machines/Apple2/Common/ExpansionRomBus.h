@@ -49,7 +49,9 @@ public:
     void AddCard (IExpansionRomCard * card);
 
 private:
-    void DeselectAll ();
+    // Deselects every card for an access to $CFFF, and every card but those
+    // that use the strobe page for the rest of $CF00-$CFFF.
+    void DeselectAll (Word address);
 
     MemoryBus &                    m_bus;
     vector<IExpansionRomCard *>    m_cards;

@@ -36,4 +36,12 @@ public:
     virtual Byte ReadExpansionRom       (Word address) = 0;
 
     virtual void DeselectExpansionRom   () = 0;
+
+    // A write to $C800-$CFFE while selected, for a card with RAM there.
+    virtual void WriteExpansionRom      (Word address, Byte value) { (void) address; (void) value; }
+
+    // True for a card that decodes only $CFFF as I/O STROBE's deselect and
+    // drives $CF00-$CFFE like the rest of its window, as the Apple II SCSI
+    // Card does.
+    virtual bool UsesStrobePage         () const { return false; }
 };

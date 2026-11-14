@@ -6,6 +6,9 @@
 
 
 class Acia6551;
+class AppleScsiCard;
+class IExpansionRomCard;
+class MemoryDevice;
 class DriveAudioMixer;
 class IHostNetwork;
 class Disk2AudioSource;
@@ -161,6 +164,8 @@ private:
     void     WireParallelPrinter  (const SlotConfig & slot, PrinterCard & card);
     void     WireSuperSerialCard  (const SlotConfig & slot, SuperSerialCard & card);
     void     AttachSerialEndpoint (const SlotConfig & slot, SuperSerialCard & card);
+    void     WireAppleScsiCard    (const SlotConfig & slot, AppleScsiCard & card);
+    void     AddExpansionRomCard  (int slot, IExpansionRomCard & card, MemoryDevice & slotPage);
 
     MachineHost          &  m_host;
     MachineBuildServices    m_services;
