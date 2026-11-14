@@ -71,8 +71,8 @@ void ExplorerDeletion::DeleteSelectionPermanently()
 //  To the Recycle Bin rather than gone, so a move whose files a disk image
 //  has in another form can be undone. Through the shell's delete, so a file
 //  too large for the bin is deleted only once the user confirms. A disk
-//  image's thumbnail is kept: the image's bytes are in the image it was
-//  moved into, and a copy out of it finds the thumbnail by its content.
+//  image's thumbnail isn't removed: the image's bytes are in the image it
+//  was moved into, and a copy out of it finds the thumbnail by its content.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
