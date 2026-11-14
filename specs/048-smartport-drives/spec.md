@@ -89,6 +89,8 @@ the interaction, sound and event log the Disk II already has.
   than two, stacks on the right,
   the hard disks on the left, and nothing is under the monitor. A hard disk narrower than the monitor stands on the left, as the
   HD20SC beside a //e does now.
+- Q: Should a hard disk's spindle be audible? A: No. The synthesized spindle
+  hum was annoying, so a hard disk makes only its seek ticks.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -299,8 +301,8 @@ on each device's feed.
 1. **Given** each external drive attached, **When** the user looks at the desk,
    **Then** each appears as a model whose proportions match measurements of the
    real unit, with Apple's colors and badges for its era.
-2. **Given** a hard disk at power-on, **When** the drive spins up, **Then** its spin-up
-   sound is audible, followed by seek sounds on its accesses.
+2. **Given** a hard disk, **When** the drive reads, writes or seeks, **Then** a
+   seek sound is audible; its spindle is silent.
 3. **Given** a hard disk with real timing turned on, **When** the machine
    starts, **Then** the firmware waits for the spin-up as on real hardware;
    with the default setting the drive is ready at once and seeks without
@@ -442,8 +444,8 @@ on each device's feed.
   activity lamp, loaded or empty state for removable media, tip with the
   mounted image and write-protect state, click to eject and browse, click the
   body to browse, and drop to attach.
-- **FR-021**: Each drive MUST have mechanical sounds of the real unit (spin-up, seek,
-  head stepping, the 3.5-inch eject motor), placed in the stereo field by its
+- **FR-021**: Each drive MUST have mechanical sounds of the real unit (seek,
+  head stepping, the 3.5-inch eject motor; a hard disk's spindle is silent), placed in the stereo field by its
   position on the desk, and under the existing drive audio switch.
 - **FR-022**: Each block device and 3.5-inch drive MUST emit an event feed
   (bus phase or command, unit, block or track and side, result) built as the

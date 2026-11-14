@@ -536,22 +536,19 @@ void StorageCardWiring::WireMig()
 //  WireDeviceAudio
 //
 //  A synthesized sound source for each 3.5-inch drive controller and each
-//  hard disk card, fed by its event feed and mixed with the Disk II's. A
-//  card's hard disks spin up from the machine's start.
+//  hard disk card, fed by its event feed and mixed with the Disk II's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void StorageCardWiring::WireDeviceAudio()
 {
-    constexpr uint32_t  kHd20scSpinUpMs  = 10'000;
-    constexpr uint32_t  kProFileSpinUpMs = 4'000;
-    constexpr float     kHd20scTick      = 0.15f;
-    constexpr float     kProFileTick     = 0.25f;
-    MachineRefs       & refs             = m_host.GetRefs();
-    uint32_t            rate             = 0;
-    float               motor            = 1.0f;
-    float               head             = 1.0f;
-    float               door             = 1.0f;
+    constexpr float     kHd20scTick  = 0.15f;
+    constexpr float     kProFileTick = 0.25f;
+    MachineRefs       & refs         = m_host.GetRefs();
+    uint32_t            rate         = 0;
+    float               motor        = 1.0f;
+    float               head         = 1.0f;
+    float               door         = 1.0f;
 
 
 
@@ -589,17 +586,12 @@ void StorageCardWiring::WireDeviceAudio()
 
     for (AppleScsiCard * card : refs.scsiCards)
     {
-        auto  audio = std::make_unique<HardDiskAudioSource> (kHd20scSpinUpMs, kHd20scTick);
+        auto  audio = std::make_unique<HardDiskAudioSource> (kHd20scTick);
 
 
 
         audio->SetSampleRate (rate);
         audio->SetVolumes (motor, head, door);
-
-        if (card->HasDrive())
-        {
-            audio->PowerOn();
-        }
 
         card->SetBlockDeviceEventSink (audio.get());
         m_services.driveAudioMixer->RegisterSource (audio.get());
@@ -608,13 +600,12 @@ void StorageCardWiring::WireDeviceAudio()
 
     for (ProFileCard * card : refs.proFileCards)
     {
-        auto  audio = std::make_unique<HardDiskAudioSource> (kProFileSpinUpMs, kProFileTick);
+        auto  audio = std::make_unique<HardDiskAudioSource> (kProFileTick);
 
 
 
         audio->SetSampleRate (rate);
         audio->SetVolumes (motor, head, door);
-        audio->PowerOn();
         card->SetBlockDeviceEventSink (audio.get());
         m_services.driveAudioMixer->RegisterSource (audio.get());
         m_services.deviceAudioSources->push_back (std::move (audio));

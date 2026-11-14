@@ -5,14 +5,9 @@
 
 
 
-//  The spindle at full speed: 3,600 rpm, a hum at its fundamental and a
-//  whine an octave and a half up.
-static constexpr double    s_kSpindleHz    = 60.0;
-static constexpr double    s_kWhineHz      = 180.0;
-static constexpr double    s_kTickHz       = 2200.0;
-static constexpr float     s_kSpindleLevel = 0.04f;
-static constexpr double    s_kTwoPi        = 6.283185307179586;
-static constexpr uint32_t  s_kMsPerSecond  = 1000;
+static constexpr double    s_kTickHz      = 2200.0;
+static constexpr double    s_kTwoPi       = 6.283185307179586;
+static constexpr uint32_t  s_kMsPerSecond = 1000;
 
 
 
@@ -24,8 +19,7 @@ static constexpr uint32_t  s_kMsPerSecond  = 1000;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HardDiskAudioSource::HardDiskAudioSource (uint32_t spinUpMs, float tickLevel) :
-    m_spinUpMs  (spinUpMs),
+HardDiskAudioSource::HardDiskAudioSource (float tickLevel) :
     m_tickLevel (tickLevel)
 {
     SetSampleRate (kDefaultRate);
@@ -47,10 +41,6 @@ void HardDiskAudioSource::OnBlockDeviceEvent (const BlockDeviceEvent & event)
     {
         m_tickLeft = m_tickTotal;
     }
-    else if (event.op == BlockDeviceOp::SpinUp)
-    {
-        PowerOn();
-    }
 }
 
 
@@ -67,7 +57,6 @@ void HardDiskAudioSource::SetSampleRate (uint32_t rate)
 {
     m_rate      = (rate != 0) ? rate : kDefaultRate;
     m_tickTotal = m_rate * kTickMs / s_kMsPerSecond;
-    m_speedStep = (m_spinUpMs == 0) ? 1.0f : 1.0f / ((float) m_rate * (float) m_spinUpMs / (float) s_kMsPerSecond);
 }
 
 
@@ -78,8 +67,7 @@ void HardDiskAudioSource::SetSampleRate (uint32_t rate)
 //
 //  GeneratePCM
 //
-//  The spindle's pitch and level follow its speed; a tick decays from its
-//  start.
+//  A tick decays from its start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,14 +83,6 @@ void HardDiskAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
 
 
 
-        m_speed  = m_spinning ? std::min (1.0f, m_speed + m_speedStep) : std::max (0.0f, m_speed - m_speedStep);
-        m_phase += step * m_speed;
-
-        if (m_speed > 0.0f)
-        {
-            sample += m_motorVolume * s_kSpindleLevel * m_speed * (float) (std::sin (m_phase * s_kSpindleHz) + 0.5 * std::sin (m_phase * s_kWhineHz));
-        }
-
         if (m_tickLeft > 0)
         {
             float  envelope = (float) m_tickLeft / (float) m_tickTotal;
@@ -115,8 +95,6 @@ void HardDiskAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
 
         outMono[i] = sample;
     }
-
-    m_phase = std::fmod (m_phase, s_kTwoPi * 1000.0);
 }
 
 

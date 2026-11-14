@@ -137,29 +137,24 @@ public:
     }
 
 
-    //  The spindle comes up to full speed over its spin-up time, and reads and
-    //  writes tick.
-    TEST_METHOD (HardDisk_SpinsUpAndTicks)
+    //  The spindle is silent, even after a spin-up, and reads tick.
+    TEST_METHOD (HardDisk_SilentSpindleAndTicks)
     {
-        HardDiskAudioSource  source (500, 0.2f);
-        BlockDeviceEvent     read;
+        HardDiskAudioSource  source (0.2f);
+        BlockDeviceEvent     event;
 
 
 
         source.SetSampleRate (kRate);
-        Assert::AreEqual (0.0f, Peak (source), L"at rest");
+        source.OnMotorEngaged();
+        event.op = BlockDeviceOp::SpinUp;
+        source.OnBlockDeviceEvent (event);
+        Assert::AreEqual (0.0f, Peak (source, kRate), L"spindle silent");
 
-        source.PowerOn();
-        Peak (source, kRate / 4);
-        Assert::IsTrue (source.GetSpeed() > 0.4f && source.GetSpeed() < 0.6f, L"halfway after half the spin-up");
-
-        Peak (source, kRate);
-        Assert::AreEqual (1.0f, source.GetSpeed());
-
-        read.op = BlockDeviceOp::Read;
-        source.OnBlockDeviceEvent (read);
+        event.op = BlockDeviceOp::Read;
+        source.OnBlockDeviceEvent (event);
         Assert::IsTrue (source.IsTickActive());
-        Peak (source, kRate / 100);
+        Assert::IsTrue (Peak (source, kRate / 100) > 0.001f, L"tick audible");
         Assert::IsFalse (source.IsTickActive());
     }
 };
