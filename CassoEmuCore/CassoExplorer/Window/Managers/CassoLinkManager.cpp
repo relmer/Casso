@@ -2271,6 +2271,36 @@ bool CassoLinkManager::FillFullSendView (FullSendPanel::View & ioView)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkManager::DescribeJobs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoLinkManager::DescribeJobs()
+{
+    FullSendPanel::View  view;
+    std::wstring         text;
+
+
+
+    if (m_context.app.links == nullptr)
+    {
+        return text;
+    }
+
+    if (FillFullSendView (view) && FullSendDialog::IsRunning (view.snapshot))
+    {
+        text = FullSendPanel::DescribeSummary (view.snapshot);
+    }
+
+    return text.empty() ? CassoLinkConnections::DescribeJobs (m_context.app.links->GetPendingJobs()) : text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkManager::OpenFullSendOnStart
 //
 //  The Full Send window opens once for each session, in the first window
@@ -2405,7 +2435,7 @@ void CassoLinkManager::RefreshCassoLinkViews()
 
     //  The running operation's progress and the queue after it; the status
     //  bar's own text returns once nothing is pending.
-    jobs = CassoLinkConnections::DescribeJobs (m_context.app.links->GetPendingJobs());
+    jobs = DescribeJobs();
 
     if (!jobs.empty())
     {
