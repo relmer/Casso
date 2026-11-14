@@ -318,6 +318,56 @@ public:
     }
 
 
+    //  An image copied to an A2Pico card in DOS order is taken as an arrival
+    //  once Windows has closed it, and ReplaceWithPo puts a .po in its place.
+    //  A DOS 3.3 disk and a file copied anywhere else aren't taken.
+    TEST_METHOD (ArrivalsOnAnA2PicoCard_AreReplacedWithAPo)
+    {
+        Host                           host;
+        FixtureProvider                fixtures;
+        std::vector<Byte>              po;
+        std::vector<Byte>              dsk (NibblizationLayer::kImageByteSize, 0);
+        std::vector<std::wstring>      arrived;
+        std::wstring                   written;
+        CassoExplorerActions::Outcome  outcome;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/prodos.po", po));
+
+        for (size_t at = 0; at < po.size(); at++)
+        {
+            dsk[ProDosSkeleton::GetBlockByteOffset ((int) (at / 512), at % 512)] = po[at];
+        }
+
+        host.SeedBytes   (Bytes ("[drives]\nnumber=2\n1=games/zork.dsk\n"), L"E:\\A2retroNET.txt");
+        host.SeedBytes   (dsk, L"E:\\games\\zork.dsk");
+        host.SeedBytes   (dsk, L"C:\\other\\zork.dsk");
+        host.SeedFixture ("CassoExplorer/dos33.dsk", L"E:\\games\\dos33.dsk");
+
+        host.actions.GetA2retroNet().ExpectArrivals ({ L"E:\\games\\zork.dsk", L"E:\\games\\dos33.dsk", L"C:\\other\\zork.dsk" });
+
+        host.io.reportHeldByOther = true;
+        host.actions.GetA2retroNet().TakeArrived (arrived);
+        Assert::IsTrue (arrived.empty(), L"Windows is writing the files");
+
+        host.io.reportHeldByOther = false;
+        host.actions.GetA2retroNet().TakeArrived (arrived);
+        Assert::AreEqual ((size_t) 1, arrived.size());
+        Assert::AreEqual (std::wstring (L"E:\\games\\zork.dsk"), arrived[0]);
+
+        host.actions.GetA2retroNet().TakeArrived (arrived);
+        Assert::IsTrue (arrived.empty(), L"an arrival is taken once");
+
+        outcome = host.actions.GetA2retroNet().ReplaceWithPo (L"E:\\games\\zork.dsk", written);
+
+        Assert::IsTrue  (outcome.Succeeded(), outcome.message.c_str());
+        Assert::IsTrue  (host.io.files["E:\\games\\zork.po"] == po);
+        Assert::IsFalse (host.io.files.contains ("E:\\games\\zork.dsk"), L"the .dsk is removed");
+        Assert::AreEqual (std::string ("[drives]\nnumber=2\n1=games/zork.po\n"), std::string (host.io.files["E:\\A2retroNET.txt"].begin(), host.io.files["E:\\A2retroNET.txt"].end()));
+    }
+
+
     //  A card just initialized for an A2Pico gets the firmware's defaults. A
     //  card that has the file already is left as it is.
     TEST_METHOD (CreateA2retroNetConfig_WritesTheDefaultsOnce)

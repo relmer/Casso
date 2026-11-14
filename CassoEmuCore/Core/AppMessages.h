@@ -54,4 +54,5 @@ enum class AppMessage : UINT
     ExplorerThumbnail      = WM_APP + 0x47,   // a disk image's thumbnail is built, posted to the Explorer window
     ExplorerCardProgress   = WM_APP + 0x48,   // a storage card's initialize reported progress or ended, posted to the Explorer window
     ExplorerElevation      = WM_APP + 0x49,   // sent before the storage card broker starts: wParam bool * for OK, lParam the card's name
+    ExplorerCardArrivals   = WM_APP + 0x4A,   // images an A2Pico doesn't read were copied to its card, posted to the Explorer window
 };

@@ -271,6 +271,10 @@ void ExplorerClipboard::PasteHere (const std::wstring & folder)
         m_context.actions.GetA2retroNet().NoteMove (pasted.sources[i], pasted.created[i]);
     }
 
+    //  An image pasted onto an A2Pico card that A2retroNET doesn't read is
+    //  offered as a .po once it is listed.
+    m_context.actions.GetA2retroNet().ExpectArrivals (pasted.created);
+
     if (!pasted.created.empty())
     {
         ExplorerUndoStep  step;

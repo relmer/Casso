@@ -1250,6 +1250,12 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
     if (m_hostDrop != nullptr && TryGetHostDropFolder (tag, screen, hostFolder) && ExplorerFolderSync::IsSameFolder (hostFolder, m_hostDropFolder))
     {
         std::vector<std::wstring>  names = GetDroppedNames (data);
+        std::vector<std::wstring>  targets;
+
+        for (const std::wstring & name : names)
+        {
+            targets.push_back ((std::filesystem::path (hostFolder) / name).wstring());
+        }
 
         effect = m_dropTarget.GetAllowedEffects();
 
@@ -1272,6 +1278,13 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
         if (SUCCEEDED (hrPaths))
         {
             m_context.actions.GetA2retroNet().ExpectMoves (dropped, hostFolder);
+        }
+
+        //  An image dropped onto an A2Pico card that A2retroNET doesn't read
+        //  is offered as a .po once it is listed.
+        if (SUCCEEDED (hr) && effect != DROPEFFECT_NONE)
+        {
+            m_context.actions.GetA2retroNet().ExpectArrivals (targets);
         }
 
         m_hostDrop.Reset();
