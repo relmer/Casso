@@ -20,8 +20,9 @@ without touching the loader.
 | `cad_rq309ds.py` | `Resources/Models/CassetteRecorder/` | Panasonic RQ-309DS cassette recorder (140×260×70) |
 | `gen_duodisk.py` | `Resources/Models/DuoDisk/` | Apple DuoDisk A9M0106 (386×89×222) — meshkit, not yet migrated |
 | `cad_profile.py` | `Resources/Models/ProFile/` | Apple ProFile 5 MB and 10 MB (439×112×224) |
-| `cad_unidisk35.py` | `Resources/Models/UniDisk35/` | Apple UniDisk 3.5 (175×200×50), on `cad_floppy35.py` |
-| `cad_apple35.py` | `Resources/Models/Apple35Drive/`, `Apple35Plus/` | Apple 3.5 Drive (121×210×57); `--plus` for the //c Plus colors |
+| `cad_unidisk35.py` | `Resources/Models/UniDisk35/` | Apple UniDisk 3.5, the Apple 3.5 Drive's case in Snow White, on `cad_floppy35.py` |
+| `cad_apple35.py` | `Resources/Models/Apple35Drive/`, `Apple35Plus/` | Apple 3.5 Drive (121×210×57), on `cad_floppy35.py`; `--plus` for the //c Plus colors |
+| `cad_badge.py` | (module) | The rainbow Apple badge from `CassoBranding.cpp`, shared by the models |
 
 **Color is identity.** The desk scene splits a model into sub-meshes by
 matching `Kd` VALUES within ±0.02 per channel (`DeskSceneModel::kKdEpsilon`)

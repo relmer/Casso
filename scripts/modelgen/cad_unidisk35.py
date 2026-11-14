@@ -1,23 +1,13 @@
-"""Apple UniDisk 3.5 (A2M2053): the intelligent SmartPort drive in the //c's
-snow white, wider than it is tall, with grooves across the front below the
-slot.
-
-THE DIMENSIONS: about 175 mm wide, 50 mm high and 200 mm deep, from the
-retrotechcollection wiki's 200 x 175 x 50 mm, read as the case's depth,
-width and height. Not measured from a photograph; for the owner's review
-(T108).
-"""
+"""Apple UniDisk 3.5 (A2M2053): the intelligent SmartPort drive, in the
+Apple 3.5 Drive's case (cad_floppy35.py) in the //c's Snow White."""
 
 import os
 
 from cad_floppy35 import build
 
-W, D, H = 175.0, 200.0, 50.0
+SNOW_WHITE = (0.905, 0.890, 0.835)
 
-CASE  = (0.905, 0.895, 0.860)   # snow white
-BEZEL = (0.860, 0.850, 0.815)
-
-m = build(W, D, H, CASE, BEZEL, slot_w = 96.0, slot_z = 30.0, grooves = 4)
+m = build(SNOW_WHITE)
 
 if __name__ == "__main__":
     out = os.path.dirname(os.path.abspath(__file__))

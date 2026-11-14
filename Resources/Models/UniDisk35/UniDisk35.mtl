@@ -1,21 +1,26 @@
-newmtl case
+newmtl case_lower
 Ka 0 0 0 
-Kd 0.905 0.895 0.86
+Kd 0.905 0.89 0.835
 d 1
 
-newmtl bezel
+newmtl case_lid
 Ka 0 0 0 
-Kd 0.86 0.85 0.815
+Kd 0.905 0.89 0.835
 d 1
 
 newmtl slot
 Ka 0 0 0 
-Kd 0.09 0.09 0.095
+Kd 0.07 0.07 0.075
 d 1
 
 newmtl eject
 Ka 0 0 0 
-Kd 0.86 0.85 0.815
+Kd 0.905 0.89 0.835
+d 1
+
+newmtl eject_hole
+Ka 0 0 0 
+Kd 0.07 0.07 0.075
 d 1
 
 newmtl lamp
@@ -23,27 +28,57 @@ Ka 0 0 0
 Kd 0.9 0.12 0.1
 d 1
 
+newmtl badge0
+Ka 0 0 0 
+Kd 0.380392 0.733333 0.27451
+d 1
+
+newmtl badge1
+Ka 0 0 0 
+Kd 0.992157 0.721569 0.152941
+d 1
+
+newmtl badge2
+Ka 0 0 0 
+Kd 0.960784 0.509804 0.121569
+d 1
+
+newmtl badge3
+Ka 0 0 0 
+Kd 0.878431 0.227451 0.243137
+d 1
+
+newmtl badge4
+Ka 0 0 0 
+Kd 0.588235 0.239216 0.592157
+d 1
+
+newmtl badge5
+Ka 0 0 0 
+Kd 0 0.615686 0.862745
+d 1
+
 newmtl front_anchor
 Ka 0 0 0 
 Kd 0.98 0.01 0.24
 d 1
 
-newmtl foot_12_12
+newmtl foot_10_10
 Ka 0 0 0 
 Kd 0.18 0.18 0.19
 d 1
 
-newmtl foot_12_188
+newmtl foot_10_186
 Ka 0 0 0 
 Kd 0.18 0.18 0.19
 d 1
 
-newmtl foot_163_12
+newmtl foot_102_10
 Ka 0 0 0 
 Kd 0.18 0.18 0.19
 d 1
 
-newmtl foot_163_188
+newmtl foot_102_186
 Ka 0 0 0 
 Kd 0.18 0.18 0.19
 d 1

@@ -1,21 +1,56 @@
 newmtl case
 Ka 0 0 0 
-Kd 0.833 0.784 0.659
+Kd 0.86 0.83 0.75
 d 1
 
-newmtl panel
+newmtl logo_plate
 Ka 0 0 0 
-Kd 0.79 0.742 0.62
+Kd 0.12 0.115 0.11
 d 1
 
-newmtl grille
+newmtl badge_plate
 Ka 0 0 0 
-Kd 0.24 0.23 0.21
+Kd 0.12 0.115 0.11
 d 1
 
-newmtl nameplate
+newmtl badge0
 Ka 0 0 0 
-Kd 0.3 0.22 0.16
+Kd 0.380392 0.733333 0.27451
+d 1
+
+newmtl badge1
+Ka 0 0 0 
+Kd 0.992157 0.721569 0.152941
+d 1
+
+newmtl badge2
+Ka 0 0 0 
+Kd 0.960784 0.509804 0.121569
+d 1
+
+newmtl badge3
+Ka 0 0 0 
+Kd 0.878431 0.227451 0.243137
+d 1
+
+newmtl badge4
+Ka 0 0 0 
+Kd 0.588235 0.239216 0.592157
+d 1
+
+newmtl badge5
+Ka 0 0 0 
+Kd 0 0.615686 0.862745
+d 1
+
+newmtl lettering
+Ka 0 0 0 
+Kd 0.88 0.87 0.84
+d 1
+
+newmtl ready_plate
+Ka 0 0 0 
+Kd 0.12 0.115 0.11
 d 1
 
 newmtl lamp

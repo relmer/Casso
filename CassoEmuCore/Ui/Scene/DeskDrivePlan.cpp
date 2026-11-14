@@ -43,7 +43,7 @@ float DeskDrivePlan::GetCaseWidthMm (DeskDriveModel model)
     {
         case DeskDriveModel::DiskII:       width = 156.0f; break;
         case DeskDriveModel::Disk2c:       width = 152.0f; break;
-        case DeskDriveModel::UniDisk35:    width = 175.0f; break;
+        case DeskDriveModel::UniDisk35:    width = 121.0f; break;
         case DeskDriveModel::Apple35Drive: width = 121.0f; break;
         case DeskDriveModel::Apple35Plus:  width = 121.0f; break;
         case DeskDriveModel::HardDisk20SC: width = 245.0f; break;

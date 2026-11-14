@@ -72,7 +72,7 @@ public:
 
         Assert::IsTrue (Find (plan, M::DiskII, 0).spot == S::DriveBar);
         Assert::IsTrue (Find (plan, M::UniDisk35).spot == S::DriveBar);
-        Assert::AreEqual (0, Find (plan, M::UniDisk35).level, L"the widest at the bottom of the bar's stack");
+        Assert::AreEqual (2, Find (plan, M::UniDisk35).level, L"the narrowest at the top of the bar's stack");
         Assert::IsTrue (Find (plan, M::HardDisk20SC, 6).spot == S::LeftStack);
     }
 
@@ -121,9 +121,9 @@ public:
             Assert::IsTrue (placed.spot != S::UnderMonitor);
         }
 
-        Assert::AreEqual (0, Find (plan, M::UniDisk35).level);
-        Assert::AreEqual (1, Find (plan, M::DiskII).level);
-        Assert::AreEqual (2, Find (plan, M::Apple35Drive).level, L"the narrowest on top");
+        Assert::AreEqual (0, Find (plan, M::DiskII).level, L"the widest at the bottom");
+        Assert::AreEqual (1, Find (plan, M::UniDisk35).level);
+        Assert::AreEqual (2, Find (plan, M::Apple35Drive).level, L"one width keeps the order given");
         Assert::IsTrue (Find (plan, M::Apple35Drive).spot == S::RightStack);
 
         Assert::AreEqual (0, Find (plan, M::ProFile).level);
