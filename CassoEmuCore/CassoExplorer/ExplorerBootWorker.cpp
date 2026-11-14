@@ -4,6 +4,7 @@
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "CassoLink/FullSend/FullSendManifestFile.h"
 #include "Core/TextEncoding.h"
+#include "DiskCheck/BootTitle.h"
 #include "Devices/Disk/DiskImageStore.h"
 
 
@@ -269,6 +270,7 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
     record.verdict = BootProbe::GetVerdictName (report.verdict);
     record.machine = result.machine;
     record.reason  = report.reason;
+    record.title   = BootTitle::Find (report.rows, report.isTextMode);
 
     hr = m_store.Store (file, png, record);
     CHR (hr);
