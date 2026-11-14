@@ -630,15 +630,17 @@ void BlockInspectorPanel::BuildStatus()
 
 void BlockInspectorPanel::AppendSecondRowStatus (uint32_t block)
 {
-    const LeftoverRun  * run   = m_model->FindLeftoverRun (block);
-    std::wstring         other = m_model->IsComparing() ? fs::path (m_model->GetOther()->GetPath()).filename().wstring() : std::wstring();
+    const LeftoverRun  * run    = m_model->FindLeftoverRun (block);
+    std::wstring         other  = m_model->IsComparing() ? fs::path (m_model->GetOther()->GetPath()).filename().wstring() : std::wstring();
+    size_t               differ = m_model->IsComparing() ? m_model->CountDifferent() : 0;
+    size_t               runs   = m_model->HasLeftovers() ? m_model->GetLeftovers().size() : 0;
 
 
 
     if (m_model->IsComparing())
     {
         m_status += m_model->IsDifferent (block) ? L". Differs from " + other : L". Same as " + other;
-        m_status += L" (" + std::to_wstring (m_model->CountDifferent()) + L" blocks differ)";
+        m_status += differ == 0 ? std::wstring (L" (no blocks differ)") : differ == 1 ? std::wstring (L" (1 block differs)") : std::format (L" ({} blocks differ)", differ);
     }
 
     if (run != nullptr)
@@ -648,7 +650,7 @@ void BlockInspectorPanel::AppendSecondRowStatus (uint32_t block)
     }
     else if (m_model->HasLeftovers())
     {
-        m_status += L". " + std::to_wstring (m_model->GetLeftovers().size()) + L" runs of leftover data";
+        m_status += runs == 0 ? std::wstring (L". No leftover data in the free blocks") : runs == 1 ? std::wstring (L". 1 run of leftover data") : std::format (L". {} runs of leftover data", runs);
     }
 }
 
