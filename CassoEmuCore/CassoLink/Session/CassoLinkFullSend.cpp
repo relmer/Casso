@@ -500,7 +500,7 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, bool withEarlier, std::vector<
 
         if (withEarlier && !earlier.empty())
         {
-            m_status.AddLine (std::format ("Building the image from the reads of both captures of the disk in drive {}", drive));
+            m_status.AddLine (std::format ("Combining the reads of both captures of the disk in drive {} to build its image", drive));
 
             CassoLinkCapture::MergeReads (result.positions, earlier);
 

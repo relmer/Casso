@@ -591,7 +591,7 @@ void CassoExplorerOptionsDialog::WireFullSend()
 
     m_fullSendFolder.SetText (m_choices.fullSendFolder);
 
-    m_fullSendSoundsLabel.SetText (L"Play a sound when an image boots, and another when it doesn't, on");
+    m_fullSendSoundsLabel.SetText (L"Play a sound when a capture succeeds, and another when it fails, on");
     ExplorerTextStyles::Apply (m_fullSendSoundsLabel, ExplorerTextStyles::kFormLabel);
 
     m_fullSendSounds.SetAnimationsEnabled (false);

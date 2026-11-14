@@ -168,7 +168,7 @@ std::string BootCheck::GetMachineName (const std::string & machineId)
     return machineId == "Apple2c" ? "Apple //c"
          : machineId == kEnhanced ? "enhanced Apple //e"
          : machineId == "Apple2e" ? "Apple //e"
-         : machineId == kPlus     ? "Apple ][+"
+         : machineId == kPlus     ? "Apple ][ plus"
          : machineId == "Apple2"  ? "Apple ]["
                                   : machineId;
 }

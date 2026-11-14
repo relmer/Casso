@@ -63,7 +63,7 @@ std::vector<std::string> FullSendScreen::GetRows() const
             case FullSendDriveState::Checking: row += "CHECKING";           break;
             case FullSendDriveState::Sending:  row += (verify ? "VERIFYING " : "SENDING ") + names[i]; break;
             case FullSendDriveState::Empty:    row += "UNFORMATTED, OR NO DISK";   break;
-            case FullSendDriveState::Blank:    row += "BLANK, " + names[i]; break;
+            case FullSendDriveState::Blank:    row += names[i] + ", BLANK"; break;
             case FullSendDriveState::Repeat:    row += GetDuplicateText (names[i], "?"); break;
             case FullSendDriveState::Sent:     row += "SENT " + names[i];   break;
             case FullSendDriveState::Protected: row += "PROTECTED, CAPTURED RAW " + names[i]; break;
@@ -653,7 +653,7 @@ HRESULT FullSendSession::SendAgain (int drive, const CheckedDisk & disk)
     m_repeats[(size_t) drive - 1] = false;
     m_deeper                      = true;
 
-    Report (std::format ("The image captured from the disk in drive {} did not boot, so the disk is being captured again, more carefully.", drive));
+    Report (std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive));
 
     if (!wasVerify)
     {
@@ -1018,7 +1018,7 @@ HRESULT FullSendSession::CheckBlank (int drive, CheckedDisk & ioDisk)
             m_status.AddBlank();
         }
 
-        Report (std::format ("The disk in drive {} is blank, formatted for {}, so it wasn't sent. Press {} on the Apple to send it anyway.", drive, system, drive));
+        Report (std::format ("The disk in drive {} is formatted for {} but is blank, so it wasn't sent. Press {} on the Apple to send it anyway.", drive, system, drive));
     }
     else
     {
@@ -1289,7 +1289,8 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     //  image that did not boot is on the Apple at the pause that follows.
     if (earlier == nullptr && m_link.NoteImage (GetPath (row.file)))
     {
-        FullSendTone  tone = m_screen.tone;
+        FullSendTone  tone   = m_screen.tone;
+        bool          failed = false;
 
         m_screen.tone = FullSendTone::None;
         SetDriveState (drive, FullSendDriveState::Validating);
@@ -1305,11 +1306,14 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
         ApplyBoots();
 
-        //  The result's tone in place of the disk's, where the Apple sounds it.
-        m_screen.tone = !m_link.HasBootTones()                             ? tone
-                      : m_latestBoot == FullSendManifest::kBootBooted      ? FullSendTone::Booted
-                      : m_latestBoot == FullSendManifest::kBootDidNotBoot  ? FullSendTone::DidNotBoot
-                                                                           : tone;
+        //  Where the Apple sounds the results, the failure's tone is for an
+        //  image that did not boot or has unreadable sectors, and the
+        //  success's for any other.
+        failed = m_latestBoot == FullSendManifest::kBootDidNotBoot || (raw.empty() && !unreadable.empty());
+
+        m_screen.tone = !m_link.HasBootTones() || m_latestBoot.empty() ? tone
+                      : failed                                         ? FullSendTone::DidNotBoot
+                                                                       : FullSendTone::Booted;
     }
 
     //  A raw capture has every track, so its row has no map of bad sectors.
@@ -1693,8 +1697,8 @@ void FullSendSession::ApplyBoots()
             {
                 m_retryPrint = found->fingerprint;
 
-                m_unbooted.push_back (std::format ("{} DID NOT BOOT. PRESS SPACE TO", image));
-                m_unbooted.push_back ("CAPTURE IT AGAIN, OR PUT IN A NEW DISK.");
+                m_unbooted.push_back (std::format ("{} DID NOT BOOT. CAPTURE IT AGAIN", image));
+                m_unbooted.push_back ("OR PUT IN A NEW DISK, THEN PRESS SPACE");
             }
         }
     }

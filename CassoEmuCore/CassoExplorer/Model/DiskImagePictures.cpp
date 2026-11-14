@@ -97,27 +97,25 @@ bool DiskImagePictures::Find (const std::wstring & path, std::shared_ptr<const D
 std::wstring DiskImagePictures::DescribeRecord (const ThumbnailRecord & record, bool isUserSet)
 {
     std::string  machine = BootCheck::GetMachineName (record.machine);
+    std::string  verdict = isUserSet ? std::string() : record.verdict;
     std::string  text;
 
 
 
-    if (isUserSet)
-    {
-        text = "The picture was set in Casso.";
-    }
-    else if (record.verdict == BootProbe::GetVerdictName (BootVerdict::Booted))
+    //  A picture the user set has no boot result.
+    if (verdict == BootProbe::GetVerdictName (BootVerdict::Booted))
     {
         text = std::format ("Boots on the {}.", machine);
     }
-    else if (record.verdict == BootProbe::GetVerdictName (BootVerdict::DidNotBoot))
+    else if (verdict == BootProbe::GetVerdictName (BootVerdict::DidNotBoot))
     {
         text = std::format ("Did not boot on the {}. {}", machine, record.reason);
     }
-    else if (record.verdict == BootProbe::GetVerdictName (BootVerdict::NotBootable))
+    else if (verdict == BootProbe::GetVerdictName (BootVerdict::NotBootable))
     {
         text = std::format ("Not a bootable disk. {}", record.reason);
     }
-    else if (!record.verdict.empty())
+    else if (!verdict.empty())
     {
         text = std::format ("It is unclear whether it boots on the {}. {}", machine, record.reason);
     }

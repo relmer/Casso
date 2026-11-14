@@ -158,7 +158,7 @@ void CassoExplorerShell::StartBootWorker()
 
         if (!result.source.empty() && result.hasReport)
         {
-            PlayBootSound (result.verdict);
+            PlayBootSound (result);
         }
 
         //  An image no machine could be built for waits for the ROMs, which
@@ -212,16 +212,15 @@ void CassoExplorerShell::QueueBoot (const std::wstring & path)
 //  CassoExplorerShell::PlayBootSound
 //
 //  The sound for an image a connection wrote, where Options has the PC
-//  for the sounds. A sound in progress, as a cassette bootstrap's is, isn't stopped for
-//  it.
+//  for the sounds: the failure's for an image that did not boot or has
+//  unreadable sectors, and the success's for any other. A sound in progress,
+//  as a cassette bootstrap's is, isn't stopped for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerShell::PlayBootSound (BootVerdict verdict)
+void CassoExplorerShell::PlayBootSound (const ExplorerBootWorker::Result & result)
 {
-    const std::vector<Byte>  * sound = verdict == BootVerdict::Booted     ? &m_bootedSound
-                                     : verdict == BootVerdict::DidNotBoot ? &m_notBootedSound
-                                                                          : nullptr;
+    const std::vector<Byte>  * sound = !result.isComplete || result.verdict == BootVerdict::DidNotBoot ? &m_notBootedSound : &m_bootedSound;
     bool                       onPc  = m_prefs.bootSoundPlace == CassoExplorerPrefs::kBootSoundPc || m_prefs.bootSoundPlace == CassoExplorerPrefs::kBootSoundBoth;
 
 
@@ -262,8 +261,8 @@ void CassoExplorerShell::OfferBootRoms (HWND hwnd, const DxuiTheme * theme)
     m_romsOffered = true;
 
     hr = AssetBootstrap::OfferMachineRoms (hwnd, theme, { TextEncoding::NarrowToWide (BootCheck::kEnhanced), TextEncoding::NarrowToWide (BootCheck::kPlus) },
-                                           L"ROMs for checking disk images",
-                                           L"Casso Explorer boots each disk image on an emulated Apple to check that it runs and to make its picture. "
+                                           L"Machine ROM download",
+                                           L"Casso Explorer boots each disk image on an emulated Apple to check that it runs and to capture a screenshot for its thumbnail. "
                                            L"The ROMs of these machines aren't installed. Download them?",
                                            downloaded, error);
     IGNORE_RETURN_VALUE (hr, S_OK);

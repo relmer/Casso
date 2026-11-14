@@ -930,7 +930,7 @@ public:
         Assert::IsTrue (rig.io.files.empty() || !rig.io.files.contains ("C:\\Box\\0001.dsk"), L"No image");
         Assert::IsTrue (session->GetManifest().GetRows().empty(), L"No row");
         Assert::IsTrue (session->GetScreen().drives[0] == FullSendDriveState::Blank);
-        Assert::IsTrue (session->GetScreen().GetRows()[3].starts_with ("D1: BLANK, DOS 3.3"), TextEncoding::NarrowToWide (session->GetScreen().GetRows()[3]).c_str());
+        Assert::IsTrue (session->GetScreen().GetRows()[3].starts_with ("D1: DOS 3.3, BLANK"), TextEncoding::NarrowToWide (session->GetScreen().GetRows()[3]).c_str());
 
         FullSendSnapshot  snapshot = rig.status.GetSnapshot();
 
@@ -1007,7 +1007,7 @@ public:
                         L"No tone for the result unless the Apple has them on");
         Assert::IsTrue (rig.link.screens.back().drives[0] != FullSendDriveState::Validating);
         Assert::AreEqual ((size_t) 1, rig.link.pauseLines.size());
-        Assert::IsTrue (std::find (rig.link.pauseLines[0].begin(), rig.link.pauseLines[0].end(), "0001 DID NOT BOOT. PRESS SPACE TO") != rig.link.pauseLines[0].end());
+        Assert::IsTrue (std::find (rig.link.pauseLines[0].begin(), rig.link.pauseLines[0].end(), "0001 DID NOT BOOT. CAPTURE IT AGAIN") != rig.link.pauseLines[0].end());
     }
 
     //  Space with the disk that did not boot in its drive reads it again,
@@ -1031,7 +1031,7 @@ public:
         Assert::AreEqual ((size_t) 2, rig.link.captures.size(), L"Captured, and captured again");
         Assert::AreEqual (1, rig.link.capturesWithEarlier, L"The second with the reads of the first");
         Assert::AreEqual ((size_t) 3, rig.link.pauseLines.size());
-        Assert::IsTrue (has (rig.link.pauseLines[0], "0001 DID NOT BOOT. PRESS SPACE TO"));
+        Assert::IsTrue (has (rig.link.pauseLines[0], "0001 DID NOT BOOT. CAPTURE IT AGAIN"));
         Assert::IsTrue (has (rig.link.pauseLines[1], "0002 STILL DOES NOT BOOT."));
         Assert::IsFalse (has (rig.link.pauseLines[2], "0002 STILL DOES NOT BOOT."), L"Space after that is a repeat's");
         Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001.woz") && rig.io.files.contains ("C:\\Box\\0002.woz"), L"Each capture has its image");
@@ -1051,6 +1051,25 @@ public:
 
         Assert::IsTrue (std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Booted; }));
         Assert::IsTrue (std::none_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Done; }));
+    }
+
+    //  An image with unreadable sectors is a failed capture, even when it
+    //  boots.
+    TEST_METHOD (Session_WithBootTonesOnTheApple_AnImageWithBadSectors_HasTheFailureTone)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Other (1);
+        rig.link.badDisk    = rig.link.drives[0];
+        rig.link.badSectors = { { 5, 0 } };
+        rig.link.present[1] = false;
+        rig.link.bootTones  = true;
+        rig.link.onAwait    = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootBooted); };
+
+        rig.Run();
+
+        Assert::IsTrue (std::any_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::DidNotBoot; }));
+        Assert::IsTrue (std::none_of (rig.link.screens.begin(), rig.link.screens.end(), [] (const FullSendScreen & screen) { return screen.tone == FullSendTone::Booted; }));
     }
 
     //  A likely copy-protected disk is captured raw: its image is the WOZ, its

@@ -79,13 +79,13 @@ public:
         Assert::AreEqual (std::wstring (L"Boots on the Apple //c."), DiskImagePictures::DescribeRecord (record, false));
 
         record.verdict = "did-not-boot";
-        record.reason  = "The machine stopped at the monitor's prompt.";
-        Assert::AreEqual (std::wstring (L"Did not boot on the Apple //c. The machine stopped at the monitor's prompt."), DiskImagePictures::DescribeRecord (record, false));
+        record.reason  = "The machine stopped at the monitor prompt, usually indicating an error or crash.";
+        Assert::AreEqual (std::wstring (L"Did not boot on the Apple //c. The machine stopped at the monitor prompt, usually indicating an error or crash."), DiskImagePictures::DescribeRecord (record, false));
 
-        Assert::AreEqual (std::wstring (L"The picture was set in Casso."), DiskImagePictures::DescribeRecord (record, true));
+        Assert::AreEqual (std::wstring(), DiskImagePictures::DescribeRecord (record, true));
         record.verdict = "unclear";
-        record.reason  = "The screen changed, and the drive was running at the time limit.";
-        Assert::AreEqual (std::wstring (L"It is unclear whether it boots on the Apple //c. The screen changed, and the drive was running at the time limit."),
+        record.reason  = "The screen changed, but the drive didn't stop before the time limit.";
+        Assert::AreEqual (std::wstring (L"It is unclear whether it boots on the Apple //c. The screen changed, but the drive didn't stop before the time limit."),
                           DiskImagePictures::DescribeRecord (record, false));
 
         Assert::IsTrue (DiskImagePictures::DescribeRecord (ThumbnailRecord(), false).empty());

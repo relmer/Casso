@@ -246,17 +246,17 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
 
     if (trace.samples.empty() || trace.driveStarted < 0)
     {
-        outReason = "The machine never started the drive.";
+        outReason = "The emulated machine never turned on the disk drive.";
     }
     else if (HasRow (trace.rows, "UNABLE TO LOAD PRODOS"))
     {
         verdict   = BootVerdict::NotBootable;
-        outReason = "The disk has ProDOS's boot code and no system file to start.";
+        outReason = "It is a ProDOS data disk: it has no PRODOS file to load.";
     }
     else if (trace.isTextMode && last.starts_with ("*"))
     {
         verdict   = BootVerdict::DidNotBoot;
-        outReason = "The machine stopped at the monitor's prompt.";
+        outReason = "The machine stopped at the monitor prompt, usually indicating an error or crash.";
     }
     else if (trace.isTextMode && last.starts_with ("]") && hasError)
     {
@@ -266,7 +266,7 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
     else if (trace.samples.back().frameHash == trace.samples[(size_t) trace.driveStarted].frameHash)
     {
         verdict   = BootVerdict::DidNotBoot;
-        outReason = "The screen at the end was the screen when the drive started.";
+        outReason = "Nothing appeared on the screen after the disk began to load.";
     }
     else if ((IsSettled (trace, limits) || IsHeadAtRest (trace, limits)) && IsStuck (trace))
     {
@@ -276,16 +276,16 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
     else if (IsSettled (trace, limits))
     {
         verdict   = BootVerdict::Booted;
-        outReason = "The screen changed and the drive stopped.";
+        outReason = "The screen changed, and the drive turned off.";
     }
     else if (IsHeadAtRest (trace, limits))
     {
         verdict   = BootVerdict::Booted;
-        outReason = "The screen changed and the drive's head was at rest at the time limit.";
+        outReason = "The screen changed, and the drive's head stopped moving before the time limit.";
     }
     else
     {
-        outReason = "The screen changed, and the drive was running at the time limit.";
+        outReason = "The screen changed, but the drive didn't stop before the time limit.";
     }
 
     return verdict;

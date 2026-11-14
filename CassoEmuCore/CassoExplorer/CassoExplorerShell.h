@@ -231,7 +231,7 @@ private:
     void                                     StartLinkFaults      ();
     void                                     StartBootWorker      ();
     void                                     QueueBoot            (const std::wstring & path);
-    void                                     PlayBootSound        (BootVerdict verdict);
+    void                                     PlayBootSound        (const ExplorerBootWorker::Result & result);
     void                                     NoteUnbooted         (const ExplorerBootWorker::Result & result, const std::string & model);
     void                                     ReleaseClosedWindows ();
     static void                              CloseDialogs         ();

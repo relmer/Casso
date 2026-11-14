@@ -107,7 +107,7 @@ public:
             Assert::AreEqual (std::string ("Apple2eEnhanced"), results[0].machine);
             Assert::AreEqual (std::string ("Modem"), results[0].source);
             Assert::AreEqual (std::string ("0001.dsk booted on the enhanced Apple //e."), ExplorerBootWorker::Describe (results[0]));
-            Assert::AreEqual (std::string ("notes.txt wasn't booted."), ExplorerBootWorker::Describe (results[1]));
+            Assert::AreEqual (std::string ("notes.txt couldn't be read as a disk image, so it wasn't booted."), ExplorerBootWorker::Describe (results[1]));
             Assert::IsFalse (results[1].hasReport, L"A file that isn't a disk image");
 
             AssertSucceeded (store.Find (image, png, record, isUserSet));

@@ -35,8 +35,9 @@ public:
         std::wstring              path;         // the image, under its new name when the boot renamed it
         std::string               renamedFrom;  // the file's name before, when the boot renamed it
         std::string               source;       // as given to Queue
-        bool                      hasReport = false;
-        BootVerdict               verdict   = BootVerdict::Unclear;
+        bool                      hasReport  = false;
+        bool                      isComplete = true;    // false for a Full Send image with unreadable sectors
+        BootVerdict               verdict    = BootVerdict::Unclear;
         std::string               reason;
         std::string               machine;
         std::vector<std::string>  missing;      // each machine that couldn't be built, with why

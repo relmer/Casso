@@ -280,10 +280,13 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
         std::string  folder  = TextEncoding::WideToNarrow (file.parent_path().wstring());
         std::string  name    = TextEncoding::WideToNarrow (file.filename().wstring());
         std::string  titled  = MakeTitledName (name, record.title);
+        std::string  status;
         bool         renamed = false;
 
-        hr = FullSendManifestFile::NoteBoot (*fileIo, folder, name, record.verdict);
+        hr = FullSendManifestFile::NoteBoot (*fileIo, folder, name, record.verdict, status);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        result.isComplete = status.empty() || status == FullSendManifest::kStatusSent || status == FullSendManifest::kStatusRawCapture;
 
         //  A raw capture saved as a number takes its title once it boots, as
         //  its disk has no catalog to take a name from.
@@ -372,7 +375,8 @@ std::string ExplorerBootWorker::Describe (const Result & result)
 
     if (!result.hasReport)
     {
-        text = std::format ("{} wasn't booted.", name);
+        text = result.missing.empty() ? std::format ("{} couldn't be read as a disk image, so it wasn't booted.", name)
+                                      : std::format ("{} wasn't booted: the emulated machine failed to start.", name);
 
         for (const std::string & missing : result.missing)
         {

@@ -101,6 +101,28 @@ public:
     }
 
 
+    //  A boot result is written to the image's row, and the row's status is
+    //  returned; for a file with no row, the status is empty.
+    TEST_METHOD (NoteBoot_WritesTheResult_AndReturnsTheRowsStatus)
+    {
+        FakeDiskFileIo     io;
+        std::vector<Byte>  bytes;
+        FullSendManifest   read;
+        std::string        status;
+
+        AssertSucceeded (io.WriteAllBytes (ManifestPath(), MakeManifest().Format()));
+        AssertSucceeded (FullSendManifestFile::NoteBoot (io, kFolder, "disk 001.DSK", FullSendManifest::kBootBooted, status));
+        AssertSucceeded (io.ReadAllBytes (ManifestPath(), bytes));
+        AssertSucceeded (read.Parse (bytes));
+
+        Assert::AreEqual (std::string (FullSendManifest::kStatusSent), status);
+        Assert::AreEqual (std::string (FullSendManifest::kBootBooted), read.GetRows()[0].boot);
+
+        AssertSucceeded (FullSendManifestFile::NoteBoot (io, kFolder, "Other.dsk", FullSendManifest::kBootBooted, status));
+        Assert::IsTrue (status.empty());
+    }
+
+
     //  A raw capture is renamed in the folder and the manifest, with its
     //  reads; a sector image, a file with no row and a name that exists
     //  aren't.
