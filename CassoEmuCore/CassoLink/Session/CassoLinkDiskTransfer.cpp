@@ -75,7 +75,7 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
 
     if (!result.weak.empty())
     {
-        operation.message = "Tracks whose reads differ, written as random bits: " + listTracks (result.weak) + ".";
+        operation.message = "Tracks with weak bits, which read differently every time: " + listTracks (result.weak) + ".";
     }
 
     if (!result.unstable.empty())
