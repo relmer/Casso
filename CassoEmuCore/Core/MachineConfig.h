@@ -172,6 +172,7 @@ struct PortConfig
     string              path;                 // a host file, for the serial file attachments
     string              image;                // a disk image for a block device or 3.5-inch drive; "stock" for the stock hard disk
     bool                realTiming = false;   // a hard disk's spin-up and seek delays
+    string              firmwarePath;         // a drive's own controller ROM, resolved by the loader; empty when missing
     vector<PortConfig>  chain;                // a //c disk port's SmartPort chain, in order
 };
 
@@ -582,6 +583,14 @@ public:
                                      const vector<fs::path> & searchPaths,
                                      const FileResolver     & resolver,
                                      SlotConfig             & slot);
+
+    // The ROM of a drive with a separate controller, such as the UniDisk
+    // 3.5, into the port's `firmwarePath`, or the reason it is missing into
+    // `problem`.
+    static void    ResolveDriveFirmware (const vector<fs::path> & searchPaths,
+                                         const FileResolver     & resolver,
+                                         PortConfig             & port,
+                                         string                 & problem);
 
     // `machineName` selects the per-machine ROM subdir
     // (Machines/<machineName>/<file>) used to resolve systemRom and

@@ -154,12 +154,13 @@ Byte Iwm::AccessIsm (int offset, bool isWrite, Byte value)
 
 void Iwm::AdvanceTo (uint64_t nowNs)
 {
-    uint64_t         elapsed = nowNs > m_lastNs ? nowNs - m_lastNs : 0;
-    IDiskDriveBus  * drive   = GetSelected();
+    uint64_t         elapsed  = nowNs > m_lastNs ? nowNs - m_lastNs : 0;
+    IDiskDriveBus  * drive    = GetSelected();
+    uint64_t         boundary = 0;
 
 
 
-    m_lastNs = nowNs;
+    m_lastNs = std::max (m_lastNs, nowNs);
 
     for (IDiskDriveBus * each : m_drives)
     {
@@ -182,11 +183,13 @@ void Iwm::AdvanceTo (uint64_t nowNs)
     }
 
     m_cellCarryNs += elapsed;
+    boundary       = m_lastNs - m_cellCarryNs;
 
     while (m_cellCarryNs >= drive->GetCellNs())
     {
         m_cellCarryNs -= drive->GetCellNs();
-        MoveCell();
+        boundary      += drive->GetCellNs();
+        MoveCell (boundary);
     }
 }
 
@@ -367,7 +370,7 @@ void Iwm::WriteRegister (Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Iwm::MoveCell()
+void Iwm::MoveCell (uint64_t cellEndNs)
 {
     IDiskDriveBus  * drive = GetSelected();
 
@@ -375,7 +378,7 @@ void Iwm::MoveCell()
 
     if (!m_q7)
     {
-        m_shift = (Byte) ((m_shift << 1) | drive->ReadCell());
+        m_shift = (Byte) ((m_shift << 1) | drive->ReadCell (cellEndNs));
 
         if ((m_shift & s_kTopBit) != 0)
         {
@@ -391,7 +394,7 @@ void Iwm::MoveCell()
         if (!m_bufferFull)
         {
             m_underrun = m_underrun || m_writeBits == 0;
-            drive->WriteCell (0);
+            drive->WriteCell (0, cellEndNs);
             return;
         }
 
@@ -400,7 +403,7 @@ void Iwm::MoveCell()
         m_writeBits  = 8;
     }
 
-    drive->WriteCell ((Byte) ((m_shift >> 7) & 1));
+    drive->WriteCell ((Byte) ((m_shift >> 7) & 1), cellEndNs);
     m_shift = (Byte) (m_shift << 1);
     m_writeBits--;
 }

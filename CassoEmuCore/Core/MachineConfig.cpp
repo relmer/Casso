@@ -789,6 +789,60 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ResolveDriveFirmware
+//
+//  The ROM of a drive with a separate controller, under its folder in
+//  `Devices/`. For a missing or wrong-size ROM the path is empty, and the
+//  reason is added to the problem text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineConfigLoader::ResolveDriveFirmware (
+    const vector<fs::path> & searchPaths,
+    const FileResolver     & resolver,
+    PortConfig             & port,
+    string                 & problem)
+{
+    const BlockDriveSpec  * drive   = BlockDeviceCatalog::FindDrive (port.device);
+    fs::path                relPath;
+    fs::path                found;
+    std::error_code         ec;
+    uintmax_t               size    = 0;
+    bool                    isFit   = false;
+
+
+
+    port.firmwarePath.clear();
+
+    if (drive == nullptr || drive->firmware == nullptr)
+    {
+        return;
+    }
+
+    relPath = (fs::path (drive->firmwareDir) / drive->firmware).make_preferred();
+    found   = resolver (searchPaths, relPath);
+
+    if (!found.empty())
+    {
+        size  = fs::file_size (found, ec);
+        isFit = !ec && size == drive->firmwareSize;
+    }
+
+    if (isFit)
+    {
+        port.firmwarePath = found.string();
+        return;
+    }
+
+    problem += format ("{}The {} needs its ROM, {}.", problem.empty() ? "" : " ", drive->label, relPath.generic_string());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ResolveBlockCard
 //
 //  A SmartPort or hard disk card's firmware, resolved under its folder in
@@ -849,6 +903,11 @@ void MachineConfigLoader::ResolveBlockCard (
     if (slot.ports.size() > (size_t) card->portCount)
     {
         slot.ports.resize ((size_t) card->portCount);
+    }
+
+    for (PortConfig & port : slot.ports)
+    {
+        ResolveDriveFirmware (searchPaths, resolver, port, slot.deviceProblem);
     }
 
     relPath  = (fs::path (card->firmwareDir) / slot.firmware).make_preferred();

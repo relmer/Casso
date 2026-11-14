@@ -366,11 +366,13 @@ void Sony35Drive::Advance (uint64_t elapsedNs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Sony35Drive::ReadCell()
+Byte Sony35Drive::ReadCell (uint64_t cellEndNs)
 {
     Byte  bit = 0;
 
 
+
+    (void) cellEndNs;
 
     if (!m_motorOn || !HasDisk() || GetSide() >= m_sides)
     {
@@ -400,8 +402,10 @@ Byte Sony35Drive::ReadCell()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Sony35Drive::WriteCell (Byte bit)
+void Sony35Drive::WriteCell (Byte bit, uint64_t cellEndNs)
 {
+    (void) cellEndNs;
+
     if (!m_motorOn || !HasDisk() || IsWriteProtected() || GetSide() >= m_sides)
     {
         return;

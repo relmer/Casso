@@ -68,6 +68,12 @@ struct BlockDriveSpec
     const char  * label         = nullptr;
     bool          hasRealTiming = false;
     uint32_t      maxBlocks     = 0;
+
+    //  A drive with a separate controller runs firmware from a ROM under
+    //  `Devices/`; null for a drive without one.
+    const char  * firmwareDir   = nullptr;
+    const char  * firmware      = nullptr;
+    size_t        firmwareSize  = 0;
 };
 
 

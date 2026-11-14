@@ -23,8 +23,8 @@ class FakeDriveBus : public IDiskDriveBus
 public:
     void      SetPhases (bool ph0, bool ph1, bool ph2, bool ph3) override { phases = { ph0, ph1, ph2, ph3 }; }
     bool      GetSense() const override { return sense; }
-    Byte      ReadCell() override { Byte b = loop.empty() ? (Byte) 0 : loop[at % loop.size()]; at++; return b; }
-    void      WriteCell (Byte bit) override { written.push_back (bit); }
+    Byte      ReadCell (uint64_t) override { Byte b = loop.empty() ? (Byte) 0 : loop[at % loop.size()]; at++; return b; }
+    void      WriteCell (Byte bit, uint64_t) override { written.push_back (bit); }
     void      Advance   (uint64_t elapsedNs) override { elapsed += elapsedNs; }
     uint32_t  GetCellNs() const override { return kCellNs; }
 

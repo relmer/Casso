@@ -1243,6 +1243,9 @@
     <ClCompile Include="Devices\Floppy35\DeviceCpu.cpp" />
     <ClCompile Include="Devices\Floppy35\Apple35CardMemory.cpp" />
     <ClCompile Include="Devices\Floppy35\Apple35ControllerCard.cpp" />
+    <ClCompile Include="Devices\Floppy35\SmartPortBus.cpp" />
+    <ClCompile Include="Devices\Floppy35\UniDisk35Drive.cpp" />
+    <ClCompile Include="Devices\Floppy35\LironCard.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
@@ -2163,6 +2166,9 @@
     <ClInclude Include="Devices\Floppy35\DeviceCpu.h" />
     <ClInclude Include="Devices\Floppy35\Apple35CardMemory.h" />
     <ClInclude Include="Devices\Floppy35\Apple35ControllerCard.h" />
+    <ClInclude Include="Devices\Floppy35\SmartPortBus.h" />
+    <ClInclude Include="Devices\Floppy35\UniDisk35Drive.h" />
+    <ClInclude Include="Devices\Floppy35\LironCard.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CassoLink\Apple\Program.s" />

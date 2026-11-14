@@ -68,6 +68,7 @@ public:
     void  Reset ();
 
     bool  IsEnabled     () const { return m_enabled; }
+    bool  IsWriting     () const { return m_q7; }
     int   GetDrive      () const { return m_driveSelect; }
     Byte  GetMode       () const { return m_mode; }
     bool  GetPhase      (int phase) const { return m_phases[(size_t) phase]; }
@@ -87,7 +88,7 @@ private:
     void             SetSwitch     (int sw, bool on, uint64_t nowNs);
     Byte             ReadRegister  ();
     void             WriteRegister (Byte value);
-    void             MoveCell      ();
+    void             MoveCell      (uint64_t cellEndNs);
     void             UpdatePhases  ();
 
     std::array<IDiskDriveBus *, kDrives>  m_drives          = {};

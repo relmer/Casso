@@ -52,6 +52,7 @@
 #include "Devices/BlockDevice/AppleScsiCard.h"
 #include "Devices/BlockDevice/ProFileCard.h"
 #include "Devices/Floppy35/Apple35ControllerCard.h"
+#include "Devices/Floppy35/LironCard.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/BlockDevice/ScsiHardDisk.h"
 #include "Devices/BlockDevice/StockHardDiskImage.h"
@@ -470,6 +471,10 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
                 else if (slot.device == kpszApple35CardDevice)
                 {
                     WireApple35Card (slot, *static_cast<Apple35ControllerCard *> (raw));
+                }
+                else if (slot.device == kpszLironCardDevice)
+                {
+                    WireLironCard (slot, *static_cast<LironCard *> (raw));
                 }
             }
         }
@@ -1666,6 +1671,11 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         apple35Card->SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
     }
 
+    for (LironCard * lironCard : m_host.GetRefs().lironCards)
+    {
+        lironCard->SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
+    }
+
     if (m_host.GetRefs().diskController != nullptr)
     {
         m_host.GetRefs().diskController->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
@@ -2366,6 +2376,88 @@ void MachineBuilder::WireApple35Card (const SlotConfig & slot, Apple35Controller
     }
 
     m_host.GetRefs().apple35Cards.push_back (&card);
+    m_host.GetRefs().floppy35Sources.push_back (&card);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireLironCard
+//
+//  Connects a UniDisk 3.5 interface card: its firmware, its slot page and the
+//  expansion space, and a UniDisk 3.5 for each port in chain order, with its
+//  ROM and its disk. A drive without its ROM is left off the chain; a disk
+//  that fails to insert is added to the machine's media problems, and its
+//  drive is left empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireLironCard (const SlotConfig & slot, LironCard & card)
+{
+    HRESULT       hr = S_OK;
+    vector<Byte>  firmware;
+
+
+
+    if (slot.firmwareStatus == SlotFirmwareStatus::Present)
+    {
+        hr = ReadRomFileBytes (slot.firmwarePath, firmware);
+
+        if (SUCCEEDED (hr))
+        {
+            hr = card.SetFirmware (move (firmware));
+        }
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    AddExpansionRomCard (slot.slot, card, card.GetSlotPage());
+
+    for (size_t port = 0; port < slot.ports.size(); port++)
+    {
+        const PortConfig                & entry = slot.ports[port];
+        std::unique_ptr<UniDisk35Drive>   drive;
+        vector<Byte>                      driveRom;
+        std::wstring                      error;
+
+
+
+        if (entry.device != kpszUniDisk35Device || entry.firmwarePath.empty())
+        {
+            continue;
+        }
+
+        drive = std::make_unique<UniDisk35Drive>();
+
+        hr = ReadRomFileBytes (entry.firmwarePath, driveRom);
+
+        if (SUCCEEDED (hr))
+        {
+            hr = drive->SetFirmware (move (driveRom));
+        }
+
+        if (FAILED (hr))
+        {
+            continue;
+        }
+
+        if (!entry.image.empty())
+        {
+            hr = drive->GetMechanism().Insert (m_host.GetBlockMediaFileIo(), entry.image, m_host.ProbeBlockMedia (entry.image), error);
+
+            if (FAILED (hr))
+            {
+                m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, drive {}: {}", slot.slot, port + 1, error));
+            }
+        }
+
+        card.AddDrive (std::move (drive));
+    }
+
+    m_host.GetRefs().lironCards.push_back (&card);
     m_host.GetRefs().floppy35Sources.push_back (&card);
 }
 

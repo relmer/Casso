@@ -65,8 +65,8 @@ public:
     // under the head, read or written.
     void      SetPhases (bool ca0, bool ca1, bool ca2, bool lstrb) override;
     bool      GetSense  () const override;
-    Byte      ReadCell  () override;
-    void      WriteCell (Byte bit) override;
+    Byte      ReadCell  (uint64_t cellEndNs) override;
+    void      WriteCell (Byte bit, uint64_t cellEndNs) override;
     void      Advance   (uint64_t elapsedNs) override;
     uint32_t  GetCellNs () const override { return kCellNs; }
 

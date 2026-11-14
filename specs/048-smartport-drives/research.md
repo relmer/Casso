@@ -300,6 +300,26 @@ chain, the number ProDOS 8 2.x mounts from one slot. **To verify**: the limit
 in Apple's UniDisk 3.5 and //c manuals, and in the //c ROM 4 and //c Plus
 firmware. The Machine tab uses the lower of the two.
 
+**Checked** (2026-11-13, the Liron card ROM and the UniDisk 3.5 ROM running
+against each other in Casso, with a2-liron's labels): the host's IWM runs
+in mode `$07`, 4 microsecond cells, with drive 2 selected. It waits for
+/ACK high, raises REQ, writes the packet, waits for the write underrun and
+then for /ACK low, and drops REQ. It resets the bus with phases 0 and 2 for
+80 ms. The drive's gate array connects its IWM to the bus with IWMDIR, its
+phase 0 then drives /ACK and its sense line reads REQ, and ENBUS puts /ACK
+and its data on the bus. A drive replies to INIT with status `$C0` when the
+gate array reads it as the last on the chain, which ends the host's INIT
+loop, and then sets PH3EN so the next drive's bus is enabled. Unit numbers
+are bus IDs with bit 7 set, `$81` for unit 1. The drive's firmware turns
+its mechanism off by deselecting drive 1 about 2.3 seconds after its last
+command, which is when Casso writes the drive's changed tracks to the
+image. The Liron firmware's INIT loop has no limit.
+
+**Update**: two IWMs exchange bits as transitions timed at the end of the
+writer's cell, the time the writer has the bit. With transitions timed at
+the middle, a bit went missing whenever the reader's cell ended between the
+two.
+
 ## R11. Device 65C02s
 
 **Checked** (a2-liron, MAME `a2superdrive`):
@@ -309,7 +329,7 @@ firmware. The Machine tab uses the lower of the two.
 | ROM | 8 KB at `$E000-$FFFF` | 32 KB at `$8000-$FFFF` |
 | RAM | below `$0800` | 32 KB at `$0000-$7FFF` |
 | I/O | gate array at `$0800-$0801`, IWM at `$0A00-$0A0F` | `$0A00-$0AFF`: SWIM at `$0A00-$0A0F`, head select low `$0A40` and high `$0A41`, diagnostic LED `$0A80/$0A81` |
-| Clock | **To verify** (2 MHz per a secondary source) | 2.046 MHz (the slot's 7 MHz clock times 2/7) |
+| Clock | 2 MHz (checked: with it the firmware reads the mechanism at 2 microsecond cells and exchanges packets with the host at 4) | 2.046 MHz (the slot's 7 MHz clock times 2/7) |
 
 The UniDisk's gate array (a2-liron's labels): register 0 has LASTONE, BUSEN,
 WRREQ, GATENBL and HDSEL; register 1 reads SENSE, BLATCH1, BLATCH2, LIRONEN

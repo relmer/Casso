@@ -39,6 +39,10 @@ public:
     //  Runs instructions until the cycle count is at least `targetCycle`.
     void      RunUntil   (uint64_t targetCycle);
 
+    //  Moves the cycle count to `cycle` without running instructions, for a
+    //  device in reset, or idle for long enough that it doesn't matter.
+    void      SkipTo     (uint64_t cycle) { m_cycles = std::max (m_cycles, cycle); }
+
     uint64_t  GetCycles  () const { return m_cycles; }
     Word      GetPC      () const;
 

@@ -7,6 +7,7 @@
 
 class Acia6551;
 class Apple35ControllerCard;
+class LironCard;
 class AppleScsiCard;
 class ProFileCard;
 class IExpansionRomCard;
@@ -170,6 +171,7 @@ private:
     void     WireAppleScsiCard    (const SlotConfig & slot, AppleScsiCard & card);
     void     WireProFileCard      (const SlotConfig & slot, ProFileCard & card);
     void     WireApple35Card      (const SlotConfig & slot, Apple35ControllerCard & card);
+    void     WireLironCard        (const SlotConfig & slot, LironCard & card);
     void     AddExpansionRomCard  (int slot, IExpansionRomCard & card, SlotRomPage & slotPage);
 
     MachineHost          &  m_host;

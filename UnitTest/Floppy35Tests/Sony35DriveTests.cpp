@@ -180,7 +180,7 @@ public:
 
         for (Byte & bit : bits)
         {
-            bit = drive.ReadCell();
+            bit = drive.ReadCell (0);
         }
 
         Gcr35Track::DecodeTrack (0, 0, bits, decoded, found);
@@ -209,7 +209,7 @@ public:
 
         for (Byte & bit : outBits)
         {
-            bit = drive.ReadCell();
+            bit = drive.ReadCell (0);
         }
     }
 
@@ -263,7 +263,7 @@ public:
 
         for (Byte bit : bits)
         {
-            drive.WriteCell (bit);
+            drive.WriteCell (bit, 0);
         }
 
         Command (drive, kCmdMotorOff);
@@ -322,7 +322,7 @@ public:
 
         for (Byte & bit : bits)
         {
-            bit = drive.ReadCell();
+            bit = drive.ReadCell (0);
         }
 
         Gcr35Track::DecodeTrack (0, 0, bits, decoded, found);
@@ -332,7 +332,7 @@ public:
 
         for (Byte & bit : bits)
         {
-            bit = drive.ReadCell();
+            bit = drive.ReadCell (0);
         }
 
         Assert::IsTrue (std::all_of (bits.begin(), bits.end(), [] (Byte b) { return b == 0; }));
@@ -357,7 +357,7 @@ public:
 
         for (Byte bit : bits)
         {
-            drive.WriteCell (bit);
+            drive.WriteCell (bit, 0);
         }
 
         Assert::AreEqual ((Byte) 0, io.files[kPath][0], L"the write is cached until the motor stops");

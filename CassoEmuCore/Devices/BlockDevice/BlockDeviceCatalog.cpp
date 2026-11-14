@@ -36,7 +36,7 @@ static const BlockDriveSpec  s_kDrives[] =
     { kpszHd20scDevice,       "Apple Hard Disk 20SC", true,  BlockDeviceCatalog::kProDosMaxBlocks },
     { kpszProFile5Device,     "ProFile 5 MB",         true,  9728 },
     { kpszProFile10Device,    "ProFile 10 MB",        true,  19456 },
-    { kpszUniDisk35Device,    "UniDisk 3.5",          false, 1600 },
+    { kpszUniDisk35Device,    "UniDisk 3.5",          false, 1600, "Devices/UniDisk35", "UniDisk35.rom", 8192 },
     { kpszApple35DriveDevice, "Apple 3.5 Drive",      false, 1600 },
 };
 

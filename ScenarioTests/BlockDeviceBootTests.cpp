@@ -85,7 +85,7 @@ public:
 
     static bool RunUntilScreenShows (MachineHost & host, const std::string & needle, uint64_t cycleCap)
     {
-        constexpr uint64_t  kSlice = 1'000'000ULL;
+        constexpr uint64_t  kSlice = 100'000ULL;
 
         std::vector<std::string>  rows;
         uint64_t                  spent    = 0;
@@ -149,7 +149,7 @@ public:
 
         Boot (machine);
 
-        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS", kBootCap), L"ProDOS boots from the hard disk");
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the hard disk");
 
         log = machine.GetRefs().scsiCards[0]->GetTarget (6).GetCommandLog();
 
@@ -196,7 +196,7 @@ public:
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 7, kpszAppleScsiCardDevice, ports } }, io);
 
         Boot (machine);
-        Assert::IsTrue (RunUntilScreenShows (machine, "]", kBootCap), L"BASIC.SYSTEM's prompt");
+        Assert::IsTrue (RunUntilScreenShows (machine, "RETURN", kBootCap), L"ProDOS, BASIC.SYSTEM and STARTUP run from the hard disk");
 
         Assert::IsTrue (GuestSession::TryPageToPrompt (machine, rows), L"the disk's STARTUP pages to the prompt");
 
@@ -251,7 +251,7 @@ public:
         Assert::IsTrue (machine.GetRefs().proFileCards[0]->HasFirmware(), L"the card's ROM is in the fixtures");
 
         Boot (machine);
-        Assert::IsTrue (RunUntilScreenShows (machine, "]", kBootCap), L"ProDOS and BASIC.SYSTEM boot from the ProFile");
+        Assert::IsTrue (RunUntilScreenShows (machine, "RETURN", kBootCap), L"ProDOS, BASIC.SYSTEM and STARTUP run from the ProFile");
         Assert::IsTrue (GuestSession::TryPageToPrompt (machine, rows), L"the disk's STARTUP pages to the prompt");
 
         GuestSession::TypeAndCollect (machine, "CREATE PROFILEDIR");
@@ -290,7 +290,7 @@ public:
 
         Boot (machine);
 
-        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS", kBootCap), L"ProDOS boots from the 10 MB ProFile");
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the 10 MB ProFile");
     }
 
 
@@ -322,7 +322,7 @@ public:
             Assert::IsTrue (RunUntilScreenShows (machine, "]", kBootCap), L"the machine stops at BASIC");
             KeystrokeInjector::InjectLine (machine, "PR#5");
 
-            Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS", kBootCap), TextEncoding::NarrowToWide (machineId).c_str());
+            Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), TextEncoding::NarrowToWide (machineId).c_str());
         }
     }
 
@@ -355,7 +355,7 @@ public:
             Assert::IsTrue (RunUntilScreenShows (machine, "]", kBootCap), L"the machine stops at BASIC");
             KeystrokeInjector::InjectLine (machine, "PR#7");
 
-            Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS", kBootCap), TextEncoding::NarrowToWide (machineId).c_str());
+            Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), TextEncoding::NarrowToWide (machineId).c_str());
         }
     }
 
@@ -435,7 +435,7 @@ public:
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "users.dsk", DiskFormat::Dsk, floppy));
             Boot (machine);
 
-            Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS", kBootCap),
+            Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap),
                             withBlankDisk ? L"the floppy boots past a blank hard disk" : L"the floppy boots past an empty card");
         }
     }

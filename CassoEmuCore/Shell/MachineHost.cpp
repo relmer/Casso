@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/MachineHost.h"
+#include "Devices/Floppy35/Apple35ControllerCard.h"
+#include "Devices/Floppy35/LironCard.h"
 #include "CassoLink/RunningCassoRegistry.h"
 
 #include "Core/Prng.h"
@@ -934,6 +936,18 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
     while (spent < cycleBudget)
     {
         spent += StepOne();
+    }
+
+    //  Cards with separate processors run up to the Apple's time, so their
+    //  firmware's timers run while the guest doesn't access them.
+    for (LironCard * lironCard : m_refs.lironCards)
+    {
+        lironCard->CatchUp();
+    }
+
+    for (Apple35ControllerCard * apple35Card : m_refs.apple35Cards)
+    {
+        apple35Card->CatchUp();
     }
 
     return (spent);

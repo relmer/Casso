@@ -868,6 +868,7 @@
     <ClCompile Include="Floppy35Tests\Sony35DriveTests.cpp" />
     <ClCompile Include="Floppy35Tests\IwmTests.cpp" />
     <ClCompile Include="Floppy35Tests\Apple35ControllerCardTests.cpp" />
+    <ClCompile Include="Floppy35Tests\SmartPortBusTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
