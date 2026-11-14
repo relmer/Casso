@@ -247,6 +247,8 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
     // the recorder appear and disappear together.
     ids.push_back (0);
     ids.push_back (IDM_VIEW_AUTOHIDE_DRIVES);
+    ids.push_back (IDM_VIEW_FLOPPIES_ON_DESK);
+    ids.push_back (IDM_VIEW_HARD_DISKS_ON_DESK);
 
     for (int id : ids)
     {

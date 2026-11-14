@@ -149,6 +149,8 @@
 // Collapse the drives off the bottom edge until the pointer comes near it.
 #define IDM_FLOPPY35_INSERT         40496
 #define IDM_FLOPPY35_EJECT          40497
+#define IDM_VIEW_FLOPPIES_ON_DESK   40498
+#define IDM_VIEW_HARD_DISKS_ON_DESK 40499
 
 // Taken from a separate block: open branches use the 40089-40499 range.
 #define IDM_VIEW_AUTOHIDE_DRIVES    40500

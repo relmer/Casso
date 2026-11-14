@@ -2,6 +2,9 @@
 
 #include "Ui/Scene/DeskDrivePlan.h"
 
+#include "Core/MachineConfig.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
+
 
 
 
@@ -162,4 +165,120 @@ void DeskDrivePlan::Stack (std::vector<DeskDrivePlacement> & out, const std::vec
     {
         out.push_back ({ sorted[i], spot, (int) i });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParsePlace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DeskClassPlace DeskDrivePlan::ParsePlace (const std::string & text)
+{
+    return (text == "desk") ? DeskClassPlace::Desk : (text == "bar") ? DeskClassPlace::Bar : DeskClassPlace::Auto;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatPlace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * DeskDrivePlan::FormatPlace (DeskClassPlace place)
+{
+    return (place == DeskClassPlace::Desk) ? "desk" : (place == DeskClassPlace::Bar) ? "bar" : "auto";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Collect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DeskDrive> DeskDrivePlan::Collect (const MachineConfig & config, int diskIiCount, bool isC)
+{
+    std::vector<DeskDrive>  out;
+    int                     chainFirst = 0;
+
+
+
+    for (int i = 0; i < diskIiCount; i++)
+    {
+        out.push_back ({ isC ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII, 6, i });
+    }
+
+    for (const PortConfig & port : config.ports)
+    {
+        if (port.name == "internal" && port.device == kpszApple35DriveDevice)
+        {
+            out.push_back ({ DeskDriveModel::Apple35Plus, 0, 0 });
+            chainFirst = 1;
+        }
+    }
+
+    for (const PortConfig & port : config.ports)
+    {
+        for (size_t i = 0; i < port.chain.size(); i++)
+        {
+            const std::string  & device = port.chain[i].device;
+            int                  drive  = chainFirst + (int) i;
+
+
+
+            if (device == kpszUniDisk35Device)
+            {
+                out.push_back ({ DeskDriveModel::UniDisk35, 0, drive });
+            }
+            else if (device == kpszApple35DriveDevice)
+            {
+                out.push_back ({ DeskDriveModel::Apple35Drive, 0, drive });
+            }
+        }
+    }
+
+    for (const SlotConfig & slot : config.slots)
+    {
+        if (!slot.enabled || BlockDeviceCatalog::FindCard (slot.device) == nullptr)
+        {
+            continue;
+        }
+
+        for (size_t i = 0; i < slot.ports.size(); i++)
+        {
+            const std::string  & device = slot.ports[i].device;
+
+
+
+            if (device == kpszHd20scDevice)
+            {
+                out.push_back ({ DeskDriveModel::HardDisk20SC, slot.slot, (int) i });
+            }
+            else if (device == kpszProFile5Device || device == kpszProFile10Device)
+            {
+                out.push_back ({ DeskDriveModel::ProFile, slot.slot, (int) i });
+            }
+            else if (device == kpszUniDisk35Device)
+            {
+                out.push_back ({ DeskDriveModel::UniDisk35, slot.slot, (int) i });
+            }
+            else if (device == kpszApple35DriveDevice)
+            {
+                out.push_back ({ DeskDriveModel::Apple35Drive, slot.slot, (int) i });
+            }
+        }
+    }
+
+    return out;
 }

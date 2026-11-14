@@ -52,6 +52,8 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "activeTheme",
     "crtMonitor",
     "autoHideDrives",
+    "deskFloppies",
+    "deskHardDisks",
     "showFrameRate",
     "showSceneView",
     "sceneAntiAliasing",
@@ -1068,6 +1070,8 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("activeTheme",          JsonValue (activeTheme));
     root.emplace_back ("crtMonitor",            JsonValue (crtMonitor));
     root.emplace_back ("autoHideDrives",        JsonValue (autoHideDrives));
+    root.emplace_back ("deskFloppies",          JsonValue (deskFloppies));
+    root.emplace_back ("deskHardDisks",         JsonValue (deskHardDisks));
     root.emplace_back ("showFrameRate",         JsonValue (showFrameRate));
     root.emplace_back ("showSceneView",         JsonValue (showSceneView));
     root.emplace_back ("sceneAntiAliasing",     JsonValue ((double) sceneAntiAliasing));
@@ -1254,6 +1258,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
     crtMonitor            = TryGetBoolOpt   (v, "crtMonitor",              crtMonitor);
     autoHideDrives        = TryGetBoolOpt   (v, "autoHideDrives",          autoHideDrives);
+    deskFloppies          = GetStringOpt    (v, "deskFloppies",            deskFloppies);
+    deskHardDisks         = GetStringOpt    (v, "deskHardDisks",           deskHardDisks);
     showFrameRate         = TryGetBoolOpt   (v, "showFrameRate",           showFrameRate);
     showSceneView         = TryGetBoolOpt   (v, "showSceneView",           showSceneView);
 

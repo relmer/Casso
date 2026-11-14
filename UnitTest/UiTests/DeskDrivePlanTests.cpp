@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/MachineConfig.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Ui/Scene/DeskDrivePlan.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -127,6 +129,60 @@ public:
         Assert::AreEqual (0, Find (plan, M::ProFile).level);
         Assert::AreEqual (1, Find (plan, M::HardDisk20SC, 6).level);
         Assert::IsTrue (Find (plan, M::ProFile).spot == S::LeftStack);
+    }
+
+
+    //  The drives come from the Disk II count, the //c Plus's built-in drive
+    //  and its chain, and the storage cards' ports; a disabled card and the
+    //  chain's 5.25-inch drive, which the Disk II count covers, are left out.
+    TEST_METHOD (Collect_ListsEveryDrive)
+    {
+        MachineConfig  config;
+        PortConfig     internal;
+        PortConfig     disk;
+        SlotConfig     scsi;
+        SlotConfig     liron;
+
+
+
+        internal.name   = "internal";
+        internal.device = kpszApple35DriveDevice;
+        disk.name       = "disk";
+        disk.chain.resize (2);
+        disk.chain[0].device = kpszUniDisk35Device;
+        disk.chain[1].device = kpszDiskIicDevice;
+        config.ports  = { internal, disk };
+
+        scsi.slot   = 7;
+        scsi.device = kpszAppleScsiCardDevice;
+        scsi.ports.resize (7);
+        scsi.ports[6].device = kpszHd20scDevice;
+        scsi.ports[2].device = kpszHd20scDevice;
+        liron.slot    = 5;
+        liron.device  = kpszLironCardDevice;
+        liron.enabled = false;
+        liron.ports.resize (1);
+        liron.ports[0].device = kpszUniDisk35Device;
+        config.slots = { scsi, liron };
+
+        auto  drives = DeskDrivePlan::Collect (config, 1, true);
+
+        Assert::AreEqual ((size_t) 5, drives.size());
+        Assert::IsTrue (drives[0].model == M::Disk2c);
+        Assert::IsTrue (drives[1].model == M::Apple35Plus);
+        Assert::IsTrue (drives[2].model == M::UniDisk35);
+        Assert::AreEqual (1, drives[2].drive, L"after the built-in drive");
+        Assert::AreEqual (2, drives[3].drive);
+        Assert::AreEqual (6, drives[4].drive);
+    }
+
+
+    TEST_METHOD (Place_ParsesAndFormats)
+    {
+        Assert::IsTrue (DeskDrivePlan::ParsePlace ("desk") == P::Desk);
+        Assert::IsTrue (DeskDrivePlan::ParsePlace ("bar") == P::Bar);
+        Assert::IsTrue (DeskDrivePlan::ParsePlace ("") == P::Auto);
+        Assert::AreEqual ("bar", DeskDrivePlan::FormatPlace (P::Bar));
     }
 
 

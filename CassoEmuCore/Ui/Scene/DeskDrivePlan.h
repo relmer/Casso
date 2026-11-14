@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+struct MachineConfig;
+
 
 
 
@@ -107,6 +109,17 @@ public:
     static DeskDriveClass  GetClass       (DeskDriveModel model);
     static float           GetCaseWidthMm (DeskDriveModel model);
     static bool            IsOnDesk       (DeskClassPlace place, size_t count);
+
+    //  "auto", "desk" or "bar", as the global preferences store a class's
+    //  place; anything else is Auto.
+    static DeskClassPlace  ParsePlace     (const std::string & text);
+    static const char *    FormatPlace    (DeskClassPlace place);
+
+    //  The machine's drives: `diskIiCount` Disk II drives in slot 6 (the
+    //  //c's built-in and external drives when `isC`), the //c Plus's built-in drive and the
+    //  //c disk port's chain, and the drives on the enabled storage cards'
+    //  ports.
+    static std::vector<DeskDrive>  Collect (const MachineConfig & config, int diskIiCount, bool isC);
 
     static std::vector<DeskDrivePlacement>  Place (const std::vector<DeskDrive> & drives,
                                                    DeskClassPlace                 floppies,

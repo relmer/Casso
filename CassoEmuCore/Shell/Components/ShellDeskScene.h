@@ -4,6 +4,7 @@
 
 #include "Devices/Tape/TapeDeck.h"
 #include "Ui/Scene/DeskScene.h"
+#include "Ui/Scene/DeskDrivePlan.h"
 #include "Ui/Scene/DeskSceneHitTester.h"
 #include "Ui/Scene/FullscreenStripState.h"
 
@@ -56,6 +57,14 @@ public:
     // preference. Its lamp is lit while the device was active within
     // `windowCycles` of `now`, or while a 3.5-inch drive's motor is on.
     enum class SideDevice { None, Scsi, ProFile, UniDisk35, Apple35 };
+
+    // Where each of the machine's drives goes (DeskDrivePlan), made when the
+    // machine's models load; a class's place toggles between the desk and
+    // the drive bar from the drives' right-click menu.
+    const std::vector<DeskDrivePlacement> &  GetDrivePlan      () const { return m_drivePlan; }
+    void                                     PlanDrives        ();
+    bool                                     IsClassOnDesk     (DeskDriveClass driveClass) const;
+    void                                     ToggleClassOnDesk (DeskDriveClass driveClass);
 
     static SideDevice  ChooseSideDevice    (const MachineRefs & refs);
     static int         GetSideDeviceSlot   (const MachineRefs & refs, SideDevice side);
@@ -416,9 +425,10 @@ private:
 
     // Which machine family the loaded models belong to, so a switch that
     // does not cross the //c boundary skips the reload.
-    bool        m_deskSceneMachineIsC = false;
-    SideDevice  m_sideDevice          = SideDevice::None;
-    int         m_deskSceneDebug      = 0;   // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
+    bool                             m_deskSceneMachineIsC = false;
+    SideDevice                       m_sideDevice          = SideDevice::None;
+    std::vector<DeskDrivePlacement>  m_drivePlan;
+    int                              m_deskSceneDebug      = 0;   // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
 
     // Fullscreen drive overlay strip (FR-015): the pure FSM plus this
     // frame's composed band. The hotkey edge arrives via the accelerator;

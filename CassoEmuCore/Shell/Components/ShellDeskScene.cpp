@@ -236,6 +236,8 @@ HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
 
     m_deskSceneMachineIsC = isC;
 
+    PlanDrives();
+
     // The monitor that just loaded brings its own tilt with it.
     ApplySavedBezelTilt();
 
@@ -3395,4 +3397,93 @@ void ShellDeskScene::InsertInSideDevice (const std::wstring & path)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::PlanDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::PlanDrives()
+{
+    const GlobalUserPrefs  & prefs   = m_shell.m_settings->GetPrefs();
+    float                    lo[3]   = {};
+    float                    hi[3]   = {};
+    float                    monitor = 0.0f;
+
+
+
+    m_deskScene.MonitorModel().BoundsMin (lo);
+    m_deskScene.MonitorModel().BoundsMax (hi);
+    monitor = hi[0] - lo[0];
+
+    m_drivePlan = DeskDrivePlan::Place (DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), DeskSceneDriveCount(), m_shell.m_disks->MachineHasBuiltInDrive()),
+                                        DeskDrivePlan::ParsePlace (prefs.deskFloppies),
+                                        DeskDrivePlan::ParsePlace (prefs.deskHardDisks),
+                                        monitor);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsClassOnDesk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsClassOnDesk (DeskDriveClass driveClass) const
+{
+    bool  onDesk = false;
+
+
+
+    for (const DeskDrivePlacement & placed : m_drivePlan)
+    {
+        if (DeskDrivePlan::GetClass (placed.drive.model) == driveClass && placed.spot != DeskDriveSpot::DriveBar)
+        {
+            onDesk = true;
+        }
+    }
+
+    return onDesk;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::ToggleClassOnDesk
+//
+//  Saves the class's new place and lays the window out again, as the
+//  auto-hide switch does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::ToggleClassOnDesk (DeskDriveClass driveClass)
+{
+    GlobalUserPrefs  & prefs    = m_shell.m_settings->GetPrefs();
+    const char       * place    = DeskDrivePlan::FormatPlace (IsClassOnDesk (driveClass) ? DeskClassPlace::Bar : DeskClassPlace::Desk);
+    RECT               rcClient = {};
+
+
+
+    (driveClass == DeskDriveClass::Floppy ? prefs.deskFloppies : prefs.deskHardDisks) = place;
+    m_shell.m_settings->SaveGlobalPrefs();
+
+    PlanDrives();
+
+    if (m_shell.m_hwnd != nullptr && GetClientRect (m_shell.m_hwnd, &rcClient))
+    {
+        (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left), (UINT) (rcClient.bottom - rcClient.top));
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+    }
 }
