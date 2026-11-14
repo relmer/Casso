@@ -52,7 +52,7 @@ ExplorerToolbars::ExplorerToolbars (ExplorerContext & context)
 
 void ExplorerToolbars::CreateNavBar()
 {
-    m_toolbar = m_context.window.CreatePaneRoutedChild<DxuiToolbar>();
+    m_toolbar = CreateBar();
 }
 
 
@@ -67,7 +67,9 @@ void ExplorerToolbars::CreateNavBar()
 
 void ExplorerToolbars::CreateMenuBar()
 {
-    m_menuBar = m_context.window.CreatePaneRoutedChild<DxuiMenuBar>();
+    m_menuBar = m_context.window.CreateChild<DxuiMenuBar>();
+
+    m_context.window.SetCaptureCondition (m_menuBar, [this]() { return m_menuBar->IsOpen(); });
 }
 
 
@@ -82,7 +84,32 @@ void ExplorerToolbars::CreateMenuBar()
 
 void ExplorerToolbars::CreateCommandBar()
 {
-    m_commandBar = m_context.window.CreatePaneRoutedChild<DxuiToolbar>();
+    m_commandBar = CreateBar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerToolbars::CreateBar
+//
+//  A toolbar of the window, with HandleBarMouse as its mouse handler, and
+//  the mouse captured while it has a menu open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbar * ExplorerToolbars::CreateBar()
+{
+    DxuiToolbar  * bar = m_context.window.CreateChild<DxuiToolbar>();
+
+
+
+    m_context.window.SetMouseHandler     (bar, [this, bar] (const DxuiMouseEvent & ev) { return HandleBarMouse (*bar, ev); });
+    m_context.window.SetCaptureCondition (bar, [bar]() { return bar->IsMenuOpen(); });
+
+    return bar;
 }
 
 
@@ -243,32 +270,42 @@ void ExplorerToolbars::Layout (const RECT & commandBand, const RECT & navBand)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerToolbars::CloseMenusOutside
+//  ExplorerToolbars::HandleBarMouse
 //
-//  A command bar menu leaves the mouse with the window, so a press anywhere
-//  but the bar that opened it closes it, as a click outside a menu does.
-//
-//  Pointer events. A press outside a bar with a menu open closes it, ahead
-//  of the window's other routing; the menu bar is ahead of the address
-//  bar, and the two bars after it.
+//  A toolbar's mouse handler. Windows doesn't capture the mouse for a
+//  command bar menu, so the bar has the mouse captured while one is open, and a press
+//  anywhere else closes it and goes on to what is under the pointer, as a
+//  click outside a menu does. A move off the bar clears its hover; the tip
+//  is left to the bar under the pointer, since the bars share it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerToolbars::CloseMenusOutside (const DxuiMouseEvent & ev)
+bool ExplorerToolbars::HandleBarMouse (DxuiToolbar & bar, const DxuiMouseEvent & ev)
 {
-    if (ev.kind != DxuiMouseEventKind::Down)
+    bool  inside = ev.kind != DxuiMouseEventKind::Leave && ExplorerLayout::Contains (bar.GetBounds(), ev.positionDip);
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Down && !inside && bar.IsMenuOpen())
     {
-        return;
+        bar.CloseMenu();
+        m_context.window.Invalidate();
+        return false;
     }
 
-    for (DxuiToolbar * bar : { m_commandBar, m_toolbar, &m_context.preview.GetToolbar() })
+    if (ev.kind == DxuiMouseEventKind::Move && !inside)
     {
-        if (bar->IsMenuOpen() && !ExplorerLayout::Contains (bar->GetBounds(), ev.positionDip))
-        {
-            bar->CloseMenu();
-            m_context.window.Invalidate();
-        }
+        bar.OnToolbarMouseMove (ev.positionDip.x, ev.positionDip.y);
+        return false;
     }
+
+    if (!RouteToolbarMouse (bar, ev))
+    {
+        return false;
+    }
+
+    m_context.window.Invalidate();
+    return true;
 }
 
 
@@ -287,45 +324,6 @@ void ExplorerToolbars::CloseMenus()
     {
         bar->CloseMenu();
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerToolbars::HandleMouse
-//
-//  The strip under the pointer has the event and drives the tooltip; the
-//  other has the moves as well, so its hover clears when the pointer
-//  crosses.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerToolbars::HandleMouse (const DxuiMouseEvent & ev)
-{
-    DxuiToolbar &  under = GetToolbarUnder (m_context.layout.GetMenuBand().GetBounds(), ev.positionDip, *m_toolbar, *m_commandBar);
-    DxuiToolbar &  other = (&under == m_commandBar) ? *m_toolbar : *m_commandBar;
-
-
-
-    if (ev.kind == DxuiMouseEventKind::Move)
-    {
-        other.OnToolbarMouseMove (ev.positionDip.x, ev.positionDip.y);
-    }
-    else if (ev.kind == DxuiMouseEventKind::Leave)
-    {
-        other.OnToolbarMouseLeave();
-    }
-
-    if (!RouteToolbarMouse (under, ev) && !(ev.kind == DxuiMouseEventKind::Up && RouteToolbarMouse (other, ev)))
-    {
-        return false;
-    }
-
-    m_context.window.Invalidate();
-    return true;
 }
 
 
@@ -407,24 +405,6 @@ void ExplorerToolbars::TickMenus (int64_t nowMs)
     m_menuBar->TickMenus    (nowMs);
     m_toolbar->TickMenus    (nowMs);
     m_commandBar->TickMenus (nowMs);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerToolbars::GetToolbarUnder
-//
-//  The strip a pointer event goes to: the command bar over its band, the
-//  navigation toolbar anywhere else.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiToolbar & ExplorerToolbars::GetToolbarUnder (const RECT & commandBarBand, POINT point, DxuiToolbar & navToolbar, DxuiToolbar & commandBar)
-{
-    return ExplorerLayout::Contains (commandBarBand, point) ? commandBar : navToolbar;
 }
 
 

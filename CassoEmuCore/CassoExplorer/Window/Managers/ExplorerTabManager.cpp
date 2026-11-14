@@ -49,7 +49,9 @@ ExplorerTabManager::ExplorerTabManager (ExplorerContext & context)
 
 void ExplorerTabManager::Create()
 {
-    m_tabs = m_context.window.CreatePaneRoutedChild<DxuiTabStrip>();
+    m_tabs = m_context.window.CreateChild<DxuiTabStrip>();
+
+    m_context.window.SetMouseHandler (m_tabs, [this] (const DxuiMouseEvent & ev) { return HandleTabsMouse (ev); });
 }
 
 
@@ -133,106 +135,58 @@ void ExplorerTabManager::Layout (const RECT & rect)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerTabManager::ClearHoverOnLeave
+//  ExplorerTabManager::HandleTabsMouse
 //
-//  A pointer leaving the strip by any edge, or the window, ends the tab's
-//  hover.
-//
-//  Pointer events: the hover is cleared when the pointer moves off the
-//  strip, ahead of the window's other routing; the strip has the rest over
-//  it and while a tab is dragged.
+//  The tabs' mouse handler. A drag whose button came up away from the
+//  window is canceled; a right-click on a tab opens its menu. The hover
+//  goes off as the pointer moves off the strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerTabManager::ClearHoverOnLeave (const DxuiMouseEvent & ev)
+bool ExplorerTabManager::HandleTabsMouse (const DxuiMouseEvent & ev)
 {
-    DxuiMouseEvent  away = ev;
+    POINT           point   = ev.positionDip;
+    bool            over    = ev.kind != DxuiMouseEventKind::Leave && ExplorerLayout::Contains (m_tabs->GetBounds(), point);
+    bool            handled = false;
+    DxuiMouseEvent  away    = ev;
 
 
 
-    if (m_tabs->GetHoverIndex() < 0 || m_tabs->IsInteracting())
-    {
-        return;
-    }
-
-    if ((ev.kind != DxuiMouseEventKind::Move || ExplorerLayout::Contains (m_tabs->GetBounds(), ev.positionDip)) && ev.kind != DxuiMouseEventKind::Leave)
-    {
-        return;
-    }
-
-    away.kind        = DxuiMouseEventKind::Move;
-    away.positionDip = { -1, -1 };
-
-    m_tabs->OnMouse (away);
-    m_context.window.Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerTabManager::HandleCapturedMouse
-//
-//  A tab being dragged has the pointer until the button comes up, so the
-//  drag can run past the strip's ends and scroll it. A move with the button
-//  already up means the release went elsewhere, as when another window took
-//  the mouse, so the drag is canceled.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerTabManager::HandleCapturedMouse (const DxuiMouseEvent & ev)
-{
     if (m_tabs->IsDragging() && ev.kind == DxuiMouseEventKind::Move && ev.button != DxuiMouseButton::Left)
     {
         CancelTabDrag();
         return true;
     }
 
-    if (!m_tabs->IsInteracting())
-    {
-        return false;
-    }
-
-    m_tabs->OnMouse (ev);
-    m_context.window.Invalidate();
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerTabManager::HandleMouse
-//
-//  A right-click on a tab opens its menu, as Explorer's does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerTabManager::HandleMouse (const DxuiMouseEvent & ev)
-{
-    POINT  point = ev.positionDip;
-    bool   over  = ExplorerLayout::Contains (m_tabs->GetBounds(), point);
-
-
-
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right && over && m_tabs->HitTest (point.x, point.y) >= 0)
     {
+        m_context.input.ReleasePressed();
         ShowTabContextMenu (point.x, point.y, m_tabs->HitTest (point.x, point.y));
         return true;
     }
 
-    if (!over || !m_tabs->OnMouse (ev))
+    if (!over && !m_tabs->IsInteracting())
     {
+        if (m_tabs->GetHoverIndex() >= 0)
+        {
+            away.kind        = DxuiMouseEventKind::Move;
+            away.positionDip = { -1, -1 };
+
+            m_tabs->OnMouse (away);
+            m_context.window.Invalidate();
+        }
+
         return false;
     }
 
-    m_context.window.Invalidate();
-    return true;
+    handled = m_tabs->OnMouse (ev);
+
+    if (handled)
+    {
+        m_context.window.Invalidate();
+    }
+
+    return handled;
 }
 
 

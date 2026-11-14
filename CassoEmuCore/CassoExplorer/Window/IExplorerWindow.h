@@ -54,22 +54,29 @@ public:
         return handler != m_mouseHandlers.end() ? handler->second (ev) : control.OnMouse (ev);
     }
 
-    //  A control whose pane routes the mouse to it, in a call from
-    //  ExplorerInput::HandleMouse, for what a press there does besides: the
-    //  pane's focus, its menus, its drags. ExplorerInput doesn't offer it
-    //  events a second time.
-    template <typename T, typename... Args>
-    T *  CreatePaneRoutedChild (Args &&... args)
-    {
-        T  * child = CreateChild<T> (std::forward<Args> (args)...);
+    //  While the condition is true, ExplorerInput offers the control every
+    //  event first, wherever the pointer is, as Windows' mouse capture does:
+    //  the press outside an open menu or a rename that closes it is offered
+    //  to it. An event the control doesn't take goes on to the control under
+    //  the pointer. The conditions are true for one control at a time.
+    using CaptureCondition = std::function<bool()>;
 
-        m_paneRouted.insert (child);
-        return child;
+    void  SetCaptureCondition (IDxuiControl * control, CaptureCondition wants) { m_captureConditions.emplace_back (control, std::move (wants)); }
+
+    IDxuiControl * GetCaptureHolder () const
+    {
+        for (const auto & [control, wants] : m_captureConditions)
+        {
+            if (control->IsVisible() && wants())
+            {
+                return control;
+            }
+        }
+
+        return nullptr;
     }
 
-    bool  IsPaneRouted (const IDxuiControl * control) const { return m_paneRouted.contains (control); }
-
 private:
-    std::unordered_set<const IDxuiControl *>                m_paneRouted;
-    std::unordered_map<const IDxuiControl *, MouseHandler>  m_mouseHandlers;
+    std::unordered_map<const IDxuiControl *, MouseHandler>    m_mouseHandlers;
+    std::vector<std::pair<IDxuiControl *, CaptureCondition>>  m_captureConditions;
 };

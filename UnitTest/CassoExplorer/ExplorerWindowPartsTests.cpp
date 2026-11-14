@@ -1246,30 +1246,25 @@ public:
 
 
     //  A control made with the window's CreateChild takes clicks with no
-    //  routing written for it. One made with CreatePaneRoutedChild is left to
-    //  its pane.
+    //  routing written for it.
     TEST_METHOD (HandleMouse_RoutesToAControlNoPaneRoutes)
     {
         Rig              rig;
         DxuiButton     * plain   = nullptr;
-        DxuiButton     * byPane  = nullptr;
         DxuiMouseEvent   mouse;
         RECT             list    = {};
         RECT             place   = {};
         int              clicks  = 0;
-        int              paned   = 0;
 
 
 
         rig.Open();
 
-        plain  = rig.window.CreateChild<DxuiButton> (L"Plain");
-        byPane = rig.window.CreatePaneRoutedChild<DxuiButton> (L"By pane");
+        plain = rig.window.CreateChild<DxuiButton> (L"Plain");
 
-        plain->SetOnClick  ([&clicks]() { clicks++; });
-        byPane->SetOnClick ([&paned]() { paned++; });
+        plain->SetOnClick ([&clicks]() { clicks++; });
 
-        //  Both in front of the list.
+        //  In front of the list.
         list  = rig.parts->listPane.GetListView()->GetBounds();
         place = { list.left + 10, list.top + 10, list.left + 110, list.top + 40 };
 
@@ -1286,22 +1281,8 @@ public:
 
         Assert::AreEqual (1, clicks, L"the press and release went to the control");
 
-        plain->SetVisible (false);
-        byPane->Layout (place, rig.scaler);
-
-        for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
-        {
-            mouse.kind = kind;
-            rig.parts->input.RouteToControls (mouse);
-        }
-
-        Assert::AreEqual (0, paned, L"a pane-routed control is offered nothing here");
-
         //  A press on the control, then a release off it: no click, and the
         //  control has the release.
-        plain->SetVisible (true);
-        byPane->SetVisible (false);
-
         mouse.kind = DxuiMouseEventKind::Down;
         Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
 
@@ -1352,6 +1333,63 @@ public:
         Assert::IsTrue  (std::find (seen.begin(), seen.end(), DxuiMouseEventKind::Down) != seen.end());
         Assert::IsTrue  (std::find (seen.begin(), seen.end(), DxuiMouseEventKind::Up)   != seen.end(), L"the release goes to the handler of the control pressed");
         Assert::AreEqual (0, clicks, L"the control's OnMouse isn't called");
+    }
+
+
+    //  A button on the navigation toolbar and one on the command bar under
+    //  it each take a click through the window's input, each from its row.
+    TEST_METHOD (HandleMouse_ClicksTheNavigationToolbarAndTheCommandBar)
+    {
+        Rig    rig;
+        RECT   up      = {};
+        RECT   preview = {};
+        bool   shown   = false;
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\a.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+
+        Assert::IsTrue (rig.parts->toolbars.GetNavToolbar().TryGetEntryRect (CassoExplorerCommands::kUp, up));
+        rig.Click (up);
+        Assert::AreEqual (std::wstring (L"C:\\"), rig.browser.GetLocation().path, L"Up went to the folder above");
+
+        shown = rig.parts->commands.Find (CassoExplorerCommands::kTogglePreview)->IsChecked();
+
+        Assert::IsTrue (rig.parts->toolbars.GetCommandBar().TryGetEntryRect (CassoExplorerCommands::kTogglePreview, preview));
+        rig.Click (preview);
+        Assert::AreNotEqual (shown, rig.parts->commands.Find (CassoExplorerCommands::kTogglePreview)->IsChecked(), L"Preview turned the pane on or off");
+    }
+
+
+    //  While a rename is open, a press outside the box ends it, and goes on
+    //  to what is under the pointer.
+    TEST_METHOD (HandleMouse_APressOutsideARenameEndsIt)
+    {
+        Rig             rig;
+        DxuiMouseEvent  mouse;
+        RECT            tree  = {};
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\a.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
+
+        rig.parts->rename.BeginRename();
+        Assert::IsTrue (rig.parts->rename.IsRenaming());
+
+        tree              = rig.parts->treePane.GetBounds();
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.kind        = DxuiMouseEventKind::Down;
+        mouse.positionDip = { (tree.left + tree.right) / 2, tree.bottom - 10 };
+
+        Assert::IsTrue  (rig.parts->input.HandleMouse (mouse), L"the tree under the pointer takes the press");
+        Assert::IsFalse (rig.parts->rename.IsRenaming(), L"and the rename is over");
+        Assert::IsTrue  (rig.parts->input.GetFocusPane() == ExplorerPane::Tree);
     }
 
 

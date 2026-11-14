@@ -115,6 +115,15 @@ protected:
     DxuiMessageResult  OnAppMessage    (UINT msg, WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnEndSession    (bool ending) override;
 
+    //  The mouse is captured for a right press as for a left one, so a right
+    //  drag of the list's selection has its moves outside the window, and
+    //  released once no button is down. A popup menu or a drag loop that
+    //  takes the mouse ends the press.
+    DxuiMessageResult  OnLButtonUp      (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnRButtonDown    (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnRButtonUp      (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnCaptureChanged (HWND newCapture) override;
+
 private:
     //  Stands for a separator in a list of command ids.
     static constexpr int  kSeparatorId = 0;

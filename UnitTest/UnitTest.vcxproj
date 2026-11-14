@@ -466,7 +466,6 @@
     <ClCompile Include="CassoExplorer\ArchiveProbeTests.cpp" />
     <ClCompile Include="CassoExplorer\FileContentsTextTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerSourcePreviewTests.cpp" />
-    <ClCompile Include="CassoExplorer\CassoExplorerToolbarRoutingTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerShellIconsTests.cpp" />
     <ClCompile Include="CassoExplorer\FocusRingTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowserTests.cpp" />

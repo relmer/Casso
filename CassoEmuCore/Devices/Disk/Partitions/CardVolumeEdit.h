@@ -46,6 +46,10 @@ public:
     //  The volume's blocks as an image, for a path to be resolved against.
     BlockImage            GetImage  () const;
 
+    //  The volume as `edited` has it, for a change made after another. The
+    //  buffer must outlive the volume.
+    std::unique_ptr<IVolume>  OpenEdited (const BlockBuffer & edited) const;
+
     //  The blocks `edited` touched written to the partition, once the
     //  partition is checked to be as it was at TryOpen. `outRefusal` is the
     //  reason for a failure.

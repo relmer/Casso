@@ -4,6 +4,8 @@
 #include "Devices/Disk/BlockVolumeOpener.h"
 #include "Devices/Disk/CommitPlan.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Machines/Apple2/Common/HfsVolume.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
 
 
 
@@ -90,6 +92,26 @@ bool CardVolumeEdit::TryOpen (IDiskFileIo & fileIo, const std::string & imagePat
 BlockImage CardVolumeEdit::GetImage() const
 {
     return BlockImage (*m_store);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CardVolumeEdit::OpenEdited
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IVolume> CardVolumeEdit::OpenEdited (const BlockBuffer & edited) const
+{
+    if (m_kind == VolumeKind::Hfs)
+    {
+        return std::make_unique<HfsVolume> (BlockImage (edited));
+    }
+
+    return std::make_unique<ProDosVolume> (BlockImage (edited));
 }
 
 

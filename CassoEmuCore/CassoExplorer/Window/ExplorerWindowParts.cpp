@@ -151,8 +151,8 @@ void ExplorerWindowParts::CreateControls()
     listPane.Create();
     cassoLinkManager.CreateListActions();
     preview.Create();
-    treeSplitter    = window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiSplitter>>();
-    previewSplitter = window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiSplitter>>();
+    treeSplitter    = window.CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
+    previewSplitter = window.CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
 
     treeSplitter->SetAccessibleName    (L"Folder pane width");
     previewSplitter->SetAccessibleName (L"Preview pane width");

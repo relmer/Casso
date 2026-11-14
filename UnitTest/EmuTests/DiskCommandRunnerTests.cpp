@@ -9,6 +9,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Machines/Apple2/Common/HfsVolume.h"
+#include "Machines/Apple2/Common/HfsWriter.h"
 #include "Devices/Disk/BlockImage.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Dos33Geometry.h"
@@ -385,6 +386,51 @@ public:
 
         Assert::AreNotEqual (DiskCommandResult::kClean, result.exitStatus,
             L"the directory is gone, so listing it fails");
+    }
+
+
+    //  HFS has folders, as ProDOS has directories: mkdir makes each along
+    //  the path, and rmdir removes them.
+    TEST_METHOD (MkdirAndRmdir_ChangeAnHfsVolume)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+        vector<Byte>        image;
+
+
+
+        AssertSucceeded (HfsWriter::Format (image, 1600, "Mac Disk"));
+        io.files["mac.po"]  = image;
+        io.stamps["mac.po"] = FileStamp { image.size(), 100 };
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir, "mac.po");
+        options.disk.path = "Work/Deep Folder";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::List, "mac.po");
+        options.disk.path = "Work";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+        Assert::IsTrue   (result.output.find ("Deep Folder") != std::string::npos, L"the deeper folder is inside the first");
+
+        options              = MakeOptions (CommandLineOptions::DiskOptions::Command::Rmdir, "mac.po");
+        options.disk.path    = "Work";
+        options.disk.recurse = true;
+        options.disk.yes     = true;
+        result               = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::List, "mac.po");
+        options.disk.path = "Work";
+        result            = runner.Run (options);
+
+        Assert::AreNotEqual (DiskCommandResult::kClean, result.exitStatus, L"the folder is gone, so listing it fails");
     }
 
 

@@ -53,10 +53,10 @@ public:
     void  SetActivity (const std::wstring & text) { m_status->SetText (kStatusFill, text); }
     void  UpdateTip   (const DxuiMouseEvent & ev, POINT point);
 
+private:
     bool  HandleZoomClick     (const DxuiMouseEvent & ev);
     bool  HandleActivityClick (const DxuiMouseEvent & ev);
 
-private:
     ExplorerContext  & m_context;
     DxuiStatusBar    * m_status  = nullptr;
 
