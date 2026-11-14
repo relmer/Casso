@@ -9,39 +9,39 @@ MODELED FROM PHOTOGRAPHS, for the owner's review (T108):
 
 What the photographs settle:
 
-  FRONT. One flat face. The lid's seam crosses it a sixth of the way down.
-  Directly under the seam, the slot runs from 11% to 83% of the width; to
+  FRONT. One flat face. The lid's seam crosses it an eighth of the way down.
+  Below the seam, the slot runs from 11% to 83% of the width; to
   its right, the eject button is a rectangle as tall as the slot, and to its
   left the activity LED sits in line with it. The rainbow Apple is at the
   lower left.
 
   TOP. Ten grooves front to back inside a plain border.
 
-  BACK. The lid comes down to about the middle of the back. Below the seam:
+  BACK. Below the seam, which runs level round the back as round the sides:
   the 19-pin daisy-chain socket in a rimmed opening at the lower left (the
   photograph has its rare dust cover on; the socket is modeled bare) with
-  the drive mark above it; the Kensington lock loop right of center; and
-  the cable's strain relief boot at the right. The iFixit teardown of the
-  Apple 3.5 Drive lists the three.
+  the drive mark above it; and the Kensington lock loop right of center.
+  The fixed cable is at the right; the cable and its boot are not modeled.
+  The iFixit teardown of the Apple 3.5 Drive lists the socket, the loop and
+  the cable.
 
   BOTTOM. A white label at the front end with the name; four felt pads at
   the corners; four screws; grooves along the length; and a shallow
   rounded panel at the back.
 
-  SIDES. Plain, with the lid's seam falling from the front's height to the
-  back's.
+  SIDES. Plain, with the lid's seam level along them.
 
   The two drives are one case in two colors: the UniDisk 3.5 in the //c's
   Snow White, the Apple 3.5 Drive in Platinum. The dimensions are the Apple
   3.5 Drive's from the Computer History Museum's catalog entry 102735399,
-  4 3/4 in wide, 2 1/4 in high and 8 1/4 in deep.
+  4 3/4 in wide and 8 1/4 in deep. The case is 1.85 in high: the
+  straight-on photograph puts the front's height at 0.39 of its width, the
+  lid's seam at 0.88 of the height and the slot between 0.64 and 0.74.
 
 Sub-mesh identity is by part NAME and color: `lamp` is the activity LED in
 the drive-lamp color and `front_anchor` the front plane the scene lines
 devices up on.
 """
-
-import math
 
 import cadquery as cq
 from cadkit import KD, Model
@@ -49,37 +49,30 @@ from cadkit import KD, Model
 from cad_badge import badge
 
 INCH       = 25.4
-W, D, H    = 4.75 * INCH, 8.25 * INCH, 2.25 * INCH
+W, D, H    = 4.75 * INCH, 8.25 * INCH, 1.85 * INCH    # the case; the feet add to it
 CORNER_ANG = 0.14
 EDGE_R     = INCH * 3.0 / 32.0
 
 DARK       = (0.070, 0.070, 0.075)
-FELT       = (0.820, 0.800, 0.760)
+FOOT_C     = (0.300, 0.300, 0.320)     # the clear feet, drawn translucent gray
 LABEL      = (0.950, 0.945, 0.930)
 INK        = (0.150, 0.150, 0.160)
 METAL      = (0.700, 0.700, 0.700)
 
-SEAM_FRONT = H * 0.83          # the lid's lower edge on the front
-SEAM_BACK  = H * 0.54          # and on the back
+SEAM_Z     = H * 0.88          # the lid's lower edge, level all round
 SEAM_W     = 0.7
 
 
 def seam_cut(case):
-    # The seam on the front, the back, and down each side between them.
+    # The seam, level all the way round: front, back and both sides.
     case = case.cut(cq.Workplane("XY").box(W + 2.0, 1.4, SEAM_W, centered=(False, False, False))
-                    .translate((-1.0, -0.8, SEAM_FRONT)))
+                    .translate((-1.0, -0.8, SEAM_Z)))
     case = case.cut(cq.Workplane("XY").box(W + 2.0, 1.4, SEAM_W, centered=(False, False, False))
-                    .translate((-1.0, D - 0.6, SEAM_BACK)))
-
-    drop  = SEAM_FRONT - SEAM_BACK
-    angle = math.degrees(math.atan2(drop, D))
-    run   = math.hypot(D, drop)
+                    .translate((-1.0, D - 0.6, SEAM_Z)))
 
     for x in (-0.8, W - 0.6):
-        side = (cq.Workplane("XY").box(1.4, run, SEAM_W, centered=(False, False, False))
-                .rotate((0, 0, 0), (1, 0, 0), -angle)
-                .translate((x, 0, SEAM_FRONT)))
-        case = case.cut(side)
+        case = case.cut(cq.Workplane("XY").box(1.4, D + 2.0, SEAM_W, centered=(False, False, False))
+                        .translate((x, -1.0, SEAM_Z)))
 
     return case
 
@@ -116,7 +109,7 @@ def build(case_rgb):
     # Front: the slot under the seam.
     slot_x0, slot_x1 = W * 0.11, W * 0.83
     slot_h           = 5.0
-    slot_z0          = SEAM_FRONT - 1.5 - slot_h
+    slot_z0          = H * 0.74 - slot_h
     case = case.cut(cq.Workplane("XY")
                     .box(slot_x1 - slot_x0, 8.0, slot_h, centered=(False, False, False))
                     .translate((slot_x0, -1.0, slot_z0)))
@@ -143,11 +136,11 @@ def build(case_rgb):
             .translate((W * 0.05, -0.3, slot_z0 + slot_h * 0.5 - 1.0)),
           KD["drive_lamp"])
 
-    badge(m, W * 0.10, H * 0.10, 11.0)
+    badge(m, W * 0.11, H * 0.10, 9.0)
 
-    # Back: the socket's rimmed opening, the mark above it, the lock loop
-    # and the strain relief boot, laid out as seen from behind, as in the
-    # photograph, and mirrored across the centerline into the model's x.
+    # Back: the socket's rimmed opening, the mark above it and the lock
+    # loop, laid out as seen from behind, as in the photograph, and mirrored
+    # across the centerline into the model's x.
     def back_add(name, solid, rgb):
         m.add(name, solid.mirror("YZ", (W * 0.5, 0, 0)), rgb)
 
@@ -173,10 +166,20 @@ def build(case_rgb):
           cq.Workplane("XZ").polyline([(0, db_h), (db_w, db_h), (db_w - 3.0, 0), (3.0, 0)]).close().extrude(-1.2)
             .translate((db_x0, D + 0.3, db_z0)),
           METAL)
-    back_add("db19_insert",
-          cq.Workplane("XZ").polyline([(1.5, db_h - 1.5), (db_w - 1.5, db_h - 1.5), (db_w - 3.8, 1.5), (3.8, 1.5)]).close().extrude(-0.4)
-            .translate((db_x0, D + 1.5, db_z0)),
-          DARK)
+    # The insert, with its nineteen contact holes: ten over nine, on the
+    # D connectors' 2.77 mm pitch.
+    insert = (cq.Workplane("XZ").polyline([(1.5, db_h - 1.5), (db_w - 1.5, db_h - 1.5), (db_w - 3.8, 1.5), (3.8, 1.5)]).close().extrude(-1.0)
+              .translate((db_x0, D + 1.2, db_z0)))
+    pitch  = 2.77
+
+    for row, count in ((db_h * 0.66, 10), (db_h * 0.34, 9)):
+        x_first = db_x0 + db_w * 0.5 - (count - 1) * pitch * 0.5
+
+        for i in range(count):
+            insert = insert.cut(cq.Workplane("XZ").circle(0.55).extrude(-1.0)
+                                .translate((x_first + i * pitch, D + 1.6, db_z0 + row)))
+
+    back_add("db19_insert", insert, (0.150, 0.150, 0.155))
     back_add("back_mark",
           cq.Workplane("XY").box(3.0, 0.4, 4.0, centered=(False, False, False))
             .translate((W * 0.34, D, H * 0.50)),
@@ -188,10 +191,6 @@ def build(case_rgb):
                     .translate((W * 0.62 + 2.5, D - 0.5, H * 0.46 + 2.5)))
     back_add("lock_loop", clip, case_rgb)
 
-    boot = (cq.Workplane("XY").box(W * 0.13, 12.0, H * 0.20, centered=(False, False, False))
-            .edges("|Y").fillet(2.5)
-            .translate((W * 0.82, D, H * 0.52)))
-    back_add("cable_boot", boot, (0.740, 0.735, 0.715))
 
     # Bottom: the label, the felt pads, the screws, and the back panel.
     m.add("bottom_label",
@@ -207,9 +206,9 @@ def build(case_rgb):
     for fx in (W * 0.06, W * 0.84):
         for fy in (D * 0.16, D * 0.76):
             m.add(f"pad_{fx:.0f}_{fy:.0f}",
-                  cq.Workplane("XY").box(W * 0.10, D * 0.075, 2.0, centered=(False, False, False))
-                    .translate((fx, fy, -2.0)),
-                  FELT)
+                  cq.Workplane("XY").box(W * 0.10, D * 0.075, 3.0, centered=(False, False, False))
+                    .translate((fx, fy, -3.0)),
+                  FOOT_C)
 
     for sx in (W * 0.23, W * 0.77):
         for sy in (D * 0.19, D * 0.72):

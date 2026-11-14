@@ -122,8 +122,8 @@ for x0, x1 in MODEL_PANELS:
     n = int((x1 - x0 - 30.0) / 6.0)
 
     for i in range(n):
-        case = case.cut(cq.Workplane("XY").box(2.6, 6.0, H * 0.06, centered=(False, False, False))
-                        .translate((x0 + 15.0 + i * 6.0, D - 3.0, H * 0.78)))
+        case = case.cut(cq.Workplane("XY").box(2.6, 8.0, H * 0.06, centered=(False, False, False))
+                        .translate((x0 + 15.0 + i * 6.0, D - 6.0, H * 0.78)))
 
 # Sides: vents low at the back.
 for x in (-1.0, W - 2.0):
@@ -136,8 +136,8 @@ m.add("case", case, CASE, angular=CORNER_ANG)
 # The vent openings show dark behind them.
 for x0, x1 in MODEL_PANELS:
     m.add(f"vent_shadow_{x0:.0f}",
-          cq.Workplane("XY").box(x1 - x0 - 20.0, 0.5, H * 0.06, centered=(False, False, False))
-            .translate((x0 + 10.0, D - 3.4, H * 0.78)),
+          cq.Workplane("XY").box(x1 - x0 - 20.0, 0.5, H * 0.06 + 2.0, centered=(False, False, False))
+            .translate((x0 + 10.0, D - 6.6, H * 0.78 - 1.0)),
           DARK)
 
 # ---------------------------------------------------------------- the front
@@ -237,10 +237,17 @@ back_add("db25_shell",
         .edges("|Y").fillet(1.5)
         .translate((db_x0, FACE, H * 0.57)),
       BRASS)
-back_add("db25_insert",
-      cq.Workplane("XY").box((db_x1 - db_x0) * 0.86, 0.5, H * 0.07, centered=(False, False, False))
-        .translate((db_x0 + (db_x1 - db_x0) * 0.07, FACE + 1.5, H * 0.59)),
-      DARK)
+# The insert, with its twenty-five contact holes, thirteen over twelve.
+db_insert = (cq.Workplane("XY").box((db_x1 - db_x0) * 0.86, 1.0, H * 0.07, centered=(False, False, False))
+             .translate((db_x0 + (db_x1 - db_x0) * 0.07, FACE + 1.2, H * 0.59)))
+db_mid    = (db_x0 + db_x1) * 0.5
+
+for z, count in ((H * 0.645, 13), (H * 0.612, 12)):
+    for i in range(count):
+        db_insert = db_insert.cut(cq.Workplane("XZ").circle(0.55).extrude(-1.0)
+                                  .translate((db_mid - (count - 1) * 2.77 * 0.5 + i * 2.77, FACE + 1.7, z)))
+
+back_add("db25_insert", db_insert, (0.150, 0.150, 0.155))
 back_add("voltage_label",
       cq.Workplane("XY").box(W * 0.10, 0.4, H * 0.11, centered=(False, False, False))
         .translate((W * 0.775, FACE, H * 0.42)),
@@ -254,16 +261,27 @@ back_add("caution_band",
       cq.Workplane("XY").box(W * 0.235, 0.5, H * 0.05, centered=(False, False, False))
         .translate((W * 0.51, FACE + 0.4, H * 0.43)),
       PANEL)
+for i, line in enumerate(("Delicate Instrument", "Handle with Care", "Connect this unit", "only to specified", "Apple Computer interface")):
+    back_text(line, H * 0.022, W * 0.625, H * (0.385 - i * 0.035), INK, f"caution_line{i}", FACE + 0.7)
+
 back_text("Caution", H * 0.04, W * 0.52, H * 0.455, YELLOW, "caution_text", FACE + 0.8)
 back_add("caution_triangle",
       cq.Workplane("XZ").polyline([(0, 0), (H * 0.10, 0), (H * 0.05, H * 0.09)]).close().extrude(-0.3)
         .translate((W * 0.53, FACE + 0.4, H * 0.27)),
       YELLOW)
-back_add("iec_inlet",
-      cq.Workplane("XY").box(W * 0.085, 2.0, H * 0.17, centered=(False, False, False))
-        .edges("|Y").chamfer(2.0)
-        .translate((W * 0.75, FACE, H * 0.21)),
-      DARK)
+iec = (cq.Workplane("XY").box(W * 0.085, 2.0, H * 0.17, centered=(False, False, False))
+       .edges("|Y").chamfer(2.0)
+       .translate((W * 0.75, FACE, H * 0.21)))
+iec = iec.cut(cq.Workplane("XY").box(W * 0.065, 3.0, H * 0.12, centered=(False, False, False))
+              .edges("|Y").chamfer(1.5)
+              .translate((W * 0.76, FACE + 0.5, H * 0.235)))
+back_add("iec_inlet", iec, DARK)
+
+# The inlet's three pins: line and neutral side by side, earth above.
+for name, px, pz in (("iec_pin_l", W * 0.778, H * 0.27), ("iec_pin_n", W * 0.812, H * 0.27), ("iec_pin_e", W * 0.795, H * 0.315)):
+    back_add(name,
+             cq.Workplane("XY").box(1.6, 5.0, 4.0, centered=(False, False, False)).translate((px, FACE + 0.5, pz)),
+             METAL)
 back_add("switch_frame",
       cq.Workplane("XY").box(W * 0.035, 2.0, H * 0.26, centered=(False, False, False))
         .translate((W * 0.89, FACE, H * 0.18)),

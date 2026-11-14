@@ -195,6 +195,7 @@ for stripe, solids in sorted(_by_stripe.items()):
 BACK_DARK  = (0.060, 0.060, 0.060)
 BACK_METAL = (0.720, 0.720, 0.720)
 BACK_LABEL = (0.950, 0.945, 0.930)
+BACK_BRASS = (0.800, 0.680, 0.380)
 
 
 def back_add(name, solid, rgb):
@@ -217,12 +218,25 @@ for i in range(20):
 for name, z0 in (("scsi_upper", H * 0.36), ("scsi_lower", H * 0.18)):
     back_box(name + "_shell",  W * 0.28, W * 0.55, z0, z0 + H * 0.12, 2.5, BACK_METAL)
     back_box(name + "_insert", W * 0.30, W * 0.53, z0 + H * 0.025, z0 + H * 0.095, 0.5, BACK_DARK, y = 2.5)
+
+    # Fifty contacts, two rows of twenty-five on the Centronics 2.16 mm
+    # pitch, along the insert's ribbon.
+    mid = W * 0.415
+
+    for row, zc in enumerate((z0 + H * 0.068, z0 + H * 0.052)):
+        for i in range(25):
+            x = mid - 12 * 2.16 + i * 2.16 - 0.45
+            back_box(f"{name}_contact{row}_{i}", x, x + 0.9, zc - 0.6, zc + 0.6, 0.3, BACK_BRASS, y = 3.0)
     back_box(name + "_bail_l", W * 0.265, W * 0.275, z0 + H * 0.02, z0 + H * 0.10, 4.0, BACK_METAL)
     back_box(name + "_bail_r", W * 0.555, W * 0.565, z0 + H * 0.02, z0 + H * 0.10, 4.0, BACK_METAL)
 
 back_box("scsi_id_selector", W * 0.575, W * 0.60, H * 0.12, H * 0.20, 1.5, BACK_DARK)
 back_box("barcode_label",    W * 0.31,  W * 0.55, H * 0.03, H * 0.13, 0.3, BACK_LABEL)
 back_box("iec_inlet",        W * 0.64,  W * 0.74, H * 0.10, H * 0.30, 2.0, BACK_DARK)
+
+# The inlet's three pins: line and neutral side by side, earth above.
+for pin, px, pz in (("l", W * 0.665, H * 0.16), ("n", W * 0.705, H * 0.16), ("e", W * 0.685, H * 0.22)):
+    back_box(f"iec_pin_{pin}", px, px + 1.6, pz, pz + 3.5, 4.0, BACK_METAL, y = 2.0)
 back_box("power_switch",     W * 0.83,  W * 0.88, H * 0.12, H * 0.30, 2.0, BACK_DARK)
 back_box("power_rocker",     W * 0.84,  W * 0.87, H * 0.15, H * 0.24, 1.0, (0.20, 0.20, 0.20), y = 2.0)
 

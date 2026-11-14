@@ -295,7 +295,7 @@ d 1
 
 newmtl db25_insert
 Ka 0 0 0 
-Kd 0.06 0.06 0.06
+Kd 0.15 0.15 0.155
 d 1
 
 newmtl voltage_label
@@ -318,6 +318,31 @@ Ka 0 0 0
 Kd 0.33 0.29 0.25
 d 1
 
+newmtl caution_line0
+Ka 0 0 0 
+Kd 0.12 0.12 0.13
+d 1
+
+newmtl caution_line1
+Ka 0 0 0 
+Kd 0.12 0.12 0.13
+d 1
+
+newmtl caution_line2
+Ka 0 0 0 
+Kd 0.12 0.12 0.13
+d 1
+
+newmtl caution_line3
+Ka 0 0 0 
+Kd 0.12 0.12 0.13
+d 1
+
+newmtl caution_line4
+Ka 0 0 0 
+Kd 0.12 0.12 0.13
+d 1
+
 newmtl caution_text
 Ka 0 0 0 
 Kd 0.95 0.78 0.15
@@ -331,6 +356,21 @@ d 1
 newmtl iec_inlet
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
+d 1
+
+newmtl iec_pin_l
+Ka 0 0 0 
+Kd 0.65 0.65 0.65
+d 1
+
+newmtl iec_pin_n
+Ka 0 0 0 
+Kd 0.65 0.65 0.65
+d 1
+
+newmtl iec_pin_e
+Ka 0 0 0 
+Kd 0.65 0.65 0.65
 d 1
 
 newmtl switch_frame

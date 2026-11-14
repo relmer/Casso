@@ -70,7 +70,7 @@ d 1
 
 newmtl db19_insert
 Ka 0 0 0 
-Kd 0.07 0.07 0.075
+Kd 0.15 0.15 0.155
 d 1
 
 newmtl back_mark
@@ -81,11 +81,6 @@ d 1
 newmtl lock_loop
 Ka 0 0 0 
 Kd 0.88 0.87 0.835
-d 1
-
-newmtl cable_boot
-Ka 0 0 0 
-Kd 0.74 0.735 0.715
 d 1
 
 newmtl bottom_label
@@ -100,22 +95,22 @@ d 1
 
 newmtl pad_7_34
 Ka 0 0 0 
-Kd 0.82 0.8 0.76
+Kd 0.3 0.3 0.32
 d 1
 
 newmtl pad_7_159
 Ka 0 0 0 
-Kd 0.82 0.8 0.76
+Kd 0.3 0.3 0.32
 d 1
 
 newmtl pad_101_34
 Ka 0 0 0 
-Kd 0.82 0.8 0.76
+Kd 0.3 0.3 0.32
 d 1
 
 newmtl pad_101_159
 Ka 0 0 0 
-Kd 0.82 0.8 0.76
+Kd 0.3 0.3 0.32
 d 1
 
 newmtl screw_28_40
