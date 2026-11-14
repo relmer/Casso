@@ -6,6 +6,7 @@
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 

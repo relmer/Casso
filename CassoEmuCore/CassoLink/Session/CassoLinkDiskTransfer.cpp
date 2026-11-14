@@ -5,6 +5,7 @@
 #include "CassoLink/Session/TrackVerifier.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"

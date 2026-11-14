@@ -434,6 +434,7 @@
     <ClCompile Include="CassoLink\FullSendTests.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStoreTests.cpp" />
     <ClCompile Include="DiskCheck\BootCheckTests.cpp" />
+    <ClCompile Include="DiskCheck\ExplorerBootWorkerTests.cpp" />
     <ClCompile Include="DiskCheck\BootProbeTests.cpp" />
     <ClCompile Include="CassoLink\FullSendManifestRenameTests.cpp" />
     <ClCompile Include="CassoLink\FullSendStatusTests.cpp" />

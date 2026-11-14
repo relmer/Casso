@@ -1,0 +1,345 @@
+#include "Pch.h"
+
+#include "CassoExplorer/ExplorerBootWorker.h"
+#include "CassoExplorer/Model/PicturePreview.h"
+#include "CassoLink/FullSend/FullSendManifestFile.h"
+#include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskImageStore.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::ExplorerBootWorker
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ExplorerBootWorker::ExplorerBootWorker (ThumbnailStore & store, BootCheck::MachineFn build) :
+    m_store (store),
+    m_build (std::move (build))
+{
+    m_thread = std::thread ([this]() { Run(); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::~ExplorerBootWorker
+//
+//  The image being booted is finished first; the ones waiting aren't booted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ExplorerBootWorker::~ExplorerBootWorker()
+{
+    {
+        std::lock_guard  lock (m_lock);
+
+        m_stop = true;
+        m_queue.clear();
+    }
+
+    m_wake.notify_all();
+
+    if (m_thread.joinable())
+    {
+        m_thread.join();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::SetDone
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::SetDone (DoneFn done)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    m_done = std::move (done);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::SetBusy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::SetBusy (BusyFn isBusy)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    m_isBusy = std::move (isBusy);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::SetManifestIo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::SetManifestIo (IDiskFileIo * fileIo)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    m_fileIo = fileIo;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::SetLimits
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::SetLimits (const BootProbe::Limits & limits)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    m_limits = limits;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::Queue
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::Queue (const std::wstring & path, const std::string & model)
+{
+    {
+        std::lock_guard  lock (m_lock);
+        bool             isWaiting = std::any_of (m_queue.begin(), m_queue.end(), [&path] (const Item & item) { return _wcsicmp (item.path.c_str(), path.c_str()) == 0; });
+
+        if (m_stop || isWaiting)
+        {
+            return;
+        }
+
+        m_queue.push_back ({ path, model });
+    }
+
+    m_wake.notify_all();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::GetPending
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t ExplorerBootWorker::GetPending() const
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    return m_queue.size() + (m_working ? 1 : 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::WaitUntilIdle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::WaitUntilIdle()
+{
+    std::unique_lock  lock (m_lock);
+
+
+
+    m_idle.wait (lock, [this]() { return m_queue.empty() && !m_working; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::Check
+//
+//  A file that can't be read, or isn't a disk image by its extension, has
+//  no report.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path, const std::string & model)
+{
+    HRESULT                hr       = S_OK;
+    Result                 result;
+    std::filesystem::path  file     = path;
+    std::string            narrow   = TextEncoding::WideToNarrow (path);
+    DiskFormat             format   = DiskFormat::Dsk;
+    std::vector<Byte>      bytes;
+    std::vector<Byte>      png;
+    BootReport             report;
+    ThumbnailRecord        record;
+    BootProbe::Limits      limits;
+    IDiskFileIo          * fileIo   = nullptr;
+    bool                   isOpen   = false;
+
+
+
+    result.path = path;
+
+    {
+        std::lock_guard  lock (m_lock);
+
+        limits = m_limits;
+        fileIo = m_fileIo;
+    }
+
+    hr = DiskImageStore::GetSourceFormatByExtension (narrow, format);
+    CHR (hr);
+
+    {
+        std::ifstream  in (file, std::ios::binary);
+
+        isOpen = in.is_open();
+
+        if (isOpen)
+        {
+            bytes.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+    }
+
+    CBREx (isOpen, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+    hr = BootCheck::Run (bytes, format, model, limits, m_build, report, result.machine, result.missing);
+    CHR (hr);
+
+    result.hasReport = true;
+    result.verdict   = report.verdict;
+    result.reason    = report.reason;
+
+    hr = PicturePreview::EncodePng (report.frame, report.width, report.height, png);
+    CHR (hr);
+
+    record.verdict = BootProbe::GetVerdictName (report.verdict);
+    record.machine = result.machine;
+    record.reason  = report.reason;
+
+    hr = m_store.Store (file, png, record);
+    CHR (hr);
+
+    if (fileIo != nullptr)
+    {
+        hr = FullSendManifestFile::NoteBoot (*fileIo, TextEncoding::WideToNarrow (file.parent_path().wstring()), TextEncoding::WideToNarrow (file.filename().wstring()), record.verdict);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBootWorker::Run
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBootWorker::Run()
+{
+    for (;;)
+    {
+        Item    item;
+        DoneFn  done;
+        BusyFn  isBusy;
+        Result  result;
+
+        {
+            std::unique_lock  lock (m_lock);
+
+            m_wake.wait (lock, [this]() { return m_stop || !m_queue.empty(); });
+
+            if (m_stop)
+            {
+                return;
+            }
+
+            item      = m_queue.front();
+            isBusy    = m_isBusy;
+            m_working = true;
+
+            m_queue.pop_front();
+        }
+
+        while (isBusy && isBusy())
+        {
+            std::unique_lock  lock (m_lock);
+
+            if (m_wake.wait_for (lock, std::chrono::milliseconds (s_kBusyPollMs), [this]() { return m_stop; }))
+            {
+                return;
+            }
+        }
+
+        result = Check (item.path, item.model);
+
+        {
+            std::lock_guard  lock (m_lock);
+
+            done = m_done;
+        }
+
+        if (done)
+        {
+            done (result);
+        }
+
+        {
+            std::lock_guard  lock (m_lock);
+
+            m_working = false;
+        }
+
+        m_idle.notify_all();
+    }
+}
