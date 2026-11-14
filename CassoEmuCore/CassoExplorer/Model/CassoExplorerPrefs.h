@@ -91,7 +91,8 @@ struct CassoExplorerPrefs
     int                    hexGrouping     = kDefaultHexGrouping;
 
     //  The adapter Initialize card for Apple last had chosen, as a
-    //  CardLayoutModel::Adapter. 0 is "I'm not sure".
+    //  CardLayoutModel::Adapter. 0 until one is chosen, for the dialog's
+    //  default.
     int                    cffaAdapter     = 0;
 
     //  Whether the explanation before the storage card broker's UAC prompt

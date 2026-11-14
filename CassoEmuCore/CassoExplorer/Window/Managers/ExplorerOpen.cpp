@@ -303,7 +303,7 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
     std::wstring                       contents;
     uint64_t                           layout    = 0;
     std::unique_ptr<CardLayoutModel>   model;
-    CardLayoutModel::Adapter           adapter   = CardLayoutModel::Adapter::Unsure;
+    CardLayoutModel::Adapter           adapter   = CardLayoutModel::kDefaultAdapter;
     bool                               confirmed = false;
     std::vector<PhysicalDrive>         drives;
     std::vector<WindowsVolume>         volumes;
@@ -349,7 +349,7 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
 
     if (model->GetPositionCount() == 0)
     {
-        m_context.window.ShowMessage (std::format (L"{} is too small for a CFFA adapter.", PhysicalCards::FormatDrive (found)), MB_ICONWARNING);
+        m_context.window.ShowMessage (std::format (L"{} is too small for an Apple II storage adapter.", PhysicalCards::FormatDrive (found)), MB_ICONWARNING);
         return;
     }
 
@@ -655,20 +655,28 @@ void ExplorerOpen::FinishInitialize()
 //
 //  ExplorerOpen::EditA2retroNetDrives
 //
-//  Edit as text opens the file in the program Windows opens .txt files
-//  with.
+//  The Edit button opens the file in the program Windows opens .txt files
+//  with, and its label has that program's name, as "Edit in Notepad...".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerOpen::EditA2retroNetDrives (const std::wstring & root)
 {
     ActionsTypes::Outcome  outcome;
-    HWND                   owner = m_context.window.GetHwnd();
-    bool                   saved = false;
+    HWND                   owner        = m_context.window.GetHwnd();
+    bool                   saved        = false;
+    wchar_t                editor[256]  = {};
+    DWORD                  length       = (DWORD) std::size (editor);
+    HRESULT                hrEditor     = AssocQueryStringW (ASSOCF_INIT_IGNOREUNKNOWN, ASSOCSTR_FRIENDLYAPPNAME, L".txt", L"open", editor, &length);
 
 
 
-    saved = A2retroNetDrivesDialog::Edit (owner, m_context.theme, m_context.actions.GetA2retroNet(), root, &m_context.shellIcons, [this, owner] (const std::wstring & path)
+    if (FAILED (hrEditor))
+    {
+        editor[0] = L'\0';
+    }
+
+    saved = A2retroNetDrivesDialog::Edit (owner, m_context.theme, m_context.actions.GetA2retroNet(), root, &m_context.shellIcons, editor, [this, owner] (const std::wstring & path)
     {
         HRESULT  hr = m_context.shellVerbs.Open (owner, path);
 

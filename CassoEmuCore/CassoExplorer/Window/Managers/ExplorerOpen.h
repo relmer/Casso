@@ -93,6 +93,6 @@ private:
     std::wstring                  m_initCard;
     PhysicalDrive                 m_initDrive;
     uint64_t                      m_initLayout      = 0;
-    CardLayoutModel::Adapter      m_initAdapter     = CardLayoutModel::Adapter::Unsure;
+    CardLayoutModel::Adapter      m_initAdapter     = CardLayoutModel::kDefaultAdapter;
     std::vector<WindowsVolume>    m_initVolumes;
 };
