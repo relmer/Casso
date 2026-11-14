@@ -89,6 +89,7 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
     //  from a read that does (RepairFields); and everything is aligned to it
     //  again.
     repaired = RepairFields (position, agreed);
+    repaired = RepairProlog (position, agreed, outStream.replaced) || repaired;
 
     if (repaired || agreed != outStream.bytes)
     {
@@ -1148,6 +1149,172 @@ bool CassoLinkCapture::RepairFields (const Position & position, std::vector<Byte
                     fixed    = true;
                     repaired = true;
                 }
+            }
+        }
+    }
+
+    return repaired;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::IsAddressAt
+//
+//  Whether a 16-sector address field's prolog is at a byte, with room for
+//  the field after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::IsAddressAt (std::span<const Byte> bytes, size_t at)
+{
+    return at + s_kMarkerBytes <= bytes.size() && (bytes[at] | 0x80) == s_kProlog0 && (bytes[at + 1] | 0x80) == s_kProlog1 && (bytes[at + 2] | 0x80) == s_kAddress16;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::FindNextField
+//
+//  The next address field after the one at a byte, within s_kNextWithin
+//  bytes, or SIZE_MAX.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassoLinkCapture::FindNextField (std::span<const Byte> bytes, size_t at)
+{
+    size_t  next = SIZE_MAX;
+
+
+
+    for (size_t each = at + s_kMarkerBytes; next == SIZE_MAX && each < at + s_kNextWithin && each < bytes.size(); each++)
+    {
+        next = IsAddressAt (bytes, each) ? each : next;
+    }
+
+    return next;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::RepairProlog
+//
+//  A sector whose data field has no prolog, or another prolog than most of
+//  the track's data fields have, replaced from its address field to the next
+//  by a read's copy with that prolog. A read that enters a sector out of
+//  step frames its whole data field as other bytes, with no prolog; and a
+//  read can misread a prolog written at a write splice and read the field
+//  after it right. A vote among three reads doesn't settle either one: two
+//  reads can frame a sector alike, and the reads of a splice all differ.
+//  When most of the track's data fields decode, the copy must decode too.
+//  A sector across the revolution's end isn't replaced. True when a sector
+//  is replaced, and outSectors has its number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkCapture::RepairProlog (const Position & position, std::vector<Byte> & ioRevolution, std::vector<int> & outSectors)
+{
+    using Prolog = std::array<Byte, s_kPrologBytes>;
+
+    std::vector<Byte>         sector;
+    std::vector<Byte>         nibbles    (NibblizationLayer::kDataNibbleCount);
+    std::map<Prolog, size_t>  counts;
+    Prolog                    usual      = {};
+    size_t                    most       = 0;
+    size_t                    fields     = 0;
+    size_t                    decoding   = 0;
+    bool                      mustDecode = false;
+    bool                      repaired   = false;
+
+
+
+    auto  getProlog = [] (std::span<const Byte> bytes, size_t data)
+    {
+        Prolog  prolog = {};
+
+        for (size_t each = 0; each < s_kPrologBytes; each++)
+        {
+            prolog[each] = (Byte) (bytes[data - s_kPrologBytes + each] | 0x80);
+        }
+
+        return prolog;
+    };
+
+    auto  decodes = [&sector, &nibbles] (std::span<const Byte> bytes, size_t data)
+    {
+        std::transform (bytes.begin() + (ptrdiff_t) data, bytes.begin() + (ptrdiff_t) (data + nibbles.size()), nibbles.begin(), [] (Byte value) { return (Byte) (value | 0x80); });
+
+        return NibblizationLayer::DecodeDataNibbles (nibbles.data(), sector);
+    };
+
+    for (size_t at = 0; at < ioRevolution.size(); at++)
+    {
+        size_t  data = FindDataField (ioRevolution, at);
+
+        if (data != SIZE_MAX)
+        {
+            counts[getProlog (ioRevolution, data)]++;
+            fields++;
+            decoding += decodes (ioRevolution, data) ? 1 : 0;
+        }
+    }
+
+    for (const auto & [prolog, count] : counts)
+    {
+        if (count > most)
+        {
+            most  = count;
+            usual = prolog;
+        }
+    }
+
+    //  With no prolog most fields have, nothing is known to be wrong.
+    if (most * 2 <= fields)
+    {
+        return false;
+    }
+
+    mustDecode = decoding * 2 > fields;
+
+    for (size_t at = 0; at < ioRevolution.size(); at++)
+    {
+        size_t  data  = IsAddressAt (ioRevolution, at) ? FindDataField (ioRevolution, at) : SIZE_MAX;
+        size_t  next  = IsAddressAt (ioRevolution, at) ? FindNextField (ioRevolution, at) : SIZE_MAX;
+        bool    fixed = next == SIZE_MAX || (data != SIZE_MAX && getProlog (ioRevolution, data) == usual);
+
+        for (size_t read = 0; !fixed && read < position.reads.size(); read++)
+        {
+            const std::vector<Byte>  & bytes = position.reads[read];
+
+            for (size_t other = 0; !fixed && other + s_kMarkerBytes <= bytes.size(); other++)
+            {
+                bool    same      = std::equal (ioRevolution.begin() + (ptrdiff_t) at, ioRevolution.begin() + (ptrdiff_t) (at + s_kMarkerBytes), bytes.begin() + (ptrdiff_t) other,
+                                                [] (Byte mine, Byte theirs) { return (mine | 0x80) == (theirs | 0x80); });
+                size_t  theirs    = same ? FindDataField (bytes, other) : SIZE_MAX;
+                size_t  theirNext = same ? FindNextField (bytes, other) : SIZE_MAX;
+
+                if (theirs == SIZE_MAX || theirNext == SIZE_MAX || getProlog (bytes, theirs) != usual || (mustDecode && !decodes (bytes, theirs)))
+                {
+                    continue;
+                }
+
+                ioRevolution.erase  (ioRevolution.begin() + (ptrdiff_t) (at + s_kMarkerBytes), ioRevolution.begin() + (ptrdiff_t) next);
+                ioRevolution.insert (ioRevolution.begin() + (ptrdiff_t) (at + s_kMarkerBytes), bytes.begin() + (ptrdiff_t) (other + s_kMarkerBytes), bytes.begin() + (ptrdiff_t) theirNext);
+
+                outSectors.push_back ((((ioRevolution[at + 7] | 0x80) << 1) | 1) & (ioRevolution[at + 8] | 0x80));
+
+                fixed    = true;
+                repaired = true;
             }
         }
     }

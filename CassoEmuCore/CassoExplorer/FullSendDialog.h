@@ -124,7 +124,7 @@ class FullSendDialog : public DxuiDialogWindow
 {
 public:
     static constexpr int   kWidthDip  = 720;
-    static constexpr int   kHeightDip = 620;
+    static constexpr int   kHeightDip = 650;
     static constexpr int   kEndId     = 1001;
     static constexpr int   kFolderId  = 1002;
     static constexpr UINT  kTickMs    = 250;

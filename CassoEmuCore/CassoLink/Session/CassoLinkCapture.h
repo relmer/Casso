@@ -92,6 +92,10 @@ public:
         //  and whether the disk is write-protected, which the WOZ's INFO has.
         double                 revolutionCycles = 0.0;
         bool                   writeProtected   = false;
+
+        //  Each sector taken whole from another read (RepairProlog), as its
+        //  position and sector number.
+        std::vector<std::pair<int, int>>  replaced;
     };
 
     //  Where a capture is: the position of its last read, that read's number
@@ -139,6 +143,7 @@ private:
         std::vector<uint8_t>  zeros;          // the zero bits after each byte
         std::vector<uint8_t>  bits;
         std::vector<size_t>   starts;         // each byte's first bit in bits
+        std::vector<int>      replaced;       // the sectors taken whole from another read
     };
 
     //  The marks of each byte, at each delay: the count set and the count read.
@@ -203,6 +208,10 @@ private:
     static bool                 IsSameStream   (std::span<const Byte> a, std::span<const Byte> b);
     static size_t               FindDataField  (std::span<const Byte> bytes, size_t at);
     static bool                 RepairFields   (const Position & position, std::vector<Byte> & ioRevolution);
+    static bool                 RepairProlog   (const Position & position, std::vector<Byte> & ioRevolution, std::vector<int> & outSectors);
+    static std::string          DescribeResult (const Result & result, Byte drive);
+    static bool                 IsAddressAt    (std::span<const Byte> bytes, size_t at);
+    static size_t               FindNextField  (std::span<const Byte> bytes, size_t at);
     static void                 UniteSyncZeros (std::map<int, Stream> & ioStreams);
     static bool                 FindGap        (const Stream & stream, size_t & outFirst, size_t & outEnd);
     static void                 FitGap         (Stream & ioStream, double bits);
@@ -275,6 +284,8 @@ private:
     //  The bytes after an address field's prolog that its data field's prolog
     //  must start within; and the reads a pace is estimated after.
     static constexpr size_t  s_kDataWithin   = 48;
+    static constexpr size_t  s_kNextWithin   = 600;     // the bytes after an address field its sector and the gap after it end within
+    static constexpr size_t  s_kPrologBytes  = 3;
     static constexpr int     s_kPaceReads    = 3;
 
     static constexpr Byte    s_kReadsMagic[] = { 'C', 'R', 'A', 'W' };
