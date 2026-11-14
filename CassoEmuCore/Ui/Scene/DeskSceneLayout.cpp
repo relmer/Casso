@@ -1415,7 +1415,7 @@ void DeskSceneLayout::PlaceRecorder (const DeskSceneMetrics & metrics,
 //
 //  DeskSceneLayout::PlaceStack
 //
-//  A stack beside the devices placed so far, kStackGapMm clear of their
+//  A stack beside the devices placed so far, kRecorderGapMm clear of their
 //  left or right edge: the extra drives with `spot`, or with `everyExtra`
 //  all of them, and the first `driveCount` Disk II drives when their spot is
 //  `spot`. Level 0 is on the desk and each level is on top of the one below,
@@ -1478,8 +1478,8 @@ void DeskSceneLayout::PlaceStack (const DeskSceneMetrics & metrics,
         columnW = std::max (columnW, item.hi[0] - item.lo[0]);
     }
 
-    columnX = (spot == DeskDriveSpot::RightStack) ? deviceMax[0] + kStackGapMm + columnW * 0.5f
-                                                  : deviceMin[0] - kStackGapMm - columnW * 0.5f;
+    columnX = (spot == DeskDriveSpot::RightStack) ? deviceMax[0] + kRecorderGapMm + columnW * 0.5f
+                                                  : deviceMin[0] - kRecorderGapMm - columnW * 0.5f;
 
     for (const Item & item : items)
     {
