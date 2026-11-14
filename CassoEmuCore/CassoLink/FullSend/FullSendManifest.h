@@ -113,6 +113,10 @@ public:
     //  set to the new one. False when no row has the old name.
     bool                 RenameImage       (const std::string & oldName, const std::string & newName);
 
+    //  The boot result of the row with the file. False when no row has it,
+    //  or the row has that result.
+    bool                 SetBoot           (const std::string & name, const std::string & boot);
+
     //  An image deleted from the folder: its row is removed, and the rows that
     //  repeat it are changed or removed, as in RemoveImage's comment. What was
     //  removed and changed is returned so RestoreRows can put it back.

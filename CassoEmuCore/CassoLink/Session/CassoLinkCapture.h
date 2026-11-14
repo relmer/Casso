@@ -126,6 +126,11 @@ public:
     //  and bytes, little-endian. Parsing fails with ERROR_INVALID_DATA for
     //  any other file.
     static void     SerializeReads (const std::vector<Position> & positions, std::vector<Byte> & outFile);
+
+    //  What a capture marked, for a manifest row: weak 3, 11; replaced 1.3;
+    //  differs 32, with a track as its number and a replaced sector as its
+    //  track and sector. Empty with nothing marked.
+    static std::string  FormatMarks (const Result & result);
     static HRESULT  ParseReads     (std::span<const Byte> file, std::vector<Position> & outPositions);
 
     //  Whether a whole track's reads are a standard 16-sector or 13-sector

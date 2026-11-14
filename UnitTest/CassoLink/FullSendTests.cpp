@@ -72,6 +72,8 @@ public:
         std::vector<int>                      captures;                   // the drive of each raw capture
         Image                                 rawWoz         = { 'W', 'O', 'Z', '2', 0xFF, 0x0A, 0x0D, 0x0A };
         Image                                 rawReads;                   // a raw capture's reads, empty when they aren't saved
+        std::string                           rawMarks;                   // what a raw capture marked
+        std::vector<std::string>              noted;                      // the path of each image written
 
         //  Called at the end of the Nth whole-disk read, counted from 1, and
         //  at the Nth wait for a key.
@@ -160,13 +162,16 @@ public:
 
         bool     IsBootstrapped() override { return bootstrapped; }
 
-        HRESULT  CaptureRaw (int drive, Image & outWoz, Image & outReads) override
+        HRESULT  CaptureRaw (int drive, Image & outWoz, Image & outReads, std::string & outMarks) override
         {
             captures.push_back (drive);
             outWoz   = rawWoz;
             outReads = rawReads;
+            outMarks = rawMarks;
             return S_OK;
         }
+
+        void     NoteImage (const std::string & path) override { noted.push_back (path); }
 
         HRESULT  WaitForKey (const std::vector<std::string> & lines, FullSendKey & outKey) override
         {
@@ -933,12 +938,15 @@ public:
         rig.link.reportEmpty = 3;
         rig.link.present[1]  = false;
         rig.link.rawReads    = { 'C', 'R', 'A', 'W', 3, 0 };
+        rig.link.rawMarks    = "weak 3, 11";
 
         auto  session = rig.Run();
 
         Assert::IsTrue (rig.io.files["C:\\Box\\0001.woz"] == rig.link.rawWoz, L"The image is the capture");
         Assert::IsTrue (rig.io.files["C:\\Box\\0001.woz.reads"] == rig.link.rawReads, L"The reads are beside it");
         Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size(), L"The reads have no row");
+        Assert::AreEqual (std::string ("weak 3, 11"), session->GetManifest().GetRows()[0].marks, L"The row has the capture's marks");
+        Assert::IsTrue (rig.link.noted == std::vector<std::string> { "C:\\Box\\0001.woz" }, L"The image is noted for the boot check");
     }
 
     //  A likely copy-protected disk is captured raw: its image is the WOZ, its

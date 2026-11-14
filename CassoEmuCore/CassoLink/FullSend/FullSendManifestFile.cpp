@@ -48,6 +48,41 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendManifestFile::NoteBoot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendManifestFile::NoteBoot (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, const std::string & boot)
+{
+    HRESULT           hr      = S_OK;
+    std::string       path    = folder + "\\" + FullSendManifest::kFileName;
+    FullSendManifest  manifest;
+    bool              exists  = false;
+    bool              changed = false;
+    std::lock_guard   lock (FullSendSession::GetFolderLock (folder));
+
+
+
+    hr = Read (fileIo, path, manifest, exists);
+    CHR (hr);
+    BAIL_OUT_IF (!exists, S_OK);
+
+    changed = manifest.SetBoot (name, boot);
+    BAIL_OUT_IF (!changed, S_OK);
+
+    hr = Write (fileIo, path, manifest);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendManifestFile::NoteDelete
 //
 ////////////////////////////////////////////////////////////////////////////////

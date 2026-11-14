@@ -85,6 +85,8 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
     hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, result.woz, m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);
 
+    m_session.m_sink.OnImageWritten (operation.imagePath, TextEncoding::WideToNarrow (m_session.GetModelName()));
+
     if (!result.weak.empty())
     {
         operation.message = "Tracks with weak bits, which read differently every time: " + listTracks (result.weak) + ".";

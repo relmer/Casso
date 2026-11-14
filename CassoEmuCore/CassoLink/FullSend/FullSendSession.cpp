@@ -1188,6 +1188,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
         row.status    = unreadable.empty() ? FullSendManifest::kStatusSent : FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size());
         isProtected   = row.status == FullSendManifest::kStatusProtected;
         row.status    = raw.empty() ? row.status : FullSendManifest::kStatusRawCapture;
+        row.marks     = raw.empty() ? std::string() : m_rawMarks;
         m_screen.tone = unreadable.empty() ? FullSendTone::Done : isProtected ? FullSendTone::Protected : FullSendTone::BadSectors;
         m_screen.prot += isProtected ? 1 : 0;
 
@@ -1217,6 +1218,11 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     CHRF (hr, m_fileFailed = true);
 
     folderLock.unlock();
+
+    if (earlier == nullptr)
+    {
+        m_link.NoteImage (GetPath (row.file));
+    }
 
     //  A raw capture has every track, so its row has no map of bad sectors.
     if (raw.empty() && (!unreadable.empty() || !report.marks.empty()))
@@ -1309,7 +1315,7 @@ HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
 
-    hr = m_link.CaptureRaw (drive, outRaw, m_rawReads);
+    hr = m_link.CaptureRaw (drive, outRaw, m_rawReads, m_rawMarks);
     CHR (hr);
 
     SetDriveState (drive, FullSendDriveState::Sending);

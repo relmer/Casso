@@ -157,7 +157,10 @@ public:
     //  A drive's disk captured raw as a WOZ. outReads has every read of the
     //  capture, as CassoLinkCapture::SerializeReads writes them, when reads
     //  are saved, and is empty otherwise.
-    virtual HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads) = 0;
+    virtual HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) = 0;
+
+    //  An image the session wrote, by its path, for the boot check.
+    virtual void     NoteImage      (const std::string & path) { UNREFERENCED_PARAMETER (path); }
 
     //  A line for the activity log.
     virtual void     Report     (const std::string & text) = 0;
@@ -311,6 +314,7 @@ private:
     std::array<std::string, 2>  m_blankDisk;                       // the blank each drive last added to the blanks
     uint64_t                    m_commitTag  = 1;
     std::vector<Byte>           m_rawReads;                        // the last raw capture's reads, until its image is written
+    std::string                 m_rawMarks;                        // and what it marked, for its row
     std::mt19937                m_random     { std::random_device{}() };
     std::vector<Byte>           m_quips;         // the prompt lines left before any repeats
     Byte                        m_lastQuip   = 0;

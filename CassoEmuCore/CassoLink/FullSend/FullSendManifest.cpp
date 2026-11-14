@@ -381,6 +381,34 @@ const FullSendRow * FullSendManifest::FindImageByHash (const std::string & hash)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendManifest::SetBoot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendManifest::SetBoot (const std::string & name, const std::string & boot)
+{
+    bool  changed = false;
+
+
+
+    for (FullSendRow & row : m_rows)
+    {
+        if (!row.file.empty() && _stricmp (row.file.c_str(), name.c_str()) == 0 && row.boot != boot)
+        {
+            row.boot = boot;
+            changed  = true;
+        }
+    }
+
+    return changed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendManifest::RenameImage
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -39,7 +39,8 @@ public:
     bool     IsVerifying    () override { return m_verifying; }
     void     ToggleVerify   () override { m_verifying = !m_verifying; }
     bool     IsBootstrapped () override;
-    HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads) override;
+    HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) override;
+    void     NoteImage      (const std::string & path) override;
     void     Report         (const std::string & text) override;
 
     //  The time for a manifest's row: UTC, in ISO 8601.

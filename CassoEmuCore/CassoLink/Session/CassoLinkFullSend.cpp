@@ -468,7 +468,7 @@ bool CassoLinkFullSend::IsBootstrapped()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads)
+HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks)
 {
     HRESULT                   hr     = S_OK;
     std::vector<Byte>         module;
@@ -479,6 +479,7 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz, st
 
     outWoz.clear();
     outReads.clear();
+    outMarks.clear();
     m_operation->drive = drive;
 
     hr = CheckStop();
@@ -516,6 +517,8 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz, st
         m_status.MarkPosition (drive, position, FullSendPositionMark::Unstable);
     }
 
+    outMarks = CassoLinkCapture::FormatMarks (result);
+
     if (m_session.m_sink.HasFullSendReadsOn())
     {
         CassoLinkCapture::SerializeReads (result.positions, outReads);
@@ -529,6 +532,21 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz, st
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::NoteImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkFullSend::NoteImage (const std::string & path)
+{
+    m_session.m_sink.OnImageWritten (path, TextEncoding::WideToNarrow (m_session.GetModelName()));
 }
 
 
