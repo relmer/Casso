@@ -385,6 +385,9 @@ private:
     //  the card, or the reason the commit failed set in the result.
     static HRESULT  CommitCard (const std::string & imagePath, CardVolumeEdit & card, const BlockBuffer & edited, DiskCommandResult & result);
 
+    //  Whether mkdir and rmdir change the file system.
+    static bool  HasDirectories (VolumeKind kind);
+
     //  The path `get`, `delete` and `boot` act on, and the name used in their
     //  messages: the name as typed, or with --index the entry at that position.
     HRESULT  ResolveEntryPath (const CommandLineOptions             & options,

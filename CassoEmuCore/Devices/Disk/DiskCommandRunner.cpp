@@ -898,7 +898,7 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
 {
     HRESULT                        hr       = S_OK;
     bool                           named    = !options.disk.path.empty();
-    bool                           isProDos = false;
+    bool                           hasDirs  = false;
     bool                           madeAny  = false;
     size_t                         i        = 0;
     DiskImageSession::OpenedImage  opened;
@@ -925,9 +925,9 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
 
     kind = isCard ? card.GetKind() : opened.kind;
 
-    isProDos = kind == VolumeKind::ProDos;
+    hasDirs = HasDirectories (kind);
 
-    CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+    CBRFEx (hasDirs, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
             result.FailAction (options.disk.imagePath, "create " + options.disk.path,
                                std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (kind))));
 
@@ -939,8 +939,8 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
 
     for (i = 1; i <= path.GetDepth(); i++)
     {
-        std::unique_ptr<ProDosVolume>  over    = !isCard ? std::make_unique<ProDosVolume> (staged) : madeAny ? std::make_unique<ProDosVolume> (BlockImage (cardStaged)) : nullptr;
-        const IVolume                & step    = over != nullptr ? static_cast<const IVolume &> (*over) : card.GetVolume();
+        std::unique_ptr<IVolume>       over    = !isCard ? VolumeImage::CreateVolume (kind, staged) : madeAny ? card.OpenEdited (cardStaged) : nullptr;
+        const IVolume                & step    = over != nullptr ? *over : card.GetVolume();
         VolumeListing                  listing;
         std::string                    prefix;
         vector<Byte>                   next;
@@ -988,6 +988,24 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::HasDirectories
+//
+//  The file systems mkdir and rmdir change: ProDOS and HFS. The others
+//  have no directories, or are read-only.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::HasDirectories (VolumeKind kind)
+{
+    return kind == VolumeKind::ProDos || kind == VolumeKind::Hfs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::RunRmdir
 //
 //  PowerShell's meanings: a directory holding anything needs --recurse, and
@@ -1005,7 +1023,7 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
 {
     HRESULT                        hr          = S_OK;
     bool                           named       = !options.disk.path.empty();
-    bool                           isProDos    = false;
+    bool                           hasDirs     = false;
     bool                           holdsThings = false;
     bool                           permitted   = false;
     bool                           confirmed   = false;
@@ -1037,9 +1055,9 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
 
     kind = isCard ? card.GetKind() : opened.kind;
 
-    isProDos = kind == VolumeKind::ProDos;
+    hasDirs = HasDirectories (kind);
 
-    CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+    CBRFEx (hasDirs, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
             result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
                                std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (kind))));
 
@@ -1054,9 +1072,7 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
     }
     else
     {
-        ProDosVolume  volume (opened.sectors);
-
-        hr = volume.BuildRemovalPlan (path, plan);
+        hr = VolumeImage::CreateVolume (kind, opened.sectors)->BuildRemovalPlan (path, plan);
     }
 
     CHRF (hr, result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
@@ -1102,9 +1118,7 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
     }
     else
     {
-        ProDosVolume  volume (opened.sectors);
-
-        hr = volume.RemoveDirectory (path, options.disk.force, edited, outcome);
+        hr = VolumeImage::CreateVolume (kind, opened.sectors)->RemoveDirectory (path, options.disk.force, edited, outcome);
     }
 
     CHRF (hr, result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
