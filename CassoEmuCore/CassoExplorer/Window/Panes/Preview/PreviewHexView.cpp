@@ -40,7 +40,7 @@ PreviewHexView::PreviewHexView (ExplorerPreviewManager & manager, ExplorerContex
 
 void PreviewHexView::Create()
 {
-    CassoExplorerNamedControl<DxuiHexView>  * hex = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiHexView>>();
+    CassoExplorerNamedControl<DxuiHexView>  * hex = m_context.window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiHexView>>();
 
 
 

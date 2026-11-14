@@ -52,7 +52,7 @@ ExplorerToolbars::ExplorerToolbars (ExplorerContext & context)
 
 void ExplorerToolbars::CreateNavBar()
 {
-    m_toolbar = m_context.window.CreateChild<DxuiToolbar>();
+    m_toolbar = m_context.window.CreatePaneRoutedChild<DxuiToolbar>();
 }
 
 
@@ -67,7 +67,7 @@ void ExplorerToolbars::CreateNavBar()
 
 void ExplorerToolbars::CreateMenuBar()
 {
-    m_menuBar = m_context.window.CreateChild<DxuiMenuBar>();
+    m_menuBar = m_context.window.CreatePaneRoutedChild<DxuiMenuBar>();
 }
 
 
@@ -82,7 +82,7 @@ void ExplorerToolbars::CreateMenuBar()
 
 void ExplorerToolbars::CreateCommandBar()
 {
-    m_commandBar = m_context.window.CreateChild<DxuiToolbar>();
+    m_commandBar = m_context.window.CreatePaneRoutedChild<DxuiToolbar>();
 }
 
 

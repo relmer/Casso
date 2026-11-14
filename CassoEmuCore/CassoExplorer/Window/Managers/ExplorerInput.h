@@ -48,11 +48,18 @@ public:
     bool                      RouteCommandBarKey (const DxuiKeyEvent & ev);
 
     bool     HandleMouse       (const DxuiMouseEvent & ev);
+
+    //  The event offered to the window's controls that no pane routes,
+    //  front to back. After a control takes a press, each move and the
+    //  release that follow go to it, wherever the pointer is.
+    bool     RouteToControls   (const DxuiMouseEvent & ev);
     bool     HandleKey         (const DxuiKeyEvent & ev);
 
 private:
     ExplorerContext  & m_context;
     ExplorerPane       m_focus            = ExplorerPane::Tree;
+    IDxuiControl     * m_pressed          = nullptr;   // the control with the press from RouteToControls, until the release
+    bool               m_overControl      = false;     // the pointer was over one of those controls at the last move
     POINT              m_dragStart        = {};
     int                m_toolbarFocus     = 0;
     int                m_commandBarFocus  = 0;

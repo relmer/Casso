@@ -42,7 +42,7 @@ PreviewListingView::PreviewListingView (ExplorerPreviewManager & manager, Explor
 
 void PreviewListingView::Create()
 {
-    CassoExplorerNamedControl<DxuiListView>  * list = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiListView>>();
+    CassoExplorerNamedControl<DxuiListView>  * list = m_context.window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiListView>>();
 
 
 

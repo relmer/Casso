@@ -123,6 +123,24 @@ public:
             io.stamps[narrow] = FileStamp { bytes.size(), 100 };
         }
 
+        //  A left click at the middle of the bounds, through the window's
+        //  input, as a real click arrives: a move, a press and a release.
+        void  Click (const RECT & bounds)
+        {
+            DxuiMouseEvent  mouse;
+
+
+
+            mouse.button      = DxuiMouseButton::Left;
+            mouse.positionDip = { (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
+
+            for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Move, DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
+            {
+                mouse.kind = kind;
+                parts->input.HandleMouse (mouse);
+            }
+        }
+
         //  What the window runs as it opens, in order, then its first layout.
         void  Open()
         {
@@ -215,7 +233,7 @@ public:
         for (AppMessage message : { AppMessage::ExplorerFolderChanged, AppMessage::ExplorerShellListed, AppMessage::ExplorerCassoLink,
                                     AppMessage::ExplorerInfoTip, AppMessage::ExplorerContentDetails, AppMessage::ExplorerIconsLoaded,
                                     AppMessage::ExplorerNewChoices, AppMessage::ExplorerReply, AppMessage::ExplorerRecycleBin,
-                                    AppMessage::ExplorerCardProgress })
+                                    AppMessage::ExplorerCardProgress, AppMessage::ExplorerCardArrivals })
         {
             Assert::IsTrue (rig.parts->HandleAppMessage ((UINT) message, 0, 0));
         }
@@ -1168,7 +1186,7 @@ public:
         rig.parts->listPane.FillList();
         Assert::IsTrue (bar.GetAction (0)->GetBounds().right > bar.GetAction (0)->GetBounds().left, L"the button has a place in the bar");
 
-        bar.GetAction (1)->Click();
+        rig.Click (bar.GetAction (1)->GetBounds());
 
         Assert::AreEqual (std::string ("[drives]\nnumber=2\n1=system.po\n"), std::string (rig.io.files["E:\\A2retroNET.txt"].begin(), rig.io.files["E:\\A2retroNET.txt"].end()));
 
@@ -1194,9 +1212,7 @@ public:
         FixtureProvider    fixtures;
         std::vector<Byte>  po;
         std::vector<Byte>  dsk (NibblizationLayer::kImageByteSize, 0);
-        std::string        text   = "[drives]\n";
-        RECT               button = {};
-        DxuiMouseEvent     mouse;
+        std::string        text = "[drives]\n";
 
 
 
@@ -1223,18 +1239,76 @@ public:
         Assert::AreEqual (std::wstring (L"zork.dsk has a ProDOS volume in a form A2retroNET doesn't read. Write as .po makes a copy it reads."), bar.GetText());
         Assert::AreEqual ((size_t) 1, bar.GetActionCount());
 
-        //  Clicked through the window's input, as a real click arrives.
-        button            = bar.GetAction (0)->GetBounds();
-        mouse.button      = DxuiMouseButton::Left;
-        mouse.positionDip = { (button.left + button.right) / 2, (button.top + button.bottom) / 2 };
-
-        for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Move, DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
-        {
-            mouse.kind = kind;
-            rig.parts->input.HandleMouse (mouse);
-        }
+        rig.Click (bar.GetAction (0)->GetBounds());
 
         Assert::IsTrue (rig.io.files["E:\\games\\zork.po"] == po);
+    }
+
+
+    //  A control made with the window's CreateChild takes clicks with no
+    //  routing written for it. One made with CreatePaneRoutedChild is left to
+    //  its pane.
+    TEST_METHOD (HandleMouse_RoutesToAControlNoPaneRoutes)
+    {
+        Rig              rig;
+        DxuiButton     * plain   = nullptr;
+        DxuiButton     * byPane  = nullptr;
+        DxuiMouseEvent   mouse;
+        RECT             list    = {};
+        RECT             place   = {};
+        int              clicks  = 0;
+        int              paned   = 0;
+
+
+
+        rig.Open();
+
+        plain  = rig.window.CreateChild<DxuiButton> (L"Plain");
+        byPane = rig.window.CreatePaneRoutedChild<DxuiButton> (L"By pane");
+
+        plain->SetOnClick  ([&clicks]() { clicks++; });
+        byPane->SetOnClick ([&paned]() { paned++; });
+
+        //  Both in front of the list.
+        list  = rig.parts->listPane.GetListView()->GetBounds();
+        place = { list.left + 10, list.top + 10, list.left + 110, list.top + 40 };
+
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.positionDip = { place.left + 5, place.top + 5 };
+
+        plain->Layout (place, rig.scaler);
+
+        for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
+        {
+            mouse.kind = kind;
+            Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+        }
+
+        Assert::AreEqual (1, clicks, L"the press and release went to the control");
+
+        plain->SetVisible (false);
+        byPane->Layout (place, rig.scaler);
+
+        for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
+        {
+            mouse.kind = kind;
+            Assert::IsFalse (rig.parts->input.RouteToControls (mouse));
+        }
+
+        Assert::AreEqual (0, paned, L"a pane-routed control is offered nothing here");
+
+        //  A press on the control, then a release off it: no click, and the
+        //  control has the release.
+        plain->SetVisible (true);
+        byPane->SetVisible (false);
+
+        mouse.kind = DxuiMouseEventKind::Down;
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+
+        mouse.kind        = DxuiMouseEventKind::Up;
+        mouse.positionDip = { place.right + 200, place.bottom + 200 };
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse), L"the release goes to the control pressed");
+        Assert::AreEqual (1, clicks);
     }
 
 

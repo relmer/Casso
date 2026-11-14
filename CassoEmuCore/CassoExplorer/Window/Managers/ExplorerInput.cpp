@@ -328,6 +328,77 @@ void ExplorerInput::StepToolbarFocus (bool preview, bool forward)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerInput::RouteToControls
+//
+//  A move or the pointer's exit is offered to every such control, so the
+//  hover on a control the pointer left is cleared, and isn't consumed. A
+//  press, a release or the wheel is offered to the controls under the
+//  pointer until one takes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerInput::RouteToControls (const DxuiMouseEvent & ev)
+{
+    DxuiPanel     & panel   = m_context.window.GetChildPanel();
+    IDxuiControl  * pressed = m_pressed;
+    bool            hover   = ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave;
+    bool            handled = false;
+    bool            over    = false;
+
+
+
+    if (pressed != nullptr && (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Up))
+    {
+        if (ev.kind == DxuiMouseEventKind::Up)
+        {
+            m_pressed = nullptr;
+        }
+
+        pressed->OnMouse (ev);
+        m_context.window.Invalidate();
+        return true;
+    }
+
+    for (size_t index = panel.GetChildCount(); index > 0 && !handled; index--)
+    {
+        IDxuiControl  * child  = panel.GetChild (index - 1);
+        bool            routed = !m_context.window.IsPaneRouted (child) && child->IsVisible() && child->IsEnabled();
+        bool            inside = routed && ev.kind != DxuiMouseEventKind::Leave && ExplorerLayout::Contains (child->GetBounds(), ev.positionDip);
+
+        over = over || inside;
+
+        if (routed && hover)
+        {
+            child->OnMouse (ev);
+        }
+        else if (inside)
+        {
+            handled = child->OnMouse (ev);
+        }
+
+        if (handled && ev.kind == DxuiMouseEventKind::Down)
+        {
+            m_pressed = child;
+        }
+    }
+
+    //  A repaint for a hover that began, moved or ended.
+    if (handled || over || m_overControl)
+    {
+        m_context.window.Invalidate();
+    }
+
+    m_overControl = over;
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerInput::HandleMouse
 //
 //  The menu bar and the splitters take first refusal, since both reach over
@@ -515,19 +586,14 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  The infobars above the list.
-    if (m_context.listPane.GetBars().HandleMouse (ev))
+    //  Every control no pane routes: the infobars above the list,
+    //  the buttons under the list's message.
+    if (RouteToControls (ev))
     {
         return true;
     }
 
     if (m_context.treePane.HandleMouse (ev))
-    {
-        return true;
-    }
-
-    //  The buttons under the list's message.
-    if (m_context.cassoLinkManager.HandleListActionMouse (ev))
     {
         return true;
     }

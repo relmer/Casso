@@ -60,7 +60,7 @@ ExplorerTreePane::ExplorerTreePane (ExplorerContext & context)
 
 void ExplorerTreePane::Create()
 {
-    CassoExplorerNamedControl<DxuiTreeView>  * tree = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiTreeView>>();
+    CassoExplorerNamedControl<DxuiTreeView>  * tree = m_context.window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiTreeView>>();
 
 
 

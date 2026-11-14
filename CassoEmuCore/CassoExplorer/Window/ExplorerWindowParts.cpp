@@ -151,8 +151,8 @@ void ExplorerWindowParts::CreateControls()
     listPane.Create();
     cassoLinkManager.CreateListActions();
     preview.Create();
-    treeSplitter    = window.CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
-    previewSplitter = window.CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
+    treeSplitter    = window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiSplitter>>();
+    previewSplitter = window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiSplitter>>();
 
     treeSplitter->SetAccessibleName    (L"Folder pane width");
     previewSplitter->SetAccessibleName (L"Preview pane width");
@@ -272,6 +272,12 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
     if (msg == (UINT) AppMessage::ExplorerCardProgress)
     {
         opener.HandleCardProgress();
+        return true;
+    }
+
+    if (msg == (UINT) AppMessage::ExplorerCardArrivals)
+    {
+        listPane.GetBars().OfferArrived();
         return true;
     }
 

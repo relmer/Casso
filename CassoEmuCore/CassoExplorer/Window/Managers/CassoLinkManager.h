@@ -109,7 +109,6 @@ public:
     //  activation the keyboard focus is where it was.
     void  ShowFullSendWindow      (bool activate);
     void  HandleRunningChanged    ();
-    bool  HandleListActionMouse   (const DxuiMouseEvent & ev);
 
 private:
     void  UpdateUnseenFiles    ();

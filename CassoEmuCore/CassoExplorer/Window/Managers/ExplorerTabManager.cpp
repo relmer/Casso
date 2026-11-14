@@ -49,7 +49,7 @@ ExplorerTabManager::ExplorerTabManager (ExplorerContext & context)
 
 void ExplorerTabManager::Create()
 {
-    m_tabs = m_context.window.CreateChild<DxuiTabStrip>();
+    m_tabs = m_context.window.CreatePaneRoutedChild<DxuiTabStrip>();
 }
 
 

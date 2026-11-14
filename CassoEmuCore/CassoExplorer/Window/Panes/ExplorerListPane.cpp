@@ -66,14 +66,14 @@ ExplorerListPane::ExplorerListPane (ExplorerContext & context)
 
 void ExplorerListPane::Create()
 {
-    CassoExplorerNamedControl<DxuiListView>  * list = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiListView>>();
+    CassoExplorerNamedControl<DxuiListView>  * list = m_context.window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiListView>>();
 
 
 
     list->SetAccessibleName (L"Files");
 
     m_list        = list;
-    m_listMessage = m_context.window.CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    m_listMessage = m_context.window.CreatePaneRoutedChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
 
     m_bars.Create ([this]()
     {
