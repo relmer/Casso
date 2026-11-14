@@ -238,11 +238,11 @@ std::wstring FullSendPanel::DescribeActivity (const FullSendSnapshot & snapshot)
 {
     switch (snapshot.activity)
     {
-        case FullSendActivity::Starting:        return L"Waiting for Space on the Apple to begin.";
+        case FullSendActivity::Starting:        return L"The Apple is waiting for disks to send.";
         case FullSendActivity::Checking:        return std::format (L"Checking the disk in drive {}.", snapshot.drive);
         case FullSendActivity::Sending:         return std::format (L"Sending the disk in drive {}.", snapshot.drive);
         case FullSendActivity::Capturing:       return std::format (L"The disk in drive {} is likely copy-protected; using raw capture mode.", snapshot.drive);
-        case FullSendActivity::WaitingForDisk:  return L"Waiting for a new disk. Insert one and press Space on the Apple.";
+        case FullSendActivity::WaitingForDisk:  return L"The Apple is waiting for more disks to send.";
         case FullSendActivity::WaitingForApple: return std::format (L"Waiting for the Apple to reply, {}.", FormatSeconds (snapshot.waited));
         case FullSendActivity::EditingPrefix:   return L"A file name prefix is being typed on the Apple.";
         case FullSendActivity::Ended:           return L"The session ended. " + TextEncoding::NarrowToWide (snapshot.reason);
