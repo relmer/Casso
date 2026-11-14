@@ -1280,9 +1280,9 @@ HRESULT ProDosVolume::HandBackVerifiedResult (
     const BlockBuffer            & result,
     BlockBuffer                  & outBuffer)
 {
-    HRESULT                hr   = S_OK;
-    ProDosVolume           volume { BlockImage (result) };
-    bool                   safe = false;
+    HRESULT                hr     = S_OK;
+    ProDosVolume           volume = ProDosVolume (BlockImage (result));
+    bool                   safe   = false;
     VolumeIntegrityReport  after;
 
 

@@ -539,7 +539,7 @@ HRESULT ProDosVolumeRemover::RemoveDirectory (
 
     for (i = 0; i < plan.entries.size(); i++)
     {
-        ProDosVolume   step { BlockImage (staged) };
+        ProDosVolume   step      = ProDosVolume (BlockImage (staged));
         FilePath       entryPath = FilePath::Parse (plan.entries[i].path);
         DeleteOutcome  removal;
         BlockBuffer    next;

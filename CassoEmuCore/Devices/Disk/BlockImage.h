@@ -50,6 +50,7 @@ public:
 
     //  The buffer the image is over, or null.
     const BlockBuffer *  GetBuffer () const { return m_buffer; }
+
     HRESULT  GetReadError () const { return m_readError; }
 
     //  The bytes read from the store so far, for a test of how little is read.

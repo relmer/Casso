@@ -1291,7 +1291,11 @@ HRESULT ProDosVolumeWriter::Write (
     vector<ProDosVolume::RawEntry>  entries;
     vector<std::string>             damage;
     DeleteOutcome                   removal;
-    ProDosVolume                    stagedVolume { BlockImage (staged) };    // reads `staged` as it is filled
+
+
+
+    //  Reads `staged` as it is filled.
+    ProDosVolume  stagedVolume = ProDosVolume (BlockImage (staged));
 
 
 
@@ -1364,7 +1368,7 @@ Error:
 
 void ProDosVolumeWriter::StampEntry (BlockBuffer  & buffer, int dirKeyBlock, const std::string & name, const FilePayload & payload)
 {
-    ProDosVolume         written { BlockImage (buffer) };
+    ProDosVolume                    written = ProDosVolume (BlockImage (buffer));
     vector<ProDosVolume::RawEntry>  entries;
     vector<std::string>             damage;
     bool                            parsed  = true;
