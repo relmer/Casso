@@ -402,8 +402,8 @@ public:
         m_buttons  = std::move (buttons);
     }
 
-    void  SetCheck  (std::wstring label, bool checked) { m_checkLabel = std::move (label); m_checked = checked; }
-    bool  IsChecked () const                           { return m_checked; }
+    void  SetCheck (std::wstring label, bool checked) { m_checkLabel = std::move (label); m_checked = checked; }
+    bool  IsChecked() const                           { return m_checked; }
 
 protected:
     void  OnCreate() override
