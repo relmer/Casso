@@ -57,6 +57,7 @@ struct CassoExplorerLaunchOptions
     std::wstring            selectPath;              // /select,<file>: the file to select in its folder
     std::wstring            refusal;
     std::vector<LinkFault>  linkFaults;              // --link-faults: a Debug build's alone
+    bool                    saveReads     = false;   // --full-send-save-reads: a raw capture's reads are saved beside its image
 };
 
 
