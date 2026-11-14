@@ -187,6 +187,11 @@ public:
     static std::string  GetAppleDoublePath (const std::string & hostFile);
     HRESULT             WriteAppleDouble   (const std::string & hostFile, const FilePayload & payload);
 
+    //  The resource fork, Finder information and, with no --type or --load,
+    //  the ProDOS type from `._NAME` beside a file being put, as get writes
+    //  them and Casso Explorer reads them.
+    void                ReadAppleDouble    (const CommandLineOptions & options, FilePayload & inOutPayload);
+
     static bool                IsThirteenSectorImage  (const CommandLineOptions & options);
     void                       BuildThirteenSector    (const CommandLineOptions & options, bool overExisting, DiskCommandResult & result);
     static bool                IsLargeCreate          (const CommandLineOptions & options);
@@ -458,6 +463,10 @@ private:
     //  entry's name and, with no --text or --basic, its conversion. False for any
     //  other host name, and the options are then left as they were.
     static bool     ApplyHostFileName (CommandLineOptions & inOutOptions, ParsedHostName & outParsed);
+
+    //  For a get with no --text or --basic, the one an output name in Casso
+    //  Explorer's text or BASIC listing form has, as a copy out writes it.
+    static void     ApplyOutputEncoding (CommandLineOptions & inOutOptions);
 
     //  For a get whose output file has a conversion's suffix, such as
     //  SOURCE.Merlin.txt: replace the payload's bytes with that conversion.

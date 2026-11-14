@@ -200,7 +200,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildCrossReferenceRows (const Previ
 std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors)
 {
     std::vector<DxuiTextView::Row>  rows;
-    DxuiTextView::Row               warning;
+    std::vector<DxuiTextView::Row>  warnings;
     std::vector<Word>               addresses;
 
 
@@ -312,27 +312,50 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
         }
     }
 
-    //  A catalog's rows don't wrap, so a warning of several sentences, as a
-    //  damaged directory's is, goes in a row a sentence.
     if (!preview.warning.empty())
     {
-        size_t  start = 0;
+        warnings = BuildWarningRows (preview.warning);
 
         rows.push_back (DxuiTextView::Row());
+        rows.insert    (rows.end(), warnings.begin(), warnings.end());
+    }
 
-        while (start < preview.warning.size())
-        {
-            size_t  end = preview.warning.find (L". ", start);
+    return rows;
+}
 
-            end = (end == std::wstring::npos) ? preview.warning.size() : end + 1;
 
-            warning.cells   = { preview.warning.substr (start, end - start) };
-            warning.warning = true;
-            rows.push_back (warning);
 
-            start = preview.warning.find_first_not_of (L' ', end);
-            start = (start == std::wstring::npos) ? preview.warning.size() : start;
-        }
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::BuildWarningRows
+//
+//  A catalog's rows don't wrap, so a warning of several sentences, as a
+//  damaged directory's is, goes in a row a sentence.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> PreviewText::BuildWarningRows (const std::wstring & warning)
+{
+    std::vector<DxuiTextView::Row>  rows;
+    DxuiTextView::Row               row;
+    size_t                          start = 0;
+
+
+
+    row.warning = true;
+
+    while (start < warning.size())
+    {
+        size_t  end = warning.find (L". ", start);
+
+        end       = (end == std::wstring::npos) ? warning.size() : end + 1;
+        row.cells = { warning.substr (start, end - start) };
+        rows.push_back (row);
+
+        start = warning.find_first_not_of (L' ', end);
+        start = (start == std::wstring::npos) ? warning.size() : start;
     }
 
     return rows;

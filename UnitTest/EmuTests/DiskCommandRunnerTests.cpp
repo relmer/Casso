@@ -19,6 +19,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Core/AppleSingleCodec.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/FieldLocator.h"
 #include "InspectorTrackBuilder.h"
@@ -431,6 +432,91 @@ public:
         result            = runner.Run (options);
 
         Assert::AreNotEqual (DiskCommandResult::kClean, result.exitStatus, L"the folder is gone, so listing it fails");
+    }
+
+
+    //  A get to a name in Casso Explorer's text form converts the file as a
+    //  copy out does, the same as --text.
+    TEST_METHOD (Get_ToATextFormName_ConvertsAsCopyOutDoes)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+
+
+        SeedProDosDisk (io);
+        io.files["note.txt"]  = { 'O', 'N', 'E', '\r', '\n', 'T', 'W', 'O', '\r', '\n' };
+        io.stamps["note.txt"] = FileStamp { 10, 100 };
+
+        options               = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
+        options.disk.hostFile = "note.txt";
+        options.disk.path     = "NOTE";
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+        result                = runner.Run (options);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        options               = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
+        options.disk.path     = "NOTE";
+        options.disk.hostFile = "raw.bin";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.hostFile = "NOTE.Text.txt";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.hostFile = "plain.txt";
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        Assert::IsTrue (io.files["NOTE.Text.txt"] == io.files["plain.txt"], L"the same as --text");
+        Assert::IsTrue (io.files["NOTE.Text.txt"] != io.files["raw.bin"],   L"and not the stored bytes");
+    }
+
+
+    //  Put reads `._NAME` beside the file, as get writes it: the resource fork
+    //  and the ProDOS type go onto the disk, and come back out.
+    TEST_METHOD (Put_ReadsTheAppleDoubleFileBesideIt)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+        AppleSingleFile     single;
+        AppleSingleFile     back;
+        vector<Byte>        sidecar;
+        std::string         error;
+
+
+
+        SeedProDosDisk (io);
+
+        single.resourceFork    = { 1, 2, 3, 4, 5 };
+        single.hasResourceFork = true;
+        single.hasProDosInfo   = true;
+        single.fileType        = 0x50;
+        single.auxType         = 0x5445;
+        single.finderInfo.assign (32, 0);
+        AppleSingleCodec::EncodeDouble (single, sidecar);
+
+        io.files["DOC"]    = { 'T', 'E', 'A', 'C', 'H' };
+        io.files["._DOC"]  = sidecar;
+        io.stamps["DOC"]   = FileStamp { 5, 100 };
+        io.stamps["._DOC"] = FileStamp { sidecar.size(), 100 };
+
+        options               = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
+        options.disk.hostFile = "DOC";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options               = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
+        options.disk.path     = "DOC";
+        options.disk.hostFile = "out";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        Assert::IsTrue  (io.files["out"] == io.files["DOC"]);
+        AssertSucceeded (AppleSingleCodec::Decode (io.files["._out"], back, error));
+        Assert::IsTrue   (back.resourceFork == single.resourceFork, L"the resource fork went onto the disk");
+        Assert::AreEqual ((uint32_t) 0x50,   (uint32_t) back.fileType);
+        Assert::AreEqual ((uint32_t) 0x5445, (uint32_t) back.auxType);
     }
 
 
