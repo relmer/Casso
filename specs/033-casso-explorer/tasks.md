@@ -2057,6 +2057,50 @@ Checked against the firmware's README and source (R58) and in Casso only. The ow
 - [X] T719 [US42] In a Full Send, report a formatted disk with no files as blank, with its file system (DOS 3.3, ProDOS, Pascal or CP/M), and don't send it; its drive's number on the Apple sends it, as for a repeat. A DOS 3.3 or ProDOS disk must also have eight tenths of its space free, so a game with a DOS boot and no catalog entries is sent. A DOS 3.3 disk whose one file is a BASIC program with no lines, as INIT writes after NEW, is blank; a disk with any other greeting program is sent. The check reads the directory's tracks, so a blank takes seconds. A disk with no sectors is reported as unformatted, or no disk: the two read alike. The window's totals count the blanks (`FullSendDisk::IsBlank`, `FullSendSession::CheckBlank`). Left: a blank on the owner's //c, and the System Master's HELLO, which INIT writes when the master was booted first and is recognized only from that file's bytes
 - [X] T720 Superseded on 2026-11-13 by User Story 43 (FR-274 to FR-287), which the owner required for 033. As first written: Deferred with T713, as a story for all of Casso Explorer and not Full Send alone: a thumbnail for any disk image, drawn in place of the stock icon and in the preview pane. Settled with the owner on 2026-11-13: the thumbnail is a PNG in a cache under the user's local application data, with the image's content hash as its file name, so a renamed, moved or copied image has its thumbnail; a copy is written to an alternate data stream of the image file and written again from the cache when the stream is gone, as OneDrive, a zip, email and a FAT volume all drop streams; with neither, the image is booted and a new one made. Casso has a command that makes the screen of the mounted disk its thumbnail, and Casso Explorer one that removes it. A thumbnail is removed from the cache when its image is deleted in Casso Explorer; an image deleted elsewhere has an orphan in the cache, which a command in Options clears. Open: a thumbnail the user set can't be made again, so whether one is also saved beside the image as a file, and whether deleting one copy of an image removes a thumbnail the user set for the others. A chunk inside a WOZ was set aside: it changes the file, whose hash the manifest has, and covers WOZ alone. Rename is F2 once the thumbnail is beside the file
 
+## Phase 61: A boot check, a thumbnail and a name (User Story 43)
+
+**Goal**: every disk image has a boot result and a picture of its screen,
+and a capture saved as a number has a name where its disk offers one.
+
+**Independent test**: Full Send a text adventure, a hi-res game and a disk
+that doesn't boot; read each result and thumbnail in the Full Send folder;
+rename, move and copy an image and find its thumbnail on each.
+
+### Tests first
+
+- [ ] T721 [P] [US43] Unit tests in `UnitTest/DiskCheck/BootProbeTests.cpp`: a bootable DOS 3.3 image from `Dos33Skeleton` is booted; an image of one repeated byte did not boot; a ProDOS data disk with no boot code is not bootable; with a ROM missing the result is unclear, with its reason; the frame has the machine's width and height (FR-274, FR-275, FR-277)
+- [ ] T722 [P] [US43] Unit tests in `UnitTest/DiskCheck/BootTitleTests.cpp`: the title of The Witness's text screen is THE WITNESS: AN INTERLOGIC MYSTERY; a page of prose with no copyright line has no title; a screen in a graphics mode has none (FR-282)
+- [ ] T723 [P] [US43] Unit tests in `UnitTest/DiskCheck/ThumbnailStoreTests.cpp` over a temporary folder: a picture stored for a file is found for a renamed copy and a copy in another folder; the stream is written and the file's last write time is as it was; with the stream removed the picture is found in the cache and the stream written again; a picture the user set outlives Clear until confirmed; Remove restores the booted one (FR-278, FR-279, FR-284 to FR-286)
+- [ ] T724 [P] [US43] Unit tests in `UnitTest/CassoLink/FullSendTests.cpp`: a manifest row's `boot` column is written and read, and a manifest with no such column loads with the result empty; an image that did not boot is on the Apple's screen at the next pause; a capture saved as a number is renamed to its number and title, with its manifest row (FR-276, FR-282)
+
+### The core
+
+- [ ] T725 [US43] Add `CassoEmuCore/DiskCheck/BootProbe.h/.cpp`: `BootProbe::Run (image bytes, format, limits, outReport)` builds an enhanced //e through `MachineBuilder` with build services that have no mixer, printer thread or window, mounts the image in slot 6 drive 1, runs it in slices of 1,000,000 cycles to 120,000,000, and samples the frame's hash, the drive's quarter track and motor and the program counter after each (R59, R60)
+- [ ] T726 [US43] In `BootProbe`, the verdict of R60: booted, did not boot, not bootable or unclear, with its reason as text; the run again on a ][+ when the //e's verdict is did not boot; the last frame from `MachineRefs::activeVideoMode` as BGRA pixels, and the text screen's rows (FR-274, FR-275, FR-277)
+- [ ] T727 [P] [US43] Add `CassoEmuCore/DiskCheck/BootTitle.h/.cpp`: `BootTitle::Find (rows, isTextMode)` by the rule of R61 (FR-282)
+- [ ] T728 [US43] Add `CassoEmuCore/DiskCheck/ThumbnailStore.h/.cpp`: the cache folder under local application data, a PNG and a JSON record for each SHA-256, the alternate data stream `casso.thumbnail` with the file's last write time restored, the index of path, size and time to hash, and `Find`, `Store`, `SetByUser`, `Remove`, `RemoveForDeleted` and `Clear` (R62; FR-278, FR-279, FR-284 to FR-286)
+- [ ] T729 [P] [US43] Add `CassoEmuCore/DiskCheck/GivenNames.h/.cpp`: `given.json` in the cache folder, a name for each Full Send fingerprint (R63; FR-283)
+- [ ] T730 [US43] Run `BootProbe` over the saved captures of 2026-11-13 in a scenario test with `CASSO_PROBE_IMAGES` set to their folder: Wizardry I, Archon, Arcticfox, The Witness and One-on-One booted, and the two bad images of One-on-One did not boot; record each verdict and its time in `validation.md` (SC-072)
+
+### Full Send and Capture raw disk
+
+- [ ] T731 [US43] Add the `boot` column to `FullSendManifest`, at the end of a row, empty for a row from before the check; write it when a result arrives (FR-276)
+- [ ] T732 [US43] Add a worker thread to Casso Explorer, `ExplorerBootWorker`, with a queue of images, one boot at a time, that waits while a link operation is reading a disk; `FullSendSession` and `CassoLinkDiskTransfer::CaptureWholeDisk` queue each image they write; a result stores the thumbnail and record, sets the manifest's column, and adds a line to the activity list (FR-274, FR-276, SC-073)
+- [ ] T733 [US43] In the Full Send window, a boot result for each row of the disks done, and in `FullSendScreen` a line at the next pause for an image that did not boot, as D1: 0024 DID NOT BOOT, SEND IT AGAIN (FR-276)
+- [ ] T734 [US43] When a result for a raw capture saved as a bare number has a title, rename the image to its number and the title through the session's folder lock, and update the manifest row; a later capture whose fingerprint has a given name takes that name (FR-282, FR-283)
+
+### Casso Explorer and Casso
+
+- [ ] T735 [US43] Draw an image's thumbnail in place of the stock disk image icon in the large and extra large icon views, and in the preview pane with the boot result under it; an image in view with no thumbnail is queued on `ExplorerBootWorker` and its icon replaced when the picture arrives (FR-280, FR-281, SC-074)
+- [ ] T736 [US43] Move, copy and remove the thumbnail with an image that Casso Explorer renames, moves, copies or deletes, and through a write of an image by Casso Explorer or Casso; add Remove thumbnail to a disk image's menu, and Clear thumbnails to Options with a confirmation that has the count of pictures the user set (FR-285 to FR-287)
+- [ ] T737 [US43] Add a command to Casso's disk menu that makes the screen the mounted image's thumbnail through `ThumbnailStore`, marked as set by the user (FR-284)
+
+### Proof
+
+- [ ] T738 [US43] Window-part tests for the icon views with thumbnails at 100% and 150%, and for the preview pane's result line
+- [ ] T739 [US43] On the owner's //c: Full Send a text adventure, a hi-res game and a disk that doesn't boot; confirm each result, thumbnail and name in the folder, and the Apple's line for the one that didn't boot; rename, move and copy an image and confirm its thumbnail; record the time added to each disk (SC-072 to SC-075)
+- [ ] T740 [US43] Get the owner's approval of the UI text: the four results, the Apple's line, Remove thumbnail, Clear thumbnails and its confirmation, and Casso's command
+
 ## Phase 56: Roadmap validation and merge
 
 - [ ] T653 Walk quickstart §7e to §7h on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`
