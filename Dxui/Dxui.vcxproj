@@ -216,6 +216,7 @@
     <ClCompile Include="Widgets\DxuiSearchBox.cpp" />
     <ClCompile Include="Widgets\DxuiSlider.cpp" />
     <ClCompile Include="Widgets\DxuiAddressBar.cpp" />
+    <ClCompile Include="Widgets\DxuiTextRowLayout.cpp" />
     <ClCompile Include="Widgets\DxuiTextView.cpp" />
     <ClCompile Include="Widgets\DxuiToolbarEditBox.cpp" />
     <ClCompile Include="Widgets\DxuiTabDragModel.cpp" />
@@ -358,6 +359,7 @@
     <ClInclude Include="Widgets\DxuiCustomVisual.h" />
     <ClInclude Include="Widgets\DxuiSurface.h" />
     <ClInclude Include="Widgets\DxuiAddressBar.h" />
+    <ClInclude Include="Widgets\DxuiTextRowLayout.h" />
     <ClInclude Include="Widgets\DxuiTextView.h" />
     <ClInclude Include="Widgets\DxuiToolbarEditBox.h" />
     <ClInclude Include="Widgets\DxuiTabDragModel.h" />

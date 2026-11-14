@@ -41,7 +41,12 @@ public:
     static std::vector<DxuiTextView::Row>  BuildTextRows      (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {});
     static std::vector<DxuiTextView::Row>  BuildDetailRows    (const std::vector<std::pair<std::wstring, std::wstring>> & details);
     static std::vector<DxuiTextView::Row>  BuildWarningRows   (const std::wstring & warning);
-    static std::vector<DxuiTextView::Row>  BuildDocumentRows  (const std::vector<Paragraph> & paragraphs);
+    static std::vector<DxuiTextView::Row>  BuildDocumentRows  (const std::vector<Paragraph> & paragraphs, const SourceSyntax::Colors & colors = {});
+
+    //  A document run's color: green for Good, red for Bad and the muted
+    //  text color for Muted, from the source colors, or zero for the text
+    //  color.
+    static uint32_t                        GetRunColor        (RunColor color, const SourceSyntax::Colors & colors);
 
     //  A BASIC program's cross-reference, a row a line of it. Any other
     //  preview, and a program that cannot be cross-referenced, has the rows

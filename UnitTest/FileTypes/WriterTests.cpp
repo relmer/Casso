@@ -40,10 +40,33 @@ public:
         rtf.assign (bytes.begin(), bytes.end());
 
         Assert::IsTrue (rtf.starts_with ("{\\rtf1\\ansi"));
-        Assert::IsTrue (rtf.find ("\\pard\\qc \\b \\i0 \\ulnone Bold") != std::string::npos);
+        Assert::IsTrue (rtf.find ("\\pard\\qc \\cf0 \\b \\i0 \\ulnone Bold") != std::string::npos);
         Assert::IsTrue (rtf.find ("\\tab plain \\{x\\}") != std::string::npos);
         Assert::IsTrue (rtf.find ("\\i \\ul \\u233?") != std::string::npos);
         Assert::IsTrue (rtf.ends_with ("}\r\n"));
+    }
+
+
+    //  A run's color is an entry of the color table, and a picture is a PNG.
+    TEST_METHOD (Write_ColorsAndPictures)
+    {
+        std::vector<Paragraph>  paragraphs (2);
+        std::vector<Byte>       bytes;
+        std::string             rtf;
+
+
+
+        paragraphs[0].runs    = { Run { L"GANDALF " }, Run { L"DEAD", false, false, false, RunColor::Bad } };
+        paragraphs[1].picture = { 0xFF000000, 0xFFFFFFFF };
+        paragraphs[1].width   = 2;
+        paragraphs[1].height  = 1;
+
+        RtfWriter::Write (paragraphs, bytes);
+        rtf.assign (bytes.begin(), bytes.end());
+
+        Assert::IsTrue (rtf.find ("{\\colortbl ;") != std::string::npos);
+        Assert::IsTrue (rtf.find ("\\cf2 \\b0 \\i0 \\ulnone DEAD") != std::string::npos);
+        Assert::IsTrue (rtf.find ("{\\pict\\pngblip\\picw2\\pich1\\picwgoal30\\pichgoal15 89504e47") != std::string::npos);
     }
 };
 
