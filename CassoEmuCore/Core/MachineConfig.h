@@ -592,6 +592,18 @@ public:
                                          PortConfig             & port,
                                          string                 & problem);
 
+    // The SmartPort drives a port's chain takes, as the //c's firmware and
+    // ProDOS 8 mount them.
+    static constexpr size_t  kMaxChainDrives = 4;
+
+    // Each machine port's chain: its order and length checked, and its
+    // drives' ROMs resolved. ERROR_INVALID_DATA, with `outError`, for a chain
+    // the port can't take.
+    static HRESULT  ResolveDiskPortChains (const vector<fs::path> & searchPaths,
+                                           const FileResolver     & resolver,
+                                           vector<PortConfig>     & ports,
+                                           string                 & outError);
+
     // `machineName` selects the per-machine ROM subdir
     // (Machines/<machineName>/<file>) used to resolve systemRom and
     // characterRom files. Slot ROMs whose device is "disk-ii" resolve

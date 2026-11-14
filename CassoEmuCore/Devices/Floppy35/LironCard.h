@@ -4,9 +4,7 @@
 
 #include "Core/MemoryDevice.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
-#include "Devices/Floppy35/Iwm.h"
-#include "Devices/Floppy35/SmartPortBus.h"
-#include "Devices/Floppy35/UniDisk35Drive.h"
+#include "Devices/Floppy35/SmartPortHost.h"
 #include "Machines/Apple2/Common/IExpansionRomCard.h"
 #include "Machines/Apple2/Common/SlotRomPage.h"
 
@@ -29,9 +27,6 @@ struct DeviceConfig;
 //      $C0n0-$C0nF   the IWM, in the Disk II's switch order
 //      $Cn00-$CnFF   ROM page n
 //      $C800-$CFFE   ROM $800-$FFE; only $CFFF deselects the card
-//
-//  The drives on the card's chain are the card's. Before each access to the
-//  IWM, the drives run up to the Apple's time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,26 +56,22 @@ public:
     bool  UsesStrobePage         () const override { return true; }
 
     // IFloppy35EventSource
-    void  SetFloppy35EventSink (IFloppy35EventSink * sink) override;
+    void  SetFloppy35EventSink (IFloppy35EventSink * sink) override { m_port.SetFloppy35EventSink (sink); }
 
     HRESULT  SetFirmware (std::vector<Byte> firmware);
     bool     HasFirmware () const { return !m_rom.empty(); }
 
-    //  The Apple's cycle count and clock rate, which the IWM and the drives
-    //  follow.
-    void  SetHostClock (const uint64_t * cycles, uint32_t clockHz);
-
-    //  A drive added to the end of the chain.
-    void  AddDrive (std::unique_ptr<UniDisk35Drive> drive);
+    void  SetHostClock (const uint64_t * cycles, uint32_t clockHz) { m_port.SetHostClock (cycles, clockHz); }
+    void  AddDrive     (std::unique_ptr<UniDisk35Drive> drive) { m_port.AddDrive (std::move (drive)); }
 
     //  Runs the drives up to the Apple's time, so their firmware's timers run
     //  while the Apple doesn't access the card.
-    void  CatchUp ();
+    void  CatchUp () { m_port.CatchUp(); }
 
-    size_t            GetDriveCount () const { return m_drives.size(); }
-    UniDisk35Drive  & GetDrive      (size_t index) { return *m_drives[index]; }
-    SmartPortBus    & GetBus        () { return m_bus; }
-    Iwm             & GetIwm        () { return m_iwm; }
+    size_t            GetDriveCount () const { return m_port.GetDriveCount(); }
+    UniDisk35Drive  & GetDrive      (size_t index) { return m_port.GetDrive (index); }
+    SmartPortBus    & GetBus        () { return m_port.GetBus(); }
+    Iwm             & GetIwm        () { return m_port.GetIwm(); }
     SlotRomPage     & GetSlotPage   () { return m_slotPage; }
 
 private:
@@ -88,22 +79,12 @@ private:
     static constexpr Word  kSlotIoStride = 0x10;
     static constexpr Word  kExpansion    = 0xC000;
 
-    Byte      Access   (Word address, bool isWrite, Byte value);
-    uint64_t  GetNowNs ();
-
-    int                                           m_slot        = 0;
-    Word                                          m_ioStart     = 0;
-    Word                                          m_ioEnd       = 0;
-    MemoryBus                                   & m_hostBus;
-    SlotRomPage                                   m_slotPage;
-    Iwm                                           m_iwm;
-    SmartPortBus                                  m_bus;
-    std::vector<std::unique_ptr<UniDisk35Drive>>  m_drives;
-    std::vector<Byte>                             m_rom;
-    const uint64_t                              * m_hostCycles  = nullptr;
-    uint32_t                                      m_hostHz      = 0;
-    uint64_t                                      m_epochCycles = 0;
-    uint64_t                                      m_epochNs     = 0;
-    uint64_t                                      m_lastNs      = 0;
-    bool                                          m_selected    = false;
+    int                  m_slot     = 0;
+    Word                 m_ioStart  = 0;
+    Word                 m_ioEnd    = 0;
+    MemoryBus          & m_hostBus;
+    SlotRomPage          m_slotPage;
+    SmartPortHost        m_port;
+    std::vector<Byte>    m_rom;
+    bool                 m_selected = false;
 };

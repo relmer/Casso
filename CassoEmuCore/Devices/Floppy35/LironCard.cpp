@@ -7,9 +7,8 @@
 
 
 
-static constexpr Word      s_kSwitchMask = 0x0F;
-static constexpr Word      s_kPageMask   = 0xFF;
-static constexpr uint64_t  s_kNsPerSec   = 1'000'000'000;
+static constexpr Word  s_kSwitchMask = 0x0F;
+static constexpr Word  s_kPageMask   = 0xFF;
 
 
 
@@ -18,9 +17,6 @@ static constexpr uint64_t  s_kNsPerSec   = 1'000'000'000;
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  LironCard
-//
-//  The bus is the IWM's drive 1 and drive 2, since the phases are on the
-//  connector whichever drive is selected.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,9 +27,6 @@ LironCard::LironCard (int slot, MemoryBus & bus) :
 {
     m_ioStart = (Word) (kSlotIoBase + slot * kSlotIoStride);
     m_ioEnd   = (Word) (m_ioStart + kSlotIoStride - 1);
-
-    m_iwm.AttachDrive (0, &m_bus);
-    m_iwm.AttachDrive (1, &m_bus);
 }
 
 
@@ -82,7 +75,7 @@ std::unique_ptr<MemoryDevice> LironCard::Create (const DeviceConfig & config, Me
 
 Byte LironCard::Read (Word address)
 {
-    return Access (address, false, 0);
+    return m_port.Access (address & s_kSwitchMask, false, 0);
 }
 
 
@@ -97,7 +90,7 @@ Byte LironCard::Read (Word address)
 
 void LironCard::Write (Word address, Byte value)
 {
-    Access (address, true, value);
+    m_port.Access (address & s_kSwitchMask, true, value);
 }
 
 
@@ -108,18 +101,12 @@ void LironCard::Write (Word address, Byte value)
 //
 //  Reset
 //
-//  The Apple's power-on resets the IWM. The drives are separate devices on
-//  the bus and continue to run. The card's time continues from where it was,
-//  since the drives' clocks do.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void LironCard::Reset()
 {
-    m_iwm.Reset();
-    m_selected    = false;
-    m_epochNs     = m_lastNs;
-    m_epochCycles = (m_hostCycles != nullptr) ? *m_hostCycles : 0;
+    m_port.Reset();
+    m_selected = false;
 }
 
 
@@ -163,24 +150,6 @@ Byte LironCard::ReadExpansionRom (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetFloppy35EventSink
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void LironCard::SetFloppy35EventSink (IFloppy35EventSink * sink)
-{
-    for (auto & drive : m_drives)
-    {
-        drive->SetFloppy35EventSink (sink);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SetFirmware
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -199,115 +168,4 @@ HRESULT LironCard::SetFirmware (std::vector<Byte> firmware)
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetHostClock
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void LironCard::SetHostClock (const uint64_t * cycles, uint32_t clockHz)
-{
-    m_hostCycles  = cycles;
-    m_hostHz      = clockHz;
-    m_epochNs     = m_lastNs;
-    m_epochCycles = (cycles != nullptr) ? *cycles : 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AddDrive
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void LironCard::AddDrive (std::unique_ptr<UniDisk35Drive> drive)
-{
-    m_bus.AddDevice (drive.get());
-    m_drives.push_back (std::move (drive));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CatchUp
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void LironCard::CatchUp()
-{
-    uint64_t  nowNs = GetNowNs();
-
-
-
-    if (m_iwm.IsWriting())
-    {
-        m_iwm.AdvanceTo (nowNs);
-    }
-
-    m_bus.CatchUp (nowNs);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Access
-//
-//  The drives run up to now, in the order that lets each side see the
-//  other's bits: while the Apple writes, its IWM's cells go out first; while
-//  it reads, the drives' cells come in first.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte LironCard::Access (Word address, bool isWrite, Byte value)
-{
-    uint64_t  nowNs = GetNowNs();
-
-
-
-    CatchUp();
-
-    return m_iwm.Access (address & s_kSwitchMask, isWrite, value, nowNs);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetNowNs
-//
-//  The Apple's time in nanoseconds, never moving back across a reset of the
-//  Apple's cycle count.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint64_t LironCard::GetNowNs()
-{
-    uint64_t  cycles  = (m_hostCycles != nullptr) ? *m_hostCycles : 0;
-    uint64_t  elapsed = (cycles > m_epochCycles) ? cycles - m_epochCycles : 0;
-
-
-
-    if (m_hostHz != 0)
-    {
-        m_lastNs = std::max (m_lastNs, m_epochNs + elapsed / m_hostHz * s_kNsPerSec + elapsed % m_hostHz * s_kNsPerSec / m_hostHz);
-    }
-
-    return m_lastNs;
 }

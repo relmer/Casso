@@ -1246,6 +1246,8 @@
     <ClCompile Include="Devices\Floppy35\SmartPortBus.cpp" />
     <ClCompile Include="Devices\Floppy35\UniDisk35Drive.cpp" />
     <ClCompile Include="Devices\Floppy35\LironCard.cpp" />
+    <ClCompile Include="Devices\Floppy35\SmartPortHost.cpp" />
+    <ClCompile Include="Devices\Floppy35\Apple2cSmartPort.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
@@ -2169,6 +2171,9 @@
     <ClInclude Include="Devices\Floppy35\SmartPortBus.h" />
     <ClInclude Include="Devices\Floppy35\UniDisk35Drive.h" />
     <ClInclude Include="Devices\Floppy35\LironCard.h" />
+    <ClInclude Include="Devices\Floppy35\SmartPortHost.h" />
+    <ClInclude Include="Devices\Floppy35\Apple2cSmartPort.h" />
+    <ClInclude Include="Machines\Apple2\Common\IDiskPortHook.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CassoLink\Apple\Program.s" />

@@ -124,6 +124,48 @@ TestMachine::TestMachine (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TestMachine::TestMachine (disk port chain)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TestMachine::TestMachine (
+    const std::string              & machineId,
+    const std::vector<PortConfig>  & chain,
+    IDiskFileIo                    & fileIo)
+    : m_builder (*this, m_nothingListening)
+{
+    FixtureProvider  fixtures;
+    fs::path         root = fs::path (fixtures.GetRoot());
+
+
+
+    SetBlockMediaFileIo (&fileIo);
+    m_hasOwnBlockFiles = true;
+
+    Construct (machineId, Slots::AsShipped, [&] (MachineConfig & config, MachineBuildServices &)
+    {
+        std::string  error;
+
+
+
+        for (PortConfig & port : config.ports)
+        {
+            if (port.name == "disk")
+            {
+                port.chain = chain;
+            }
+        }
+
+        Assert::AreEqual (S_OK, MachineConfigLoader::ResolveDiskPortChains ({ root }, MakeFixtureResolver(), config.ports, error));
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TestMachine::TestMachine (configure)
 //
 ////////////////////////////////////////////////////////////////////////////////

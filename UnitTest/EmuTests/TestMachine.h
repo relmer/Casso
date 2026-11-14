@@ -135,6 +135,12 @@ public:
                  const std::vector<BlockCard>  & cards,
                  IDiskFileIo                   & fileIo);
 
+    //  The machine with `chain` on its disk port, each drive's ROM resolved
+    //  out of the fixtures and each image read and written through `fileIo`.
+    TestMachine (const std::string              & machineId,
+                 const std::vector<PortConfig>  & chain,
+                 IDiskFileIo                    & fileIo);
+
         MachineBuilder  &  GetBuilder() noexcept { return m_builder; }
 
 private:

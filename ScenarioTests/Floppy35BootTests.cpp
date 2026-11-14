@@ -10,6 +10,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/Disk/Containers/DiskCopy42Container.h"
+#include "Devices/Floppy35/Apple2cSmartPort.h"
 #include "Devices/Floppy35/Apple35ControllerCard.h"
 #include "Devices/Floppy35/Gcr35Track.h"
 #include "Devices/Floppy35/LironCard.h"
@@ -325,6 +326,33 @@ public:
         machine.RunCycles (4'000'000);
 
         Assert::IsFalse (card.GetDrive (0).GetMechanism().HasDisk(), L"the CONTROL call ejects the disk");
+    }
+
+
+    //  AN 800K DISK IN A UNIDISK 3.5 ON THE //C'S DISK PORT BOOTS through the
+    //  //c's ROM 4 SmartPort firmware, the built-in drive being empty.
+    TEST_METHOD (Apple2c_BootsProDosFromAUniDiskOnTheDiskPort)
+    {
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  ports;
+        std::vector<PortConfig>  chain (1);
+
+
+
+        Attach (io, Make800K (GuestSession::RequireProDosUsersDisk()), ports);
+        chain[0].device = kpszUniDisk35Device;
+        chain[0].image  = kDiskPath;
+
+        TestMachine  machine ("Apple2c", chain, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsNotNull (machine.GetRefs().apple2cSmartPort);
+        Assert::AreEqual ((size_t) 1, machine.GetRefs().apple2cSmartPort->GetPort().GetDriveCount());
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the UniDisk on the disk port");
     }
 
 

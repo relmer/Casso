@@ -9,6 +9,7 @@
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
 #include "Machines/Apple2/Common/DiskAccessLog.h"
+#include "Machines/Apple2/Common/IDiskPortHook.h"
 
 
 class IDriveAudioSink;
@@ -123,6 +124,11 @@ public:
     // status to confirm the IWM is present. Off by default so a real Disk II
     // card (the //e) is byte-for-byte unchanged.
     void   SetIwmMode (bool v) { m_iwmMode = v; }
+
+    //  A SmartPort chain on the //c's disk port. Each access to the IWM's
+    //  switches goes to it after the controller, and its byte replaces the
+    //  controller's for drive 2 while it has the bus. Caller-owned.
+    void   SetPortHook (IDiskPortHook * hook) { m_portHook = hook; }
 
     // Motor-idle auto-flush hook. Invoked on the CPU thread at the exact
     // moment the motor spins down (the true->false transition in Tick) --
@@ -240,6 +246,7 @@ private:
     // Apple //c IWM (see SetIwmMode). m_iwmMode gates the extra register
     // behavior; m_iwmModeReg holds the last-written MODE register value.
     bool                 m_iwmMode      = false;
+    IDiskPortHook      * m_portHook     = nullptr;
     Byte                 m_iwmModeReg   = 0;
 
     DiskImage            m_disks[kDriveCount];

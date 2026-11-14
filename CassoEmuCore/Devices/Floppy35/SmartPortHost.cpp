@@ -1,0 +1,166 @@
+#include "Pch.h"
+
+#include "Devices/Floppy35/SmartPortHost.h"
+
+
+
+
+static constexpr uint64_t  s_kNsPerSec = 1'000'000'000;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SmartPortHost
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SmartPortHost::SmartPortHost()
+{
+    m_iwm.AttachDrive (0, &m_bus);
+    m_iwm.AttachDrive (1, &m_bus);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Access
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte SmartPortHost::Access (int offset, bool isWrite, Byte value)
+{
+    uint64_t  nowNs = GetNowNs();
+
+
+
+    CatchUp();
+
+    return m_iwm.Access (offset, isWrite, value, nowNs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatchUp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SmartPortHost::CatchUp()
+{
+    uint64_t  nowNs = GetNowNs();
+
+
+
+    if (m_iwm.IsWriting())
+    {
+        m_iwm.AdvanceTo (nowNs);
+    }
+
+    m_bus.CatchUp (nowNs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Reset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SmartPortHost::Reset()
+{
+    m_iwm.Reset();
+    m_epochNs     = m_lastNs;
+    m_epochCycles = (m_hostCycles != nullptr) ? *m_hostCycles : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetHostClock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SmartPortHost::SetHostClock (const uint64_t * cycles, uint32_t clockHz)
+{
+    m_hostCycles  = cycles;
+    m_hostHz      = clockHz;
+    m_epochNs     = m_lastNs;
+    m_epochCycles = (cycles != nullptr) ? *cycles : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SmartPortHost::AddDrive (std::unique_ptr<UniDisk35Drive> drive)
+{
+    m_bus.AddDevice (drive.get());
+    m_drives.push_back (std::move (drive));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetFloppy35EventSink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SmartPortHost::SetFloppy35EventSink (IFloppy35EventSink * sink)
+{
+    for (auto & drive : m_drives)
+    {
+        drive->SetFloppy35EventSink (sink);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetNowNs
+//
+//  The Apple's time in nanoseconds, never moving back across a reset of the
+//  Apple's cycle count.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t SmartPortHost::GetNowNs()
+{
+    uint64_t  cycles  = (m_hostCycles != nullptr) ? *m_hostCycles : 0;
+    uint64_t  elapsed = (cycles > m_epochCycles) ? cycles - m_epochCycles : 0;
+
+
+
+    if (m_hostHz != 0)
+    {
+        m_lastNs = std::max (m_lastNs, m_epochNs + elapsed / m_hostHz * s_kNsPerSec + elapsed % m_hostHz * s_kNsPerSec / m_hostHz);
+    }
+
+    return m_lastNs;
+}

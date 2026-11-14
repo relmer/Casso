@@ -336,7 +336,9 @@ Byte Iwm::ReadRegister()
 
 void Iwm::WriteRegister (Byte value)
 {
-    if (!m_enabled)
+    //  The motor switch counts here, not the one-second delay after it: the
+    //  //c writes the mode right after turning the motor off.
+    if (!m_enabled || m_motorOffPending)
     {
         m_mode       = (Byte) (value & kModeMask);
         m_ismHistory = (Byte) (((m_ismHistory << 1) | ((value & kIsmBit) != 0 ? 1 : 0)) & kHistoryMask);

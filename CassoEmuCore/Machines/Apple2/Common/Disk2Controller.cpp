@@ -75,6 +75,8 @@ Disk2Controller::Disk2Controller (int slot)
 Byte Disk2Controller::Read (Word address)
 {
     int   offset = (address - m_ioStart) & 0x0F;
+    Byte  value  = 0;
+    Byte  port   = 0;
 
 
 
@@ -82,7 +84,14 @@ Byte Disk2Controller::Read (Word address)
 
     HandleSwitch (offset);
 
-    return HandleReadDispatch();
+    value = HandleReadDispatch();
+
+    if (m_portHook != nullptr && m_portHook->OnIwmAccess (offset, false, 0, port))
+    {
+        value = port;
+    }
+
+    return value;
 }
 
 
@@ -128,6 +137,15 @@ void Disk2Controller::Write (Word address, Byte value)
             m_engine[m_activeDrive].WriteLatch (value);
             OnLatchLoad();
         }
+    }
+
+    if (m_portHook != nullptr)
+    {
+        Byte  ignored = 0;
+
+
+
+        m_portHook->OnIwmAccess (offset, true, value, ignored);
     }
 }
 

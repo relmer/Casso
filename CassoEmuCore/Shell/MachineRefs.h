@@ -61,6 +61,7 @@ struct MachineRefs
     std::vector<class ProFileCard *>              proFileCards;
     std::vector<class Apple35ControllerCard *>    apple35Cards;
     std::vector<class LironCard *>                lironCards;
+    class Apple2cSmartPort                      * apple2cSmartPort = nullptr;
 
     // The $D000 bank split every Apple II has. Resolved once by
     // WireLanguageCard, which is the only code that knows which owned device

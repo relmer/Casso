@@ -52,6 +52,7 @@
 #include "Devices/BlockDevice/AppleScsiCard.h"
 #include "Devices/BlockDevice/ProFileCard.h"
 #include "Devices/Floppy35/Apple35ControllerCard.h"
+#include "Devices/Floppy35/Apple2cSmartPort.h"
 #include "Devices/Floppy35/LironCard.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/BlockDevice/ScsiHardDisk.h"
@@ -573,6 +574,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
     {
         auto iwm = std::make_unique<Disk2Controller> (6);
         iwm->SetIwmMode (true);
+        WireDiskPortChain (*iwm);
         m_host.GetMemoryBus().AddDevice (iwm.get());
         m_host.GetOwnedDevices().push_back (std::move (iwm));
 
@@ -1676,6 +1678,11 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         lironCard->SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
     }
 
+    if (m_host.GetRefs().apple2cSmartPort != nullptr)
+    {
+        m_host.GetRefs().apple2cSmartPort->GetPort().SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
+    }
+
     if (m_host.GetRefs().diskController != nullptr)
     {
         m_host.GetRefs().diskController->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
@@ -2459,6 +2466,93 @@ void MachineBuilder::WireLironCard (const SlotConfig & slot, LironCard & card)
 
     m_host.GetRefs().lironCards.push_back (&card);
     m_host.GetRefs().floppy35Sources.push_back (&card);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireDiskPortChain
+//
+//  The //c's disk port with a SmartPort chain: a UniDisk 3.5 for each entry,
+//  with its ROM and its disk, on the port's IWM. A drive without its ROM is
+//  left off the chain, and a drive whose disk fails to insert is empty;
+//  each reason is added to the machine's media problems.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireDiskPortChain (Disk2Controller & controller)
+{
+    for (const PortConfig & port : m_host.GetConfig().ports)
+    {
+        std::unique_ptr<Apple2cSmartPort>  chain;
+        bool                               hasFloppy = false;
+
+
+
+        if (port.chain.empty())
+        {
+            continue;
+        }
+
+        hasFloppy = port.chain.back().device == kpszDiskIicDevice;
+        chain     = std::make_unique<Apple2cSmartPort> (hasFloppy);
+
+        for (size_t index = 0; index < port.chain.size(); index++)
+        {
+            const PortConfig                & entry = port.chain[index];
+            std::unique_ptr<UniDisk35Drive>   drive;
+            vector<Byte>                      driveRom;
+            std::wstring                      error;
+            HRESULT                           hr    = S_OK;
+
+
+
+            if (entry.device != kpszUniDisk35Device)
+            {
+                continue;
+            }
+
+            if (entry.firmwarePath.empty())
+            {
+                m_host.GetBlockMediaProblems().push_back (std::format (L"Disk port, drive {}: the UniDisk 3.5's ROM, Devices/UniDisk35/UniDisk35.rom, is missing.", index + 1));
+                continue;
+            }
+
+            drive = std::make_unique<UniDisk35Drive>();
+
+            hr = ReadRomFileBytes (entry.firmwarePath, driveRom);
+
+            if (SUCCEEDED (hr))
+            {
+                hr = drive->SetFirmware (move (driveRom));
+            }
+
+            if (FAILED (hr))
+            {
+                continue;
+            }
+
+            if (!entry.image.empty())
+            {
+                hr = drive->GetMechanism().Insert (m_host.GetBlockMediaFileIo(), entry.image, m_host.ProbeBlockMedia (entry.image), error);
+
+                if (FAILED (hr))
+                {
+                    m_host.GetBlockMediaProblems().push_back (std::format (L"Disk port, drive {}: {}", index + 1, error));
+                }
+            }
+
+            chain->GetPort().AddDrive (std::move (drive));
+        }
+
+        controller.SetPortHook (chain.get());
+        m_host.GetRefs().apple2cSmartPort = chain.get();
+        m_host.GetRefs().floppy35Sources.push_back (chain.get());
+        m_host.GetOwnedDevices().push_back (std::move (chain));
+    }
 }
 
 

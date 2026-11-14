@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/MachineHost.h"
+#include "Devices/Floppy35/Apple2cSmartPort.h"
 #include "Devices/Floppy35/Apple35ControllerCard.h"
 #include "Devices/Floppy35/LironCard.h"
 #include "CassoLink/RunningCassoRegistry.h"
@@ -948,6 +949,11 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
     for (Apple35ControllerCard * apple35Card : m_refs.apple35Cards)
     {
         apple35Card->CatchUp();
+    }
+
+    if (m_refs.apple2cSmartPort != nullptr)
+    {
+        m_refs.apple2cSmartPort->GetPort().CatchUp();
     }
 
     return (spent);

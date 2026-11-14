@@ -789,6 +789,75 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ResolveDiskPortChains
+//
+//  A machine port's SmartPort chain: UniDisk 3.5 drives, at most
+//  kMaxChainDrives of them, then at most one 5.25-inch drive, last. Each
+//  UniDisk 3.5's ROM is resolved into its entry. A chain out of that order
+//  or over the limit fails the load.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::ResolveDiskPortChains (
+    const vector<fs::path> & searchPaths,
+    const FileResolver     & resolver,
+    vector<PortConfig>     & ports,
+    string                 & outError)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    for (PortConfig & port : ports)
+    {
+        size_t  smartPort = 0;
+        bool    sawFloppy = false;
+        string  problem;
+
+
+
+        for (PortConfig & entry : port.chain)
+        {
+            bool  isSmartPort = entry.device == kpszUniDisk35Device;
+            bool  isFloppy    = entry.device == kpszDiskIicDevice;
+
+
+
+            if (!isSmartPort && !isFloppy)
+            {
+                outError = format ("The {} port's chain doesn't take '{}'.", port.name, entry.device);
+                CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+            }
+
+            if (sawFloppy)
+            {
+                outError = format ("A 5.25-inch drive is the last drive on the {} port's chain.", port.name);
+                CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+            }
+
+            sawFloppy  = isFloppy;
+            smartPort += isSmartPort ? 1 : 0;
+
+            if (smartPort > kMaxChainDrives)
+            {
+                outError = format ("The {} port's chain takes at most {} SmartPort drives.", port.name, kMaxChainDrives);
+                CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+            }
+
+            ResolveDriveFirmware (searchPaths, resolver, entry, problem);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ResolveDriveFirmware
 //
 //  The ROM of a drive with a separate controller, under its folder in
@@ -834,7 +903,7 @@ void MachineConfigLoader::ResolveDriveFirmware (
         return;
     }
 
-    problem += format ("{}The {} needs its ROM, {}.", problem.empty() ? "" : " ", drive->label, relPath.generic_string());
+    problem += format ("{}The {}'s ROM, {}, is missing.", problem.empty() ? "" : " ", drive->label, relPath.generic_string());
 }
 
 
@@ -1431,6 +1500,9 @@ HRESULT MachineConfigLoader::Load (
     // card in slot 6 and are read above; a //c's belong to the machine, so a
     // slotless machine still gets to say what it has and what is on it.
     ParsePorts (root, outConfig.ports);
+
+    hr = ResolveDiskPortChains (searchPaths, resolver, outConfig.ports, outError);
+    CHR (hr);
 
     // Required unless the machine's definition supplies them: video, keyboard
     if (!fDefined)
