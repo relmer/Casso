@@ -52,7 +52,7 @@ public:
     public:
         explicit CountingBlockStore (std::vector<Byte> bytes) : m_store (std::move (bytes)) {}
 
-        uint32_t  GetBlockCount () const override { return m_store.GetBlockCount(); }
+        uint32_t  GetBlockCount() const override { return m_store.GetBlockCount(); }
 
         HRESULT  ReadBlocks (uint32_t first, uint32_t count, std::span<Byte> outBytes) override
         {
@@ -66,7 +66,7 @@ public:
             return m_store.WriteBlocks (first, bytes);
         }
 
-        HRESULT  Commit () override { return m_store.Commit(); }
+        HRESULT  Commit() override { return m_store.Commit(); }
 
         size_t  blocksRead    = 0;
         size_t  blocksWritten = 0;
@@ -82,7 +82,7 @@ public:
     public:
         explicit VolumeReads (IBlockStore & inner) : m_inner (inner) {}
 
-        uint32_t  GetBlockCount () const override { return m_inner.GetBlockCount(); }
+        uint32_t  GetBlockCount() const override { return m_inner.GetBlockCount(); }
 
         HRESULT  ReadBlocks (uint32_t first, uint32_t count, std::span<Byte> outBytes) override
         {
@@ -91,7 +91,8 @@ public:
         }
 
         HRESULT  WriteBlocks (uint32_t first, std::span<const Byte> bytes) override { return m_inner.WriteBlocks (first, bytes); }
-        HRESULT  Commit      () override                                          { return m_inner.Commit(); }
+
+        HRESULT  Commit() override { return m_inner.Commit(); }
 
         size_t  blocksRead = 0;
 

@@ -1183,12 +1183,12 @@ public:
     {
         static constexpr Byte  kEmptyZip[22] = { 0x50, 0x4B, 0x05, 0x06 };
 
-        Host               host;
-        AppleSingleFile    single;
-        std::vector<Byte>  member;
-        std::vector<Byte>  sidecar;
-        std::vector<Byte>  one;
-        std::vector<Byte>  zip;
+        Host                           host;
+        AppleSingleFile                single;
+        std::vector<Byte>              member;
+        std::vector<Byte>              sidecar;
+        std::vector<Byte>              one;
+        std::vector<Byte>              zip;
         std::string                    written;
         FilePayload                    back;
         CassoExplorerActions::Outcome  outcome;

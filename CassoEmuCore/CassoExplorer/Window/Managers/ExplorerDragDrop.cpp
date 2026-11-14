@@ -406,11 +406,11 @@ bool ExplorerDragDrop::IsProgramPath (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerDragDrop::GetDroppedParsingNames
+//  ExplorerDragDrop::GetDroppedShellIds
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::wstring> ExplorerDragDrop::GetDroppedParsingNames (IDataObject * data)
+std::vector<std::wstring> ExplorerDragDrop::GetDroppedShellIds (IDataObject * data)
 {
     std::vector<std::wstring>   names;
     ComPtr<IShellItemArray>     items;
@@ -915,7 +915,7 @@ bool ExplorerDragDrop::WriteVirtualFiles (IDataObject * data, DropSource & ioSou
 
     //  A ZIP member on the PC, dragged from its ZIP folder, comes with no
     //  AppleDouble entry; the entry is read from the ZIP and written beside it.
-    m_context.actions.WriteZipSidecars (GetDroppedParsingNames (data), created);
+    m_context.actions.WriteZipSidecars (GetDroppedShellIds (data), created);
 
     for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (folder, error))
     {
