@@ -80,7 +80,7 @@ public:
         ev.button      = DxuiMouseButton::Left;
         ev.positionDip = POINT { 100, visibleRow * s_kRowHeightPx + s_kRowHeightPx / 2 };
 
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
     }
 
 
@@ -158,7 +158,7 @@ public:
         wheel.kind        = DxuiMouseEventKind::Wheel;
         wheel.positionDip = POINT { 100, 100 };
         wheel.wheelDelta  = -1.0f;
-        list.OnMouse (wheel);
+        list.AsControl().OnMouse (wheel);
 
         top = list.GetTopRow();
         Assert::IsTrue (top > 0);

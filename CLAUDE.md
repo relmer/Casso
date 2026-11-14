@@ -26,6 +26,22 @@ time. The rule, the derivation method, and the traps that cost real time --
 Windows SDK macro collisions, continuation lines left silently crooked -- are in
 `docs/coding-standards-backlog.md` items 6 and 7.
 
+**`DxuiListView` takes mouse input in its parent's coordinates (2026-11-13).**
+It used to take points relative to the list's top-left, so every host subtracted
+the list's bounds first. Now `OnMouse` and `GetCursorForPoint` subtract them
+inside the list, as every other Dxui control does. Both overrides are
+private, so they are reachable only through `IDxuiControl`: as a `DxuiPanel`
+child, or by `list.AsControl().OnMouse (ev)` from a host that calls it directly.
+A call written for the old convention, on a branch that merges master, fails
+with `C2248: 'DxuiListView::OnMouse': cannot access private member` (or the
+same for `GetCursorForPoint`). Pass the untranslated event to
+`AsControl()`; keeping the subtraction offsets the point twice. Find the old
+translations with
+`rg -n "ToLocal|positionDip\.[xy] *- *\w+\.(left|top)|clientPx\.[xy] - " -g "*.cpp"`
+and check each hit. The `HitTest*` helpers, `GetItemRectPx`,
+`GetCellTextRectPx`, `GetScrollbarMenu` and `IsOverScrollbar` take
+list-relative points, so `ExplorerLayout::ToLocal` is correct for those calls.
+
 **Speckit scripts find the feature from `.specify/feature.json`, not from the
 branch.** Checking out another branch does not change it, so in a checkout last
 used for one spec, `/speckit-plan` and the other scripts silently work on that

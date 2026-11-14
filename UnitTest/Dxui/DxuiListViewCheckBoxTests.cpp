@@ -108,11 +108,11 @@ public:
         press.button      = DxuiMouseButton::Left;
         press.positionDip = POINT { kBoxInsidePx, kRowHeightPx * 2 + kRowHeightPx / 2 };
 
-        Assert::IsTrue (f.list.OnMouse (press));
+        Assert::IsTrue (f.list.AsControl().OnMouse (press));
 
         press.kind = DxuiMouseEventKind::Up;
 
-        Assert::IsTrue (f.list.OnMouse (press));
+        Assert::IsTrue (f.list.AsControl().OnMouse (press));
         Assert::IsTrue (f.toggled == std::vector<int> ({ 2 }));
         Assert::IsTrue (f.list.GetSelectedRows() == std::vector<int> ({ 0 }), L"Only the host's toggle changes the selection");
     }
@@ -138,7 +138,7 @@ public:
         release.button      = DxuiMouseButton::Left;
         release.positionDip = POINT { kTextPx, kRowHeightPx * 2 + kRowHeightPx / 2 };
 
-        f.list.OnMouse (release);
+        f.list.AsControl().OnMouse (release);
 
         Assert::IsTrue (f.list.GetSelectedRows() == std::vector<int> ({ 0 }));
     }
