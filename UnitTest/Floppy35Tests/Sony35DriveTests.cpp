@@ -78,6 +78,37 @@ public:
     }
 
 
+    //  The SuperDrive's lines are low on an 800K drive: not a SuperDrive, not
+    //  in MFM mode, no index pulse, no 1.44 MB disk. The disk switched line
+    //  is set by an insert and cleared by its command.
+    TEST_METHOD (SuperDriveLines_ReadLowOnAnEightHundredKDrive)
+    {
+        constexpr int  kRegIndex0     = 0x1;
+        constexpr int  kRegIndex1     = 0x3;
+        constexpr int  kRegSuperDrive = 0x5;
+        constexpr int  kRegMfmMode    = 0x7;
+        constexpr int  kRegSwitched   = 0xC;
+        constexpr int  kRegHighDens   = 0xF;
+        constexpr int  kCmdClear      = 0x3;
+
+        FakeDiskFileIo  io;
+        Sony35Drive     drive (0);
+
+
+
+        Insert (io, drive, Gcr35Track::kBlocksTwoSides);
+
+        for (int reg : { kRegIndex0, kRegIndex1, kRegSuperDrive, kRegMfmMode, kRegHighDens })
+        {
+            Assert::IsFalse (Sense (drive, reg), std::format (L"register {:X}", reg).c_str());
+        }
+
+        Assert::IsTrue (Sense (drive, kRegSwitched), L"set by the insert");
+        Command (drive, kCmdClear);
+        Assert::IsFalse (Sense (drive, kRegSwitched), L"cleared by the command");
+    }
+
+
     TEST_METHOD (DiskInPlace_FollowsInsertAndEject)
     {
         FakeDiskFileIo  io;

@@ -13,6 +13,12 @@
 
 //  Register indices: CA1, CA0, SEL, CA2 from bit 3 down.
 static constexpr int  s_kRegDirection  = 0x0;
+static constexpr int  s_kRegIndex0     = 0x1;
+static constexpr int  s_kRegIndex1     = 0x3;
+static constexpr int  s_kRegSuperDrive = 0x5;
+static constexpr int  s_kRegMfmMode    = 0x7;
+static constexpr int  s_kRegSwitched   = 0xC;
+static constexpr int  s_kRegHighDens   = 0xF;
 static constexpr int  s_kRegDiskIn     = 0x2;
 static constexpr int  s_kRegStepping   = 0x4;
 static constexpr int  s_kRegProtected  = 0x6;
@@ -26,6 +32,7 @@ static constexpr int  s_kRegTach       = 0xE;
 //  Commands, by the same index.
 static constexpr int  s_kCmdStepIn     = 0x0;
 static constexpr int  s_kCmdStepOut    = 0x1;
+static constexpr int  s_kCmdClearSwitch = 0x3;
 static constexpr int  s_kCmdStep       = 0x4;
 static constexpr int  s_kCmdMotorOn    = 0x8;
 static constexpr int  s_kCmdMotorOff   = 0x9;
@@ -116,6 +123,8 @@ HRESULT Sony35Drive::Insert (IDiskFileIo & fileIo, const std::string & path, con
     m_tracks.clear();
     m_dirty.clear();
     Emit (Floppy35Op::Insert);
+
+    m_diskSwitched = true;
 
 Error:
     return hr;
@@ -308,6 +317,17 @@ bool Sony35Drive::GetSense() const
         case s_kRegTrack0:     return m_track != 0;
         case s_kRegReady:      return !(m_motorOn && hasDisk && !ejecting && m_spinLeftNs == 0);
         case s_kRegInstalled:  return false;
+
+        // The SuperDrive's lines, low on an 800K drive: not a SuperDrive, not
+        // in MFM mode, no index pulse, no 1.44 MB disk. The 3.5 controller
+        // card's firmware reads them to find which kind of drive is attached.
+        case s_kRegIndex0:
+        case s_kRegIndex1:
+        case s_kRegSuperDrive:
+        case s_kRegMfmMode:
+        case s_kRegHighDens:   return false;
+
+        case s_kRegSwitched:   return m_diskSwitched;
 
         case s_kRegTach:
         {
@@ -502,6 +522,10 @@ void Sony35Drive::RunCommand (int command)
                 m_ejectLeftNs = kEjectNs;
             }
 
+            break;
+
+        case s_kCmdClearSwitch:
+            m_diskSwitched = false;
             break;
 
         default:

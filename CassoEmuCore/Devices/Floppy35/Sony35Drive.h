@@ -102,6 +102,7 @@ private:
     bool                                        m_sel        = false;
     bool                                        m_stepOut    = false;
     bool                                        m_motorOn    = false;
+    bool                                        m_diskSwitched = true;
     int                                         m_track      = 0;
     uint64_t                                    m_stepLeftNs = 0;
     uint64_t                                    m_spinLeftNs = 0;
