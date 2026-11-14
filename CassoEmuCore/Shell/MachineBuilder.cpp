@@ -50,6 +50,7 @@
 #include "Machines/Apple2/Common/SscSwitches.h"
 #include "Machines/Apple2/Common/SuperSerialCard.h"
 #include "Devices/BlockDevice/AppleScsiCard.h"
+#include "Devices/BlockDevice/ProFileCard.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/BlockDevice/ScsiHardDisk.h"
 #include "Devices/BlockDevice/StockHardDiskImage.h"
@@ -460,6 +461,10 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
                 else if (slot.device == kpszAppleScsiCardDevice)
                 {
                     WireAppleScsiCard (slot, *static_cast<AppleScsiCard *> (raw));
+                }
+                else if (slot.device == kpszProFileCardDevice)
+                {
+                    WireProFileCard (slot, *static_cast<ProFileCard *> (raw));
                 }
             }
         }
@@ -1646,6 +1651,11 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         scsiCard->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
     }
 
+    for (ProFileCard * proFileCard : m_host.GetRefs().proFileCards)
+    {
+        proFileCard->GetDrive().SetClock (m_host.GetCpu()->GetBusCyclePtr());
+    }
+
     if (m_host.GetRefs().diskController != nullptr)
     {
         m_host.GetRefs().diskController->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
@@ -2211,6 +2221,81 @@ void MachineBuilder::WireAppleScsiCard (const SlotConfig & slot, AppleScsiCard &
     }
 
     m_host.GetRefs().scsiCards.push_back (&card);
+    m_host.GetRefs().blockDeviceSources.push_back (&card);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireProFileCard
+//
+//  Connects a ProFile interface card: the drive its port lists, 5 or 10 MB,
+//  the ROM for that model, its page and the expansion space, and the drive's
+//  image. The 10 MB drive takes 341-0299-B from the same folder when the
+//  entry lists the 5 MB ROM or none. A missing ROM leaves the card without
+//  firmware; an image that fails to attach leaves the drive empty, with the
+//  reason added to the machine's media problems.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireProFileCard (const SlotConfig & slot, ProFileCard & card)
+{
+    constexpr const char *  kpsz5MbRom  = "341-0271-A.rom";
+    constexpr const char *  kpsz10MbRom = "341-0299-B.rom";
+    HRESULT                 hr          = S_OK;
+    std::string             device      = slot.ports.empty() ? std::string (kpszProFile5Device) : slot.ports[0].device;
+    const BlockDriveSpec  * drive       = BlockDeviceCatalog::FindDrive (device);
+    std::string             romPath     = slot.firmwarePath;
+    std::wstring            error;
+    vector<Byte>            firmware;
+
+
+
+    if (drive == nullptr)
+    {
+        drive  = BlockDeviceCatalog::FindDrive (kpszProFile5Device);
+        device = kpszProFile5Device;
+    }
+
+    card.SetDrive (std::make_unique<ProFileDrive> (slot.slot, drive->maxBlocks));
+
+    if (device == kpszProFile10Device && std::filesystem::path (romPath).filename() == kpsz5MbRom)
+    {
+        romPath = (std::filesystem::path (romPath).parent_path() / kpsz10MbRom).string();
+    }
+
+    if (slot.firmwareStatus == SlotFirmwareStatus::Present || std::filesystem::exists (romPath))
+    {
+        hr = ReadRomFileBytes (romPath, firmware);
+
+        if (SUCCEEDED (hr))
+        {
+            hr = card.SetFirmware (move (firmware));
+        }
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    AddExpansionRomCard (slot.slot, card, card.GetSlotPage());
+
+    if (!slot.ports.empty() && !slot.ports[0].image.empty())
+    {
+        const std::string  & image = slot.ports[0].image;
+
+
+
+        hr = card.GetDrive().GetMedia().Attach (m_host.GetBlockMediaFileIo(), image, drive->maxBlocks, m_host.ProbeBlockMedia (image), error);
+
+        if (FAILED (hr))
+        {
+            m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, ProFile: {}", slot.slot, error));
+        }
+    }
+
+    m_host.GetRefs().proFileCards.push_back (&card);
     m_host.GetRefs().blockDeviceSources.push_back (&card);
 }
 

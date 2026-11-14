@@ -1235,6 +1235,8 @@
     <ClCompile Include="Devices\BlockDevice\AppleScsiCard.cpp" />
     <ClCompile Include="Devices\BlockDevice\BlockDeviceAttachments.cpp" />
     <ClCompile Include="Devices\BlockDevice\StockHardDiskImage.cpp" />
+    <ClCompile Include="Devices\BlockDevice\ProFileDrive.cpp" />
+    <ClCompile Include="Devices\BlockDevice\ProFileCard.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
@@ -2146,6 +2148,8 @@
     <ClInclude Include="Devices\BlockDevice\BlockDeviceAttachments.h" />
     <ClInclude Include="Devices\BlockDevice\StockHardDiskImage.h" />
     <ClInclude Include="Ui\Scene\DeskSceneHardDiskLabels.h" />
+    <ClInclude Include="Devices\BlockDevice\ProFileDrive.h" />
+    <ClInclude Include="Devices\BlockDevice\ProFileCard.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CassoLink\Apple\Program.s" />

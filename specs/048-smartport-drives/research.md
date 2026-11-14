@@ -162,16 +162,29 @@ and no documentation or schematic for the card. From a disassembly of
   the driver reads `$Cn01` and `$Cn03` before sending the command block,
   `$Cn05` and `$Cn07` after it, `$Cn03` then `$Cn00` after writing the `$55`
   acknowledgment, and `$Cn05`, `$Cn07` and `$Cn04` while waiting for a state
-  byte. Which signal each address sets is **to verify**, by running the ROM
-  against a drive model in a test machine.
+  byte. **Checked** by running the ROM against a drive model in a test
+  machine: the reads set a latch of lines, the address's bits 1 and 2 the
+  line and bit 0 its level. Line 2 falling while line 3 is set starts a
+  handshake (the drive asserts BSY and offers its state byte), and any
+  access to `$Cn00` ends one. The boot code's own fetches from `$Cn00-$Cn07`
+  pass with line 3 clear.
 - The protocol, as the driver runs it: wait for BSY, read the drive's state
   byte and compare it with `$01` (ready for a command), answer `$55` (or
   `$AA` on a mismatch, then retry); send six bytes, the command (0 read, 1
   write), the block number high, middle and low (high `$FF` for the drive's
   special blocks), a retry count of 3 and a sparing threshold of `$0A`; wait
   for state `$02` for a read, answer `$55`; read four status bytes; then move
-  532 bytes, the 512-byte block and 20 tag bytes in an order **to verify**,
-  through `+1` (read) or `+0` (write) in a loop in the `$Cn00` page.
+  the block through `+1` (read) or `+0` (write) in a loop in the `$Cn00`
+  page. **Checked**: the 512 data bytes come first and the 20 tag bytes
+  after; the ROM moves the 512 and starts the next handshake, which ends the
+  block. A write is command 2 (write with verify), answered by state `$04`;
+  after the block the drive offers `$06`, then four status bytes. After
+  each finished transfer the ROM sends operation `$FF`, a reset with no
+  state handshake after it.
+- **Checked**: both ROMs boot ProDOS from a 5 MB and a 10 MB drive in Casso,
+  a guest `CREATE` writes the image, and the card boots on the ][+ and the
+  unenhanced //e with `PR#5`. The original ][ is not in the card's host
+  list, since ProDOS needs 64K.
 
 ## R7. IWM: one implementation
 

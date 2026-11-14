@@ -13,6 +13,7 @@
 #include "Machines/Apple2/Common/VolumeIntegrityReport.h"
 #include "Devices/BlockDevice/AppleScsiCard.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Devices/BlockDevice/ProFileCard.h"
 #include "Devices/BlockDevice/ScsiHardDisk.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -217,6 +218,112 @@ public:
 
         Assert::IsTrue (found, L"the guest's directory is in the image");
         Assert::IsTrue (report.IsClean(), L"the volume is clean after the guest's write");
+    }
+
+
+    //  A PRODOS VOLUME ON A 5 MB PROFILE BOOTS through Apple's interface card
+    //  ROM in slot 5 of an enhanced //e, and a directory the guest creates is
+    //  in the image afterward.
+    TEST_METHOD (ProFile_BootsProDosAndWrites)
+    {
+        FakeDiskFileIo           io;
+        FixtureProvider          fixtures;
+        std::vector<Byte>        merlin;
+        std::vector<PortConfig>  ports (1);
+        std::vector<std::string> rows;
+        VolumeListing            listing;
+        bool                     found = false;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("Disks/Merlin-proProdos2.33-b.dsk", merlin));
+
+        merlin = ToProDosOrder (merlin);
+        io.files[kHardDiskPath]  = merlin;
+        io.stamps[kHardDiskPath] = FileStamp { merlin.size(), 1 };
+
+        ports[0].device = kpszProFile5Device;
+        ports[0].image  = kHardDiskPath;
+
+        TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszProFileCardDevice, ports } }, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetRefs().proFileCards[0]->HasFirmware(), L"the card's ROM is in the fixtures");
+
+        Boot (machine);
+        Assert::IsTrue (RunUntilScreenShows (machine, "]", kBootCap), L"ProDOS and BASIC.SYSTEM boot from the ProFile");
+        Assert::IsTrue (GuestSession::TryPageToPrompt (machine, rows), L"the disk's STARTUP pages to the prompt");
+
+        GuestSession::TypeAndCollect (machine, "CREATE PROFILEDIR");
+        GuestSession::TypeAndCollect (machine, "CAT");
+
+        AssertSucceeded (ProDosVolume (ToDosOrder (io.files[kHardDiskPath])).Enumerate (listing));
+
+        for (const FileEntry & entry : listing.entries)
+        {
+            found = found || (entry.name == "PROFILEDIR" && entry.isDirectory);
+        }
+
+        Assert::IsTrue (found, L"the guest's directory is in the image");
+    }
+
+
+    //  THE 10 MB PROFILE BOOTS THROUGH ITS OWN ROM, 341-0299-B, whose block
+    //  device table leaves the block count to the driver.
+    TEST_METHOD (ProFile10_Boots)
+    {
+        FakeDiskFileIo           io;
+        std::vector<Byte>        image = ToProDosOrder (GuestSession::RequireProDosUsersDisk());
+        std::vector<PortConfig>  ports (1);
+
+
+
+        io.files[kHardDiskPath]  = image;
+        io.stamps[kHardDiskPath] = FileStamp { image.size(), 1 };
+
+        ports[0].device = kpszProFile10Device;
+        ports[0].image  = kHardDiskPath;
+
+        TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszProFileCardDevice, ports } }, io);
+
+        Assert::AreEqual (19456u, machine.GetRefs().proFileCards[0]->GetDrive().GetCapacity());
+
+        Boot (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS", kBootCap), L"ProDOS boots from the 10 MB ProFile");
+    }
+
+
+    //  THE PROFILE CARD BOOTS ON THE ][+ AND THE UNENHANCED //E with PR#5,
+    //  their ROMs looking for the Disk II's signature at power-on.
+    TEST_METHOD (ProFile_BootsOnEachHostMachine)
+    {
+        std::vector<Byte>  image = ToProDosOrder (GuestSession::RequireProDosUsersDisk());
+
+
+
+        for (const char * machineId : { "Apple2Plus", "Apple2e" })
+        {
+            FakeDiskFileIo           io;
+            std::vector<PortConfig>  ports (1);
+
+
+
+            io.files[kHardDiskPath]  = image;
+            io.stamps[kHardDiskPath] = FileStamp { image.size(), 1 };
+
+            ports[0].device = kpszProFile5Device;
+            ports[0].image  = kHardDiskPath;
+
+            TestMachine  machine (machineId, TestMachine::Slots::Empty, { { 5, kpszProFileCardDevice, ports } }, io);
+
+            Boot (machine);
+
+            Assert::IsTrue (RunUntilScreenShows (machine, "]", kBootCap), L"the machine stops at BASIC");
+            KeystrokeInjector::InjectLine (machine, "PR#5");
+
+            Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS", kBootCap), TextEncoding::NarrowToWide (machineId).c_str());
+        }
     }
 
 

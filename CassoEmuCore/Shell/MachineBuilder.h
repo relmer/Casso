@@ -7,6 +7,7 @@
 
 class Acia6551;
 class AppleScsiCard;
+class ProFileCard;
 class IExpansionRomCard;
 class MemoryDevice;
 class SlotRomPage;
@@ -166,6 +167,7 @@ private:
     void     WireSuperSerialCard  (const SlotConfig & slot, SuperSerialCard & card);
     void     AttachSerialEndpoint (const SlotConfig & slot, SuperSerialCard & card);
     void     WireAppleScsiCard    (const SlotConfig & slot, AppleScsiCard & card);
+    void     WireProFileCard      (const SlotConfig & slot, ProFileCard & card);
     void     AddExpansionRomCard  (int slot, IExpansionRomCard & card, SlotRomPage & slotPage);
 
     MachineHost          &  m_host;

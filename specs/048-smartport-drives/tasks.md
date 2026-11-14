@@ -100,12 +100,12 @@ card in Casso.
 
 **Goal**: A 5 MB or 10 MB ProFile boots ProDOS.
 
-- [ ] T027 [US5] Disassemble 341-0271-A and 341-0299-B with Casso's disassembler, read Apple's ProFile interface card and ProFile documentation on the mirror, and replace research R6 and the `ProFileDrive` section of `data-model.md` with the card's register map, the handshake, the command block, the block size and tag handling, both capacities, and the machines the card works in. The next four tasks are written from that text
-- [ ] T028 [P] [US5] Tests in `UnitTest/BlockDeviceTests/ProFileDriveTests.cpp`: the handshake states, command block, block transfer and status from T027; both capacities; a too-large image fails to attach with the model's capacity in the error
-- [ ] T029 [US5] Implement `ProFileDrive` in `CassoEmuCore/Devices/BlockDevice/ProFileDrive.h/.cpp`
-- [ ] T030 [P] [US5] Tests in `UnitTest/BlockDeviceTests/ProFileCardTests.cpp`: the card's registers and handshake lines from T027, and its ROM at `$Cn00`, with 341-0271-A for the 5 MB model and 341-0299-B for the 10 MB model
-- [ ] T031 [US5] Implement `ProFileCard` in `CassoEmuCore/Devices/BlockDevice/ProFileCard.h/.cpp`, and register `profile-card`, `profile-5mb` and `profile-10mb`
-- [ ] T032 [US5] Scenario test in `ScenarioTests/BlockDeviceBootTests.cpp`: a bootable 5 MB image boots on each machine T027 lists, and a written file round-trips (SC-005)
+- [X] T027 [US5] Disassemble 341-0271-A and 341-0299-B with Casso's disassembler, read Apple's ProFile interface card and ProFile documentation on the mirror, and replace research R6 and the `ProFileDrive` section of `data-model.md` with the card's register map, the handshake, the command block, the block size and tag handling, both capacities, and the machines the card works in. The next four tasks are written from that text
+- [X] T028 [P] [US5] Done in `UnitTest/BlockDeviceTests/ProFileTests.cpp`, with the card's tests of T030. Original text: Tests in `UnitTest/BlockDeviceTests/ProFileDriveTests.cpp`: the handshake states, command block, block transfer and status from T027; both capacities; a too-large image fails to attach with the model's capacity in the error
+- [X] T029 [US5] Implement `ProFileDrive` in `CassoEmuCore/Devices/BlockDevice/ProFileDrive.h/.cpp`
+- [X] T030 [P] [US5] Tests in `UnitTest/BlockDeviceTests/ProFileCardTests.cpp`: the card's registers and handshake lines from T027, and its ROM at `$Cn00`, with 341-0271-A for the 5 MB model and 341-0299-B for the 10 MB model
+- [X] T031 [US5] Implement `ProFileCard` in `CassoEmuCore/Devices/BlockDevice/ProFileCard.h/.cpp`, and register `profile-card`, `profile-5mb` and `profile-10mb`
+- [X] T032 [US5] Scenario test in `ScenarioTests/BlockDeviceBootTests.cpp`: a bootable 5 MB image boots on each machine T027 lists, and a written file round-trips (SC-005)
 
 ---
 
