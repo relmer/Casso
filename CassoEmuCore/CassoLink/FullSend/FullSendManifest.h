@@ -30,6 +30,13 @@ struct FullSendRow
     std::string  verification = "none";
     int          recovered  = 0;
     int          unreliable = 0;
+
+    //  The image's boot result, as BootProbe::GetVerdictName has it, empty
+    //  before the boot or for a row from before the check; and what its
+    //  raw capture marked, as weak 3, 11; replaced 1.3, empty with nothing
+    //  marked.
+    std::string  boot;
+    std::string  marks;
 };
 
 
@@ -117,7 +124,8 @@ public:
     void                 RestoreRows       (const FullSendRemoval & removal);
 
 private:
-    static constexpr size_t  kColumns       = 12;
+    static constexpr size_t  kColumns       = 14;
+    static constexpr size_t  kPriorColumns  = 12;      // before the boot result and the capture's marks
     static constexpr size_t  kLegacyColumns = 9;
     static constexpr size_t  kHashChars     = 64;
 

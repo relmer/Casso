@@ -6,7 +6,8 @@
 
 
 
-static constexpr std::string_view  s_kHeader  = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf,verification,recovered,unreliable";
+static constexpr std::string_view  s_kHeader  = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf,verification,recovered,unreliable,boot,marks";
+static constexpr std::string_view  s_kPriorHeader  = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf,verification,recovered,unreliable";
 static constexpr std::string_view  s_kLegacyHeader = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf";
 static constexpr std::string_view  s_kComment = "# Casso Full Send manifest. Do not edit, rename or move this file.\r\n"
                                                 "# Casso uses it to recognize disks already received in this folder.\r\n"
@@ -49,7 +50,7 @@ HRESULT FullSendManifest::Parse (std::span<const Byte> bytes)
     }
 
     end   = view.find_first_of ("\r\n", at);
-    whole = end != std::string_view::npos && (view.substr (at, end - at) == s_kHeader || view.substr (at, end - at) == s_kLegacyHeader);
+    whole = end != std::string_view::npos && (view.substr (at, end - at) == s_kHeader || view.substr (at, end - at) == s_kPriorHeader || view.substr (at, end - at) == s_kLegacyHeader);
     CBREx (whole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     whole = TrySplitRow (view, at, cells);
@@ -197,7 +198,7 @@ bool FullSendManifest::IsHexHash (const std::string & text)
 
 bool FullSendManifest::TryParseRow (const std::vector<std::string> & cells, FullSendRow & outRow)
 {
-    bool  valid = cells.size() == kColumns || cells.size() == kLegacyColumns;
+    bool  valid = cells.size() == kColumns || cells.size() == kPriorColumns || cells.size() == kLegacyColumns;
 
 
 
@@ -221,11 +222,17 @@ bool FullSendManifest::TryParseRow (const std::vector<std::string> & cells, Full
              && (outRow.status == kStatusSent || outRow.status == kStatusDuplicate || outRow.status == kStatusProtected || outRow.status == kStatusRawCapture || outRow.status == kStatusDamaged || outRow.status == kStatusUnclear || outRow.status == kStatusLegacyProtected);
     }
 
-    if (valid && cells.size() == kColumns)
+    if (valid && cells.size() >= kPriorColumns)
     {
         outRow.verification = cells[9];
 
         valid = TryParseInt (cells[10], outRow.recovered) && TryParseInt (cells[11], outRow.unreliable);
+    }
+
+    if (valid && cells.size() == kColumns)
+    {
+        outRow.boot  = cells[12];
+        outRow.marks = cells[13];
     }
 
     return valid;
@@ -283,9 +290,9 @@ std::vector<Byte> FullSendManifest::Format() const
 
     for (const FullSendRow & row : m_rows)
     {
-        text += std::format ("{},{},{},{},{},{},{},{},{},{},{},{}\r\n",
+        text += std::format ("{},{},{},{},{},{},{},{},{},{},{},{},{},{}\r\n",
                              row.sequence, QuoteCell (row.file), row.drive, row.fingerprint, row.hash, row.time, row.unreadable, row.status, QuoteCell (row.duplicateOf),
-                             row.verification, row.recovered, row.unreliable);
+                             row.verification, row.recovered, row.unreliable, row.boot, QuoteCell (row.marks));
     }
 
     return std::vector<Byte> (text.begin(), text.end());

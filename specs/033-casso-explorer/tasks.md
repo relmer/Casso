@@ -2084,7 +2084,7 @@ rename, move and copy an image and find its thumbnail on each.
 
 ### Full Send and Capture raw disk
 
-- [ ] T731 [US43] Add the `boot` column to `FullSendManifest`, at the end of a row, empty for a row from before the check; write it when a result arrives (FR-276)
+- [X] T731 [US43] Add the `boot` column to `FullSendManifest`, at the end of a row, empty for a row from before the check; write it when a result arrives (FR-276) Done with a second column, `marks`, for what the capture marked (FR-289); a manifest with 12 columns loads with both empty. Left: writing them when a result arrives, with T732
 - [ ] T732 [US43] Add a worker thread to Casso Explorer, `ExplorerBootWorker`, with a queue of images, one boot at a time, that waits while a link operation is reading a disk; `FullSendSession` and `CassoLinkDiskTransfer::CaptureWholeDisk` queue each image they write; a result stores the thumbnail and record, sets the manifest's column, and adds a line to the activity list (FR-274, FR-276, SC-073)
 - [ ] T741 [US43] When `ExplorerBootWorker` first finds the ROMs of the enhanced //e or the ][+ missing, offer them through `AssetBootstrap::RunStartupDownloader`, the dialog Casso has, with the missing ROMs of both machines in one dialog (a list of machines where it has one machine's now), once in a run and on the window's thread while the worker goes on; queue the images that waited again when the ROMs are installed; with the offer declined, write each result as unclear with the missing ROMs as its reason (FR-288)
 - [ ] T733 [US43] In the Full Send window, a boot result for each row of the disks done, and in `FullSendScreen` a line at the next pause for an image that did not boot, as D1: 0024 DID NOT BOOT, SEND IT AGAIN (FR-276)
