@@ -627,6 +627,11 @@ hardware.
 - Q: Does a boot result of booted mean the image is good? -> A: No. The first bad image of One-on-One from 2026-11-13 boots to its title; its bad sector is on track 27, read later. An image's capture marks go with its boot result (FR-289), proposed to the owner the same day.
 - Q: Is a separate rename feature built for captures saved as numbers? -> A: No. With the thumbnail beside the file, rename is F2.
 
+### Session 2026-11-14
+
+- Q: When two connections have a Full Send at once, is there one window for both? -> A: No. Each connection with a session has a separate Full Send window, with the connection's name in its title and an End session for that session (owner, 2026-11-14). A section per connection in one window was built and removed: the window would be crowded, and End session would apply to one connection only. The status bar's summary has the connection's name, and has each session's summary when two run.
+- Q: Is the Apple's screen text in capitals? -> A: Only for an Apple with no small letters, the ][ and ][+, and for inverse text, whose characters have no small letters (owner, 2026-11-14). The PC writes the text in sentence case and sends it as written to a //e, a //c or a IIgs, by the ROM identification in the program's Ready.
+
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
 
@@ -3566,8 +3571,9 @@ as they arrive.
   drive, a raw capture, a new disk in either drive and Space on the Apple,
   the Apple's reply and for how long, a prefix being typed on the Apple, or
   the session's end and its reason.
-- **FR-267**: The window MUST have a panel for each drive of each
-  connection in a session, with the drive's state, the disk's title and
+- **FR-267**: Each connection in a session MUST have a separate window, with
+  the connection's name in its title. The window MUST have a panel for each
+  drive of its connection, with the drive's state, the disk's title and
   file system once read, a track map, a progress bar, the time elapsed and
   the time left. The track map MUST mark each track as not yet read, read,
   verified, read with unreliable sectors, or unreadable. In a raw capture
@@ -3600,7 +3606,7 @@ as they arrive.
   the window MUST have that session's totals, disks and activity until it
   is closed or another session starts.
 - **FR-273**: During a Full Send the status bar MUST have a one-line
-  summary: the drive, the disk's sequence number, the percentage, the time
+  summary for each session: its connection, the drive, the disk's sequence number, the percentage, the time
   left and the count of disks done. The detail that the status bar had for
   a raw capture moves to the window.
 

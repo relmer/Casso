@@ -70,8 +70,8 @@ public:
     std::wstring  GetLatestActivity       () const;
     std::wstring  FormatActivity          (size_t lines) const;
 
-    //  The status bar's text for the pending operations: a Full Send's
-    //  summary while one is in progress, the first operation's otherwise.
+    //  The status bar's text for the pending operations: each Full Send's
+    //  summary while any is in progress, the first operation's otherwise.
     std::wstring  DescribeJobs            ();
     void          ShowActivityLog         ();
     void          StartConnections        ();
@@ -109,8 +109,10 @@ public:
 
     void  HandleConnectionChanged ();
 
-    //  The Full Send window, opened or brought to the front. Without
-    //  activation the keyboard focus is where it was.
+    //  The Full Send window of each connection with a session in progress,
+    //  opened or brought to the front; with none, the window of the
+    //  connection whose session ended, or the folder's. Without activation
+    //  the keyboard focus is where it was.
     void  ShowFullSendWindow      (bool activate);
 
     //  Whether a Full Send session is in progress on a connection, and the
@@ -123,12 +125,17 @@ private:
     void  UpdateUnseenFiles    ();
     void  OpenFullSendOnStart  ();
     bool  FillFullSendView     (FullSendPanel::View & ioView);
-    void  EndFullSend          ();
+    bool  FillConnectionView   (const std::wstring & connection, FullSendPanel::View & ioView);
+    void  ShowConnectionWindow (const std::wstring & connection, bool activate);
+    void  EndFullSend          (const std::wstring & connection);
     bool  FillFromManifest     (FullSendPanel::View & ioView);
+
+    std::vector<FullSendPanel::View>  GetRunningViews ();
     void  RunFullSendDisk      (const std::string & file, FullSendDialog::DiskAction action);
     void  UpdateTransferTimer  ();
 
     static constexpr UINT  kTransferFrameMs = 150;
+    static constexpr int   kCascadeDip      = 40;     // between two Full Send windows open at once
     static constexpr int   kPulseFrames     = 8;
 
     //  The cassette audio is sent again while no Ready from the shim has
@@ -161,9 +168,8 @@ private:
     //  The last krunch's window, which stays open after the krunch ends.
     std::unique_ptr<KrunchMapDialog>  m_krunchMap;
 
-    //  The Full Send window, and whether it was opened for the session in
-    //  progress, so closing it during a session doesn't open it again.
-    std::unique_ptr<FullSendDialog>   m_fullSendWindow;
-    bool                              m_fullSendOpened = false;
-    bool                              m_fullSendFilled = false;   // the window has the folder's manifest, with no session
+    //  The Full Send window of each connection, by its name, and the folder's
+    //  under an empty name.
+    std::map<std::wstring, std::unique_ptr<FullSendDialog>>  m_fullSendWindows;
+    bool                                                     m_fullSendFilled = false;   // the folder's window has its manifest
 };

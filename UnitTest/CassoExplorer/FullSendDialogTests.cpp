@@ -133,6 +133,7 @@ public:
         snapshot.activity          = FullSendActivity::WaitingForDisk;
         snapshot.totals.duplicates = 1;
         Assert::AreEqual (std::wstring (L"Full Send: waiting for a disk, 2 disks done"), FullSendPanel::DescribeSummary (snapshot));
+        Assert::AreEqual (std::wstring (L"Full Send on Serial (any port): waiting for a disk, 2 disks done"), FullSendPanel::DescribeSummary (snapshot, L"Serial (any port)"), L"With its connection");
     }
 
 
@@ -307,51 +308,6 @@ public:
 
             Assert::IsTrue  (panel.IsOverActivity (POINT { 10, (LONG) (FindTextTop (text, L"10:00:01") + lineH / 2.0f) }));
             Assert::IsFalse (panel.IsOverActivity (POINT { 10, (LONG) (archon + lineH / 2.0f) }));
-        }
-    }
-
-    //  Another connection with a session has a section under the first's
-    //  drives: its state, its connection, its drives and its totals; with it,
-    //  the activity list is drawn within the window grown by a section.
-    TEST_METHOD (AnotherConnectionsSession_HasASectionOfItsOwn)
-    {
-        for (UINT dpi : { 96u, 144u })
-        {
-            FullSendPanel           panel;
-            MockDxuiPainter         painter;
-            MockDxuiTextRenderer    text;
-            MockDxuiTheme           theme;
-            DxuiDpiScaler           scaler;
-            FullSendPanel::View     view    = MakeView();
-            FullSendPanel::Section  other;
-            int                     drives  = 0;
-            float                   heading = 0.0f;
-            float                   last    = 0.0f;
-            int                     height  = 0;
-
-
-
-            scaler.SetDpi (dpi);
-            height = scaler.ToPx (FullSendDialog::kHeightDip + FullSendPanel::kOtherDip);
-
-            view.connection            = L"Serial (any port)";
-            other.connection           = L"Uthernet II (any address)";
-            other.snapshot.activity    = FullSendActivity::WaitingForDisk;
-            other.snapshot.totals.sent = 4;
-            view.others.push_back (other);
-
-            panel.Layout  (RECT { 0, 0, scaler.ToPx (FullSendDialog::kWidthDip), height }, scaler);
-            panel.SetView (view);
-            panel.Paint   (painter, text, theme);
-
-            drives  = (int) std::count_if (text.Calls().begin(), text.Calls().end(), [] (const RecordedTextCall & call) { return call.text == L"Drive 1"; });
-            heading = FindTextTop (text, L"Uthernet II (any address)");
-            last    = FindTextTop (text, L"10:02:15");
-
-            Assert::AreEqual (2, drives, L"Each connection's drives");
-            Assert::IsTrue (heading > FindTextTop (text, L"Drive 1"), L"Under the first connection's drives");
-            Assert::IsTrue (FindTextTop (text, FullSendPanel::DescribeTotals (other.snapshot.totals)) > heading, L"The section's totals");
-            Assert::IsTrue (last > heading && last + scaler.ToPxf (FullSendPanel::kLineDip) <= (float) height, std::format (L"The activity list fits at {} dpi", dpi).c_str());
         }
     }
 

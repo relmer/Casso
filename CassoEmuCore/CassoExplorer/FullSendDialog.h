@@ -20,25 +20,18 @@ class DxuiTooltip;
 //  tracks, a progress bar and its times, the map's legend, the session's
 //  totals, the disks done, newest first, and the latest activity lines.
 //  In a raw capture a drive's map has a second row, a cell for each
-//  position between two tracks that was read. Each other connection with a
-//  session in progress has a section after the drives: its state, its
-//  drives and its totals.
+//  position between two tracks that was read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class FullSendPanel : public DxuiPanel
 {
 public:
-    struct Section
+    struct View
     {
         std::wstring      connection;
         std::wstring      machine;      // the Apple's model, as Apple //c (ROM 3); empty when it isn't known
         FullSendSnapshot  snapshot;
-    };
-
-    struct View : Section
-    {
-        std::vector<Section>  others;   // each other connection with a session in progress
     };
 
     static constexpr float  kHeadingDip     = 26.0f;
@@ -53,7 +46,6 @@ public:
     static constexpr float  kHeadingFontDip = 14.0f;
     static constexpr int    kDiskRows       = 6;
     static constexpr int    kActivityRows   = 6;
-    static constexpr float  kOtherDip       = 215.0f;   // an other connection's section
 
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 
@@ -75,9 +67,10 @@ public:
     static std::wstring  DescribeTotals   (const FullSendTotals & totals);
     static std::wstring  DescribeStatus   (const FullSendRow & row);
 
-    //  The status bar's line for a session in progress: the drive, its disk,
-    //  the percentage, the time left and the disks done. Empty with none.
-    static std::wstring  DescribeSummary  (const FullSendSnapshot & snapshot);
+    //  The status bar's line for a session in progress: its connection, the
+    //  drive, its disk, the percentage, the time left and the disks done.
+    //  Empty with none.
+    static std::wstring  DescribeSummary  (const FullSendSnapshot & snapshot, const std::wstring & connection = std::wstring());
 
     //  A map cell's tip: its track, as 12 or 12.25, and what its mark means.
     //  The position is in quarter tracks.
@@ -118,25 +111,22 @@ public:
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
 private:
-    float  PaintDrives   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int section, const FullSendSnapshot & snapshot, float top) const;
-    float  PaintDrive    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int section, int number, const FullSendDriveStatus & drive, float left, float top, float width) const;
+    float  PaintDrive    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int number, const FullSendDriveStatus & drive, float left, float top, float width) const;
     float  PaintLegend   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
     float  PaintDisks    (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
     float  PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
     void   DrawLine      (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, bool heading = false, DxuiTextHAlign align = DxuiTextHAlign::Left) const;
 
-    //  A map cell as it was last painted: its section, 0 for the view's
-    //  connection and 1 on for the others, its drive's index and its position
+    //  A map cell as it was last painted: its drive's index and its position
     //  in quarter tracks.
     struct Cell
     {
         RECT  bounds   = {};
-        int   section  = 0;
         int   drive    = 0;
         int   position = 0;
     };
 
-    void   AddCell       (float left, float top, float width, float height, int section, int number, int position) const;
+    void   AddCell       (float left, float top, float width, float height, int number, int position) const;
     bool   HandleClick   (const DxuiMouseEvent & ev);
 
     //  A disk's row as it was last painted.
@@ -167,7 +157,7 @@ private:
 //  FullSendDialog
 //
 //  The Full Send window: a connection's session, drawn from its status on
-//  each tick. End session cancels the session after a confirmation, Open
+//  each tick. Each connection with a session has a window. End session cancels the session after a confirmation, Open
 //  folder opens the Full Send folder, and Close hides the window while the
 //  session goes on.
 //
@@ -201,9 +191,10 @@ public:
     static bool  IsRunning (const FullSendSnapshot & snapshot);
 
     //  At position, the window's top left on the screen, when it is on a
-    //  monitor; centered on the owner otherwise.
+    //  monitor; centered on the owner otherwise. The title is Full Send and
+    //  the connection's name, or Full Send for none.
     static std::unique_ptr<FullSendDialog>  Open (HWND owner, const IDxuiTheme * theme, bool activate, SnapshotFn snapshot, ActionFn endSession, ActionFn openFolder,
-                                                  const POINT * position = nullptr);
+                                                  const POINT * position = nullptr, const std::wstring & connection = std::wstring());
 
     void  SetDiskAction (DiskActionFn action) { m_diskAction = std::move (action); }
     void  SetOnMoved    (MovedFn moved)       { m_onMoved = std::move (moved); }
@@ -234,6 +225,5 @@ private:
     DiskActionFn                                 m_diskAction;
     MovedFn                                      m_onMoved;
     POINT                                        m_lastTopLeft  = { LONG_MIN, LONG_MIN };
-    size_t                                       m_othersRoom   = 0;    // the other connections' sections the window has grown for
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;   // the open menu's commands
 };
