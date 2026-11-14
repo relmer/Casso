@@ -112,13 +112,20 @@ public:
     //  The Full Send window, opened or brought to the front. Without
     //  activation the keyboard focus is where it was.
     void  ShowFullSendWindow      (bool activate);
-    void  HandleRunningChanged    ();
+
+    //  Whether a Full Send session is in progress on a connection, and the
+    //  folder a Full Send writes to.
+    bool          IsFullSendRunning    ();
+    std::wstring  GetFullSendFolder    () const;
+    void          HandleRunningChanged ();
 
 private:
     void  UpdateUnseenFiles    ();
     void  OpenFullSendOnStart  ();
     bool  FillFullSendView     (FullSendPanel::View & ioView);
     void  EndFullSend          ();
+    bool  FillFromManifest     (FullSendPanel::View & ioView);
+    void  RunFullSendDisk      (const std::string & file, FullSendDialog::DiskAction action);
     void  UpdateTransferTimer  ();
 
     static constexpr UINT  kTransferFrameMs = 150;
@@ -158,4 +165,5 @@ private:
     //  progress, so closing it during a session doesn't open it again.
     std::unique_ptr<FullSendDialog>   m_fullSendWindow;
     bool                              m_fullSendOpened = false;
+    bool                              m_fullSendFilled = false;   // the window has the folder's manifest, with no session
 };

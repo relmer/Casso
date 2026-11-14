@@ -427,6 +427,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
 {
     std::vector<std::pair<std::string, JsonValue>>  root;
     std::vector<std::pair<std::string, JsonValue>>  placementFields;
+    std::vector<std::pair<std::string, JsonValue>>  fullSendFields;
     std::vector<std::pair<std::string, JsonValue>>  splitterFields;
     std::vector<JsonValue>                          tabValues;
     std::vector<JsonValue>                          typedValues;
@@ -520,6 +521,10 @@ JsonValue CassoExplorerPrefs::ToJson() const
     placementFields.emplace_back ("maximized", JsonValue (placement.maximized));
     placementFields.emplace_back ("valid",     JsonValue (placement.valid));
 
+    fullSendFields.emplace_back ("x",     JsonValue ((double) fullSendWindow.x));
+    fullSendFields.emplace_back ("y",     JsonValue ((double) fullSendWindow.y));
+    fullSendFields.emplace_back ("valid", JsonValue (fullSendWindow.valid));
+
     splitterFields.emplace_back ("treeDip",    JsonValue ((double) treeWidthDip));
     splitterFields.emplace_back ("previewDip", JsonValue ((double) previewWidthDip));
 
@@ -578,6 +583,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
 
     root.emplace_back ("crtOverrides",   JsonValue (std::move (crtFields)));
     root.emplace_back ("placement",      JsonValue (std::move (placementFields)));
+    root.emplace_back ("fullSendWindow", JsonValue (std::move (fullSendFields)));
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
     root.emplace_back ("typedPaths",     JsonValue (std::move (typedValues)));
@@ -837,6 +843,13 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         placed->HasInt  ("h",         placement.h);
         placed->HasBool ("maximized", placement.maximized);
         placed->HasBool ("valid",     placement.valid);
+    }
+
+    if (root.HasObject ("fullSendWindow", placed))
+    {
+        placed->HasInt  ("x",     fullSendWindow.x);
+        placed->HasInt  ("y",     fullSendWindow.y);
+        placed->HasBool ("valid", fullSendWindow.valid);
     }
 
     if (root.HasObject ("splitters", splitters))
