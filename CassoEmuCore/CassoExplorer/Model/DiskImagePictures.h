@@ -28,6 +28,7 @@ public:
     DiskImagePictures (ThumbnailStore & store, QueueFn queue);
 
     std::shared_ptr<DxuiIconImage>  Load (const std::wstring & path, int sizePx) override;
+    bool                            Find (const std::wstring & path, std::shared_ptr<const DxuiIconImage> & outPicture, std::wstring & outResult) override;
 
     void  AddTarget    (HWND hwnd, UINT message) override;
     void  RemoveTarget (HWND hwnd) override;
@@ -44,10 +45,17 @@ public:
     //  the rest clear.
     static std::shared_ptr<DxuiIconImage>  Scale (const RgbaImage & picture, int sizePx);
 
+    //  A thumbnail's record as a line for the user.
+    static std::wstring  DescribeRecord (const ThumbnailRecord & record, bool isUserSet);
+
     //  Whether a file of the size can be the image of a 5.25" disk.
     static bool  IsFloppySize (const std::wstring & extension, uint64_t bytes);
 
 private:
+    //  The image's thumbnail, decoded. False with none, once the image has
+    //  been passed to the queue function.
+    bool  Read (const std::wstring & path, RgbaImage & outPicture, ThumbnailRecord & outRecord, bool & outIsUserSet);
+
     struct Target
     {
         HWND  hwnd    = nullptr;

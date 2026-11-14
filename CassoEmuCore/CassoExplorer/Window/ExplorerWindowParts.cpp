@@ -361,6 +361,7 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
     if (msg == (UINT) AppMessage::ExplorerPicturesReady)
     {
         listPane.HandlePicturesReady();
+        preview.HandlePicturesReady();
         return true;
     }
 

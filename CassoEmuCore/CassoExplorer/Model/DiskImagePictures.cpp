@@ -1,7 +1,9 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/DiskImagePictures.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Printer/PngCodec.h"
+#include "DiskCheck/BootCheck.h"
 
 
 
@@ -27,31 +29,132 @@ DiskImagePictures::DiskImagePictures (ThumbnailStore & store, QueueFn queue) :
 //
 //  DiskImagePictures::Load
 //
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<DxuiIconImage> DiskImagePictures::Load (const std::wstring & path, int sizePx)
+{
+    RgbaImage        picture;
+    ThumbnailRecord  record;
+    bool             isUserSet = false;
+
+
+
+    return Read (path, picture, record, isUserSet) ? Scale (picture, sizePx) : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::Find
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImagePictures::Find (const std::wstring & path, std::shared_ptr<const DxuiIconImage> & outPicture, std::wstring & outResult)
+{
+    RgbaImage                       picture;
+    ThumbnailRecord                 record;
+    bool                            isUserSet = false;
+    bool                            found     = Read (path, picture, record, isUserSet);
+    std::shared_ptr<DxuiIconImage>  image;
+
+
+
+    outPicture.reset();
+    outResult.clear();
+
+    if (found)
+    {
+        image         = std::make_shared<DxuiIconImage>();
+        image->width  = picture.width;
+        image->height = picture.height;
+        image->bgraPremul.resize ((size_t) picture.width * picture.height);
+
+        for (size_t i = 0; i < image->bgraPremul.size(); i++)
+        {
+            image->bgraPremul[i] = 0xFF000000u | ((uint32_t) picture.rgba[i * 4] << 16) | ((uint32_t) picture.rgba[i * 4 + 1] << 8) | picture.rgba[i * 4 + 2];
+        }
+
+        outPicture = image;
+        outResult  = DescribeRecord (record, isUserSet);
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::DescribeRecord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskImagePictures::DescribeRecord (const ThumbnailRecord & record, bool isUserSet)
+{
+    std::string  machine = BootCheck::GetMachineName (record.machine);
+    std::string  text;
+
+
+
+    if (isUserSet)
+    {
+        text = "The picture was set in Casso.";
+    }
+    else if (record.verdict == BootProbe::GetVerdictName (BootVerdict::Booted))
+    {
+        text = std::format ("Boots on the {}.", machine);
+    }
+    else if (record.verdict == BootProbe::GetVerdictName (BootVerdict::DidNotBoot))
+    {
+        text = std::format ("Did not boot on the {}. {}", machine, record.reason);
+    }
+    else if (record.verdict == BootProbe::GetVerdictName (BootVerdict::NotBootable))
+    {
+        text = std::format ("Not a bootable disk. {}", record.reason);
+    }
+    else if (!record.verdict.empty())
+    {
+        text = std::format ("May not boot on the {}. {}", machine, record.reason);
+    }
+
+    return TextEncoding::NarrowToWide (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImagePictures::Read
+//
 //  An image is queued once for each size and time its file has, so an image
 //  that can't be booted isn't booted again each time its folder is drawn.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<DxuiIconImage> DiskImagePictures::Load (const std::wstring & path, int sizePx)
+bool DiskImagePictures::Read (const std::wstring & path, RgbaImage & outPicture, ThumbnailRecord & outRecord, bool & outIsUserSet)
 {
-    HRESULT                         hr        = S_OK;
-    std::filesystem::path           file      = path;
-    std::error_code                 failed;
-    uint64_t                        bytes     = std::filesystem::file_size (file, failed);
-    bool                            isFloppy  = !failed && IsFloppySize (file.extension().wstring(), bytes);
-    int64_t                         time      = 0;
-    std::vector<Byte>               png;
-    ThumbnailRecord                 record;
-    bool                            isUserSet = false;
-    bool                            isNew     = false;
-    RgbaImage                       picture;
-    std::shared_ptr<DxuiIconImage>  image;
+    HRESULT                hr       = S_OK;
+    std::filesystem::path  file     = path;
+    std::error_code        failed;
+    uint64_t               bytes    = std::filesystem::file_size (file, failed);
+    bool                   isFloppy = !failed && IsFloppySize (file.extension().wstring(), bytes);
+    int64_t                time     = 0;
+    std::vector<Byte>      png;
+    bool                   isNew    = false;
+    bool                   found    = false;
 
 
 
     BAIL_OUT_IF (!isFloppy, S_OK);
 
-    hr = m_store.Find (file, png, record, isUserSet);
+    hr = m_store.Find (file, png, outRecord, outIsUserSet);
     CHR (hr);
 
     if (png.empty())
@@ -72,13 +175,13 @@ std::shared_ptr<DxuiIconImage> DiskImagePictures::Load (const std::wstring & pat
         BAIL_OUT_IF (true, S_OK);
     }
 
-    hr = PngCodec::DecodeRgba (png, picture);
+    hr = PngCodec::DecodeRgba (png, outPicture);
     CHR (hr);
 
-    image = Scale (picture, sizePx);
+    found = true;
 
 Error:
-    return image;
+    return found;
 }
 
 

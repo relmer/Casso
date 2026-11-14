@@ -68,6 +68,26 @@ public:
 
 
 
+    TEST_METHOD (ARecord_IsALineForTheUser)
+    {
+        ThumbnailRecord  record;
+
+
+
+        record.verdict = "booted";
+        record.machine = "Apple2c";
+        Assert::AreEqual (std::wstring (L"Boots on the Apple //c."), DiskImagePictures::DescribeRecord (record, false));
+
+        record.verdict = "did-not-boot";
+        record.reason  = "The machine stopped at the monitor's prompt.";
+        Assert::AreEqual (std::wstring (L"Did not boot on the Apple //c. The machine stopped at the monitor's prompt."), DiskImagePictures::DescribeRecord (record, false));
+
+        Assert::AreEqual (std::wstring (L"The picture was set in Casso."), DiskImagePictures::DescribeRecord (record, true));
+        Assert::IsTrue (DiskImagePictures::DescribeRecord (ThumbnailRecord(), false).empty());
+    }
+
+
+
     //  An image with no thumbnail is queued once and has no picture; once
     //  its thumbnail is stored it has one.
     TEST_METHOD (AnImageWithNoThumbnail_IsQueuedOnce_AndHasItsPictureOnceStored)
@@ -75,10 +95,12 @@ public:
         HRESULT                         hr    = S_OK;
         std::filesystem::path           root  = std::filesystem::temp_directory_path() / std::format (L"CassoPictures{}", ::GetCurrentProcessId());
         std::filesystem::path           image = root / L"0001.dsk";
-        std::vector<std::wstring>       queued;
-        std::vector<Byte>               png;
-        std::shared_ptr<DxuiIconImage>  icon;
-        HRESULT                         hrCom = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+        std::vector<std::wstring>             queued;
+        std::vector<Byte>                     png;
+        std::shared_ptr<DxuiIconImage>        icon;
+        std::shared_ptr<const DxuiIconImage>  whole;
+        std::wstring                          result;
+        HRESULT                               hrCom  = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
 
 
 
@@ -113,6 +135,11 @@ public:
             Assert::AreEqual ((size_t) 1, queued.size());
 
             Assert::IsNull (pictures.Load ((root / L"missing.dsk").wstring(), 128).get(), L"No such file");
+
+            Assert::IsTrue (pictures.Find (image.wstring(), whole, result));
+            Assert::AreEqual (560, whole->width);
+            Assert::AreEqual (384, whole->height);
+            Assert::AreEqual (0xFF00FF00u, whole->bgraPremul[0]);
         }
 
         std::filesystem::remove_all (root);

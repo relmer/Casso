@@ -56,6 +56,7 @@ public:
     void                              Hide                   ();
     void                              FillPreview            ();
     void                              TakeThumbnail          ();
+    void                              HandlePicturesReady    ();
     void                              SetPinned              (bool pinned);
     static bool                       IsKnownPreview         (const PreviewContent & preview);
     void                              PaintBackground        (IDxuiPainter & painter, const IDxuiTheme & theme) const;
