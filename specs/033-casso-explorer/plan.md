@@ -668,3 +668,56 @@ scripts/EmuTargets/                    # NEW: AppleWin, MAME, KEGS, GSplus launc
 Complexity Tracking: link modules, as V notes, for the reason in R40.
 
 Post-design re-check: PASS.
+
+## Phase 34: A boot check, a thumbnail and a name (Session 2026-11-13, tasks.md Phase 61)
+
+User Story 43, FR-274 to FR-287, SC-072 to SC-075, R59 to R63.
+
+**What exists.** `MachineHost` and `MachineBuilder` in `CassoEmuCore/Shell`
+build every shipped machine with no window; the unit tests' `TestMachine`
+is a thin wrapper over them, and the hardware test `AnImage_IsRunWithKeys`
+boots a WOZ on one and writes its text screen and hi-res pages. A machine's
+`MachineRefs::activeVideoMode` draws its screen into a pixel buffer, and
+`PicturePreview::EncodePng` makes a PNG of one. A Full Send's manifest has
+each image's content hash.
+
+**What is added, in the core, so the unit tests cover it.**
+
+- `CassoEmuCore/DiskCheck/BootProbe`: a machine with no window, a disk
+  image mounted in slot 6, run in slices to a limit. It samples the screen,
+  the drive's head and motor and the program counter, and returns a
+  verdict, the last frame as pixels and the text screen's rows (R59, R60).
+- `CassoEmuCore/DiskCheck/BootTitle`: the line of a text screen that reads
+  as a title, or none (R61).
+- `CassoEmuCore/DiskCheck/ThumbnailStore`: the cache folder, the alternate
+  data stream, and the record beside each picture: the verdict, whether the
+  user set it, and the image's size and time for finding its hash without
+  reading the file again (R62).
+- `CassoEmuCore/DiskCheck/GivenNames`: a name for each fingerprint, in the
+  cache folder (R63).
+
+**What is added in Casso Explorer.**
+
+- A worker thread with a queue of images to boot, one at a time, behind a
+  Full Send's reads. Full Send and Capture raw disk queue each image they
+  write; the list queues each image in view that has no thumbnail.
+- The boot result in the manifest (a column added at the end, read as
+  unknown from an older manifest), the Full Send window's list and
+  activity, and the Apple's screen at the next pause.
+- The thumbnail in the icon views and the preview pane; Remove thumbnail on
+  a disk image's menu; removal on delete; Clear thumbnails in Options.
+
+**What is added in Casso.** A command on the disk's menu that makes the
+screen the mounted image's thumbnail, through `ThumbnailStore`.
+
+**Order.** `BootProbe` and its verdict first, against the saved captures
+of 2026-11-13, as SC-072 is the outcome the owner required. Then the store,
+the Full Send hook and the window; then the list's thumbnails; then the
+name; then the commands.
+
+**Risks.** A machine's ROMs are the user's files: with none installed there
+is no boot, and the result is unclear with that reason. A boot costs
+seconds of one core, so a folder of hundreds is minutes of background work;
+the queue takes the images in view first. An alternate data stream changes
+a file's last write time unless it is restored, and the manifest's hash is
+of the unnamed stream alone, so the stream doesn't change it.

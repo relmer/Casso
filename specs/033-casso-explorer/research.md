@@ -1199,3 +1199,60 @@ CiderPress II's file viewer, from its GUI manual, was compared feature by featur
 **Update 2026-11-13, FAT**: The firmware's CMakeLists.txt fetches FatFs from FarLeftLane/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico, branch main. Its `src/include/ffconf.h` has `FF_FS_EXFAT 1`, `FF_LBA64 1`, `FF_USE_LFN 3`, `FF_MULTI_PARTITION 0`, `FF_MAX_SS 512` and code page 437. So the card is FAT12, FAT16, FAT32 or exFAT of any size, long file names are read, and the first volume on the card is the one mounted. This replaces the sentence above about the FAT variants not being found. Initialize card writes FAT32 since Casso has that writer, and a card the user formatted as exFAT is listed too.
 
 **Update 2026-11-13, editing**: The README lists every setting: `bootdelay` (0 to 9 seconds, default 3) in `[settings]`, and `number` (2, 4, 6 or 8, default 8) and drives `1` to `8` in `[drives]`. A drive's path is from the root, or starts with `sd:` or `usb:` to select the device on the Drive firmware, which reads both a micro SD card and a USB drive. The README suggests commenting out a drive's other images with `#` to switch between them, but the firmware's configuration utility on the Apple writes the file again without comments. On the Link firmware the A2Pico is a card reader for the PC over USB while it is in the Apple, and the Apple reads a changed file or image at once.
+
+## R59. Booting an image with no window (Story 43)
+
+- **Decision**: `BootProbe` builds a machine through `MachineBuilder` with
+  build services that have no audio mixer, no printer thread and no window,
+  as the unit tests' `TestMachine` does, and runs it on the caller's
+  thread. The enhanced //e first; the ][+ when the //e's verdict is did not
+  boot (FR-275).
+- **Rationale**: one wiring of each machine, the shell's. A second copy of
+  the wiring drifted once already (`HeadlessHost`).
+- **Alternatives**: start Casso with a flag and read a file it writes: a
+  process for each image and no verdict from inside the machine.
+
+## R60. The verdict (Story 43, FR-274)
+
+- **Decision**: the machine runs in slices of 1,000,000 cycles to a limit
+  of 120,000,000, about two minutes of an Apple's time and a few seconds of
+  the PC's. After each slice: a hash of the frame, the drive's quarter
+  track and motor, and the program counter. Booted: the frame differs from
+  the frame at power-on, and the head has not moved for 20 slices in a row.
+  Did not boot: the frame never differed; or the program counter is in the
+  monitor's or BASIC's input loop with `ERR` or the monitor's `*` prompt on
+  the text screen; or the head is moving at the limit. Not bootable: the
+  image has a file system and its boot sector is not boot code. Anything
+  else is unclear. The run ends early once booted is true for 60 slices.
+- **Rationale**: the two bad images of One-on-One on 2026-11-13 stopped
+  with the frame at its power-on pattern; a good image's head stops once
+  its title is drawn.
+- **Alternatives**: a verdict from any change of the frame, which passes a
+  loader that draws and stops.
+
+## R61. A title from the text screen (Story 43, FR-282)
+
+- **Decision**: a line is a title when the screen is in text mode and the
+  line is followed within three lines by one with `COPYRIGHT` or `(C)`, or
+  it is the one line of the screen's first four that isn't blank; its
+  punctuation at the ends is dropped and its letters are as drawn.
+  With no such line, no name.
+- **Rationale**: The Witness's title is ten lines down a page of prose,
+  with its copyright under it.
+
+## R62. Where a thumbnail is stored (Story 43, FR-278, FR-279, FR-284)
+
+- **Decision**: `%LOCALAPPDATA%\Casso\Thumbnails\<sha256>.png` and a
+  record `<sha256>.json` with the verdict, the machine, the title found and
+  whether the user set it; a copy of the PNG in the image file's alternate
+  data stream `casso.thumbnail`, with the file's last write time restored
+  after the write. An index of path, size and last write time to hash
+  saves reading a file again when neither has changed.
+- **Rationale**: the owner's choices of 2026-11-13. The hash is the
+  manifest's, of the file's unnamed stream.
+
+## R63. A name for a fingerprint (Story 43, FR-283)
+
+- **Decision**: `given.json` in the cache folder: the Full Send fingerprint
+  of a disk to the name its image has from the user, written when an image
+  with a manifest row is renamed in Casso Explorer.

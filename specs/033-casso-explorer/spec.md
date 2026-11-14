@@ -621,6 +621,10 @@ hardware.
 - Q: How are orphaned thumbnails removed? -> A: The owner chose removal when the image is deleted in Casso Explorer, and nothing timed. An image deleted elsewhere has an orphan, which a command in Options clears.
 - Q: What counts as booted? -> A: The screen changed from its power-on state and the drive stopped seeking. Did not boot: the screen never changed, the machine stopped in the monitor or at a BASIC prompt with an error, or the drive sought without end. Anything else is unclear (the owner's choice of three, 2026-11-13; a verdict from any change of the screen would pass a loader that draws a logo and stops).
 - Q: Which machine is an image booted on? -> A: An enhanced //e with 128K, and once more on a ][+ when it did not boot there, so an older title that fails on a //e isn't reported as bad (the owner's choice, 2026-11-13).
+- Q: Where is a thumbnail the user set stored? -> A: In the cache and the image file's alternate data stream, as every thumbnail is, marked as set by the user; no picture file beside the image and no folder of pictures (the owner, 2026-11-13). A file beside the image was set aside: a capture is a bare number until its thumbnail is seen, and a second file with that number would be one more file to rename. The cost accepted: a thumbnail the user set is gone when the stream is dropped and the image is opened on another PC, where a new one is made by booting.
+- Q: What happens when the ROMs the boot check uses aren't installed? -> A: Casso Explorer offers them in the dialog Casso has for a machine's missing ROMs (the owner, 2026-11-13). Once in a run, not for each image; a Full Send goes on while the dialog is open; the images that waited are booted when the ROMs arrive.
+- Q: Is the enhanced //e the first machine an image is booted on? -> A: Not for a capture. On 2026-11-13 One-on-One, captured from the owner's //c, drew its title on an emulated //c and a screen of lo-res garbage on an emulated enhanced //e. The model the disk was captured from is first, then the enhanced //e, then the ][+. Proposed to the owner, whose reply was to continue; whether the title fails on a real enhanced //e or Casso's //e is at fault isn't known.
+- Q: Does a boot result of booted mean the image is good? -> A: No. The first bad image of One-on-One from 2026-11-13 boots to its title; its bad sector is on track 27, read later. An image's capture marks go with its boot result (FR-289), proposed to the owner the same day.
 - Q: Is a separate rename feature built for captures saved as numbers? -> A: No. With the thumbnail beside the file, rename is F2.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -2491,6 +2495,9 @@ as they arrive.
   thumbnail along; one changed by another program gets a new one.
 - **A boot that never settles**: an animated title is captured after a set
   time, not when the screen stops changing.
+- **No ROMs installed**: the dialog Casso has for missing ROMs is offered
+  once. Declined, each image's result is unclear with that reason, and the
+  thumbnails wait; no image is reported as did not boot because a ROM is missing.
 - **A blank or unformatted disk**: no image is saved, so there is nothing
   to boot (FR-273 and the blank disk rule of the Full Send).
 - **Many images at once**: boots in the background are limited so the list
@@ -3607,9 +3614,22 @@ as they arrive.
   not boot when the screen never changed, when the machine stopped in the
   monitor or at a BASIC prompt with an error, or when the drive went on
   seeking to the end of the time allowed. Any other end is unclear.
-- **FR-275**: The boot MUST use an enhanced //e with 128K. An image that
-  did not boot there MUST be booted once more on a ][+ before its result
-  is written, and the result is the better of the two.
+- **FR-275**: The boot MUST use the model of Apple the disk was captured
+  from, when a Full Send or a raw capture has it and Casso has that
+  machine; then an enhanced //e with 128K; then a ][+. A machine after the
+  first is used only when the result before it is did not boot or unclear,
+  and the result written is the best of them.
+- **FR-289**: An image whose capture marked a weak track, a track whose
+  reads differ in length, or a sector taken from another read MUST have
+  that with its boot result, in the manifest, the Full Send window and the
+  preview pane, as a boot reads only the sectors a title starts from.
+- **FR-288**: When an image is first to be booted and the ROMs of the enhanced //e
+  or the ][+ aren't installed, Casso Explorer MUST offer them in the dialog
+  Casso has for a machine's missing ROMs, once in a run of the program,
+  with the missing ROMs of both machines in the one dialog. A
+  Full Send in progress MUST NOT wait for the answer. Until the ROMs are
+  installed, an image's result is unclear, with the missing ROMs as its
+  reason, and each such image is booted once they are.
 - **FR-276**: A Full Send's manifest, its window's list of disks done and
   its activity list MUST have each image's boot result, and the Apple's
   screen MUST have a result of did not boot at the next pause.
@@ -3637,8 +3657,10 @@ as they arrive.
   disk's fingerprint, and a later capture with that fingerprint MUST get
   that name with a new number.
 - **FR-284**: Casso MUST have a command that makes the mounted disk's
-  screen, as it is when the command is chosen, the image's thumbnail.
-  [NEEDS CLARIFICATION: where a thumbnail the user set is stored, as it can't be made again]
+  screen, as it is when the command is chosen, the image's thumbnail. It
+  MUST be stored as every other thumbnail is, in the cache and in the
+  image file's stream, marked as set by the user, with no other file
+  written.
 - **FR-285**: Casso Explorer MUST have Remove thumbnail on a disk image's
   menu, which removes a thumbnail the user set and restores the one made
   by booting.
@@ -4238,8 +4260,9 @@ as they arrive.
 - **SC-072**: Of the six titles captured on the owner's //c through
   2026-11-13 (Wizardry I, Archon, Arcticfox, The Witness, One-on-One and
   the cracked Spy vs. Spy), every image that boots when started in Casso
-  has the result booted, and the two bad images of One-on-One from that day
-  have did not boot.
+  has the result booted; of the two bad images of One-on-One from that day,
+  the second has did not boot, and the first, which boots to its title and
+  is bad on track 27, has booted with its capture's marks (FR-289).
 - **SC-073**: A Full Send's time for a disk is no more than 2 seconds
   longer with the boot check than without it.
 - **SC-074**: A folder of 200 disk images with no thumbnails is listed in

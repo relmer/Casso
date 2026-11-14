@@ -6,7 +6,9 @@
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/Model/PicturePreview.h"
 #include "Devices/Disk/DiskImage.h"
+#include "DiskCheck/BootProbe.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
@@ -670,6 +672,69 @@ public:
         else
         {
             LogBoot (path.c_str(), {}, sectors, false);
+        }
+    }
+
+    //  Each .woz, .dsk, .do and .po file of the folder CASSO_PROBE_IMAGES,
+    //  booted by BootProbe on an enhanced //e: its verdict, reason and
+    //  seconds are written to probe.txt and its last frame to a PNG with the
+    //  image's file name, in CASSO_LINK_OUT. Run only when
+    //  CASSO_PROBE_IMAGES is set.
+    TEST_METHOD (ImagesInAFolder_AreProbed)
+    {
+        std::string            folder = GetSetting ("CASSO_PROBE_IMAGES", "");
+        std::filesystem::path  out    = GetSetting ("CASSO_LINK_OUT", ".");
+        std::ofstream          log;
+
+
+
+        if (folder.empty())
+        {
+            Logger::WriteMessage ("CASSO_PROBE_IMAGES isn't set; no images to probe.\n");
+            return;
+        }
+
+        log.open (out / "probe.txt");
+
+        for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (folder))
+        {
+            std::string        extension = entry.path().extension().string();
+            bool               isWoz     = extension == ".woz";
+            bool               isSectors = extension == ".dsk" || extension == ".do" || extension == ".po";
+            std::vector<Byte>  bytes;
+            std::vector<Byte>  png;
+            BootReport         report;
+            TestMachine        machine (GetSetting ("CASSO_PROBE_MACHINE", "Apple2eEnhanced"));
+            auto               began     = std::chrono::steady_clock::now();
+            double             seconds   = 0.0;
+
+            if (!isWoz && !isSectors)
+            {
+                continue;
+            }
+
+            {
+                std::ifstream  in (entry.path(), std::ios::binary);
+
+                bytes.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+            }
+
+            AssertSucceeded (BootProbe::Probe (machine, machine.GetBuilder(), bytes, isWoz ? DiskFormat::Woz : extension == ".po" ? DiskFormat::Po : DiskFormat::Dsk, BootProbe::Limits(), report));
+
+            seconds = std::chrono::duration<double> (std::chrono::steady_clock::now() - began).count();
+
+            AssertSucceeded (PicturePreview::EncodePng (report.frame, report.width, report.height, png));
+            WriteFile (out / (entry.path().filename().string() + ".png"), png);
+
+            log << entry.path().filename().string() << ": " << BootProbe::GetVerdictName (report.verdict) << ", " << std::format ("{:.1f}", seconds) << " s. " << report.reason << (report.isTextMode ? " Text." : " Graphics.") << std::endl;
+
+            for (const std::string & row : report.rows)
+            {
+                if (!row.empty())
+                {
+                    log << "    |" << row << "|" << std::endl;
+                }
+            }
         }
     }
 
