@@ -45,15 +45,15 @@ public:
     NetworkCardSettings       lastNetworkCard;
     int                       networkCardCount           = 0;
 
-    void ApplySpeedMode    (SettingsSpeedMode mode) override   { lastSpeed = mode; ++applyCount; }
-    void ApplyColorMode    (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
-    void ApplyFloppySound  (bool enabled) override             { lastFloppySound = enabled; ++applyCount; }
-    void ApplyFastTapeLoading (bool enabled) override          { lastFastTapeLoading = enabled; }
-    void ApplyTapeVolume   (float gain) override               { lastTapeVolume = gain; }
-    void ApplyTapeAutoStop (bool enabled) override             { lastTapeAutoStop = enabled; }
-    void ApplyTapeIdleStop (bool enabled) override             { lastTapeIdleStop = enabled; }
-    void ApplyTapeEightBit (bool enabled) override             { lastTapeEightBit = enabled; }
-    void ApplyMechanism    (const std::string & m) override    { lastMechanism = m; ++applyCount; }
+    void  ApplySpeedMode       (SettingsSpeedMode mode) override   { lastSpeed = mode; ++applyCount; }
+    void  ApplyColorMode       (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
+    void  ApplyFloppySound     (bool enabled) override             { lastFloppySound = enabled; ++applyCount; }
+    void  ApplyFastTapeLoading (bool enabled) override          { lastFastTapeLoading = enabled; }
+    void  ApplyTapeVolume      (float gain) override               { lastTapeVolume = gain; }
+    void  ApplyTapeAutoStop    (bool enabled) override             { lastTapeAutoStop = enabled; }
+    void  ApplyTapeIdleStop    (bool enabled) override             { lastTapeIdleStop = enabled; }
+    void  ApplyTapeEightBit    (bool enabled) override             { lastTapeEightBit = enabled; }
+    void  ApplyMechanism       (const std::string & m) override    { lastMechanism = m; ++applyCount; }
     void ApplyDriveVolumes (float motor, float head, float door) override
     {
         lastDriveMotor = motor;

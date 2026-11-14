@@ -79,10 +79,10 @@ private:
     static constexpr uint64_t  kSpinUpNs   = 50'000'000;
     static constexpr uint64_t  kEjectNs    = 100'000'000;
 
-    int       GetRegister () const;
-    void      RunCommand  (int command);
-    std::vector<Byte> & GetTrackBits ();
-    void      Emit        (Floppy35Op op);
+    int                  GetRegister  () const;
+    void                 RunCommand   (int command);
+    std::vector<Byte>  & GetTrackBits ();
+    void                 Emit         (Floppy35Op op);
 
     int                                         m_driveIndex = 0;
     BlockDeviceMedia                            m_media;
