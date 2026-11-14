@@ -141,8 +141,8 @@ PreviewDiskThumbnail::PreviewDiskThumbnail (ExplorerContext & context) :
 
 void PreviewDiskThumbnail::Create()
 {
-    m_platter = m_context.window.CreateChild<ThumbnailPlatterView> (m_view, m_context.theme);
-    m_chips   = m_context.window.CreateChild<ThumbnailChips> (m_view.palette);
+    m_platter = m_context.window.CreatePaneRoutedChild<ThumbnailPlatterView> (m_view, m_context.theme);
+    m_chips   = m_context.window.CreatePaneRoutedChild<ThumbnailChips> (m_view.palette);
 
     m_platter->SetSelectionShown (false);
     m_platter->SetVisible (false);

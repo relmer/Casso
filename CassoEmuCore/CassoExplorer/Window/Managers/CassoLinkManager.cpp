@@ -129,40 +129,6 @@ void CassoLinkManager::LayoutListActions()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkManager::HandleListActionMouse
-//
-//  Each button has every move, so its hover ends as the pointer moves off
-//  it, and the presses inside it. Returns whether the event was over one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoLinkManager::HandleListActionMouse (const DxuiMouseEvent & ev)
-{
-    for (DxuiButton * action : { m_listAction, m_listActionAlt })
-    {
-        bool  inside = action->IsVisible() && ExplorerLayout::Contains (action->GetBounds(), ev.positionDip);
-
-        if (action->IsVisible() && (ev.kind == DxuiMouseEventKind::Move || inside))
-        {
-            action->OnMouse (ev);
-            m_context.window.Invalidate();
-        }
-
-        if (inside)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoLinkManager::~CassoLinkManager
 //
 ////////////////////////////////////////////////////////////////////////////////

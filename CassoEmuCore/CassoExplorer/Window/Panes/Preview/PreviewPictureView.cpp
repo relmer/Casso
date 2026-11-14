@@ -44,7 +44,7 @@ PreviewPictureView::PreviewPictureView (ExplorerPreviewManager & manager, Explor
 
 void PreviewPictureView::Create()
 {
-    CassoExplorerNamedControl<DxuiFramebufferView>  * picture = m_context.window.CreateChild<CassoExplorerNamedControl<DxuiFramebufferView>>();
+    CassoExplorerNamedControl<DxuiFramebufferView>  * picture = m_context.window.CreatePaneRoutedChild<CassoExplorerNamedControl<DxuiFramebufferView>>();
 
 
 

@@ -43,7 +43,7 @@ ExplorerStatusBar::ExplorerStatusBar (ExplorerContext & context)
 
 void ExplorerStatusBar::Create()
 {
-    m_status = m_context.window.CreateChild<DxuiStatusBar>();
+    m_status = m_context.window.CreatePaneRoutedChild<DxuiStatusBar>();
 
     m_status->SetDividers (false);
     m_status->SetLeadDip  (ExplorerMetrics::kStatusLeadDip);

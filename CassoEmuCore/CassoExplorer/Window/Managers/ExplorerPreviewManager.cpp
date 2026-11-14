@@ -53,11 +53,11 @@ void ExplorerPreviewManager::Create()
         view->Create();
     }
 
-    m_message = m_context.window.CreateChild<DxuiSelectableText>();
+    m_message = m_context.window.CreatePaneRoutedChild<DxuiSelectableText>();
     ExplorerTextStyles::Apply (*m_message, ExplorerTextStyles::kPaneMessage);
     m_message->SetAlign    (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
 
-    m_summary = m_context.window.CreateChild<DxuiTextView>();
+    m_summary = m_context.window.CreatePaneRoutedChild<DxuiTextView>();
     ExplorerTextStyles::Apply (*m_summary, ExplorerTextStyles::kPreviewText);
     m_summary->SetProportional (true);
     m_summary->SetVisible      (false);
@@ -81,7 +81,7 @@ void ExplorerPreviewManager::Create()
 
 void ExplorerPreviewManager::CreateToolbar()
 {
-    m_toolbar = m_context.window.CreateChild<DxuiToolbar>();
+    m_toolbar = m_context.window.CreatePaneRoutedChild<DxuiToolbar>();
     m_toolbar->SetFlatStyle    (true);
     m_toolbar->SetTextRenderer (m_context.window.GetTextRenderer());
     m_toolbar->SetPopupHost    (m_context.window.GetPopupHost());

@@ -117,7 +117,7 @@ public:
     {
         CardLayoutModel  model (kCard, 13, true);
 
-        Assert::AreEqual (4,  model.GetRecommendedPosition (CardLayoutModel::Adapter::Unsure));
+        Assert::AreEqual (4,  model.GetRecommendedPosition (CardLayoutModel::Adapter::Cffa1ProDos));
         Assert::AreEqual (4,  model.GetRecommendedPosition (CardLayoutModel::Adapter::Cffa1Gsos));
         Assert::AreEqual (8,  model.GetRecommendedPosition (CardLayoutModel::Adapter::Cffa12EightDrive));
         Assert::AreEqual (13, model.GetRecommendedPosition (CardLayoutModel::Adapter::Cffa2Enhanced));
@@ -137,9 +137,6 @@ public:
         model.GetRows (6, CardLayoutModel::Adapter::Cffa1Gsos, rows);
         Assert::AreEqual ((size_t) 2, rows.size());
 
-        model.GetRows (6, CardLayoutModel::Adapter::Unsure, rows);
-        Assert::AreEqual ((size_t) 7, rows.size());
-
         model.GetRows (6, CardLayoutModel::Adapter::A2Pico, rows);
         Assert::AreEqual ((size_t) 1, rows.size());
         Assert::IsTrue (rows[0].support == CardLayoutModel::Support::Fails, L"an A2Pico reads a FAT volume only");
@@ -153,10 +150,10 @@ public:
         DxuiDpiScaler          scaler;
 
         scaler.SetDpi (144);
-        grid.SetChoice (4, CardLayoutModel::Adapter::Unsure);
+        grid.SetChoice (6, CardLayoutModel::Adapter::Cffa1Gsos);
 
         Logger::WriteMessage (std::format (L"grid height {}", grid.MeasureHeightPx (600, scaler)).c_str());
-        Assert::IsTrue (grid.MeasureHeightPx (600, scaler) > 6 * 36);
+        Assert::IsTrue (grid.MeasureHeightPx (600, scaler) > 2 * 36);
     }
 
 

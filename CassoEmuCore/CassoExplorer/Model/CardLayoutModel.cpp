@@ -238,7 +238,7 @@ std::wstring CardLayoutModel::GetAdapterLabel (Adapter adapter)
         case Adapter::Cffa2Original:    return L"CFFA 2.0 on a II, II+ or unenhanced IIe";
         case Adapter::Cffa3000:         return L"CFFA3000";
         case Adapter::A2Pico:           return L"A2Pico with the A2retroNET firmware";
-        default:                        return L"I'm not sure";
+        default:                        return L"";
     }
 }
 
@@ -321,12 +321,6 @@ void CardLayoutModel::GetRows (int position, Adapter adapter, std::vector<Row> &
     GetRows (position, all);
 
     outRows.clear();
-
-    if (adapter == Adapter::Unsure)
-    {
-        outRows = std::move (all);
-        return;
-    }
 
     if (IsFat32 (position))
     {

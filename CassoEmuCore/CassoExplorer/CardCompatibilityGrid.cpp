@@ -23,7 +23,7 @@ int CardCompatibilityGrid::MeasureHeightPx (int widthPx, const DxuiDpiScaler & s
 
     //  Every adapter's rows, so a new choice of adapter or layout moves
     //  nothing below the grid.
-    for (int adapter = 0; adapter < (int) CardLayoutModel::Adapter::Count; adapter++)
+    for (int adapter = (int) CardLayoutModel::Adapter::First; adapter < (int) CardLayoutModel::Adapter::Count; adapter++)
     {
         for (int position = 1; position <= m_model.GetPositionCount(); position++)
         {

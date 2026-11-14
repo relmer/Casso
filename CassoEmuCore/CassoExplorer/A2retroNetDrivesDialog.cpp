@@ -242,11 +242,12 @@ bool A2retroNetDrivesDialog::Edit (HWND                        owner,
                                    ActionsA2retroNet         & actions,
                                    const std::wstring        & root,
                                    IShellIcons               * icons,
+                                   const std::wstring        & editor,
                                    EditAsTextFn                editAsText,
                                    ActionsTypes::Outcome     & outOutcome)
 {
     HRESULT                   hr = S_OK;
-    A2retroNetDrivesDialog    dialog (actions, root, icons, std::move (editAsText));
+    A2retroNetDrivesDialog    dialog (actions, root, icons, editor, std::move (editAsText));
     DxuiWindow::CreateParams  params;
 
 
@@ -354,7 +355,7 @@ void A2retroNetDrivesDialog::OnCreate()
     m_body->Init (parts);
     m_body->SetOnMouseHandled ([this]() { UpdateTick(); Invalidate(); });
 
-    text   = AddDialogButton (L"Edit as text", 0, DxuiButtonRow::Anchor::Left);
+    text   = AddDialogButton (m_editor.empty() ? std::wstring (L"Edit as text...") : std::format (L"Edit in {}...", m_editor), 0, DxuiButtonRow::Anchor::Left);
     save   = AddDialogButton (L"Save", IDOK);
     cancel = AddDialogButton (L"Cancel", IDCANCEL);
 
@@ -389,7 +390,7 @@ void A2retroNetDrivesDialog::OnCreate()
 //  A2retroNetDrivesDialog::OnDialogTick
 //
 //  While a drive moves, each tick repaints. Otherwise, a save in another
-//  program, as Edit as text opens, changes the file's size or time, and the
+//  program, as the Edit button opens, changes the file's size or time, and the
 //  file is read again, unless the dialog has unsaved changes, which Save
 //  would write over the other program's.
 //

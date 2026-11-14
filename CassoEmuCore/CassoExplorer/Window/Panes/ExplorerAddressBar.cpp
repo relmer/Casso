@@ -44,8 +44,8 @@ ExplorerAddressBar::ExplorerAddressBar (ExplorerContext & context)
 
 void ExplorerAddressBar::Create()
 {
-    m_address = m_context.window.CreateChild<DxuiAddressBar>();
-    m_findBox = m_context.window.CreateChild<DxuiTextInput>();
+    m_address = m_context.window.CreatePaneRoutedChild<DxuiAddressBar>();
+    m_findBox = m_context.window.CreatePaneRoutedChild<DxuiTextInput>();
 
     m_address->SetTextRenderer (m_context.window.GetTextRenderer());
     m_address->SetIconFace     (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)

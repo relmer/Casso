@@ -40,9 +40,10 @@ public:
     //  The visible bars at the top of the rect, and the rect below them.
     RECT  Layout      (const RECT & rect);
 
-    //  The event offered to the visible bars' buttons and close boxes, in
-    //  window coordinates. True when a bar took it.
-    bool  HandleMouse (const DxuiMouseEvent & ev);
+    //  For ExplorerCardArrivals: a question for the images copied to an
+    //  A2Pico card that A2retroNET doesn't read, and each replaced by a .po
+    //  on a yes.
+    void  OfferArrived ();
 
     DxuiInfoBanner & GetCardBar () { return *m_cardBar; }
 
@@ -65,4 +66,5 @@ private:
     std::vector<CardAction>      m_cardActions;       // the card infobar's buttons, in order
     std::vector<std::wstring>    m_cardLabels;        // the labels the buttons were made with
     std::vector<std::wstring>    m_convertible;       // the images Write as .po writes
+    std::vector<std::wstring>    m_arrived;           // the images in OfferArrived's question
 };

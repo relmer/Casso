@@ -39,7 +39,7 @@ PreviewTextView::PreviewTextView (ExplorerPreviewManager & manager, ExplorerCont
 
 void PreviewTextView::Create()
 {
-    m_text = m_context.window.CreateChild<DxuiTextView>();
+    m_text = m_context.window.CreatePaneRoutedChild<DxuiTextView>();
 }
 
 
