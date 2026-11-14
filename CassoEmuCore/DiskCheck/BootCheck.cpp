@@ -61,6 +61,18 @@ HRESULT BootMachine::Build (const std::string & machineId, std::string & outErro
     SetPrng (std::make_unique<Prng> (s_kSeed));
     SetCurrentMachineName (TextEncoding::NarrowToWide (machineId));
 
+    //  A Mockingboard is left out. No title requires one, and a title that
+    //  finds one can install an interrupt handler in the language card,
+    //  which the enhanced //e's firmware switches to ROM before it jumps to
+    //  the handler, as One-on-One does.
+    for (SlotConfig & slot : config.slots)
+    {
+        if (slot.device.starts_with ("mockingboard"))
+        {
+            slot.enabled = false;
+        }
+    }
+
     GetConfig() = config;
 
     hr = m_builder.Build (config);

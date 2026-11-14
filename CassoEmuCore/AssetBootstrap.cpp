@@ -4060,9 +4060,26 @@ HRESULT AssetBootstrap::OfferMachineRoms (
     for (const wstring & machineName : machineNames)
     {
         string          narrowMachine = TextEncoding::WideToUtf8 (machineName);
+        fs::path        configPath    = PathResolver::FindFile (searchPaths, fs::path ("Machines") / narrowMachine / (narrowMachine + ".json"));
         vector<string>  romFiles;
+        string          jsonText;
         string          ignored;
-        HRESULT         hrRoms        = GetRequiredRoms (hInst, machineName, romFiles, ignored);
+        HRESULT         hrRoms        = S_OK;
+
+        //  The machine's installed configuration, as this is also called
+        //  from a program with no machine configurations among its resources.
+        if (configPath.empty())
+        {
+            continue;
+        }
+
+        {
+            std::ifstream  in (configPath, std::ios::binary);
+
+            jsonText.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        hrRoms = MachineConfigLoader::CollectRomFiles (jsonText, romFiles, ignored);
 
         if (FAILED (hrRoms))
         {

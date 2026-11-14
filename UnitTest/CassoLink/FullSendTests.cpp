@@ -1007,7 +1007,7 @@ public:
                         L"No tone for the result unless the Apple has them on");
         Assert::IsTrue (rig.link.screens.back().drives[0] != FullSendDriveState::Validating);
         Assert::AreEqual ((size_t) 1, rig.link.pauseLines.size());
-        Assert::IsTrue (std::find (rig.link.pauseLines[0].begin(), rig.link.pauseLines[0].end(), "0001 DID NOT BOOT. PRESS SPACE TO READ") != rig.link.pauseLines[0].end());
+        Assert::IsTrue (std::find (rig.link.pauseLines[0].begin(), rig.link.pauseLines[0].end(), "0001 DID NOT BOOT. PRESS SPACE TO") != rig.link.pauseLines[0].end());
     }
 
     //  Space with the disk that did not boot in its drive reads it again,
@@ -1031,7 +1031,7 @@ public:
         Assert::AreEqual ((size_t) 2, rig.link.captures.size(), L"Captured, and captured again");
         Assert::AreEqual (1, rig.link.capturesWithEarlier, L"The second with the reads of the first");
         Assert::AreEqual ((size_t) 3, rig.link.pauseLines.size());
-        Assert::IsTrue (has (rig.link.pauseLines[0], "0001 DID NOT BOOT. PRESS SPACE TO READ"));
+        Assert::IsTrue (has (rig.link.pauseLines[0], "0001 DID NOT BOOT. PRESS SPACE TO"));
         Assert::IsTrue (has (rig.link.pauseLines[1], "0002 STILL DOES NOT BOOT."));
         Assert::IsFalse (has (rig.link.pauseLines[2], "0002 STILL DOES NOT BOOT."), L"Space after that is a repeat's");
         Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001.woz") && rig.io.files.contains ("C:\\Box\\0002.woz"), L"Each capture has its image");

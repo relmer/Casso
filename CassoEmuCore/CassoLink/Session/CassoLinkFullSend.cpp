@@ -500,12 +500,12 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, bool withEarlier, std::vector<
 
         if (withEarlier && !earlier.empty())
         {
+            m_status.AddLine (std::format ("Building the image from the reads of both captures of the disk in drive {}", drive));
+
             CassoLinkCapture::MergeReads (result.positions, earlier);
 
             hr = CassoLinkCapture::BuildWoz (result.positions, CassoLinkCapture::kLastPosition, date, (Byte) drive, result);
             CHR (hr);
-
-            m_status.AddLine (std::format ("The image is built from the reads of both captures of the disk in drive {}", drive));
         }
 
         earlier = result.positions;
