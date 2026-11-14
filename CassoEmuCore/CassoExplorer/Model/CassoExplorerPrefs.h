@@ -58,6 +58,7 @@ struct CassoExplorerPrefs
     //  Enter on a file in the list expands its preview over the tab, as an
     //  Open in viewer setting would.
     bool                   enterExpandsPreview = false;
+    bool                   autoThumbnails      = true;     // a disk image in view with no thumbnail is booted for one
 
     std::string            hostNaming      = kNamingDescriptive;
 

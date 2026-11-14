@@ -19,7 +19,7 @@ class DisplayPage;
 //  CassoExplorerGeneralPage
 //
 //  Automatic preview, its description below its box, then the disk image
-//  types, and Clear thumbnails.
+//  types, automatic thumbnails, and Clear thumbnails.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +28,7 @@ class CassoExplorerGeneralPage : public DxuiPropertyPage
 public:
     explicit CassoExplorerGeneralPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiButton & clearThumbnails);
+    void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & autoThumbnails, DxuiButton & clearThumbnails);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
@@ -41,6 +41,7 @@ private:
     DxuiCheckbox  * m_autoPreview  = nullptr;
     DxuiCheckbox  * m_enterExpands = nullptr;
     DxuiCheckbox  * m_register     = nullptr;
+    DxuiCheckbox  * m_thumbnails   = nullptr;
     DxuiButton    * m_clear        = nullptr;
 };
 
@@ -212,6 +213,9 @@ public:
         bool  autoPreview  = true;
         bool  enterExpands = false;
 
+        //  Whether a disk image in view with no thumbnail is booted for one.
+        bool  autoThumbnails = true;
+
         //  A Full Send's folder and its extension, each empty for the default.
         std::wstring  fullSendFolder;
         std::string   fullSendExtension;
@@ -287,6 +291,7 @@ private:
     DxuiLabel                                      m_previewNote;
     DxuiCheckbox                                   m_autoPreview;
     DxuiCheckbox                                   m_enterExpands;
+    DxuiCheckbox                                   m_autoThumbnails;
     DxuiCheckbox                                   m_register;
     DxuiButton                                     m_clearThumbnails;
     DxuiLabel                                      m_fullSendNote;

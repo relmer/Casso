@@ -1036,6 +1036,7 @@ void ExplorerCommandManager::ShowOptions()
     choices.packaged     = packaged;
     choices.autoPreview  = m_context.prefs.autoPreview;
     choices.enterExpands = m_context.prefs.enterExpandsPreview;
+    choices.autoThumbnails = m_context.prefs.autoThumbnails;
     choices.fullSendFolder    = m_context.prefs.fullSendFolder.empty() ? CassoLinkManager::GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
     choices.fullSendExtension = m_context.prefs.fullSendExtension;
     choices.bootSoundPlace    = m_context.prefs.bootSoundPlace;
@@ -1087,6 +1088,7 @@ void ExplorerCommandManager::ShowOptions()
 
     m_context.prefs.autoPreview         = choices.autoPreview;
     m_context.prefs.enterExpandsPreview = choices.enterExpands;
+    m_context.prefs.autoThumbnails      = choices.autoThumbnails;
     m_context.prefs.fullSendFolder    = choices.fullSendFolder == CassoLinkManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
     m_context.prefs.fullSendExtension = choices.fullSendExtension;
     m_context.prefs.bootSoundPlace    = choices.bootSoundPlace;

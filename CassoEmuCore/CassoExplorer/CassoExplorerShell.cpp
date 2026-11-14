@@ -208,13 +208,14 @@ void CassoExplorerShell::StartBootWorker()
 //
 //  CassoExplorerShell::QueueBoot
 //
-//  A disk image in a list with no thumbnail, from an icon loader's thread.
+//  A disk image in a list with no thumbnail, from an icon loader's thread,
+//  when Options has thumbnails made automatically.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerShell::QueueBoot (const std::wstring & path)
 {
-    if (m_bootWorker != nullptr)
+    if (m_bootWorker != nullptr && m_prefs.autoThumbnails)
     {
         m_bootWorker->Queue (path, std::string());
     }

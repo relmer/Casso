@@ -56,18 +56,20 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiButton & clearThumbnails)
+void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & autoThumbnails, DxuiButton & clearThumbnails)
 {
     m_previewNote  = &previewNote;
     m_autoPreview  = &autoPreview;
     m_enterExpands = &enterExpands;
     m_register     = &registration;
+    m_thumbnails   = &autoThumbnails;
     m_clear        = &clearThumbnails;
 
     Adopt (previewNote);
     Adopt (autoPreview);
     Adopt (enterExpands);
     Adopt (registration);
+    Adopt (autoThumbnails);
     Adopt (clearThumbnails);
 }
 
@@ -90,7 +92,9 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     int  enterEnd     = enterTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
     int  registerTop  = enterEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
     int  registerEnd  = registerTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  clearTop     = registerEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
+    int  thumbsTop    = registerEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
+    int  thumbsEnd    = thumbsTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  clearTop     = thumbsEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
     int  clearEnd     = clearTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
 
 
@@ -101,6 +105,7 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     m_previewNote->Layout (RECT { boundsDip.left + scaler.ToPx (kNoteIndentDip), noteTop, boundsDip.right, noteBottom }, scaler);
     m_enterExpands->Layout (RECT { boundsDip.left, enterTop, boundsDip.right, enterEnd }, scaler);
     m_register->Layout    (RECT { boundsDip.left, registerTop, boundsDip.right, registerEnd }, scaler);
+    m_thumbnails->Layout  (RECT { boundsDip.left, thumbsTop, boundsDip.right, thumbsEnd }, scaler);
     m_clear->SetDpi       (scaler.GetDpi());
     m_clear->Layout       (RECT { boundsDip.left, clearTop, boundsDip.left + scaler.ToPx (kClearWidthDip), clearEnd });
 
@@ -119,7 +124,7 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
 
 bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_clear->OnMouse (ev);
+    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_thumbnails->OnMouse (ev) || m_clear->OnMouse (ev);
 }
 
 
@@ -521,6 +526,9 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_enterExpands.SetChecked (m_choices.enterExpands);
 
     m_general = CreatePage<CassoExplorerGeneralPage> (L"General");
+    m_autoThumbnails.SetLabel   (L"Automatically create thumbnails for disk images by booting them headlessly and capturing the screen");
+    m_autoThumbnails.SetChecked (m_choices.autoThumbnails);
+
     m_clearThumbnails.SetLabel   (L"Clear thumbnails...");
     m_clearThumbnails.SetEnabled ((bool) m_display.clearThumbnails);
     m_clearThumbnails.SetOnClick ([this] ()
@@ -531,7 +539,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
         }
     });
 
-    m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register, m_clearThumbnails);
+    m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register, m_autoThumbnails, m_clearThumbnails);
 
     m_hostNames = CreatePage<CassoExplorerHostNamesPage> (L"Host file names");
     m_hostNames->Init (m_namingNote, m_naming);
@@ -882,6 +890,7 @@ HRESULT CassoExplorerOptionsDialog::OnOk()
     m_choices.registered  = m_register.IsChecked();
     m_choices.autoPreview  = m_autoPreview.IsChecked();
     m_choices.enterExpands = m_enterExpands.IsChecked();
+    m_choices.autoThumbnails = m_autoThumbnails.IsChecked();
     m_choices.fullSendExtension = s_kFullSendFormats[(size_t) m_fullSendFormat.GetSelected()].extension;
     m_choices.bootSoundPlace    = m_fullSendSounds.GetSelected();
     m_choices.verifyReads       = m_verifyRows[0].toggle.IsChecked();
