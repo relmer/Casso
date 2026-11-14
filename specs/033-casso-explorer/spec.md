@@ -619,6 +619,8 @@ hardware.
 - Q: Is a boot check, a thumbnail and a name for each captured image part of 033? -> A: Yes. On 2026-11-13 the owner called it critical: without it the captured images aren't useful. It had been deferred as T713 and T720 an hour earlier; it is Story 43 now, for every disk image Casso Explorer lists and not Full Send's alone.
 - Q: Where is a thumbnail stored? -> A: In a cache under the user's local application data, a PNG whose file name is the image's content hash, with a copy in an alternate data stream of the image file. The owner chose the stream so a thumbnail travels with a moved or copied file; OneDrive, a zip, email and a FAT volume drop streams, so the cache restores it. A chunk inside a WOZ was set aside: it changes the file, whose hash the manifest has, and covers WOZ alone.
 - Q: How are orphaned thumbnails removed? -> A: The owner chose removal when the image is deleted in Casso Explorer, and nothing timed. An image deleted elsewhere has an orphan, which a command in Options clears.
+- Q: What counts as booted? -> A: The screen changed from its power-on state and the drive stopped seeking. Did not boot: the screen never changed, the machine stopped in the monitor or at a BASIC prompt with an error, or the drive sought without end. Anything else is unclear (the owner's choice of three, 2026-11-13; a verdict from any change of the screen would pass a loader that draws a logo and stops).
+- Q: Which machine is an image booted on? -> A: An enhanced //e with 128K, and once more on a ][+ when it did not boot there, so an older title that fails on a //e isn't reported as bad (the owner's choice, 2026-11-13).
 - Q: Is a separate rename feature built for captures saved as numbers? -> A: No. With the thumbnail beside the file, rename is F2.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -3600,10 +3602,14 @@ as they arrive.
 - **FR-274**: After a Full Send writes an image or a raw capture, and after
   Capture raw disk writes one, the image MUST be booted with no window and
   its result written as booted, did not boot, not bootable or unclear.
-  The session MUST NOT wait for the boot.
-  [NEEDS CLARIFICATION: what counts as booted]
-- **FR-275**: The boot MUST use
-  [NEEDS CLARIFICATION: which machine an image is booted on].
+  The session MUST NOT wait for the boot. An image booted when its screen
+  changed from the screen at power-on and its drive stopped seeking. It did
+  not boot when the screen never changed, when the machine stopped in the
+  monitor or at a BASIC prompt with an error, or when the drive went on
+  seeking to the end of the time allowed. Any other end is unclear.
+- **FR-275**: The boot MUST use an enhanced //e with 128K. An image that
+  did not boot there MUST be booted once more on a ][+ before its result
+  is written, and the result is the better of the two.
 - **FR-276**: A Full Send's manifest, its window's list of disks done and
   its activity list MUST have each image's boot result, and the Apple's
   screen MUST have a result of did not boot at the next pause.
