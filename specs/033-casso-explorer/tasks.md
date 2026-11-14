@@ -2104,6 +2104,7 @@ rename, move and copy an image and find its thumbnail on each.
 - [X] T735 [US43] Draw an image's thumbnail in place of the stock disk image icon in the large and extra large icon views, and in the preview pane with the boot result under it; an image in view with no thumbnail is queued on `ExplorerBootWorker` and its icon replaced when the picture arrives (FR-280, FR-281, SC-074) Done 2026-11-13 for the icon views: `IDiskPictures`, `DiskImagePictures`, `Win32ShellIcons::GetForDiskImage`, in every view with the label under the icon, checked on screen with seven captures in a scratch folder. The preview pane has the picture beside the platter, or above it in a narrow pane, and a line with the boot result under them
 - [ ] T736 [US43] Move, copy and remove the thumbnail with an image that Casso Explorer renames, moves, copies or deletes, and through a write of an image by Casso Explorer or Casso; add Remove thumbnail to a disk image's menu, and Clear thumbnails to Options with a confirmation that has the count of pictures the user set (FR-285 to FR-287)
 - [ ] T737 [US43] Add a command to Casso's disk menu that makes the screen the mounted image's thumbnail through `ThumbnailStore`, marked as set by the user (FR-284)
+- [ ] T742 [US43] Add a command to Casso's command line that sets a disk image's thumbnail from a picture file, removes it, or writes it to a file, through `ThumbnailStore` (asked for by the owner on 2026-11-14)
 
 ### Proof
 
