@@ -4,6 +4,8 @@
 
 #include "Core/UnicodeSymbols.h"
 #include "Core/TextEncoding.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Devices/BlockDevice/StockHardDiskImage.h"
 #include "Devices/SerialPortDevice.h"
 
 
@@ -504,6 +506,22 @@ void HardwarePage::Rebuild()
 
         for (i = 0; i < state->GetHardware().size(); ++i)
         {
+            const HardwareEntry  & entry = state->GetHardware()[i];
+
+            for (size_t port = 0; port < entry.ports.size(); ++port)
+            {
+                if (label == MakeTimingLabel (entry, port))
+                {
+                    HRESULT  hr = state->SetPortRealTiming (i, port, checked);
+
+                    IGNORE_RETURN_VALUE (hr, S_OK);
+                    return;
+                }
+            }
+        }
+
+        for (i = 0; i < state->GetHardware().size(); ++i)
+        {
             std::wstring  candidate = Widen (state->GetHardware()[i].displayName);
 
             if (candidate == label)
@@ -589,6 +607,8 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
         row.checked        = e.enabled;
         row.expanded       = true;
 
+        AddDriveRows (e, row);
+
         if (e.kind == HardwareEntryKind::InternalDevice)
         {
             internalGroup.children.push_back (std::move (row));
@@ -627,6 +647,113 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     }
 
     return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::AddDriveRows
+//
+//  A SmartPort or hard disk card's drives, as rows under its slot row, each
+//  with its image; a hard disk has a real timing row under it. The drive
+//  rows cannot be unchecked: a drive is removed by emptying its port.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::AddDriveRows (const HardwareEntry & entry, DxuiTreeNode & slotRow)
+{
+    const BlockCardSpec  * card = BlockDeviceCatalog::FindCard (entry.type);
+
+
+
+    if (card == nullptr)
+    {
+        return;
+    }
+
+    for (size_t port = 0; port < entry.ports.size(); ++port)
+    {
+        const BlockDriveSpec  * drive = BlockDeviceCatalog::FindDrive (entry.ports[port]);
+        DxuiTreeNode            driveRow;
+
+
+
+        if (drive == nullptr)
+        {
+            continue;
+        }
+
+        driveRow.label          = MakeDriveLabel (entry, port);
+        driveRow.capabilityFlag = DxuiTreeCapabilityFlag::Required;
+        driveRow.checked        = true;
+        driveRow.expanded       = true;
+
+        if (drive->hasRealTiming)
+        {
+            DxuiTreeNode  timing;
+
+
+
+            timing.label          = MakeTimingLabel (entry, port);
+            timing.capabilityFlag = DxuiTreeCapabilityFlag::Optional;
+            timing.checked        = port < entry.portRealTiming.size() && entry.portRealTiming[port];
+            timing.expanded       = false;
+            timing.lockReason     = L"The drive's spin-up and seek times, which make the firmware wait as a real drive does.";
+
+            driveRow.children.push_back (std::move (timing));
+        }
+
+        slotRow.children.push_back (std::move (driveRow));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::MakeDriveLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HardwarePage::MakeDriveLabel (const HardwareEntry & entry, size_t port)
+{
+    const BlockDriveSpec  * drive  = BlockDeviceCatalog::FindDrive (port < entry.ports.size() ? entry.ports[port] : std::string());
+    std::string             image  = port < entry.portImages.size() ? entry.portImages[port] : std::string();
+    std::wstring            unit   = (entry.type == kpszAppleScsiCardDevice) ? std::format (L"SCSI ID {}", port)
+                                                                             : std::format (L"Drive {}", port + 1);
+    std::wstring            name   = drive != nullptr ? Widen (drive->label) : std::wstring();
+    std::wstring            file   = image.empty()          ? std::wstring (L"no image")
+                                   : image == kpszStockImage ? Widen (StockHardDiskImage::kpszFileName)
+                                                             : std::filesystem::path (Widen (image)).filename().wstring();
+
+
+
+    return std::format (L"{}: {} ({})", unit, name, file);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::MakeTimingLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HardwarePage::MakeTimingLabel (const HardwareEntry & entry, size_t port)
+{
+    std::wstring  unit = (entry.type == kpszAppleScsiCardDevice) ? std::format (L"SCSI ID {}", port)
+                                                                 : std::format (L"drive {}", port + 1);
+
+
+
+    return std::format (L"Real timing, slot {} {}", entry.slot, unit);
 }
 
 

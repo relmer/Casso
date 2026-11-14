@@ -1578,6 +1578,86 @@ public:
     }
 
 
+    //  A HARD DISK'S IMAGE AND REAL TIMING SWITCH, AND A //C DISK PORT'S CHAIN,
+    //  SURVIVE A SAVE of an unrelated change.
+    TEST_METHOD (BuildJson_KeepsDriveImagesAndChains)
+    {
+        SettingsPanelState   st;
+        RecordingSink        sink;
+        JsonValue            outJson;
+        std::string          text;
+        JsonWriter::Options  opts;
+        JsonValue            v;
+        const char         * j = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "internalDevices": [ { "type": "keyboard" } ],
+            "slots": [ { "slot": 7, "device": "apple-scsi-card",
+                         "ports": [ "", { "device": "hd20sc", "image": "C:/a.hdv", "realTiming": true },
+                                    { "device": "hd20sc", "image": "stock" } ] } ],
+            "ports": [ { "name": "disk", "device": "", "chain": [ { "device": "unidisk35", "image": "u.po" } ] } ]
+        })JSON";
+
+
+
+        v = ParseOrFail (j);
+        st.LoadFromMachine ("X", v, v);
+
+        st.SetSpeedMode (SettingsSpeedMode::Double);
+        st.Apply (sink, outJson);
+
+        opts.fPretty = false;
+        JsonWriter::Write (outJson, opts, text);
+
+        Assert::IsTrue (text.find ("\"image\":\"C:/a.hdv\"") != std::string::npos);
+        Assert::IsTrue (text.find ("\"realTiming\":true")    != std::string::npos);
+        Assert::IsTrue (text.find ("\"image\":\"stock\"")    != std::string::npos);
+        Assert::IsTrue (text.find ("\"chain\"")              != std::string::npos);
+        Assert::IsTrue (text.find ("\"image\":\"u.po\"")     != std::string::npos);
+    }
+
+
+    //  THE REAL TIMING SWITCH IS SAVED WITH ITS DRIVE, and a port without a
+    //  hard disk has no switch.
+    TEST_METHOD (SetPortRealTiming_IsSavedWithTheDrive)
+    {
+        SettingsPanelState   st;
+        RecordingSink        sink;
+        JsonValue            outJson;
+        std::string          text;
+        JsonWriter::Options  opts;
+        JsonValue            v;
+        const char         * j = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "internalDevices": [ { "type": "keyboard" } ],
+            "slots": [ { "slot": 7, "device": "apple-scsi-card", "ports": [ "", "", "hd20sc" ] } ]
+        })JSON";
+        size_t               scsi = 0;
+        HRESULT              hr   = S_OK;
+
+
+
+        v = ParseOrFail (j);
+        st.LoadFromMachine ("X", v, v);
+
+        for (size_t i = 0; i < st.GetHardware().size(); i++)
+        {
+            scsi = (st.GetHardware()[i].type == "apple-scsi-card") ? i : scsi;
+        }
+
+        hr = st.SetPortRealTiming (scsi, 0, true);
+        Assert::IsTrue  (FAILED (hr), L"no drive on ID 0");
+        AssertSucceeded (st.SetPortRealTiming (scsi, 2, true));
+        st.Apply (sink, outJson);
+
+        opts.fPretty = false;
+        JsonWriter::Write (outJson, opts, text);
+
+        Assert::IsTrue (text.find ("{\"device\":\"hd20sc\",\"realTiming\":true}") != std::string::npos);
+    }
+
+
     TEST_METHOD (BuildJson_PreservesUnrelatedKeys)
     {
         SettingsPanelState   st;

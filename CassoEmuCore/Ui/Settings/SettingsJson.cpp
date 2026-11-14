@@ -7,6 +7,7 @@
 #include "Controllers/ControllerTokens.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Machines/MachineDefinitions.h"
 
 
@@ -983,6 +984,14 @@ HRESULT SettingsJson::ExtractMachinePorts (
         {
             port.name   = GetStringOpt (entry, SettingsPanelState::kpszPortNameKey,   "");
             port.device = GetStringOpt (entry, SettingsPanelState::kpszPortDeviceKey, "");
+
+            for (const auto & [key, value] : entry.GetObjectEntries())
+            {
+                if (key != SettingsPanelState::kpszPortNameKey && key != SettingsPanelState::kpszPortDeviceKey)
+                {
+                    port.otherKeys.emplace_back (key, CloneJson (value));
+                }
+            }
         }
 
         outPorts.push_back (std::move (port));
@@ -1121,6 +1130,11 @@ HRESULT SettingsJson::ExtractHardware (
                 }
             }
 
+            if (const BlockCardSpec * card = BlockDeviceCatalog::FindCard (dev); card != nullptr)
+            {
+                devNice = card->label;
+            }
+
             hw.kind        = HardwareEntryKind::Slot;
             hw.jsonIndex   = (int) i;
             hw.slot        = slotNum;
@@ -1148,6 +1162,9 @@ HRESULT SettingsJson::ExtractHardware (
                         hw.ports.push_back (port.GetType() == JsonType::String
                                             ? port.GetString()
                                             : GetStringOpt (port, SettingsPanelState::kpszPortDeviceKey, ""));
+
+                        hw.portImages.push_back     (port.GetType() == JsonType::Object ? GetStringOpt  (port, SettingsPanelState::kpszPortImageKey,  "")    : std::string());
+                        hw.portRealTiming.push_back (port.GetType() == JsonType::Object ? TryGetBoolOpt (port, SettingsPanelState::kpszPortTimingKey, false) : false);
 
                         if (j == 0 && port.GetType() == JsonType::Object)
                         {
@@ -1403,6 +1420,12 @@ JsonValue SettingsJson::BuildJson (
 
                         for (const std::string & device : staged->ports)
                         {
+                            size_t        portIndex = portArr.size();
+                            std::string   image     = portIndex < staged->portImages.size()     ? staged->portImages[portIndex]     : std::string();
+                            bool          isTimed   = portIndex < staged->portRealTiming.size() ? staged->portRealTiming[portIndex] : false;
+
+
+
                             // The first connector of a card with a file
                             // attachment is written as an object, to include the
                             // file's path, and so is one the printer has, to
@@ -1426,6 +1449,24 @@ JsonValue SettingsJson::BuildJson (
                                 if (!staged->portPathBeforePrinter.empty())
                                 {
                                     port.emplace_back (SettingsPanelState::kpszPortPathBeforeKey, JsonValue (staged->portPathBeforePrinter));
+                                }
+
+                                portArr.emplace_back (JsonValue (std::move (port)));
+                            }
+                            else if (!image.empty() || isTimed)
+                            {
+                                std::vector<std::pair<std::string, JsonValue>>  port;
+
+                                port.emplace_back (SettingsPanelState::kpszPortDeviceKey, JsonValue (device));
+
+                                if (!image.empty())
+                                {
+                                    port.emplace_back (SettingsPanelState::kpszPortImageKey, JsonValue (image));
+                                }
+
+                                if (isTimed)
+                                {
+                                    port.emplace_back (SettingsPanelState::kpszPortTimingKey, JsonValue (true));
                                 }
 
                                 portArr.emplace_back (JsonValue (std::move (port)));
@@ -1484,6 +1525,12 @@ JsonValue SettingsJson::BuildJson (
 
             entry.emplace_back (SettingsPanelState::kpszPortNameKey,   JsonValue (port.name));
             entry.emplace_back (SettingsPanelState::kpszPortDeviceKey, JsonValue (port.device));
+
+            for (const auto & [key, value] : port.otherKeys)
+            {
+                entry.emplace_back (key, CloneJson (value));
+            }
+
             portArr.emplace_back (JsonValue (std::move (entry)));
         }
 
@@ -1673,6 +1720,8 @@ bool SettingsJson::AreHardwareEqual (
              && a[i].capability  == b[i].capability
              && a[i].enabled     == b[i].enabled
              && a[i].ports       == b[i].ports
+             && a[i].portImages     == b[i].portImages
+             && a[i].portRealTiming == b[i].portRealTiming
              && a[i].portPath    == b[i].portPath
              && a[i].switchesSw1 == b[i].switchesSw1
              && a[i].switchesSw2 == b[i].switchesSw2

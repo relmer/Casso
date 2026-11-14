@@ -144,6 +144,12 @@ struct HardwareEntry
     // never had ports does not acquire an empty list by being looked at.
     std::vector<std::string>  ports;
 
+    // A hard disk's or 3.5-inch drive's image and real timing switch, by
+    // port, beside `ports`; written as the port's object form when either is
+    // set, so saving the tab keeps a card's images.
+    std::vector<std::string>  portImages;
+    std::vector<bool>         portRealTiming;
+
     // A Super Serial Card's DIP switches as "on off ..." text, and the host
     // file its first connector's attachment uses. Empty for every other card,
     // and BuildJson does not write the slot's keys while they are empty.
@@ -180,6 +186,10 @@ struct SettingsMachinePort
 {
     std::string  name;      // "disk", "serial1", "joystick"
     std::string  device;    // what is attached; empty for an unoccupied port
+
+    // The port object's other keys, such as a disk port's `chain`, written
+    // back as they were read.
+    std::vector<std::pair<std::string, JsonValue>>  otherKeys;
 };
 
 
@@ -393,6 +403,10 @@ public:
 
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
+    // A hard disk's real timing switch, by hardware entry and port. Fails on
+    // a port without a drive that has the switch.
+    HRESULT SetPortRealTiming (size_t index, size_t port, bool isOn);
+
     // The Uthernet II. The machine's slot list places it and the Machine tab
     // turns it on; turned on with no MAC address, it gets a random locally
     // administered one.
@@ -424,6 +438,8 @@ private:
     static constexpr const char *  kpszPortNameKey  = "name";
     static constexpr const char *  kpszPortDeviceKey = "device";
     static constexpr const char *  kpszPortPathKey   = "path";
+    static constexpr const char *  kpszPortImageKey  = "image";
+    static constexpr const char *  kpszPortTimingKey = "realTiming";
     static constexpr const char *  kpszPortBeforeKey = "beforePrinter";
     static constexpr const char *  kpszPortPathBeforeKey = "pathBeforePrinter";
     static constexpr const char *  kpszSwitchesKey   = "switches";

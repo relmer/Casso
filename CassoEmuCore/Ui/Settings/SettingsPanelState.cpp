@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "SettingsPanelState.h"
 #include "Ui/Settings/SettingsJson.h"
 
@@ -608,6 +609,43 @@ void SettingsPanelState::SetSecondDriveAttached (bool attached)
 void SettingsPanelState::SetMouseConnected (bool connected)
 {
     m_current.prefs.mouseConnected = connected;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPortRealTiming
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetPortRealTiming (size_t index, size_t port, bool isOn)
+{
+    HRESULT                 hr            = S_OK;
+    size_t                  hardwareCount = m_current.hardware.size();
+    HardwareEntry         * entry         = nullptr;
+    const BlockDriveSpec  * drive         = nullptr;
+    bool                    hasPort       = false;
+
+
+
+    CBR (index < hardwareCount);
+
+    entry   = &m_current.hardware[index];
+    hasPort = port < entry->ports.size();
+    CBR (hasPort);
+
+    drive = BlockDeviceCatalog::FindDrive (entry->ports[port]);
+    CBR (drive != nullptr && drive->hasRealTiming);
+
+    entry->portRealTiming.resize (entry->ports.size(), false);
+    entry->portImages.resize     (entry->ports.size());
+    entry->portRealTiming[port] = isOn;
+
+Error:
+    return hr;
 }
 
 

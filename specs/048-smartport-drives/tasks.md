@@ -185,13 +185,13 @@ chains.
 **Goal**: Every card and drive is reachable from the Machine tab, the desk
 and the command line, and persists.
 
-- [ ] T074 [P] [US6] Tests in `UnitTest/Settings/HardwarePageModelTests.cpp`: the device tree lists each card with its ports (SCSI IDs 0-6, chain positions), offers a card only on a machine in its host list with a tip that lists the machines that accept it, confirms before replacing a card in a filled slot, limits a chain to its length limit with the limit in the tip, and has a real timing switch on each hard disk, off by default and saved with the machine
-- [ ] T075 [US6] Extend the device tree in `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp` and `SettingsPanelState` with cards, drives, image attach, and the per-drive real timing switch (FR-023b)
+- [ ] T074 [P] [US6] (partly done: drive rows, images and the real timing switch, in `HardwarePageTests::BuildNodes_BlockCardDrivesAndRealTiming` and `SettingsPanelStateTests`; offering a card per slot and replacing a card remain) Tests in `UnitTest/Settings/HardwarePageModelTests.cpp`: the device tree lists each card with its ports (SCSI IDs 0-6, chain positions), offers a card only on a machine in its host list with a tip that lists the machines that accept it, confirms before replacing a card in a filled slot, limits a chain to its length limit with the limit in the tip, and has a real timing switch on each hard disk, off by default and saved with the machine
+- [ ] T075 [US6] (partly done, see T074) Extend the device tree in `CassoEmuCore/Ui/Settings/HardwarePage.h/.cpp` and `SettingsPanelState` with cards, drives, image attach, and the per-drive real timing switch (FR-023b)
 - [X] T076 [P] [US6] Tests in `UnitTest/EmuTests/CommandLineTests.cpp`: `--hd <slot>=`, `--hd <slot>.<unit>=` and `--smartport <n>=` per `contracts/command-line.md`, each error in the fixed error layout, the saved configuration untouched after the run, and both flags as rows of the `--help` dialog, which `CommandLineHelp::GetEmulatorRows` builds from the parser's `s_kEmulatorFlags` table, so a row added there appears in the dialog
 - [X] T077 [US6] Implement the flags in core beside `--disk1`, and add their rows to `s_kEmulatorFlags` in `CassoCore/CommandLineParser.cpp`
 - [ ] T078 [P] [US6] Tests in `UnitTest/Ui/DriveWidgetStateTests.cpp`: dropping an image on a drive attaches it with the same validation as the Machine tab (FR-017), and a missing image file results in an empty drive and a notice
 - [ ] T079 [US6] Extend `DriveWidgetState` and `IDriveCommandSink` in `CassoEmuCore/Ui/` for block devices and 3.5-inch drives
-- [ ] T080 [US6] Persistence test in `UnitTest/EmuTests/MachineConfigTests.cpp`: configure every card and drive, write and reload the machine file, and compare (FR-014)
+- [X] T080 [US6] Done as `SettingsPanelStateTests::BuildJson_KeepsDriveImagesAndChains`, which caught the Machine tab writing ports back as bare strings and dropping the images. Original text: Persistence test in `UnitTest/EmuTests/MachineConfigTests.cpp`: configure every card and drive, write and reload the machine file, and compare (FR-014)
 
 ---
 

@@ -104,6 +104,13 @@ public:
                                                   bool supportsMouse  = false,
                                                   bool mouseConnected = true);
 
+    // A SmartPort or hard disk card's drive row, "SCSI ID 6: Apple Hard Disk
+    // 20SC (Stock hard disk.hdv)", and its real timing row. Exposed for unit
+    // tests.
+    static std::wstring  MakeDriveLabel  (const HardwareEntry & entry, size_t port);
+    static std::wstring  MakeTimingLabel (const HardwareEntry & entry, size_t port);
+    static void          AddDriveRows    (const HardwareEntry & entry, DxuiTreeNode & slotRow);
+
     // Pure helper: what a //c serial port can connect to -- nothing, the
     // ImageWriter II, its own TCP port on this PC, or one of the PC's COM
     // ports -- as labels and the
