@@ -249,6 +249,7 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
     ids.push_back (IDM_VIEW_AUTOHIDE_DRIVES);
     ids.push_back (IDM_VIEW_FLOPPIES_ON_DESK);
     ids.push_back (IDM_VIEW_HARD_DISKS_ON_DESK);
+    ids.push_back (IDM_VIEW_FLOPPY_PAIR_BESIDE);
 
     for (int id : ids)
     {

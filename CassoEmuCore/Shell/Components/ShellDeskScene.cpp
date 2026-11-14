@@ -3291,7 +3291,8 @@ void ShellDeskScene::PlanDrives()
     m_drivePlan = DeskDrivePlan::Place (DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), CountDiskIiDrives(), m_shell.m_disks->MachineHasBuiltInDrive()),
                                         DeskDrivePlan::ParsePlace (prefs.deskFloppies),
                                         DeskDrivePlan::ParsePlace (prefs.deskHardDisks),
-                                        monitor);
+                                        monitor,
+                                        prefs.deskFloppyPairBeside);
 
     for (const DeskDrivePlacement & placed : m_drivePlan)
     {
@@ -3371,6 +3372,35 @@ void ShellDeskScene::ToggleClassOnDesk (DeskDriveClass driveClass)
 
 
     (driveClass == DeskDriveClass::Floppy ? prefs.deskFloppies : prefs.deskHardDisks) = place;
+    m_shell.m_settings->SaveGlobalPrefs();
+
+    PlanDrives();
+
+    if (m_shell.m_hwnd != nullptr && GetClientRect (m_shell.m_hwnd, &rcClient))
+    {
+        (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left), (UINT) (rcClient.bottom - rcClient.top));
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::ToggleFloppyPairBeside
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::ToggleFloppyPairBeside()
+{
+    GlobalUserPrefs  & prefs    = m_shell.m_settings->GetPrefs();
+    RECT               rcClient = {};
+
+
+
+    prefs.deskFloppyPairBeside = !prefs.deskFloppyPairBeside;
     m_shell.m_settings->SaveGlobalPrefs();
 
     PlanDrives();

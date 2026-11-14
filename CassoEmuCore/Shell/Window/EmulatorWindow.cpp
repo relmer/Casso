@@ -619,6 +619,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_VIEW_AUTOHIDE_DRIVES:    return m_settings->GetPrefs().autoHideDrives;
             case IDM_VIEW_FLOPPIES_ON_DESK:   return m_scene->IsClassOnDesk (DeskDriveClass::Floppy);
             case IDM_VIEW_HARD_DISKS_ON_DESK: return m_scene->IsClassOnDesk (DeskDriveClass::HardDisk);
+            case IDM_VIEW_FLOPPY_PAIR_BESIDE: return m_settings->GetPrefs().deskFloppyPairBeside;
 
             default:                          return false;
         }

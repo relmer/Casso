@@ -328,14 +328,14 @@ public:
         AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
 
         Assert::AreEqual (1, comp.extraCount);
-        Assert::IsTrue   (comp.extraRectPx[0].right <= comp.driveRectPx[0].left, L"the hard disk is left of the drives, without overlap");
+        Assert::IsTrue   (comp.extraWorld[0][12] + 245.0f <= comp.driveWorld[0][12] + metrics.driveMin[0], L"the hard disk is left of the drives, without overlap");
         Assert::IsTrue   (comp.extraRectPx[0].left  >= vp.left,                  L"and inside the frame");
 
         AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f, kSlideClearPx, comp));
 
         Assert::AreEqual (1, comp.extraCount);
         Assert::IsTrue   (comp.extraRectPx[0].left  >= vp.left);
-        Assert::IsTrue   (comp.extraRectPx[0].right <= comp.driveRectPx[0].left);
+        Assert::IsTrue   (comp.extraWorld[0][12] + 245.0f * comp.extraWorld[0][0] <= comp.driveWorld[0][12] + metrics.driveMin[0] * comp.driveWorld[0][0]);
     }
 
 
@@ -364,7 +364,7 @@ public:
         Assert::AreEqual (114.0f, comp.monitorWorld[13], 0.01f, L"the monitor stands on the ProFile");
         Assert::IsTrue   (comp.driveWorld[1][13] > comp.driveWorld[0][13], L"drive 2 stands on drive 1");
         Assert::AreEqual (comp.driveWorld[0][12], comp.driveWorld[1][12], 0.01f, L"in one column");
-        Assert::IsTrue   (comp.driveRectPx[0].left >= comp.extraRectPx[0].right - 1, L"right of the ProFile");
+        Assert::IsTrue   (comp.driveWorld[0][12] + metrics.driveMin[0] >= comp.extraWorld[0][12] + 439.0f, L"right of the ProFile");
     }
 
 

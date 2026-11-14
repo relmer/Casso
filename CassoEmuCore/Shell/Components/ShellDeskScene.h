@@ -59,6 +59,7 @@ public:
     void                                     PlanDrives        ();
     bool                                     IsClassOnDesk     (DeskDriveClass driveClass) const;
     void                                     ToggleClassOnDesk (DeskDriveClass driveClass);
+    void                                     ToggleFloppyPairBeside ();
 
     // The Disk II drives the machine has, on the desk or not.
     int   CountDiskIiDrives () const;

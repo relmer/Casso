@@ -59,6 +59,7 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_VIEW_AUTOHIDE_DRIVES,     MainMenuId::View,    L"&Auto-hide drives",      nullptr,          true   },
     { IDM_VIEW_FLOPPIES_ON_DESK,    MainMenuId::View,    L"F&loppy drives on the desk", nullptr,      true   },
     { IDM_VIEW_HARD_DISKS_ON_DESK,  MainMenuId::View,    L"&Hard disks on the desk", nullptr,         true   },
+    { IDM_VIEW_FLOPPY_PAIR_BESIDE,  MainMenuId::View,    L"&Two floppies beside the monitor", nullptr, true  },
     { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip",           L"F8"            },
     { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset view",            L"Ctrl+0"        },
     { IDM_VIEW_FRAME_RATE,          MainMenuId::View,    L"Frame &rate",            nullptr,          true   },

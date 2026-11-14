@@ -94,8 +94,9 @@ struct DeskDrivePlacement
 //      and the narrowest on top.
 //    - A single hard disk at least as wide as the monitor, less a few
 //      millimeters, goes under it, and the floppies stack on the right.
-//    - Otherwise two floppies sit side by side under the monitor, and the
-//      hard disks stack on the left.
+//    - Otherwise two floppies sit side by side under the monitor, or stack
+//      on the right with `floppyPairBeside`, and the hard disks stack on the
+//      left.
 //    - A single floppy, or more than two, stacks on the right, the hard
 //      disks on the left, and nothing is under the monitor.
 //
@@ -124,7 +125,8 @@ public:
     static std::vector<DeskDrivePlacement>  Place (const std::vector<DeskDrive> & drives,
                                                    DeskClassPlace                 floppies,
                                                    DeskClassPlace                 hardDisks,
-                                                   float                          monitorWidthMm);
+                                                   float                          monitorWidthMm,
+                                                   bool                           floppyPairBeside = false);
 
 private:
     static void  Stack (std::vector<DeskDrivePlacement> & out, const std::vector<DeskDrive> & drives, DeskDriveSpot spot);

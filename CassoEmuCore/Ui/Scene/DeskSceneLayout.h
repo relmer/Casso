@@ -350,6 +350,7 @@ public:
     // front plane, so it reads as set down on the desk in front of the
     // stack's corner rather than lined up with it.
     static constexpr float  kRecorderGapMm         = 40.0f;
+    static constexpr float  kStackGapMm            = 15.0f;    // a stack to the monitor beside it
     static constexpr float  kRecorderForwardMm     = 30.0f;
 
     // Air over a risen door, on top of the rise itself. Enough that the gap

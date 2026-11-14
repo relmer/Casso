@@ -455,6 +455,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_AUTOHIDE_DRIVES)                               { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_FLOPPIES_ON_DESK || id == IDM_VIEW_HARD_DISKS_ON_DESK) { route = WindowCommandRoute::View; }
+    else if (id == IDM_VIEW_FLOPPY_PAIR_BESIDE)                            { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_FRAME_RATE)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_SCENE_VIEW)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_CONTROLLER_SETTINGS)                           { route = WindowCommandRoute::View; }
@@ -944,6 +945,12 @@ void WindowCommandManager::OnViewCommand (int id)
         case IDM_VIEW_HARD_DISKS_ON_DESK:
         {
             m_shell.m_scene->ToggleClassOnDesk ((id == IDM_VIEW_FLOPPIES_ON_DESK) ? DeskDriveClass::Floppy : DeskDriveClass::HardDisk);
+            break;
+        }
+
+        case IDM_VIEW_FLOPPY_PAIR_BESIDE:
+        {
+            m_shell.m_scene->ToggleFloppyPairBeside();
             break;
         }
 

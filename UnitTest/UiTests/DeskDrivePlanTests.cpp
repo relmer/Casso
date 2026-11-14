@@ -200,6 +200,18 @@ public:
     }
 
 
+    //  With the pair set beside the monitor, two floppies stack on the right.
+    TEST_METHOD (FloppyPair_BesideTheMonitorWhenSet)
+    {
+        auto  plan = DeskDrivePlan::Place ({ { M::DiskII, 6, 0 }, { M::DiskII, 6, 1 } }, P::Auto, P::Auto, kMonitorII, true);
+
+
+
+        Assert::IsTrue (Find (plan, M::DiskII, 0).spot == S::RightStack);
+        Assert::IsTrue (Find (plan, M::DiskII, 1).spot == S::RightStack);
+    }
+
+
     //  A class set to the drive bar goes there whatever its size, and a
     //  class set to the desk stays there.
     TEST_METHOD (Settings_OverrideTheCount)

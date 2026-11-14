@@ -54,6 +54,9 @@ struct GlobalUserPrefs
     std::string  deskFloppies        = "auto";
     std::string  deskHardDisks       = "auto";
 
+    // Two floppies on the desk stack beside the monitor rather than under it.
+    bool         deskFloppyPairBeside = false;
+
     // The frames-per-second readout over the picture.
     //
     // OFF UNTIL ASKED FOR, in every build. It used to default on in a debug

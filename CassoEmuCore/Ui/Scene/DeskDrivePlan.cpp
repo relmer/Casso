@@ -85,7 +85,8 @@ bool DeskDrivePlan::IsOnDesk (DeskClassPlace place, size_t count)
 std::vector<DeskDrivePlacement> DeskDrivePlan::Place (const std::vector<DeskDrive> & drives,
                                                       DeskClassPlace                 floppies,
                                                       DeskClassPlace                 hardDisks,
-                                                      float                          monitorWidthMm)
+                                                      float                          monitorWidthMm,
+                                                      bool                           floppyPairBeside)
 {
     std::vector<DeskDrivePlacement>  out;
     std::vector<DeskDrive>           floppy;
@@ -122,7 +123,7 @@ std::vector<DeskDrivePlacement> DeskDrivePlan::Place (const std::vector<DeskDriv
     {
         Stack (out, floppy, DeskDriveSpot::DriveBar);
     }
-    else if (wideHardDisk || floppy.size() != 2)
+    else if (wideHardDisk || floppy.size() != 2 || floppyPairBeside)
     {
         Stack (out, floppy, DeskDriveSpot::RightStack);
     }
