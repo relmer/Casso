@@ -235,7 +235,6 @@ void ExplorerDeletion::RemoveThumbnails (const std::vector<std::wstring> & paths
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerDeletion::ConfirmA2PicoDrives
