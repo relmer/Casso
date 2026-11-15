@@ -5,6 +5,7 @@
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellRenderer.h"
 #include "Ui/Chrome/DriveWidget.h"
 
 
@@ -19,6 +20,9 @@
 //  widgets placed in them and the ones the control draws line up. The bar is
 //  drawn at the window's DPI, not zoomed with the desk scene: the scene
 //  zooms out to fit the desk, and the bar shrank with it.
+//
+//  With auto-hide on the desk, the row rises from the bottom edge as far as
+//  the desk slide has come, and the bar is hidden while the slide is down.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +42,10 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
 
 
 
-    m_driveBarDpi = dpi;
+    m_driveBarDpi     = dpi;
+    m_driveBarInsetPx = bottomInsetPx;
+    m_driveBarClientW = clientW;
+    m_driveBarClientH = clientH;
     scaler.SetDpi (dpi);
 
     fan.SetClasses (DriveBarFan::Group (m_shell.m_scene->GetDrivePlan()));
@@ -49,14 +56,67 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
     originX = std::max (0, (clientW - DriveBarFan::GetRowWidth (fan.GetClassCount(), slot.cx, gap)) / 2);
     rowTop  = std::max (clientH - bottomInsetPx, clientH - (int) slot.cy - bottomGap);
 
+    if (m_shell.IsDeskSlideActive())
+    {
+        rowTop = clientH - (int) lroundf (m_deskSlideProgress * (float) (slot.cy + bottomGap));
+    }
+
     fan.Layout (originX, rowTop, slot, gap, gapY, pad);
+
+    if (m_shell.IsDeskSlideActive() && m_deskSlideProgress <= 0.0f)
+    {
+        fan.Close();
+    }
 
     m_driveBarFan.SetDpi     (dpi);
     m_driveBarFan.SetBounds  (RECT { 0, 0, clientW, clientH });
-    m_driveBarFan.SetVisible (fan.GetClassCount() > 0);
+    m_driveBarFan.SetVisible (fan.GetClassCount() > 0 && (!m_shell.IsDeskSlideActive() || m_deskSlideProgress > 0.0f));
 
     PlaceDriveBarWidgets();
     (void) SyncDriveBarViews();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::SlideDriveBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::SlideDriveBar()
+{
+    if (m_driveBarClientW > 0 && m_shell.m_scene->AreDrivesOnBar() && !m_shell.m_renderer->GetD3D().IsFullscreen())
+    {
+        LayoutDriveBar (m_driveBarInsetPx, m_driveBarClientW, m_driveBarClientH, m_driveBarDpi);
+        m_shell.m_scene->SyncSceneDriveChrome();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::IsPointOnDriveBar
+//
+//  On a visible drive's slot or on the open fan's panel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellChrome::IsPointOnDriveBar (POINT pt) const
+{
+    const DriveBarFan  & fan   = m_driveBarFan.GetFan();
+    RECT                 panel = fan.GetPanelRect();
+    int                  c     = -1;
+    int                  entry = -1;
+
+
+
+    return m_driveBarFan.IsVisible() && (fan.HitTest (pt, c, entry) || PtInRect (&panel, pt) != FALSE);
 }
 
 

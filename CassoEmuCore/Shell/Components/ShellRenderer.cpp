@@ -858,7 +858,7 @@ bool ShellRenderer::TryPresentUiFrame()
     // 2D widgets laid into the band, so fullscreen hides the drives the same
     // way everywhere and brings them back the same way too.
     bool  stripHasDrives = m_shell.DeskSceneActive()
-                         ? m_shell.m_scene->DeskSceneDriveCount() > 0
+                         ? m_shell.m_scene->DeskSceneDriveCount() > 0 || m_shell.m_scene->AreDrivesOnBar()
                          : (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
 
     // On the windowed desk with the monitor, the same FSM moves the desk's
@@ -892,7 +892,7 @@ bool ShellRenderer::TryPresentUiFrame()
 
             inputs.pointerAtBottomEdge = PtInRect (&area, cursor) && cursor.y >= edgeTop;
             inputs.pointerOverStrip    = m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden &&
-                                         PtInRect (&engageRect, cursor);
+                                         (PtInRect (&engageRect, cursor) || (deskSlide && m_shell.m_chrome->IsPointOnDriveBar (cursor)));
         }
 
         inputs.hotkey        = m_shell.m_scene->m_stripHotkeyPending;
@@ -946,6 +946,7 @@ bool ShellRenderer::TryPresentUiFrame()
             if (progress != m_shell.m_chrome->m_deskSlideProgress)
             {
                 m_shell.m_chrome->ComposeDeskSlide (progress);
+                m_shell.m_chrome->SlideDriveBar();
                 m_d3dRenderer.MarkRedrawNeeded();
             }
         }

@@ -117,6 +117,12 @@ public:
     bool    HandleDriveBarClick    (POINT pt);
     bool    SyncDriveBarViews      ();
 
+    // With auto-hide on the desk, the bar rides the desk slide: it is laid
+    // out again at the slide's progress. The slide remains up while the
+    // pointer is on the bar or on its fan.
+    void    SlideDriveBar          ();
+    bool    IsPointOnDriveBar      (POINT pt) const;
+
     void    LayoutSwitchBar        (UINT dpi);
     void    SyncSwitchBarState     ();
     void    HandleSwitchBarClick   (Apple2cSwitchBar::Part part);
@@ -231,6 +237,9 @@ private:
     // at, which the Disk II widgets placed in them are laid out at too.
     DriveBarFanControl         m_driveBarFan;
     UINT                       m_driveBarDpi        = 96;
+    int                        m_driveBarInsetPx    = 0;
+    int                        m_driveBarClientW    = 0;
+    int                        m_driveBarClientH    = 0;
     int                        m_driveBarHoverClass = -1;
     int                        m_driveBarHoverEntry = -1;
 
