@@ -314,6 +314,94 @@ void CassoExplorerBrowser::SetShellVerbs (IShellItemVerbs * verbs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::QueueVolumeFacts
+//
+//  Each image row's file system and volume name: the ones already read go
+//  in the row now, and the rest are queued for the worker, in place of the
+//  last folder's. `folder` is the folder the rows are in, or empty for rows
+//  with their own path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::QueueVolumeFacts (const std::wstring & folder)
+{
+    std::vector<ImageVolumeFacts::Request>  requests;
+    VolumeFacts                             facts;
+
+
+
+    for (CatalogRow & row : m_rows)
+    {
+        std::wstring  path = folder.empty() ? row.hostPath : JoinPath (folder, row.name);
+
+
+
+        if (!row.isDiskImage || row.isDirectory || path.empty())
+        {
+            continue;
+        }
+
+        if (m_volumeFacts.TryGet (path, row.sizeBytes, row.modifiedUnix, facts))
+        {
+            row.collection.fileSystem = facts.fileSystem;
+            row.collection.volumeName = facts.volumeName;
+            continue;
+        }
+
+        requests.push_back (ImageVolumeFacts::Request { path, row.sizeBytes, row.modifiedUnix });
+    }
+
+    m_volumeFacts.Queue (requests);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::ApplyVolumeFacts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::ApplyVolumeFacts()
+{
+    VolumeFacts  facts;
+    Location     at        = GetLocation();
+    bool         isChanged = false;
+
+
+
+    for (CatalogRow & row : m_rows)
+    {
+        std::wstring  path = !row.hostPath.empty()                  ? row.hostPath
+                           : (at.kind == Location::Kind::HostFolder) ? JoinPath (at.path, row.name)
+                                                                     : std::wstring();
+
+
+
+        if (!row.isDiskImage || row.isDirectory || path.empty() || !row.collection.fileSystem.empty())
+        {
+            continue;
+        }
+
+        if (m_volumeFacts.TryGet (path, row.sizeBytes, row.modifiedUnix, facts) && !(facts == VolumeFacts()))
+        {
+            row.collection.fileSystem = facts.fileSystem;
+            row.collection.volumeName = facts.volumeName;
+            isChanged                 = true;
+        }
+    }
+
+    return isChanged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::SortRows
 //
 ////////////////////////////////////////////////////////////////////////////////

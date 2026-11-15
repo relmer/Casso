@@ -125,6 +125,8 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
         }
     }
 
+    m_browser.QueueVolumeFacts (path);
+
     return hr;
 }
 
@@ -647,6 +649,8 @@ HRESULT BrowserLoader::LoadCassoImages()
         row.sourceIndex = m_browser.m_rows.size();
         m_browser.m_rows.push_back (std::move (row));
     }
+
+    m_browser.QueueVolumeFacts (std::wstring());
 
 Error:
     return hr;

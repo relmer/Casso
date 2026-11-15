@@ -1362,6 +1362,39 @@ void ExplorerListPane::RefreshContentDetails()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListPane::RefreshVolumeCells
+//
+//  The built rows' File system and Volume name cells again, now that more
+//  images have been read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListPane::RefreshVolumeCells()
+{
+    const std::vector<CatalogRow> & rows       = m_context.browser.GetRows();
+    size_t                          fileSystem = (size_t) CatalogModel::Column::FileSystem;
+    size_t                          volumeName = (size_t) CatalogModel::Column::VolumeName;
+
+
+
+    for (size_t at = 0; at < m_rowCells.size() && at < rows.size(); at++)
+    {
+        if (m_rowBuilt[at] && m_rowCells[at].size() > volumeName)
+        {
+            m_rowCells[at][fileSystem].text = rows[at].collection.fileSystem;
+            m_rowCells[at][volumeName].text = rows[at].collection.volumeName;
+        }
+    }
+
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListPane::RefreshListIcons
 //
 //  The rows' icons again, now that more have loaded; nothing else about the
@@ -1981,6 +2014,8 @@ void ExplorerListPane::StartLoaders()
     m_listIcons.LoadInBackground (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerIconsLoaded);
     m_contentDetails.Start (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerContentDetails);
     m_propertyValues.Start (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerContentDetails);
+
+    m_context.browser.SetVolumeFactsNotify ([hwnd = m_context.window.GetHwnd()] () { PostMessageW (hwnd, (UINT) AppMessage::ExplorerVolumeFacts, 0, 0); });
 }
 
 

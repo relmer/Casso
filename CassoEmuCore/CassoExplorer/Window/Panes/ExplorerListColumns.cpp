@@ -221,6 +221,12 @@ bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Locatio
         return true;
     }
 
+    //  An image's file system and volume name are in an ordinary folder too.
+    if (column == (size_t) CatalogModel::Column::FileSystem || column == (size_t) CatalogModel::Column::VolumeName)
+    {
+        return chosen && (results || kind == Location::Kind::HostFolder);
+    }
+
     if (CatalogModel::IsCollectionColumn (column))
     {
         return chosen && results;

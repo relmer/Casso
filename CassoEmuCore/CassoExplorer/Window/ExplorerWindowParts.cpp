@@ -353,6 +353,16 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
+    if (msg == (UINT) AppMessage::ExplorerVolumeFacts)
+    {
+        if (context.browser.ApplyVolumeFacts())
+        {
+            listPane.RefreshVolumeCells();
+        }
+
+        return true;
+    }
+
     if (msg == (UINT) AppMessage::ExplorerIconsLoaded)
     {
         listPane.HandleIconsLoaded();

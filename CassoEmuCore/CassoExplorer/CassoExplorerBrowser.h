@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/BrowserModel.h"
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/TypedPathHistory.h"
+#include "CassoExplorer/Model/ImageVolumeFacts.h"
 #include "Devices/Disk/ImageClassCache.h"
 #include "Shell/DiskMru.h"
 
@@ -349,6 +350,12 @@ public:
     using RecentLoadsFn = std::function<std::vector<DiskMru::Entry> ()>;
     void                    SetRecentLoads       (RecentLoadsFn recentLoads)     { m_recentLoads = std::move (recentLoads); }
 
+    //  Called on a worker's thread when an image's file system and volume
+    //  name are read; ApplyVolumeFacts, on the window's thread, puts them in
+    //  the rows and returns whether any row changed.
+    void                    SetVolumeFactsNotify (std::function<void ()> notify) { m_onVolumeFacts = std::move (notify); }
+    bool                    ApplyVolumeFacts     ();
+
     //  Until set, a card that is not open is not opened, so the tabs restored
     //  at launch raise no UAC prompt.
     void                    SetCardOpenAllowed   (bool allowed)                 { m_cardOpenAllowed = allowed; }
@@ -417,6 +424,7 @@ private:
 
     CassoExplorerShellListings  m_shellListings;
     void  SortRows               ();
+    void  QueueVolumeFacts       (const std::wstring & folder);
     std::vector<CatalogRow>  m_homeRows;            // all of Home's items; the rows are Quick access and one tab's
     int                      m_homeTab         = 0;
     Location                 m_homeParent;
@@ -437,6 +445,8 @@ private:
     IFileSystem                       & m_fs;
     IDiskFileIo                       & m_fileIo;
     ImageClassCache                     m_imageClasses;
+    std::function<void ()>              m_onVolumeFacts;
+    ImageVolumeFacts                    m_volumeFacts    { m_fileIo, [this] () { if (m_onVolumeFacts) { m_onVolumeFacts(); } } };
     TreeModel                           m_tree;
     BrowserModel                        m_model;
     DiskOperations                      m_operations;
