@@ -991,11 +991,11 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
             m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
         }
 
-        if (m_context.app.pictures != nullptr && m_context.app.pictures->IsUserSet (image))
+        if (m_context.app.pictures != nullptr && m_context.app.pictures->HasThumbnail (image))
         {
             m_context.menus.AddMenuCommand (items, L"Remove thum&bnail", [this, image]()
             {
-                HRESULT  removed = m_context.app.pictures->RemoveUserSet (image);
+                HRESULT  removed = m_context.app.pictures->RemoveThumbnail (image);
 
                 IGNORE_RETURN_VALUE (removed, S_OK);
             });

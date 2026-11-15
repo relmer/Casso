@@ -40,12 +40,12 @@ public:
     void    SetQueuedCount (CountFn count) { m_count = std::move (count); }
     size_t  GetQueued      () override     { return m_count ? m_count() : 0; }
 
-    bool                      IsUserSet     (const std::wstring & path) override;
-    HRESULT                   RemoveUserSet (const std::wstring & path) override;
-    std::vector<std::string>  GetKeys       (const std::vector<std::wstring> & paths) override;
-    void                      RemoveDeleted (const std::vector<std::string> & keys) override;
-    int                       CountUserSet  () override;
-    HRESULT                   Clear         (bool includeUserSet) override;
+    bool                      HasThumbnail    (const std::wstring & path) override;
+    HRESULT                   RemoveThumbnail (const std::wstring & path) override;
+    std::vector<std::string>  GetKeys         (const std::vector<std::wstring> & paths) override;
+    void                      RemoveDeleted   (const std::vector<std::string> & keys) override;
+    int                       CountUserSet    () override;
+    HRESULT                   Clear           (bool includeUserSet) override;
 
     //  Posts each target its message.
     void  NotifyReady  (WPARAM wParam = 0);
