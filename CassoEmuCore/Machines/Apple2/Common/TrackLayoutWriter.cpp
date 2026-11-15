@@ -28,13 +28,14 @@ HRESULT TrackLayoutWriter::BuildTrack (const std::vector<Byte> & sectors, int tr
     long long             start0    = 0;
     long long             length    = 0;
     long long             shift     = 0;
+    bool                  isWhole   = sectors.size() >= (size_t) NibblizationLayer::kImageByteSize;
     std::vector<uint8_t>  bits;
 
 
 
     outBits.clear();
 
-    CBREx (track >= 0 && track < NibblizationLayer::kTrackCount && sectors.size() >= (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (track >= 0 && track < NibblizationLayer::kTrackCount && isWhole, E_INVALIDARG);
     CBREx (syncs >= NibblizationLayer::kSectorsPerTrack * kMinGapSyncs && fills >= 0, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     bits.reserve ((size_t) layout.bits);
@@ -90,7 +91,8 @@ Error:
 
 HRESULT TrackLayoutWriter::BuildWoz (const std::vector<Byte> & sectors, const std::vector<TrackLayout> & layouts, std::vector<Byte> & outWoz)
 {
-    HRESULT               hr    = S_OK;
+    HRESULT               hr        = S_OK;
+    bool                  isEvery   = layouts.size() == (size_t) NibblizationLayer::kTrackCount;
     DiskImage             image;
     std::vector<uint8_t>  bits;
 
@@ -98,7 +100,7 @@ HRESULT TrackLayoutWriter::BuildWoz (const std::vector<Byte> & sectors, const st
 
     outWoz.clear();
 
-    CBREx (layouts.size() == (size_t) NibblizationLayer::kTrackCount, E_INVALIDARG);
+    CBREx (isEvery, E_INVALIDARG);
 
     hr = NibblizationLayer::NibblizeDsk (sectors, image);
     CHR (hr);
