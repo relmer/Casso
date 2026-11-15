@@ -36,7 +36,7 @@ BootMachine::BootMachine() :
 //  changes to the machine, such as a card added to a slot, aren't applied:
 //  the boot is of the machine as shipped.
 //
-//  Every card but the Disk II is dropped from the slots: a boot uses no other,
+//  Every card but the Disk II is dropped from the slots: a boot doesn't use one,
 //  and a card this build can't make, such as one a newer build of Casso
 //  added to the JSON, or one whose ROM isn't installed, would fail the whole
 //  machine. A Mockingboard is left out too: a title that finds one can
