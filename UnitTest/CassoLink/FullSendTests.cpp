@@ -238,8 +238,8 @@ public:
     {
         ScriptedLink    link;
         FakeDiskFileIo  io;
-        std::string                extension;
-        std::string                prefix;
+        std::string     extension;
+        std::string     prefix;
         FullSendStatus             status { [] () { return 0.0; }, [] () { return std::string(); } };
         FullSendProtectionChoices  protection;
 

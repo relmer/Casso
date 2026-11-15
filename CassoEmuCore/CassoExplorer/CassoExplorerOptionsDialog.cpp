@@ -745,7 +745,7 @@ void CassoExplorerOptionsDialog::WireProtection()
         L"A program outside the operating system that accesses the disk drive directly",
         L"Boot code other than the DOS 3.3, ProDOS, Apple Pascal, CP/M or SOS loader",
     };
-    const FullSendProtectionChoices  & choices = m_choices.fullSendProtection;
+    const FullSendProtectionChoices  & choices   = m_choices.fullSendProtection;
     bool                               checked[] = { choices.readErrors, choices.unrecognized, choices.diskCode, choices.otherBoot };
 
 
