@@ -1426,19 +1426,25 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer           & text,
 
     for (int i = 1; i <= count; i++)
     {
-        uint8_t         style  = styleAt (start);
-        float           x      = left + GetCharsPx (row, cell, cellFrom, cellFrom + start);
-        float           width  = GetCharsPx (row, cell, cellFrom + start, cellFrom + i);
+        uint8_t         style   = styleAt (start);
+        float           x       = left + GetCharsPx (row, cell, cellFrom, cellFrom + start);
+        float           width   = GetCharsPx (row, cell, cellFrom + start, cellFrom + i);
+        bool            inverse = (style & kStyleInverse) != 0 && m_paintPainter != nullptr;
 
         if (i < count && colorAt (i) == colorAt (start) && styleAt (i) == style)
         {
             continue;
         }
 
+        if (inverse)
+        {
+            m_paintPainter->FillRect (x, (float) y, width, (float) m_cellHeightPx, colorAt (start));
+        }
+
         hr = text.DrawString (chars.substr ((size_t) start, (size_t) (i - start)).c_str(),
                               x, (float) y,
                               width + m_cellAdvance, (float) m_cellHeightPx,
-                              colorAt (start), font.sizeDip, font.face,
+                              inverse ? theme.ContentBackground() : colorAt (start), font.sizeDip, font.face,
                               DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiTextRowLayout::GetWeight ((style & kStyleBold) != 0, (style & kStyleItalic) != 0), false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -1512,7 +1518,7 @@ std::vector<uint8_t> DxuiTextView::GetRowStyles (const Row & row) const
 
     for (const Span & span : row.spans)
     {
-        uint8_t  bits   = (uint8_t) ((span.bold ? kStyleBold : 0) | (span.italic ? kStyleItalic : 0) | (span.underline ? kStyleUnderline : 0));
+        uint8_t  bits   = (uint8_t) ((span.bold ? kStyleBold : 0) | (span.italic ? kStyleItalic : 0) | (span.underline ? kStyleUnderline : 0) | (span.inverse ? kStyleInverse : 0));
         int      base   = GetCellBase (row, span.cell);
         int      length = (span.cell < (int) row.cells.size()) ? (int) row.cells[(size_t) span.cell].size() : 0;
 

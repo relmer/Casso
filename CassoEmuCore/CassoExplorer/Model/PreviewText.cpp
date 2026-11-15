@@ -258,7 +258,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
 
     if (!addresses.empty())
     {
-        AddListingRows (preview.lines, addresses, colors, rows);
+        AddListingRows (preview.lines, addresses, !preview.integerBasic, colors, rows);
     }
     else if (preview.kind == PreviewContent::Kind::Document)
     {
@@ -327,7 +327,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
     }
     else if (preview.kind == PreviewContent::Kind::Listing)
     {
-        AddListingRows (preview.lines, addresses, colors, rows);
+        AddListingRows (preview.lines, addresses, !preview.integerBasic, colors, rows);
     }
     else
     {
@@ -409,11 +409,12 @@ std::vector<DxuiTextView::Row> PreviewText::BuildWarningRows (const std::wstring
 void PreviewText::AddListingRows (
     const std::vector<std::wstring>     &  lines,
     const std::vector<Word>             &  addresses,
+    bool                                   applesoft,
     const SourceSyntax::Colors          &  colors,
     std::vector<DxuiTextView::Row>      &  ioRows)
 {
-    size_t                              numbered = 0;
-    std::optional<SourceSyntax::Token>  open;
+    size_t        numbered = 0;
+    BasicContext  context  = BasicContext::Normal;
 
 
 
@@ -429,7 +430,7 @@ void PreviewText::AddListingRows (
         }
         else
         {
-            open.reset();
+            context = BasicContext::Normal;
         }
 
         if (!addresses.empty())
@@ -442,7 +443,9 @@ void PreviewText::AddListingRows (
             numbered++;
         }
 
-        AddBasicSpans (row, colors, open);
+        AddBasicSpans (row, colors, context);
+
+        context = AddEscapeSpans (row, colors, context, applesoft);
         ioRows.push_back (std::move (row));
     }
 }
@@ -465,15 +468,15 @@ void PreviewText::AddListingRows (
 ////////////////////////////////////////////////////////////////////////////////
 
 void PreviewText::AddBasicSpans (
-    DxuiTextView::Row                   &  ioRow,
-    const SourceSyntax::Colors          &  colors,
-    std::optional<SourceSyntax::Token>  &  ioOpen)
+    DxuiTextView::Row           &  ioRow,
+    const SourceSyntax::Colors  &  colors,
+    BasicContext                   context)
 {
-    int                             last  = (int) ioRow.cells.size() - 1;
-    std::wstring                    text  = (last < 0) ? std::wstring() : ioRow.cells.back();
-    size_t                          from  = 0;
-    size_t                          close = std::wstring::npos;
-    std::vector<SourceSyntax::Run>  runs;
+    int           last     = (int) ioRow.cells.size() - 1;
+    std::wstring  text     = (last < 0) ? std::wstring() : ioRow.cells.back();
+    size_t        from     = 0;
+    size_t        close    = std::wstring::npos;
+    bool          inString = context == BasicContext::String || context == BasicContext::DataString;
 
 
 
@@ -487,46 +490,119 @@ void PreviewText::AddBasicSpans (
         ioRow.spans.push_back ({ cell, 0, (int) ioRow.cells[(size_t) cell].size(), colors.address });
     }
 
-    if (ioOpen == SourceSyntax::Token::Comment)
+    if (context == BasicContext::Rem)
     {
         ioRow.spans.push_back ({ last, 0, (int) text.size(), colors.Get (SourceSyntax::Token::Comment) });
         return;
     }
 
-    if (ioOpen == SourceSyntax::Token::String)
+    if (inString)
     {
         close = text.find (L'"');
         from  = (close == std::wstring::npos) ? text.size() : close + 1;
 
         ioRow.spans.push_back ({ last, 0, (int) from, colors.Get (SourceSyntax::Token::String) });
-
-        if (close == std::wstring::npos)
-        {
-            return;
-        }
     }
 
-    ioOpen.reset();
-    runs = GetBasicRuns (text.substr (from));
-
-    for (const SourceSyntax::Run & run : runs)
+    for (const SourceSyntax::Run & run : GetBasicRuns (text.substr (from)))
     {
         ioRow.spans.push_back ({ last, (int) from + run.start, run.length, colors.Get (run.token) });
     }
+}
 
-    if (runs.empty() || (size_t) (runs.back().start + runs.back().length) + from != text.size())
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::AddEscapeSpans
+//
+//  ApplesoftTokenizer lists a control character in a REM, a string or a DATA
+//  payload as ^ and a letter, and a literal caret as ^^. Each escape gets an
+//  inverse span in its REM's or string's color, which marks the two characters
+//  as one byte. The text is left as listed, so a copied line tokenizes back to
+//  the same bytes.
+//
+//  A REM runs to the end of its line and a DATA payload to a colon outside a
+//  string. The context the row ends in is where the next row starts, when it
+//  continues this one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PreviewText::BasicContext PreviewText::AddEscapeSpans (
+    DxuiTextView::Row           &  ioRow,
+    const SourceSyntax::Colors  &  colors,
+    BasicContext                   context,
+    bool                           applesoft)
+{
+    constexpr wchar_t  kCaret       = L'^';
+    constexpr wchar_t  kFirstLetter = L'@';
+    constexpr wchar_t  kLastLetter  = L'_';
+    int                last         = (int) ioRow.cells.size() - 1;
+    std::wstring       text         = (last < 0) ? std::wstring() : ioRow.cells.back();
+    size_t             i            = 0;
+    size_t             n            = text.size();
+
+
+
+    while (i < n)
     {
-        return;
+        wchar_t             c        = text[i];
+        wchar_t             next     = (i + 1 < n) ? text[i + 1] : L'\0';
+        bool                isEscape = applesoft && context != BasicContext::Normal && c == kCaret && next >= kFirstLetter && next <= kLastLetter;
+        bool                isQuote  = c == L'"';
+        DxuiTextView::Span  span;
+
+        if (isEscape && next != kCaret)
+        {
+            span.cell    = last;
+            span.start   = (int) i;
+            span.length  = 2;
+            span.argb    = (colors.mnemonic == 0)           ? 0
+                         : (context == BasicContext::Rem)   ? colors.Get (SourceSyntax::Token::Comment)
+                         : (context != BasicContext::Data)  ? colors.Get (SourceSyntax::Token::String)
+                                                            : 0;
+            span.inverse = true;
+
+            ioRow.spans.push_back (span);
+        }
+
+        if (isEscape)
+        {
+            i += 2;
+            continue;
+        }
+
+        switch (context)
+        {
+            case BasicContext::Normal:
+                context = isQuote                               ? BasicContext::String
+                        : (text.compare (i, 3, L"REM") == 0)    ? BasicContext::Rem
+                        : (text.compare (i, 4, L"DATA") == 0)   ? BasicContext::Data
+                                                                : context;
+                break;
+
+            case BasicContext::String:
+                context = isQuote ? BasicContext::Normal : context;
+                break;
+
+            case BasicContext::Data:
+                context = isQuote ? BasicContext::DataString : (c == L':') ? BasicContext::Normal : context;
+                break;
+
+            case BasicContext::DataString:
+                context = isQuote ? BasicContext::Data : context;
+                break;
+
+            case BasicContext::Rem:
+                break;
+        }
+
+        i++;
     }
 
-    if (runs.back().token == SourceSyntax::Token::Comment)
-    {
-        ioOpen = SourceSyntax::Token::Comment;
-    }
-    else if (runs.back().token == SourceSyntax::Token::String && (runs.back().length == 1 || text.back() != L'"'))
-    {
-        ioOpen = SourceSyntax::Token::String;
-    }
+    return context;
 }
 
 

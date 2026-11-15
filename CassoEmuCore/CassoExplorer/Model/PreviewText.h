@@ -70,20 +70,33 @@ public:
     //  colors as an instruction.
     static bool  IsUndocumentedMnemonic (const std::wstring & word);
 
+    //  Where a point in a BASIC listing's statements is: outside any string,
+    //  REM or DATA payload, or inside one of them.
+    enum class BasicContext { Normal, Rem, String, Data, DataString };
+
     //  A BASIC listing's rows. A line with no line number continues the line
     //  above it, and has an empty number cell and no address.
     static void                            AddListingRows    (const std::vector<std::wstring>  & lines,
                                                               const std::vector<Word>          & addresses,
+                                                              bool                               applesoft,
                                                               const SourceSyntax::Colors       & colors,
                                                               std::vector<DxuiTextView::Row>   & ioRows);
 
     //  A BASIC listing's coloring: a row's address and line number cells, and
-    //  its statements' keywords, variables, strings, numbers and REM. `ioOpen`
-    //  indicates the REM or string a row ends inside, so the row that
-    //  continues it starts in that color.
-    static void                            AddBasicSpans     (DxuiTextView::Row                   & ioRow,
-                                                              const SourceSyntax::Colors          & colors,
-                                                              std::optional<SourceSyntax::Token>  & ioOpen);
+    //  its statements' keywords, variables, strings, numbers and REM. `context`
+    //  indicates where the row starts, so a row that continues a REM or a
+    //  string starts in its color.
+    static void                            AddBasicSpans     (DxuiTextView::Row           & ioRow,
+                                                              const SourceSyntax::Colors  & colors,
+                                                              BasicContext                  context);
+
+    //  Adds an inverse span over each ^ escape of an Applesoft control
+    //  character in a REM, a string or a DATA payload, and returns the context
+    //  the row ends in.
+    static BasicContext                    AddEscapeSpans    (DxuiTextView::Row           & ioRow,
+                                                              const SourceSyntax::Colors  & colors,
+                                                              BasicContext                  context,
+                                                              bool                          applesoft);
     static std::vector<SourceSyntax::Run>  GetBasicRuns      (const std::wstring & statements);
     static size_t                          MatchBasicKeyword (const std::wstring & text, size_t at);
 };
