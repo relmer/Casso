@@ -122,6 +122,11 @@ public:
     //  "SanDisk Ultra (29.7 GB)".
     static std::wstring  FormatDrive  (const PhysicalDrive & drive);
 
+    //  The default name for an image of partition `index`: its volume's name
+    //  from its row `label`, as "GAMES.po" for "Partition 2: GAMES", or for a
+    //  partition with no volume name, "SanDisk Ultra partition 2.po".
+    static std::wstring  MakePartitionImageName (const std::wstring & label, const PhysicalDrive & drive, int index);
+
     //  "Storage card (SanDisk Ultra, 29.7 GB)", or with `letters`,
     //  "Storage card (I:, SanDisk Ultra, 29.7 GB)".
     static std::wstring  FormatCardLabel (const PhysicalDrive & drive, const std::wstring & letters = {});

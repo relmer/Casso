@@ -313,6 +313,21 @@ public:
     }
 
 
+    //  An image of a partition gets its volume's name, or the card's model and
+    //  the partition number when it has no volume name.
+    TEST_METHOD (MakePartitionImageName_TheVolumeOrTheCardAndPartition)
+    {
+        PhysicalDrive  drive = FakeCardHost::MakeDrive (5, true);
+
+        Assert::AreEqual (std::wstring (L"GAMES.po"),                PhysicalCards::MakePartitionImageName (L"Partition 2: GAMES", drive, 2));
+        Assert::AreEqual (std::wstring (L"Test Card partition 3.po"), PhysicalCards::MakePartitionImageName (L"Partition 3", drive, 3));
+        Assert::AreEqual (std::wstring (L"DOS _1.po"),               PhysicalCards::MakePartitionImageName (L"Partition 1: DOS *1", drive, 1), L"a file name can't have *");
+
+        drive.model.clear();
+        Assert::AreEqual (std::wstring (L"Card 5 partition 4.po"),   PhysicalCards::MakePartitionImageName (L"", drive, 4));
+    }
+
+
     TEST_METHOD (Initialize_FailsForAFixedDriveAndClosesAnOpenCard)
     {
         FakeCardHost   host;

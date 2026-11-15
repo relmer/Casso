@@ -168,6 +168,8 @@ bool ExplorerOpen::PickPartitionImage (const std::wstring & partition, std::wstr
     int                    drive  = 0;
     int                    index  = 0;
     HRESULT                hr     = S_OK;
+    std::wstring           label;
+    PhysicalDrive          card;
 
 
 
@@ -178,8 +180,19 @@ bool ExplorerOpen::PickPartitionImage (const std::wstring & partition, std::wstr
         return true;
     }
 
+    //  The row's label has the volume's name, and the drive its model.
+    for (const CatalogRow & row : m_context.browser.GetRows())
+    {
+        label = (row.containerPath == partition) ? row.name : label;
+    }
+
+    if (m_context.app.cards == nullptr || !m_context.app.cards->TryGetDrive (drive, card))
+    {
+        card.number = drive;
+    }
+
     spec.defaultExtension = L"po";
-    spec.defaultFileName  = std::format (L"Physical drive {} partition {}.po", drive, index);
+    spec.defaultFileName  = PhysicalCards::MakePartitionImageName (label, card, index);
     spec.askToReplace     = true;
     spec.title            = std::format (L"Create image from partition {}", index);
 

@@ -165,6 +165,44 @@ std::wstring PhysicalCards::FormatDrive (const PhysicalDrive & drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PhysicalCards::MakePartitionImageName
+//
+//  The volume's name is the text after the label's colon. Each character a
+//  file name can't have becomes an underscore.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PhysicalCards::MakePartitionImageName (const std::wstring & label, const PhysicalDrive & drive, int index)
+{
+    size_t        colon  = label.find (L": ");
+    std::wstring  volume = (colon == std::wstring::npos) ? std::wstring() : label.substr (colon + 2);
+    std::wstring  name;
+
+
+
+    if (!volume.empty())
+    {
+        name = volume;
+    }
+    else
+    {
+        name = drive.model.empty() ? std::format (L"Card {} partition {}", drive.number, index)
+                                   : std::format (L"{} partition {}", TextEncoding::Utf8ToWide (drive.model), index);
+    }
+
+    for (wchar_t & c : name)
+    {
+        c = (c < L' ' || wcschr (L"<>:\"/\\|?*", c) != nullptr) ? L'_' : c;
+    }
+
+    return name + L".po";
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PhysicalCards::FormatCardLabel
 //
 //  A drive with no model is "Storage card (29.7 GB)".

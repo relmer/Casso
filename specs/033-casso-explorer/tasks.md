@@ -1932,7 +1932,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 - [X] T660 [US31] Add Quick format, checked by default, to the Initialize card dialog; unchecked, zero every block of each volume (FR-245, SC-068)
 - [X] T661 [US31] One tree node per card: a drive letter Windows can read and no storage card node, or the storage card node alone, labeled with the letter, for a card Windows can't read
 - [X] T662 [US31] Gray a top-level removable drive that Windows can't read, as This PC does
-- [ ] T620 [US31] Scenario tests in `ScenarioTests/PartitionTests.cpp` on each layout's sample image, then a CFFA image written to a CF card in a USB reader and read back, with the results in `validation.md` (SC-060)
+- [X] T620 [US31] Scenario tests in `ScenarioTests/PartitionTests.cpp` on each layout's sample image, then a CFFA image written to a CF card in a USB reader and read back, with the results in `validation.md` (SC-060). Card part done 2026-11-14 by the owner in the test copy: a 2 GB CF card in a USB reader initialized for Apple with CFFA 2.0's layout of 32 MB ProDOS volumes, `v32m.po` written to partition 1 with Replace partition, and partition 1 read back with Create image from partition. The image read back has the same SHA-256 as `v32m.po`, after one administrator prompt. The broker's log has 32 MB written for the partition, and ten lock attempts on the card's FAT volume that failed with access denied before the dismount worked. The default name in the save dialog was "Physical drive 5 partition 1.po"; it is now the volume's name, or the card's model and the partition number (`PhysicalCards::MakePartitionImageName`)
 
 ## Phase 49: HFS volumes (User Story 32)
 

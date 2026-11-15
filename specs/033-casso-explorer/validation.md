@@ -987,7 +987,7 @@ emulator targets are that session's.
 | 1. Each file system and layout | `PartitionTests`, `Dos32Tests`, `SosTests`, `RdosTests` and `LargeVolumeTests`, which change each writable one, run `cp2 test` and compare with CiderPress II's extraction; and the images of 7e |
 | 2. GS/OS on a changed HFS image | In part, 2026-11-13: MAME 0.289's apple2gs booted GS/OS 6.0.1 from a hard disk image on a CFFA2 card, with HFS.FST added by CiderPress II, and the Finder mounted an 800K HFS image Casso made, "Casso Walk". Its files weren't opened, as MAME took no typed keys on the IIgs |
 | 3. Gutenberg | Not walked: a Gutenberg volume is read-only |
-| 4. A CF card | Not walked: the owner's card reader is required |
+| 4. A CF card | Passed 2026-11-14: a 2 GB CF card initialized with CFFA 2.0's layout, a 32 MB ProDOS image written to partition 1 and read back with the same SHA-256, after one administrator prompt (T620) |
 
 ### 7h. Tools
 
