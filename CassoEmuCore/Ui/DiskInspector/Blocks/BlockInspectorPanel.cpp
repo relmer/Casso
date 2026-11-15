@@ -2,10 +2,32 @@
 
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Ui/DiskInspector/Blocks/BlockFieldsView.h"
+#include "Ui/DiskInspector/Blocks/BlockFilesView.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
+#include "Ui/DiskInspector/Blocks/BlockLegendView.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
+#include "Ui/DiskInspector/Components/InspectorCommands.h"
+#include "Ui/DiskInspector/FloatingGroup.h"
+#include "Ui/DiskInspector/OverlayChip.h"
+
+
+
+
+
+static constexpr int      s_kGroupDip       = 36;
+static constexpr int      s_kGroupPadDip    = 4;
+static constexpr int      s_kGroupGapDip    = 6;
+static constexpr int      s_kIconDip        = 28;
+static constexpr int      s_kInsetDip       = 4;
+static constexpr LPCWSTR  s_kpszGlyphLegend = L"\xE790";
+static constexpr LPCWSTR  s_kpszGlyphMinus  = L"\xE738";
+static constexpr LPCWSTR  s_kpszGlyphPlus   = L"\xE710";
+static constexpr uint32_t s_kChangedColor   = 0xFFE0A030;
+static constexpr uint32_t s_kDiffersColor   = 0xFFF06060;
+static constexpr uint32_t s_kFieldColor     = 0xFF60B0F0;
+static constexpr uint32_t s_kLinkColor      = 0xFF60D090;
 
 
 
@@ -28,144 +50,44 @@ BlockInspectorPanel::~BlockInspectorPanel() = default;
 //
 //  BlockInspectorPanel::Init
 //
+//  The grid is created before its corner groups, so the groups are in front
+//  of it and take the pointer first.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorker * worker, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text)
+void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorker * worker, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text,
+                                const InspectorCommands * commands)
 {
-    constexpr uint32_t  kChangedColor = 0xFFE0A030;
-    constexpr uint32_t  kDiffersColor = 0xFFF06060;
-    constexpr uint32_t  kFieldColor   = 0xFF60B0F0;
-    constexpr uint32_t  kLinkColor    = 0xFF60D090;
-    constexpr size_t    kInputChars   = 8;
-
-
+    (void) theme;
+    (void) hwnd;
 
     m_model  = model;
     m_worker = worker;
+    m_text   = text;
 
-    m_back      = CreateChild<DxuiButton> (L"Back");
-    m_forward   = CreateChild<DxuiButton> (L"Forward");
-    m_previous  = CreateChild<DxuiButton> (L"Previous block");
-    m_next      = CreateChild<DxuiButton> (L"Next block");
-    m_highlight = CreateChild<DxuiButton> (L"Highlight file's blocks");
-    m_header    = CreateChild<DxuiButton> (L"Header");
-    m_input     = CreateChild<DxuiTextInput>();
-    m_map       = CreateChild<BlockMapView>();
-    m_hex       = CreateChild<BlockHexView>();
-    m_fields    = CreateChild<BlockFieldsView>();
-    m_cancel    = CreateChild<DxuiButton> (L"Cancel");
-
-    m_cancel->SetVisible (false);
-    m_cancel->SetOnClick ([this]()
+    if (commands != nullptr && commands->goTo != nullptr)
     {
-        if (m_worker != nullptr)
-        {
-            m_worker->Cancel();
-        }
-    });
+        m_tools = CreateChild<DxuiToolbar>();
+        m_tools->SetTextRenderer (text);
+        m_tools->SetEntries      ({ { commands->goTo, DxuiToolbar::Kind::Command, 1 } });
+    }
 
-    m_back->SetOnClick     ([this]() { GoBack(); });
-    m_forward->SetOnClick  ([this]() { GoForward(); });
-    m_previous->SetOnClick ([this]() { Step (-1); });
-    m_next->SetOnClick     ([this]() { Step (1); });
-
-    m_highlight->SetOnClick ([this]()
-    {
-        if (IsBusy())
-        {
-            return;
-        }
-
-        if (m_model->HasHighlight())
-        {
-            m_model->ClearHighlight();
-        }
-        else
-        {
-            m_model->HighlightFileAt (m_model->GetBlock());
-        }
-
-        Refresh();
-    });
-
-    m_header->SetOnClick ([this]()
-    {
-        if (IsBusy())
-        {
-            return;
-        }
-
-        m_isHeader   = !m_isHeader;
-        m_shownBlock = -1;
-        Refresh();
-    });
-
-    m_input->SetTheme        (theme);
-    m_input->SetHwnd         (hwnd);
-    m_input->SetTextRenderer (text);
-    m_input->SetMaxLength    (kInputChars);
-    m_input->SetOnChange     ([this] (const std::wstring & value) { OnInputChange (value); });
-
+    m_map = CreateChild<BlockMapView>();
     m_map->SetModel    (model);
+    m_map->SetZoomable (true);
     m_map->SetOnSelect ([this] (uint32_t block) { SelectBlock (block); });
     m_map->SetOnHover  ([this] (const std::wstring & value)
     {
-        m_hoverText = value;
-
-        if (m_onChanged)
+        if (m_onHint)
         {
-            m_onChanged();
+            m_onHint (value);
         }
     });
 
-    m_hex->SetBytesPerRow  (kBytesPerRow);
-    m_hex->SetOwnerWindow  (hwnd);
-    m_hex->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
-    m_hex->SetOnType       ([this] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { return OnType (offset, isHex, isHigh, ch); });
-    m_hex->SetOnNavigate   ([this] (const DxuiKeyEvent & ev) { return OnNavigateKey (ev); });
-    m_hex->SetOnClick      ([this] (uint64_t offset)
-    {
-        if (!IsBusy() && !m_isHeader && m_model->IsLoaded (m_model->GetBlock()) && m_model->TryFollowLink ((int) offset))
-        {
-            m_isTyping = false;
-            Refresh();
-        }
-    });
+    InitCorners();
+    InitRightColumn();
 
-    m_hex->SetMarkColor ([] (uint8_t mark, uint32_t & outArgb)
-    {
-        outArgb = mark == BlockHexSource::kMarkChanged ? kChangedColor
-                : mark == BlockHexSource::kMarkDiffers ? kDiffersColor
-                : mark == BlockHexSource::kMarkField   ? kFieldColor
-                :                                        kLinkColor;
-
-        return mark != BlockHexSource::kMarkNone;
-    });
-
-    m_fields->SetOnHover  ([this] (const BlockField * field)
-    {
-        if (IsBusy())
-        {
-            return;
-        }
-
-        MarkField (field);
-
-        if (m_onChanged)
-        {
-            m_onChanged();
-        }
-    });
-
-    m_fields->SetOnFollow ([this] (const BlockField * field)
-    {
-        if (field != nullptr && field->link != BlockField::kNoLink && !m_isHeader && !IsBusy())
-        {
-            SelectBlock ((uint32_t) field->link);
-        }
-    });
-
-    InitSecondRow();
+    m_hex->SetOwnerWindow (hwnd);
     Refresh();
 }
 
@@ -175,61 +97,135 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::InitSecondRow
-//
-//  The differences while comparing, and the leftover data in free blocks.
+//  BlockInspectorPanel::InitCorners
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorPanel::InitSecondRow()
+void BlockInspectorPanel::InitCorners()
 {
-    m_prevDiff  = CreateChild<DxuiButton> (L"Previous difference");
-    m_nextDiff  = CreateChild<DxuiButton> (L"Next difference");
-    m_leftovers = CreateChild<DxuiButton> (L"Find leftover data");
-    m_saveRun   = CreateChild<DxuiButton> (L"Save leftover as file");
+    m_legendGroup  = CreateChild<FloatingGroup>();
+    m_chipsGroup   = CreateChild<FloatingGroup>();
+    m_zoomGroup    = CreateChild<FloatingGroup>();
+    m_legendButton = m_legendGroup->CreateChild<DxuiIconButton>();
+    m_filesChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Files");
+    m_leftChip     = m_chipsGroup->CreateChild<OverlayChip> (L"Leftover data");
+    m_diffsChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Differences");
+    m_zoomOut      = m_zoomGroup->CreateChild<DxuiIconButton>();
+    m_zoomIn       = m_zoomGroup->CreateChild<DxuiIconButton>();
+    m_legend       = CreateChild<BlockLegendView>();
 
-    for (const auto & [button, isForward] : { std::pair<DxuiButton *, bool> (m_prevDiff, false), std::pair<DxuiButton *, bool> (m_nextDiff, true) })
+    m_legend->SetVisible    (false);
+    m_diffsChip->SetVisible (false);
+
+    m_legendButton->SetGlyph          (s_kpszGlyphLegend);
+    m_legendButton->SetRound          (true);
+    m_legendButton->SetAccessibleName (L"Legend");
+    m_legendButton->SetOnClick        ([this] () { ToggleLegend(); });
+
+    m_filesChip->SetOnChange ([this] (bool isOn) { SetFilesOn (isOn); });
+    m_leftChip->SetOnChange  ([this] (bool isOn) { SetLeftoversOn (isOn); });
+    m_diffsChip->SetOnChange ([this] (bool isOn) { SetDiffsOn (isOn); });
+
+    m_zoomOut->SetGlyph          (s_kpszGlyphMinus);
+    m_zoomOut->SetRound          (true);
+    m_zoomOut->SetAccessibleName (L"Zoom out");
+    m_zoomOut->SetOnClick        ([this] () { m_map->StepZoom (-1); });
+    m_zoomIn->SetGlyph           (s_kpszGlyphPlus);
+    m_zoomIn->SetRound           (true);
+    m_zoomIn->SetAccessibleName  (L"Zoom in");
+    m_zoomIn->SetOnClick         ([this] () { m_map->StepZoom (1); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::InitRightColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::InitRightColumn()
+{
+    m_views    = CreateChild<DxuiSegmentedControl>();
+    m_copy     = CreateChild<DxuiButton> (L"Copy block");
+    m_editNote = CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    m_discard  = CreateChild<DxuiButton> (L"Discard edits");
+    m_apply    = CreateChild<DxuiButton> (L"Apply edits");
+    m_cancel   = CreateChild<DxuiButton> (L"Cancel");
+    m_hex      = CreateChild<BlockHexView>();
+    m_fields   = CreateChild<BlockFieldsView>();
+    m_files    = CreateChild<BlockFilesView>();
+
+    m_views->SetSegments ({ L"Blocks", L"Files", L"Header" });
+    m_views->SetSelected (kViewBlocks);
+    m_views->SetOnChange ([this] (int index) { ShowView (static_cast<View> (index)); });
+
+    m_copy->SetOnClick    ([this] () { if (m_onCopy) { m_onCopy(); } });
+    m_discard->SetOnClick ([this] () { if (m_onDiscard) { m_onDiscard(); } });
+    m_apply->SetOnClick   ([this] () { if (m_onApply) { m_onApply(); } });
+    m_cancel->SetOnClick  ([this] () { if (m_worker != nullptr) { m_worker->Cancel(); } });
+
+    m_editNote->SetVisible (false);
+    m_discard->SetVisible  (false);
+    m_apply->SetVisible    (false);
+    m_cancel->SetVisible   (false);
+    m_files->SetVisible    (false);
+
+    m_hex->SetBytesPerRow  (kBytesPerRow);
+    m_hex->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
+    m_hex->SetOnType       ([this] (uint64_t offset, bool isHex, bool isHigh, wchar_t ch) { return OnType (offset, isHex, isHigh, ch); });
+    m_hex->SetOnNavigate   ([this] (const DxuiKeyEvent & ev) { return OnNavigateKey (ev); });
+    m_hex->SetOnClick      ([this] (uint64_t offset)
     {
-        button->SetOnClick ([this, isForward]()
+        if (!IsBusy() && m_view == kViewBlocks && m_model->IsLoaded (m_model->GetBlock()) && m_model->TryFollowLink ((int) offset))
         {
-            uint32_t  block = 0;
+            Refresh();
+        }
+    });
 
-            if (!IsBusy() && m_model->FindDifference (isForward, block))
-            {
-                SelectBlock (block);
-            }
-        });
-    }
-
-    m_leftovers->SetOnClick ([this]()
+    m_hex->SetMarkColor ([] (uint8_t mark, uint32_t & outArgb)
     {
-        BlockInspectorModel  * model = m_model;
+        outArgb = mark == BlockHexSource::kMarkChanged ? s_kChangedColor
+                : mark == BlockHexSource::kMarkDiffers ? s_kDiffersColor
+                : mark == BlockHexSource::kMarkField   ? s_kFieldColor
+                :                                        s_kLinkColor;
 
+        return mark != BlockHexSource::kMarkNone;
+    });
+
+    m_fields->SetOnHover ([this] (const BlockField * field)
+    {
+        if (!IsBusy())
+        {
+            MarkField (field);
+
+            if (m_onChanged)
+            {
+                m_onChanged();
+            }
+        }
+    });
+
+    m_fields->SetOnFollow ([this] (const BlockField * field)
+    {
+        if (field != nullptr && field->link != BlockField::kNoLink && m_view == kViewBlocks && !IsBusy())
+        {
+            SelectBlock ((uint32_t) field->link);
+        }
+    });
+
+    m_files->SetOnSelect ([this] (const BlockFilesView::Row & row)
+    {
         if (IsBusy())
         {
             return;
         }
 
-        if (m_model->HasLeftovers())
-        {
-            m_model->ClearLeftovers();
-            Refresh();
-            return;
-        }
-
-        QueueJob ({ L"Finding leftover data", true,
-                    [model] (BlockJobProgress & progress) { model->FindLeftovers (&progress); },
-                    [this] () { Refresh(); } });
-    });
-
-    m_saveRun->SetOnClick ([this]()
-    {
-        const LeftoverRun  * run = IsBusy() ? nullptr : m_model->FindLeftoverRun (m_model->GetBlock());
-
-        if (run != nullptr && m_onSaveRun)
-        {
-            m_onSaveRun (*run);
-        }
+        m_isFilesOn = true;
+        ShowView (kViewBlocks);
+        SelectBlock (row.first);
     });
 }
 
@@ -289,43 +285,6 @@ bool BlockInspectorPanel::TryParseBlock (const std::wstring & text, uint32_t & o
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::OnInputChange
-//
-//  The first change after a step adds the block to Back and Forward, and
-//  each change after it replaces it, so typing "123" is one step.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::OnInputChange (const std::wstring & text)
-{
-    uint32_t  block = 0;
-
-
-
-    if (IsBusy() || !m_model->IsOpen() || !TryParseBlock (text, block) || block >= m_model->GetBlockCount())
-    {
-        return;
-    }
-
-    if (m_isTyping)
-    {
-        m_model->ReplaceBlock (block);
-    }
-    else
-    {
-        m_model->SelectBlock (block);
-        m_isTyping = true;
-    }
-
-    Refresh();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BlockInspectorPanel::SelectBlock
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -337,10 +296,7 @@ void BlockInspectorPanel::SelectBlock (uint32_t block)
         return;
     }
 
-    m_isHeader = false;
-    m_isTyping = false;
     m_model->SelectBlock (block);
-
     Refresh();
 }
 
@@ -361,10 +317,7 @@ void BlockInspectorPanel::Step (int64_t delta)
         return;
     }
 
-    m_isHeader = false;
-    m_isTyping = false;
     m_model->StepBlock (delta);
-
     Refresh();
 }
 
@@ -385,10 +338,7 @@ void BlockInspectorPanel::GoBack()
         return;
     }
 
-    m_isHeader = false;
-    m_isTyping = false;
     m_model->GoBack();
-
     Refresh();
 }
 
@@ -409,10 +359,7 @@ void BlockInspectorPanel::GoForward()
         return;
     }
 
-    m_isHeader = false;
-    m_isTyping = false;
     m_model->GoForward();
-
     Refresh();
 }
 
@@ -423,6 +370,9 @@ void BlockInspectorPanel::GoForward()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BlockInspectorPanel::OnNavigateKey
+//
+//  Page Up and Page Down step a block; Alt+Left and Alt+Right go back and
+//  forward.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -471,7 +421,7 @@ bool BlockInspectorPanel::OnType (uint64_t offset, bool isHexColumn, bool isHigh
 
 
 
-    if (m_isHeader || IsBusy() || !m_model->IsOpen() || !m_model->IsLoaded (m_model->GetBlock()))
+    if (m_view != kViewBlocks || IsBusy() || !m_model->IsOpen() || !m_model->IsLoaded (m_model->GetBlock()))
     {
         return false;
     }
@@ -493,6 +443,350 @@ bool BlockInspectorPanel::OnType (uint64_t offset, bool isHexColumn, bool isHigh
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockInspectorPanel::SetFilesOn
+//
+//  The Files overlay highlights the blocks of the current block's file, and
+//  follows the current block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::SetFilesOn (bool isOn)
+{
+    if (IsBusy())
+    {
+        return;
+    }
+
+    m_isFilesOn = isOn;
+    Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::IsLeftoversOn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorPanel::IsLeftoversOn() const
+{
+    return m_model != nullptr && m_model->IsOpen() && m_model->HasLeftovers();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::SetLeftoversOn
+//
+//  Turning the overlay on finds the leftover data in the free blocks, as a
+//  long job with progress and Cancel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::SetLeftoversOn (bool isOn)
+{
+    BlockInspectorModel  * model = m_model;
+
+
+
+    if (IsBusy() || !m_model->IsOpen() || isOn == m_model->HasLeftovers())
+    {
+        return;
+    }
+
+    if (!isOn)
+    {
+        m_model->ClearLeftovers();
+        Refresh();
+        return;
+    }
+
+    QueueJob ({ L"Finding leftover data", true,
+                [model] (BlockJobProgress & progress) { model->FindLeftovers (&progress); },
+                [this] () { Refresh(); } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::SetDiffsOn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::SetDiffsOn (bool isOn)
+{
+    m_isDiffsOn = isOn;
+    m_map->SetDiffsShown (isOn);
+    Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::HasHeader
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorPanel::HasHeader() const
+{
+    return m_model != nullptr && m_model->IsOpen() && !m_model->GetFile().GetHeader().empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::ShowView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::ShowView (View view)
+{
+    if (IsBusy() || (view == kViewHeader && !HasHeader()))
+    {
+        m_views->SetSelected (m_view);
+        return;
+    }
+
+    m_view       = view;
+    m_shownBlock = -1;
+    m_views->SetSelected (view);
+
+    if (m_scaler.GetDpi() != 0)
+    {
+        Layout (GetBounds(), m_scaler);
+    }
+
+    Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::ToggleLegend
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::ToggleLegend()
+{
+    m_legend->SetVisible (!m_legend->IsVisible());
+
+    if (m_onChanged)
+    {
+        m_onChanged();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::Refresh
+//
+//  A block not loaded yet is loaded by a job, and drawn when it ends. The
+//  last block drawn stays on screen until then.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::Refresh()
+{
+    BlockInspectorModel  * model = m_model;
+    uint32_t               block = 0;
+
+
+
+    if (m_model == nullptr || IsBusy() || !m_model->IsOpen())
+    {
+        return;
+    }
+
+    block = m_model->GetBlock();
+
+    if (!m_model->IsLoaded (block))
+    {
+        QueueJob ({ L"", false,
+                    [model, block] (BlockJobProgress & progress) { (void) progress; model->LoadBlock (block); },
+                    [this] () { Refresh(); } });
+        return;
+    }
+
+    Present();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::QueueJob
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::QueueJob (BlockInspectorWorker::Job job)
+{
+    BlockJobProgress  progress;
+
+
+
+    if (m_worker == nullptr)
+    {
+        job.work (progress);
+        job.finish();
+        return;
+    }
+
+    m_worker->Queue (std::move (job));
+    UpdateBusy();
+
+    if (m_onQueued)
+    {
+        m_onQueued();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::UpdateBusy
+//
+//  While a long job is queued or running, every control but Cancel is
+//  disabled and the grid isn't laid out again from the model. A short job,
+//  such as loading a block, changes nothing on screen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::UpdateBusy()
+{
+    bool  canCancel = false;
+    bool  wasLong   = m_isLongJob;
+
+
+
+    if (m_worker == nullptr)
+    {
+        return;
+    }
+
+    m_isLongJob = m_worker->TryGetLongJob (m_jobLabel, canCancel, m_jobDone, m_jobTotal);
+
+    m_map->SetFrozen     (IsBusy());
+    m_cancel->SetVisible (m_isLongJob && canCancel);
+
+    for (IDxuiControl * control : { (IDxuiControl *) m_views, (IDxuiControl *) m_copy, (IDxuiControl *) m_discard, (IDxuiControl *) m_apply,
+                                    (IDxuiControl *) m_filesChip, (IDxuiControl *) m_leftChip, (IDxuiControl *) m_diffsChip })
+    {
+        control->SetEnabled (!m_isLongJob);
+    }
+
+    if (wasLong != m_isLongJob && m_scaler.GetDpi() != 0)
+    {
+        Layout (GetBounds(), m_scaler);
+    }
+
+    if (m_onChanged && (m_isLongJob || wasLong))
+    {
+        m_onChanged();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::ApplyHighlight
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::ApplyHighlight()
+{
+    if (m_isFilesOn)
+    {
+        (void) m_model->HighlightFileAt (m_model->GetBlock());
+    }
+    else
+    {
+        m_model->ClearHighlight();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::Present
+//
+//  The current block, loaded, and the controls set from the model.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::Present()
+{
+    bool  isComparing = m_model->IsComparing();
+    bool  hasEdits    = !m_model->GetEdits().IsEmpty();
+    bool  isRelayout  = hasEdits != m_hasEdits || isComparing != m_diffsChip->IsVisible();
+
+
+
+    ApplyHighlight();
+    ShowBytes();
+    BuildFieldLine();
+    FillFiles();
+
+    m_views->SetSegmentEnabled (kViewHeader, HasHeader());
+    m_filesChip->SetOn   (m_isFilesOn);
+    m_leftChip->SetOn    (m_model->HasLeftovers());
+    m_diffsChip->SetOn   (m_isDiffsOn);
+    m_diffsChip->SetVisible (isComparing);
+    m_editNote->SetText  (std::to_wstring (m_model->GetEdits().CountChangedBytes()) + (m_model->GetEdits().CountChangedBytes() == 1 ? L" byte changed, not written" : L" bytes changed, not written"));
+
+    m_hasEdits = hasEdits;
+
+    if (isRelayout && m_scaler.GetDpi() != 0)
+    {
+        Layout (GetBounds(), m_scaler);
+    }
+
+    m_map->Refresh();
+
+    if (m_onChanged)
+    {
+        m_onChanged();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockInspectorPanel::ShowBytes
 //
 //  The block's bytes, or the header's, with their marks and fields. The hex
@@ -506,13 +800,17 @@ void BlockInspectorPanel::ShowBytes()
     BlockInspectorModel::Block  other  = {};
     vector<BlockField>          fields;
     uint32_t                    block  = m_model->GetBlock();
-    int64_t                     shown  = m_isHeader ? -2 : (int64_t) block;
+    bool                        header = m_view == kViewHeader;
+    int64_t                     shown  = header ? -2 : (int64_t) block;
     HRESULT                     hr     = S_OK;
     size_t                      i      = 0;
 
 
 
-    if (m_isHeader)
+    m_title = L"Block " + std::to_wstring (block);
+    m_role  = m_model->GetMapLabel (block) != nullptr ? m_model->GetMapLabel (block) : BlockMapGrid::GetRoleName (m_model->GetRole (block));
+
+    if (header)
     {
         m_source.SetBytes (m_model->GetFile().GetHeader());
         fields = m_model->GetHeaderFields();
@@ -525,7 +823,7 @@ void BlockInspectorPanel::ShowBytes()
 
         m_source.SetBytes (bytes);
         m_model->GetFields (block, bytes, fields);
-        m_fields->SetHeading (L"Block " + std::to_wstring (block));
+        m_fields->SetHeading (L"Fields");
 
         for (i = 0; i < bytes.size(); i++)
         {
@@ -620,95 +918,69 @@ void BlockInspectorPanel::MarkField (const BlockField * field)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::BuildStatus
+//  BlockInspectorPanel::BuildFieldLine
+//
+//  The block's files, and on the field line its Disk Copy tag bytes, the
+//  file highlighted, whether it differs from the other image, and the
+//  leftover data it is in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorPanel::BuildStatus()
+void BlockInspectorPanel::BuildFieldLine()
 {
-    uint32_t                                                 block  = m_model->GetBlock();
-    std::wstring                                             owners = m_model->GetOwners (block);
-    BlockInspectorModel::Tags                                tags   = {};
-    int                                                      edits  = m_model->GetEdits().CountChangedBytes();
-    wchar_t                                                  hex[4] = {};
-    LPCWSTR                                                  label  = m_model->GetMapLabel (block);
+    uint32_t                    block  = m_model->GetBlock();
+    BlockInspectorModel::Tags   tags   = {};
+    const LeftoverRun         * run    = m_model->FindLeftoverRun (block);
+    size_t                      differ = m_model->IsComparing() ? m_model->CountDifferent() : 0;
+    size_t                      runs   = m_model->HasLeftovers() ? m_model->GetLeftovers().size() : 0;
+    std::wstring                other  = m_model->IsComparing() ? fs::path (m_model->GetOther()->GetPath()).filename().wstring() : std::wstring();
+    vector<std::wstring>        parts;
+    wchar_t                     hex[4] = {};
+    std::wstring                tagText;
 
 
 
-    std::replace (owners.begin(), owners.end(), L'\n', L',');
-
-    if (label == nullptr)
-    {
-        label = BlockMapGrid::GetRoleName (m_model->GetRole (block));
-    }
-
-    m_status = L"Block " + std::to_wstring (block) + L": " + label;
-
-    if (!owners.empty())
-    {
-        m_status += L". " + owners;
-    }
+    m_owners = m_model->GetOwners (block);
+    std::replace (m_owners.begin(), m_owners.end(), L'\n', L',');
+    m_owners = m_owners.empty() ? std::wstring (L"No file uses this block") : m_owners;
 
     if (m_model->TryGetTags (block, tags))
     {
-        m_status += L". Tag bytes:";
-
         for (Byte tag : tags)
         {
             swprintf_s (hex, L" %02X", tag);
-            m_status += hex;
+            tagText += hex;
         }
+
+        parts.push_back (L"Tag bytes:" + tagText);
     }
 
     if (m_model->HasHighlight())
     {
-        m_status += L". Highlighted: " + m_model->GetHighlightedPath();
+        parts.push_back (L"Highlighted: " + m_model->GetHighlightedPath());
     }
-
-    if (edits > 0)
-    {
-        m_status += L". " + std::to_wstring (edits) + (edits == 1 ? L" byte changed" : L" bytes changed") + L", not written";
-    }
-
-    AppendSecondRowStatus (block);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::AppendSecondRowStatus
-//
-//  Whether the block differs from the other image, and the leftover run it
-//  is in.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::AppendSecondRowStatus (uint32_t block)
-{
-    const LeftoverRun  * run    = m_model->FindLeftoverRun (block);
-    std::wstring         other  = m_model->IsComparing() ? fs::path (m_model->GetOther()->GetPath()).filename().wstring() : std::wstring();
-    size_t               differ = m_model->IsComparing() ? m_model->CountDifferent() : 0;
-    size_t               runs   = m_model->HasLeftovers() ? m_model->GetLeftovers().size() : 0;
-
-
 
     if (m_model->IsComparing())
     {
-        m_status += m_model->IsDifferent (block) ? L". Differs from " + other : L". Same as " + other;
-        m_status += differ == 0 ? std::wstring (L" (no blocks differ)") : differ == 1 ? std::wstring (L" (1 block differs)") : std::format (L" ({} blocks differ)", differ);
+        parts.push_back ((m_model->IsDifferent (block) ? L"Differs from " : L"Same as ") + other
+                         + (differ == 0 ? std::wstring (L" (no blocks differ)") : differ == 1 ? std::wstring (L" (1 block differs)") : std::format (L" ({} blocks differ)", differ)));
     }
 
     if (run != nullptr)
     {
-        m_status += L". Leftover " + std::wstring (BlockLeftovers::GetKindName (run->kind)) + L" in free blocks "
-                  + std::to_wstring (run->first) + L" to " + std::to_wstring (run->first + run->count - 1);
+        parts.push_back (L"Leftover " + std::wstring (BlockLeftovers::GetKindName (run->kind)) + L" in free blocks "
+                         + std::to_wstring (run->first) + L" to " + std::to_wstring (run->first + run->count - 1));
     }
     else if (m_model->HasLeftovers())
     {
-        m_status += runs == 0 ? std::wstring (L". No leftover data in the free blocks") : runs == 1 ? std::wstring (L". 1 run of leftover data") : std::format (L". {} runs of leftover data", runs);
+        parts.push_back (runs == 0 ? std::wstring (L"No leftover data in the free blocks") : runs == 1 ? std::wstring (L"1 run of leftover data") : std::format (L"{} runs of leftover data", runs));
+    }
+
+    m_fieldLine.clear();
+
+    for (const std::wstring & part : parts)
+    {
+        m_fieldLine += (m_fieldLine.empty() ? L"" : L"    ") + part;
     }
 }
 
@@ -718,124 +990,98 @@ void BlockInspectorPanel::AppendSecondRowStatus (uint32_t block)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::Refresh
+//  BlockInspectorPanel::FillFiles
 //
-//  A block not loaded yet is loaded by a job, and drawn when it ends. The
-//  last block drawn stays on screen until then.
+//  The files of the current block's volume, in the map's order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorPanel::Refresh()
+void BlockInspectorPanel::FillFiles()
 {
-    BlockInspectorModel  * model = m_model;
-    uint32_t               block = 0;
+    uint32_t                     inner = 0;
+    uint32_t                     block = m_model->GetBlock();
+    const BlockMap             * map   = m_model->FindMap (block, inner);
+    vector<BlockFilesView::Row>  rows;
+    vector<uint32_t>             used;
+    int                          i     = 0;
 
 
 
-    if (m_model == nullptr || IsBusy() || !m_model->IsOpen())
+    for (i = 0; map != nullptr && i < (int) map->files.size(); i++)
     {
-        return;
-    }
+        used = map->GetBlocksOf (i);
 
-    block = m_model->GetBlock();
-
-    if (!m_isHeader && !m_model->IsLoaded (block))
-    {
-        QueueJob ({ L"", false,
-                    [model, block] (BlockJobProgress & progress) { (void) progress; model->LoadBlock (block); },
-                    [this] () { Refresh(); } });
-        return;
-    }
-
-    Present();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::QueueJob
-//
-//  With no worker, as in a test, the job runs on the calling thread.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::QueueJob (BlockInspectorWorker::Job job)
-{
-    BlockJobProgress  progress;
-
-
-
-    if (m_worker == nullptr)
-    {
-        job.work (progress);
-        job.finish();
-        return;
-    }
-
-    m_worker->Queue (std::move (job));
-    UpdateBusy();
-
-    if (m_onQueued)
-    {
-        m_onQueued();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::UpdateBusy
-//
-//  While a long job is queued or running, every control but Cancel is
-//  disabled and the map isn't laid out again from the model. A short job,
-//  such as loading a block, changes nothing on screen.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::UpdateBusy()
-{
-    bool  canCancel = false;
-    bool  wasLong   = m_isLongJob;
-
-
-
-    if (m_worker == nullptr)
-    {
-        return;
-    }
-
-    m_isLongJob = m_worker->TryGetLongJob (m_jobLabel, canCancel, m_jobDone, m_jobTotal);
-
-    m_map->SetFrozen     (IsBusy());
-    m_cancel->SetVisible (m_isLongJob && canCancel);
-
-    if (m_isLongJob)
-    {
-        for (DxuiButton * button : { m_back, m_forward, m_previous, m_next, m_highlight, m_header, m_prevDiff, m_nextDiff, m_leftovers, m_saveRun })
+        if (!used.empty())
         {
-            button->SetEnabled (false);
+            rows.push_back ({ map->files[i], (uint32_t) used.size(), block - inner + used[0] });
+        }
+    }
+
+    m_files->SetRows (std::move (rows));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::BuildBlockText
+//
+//  Sixteen bytes a line: the offset, the bytes in hex, and their text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlockInspectorPanel::BuildBlockText() const
+{
+    constexpr Byte  kHighBit    = 0x80;
+    constexpr Byte  kFirstGlyph = 0x20;
+    constexpr Byte  kLastGlyph  = 0x7E;
+
+
+
+    BlockInspectorModel::Block  bytes = {};
+    std::wstring                text;
+    size_t                      i     = 0;
+    size_t                      j     = 0;
+    Byte                        ch    = 0;
+    HRESULT                     hr    = S_OK;
+
+
+
+    if (m_model == nullptr || !m_model->IsOpen())
+    {
+        return text;
+    }
+
+    hr = m_model->ReadBlock (m_model->GetBlock(), bytes);
+
+    if (FAILED (hr))
+    {
+        return text;
+    }
+
+    for (i = 0; i < bytes.size(); i += kBytesPerRow)
+    {
+        text += std::format (L"{:04X} ", i);
+
+        for (j = 0; j < (size_t) kBytesPerRow; j++)
+        {
+            text += std::format (L" {:02X}", bytes[i + j]);
         }
 
-        m_input->SetEnabled (false);
-    }
-    else if (wasLong)
-    {
-        m_input->SetEnabled     (true);
-        m_highlight->SetEnabled (true);
-        m_header->SetEnabled    (true);
-        m_leftovers->SetEnabled (true);
+        text += L"  ";
+
+        for (j = 0; j < (size_t) kBytesPerRow; j++)
+        {
+            ch    = (Byte) (bytes[i + j] & ~kHighBit);
+            text += (ch >= kFirstGlyph && ch <= kLastGlyph) ? (wchar_t) ch : L'.';
+        }
+
+        text += L"\r\n";
     }
 
-    if (m_onChanged && (m_isLongJob || wasLong))
-    {
-        m_onChanged();
-    }
+    return text;
 }
 
 
@@ -844,44 +1090,13 @@ void BlockInspectorPanel::UpdateBusy()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::Present
-//
-//  The current block, loaded, and the controls set from the model.
+//  BlockInspectorPanel::GetSelectionLine
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorPanel::Present()
+std::wstring BlockInspectorPanel::GetSelectionLine() const
 {
-    ShowBytes();
-    BuildStatus();
-
-    m_blockCount = m_model->GetBlockCount();
-
-    if (!m_input->IsFocused() || !m_isTyping)
-    {
-        m_input->SetText (std::to_wstring (m_model->GetBlock()));
-    }
-
-    m_back->SetEnabled      (m_model->CanGoBack());
-    m_forward->SetEnabled   (m_model->CanGoForward());
-    m_previous->SetEnabled  (m_model->GetBlock() > 0);
-    m_next->SetEnabled      (m_model->GetBlock() + 1 < m_model->GetBlockCount());
-    m_prevDiff->SetVisible  (m_model->IsComparing());
-    m_nextDiff->SetVisible  (m_model->IsComparing());
-    m_prevDiff->SetEnabled  (m_model->CountDifferent() > 0);
-    m_nextDiff->SetEnabled  (m_model->CountDifferent() > 0);
-    m_leftovers->SetLabel   (m_model->HasLeftovers() ? L"Clear leftover marks" : L"Find leftover data");
-    m_saveRun->SetEnabled   (m_model->FindLeftoverRun (m_model->GetBlock()) != nullptr);
-    m_highlight->SetLabel   (m_model->HasHighlight() ? L"Clear highlight" : L"Highlight file's blocks");
-    m_header->SetVisible    (!m_model->GetFile().GetHeader().empty());
-    m_header->SetLabel      (m_isHeader ? L"Blocks" : L"Header");
-
-    m_map->Refresh();
-
-    if (m_onChanged)
-    {
-        m_onChanged();
-    }
+    return m_model != nullptr && m_model->IsOpen() ? L"Selected: block " + std::to_wstring (m_model->GetBlock()) : std::wstring();
 }
 
 
@@ -892,80 +1107,164 @@ void BlockInspectorPanel::Present()
 //
 //  BlockInspectorPanel::Layout
 //
-//  The toolbar across the top and the status line along the bottom; between
-//  them the map and the hover line on the left, and the hex view over the
-//  fields on the right.
+//  The toolbar row across the top; under it the grid's column, the
+//  splitter, and the right column, as in the track inspector.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    constexpr float  kBackDip      = 64.0f;
-    constexpr float  kForwardDip   = 76.0f;
-    constexpr float  kStepDip      = 112.0f;
-    constexpr float  kHighlightDip = 160.0f;
-    constexpr float  kHeaderDip    = 72.0f;
-    constexpr float  kDiffDip      = 140.0f;
-    constexpr float  kLeftoverDip  = 150.0f;
-    constexpr float  kSaveDip      = 160.0f;
-
-
-
-    LONG  pad     = scaler.ToPx (kPadDip);
-    LONG  toolbar = scaler.ToPx (kToolbarDip);
-    LONG  gap     = scaler.ToPx (kButtonGap);
-    LONG  line    = scaler.ToPx (kLineDip);
-    LONG  x       = boundsPx.left;
-    LONG  top     = boundsPx.top;
-    LONG  body    = top + (toolbar + pad) * 2;
-    LONG  bottom  = boundsPx.bottom - line - pad;
-    LONG  split   = boundsPx.left + (LONG) ((boundsPx.right - boundsPx.left) * kMapShare);
-    LONG  hexEnd  = body + (LONG) ((bottom - body) * kHexShare);
-
-    auto  place = [&] (IDxuiControl * control, float widthDip)
-    {
-        LONG  width = scaler.ToPx (widthDip);
-
-        control->Layout (RECT { x, top, x + width, top + toolbar }, scaler);
-        x += width + gap;
-    };
+    int   pad      = scaler.ToPx (kPadDip);
+    int   toolbar  = m_tools != nullptr ? scaler.ToPx (m_tools->GetBandDp()) : 0;
+    int   splitter = scaler.ToPx (kSplitterDip);
+    int   top      = boundsPx.top + toolbar;
+    int   tools    = 0;
+    int   splitX   = 0;
 
 
 
     SetBounds (boundsPx);
     m_scaler = scaler;
 
-    place (m_back,     kBackDip);
-    place (m_forward,  kForwardDip);
-    place (m_previous, kStepDip);
+    if (m_tools != nullptr)
+    {
+        (void) m_tools->PlanForWidth (std::max (0, (int) (boundsPx.right - boundsPx.left) - 2 * pad), scaler);
+        tools = m_tools->GetPlannedWidthPx();
+        m_tools->Layout ({ boundsPx.right - pad - tools, boundsPx.top, boundsPx.right - pad, top }, scaler);
+    }
 
-    m_labelRect = RECT { x, top, x + scaler.ToPx (kLabelDip), top + toolbar };
-    x += scaler.ToPx (kLabelDip);
+    m_split      = std::clamp (m_split, kMinSplit, kMaxSplit);
+    splitX       = boundsPx.left + (int) ((boundsPx.right - boundsPx.left) * m_split);
+    m_splitterPx = { splitX, top, splitX + splitter, boundsPx.bottom };
 
-    place (m_input, kInputDip);
+    LayoutGrid  ({ boundsPx.left + pad, top + pad, splitX - pad, boundsPx.bottom - pad }, scaler);
+    LayoutRight ({ m_splitterPx.right + pad, top + pad, boundsPx.right - pad, boundsPx.bottom - pad }, scaler);
+}
 
-    m_countRect = RECT { x, top, x + scaler.ToPx (kCountDip), top + toolbar };
-    x += scaler.ToPx (kCountDip);
 
-    place (m_next,      kStepDip);
-    place (m_highlight, kHighlightDip);
-    place (m_header,    kHeaderDip);
 
-    x    = boundsPx.left;
-    top += toolbar + pad;
 
-    place (m_prevDiff,  kDiffDip);
-    place (m_nextDiff,  kDiffDip);
-    place (m_leftovers, kLeftoverDip);
-    place (m_saveRun,   kSaveDip);
 
-    m_map->Layout    (RECT { boundsPx.left, body, split - pad, bottom - line }, scaler);
-    m_hoverRect      = RECT { boundsPx.left, bottom - line, split - pad, bottom };
-    m_hex->Layout    (RECT { split, body, boundsPx.right, hexEnd }, scaler);
-    m_fields->Layout (RECT { split, hexEnd + pad, boundsPx.right, bottom }, scaler);
-    m_statusRect     = RECT { boundsPx.left, bottom + pad, boundsPx.right, boundsPx.bottom };
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::LayoutGrid
+//
+//  The grid fills its column between a band at the top, for the legend, and
+//  a band at the bottom, for the overlays and the zoom, so the groups don't
+//  cover blocks.
+//
+////////////////////////////////////////////////////////////////////////////////
 
-    m_cancel->Layout (RECT { boundsPx.right - scaler.ToPx (kCancelDip), bottom + pad, boundsPx.right, boundsPx.bottom }, scaler);
+void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler & scaler)
+{
+    int                  inset  = scaler.ToPx (s_kInsetDip);
+    int                  group  = scaler.ToPx (s_kGroupDip);
+    int                  pad    = scaler.ToPx (s_kGroupPadDip);
+    int                  gap    = scaler.ToPx (s_kGroupGapDip);
+    int                  icon   = scaler.ToPx (s_kIconDip);
+    int                  band   = group + 2 * inset;
+    int                  left   = column.left + inset;
+    int                  top    = column.top + inset;
+    int                  right  = column.right - inset;
+    int                  bottom = column.bottom - inset;
+    int                  zoomW  = 3 * pad + 2 * icon;
+    int                  chipsW = 2 * pad;
+    int                  x      = 0;
+    int                  w      = 0;
+    SIZE                 legend = m_legend->GetSizePx (scaler);
+    IDxuiTextRenderer  * text   = m_text;
+
+
+
+    for (OverlayChip * chip : { m_filesChip, m_leftChip, m_diffsChip })
+    {
+        chipsW += (chip->IsVisible() && text != nullptr) ? chip->GetWidthPx (*text, scaler) + gap : 0;
+    }
+
+    m_map->Layout ({ column.left, column.top + band, column.right, column.bottom - band }, scaler);
+
+    m_legendGroup->Layout  ({ left, top, left + group, top + group }, scaler);
+    m_legendButton->Layout ({ left + pad, top + pad, left + group - pad, top + group - pad }, scaler);
+    m_legend->Layout       ({ left, top + group + inset, left + legend.cx, top + group + inset + legend.cy }, scaler);
+
+    m_chipsGroup->Layout ({ left, bottom - group, left + chipsW, bottom }, scaler);
+    x = left + pad;
+
+    for (OverlayChip * chip : { m_filesChip, m_leftChip, m_diffsChip })
+    {
+        w = (chip->IsVisible() && text != nullptr) ? chip->GetWidthPx (*text, scaler) : 0;
+        chip->Layout ({ x, bottom - group + pad, x + w, bottom - pad }, scaler);
+        x += (w > 0) ? w + gap : 0;
+    }
+
+    x = right - zoomW;
+    m_zoomGroup->Layout ({ x, bottom - group, right, bottom }, scaler);
+    m_zoomOut->Layout   ({ x + pad, bottom - group + pad, x + pad + icon, bottom - pad }, scaler);
+    m_zoomIn->Layout    ({ right - pad - icon, bottom - group + pad, right - pad, bottom - pad }, scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::LayoutRight
+//
+//  From the top: the title row with Copy block at its right end, the files
+//  line, the view tabs, the field line, the edit or progress row when there
+//  is one, then the hex view over the fields, or the Files list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::LayoutRight (const RECT & column, const DxuiDpiScaler & scaler)
+{
+    int   pad     = scaler.ToPx (kPadDip);
+    int   row     = scaler.ToPx (kRowDip);
+    int   line    = scaler.ToPx (kLineDip);
+    int   button  = scaler.ToPx (kButtonDip);
+    int   y       = column.top;
+    bool  isRow   = m_isLongJob || m_hasEdits;
+    bool  isFiles = m_view == kViewFiles;
+    int   hexEnd  = 0;
+
+
+
+    m_titleRect  = { column.left, y, column.right - button - pad, y + row };
+    m_copy->Layout ({ column.right - button, y, column.right, y + row }, scaler);
+    y += row;
+
+    m_ownersRect = { column.left, y, column.right, y + line };
+    y += line + pad;
+
+    m_views->Layout ({ column.left, y, column.left + scaler.ToPx (kViewsDip), y + row }, scaler);
+    y += row + pad;
+
+    m_fieldRect = { column.left, y, column.right, y + line };
+    y += line + pad;
+
+    m_rowRect = isRow ? RECT { column.left, y, column.right, y + row } : RECT { column.left, y, column.right, y };
+
+    m_editNote->SetVisible (m_hasEdits && !m_isLongJob);
+    m_discard->SetVisible  (m_hasEdits && !m_isLongJob);
+    m_apply->SetVisible    (m_hasEdits && !m_isLongJob);
+
+    m_editNote->Layout ({ column.left, y, column.right - 2 * button - 2 * pad, y + row }, scaler);
+    m_discard->Layout  ({ column.right - 2 * button - pad, y, column.right - button - pad, y + row }, scaler);
+    m_apply->Layout    ({ column.right - button, y, column.right, y + row }, scaler);
+    m_cancel->Layout   ({ column.right - button, y, column.right, y + row }, scaler);
+    y = m_rowRect.bottom + (isRow ? pad : 0);
+
+    hexEnd = y + (int) ((column.bottom - y) * kHexShare);
+
+    m_hex->SetVisible    (!isFiles);
+    m_fields->SetVisible (!isFiles);
+    m_files->SetVisible  (isFiles);
+    m_copy->SetVisible   (!isFiles);
+
+    m_hex->Layout    ({ column.left, y, column.right, hexEnd }, scaler);
+    m_fields->Layout ({ column.left, hexEnd + pad, column.right, column.bottom }, scaler);
+    m_files->Layout  ({ column.left, y, column.right, column.bottom }, scaler);
 }
 
 
@@ -980,36 +1279,67 @@ void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
 void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    float         font  = m_scaler.ToPxf (kFontDip);
-    std::wstring  count = L"of " + std::to_wstring (m_blockCount);
-    HRESULT       hr    = S_OK;
-
-
-
-    auto  draw = [&] (const std::wstring & value, const RECT & rect, uint32_t color, DxuiTextHAlign align)
-    {
-        hr = text.DrawString (value.c_str(), (float) rect.left, (float) rect.top, (float) (rect.right - rect.left), (float) (rect.bottom - rect.top),
-                              color, font, s_kpszFont, align, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    };
-
-
+    painter.FillRect ((float) m_splitterPx.left, (float) m_splitterPx.top, (float) (m_splitterPx.right - m_splitterPx.left), (float) (m_splitterPx.bottom - m_splitterPx.top),
+                      m_isSplitting ? theme.Accent() : theme.Divider());
 
     DxuiPanel::Paint (painter, text, theme);
-
-    draw (L"Block", m_labelRect, theme.Foreground(), DxuiTextHAlign::Center);
-    draw (count, m_countRect, theme.ForegroundMuted(), DxuiTextHAlign::Center);
-    draw (m_hoverText.empty() ? std::wstring (L"Point at the map to see a block's role and files.") : m_hoverText,
-          m_hoverRect, theme.ForegroundMuted(), DxuiTextHAlign::Left);
+    PaintHeader (text, theme);
 
     if (m_isLongJob)
     {
         PaintProgress (painter, text, theme);
     }
-    else
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::PaintHeader
+//
+//  "Block 2" with its role beside it, as the track header has the track,
+//  then the files and the field line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    float    font   = m_scaler.ToPxf (kFontDip);
+    float    title  = m_scaler.ToPxf (kTitleDip);
+    float    w      = 0.0f;
+    float    h      = 0.0f;
+    float    gap    = m_scaler.ToPxf (kPadDip);
+    HRESULT  hr     = S_OK;
+
+
+
+    if (m_model == nullptr || !m_model->IsOpen() || m_title.empty())
     {
-        draw (m_status, m_statusRect, theme.Foreground(), DxuiTextHAlign::Left);
+        return;
     }
+
+    text.MeasureString (m_title.c_str(), title, DxuiTheme::kBodyFace, w, h);
+
+    hr = text.DrawString (m_title.c_str(), (float) m_titleRect.left, (float) m_titleRect.top, w + 1.0f, (float) (m_titleRect.bottom - m_titleRect.top),
+                          theme.Foreground(), title, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (m_role.c_str(), m_titleRect.left + w + gap, (float) m_titleRect.top, std::max (0.0f, m_titleRect.right - m_titleRect.left - w - gap),
+                          (float) (m_titleRect.bottom - m_titleRect.top), theme.Foreground(), font, DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
+                          DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (m_owners.c_str(), (float) m_ownersRect.left, (float) m_ownersRect.top, (float) (m_ownersRect.right - m_ownersRect.left),
+                          (float) (m_ownersRect.bottom - m_ownersRect.top), theme.ForegroundMuted(), font, DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
+                          DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (m_fieldLine.c_str(), (float) m_fieldRect.left, (float) m_fieldRect.top, (float) (m_fieldRect.right - m_fieldRect.left),
+                          (float) (m_fieldRect.bottom - m_fieldRect.top), theme.Foreground(), font, DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
+                          DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -1020,7 +1350,7 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 //
 //  BlockInspectorPanel::PaintProgress
 //
-//  A long job's bar and label in place of the status line. A job with no
+//  A long job's bar and label in the row above the hex view. A job with no
 //  count yet has an empty bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1028,22 +1358,21 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 void BlockInspectorPanel::PaintProgress (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     constexpr float  kBarHighDip = 8.0f;
-    constexpr float  kGapDip     = 10.0f;
     constexpr int    kPercent    = 100;
 
 
 
-    float         left    = (float) m_statusRect.left;
-    float         top     = (float) m_statusRect.top;
-    float         height  = (float) (m_statusRect.bottom - m_statusRect.top);
-    float         barW    = m_scaler.ToPxf (kBarDip);
-    float         barH    = m_scaler.ToPxf (kBarHighDip);
-    float         barTop  = top + (height - barH) / 2.0f;
-    double        share   = m_jobTotal > 0 ? std::min (1.0, (double) m_jobDone / (double) m_jobTotal) : 0.0;
-    std::wstring  label   = m_jobTotal > 0 ? std::format (L"{} ({}%)", m_jobLabel, (int) (share * kPercent)) : m_jobLabel;
-    float         textX   = left + barW + m_scaler.ToPxf (kGapDip);
-    float         textW   = (float) m_statusRect.right - textX - m_scaler.ToPxf (kCancelDip + kGapDip);
-    HRESULT       hr      = S_OK;
+    float         left   = (float) m_rowRect.left;
+    float         top    = (float) m_rowRect.top;
+    float         height = (float) (m_rowRect.bottom - m_rowRect.top);
+    float         barW   = m_scaler.ToPxf (kBarDip);
+    float         barH   = m_scaler.ToPxf (kBarHighDip);
+    float         barTop = top + (height - barH) / 2.0f;
+    double        share  = m_jobTotal > 0 ? std::min (1.0, (double) m_jobDone / (double) m_jobTotal) : 0.0;
+    std::wstring  label  = m_jobTotal > 0 ? std::format (L"{} ({}%)", m_jobLabel, (int) (share * kPercent)) : m_jobLabel;
+    float         textX  = left + barW + m_scaler.ToPxf (kPadDip);
+    float         textW  = (float) m_rowRect.right - textX - m_scaler.ToPxf (kButtonDip + kPadDip);
+    HRESULT       hr     = S_OK;
 
 
 
@@ -1064,15 +1393,17 @@ void BlockInspectorPanel::PaintProgress (IDxuiPainter & painter, IDxuiTextRender
 //
 //  BlockInspectorPanel::OnMouse
 //
-//  A press on the block number or the hex view focuses it. While a job is
-//  queued or running, only Cancel gets mouse events, so pointing at the map
-//  or a field doesn't read the model.
+//  The splitter moves between the columns. A press on the hex view focuses
+//  it. While a job is queued or running, only Cancel gets mouse events, so
+//  pointing at the grid or a field doesn't read the model.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 {
     RECT  cancel = m_cancel->GetBounds();
+    RECT  hex    = m_hex->GetBounds();
+    RECT  bounds = GetBounds();
 
 
 
@@ -1081,18 +1412,50 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
         return m_cancel->IsVisible() && PtInRect (&cancel, ev.positionDip) ? DxuiPanel::OnMouse (ev) : true;
     }
 
-    if (ev.kind == DxuiMouseEventKind::Down && m_onPressed)
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_splitterPx, ev.positionDip))
     {
-        for (IDxuiControl * control : { (IDxuiControl *) m_input, (IDxuiControl *) m_hex })
-        {
-            RECT  bounds = control->GetBounds();
+        m_isSplitting = true;
+        return true;
+    }
 
-            if (PtInRect (&bounds, ev.positionDip))
-            {
-                m_onPressed (control);
-            }
+    if (m_isSplitting && ev.kind == DxuiMouseEventKind::Move && bounds.right > bounds.left)
+    {
+        m_split = std::clamp ((float) (ev.positionDip.x - bounds.left) / (float) (bounds.right - bounds.left), kMinSplit, kMaxSplit);
+        Layout (bounds, m_scaler);
+
+        if (m_onChanged)
+        {
+            m_onChanged();
         }
+
+        return true;
+    }
+
+    if (m_isSplitting && ev.kind == DxuiMouseEventKind::Up)
+    {
+        m_isSplitting = false;
+        return true;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down && m_onPressed && m_hex->IsVisible() && PtInRect (&hex, ev.positionDip))
+    {
+        m_onPressed (m_hex);
     }
 
     return DxuiPanel::OnMouse (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::GetCursorForPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR BlockInspectorPanel::GetCursorForPoint (POINT clientPx) const
+{
+    return PtInRect (&m_splitterPx, clientPx) || m_isSplitting ? IDC_SIZEWE : DxuiPanel::GetCursorForPoint (clientPx);
 }

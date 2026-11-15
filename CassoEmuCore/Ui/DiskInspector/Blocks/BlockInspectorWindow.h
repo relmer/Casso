@@ -3,7 +3,11 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
+#include "Ui/DiskInspector/Components/InspectorCommands.h"
+#include "Ui/DiskInspector/Components/InspectorMenuBar.h"
+#include "Ui/DiskInspector/Components/InspectorStatusBar.h"
 
 class BlockInspectorPanel;
 class IDiskFileIo;
@@ -16,31 +20,29 @@ class IDiskFileIo;
 //
 //  BlockInspectorWindow
 //
-//  The disk inspector in block mode, for an image file of blocks: the
-//  content panel, and Apply edits, Discard edits and Close along the bottom.
-//  Applied edits are written to the file in place. Closing with edits
-//  pending prompts to discard them. The window is modeless, and the closed
-//  callback is called when it closes.
+//  The disk inspector in block mode, for an image file of blocks, laid out
+//  as the track inspector is: the menu bar, the BlockInspectorPanel, and the
+//  status band with the volume's chips, the selection and the window's zoom.
+//  Edits are applied to the file in place from the Edit menu or the edit
+//  row. Closing with edits pending prompts to discard them, and the closed
+//  callback is called when the window closes.
 //
 //  Every read and write of the image runs on m_worker's thread: opening it,
 //  each block, Find leftover data, comparing, applying edits, reading it
-//  again and saving leftover data. Each job's completion runs on the
-//  dialog's tick, which is shortened while a job is queued. The progress of
-//  a long job is drawn in the panel. Closing cancels a job that can be
-//  canceled. While a job that can't be is running, the window doesn't close.
+//  again and saving leftover data. Each job's completion runs on the next
+//  frame, which the window set drives. The progress of a long job is drawn
+//  in the panel. Closing cancels a job that can be canceled. While a job
+//  that can't be is running, the window doesn't close.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class BlockInspectorWindow : public DxuiDialogWindow
+class BlockInspectorWindow : public DxuiWindow
 {
 public:
-    static constexpr int   kWidthDip     = 1180;
-    static constexpr int   kHeightDip    = 760;
-    static constexpr int   kMinWidthDip  = 960;
-    static constexpr int   kMinHeightDip = 600;
-    static constexpr int   kApplyId      = 1001;
-    static constexpr int   kDiscardId    = 1002;
-    static constexpr UINT  kBusyTickMs   = 16;
+    static constexpr int  kOpeningWidthDip  = 1280;
+    static constexpr int  kOpeningHeightDip = 800;
+    static constexpr int  kMinWidthDip      = 960;
+    static constexpr int  kMinHeightDip     = 640;
 
     BlockInspectorWindow  ();
     ~BlockInspectorWindow () override;
@@ -71,13 +73,19 @@ public:
     void  CompareWithFile (const std::wstring & path);
     void  ChangeTheme     (const IDxuiTheme * theme);
 
-    //  Repaints after a change the panel reported.
+    //  Once a frame: the finished jobs' completions, the busy state, and a
+    //  repaint after a change.
     void  RenderIfChanged ();
+
+    void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     OnMouse           (const DxuiMouseEvent & ev) override;
+    bool     OnKey             (const DxuiKeyEvent & ev) override;
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 protected:
     void  OnCreate      () override;
     void  OnWindowClose () override;
-    void  OnDialogTick  () override;
 
 private:
     struct JobResult
@@ -86,28 +94,39 @@ private:
         std::wstring  message;
     };
 
-    void          QueueOpen     ();
-    void          Apply         ();
-    void          UpdateButtons ();
-    bool          ConfirmClose  ();
-    void          Close         ();
-    void          SaveRun       (LeftoverRun run);
-    void          ShowMessage   (const std::wstring & text);
-    std::wstring  GetFileName   () const { return m_displayName.empty() ? fs::path (m_path).filename().wstring() : m_displayName; }
+    void                                  BuildCommands  ();
+    static bool                           RunCommand     (const InspectorCommands::Command & command);
+    void                                  QueueOpen      ();
+    void                                  Apply          ();
+    void                                  Discard        ();
+    void                                  CopyBlock      ();
+    void                                  GoToBlock      ();
+    void                                  SaveRun        ();
+    void                                  StepDifference (bool isForward);
+    void                                  SetZoom        (double zoom);
+    vector<InspectorStatusBar::LeadItem>  BuildLead      () const;
+    bool                                  ConfirmClose   ();
+    void                                  CloseWindow    ();
+    void                                  ShowMessage    (const std::wstring & text);
+    std::wstring                          GetFileName    () const { return m_displayName.empty() ? fs::path (m_path).filename().wstring() : m_displayName; }
 
     //  m_worker follows m_model, so it is destroyed first and its thread
     //  ends before the model goes away.
     BlockInspectorModel       m_model;
     BlockInspectorWorker      m_worker;
     Win32HostDialogs          m_dialogs;
+    Win32Clipboard            m_clipboard;
+    InspectorCommands         m_commands;
+    InspectorMenuBar          m_menus;
+    InspectorStatusBar        m_status;
     BlockInspectorPanel     * m_panel           = nullptr;
-    DxuiButton              * m_apply           = nullptr;
-    DxuiButton              * m_discard         = nullptr;
     IDiskFileIo             * m_fileIo          = nullptr;
     std::wstring              m_path;
     std::wstring              m_displayName;
+    std::wstring              m_hint;
     const IDxuiTheme        * m_theme           = nullptr;
     std::function<void ()>    m_onClosed;
+    double                    m_zoom            = 1.0;
     bool                      m_isDirty         = true;
     bool                      m_isClosed        = false;
     bool                      m_isReloadPending = false;

@@ -7,10 +7,15 @@
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
 
 class BlockFieldsView;
+class BlockFilesView;
 class BlockHexView;
 class BlockInspectorModel;
+class BlockLegendView;
 class BlockMapView;
+class FloatingGroup;
+class OverlayChip;
 struct BlockField;
+struct InspectorCommands;
 
 
 
@@ -20,23 +25,19 @@ struct BlockField;
 //
 //  BlockInspectorPanel
 //
-//  Block mode's content. Across the top: Back and Forward, the previous and
-//  next block, the block number, Highlight file's blocks, and for 2IMG and
-//  Disk Copy 4.2 images the container's header. On the left the block map,
-//  with what the pointer is on under it; on the right the hex and text
-//  panes of the block and its fields under them. The status line has the
-//  block's role, its files, a Disk Copy block's tag bytes, and the edits
-//  pending. A second row has the previous and next difference while
-//  comparing with another image, Find leftover data, and Save leftover as
-//  file for the run of free blocks with text or code the block is in.
-//
-//  Page Up and Page Down step a block, Alt+Left and Alt+Right go back and
-//  forward, and a click on a linked field, or a Ctrl+click on a linked byte,
-//  follows the link.
+//  Block mode's content between the menu bar and the status band, laid out
+//  as the track inspector's is. Across the top, the toolbar row with Go to
+//  at its right end. On the left, the grid of blocks with the platter's
+//  corner groups: the legend at the top left, the overlays (Files, Leftover
+//  data, and Differences while comparing) at the bottom left, and zoom - and
+//  + at the bottom right. Past the splitter, on the right: the block's
+//  number and role, its files, the view tabs (Blocks, Files, and Header for
+//  2IMG and Disk Copy 4.2 images), the field line, Copy block, a row with
+//  the pending edits or a long job's progress, the hex view, and the
+//  block's fields.
 //
 //  The model's reads run as jobs on the window's BlockInspectorWorker: a
-//  block is loaded before it is drawn, and Find leftover data runs there
-//  with its progress drawn in place of the status line and a Cancel button.
+//  block is loaded before it is drawn, and Find leftover data runs there.
 //  While a job is queued or running, input to the panel is ignored and the
 //  model isn't read.
 //
@@ -46,48 +47,65 @@ class BlockInspectorPanel : public DxuiPanel
 {
 public:
     static constexpr float  kPadDip      = 8.0f;
-    static constexpr float  kToolbarDip  = 28.0f;
-    static constexpr float  kButtonGap   = 6.0f;
-    static constexpr float  kInputDip    = 80.0f;
-    static constexpr float  kLabelDip    = 44.0f;
-    static constexpr float  kCountDip    = 90.0f;
+    static constexpr float  kRowDip      = 28.0f;
     static constexpr float  kLineDip     = 20.0f;
+    static constexpr float  kTitleDip    = 16.0f;
     static constexpr float  kFontDip     = 12.0f;
-    static constexpr float  kMapShare    = 0.42f;
+    static constexpr float  kSplitterDip = 6.0f;
+    static constexpr float  kMinSplit    = 0.3f;
+    static constexpr float  kMaxSplit    = 0.7f;
     static constexpr float  kHexShare    = 0.60f;
-    static constexpr int    kBytesPerRow = 16;
     static constexpr float  kBarDip      = 240.0f;
-    static constexpr float  kCancelDip   = 90.0f;
+    static constexpr float  kButtonDip   = 110.0f;
+    static constexpr float  kViewsDip    = 260.0f;
+    static constexpr int    kBytesPerRow = 16;
+
+    //  The view tabs.
+    enum View
+    {
+        kViewBlocks,
+        kViewFiles,
+        kViewHeader,
+    };
 
     using PressedFn = std::function<void (IDxuiControl * child)>;
     using ChangedFn = std::function<void ()>;
     using SaveRunFn = std::function<void (const LeftoverRun & run)>;
-    using QueuedFn  = std::function<void ()>;
+    using ActionFn  = std::function<void ()>;
+    using HintFn    = std::function<void (const std::wstring & hint)>;
 
     BlockInspectorPanel  ();
     ~BlockInspectorPanel () override;
 
-    void  Init              (BlockInspectorModel * model, BlockInspectorWorker * worker, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text);
+    //  `commands` is the window's commands, for the toolbar row; null for a
+    //  panel with no toolbar row, as in a test.
+    void  Init (BlockInspectorModel * model, BlockInspectorWorker * worker, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text,
+                const InspectorCommands * commands = nullptr);
+
     void  SetOnChildPressed (PressedFn fn) { m_onPressed = std::move (fn); }
     void  SetOnChanged      (ChangedFn fn) { m_onChanged = std::move (fn); }
     void  SetOnSaveRun      (SaveRunFn fn) { m_onSaveRun = std::move (fn); }
-    void  SetOnJobQueued    (QueuedFn fn)  { m_onQueued  = std::move (fn); }
+    void  SetOnJobQueued    (ActionFn fn)  { m_onQueued  = std::move (fn); }
+    void  SetOnApply        (ActionFn fn)  { m_onApply   = std::move (fn); }
+    void  SetOnDiscard      (ActionFn fn)  { m_onDiscard = std::move (fn); }
+    void  SetOnCopy         (ActionFn fn)  { m_onCopy    = std::move (fn); }
+    void  SetOnHint         (HintFn fn)    { m_onHint    = std::move (fn); }
 
     //  Reads the model again after a change, once the current block is
     //  loaded. A block not loaded yet is loaded by a job first.
     void  Refresh ();
 
     //  The job queued on the worker. The window is notified, so the job's
-    //  completion runs soon after its work ends.
+    //  completion runs soon after its work ends. With no worker, as in a
+    //  test, the job runs on the calling thread.
     void  QueueJob (BlockInspectorWorker::Job job);
 
     //  The controls enabled or disabled, and the progress read, from the
-    //  worker's jobs. The window calls it on each tick.
+    //  worker's jobs. The window calls it on each frame.
     void  UpdateBusy ();
 
-    bool  IsBusy () const { return m_worker != nullptr && m_worker->IsBusy(); }
-
-    BlockHexView  * GetHexView () const { return m_hex; }
+    bool  IsBusy     () const { return m_worker != nullptr && m_worker->IsBusy(); }
+    bool  IsLongJob  () const { return m_isLongJob; }
 
     //  A block number typed in decimal, or in hex after '$'.
     static bool  TryParseBlock (const std::wstring & text, uint32_t & outBlock);
@@ -98,59 +116,105 @@ public:
     void  GoBack      ();
     void  GoForward   ();
 
-    void  Layout  (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
-    void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
+    //  The overlays, as the corner chips and the View menu turn them.
+    bool  IsFilesOn      () const { return m_isFilesOn; }
+    bool  IsLeftoversOn  () const;
+    bool  IsDiffsOn      () const { return m_isDiffsOn; }
+    void  SetFilesOn     (bool isOn);
+    void  SetLeftoversOn (bool isOn);
+    void  SetDiffsOn     (bool isOn);
+
+    //  The view tabs.
+    void  ShowView  (View view);
+    View  GetView   () const { return m_view; }
+    bool  HasHeader () const;
+
+    //  The current block as a hex dump with its text, for Copy block.
+    std::wstring  BuildBlockText () const;
+
+    //  "Selected: block 2", or empty with no image open.
+    std::wstring  GetSelectionLine () const;
+
+    void  ToggleLegend ();
+
+    BlockMapView  & GetMap     () const { return *m_map; }
+    BlockHexView  * GetHexView () const { return m_hex; }
+
+    void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     OnMouse           (const DxuiMouseEvent & ev) override;
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 private:
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 
-    bool  OnType                (uint64_t offset, bool isHexColumn, bool isHighNibble, wchar_t ch);
-    bool  OnNavigateKey         (const DxuiKeyEvent & ev);
-    void  OnInputChange         (const std::wstring & text);
-    void  MarkField             (const BlockField * field);
-    void  ShowBytes             ();
-    void  BuildStatus           ();
-    void  InitSecondRow         ();
-    void  AppendSecondRowStatus (uint32_t block);
-    void  Present               ();
-    void  PaintProgress         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  InitCorners       ();
+    void  InitRightColumn   ();
+    bool  OnType            (uint64_t offset, bool isHexColumn, bool isHighNibble, wchar_t ch);
+    bool  OnNavigateKey     (const DxuiKeyEvent & ev);
+    void  MarkField         (const BlockField * field);
+    void  ShowBytes         ();
+    void  BuildFieldLine    ();
+    void  FillFiles         ();
+    void  Present           ();
+    void  LayoutGrid        (const RECT & column, const DxuiDpiScaler & scaler);
+    void  LayoutRight       (const RECT & column, const DxuiDpiScaler & scaler);
+    void  PaintHeader       (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  PaintProgress     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  ApplyHighlight    ();
 
-    BlockInspectorModel  * m_model      = nullptr;
-    BlockInspectorWorker * m_worker     = nullptr;
-    DxuiButton           * m_cancel     = nullptr;
-    QueuedFn               m_onQueued;
-    std::wstring           m_jobLabel;
-    uint64_t               m_jobDone    = 0;
-    uint64_t               m_jobTotal   = 0;
-    bool                   m_isLongJob  = false;
-    uint32_t               m_blockCount = 0;
-    DxuiDpiScaler          m_scaler;
-    DxuiButton           * m_back       = nullptr;
-    DxuiButton           * m_forward    = nullptr;
-    DxuiButton           * m_previous   = nullptr;
-    DxuiButton           * m_next       = nullptr;
-    DxuiButton           * m_highlight  = nullptr;
-    DxuiButton           * m_header     = nullptr;
-    DxuiButton           * m_prevDiff   = nullptr;
-    DxuiButton           * m_nextDiff   = nullptr;
-    DxuiButton           * m_leftovers  = nullptr;
-    DxuiButton           * m_saveRun    = nullptr;
-    SaveRunFn              m_onSaveRun;
-    DxuiTextInput        * m_input      = nullptr;
-    BlockMapView         * m_map        = nullptr;
-    BlockHexView         * m_hex        = nullptr;
-    BlockFieldsView      * m_fields     = nullptr;
-    BlockHexSource         m_source;
-    PressedFn              m_onPressed;
-    ChangedFn              m_onChanged;
-    std::wstring           m_hoverText;
-    std::wstring           m_status;
-    int64_t                m_shownBlock = -1;
-    bool                   m_isHeader   = false;
-    bool                   m_isTyping   = false;
-    RECT                   m_labelRect  = {};
-    RECT                   m_countRect  = {};
-    RECT                   m_hoverRect  = {};
-    RECT                   m_statusRect = {};
+    BlockInspectorModel   * m_model        = nullptr;
+    BlockInspectorWorker  * m_worker       = nullptr;
+    IDxuiTextRenderer     * m_text         = nullptr;
+    DxuiDpiScaler           m_scaler;
+    DxuiToolbar           * m_tools        = nullptr;
+    BlockMapView          * m_map          = nullptr;
+    FloatingGroup         * m_legendGroup  = nullptr;
+    FloatingGroup         * m_chipsGroup   = nullptr;
+    FloatingGroup         * m_zoomGroup    = nullptr;
+    DxuiIconButton        * m_legendButton = nullptr;
+    BlockLegendView       * m_legend       = nullptr;
+    OverlayChip           * m_filesChip    = nullptr;
+    OverlayChip           * m_leftChip     = nullptr;
+    OverlayChip           * m_diffsChip    = nullptr;
+    DxuiIconButton        * m_zoomOut      = nullptr;
+    DxuiIconButton        * m_zoomIn       = nullptr;
+    DxuiSegmentedControl  * m_views        = nullptr;
+    DxuiButton            * m_copy         = nullptr;
+    DxuiLabel             * m_editNote     = nullptr;
+    DxuiButton            * m_discard      = nullptr;
+    DxuiButton            * m_apply        = nullptr;
+    DxuiButton            * m_cancel       = nullptr;
+    BlockHexView          * m_hex          = nullptr;
+    BlockFieldsView       * m_fields       = nullptr;
+    BlockFilesView        * m_files        = nullptr;
+    BlockHexSource          m_source;
+    PressedFn               m_onPressed;
+    ChangedFn               m_onChanged;
+    SaveRunFn               m_onSaveRun;
+    ActionFn                m_onQueued;
+    ActionFn                m_onApply;
+    ActionFn                m_onDiscard;
+    ActionFn                m_onCopy;
+    HintFn                  m_onHint;
+    std::wstring            m_title;
+    std::wstring            m_role;
+    std::wstring            m_owners;
+    std::wstring            m_fieldLine;
+    std::wstring            m_jobLabel;
+    uint64_t                m_jobDone      = 0;
+    uint64_t                m_jobTotal     = 0;
+    bool                    m_isLongJob    = false;
+    bool                    m_isFilesOn    = false;
+    bool                    m_isDiffsOn    = true;
+    bool                    m_isSplitting  = false;
+    bool                    m_hasEdits     = false;
+    View                    m_view         = kViewBlocks;
+    int64_t                 m_shownBlock   = -1;
+    float                   m_split        = 0.5f;
+    RECT                    m_splitterPx   = {};
+    RECT                    m_titleRect    = {};
+    RECT                    m_ownersRect   = {};
+    RECT                    m_fieldRect    = {};
+    RECT                    m_rowRect      = {};
 };

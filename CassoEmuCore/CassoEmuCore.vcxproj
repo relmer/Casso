@@ -1088,6 +1088,9 @@
     <ClCompile Include="Ui\Dialogs\DownloadDialog.cpp" />
     <ClCompile Include="Ui\Dialogs\StartupDownloadDialog.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockFieldsView.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockFilesView.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockGoToDialog.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockLegendView.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockHexSource.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockHexView.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorPanel.cpp" />
@@ -1988,6 +1991,9 @@
     <ClInclude Include="Ui\Settings\ThemePage.h" />
     <ClInclude Include="Ui\UiShell.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockFieldsView.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockFilesView.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockGoToDialog.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockLegendView.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockHexSource.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockHexView.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorPanel.h" />

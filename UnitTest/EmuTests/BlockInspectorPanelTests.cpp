@@ -220,8 +220,8 @@ public:
         panel.SelectBlock (2);
         panel.Paint  (painter, text, theme);
 
-        Assert::IsTrue (HasText (text, L"Block 2: Volume header"));
-        Assert::IsTrue (HasText (text, L"of 1600"));
+        Assert::IsTrue (HasText (text, L"Block 2"));
+        Assert::IsTrue (HasText (text, L"Volume header"));
 
         panel.SelectBlock (300);
         panel.GetHexView()->GoToOffset (4);
@@ -267,14 +267,14 @@ public:
 
         text.Reset();
         panel.Paint (painter, text, theme);
-        Assert::IsFalse (HasText (text, L"Block 2: Volume header"), L"drawn only once the job's completion runs");
+        Assert::IsFalse (HasText (text, L"Block 2"), L"drawn only once the job's completion runs");
 
         worker.RunFinished();
         Assert::IsFalse (panel.IsBusy());
 
         text.Reset();
         panel.Paint (painter, text, theme);
-        Assert::IsTrue  (HasText (text, L"Block 2: Volume header"));
+        Assert::IsTrue  (HasText (text, L"Block 2"));
     }
 
 
