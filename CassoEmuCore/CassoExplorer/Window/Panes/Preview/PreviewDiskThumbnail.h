@@ -170,6 +170,7 @@ public:
 
 private:
     bool  HandlePlatterMouse (const DxuiMouseEvent & ev);
+    bool  HandleScreenMouse  (const DxuiMouseEvent & ev);
 
     enum class State
     {

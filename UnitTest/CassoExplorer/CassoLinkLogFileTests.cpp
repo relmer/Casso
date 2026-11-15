@@ -83,6 +83,7 @@ public:
         const Byte  prompt[]  = { CassoLinkCodec::kWaitKeys, 'P', 'R', 'E', 'S', 'S', 0, '1', 0 };
         const Byte  key[]     = { CassoLinkCodec::kKeySpace };
         const Byte  status[]  = { 1, 2, 30, 0, 0x20 };
+        const Byte  locked[]  = { 1, 0x42, 17, 16, 0 };
         const Byte  ack[]     = { CassoLinkCodec::kAck, 3, 17 };
         const Byte  nak[]     = { CassoLinkCodec::kNak, 3, 17 };
 
@@ -91,6 +92,7 @@ public:
         Assert::AreEqual (std::string ("Wait for a session key: \"PRESS / 1\""),                     CassoLinkPacketText::Describe (CassoLinkCodec::kWaitForKey,    prompt));
         Assert::AreEqual (std::string ("Key: Space"),                                                CassoLinkPacketText::Describe (CassoLinkCodec::kWaitForKey,    key));
         Assert::AreEqual (std::string ("Status: drive 2, track 30, 0 sectors done, sector not found"), CassoLinkPacketText::Describe (CassoLinkCodec::kStatus,        status));
+        Assert::AreEqual (std::string ("Status: drive 2 (write-protected), track 17, 16 sectors done, no error"), CassoLinkPacketText::Describe (CassoLinkCodec::kStatus, locked));
         Assert::AreEqual (std::string ("Acknowledge: ACK, 3 bytes"),                                 CassoLinkPacketText::Describe (CassoLinkCodec::kAcknowledge,   ack));
         Assert::AreEqual (std::string ("Acknowledge: NAK, 3 bytes"),                                 CassoLinkPacketText::Describe (CassoLinkCodec::kAcknowledge,   nak));
         Assert::AreEqual (std::string ("Command 7F, 0 bytes"),                                       CassoLinkPacketText::Describe (0x7F, {}));

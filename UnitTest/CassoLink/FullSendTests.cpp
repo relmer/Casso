@@ -504,7 +504,7 @@ public:
 
     TEST_METHOD (Fingerprint_OfADosDisk_LeavesTrackThreeOut)
     {
-        Image        image = Dos ("HELLO");
+        Image        image = Dos ("GAME");
         std::string  base;
         std::string  next;
 
@@ -551,7 +551,7 @@ public:
         AssertSucceeded (FullSendDisk::ComputeFingerprint (image, next));
 
         Assert::AreEqual (base, next);
-        Assert::IsFalse (FullSendDisk::IsCatalogOnTrackZero (Dos ("HELLO")));
+        Assert::IsFalse (FullSendDisk::IsCatalogOnTrackZero (Dos ("GAME")));
     }
 
 
@@ -569,9 +569,33 @@ public:
         std::copy_n ("APPLE", 5, pascalDisk.begin() + (ptrdiff_t) at + 7);
 
         Assert::AreEqual (std::string ("0003 GAMES"), FullSendDisk::MakeImageTitle (3, FullSendDisk::GetCatalogTitle (ProDos ("GAMES")), ""));
-        Assert::AreEqual (std::string ("0012 HELLO"), FullSendDisk::MakeImageTitle (12, FullSendDisk::GetCatalogTitle (Dos ("HELLO")), ""));
+        Assert::AreEqual (std::string ("0012 START"), FullSendDisk::MakeImageTitle (12, FullSendDisk::GetCatalogTitle (Dos ("START")), ""));
+        Assert::AreEqual (std::string ("0013"),       FullSendDisk::MakeImageTitle (13, FullSendDisk::GetCatalogTitle (Dos ("HELLO")), ""), L"HELLO is no title: the boot screen has it");
         Assert::AreEqual (std::string ("0004 APPLE"), FullSendDisk::MakeImageTitle (4, FullSendDisk::GetCatalogTitle (pascalDisk), ""));
         Assert::AreEqual (std::string ("0005"),       FullSendDisk::MakeImageTitle (5, FullSendDisk::GetCatalogTitle (Other (9)), ""));
+    }
+
+    //  With HELLO first, the next program is the title, less a version at
+    //  its end; a disk with HELLO alone has no title.
+    TEST_METHOD (ProgramTitle_IsTheFirstProgramAfterHello_LessItsVersion)
+    {
+        Image        disk = Dos ("HELLO");
+        Image        next;
+        FilePayload  payload;
+
+
+
+        payload.type           = Dos33Volume::kTypeBinary;
+        payload.loadAddress    = 0x2000;
+        payload.hasLoadAddress = true;
+        payload.bytes.assign (100, 3);
+
+        Assert::AreEqual (std::string(), FullSendDisk::GetProgramTitle (disk), L"HELLO alone");
+
+        AssertSucceeded (Dos33Volume (disk).Write (FilePath::Parse ("WIZFIX.2"), payload, next));
+        Assert::AreEqual (std::string ("WIZFIX"), FullSendDisk::GetProgramTitle (next));
+        Assert::AreEqual (std::string ("GAME"),   FullSendDisk::GetProgramTitle (Dos ("GAME")));
+        Assert::AreEqual (std::string(),          FullSendDisk::GetProgramTitle (Other (9)), L"no DOS 3.3 catalog");
     }
 
     TEST_METHOD (Title_CleansCharactersAHostNameCannotHave)
@@ -637,13 +661,13 @@ public:
     {
         Rig  rig;
 
-        rig.link.drives[0] = Dos ("HELLO");
+        rig.link.drives[0] = Dos ("GAME");
         rig.link.drives[1] = ProDos ("GAMES");
 
         auto  session = rig.Run();
 
         Assert::IsTrue (rig.link.diskReads == std::vector<int> ({ 1, 2 }));
-        Assert::IsTrue (rig.io.files["C:\\Box\\0001 HELLO.dsk"] == rig.link.drives[0]);
+        Assert::IsTrue (rig.io.files["C:\\Box\\0001 GAME.dsk"] == rig.link.drives[0]);
         Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0002 GAMES.po"));
         Assert::AreEqual (1, rig.link.waits, L"the pause came only once neither drive had a new disk");
         Assert::AreEqual (2, session->GetScreen().sent);
@@ -778,17 +802,17 @@ public:
     {
         Rig  rig;
 
-        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.drives[0]  = Dos ("GAME");
         rig.link.badDisk    = rig.link.drives[0];
         rig.link.badSectors = { { 29, 3 } };
         rig.link.present[1] = false;
 
         auto  session = rig.Run();
 
-        Assert::AreEqual (std::string ("1 HELLO"), session->GetScreen().names[0]);
+        Assert::AreEqual (std::string ("1 GAME"), session->GetScreen().names[0]);
         Assert::AreEqual ('X', session->GetScreen().maps[0][29]);
         Assert::AreEqual ('.', session->GetScreen().maps[0][28]);
-        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001 HELLO.dsk"), L"the file keeps its zeros");
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001 GAME.dsk"), L"the file keeps its zeros");
     }
 
     TEST_METHOD (Session_OnDeck_HasTheInstructionFirst_ThenAPromptLine)
@@ -885,8 +909,8 @@ public:
     {
         Assert::AreEqual (std::string (FullSendManifest::kStatusProtected), std::string (FullSendDisk::AssessDamage (Other (1), 4, 64)));
         Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear),   std::string (FullSendDisk::AssessDamage (Other (1), 0, 2)));
-        Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear),   std::string (FullSendDisk::AssessDamage (Dos ("HELLO"), 4, 64)));
-        Assert::AreEqual (std::string (FullSendManifest::kStatusDamaged),   std::string (FullSendDisk::AssessDamage (Dos ("HELLO"), 0, 2)));
+        Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear),   std::string (FullSendDisk::AssessDamage (Dos ("GAME"), 4, 64)));
+        Assert::AreEqual (std::string (FullSendManifest::kStatusDamaged),   std::string (FullSendDisk::AssessDamage (Dos ("GAME"), 0, 2)));
     }
 
     //  A formatted disk with no files is blank, whatever its file system. A
@@ -907,7 +931,7 @@ public:
         Assert::IsTrue (FullSendDisk::IsBlank (BlankProDos ("EMPTY"), {}, system));
         Assert::AreEqual (std::string ("ProDOS"), system);
 
-        Assert::IsFalse (FullSendDisk::IsBlank (Dos ("HELLO"), all, system), L"A disk with a file");
+        Assert::IsFalse (FullSendDisk::IsBlank (Dos ("GAME"), all, system), L"A disk with a file");
         Assert::IsFalse (FullSendDisk::IsBlank (ProDos ("FULL"), all, system), L"A ProDOS disk with a file");
         Assert::IsFalse (FullSendDisk::IsBlank (Other (1), all, system), L"No file system");
 
@@ -1131,7 +1155,7 @@ public:
 
         Rig  damaged;
 
-        damaged.link.drives[0]  = Dos ("HELLO");
+        damaged.link.drives[0]  = Dos ("GAME");
         damaged.link.badDisk    = damaged.link.drives[0];
         damaged.link.badSectors = { { 20, 3 } };
         damaged.link.present[1] = false;
@@ -1148,7 +1172,7 @@ public:
     {
         Rig  rig;
 
-        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.drives[0]  = Dos ("GAME");
         rig.link.present[1] = false;
 
         auto              session  = rig.Run();
@@ -1162,9 +1186,9 @@ public:
         Assert::AreEqual (1, snapshot.totals.sent);
         Assert::AreEqual ((uint64_t) NibblizationLayer::kImageByteSize, snapshot.totals.bytes);
         Assert::IsTrue (snapshot.drives[0].state == FullSendDiskState::Sent);
-        Assert::AreEqual (std::string ("0001 HELLO"), snapshot.drives[0].title);
+        Assert::AreEqual (std::string ("0001 GAME"), snapshot.drives[0].title);
         Assert::IsTrue (std::all_of (snapshot.drives[0].tracks.begin(), snapshot.drives[0].tracks.end(), [] (FullSendTrackMark mark) { return mark == FullSendTrackMark::Read; }));
-        Assert::IsTrue (std::any_of (snapshot.lines.begin(), snapshot.lines.end(), [] (const FullSendLine & line) { return line.text.find ("0001 HELLO.dsk") != std::string::npos; }));
+        Assert::IsTrue (std::any_of (snapshot.lines.begin(), snapshot.lines.end(), [] (const FullSendLine & line) { return line.text.find ("0001 GAME.dsk") != std::string::npos; }));
     }
 
     TEST_METHOD (Session_DoesNotReadADisk_UntilSpaceBegins)
@@ -1222,7 +1246,7 @@ public:
 
 
 
-        first.link.drives[0]    = Dos ("HELLO");
+        first.link.drives[0]    = Dos ("GAME");
         first.link.present[1]   = false;
         second.link.drives[0]   = Dos ("WORLD", 2);
         second.link.present[1]  = false;
@@ -1238,7 +1262,7 @@ public:
         AssertSucceeded (manifest.Parse (first.io.files["C:\\Box\\manifest.fullsend"]));
         Assert::AreEqual ((size_t) 2, manifest.GetRows().size());
         Assert::AreEqual (std::string ("0001 WORLD.dsk"), manifest.GetRows()[0].file);
-        Assert::AreEqual (std::string ("0002 HELLO.dsk"), manifest.GetRows()[1].file);
+        Assert::AreEqual (std::string ("0002 GAME.dsk"), manifest.GetRows()[1].file);
     }
 
     TEST_METHOD (Session_ADiskAnotherSessionSent_IsARepeat)
@@ -1248,7 +1272,7 @@ public:
 
 
 
-        first.link.drives[0]    = Dos ("HELLO");
+        first.link.drives[0]    = Dos ("GAME");
         first.link.present[1]   = false;
         second.link.drives[0]   = Image();
         second.link.present[1]  = false;
@@ -1261,7 +1285,7 @@ public:
             FullSendSession  session (first.link, second.io, [] () { return std::string ("2026-10-30T12:00:00Z"); }, kFolder, "", "");
 
             Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANCELLED), session.Run());
-            link.drives[0] = Dos ("HELLO");
+            link.drives[0] = Dos ("GAME");
         };
 
         second.Run();
@@ -1439,7 +1463,7 @@ public:
     {
         Rig  rig;
 
-        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.drives[0]  = Dos ("GAME");
         rig.link.present[1] = false;
 
         rig.Run();
@@ -1497,14 +1521,14 @@ public:
         Rig  rig;
 
         rig.prefix          = "Box 3-";
-        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.drives[0]  = Dos ("GAME");
         rig.link.drives[1]  = Other (2);
 
         auto  session = rig.Run();
 
-        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\Box 3-0001 HELLO.dsk"));
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\Box 3-0001 GAME.dsk"));
         Assert::IsTrue (rig.io.files.contains ("C:\\Box\\Box 3-0002.dsk"));
-        Assert::AreEqual (std::string ("Box 3-0001 HELLO.dsk"), session->GetManifest().GetRows()[0].file);
+        Assert::AreEqual (std::string ("Box 3-0001 GAME.dsk"), session->GetManifest().GetRows()[0].file);
     }
 
     TEST_METHOD (Session_PrefixTypedOnTheApple_BeginsEachImagesName)
@@ -1514,13 +1538,13 @@ public:
         rig.link.beginKey   = FullSendKey::Prefix;
         rig.link.keys       = { FullSendKey::Space };
         rig.link.typed      = { (Byte) 0xC2, (Byte) 0xCF, (Byte) 0xD8, (Byte) 0xDA, CassoLinkCodec::kKeyLeft, (Byte) 0xAD, CassoLinkCodec::kKeyReturn };
-        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.drives[0]  = Dos ("GAME");
         rig.link.present[1] = false;
 
         auto  session = rig.Run();
 
         Assert::AreEqual (std::string ("BOX-"), session->GetPrefix());
-        Assert::IsTrue   (rig.io.files.contains ("C:\\Box\\BOX-0001 HELLO.dsk"));
+        Assert::IsTrue   (rig.io.files.contains ("C:\\Box\\BOX-0001 GAME.dsk"));
         Assert::AreEqual (std::string ("Prefix: _"), rig.link.typedLines[0][1]);
         Assert::AreEqual (std::string ("Prefix: BOX-_"), rig.link.typedLines.back()[1]);
         Assert::AreEqual (std::string ("P: File name prefix: BOX-"), rig.link.pauseLines[0][2]);

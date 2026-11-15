@@ -76,7 +76,11 @@ std::string CassoLinkPacketText::Describe (Byte command, std::span<const Byte> p
             return std::format ("Acknowledge, {} bytes", size);
 
         case CassoLinkCodec::kStatus:
-            return (size >= 5) ? std::format ("Status: drive {}, track {}, {} sectors done, {}", payload[1], payload[2], payload[3], GetErrorText (payload[4])) : std::string ("Status");
+            //  The drive byte has the disk's write-protect in bit 6.
+            return (size >= 5) ? std::format ("Status: drive {}{}, track {}, {} sectors done, {}", payload[1] & ~CassoLinkCodec::kStatusWriteProtected,
+                                              (payload[1] & CassoLinkCodec::kStatusWriteProtected) != 0 ? " (write-protected)" : "",
+                                              payload[2], payload[3], GetErrorText (payload[4]))
+                               : std::string ("Status");
 
         case CassoLinkCodec::kFormatTrack:
             return (size >= 3) ? std::format ("Format track: drive {}, track {}, volume {}", payload[0], payload[1], payload[2]) : std::string ("Format track");

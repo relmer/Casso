@@ -7,6 +7,9 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
 #include "Core/AppMessages.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
@@ -220,6 +223,7 @@ void PreviewDiskThumbnail::Create()
 
     m_context.window.SetMouseHandler (m_platter,  [this] (const DxuiMouseEvent & ev) { return HandlePlatterMouse (ev); });
     m_context.window.SetMouseHandler (m_blockMap, [this] (const DxuiMouseEvent & ev) { return HandlePlatterMouse (ev); });
+    m_context.window.SetMouseHandler (m_screen,   [this] (const DxuiMouseEvent & ev) { return HandleScreenMouse (ev); });
 
     m_platter->SetSelectionShown (false);
     m_platter->SetVisible  (false);
@@ -598,6 +602,44 @@ bool PreviewDiskThumbnail::HandlePlatterMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left)
     {
         m_context.commandManager.InspectDiskImages ({ m_path });
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::HandleScreenMouse
+//
+//  The booted screen's picture has a menu with Copy, which puts the picture
+//  on the clipboard.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::HandleScreenMouse (const DxuiMouseEvent & ev)
+{
+    RECT                                  bounds  = m_screen->GetBounds();
+    std::shared_ptr<const DxuiIconImage>  picture = m_picture;
+    std::vector<DxuiPopupMenuItem>        items;
+
+
+
+    if (!HasScreen() || !m_screen->IsVisible() || PtInRect (&bounds, ev.positionDip) == FALSE)
+    {
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right)
+    {
+        m_context.input.SetFocusPane (ExplorerPane::Preview);
+        m_context.input.ReleasePressed();
+        m_context.menus.GetMenuCommands().clear();
+        m_context.menus.AddMenuCommand (items, L"&Copy", [this, picture]() { ExplorerPreviewOutput::CopyPicture (m_context, *picture); });
+        DxuiContextMenu::Show (*m_context.window.GetPopupHost(), ev.positionDip.x, ev.positionDip.y, std::move (items));
     }
 
     return true;

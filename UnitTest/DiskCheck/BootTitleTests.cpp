@@ -63,6 +63,21 @@ public:
         Assert::AreEqual (std::string ("DOS 3.3 SYSTEM MASTER"), BootTitle::Find (rows, true));
     }
 
+    //  The DOS 3.3 System Master's screen, as it boots: its date is between
+    //  the title and the copyright line.
+    TEST_METHOD (ADateOverTheCopyrightLine_IsPassedOver)
+    {
+        std::vector<std::string>  rows = Screen ({ { 1,  "               APPLE II" },
+                                                   { 3,  "     DOS VERSION 3.3  SYSTEM MASTER" },
+                                                   { 6,  "            JANUARY 1, 1983" },
+                                                   { 9,  "COPYRIGHT APPLE COMPUTER,INC. 1980,1982" },
+                                                   { 11, "        BE SURE CAPS LOCK IS DOWN" },
+                                                   { 14, "]" } });
+
+        Assert::AreEqual (std::string ("DOS VERSION 3.3  SYSTEM MASTER"), BootTitle::Find (rows, true));
+        Assert::AreEqual (std::string ("DOS Version 3.3 System Master"), BootTitle::ToName (BootTitle::Find (rows, true)));
+    }
+
     TEST_METHOD (AScreenWithNeither_HasNoTitle)
     {
         Assert::IsTrue (BootTitle::Find (Screen ({ { 0, "IT WAS A DARK AND" }, { 1, "STORMY NIGHT." }, { 5, "MORE PROSE" } }), true).empty(), L"A page of prose");

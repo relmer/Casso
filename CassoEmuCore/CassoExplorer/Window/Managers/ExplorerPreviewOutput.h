@@ -36,6 +36,10 @@ public:
     static bool  CanCopy   (const ExplorerContext & context);
     static void  Copy      (ExplorerContext & context);
 
+    //  A picture on the clipboard as a bitmap and a PNG, as a disk image's
+    //  booted screen in the preview is copied.
+    static void  CopyPicture (ExplorerContext & context, const DxuiIconImage & picture);
+
 private:
     //  The single file selected in a disk image, with what reading it takes.
     struct Source

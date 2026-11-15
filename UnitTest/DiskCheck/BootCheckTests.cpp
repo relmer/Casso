@@ -3,6 +3,7 @@
 #include "../EhmTestHelper.h"
 #include "../EmuTests/GuestSession.h"
 #include "../EmuTests/TestMachine.h"
+#include "Core/JsonParser.h"
 #include "Core/TextEncoding.h"
 #include "DiskCheck/BootCheck.h"
 
@@ -106,5 +107,30 @@ public:
 
         Assert::IsTrue (FAILED (hrNone), L"No report with no machine");
         Assert::AreEqual ((size_t) 2, missing.size());
+    }
+
+    //  A boot's machine has only its Disk II cards: a card this build can't
+    //  make, as a newer build's, doesn't fail the machine.
+    TEST_METHOD (KeepDiskSlots_DropsEveryCardButTheDiskII)
+    {
+        std::string  json = R"({ "name": "Apple //e", "slots": [
+                                   { "slot": 4, "device": "mockingboard-c" },
+                                   { "slot": 5, "device": "liron-card", "rom": "Liron.rom" },
+                                   { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" } ] })";
+        JsonValue          root;
+        JsonParseError     error;
+        const JsonValue  * slots = nullptr;
+        std::string        device;
+
+
+
+        AssertSucceeded (BootMachine::KeepDiskSlots (json));
+        AssertSucceeded (JsonParser::Parse (json, root, error));
+
+        Assert::IsTrue (root.HasArray ("slots", slots));
+        Assert::AreEqual ((size_t) 1, slots->GetArraySize());
+        Assert::IsTrue (slots->GetArrayElement (0).HasString ("device", device));
+        Assert::AreEqual (std::string ("disk-ii"), device);
+        Assert::IsTrue (root.HasString ("name", device), L"The other fields are as they were");
     }
 };

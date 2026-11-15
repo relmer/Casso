@@ -153,6 +153,45 @@ public:
     }
 
 
+    //  An inverse span is filled with its color, and its characters are drawn
+    //  in the background color over the fill.
+    TEST_METHOD (Span_Inverse_FillsItsColorAndDrawsInTheBackground)
+    {
+        DxuiTextView           view;
+        DxuiTextView::Row      row     = MakeRow ({ L"10", L"PRINT \"^DX\"" });
+        DxuiTextView::Span     span;
+        MockDxuiPainter        painter;
+        MockDxuiTextRenderer   text;
+        MockDxuiTheme          theme;
+        bool                   filled  = false;
+        bool                   drawn   = false;
+
+        span.cell    = 1;
+        span.start   = 7;
+        span.length  = 2;
+        span.argb    = 0xFF112233;
+        span.inverse = true;
+        row.spans.push_back (span);
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ row });
+        view.Paint (painter, text, theme);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            filled = filled || (call.kind == RecordedPaintKind::FillRect && call.argb == 0xFF112233 && call.width == 16.0f && call.height == 16.0f);
+        }
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            drawn = drawn || (call.text == L"^D" && call.argb == theme.ContentBackground());
+        }
+
+        Assert::IsTrue (filled, L"The span's two cells are filled with its color");
+        Assert::IsTrue (drawn,  L"and its characters are drawn in the background color");
+    }
+
+
     TEST_METHOD (SelectionText_SpansCellsAndRows)
     {
         DxuiTextView  view;

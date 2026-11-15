@@ -64,6 +64,7 @@ public:
         BootProbe::Trace   monitor = booted;
         BootProbe::Trace   basic   = booted;
         BootProbe::Trace   prodos  = booted;
+        BootProbe::Trace   data    = booted;
         BootProbe::Trace   running = MakeTrace (120, 1, 11, 22, 50);
 
 
@@ -76,6 +77,7 @@ public:
         monitor.rows = { "", "*" };
         basic.rows   = { "?SYNTAX ERROR", "]" };
         prodos.rows  = { "*** UNABLE TO LOAD PRODOS ***" };
+        data.rows    = { "This is a data disk, not a startup disk.", "", "]" };
 
         Assert::IsTrue (BootProbe::Judge (booted, limits, reason) == BootVerdict::Booted, L"The screen changed and the drive stopped");
 
@@ -95,6 +97,7 @@ public:
         Assert::IsTrue (BootProbe::Judge (monitor, limits, reason) == BootVerdict::DidNotBoot, L"The monitor's prompt");
         Assert::IsTrue (BootProbe::Judge (basic, limits, reason) == BootVerdict::DidNotBoot, L"A BASIC prompt after an error");
         Assert::IsTrue (BootProbe::Judge (prodos, limits, reason) == BootVerdict::NotBootable, L"ProDOS with no system file");
+        Assert::IsTrue (BootProbe::Judge (data, limits, reason) == BootVerdict::NotBootable, L"A later formatter's data disk");
         Assert::IsFalse (reason.empty(), L"Each verdict has a reason");
 
         Assert::AreEqual ("did-not-boot", BootProbe::GetVerdictName (BootVerdict::DidNotBoot));

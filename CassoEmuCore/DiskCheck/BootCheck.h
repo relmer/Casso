@@ -30,6 +30,9 @@ public:
 
     MachineBuilder  & GetBuilder () noexcept { return m_builder; }
 
+    //  The machine's JSON again, with only its Disk II cards in its slots.
+    static HRESULT  KeepDiskSlots (std::string & ioJson);
+
 private:
     static constexpr uint64_t  s_kSeed = 0xCA550002ULL;
 

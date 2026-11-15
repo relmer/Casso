@@ -3963,6 +3963,52 @@ public:
             L"spacing -- the leading spaces are the ones LIST puts in front of a token");
     }
 
+    TEST_METHOD (Get_AProgramWithLineFeedsInARem_ListsThemAsLineBreaks_AndPutsBackTheSameBytes)
+    {
+        // TANK COMBAT's line 140: a REM whose text is two line feeds, BEGIN
+        // GAME and two more, so LIST on the Apple prints blank lines around it.
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  put      = MakePutOptions (kBlankImage, kHostFile, "TANK");
+        CommandLineOptions  putBack  = MakePutOptions (kBlankImage, kHostFile, "TANK2");
+        DiskCommandResult   listed;
+        DiskCommandResult   raw;
+        std::string         returned;
+        vector<Byte>        program  =
+        {
+            0x15, 0x08, 0x8C, 0x00, 0xB2, 0x0A, 0x0A,
+            'B',  'E',  'G',  'I',  'N',  ' ',  'G',  'A',  'M',  'E',
+            0x0A, 0x0A, 0x00,
+            0x1B, 0x08, 0x96, 0x00, 0x97, 0x00,
+            0x00, 0x00,
+        };
+
+        SeedFile (io, kBlankImage, MakeBlankDos33Image());
+        SeedFile (io, kHostFile,   program);
+
+        put.disk.typeName = "A";
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (put).exitStatus);
+
+        listed = GetFromCommittedImage (io, kBlankImage, "TANK", CommandLineOptions::DiskOptions::Encoding::Basic);
+
+        Assert::AreEqual (DiskCommandResult::kClean, listed.exitStatus, TextEncoding::NarrowToWide (listed.diagnostics).c_str());
+
+        returned.assign (listed.payload.begin(), listed.payload.end());
+
+        Assert::AreEqual (std::string ("140  REM\r\n\r\nBEGIN GAME\r\n\r\n\r\n150  HOME\r\n"), returned);
+
+        SeedFile (io, kHostFile, listed.payload);
+
+        putBack.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (putBack).exitStatus);
+
+        raw = GetFromCommittedImage (io, kBlankImage, "TANK2");
+
+        Assert::IsTrue (raw.payload == program, L"the listing put back with --basic is the same program");
+    }
+
     TEST_METHOD (Put_AnIntegerBasicListing_LandsTokenizedUnderTypeI)
     {
         FakeDiskFileIo         io;

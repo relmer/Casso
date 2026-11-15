@@ -383,6 +383,115 @@ public:
 
 
 
+    //  TANK COMBAT's line 140 is a REM whose text is two line feeds, BEGIN GAME
+    //  and two more, so LIST on the Apple prints blank lines around it. The
+    //  preview has those lines, and an address only on each numbered line.
+    TEST_METHOD (Listing_ALineFeedInARem_IsABlankLine_AndHasNoAddress)
+    {
+        PreviewContent                  content;
+        FilePayload                     payload;
+        FileEntry                       entry;
+        MemoryBus                       bus;
+        std::vector<DxuiTextView::Row>  rows;
+        std::vector<std::wstring>       expected = { L"140  REM", L"", L"BEGIN GAME", L"", L"", L"150  HOME" };
+
+        payload.bytes =
+        {
+            0x15, 0x08, 0x8C, 0x00, 0xB2, 0x0A, 0x0A,
+            'B',  'E',  'G',  'I',  'N',  ' ',  'G',  'A',  'M',  'E',
+            0x0A, 0x0A, 0x00,
+            0x1B, 0x08, 0x96, 0x00, 0x97, 0x00,
+            0x00, 0x00,
+        };
+
+        entry.name = "TANK COMBAT";
+        entry.type = Dos33Volume::kTypeApplesoft;
+
+        AssertSucceeded (PreviewDecoder::Render (entry, VolumeKind::Dos33, payload, PreviewDecoder::HexForm::Auto, bus, content));
+
+        Assert::IsTrue (content.kind == Kind::Listing, content.message.c_str());
+        Assert::IsTrue (content.lines == expected, L"the line feeds are line breaks");
+
+        rows = PreviewText::BuildTextRows (content, true);
+
+        Assert::AreEqual (expected.size(), rows.size());
+        Assert::IsTrue   (rows[0].cells == std::vector<std::wstring> ({ L"$0801", L"140", L"REM" }));
+        Assert::IsTrue   (rows[2].cells == std::vector<std::wstring> ({ L"",      L"",    L"BEGIN GAME" }),
+            L"a continuation has no address or number, and its text is in the statements column");
+        Assert::IsTrue   (rows[5].cells == std::vector<std::wstring> ({ L"$0815", L"150", L"HOME" }),
+            L"and the next numbered line has the next line's address");
+    }
+
+
+
+    //  The inverse spans of a row's statements cell, as start and length.
+    static std::vector<std::pair<int, int>> GetInverseSpans (const DxuiTextView::Row & row)
+    {
+        std::vector<std::pair<int, int>>  found;
+
+        for (const DxuiTextView::Span & span : row.spans)
+        {
+            if (span.inverse)
+            {
+                Assert::AreEqual ((int) row.cells.size() - 1, span.cell, L"an escape is in the statements cell");
+                found.push_back ({ span.start, span.length });
+            }
+        }
+
+        return found;
+    }
+
+
+
+    //  A control character's ^ escape is drawn in inverse, in a REM, a string
+    //  or a DATA payload, with colors or without. A literal caret, ^^, is not,
+    //  and neither is a ^ outside those three.
+    TEST_METHOD (Listing_AControlCharacterEscape_IsInverse)
+    {
+        PreviewContent                    preview;
+        SourceSyntax::Colors              colors;
+        std::vector<DxuiTextView::Row>    rows;
+        std::vector<DxuiTextView::Row>    plain;
+        std::vector<std::pair<int, int>>  none;
+
+        preview.kind  = PreviewContent::Kind::Listing;
+        preview.lines = { L"10  PRINT \"^DCATALOG\";2 ^ 3",
+                          L"20  REM X^^Y ^G",
+                          L"30  DATA ^KX,\"^A\": PRINT \"^B",
+                          L"^C\";\"^E\"",
+                          L"40  REM",
+                          L"^F" };
+
+        colors.mnemonic = 0xFF000001;
+        colors.comment  = 0xFF000002;
+        colors.string   = 0xFF000003;
+
+        rows  = PreviewText::BuildTextRows (preview, false, colors);
+        plain = PreviewText::BuildTextRows (preview, false);
+
+        Assert::IsTrue (GetInverseSpans (rows[0]) == std::vector<std::pair<int, int>> ({ { 7, 2 } }), L"^D in the string, and not the exponent ^");
+        Assert::IsTrue (GetInverseSpans (rows[1]) == std::vector<std::pair<int, int>> ({ { 9, 2 } }), L"^G in the REM, and not the literal ^^");
+        Assert::IsTrue (GetInverseSpans (rows[2]) == std::vector<std::pair<int, int>> ({ { 5, 2 }, { 10, 2 }, { 22, 2 } }),
+            L"^K in the DATA payload, ^A in its string, and ^B in the string after it");
+        Assert::IsTrue (GetInverseSpans (rows[3]) == std::vector<std::pair<int, int>> ({ { 0, 2 }, { 5, 2 } }),
+            L"^C continues the open string, and ^E is in the next string");
+        Assert::IsTrue (GetInverseSpans (rows[5]) == std::vector<std::pair<int, int>> ({ { 0, 2 } }), L"^F continues the REM");
+        Assert::IsTrue (GetInverseSpans (plain[1]) == std::vector<std::pair<int, int>> ({ { 9, 2 } }), L"and the escape is inverse without colors too");
+
+        for (const DxuiTextView::Span & span : rows[1].spans)
+        {
+            Assert::IsTrue (!span.inverse || span.argb == colors.comment, L"a REM's escape is in the comment color");
+        }
+
+        preview.integerBasic = true;
+        preview.lines        = { L"10 PRINT \"^D\"" };
+
+        Assert::IsTrue (GetInverseSpans (PreviewText::BuildTextRows (preview, false, colors)[0]) == none,
+            L"Integer BASIC doesn't list ^ escapes");
+    }
+
+
+
     TEST_METHOD (Hex_ABinaryOfDataOpensAsBytes_AndOfCodeAsADisassembly)
     {
         PreviewContent  content;

@@ -128,6 +128,10 @@ struct LinkOperation
     std::atomic<bool>                fullSendChecking { false };
     std::string                      fullSendSummary;
 
+    //  Set for an operation queued while a Full Send runs, which isn't run:
+    //  the Full Send has the drives until it ends.
+    bool                             isBlocked        = false;
+
     //  What a long operation is doing, for the status bar, as a capture's
     //  track and read; set on the session's thread and read on the UI's.
     void         SetDetail (const std::string & text) { std::lock_guard<std::mutex> lock (m_detailLock); m_detail = text; }

@@ -249,8 +249,10 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
     {
         outReason = "The emulated machine never turned on the disk drive, which indicates a problem with its configuration.";
     }
-    else if (HasRow (trace.rows, "UNABLE TO LOAD PRODOS"))
+    else if (HasRow (trace.rows, "UNABLE TO LOAD PRODOS") || HasRow (trace.rows, "not a startup disk") || HasRow (trace.rows, "NOT A STARTUP DISK"))
     {
+        //  The boot block of a disk with no PRODOS file prints the first; a
+        //  later formatter's prints "This is a data disk, not a startup disk."
         verdict   = BootVerdict::NotBootable;
         outReason = "The disk has a ProDOS file system but no boot files.";
     }

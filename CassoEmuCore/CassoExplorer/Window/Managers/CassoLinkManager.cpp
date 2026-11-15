@@ -2625,8 +2625,9 @@ void CassoLinkManager::RunFullSendDisk (const std::string & file, FullSendDialog
 //
 //  CassoLinkManager::EndFullSend
 //
-//  The connection's session is canceled after a confirmation, as Cancel
-//  ends it.
+//  The connection's session is canceled, as Cancel ends it, and its window
+//  closed. A confirmation comes first only while a disk is being read, as
+//  that disk isn't saved.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2644,8 +2645,9 @@ void CassoLinkManager::EndFullSend (const std::wstring & connection)
         return;
     }
 
-    if (DxuiMessageBox (owner, m_context.theme, L"End the Full Send session? A disk being read is not saved.", L"Full Send",
-                        MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"End session", L"Cancel" }) != IDOK)
+    if (FullSendDialog::IsReadingDisk (view.snapshot)
+        && DxuiMessageBox (owner, m_context.theme, L"End the Full Send session? A disk being read is not saved.", L"Full Send",
+                           MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"End session", L"Cancel" }) != IDOK)
     {
         return;
     }
@@ -2655,6 +2657,11 @@ void CassoLinkManager::EndFullSend (const std::wstring & connection)
     if (session != nullptr)
     {
         session->Cancel();
+    }
+
+    if (found != m_fullSendWindows.end() && found->second != nullptr)
+    {
+        PostMessageW (found->second->GetHwnd(), WM_CLOSE, 0, 0);
     }
 }
 
