@@ -212,7 +212,7 @@ public:
     //  set (PathResolver::IsProfileFolderSet) kTestCopyClass and a number made
     //  from the folder, so a launch is forwarded only to a copy with the same
     //  folder, and two test copies with different folders run side by side.
-    static const wchar_t *  GetWindowClass ();
+    static const wchar_t  * GetWindowClass  ();
     static std::wstring     MakeWindowClass (const std::wstring & profileFolder);
     static constexpr const wchar_t *  kAppName       = L"Casso Explorer";
     static constexpr const char *     kFaultLogName  = "Fault injection";
