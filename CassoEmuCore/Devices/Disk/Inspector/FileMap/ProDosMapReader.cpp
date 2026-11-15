@@ -330,8 +330,8 @@ void ProDosMapReader::CheckEntry (Walk & walk, const Byte * entry, const std::ws
 
     if (limit > 0 && eof > limit)
     {
-        walk.writer.AddFinding (FindingKind::ProDosEofPastStorage, block, std::format (L"{}: end of file {} is past the {} bytes of a {} file", path, eof, limit,
-                                                                                       storage == s_kSeedling ? L"seedling" : L"sapling"));
+        walk.writer.AddFinding (FindingKind::ProDosEofPastStorage, block, std::format (L"{}: the end of file is {} bytes, but a {} file is at most {}", path, eof,
+                                                                                       storage == s_kSeedling ? L"seedling (one data block)" : L"sapling (one index block)", limit));
     }
 
     if (!IsValidName (entry))

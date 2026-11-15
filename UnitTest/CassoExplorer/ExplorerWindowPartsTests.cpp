@@ -1565,7 +1565,7 @@ public:
 
         const Case  cases[] =
         {
-            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"File system: Bad. Track 18, sector $E is used by HELLO but incorrectly marked free.", true  },
+            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"File system: Bad. Track 18, sector $E is used by HELLO but marked free.", true  },
             { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"File system: Suspect. The VTOC's next track to allocate, track 40, is off the disk.", false },
             { L"ok.dsk",      RepairFixtures::MakeDos33(),                     L"", false },
         };

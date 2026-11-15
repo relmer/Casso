@@ -329,7 +329,7 @@ void FileMapWriter::Finalize()
 
     if (m_map.usesUnchecked)
     {
-        AddFinding (FindingKind::FileMapUnchecked, -1, std::format (L"{} sectors of the file map were read without checking checksums", CountUnchecked()));
+        AddFinding (FindingKind::FileMapUnchecked, -1, std::format (L"{} sectors of the file map were read with checksum checks turned off in Decode settings", CountUnchecked()));
     }
 }
 
@@ -359,11 +359,11 @@ void FileMapWriter::SettleCell (int cell)
     {
         for (int owner : out.owners)
         {
-            names += (names.empty() ? L"" : L", ") + m_map.files[owner].path;
+            names += (names.empty() ? L"" : (owner == out.owners.back() ? L" and " : L", ")) + m_map.files[owner].path;
         }
 
         out.role = SectorRole::CrossLinked;
-        AddFinding (FindingKind::FileCrossLinked, cell, Capitalize (DescribeCell (cell)) + L" is used by more than one file: " + names);
+        AddFinding (FindingKind::FileCrossLinked, cell, L"Files " + names + L" are cross-linked at " + DescribeCell (cell));
     }
     else if (out.owners.size() == 1 && IsStructure (cell))
     {
@@ -373,7 +373,7 @@ void FileMapWriter::SettleCell (int cell)
     else if (out.owners.size() == 1 && m_hasBitmap && !isUsed)
     {
         out.role = SectorRole::OwnedMarkedFree;
-        AddFinding (FindingKind::FileOwnedMarkedFree, cell, Capitalize (DescribeCell (cell)) + L" is used by " + m_map.files[out.owners[0]].path + L" but incorrectly marked free");
+        AddFinding (FindingKind::FileOwnedMarkedFree, cell, Capitalize (DescribeCell (cell)) + L" is used by " + m_map.files[out.owners[0]].path + L" but marked free");
     }
     else if (out.owners.size() == 1)
     {
@@ -490,7 +490,7 @@ void FileMapWriter::CheckRepeatedBytes()
 
         if (isRead && count >= static_cast<size_t> (SectorSource::kBytes) && IsOneByte (data, count))
         {
-            AddFinding (FindingKind::FileRepeatedByte, file.sectors.front().cell, std::format (L"{} is ${:02X} in every byte", file.path, data[0]));
+            AddFinding (FindingKind::FileRepeatedByte, file.sectors.front().cell, std::format (L"{}'s data is blank: every byte is ${:02X}", file.path, data[0]));
         }
     }
 }

@@ -352,7 +352,7 @@ void CpmMapReader::CheckEntries (FileMapWriter & writer, const vector<Entry> & e
 
         if (past > 0)
         {
-            writer.AddFinding (FindingKind::CpmBlocksPastRecords, cell, std::format (L"{}: extent {} has {} blocks for {} records, which fill {}",
+            writer.AddFinding (FindingKind::CpmBlocksPastRecords, cell, std::format (L"{}: extent {} lists {} blocks, but its {} records use only {}",
                                                                                      path, entry.extent, slots + past, entry.records, slots));
         }
     }
@@ -399,7 +399,7 @@ std::wstring CpmMapReader::DescribeInvalid (const Byte * entry)
     }
     else if (entry[s_kRecordCount] > s_kRecordsMax)
     {
-        text = std::format (L"record count {} is over 128", entry[s_kRecordCount]);
+        text = std::format (L"the record count is {}, more than the 128 records an extent can have", entry[s_kRecordCount]);
     }
 
     for (i = 0; text.empty() && i < s_kNameLength + s_kTypeLength; i++)

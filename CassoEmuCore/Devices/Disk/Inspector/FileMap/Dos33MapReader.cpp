@@ -423,7 +423,7 @@ bool Dos33MapReader::CheckEntries (FileMapWriter & writer, const vector<Entry> &
     if (!isStandard)
     {
         writer.AddFinding (FindingKind::Dos33CatalogNonstandard, entries.front().cell,
-                           std::format (L"The catalog isn't standard: {} of {} entries have an invalid file name, type or sector count. Files in this catalog aren't read.",
+                           std::format (L"The catalog isn't standard: {} of {} entries have an invalid file name, type, or sector count. Files in this catalog aren't read.",
                                         failed, inUse));
     }
 
