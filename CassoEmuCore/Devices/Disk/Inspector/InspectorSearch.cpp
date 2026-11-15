@@ -2,6 +2,7 @@
 
 #include "Devices/Disk/Inspector/InspectorSearch.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -411,7 +412,7 @@ std::wstring InspectorSearch::FormatHit (const SearchHit & hit)
     }
     else
     {
-        place += L", cell " + InspectorFormat::FormatCount (hit.cell) + L", off the framed nibbles";
+        place += L", cell " + NumberFormat::FormatInteger (hit.cell) + L", off the framed nibbles";
     }
 
     return place;
@@ -429,7 +430,7 @@ std::wstring InspectorSearch::FormatHit (const SearchHit & hit)
 
 std::wstring InspectorSearch::FormatHitCount (size_t count)
 {
-    return InspectorFormat::FormatCount (count) + ((count == 1) ? L" match" : L" matches");
+    return NumberFormat::FormatInteger (count) + ((count == 1) ? L" match" : L" matches");
 }
 
 
@@ -798,7 +799,7 @@ std::wstring InspectorGoTo::GetRangeHint (const DiskAnalysis & analysis, int qua
             break;
 
         case GoToKind::Cell:
-            hint = (track != nullptr && track->framed.cellCount > 0) ? L"A cell from 0 to " + InspectorFormat::FormatCount (track->framed.cellCount - 1) + where
+            hint = (track != nullptr && track->framed.cellCount > 0) ? L"A cell from 0 to " + NumberFormat::FormatInteger (track->framed.cellCount - 1) + where
                                                                      : L"Nothing recorded" + where;
             break;
 

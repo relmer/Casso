@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/InspectorFormat.h"
+#include "Core/NumberFormat.h"
 #include "Core/UnicodeSymbols.h"
 
 
@@ -157,110 +158,6 @@ std::wstring InspectorFormat::FormatByteSequence (std::span<const Byte> bytes)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InspectorFormat::FormatCount
-//
-//  Decimal, grouped with the user's regional thousands separator, as
-//  51,007 in English (United States). If the locale can't be read, the
-//  digits are grouped by three with a comma.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring InspectorFormat::FormatCount (uint64_t count)
-{
-    static constexpr int  kGroup       = 3;
-    static constexpr int  kMaxLocale   = 16;
-    static constexpr int  kMaxText     = 64;
-    static constexpr int  kRepeatScale = 10;
-
-
-
-    std::wstring  digits                = std::to_wstring (count);
-    std::wstring  text;
-    wchar_t       thousands[kMaxLocale] = {};
-    wchar_t       decimal[kMaxLocale]   = {};
-    wchar_t       grouping[kMaxLocale]  = {};
-    wchar_t       formatted[kMaxText]   = {};
-    NUMBERFMTW    format                = {};
-    int           gotThousands          = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_STHOUSAND, thousands, kMaxLocale);
-    int           gotDecimal            = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_SDECIMAL,  decimal,   kMaxLocale);
-    int           gotGrouping           = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_SGROUPING, grouping,  kMaxLocale);
-    std::wstring  pattern               = grouping;
-    int           i                     = 0;
-    int           length                = static_cast<int> (digits.size());
-
-
-
-    if (gotThousands != 0 && gotDecimal != 0 && gotGrouping != 0)
-    {
-        //  "3;0" is groups of 3, "3;2;0" is 3 then 2s (32), and "3" without the
-        //  closing 0 is one group of 3 (30).
-        format.Grouping = 0;
-
-        for (wchar_t c : pattern.ends_with (L";0") ? pattern.substr (0, pattern.size() - 2) : pattern)
-        {
-            if (c >= L'0' && c <= L'9')
-            {
-                format.Grouping = format.Grouping * kRepeatScale + (UINT) (c - L'0');
-            }
-        }
-
-        format.Grouping      = pattern.ends_with (L";0") ? format.Grouping : format.Grouping * kRepeatScale;
-        format.lpDecimalSep  = decimal;
-        format.lpThousandSep = thousands;
-        format.NegativeOrder = 1;
-
-        if (GetNumberFormatEx (LOCALE_NAME_USER_DEFAULT, 0, digits.c_str(), &format, formatted, kMaxText) != 0)
-        {
-            return formatted;
-        }
-    }
-
-    for (i = 0; i < length; i++)
-    {
-        if (i > 0 && (length - i) % kGroup == 0)
-        {
-            text += L',';
-        }
-
-        text += digits[i];
-    }
-
-    return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  InspectorFormat::GetThousandsSeparator
-//
-//  The user's regional thousands separator, or a comma if the locale can't
-//  be read.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring InspectorFormat::GetThousandsSeparator()
-{
-    static constexpr int  kMaxLocale = 16;
-
-
-
-    wchar_t  thousands[kMaxLocale] = {};
-    int      got                   = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_STHOUSAND, thousands, kMaxLocale);
-
-
-
-    return got > 1 ? std::wstring (thousands) : std::wstring (L",");
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  InspectorFormat::FormatDegrees
 //
 //  A fraction of a turn as whole degrees clockwise from the index.
@@ -273,7 +170,7 @@ std::wstring InspectorFormat::FormatDegrees (double fractionOfTurn)
 
 
 
-    return std::format (L"{:.0f}{}", fractionOfTurn * kDegreesPerTurn, s_kpszDegree);
+    return NumberFormat::FormatFixed (fractionOfTurn * kDegreesPerTurn, 0, true) + s_kpszDegree;
 }
 
 
@@ -294,7 +191,7 @@ std::wstring InspectorFormat::FormatMicroseconds (double ticks)
 
 
 
-    return std::format (L"{:.2f}{}s", ticks / kTicksPerMicrosecond, s_kpszMicro);
+    return NumberFormat::FormatFixed (ticks / kTicksPerMicrosecond, 2, true) + s_kpszMicro + L"s";
 }
 
 
@@ -315,7 +212,7 @@ std::wstring InspectorFormat::FormatPercent (double fraction)
 
 
 
-    return std::format (L"{:+.1f}%", fraction * kPercent);
+    return (fraction >= 0.0 ? L"+" : L"") + NumberFormat::FormatFixed (fraction * kPercent, 1, true) + L"%";
 }
 
 
@@ -434,19 +331,14 @@ bool InspectorFormat::TryParseDecimal (std::wstring_view text, int & outValue)
 
 
     std::string   narrow;
-    std::wstring  separator = GetThousandsSeparator();
-    int           value     = 0;
-    bool          isValid   = !text.empty();
+    std::wstring  digits  = NumberFormat::RemoveThousandsSeparators (text);
+    int           value   = 0;
+    bool          isValid = !text.empty();
 
 
 
-    for (wchar_t c : text)
+    for (wchar_t c : digits)
     {
-        if (c == L',' || separator.find (c) != std::wstring::npos)
-        {
-            continue;
-        }
-
         isValid = isValid && c >= L'0' && c <= L'9';
         narrow += static_cast<char> (c);
     }

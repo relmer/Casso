@@ -4,6 +4,7 @@
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -202,10 +203,10 @@ std::wstring FindingFormatter::FormatTrackFinding (const Finding & finding)
         case FindingKind::SectorNumberOutOfRange:     text = std::format (L"Sector number {} is outside the format's range", InspectorFormat::FormatSector (finding.value)); break;
         case FindingKind::StrayFieldMark:             text = std::format (L"{} outside any field", InspectorFormat::FormatByteSequence (finding.bytes));               break;
         case FindingKind::ThirteenSectorFields:       text = L"13-sector fields on a disk with 16-sector fields";                                                    break;
-        case FindingKind::RandomBitsOnFormattedTrack: text = std::format (L"{} random-bit {}, {} cells in all", finding.value, finding.value == 1 ? L"region" : L"regions", InspectorFormat::FormatCount (static_cast<uint64_t> (finding.value2))); break;
+        case FindingKind::RandomBitsOnFormattedTrack: text = std::format (L"{} random-bit {}, {} cells in all", finding.value, finding.value == 1 ? L"region" : L"regions", NumberFormat::FormatInteger (static_cast<uint64_t> (finding.value2))); break;
 
         case FindingKind::TrackLengthDiffers:
-            text = std::format (L"Track is {} cells, {:+.1f}% from nominal", InspectorFormat::FormatCount (static_cast<uint64_t> (finding.value)), finding.value2 / kPermilleToPercent);
+            text = std::format (L"Track is {} cells, {:+.1f}% from nominal", NumberFormat::FormatInteger (static_cast<uint64_t> (finding.value)), finding.value2 / kPermilleToPercent);
             break;
 
         case FindingKind::RecordBetweenTracks:

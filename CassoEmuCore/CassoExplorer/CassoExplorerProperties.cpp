@@ -4,6 +4,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -45,7 +46,7 @@ std::vector<CassoExplorerProperties::Row> CassoExplorerProperties::DescribeEntry
         rows.push_back (Row { L"Size:", FormatBytes (entry.hasEofBytes ? entry.eofBytes : onDisk) });
     }
 
-    rows.push_back (Row { L"Size on disk:", FormatBytes (onDisk) + L", " + InspectorFormat::FormatCount (entry.sizeUnits) + L" " + units });
+    rows.push_back (Row { L"Size on disk:", FormatBytes (onDisk) + L", " + NumberFormat::FormatInteger (entry.sizeUnits) + L" " + units });
 
     if (entry.hasLoadAddress)
     {
@@ -78,7 +79,7 @@ std::vector<CassoExplorerProperties::Row> CassoExplorerProperties::DescribeEntry
 
 std::wstring CassoExplorerProperties::FormatBytes (uint64_t bytes)
 {
-    std::wstring  exact   = InspectorFormat::FormatCount (bytes) + ((bytes == 1) ? L" byte" : L" bytes");
+    std::wstring  exact   = NumberFormat::FormatInteger (bytes) + ((bytes == 1) ? L" byte" : L" bytes");
     std::wstring  rounded = BrowserCells::FormatSize (bytes);
 
     //  A size under a kilobyte is exact already.

@@ -3,6 +3,7 @@
 #include "Devices/Disk/Inspector/TrackExport.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -176,8 +177,8 @@ void TrackExport::ExportNibbles (const TrackAnalysis & track, vector<Byte> & out
 
     for (const RandomRegion & region : framed.randomRegions)
     {
-        outNotes.push_back (std::format (L"Random bits at cells {}-{}, written as the nibbles framed there", InspectorFormat::FormatCount (region.startCell),
-                                         InspectorFormat::FormatCount (region.startCell + region.cellCount - 1)));
+        outNotes.push_back (std::format (L"Random bits at cells {}-{}, written as the nibbles framed there", NumberFormat::FormatInteger (region.startCell),
+                                         NumberFormat::FormatInteger (region.startCell + region.cellCount - 1)));
     }
 }
 

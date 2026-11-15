@@ -7,6 +7,7 @@
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/SectorAccess.h"
 #include "Shell/InspectorStatusPublisher.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -148,17 +149,17 @@ float SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & the
 
         if (reads > 0)
         {
-            items.push_back ({ L"Reads", InspectorFormat::FormatCount (reads) });
+            items.push_back ({ L"Reads", NumberFormat::FormatInteger (reads) });
         }
 
         if (writes > 0)
         {
-            items.push_back ({ L"Writes", InspectorFormat::FormatCount (writes) });
+            items.push_back ({ L"Writes", NumberFormat::FormatInteger (writes) });
         }
 
         if (scans > 0)
         {
-            items.push_back ({ L"Scans", InspectorFormat::FormatCount (scans) });
+            items.push_back ({ L"Scans", NumberFormat::FormatInteger (scans) });
         }
     }
 

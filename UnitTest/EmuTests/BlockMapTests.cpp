@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeIntegrityReport.h"
+#include "Core/NumberFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -261,7 +262,7 @@ public:
 
 
         Assert::AreEqual ((size_t) 1, fields.size());
-        Assert::AreEqual (L"Volume bitmap, blocks 0 to " + InspectorFormat::FormatCount (4095), fields[0].label);
+        Assert::AreEqual (L"Volume bitmap, blocks 0 to " + NumberFormat::FormatInteger (4095), fields[0].label);
     }
 
 

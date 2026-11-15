@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/VolumeIntegrityReport.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -298,5 +299,5 @@ void BlockMapBuilder::AnnotateData (const BlockMap & map, uint32_t block, BlockB
 
 
 
-    list.AddRun (0, kBlockBytes, L"Data, block " + InspectorFormat::FormatCount (entry.node) + L" of the file" + fork, owner);
+    list.AddRun (0, kBlockBytes, L"Data, block " + NumberFormat::FormatInteger (entry.node) + L" of the file" + fork, owner);
 }

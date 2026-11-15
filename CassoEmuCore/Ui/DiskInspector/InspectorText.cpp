@@ -9,6 +9,7 @@
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -46,11 +47,11 @@ vector<SummaryChip> InspectorText::BuildChips (const DiskSummary & summary)
 
     if (summary.sectorsFound > 0)
     {
-        good = std::format (L"{} of {} sectors good", InspectorFormat::FormatCount (summary.sectorsGood), InspectorFormat::FormatCount (summary.sectorsFound));
+        good = std::format (L"{} of {} sectors good", NumberFormat::FormatInteger (summary.sectorsGood), NumberFormat::FormatInteger (summary.sectorsFound));
 
         if (summary.sectorsNotChecked > 0)
         {
-            good += std::format (L", {} not checked", InspectorFormat::FormatCount (summary.sectorsNotChecked));
+            good += std::format (L", {} not checked", NumberFormat::FormatInteger (summary.sectorsNotChecked));
         }
 
         chips.push_back ({ SummaryChipKind::SectorsGood, good, summary.badSectors > 0 });
@@ -275,7 +276,7 @@ std::wstring InspectorText::FormatOrdinal (int n)
 
 std::wstring InspectorText::FormatCount (int count, LPCWSTR singular, LPCWSTR plural)
 {
-    return InspectorFormat::FormatCount (static_cast<uint64_t> (count)) + L" " + (count == 1 ? singular : plural);
+    return NumberFormat::FormatInteger (static_cast<uint64_t> (count)) + L" " + (count == 1 ? singular : plural);
 }
 
 
@@ -343,8 +344,8 @@ std::wstring InspectorText::FormatTrackLine (const TrackAnalysis * track)
 
     if (track != nullptr && track->framed.cellCount > 0)
     {
-        text = InspectorFormat::FormatCount (track->framed.cellCount) + L" cells" + s_kSeparator
-             + InspectorFormat::FormatCount (track->framed.nibbles.size()) + L" nibbles" + s_kSeparator
+        text = NumberFormat::FormatInteger (track->framed.cellCount) + L" cells" + s_kSeparator
+             + NumberFormat::FormatInteger (track->framed.nibbles.size()) + L" nibbles" + s_kSeparator
              + (track->sectorsFound > 0
                 ? FormatCount (track->sectorsFound, L"sector", L"sectors") +
                   (track->sectorsFound > track->sectorsGood ? std::format (L", {} bad", track->sectorsFound - track->sectorsGood) : std::wstring())
@@ -393,7 +394,7 @@ std::wstring InspectorText::FormatMeasureLine (const TrackAnalysis & track)
     if (m.longestSync.count > 0)
     {
         items.push_back (std::format (L"longest sync {} at cell {}", FormatCount (m.longestSync.count, L"nibble", L"nibbles"),
-                                      InspectorFormat::FormatCount (m.longestSync.startCell)));
+                                      NumberFormat::FormatInteger (m.longestSync.startCell)));
     }
 
     for (const std::wstring & item : items)
@@ -466,7 +467,7 @@ std::wstring InspectorText::FormatAccessCounts (uint32_t reads, uint32_t writes,
     {
         if (item.second > 0)
         {
-            text += (text.empty() ? L"" : L"\n") + std::format (L"{}: {} {}", item.first, InspectorFormat::FormatCount (item.second), (item.second == 1) ? L"time" : L"times");
+            text += (text.empty() ? L"" : L"\n") + std::format (L"{}: {} {}", item.first, NumberFormat::FormatInteger (item.second), (item.second == 1) ? L"time" : L"times");
         }
     }
 
@@ -720,7 +721,7 @@ std::wstring InspectorText::FormatNibbleKind (NibbleKind kind, bool isFailedChec
 
 std::wstring InspectorText::FormatStripReadout (uint32_t firstCell, uint32_t lastCell, const std::wstring & driveState)
 {
-    return L"Cells " + InspectorFormat::FormatCount (firstCell) + L"-" + InspectorFormat::FormatCount (lastCell)
+    return L"Cells " + NumberFormat::FormatInteger (firstCell) + L"-" + NumberFormat::FormatInteger (lastCell)
          + (driveState.empty() ? std::wstring() : s_kSeparator + driveState);
 }
 

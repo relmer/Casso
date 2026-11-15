@@ -4,6 +4,7 @@
 #include "GuestSession.h"
 #include "KeystrokeInjector.h"
 #include "TestMachine.h"
+#include "Core/NumberFormat.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/FilePath.h"
 #include "FileTypes/FileFormatTable.h"
@@ -360,8 +361,8 @@ public:
         Assert::IsTrue (HasLineStarting (file, std::format (L"CASSO   Level {} Human Fighter, Good", level)));
         Assert::IsTrue (HasLineStarting (file, std::format (L"Status: OK   Hit points: {}/{}   Gold: {}   Experience: {}",
                                                             FindScreenNumber (sheet, "HITS"), FindScreenNumber (sheet, "HITS", true),
-                                                            WizardryScenario::GroupDigits ((uint64_t) FindScreenNumber (sheet, "GOLD")),
-                                                            WizardryScenario::GroupDigits ((uint64_t) FindScreenNumber (sheet, "EXP")))));
+                                                            NumberFormat::FormatInteger (FindScreenNumber (sheet, "GOLD")),
+                                                            NumberFormat::FormatInteger (FindScreenNumber (sheet, "EXP")))));
     }
 
 

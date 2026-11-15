@@ -14,6 +14,7 @@
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
+#include "Core/NumberFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -323,7 +324,7 @@ public:
 
         Assert::IsTrue  (BlockInspectorPanel::TryParseBlock (L" 123 ", block));
         Assert::AreEqual (123u, block);
-        Assert::IsTrue  (BlockInspectorPanel::TryParseBlock (InspectorFormat::FormatCount (21820), block));
+        Assert::IsTrue  (BlockInspectorPanel::TryParseBlock (NumberFormat::FormatInteger (21820), block));
         Assert::AreEqual (21820u, block);
         Assert::IsTrue  (BlockInspectorPanel::TryParseBlock (L"$1F", block));
         Assert::AreEqual (31u, block);

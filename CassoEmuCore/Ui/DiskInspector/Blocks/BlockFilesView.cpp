@@ -3,6 +3,7 @@
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/Blocks/BlockFilesView.h"
 #include "Ui/DiskInspector/ZoomStops.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -157,8 +158,8 @@ void BlockFilesView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
         cell (m_rows[i].path,                                           (float) bounds.left + pad, xKind - bounds.left - 2 * pad, theme.Foreground(),      DxuiTextHAlign::Left,  DxuiFontWeight::Normal);
         cell (m_rows[i].isDirectory ? L"Directory" : L"File",           xKind,                     kind,                          theme.ForegroundMuted(), DxuiTextHAlign::Left,  DxuiFontWeight::Normal);
-        cell (InspectorFormat::FormatCount (m_rows[i].blocks),          xCount,                    count - pad,                   theme.Foreground(),      DxuiTextHAlign::Right, DxuiFontWeight::Normal);
-        cell (InspectorFormat::FormatCount (m_rows[i].first),           xFirst,                    first,                         theme.Foreground(),      DxuiTextHAlign::Right, DxuiFontWeight::Normal);
+        cell (NumberFormat::FormatInteger (m_rows[i].blocks),          xCount,                    count - pad,                   theme.Foreground(),      DxuiTextHAlign::Right, DxuiFontWeight::Normal);
+        cell (NumberFormat::FormatInteger (m_rows[i].first),           xFirst,                    first,                         theme.Foreground(),      DxuiTextHAlign::Right, DxuiFontWeight::Normal);
 
         y += row;
     }

@@ -154,7 +154,7 @@ private:
     static constexpr int     kFormatPercent  = 5;
 
     static std::wstring  DecodeCell     (std::span<const Byte> cell, Byte width, int sheetFormat, int sheetDecimals);
-    static std::wstring  AddThousands   (const std::wstring & digits);
+    static std::wstring  FormatGeneral  (double value);
 };
 
 

@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerLinkDialog.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "Core/NumberFormat.h"
 #include "Core/TextEncoding.h"
 #include "Seams/Win32NetworkAdapters.h"
 #include "Ui/Settings/SettingsInfoTip.h"
@@ -50,7 +51,7 @@ std::vector<std::wstring> CassoExplorerLinkChoices::GetSpeedLabels()
 
     for (DWORD speed : kSpeeds)
     {
-        labels.push_back (std::format (L"{} baud", CassoLinkConnections::FormatBaud (speed)));
+        labels.push_back (std::format (L"{} baud", NumberFormat::FormatInteger (speed)));
     }
 
     return labels;

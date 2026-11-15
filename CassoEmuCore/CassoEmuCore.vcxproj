@@ -210,6 +210,7 @@
     <ClCompile Include="Core\Cpu65C02Table.cpp" />
     <ClCompile Include="Core\Prng.cpp" />
     <ClCompile Include="Core\DramPowerOnPattern.cpp" />
+    <ClCompile Include="Core\NumberFormat.cpp" />
     <ClCompile Include="Core\TextEncoding.cpp" />
     <ClCompile Include="Core\ThreadName.cpp" />
     <ClCompile Include="Seams\Win32ContentDetails.cpp" />
@@ -1342,6 +1343,7 @@
     <ClInclude Include="Core\PathResolver.h" />
     <ClInclude Include="Core\Prng.h" />
     <ClInclude Include="Core\DramPowerOnPattern.h" />
+    <ClInclude Include="Core\NumberFormat.h" />
     <ClInclude Include="Core\TextEncoding.h" />
     <ClInclude Include="Core\ThreadName.h" />
     <ClInclude Include="Seams\Win32ContentDetails.h" />

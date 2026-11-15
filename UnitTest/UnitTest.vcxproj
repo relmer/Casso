@@ -316,6 +316,7 @@
     <ClCompile Include="EmuTests\InfocomSaveTests.cpp" />
     <ClCompile Include="EmuTests\DiskHelpTextTests.cpp" />
     <ClCompile Include="EmuTests\DiskInspectCommandTests.cpp" />
+    <ClCompile Include="EmuTests\NumberFormatTests.cpp" />
     <ClCompile Include="EmuTests\TextEncodingTests.cpp" />
     <ClCompile Include="EmuTests\DiskFailureModeTests.cpp" />
     <ClCompile Include="EmuTests\DirectBootTests.cpp" />

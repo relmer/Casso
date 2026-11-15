@@ -9,6 +9,7 @@
 #include "Machines/Apple2/Common/HfsWriter.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Core/NumberFormat.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -256,7 +257,7 @@ public:
         model.GetFile().AnnotateHeader (fields);
 
         Assert::IsNotNull (FindField (fields, L"2IMG: blocks"));
-        Assert::AreEqual (L"$00000640 (" + InspectorFormat::FormatCount (1600) + L")", FindField (fields, L"2IMG: blocks")->value);
+        Assert::AreEqual (L"$00000640 (" + NumberFormat::FormatInteger (1600) + L")", FindField (fields, L"2IMG: blocks")->value);
         Assert::AreEqual (std::wstring (L"\"2IMG\""), FindField (fields, L"2IMG: magic")->value);
     }
 

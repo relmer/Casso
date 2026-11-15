@@ -11,6 +11,7 @@
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Shell/InspectorStatusPublisher.h"
 #include "Ui/DiskInspector/SectorAccess.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -208,7 +209,7 @@ vector<TableRow> InspectorTables::BuildFindings (const DiskAnalysis & analysis, 
         row.cells        = { FindingFormatter::FormatCategory (f.category),
                              f.quarterTrack >= 0 ? InspectorFormat::FormatQuarterTrack (f.quarterTrack) : std::wstring (s_kpszNone),
                              f.sector >= 0       ? InspectorFormat::FormatSector (f.sector)             : std::wstring (s_kpszNone),
-                             f.hasCell           ? InspectorFormat::FormatCount (f.cell)                 : std::wstring (s_kpszNone),
+                             f.hasCell           ? NumberFormat::FormatInteger (f.cell)                 : std::wstring (s_kpszNone),
                              FindingFormatter::Format (f) };
 
         rows.push_back (std::move (row));
@@ -314,8 +315,8 @@ vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, co
             FormatSharesWith (e),
             InspectorText::FormatTrackClass (e.trackClass),
             (e.sectorsFound > 0) ? std::format (L"{} of {}", e.sectorsGood, e.sectorsFound) : std::wstring (s_kpszNone),
-            has  ? InspectorFormat::FormatCount (track->framed.nibbles.size()) : std::wstring (s_kpszNone),
-            has  ? InspectorFormat::FormatCount (track->framed.cellCount) + L" (" + InspectorFormat::FormatPercent (track->framed.cellCount / kNominalCells - 1.0) + L")"
+            has  ? NumberFormat::FormatInteger (track->framed.nibbles.size()) : std::wstring (s_kpszNone),
+            has  ? NumberFormat::FormatInteger (track->framed.cellCount) + L" (" + InspectorFormat::FormatPercent (track->framed.cellCount / kNominalCells - 1.0) + L")"
                  : std::wstring (s_kpszNone),
             (has && track->measurements.longestSync.count > 0) ? std::to_wstring (track->measurements.longestSync.count) : std::wstring (s_kpszNone),
             (has && track->measurements.sector0Angle >= 0) ? InspectorFormat::FormatDegrees (track->measurements.sector0Angle) : std::wstring (s_kpszNone),
@@ -326,7 +327,7 @@ vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, co
             FormatEdited (e.slot, edits, appliedSlots),
             e.isBeyondHeadReach ? L"Beyond the head's reach" : L"",
             wrote ? L"Written" : L"",
-            (reads > 0) ? InspectorFormat::FormatCount (reads) : std::wstring(),
+            (reads > 0) ? NumberFormat::FormatInteger (reads) : std::wstring(),
             (sRead > 0) ? std::to_wstring (sRead) : std::wstring(),
             (sWrit > 0) ? std::to_wstring (sWrit) : std::wstring(),
         };
@@ -394,7 +395,7 @@ vector<TableRow> InspectorTables::BuildFields (const DiskAnalysis & analysis, in
         row.field        = static_cast<int> (f);
         row.cells        =
         {
-            InspectorFormat::FormatCount (field.startCell),
+            NumberFormat::FormatInteger (field.startCell),
             InspectorFormat::FormatDegrees (TrackAnalyzer::GetAngle (*track, field.startCell)),
             addr != nullptr ? InspectorFormat::FormatSector (addr->sector) : std::wstring (s_kpszNone),
             addr != nullptr ? std::to_wstring (addr->volume) : std::wstring (s_kpszNone),
@@ -728,7 +729,7 @@ vector<TableRow> InspectorTables::BuildImage (const ImageDetails & image, const 
     AddRow (rows, L"File", L"");
     AddRow (rows, L"File name", TextEncoding::Utf8ToWide (image.fileName));
     AddRow (rows, L"Format",    FormatImageFormat (image));
-    AddRow (rows, L"Size",      InspectorFormat::FormatCount (image.fileSize) + L" bytes");
+    AddRow (rows, L"Size",      NumberFormat::FormatInteger (image.fileSize) + L" bytes");
     AddRow (rows, L"Read-only", image.isReadOnly ? L"Yes" : L"No");
 
     if (image.isWoz)
@@ -977,7 +978,7 @@ void InspectorTables::AddRecordRows (vector<TableRow> & inOut, const WozFileLayo
         if (rec.startBlock != 0 || rec.blockCount != 0 || rec.bitOrByteCount != 0)
         {
             AddRow (inOut, std::format (L"Record {}", r), std::format (L"Start block {}, {} blocks, {} {}", rec.startBlock, rec.blockCount,
-                                                                          InspectorFormat::FormatCount (now), isFlux[r] ? L"bytes" : L"bits")
+                                                                          NumberFormat::FormatInteger (now), isFlux[r] ? L"bytes" : L"bits")
                                                           + (now != rec.bitOrByteCount ? s_kpszChanged : L""));
             inOut.back().quarterTrack = FindRecordRing (layout.tmap, r);
         }
@@ -990,7 +991,7 @@ void InspectorTables::AddRecordRows (vector<TableRow> & inOut, const WozFileLayo
         now = GetRecordLength (live, r, rec.bitCount);
 
         AddRow (inOut, std::format (L"Record {}", r), std::format (L"{} bytes used, {} bits, splice point {}, splice nibble ${:02X}, splice bit count {}",
-                                                                      InspectorFormat::FormatCount (rec.bytesUsed), InspectorFormat::FormatCount (now),
+                                                                      NumberFormat::FormatInteger (rec.bytesUsed), NumberFormat::FormatInteger (now),
                                                                       rec.splicePoint, rec.spliceNibble, rec.spliceBitCount)
                                                       + (now != rec.bitCount ? s_kpszChanged : L""));
         inOut.back().quarterTrack = FindRecordRing (layout.tmap, r);
@@ -1006,7 +1007,7 @@ void InspectorTables::AddRecordRows (vector<TableRow> & inOut, const WozFileLayo
 
         if (!isHad && now > 0 && live->tracks[r]->guestWriteCount > 0)
         {
-            AddRow (inOut, std::format (L"Record {}", r), std::format (L"{} {}, added since the file was read", InspectorFormat::FormatCount (now),
+            AddRow (inOut, std::format (L"Record {}", r), std::format (L"{} {}, added since the file was read", NumberFormat::FormatInteger (now),
                                                                           live->tracks[r]->kind == TrackKind::Flux ? L"bytes" : L"bits"));
         }
     }
@@ -1018,7 +1019,7 @@ void InspectorTables::AddRecordRows (vector<TableRow> & inOut, const WozFileLayo
 
     for (const WozUnreferencedRecord & rec : layout.unreferenced)
     {
-        AddRow (inOut, std::format (L"Record {}", rec.index), InspectorFormat::FormatCount (rec.bitOrByteCount) + L" bits or bytes");
+        AddRow (inOut, std::format (L"Record {}", rec.index), NumberFormat::FormatInteger (rec.bitOrByteCount) + L" bits or bytes");
     }
 }
 
@@ -1051,7 +1052,7 @@ void InspectorTables::AddChunkRows (vector<TableRow> & inOut, const WozFileLayou
             id.push_back ((ch >= 0x20 && ch < 0x7F) ? static_cast<wchar_t> (ch) : L'?');
         }
 
-        AddRow (inOut, id, std::format (L"{} bytes at offset {}", InspectorFormat::FormatCount (chunk.size), InspectorFormat::FormatCount (chunk.offset)));
+        AddRow (inOut, id, std::format (L"{} bytes at offset {}", NumberFormat::FormatInteger (chunk.size), NumberFormat::FormatInteger (chunk.offset)));
     }
 }
 

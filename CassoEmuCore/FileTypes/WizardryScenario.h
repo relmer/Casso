@@ -91,10 +91,8 @@ public:
     //  the table of contents.
     static std::wstring  GetTitle (const std::wstring & name);
 
-    //  A name from the game, in capitals, with each word capitalized, and a
-    //  number with commas between its groups of three digits.
+    //  A name from the game, in capitals, with each word capitalized.
     static std::wstring  ToTitleCase (const std::wstring & name);
-    static std::wstring  GroupDigits (uint64_t value);
 
     //  Where the party is, from the characters' records, or false when no
     //  character is in the maze.

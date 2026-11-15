@@ -4,6 +4,7 @@
 #include "Devices/Disk/Inspector/Blocks/ProDosBlockLayout.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -588,7 +589,7 @@ void ProDosBlockLayout::AnnotateEntry (const BlockMap & map, uint32_t at, int nu
 
     uint32_t      count  = map.GetBlockCount();
     uint32_t      length = list.GetByte (at) & kNameMask;
-    std::wstring  head   = L"Entry " + InspectorFormat::FormatCount (number) + L" " + list.GetText (at + 1, length) + L": ";
+    std::wstring  head   = L"Entry " + NumberFormat::FormatInteger (number) + L" " + list.GetText (at + 1, length) + L": ";
 
 
 
@@ -636,7 +637,7 @@ void ProDosBlockLayout::AnnotateIndex (const BlockMap & map, bool isMaster, Bloc
             continue;
         }
 
-        list.AddSplitLink (i, kPointers + i, (isMaster ? L"Index block " : L"Data block ") + InspectorFormat::FormatCount (i), map.GetBlockCount());
+        list.AddSplitLink (i, kPointers + i, (isMaster ? L"Index block " : L"Data block ") + NumberFormat::FormatInteger (i), map.GetBlockCount());
     }
 }
 
@@ -703,6 +704,6 @@ void ProDosBlockLayout::AnnotateBitmap (uint32_t index, BlockFieldList & list)
     }
 
     list.AddRun (0, kBlockBytes,
-                 L"Volume bitmap, blocks " + InspectorFormat::FormatCount (first) + L" to " + InspectorFormat::FormatCount (last),
-                 InspectorFormat::FormatCount (free) + L" free");
+                 L"Volume bitmap, blocks " + NumberFormat::FormatInteger (first) + L" to " + NumberFormat::FormatInteger (last),
+                 NumberFormat::FormatInteger (free) + L" free");
 }

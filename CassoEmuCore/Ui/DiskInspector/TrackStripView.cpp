@@ -11,6 +11,7 @@
 #include "Ui/DiskInspector/PlatterCells.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
 #include "Ui/DiskInspector/ZoomStops.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -983,7 +984,7 @@ bool TrackStripView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & o
     else if (track != nullptr && !m_isPanning && pointPx.y >= m_boundsDip.top && pointPx.y < bar.top && IsOverSeam (*track, static_cast<float> (pointPx.x)))
     {
         outText     = std::format (L"Longest sync run, {} nibbles at cell {}\nThe likely write seam", track->measurements.longestSync.count,
-                                   InspectorFormat::FormatCount (track->measurements.longestSync.startCell));
+                                   NumberFormat::FormatInteger (track->measurements.longestSync.startCell));
         outAnchorPx = { pointPx.x, m_boundsDip.top, pointPx.x + 1, bar.top };
         hasTip      = true;
     }

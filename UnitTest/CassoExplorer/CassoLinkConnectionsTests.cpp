@@ -876,7 +876,6 @@ public:
                           CassoLinkConnections::DescribeState (LinkState::Opening, link, L"relmer-pc"));
 
         Assert::AreEqual (std::wstring (L"Click My //c to connect."), CassoLinkConnections::DescribeState (LinkState::Closed, link, L"pc"));
-        Assert::AreEqual (std::wstring (L"1,200"), CassoLinkConnections::FormatBaud (1200));
     }
 
 

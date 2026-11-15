@@ -3,6 +3,7 @@
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/Blocks/BlockFieldsView.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -44,7 +45,7 @@ std::wstring BlockFieldsView::FormatRow (const BlockField & field)
 
     if (field.link != BlockField::kNoLink)
     {
-        text += std::wstring (L"  ") + s_kpszRightArrow + L" block " + InspectorFormat::FormatCount (field.link);
+        text += std::wstring (L"  ") + s_kpszRightArrow + L" block " + NumberFormat::FormatInteger (field.link);
     }
 
     return text;

@@ -8,6 +8,7 @@
 #include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -597,7 +598,7 @@ void FluxView::PaintBars (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     for (int peak : FindPeaks (histogram))
     {
         hgt = barsH * histogram.counts[peak] / histogram.peak;
-        text.DrawString (InspectorFormat::FormatCount (static_cast<uint64_t> (histogram.counts[peak])).c_str(), left + peak * binW - axis,
+        text.DrawString (NumberFormat::FormatInteger (static_cast<uint64_t> (histogram.counts[peak])).c_str(), left + peak * binW - axis,
                          static_cast<float> (bars.bottom) - hgt - rowH, 2 * axis + binW, rowH, theme.Foreground(), textPx, DxuiTheme::kBodyFace,
                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
@@ -791,7 +792,7 @@ bool FluxView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnch
     {
         const FluxInterval &  interval = m_intervals[i];
 
-        outText = std::format (L"Transition at cell {}\n{} since the one before, {:.2f} cells", InspectorFormat::FormatCount (interval.cell),
+        outText = std::format (L"Transition at cell {}\n{} since the one before, {:.2f} cells", NumberFormat::FormatInteger (interval.cell),
                                InspectorFormat::FormatMicroseconds (interval.ticks), interval.ticks / TrackAnalyzer::kNominalCellTicks);
 
         if (interval.isWithinCell)

@@ -286,13 +286,11 @@ public:
     }
 
 
-    TEST_METHOD (ToTitleCaseAndGroupDigits)
+    TEST_METHOD (ToTitleCase)
     {
         Assert::AreEqual (std::wstring (L"Human"),  WizardryScenario::ToTitleCase (L"HUMAN"));
         Assert::AreEqual (std::wstring (L"P-lyze"), WizardryScenario::ToTitleCase (L"P-LYZE"));
         Assert::AreEqual (std::wstring (L"OK"),     WizardryScenario::ToTitleCase (L"OK"));
-        Assert::AreEqual (std::wstring (L"7,811,260"), WizardryScenario::GroupDigits (7811260));
-        Assert::AreEqual (std::wstring (L"441"),       WizardryScenario::GroupDigits (441));
     }
 
 

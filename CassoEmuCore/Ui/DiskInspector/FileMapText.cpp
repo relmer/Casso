@@ -5,6 +5,7 @@
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Inspector/FileMap/SectorSource.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -398,7 +399,7 @@ std::wstring FileMapText::FormatStates (const MappedFile & file)
 std::wstring FileMapText::FormatSize (const FileMap & map, const MappedFile & file)
 {
     return (map.fileSystem == MapFileSystem::Dos33) ? InspectorText::FormatCount (file.recordedCount, L"sector", L"sectors")
-                                                    : InspectorFormat::FormatCount (file.recordedSize) + L" bytes";
+                                                    : NumberFormat::FormatInteger (file.recordedSize) + L" bytes";
 }
 
 

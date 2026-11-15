@@ -5,6 +5,7 @@
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Ui/DiskInspector/InspectorTables.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -137,9 +138,9 @@ void NibbleSections::AddStretch (const TrackAnalysis & track, NibbleSectionKind 
         section.firstNibble = first;
         section.count       = end - first;
         section.title       = (kind == NibbleSectionKind::Sync) ? L"Sync" : L"Other nibbles";
-        section.facts       = std::format (L"{} {}{}cells {}-{}", InspectorFormat::FormatCount (static_cast<uint64_t> (section.count)),
+        section.facts       = std::format (L"{} {}{}cells {}-{}", NumberFormat::FormatInteger (static_cast<uint64_t> (section.count)),
                                            (kind == NibbleSectionKind::Sync) ? L"self-sync FF" : (section.count == 1 ? L"nibble" : L"nibbles"), s_kSeparator,
-                                           InspectorFormat::FormatCount (GetCellAt (track, first)), InspectorFormat::FormatCount (lastCell > 0 ? lastCell - 1 : 0));
+                                           NumberFormat::FormatInteger (GetCellAt (track, first)), NumberFormat::FormatInteger (lastCell > 0 ? lastCell - 1 : 0));
         inOut.push_back (std::move (section));
     }
 }
@@ -186,13 +187,13 @@ void NibbleSections::AddField (const DiskAnalysis & analysis, int quarterTrack, 
     if (isAddr)
     {
         section.facts = std::format (L"volume {}{}track {}{}checksum {}{}cell {}{}{}", f.volume, s_kSeparator, f.track, s_kSeparator,
-                                     !isCheck ? L"not checked" : isGood ? L"good" : L"bad", s_kSeparator, InspectorFormat::FormatCount (f.startCell), s_kSeparator,
+                                     !isCheck ? L"not checked" : isGood ? L"good" : L"bad", s_kSeparator, NumberFormat::FormatInteger (f.startCell), s_kSeparator,
                                      InspectorFormat::FormatDegrees (TrackAnalyzer::GetAngle (track, f.startCell)));
     }
     else
     {
         section.facts = std::format (L"{}{}checksum {}{}{} nibbles", f.kind == DiskFieldKind::Sixteen ? L"6-and-2" : L"5-and-3", s_kSeparator,
-                                     !isCheck ? L"not checked" : isGood ? L"good" : L"bad", s_kSeparator, InspectorFormat::FormatCount (static_cast<uint64_t> (f.nibbleCount)));
+                                     !isCheck ? L"not checked" : isGood ? L"good" : L"bad", s_kSeparator, NumberFormat::FormatInteger (static_cast<uint64_t> (f.nibbleCount)));
     }
 
     //  The tooltip has every column of the field's row in the Fields table.

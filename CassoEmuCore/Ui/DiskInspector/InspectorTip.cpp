@@ -9,6 +9,7 @@
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
 #include "Ui/DiskInspector/SectorAccess.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -160,7 +161,7 @@ InspectorTip InspectorTip::BuildPlatterTip (const InspectorViewContext & context
         if (isShowingNibbles && nibble >= 0 && !isRandom)
         {
             tip.AddLine (std::format (L"Nibble ${:02X} at offset {}{}cell {} of {}", track->framed.nibbles[nibble].value, InspectorFormat::FormatHexOffset (nibble),
-                                      s_kSeparator, InspectorFormat::FormatCount (cell + 1), InspectorFormat::FormatCount (track->framed.cellCount)));
+                                      s_kSeparator, NumberFormat::FormatInteger (cell + 1), NumberFormat::FormatInteger (track->framed.cellCount)));
         }
 
         tip.AddKinds (context, *track, first, count, !isTimed);
@@ -215,7 +216,7 @@ void InspectorTip::AddTaken (const InspectorViewContext & context, int quarterTr
 
     if (taken > 0)
     {
-        AddLine (std::format (L"Read: {} {}", InspectorFormat::FormatCount (taken), (taken == 1) ? L"nibble" : L"nibbles"));
+        AddLine (std::format (L"Read: {} {}", NumberFormat::FormatInteger (taken), (taken == 1) ? L"nibble" : L"nibbles"));
     }
 }
 
@@ -267,7 +268,7 @@ InspectorTip InspectorTip::BuildNibbleTip (const InspectorViewContext & context,
 
     //  A nibble's own cells: the "+N" (or for a sync nibble, the width) in
     //  the Nibbles tab.
-    line = std::format (L"Cell {}: ", InspectorFormat::FormatCount (n.startCell));
+    line = std::format (L"Cell {}: ", NumberFormat::FormatInteger (n.startCell));
     line += (n.extraZeroCells == 0) ? InspectorText::FormatCount (static_cast<int> (own), L"cell", L"cells")
                                     : std::format (L"{}: 8 bits and {}", InspectorText::FormatCount (static_cast<int> (own), L"cell", L"cells"),
                                                    InspectorText::FormatCount (n.extraZeroCells, L"extra zero cell", L"extra zero cells"));

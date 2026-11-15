@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/NumberFormat.h"
 #include "FileTypes/AppleWorks.h"
 #include "FileTypes/TextCharset.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -472,33 +473,26 @@ std::wstring AppleWorksSs::GetColumnLetters (size_t column)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleWorksSs::AddThousands
+//  AppleWorksSs::FormatGeneral
 //
-//  Commas between each three digits of the whole part, which may follow a
-//  minus sign and come before a decimal point.
+//  The fewest digits that read back as the value, with the user's decimal
+//  separator. A value too large or small for that is in exponent form.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring AppleWorksSs::AddThousands (const std::wstring & digits)
+std::wstring AppleWorksSs::FormatGeneral (double value)
 {
-    size_t        first = (!digits.empty() && digits[0] == L'-') ? 1 : 0;
-    size_t        point = digits.find (L'.');
-    size_t        whole = ((point == std::wstring::npos) ? digits.size() : point) - first;
-    std::wstring  text  = digits.substr (0, first);
+    std::wstring  shortest = std::format (L"{}", value);
+    size_t        point    = shortest.find (L'.');
 
 
 
-    for (size_t i = 0; i < whole; i++)
+    if (shortest.find_first_of (L"eE") != std::wstring::npos)
     {
-        if (i > 0 && (whole - i) % 3 == 0)
-        {
-            text += L',';
-        }
-
-        text += digits[first + i];
+        return shortest;
     }
 
-    return text + digits.substr (first + whole);
+    return NumberFormat::FormatFixed (value, point == std::wstring::npos ? 0 : (int) (shortest.size() - point - 1), false);
 }
 
 
@@ -519,19 +513,19 @@ std::wstring AppleWorksSs::FormatNumber (double value, int format, int decimals)
     switch (format)
     {
         case kFormatFixed:
-            return std::format (L"{:.{}f}", value, decimals);
+            return NumberFormat::FormatFixed (value, decimals, false);
 
         case kFormatDollars:
-            return (value < 0 ? L"-$" : L"$") + AddThousands (std::format (L"{:.{}f}", std::fabs (value), decimals));
+            return (value < 0 ? L"-$" : L"$") + NumberFormat::FormatFixed (std::fabs (value), decimals, true);
 
         case kFormatCommas:
-            return AddThousands (std::format (L"{:.{}f}", value, decimals));
+            return NumberFormat::FormatFixed (value, decimals, true);
 
         case kFormatPercent:
-            return std::format (L"{:.{}f}%", value * 100.0, decimals);
+            return NumberFormat::FormatFixed (value * 100.0, decimals, false) + L"%";
 
         default:
-            return std::format (L"{}", value);
+            return FormatGeneral (value);
     }
 }
 

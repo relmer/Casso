@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "FileTypes/WizardryScenario.h"
+#include "Core/NumberFormat.h"
 #include "Core/UnicodeSymbols.h"
 
 
@@ -383,8 +384,8 @@ void WizardryScenario::ListRoster (std::span<const Byte> bytes, const Contents &
                                            Run { shown, false, false, false, (status == 0 && !inMaze) ? RunColor::Text : RunColor::Bad },
                                            Run { std::format (L"   Hit points: {}/{}   Gold: {}   Experience: {}",
                                                               ReadWord (bytes, at + s_kCharHpLeftAt), ReadWord (bytes, at + s_kCharHpMaxAt),
-                                                              GroupDigits (ReadAmount (bytes, at + s_kCharGoldAt)),
-                                                              GroupDigits (ReadAmount (bytes, at + s_kCharExperienceAt))) } }));
+                                                              NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharGoldAt)),
+                                                              NumberFormat::FormatInteger ((int64_t) ReadAmount (bytes, at + s_kCharExperienceAt))) } }));
 
         items = (std::clamp) (ReadWord (bytes, at + s_kCharItemCountAt), 0, s_kMaxPossessions);
 
@@ -475,38 +476,6 @@ std::wstring WizardryScenario::ToTitleCase (const std::wstring & name)
             c         = wordStart ? c : (wchar_t) towlower (c);
             wordStart = c == L' ';
         }
-    }
-
-    return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WizardryScenario::GroupDigits
-//
-//  A number with a comma between each group of three digits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring WizardryScenario::GroupDigits (uint64_t value)
-{
-    std::wstring  digits = std::to_wstring (value);
-    std::wstring  text;
-
-
-
-    for (size_t i = 0; i < digits.size(); i++)
-    {
-        if (i > 0 && (digits.size() - i) % 3 == 0)
-        {
-            text += L',';
-        }
-
-        text += digits[i];
     }
 
     return text;

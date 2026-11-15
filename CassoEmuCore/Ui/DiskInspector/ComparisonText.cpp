@@ -4,6 +4,7 @@
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/DiskComparer.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
+#include "Core/NumberFormat.h"
 
 
 
@@ -73,7 +74,7 @@ std::wstring ComparisonText::FormatVerdict (const TrackComparison & track)
 
             if (track.lengthChange != 0)
             {
-                text += std::format (L", B {} cells {}", InspectorFormat::FormatCount (static_cast<uint64_t> (std::abs (track.lengthChange))),
+                text += std::format (L", B {} cells {}", NumberFormat::FormatInteger (static_cast<uint64_t> (std::abs (track.lengthChange))),
                                      track.lengthChange > 0 ? L"longer" : L"shorter");
             }
 
@@ -204,7 +205,7 @@ std::wstring ComparisonText::FormatDetail (const Difference & difference)
             break;
 
         case DifferenceKind::Timing:
-            text = std::format (L"{} {} differ by more than {:.0f}%", InspectorFormat::FormatCount (static_cast<uint64_t> (d.count)), d.count == 1 ? L"cell" : L"cells",
+            text = std::format (L"{} {} differ by more than {:.0f}%", NumberFormat::FormatInteger (static_cast<uint64_t> (d.count)), d.count == 1 ? L"cell" : L"cells",
                                 DiskComparer::kTimingTolerance * 100.0);
             break;
 
@@ -213,12 +214,12 @@ std::wstring ComparisonText::FormatDetail (const Difference & difference)
             break;
 
         case DifferenceKind::FileContents:
-            text = std::format (L"{}: {} {} differ, the first at offset {}", d.path, InspectorFormat::FormatCount (static_cast<uint64_t> (d.count)),
-                                d.count == 1 ? L"byte" : L"bytes", InspectorFormat::FormatCount (static_cast<uint64_t> (d.firstOffset)));
+            text = std::format (L"{}: {} {} differ, the first at offset {}", d.path, NumberFormat::FormatInteger (static_cast<uint64_t> (d.count)),
+                                d.count == 1 ? L"byte" : L"bytes", NumberFormat::FormatInteger (static_cast<uint64_t> (d.firstOffset)));
             break;
 
         case DifferenceKind::FileLength:
-            text = std::format (L"{}: B is {} {} {}", d.path, InspectorFormat::FormatCount (static_cast<uint64_t> (std::abs (d.count))),
+            text = std::format (L"{}: B is {} {} {}", d.path, NumberFormat::FormatInteger (static_cast<uint64_t> (std::abs (d.count))),
                                 std::abs (d.count) == 1 ? L"byte" : L"bytes", d.count > 0 ? L"longer" : L"shorter");
             break;
 
@@ -390,7 +391,7 @@ vector<TableRow> ComparisonText::BuildRows (const vector<Difference> & listed, u
         row.finding      = static_cast<int> (i);
         row.cells        = { d.quarterTrack >= 0 ? InspectorFormat::FormatQuarterTrack (d.quarterTrack) : std::wstring (s_kpszNone),
                              d.sector >= 0       ? InspectorFormat::FormatSector (d.sector)             : std::wstring (s_kpszNone),
-                             hasCell             ? InspectorFormat::FormatCount (d.cell)                : std::wstring (s_kpszNone),
+                             hasCell             ? NumberFormat::FormatInteger (d.cell)                : std::wstring (s_kpszNone),
                              FormatKind (d.kind),
                              FormatDetail (d) };
 
@@ -520,11 +521,11 @@ std::wstring ComparisonText::FormatNibbles (int first, int count)
 
     if (count == 1)
     {
-        text = std::format (L"nibble {}", InspectorFormat::FormatCount (static_cast<uint64_t> (first)));
+        text = std::format (L"nibble {}", NumberFormat::FormatInteger (static_cast<uint64_t> (first)));
     }
     else if (count > 1)
     {
-        text = std::format (L"nibbles {} to {}", InspectorFormat::FormatCount (static_cast<uint64_t> (first)), InspectorFormat::FormatCount (static_cast<uint64_t> (first + count - 1)));
+        text = std::format (L"nibbles {} to {}", NumberFormat::FormatInteger (static_cast<uint64_t> (first)), NumberFormat::FormatInteger (static_cast<uint64_t> (first + count - 1)));
     }
 
     return text;

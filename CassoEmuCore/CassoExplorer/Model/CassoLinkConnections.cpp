@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "Core/NumberFormat.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IByteStreamFactory.h"
 #include "Net/FirewallMonitor.h"
@@ -1863,7 +1864,7 @@ std::wstring CassoLinkConnections::DescribeState (LinkState state, const CassoLi
     std::wstring  address = TextEncoding::NarrowToWide (settings.address);
     std::wstring  where   = NamesItsPort (name, address) ? name : std::format (L"{} at {}", name, address);
     std::wstring  port    = TextEncoding::NarrowToWide (settings.port);
-    std::wstring  baud    = FormatBaud (settings.baud);
+    std::wstring  baud    = NumberFormat::FormatInteger (settings.baud);
     std::wstring  text;
     bool          server  = settings.transport == LinkTransport::AdtProServer;
 
@@ -1879,7 +1880,7 @@ std::wstring CassoLinkConnections::DescribeState (LinkState state, const CassoLi
 
         case LinkState::Searching:
             text = std::format (L"Searching the COM ports for {} at {} and {} baud.\nBoot a CassoLink disk on the Apple, "
-                                L"or choose Bootstrap the Apple from {}'s menu.", name, FormatBaud (settings.bootstrapBaud), baud, name);
+                                L"or choose Bootstrap the Apple from {}'s menu.", name, NumberFormat::FormatInteger (settings.bootstrapBaud), baud, name);
             break;
 
         //  Opening, waiting for Ready, or no Apple yet: what to do on the Apple.
@@ -1958,30 +1959,6 @@ bool CassoLinkConnections::NamesItsPort (const std::wstring & name, const std::w
     }
 
     return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::FormatBaud
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoLinkConnections::FormatBaud (DWORD baud)
-{
-    std::wstring  digits = std::to_wstring (baud);
-
-
-
-    for (int at = (int) digits.size() - 3; at > 0; at -= 3)
-    {
-        digits.insert ((size_t) at, L",");
-    }
-
-    return digits;
 }
 
 

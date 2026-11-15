@@ -276,9 +276,6 @@ public:
     //  The text under a link's root in place of its drives.
     static std::wstring  DescribeState (LinkState state, const CassoLinkSettings & settings, const std::wstring & pcName);
 
-    //  A speed with its thousands separated, as 115,200.
-    static std::wstring  FormatBaud    (DWORD baud);
-
     //  Whether a link's name already says its address's port, as a name
     //  made from the settings does, so a sentence need not repeat it.
     static bool  NamesItsPort (const std::wstring & name, const std::wstring & address);
