@@ -375,6 +375,48 @@ public:
     }
 
 
+    //  A NIBBLE IMAGE IS NOT BLOCKS, whatever its length: a .nib is exactly
+    //  455 blocks long, and doesn't attach.
+    TEST_METHOD (NibbleImage_DoesNotAttach)
+    {
+        FakeDiskFileIo     io;
+        BlockDeviceMedia   media;
+        std::wstring       error;
+        HRESULT            hr = S_OK;
+
+
+
+        AddFile (io, "c.nib", std::vector<Byte> (232'960, 0xFF));
+
+        hr = media.Attach (io, "c.nib", kMaxBlocks, {}, error);
+
+        Assert::IsTrue  (FAILED (hr));
+        Assert::IsFalse (media.IsAttached());
+        Assert::AreEqual (std::wstring (L"The image is a nibble image of a 5.25-inch disk, not a block image."), error);
+    }
+
+
+    //  A RAW IMAGE THAT ISN'T A WHOLE NUMBER OF BLOCKS IS DAMAGED, and doesn't
+    //  attach with its last partial block dropped.
+    TEST_METHOD (PartialBlock_DoesNotAttach)
+    {
+        FakeDiskFileIo     io;
+        BlockDeviceMedia   media;
+        std::wstring       error;
+        HRESULT            hr = S_OK;
+
+
+
+        AddFile (io, "r.dsk", std::vector<Byte> (143'000, 0));
+
+        hr = media.Attach (io, "r.dsk", kMaxBlocks, {}, error);
+
+        Assert::IsTrue  (FAILED (hr));
+        Assert::IsFalse (media.IsAttached());
+        Assert::AreEqual (std::wstring (L"The image is 143000 bytes, which isn't a whole number of 512-byte blocks, so it's damaged."), error);
+    }
+
+
     //  THE FLOPPY SIZES ARE 140K, 400K AND 800K, and nothing either side of
     //  them, so a small test volume is not one. 1.44 MB isn't one, since no
     //  drive Casso models mounts that disk.

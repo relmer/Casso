@@ -80,6 +80,7 @@ private:
     static std::string  NormalizePath  (const std::string & path);
     static bool         ChangeClaim    (const std::string & key, bool isClaim);
     static bool         IsLockedTwoImg (const BlockImageFile & file);
+    static bool         IsNibbleImage  (const std::string & path);
 
     //  The blocks of a WOZ 2 3.5-inch image in `bytes`.
     HRESULT  DecodeWoz (const std::vector<Byte> & bytes, std::vector<Byte> & outBlocks, std::wstring & outError);

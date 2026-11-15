@@ -250,10 +250,15 @@ private:
 
     static constexpr uint64_t  s_kDriveBarFanSlideMs = 160;
 
+    // The drive bar's label column, wide enough for two lines such as
+    // "Drive 1 - Disk ][" and "3.5" (800K), 400K disk".
+    static constexpr int       s_kDriveBarCaptionDip = 118;
+
     // The views from the last sync, so a repaint is requested only on a change.
     std::vector<std::vector<DriveBarEntryView>>  m_driveBarViews;
 
     void    PlaceDriveBarWidgets ();
+    void    SetDiskIiBarCaptions (bool onBar);
 
     DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 

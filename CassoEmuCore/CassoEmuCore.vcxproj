@@ -1225,6 +1225,7 @@
     <ClCompile Include="Shell\Input\CapsLockTracker.cpp" />
     <ClCompile Include="Shell\Layout\DriveRowLayout.cpp" />
     <ClCompile Include="Shell\Layout\DriveBarFan.cpp" />
+    <ClCompile Include="Shell\Layout\DriveLabel.cpp" />
     <ClCompile Include="Shell\Layout\ChromeBandLayout.cpp" />
     <ClCompile Include="Seams\Win32HostSocket.cpp" />
     <ClCompile Include="Seams\Win32HostNetwork.cpp" />
@@ -2166,6 +2167,7 @@
     <ClInclude Include="Shell\Input\CapsLockTracker.h" />
     <ClInclude Include="Shell\Layout\DriveRowLayout.h" />
     <ClInclude Include="Shell\Layout\DriveBarFan.h" />
+    <ClInclude Include="Shell\Layout\DriveLabel.h" />
     <ClInclude Include="Shell\Layout\ChromeBandLayout.h" />
     <ClInclude Include="Seams\IHostFirewall.h" />
     <ClInclude Include="Seams\IHostNetwork.h" />

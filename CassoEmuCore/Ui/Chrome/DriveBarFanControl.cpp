@@ -142,7 +142,8 @@ void DriveBarFanControl::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text
 //
 //  DriveBarFanControl::PaintEntry
 //
-//  The caption bottom aligned with the rail, the name centered over the
+//  The drive's name level with the image's name, its form factor and
+//  capacity bottom aligned with the rail, the image's name centered over the
 //  band, and the rail lit in the middle while the drive is busy.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,7 +157,7 @@ void DriveBarFanControl::PaintEntry (
     bool                       hovered)
 {
     HRESULT  hr       = S_OK;
-    int      bandX    = slot.left + Scale (kCaptionWidthPx + kCaptionGapXPx, m_dpi);
+    int      bandX    = slot.left + Scale (m_captionWidthDip + kCaptionGapXPx, m_dpi);
     int      bandW    = Scale (kBodyWidthPx,  m_dpi);
     int      nameH    = Scale (kNameHeightPx, m_dpi);
     int      railTop  = slot.top + nameH + Scale (kBarGapPx, m_dpi);
@@ -180,10 +181,22 @@ void DriveBarFanControl::PaintEntry (
         painter.FillRect ((float) bandX + third, (float) railTop, third, (float) railH, theme.ledActive);
     }
 
-    hr = text.DrawString (view.caption.c_str(),
+    hr = text.DrawString (view.title.c_str(),
+                          (float) slot.left,
+                          (float) slot.top,
+                          (float) Scale (m_captionWidthDip, m_dpi),
+                          (float) nameH,
+                          theme.driveLabel,
+                          kCaptionFontDip * scale,
+                          DxuiTheme::kBodyFace,
+                          DxuiTextRenderer::HAlign::Left,
+                          DxuiTextRenderer::VAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (view.detail.c_str(),
                           (float) slot.left,
                           (float) (railTop + railH - capH + Scale (2, m_dpi)),
-                          (float) Scale (kCaptionWidthPx, m_dpi),
+                          (float) Scale (m_captionWidthDip, m_dpi),
                           (float) capH,
                           theme.dropdownAccel,
                           kCaptionFontDip * scale,
