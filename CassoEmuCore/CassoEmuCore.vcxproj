@@ -287,6 +287,7 @@
     <ClCompile Include="CassoLink\FullSend\FullSendDisk.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendManifest.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendManifestFile.cpp" />
+    <ClCompile Include="CassoLink\FullSend\FullSendProtection.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendStatus.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendSession.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSettings.cpp" />
@@ -360,6 +361,7 @@
     <ClCompile Include="Devices\Disk\MountDiagnosis.cpp" />
     <ClCompile Include="Machines\Apple2\Common\NibbleImageCodec.cpp" />
     <ClCompile Include="Machines\Apple2\Common\NibblizationLayer.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\TrackLayoutWriter.cpp" />
     <ClCompile Include="Machines\Apple2\Common\SectorDecodeReport.cpp" />
     <ClCompile Include="Machines\Apple2\Common\TrackWritability.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VolumeIntegrityReport.cpp" />
@@ -1426,6 +1428,7 @@
     <ClInclude Include="Devices\Disk\MountDiagnosis.h" />
     <ClInclude Include="Machines\Apple2\Common\NibbleImageCodec.h" />
     <ClInclude Include="Machines\Apple2\Common\NibblizationLayer.h" />
+    <ClInclude Include="Machines\Apple2\Common\TrackLayoutWriter.h" />
     <ClInclude Include="Machines\Apple2\Common\SectorDecodeReport.h" />
     <ClInclude Include="Machines\Apple2\Common\TrackWritability.h" />
     <ClInclude Include="Machines\Apple2\Common\IVolume.h" />
@@ -1812,6 +1815,7 @@
     <ClInclude Include="CassoLink\FullSend\FullSendDisk.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendManifest.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendManifestFile.h" />
+    <ClInclude Include="CassoLink\FullSend\FullSendProtection.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendStatus.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendSession.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkSessionTypes.h" />

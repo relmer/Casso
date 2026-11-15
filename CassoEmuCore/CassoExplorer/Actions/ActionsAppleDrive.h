@@ -72,7 +72,8 @@ public:
     ActionsTypes::Outcome  WriteBlocks  (int block, const std::wstring & hostPath);
 
     ActionsTypes::Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, ActionsTypes::UnreadableFn onUnreadable);
-    ActionsTypes::Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, ActionsTypes::UnreadableFn onUnreadable);
+    ActionsTypes::Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, ActionsTypes::UnreadableFn onUnreadable,
+                                             std::function<void ()> onRead = nullptr);
 
     //  A raw capture of a linked drive's disk into a WOZ, for a copy-protected
     //  disk; `report` is called with the tracks whose reads differ, if any.

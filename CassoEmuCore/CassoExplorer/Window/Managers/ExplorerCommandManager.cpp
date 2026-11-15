@@ -1044,6 +1044,7 @@ void ExplorerCommandManager::ShowOptions()
     choices.verifyReads       = m_context.prefs.verifyReads;
     choices.verifyWrites      = m_context.prefs.verifyWrites;
     choices.autoVerify        = m_context.prefs.autoVerify;
+    choices.fullSendProtection = m_context.prefs.fullSendProtection;
 
     choices.monitor      = (int) m_context.preview.GetPicture().GetMonitor();
     choices.customArgb   = m_context.prefs.previewCustomArgb;
@@ -1096,6 +1097,7 @@ void ExplorerCommandManager::ShowOptions()
     m_context.prefs.verifyReads       = choices.verifyReads;
     m_context.prefs.verifyWrites      = choices.verifyWrites;
     m_context.prefs.autoVerify        = choices.autoVerify;
+    m_context.prefs.fullSendProtection = choices.fullSendProtection;
     m_context.cassoLinkManager.ApplyFullSendPrefs();
     m_context.cassoLinkManager.ApplyVerifyPrefs();
 

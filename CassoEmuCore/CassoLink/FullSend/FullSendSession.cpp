@@ -1104,6 +1104,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     std::vector<std::pair<int, int>>    unreadable;
     FullSendReadReport                  report;
     bool                                isProtected      = false;
+    bool                                isLikely         = false;
     std::string                         imageFingerprint;
     std::string                         afterFingerprint;
     std::string                         hash;
@@ -1196,7 +1197,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     }
 
     //  The capture comes before the folder's lock, as it takes minutes.
-    hr = CaptureProtected (drive, image, unreadable, report, raw);
+    hr = CaptureProtected (drive, image, unreadable, report, raw, isLikely);
     CHR (hr);
 
     //  The disk is numbered, written and listed under the folder's lock, from
@@ -1254,11 +1255,11 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     }
     else
     {
-        row.status    = unreadable.empty() ? FullSendManifest::kStatusSent : FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size());
+        row.status    = isLikely ? FullSendManifest::kStatusProtected : unreadable.empty() ? FullSendManifest::kStatusSent : FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size());
         isProtected   = row.status == FullSendManifest::kStatusProtected;
         row.status    = raw.empty() ? row.status : FullSendManifest::kStatusRawCapture;
         row.marks     = raw.empty() ? std::string() : m_rawMarks;
-        m_screen.tone = unreadable.empty() ? FullSendTone::Done : isProtected ? FullSendTone::Protected : FullSendTone::BadSectors;
+        m_screen.tone = isProtected ? FullSendTone::Protected : unreadable.empty() ? FullSendTone::Done : FullSendTone::BadSectors;
         m_screen.prot += isProtected ? 1 : 0;
 
         if (isProtected && raw.empty())
@@ -1380,28 +1381,38 @@ std::string FullSendSession::GetScreenName (int sequence, const std::string & ca
 //
 //  FullSendSession::CaptureProtected
 //
-//  A disk assessed from its read as likely copy-protected, captured raw into
-//  outRaw, as its sector image is unlikely to run; outRaw is empty
-//  otherwise. A damaged disk with no file system Casso recognizes is
-//  assessed alike, and a raw capture of it has more than its sector image.
-//  The capture draws on the Apple's screen, so the session's screen is drawn
-//  again after it.
+//  A disk with a condition of the Copy-protected disks section is
+//  likely copy-protected, in outLikely, and captured raw into outRaw when the
+//  section's choice is to capture it, as its sector image is unlikely to run;
+//  outRaw is empty otherwise. Unreadable sectors are a sign when the disk
+//  is assessed as protected: a damaged disk with no file system Casso
+//  recognizes is assessed alike, and a raw capture of it has more than its
+//  sector image. The capture draws on the Apple's screen, so the session's
+//  screen is drawn again after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw)
+HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw, bool & outLikely)
 {
-    HRESULT  hr      = S_OK;
-    bool     capture = !unreadable.empty();
+    HRESULT          hr       = S_OK;
+    ProtectionSigns  signs    = FullSendProtection::Find (image);
+    bool             readSign = m_protection.readErrors && !unreadable.empty()
+                             && std::string (FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size())) == FullSendManifest::kStatusProtected;
+    std::string      reason;
 
 
 
     outRaw.clear();
 
-    capture = capture && std::string (FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size())) == FullSendManifest::kStatusProtected;
-    BAIL_OUT_IF (!capture, S_OK);
+    outLikely = readSign || m_protection.IsMet (signs);
+    BAIL_OUT_IF (!outLikely || !m_protection.captureRaw, S_OK);
 
-    Report (std::format ("Unreadable sectors were found on the disk in drive {} during the normal transfer, so it appears to be copy-protected. Restarting the capture using raw mode.", drive));
+    reason = readSign                                         ? std::format ("Unreadable sectors were found on the disk in drive {} during the normal transfer", drive)
+           : m_protection.unrecognized && signs.isUnrecognized ? std::format ("The disk in drive {} has no recognized file system", drive)
+           : m_protection.diskCode && signs.hasDiskCode        ? std::format ("{} on the disk in drive {} accesses the disk drive directly", signs.diskCodeFile, drive)
+                                                                : std::format ("The disk in drive {} doesn't have a recognized boot loader", drive);
+
+    Report (reason + ", so it appears to be copy-protected. Restarting the capture using raw mode.");
 
     SetDriveState (drive, FullSendDriveState::Capturing);
     m_status.SetActivity (FullSendActivity::Capturing, drive);

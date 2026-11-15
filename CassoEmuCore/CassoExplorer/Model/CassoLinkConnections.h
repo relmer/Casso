@@ -53,6 +53,9 @@ public:
 
     void  SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder);
 
+    //  The Copy-protected disks section's choices for each Full Send.
+    void  SetFullSendProtection (const FullSendProtectionChoices & choices);
+
     //  Whether a Full Send saves a raw capture's reads beside its image.
     void  SetFullSendReads  (bool on);
 
@@ -320,17 +323,18 @@ private:
     public:
         Sink (CassoLinkConnections & owner, std::string name) : m_owner (owner), m_name (std::move (name)) {}
 
-        void  OnStateChanged       (LinkState state) override;
-        void  OnProgress           (const std::shared_ptr<LinkOperation> & operation) override;
-        void  OnDone               (const std::shared_ptr<LinkOperation> & operation) override;
-        bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override;
-        bool  HasFullSendReadsOn   () override;
-        bool  HasAppleBootSounds   () override { return m_owner.m_appleBootSounds; }
-        bool  OnImageWritten       (const std::string & path, const std::string & model) override;
-        void  OnOperationQueued    (const std::shared_ptr<LinkOperation> & operation) override;
-        void  OnActivity           (const std::string & text) override;
-        void  OnTrace              (bool sent, const std::string & text) override;
-        void  OnFinished           (const LinkOperation & operation, const std::string & text) override;
+        void                       OnStateChanged        (LinkState state) override;
+        void                       OnProgress            (const std::shared_ptr<LinkOperation> & operation) override;
+        void                       OnDone                (const std::shared_ptr<LinkOperation> & operation) override;
+        bool                       TryGetFullSendTarget  (std::string & outFolder, std::string & outExtension) override;
+        bool                       HasFullSendReadsOn    () override;
+        FullSendProtectionChoices  GetFullSendProtection () override;
+        bool                       HasAppleBootSounds    () override { return m_owner.m_appleBootSounds; }
+        bool                       OnImageWritten        (const std::string & path, const std::string & model) override;
+        void                       OnOperationQueued     (const std::shared_ptr<LinkOperation> & operation) override;
+        void                       OnActivity            (const std::string & text) override;
+        void                       OnTrace               (bool sent, const std::string & text) override;
+        void                       OnFinished            (const LinkOperation & operation, const std::string & text) override;
 
         //  Whether a transfer reported progress lately. A Full Send waiting for
         //  disks doesn't report progress, so it isn't transferring.
@@ -400,20 +404,21 @@ private:
         Completion                      completion;
     };
 
-    std::string           m_fullSendFolder;
-    std::string           m_fullSendExtension;
-    bool                  m_fullSendReads      = false;
-    std::atomic<bool>     m_appleBootSounds    { false };
-    bool                  m_verifyReads        = false;
-    bool                  m_verifyWrites       = false;
-    bool                  m_autoVerify         = true;
-    MakeFolderFn          m_makeFullSendFolder;
-    ImageFn               m_imageHandler;
-    std::vector<Job>      m_jobs;
-    std::deque<Activity>  m_activity;
-    CassoLinkLogFile      m_logFile;
-    mutable std::mutex    m_lock;
-    std::atomic<bool>     m_changed            { false };
-    HWND                  m_hwnd               = nullptr;
-    UINT                  m_message            = 0;
+    std::string                m_fullSendFolder;
+    std::string                m_fullSendExtension;
+    FullSendProtectionChoices  m_fullSendProtection;
+    bool                       m_fullSendReads      = false;
+    std::atomic<bool>          m_appleBootSounds    { false };
+    bool                       m_verifyReads        = false;
+    bool                       m_verifyWrites       = false;
+    bool                       m_autoVerify         = true;
+    MakeFolderFn               m_makeFullSendFolder;
+    ImageFn                    m_imageHandler;
+    std::vector<Job>           m_jobs;
+    std::deque<Activity>       m_activity;
+    CassoLinkLogFile           m_logFile;
+    mutable std::mutex         m_lock;
+    std::atomic<bool>          m_changed            { false };
+    HWND                       m_hwnd               = nullptr;
+    UINT                       m_message            = 0;
 };

@@ -1133,7 +1133,7 @@ ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::wstring & i
 ////////////////////////////////////////////////////////////////////////////////
 
 ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify,
-                                                                    ActionsTypes::UnreadableFn onUnreadable)
+                                                                    ActionsTypes::UnreadableFn onUnreadable, std::function<void()> onRead)
 {
     ActionsTypes::Outcome    outcome;
     CassoLinkConnections   * links   = m_actions.m_browser.GetLinks();
@@ -1143,7 +1143,7 @@ ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::string & li
 
 
     hr = links->Submit (link, [drive, path, blankUnreadable, forceVerify] (CassoLinkSession & session) { return session.ReadDisk (drive, path, blankUnreadable, forceVerify); },
-                        Guard ([onUnreadable, link, drive] (const LinkOperation & operation) -> std::wstring
+                        Guard ([onUnreadable, onRead, link, drive] (const LinkOperation & operation) -> std::wstring
     {
         bool  offer = operation.result == HRESULT_FROM_WIN32 (ERROR_CRC) && !operation.unreadable.empty() && !operation.blankUnreadable && onUnreadable;
 
@@ -1151,6 +1151,11 @@ ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::string & li
         {
             onUnreadable (operation, link, drive);
             return std::wstring();
+        }
+
+        if (SUCCEEDED (operation.result) && onRead)
+        {
+            onRead();
         }
 
         return FAILED (operation.result) ? CassoLinkConnections::DescribeFailure (operation) : std::wstring();

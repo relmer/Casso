@@ -639,8 +639,9 @@ hardware.
 - Q: Why does Full Send's sector image of the Wizardry I boot disk hang when every sector read cleanly? -> A: Its copy protection measures the rotation between sector 0 of track 10 and sector 0 of track 9: a 6502 routine finds the first, steps the head, and counts disk bytes to the second. The owner's raw captures return 4664 and about 1468, to within a byte or two across captures; a sector image, laid out by Casso with sector 0 in the same place on every track, returns 4559 and Wizardry crashes into a BRK. Every block of the raw capture decodes identically to the sector image, and its address fields have volume 0. A sector image booted with volume 0 hangs the same way. No layout check can see this protection: every disk has some rotation between tracks, and whether it matters depends on the program on the disk.
 - Q: How does a sector copy choose what to record? -> A: By the image type selected (owner, 2026-11-15). With WOZ, and with NIB or NB2, the sector pass also measures each track's sector-0 rotation from the previous track and the address fields' volume, and the image is built from the sectors with both. With DSK, DO or PO it is a plain sector copy. A raw capture is always a WOZ: only WOZ has the bits and their timing.
 - Q: When does Full Send capture a disk raw in place of a sector copy? -> A: When a condition checked in a Copy-protected disks section of the Full Send options turns up (owner, 2026-11-15): sectors that can't be read; a file system that isn't recognized, apart from a blank disk; a program outside the operating system that accesses the disk drive directly; boot code other than the DOS 3.3, ProDOS or Apple Pascal loader. A choice in the section either captures the disk raw or saves the sector copy marked likely copy-protected. Sectors marked in use that aren't part of any file aren't a condition: interrupted writes and stale free-space maps cause it on ordinary disks.
-- Q: Do those conditions switch a manual Create image to a raw capture? -> A: No (owner, 2026-11-15). The save dialog's file type is an explicit choice of container. When a condition turns up, a note after the copy points to Capture raw disk. A Capture as submenu was considered and dropped: the save dialog's file types cover it.
+- Q: Do those conditions switch a manual Create image to a raw capture? -> A: No (owner, 2026-11-15). The save dialog's file type is an explicit choice of container. When a condition turns up, a question after the copy offers a raw capture, in the owner's words: "This disk may be copy-protected and may not boot successfully as a .dsk image. Would you like to capture in raw mode, which is compatible with copy protection?" A Capture as submenu was considered and dropped: the save dialog's file types cover it.
 - Q: What happens to a disk whose address fields have a volume that a sector image can't reproduce? -> A: A separate rule, outside the copy protection section (owner, 2026-11-15): a volume other than 254, or other than a DOS 3.3 catalog's volume, is saved in a WOZ built from the sectors, without a raw capture. A sector image has no place for the volume.
+- Q: Which measurements make a WOZ built from a sector copy pass Wizardry I's check? -> A: Each track's sector-0 position, its bits in a turn and its nibbles in a turn, as measured on 2026-11-15 by building a WOZ from the sector image and the owner's raw capture, which boots to the title. Rotation alone fails, as Casso's standard layout has 2% fewer nibbles in a turn than the real disk and the counts come out 2.3% low. Wizardry accepts track lengths from 0.5% short to 1% long, and sector-0 offsets about 20 nibbles early to 40 late. A NIB has 6,656 nibbles in every track, 5% over the disk's, so NIB and NB2 aren't built to measurements.
 - Q: Is an image whose screen ends nearly blank booted? -> A: No, unclear. Wizardry's sector image ends on a blank screen with a cursor, with the drive stopped, and was judged booted.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -3659,12 +3660,13 @@ as they arrive.
   between tracks, so its sector image doesn't run either way (FR-293).
 - **FR-292**: A boot check whose final screen is blank apart from a few
   characters' worth of lit pixels MUST judge the image unclear, not booted.
-- **FR-293**: With WOZ, NIB or NB2 selected, a Full Send's sector pass and
-  Create image MUST measure each track's sector-0 rotation from the previous
-  track and the address fields' volume, and MUST build the image from the
-  sectors with both, so a title that measures the rotation between tracks,
-  as Wizardry I does, runs from it. With DSK, DO or PO selected, the copy is
-  a plain sector copy.
+- **FR-293**: With WOZ selected, a Full Send's sector pass and Create image
+  MUST measure each track's sector-0 rotation from the previous track, its
+  nibbles in one turn and the address fields' volume, and MUST build the
+  WOZ from the sectors to those measurements and the drive's bits in a turn,
+  so a title that measures the time between tracks, as Wizardry I does, runs
+  from it. With DSK, DO, PO, NIB or NB2 selected, the copy is a plain sector
+  copy: a NIB or NB2 has a fixed count of nibbles in a track.
 - **FR-294**: The Full Send options MUST have a Copy-protected disks section:
   a note that a copy-protected disk has to be captured raw, which is always
   a WOZ whatever image type is selected; a checkbox for each condition (sectors
@@ -3674,8 +3676,9 @@ as they arrive.
   and a choice of capturing the disk raw or saving the sector copy marked
   likely copy-protected when a checked condition turns up.
 - **FR-295**: A manual Create image MUST save the container its save dialog
-  specifies. When a condition of FR-294 turns up, a note after the copy MUST
-  point to Capture raw disk.
+  specifies. When a condition of FR-294 turns up in a .dsk, .do or .po it
+  saved, a question MUST offer a raw capture; Yes opens Capture raw disk with
+  the image's name as a .woz, beside the sector image.
 - **FR-296**: Separately from FR-294, a disk whose address fields have a
   volume other than 254, or other than its DOS 3.3 catalog's volume, MUST be
   saved in a WOZ built from its sectors with that volume, whatever image type

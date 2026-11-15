@@ -22,6 +22,7 @@
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/TrackLayoutWriter.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Seams/ByteStreamSettings.h"
 #include "Seams/Win32ByteStreamFactory.h"
@@ -833,6 +834,137 @@ public:
                 log << "    alone on " << id << ", " << BootProbe::GetVerdictName (alone.verdict) << ". " << alone.reason << std::endl;
             }
         }
+    }
+
+    //  A track's layout as a raw capture has it: its bits, the nibbles that
+    //  begin in one turn, where sector 0's address field begins, and the
+    //  address fields' volume.
+    static TrackLayout  ReadLayout (const DiskImage & image, int track)
+    {
+        TrackLayout          layout;
+        size_t               length = image.GetTrackBitCount (track);
+        size_t               at     = 0;
+        std::vector<Byte>    nibbles;
+        std::vector<size_t>  starts;
+
+
+
+        layout.bits = (int) length;
+
+        while (at < length * 2 && length > 0)
+        {
+            size_t  start  = at;
+            Byte    nibble = NibblizationLayer::ReadNibbleAt (image, track, at);
+
+            if (nibble == 0)
+            {
+                break;
+            }
+
+            nibbles.push_back (nibble);
+            starts.push_back (start);
+            layout.nibbles += (start >= length / 2 && start < length + length / 2) ? 1 : 0;
+        }
+
+        for (size_t i = 0; i + 10 < nibbles.size(); i++)
+        {
+            bool  isAddress = nibbles[i] == 0xD5 && nibbles[i + 1] == 0xAA && nibbles[i + 2] == 0x96;
+            Byte  sector    = (Byte) (((nibbles[i + 7] << 1) | 1) & nibbles[i + 8]);
+
+            if (isAddress && sector == 0 && starts[i] >= length / 2)
+            {
+                layout.sector0 = (long long) (starts[i] % length);
+                layout.volume  = (Byte) (((nibbles[i + 3] << 1) | 1) & nibbles[i + 4]);
+                break;
+            }
+        }
+
+        return layout;
+    }
+
+    //  Wizardry I's boot disk measures the time from sector 0 on one track to
+    //  sector 0 on the next. A WOZ built from its sector image, CASSO_WIZARDRY_PO,
+    //  with each track's layout from a raw capture of it, CASSO_WIZARDRY_WOZ,
+    //  passes that check: after the boot it isn't in the ROM's BRK handler at
+    //  $FA40, where a failed check ends. The sector image laid out as Casso
+    //  lays out any other is the control, and fails. Run only when both are set.
+    TEST_METHOD (AWozBuiltToTheMeasuredLayouts_PassesWizardrysTrackCheck)
+    {
+        static constexpr uint64_t  kBootCycles = 60'000'000;
+        std::string                capture     = GetSetting ("CASSO_WIZARDRY_WOZ", "");
+        std::string                sectorImage = GetSetting ("CASSO_WIZARDRY_PO", "");
+        std::vector<Byte>          captureBytes;
+        std::vector<Byte>          poBytes;
+        std::vector<Byte>          sectors;
+        std::vector<Byte>          built;
+        std::vector<Byte>          plain;
+        std::vector<TrackLayout>   layouts;
+        SectorDecodeReport         report;
+        DiskImage                  captured;
+        DiskImage                  laidOut;
+
+
+
+        if (capture.empty() || sectorImage.empty())
+        {
+            Logger::WriteMessage ("CASSO_WIZARDRY_WOZ and CASSO_WIZARDRY_PO aren't both set; no image to build.\n");
+            return;
+        }
+
+        captureBytes = ReadBytes (capture);
+        poBytes      = ReadBytes (sectorImage);
+
+        AssertSucceeded (WozLoader::Load (captureBytes, captured));
+        AssertSucceeded (VolumeImage::Load (poBytes, "boot.po", sectors, report));
+
+        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            layouts.push_back (ReadLayout (captured, track));
+        }
+
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (sectors, layouts, built));
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, laidOut));
+        AssertSucceeded (WozLoader::Serialize (laidOut, plain));
+
+        Assert::IsTrue  (PassesBoot (built, kBootCycles), L"The WOZ built to the measured layouts");
+        Assert::IsFalse (PassesBoot (plain, kBootCycles), L"The sector image as Casso lays it out");
+    }
+
+    //  Whether a //c booted from the WOZ for `cycles` is outside the ROM's BRK
+    //  handler at each of a few hundred samples after it.
+    static bool  PassesBoot (const std::vector<Byte> & woz, uint64_t cycles)
+    {
+        static constexpr int   kSamples     = 400;
+        static constexpr Word  kBreakFirst  = 0xFA40;
+        static constexpr Word  kBreakEnd    = 0xFA60;
+        TestMachine            machine ("Apple2c");
+        bool                   passes       = true;
+
+
+
+        machine.PowerCycle();
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "boot.woz", DiskFormat::Woz, woz));
+        machine.RunCycles (cycles);
+
+        for (int i = 0; i < kSamples && passes; i++)
+        {
+            Word  pc = 0;
+
+            machine.RunCycles (997);
+            pc     = machine.GetCpu()->GetPC();
+            passes = pc < kBreakFirst || pc >= kBreakEnd;
+        }
+
+        return passes;
+    }
+
+    static std::vector<Byte>  ReadBytes (const std::string & path)
+    {
+        std::ifstream  in (path, std::ios::binary);
+
+
+
+        return std::vector<Byte> (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
     }
 
     //  A WOZ from CASSO_RUN_IMAGE booted in a //c, then each key of

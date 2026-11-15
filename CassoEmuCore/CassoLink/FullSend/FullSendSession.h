@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/FullSend/FullSendManifest.h"
+#include "CassoLink/FullSend/FullSendProtection.h"
 #include "CassoLink/FullSend/FullSendStatus.h"
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
 
@@ -235,6 +236,10 @@ public:
     //  ERROR_CANCELLED; no session ends in S_OK.
     HRESULT  Run ();
 
+    //  The Copy-protected disks section's choices; all on, capturing raw,
+    //  until set.
+    void     SetProtection (const FullSendProtectionChoices & choices) { m_protection = choices; }
+
     State                     GetState     () const { return m_state; }
     EndReason                 GetEndReason () const { return m_endReason; }
     const FullSendManifest  & GetManifest  () const { return m_manifest; }
@@ -289,7 +294,7 @@ private:
     HRESULT  ReadFingerprint  (int drive, CheckedDisk & outDisk, bool & outStable);
     HRESULT  ReadStableTrack  (int drive, int track, CheckedDisk & ioDisk, bool & outHasDisk, bool & outStable);
     HRESULT  SendDisk         (int drive, const CheckedDisk & checked, bool anyway);
-    HRESULT  CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw);
+    HRESULT  CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw, bool & outLikely);
     HRESULT  WriteImage       (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, bool writeProtected, std::string & outFile);
     void     ApplyBoots       ();
     HRESULT  SendAgain        (int drive, const CheckedDisk & disk);
@@ -344,6 +349,7 @@ private:
     Byte                        m_lastQuip   = 0;
     bool                        m_fileFailed = false;
     std::set<std::string>       m_changed;       // fingerprints of disks that changed during a read, sent only after Space
+    FullSendProtectionChoices   m_protection;
 
     //  The folder's images that the manifest doesn't list, by file name and
     //  hash, read once the first time a row's image is missing.

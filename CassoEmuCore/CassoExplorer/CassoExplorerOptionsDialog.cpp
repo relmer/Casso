@@ -297,7 +297,90 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     m_format->Layout (RECT { boundsDip.left, formatTop, boundsDip.right, top }, scaler);
     m_esotericaLabel->Layout (RECT { boundsDip.left, esotericaTop, boundsDip.right, esotericaEnd }, scaler);
 
+    top = m_protection != nullptr ? LayoutProtection (top, boundsDip, scaler) : top;
+
     SetContentHeightPx (top - boundsDip.top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerFullSendPage::InitProtection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerFullSendPage::InitProtection (ProtectionParts & parts)
+{
+    m_protection = &parts;
+
+    Adopt (parts.head);
+    Adopt (parts.note);
+
+    for (DxuiCheckbox & condition : parts.conditions)
+    {
+        Adopt (condition);
+    }
+
+    Adopt (parts.actionLabel);
+    Adopt (parts.action);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerFullSendPage::LayoutProtection
+//
+//  The section from `top` down; returns its bottom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerFullSendPage::LayoutProtection (int top, const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    int                           width    = boundsDip.right - boundsDip.left;
+    int                           labelH   = scaler.ToPx (kLabelHeightDip);
+    int                           fieldH   = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int                           optionH  = scaler.ToPx (kOptionLabelHeightDip + kOptionGapDip);
+    int                           headTop  = top + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
+    int                           noteTop  = headTop + labelH;
+    int                           noteEnd  = noteTop + CassoExplorerVerifyPage::GetNoteHeightPx (m_protection->note, width, scaler, kNoteHeightDip);
+    int                           at       = noteEnd;
+    std::vector<DxuiRadioOption>  options  = m_protection->action.GetOptions();
+    int                           labelTop = 0;
+    int                           choiceAt = 0;
+
+
+
+    m_protection->head.Layout (RECT { boundsDip.left, headTop, boundsDip.right, noteTop }, scaler);
+    m_protection->note.Layout (RECT { boundsDip.left, noteTop, boundsDip.right, noteEnd }, scaler);
+
+    for (DxuiCheckbox & condition : m_protection->conditions)
+    {
+        condition.Layout (RECT { boundsDip.left, at, boundsDip.right, at + fieldH }, scaler);
+        at += fieldH + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    }
+
+    labelTop = at + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    choiceAt = labelTop + labelH;
+
+    m_protection->actionLabel.Layout (RECT { boundsDip.left, labelTop, boundsDip.right, choiceAt }, scaler);
+
+    for (size_t i = 0; i < options.size(); i++)
+    {
+        options[i].rect = RECT { boundsDip.left, choiceAt + optionH * (int) i, boundsDip.right, choiceAt + optionH * (int) (i + 1) };
+    }
+
+    at = choiceAt + optionH * (int) options.size();
+
+    m_protection->action.SetOptions (std::move (options));
+    m_protection->action.Layout (RECT { boundsDip.left, choiceAt, boundsDip.right, at }, scaler);
+
+    return at;
 }
 
 
@@ -312,7 +395,21 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
 
 bool CassoExplorerFullSendPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_browse->OnMouse (ev) || m_sounds->OnMouse (ev) || m_format->OnMouse (ev);
+    bool  handled = m_browse->OnMouse (ev) || m_sounds->OnMouse (ev) || m_format->OnMouse (ev);
+
+
+
+    if (m_protection != nullptr)
+    {
+        for (DxuiCheckbox & condition : m_protection->conditions)
+        {
+            handled = handled || condition.OnMouse (ev);
+        }
+
+        handled = handled || m_protection->action.OnMouse (ev);
+    }
+
+    return handled;
 }
 
 
@@ -542,7 +639,9 @@ void CassoExplorerOptionsDialog::OnBuildPages()
 
     m_fullSend = CreatePage<CassoExplorerFullSendPage> (L"Full Send");
     m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendSoundsLabel, m_fullSendSounds, m_fullSendFormatLabel, m_fullSendFormat, m_fullSendEsotericaLabel);
+    m_fullSend->InitProtection (m_fullSendProtection);
 
+    WireProtection();
     WireVerify();
 
     m_verifyPage = CreatePage<CassoExplorerVerifyPage> (L"Verified transfers");
@@ -625,6 +724,54 @@ void CassoExplorerOptionsDialog::WireFullSend()
             m_fullSendFolder.SetText (m_choices.fullSendFolder);
         }
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerOptionsDialog::WireProtection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerOptionsDialog::WireProtection()
+{
+    static constexpr const wchar_t *  kConditions[] =
+    {
+        L"Sectors that can't be read",
+        L"A file system that isn't recognized",
+        L"A program outside the operating system that accesses the disk drive directly",
+        L"Boot code other than the DOS 3.3, ProDOS, Apple Pascal, CP/M or SOS loader",
+    };
+    const FullSendProtectionChoices  & choices   = m_choices.fullSendProtection;
+    bool                               checked[] = { choices.readErrors, choices.unrecognized, choices.diskCode, choices.otherBoot };
+
+
+
+    m_fullSendProtection.head.SetText (L"Copy-protected disks");
+    ExplorerTextStyles::Apply (m_fullSendProtection.head, ExplorerTextStyles::kFormLabel);
+
+    m_fullSendProtection.note.SetText (L"Copy protection often depends on details of the disk that a sector copy can't record, so a copy-protected disk has to be "
+                                       L"captured raw. A raw capture is always saved as a WOZ image, even when another image type is selected above, and it takes "
+                                       L"longer than a sector copy.");
+    ExplorerTextStyles::Apply (m_fullSendProtection.note, ExplorerTextStyles::kFormNote);
+    m_fullSendProtection.note.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+
+    for (size_t i = 0; i < m_fullSendProtection.conditions.size(); i++)
+    {
+        m_fullSendProtection.conditions[i].SetLabel (kConditions[i]);
+        m_fullSendProtection.conditions[i].SetSingleLineLabel (true);
+        m_fullSendProtection.conditions[i].SetChecked (checked[i]);
+    }
+
+    m_fullSendProtection.actionLabel.SetText (L"When the selected conditions above are detected:");
+    ExplorerTextStyles::Apply (m_fullSendProtection.actionLabel, ExplorerTextStyles::kFormLabel);
+
+    m_fullSendProtection.action.SetOptions ({ DxuiRadioOption { {}, L"Capture the disk raw" },
+                                              DxuiRadioOption { {}, L"Save the sector copy and mark the disk as likely copy-protected" } });
+    m_fullSendProtection.action.SetSelected (choices.captureRaw ? 0 : 1);
 }
 
 
@@ -891,6 +1038,11 @@ HRESULT CassoExplorerOptionsDialog::OnOk()
     m_choices.verifyReads       = m_verifyRows[0].toggle.IsChecked();
     m_choices.verifyWrites      = m_verifyRows[1].toggle.IsChecked();
     m_choices.autoVerify        = m_verifyRows[2].toggle.IsChecked();
+    m_choices.fullSendProtection.readErrors   = m_fullSendProtection.conditions[0].IsChecked();
+    m_choices.fullSendProtection.unrecognized = m_fullSendProtection.conditions[1].IsChecked();
+    m_choices.fullSendProtection.diskCode     = m_fullSendProtection.conditions[2].IsChecked();
+    m_choices.fullSendProtection.otherBoot    = m_fullSendProtection.conditions[3].IsChecked();
+    m_choices.fullSendProtection.captureRaw   = m_fullSendProtection.action.GetSelected() == 0;
     m_choices.hostNaming = m_naming.GetSelected();
     m_confirmed          = true;
 

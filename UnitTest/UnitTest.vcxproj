@@ -287,6 +287,7 @@
     <ClCompile Include="EmuTests\ContainerIntegrityTests.cpp" />
     <ClCompile Include="EmuTests\NibbleImageCodecTests.cpp" />
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
+    <ClCompile Include="EmuTests\TrackLayoutWriterTests.cpp" />
     <ClCompile Include="AppleTextCodecTests.cpp" />
     <ClCompile Include="ApplesoftTokenizerTests.cpp" />
     <ClCompile Include="BasicCorpusTests.cpp" />
@@ -447,6 +448,7 @@
     <ClCompile Include="DiskCheck\BootSoundsTests.cpp" />
     <ClCompile Include="DiskCheck\BootProbeTests.cpp" />
     <ClCompile Include="CassoLink\FullSendManifestRenameTests.cpp" />
+    <ClCompile Include="CassoLink\FullSendProtectionTests.cpp" />
     <ClCompile Include="CassoLink\FullSendStatusTests.cpp" />
     <ClCompile Include="CassoLink\TrackVerifierTests.cpp" />
     <ClCompile Include="CassoLink\LinkedDiskTests.cpp" />

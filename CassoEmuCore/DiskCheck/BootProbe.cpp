@@ -314,7 +314,7 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
     }
     else if ((IsSettled (trace, limits) || IsHeadAtRest (trace, limits)) && trace.isBlank)
     {
-        outReason = "The screen was nearly blank at the end of the boot. A failed copy-protection check often ends this way.";
+        outReason = "There was nothing significant on the screen at the end of the boot. A failed copy-protection check often ends this way.";
     }
     else if (IsSettled (trace, limits))
     {
