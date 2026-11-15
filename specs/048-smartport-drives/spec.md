@@ -90,9 +90,10 @@ the interaction, sound and event log the Disk II already has.
   the hard disks on the left, and nothing is under the monitor. A hard disk narrower than the monitor stands on the left, as the
   HD20SC beside a //e does now.
 - Q: Does a hard disk mount a floppy-size image? A: No. An HD20SC or a
-  ProFile doesn't mount a 140K, 400K, 800K or 1.44 MB image, whatever its
-  container: an image of exactly a floppy's size mounts in a floppy drive.
-  Any other size the drive fits mounts. A 5 MB minimum was considered and
+  ProFile doesn't mount a 140K, 400K or 800K image, whatever its container:
+  an image of exactly a floppy's size mounts in a floppy drive. Any other
+  size the drive fits mounts, a 1.44 MB image included, since no drive Casso
+  models mounts a 1.44 MB disk. A 5 MB minimum was considered and
   dropped: people make hard disk images of every size, and a real SCSI card
   takes a disk of any capacity. The CFFA and A2Pico cards mount
   floppy-size images.
