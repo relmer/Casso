@@ -88,6 +88,12 @@ public:
     bool  IsServingAdtPro () const { return m_connector.m_adtPro; }
     Byte  GetDriveMap     () const { return m_connector.m_driveMap; }
 
+    //  Whether a Full Send is running. Any other operation queued meanwhile
+    //  fails at once, with kFullSendBusy, and has isBlocked set.
+    bool  IsFullSendRunning () const;
+
+    static constexpr const char *  kFullSendBusy = "Full Send is using the drives. Try again when you're finished.";
+
     //  The Apple's model, as its program reported it on connecting; empty
     //  before then.
     std::wstring  GetModelName () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_modelName; }

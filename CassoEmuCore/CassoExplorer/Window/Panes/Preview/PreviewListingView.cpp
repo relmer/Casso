@@ -948,7 +948,10 @@ LPCWSTR PreviewListingView::GetCursorForPoint (POINT clientPx) const
 
     cursor = m_list->AsControl().GetCursorForPoint (clientPx);
 
-    return (cursor != nullptr || m_list->IsOverScrollbar (local)) ? cursor : (arrow ? IDC_ARROW : IDC_IBEAM);
+    return cursor != nullptr               ? cursor
+         : m_list->IsOverScrollbar (local) ? IDC_ARROW
+         : arrow                           ? IDC_ARROW
+                                           : IDC_IBEAM;
 }
 
 

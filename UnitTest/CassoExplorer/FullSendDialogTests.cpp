@@ -170,14 +170,14 @@ public:
 
 
         totals.elapsed = 65.0;
-        Assert::AreEqual (std::wstring (L"0 sent, 0 duplicates, 0 blank, 0 raw captures, 0 with bad sectors    1:05 elapsed"), FullSendPanel::DescribeTotals (totals));
+        Assert::AreEqual (std::wstring (L"0 sent, 0 duplicates, 0 blank, 0 raw captures, 0 with bad sectors    1:05 active, 0:00 idle"), FullSendPanel::DescribeTotals (totals));
 
         totals.sent        = 2;
         totals.duplicates  = 1;
         totals.rawCaptures = 1;
         totals.average     = 26.0;
         totals.bytes       = 2 * 143360;
-        Assert::AreEqual (std::wstring (L"2 sent, 1 duplicate, 0 blank, 1 raw capture, 0 with bad sectors    1:05 elapsed, 0:26 a disk, 0.3 MB"), FullSendPanel::DescribeTotals (totals));
+        Assert::AreEqual (std::wstring (L"2 sent, 1 duplicate, 0 blank, 1 raw capture, 0 with bad sectors    1:05 active, 0:00 idle, 0:26 a disk, 0.3 MB"), FullSendPanel::DescribeTotals (totals));
     }
 
 
@@ -403,5 +403,25 @@ public:
         Assert::IsTrue   (snapshot.activity == FullSendActivity::None);
 
         Assert::IsFalse  (FullSendPanel::MakeManifestView (std::vector<Byte> { 'x' }, snapshot), L"Not a manifest");
+    }
+
+    //  A confirmation comes before a session ends only while a disk is being
+    //  read, as that disk isn't saved; a session waiting for a disk ends at once.
+    TEST_METHOD (IsReadingDisk_OnlyWhileADriveIsCheckedOrRead)
+    {
+        FullSendSnapshot  snapshot;
+
+
+
+        snapshot.activity = FullSendActivity::WaitingForDisk;
+        snapshot.drives[0].state = FullSendDiskState::Sent;
+        snapshot.drives[1].state = FullSendDiskState::Blank;
+        Assert::IsFalse (FullSendDialog::IsReadingDisk (snapshot));
+
+        for (FullSendDiskState state : { FullSendDiskState::Checking, FullSendDiskState::Sending, FullSendDiskState::Capturing })
+        {
+            snapshot.drives[1].state = state;
+            Assert::IsTrue (FullSendDialog::IsReadingDisk (snapshot));
+        }
     }
 };

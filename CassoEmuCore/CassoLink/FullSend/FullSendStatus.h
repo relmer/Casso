@@ -131,7 +131,8 @@ struct FullSendTotals
     int       rawCaptures = 0;
     int       blanks      = 0;      // formatted disks with no files, which weren't sent
     int       badSectors  = 0;      // disks with an unreadable or unreliable sector
-    double    elapsed     = 0.0;
+    double    elapsed     = 0.0;    // the session's time, less idle
+    double    idle        = 0.0;    // the time spent waiting for the user: to begin, for a disk and a key, and for a prefix
     double    average     = 0.0;    // seconds a disk, over the disks sent; 0 with none
     uint64_t  bytes       = 0;
 };
@@ -253,6 +254,8 @@ private:
     double                EstimateLeft  (size_t index, double now) const;
     static int            CountRead     (const FullSendDriveStatus & drive);
     void                  AddTimedLine  (const std::string & text);
+    static bool           IsIdle        (FullSendActivity activity);
+    void                  NoteIdle      ();
 
     mutable std::mutex                                m_lock;
     SecondsFn                                         m_seconds;
@@ -264,6 +267,8 @@ private:
     double                                            m_waitBegan   = 0.0;
     double                                            m_ended       = -1.0;
     double                                            m_sentSeconds = 0.0;   // over every disk sent
+    double                                            m_idleSeconds = 0.0;   // over every wait for the user that ended
+    double                                            m_idleSince   = -1.0;  // when the wait for the user under way began; negative with none
     std::vector<Sample>                               m_samples;   // the sector images sent
     std::vector<std::pair<std::string, std::string>>  m_boots;   // each boot result the session hasn't taken
     std::set<std::string>                             m_booted;  // each file with a boot result

@@ -218,6 +218,7 @@ public:
         raw.status            = FullSendManifest::kStatusRawCapture;
 
         rig.status.Begin();
+        rig.status.SetActivity (FullSendActivity::Sending, 1);
         rig.SendDisk (1, 1, false);
 
         rig.status.BeginDisk (2, false, {});
@@ -307,6 +308,45 @@ public:
 
 
 
+    //  The time spent waiting for the user is idle, apart from the active
+    //  time: the first screen before Space, a wait for a disk and a key, and
+    //  a wait for the Apple's reply while it waits for a key.
+    TEST_METHOD (WaitsForTheUser_AreIdle_ApartFromTheActiveTime)
+    {
+        Rig               rig;
+        FullSendSnapshot  snapshot;
+
+
+
+        rig.status.Begin();
+        rig.now += 30.0;
+        rig.status.SetActivity (FullSendActivity::Sending, 1);
+        rig.now += 10.0;
+        rig.status.SetActivity (FullSendActivity::WaitingForDisk);
+        rig.now += 20.0;
+        rig.status.SetWaiting (true);
+        rig.now += 5.0;
+        rig.status.SetWaiting (false);
+        rig.now += 5.0;
+        rig.status.SetActivity (FullSendActivity::Sending, 2);
+        rig.now += 10.0;
+
+        snapshot = rig.status.GetSnapshot();
+
+        Assert::AreEqual (60.0, snapshot.totals.idle, 0.001);
+        Assert::AreEqual (20.0, snapshot.totals.elapsed, 0.001);
+
+        rig.status.SetActivity (FullSendActivity::WaitingForDisk);
+        rig.now += 7.0;
+        rig.status.End ("Q was pressed on the Apple.");
+        rig.now += 100.0;
+
+        snapshot = rig.status.GetSnapshot();
+
+        Assert::AreEqual (67.0, snapshot.totals.idle, 0.001, L"the wait under way at the end, and none after");
+        Assert::AreEqual (20.0, snapshot.totals.elapsed, 0.001);
+    }
+
     //  After the end the disks, totals and lines are as they were, the time
     //  elapsed stops, and a disk in progress is cleared.
     TEST_METHOD (ASessionsEnd_StopsItsTime_AndItsDisksAndLinesAreReadable)
@@ -317,6 +357,7 @@ public:
 
 
         rig.status.Begin();
+        rig.status.SetActivity (FullSendActivity::Sending, 1);
         rig.SendDisk (1, 1, false);
         rig.status.AddLine ("0001.dsk sent.");
         rig.status.BeginDisk (2, false, {});

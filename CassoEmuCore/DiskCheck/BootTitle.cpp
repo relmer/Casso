@@ -40,12 +40,18 @@ std::string BootTitle::Find (const std::vector<std::string> & rows, bool isTextM
 
         isDone = false;
 
-        for (size_t back = 1; back <= s_kCopyrightReach && back <= at && !isDone; back++)
+        for (size_t back = 1, limit = s_kCopyrightReach; back <= limit && back <= at && !isDone; back++)
         {
             size_t  line = at - back;
 
             if (IsBlank (rows[line]) || HasCopyright (rows[line]))
             {
+                continue;
+            }
+
+            if (IsDate (rows[line]))
+            {
+                limit = back + s_kCopyrightReach;
                 continue;
             }
 
@@ -174,6 +180,57 @@ std::string BootTitle::ToTitleCase (const std::string & word, bool isFirst)
 bool BootTitle::IsBlank (const std::string & row)
 {
     return std::all_of (row.begin(), row.end(), [] (char each) { return each == ' '; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BootTitle::IsDate
+//
+//  A month's name or its first three letters, then only digits, spaces,
+//  commas and periods, with a year of four digits: JANUARY 1, 1983 or
+//  Feb. 1984.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BootTitle::IsDate (const std::string & row)
+{
+    static constexpr std::array<std::string_view, 12>  s_kMonths = { "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+                                                                     "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER" };
+    std::string                                        text      = Trim (row);
+    size_t                                             end       = text.find (' ');
+    std::string                                        word      = text.substr (0, end);
+    std::string                                        rest      = (end == std::string::npos) ? std::string() : text.substr (end);
+    bool                                               isMonth   = false;
+    bool                                               isNumeric = false;
+    bool                                               hasYear   = false;
+    size_t                                             run       = 0;
+
+
+
+    std::transform (word.begin(), word.end(), word.begin(), [] (char each) { return (char) toupper ((unsigned char) each); });
+
+    if (!word.empty() && word.back() == '.')
+    {
+        word.pop_back();
+    }
+
+    isMonth   = word.size() >= 3 && std::any_of (s_kMonths.begin(), s_kMonths.end(), [&word] (std::string_view month)
+                {
+                    return word == month || (word.size() == 3 && month.starts_with (word));
+                });
+    isNumeric = std::all_of (rest.begin(), rest.end(), [] (char each) { return isdigit ((unsigned char) each) || each == ' ' || each == ',' || each == '.'; });
+
+    for (char each : rest)
+    {
+        run     = isdigit ((unsigned char) each) ? run + 1 : 0;
+        hasYear = hasYear || run == 4;
+    }
+
+    return isMonth && isNumeric && hasYear;
 }
 
 

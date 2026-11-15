@@ -43,6 +43,8 @@ void FullSendStatus::Begin()
     m_began             = m_seconds();
     m_ended             = -1.0;
     m_sentSeconds       = 0.0;
+    m_idleSeconds       = 0.0;
+    m_idleSince         = m_began;
     m_baseCount         = { 0, 0 };
     m_lastMark          = { m_began, m_began };
 
@@ -74,6 +76,8 @@ void FullSendStatus::End (const std::string & reason)
     m_snapshot.drive    = 0;
     m_snapshot.reason   = reason;
 
+    NoteIdle();
+
     for (FullSendDriveStatus & drive : m_snapshot.drives)
     {
         bool  busy = drive.state == FullSendDiskState::Checking || drive.state == FullSendDiskState::Sending || drive.state == FullSendDiskState::Capturing;
@@ -103,6 +107,8 @@ void FullSendStatus::SetActivity (FullSendActivity activity, int drive)
     m_snapshot.activity = activity;
     m_snapshot.drive    = drive;
     m_snapshot.revision++;
+
+    NoteIdle();
 }
 
 
@@ -136,6 +142,56 @@ void FullSendStatus::SetPresent (int drive, bool present)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendStatus::IsIdle
+//
+//  The activities that wait for the user: the first screen, before Space; a
+//  disk and a key; and a prefix being typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendStatus::IsIdle (FullSendActivity activity)
+{
+    return activity == FullSendActivity::Starting || activity == FullSendActivity::WaitingForDisk || activity == FullSendActivity::EditingPrefix;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::NoteIdle
+//
+//  The current activity's start or end of a wait for the user, after the
+//  activity changes. A wait for the Apple's reply over a wait for the user
+//  is idle too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::NoteIdle()
+{
+    double  now    = m_seconds();
+    bool    isIdle = IsIdle (m_snapshot.activity) || (m_snapshot.activity == FullSendActivity::WaitingForApple && IsIdle (m_resume));
+
+
+
+    if (isIdle && m_idleSince < 0.0)
+    {
+        m_idleSince = now;
+    }
+    else if (!isIdle && m_idleSince >= 0.0)
+    {
+        m_idleSeconds += now - m_idleSince;
+        m_idleSince    = -1.0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendStatus::SetWaiting
 //
 //  A wait for the Apple's reply begins over the activity it interrupts, and
@@ -157,12 +213,14 @@ void FullSendStatus::SetWaiting (bool waiting)
         m_waitBegan         = m_seconds();
         m_snapshot.activity = FullSendActivity::WaitingForApple;
         m_snapshot.revision++;
+        NoteIdle();
     }
 
     if (!waiting && isWaiting)
     {
         m_snapshot.activity = m_resume;
         m_snapshot.drive    = m_resumeDrive;
+        NoteIdle();
 
         AddTimedLine (std::format ("The Apple replied after {:.0f} seconds.", m_seconds() - m_waitBegan));
     }
@@ -588,6 +646,8 @@ FullSendSnapshot FullSendStatus::GetSnapshot() const
     std::lock_guard   lock (m_lock);
     FullSendSnapshot  snapshot = m_snapshot;
     double            now      = m_seconds();
+    double            end      = 0.0;
+    double            idle     = 0.0;
 
 
 
@@ -603,8 +663,12 @@ FullSendSnapshot FullSendStatus::GetSnapshot() const
         }
     }
 
+    end  = m_ended >= 0.0 ? m_ended : now;
+    idle = m_idleSeconds + (m_idleSince >= 0.0 ? end - m_idleSince : 0.0);
+
     snapshot.waited         = snapshot.activity == FullSendActivity::WaitingForApple ? now - m_waitBegan : 0.0;
-    snapshot.totals.elapsed = (m_ended >= 0.0 ? m_ended : now) - m_began;
+    snapshot.totals.idle    = idle;
+    snapshot.totals.elapsed = end - m_began - idle;
     snapshot.totals.average = snapshot.totals.sent != 0 ? m_sentSeconds / snapshot.totals.sent : 0.0;
 
     return snapshot;

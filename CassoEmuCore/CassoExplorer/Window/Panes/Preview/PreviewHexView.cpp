@@ -361,18 +361,19 @@ void PreviewHexView::HandleFocusEntered (bool forward)
 //
 //  PreviewHexView::GetCursorForPoint
 //
-//  The bytes select as text does, so the cursor over them is the I-beam,
-//  except over the view's scrollbars.
+//  The bytes select as text does, so the cursor over them is the I-beam;
+//  over the view's scrollbars it is the arrow, so no control under them
+//  sets it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 LPCWSTR PreviewHexView::GetCursorForPoint (POINT clientPx) const
 {
-    bool  over = m_hex->IsVisible() && ExplorerLayout::Contains (m_hex->GetBounds(), clientPx) && !m_hex->IsOverScrollbar (clientPx);
+    bool  inside = m_hex->IsVisible() && ExplorerLayout::Contains (m_hex->GetBounds(), clientPx);
 
 
 
-    return over ? IDC_IBEAM : nullptr;
+    return !inside ? nullptr : m_hex->IsOverScrollbar (clientPx) ? IDC_ARROW : IDC_IBEAM;
 }
 
 

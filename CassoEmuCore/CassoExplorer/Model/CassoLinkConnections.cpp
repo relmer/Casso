@@ -1090,6 +1090,12 @@ void CassoLinkConnections::ProbeDrives()
             });
         }
 
+        //  Reads blocked while a Full Send ran are made again once it ends.
+        if (!link->session->IsFullSendRunning())
+        {
+            std::erase_if (link->requests, [] (const auto & request) { return request.second->isBlocked; });
+        }
+
         if (!connected)
         {
             continue;
@@ -2309,10 +2315,15 @@ void CassoLinkConnections::Sink::OnOperationQueued (const std::shared_ptr<LinkOp
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkConnections::Sink::OnDone (const std::shared_ptr<LinkOperation> &)
+void CassoLinkConnections::Sink::OnDone (const std::shared_ptr<LinkOperation> & operation)
 {
-    m_lastProgress = 0;
-    m_fullSending  = false;
+    //  An operation blocked while a Full Send runs never ran, so the Full
+    //  Send goes on.
+    if (!operation || !operation->isBlocked)
+    {
+        m_lastProgress = 0;
+        m_fullSending  = false;
+    }
 
     m_owner.Notify();
 }

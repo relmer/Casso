@@ -533,7 +533,7 @@ std::wstring FullSendPanel::DescribeTotals (const FullSendTotals & totals)
 
 
 
-    text += std::format (L"    {} elapsed", FormatSeconds (totals.elapsed));
+    text += std::format (L"    {} active, {} idle", FormatSeconds (totals.elapsed), FormatSeconds (totals.idle));
 
     if (totals.sent != 0)
     {
@@ -1013,6 +1013,24 @@ void FullSendDialog::Configure (const IDxuiTheme * theme, SnapshotFn snapshot, A
 bool FullSendDialog::IsRunning (const FullSendSnapshot & snapshot)
 {
     return snapshot.activity != FullSendActivity::None && snapshot.activity != FullSendActivity::Ended;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDialog::IsReadingDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendDialog::IsReadingDisk (const FullSendSnapshot & snapshot)
+{
+    return std::any_of (snapshot.drives.begin(), snapshot.drives.end(), [] (const FullSendDriveStatus & drive)
+    {
+        return drive.state == FullSendDiskState::Checking || drive.state == FullSendDiskState::Sending || drive.state == FullSendDiskState::Capturing;
+    });
 }
 
 
