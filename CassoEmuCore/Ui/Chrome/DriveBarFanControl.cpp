@@ -194,15 +194,15 @@ void DriveBarFanControl::PaintEntry (
 //
 //  DriveBarFanControl::PaintArrow
 //
-//  An up arrow at the right end of a class widget's name row, marking the
-//  drives that fan out above it.
+//  An up arrow just right of a class widget's name row, clear of the name,
+//  marking the drives that fan out above it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DriveBarFanControl::PaintArrow (IDxuiPainter & painter, const CassoTheme & theme, const RECT & slot)
 {
     float  half  = (float) Scale (kArrowHalfPx, m_dpi);
-    float  cx    = (float) slot.right - half * 1.5f;
+    float  cx    = (float) slot.right + half * 2.0f;
     float  cy    = (float) slot.top + (float) Scale (kNameHeightPx, m_dpi) * 0.5f;
     float  thick = std::max (1.0f, (float) m_dpi / (float) kBaseDpi * 1.5f);
 
