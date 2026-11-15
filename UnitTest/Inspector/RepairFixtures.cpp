@@ -26,6 +26,8 @@ static constexpr int   s_kOffDisk       = 40;
 static constexpr int   s_kBitmapBlock   = 6;
 static constexpr int   s_kKeyBlock      = 2;
 static constexpr int   s_kFileCount     = 0x25;
+static constexpr int   s_kFirstProDosEntry = 0x04 + 0x27;
+static constexpr int   s_kBlocksUsed    = 0x13;
 static constexpr int   s_kTreeData      = 10;
 static constexpr int   s_kPascalCount   = 16;
 static constexpr int   s_kBitsPerByte   = 8;
@@ -299,6 +301,30 @@ RepairFixture RepairFixtures::MakeProDosBitmapAndCount()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RepairFixtures::MakeProDosBlocksUsed
+//
+//  SEED's blocks-used count is 3; it uses 1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RepairFixture RepairFixtures::MakeProDosBlocksUsed()
+{
+    RepairFixture  fixture { L"ProDOS blocks used", MakeProDos(), {}, true, true };
+
+
+
+    fixture.damaged = fixture.before;
+    FileMapTestImages::GetBlock (fixture.damaged, s_kKeyBlock)[s_kFirstProDosEntry + s_kBlocksUsed] = 3;
+
+    return fixture;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RepairFixtures::MakePascalCount
 //
 //  A directory file count of 4 for its 3 entries.
@@ -330,7 +356,7 @@ RepairFixture RepairFixtures::MakePascalCount()
 vector<RepairFixture> RepairFixtures::MakeAll()
 {
     return { MakeDos33Bitmap(), MakeDos33CatalogLoop(), MakeDos33HeaderZeroed(), MakeDos33NextTrackOff(), MakeDos33CountDiffers(),
-             MakeProDosBitmapAndCount(), MakePascalCount(), MakeDos33CrossLink(), MakeDos33ChainOffDisk() };
+             MakeProDosBitmapAndCount(), MakeProDosBlocksUsed(), MakePascalCount(), MakeDos33CrossLink(), MakeDos33ChainOffDisk() };
 }
 
 

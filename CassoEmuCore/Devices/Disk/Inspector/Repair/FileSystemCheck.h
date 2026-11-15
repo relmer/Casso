@@ -32,6 +32,10 @@ public:
     //  the first worth a look for Suspect, nullptr otherwise.
     static const Finding *  GetVerdictFinding (const DiskAnalysis & analysis);
 
+    //  Whether the disk's tracks have signs of copy protection, which Repair
+    //  doesn't touch. A sector image never has them.
+    static bool  IsCopyProtected (const DiskAnalysis & analysis);
+
     //  An image file's bytes analyzed as a drive mounts them; a file that
     //  can't be loaded fails with the reason a mount fails with.
     static HRESULT  Analyze (const vector<Byte> & bytes, const std::string & utf8Path, DiskAnalysis & outAnalysis, std::wstring & outReason);

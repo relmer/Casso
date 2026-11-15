@@ -684,9 +684,8 @@ void InspectorWindowSet::StopTimer()
 //
 //  InspectorWindowSet::SelectRepairedCopy
 //
-//  The copy selected through a /select launch, which switches to the tab of
-//  a window already on the copy's folder; nothing with no explorer, as in a
-//  test.
+//  The copy selected in Casso Explorer's first window; nothing with no
+//  explorer, as in a test.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -694,6 +693,6 @@ void InspectorWindowSet::SelectRepairedCopy (const std::wstring & path)
 {
     if (m_seams.explorer != nullptr)
     {
-        m_seams.explorer->RunLaunch (L"\"/select," + path + L"\"");
+        m_seams.explorer->SelectInFolder (path);
     }
 }

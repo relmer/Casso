@@ -72,6 +72,7 @@ private:
     static void          CheckLength       (FileMapWriter & writer, const SectorSource & source, const MappedFile & file, Byte type);
     static bool          IsBelievableEntry (const Byte * entry);
     static bool          IsNameMixed       (const Byte * name);
+    static int           CountClearBits    (const Byte * name);
     static std::wstring  ReadName          (const Byte * name, int length);
     static std::wstring  GetTypeLetter     (Byte type);
 };

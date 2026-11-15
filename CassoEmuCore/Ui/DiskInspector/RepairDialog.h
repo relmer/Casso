@@ -13,7 +13,7 @@
 //  RepairDialogBody
 //
 //  The confirmation's body: a line on the copy, a line for each change, and
-//  "Don't free sectors that no file uses", laid out in physical pixels as
+//  "Keep sectors not in any file marked as used", laid out in physical pixels as
 //  the other dialog bodies are.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,7 +48,7 @@ private:
 //  RepairDialog
 //
 //  Repair's confirmation: the changes, a line each, made again when
-//  "Don't free sectors that no file uses" is turned on or off, and Repair
+//  "Keep sectors not in any file marked as used" is turned on or off, and Repair
 //  or Cancel. The plan comes from the caller's planner, which reads the
 //  image file as saved.
 //
@@ -88,5 +88,5 @@ private:
     bool                m_isConfirmed = false;
     DxuiLabel           m_intro;
     DxuiLabel           m_changes;
-    DxuiCheckbox        m_noFree      { L"Don't free sectors that no file uses" };
+    DxuiCheckbox        m_noFree      { L"Keep sectors not in any file marked as used" };
 };

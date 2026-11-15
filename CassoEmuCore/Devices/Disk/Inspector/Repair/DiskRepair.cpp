@@ -5,6 +5,7 @@
 #include "Devices/Disk/Inspector/FileMap/Dos33MapReader.h"
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Devices/Disk/Inspector/FileMap/SectorSource.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -83,15 +84,19 @@ RepairPlan DiskRepair::Plan (const DiskAnalysis & analysis, const RepairOptions 
 
     if (analysis.verdict == FileSystemVerdict::None)
     {
-        plan.reason = L"The disk has no standard file system, so it isn't repaired";
+        plan.reason = L"The disk has no standard file system.";
+    }
+    else if (FileSystemCheck::IsCopyProtected (analysis))
+    {
+        plan.reason = L"The disk is copy-protected.";
     }
     else if (analysis.fileMaps.size() != 1)
     {
-        plan.reason = L"The disk has more than one volume, so it isn't repaired";
+        plan.reason = L"The disk has more than one volume.";
     }
     else if (analysis.verdict == FileSystemVerdict::Ok)
     {
-        plan.reason = L"The file system has no damage to repair";
+        plan.reason = L"The file system has no damage.";
     }
     else
     {
@@ -111,7 +116,7 @@ RepairPlan DiskRepair::Plan (const DiskAnalysis & analysis, const RepairOptions 
                 break;
 
             default:
-                plan.reason = L"Repair is for DOS 3.3, ProDOS and Apple Pascal volumes";
+                plan.reason = L"Only DOS 3.3, ProDOS and Apple Pascal volumes can be repaired.";
                 break;
         }
     }
@@ -120,7 +125,7 @@ RepairPlan DiskRepair::Plan (const DiskAnalysis & analysis, const RepairOptions 
 
     if (plan.reason.empty() && plan.changes.empty())
     {
-        plan.reason = L"None of the findings can be repaired by changing the bookkeeping";
+        plan.reason = L"None of the damage is in the volume's bookkeeping.";
     }
 
     if (plan.reason.empty() && BuildMap (work, patched, after))
@@ -185,7 +190,7 @@ void DiskRepair::PlanDos33 (Work & work, const FileMap & map)
 
     if (!map.isCatalogStandard)
     {
-        work.plan.reason = L"The catalog isn't standard, so it isn't repaired";
+        work.plan.reason = L"The catalog isn't a standard DOS 3.3 catalog.";
     }
 
     if (work.plan.reason.empty())
@@ -200,7 +205,7 @@ void DiskRepair::PlanDos33 (Work & work, const FileMap & map)
 
         if (!isRead)
         {
-            work.plan.reason = L"The volume can't be read once its catalog is relinked, so it isn't repaired";
+            work.plan.reason = L"The volume can't be read with the relinked catalog.";
         }
     }
 
@@ -239,13 +244,13 @@ void DiskRepair::PlanHeader (Work & work, const FileMap & map)
     if (map.isHeaderLost)
     {
         Dos33MapReader::MakeStandardHeader (static_cast<Byte> (work.volume), vtoc);
-        work.plan.changes.push_back (L"Set the VTOC's header to DOS 3.3's values");
+        work.plan.changes.push_back (L"Set the VTOC header to DOS 3.3's standard values");
     }
     else if (vtoc[Dos33MapReader::kNextTrack] >= s_kTracks || (vtoc[Dos33MapReader::kDirection] != s_kUp && vtoc[Dos33MapReader::kDirection] != s_kDown))
     {
         vtoc[Dos33MapReader::kNextTrack] = static_cast<Byte> (Dos33MapReader::kVtocTrack);
         vtoc[Dos33MapReader::kDirection] = s_kUp;
-        work.plan.changes.push_back (L"Set the VTOC's next track to allocate to track 17, moving up");
+        work.plan.changes.push_back (L"Set the VTOC's next track to allocate to track 17, allocating upward");
     }
 }
 
@@ -281,7 +286,7 @@ void DiskRepair::PlanRelink (Work & work, const FileMap & map)
 
     if (!map.isCatalogComplete && map.unreadableCell >= 0 && !IsReadable (work, map.unreadableCell / s_kSectors, map.unreadableCell % s_kSectors))
     {
-        work.plan.reason = std::format (L"The catalog's sector at track {}, sector ${:X} can't be read, so it isn't repaired",
+        work.plan.reason = std::format (L"Track {}, sector ${:X} of the catalog can't be read.",
                                         map.unreadableCell / s_kSectors, map.unreadableCell % s_kSectors);
         return;
     }
@@ -310,9 +315,15 @@ void DiskRepair::PlanRelink (Work & work, const FileMap & map)
         return;
     }
 
-    if (linked < Dos33MapReader::kInitLinkedMin || vtoc[s_kCatalogTrack] != Dos33MapReader::kVtocTrack || vtoc[s_kCatalogSector] != Dos33MapReader::kCatalogSector)
+    if (linked < Dos33MapReader::kInitLinkedMin)
     {
-        work.plan.reason = L"The catalog can't be relinked: fewer than four of its sectors on track 17 are linked in the order DOS's INIT links them";
+        work.plan.reason = std::format (L"Expected at least four catalog sectors on track 17 linked in INIT's order, but found {}.", linked);
+        return;
+    }
+
+    if (vtoc[s_kCatalogTrack] != Dos33MapReader::kVtocTrack || vtoc[s_kCatalogSector] != Dos33MapReader::kCatalogSector)
+    {
+        work.plan.reason = L"The catalog isn't a standard DOS 3.3 catalog.";
         return;
     }
 
@@ -426,7 +437,7 @@ void DiskRepair::PlanProDos (Work & work, const FileMap & map)
 
         if (bitmapAt <= s_kKeyBlock || bitmapAt >= s_kBlocks)
         {
-            work.plan.reason = L"The volume bitmap's block is off the volume, so it isn't repaired";
+            work.plan.reason = std::format (L"Expected the volume bitmap in blocks 3 to 279, but found block {}.", bitmapAt);
         }
     }
 
@@ -531,7 +542,7 @@ void DiskRepair::CheckChains (Work & work, const FileMap & map)
 
         if (work.plan.reason.empty() && isBlocking)
         {
-            work.plan.reason = L"A file's data can't be recovered by changing the bookkeeping. " + TextEncoding::Utf8ToWide (finding.detail) + L".";
+            work.plan.reason = L"Repairing this would change a file's data: " + TextEncoding::Utf8ToWide (finding.detail) + L".";
         }
     }
 }
@@ -556,7 +567,7 @@ void DiskRepair::AddBitmapChanges (Work & work, const FileMap & map, const vecto
     {
         if (markedUsed[f] > 0)
         {
-            work.plan.changes.push_back (std::format (L"Mark {} {}{} {} uses as used in the bitmap", markedUsed[f], unit, plural (markedUsed[f]), map.files[f].path));
+            work.plan.changes.push_back (std::format (L"Mark {} {}{} of {} as used in the bitmap", markedUsed[f], unit, plural (markedUsed[f]), map.files[f].path));
         }
     }
 
@@ -567,7 +578,7 @@ void DiskRepair::AddBitmapChanges (Work & work, const FileMap & map, const vecto
 
     if (unowned > 0)
     {
-        work.plan.changes.push_back (std::format (L"Mark {} {}{} that no file uses as free in the bitmap", unowned, unit, plural (unowned)));
+        work.plan.changes.push_back (std::format (L"Mark {} {}{} not in any file as free in the bitmap", unowned, unit, plural (unowned)));
     }
 }
 
@@ -602,7 +613,7 @@ void DiskRepair::CollectSectors (Work & work)
 
         if (!work.isReadable[index] && work.plan.reason.empty())
         {
-            work.plan.reason = std::format (L"Track {}, sector ${:X} can't be read, so it isn't repaired", index / s_kSectors, index % s_kSectors);
+            work.plan.reason = std::format (L"Track {}, sector ${:X} can't be read.", index / s_kSectors, index % s_kSectors);
         }
 
         out.track  = index / s_kSectors;

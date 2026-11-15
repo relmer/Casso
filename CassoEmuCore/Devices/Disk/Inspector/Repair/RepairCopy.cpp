@@ -64,7 +64,7 @@ HRESULT RepairCopy::PlanFile (
     outPlan = RepairPlan();
 
     hr = io.ReadAllBytes (imagePath, bytes);
-    CHRF (hr, outReason = L"The image couldn't be read.");
+    CHRF (hr, outReason = L"Unable to read the image.");
 
     hr = FileSystemCheck::Analyze (bytes, imagePath, analysis, outReason);
     CHR (hr);
@@ -116,10 +116,10 @@ HRESULT RepairCopy::MakeCopyBytes (
     outBytes.clear();
 
     hr = VolumeImage::Load (imageBytes, imagePath, sectors, report);
-    CHRF (hr, outReason = L"The image's sectors couldn't be read.");
+    CHRF (hr, outReason = L"Unable to read the image's sectors.");
 
     size = sectors.size();
-    CBRF (size == kVolumeBytes, outReason = L"Repair is for 140 KB disks.");
+    CBRF (size == kVolumeBytes, outReason = L"Unable to read the image's sectors.");
 
     DiskRepair::Apply (plan, sectors);
 
@@ -164,7 +164,7 @@ HRESULT RepairCopy::Write (
     CBRF (canWrite, outReason = plan.reason);
 
     hr = io.ReadAllBytes (imagePath, image);
-    CHRF (hr, outReason = L"The image couldn't be read.");
+    CHRF (hr, outReason = L"Unable to read the image.");
 
     hr = MakeCopyBytes (image, imagePath, plan, copy, outReason);
     CHR (hr);
@@ -174,7 +174,7 @@ HRESULT RepairCopy::Write (
     CBRF (!isTaken, outReason = std::format (L"{} already exists.", fs::path (TextEncoding::Utf8ToWide (target)).filename().wstring()));
 
     hr = io.WriteAllBytes (outCopyPath, copy);
-    CHRF (hr, outReason = L"The repaired copy couldn't be written.");
+    CHRF (hr, outReason = L"Unable to write the repaired copy.");
 
 Error:
     if (FAILED (hr))

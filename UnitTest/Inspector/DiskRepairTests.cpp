@@ -106,7 +106,7 @@ public:
 
 
 
-        Assert::AreEqual (static_cast<size_t> (9), fixtures.size());
+        Assert::AreEqual (static_cast<size_t> (10), fixtures.size());
 
         for (const RepairFixture & fixture : fixtures)
         {
@@ -151,7 +151,7 @@ public:
             repaired++;
         }
 
-        Assert::AreEqual (7, repaired, L"every repairable fixture was repaired");
+        Assert::AreEqual (8, repaired, L"every repairable fixture was repaired");
     }
 
 
@@ -167,7 +167,7 @@ public:
             plan = DiskRepair::Plan (analysis, {});
 
             Assert::IsFalse (plan.canRepair, fixture.name.c_str());
-            Assert::IsTrue  (plan.reason.find (L"can't be recovered by changing the bookkeeping") != std::wstring::npos, plan.reason.c_str());
+            Assert::IsTrue  (plan.reason.find (L"Repairing this would change a file's data: ") != std::wstring::npos, plan.reason.c_str());
             Assert::IsTrue  (plan.changes.empty() && plan.sectors.empty());
         }
     }
@@ -187,8 +187,8 @@ public:
         Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, bitmap);
         plan = DiskRepair::Plan (bitmap, {});
         Assert::AreEqual (static_cast<size_t> (2), plan.changes.size());
-        Assert::AreEqual (std::wstring (L"Mark 1 sector HELLO uses as used in the bitmap"),     plan.changes[0]);
-        Assert::AreEqual (std::wstring (L"Mark 1 sector that no file uses as free in the bitmap"),   plan.changes[1]);
+        Assert::AreEqual (std::wstring (L"Mark 1 sector of HELLO as used in the bitmap"),     plan.changes[0]);
+        Assert::AreEqual (std::wstring (L"Mark 1 sector not in any file as free in the bitmap"),   plan.changes[1]);
 
         Analyze (RepairFixtures::MakeDos33CatalogLoop().damaged, false, loop);
         plan = DiskRepair::Plan (loop, {});
@@ -199,12 +199,73 @@ public:
         Assert::IsTrue (HasKind (header, FindingKind::Dos33HeaderLost));
         plan = DiskRepair::Plan (header, {});
         Assert::AreEqual (static_cast<size_t> (1), plan.changes.size());
-        Assert::AreEqual (std::wstring (L"Set the VTOC's header to DOS 3.3's values"), plan.changes[0]);
+        Assert::AreEqual (std::wstring (L"Set the VTOC header to DOS 3.3's standard values"), plan.changes[0]);
 
         Analyze (RepairFixtures::MakeDos33CountDiffers().damaged, false, count);
         plan = DiskRepair::Plan (count, {});
         Assert::AreEqual (static_cast<size_t> (1), plan.changes.size());
-        Assert::AreEqual (std::wstring (L"Set HELLO's sector count to 4"), plan.changes[0]);
+        Assert::AreEqual (std::wstring (L"Set the catalog sector count of HELLO to 4"), plan.changes[0]);
+    }
+
+
+
+    TEST_METHOD (ABlocksUsedCountThatDiffersIsRepaired)
+    {
+        DiskAnalysis  analysis;
+        RepairPlan    plan;
+
+
+
+        Analyze (RepairFixtures::MakeProDosBlocksUsed().damaged, true, analysis);
+        plan = DiskRepair::Plan (analysis, {});
+
+        Assert::IsTrue   (analysis.verdict == FileSystemVerdict::Bad);
+        Assert::AreEqual (static_cast<size_t> (1), plan.changes.size());
+        Assert::AreEqual (std::wstring (L"Set the blocks-used count of SEED to 1"), plan.changes[0]);
+    }
+
+
+
+    TEST_METHOD (ACopyProtectedDiskIsNotRepaired)
+    {
+        DiskAnalysis  analysis;
+        Finding       sign;
+
+
+
+        Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, analysis);
+        Assert::IsFalse (FileSystemCheck::IsCopyProtected (analysis), L"a disk made from a sector image has no protection");
+
+        sign.kind = FindingKind::AddressEpilogueNonstandard;
+        analysis.findings.push_back (sign);
+
+        Assert::IsTrue   (FileSystemCheck::IsCopyProtected (analysis));
+        Assert::AreEqual (std::wstring (L"The disk is copy-protected."), DiskRepair::Plan (analysis, {}).reason);
+    }
+
+
+
+    TEST_METHOD (RandomBitsOnAQuarterOfTheTracksAreCopyProtection)
+    {
+        DiskAnalysis  analysis;
+        Finding       bits;
+
+
+
+        Analyze (RepairFixtures::MakeDos33(), false, analysis);
+        bits.kind = FindingKind::RandomBitsOnFormattedTrack;
+
+        for (int track = 0; track < 8; track++)
+        {
+            bits.quarterTrack = track * 4;
+            analysis.findings.push_back (bits);
+        }
+
+        Assert::IsFalse (FileSystemCheck::IsCopyProtected (analysis), L"8 of 35 tracks, as a capture has a few");
+
+        bits.quarterTrack = 8 * 4;
+        analysis.findings.push_back (bits);
+        Assert::IsTrue (FileSystemCheck::IsCopyProtected (analysis), L"9 of 35 tracks");
     }
 
 

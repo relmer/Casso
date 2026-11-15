@@ -28,6 +28,7 @@ public:
     vector<int>   diskTabs;
     int           selections = 0;
     int           relayouts  = 0;
+    int           repairs    = 0;
     std::wstring  statusNote;
 
     DxuiPanel          & GetControlParent    () override { return panel; }
@@ -47,6 +48,7 @@ public:
     void                 TakeTracks          (const InspectorReply &) override {}
     void                 SetWindowZoom       (double) override {}
     void                 OpenWalkthrough     () override {}
+    void                 OpenRepair          () override { repairs++; }
 
     void                 NotifyDiskStarting    (const DiskChange &) override {}
     void                 NotifyDiskStarted     (const DiskChange &) override {}

@@ -316,13 +316,13 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "repair",
         "Check a disk image's file system and write a repaired copy",
         "CassoCli disk repair <image> [<copy>] [%Lno-free-unowned] [%Llist]",
-        "  %Lno-free-unowned       Don't free sectors that no file uses, for a protection that hides data in them\n"
+        "  %Lno-free-unowned       Keep sectors not in any file marked as used, for copy protection that stores data in them\n"
         "  %Llist                  List the changes without writing the copy\n",
-        "Reports the file-system verdict of a DOS 3.3, ProDOS or Apple Pascal volume, its findings and the changes Repair makes"
-        " to its bookkeeping, then writes a copy with the changes beside <image>, with \" (repaired)\" before its extension, or"
-        " to <copy>. The bitmap is matched to the files, the catalog's links and counts are set right, and a DOS 3.3 VTOC header"
-        " is set back to DOS's values. <image> isn't changed. A volume with a file whose chain can't be followed, or a disk with"
-        " no standard file system, isn't repaired, and the command exits with an error.",
+        "Checks the file system of a DOS 3.3, ProDOS or Apple Pascal volume. Lists the verdict, the findings and each change,"
+        " then writes a repaired copy to <copy>, or beside <image> with \" (repaired)\" before its extension. The bitmap is set"
+        " from the files, the catalog's links and counts are corrected, and a DOS 3.3 VTOC header is restored to DOS's values."
+        " <image> isn't changed. A copy-protected disk, a volume with a file whose chain can't be followed, or a disk with no"
+        " standard file system can't be repaired, and the command exits with 1.",
         "CassoCli disk repair Capture.dsk"
     },
 

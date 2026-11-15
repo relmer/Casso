@@ -82,7 +82,7 @@ void FilesView::Create()
     m_mapNext->SetOnClick     ([this] () { StepFileSector (1); });
     m_filePicker->SetOnClick  ([this] () { OpenFilePicker (!m_isPickerOpen); });
     m_mapCopy->SetOnClick     ([this] () { CopyFileMap(); });
-    m_mapRepair->SetOnClick   ([this] () { if (m_session.openRepair) { m_session.openRepair(); } });
+    m_mapRepair->SetOnClick   ([this] () { m_host.OpenRepair(); });
 }
 
 
@@ -124,7 +124,7 @@ std::wstring FilesView::GetTip (POINT pointPx, RECT & outAnchorPx) const
 
     if (tip.empty() && m_mapRepair->IsVisible() && PtInRect (&repair, pointPx))
     {
-        tip         = m_session.repairPlan.canRepair ? std::wstring (L"Write a repaired copy of the image beside it") : m_session.repairPlan.reason;
+        tip         = m_session.repairPlan.canRepair ? std::wstring (L"Write a repaired copy of the image beside it") : L"Repair isn't available. " + m_session.repairPlan.reason;
         outAnchorPx = repair;
     }
 

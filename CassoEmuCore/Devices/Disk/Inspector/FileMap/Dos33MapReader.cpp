@@ -321,31 +321,31 @@ void Dos33MapReader::CheckHeader (FileMapWriter & writer, const Byte * vtoc)
 
     if (size != s_kSectorBytes)
     {
-        writer.AddFinding (FindingKind::Dos33SectorBytesDiffer, at, std::format (L"The VTOC's sector size is {} bytes, not 256", size));
+        writer.AddFinding (FindingKind::Dos33SectorBytesDiffer, at, std::format (L"Expected a VTOC sector size of 256 bytes, but found {}", size));
     }
 
     if (vtoc[s_kPairsPerList] != s_kPairs)
     {
-        writer.AddFinding (FindingKind::Dos33PairsDiffer, at, std::format (L"The VTOC's track/sector list size is {} pairs, not 122", vtoc[s_kPairsPerList]));
+        writer.AddFinding (FindingKind::Dos33PairsDiffer, at, std::format (L"Expected 122 track/sector pairs per list in the VTOC, but found {}", vtoc[s_kPairsPerList]));
     }
 
     if (vtoc[kNextTrack] >= SectorSource::kTracks)
     {
-        writer.AddFinding (FindingKind::Dos33NextTrackOffDisk, at, std::format (L"The VTOC's next track to allocate is track {}, which is off the disk", vtoc[kNextTrack]));
+        writer.AddFinding (FindingKind::Dos33NextTrackOffDisk, at, std::format (L"Expected the VTOC's next track to allocate to be 0 to 34, but found {}", vtoc[kNextTrack]));
     }
     else if (vtoc[kDirection] != s_kUp && vtoc[kDirection] != s_kDown)
     {
-        writer.AddFinding (FindingKind::Dos33NextTrackOffDisk, at, std::format (L"The VTOC's direction to allocate in is ${:02X}, not $01 or $FF", vtoc[kDirection]));
+        writer.AddFinding (FindingKind::Dos33NextTrackOffDisk, at, std::format (L"Expected an allocation direction of $01 or $FF in the VTOC, but found ${:02X}", vtoc[kDirection]));
     }
 
     if (vtoc[s_kRelease] != s_kRelease33)
     {
-        writer.AddFinding (FindingKind::Dos33ReleaseDiffers, at, std::format (L"The VTOC's DOS release is {}, not 3", vtoc[s_kRelease]));
+        writer.AddFinding (FindingKind::Dos33ReleaseDiffers, at, std::format (L"Expected DOS release 3 in the VTOC, but found {}", vtoc[s_kRelease]));
     }
 
     if (vtoc[s_kVolume] == 0 || vtoc[s_kVolume] == 0xFF)
     {
-        writer.AddFinding (FindingKind::Dos33VolumeOutOfRange, at, std::format (L"The VTOC's volume number is {}, outside 1 to 254", vtoc[s_kVolume]));
+        writer.AddFinding (FindingKind::Dos33VolumeOutOfRange, at, std::format (L"Expected a VTOC volume number of 1 to 254, but found {}", vtoc[s_kVolume]));
     }
 
     for (t = 0; t < SectorSource::kTracks; t++)
@@ -357,7 +357,7 @@ void Dos33MapReader::CheckHeader (FileMapWriter & writer, const Byte * vtoc)
 
     if (padded > 0)
     {
-        writer.AddFinding (FindingKind::Dos33BitmapPadding, at, std::format (L"The bytes after the bitmap words of {} tracks in the VTOC aren't zero", padded));
+        writer.AddFinding (FindingKind::Dos33BitmapPadding, at, std::format (L"Expected zeros after each track's bitmap in the VTOC, but found other values on {} tracks", padded));
     }
 }
 
@@ -408,7 +408,7 @@ bool Dos33MapReader::CheckEntries (FileMapWriter & writer, const vector<Entry> &
     if (!isStandard)
     {
         writer.AddFinding (FindingKind::Dos33CatalogNonstandard, entries.front().cell,
-                           std::format (L"The catalog isn't standard: {} of its {} entries have a file name, type or count that DOS 3.3 doesn't write, so its files aren't followed",
+                           std::format (L"Expected DOS 3.3 catalog entries, but found {} of {} with an invalid file name, type or sector count. The files in this catalog aren't read.",
                                         failed, inUse));
     }
 
@@ -429,17 +429,18 @@ bool Dos33MapReader::CheckEntries (FileMapWriter & writer, const vector<Entry> &
 
         if (isMixed)
         {
-            writer.AddFinding (FindingKind::Dos33EntryNameMixed, entry.cell, name + L": its name has the high bit set on some characters and clear on others");
+            writer.AddFinding (FindingKind::Dos33EntryNameMixed, entry.cell, std::format (L"{}: expected the high bit set on every character of the file name, but found {} with it clear",
+                                                                                     name, CountClearBits (entry.bytes + s_kEntryName)));
         }
 
         if (isUnknown)
         {
-            writer.AddFinding (FindingKind::Dos33EntryTypeUnknown, entry.cell, std::format (L"{}: its type ${:02X} isn't a DOS 3.3 type", name, entry.bytes[s_kEntryType]));
+            writer.AddFinding (FindingKind::Dos33EntryTypeUnknown, entry.cell, std::format (L"{}: expected a DOS 3.3 file type, but found ${:02X}", name, entry.bytes[s_kEntryType]));
         }
 
         if (isLarge)
         {
-            writer.AddFinding (FindingKind::Dos33EntryCountTooLarge, entry.cell, std::format (L"{}: its catalog count is {} sectors, more than the disk has", name, count));
+            writer.AddFinding (FindingKind::Dos33EntryCountTooLarge, entry.cell, std::format (L"{}: expected a catalog sector count of at most {}, but found {}", name, writer.GetCellCount(), count));
         }
     }
 
@@ -532,8 +533,8 @@ void Dos33MapReader::WalkLists (FileMapWriter & writer, const SectorSource & sou
         if (!isNoted && offset != list * s_kPairs)
         {
             isNoted = true;
-            writer.AddFinding (FindingKind::Dos33ListOffsetDiffers, cell, std::format (L"{}: track/sector list {} starts at sector {} of the file, not {}",
-                                                                                       writer.GetFile (file).path, list + 1, offset, list * s_kPairs));
+            writer.AddFinding (FindingKind::Dos33ListOffsetDiffers, cell, std::format (L"{}: expected track/sector list {} to start at sector {} of the file, but found {}",
+                                                                                       writer.GetFile (file).path, list + 1, list * s_kPairs, offset));
         }
 
         for (pair = 0; !isBroken && pair < s_kPairs; pair++)
@@ -601,8 +602,8 @@ void Dos33MapReader::CheckCount (FileMapWriter & writer, int file, const Entry &
 
     if (!mapped.isDeleted && mapped.chainReason == ChainReason::None && recorded > 0 && apart > s_kCountTolerance)
     {
-        writer.AddFinding (FindingKind::FileCountDiffers, entry.cell, std::format (L"{}: its catalog count is {} sectors, and the file uses {}", mapped.path, recorded, used));
-        writer.AddCount ({ entry.cell, entry.offset + s_kEntryCount, recorded, used, std::format (L"{}'s sector count", mapped.path) });
+        writer.AddFinding (FindingKind::FileCountDiffers, entry.cell, std::format (L"{}: expected a catalog sector count of {}, but found {}", mapped.path, used, recorded));
+        writer.AddCount ({ entry.cell, entry.offset + s_kEntryCount, recorded, used, std::format (L"the catalog sector count of {}", mapped.path) });
     }
 }
 
@@ -654,8 +655,8 @@ void Dos33MapReader::CheckLength (FileMapWriter & writer, const SectorSource & s
 
         if (sectors != places)
         {
-            writer.AddFinding (FindingKind::Dos33StoredLengthDiffers, first, std::format (L"{}: its stored length of {} bytes takes {} sectors, and the file has {}",
-                                                                                          file.path, length, sectors, places));
+            writer.AddFinding (FindingKind::Dos33StoredLengthDiffers, first, std::format (L"{}: expected {} sectors for a stored length of {} bytes, but found {}",
+                                                                                          file.path, sectors, length, places));
         }
     }
 }
@@ -752,6 +753,32 @@ bool Dos33MapReader::IsNameMixed (const Byte * name)
     }
 
     return set > 0 && set < s_kNameLength;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Dos33MapReader::CountClearBits
+//
+//  The characters of a name with the high bit clear.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int Dos33MapReader::CountClearBits (const Byte * name)
+{
+    int  clear = 0;
+
+
+
+    for (int i = 0; i < s_kNameLength; i++)
+    {
+        clear += (name[i] & s_kHighBit) == 0 ? 1 : 0;
+    }
+
+    return clear;
 }
 
 

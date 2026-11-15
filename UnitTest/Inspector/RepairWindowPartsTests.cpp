@@ -42,7 +42,6 @@ public:
         FilesView          files  { session, host };
         DxuiDpiScaler      scaler;
         RECT               area   = {};
-        int                opened = 0;
     };
 
 
@@ -55,7 +54,6 @@ public:
         map.session.isDiskGroup     = true;
         map.session.diskTab         = kTabFileMap;
         map.session.repairPlan      = DiskRepair::Plan (map.session.analysis, {});
-        map.session.openRepair      = [&map] () { map.opened++; };
         map.scaler.SetDpi (dpi);
         map.area = { map.scaler.ToPx (kAreaDip.left), map.scaler.ToPx (kAreaDip.top), map.scaler.ToPx (kAreaDip.right), map.scaler.ToPx (kAreaDip.bottom) };
 
@@ -112,7 +110,7 @@ public:
             Assert::AreEqual (repair.top, copy.top, L"on the row of Copy map");
 
             Click (map, repair);
-            Assert::AreEqual (1, map.opened, L"Repair opens the confirmation");
+            Assert::AreEqual (1, map.host.repairs, L"Repair opens the confirmation");
         }
     }
 
@@ -134,7 +132,7 @@ public:
 
             Assert::IsTrue  (map.files.GetRepairButton().IsVisible());
             Assert::IsFalse (map.files.GetRepairButton().IsEnabled());
-            Assert::IsTrue  (tip.find (L"can't be recovered by changing the bookkeeping") != std::wstring::npos, tip.c_str());
+            Assert::IsTrue  (tip.find (L"Repair isn't available. Repairing this would change a file's data: ") != std::wstring::npos, tip.c_str());
         }
     }
 
@@ -192,9 +190,9 @@ public:
         Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, analysis);
         plan = DiskRepair::Plan (analysis, {});
 
-        Assert::AreEqual (std::wstring (L"\x2022 Mark 1 sector HELLO uses as used in the bitmap\n\x2022 Mark 1 sector that no file uses as free in the bitmap"),
+        Assert::AreEqual (std::wstring (L"\x2022 Mark 1 sector of HELLO as used in the bitmap\n\x2022 Mark 1 sector not in any file as free in the bitmap"),
                           RepairDialog::FormatChanges (plan));
-        Assert::AreEqual (std::wstring (L"Repair writes a copy of Game.dsk beside it with these changes. Game.dsk isn't changed."), RepairDialog::FormatIntro (L"Game.dsk"));
+        Assert::AreEqual (std::wstring (L"Writes a repaired copy of Game.dsk in the same folder, with these changes. Game.dsk isn't changed."), RepairDialog::FormatIntro (L"Game.dsk"));
 
         for (UINT dpi : { 96u, 144u })
         {
@@ -202,7 +200,7 @@ public:
             RepairDialogBody  body;
             DxuiLabel         intro;
             DxuiLabel         changes;
-            DxuiCheckbox      noFree { L"Don't free sectors that no file uses" };
+            DxuiCheckbox      noFree { L"Keep sectors not in any file marked as used" };
             RECT              bounds = {};
 
             scaler.SetDpi (dpi);

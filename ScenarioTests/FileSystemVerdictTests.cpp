@@ -24,7 +24,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  image in a temporary folder, to the image before the damage; and on the
 //  test collection, standard and copy-protected disks, no copy-protected
 //  disk or disk of another file system Bad and no standard disk without
-//  damage other than OK. A collection with fewer than 30 disks present
+//  damage other than OK, and each copy-protected disk with a file system
+//  detected as copy-protected and not repaired. A collection with fewer than
+//  30 disks present
 //  fails rather than checking fewer.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,7 +137,7 @@ public:
             repaired++;
         }
 
-        Assert::AreEqual (7, repaired, L"every kind that can be repaired was");
+        Assert::AreEqual (8, repaired, L"every kind that can be repaired was");
         Assert::AreEqual (2, declined, L"and the cross-link and the chain off the disk weren't");
 
         std::filesystem::remove_all (folder);
@@ -172,7 +174,7 @@ public:
         disks.push_back ({ L"DOS 3.3 System Master", GuestSession::RequireDos33Master(),     true });
         disks.push_back ({ L"ProDOS Users Disk",     GuestSession::RequireProDosUsersDisk(), true });
         disks.push_back ({ L"Kermit-65",             GuestSession::RequireKermitDisk(),      true });
-        disks.push_back ({ L"SOS System Utilities",  GuestSession::RequireSosUtilitiesDisk(), false });
+        disks.push_back ({ L"SOS System Utilities",  GuestSession::RequireSosUtilitiesDisk(), true  });
 
         for (const char * path : kRepoDisks)
         {
@@ -203,9 +205,10 @@ public:
         {
             DiskAnalysis  analysis;
             std::wstring  reason;
-            std::string   path    = TextEncoding::WideToUtf8 (std::filesystem::path (disk.name).filename().wstring());
-            HRESULT       hr      = S_OK;
-            bool          isRight = false;
+            std::string   path       = TextEncoding::WideToUtf8 (std::filesystem::path (disk.name).filename().wstring());
+            HRESULT       hr         = S_OK;
+            bool          isRight    = false;
+            bool          isDetected = false;
 
             if (disk.bytes.empty())
             {
@@ -225,6 +228,15 @@ public:
             if (!isRight)
             {
                 wrong += disk.name + L": " + Describe (analysis) + L"\n";
+            }
+
+            //  A standard disk isn't taken as copy-protected, and a protected one
+            //  with a file system is, so Repair doesn't touch it.
+            isDetected = FileSystemCheck::IsCopyProtected (analysis);
+
+            if (disk.isStandard ? isDetected : (analysis.verdict != FileSystemVerdict::None && (!isDetected || DiskRepair::Plan (analysis, {}).canRepair)))
+            {
+                wrong += disk.name + (disk.isStandard ? L": taken as copy-protected\n" : L": not taken as copy-protected\n");
             }
         }
 

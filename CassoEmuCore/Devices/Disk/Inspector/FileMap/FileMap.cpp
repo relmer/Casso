@@ -233,9 +233,11 @@ void FileMapBuilder::ReadLostHeader (const SectorSource & source, int volume, Fi
     const Byte                              * bytes   = source.GetDos33 (Dos33MapReader::kVtocTrack, 0).bytes;
     Byte                                      number  = (volume >= 1 && volume <= 0xFE) ? static_cast<Byte> (volume) : Dos33MapReader::kStandardVolume;
     Finding                                   finding;
+    bool                                      isZero  = false;
 
 
 
+    isZero = std::all_of (bytes, bytes + Dos33MapReader::kHeaderBytes, [] (Byte b) { return b == 0; });
     std::copy (bytes, bytes + SectorSource::kBytes, vtoc.begin());
     Dos33MapReader::MakeStandardHeader (number, vtoc.data());
     patched.SetDos33 (Dos33MapReader::kVtocTrack, 0, vtoc.data());
@@ -247,7 +249,7 @@ void FileMapBuilder::ReadLostHeader (const SectorSource & source, int volume, Fi
     finding.weight       = FindingWeight::Damage;
     finding.quarterTrack = Dos33MapReader::kVtocTrack * DiskImage::kQuarterTracksPerWholeTrack;
     finding.sector       = SectorSource::GetDos33Physical (0);
-    finding.detail       = "The VTOC's header doesn't have DOS 3.3's values, so the catalog is read from track 17, sector $F";
+    finding.detail       = std::format ("Expected DOS 3.3's values in the VTOC header, but found {}. The catalog is read from track 17, sector $F.", isZero ? "zeros" : "other values");
 
     outMap.isHeaderLost = true;
     outMap.findings.insert (outMap.findings.begin(), finding);

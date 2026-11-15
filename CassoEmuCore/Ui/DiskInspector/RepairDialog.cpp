@@ -135,7 +135,7 @@ SIZE RepairDialog::GetSizeDip (const RepairPlan & plan)
 
 std::wstring RepairDialog::FormatIntro (const std::wstring & fileName)
 {
-    return L"Repair writes a copy of " + fileName + L" beside it with these changes. " + fileName + L" isn't changed.";
+    return L"Writes a repaired copy of " + fileName + L" in the same folder, with these changes. " + fileName + L" isn't changed.";
 }
 
 

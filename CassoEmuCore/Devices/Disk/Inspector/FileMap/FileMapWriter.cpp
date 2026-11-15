@@ -269,7 +269,7 @@ void FileMapWriter::AddFinding (FindingKind kind, int cell, const std::wstring &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FileMapWriter::CheckCount (int file, const std::wstring & source, LPCWSTR unit)
+void FileMapWriter::CheckCount (int file, int cell, int offset, LPCWSTR what)
 {
     const MappedFile &  mapped = m_map.files[file];
     int                 used   = mapped.GetUsedCount();
@@ -278,8 +278,8 @@ void FileMapWriter::CheckCount (int file, const std::wstring & source, LPCWSTR u
 
     if (!mapped.isDeleted && mapped.chainReason == ChainReason::None && mapped.recordedCount >= 0 && mapped.recordedCount != used)
     {
-        AddFinding (FindingKind::FileCountDiffers, -1, std::format (L"{}: {} {} {}, the file uses {}", mapped.path, source, mapped.recordedCount, unit, used),
-                    FindingWeight::Suspect);
+        AddFinding (FindingKind::FileCountDiffers, cell, std::format (L"{}: expected a {} of {}, but found {}", mapped.path, what, used, mapped.recordedCount));
+        AddCount   ({ cell, offset, mapped.recordedCount, used, std::format (L"the {} of {}", what, mapped.path) });
     }
 }
 
@@ -486,7 +486,7 @@ void FileMapWriter::CheckRepeatedBytes()
 
         if (isRead && count >= static_cast<size_t> (SectorSource::kBytes) && IsOneByte (data, count))
         {
-            AddFinding (FindingKind::FileRepeatedByte, file.sectors.front().cell, std::format (L"{}: every byte of its data is ${:02X}", file.path, data[0]));
+            AddFinding (FindingKind::FileRepeatedByte, file.sectors.front().cell, std::format (L"{}: expected file data, but found ${:02X} in every byte", file.path, data[0]));
         }
     }
 }
@@ -550,7 +550,7 @@ void FileMapWriter::CheckAlmostBlank()
 
     if (fileCells > 0 && blank * kPercent >= kBlankPercent * sectors && blankCells * kPercent >= kBlankFilePercent * fileCells)
     {
-        AddFinding (FindingKind::ImageAlmostBlank, -1, std::format (L"The image is almost blank: {} of its {} sectors are one repeated byte", blank, sectors));
+        AddFinding (FindingKind::ImageAlmostBlank, -1, std::format (L"Expected data on the disk, but found {} of {} sectors filled with one repeated byte", blank, sectors));
     }
 }
 

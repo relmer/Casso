@@ -21,7 +21,7 @@ using Command = CommandLineOptions::DiskOptions::Command;
 //
 //  `disk repair` and the verdict `disk test` adds: the verdict, the
 //  findings and the changes reported, the copy written beside the image
-//  or to the path given, nothing written with --list, sectors that no file uses
+//  or to the path given, nothing written with --list, sectors not in any file
 //  marked used with --no-free-unowned, and a status of 1 for a volume that
 //  can't be repaired.
 //
@@ -73,7 +73,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, Widen (result.diagnostics).c_str());
         Assert::IsTrue   (Contains (result.output, "Game.dsk: file system: Bad\n"), Widen (result.output).c_str());
         Assert::IsTrue   (Contains (result.output, "but the bitmap marks it free"));
-        Assert::IsTrue   (Contains (result.output, "repair: Mark 1 sector HELLO uses as used in the bitmap\n"));
+        Assert::IsTrue   (Contains (result.output, "change: Mark 1 sector of HELLO as used in the bitmap\n"));
         Assert::IsTrue   (Contains (result.output, "repaired copy written to C:\\Disks\\Game (repaired).dsk\n"));
         Assert::IsTrue   (io.files[kCopy] == fixture.before, L"the copy is the image before the damage");
         Assert::IsTrue   (io.files[kImage] == fixture.damaged, L"the image is as it was");
@@ -110,7 +110,7 @@ public:
         result           = Run (io, Command::Repair, "", true);
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
-        Assert::IsTrue   (Contains (result.output, "repair: Mark 1 sector that no file uses as free in the bitmap\n"));
+        Assert::IsTrue   (Contains (result.output, "change: Mark 1 sector not in any file as free in the bitmap\n"));
         Assert::AreEqual (static_cast<size_t> (1), io.files.size(), L"no copy is written");
     }
 
@@ -126,8 +126,8 @@ public:
         io.files[kImage] = RepairFixtures::MakeDos33Bitmap().damaged;
         result           = Run (io, Command::Repair, "", true, true);
 
-        Assert::IsFalse (Contains (result.output, "no file uses as free"));
-        Assert::IsTrue  (Contains (result.output, "repair: Mark 1 sector HELLO uses as used in the bitmap\n"));
+        Assert::IsFalse (Contains (result.output, "not in any file as free"));
+        Assert::IsTrue  (Contains (result.output, "change: Mark 1 sector of HELLO as used in the bitmap\n"));
     }
 
 
@@ -143,7 +143,7 @@ public:
         result           = Run (io, Command::Repair);
 
         Assert::AreEqual (DiskCommandResult::kWithComplaints, result.exitStatus);
-        Assert::IsTrue   (Contains (result.output, "not repaired: A file's data can't be recovered by changing the bookkeeping."), Widen (result.output).c_str());
+        Assert::IsTrue   (Contains (result.output, "can't repair: Repairing this would change a file's data: "), Widen (result.output).c_str());
         Assert::AreEqual (static_cast<size_t> (1), io.files.size(), L"no copy is written");
     }
 
@@ -163,7 +163,7 @@ public:
 
         io.files[kImage] = RepairFixtures::MakeDos33CountDiffers().damaged;
         result           = Run (io, Command::Test);
-        Assert::IsTrue   (Contains (result.output, "Game.dsk: file system: Bad, HELLO: its catalog count is 9 sectors, and the file uses 4\n"), Widen (result.output).c_str());
+        Assert::IsTrue   (Contains (result.output, "Game.dsk: file system: Bad, HELLO: expected a catalog sector count of 4, but found 9\n"), Widen (result.output).c_str());
         Assert::AreEqual (DiskCommandResult::kWithComplaints, result.exitStatus);
     }
 

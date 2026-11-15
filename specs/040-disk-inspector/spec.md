@@ -1440,10 +1440,10 @@ was planted.
    tree, and a directory whose file count disagrees with its entries, **When**
    it is repaired, **Then** the copy's bitmap and file count match the
    tree.
-10. **Given** a disk with sectors marked used that no file owns, **When** the
-    user turns on "Don't free sectors that no file uses" in Repair's
-    confirmation and repairs it, **Then** those sectors are marked used in
-    the copy, for a protection that hides data in them.
+10. **Given** a disk with sectors marked used that aren't in any file, **When**
+    the user turns on "Keep sectors not in any file marked as used" in
+    Repair's confirmation and repairs it, **Then** those sectors are marked
+    used in the copy, for copy protection that stores data in them.
 11. **Given** any image, **When** it is checked from the command line with
     `CassoCli disk repair <image>`, **Then** the same verdict, findings and
     repairs are reported, and the copy is written as in Casso Explorer.
@@ -3600,31 +3600,40 @@ release (Delivery). The first release MUST NOT depend on them.
   exists, in the image's format, and MUST NOT change the image. It MUST be
   offered only for a volume whose catalog and every file's chain could be
   followed to their ends after the catalog repair of FR-173, and never for
-  a disk with no standard file system.
+  a disk with no standard file system, a disk with more than one volume, or
+  a copy-protected disk. A disk is copy-protected when its tracks have a
+  nonstandard track, 13-sector fields beside 16-sector ones, an epilogue,
+  address-field track or volume that a standard format doesn't write, an
+  address field with no data field, a repeated or out-of-range sector,
+  nibbles outside the table, a stray field mark, a track record between or
+  across whole tracks, or random bits or an odd track length on at least a
+  quarter of the tracks with data. A sector image is never copy-protected.
 - **FR-172**: Repair MUST match the bitmap to the files: a sector a
   file uses marked used, and a sector no file uses marked free, except tracks
   0 to 2 and track 17 on DOS 3.3, and the boot blocks, the directory and the
-  bitmap itself on ProDOS. With "Don't free sectors that no file uses"
-  turned on, a sector marked used that no file uses MUST be marked used in
-  the copy.
+  bitmap itself on ProDOS. With "Keep sectors not in any file marked as
+  used" turned on, a sector marked used that isn't in any file MUST be
+  marked used in the copy.
 - **FR-173**: Repair MUST first relink a DOS 3.3 catalog whose chain loops,
   points off the disk or ends early, when its sectors on track 17 are linked
   as DOS's INIT links them, from sector $F down, through every such sector
   with believable entries. The bitmap is then made from the relinked catalog.
-- **FR-174**: Repair MUST set a DOS 3.3 VTOC header that differs from DOS's
-  standard values back to them when the catalog on track 17 has at least four
-  sectors linked as INIT links them with believable entries, and MUST NOT
-  change a header on a disk that otherwise reads as DOS 3.3 or that has no
-  DOS on tracks 0 to 2. A next-track hint off the disk MUST be set to track 17,
-  moving up.
+- **FR-174**: Repair MUST set a DOS 3.3 VTOC header that DOS can't read the
+  catalog through back to DOS's standard values, when tracks 0 to 2 have DOS
+  and the catalog on track 17 has at least four sectors linked as INIT links
+  them with believable entries. A header that DOS can read the catalog
+  through MUST NOT be changed, even where its values differ from DOS's,
+  because a modified DOS can set some of them deliberately. A next-track hint off the disk,
+  or a direction other than up or down, MUST be set to track 17, moving up.
 - **FR-175**: Repair MUST set the catalog sector count of a file on DOS
-  3.3, and the file count of a directory on ProDOS or Apple Pascal, to the
-  count of the chain or of the entries, when they differ.
+  3.3, the blocks-used count of a file and the file count of a directory on
+  ProDOS, and the file count of the directory on Apple Pascal, to the count
+  of the chain or of the entries, when they differ.
 - **FR-176**: Repair MUST NOT change a file's data or its chain: a file with a
   chain off the disk, a loop, or a sector another file uses is reported, and
   Repair is unavailable for its volume, with the reason.
 - **FR-177**: Before Repair writes, its confirmation MUST list the changes,
-  each as a line (for example "Mark 3 sectors HELLO uses as used in the
+  each as a line (for example "Mark 3 sectors of HELLO as used in the
   bitmap"), and after it writes, the copy MUST be selected in Casso
   Explorer.
 - **FR-179**: Casso Explorer's preview pane MUST have a disk image's

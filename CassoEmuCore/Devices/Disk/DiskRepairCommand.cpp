@@ -49,12 +49,12 @@ void DiskRepairCommand::Run (IDiskFileIo & io, const CommandLineOptions & option
 
     for (const std::wstring & change : plan.changes)
     {
-        result.output += imagePath + ": repair: " + TextEncoding::WideToNarrow (change) + "\n";
+        result.output += imagePath + ": change: " + TextEncoding::WideToNarrow (change) + "\n";
     }
 
     if (!plan.canRepair)
     {
-        result.output     += imagePath + ": not repaired: " + TextEncoding::WideToNarrow (plan.reason) + "\n";
+        result.output     += imagePath + ": can't repair: " + TextEncoding::WideToNarrow (plan.reason) + "\n";
         result.exitStatus  = DiskCommandResult::kWithComplaints;
     }
     else if (!options.disk.listOnly)

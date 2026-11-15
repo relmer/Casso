@@ -450,7 +450,7 @@ namespace CliSwitchCoverageTests
               "--yes answers the confirmation in advance" },
             { "disk", "no-free-unowned", { "CassoCli", "disk", "repair", "d.dsk", "--no-free-unowned" },
               [] (const CommandLineOptions & o) { return o.disk.noFreeUnowned; },
-              "--no-free-unowned marks sectors that no file uses as used in the copy" },
+              "--no-free-unowned keeps sectors not in any file marked as used in the copy" },
             { "disk", "list", { "CassoCli", "disk", "repair", "d.dsk", "fixed.dsk", "--list" },
               [] (const CommandLineOptions & o) { return o.disk.listOnly && o.disk.hostFile == "fixed.dsk"; },
               "--list reports the changes without writing the copy" },

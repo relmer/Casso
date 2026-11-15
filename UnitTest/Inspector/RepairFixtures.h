@@ -20,7 +20,8 @@
 //    disk, a file whose catalog count differs, a cross-link, and a chain off
 //    the disk.
 //  - ProDOS: a bitmap that marks a file's block free and an unused block
-//    used, and a volume directory whose file count differs.
+//    used, a volume directory whose file count differs, and a file whose
+//    blocks-used count differs.
 //  - Apple Pascal: a directory whose file count differs.
 //
 //  The DOS images are in DOS order and the ProDOS and Pascal images in
@@ -57,6 +58,7 @@ public:
     static RepairFixture  MakeDos33CrossLink       ();
     static RepairFixture  MakeDos33ChainOffDisk    ();
     static RepairFixture  MakeProDosBitmapAndCount ();
+    static RepairFixture  MakeProDosBlocksUsed     ();
     static RepairFixture  MakePascalCount          ();
 
     //  Every fixture, the ones that can be repaired first.

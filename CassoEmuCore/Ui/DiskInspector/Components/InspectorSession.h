@@ -182,6 +182,5 @@ public:
     std::wstring                             openError;
     InspectorViews                           views;
     RepairPlan                               repairPlan;
-    std::function<void ()>                   openRepair;
     InspectorLayout                          layout;
 };

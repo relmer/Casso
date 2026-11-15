@@ -197,7 +197,7 @@ void ProDosMapReader::ReadDirectory (Walk & walk, int keyBlock, const std::wstri
         for (e = isKey ? 1 : 0; e < count; e++)
         {
             active += (block[s_kFirstEntry + e * s_kEntryLength] >> 4) != 0 ? 1 : 0;
-            ReadEntry (walk, &block[s_kFirstEntry + e * s_kEntryLength], prefix);
+            ReadEntry (walk, &block[s_kFirstEntry + e * s_kEntryLength], prefix, at, s_kFirstEntry + e * s_kEntryLength);
         }
 
         isKey = false;
@@ -233,9 +233,9 @@ void ProDosMapReader::CheckFileCount (Walk & walk, int keyBlock, const std::wstr
 
     if (files != active)
     {
-        walk.writer.AddFinding (FindingKind::ProDosFileCountDiffers, keyBlock, prefix.empty() ? std::format (L"The volume directory's file count is {}, and it has {} entries", files, active)
-                                                                                              : std::format (L"{}: the directory's file count is {}, and it has {} entries", directory, files, active));
-        walk.writer.AddCount ({ keyBlock, s_kFileCount, files, active, (prefix.empty() ? std::wstring (L"the volume directory") : directory) + L"'s file count" });
+        walk.writer.AddFinding (FindingKind::ProDosFileCountDiffers, keyBlock, prefix.empty() ? std::format (L"Expected a volume directory file count of {}, but found {}", active, files)
+                                                                                              : std::format (L"{}: expected a directory file count of {}, but found {}", directory, active, files));
+        walk.writer.AddCount ({ keyBlock, s_kFileCount, files, active, prefix.empty() ? std::wstring (L"the volume directory's file count") : L"the file count of " + directory });
     }
 }
 
@@ -252,7 +252,7 @@ void ProDosMapReader::CheckFileCount (Walk & walk, int keyBlock, const std::wstr
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProDosMapReader::ReadEntry (Walk & walk, const Byte * entry, const std::wstring & prefix)
+void ProDosMapReader::ReadEntry (Walk & walk, const Byte * entry, const std::wstring & prefix, int block, int offset)
 {
     int         storage = entry[0] >> 4;
     int         length  = entry[0] & 0x0F;
@@ -304,7 +304,7 @@ void ProDosMapReader::ReadEntry (Walk & walk, const Byte * entry, const std::wst
             ReadFork (walk, index, storage, key, eof);
         }
 
-        walk.writer.CheckCount (index, L"its entry gives", L"blocks");
+        walk.writer.CheckCount (index, block, offset + s_kBlocksUsed, L"blocks-used count");
     }
 }
 

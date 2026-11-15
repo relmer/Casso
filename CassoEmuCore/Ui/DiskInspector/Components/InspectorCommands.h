@@ -76,6 +76,7 @@ struct InspectorCommands
     Command          bSettings;
     Command          endComparison;
     Command          decodeSettings;
+    Command          repair;
 
     //  Window
     Command  windowZoomIn;

@@ -38,9 +38,9 @@ public:
     void  AddFinding    (FindingKind kind, int cell, const std::wstring & text, FindingWeight weight);
     void  AddCount      (const RecordedCount & count);
 
-    //  A whole chain whose sector count differs from the one its catalog or
-    //  directory entry records (FR-093).
-    void  CheckCount    (int file, const std::wstring & source, LPCWSTR unit);
+    //  A whole chain whose count differs from the one at an offset in the
+    //  cell with the file's entry: damage, which Repair sets right.
+    void  CheckCount    (int file, int cell, int offset, LPCWSTR what);
     void  Finalize      ();
 
     //  A cell's bytes: 256 for a sector, 512 for a block; false when any of

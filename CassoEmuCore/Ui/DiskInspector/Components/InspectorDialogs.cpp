@@ -30,7 +30,6 @@ InspectorDialogs::InspectorDialogs (InspectorSession & session, IInspectorCompon
     m_session (session),
     m_host    (host)
 {
-    m_session.openRepair = [this] () { OpenRepair(); };
 }
 
 
@@ -123,7 +122,7 @@ void InspectorDialogs::OpenRepair()
     });
 
     canWrite = dialog.GetPlan().canRepair;
-    CBRF (canWrite, m_host.SetStatusNote (L"Not repaired: " + dialog.GetPlan().reason));
+    CBRF (canWrite, m_host.SetStatusNote (L"Repair isn't available. " + dialog.GetPlan().reason));
 
     params.title                    = L"Repair disk image";
     params.hInstance                = GetModuleHandle (nullptr);
@@ -145,9 +144,9 @@ void InspectorDialogs::OpenRepair()
     CBR (canWrite);
 
     hr = RepairCopy::Write (fileIo, path, "", dialog.GetPlan(), written, reason);
-    CHRF (hr, m_host.SetStatusNote (L"Not repaired: " + reason));
+    CHRF (hr, m_host.SetStatusNote (L"Repair failed: " + reason));
 
-    m_host.SetStatusNote (L"Wrote the repaired copy " + fs::path (TextEncoding::Utf8ToWide (written)).filename().wstring());
+    m_host.SetStatusNote (L"Repaired copy written: " + fs::path (TextEncoding::Utf8ToWide (written)).filename().wstring());
 
     if (m_session.host != nullptr)
     {

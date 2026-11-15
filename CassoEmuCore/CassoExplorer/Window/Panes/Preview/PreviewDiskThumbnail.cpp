@@ -748,7 +748,7 @@ void PreviewDiskThumbnail::RepairImage()
     });
 
     canWrite = dialog.GetPlan().canRepair;
-    CBRF (canWrite, m_context.statusBar.SetActivity (L"Not repaired: " + dialog.GetPlan().reason));
+    CBRF (canWrite, m_context.statusBar.SetActivity (L"Repair isn't available. " + dialog.GetPlan().reason));
 
     params.title                    = L"Repair disk image";
     params.hInstance                = GetModuleHandle (nullptr);
@@ -770,9 +770,9 @@ void PreviewDiskThumbnail::RepairImage()
     CBR (canWrite);
 
     hr = RepairCopy::Write (fileIo, path, "", dialog.GetPlan(), written, reason);
-    CHRF (hr, m_context.statusBar.SetActivity (L"Not repaired: " + reason));
+    CHRF (hr, m_context.statusBar.SetActivity (L"Repair failed: " + reason));
 
-    m_context.statusBar.SetActivity (L"Wrote the repaired copy " + fs::path (TextEncoding::Utf8ToWide (written)).filename().wstring());
+    m_context.statusBar.SetActivity (L"Repaired copy written: " + fs::path (TextEncoding::Utf8ToWide (written)).filename().wstring());
     m_context.tabManager.SelectInFolder (TextEncoding::Utf8ToWide (written));
     m_context.window.Invalidate();
 
