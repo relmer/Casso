@@ -16,7 +16,7 @@ Findings from the tree at `c1b467925` (048 merged, including `0436d69df`). Each 
 | `.nib` | extension and length 232,960 | 5.25-inch 140K |
 | `.d13` | extension and length 116,480 | 5.25-inch, 13-sector, labeled 113K |
 | `.dsk`, `.do` | extension and length 143,360 | 5.25-inch 140K; other lengths that are a multiple of 512 follow the block rule |
-| `.po`, `.hdv`, raw | extension and a length that is a non-zero multiple of 512 | block count through `BlockDeviceMedia::IsFloppyBlockCount`: 280 is 5.25-inch 140K, 800 is 3.5-inch 400K, 1,600 is 3.5-inch 800K, 2,880 is 3.5-inch 1.44 MB (no drive accepts it), any other count is a hard disk |
+| `.po`, `.hdv`, raw | extension and a length that is a non-zero multiple of 512 | block count through `BlockDeviceMedia::IsFloppyBlockCount`: 280 is 5.25-inch 140K, 800 is 3.5-inch 400K, 1,600 is 3.5-inch 800K, any other count is a hard disk, including the 2,880 blocks of a 1.44 MB disk |
 | tape | `TapeImageLoader::IsTapeFileExtension` | tape, no size |
 
 **Alternatives considered**: Calling `BlockImageFile::Open` and `WozLoader::Describe` per file. Both read the whole file (`ReadAllBytes`), which fails FR-002 for a 32 MB volume. The classifier reuses their constants and, for WOZ, calls `WozLoader::Describe` on the 512-byte head.
@@ -38,7 +38,7 @@ Findings from the tree at `c1b467925` (048 merged, including `0436d69df`). Each 
 | Floppy525 (Disk II, //c drives) | 5.25-inch |
 | Apple35 (Apple 3.5 Drive, //c Plus drive) | 3.5-inch 400K and 800K, block or WOZ |
 | UniDisk35 | 3.5-inch images readable as blocks |
-| HardDisk (HD20SC, ProFile) | block images of any size that is not exactly a floppy's (140K, 400K, 800K, 1.44 MB) and no larger than the drive's capacity |
+| HardDisk (HD20SC, ProFile) | block images of any size that is not exactly a floppy's (140K, 400K, 800K) and no larger than the drive's capacity |
 | Recorder | tape |
 
 **Verify**: whether the UniDisk 3.5 device in 048 mounts a 400K image and a 3.5-inch WOZ. `BlockDeviceMedia::Attach` decodes a WOZ to blocks, so both are likely. The rule is written to match the device, and the agreement test below fails if it does not.

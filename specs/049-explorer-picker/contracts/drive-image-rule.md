@@ -29,8 +29,8 @@ public:
 |---|---|
 | any | `imageClass.status == Classified`, else false |
 | `Floppy525` | `formFactor == Floppy525` |
-| `Apple35` | `formFactor == Floppy35` and the size is 400K or 800K |
-| `UniDisk35` | `formFactor == Floppy35`, the size is 400K or 800K as the device mounts, and `isBlockReadable` |
+| `Apple35` | `formFactor == Floppy35` |
+| `UniDisk35` | `formFactor == Floppy35` and `isBlockReadable` |
 | `HardDisk` | `formFactor == HardDisk` and `blockCount <= maxBlocks`; a count for which `BlockDeviceMedia::IsFloppyBlockCount` is true is never `HardDisk` |
 | `Recorder` | `formFactor == Tape` |
 

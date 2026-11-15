@@ -21,7 +21,7 @@ Casso Explorer already lists folders of images with columns, sorting, search and
 - Q: Can the picker list an image the drive rule excludes? → A: No. The rule is final.
 - Q: Which file requests open the picker? → A: Every request to open or save a disk or tape image, in the emulator and in Casso Explorer. That includes Casso Explorer's "Write image to...", "Create image from..." and raw capture commands for a connected Apple. Requests for other files, and folder requests, go to the Windows dialogs.
 - Q: Is a drive's picker modal? → A: No. It stays associated with the drive that opened it until it is closed; a click on another drive opens another picker.
-- Q: Does a hard disk accept a 140K, 400K or 800K image? → A: No, and not a 1.44 MB image either. Every other size up to the drive's capacity is a hard disk image, however small. CFFA and A2Pico cards are not covered by this rule.
+- Q: Does a hard disk accept a 140K, 400K or 800K image? → A: No. Every other size up to the drive's capacity is a hard disk image, however small, including a 1.44 MB image, since no drive the emulator has accepts a 1.44 MB floppy. CFFA and A2Pico cards are not covered by this rule.
 - Q: Where do recent images go? → A: The Casso node lists every image in its folders, most recently used first, in the file manager and in the picker.
 - Q: How many recent images have a load time? → A: 1,000, up from 16.
 - Q: After an image is inserted from a drive's picker, does the picker close or stay open? → A: It always closes. There is no pin.
@@ -162,7 +162,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - Casso Explorer is already running as a file manager, possibly with a serial session open. Opening a picker neither disturbs that window nor uses its session.
 - A hard disk image larger than the receiving drive's capacity is not listed for that drive.
 - A small block image that is not exactly a floppy's size, such as a 1 MB ProDOS volume, is a hard disk image and is listed for the hard disks.
-- A 1.44 MB image (2,880 blocks) is classified as a 3.5-inch 1.44 MB disk. No drive in the emulator accepts it, so no picker lists it and it gets the no-drop cursor everywhere.
+- A 1.44 MB image (2,880 blocks) is classified as a hard disk image, because the emulator has no drive for a 1.44 MB floppy. The hard disks list it. If such a drive is added later, the classifier and the rule change together.
 - A hidden or system file matching the masks follows the file manager's existing setting for hidden files.
 
 ## Requirements *(mandatory)*
@@ -174,18 +174,18 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - **FR-001**: One classification call MUST return, for a file, whether it is an image and, when it is, its form factor (5.25-inch, 3.5-inch, hard disk or tape) and its formatted size.
 - **FR-002**: Classification MUST read only the file's extension, length and header. It MUST NOT read the whole image, decode tracks or parse the file system.
 - **FR-003**: Classification MUST cover WOZ images (form factor and side count from the header), `.dsk`, `.do`, `.po`, `.nib` and `.d13` sector and nibble images, 2IMG, DiskCopy 4.2, raw block images including `.hdv`, and tape recordings.
-- **FR-004**: A block image's form factor MUST follow from its block count: 280 blocks is 5.25-inch 140K, 800 blocks is 3.5-inch 400K, 1,600 blocks is 3.5-inch 800K, 2,880 blocks is 3.5-inch 1.44 MB, and any other count is a hard disk whose formatted size is its capacity.
+- **FR-004**: A block image's form factor MUST follow from its block count: 280 blocks is 5.25-inch 140K, 800 blocks is 3.5-inch 400K, 1,600 blocks is 3.5-inch 800K, and any other count, including the 2,880 blocks of a 1.44 MB disk, is a hard disk whose formatted size is its capacity.
 - **FR-005**: A tape MUST be classified from its extension alone.
 - **FR-006**: A file that has an image extension and fails the checks in FR-003 and FR-004 MUST be reported as not classified, distinct from a file that is not an image, so a damaged image is never listed as a healthy one.
-- **FR-007**: Formatted size MUST be available both as a number, for sorting and comparison, and as a label: "140K", "400K", "800K", "1.44 MB", and megabytes for hard disks.
+- **FR-007**: Formatted size MUST be available both as a number, for sorting and comparison, and as a label: "140K", "400K", "800K", and megabytes for hard disks.
 
 #### The drive rule
 
 - **FR-008**: One rule, next to the classifier, MUST answer whether a given drive kind accepts a given classified image. Every caller (the picker, drops, and the mount commands) MUST use this rule and no other.
 - **FR-009**: A Disk II and the //c's 5.25-inch drives MUST accept 5.25-inch images only.
-- **FR-010**: An Apple 3.5 Drive and the //c Plus's built-in drive MUST accept 400K and 800K images, including 3.5-inch WOZ images, and MUST NOT accept a 1.44 MB image.
+- **FR-010**: An Apple 3.5 Drive and the //c Plus's built-in drive MUST accept 400K and 800K images, including 3.5-inch WOZ images.
 - **FR-011**: A UniDisk 3.5 MUST accept 400K and 800K images that can be read as blocks.
-- **FR-012**: An HD20SC and a ProFile MUST accept a block image of any size up to the drive's capacity, except an image of exactly a floppy's size: 140K, 400K, 800K or 1.44 MB (280, 800, 1,600 or 2,880 blocks). An image of a floppy's size requires a floppy drive. The rule is final: the picker has no way to list an image that fails it, and a mount by any other route fails the same way.
+- **FR-012**: An HD20SC and a ProFile MUST accept a block image of any size up to the drive's capacity, except an image of exactly a floppy's size: 140K, 400K or 800K (280, 800 or 1,600 blocks). An image of a floppy's size requires a floppy drive. The rule is final: the picker has no way to list an image that fails it, and a mount by any other route fails the same way.
 - **FR-013**: The recorder MUST accept tapes only, and no disk drive accepts a tape.
 - **FR-014**: The rule MUST be total over the drive kinds: a drive kind added later without an entry MUST fail a test instead of accepting everything or nothing.
 - **FR-015**: The rule and the mount code MUST be consistent. An image that passes the rule for a drive MUST NOT then fail at mount for its form factor or size, and the reverse.
