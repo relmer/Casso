@@ -33,6 +33,7 @@ static constexpr int   s_kBootBlocks     = 2;
 static constexpr int   s_kBitsPerByte    = 8;
 static constexpr Byte  s_kFirstBlockBit  = 0x80;
 static constexpr int   s_kHighestVolume  = 0xFE;
+static constexpr int   s_kBitsPerBitmapBlock = 4096;
 
 
 
@@ -325,7 +326,7 @@ void DiskRepair::PlanRelink (Work & work, const FileMap & map)
 
     if (linked < Dos33MapReader::kInitLinkedMin)
     {
-        work.plan.reason = std::format (L"Expected at least four catalog sectors on track 17 linked in INIT's order, but found {}.", linked);
+        work.plan.reason = std::format (L"The catalog can't be relinked: only {} of its sectors on track 17 are linked in INIT's order, and at least four are required.", linked);
         return;
     }
 
@@ -372,7 +373,9 @@ void DiskRepair::PlanDos33Bitmap (Work & work, const FileMap & map)
 {
     Byte *       vtoc       = GetDos33 (work, Dos33MapReader::kVtocTrack, 0);
     vector<int>  markedUsed (map.files.size(), 0);
+    vector<int>  structure  = map.catalogCells;
     int          unowned    = 0;
+    int          structures = 0;
     int          t          = 0;
     int          s          = 0;
 
@@ -401,7 +404,23 @@ void DiskRepair::PlanDos33Bitmap (Work & work, const FileMap & map)
         }
     }
 
-    AddBitmapChanges (work, map, markedUsed, unowned, 0, L"sector");
+    //  The VTOC and the catalog's sectors on track 17, which the bitmap
+    //  rebuild skips, marked used when they are free.
+    structure.push_back (Dos33MapReader::GetCell (Dos33MapReader::kVtocTrack, 0));
+
+    for (int cell : structure)
+    {
+        Byte &  bits = vtoc[s_kBitmap + (cell / s_kSectors) * s_kBitmapBytes + (cell % s_kSectors >= s_kBitsPerByte ? 0 : 1)];
+        Byte    mask = static_cast<Byte> (1 << (cell % s_kSectors % s_kBitsPerByte));
+
+        if ((bits & mask) != 0)
+        {
+            bits = static_cast<Byte> (bits & ~mask);
+            structures++;
+        }
+    }
+
+    AddBitmapChanges (work, map, markedUsed, unowned, structures, L"sector", L"VTOC and catalog");
 }
 
 
@@ -423,6 +442,7 @@ void DiskRepair::PlanProDos (Work & work, const FileMap & map)
     vector<int>  markedUsed (map.files.size(), 0);
     int     unowned     = 0;
     int     structures  = 0;
+    int     pastEnd     = 0;
     int     bitmapAt    = 0;
     int     track       = 0;
     int     sector      = 0;
@@ -445,7 +465,7 @@ void DiskRepair::PlanProDos (Work & work, const FileMap & map)
 
         if (bitmapAt <= s_kKeyBlock || bitmapAt >= s_kBlocks)
         {
-            work.plan.reason = std::format (L"Expected the volume bitmap in blocks 3 to 279, but found block {}.", bitmapAt);
+            work.plan.reason = std::format (L"The volume bitmap's block, {}, is outside the volume.", bitmapAt);
         }
     }
 
@@ -480,9 +500,28 @@ void DiskRepair::PlanProDos (Work & work, const FileMap & map)
         }
     }
 
+    //  Blocks past the end of the volume, which the bitmap's last block has
+    //  bits for, marked used, so ProDOS doesn't allocate them.
+    for (b = s_kBlocks; work.plan.reason.empty() && b < s_kBitsPerBitmapBlock; b++)
+    {
+        bits = GetBlockByte (work, bitmapAt, b / s_kBitsPerByte, track, sector);
+        mask = static_cast<Byte> (s_kFirstBlockBit >> (b % s_kBitsPerByte));
+
+        if ((*bits & mask) != 0)
+        {
+            *bits = static_cast<Byte> (*bits & ~mask);
+            pastEnd++;
+        }
+    }
+
     if (work.plan.reason.empty())
     {
-        AddBitmapChanges (work, map, markedUsed, unowned, structures, L"block");
+        AddBitmapChanges (work, map, markedUsed, unowned, structures, L"block", L"boot, directory and bitmap");
+    }
+
+    if (work.plan.reason.empty() && pastEnd > 0)
+    {
+        work.plan.changes.push_back (std::format (L"Mark {} blocks past the end of the volume as used in the bitmap", pastEnd));
     }
 }
 
@@ -521,8 +560,13 @@ void DiskRepair::PlanCounts (Work & work, const FileMap & map)
             high = GetBlockByte (work, count.cell, count.offset + 1, track, sector);
         }
 
-        *at   = static_cast<Byte> (count.actual);
-        *high = static_cast<Byte> (count.actual >> s_kBitsPerByte);
+        *at = static_cast<Byte> (count.actual);
+
+        if (count.width > 1)
+        {
+            *high = static_cast<Byte> (count.actual >> s_kBitsPerByte);
+        }
+
         work.plan.changes.push_back (std::format (L"Set {} to {}", count.what, count.actual));
     }
 }
@@ -546,7 +590,8 @@ void DiskRepair::CheckChains (Work & work, const FileMap & map)
 {
     for (const Finding & finding : map.findings)
     {
-        bool  isBlocking = finding.kind == FindingKind::FileChainBroken || finding.kind == FindingKind::FileCrossLinked || finding.kind == FindingKind::PascalEntryOutOfRange;
+        bool  isBlocking = finding.kind == FindingKind::FileChainBroken || finding.kind == FindingKind::FileCrossLinked || finding.kind == FindingKind::PascalEntryOutOfRange ||
+                            finding.kind == FindingKind::FileUsesStructure;
 
         if (work.plan.reason.empty() && isBlocking)
         {
@@ -565,7 +610,7 @@ void DiskRepair::CheckChains (Work & work, const FileMap & map)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskRepair::AddBitmapChanges (Work & work, const FileMap & map, const vector<int> & markedUsed, int unowned, int structures, LPCWSTR unit)
+void DiskRepair::AddBitmapChanges (Work & work, const FileMap & map, const vector<int> & markedUsed, int unowned, int structures, LPCWSTR unit, LPCWSTR structure)
 {
     auto  plural = [] (int count) { return (count == 1) ? L"" : L"s"; };
 
@@ -581,7 +626,7 @@ void DiskRepair::AddBitmapChanges (Work & work, const FileMap & map, const vecto
 
     if (structures > 0)
     {
-        work.plan.changes.push_back (std::format (L"Mark {} boot, directory and bitmap {}{} as used in the bitmap", structures, unit, plural (structures)));
+        work.plan.changes.push_back (std::format (L"Mark {} {} {}{} as used in the bitmap", structures, structure, unit, plural (structures)));
     }
 
     if (unowned > 0)

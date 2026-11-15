@@ -59,8 +59,16 @@ public:
     std::wstring   DescribeCell (int cell) const;
     int            GetPhysical  (int cell) const;
 
-    std::wstring          DescribeLink   (ChainReason reason, int cell) const;
-    static FindingWeight  GetWeight      (FindingKind kind);
+    std::wstring          DescribeChain      (ChainReason reason, int cell) const;
+    std::wstring          DescribeUnreadable (int cell) const;
+
+    static std::wstring   Capitalize     (std::wstring text);
+
+    //  Whether a cell is the volume's bookkeeping, which no file may use,
+    //  and what it is.
+    bool                  IsStructure       (int cell) const;
+    std::wstring          DescribeStructure (int cell) const;
+    static FindingWeight  GetWeight         (FindingKind kind);
 
 private:
     void  SettleCell         (int cell);

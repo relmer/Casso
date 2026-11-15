@@ -72,7 +72,7 @@ public:
 
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, Widen (result.diagnostics).c_str());
         Assert::IsTrue   (Contains (result.output, "Game.dsk: file system: Bad\n"), Widen (result.output).c_str());
-        Assert::IsTrue   (Contains (result.output, "Expected track 18, sector $E of HELLO marked used in the bitmap, but found it free"));
+        Assert::IsTrue   (Contains (result.output, "Track 18, sector $E is used by HELLO but incorrectly marked free"));
         Assert::IsTrue   (Contains (result.output, "change: Mark 1 sector of HELLO as used in the bitmap\n"));
         Assert::IsTrue   (Contains (result.output, "repaired copy written to C:\\Disks\\Game (repaired).dsk\n"));
         Assert::IsTrue   (io.files[kCopy] == fixture.before, L"the copy is the image before the damage");

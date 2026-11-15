@@ -101,6 +101,15 @@ enum class FindingKind
     CpmRecordsPastBlocks,
     CpmBlockInDirectory,
     CpmBlocksPastRecords,
+    FileUsesStructure,
+    Dos33StructureMarkedFree,
+    ProDosDirectoryPointer,
+    ProDosParentPointer,
+    ProDosBitmapPastEnd,
+    ProDosEofPastStorage,
+    ProDosNameInvalid,
+    PascalLastBytesInvalid,
+    PascalNameInvalid,
 };
 
 

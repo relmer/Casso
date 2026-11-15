@@ -255,6 +255,132 @@ public:
 
 
 
+    //  The finding for a planted change, its verdict, and, for a change
+    //  Repair sets right, the copy byte for byte the image before it.
+    static void AssertPlanted (const vector<Byte> & before, const vector<Byte> & damaged, bool isProDosOrder, FindingKind kind,
+                               FileSystemVerdict verdict, const wchar_t * change)
+    {
+        DiskAnalysis  analysis;
+        RepairPlan    plan;
+        vector<Byte>  copy     = ToDosOrder (damaged, isProDosOrder);
+
+
+
+        Analyze (damaged, isProDosOrder, analysis);
+        plan = DiskRepair::Plan (analysis, {});
+
+        Assert::IsTrue (HasKind (analysis, kind), change);
+        Assert::IsTrue (analysis.verdict == verdict, change);
+
+        if (*change == L'\0')
+        {
+            Assert::IsFalse (plan.canRepair, plan.reason.c_str());
+        }
+        else
+        {
+            Assert::IsTrue   (plan.canRepair, plan.reason.c_str());
+            Assert::IsTrue   (std::find (plan.changes.begin(), plan.changes.end(), std::wstring (change)) != plan.changes.end(), change);
+            DiskRepair::Apply (plan, copy);
+            Assert::IsTrue   (copy == ToDosOrder (before, isProDosOrder), change);
+        }
+    }
+
+
+
+    TEST_METHOD (AFileThatUsesTheVolumesStructureIsDamage)
+    {
+        vector<Byte>  dos    = RepairFixtures::MakeDos33();
+        vector<Byte>  prodos = RepairFixtures::MakeProDos();
+        vector<Byte>  apple  = RepairFixtures::MakePascal();
+
+
+
+        //  HELLO's first data sector is catalog sector $F.
+        RepairFixtures::GetDosSector (dos, 18, 15)[0x0C] = 17;
+        RepairFixtures::GetDosSector (dos, 18, 15)[0x0D] = 15;
+        AssertPlanted (RepairFixtures::MakeDos33(), dos, false, FindingKind::FileUsesStructure, FileSystemVerdict::Bad, L"");
+
+        //  SEED's block is the volume bitmap.
+        Images::GetBlock (prodos, 2)[4 + 0x27 + 0x11] = 6;
+        AssertPlanted (RepairFixtures::MakeProDos(), prodos, true, FindingKind::FileUsesStructure, FileSystemVerdict::Bad, L"");
+
+        //  SYSTEM.PASCAL starts in the directory, at block 4.
+        Images::GetBlock (apple, 2)[26] = 4;
+        AssertPlanted (RepairFixtures::MakePascal(), apple, true, FindingKind::FileUsesStructure, FileSystemVerdict::Bad, L"");
+    }
+
+
+
+    TEST_METHOD (ACatalogSectorMarkedFreeIsRepaired)
+    {
+        vector<Byte>  image = RepairFixtures::MakeDos33();
+        Byte *        bits  = RepairFixtures::GetDosSector (image, 17, 0) + 0x38 + 17 * 4;
+
+
+
+        bits[0] |= 0x40;
+        AssertPlanted (RepairFixtures::MakeDos33(), image, false, FindingKind::Dos33StructureMarkedFree, FileSystemVerdict::Bad,
+                       L"Mark 1 VTOC and catalog sector as used in the bitmap");
+    }
+
+
+
+    TEST_METHOD (ProDosPointersAndTheBitmapsEndAreRepaired)
+    {
+        vector<Byte>  pointer = RepairFixtures::MakeProDos();
+        vector<Byte>  parent  = RepairFixtures::MakeProDos();
+        vector<Byte>  end     = RepairFixtures::MakeProDos();
+
+
+
+        //  SEED's entry points to block 3 for its directory.
+        Images::GetBlock (pointer, 2)[4 + 0x27 + 0x25] = 3;
+        AssertPlanted (RepairFixtures::MakeProDos(), pointer, true, FindingKind::ProDosDirectoryPointer, FileSystemVerdict::Suspect,
+                       L"Set the directory pointer of SEED to 2");
+
+        //  DIR1's header has entry 9 of block 2 as its parent entry.
+        Images::GetBlock (parent, 20)[0x29] = 9;
+        AssertPlanted (RepairFixtures::MakeProDos(), parent, true, FindingKind::ProDosParentPointer, FileSystemVerdict::Suspect,
+                       L"Set the parent entry number of DIR1 to 7");
+
+        //  Eight blocks past the volume's 280 marked free.
+        Images::GetBlock (end, 6)[40] = 0xFF;
+        AssertPlanted (RepairFixtures::MakeProDos(), end, true, FindingKind::ProDosBitmapPastEnd, FileSystemVerdict::Suspect,
+                       L"Mark 8 blocks past the end of the volume as used in the bitmap");
+    }
+
+
+
+    TEST_METHOD (ProDosAndPascalEntriesAreChecked)
+    {
+        vector<Byte>  eof        = RepairFixtures::MakeProDos();
+        vector<Byte>  name       = RepairFixtures::MakeProDos();
+        vector<Byte>  lastBytes  = RepairFixtures::MakePascal();
+        vector<Byte>  pascalName = RepairFixtures::MakePascal();
+
+
+
+        //  SEED, a seedling file, with an end of file of 1,000.
+        Images::GetBlock (eof, 2)[4 + 0x27 + 0x15] = 0xE8;
+        Images::GetBlock (eof, 2)[4 + 0x27 + 0x16] = 0x03;
+        AssertPlanted (RepairFixtures::MakeProDos(), eof, true, FindingKind::ProDosEofPastStorage, FileSystemVerdict::Bad, L"");
+
+        //  SEED's name starting with a digit.
+        Images::GetBlock (name, 2)[4 + 0x27 + 1] = '1';
+        AssertPlanted (RepairFixtures::MakeProDos(), name, true, FindingKind::ProDosNameInvalid, FileSystemVerdict::Suspect, L"");
+
+        //  NOTES.TEXT's last block with 600 bytes.
+        Images::GetBlock (lastBytes, 2)[2 * 26 + 22] = 0x58;
+        Images::GetBlock (lastBytes, 2)[2 * 26 + 23] = 0x02;
+        AssertPlanted (RepairFixtures::MakePascal(), lastBytes, true, FindingKind::PascalLastBytesInvalid, FileSystemVerdict::Suspect, L"");
+
+        //  NOTES.TEXT with a $ in its name.
+        Images::GetBlock (pascalName, 2)[2 * 26 + 7] = '$';
+        AssertPlanted (RepairFixtures::MakePascal(), pascalName, true, FindingKind::PascalNameInvalid, FileSystemVerdict::Suspect, L"");
+    }
+
+
+
     TEST_METHOD (ACopyProtectedDiskIsNotRepaired)
     {
         DiskAnalysis  analysis;

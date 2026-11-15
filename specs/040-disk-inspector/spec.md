@@ -3611,9 +3611,11 @@ release (Delivery). The first release MUST NOT depend on them.
 - **FR-172**: Repair MUST match the bitmap to the files: a sector a
   file uses marked used, and a sector no file uses marked free, except tracks
   0 to 2 and track 17 on DOS 3.3, and the boot blocks, the directory and the
-  bitmap itself on ProDOS. With "Keep sectors not in any file marked as
-  used" turned on, a sector marked used that isn't in any file MUST be
-  marked used in the copy.
+  bitmap itself on ProDOS. The VTOC and the catalog's sectors on DOS 3.3,
+  and the bitmap's bits for blocks past the end of a ProDOS volume, MUST be
+  marked used. With "Keep sectors not in any file marked as used" turned
+  on, a sector marked used that isn't in any file MUST be marked used in
+  the copy.
 - **FR-173**: Repair MUST first relink a DOS 3.3 catalog whose chain loops,
   points off the disk or ends early, when its sectors on track 17 are linked
   as DOS's INIT links them, from sector $F down, through every such sector
@@ -3628,7 +3630,10 @@ release (Delivery). The first release MUST NOT depend on them.
 - **FR-175**: Repair MUST set the catalog sector count of a file on DOS
   3.3, the blocks-used count of a file and the file count of a directory on
   ProDOS, and the file count of the directory on Apple Pascal, to the count
-  of the chain or of the entries, when they differ.
+  of the chain or of the entries, when they differ; and on ProDOS a file
+  entry's pointer to its directory's key block, and a subdirectory header's
+  parent block, parent entry number and parent entry length, to the values
+  in the directory tree.
 - **FR-176**: Repair MUST NOT change a file's data or its chain: a file with a
   chain off the disk, a loop, or a sector another file uses is reported, and
   Repair is unavailable for its volume, with the reason.
@@ -3636,6 +3641,20 @@ release (Delivery). The first release MUST NOT depend on them.
   each as a line (for example "Mark 3 sectors of HELLO as used in the
   bitmap"), and after it writes, the copy MUST be selected in Casso
   Explorer.
+- **FR-180**: The checks MUST also report a file that uses a volume's
+  bookkeeping (the VTOC, a catalog sector or the boot sector on DOS 3.3; a
+  boot block, a volume directory block or the bitmap on ProDOS; a boot
+  block or a directory block on Apple Pascal) as damage; on DOS 3.3, the
+  VTOC or a catalog sector marked free, as damage; on ProDOS, a directory
+  pointer or parent field that differs, bitmap bits past the end of the
+  volume marked free, and an invalid file name, as worth a look, and an
+  end of file past what a seedling or sapling file addresses, as damage; on
+  Apple Pascal, a last block byte count outside 1 to 512 and an invalid file
+  name, as worth a look; and on CP/M, a missing extent, a last record with
+  no block and a file block in the directory, as damage, and blocks past an
+  extent's record count, as a note. Findings MUST be worded in plain
+  speech, with "Expected X, but found Y" only for a value that differs from
+  a known one.
 - **FR-179**: Casso Explorer's preview pane MUST have a disk image's
   file-system verdict with the inspector's other details: Bad as a warning
   banner at the top of the pane, in the theme's error color, with the first

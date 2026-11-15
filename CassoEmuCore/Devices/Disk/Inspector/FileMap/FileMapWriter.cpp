@@ -329,7 +329,7 @@ void FileMapWriter::Finalize()
 
     if (m_map.usesUnchecked)
     {
-        AddFinding (FindingKind::FileMapUnchecked, -1, std::format (L"Expected every sector of the file map read with checksums checked, but found {} read without", CountUnchecked()));
+        AddFinding (FindingKind::FileMapUnchecked, -1, std::format (L"{} sectors of the file map were read without checking checksums", CountUnchecked()));
     }
 }
 
@@ -363,12 +363,17 @@ void FileMapWriter::SettleCell (int cell)
         }
 
         out.role = SectorRole::CrossLinked;
-        AddFinding (FindingKind::FileCrossLinked, cell, L"Expected " + DescribeCell (cell) + L" in one file, but found it in " + names);
+        AddFinding (FindingKind::FileCrossLinked, cell, Capitalize (DescribeCell (cell)) + L" is used by more than one file: " + names);
+    }
+    else if (out.owners.size() == 1 && IsStructure (cell))
+    {
+        out.role = SectorRole::CrossLinked;
+        AddFinding (FindingKind::FileUsesStructure, cell, Capitalize (DescribeCell (cell)) + L" is " + DescribeStructure (cell) + L", but " + m_map.files[out.owners[0]].path + L" uses it");
     }
     else if (out.owners.size() == 1 && m_hasBitmap && !isUsed)
     {
         out.role = SectorRole::OwnedMarkedFree;
-        AddFinding (FindingKind::FileOwnedMarkedFree, cell, L"Expected " + DescribeCell (cell) + L" of " + m_map.files[out.owners[0]].path + L" marked used in the bitmap, but found it free");
+        AddFinding (FindingKind::FileOwnedMarkedFree, cell, Capitalize (DescribeCell (cell)) + L" is used by " + m_map.files[out.owners[0]].path + L" but incorrectly marked free");
     }
     else if (out.owners.size() == 1)
     {
@@ -381,7 +386,7 @@ void FileMapWriter::SettleCell (int cell)
     else if (isUsed)
     {
         out.role = SectorRole::AllocatedUnowned;
-        AddFinding (FindingKind::FileAllocatedUnowned, cell, L"Expected " + DescribeCell (cell) + L" marked free in the bitmap, since it isn't in any file, but found it used");
+        AddFinding (FindingKind::FileAllocatedUnowned, cell, Capitalize (DescribeCell (cell)) + L" is marked used but isn't in any file");
     }
 
     m_map.usesUnchecked = m_map.usesUnchecked || (out.result == SectorResult::NotChecked && out.role != SectorRole::Free);
@@ -425,12 +430,12 @@ void FileMapWriter::SettleFiles()
         if (!file.isDeleted && file.chainReason != ChainReason::None)
         {
             file.states |= MappedFile::kChainBroken;
-            AddFinding (FindingKind::FileChainBroken, file.chainCell, file.path + L": expected a chain that ends, but found " + DescribeLink (file.chainReason, file.chainCell));
+            AddFinding (FindingKind::FileChainBroken, file.chainCell, file.path + L"'s chain " + DescribeChain (file.chainReason, file.chainCell));
         }
 
         if (!file.isDeleted && (file.states & MappedFile::kTouchesBadSectors) != 0)
         {
-            AddFinding (FindingKind::FileTouchesBadSectors, -1, std::format (L"{}: expected readable sectors, but found {} bad or missing", file.path, CountBad (file)));
+            AddFinding (FindingKind::FileTouchesBadSectors, -1, std::format (L"{} uses {} bad or missing {}", file.path, CountBad (file), CountBad (file) == 1 ? L"sector" : L"sectors"));
         }
     }
 }
@@ -485,7 +490,7 @@ void FileMapWriter::CheckRepeatedBytes()
 
         if (isRead && count >= static_cast<size_t> (SectorSource::kBytes) && IsOneByte (data, count))
         {
-            AddFinding (FindingKind::FileRepeatedByte, file.sectors.front().cell, std::format (L"{}: expected file data, but found ${:02X} in every byte", file.path, data[0]));
+            AddFinding (FindingKind::FileRepeatedByte, file.sectors.front().cell, std::format (L"{} is ${:02X} in every byte", file.path, data[0]));
         }
     }
 }
@@ -549,7 +554,7 @@ void FileMapWriter::CheckAlmostBlank()
 
     if (fileCells > 0 && blank * kPercent >= kBlankPercent * sectors && blankCells * kPercent >= kBlankFilePercent * fileCells)
     {
-        AddFinding (FindingKind::ImageAlmostBlank, -1, std::format (L"Expected data on the disk, but found {} of {} sectors filled with one repeated byte", blank, sectors));
+        AddFinding (FindingKind::ImageAlmostBlank, -1, std::format (L"{} of the disk's {} sectors are filled with one repeated byte", blank, sectors));
     }
 }
 
@@ -678,13 +683,13 @@ int FileMapWriter::GetPhysical (int cell) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FileMapWriter::DescribeLink
+//  FileMapWriter::DescribeChain
 //
-//  What a chain found where it stopped, after "but found".
+//  Where a chain stopped, after "the chain".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring FileMapWriter::DescribeLink (ChainReason reason, int cell) const
+std::wstring FileMapWriter::DescribeChain (ChainReason reason, int cell) const
 {
     std::wstring  text;
 
@@ -692,12 +697,108 @@ std::wstring FileMapWriter::DescribeLink (ChainReason reason, int cell) const
 
     switch (reason)
     {
-        case ChainReason::Loop:          text = L"a link back to " + DescribeCell (cell);                          break;
-        case ChainReason::OutsideVolume: text = L"a link outside the volume";                                     break;
-        case ChainReason::BadSector:     text = L"a link to " + DescribeCell (cell) + L", which has a bad checksum"; break;
-        case ChainReason::MissingSector: text = L"a link to " + DescribeCell (cell) + L", which is missing";        break;
-        case ChainReason::TooLong:       text = L"more links than the volume has room for";                       break;
-        default:                                                                                                   break;
+        case ChainReason::Loop:          text = L"loops back to " + DescribeCell (cell);                         break;
+        case ChainReason::OutsideVolume: text = L"points outside the volume";                                   break;
+        case ChainReason::BadSector:     text = L"leads to " + DescribeCell (cell) + L", which has a bad checksum"; break;
+        case ChainReason::MissingSector: text = L"leads to " + DescribeCell (cell) + L", which is missing";        break;
+        case ChainReason::TooLong:       text = L"is longer than the volume";                                   break;
+        default:                                                                                                 break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapWriter::DescribeUnreadable
+//
+//  A cell that can't be read, as a clause.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileMapWriter::DescribeUnreadable (int cell) const
+{
+    bool  isMissing = cell >= 0 && cell < static_cast<int> (m_map.cells.size()) && m_map.cells[cell].result == SectorResult::Missing;
+
+
+
+    return DescribeCell (cell) + (isMissing ? L" is missing" : L" has a bad checksum");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapWriter::IsStructure
+//
+//  A cell of the volume's bookkeeping that no file may use: the VTOC, a
+//  catalog sector and the boot sector on DOS 3.3, whose other sectors on
+//  tracks 0 to 2 can be allocated to files on a data disk; the boot blocks,
+//  the volume directory and the bitmap on ProDOS; the boot blocks and the
+//  directory on Apple Pascal. CP/M is checked in CpmMapReader.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FileMapWriter::IsStructure (int cell) const
+{
+    SectorRole  role = m_structure[cell];
+
+
+
+    return m_map.fileSystem != MapFileSystem::Cpm &&
+           (role == SectorRole::VtocOrKeyBlock || role == SectorRole::CatalogOrDirectory || role == SectorRole::VolumeBitmap ||
+            (role == SectorRole::BootArea && (m_map.fileSystem != MapFileSystem::Dos33 || cell == 0)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapWriter::DescribeStructure
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileMapWriter::DescribeStructure (int cell) const
+{
+    bool          isDos = m_map.fileSystem == MapFileSystem::Dos33;
+    std::wstring  text;
+
+
+
+    switch (m_structure[cell])
+    {
+        case SectorRole::VtocOrKeyBlock:     text = isDos ? L"the VTOC" : L"the volume directory's key block";                                                  break;
+        case SectorRole::CatalogOrDirectory: text = isDos ? L"a catalog sector" : (m_map.fileSystem == MapFileSystem::ProDos) ? L"a volume directory block" : L"a directory block"; break;
+        case SectorRole::VolumeBitmap:       text = L"a volume bitmap block";                                                                                   break;
+        default:                             text = isDos ? L"the boot sector" : L"a boot block";                                                               break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapWriter::Capitalize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FileMapWriter::Capitalize (std::wstring text)
+{
+    if (!text.empty())
+    {
+        text[0] = static_cast<wchar_t> (towupper (text[0]));
     }
 
     return text;
@@ -776,6 +877,9 @@ FindingWeight FileMapWriter::GetWeight (FindingKind kind)
         case FindingKind::CpmExtentMissing:
         case FindingKind::CpmRecordsPastBlocks:
         case FindingKind::CpmBlockInDirectory:
+        case FindingKind::FileUsesStructure:
+        case FindingKind::Dos33StructureMarkedFree:
+        case FindingKind::ProDosEofPastStorage:
             weight = FindingWeight::Damage;
             break;
 
@@ -790,6 +894,12 @@ FindingWeight FileMapWriter::GetWeight (FindingKind kind)
         case FindingKind::Dos33EntryTypeUnknown:
         case FindingKind::Dos33EntryCountTooLarge:
         case FindingKind::Dos33CatalogNonstandard:
+        case FindingKind::ProDosDirectoryPointer:
+        case FindingKind::ProDosParentPointer:
+        case FindingKind::ProDosBitmapPastEnd:
+        case FindingKind::ProDosNameInvalid:
+        case FindingKind::PascalLastBytesInvalid:
+        case FindingKind::PascalNameInvalid:
             weight = FindingWeight::Suspect;
             break;
 

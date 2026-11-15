@@ -143,9 +143,9 @@ struct MappedFile
 };
 
 
-//  A count a catalog entry or a directory header has that differs from the
-//  count of the file's chain or the directory's entries: a little-endian
-//  word at a byte offset in a cell, which Repair sets to the actual count
+//  A count or pointer a catalog entry or a directory header has that
+//  differs from the value in the volume's structure: a little-endian byte or
+//  word at a byte offset in a cell, which Repair sets to the actual value
 //  (FR-175).
 struct RecordedCount
 {
@@ -154,6 +154,7 @@ struct RecordedCount
     int           recorded = 0;
     int           actual   = 0;
     std::wstring  what;
+    int           width    = 2;
 };
 
 

@@ -312,6 +312,29 @@ vector<Byte> FileMapTestImages::MakeProDos()
     SetWord (GetBlock (image, 23) + 0x103, 1);
     GetBlock (image, 23)[0x105] = 20;
 
+    //  Each entry's pointer to its directory's key block, and each
+    //  subdirectory header's pointer back to its entry: DIR1 is entry 7 of
+    //  block 2, counting the header as 1, and DIR2 entry 2 of block 20.
+    for (auto [directory, key] : { std::pair { 2, 2 }, std::pair { 20, 20 }, std::pair { 21, 21 } })
+    {
+        for (int e = (directory == key) ? 1 : 0; e < 13; e++)
+        {
+            Byte *  at = entry (GetBlock (image, directory), e);
+
+            if ((at[0] >> 4) != 0)
+            {
+                SetWord (at + 0x25, key);
+            }
+        }
+    }
+
+    SetWord (GetBlock (image, 20) + 0x27, 2);
+    GetBlock (image, 20)[0x29] = 7;
+    GetBlock (image, 20)[0x2A] = 0x27;
+    SetWord (GetBlock (image, 21) + 0x27, 20);
+    GetBlock (image, 21)[0x29] = 2;
+    GetBlock (image, 21)[0x2A] = 0x27;
+
     for (int data : { 7, 10, 11, 13, 15, 17, 18, 22, 24, 25 })
     {
         FillData (GetBlock (image, data), 0, 0);

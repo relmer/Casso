@@ -93,7 +93,7 @@ private:
     static void   PlanProDos       (Work & work, const FileMap & map);
     static void   PlanCounts       (Work & work, const FileMap & map);
     static void   CheckChains      (Work & work, const FileMap & map);
-    static void   AddBitmapChanges (Work & work, const FileMap & map, const vector<int> & markedUsed, int unowned, int structures, LPCWSTR unit);
+    static void   AddBitmapChanges (Work & work, const FileMap & map, const vector<int> & markedUsed, int unowned, int structures, LPCWSTR unit, LPCWSTR structure);
     static void   CollectSectors   (Work & work);
 
     static bool   BuildMap         (const Work & work, std::unique_ptr<SectorSource> & outSource, FileMap & outMap);

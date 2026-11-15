@@ -15,6 +15,15 @@ static constexpr int   s_kEntriesPerBlk  = 0x0D;
 static constexpr int   s_kHeaderLength   = 0x23;
 static constexpr int   s_kHeaderPerBlk   = 0x24;
 static constexpr int   s_kFileCount      = 0x25;
+static constexpr int   s_kHeaderPointer  = 0x25;
+static constexpr int   s_kParentPointer  = 0x27;
+static constexpr int   s_kParentEntry    = 0x29;
+static constexpr int   s_kParentLength   = 0x2A;
+static constexpr int   s_kNameMax        = 15;
+
+static constexpr uint32_t  s_kSeedlingBytes = 512;
+static constexpr uint32_t  s_kSaplingBytes  = 256 * 512;
+
 static constexpr int   s_kBitmapPointer  = 0x27;
 static constexpr int   s_kTotalBlocks    = 0x29;
 static constexpr int   s_kFileType       = 0x10;
@@ -117,6 +126,7 @@ void ProDosMapReader::Read (const SectorSource & source, FileMap & outMap)
 
     if (hasBitmap)
     {
+        CheckBitmapEnd (writer, bitmap, total);
         writer.SetMarkedUsed (std::move (markedUsed));
     }
 
@@ -150,10 +160,14 @@ void ProDosMapReader::ReadDirectory (Walk & walk, int keyBlock, const std::wstri
     int            files  = 0;
     int            active = 0;
     bool           isRead = true;
+    int            outer  = walk.directoryKey;
+    int            parent = walk.parentBlock;
+    int            number = walk.parentEntry;
 
 
 
     walk.depth++;
+    walk.directoryKey = keyBlock;
 
     while (at != 0 && walk.depth <= s_kMaxDepth)
     {
@@ -169,7 +183,7 @@ void ProDosMapReader::ReadDirectory (Walk & walk, int keyBlock, const std::wstri
             }
             else
             {
-                walk.writer.AddFinding (FindingKind::FileChainBroken, at, L"Expected a volume directory chain that ends, but found " + walk.writer.DescribeLink (reason, at));
+                walk.writer.AddFinding (FindingKind::FileChainBroken, at, L"The volume directory chain " + walk.writer.DescribeChain (reason, at));
             }
 
             isRead = false;
@@ -191,6 +205,11 @@ void ProDosMapReader::ReadDirectory (Walk & walk, int keyBlock, const std::wstri
         {
             count = ProDosSkeleton::GetEntriesPerBlock (block[s_kHeaderPerBlk]);
             files = GetWord (&block[s_kFileCount]);
+
+            if (owner >= 0)
+            {
+                CheckParent (walk, keyBlock, block, prefix, parent, number);
+            }
         }
 
         for (e = isKey ? 1 : 0; e < count; e++)
@@ -204,6 +223,7 @@ void ProDosMapReader::ReadDirectory (Walk & walk, int keyBlock, const std::wstri
     }
 
     walk.depth--;
+    walk.directoryKey = outer;
 
     if (isRead && !isKey)
     {
@@ -236,6 +256,148 @@ void ProDosMapReader::CheckFileCount (Walk & walk, int keyBlock, const std::wstr
                                                                                               : std::format (L"{}: expected a directory file count of {}, but found {}", directory, active, files));
         walk.writer.AddCount ({ keyBlock, s_kFileCount, files, active, prefix.empty() ? std::wstring (L"the volume directory's file count") : L"the file count of " + directory });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosMapReader::CheckParent
+//
+//  A subdirectory's header points back to its entry: the parent directory
+//  block, the entry's number in that block counting the header as 1, and
+//  the entry length. A pointer that differs is suspect, and Repair sets it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosMapReader::CheckParent (Walk & walk, int keyBlock, const Block & header, const std::wstring & prefix, int parentBlock, int parentEntry)
+{
+    std::wstring  directory = prefix.substr (0, prefix.size() - 1);
+    int           pointer   = GetWord (&header[s_kParentPointer]);
+    int           number    = header[s_kParentEntry];
+    int           length    = header[s_kParentLength];
+
+
+
+    if (pointer != parentBlock)
+    {
+        walk.writer.AddFinding (FindingKind::ProDosParentPointer, keyBlock, std::format (L"{}: the parent pointer is block {} instead of {}", directory, pointer, parentBlock));
+        walk.writer.AddCount   ({ keyBlock, s_kParentPointer, pointer, parentBlock, L"the parent pointer of " + directory, 2 });
+    }
+
+    if (number != parentEntry)
+    {
+        walk.writer.AddFinding (FindingKind::ProDosParentPointer, keyBlock, std::format (L"{}: the parent entry number is {} instead of {}", directory, number, parentEntry));
+        walk.writer.AddCount   ({ keyBlock, s_kParentEntry, number, parentEntry, L"the parent entry number of " + directory, 1 });
+    }
+
+    if (length != s_kEntryLength)
+    {
+        walk.writer.AddFinding (FindingKind::ProDosParentPointer, keyBlock, std::format (L"{}: the parent entry length is {} instead of {}", directory, length, s_kEntryLength));
+        walk.writer.AddCount   ({ keyBlock, s_kParentLength, length, s_kEntryLength, L"the parent entry length of " + directory, 1 });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosMapReader::CheckEntry
+//
+//  An entry's pointer to its directory's key block, which Repair sets; an
+//  end of file past what a seedling or sapling file's blocks address, which
+//  is damage; and a name ProDOS can't open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosMapReader::CheckEntry (Walk & walk, const Byte * entry, const std::wstring & path, int storage, int block, int offset)
+{
+    int       pointer = GetWord (entry + s_kHeaderPointer);
+    uint32_t  eof     = entry[s_kEof] | (entry[s_kEof + 1] << 8) | (entry[s_kEof + 2] << 16);
+    uint32_t  limit   = (storage == s_kSeedling) ? s_kSeedlingBytes : (storage == s_kSapling) ? s_kSaplingBytes : 0;
+
+
+
+    if (pointer != walk.directoryKey)
+    {
+        walk.writer.AddFinding (FindingKind::ProDosDirectoryPointer, block, std::format (L"{}'s entry points to directory block {} instead of {}", path, pointer, walk.directoryKey));
+        walk.writer.AddCount   ({ block, offset + s_kHeaderPointer, pointer, walk.directoryKey, L"the directory pointer of " + path, 2 });
+    }
+
+    if (limit > 0 && eof > limit)
+    {
+        walk.writer.AddFinding (FindingKind::ProDosEofPastStorage, block, std::format (L"{}: end of file {} is past the {} bytes of a {} file", path, eof, limit,
+                                                                                       storage == s_kSeedling ? L"seedling" : L"sapling"));
+    }
+
+    if (!IsValidName (entry))
+    {
+        walk.writer.AddFinding (FindingKind::ProDosNameInvalid, block, path + L": the file name isn't a valid ProDOS name");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosMapReader::CheckBitmapEnd
+//
+//  The bits for blocks past the end of the volume in the bitmap's block
+//  marked used, as ProDOS's FORMAT writes them; one marked free could be
+//  allocated.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosMapReader::CheckBitmapEnd (FileMapWriter & writer, const Block & bitmap, int total)
+{
+    int  free = 0;
+
+
+
+    for (int b = total; b < s_kBitsPerBlock; b++)
+    {
+        free += ((bitmap[b / 8] >> (7 - b % 8)) & 1) != 0 ? 1 : 0;
+    }
+
+    if (free > 0)
+    {
+        writer.AddFinding (FindingKind::ProDosBitmapPastEnd, -1, std::format (L"The volume bitmap marks {} blocks past the end of the volume free", free));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosMapReader::IsValidName
+//
+//  1 to 15 characters, a letter first, then letters, digits and periods.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProDosMapReader::IsValidName (const Byte * entry)
+{
+    int   length  = entry[0] & 0x0F;
+    bool  isValid = length >= 1 && length <= s_kNameMax && entry[1] >= 'A' && entry[1] <= 'Z';
+
+
+
+    for (int i = 2; isValid && i <= length; i++)
+    {
+        Byte  ch = entry[i];
+
+        isValid = (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '.';
+    }
+
+    return isValid;
 }
 
 
@@ -280,8 +442,15 @@ void ProDosMapReader::ReadEntry (Walk & walk, const Byte * entry, const std::wst
             storage = (used <= 1) ? s_kSeedling : (used <= s_kPointers + 1) ? s_kSapling : s_kTree;
         }
 
+        if (!walk.writer.GetFile (index).isDeleted)
+        {
+            CheckEntry (walk, entry, prefix + ReadName (entry), storage, block, offset);
+        }
+
         if (storage == s_kSubdirectory)
         {
+            walk.parentBlock = block;
+            walk.parentEntry = (offset - s_kFirstEntry) / s_kEntryLength + 1;
             ReadDirectory (walk, key, prefix + ReadName (entry) + L"/", SectorRole::Subdirectory, index);
         }
         else if (storage == s_kExtended)

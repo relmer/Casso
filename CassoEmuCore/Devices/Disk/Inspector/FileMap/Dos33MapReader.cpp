@@ -244,7 +244,7 @@ void Dos33MapReader::Read (const SectorSource & source, FileMap & outMap)
         {
             outMap.isCatalogComplete = false;
             outMap.unreadableCell    = cell;
-            writer.AddFinding (FindingKind::FileChainBroken, cell, L"Expected a catalog chain that ends, but found " + writer.DescribeLink (reason, cell));
+            writer.AddFinding (FindingKind::FileChainBroken, cell, L"The catalog chain " + writer.DescribeChain (reason, cell));
             break;
         }
 
@@ -264,6 +264,21 @@ void Dos33MapReader::Read (const SectorSource & source, FileMap & outMap)
     }
 
     outMap.isCatalogStandard = CheckEntries (writer, entries);
+
+    //  The VTOC and the catalog's sectors marked used, so DOS doesn't
+    //  allocate them to a file.
+    for (int at : outMap.catalogCells)
+    {
+        if (!markedUsed[at])
+        {
+            writer.AddFinding (FindingKind::Dos33StructureMarkedFree, at, FileMapWriter::Capitalize (writer.DescribeCell (at)) + L" is a catalog sector but marked free");
+        }
+    }
+
+    if (!markedUsed[GetCell (kVtocTrack, 0)])
+    {
+        writer.AddFinding (FindingKind::Dos33StructureMarkedFree, GetCell (kVtocTrack, 0), L"The VTOC is marked free");
+    }
 
     for (size_t e = 0; outMap.isCatalogStandard && e < entries.size(); e++)
     {
@@ -331,11 +346,11 @@ void Dos33MapReader::CheckHeader (FileMapWriter & writer, const Byte * vtoc)
 
     if (vtoc[kNextTrack] >= SectorSource::kTracks)
     {
-        writer.AddFinding (FindingKind::Dos33NextTrackOffDisk, at, std::format (L"Expected the VTOC's next track to allocate to be 0 to 34, but found {}", vtoc[kNextTrack]));
+        writer.AddFinding (FindingKind::Dos33NextTrackOffDisk, at, std::format (L"The VTOC's next track to allocate, track {}, is off the disk", vtoc[kNextTrack]));
     }
     else if (vtoc[kDirection] != s_kUp && vtoc[kDirection] != s_kDown)
     {
-        writer.AddFinding (FindingKind::Dos33NextTrackOffDisk, at, std::format (L"Expected an allocation direction of $01 or $FF in the VTOC, but found ${:02X}", vtoc[kDirection]));
+        writer.AddFinding (FindingKind::Dos33NextTrackOffDisk, at, std::format (L"The VTOC's allocation direction is ${:02X} instead of $01 or $FF", vtoc[kDirection]));
     }
 
     if (vtoc[s_kRelease] != s_kRelease33)
@@ -345,7 +360,7 @@ void Dos33MapReader::CheckHeader (FileMapWriter & writer, const Byte * vtoc)
 
     if (vtoc[s_kVolume] == 0 || vtoc[s_kVolume] == 0xFF)
     {
-        writer.AddFinding (FindingKind::Dos33VolumeOutOfRange, at, std::format (L"Expected a VTOC volume number of 1 to 254, but found {}", vtoc[s_kVolume]));
+        writer.AddFinding (FindingKind::Dos33VolumeOutOfRange, at, std::format (L"The VTOC's volume number {} is outside 1 to 254", vtoc[s_kVolume]));
     }
 
     for (t = 0; t < SectorSource::kTracks; t++)
@@ -357,7 +372,7 @@ void Dos33MapReader::CheckHeader (FileMapWriter & writer, const Byte * vtoc)
 
     if (padded > 0)
     {
-        writer.AddFinding (FindingKind::Dos33BitmapPadding, at, std::format (L"Expected zeros after each track's bitmap in the VTOC, but found other values on {} tracks", padded));
+        writer.AddFinding (FindingKind::Dos33BitmapPadding, at, std::format (L"The VTOC has nonzero bytes after the bitmap of {} tracks", padded));
     }
 }
 
@@ -408,7 +423,7 @@ bool Dos33MapReader::CheckEntries (FileMapWriter & writer, const vector<Entry> &
     if (!isStandard)
     {
         writer.AddFinding (FindingKind::Dos33CatalogNonstandard, entries.front().cell,
-                           std::format (L"Expected DOS 3.3 catalog entries, but found {} of {} with an invalid file name, type or sector count. The files in this catalog aren't read.",
+                           std::format (L"The catalog isn't standard: {} of {} entries have an invalid file name, type or sector count. Files in this catalog aren't read.",
                                         failed, inUse));
     }
 
@@ -429,18 +444,18 @@ bool Dos33MapReader::CheckEntries (FileMapWriter & writer, const vector<Entry> &
 
         if (isMixed)
         {
-            writer.AddFinding (FindingKind::Dos33EntryNameMixed, entry.cell, std::format (L"{}: expected the high bit set on every character of the file name, but found {} with it clear",
+            writer.AddFinding (FindingKind::Dos33EntryNameMixed, entry.cell, std::format (L"{}: {} characters of the name have the high bit clear",
                                                                                      name, CountClearBits (entry.bytes + s_kEntryName)));
         }
 
         if (isUnknown)
         {
-            writer.AddFinding (FindingKind::Dos33EntryTypeUnknown, entry.cell, std::format (L"{}: expected a DOS 3.3 file type, but found ${:02X}", name, entry.bytes[s_kEntryType]));
+            writer.AddFinding (FindingKind::Dos33EntryTypeUnknown, entry.cell, std::format (L"{}: type ${:02X} isn't a DOS 3.3 type", name, entry.bytes[s_kEntryType]));
         }
 
         if (isLarge)
         {
-            writer.AddFinding (FindingKind::Dos33EntryCountTooLarge, entry.cell, std::format (L"{}: expected a catalog sector count of at most {}, but found {}", name, writer.GetCellCount(), count));
+            writer.AddFinding (FindingKind::Dos33EntryCountTooLarge, entry.cell, std::format (L"{}: catalog sector count {} is larger than the disk", name, count));
         }
     }
 
@@ -533,8 +548,8 @@ void Dos33MapReader::WalkLists (FileMapWriter & writer, const SectorSource & sou
         if (!isNoted && offset != list * s_kPairs)
         {
             isNoted = true;
-            writer.AddFinding (FindingKind::Dos33ListOffsetDiffers, cell, std::format (L"{}: expected track/sector list {} to start at sector {} of the file, but found {}",
-                                                                                       writer.GetFile (file).path, list + 1, list * s_kPairs, offset));
+            writer.AddFinding (FindingKind::Dos33ListOffsetDiffers, cell, std::format (L"{}: track/sector list {} starts at sector {} of the file instead of {}",
+                                                                                       writer.GetFile (file).path, list + 1, offset, list * s_kPairs));
         }
 
         for (pair = 0; !isBroken && pair < s_kPairs; pair++)
@@ -655,8 +670,8 @@ void Dos33MapReader::CheckLength (FileMapWriter & writer, const SectorSource & s
 
         if (sectors != places)
         {
-            writer.AddFinding (FindingKind::Dos33StoredLengthDiffers, first, std::format (L"{}: expected {} sectors for a stored length of {} bytes, but found {}",
-                                                                                          file.path, sectors, length, places));
+            writer.AddFinding (FindingKind::Dos33StoredLengthDiffers, first, std::format (L"{}: the stored length of {} bytes fills {} sectors, but the file has {}",
+                                                                                          file.path, length, sectors, places));
         }
     }
 }
