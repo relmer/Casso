@@ -45,7 +45,7 @@ public:
 
     void          RefreshCassoLinkViews   ();
     void          ReadDiskToImage         (const Location & drive = Location(), bool forceVerify = false);
-    void          CaptureRawDisk          (const Location & drive);
+    void          CaptureRawDisk          (const Location & drive, const std::wstring & suggested = std::wstring());
     void          StartImageWrite         (const Location & drive, const std::wstring & imagePath, bool forceVerify = false);
     bool          TryGetSelectedLinkDrive (Location & outDrive) const;
     bool          TryGetTargetDrive       (const Location & drive, Location & outDrive, std::wstring & outLink, int & outNumber) const;
@@ -131,6 +131,7 @@ private:
     bool  FillFromManifest     (FullSendPanel::View & ioView);
     void  RunFullSendDisk      (const std::string & file, FullSendDialog::DiskAction action);
     void  UpdateTransferTimer  ();
+    void  OfferRawCapture      (const Location & drive, const std::filesystem::path & image);
 
     std::vector<FullSendPanel::View>  GetRunningViews ();
 

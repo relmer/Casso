@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 
@@ -43,6 +44,38 @@ ProtectionSigns FullSendProtection::Find (const std::vector<Byte> & image)
     signs.hasDiskCode    = (kind == VolumeKind::Dos33 || kind == VolumeKind::ProDos || kind == VolumeKind::Pascal) && FindDiskCode (kind, image, signs.diskCodeFile);
 
     return signs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendProtection::IsLikelyProtected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendProtection::IsLikelyProtected (const std::vector<Byte> & fileBytes, const std::string & name, const FullSendProtectionChoices & choices)
+{
+    HRESULT             hr        = S_OK;
+    std::string         extension = std::filesystem::path (name).extension().string();
+    std::vector<Byte>   sectors;
+    SectorDecodeReport  report;
+    bool                isLikely  = false;
+
+
+
+    std::transform (extension.begin(), extension.end(), extension.begin(), [] (char ch) { return (char) std::tolower ((unsigned char) ch); });
+    BAIL_OUT_IF (extension != ".dsk" && extension != ".do" && extension != ".po", S_OK);
+
+    hr = VolumeImage::Load (fileBytes, name, sectors, report);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
+
+    isLikely = choices.IsMet (Find (sectors));
+
+Error:
+    return isLikely;
 }
 
 

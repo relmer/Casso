@@ -28,6 +28,7 @@
 #include "Core/AppTimerIds.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
+#include "CassoLink/FullSend/FullSendProtection.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
@@ -233,7 +234,7 @@ void CassoLinkManager::ReadDiskToImage (const Location & drive, bool forceVerify
 
             HandleConnectionChanged();
         }
-    });
+    }, [this, target, picked] () { OfferRawCapture (target, picked); });
 
     if (!outcome.Succeeded())
     {
@@ -241,6 +242,48 @@ void CassoLinkManager::ReadDiskToImage (const Location & drive, bool forceVerify
     }
 
     HandleConnectionChanged();
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkManager::OfferRawCapture
+//
+//  After Create image saves a sector image, a disk with a sign of copy
+//  protection that the Full Send options check is offered a raw capture,
+//  as a WOZ beside the sector image, which isn't removed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkManager::OfferRawCapture (const Location & drive, const std::filesystem::path & image)
+{
+    HRESULT                hr       = S_OK;
+    std::vector<Byte>      bytes;
+    std::wstring           question;
+    std::filesystem::path  woz      = image;
+    bool                   isLikely = false;
+
+
+
+    hr = m_context.browser.GetOperations().GetFileIo().ReadAllBytes (TextEncoding::WideToNarrow (image.wstring()), bytes);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
+
+    isLikely = FullSendProtection::IsLikelyProtected (bytes, TextEncoding::WideToNarrow (image.filename().wstring()), m_context.prefs.fullSendProtection);
+    BAIL_OUT_IF (!isLikely, S_OK);
+
+    question = std::format (L"This disk may be copy-protected and may not boot successfully as a {} image. Would you like to capture in raw mode, which is compatible with copy protection?",
+                            image.extension().wstring());
+
+    if (DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, question.c_str(), L"Create image", MB_YESNO | MB_ICONQUESTION, { L"Yes", L"No" }) == IDYES)
+    {
+        CaptureRawDisk (drive, woz.replace_extension (L".woz").filename().wstring());
+    }
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -260,7 +303,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkManager::CaptureRawDisk (const Location & drive)
+void CassoLinkManager::CaptureRawDisk (const Location & drive, const std::wstring & suggested)
 {
     HRESULT                        hr     = S_OK;
     std::filesystem::path          picked;
@@ -280,7 +323,7 @@ void CassoLinkManager::CaptureRawDisk (const Location & drive)
 
     spec.filters          = { FileDialogFilter { L"WOZ disk images (*.woz)", L"*.woz" } };
     spec.clientGuid       = s_kLinkDiskPickerGuid;
-    spec.defaultFileName  = std::filesystem::path (ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number)).replace_extension (L".woz").wstring();
+    spec.defaultFileName  = !suggested.empty() ? suggested : std::filesystem::path (ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number)).replace_extension (L".woz").wstring();
     spec.defaultExtension = L"woz";
     spec.title            = std::format (L"Capture raw disk from {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
 

@@ -228,7 +228,7 @@ public:
     //  The open drive's disk, or the given link's drive, so a second read
     //  goes to the drive the first one did, wherever the window is by then.
     Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable) { return m_appleDrive.ReadDiskToImage (imagePath, blankUnreadable, onUnreadable); }
-    Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, UnreadableFn onUnreadable) { return m_appleDrive.ReadDiskToImage (link, drive, imagePath, blankUnreadable, forceVerify, onUnreadable); }
+    Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, UnreadableFn onUnreadable, std::function<void ()> onRead = nullptr) { return m_appleDrive.ReadDiskToImage (link, drive, imagePath, blankUnreadable, forceVerify, onUnreadable, std::move (onRead)); }
     Outcome  CaptureDisk      (const std::string & link, int drive, const std::wstring & imagePath, std::function<void (const std::wstring &)> report) { return m_appleDrive.CaptureDisk (link, drive, imagePath, std::move (report)); }
     Outcome  WriteImageToDisk (const std::wstring & imagePath) { return m_appleDrive.WriteImageToDisk (imagePath); }
 

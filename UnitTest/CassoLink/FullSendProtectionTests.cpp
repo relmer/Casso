@@ -157,6 +157,25 @@ public:
         Assert::IsTrue  (FullSendProtection::IsSystemFile (VolumeKind::ProDos, "FILER"), L"ProDOS's Filer");
     }
 
+    //  A sector image file with a sign the choices check is likely protected,
+    //  by its name's type; a WOZ, whose capture already has the disk's
+    //  tracks, isn't read, nor is a sign whose condition is off.
+    TEST_METHOD (ImageFile_IsLikelyProtected_ByTheChoices_ForASectorImageAlone)
+    {
+        Image                      game = DosWithFile ("GAME", DiskCode (FullSendProtection::kDiskCodeReads));
+        FullSendProtectionChoices  choices;
+        FullSendProtectionChoices  off;
+
+
+
+        off.diskCode = false;
+
+        Assert::IsTrue  (FullSendProtection::IsLikelyProtected (game, "0001 GAME.dsk", choices), L"A .dsk with disk code");
+        Assert::IsTrue  (FullSendProtection::IsLikelyProtected (game, "0001 GAME.DO", choices), L"A .DO, in capitals");
+        Assert::IsFalse (FullSendProtection::IsLikelyProtected (game, "0001 GAME.woz", choices), L"Not a sector image");
+        Assert::IsFalse (FullSendProtection::IsLikelyProtected (game, "0001 GAME.dsk", off), L"The condition is off");
+    }
+
     //  A disk with no file system is a sign, unless every byte is the same,
     //  as a disk formatted with nothing on it, or it has CP/M's loader.
     TEST_METHOD (Unrecognized_IsASign_UnlessUniformOrCpm)

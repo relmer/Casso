@@ -95,6 +95,11 @@ public:
 
     static ProtectionSigns  Find (const std::vector<Byte> & image);
 
+    //  Whether a sector image file, a .dsk, .do or .po by its name, has a
+    //  sign the choices check; false for any other file or one that doesn't
+    //  load. Read errors aren't in a file, so readErrors isn't read.
+    static bool  IsLikelyProtected (const std::vector<Byte> & fileBytes, const std::string & name, const FullSendProtectionChoices & choices);
+
     static BootFamily  GetBootFamily  (const std::vector<Byte> & image);
     static int         CountDiskReads (std::span<const Byte> bytes);
     static bool        IsSystemFile   (VolumeKind kind, const std::string & name);
