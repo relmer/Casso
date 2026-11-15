@@ -86,5 +86,6 @@ struct DiskAnalysis
     DiskSummary                                                   summary;
     ImageDetails                                                  image;
     vector<FileMap>                                               fileMaps;
+    FileSystemVerdict                                             verdict   = FileSystemVerdict::None;
     int                                                           headLimit = 0;
 };

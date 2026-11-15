@@ -14,6 +14,7 @@ static constexpr int   s_kEntryLength    = 0x27;
 static constexpr int   s_kEntriesPerBlk  = 0x0D;
 static constexpr int   s_kHeaderLength   = 0x23;
 static constexpr int   s_kHeaderPerBlk   = 0x24;
+static constexpr int   s_kFileCount      = 0x25;
 static constexpr int   s_kBitmapPointer  = 0x27;
 static constexpr int   s_kTotalBlocks    = 0x29;
 static constexpr int   s_kFileType       = 0x10;
@@ -146,6 +147,9 @@ void ProDosMapReader::ReadDirectory (Walk & walk, int keyBlock, const std::wstri
     int            e      = 0;
     bool           isKey  = true;
     int            count  = s_kEntriesPerBlk;
+    int            files  = 0;
+    int            active = 0;
+    bool           isRead = true;
 
 
 
@@ -169,6 +173,7 @@ void ProDosMapReader::ReadDirectory (Walk & walk, int keyBlock, const std::wstri
                                                                           FileMapWriter::DescribeReason (reason));
             }
 
+            isRead = false;
             break;
         }
 
@@ -186,10 +191,12 @@ void ProDosMapReader::ReadDirectory (Walk & walk, int keyBlock, const std::wstri
         if (isKey)
         {
             count = ProDosSkeleton::GetEntriesPerBlock (block[s_kHeaderPerBlk]);
+            files = GetWord (&block[s_kFileCount]);
         }
 
         for (e = isKey ? 1 : 0; e < count; e++)
         {
+            active += (block[s_kFirstEntry + e * s_kEntryLength] >> 4) != 0 ? 1 : 0;
             ReadEntry (walk, &block[s_kFirstEntry + e * s_kEntryLength], prefix);
         }
 
@@ -198,6 +205,38 @@ void ProDosMapReader::ReadDirectory (Walk & walk, int keyBlock, const std::wstri
     }
 
     walk.depth--;
+
+    if (isRead && !isKey)
+    {
+        CheckFileCount (walk, keyBlock, prefix, files, active);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosMapReader::CheckFileCount
+//
+//  A directory's file count against its active entries: damage, since
+//  ProDOS stops reading a directory at its count, and Repair sets it right.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosMapReader::CheckFileCount (Walk & walk, int keyBlock, const std::wstring & prefix, int files, int active)
+{
+    std::wstring  directory = prefix.empty() ? std::wstring (L"The volume directory") : prefix.substr (0, prefix.size() - 1);
+
+
+
+    if (files != active)
+    {
+        walk.writer.AddFinding (FindingKind::ProDosFileCountDiffers, keyBlock, prefix.empty() ? std::format (L"The volume directory's file count is {}, and it has {} entries", files, active)
+                                                                                              : std::format (L"{}: the directory's file count is {}, and it has {} entries", directory, files, active));
+        walk.writer.AddCount ({ keyBlock, s_kFileCount, files, active, (prefix.empty() ? std::wstring (L"the volume directory") : directory) + L"'s file count" });
+    }
 }
 
 

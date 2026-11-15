@@ -78,6 +78,36 @@ enum class FindingKind
     PascalFileCountDiffers,
     CpmInvalidEntry,
     CpmDuplicateEntry,
+
+    //  The DOS 3.3 checks of the VTOC's header and the catalog's entries,
+    //  and the checks of each file's bytes.
+    Dos33HeaderLost,
+    Dos33SectorBytesDiffer,
+    Dos33PairsDiffer,
+    Dos33NextTrackOffDisk,
+    Dos33ReleaseDiffers,
+    Dos33VolumeOutOfRange,
+    Dos33BitmapPadding,
+    Dos33EntryNameMixed,
+    Dos33EntryTypeUnknown,
+    Dos33EntryCountTooLarge,
+    Dos33CatalogNonstandard,
+    Dos33StoredLengthDiffers,
+    Dos33ListOffsetDiffers,
+    ProDosFileCountDiffers,
+    FileRepeatedByte,
+    ImageAlmostBlank,
+};
+
+
+//  How much a file-system finding weighs in the verdict: damage makes the
+//  volume Bad, a suspect finding makes it Suspect, and a note doesn't
+//  change it.
+enum class FindingWeight
+{
+    Note,
+    Suspect,
+    Damage,
 };
 
 
@@ -85,6 +115,7 @@ struct Finding
 {
     FindingCategory             category     = FindingCategory::Track;
     FindingKind                 kind         = FindingKind::AddressChecksumFailed;
+    FindingWeight               weight       = FindingWeight::Note;
     int                         quarterTrack = -1;
     int                         slot         = -1;
     int                         sector       = -1;

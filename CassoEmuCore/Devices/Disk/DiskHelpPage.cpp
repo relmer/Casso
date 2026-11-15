@@ -312,6 +312,21 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
     },
 
     {
+        CommandLineOptions::DiskOptions::Command::Repair,
+        "repair",
+        "Check a disk image's file system and write a repaired copy",
+        "CassoCli disk repair <image> [<copy>] [%Lno-free-unowned] [%Llist]",
+        "  %Lno-free-unowned       Don't free sectors that no file uses, for a protection that hides data in them\n"
+        "  %Llist                  List the changes without writing the copy\n",
+        "Reports the file-system verdict of a DOS 3.3, ProDOS or Apple Pascal volume, its findings and the changes Repair makes"
+        " to its bookkeeping, then writes a copy with the changes beside <image>, with \" (repaired)\" before its extension, or"
+        " to <copy>. The bitmap is matched to the files, the catalog's links and counts are set right, and a DOS 3.3 VTOC header"
+        " is set back to DOS's values. <image> isn't changed. A volume with a file whose chain can't be followed, or a disk with"
+        " no standard file system, isn't repaired, and the command exits with an error.",
+        "CassoCli disk repair Capture.dsk"
+    },
+
+    {
         CommandLineOptions::DiskOptions::Command::Thumbnail,
         "thumbnail",
         "Set, remove, or save a disk image's thumbnail",

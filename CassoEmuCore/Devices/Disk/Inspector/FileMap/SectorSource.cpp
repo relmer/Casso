@@ -112,6 +112,25 @@ bool SectorSource::ReadBlock (int block, std::array<Byte, 2 * kBytes> & outBytes
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SectorSource::SetPhysical
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorSource::SetPhysical (int track, int physical, const Byte * bytes)
+{
+    if (track >= 0 && track < kTracks && physical >= 0 && physical < kSectors)
+    {
+        m_sectors[track][physical].bytes  = bytes;
+        m_sectors[track][physical].result = SectorResult::Good;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SectorSource::GetDos33Physical
 //
 //  The inverse of the analyzer's physical-to-DOS-order table.

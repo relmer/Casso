@@ -155,6 +155,7 @@ void PascalMapReader::Read (const SectorSource & source, FileMap & outMap)
     {
         writer.AddFinding (FindingKind::PascalFileCountDiffers, kFirstDirectoryBlock, std::format (L"The directory gives {} files but has {} entries",
                                                                                                    GetWord (&directory[s_kFileCount]), entries));
+        writer.AddCount ({ kFirstDirectoryBlock, s_kFileCount, GetWord (&directory[s_kFileCount]), entries, L"the directory's file count" });
     }
 
     writer.Finalize();

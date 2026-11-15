@@ -112,7 +112,28 @@ static std::wstring LikelyCause (const SectorSource & source)
 
 vector<FileMap> FileMapBuilder::Build (const DiskAnalysis & analysis)
 {
-    SectorSource     source  (analysis);
+    SectorSource  source (analysis);
+
+
+
+    return Build (source, analysis.summary.commonVolume);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapBuilder::Build
+//
+//  A DOS 3.3 disk whose VTOC header is lost is read as DOS's INIT would have
+//  written it, when no other volume is found.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<FileMap> FileMapBuilder::Build (const SectorSource & source, int volume)
+{
     vector<FileMap>  maps;
     int              tracks  = 0;
     int              sectors = 0;
@@ -164,6 +185,13 @@ vector<FileMap> FileMapBuilder::Build (const DiskAnalysis & analysis)
             }
         }
 
+        if (!isFound && Dos33MapReader::IsHeaderLost (source))
+        {
+            isFound = true;
+            maps.emplace_back();
+            ReadLostHeader (source, volume, maps.back());
+        }
+
         if (!isFound && CpmMapReader::IsFound (source))
         {
             isFound = true;
@@ -177,7 +205,113 @@ vector<FileMap> FileMapBuilder::Build (const DiskAnalysis & analysis)
         }
     }
 
+    for (FileMap & map : maps)
+    {
+        map.verdict = GetVerdict (map);
+    }
+
     return maps;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapBuilder::ReadLostHeader
+//
+//  The volume read through a VTOC with DOS's header and the disk's
+//  bitmap, and the lost header reported as damage.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileMapBuilder::ReadLostHeader (const SectorSource & source, int volume, FileMap & outMap)
+{
+    SectorSource                              patched = source;
+    std::array<Byte, SectorSource::kBytes>    vtoc    = {};
+    const Byte                              * bytes   = source.GetDos33 (Dos33MapReader::kVtocTrack, 0).bytes;
+    Byte                                      number  = (volume >= 1 && volume <= 0xFE) ? static_cast<Byte> (volume) : Dos33MapReader::kStandardVolume;
+    Finding                                   finding;
+
+
+
+    std::copy (bytes, bytes + SectorSource::kBytes, vtoc.begin());
+    Dos33MapReader::MakeStandardHeader (number, vtoc.data());
+    patched.SetDos33 (Dos33MapReader::kVtocTrack, 0, vtoc.data());
+
+    Dos33MapReader::Read (patched, outMap);
+
+    finding.category     = FindingCategory::FileSystem;
+    finding.kind         = FindingKind::Dos33HeaderLost;
+    finding.weight       = FindingWeight::Damage;
+    finding.quarterTrack = Dos33MapReader::kVtocTrack * DiskImage::kQuarterTracksPerWholeTrack;
+    finding.sector       = SectorSource::GetDos33Physical (0);
+    finding.detail       = "The VTOC's header doesn't have DOS 3.3's values, so the catalog is read from track 17, sector $F";
+
+    outMap.isHeaderLost = true;
+    outMap.findings.insert (outMap.findings.begin(), finding);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapBuilder::GetVerdict
+//
+//  Bad for any finding of damage, Suspect for any finding worth a look, OK
+//  otherwise; None for a disk that isn't mapped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FileSystemVerdict FileMapBuilder::GetVerdict (const FileMap & map)
+{
+    FileSystemVerdict  verdict = FileSystemVerdict::Ok;
+
+
+
+    for (const Finding & finding : map.findings)
+    {
+        if (finding.weight == FindingWeight::Damage)
+        {
+            verdict = FileSystemVerdict::Bad;
+        }
+        else if (finding.weight == FindingWeight::Suspect && verdict == FileSystemVerdict::Ok)
+        {
+            verdict = FileSystemVerdict::Suspect;
+        }
+    }
+
+    return (map.notMapped != NotMappedReason::None || map.fileSystem == MapFileSystem::None) ? FileSystemVerdict::None : verdict;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapBuilder::GetVerdict
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FileSystemVerdict FileMapBuilder::GetVerdict (const vector<FileMap> & maps)
+{
+    FileSystemVerdict  verdict = FileSystemVerdict::None;
+
+
+
+    for (const FileMap & map : maps)
+    {
+        if (map.verdict != FileSystemVerdict::None && (verdict == FileSystemVerdict::None || map.verdict > verdict))
+        {
+            verdict = map.verdict;
+        }
+    }
+
+    return verdict;
 }
 
 

@@ -43,6 +43,7 @@ private:
     };
 
     static void  ReadDirectory  (Walk & walk, int keyBlock, const std::wstring & prefix, SectorRole role, int owner);
+    static void  CheckFileCount (Walk & walk, int keyBlock, const std::wstring & prefix, int files, int active);
     static void  ReadEntry      (Walk & walk, const Byte * entry, const std::wstring & prefix);
     static void  ReadFork       (Walk & walk, int file, int storage, int key, uint32_t eof);
     static void  ReadIndex      (Walk & walk, int file, int index, int blocks, std::set<int> & visited);

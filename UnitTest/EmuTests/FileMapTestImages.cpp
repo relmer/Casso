@@ -50,6 +50,8 @@ vector<Byte> FileMapTestImages::MakeDos33()
     vtoc[0x03] = 3;
     vtoc[0x06] = 254;
     vtoc[0x27] = 122;
+    vtoc[0x30] = 18;
+    vtoc[0x31] = 1;
     vtoc[0x34] = 35;
     vtoc[0x35] = 16;
     vtoc[0x36] = 0x00;
@@ -113,6 +115,7 @@ vector<Byte> FileMapTestImages::MakeDos33()
 
             bytes[0x0C + 2 * d]     = static_cast<Byte> (data.first);
             bytes[0x0C + 2 * d + 1] = static_cast<Byte> (data.second);
+            FillData (GetDosSector (image, data.first, data.second), d == 0 ? 2 : 0, 600);
         }
     }
 
@@ -146,6 +149,7 @@ vector<Byte> FileMapTestImages::MakeDos33()
 
                 bytes[0x0C + 2 * d]     = static_cast<Byte> (data.first);
                 bytes[0x0C + 2 * d + 1] = static_cast<Byte> (data.second);
+                FillData (GetDosSector (image, data.first, data.second), (l == 0 && d == 0) ? 4 : 0, 250 * 256 - 4 - 10);
             }
 
             previous = bytes;
@@ -171,6 +175,8 @@ vector<Byte> FileMapTestImages::MakeDos33()
         bytes[0x0D] = static_cast<Byte> (d0.second);
         bytes[0x10] = static_cast<Byte> (d2.first);
         bytes[0x11] = static_cast<Byte> (d2.second);
+        FillData (GetDosSector (image, d0.first, d0.second), 0, 0);
+        FillData (GetDosSector (image, d2.first, d2.second), 0, 0);
     }
 
     //  Slot 3 unused; OLD in slot 4, deleted, its sectors free again.
@@ -306,6 +312,12 @@ vector<Byte> FileMapTestImages::MakeProDos()
     SetWord (GetBlock (image, 23) + 0x103, 1);
     GetBlock (image, 23)[0x105] = 20;
 
+    for (int data : { 7, 10, 11, 13, 15, 17, 18, 22, 24, 25 })
+    {
+        FillData (GetBlock (image, data), 0, 0);
+        FillData (GetBlock (image, data) + kSectorBytes, 0, 0);
+    }
+
     //  The bitmap: every block free, then the ones in use taken.
     std::fill (bitmap, bitmap + 35, Byte (0xFF));
 
@@ -365,6 +377,12 @@ vector<Byte> FileMapTestImages::MakePascal()
     setEntry (1, 6, 11, 2, "SYSTEM.PASCAL", 512);
     setEntry (2, 14, 18, 3, "NOTES.TEXT", 100);
     setEntry (3, 20, 22, 1, "BAD.00020.BAD", 512);
+
+    for (int data : { 6, 7, 8, 9, 10, 14, 15, 16, 17 })
+    {
+        FillData (GetBlock (image, data), 0, 0);
+        FillData (GetBlock (image, data) + kSectorBytes, 0, 0);
+    }
 
     return image;
 }
@@ -620,5 +638,31 @@ void FileMapTestImages::SetDosName (Byte * at, const char * name)
     for (size_t i = 0; i < 30; i++)
     {
         at[i] = static_cast<Byte> ((i < length ? name[i] : ' ') | 0x80);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapTestImages::FillData
+//
+//  A sector of data no check takes as blank, with a BASIC or binary file's
+//  length in its first bytes when the header has two or four bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FileMapTestImages::FillData (Byte * sector, int header, int length)
+{
+    for (int i = 0; i < kSectorBytes; i++)
+    {
+        sector[i] = static_cast<Byte> (i * 7 + 1);
+    }
+
+    if (header > 0)
+    {
+        SetWord (sector + header - 2, length);
     }
 }

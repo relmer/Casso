@@ -367,6 +367,9 @@
     <ClCompile Include="EmuTests\ComparisonTestImages.cpp" />
     <ClCompile Include="EmuTests\DiskComparisonTests.cpp" />
     <ClCompile Include="EmuTests\FileMapTestImages.cpp" />
+    <ClCompile Include="Inspector\DiskRepairCommandTests.cpp" />
+    <ClCompile Include="Inspector\DiskRepairTests.cpp" />
+    <ClCompile Include="Inspector\RepairFixtures.cpp" />
     <ClCompile Include="EmuTests\FileMapTests.cpp" />
     <ClCompile Include="EmuTests\FluxViewTests.cpp" />
     <ClCompile Include="EmuTests\InspectorClipboardTests.cpp" />

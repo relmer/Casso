@@ -281,8 +281,8 @@ public:
         AssertOnce (map, FindingKind::FileChainBroken, true);
         Assert::AreEqual (4, FileOf (map, L"HELLO").GetUsedCount());
 
-        //  HELLO's catalog count says five sectors.
-        Images::GetDosSector (miscount, 17, 15)[0x0B + 0x21] = 5;
+        //  HELLO's catalog count is seven sectors, three more than it uses.
+        Images::GetDosSector (miscount, 17, 15)[0x0B + 0x21] = 7;
         map = MapOf (miscount, false);
         AssertOnce (map, FindingKind::FileCountDiffers, false);
     }
