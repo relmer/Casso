@@ -117,7 +117,7 @@ void StorageCardWiring::WireAppleScsiCard (const SlotConfig & slot, AppleScsiCar
 
         hr = target.GetMedia().Attach (m_host.GetBlockMediaFileIo(), image, drive->maxBlocks, m_host.ProbeBlockMedia (image), error);
 
-        if (FAILED (hr) || RejectFloppyImage (target.GetMedia(), error))
+        if (FAILED (hr) || RejectSmallImage (target.GetMedia(), m_host.GetMinHardDiskBlocks(), error))
         {
             m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, SCSI ID {}: {}", slot.slot, id, error));
         }
@@ -133,32 +133,35 @@ void StorageCardWiring::WireAppleScsiCard (const SlotConfig & slot, AppleScsiCar
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RejectFloppyImage
+//  RejectSmallImage
 //
-//  A 140K, 400K or 800K image is a floppy disk, whatever its container, and
-//  an HD20SC or a ProFile doesn't mount one: no real hard disk has that
-//  capacity. The CFFA and A2Pico cards host floppy images legitimately, so
-//  this is checked here and not in BlockDeviceMedia.
+//  An HD20SC or a ProFile mounts an image of at least `minBlocks`, which is
+//  the 5 MB ProFile's capacity unless a test lowers it: no real hard disk an
+//  Apple II used was smaller. The message for a 140K, 400K or 800K image
+//  calls it a floppy disk image. The CFFA and A2Pico cards host small images
+//  legitimately, so this is checked here and not in BlockDeviceMedia.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool StorageCardWiring::RejectFloppyImage (BlockDeviceMedia & media, std::wstring & outError)
+bool StorageCardWiring::RejectSmallImage (BlockDeviceMedia & media, uint32_t minBlocks, std::wstring & outError)
 {
-    uint32_t  blocks   = media.GetBlockCount();
-    bool      isFloppy = media.IsAttached() && BlockDeviceMedia::IsFloppyBlockCount (blocks);
-    HRESULT   hr       = S_OK;
+    uint32_t  blocks  = media.GetBlockCount();
+    bool      isSmall = media.IsAttached() && blocks < minBlocks;
+    HRESULT   hr      = S_OK;
 
 
 
-    if (isFloppy)
+    if (isSmall)
     {
         hr = media.Detach();
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        outError = std::format (L"The image is a {}K floppy disk image, not a hard disk image.", blocks / 2);
+        outError = BlockDeviceMedia::IsFloppyBlockCount (blocks)
+                 ? std::format (L"The image is a {}K floppy disk image, not a hard disk image.", blocks / 2)
+                 : std::format (L"The image is {}K, and a hard disk image is at least {}K, the capacity of a 5 MB ProFile.", blocks / 2, minBlocks / 2);
     }
 
-    return isFloppy;
+    return isSmall;
 }
 
 
@@ -226,7 +229,7 @@ void StorageCardWiring::WireProFileCard (const SlotConfig & slot, ProFileCard & 
 
         hr = card.GetDrive().GetMedia().Attach (m_host.GetBlockMediaFileIo(), image, drive->maxBlocks, m_host.ProbeBlockMedia (image), error);
 
-        if (FAILED (hr) || RejectFloppyImage (card.GetDrive().GetMedia(), error))
+        if (FAILED (hr) || RejectSmallImage (card.GetDrive().GetMedia(), m_host.GetMinHardDiskBlocks(), error))
         {
             m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, ProFile: {}", slot.slot, error));
         }
