@@ -2119,7 +2119,7 @@ rename, move and copy an image and find its thumbnail on each.
 
 ### Copy protection and containers (FR-292 to FR-296)
 
-- [ ] T780 [US43] Judge a boot whose final frame is blank apart from a few characters' worth of lit pixels as unclear in `BootProbe::Judge` (FR-292), with a test in `UnitTest/DiskCheck/BootProbeTests.cpp`
+- [X] T780 [US43] Judge a boot whose final frame is blank apart from a few characters' worth of lit pixels as unclear in `BootProbe::Judge` (FR-292), with a test in `UnitTest/DiskCheck/BootProbeTests.cpp`
 - [ ] T781 [US43] Find code outside the operating system that accesses the Disk II's registers in a sector image's files, and boot code other than the DOS 3.3, ProDOS or Apple Pascal loader, in `CassoEmuCore/CassoLink/FullSend/FullSendDisk.cpp`, with tests over the Wizardry I boot disk's layout and a plain DOS 3.3 disk (FR-294)
 - [ ] T782 [US43] Add the Copy-protected disks section to the Full Send options page in `CassoExplorerOptionsDialog.cpp` and its prefs, with the conditions and the choice of FR-294, and apply them in `FullSendSession` in place of the read-error test alone
 - [ ] T783 [US43] Add the note after a manual Create image when a condition of FR-294 turns up (FR-295)
