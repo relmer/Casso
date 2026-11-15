@@ -188,8 +188,9 @@ bool DriveBarFan::IsClassOpen (int classIndex) const
 //
 //  DriveBarFan::GetSlotRect
 //
-//  A fan drive's slot rises from the widget's slot to its place in the fan
-//  as the progress runs to 1.
+//  The fan rises from behind the widget as one stack, keeping its spacing:
+//  at progress 0 its top drive is level with the widget, and at 1 the stack
+//  is in place. A fan drive below the widget's top is behind the widget.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -197,15 +198,18 @@ RECT DriveBarFan::GetSlotRect (int classIndex, int entry) const
 {
     RECT   rc       = {};
     int    x        = m_originX + classIndex * ((int) m_slot.cx + m_gapX);
+    int    step     = (int) m_slot.cy + m_gapY;
     float  progress = IsClassOpen (classIndex) ? m_fanProgress : 0.0f;
+    int    rise     = 0;
     int    y        = 0;
 
 
 
     if (entry >= 0 && entry < GetEntryCount (classIndex))
     {
-        y  = m_rowTop - (int) lroundf ((float) (entry * ((int) m_slot.cy + m_gapY)) * progress);
-        rc = { x, y, x + (int) m_slot.cx, y + (int) m_slot.cy };
+        rise = (entry == 0) ? 0 : (int) lroundf ((float) ((GetEntryCount (classIndex) - 1) * step) * (1.0f - progress));
+        y    = std::min (m_rowTop, m_rowTop - entry * step + rise);
+        rc   = { x, y, x + (int) m_slot.cx, y + (int) m_slot.cy };
     }
 
     return rc;

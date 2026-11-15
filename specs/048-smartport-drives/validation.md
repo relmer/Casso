@@ -43,7 +43,7 @@ the fetch on 2026-11-14) and `apple2cp` ROM 05; all verify.
 
 | Case | Casso | MAME |
 |---|---|---|
-| SCSI card in slot 7, ID 6: 800K `.hdv`, 5 MB `.hdv`, 32 MB `.hdv`, 32 MB `.2mg` | ProDOS BASIC prompt at 2.84 s | ProDOS BASIC prompt at 2.97 s |
+| SCSI card in slot 7, ID 6: 5 MB `.hdv`, 32 MB `.hdv`, 32 MB `.2mg` (an 800K `.hdv` was in the first run; a hard disk no longer mounts a floppy-size image) | ProDOS BASIC prompt at 2.84 s | ProDOS BASIC prompt at 2.97 s |
 | 3.5 controller card in slot 5, Apple 3.5 Drive: 800K `.po`, DiskCopy 4.2 | 3.33 s | 3.97 s |
 | //c Plus internal drive, 800K `.po` | 11.76 s | 12.10 s |
 | //c, 140K `.po` | 9.11 s | 9.08 s |

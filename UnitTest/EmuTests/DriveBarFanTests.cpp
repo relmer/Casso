@@ -158,6 +158,7 @@ public:
 
         fan.SetFanProgress (0.5f);
         Assert::AreEqual (456L, fan.GetSlotRect (0, 2).top, L"halfway up");
+        Assert::AreEqual (500L, fan.GetSlotRect (0, 1).top, L"the stack rises at its full spacing, so the drive below is behind the widget");
         Assert::AreEqual (450L, fan.GetPanelRect (0).top,   L"the box grows with it");
 
         fan.SetFanProgress (1.0f);

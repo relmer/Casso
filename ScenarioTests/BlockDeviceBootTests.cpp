@@ -79,8 +79,27 @@ public:
     }
 
 
-    static std::vector<Byte> ToProDosOrder (const std::vector<Byte> & dosOrder) { return Reorder (dosOrder, true); }
-    static std::vector<Byte> ToDosOrder    (const std::vector<Byte> & proOrder) { return Reorder (proOrder, false); }
+    //  A hard disk doesn't take a floppy-size image, so a 140K volume becomes
+    //  a hard disk image by being padded to a size no floppy has. The volume
+    //  inside it is 280 blocks long, and ToDosOrder reads those 280 back.
+    static constexpr size_t  kFloppyBytes    = 143'360;
+    static constexpr size_t  kHardDiskBlocks = 2'048;
+
+    static std::vector<Byte> ToHardDiskImage (const std::vector<Byte> & dosOrder)
+    {
+        std::vector<Byte>  image = Reorder (dosOrder, true);
+
+
+
+        image.resize (kHardDiskBlocks * BlockDeviceMedia::kBlockBytes, 0);
+
+        return image;
+    }
+
+    static std::vector<Byte> ToDosOrder (const std::vector<Byte> & hardDisk)
+    {
+        return Reorder (std::vector<Byte> (hardDisk.begin(), hardDisk.begin() + (ptrdiff_t) std::min (hardDisk.size(), kFloppyBytes)), false);
+    }
 
 
     static bool RunUntilScreenShows (MachineHost & host, const std::string & needle, uint64_t cycleCap)
@@ -126,6 +145,46 @@ public:
     }
 
 
+    //  A 140K OR 800K IMAGE DOESN'T MOUNT ON A HARD DISK, on the SCSI card or
+    //  the ProFile: the drive is left empty, with the reason in the machine's
+    //  media problems.
+    TEST_METHOD (HardDisks_RefuseAFloppySizeImage)
+    {
+        FakeDiskFileIo           io;
+        std::vector<Byte>        floppy  = Reorder (GuestSession::RequireProDosUsersDisk(), true);
+        std::vector<Byte>        disk800 (1600 * BlockDeviceMedia::kBlockBytes, 0);
+        std::vector<PortConfig>  profile (1);
+        bool                     saw140  = false;
+        bool                     saw800  = false;
+
+
+
+        io.files[kHardDiskPath]       = floppy;
+        io.stamps[kHardDiskPath]      = FileStamp { floppy.size(), 1 };
+        io.files["C:\\disks\\800k.hdv"]  = disk800;
+        io.stamps["C:\\disks\\800k.hdv"] = FileStamp { disk800.size(), 1 };
+
+        profile[0].device = kpszProFile5Device;
+        profile[0].image  = "C:\\disks\\800k.hdv";
+
+        TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty,
+                              { { 7, kpszAppleScsiCardDevice, MakeScsiPorts (6, kHardDiskPath) },
+                                { 5, kpszProFileCardDevice,   profile } }, io);
+
+        for (const std::wstring & problem : machine.GetBlockMediaProblems())
+        {
+            saw140 = saw140 || problem.find (L"SCSI ID 6: The image is a 140K floppy disk image") != std::wstring::npos;
+            saw800 = saw800 || problem.find (L"ProFile: The image is a 800K floppy disk image") != std::wstring::npos;
+        }
+
+        Assert::AreEqual ((size_t) 2, machine.GetBlockMediaProblems().size());
+        Assert::IsTrue   (saw140, L"a 140K image on the SCSI card is a media problem");
+        Assert::IsTrue   (saw800, L"an 800K image on the ProFile is a media problem");
+        Assert::IsFalse  (machine.GetRefs().scsiCards[0]->GetTarget (6).GetMedia().IsAttached());
+        Assert::IsFalse  (machine.GetRefs().proFileCards[0]->GetDrive().GetMedia().IsAttached());
+    }
+
+
     //  A PRODOS VOLUME ON A HARD DISK AT ID 6 BOOTS through Apple's SCSI card
     //  ROM in slot 7 of an enhanced //e with no floppy controller.
     TEST_METHOD (ScsiCard_BootsProDosFromAHardDisk)
@@ -133,7 +192,7 @@ public:
         constexpr Byte     kRead6 = 0x08;
 
         FakeDiskFileIo     io;
-        std::vector<Byte>  image = ToProDosOrder (GuestSession::RequireProDosUsersDisk());
+        std::vector<Byte>  image = ToHardDiskImage (GuestSession::RequireProDosUsersDisk());
         std::vector<Byte>  log;
 
 
@@ -182,8 +241,9 @@ public:
         spec.contents   = BlankDiskContents::ProDos;
         spec.volumeName = "SECOND";
         AssertSucceeded (BlankDiskBuilder::Build (spec, {}, second));
+        second.resize (kHardDiskBlocks * BlockDeviceMedia::kBlockBytes, 0);
 
-        merlin = ToProDosOrder (merlin);
+        merlin = ToHardDiskImage (merlin);
         io.files[kHardDiskPath]  = merlin;
         io.stamps[kHardDiskPath] = FileStamp { merlin.size(), 1 };
         io.files[kSecondPath]    = second;
@@ -238,7 +298,7 @@ public:
 
         AssertSucceeded (fixtures.OpenFixture ("Disks/Merlin-proProdos2.33-b.dsk", merlin));
 
-        merlin = ToProDosOrder (merlin);
+        merlin = ToHardDiskImage (merlin);
         io.files[kHardDiskPath]  = merlin;
         io.stamps[kHardDiskPath] = FileStamp { merlin.size(), 1 };
 
@@ -273,7 +333,7 @@ public:
     TEST_METHOD (ProFile10_Boots)
     {
         FakeDiskFileIo           io;
-        std::vector<Byte>        image = ToProDosOrder (GuestSession::RequireProDosUsersDisk());
+        std::vector<Byte>        image = ToHardDiskImage (GuestSession::RequireProDosUsersDisk());
         std::vector<PortConfig>  ports (1);
 
 
@@ -298,7 +358,7 @@ public:
     //  their ROMs looking for the Disk II's signature at power-on.
     TEST_METHOD (ProFile_BootsOnEachHostMachine)
     {
-        std::vector<Byte>  image = ToProDosOrder (GuestSession::RequireProDosUsersDisk());
+        std::vector<Byte>  image = ToHardDiskImage (GuestSession::RequireProDosUsersDisk());
 
 
 
@@ -331,7 +391,7 @@ public:
     //  host list has besides the enhanced //e.
     TEST_METHOD (ScsiCard_BootsOnEachHostMachine)
     {
-        std::vector<Byte>  image = ToProDosOrder (GuestSession::RequireProDosUsersDisk());
+        std::vector<Byte>  image = ToHardDiskImage (GuestSession::RequireProDosUsersDisk());
 
 
 

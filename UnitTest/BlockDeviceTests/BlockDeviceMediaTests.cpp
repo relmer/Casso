@@ -373,4 +373,17 @@ public:
         Assert::AreEqual (S_OK, AttachPath (media, io, "r.po"));
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND), media.ReadBlock (kBlocks, block));
     }
+
+
+    //  THE FLOPPY SIZES ARE 140K, 400K AND 800K, and nothing either side of
+    //  them, so a small test volume is not one.
+    TEST_METHOD (IsFloppyBlockCount_TheThreeFloppySizes)
+    {
+        Assert::IsTrue  (BlockDeviceMedia::IsFloppyBlockCount (280));
+        Assert::IsTrue  (BlockDeviceMedia::IsFloppyBlockCount (800));
+        Assert::IsTrue  (BlockDeviceMedia::IsFloppyBlockCount (1600));
+        Assert::IsFalse (BlockDeviceMedia::IsFloppyBlockCount (64));
+        Assert::IsFalse (BlockDeviceMedia::IsFloppyBlockCount (1601));
+        Assert::IsFalse (BlockDeviceMedia::IsFloppyBlockCount (65535));
+    }
 };
