@@ -877,6 +877,48 @@ void PreviewDiskThumbnail::RepairImage()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewDiskThumbnail::GetFileSystemText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PreviewDiskThumbnail::GetFileSystemText() const
+{
+    std::wstring  text;
+
+
+
+    if (m_state != State::Ready || m_result.analysis == nullptr || m_result.analysis->verdict == FileSystemVerdict::None || m_result.analysis->fileMaps.size() != 1)
+    {
+        return text;
+    }
+
+    switch (m_result.analysis->fileMaps[0].fileSystem)
+    {
+        case MapFileSystem::Dos33:  text = L"DOS 3.3";      break;
+        case MapFileSystem::ProDos: text = L"ProDOS";       break;
+        case MapFileSystem::Pascal: text = L"Apple Pascal"; break;
+        case MapFileSystem::Cpm:    text = L"CP/M";         break;
+        default:                                            break;
+    }
+
+    if (!text.empty() && m_result.analysis->verdict == FileSystemVerdict::Bad)
+    {
+        text += L", damaged";
+    }
+    else if (!text.empty() && m_result.analysis->verdict == FileSystemVerdict::Suspect)
+    {
+        text += L", possible inconsistencies";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewDiskThumbnail::RunVerdictAction
 //
 //  Repair for a Bad volume that can be repaired; the inspector, where the

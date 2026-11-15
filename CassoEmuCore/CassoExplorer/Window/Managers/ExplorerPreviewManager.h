@@ -56,6 +56,12 @@ public:
     void                              Hide                   ();
     void                              FillPreview            ();
     void                              TakeThumbnail          ();
+
+    //  The text view filled from the preview, with an image's File system
+    //  detail from the thumbnail's analysis once it has one: an image that
+    //  doesn't mount reads as having no file system, though the analysis may
+    //  find one, as on a disk whose VTOC header is lost.
+    void                              FillText               (const PreviewContent & preview);
     void                              HandlePicturesReady    ();
     void                              SetPinned              (bool pinned);
     static bool                       IsKnownPreview         (const PreviewContent & preview);

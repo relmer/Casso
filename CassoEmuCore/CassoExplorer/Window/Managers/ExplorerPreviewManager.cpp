@@ -330,7 +330,7 @@ void ExplorerPreviewManager::FillPreview()
     m_shell.Update   (preview, m_content);
     m_picture.Fill   (preview, picture, shell && m_shell.IsPicture());
     m_listing.Fill   (preview, columns);
-    m_text.Fill      (preview);
+    FillText         (preview);
 
     //  A WOZ image's details above its catalog, which moves the catalog down.
     //  An image with no file system has its details in place of a catalog.
@@ -441,8 +441,45 @@ void ExplorerPreviewManager::HandlePicturesReady()
 void ExplorerPreviewManager::TakeThumbnail()
 {
     m_thumbnail.TakeResult();
+    FillText (m_context.browser.GetPreview());
     m_context.layout.RecomputeLayout();
     m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::FillText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::FillText (const PreviewContent & preview)
+{
+    std::wstring    system = m_thumbnail.GetFileSystemText();
+    PreviewContent  found;
+
+
+
+    if (preview.kind != PreviewContent::Kind::Details || system.empty())
+    {
+        m_text.Fill (preview);
+        return;
+    }
+
+    found = preview;
+
+    for (std::pair<std::wstring, std::wstring> & detail : found.details)
+    {
+        if (detail.first == L"File system")
+        {
+            detail.second = system;
+        }
+    }
+
+    m_text.Fill (found);
 }
 
 

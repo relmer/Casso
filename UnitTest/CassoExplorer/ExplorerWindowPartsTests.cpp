@@ -1737,6 +1737,55 @@ public:
     }
 
 
+    //  A DOS 3.3 disk whose VTOC header is lost doesn't mount, so its preview
+    //  has its details; their File system line has what the analysis found.
+    TEST_METHOD (Preview_DetailsOfADiskWithALostHeaderHaveItsFileSystem)
+    {
+        vector<Byte>           bytes   = RepairFixtures::MakeDos33HeaderZeroed().damaged;
+        Rig                    rig;
+        bool                   isDrawn = false;
+        std::filesystem::path  folder  = std::filesystem::temp_directory_path() / std::format (L"CassoPreviewHeader{}", ::GetCurrentProcessId());
+        std::filesystem::path  image   = folder / L"lost.dsk";
+        std::string            narrow  = image.string();
+        std::wstring           system;
+
+
+
+        rig.prefs.previewVisible = true;
+        AssertSucceeded (rig.fs.WriteAllText (image.c_str(), std::string (bytes.begin(), bytes.end())));
+        rig.io.files[narrow]  = bytes;
+        rig.io.stamps[narrow] = FileStamp { bytes.size(), 100 };
+        std::filesystem::create_directories (folder);
+        AssertSucceeded (DiskImageStore::WriteFileAtomically (narrow, bytes));
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"lost.dsk"));
+        rig.parts->preview.FillPreview();
+
+        isDrawn = WaitFor (rig, [&rig]()
+        {
+            rig.parts->layout.RecomputeLayout();
+
+            return rig.parts->preview.GetThumbnail().IsReady();
+        });
+
+        Assert::IsTrue (isDrawn);
+        rig.parts->preview.TakeThumbnail();
+        Assert::AreEqual (std::wstring (L"DOS 3.3, damaged"), rig.parts->preview.GetThumbnail().GetFileSystemText());
+        Assert::IsTrue   (rig.browser.GetPreview().kind == PreviewContent::Kind::Details, L"the disk doesn't mount");
+
+        for (const DxuiTextView::Row & row : static_cast<DxuiTextView *> (rig.parts->preview.GetText().GetControl())->GetRows())
+        {
+            system = (row.cells.size() > 1 && row.cells[0].starts_with (L"File system")) ? row.cells[1] : system;
+        }
+
+        Assert::AreEqual (std::wstring (L"DOS 3.3, damaged"), system);
+
+        std::filesystem::remove_all (folder);
+    }
+
+
     TEST_METHOD (HandleTimer_TakesTheWindowsTimersButTheTick)
     {
         Rig  rig;

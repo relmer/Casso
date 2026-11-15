@@ -206,6 +206,12 @@ public:
     //  nothing for OK or a disk with no standard file system.
     static std::wstring  FormatVerdict (FileSystemVerdict verdict, const std::wstring & finding);
 
+    //  The file system the analysis found and its verdict, as "DOS 3.3,
+    //  damaged", for the preview's details of an image that doesn't mount,
+    //  as one with a lost VTOC header; empty before the analysis or for an
+    //  image with no standard file system.
+    std::wstring  GetFileSystemText () const;
+
     //  The repaired copy written beside the image and selected, after the
     //  confirmation.
     void  RepairImage ();
