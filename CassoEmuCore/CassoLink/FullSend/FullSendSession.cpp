@@ -1477,8 +1477,8 @@ HRESULT FullSendSession::CheckVolume (int drive, const std::vector<Byte> & image
     differs = !layouts.empty() && layouts[0].nibbles != 0 && layouts[0].volume != imageVolume;
     BAIL_OUT_IF (!differs, S_OK);
 
-    Report (std::format ("The disk in drive {} has volume number {}, which a {} image can't store, so it is saved as a WOZ image",
-                         drive, layouts[0].volume, FullSendDisk::GetImageExtension (image, m_extension)));
+    Report (std::format ("The disk in drive {} doesn't use volume {}, so it can't be saved as a {} image. Preserving its volume {} by saving it as a WOZ image instead.",
+                         drive, imageVolume, FullSendDisk::GetImageExtension (image, m_extension), layouts[0].volume));
 
     hr = m_link.MeasureLayouts (drive, NibblizationLayer::kTrackCount, ioReport.layouts);
     CHR (hr);

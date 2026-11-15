@@ -762,12 +762,13 @@ void CassoExplorerOptionsDialog::WireProtection()
 
 
 
-    m_fullSendProtection.volume.SetLabel (L"Save a disk with a nonstandard volume number as a WOZ image");
+    m_fullSendProtection.volume.SetLabel (L"Preserve a non-default volume number by capturing as a WOZ image");
     m_fullSendProtection.volume.SetSingleLineLabel (true);
     m_fullSendProtection.volume.SetChecked (choices.volumeWoz);
 
-    m_fullSendProtection.volumeNote.SetText (L"A .dsk, .do or .po image can't store a disk's volume number: Casso uses 254, or the volume in a DOS 3.3 catalog. "
-                                             L"With this on, a disk with any other volume number is saved as a WOZ image, whatever image type is selected above.");
+    m_fullSendProtection.volumeNote.SetText (L"A .dsk, .do or .po image can't store a disk's volume number. Casso treats any such image as volume 254, matching DOS 3.3's default. "
+                                             L"With this setting on, a disk with any other volume number is saved as a WOZ image so that it can include the actual volume number, "
+                                             L"overriding the otherwise selected image type.");
     ExplorerTextStyles::Apply (m_fullSendProtection.volumeNote, ExplorerTextStyles::kFormNote);
     m_fullSendProtection.volumeNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 

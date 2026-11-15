@@ -1173,7 +1173,7 @@ public:
 
         AssertSucceeded (TrackLayoutWriter::BuildWoz (rig.link.drives[0], rig.link.layouts, built));
         Assert::IsTrue (rig.io.files["C:\\Box\\" + session->GetManifest().GetRows()[0].file] == built, L"The WOZ is built to the layouts");
-        Assert::IsTrue (std::any_of (rig.link.reports.begin(), rig.link.reports.end(), [] (const std::string & line) { return line.find ("volume number 0") != std::string::npos; }));
+        Assert::IsTrue (std::any_of (rig.link.reports.begin(), rig.link.reports.end(), [] (const std::string & line) { return line.find ("doesn't use volume 254") != std::string::npos && line.find ("its volume 0") != std::string::npos; }));
     }
 
     //  A disk with the volume its image is nibblized with, the DOS 3.3
