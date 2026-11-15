@@ -41,8 +41,9 @@ struct DriveAddress
 //  tag, the desk's other drives follow it, and the drive bar's come last in
 //  blocks of one class each.
 //
-//  A hard disk's image is set in Settings and attached when the machine is
-//  built, so no hard disk takes a drop.
+//  A hard disk's image is attached when the machine is built, so an image
+//  dropped on one or picked for one is staged for the next restart. Its
+//  receiving drive has the drive's capacity in blocks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +52,8 @@ class DriveDropRule
 public:
     static constexpr int  kDiskIiSlot = 6;
 
-    static bool  TryGetReceivingDrive (DeskDriveModel model, ReceivingDrive & outDrive);
+    //  False for a hard disk whose capacity is not known.
+    static bool  TryGetReceivingDrive (DeskDriveModel model, uint32_t hardDiskBlocks, ReceivingDrive & outDrive);
     static bool  IsDiskIiTag          (int tag);
     static bool  IsRecorderTag        (int tag);
     static bool  TryGetExtraIndex     (int tag, int & outIndex);

@@ -199,8 +199,8 @@
 - [x] T067 [US1] Stub `ShellDrivePickers::Open` to always create a picker, confirm T060 fails, restore and confirm it passes
 - [ ] T068 [US1] Window checks 1 to 8 of quickstart.md for each drive kind present on a //e with a Disk II, an Apple 3.5 Drive, a UniDisk 3.5, an HD20SC and a ProFile, and on a //c Plus, using a test copy and posted input; capture each picker; confirm no `CassoExplorer.exe` was started and `CassoExplorerPrefs.json` and the session file have the timestamps read at the start of the run; record in `specs/049-explorer-picker/validation.md`
 
-- [ ] T099 [US1] Hard disks while the machine runs (FR-065 to FR-067): `DriveDropRule::TryGetReceivingDrive` returns the hard disk kind with the drive's capacity from `BlockDeviceCatalog`; a pick or a drop on an HD20SC or ProFile stages the image in the machine's configuration for that port (the path Settings' Hardware page writes) instead of mounting it, with `UnitTest/EmuTests/DrivePickersTests.cpp` cases for staging, replacing a staged image, and no mount before restart
-- [ ] T100 [US1] The staged-image infobar: drive label, "takes effect at the next restart", Restart now; closed by the restart; owner approves the text before it is pushed
+- [x] T099 [US1] Hard disks while the machine runs (FR-065 to FR-067): `DriveDropRule::TryGetReceivingDrive` returns the hard disk kind with the drive's capacity from `BlockDeviceCatalog`; a pick or a drop on an HD20SC or ProFile stages the image in the machine's configuration for that port (the path Settings' Hardware page writes) instead of mounting it, with `UnitTest/EmuTests/DrivePickersTests.cpp` cases for staging, replacing a staged image, and no mount before restart
+- [x] T100 [US1] The staged-image infobar: drive label, "takes effect at the next restart", Restart now; closed by the restart; owner approves the text before it is pushed
 **Checkpoint**: merge `origin/048-smartport-drives`, build, run `-Filter DrivePickers`; commit and push.
 
 ---

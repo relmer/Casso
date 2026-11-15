@@ -30,6 +30,7 @@
 class ClipboardManager;
 struct DeskDrive;
 struct DriveAddress;
+enum class ReceivingDriveKind;
 struct ImageClass;
 struct ReceivingDrive;
 class DxuiHwndSource;
@@ -390,6 +391,21 @@ private:
     void    SetSecondDriveConnected   (bool connected);
     void    SetTapeRecorderConnected  (bool connected);
     void    SaveStorageDevices        ();
+    HRESULT EditSavedMachine          (const std::function<HRESULT (class SettingsPanelState & state)> & edit);
+
+    //  Inserts an image in a drive: mounted in a floppy drive, loaded in
+    //  the recorder, or, for a hard disk, staged in the machine's saved
+    //  settings for its next restart, with an infobar.
+    bool    InsertInDrive             (const DriveAddress & address, ReceivingDriveKind kind, const std::wstring & label, const std::wstring & path);
+    bool    StageHardDiskImage        (int slot, int port, const std::wstring & path);
+
+    //  A hard disk's capacity in blocks, from the drive on the card's port;
+    //  0 for a port without one.
+    uint32_t  GetHardDiskBlocks       (int slot, int port) const;
+
+    //  Restarts the machine from its saved settings, as a hardware change
+    //  in Settings does.
+    void    RestartMachineFromSettings ();
 
     // A drive's (0 or 1) or the recorder's (kStorageMenuRecorder) right-click
     // menu, at a client point.
@@ -666,7 +682,8 @@ private:
     bool    AreDrivesOnStrip     () const;
 
     // A file dropped on a drive or the recorder.
-    void    OnFileDropped      (int tag, const std::wstring & path);
+    void          OnFileDropped     (int tag, const std::wstring & path);
+    std::wstring  GetDropDriveLabel (int tag);
 
     // The drive under a drop tag, when it takes a disk while the machine
     // runs, and whether it takes the image.

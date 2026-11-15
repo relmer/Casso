@@ -140,29 +140,17 @@ DrivePickers::Hooks ShellDrivePickers::MakeHooks()
 //
 //  ShellDrivePickers::Insert
 //
-//  The mount is queued for the CPU thread, and its completion adds the
-//  image to the recent list and its folder to the Casso node's folders, as
-//  for any insert.
+//  A floppy's mount is queued for the CPU thread, and its completion adds
+//  the image to the recent list and its folder to the Casso node's folders,
+//  as for any insert. A hard disk's image is staged for the next restart.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ShellDrivePickers::Insert (const PickerDrive & drive, const std::wstring & path, std::wstring & outError)
 {
-    HRESULT  hr = S_OK;
-
-
-
     outError.clear();
 
-    if (drive.address.isRecorder)
-    {
-        m_shell.m_tapeDeck->InsertTape (path);
-        return true;
-    }
-
-    hr = m_shell.m_disks->Mount (drive.address.slot, drive.address.drive, path);
-
-    return SUCCEEDED (hr);
+    return m_shell.InsertInDrive (drive.address, drive.receiving.kind, drive.label, path);
 }
 
 
@@ -204,11 +192,10 @@ void ShellDrivePickers::OpenForDeskDrive (const DeskDrive & drive)
 
 
 
-    picked.address        = DriveAddress { drive.slot, drive.drive, false };
-    picked.receiving.kind = DeskDrivePlan::GetReceivingKind (drive.model);
-    picked.label          = DriveLabel::GetTitle (drive, true);
+    picked.address = DriveAddress { drive.slot, drive.drive, false };
+    picked.label   = DriveLabel::GetTitle (drive, true);
 
-    if (!DriveDropRule::TryGetReceivingDrive (drive.model, picked.receiving))
+    if (!DriveDropRule::TryGetReceivingDrive (drive.model, m_shell.GetHardDiskBlocks (drive.slot, drive.drive), picked.receiving))
     {
         return;
     }

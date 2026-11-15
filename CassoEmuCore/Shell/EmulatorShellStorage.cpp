@@ -14,6 +14,9 @@
 #include "Devices/Disk/DriveImageRule.h"
 #include "Devices/Disk/ImageClassifier.h"
 #include "Shell/DriveDropRule.h"
+#include "Shell/Layout/DriveLabel.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Ui/Settings/SlotCards.h"
 #include "Core/TextEncoding.h"
 #include "Shell/TapeManager.h"
 #include "Core/JsonParser.h"
@@ -38,7 +41,6 @@
 
 void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
 {
-    HRESULT         hr       = S_OK;
     ReceivingDrive  drive;
     DriveAddress    address;
     ImageClass      image    = ImageClassifier::Classify (m_machine.GetBlockMediaFileIo(), TextEncoding::WideToUtf8 (path));
@@ -47,20 +49,127 @@ void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
 
 
 
-    BAIL_OUT_IF (!accepted, S_OK);
+    if (accepted)
+    {
+        InsertInDrive (address, drive.kind, GetDropDriveLabel (tag), path);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetDropDriveLabel
+//
+//  The drive under a drop tag, as the staged-image infobar states it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorShell::GetDropDriveLabel (int tag)
+{
+    const DriveBarFan  & fan       = m_chrome->m_driveBarFan.GetFan();
+    int                  index     = 0;
+    int                  barClass  = 0;
+    int                  entry     = 0;
+    bool                 isExtra   = DriveDropRule::TryGetExtraIndex (tag, index);
+    bool                 isBar     = DriveDropRule::TryGetBarEntry (tag, barClass, entry);
+
+
+
+    if (isExtra && index < m_scene->m_deskScene.GetExtraCount())
+    {
+        return DriveLabel::GetTitle (m_scene->m_deskScene.GetExtraDrive (index), true);
+    }
+
+    if (isBar && barClass < fan.GetClassCount() && entry < fan.GetEntryCount (barClass))
+    {
+        return DriveLabel::GetTitle (fan.GetDrive (barClass, entry), true);
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InsertInDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::InsertInDrive (const DriveAddress & address, ReceivingDriveKind kind, const std::wstring & label, const std::wstring & path)
+{
+    HRESULT  hr = S_OK;
+
+
 
     if (address.isRecorder)
     {
         m_tapeDeck->InsertTape (path);
-    }
-    else
-    {
-        hr = m_disks->Mount (address.slot, address.drive, path);
-        CHR (hr);
+        return true;
     }
 
-Error:
-    return;
+    if (kind == ReceivingDriveKind::HardDisk)
+    {
+        if (!StageHardDiskImage (address.slot, address.drive, path))
+        {
+            return false;
+        }
+
+        m_disks->ShowStagedImageBanner (label);
+        return true;
+    }
+
+    hr = m_disks->Mount (address.slot, address.drive, path);
+
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetHardDiskBlocks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t EmulatorShell::GetHardDiskBlocks (int slot, int port) const
+{
+    for (const SlotConfig & config : m_machine.GetConfig().slots)
+    {
+        if (config.slot == slot && config.enabled && port >= 0 && (size_t) port < config.ports.size())
+        {
+            const BlockDriveSpec *  drive = BlockDeviceCatalog::FindDrive (config.ports[(size_t) port].device);
+
+            return (drive != nullptr) ? drive->maxBlocks : 0;
+        }
+    }
+
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RestartMachineFromSettings
+//
+//  A switch to the machine that is running builds it again from its saved
+//  settings, on the CPU thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RestartMachineFromSettings()
+{
+    PostCommand (IDM_FILE_OPEN, GetCurrentMachineNameNarrow());
 }
 
 
@@ -123,7 +232,7 @@ bool EmulatorShell::TryGetDropDrive (int tag, ReceivingDrive & outDrive, DriveAd
     outAddress.slot  = deskDrive->slot;
     outAddress.drive = deskDrive->drive;
 
-    return DriveDropRule::TryGetReceivingDrive (deskDrive->model, outDrive);
+    return DriveDropRule::TryGetReceivingDrive (deskDrive->model, GetHardDiskBlocks (deskDrive->slot, deskDrive->drive), outDrive);
 }
 
 
@@ -231,6 +340,71 @@ void EmulatorShell::SetTapeRecorderConnected (bool connected)
 
 void EmulatorShell::SaveStorageDevices()
 {
+    HRESULT  hr = EditSavedMachine ([this] (SettingsPanelState & state)
+    {
+        if (m_disks->IsSecondDriveOffered())
+        {
+            state.SetSecondDriveAttached (m_disks->ShouldShowExternalDrive());
+        }
+
+        state.SetTapeRecorderConnected (m_tapeDeck->IsRecorderConnected());
+
+        return S_OK;
+    });
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::StageHardDiskImage
+//
+//  Puts the image on the drive's port in the machine's saved settings, where
+//  Settings' Hardware page puts it. The running machine is not changed; the
+//  image is attached when the machine is next built.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::StageHardDiskImage (int slot, int port, const std::wstring & path)
+{
+    HRESULT  hr = EditSavedMachine ([slot, port, &path] (SettingsPanelState & state)
+    {
+        int  index = SlotCards::FindSlot (state.GetHardware(), slot);
+
+        if (index < 0 || port < 0)
+        {
+            return HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
+        }
+
+        return state.SetPortImage ((size_t) index, (size_t) port, TextEncoding::WideToUtf8 (path));
+    });
+
+
+
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::EditSavedMachine
+//
+//  Reads the running machine's saved settings, applies `edit`, and writes
+//  them back, through the same document Settings writes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::EditSavedMachine (const std::function<HRESULT (SettingsPanelState & state)> & edit)
+{
     HRESULT             hr                = S_OK;
     std::string         machineNameNarrow = GetCurrentMachineNameNarrow();
     std::wstring        configRelPath     = std::wstring (L"Machines\\") + m_machine.GetCurrentMachineName() +
@@ -249,10 +423,10 @@ void EmulatorShell::SaveStorageDevices()
 
 
 
-    BAIL_OUT_IF (m_settings->GetConfigStore() == nullptr || configPath.empty(), S_OK);
+    BAIL_OUT_IF (m_settings->GetConfigStore() == nullptr || configPath.empty(), HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
     configFile.open (configPath);
-    BAIL_OUT_IF (!configFile.good(), S_OK);
+    BAIL_OUT_IF (!configFile.good(), HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
     ss << configFile.rdbuf();
 
@@ -265,12 +439,8 @@ void EmulatorShell::SaveStorageDevices()
     hr = state.LoadFromMachine (machineNameNarrow, defaultJson, mergedJson);
     CHR (hr);
 
-    if (m_disks->IsSecondDriveOffered())
-    {
-        state.SetSecondDriveAttached (m_disks->ShouldShowExternalDrive());
-    }
-
-    state.SetTapeRecorderConnected (m_tapeDeck->IsRecorderConnected());
+    hr = edit (state);
+    CHR (hr);
 
     savedJson = state.BuildCurrentJson();
 
@@ -278,7 +448,7 @@ void EmulatorShell::SaveStorageDevices()
     CHR (hr);
 
 Error:
-    return;
+    return hr;
 }
 
 

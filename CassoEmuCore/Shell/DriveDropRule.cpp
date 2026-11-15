@@ -16,11 +16,16 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DriveDropRule::TryGetReceivingDrive (DeskDriveModel model, ReceivingDrive & outDrive)
+bool DriveDropRule::TryGetReceivingDrive (DeskDriveModel model, uint32_t hardDiskBlocks, ReceivingDrive & outDrive)
 {
     outDrive = ReceivingDrive { DeskDrivePlan::GetReceivingKind (model), 0 };
 
-    return outDrive.kind != ReceivingDriveKind::HardDisk;
+    if (outDrive.kind == ReceivingDriveKind::HardDisk)
+    {
+        outDrive.maxBlocks = hardDiskBlocks;
+    }
+
+    return outDrive.kind != ReceivingDriveKind::HardDisk || hardDiskBlocks != 0;
 }
 
 

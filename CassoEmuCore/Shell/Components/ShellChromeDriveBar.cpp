@@ -343,7 +343,7 @@ bool ShellChrome::HandleDriveBarClick (POINT pt)
             m_shell.m_disks->Eject (6, drive.drive);
             m_shell.m_disks->BrowseForDisk (drive.drive);
         }
-        else if (ShellDeskScene::IsFloppy35 (drive))
+        else if (ShellDeskScene::TakesImage (drive))
         {
             m_shell.m_scene->BrowseFloppy35 (drive);
         }

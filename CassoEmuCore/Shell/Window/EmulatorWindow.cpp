@@ -2139,6 +2139,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         // The switched machine's drives are not the ones the open pickers
         // were opened for.
         m_drivePickers->CloseAll();
+        m_disks->HideStagedImageBanner();
 
         m_window->UpdateWindowTitle();
         m_chrome->ReflowChromeForMachineChange();

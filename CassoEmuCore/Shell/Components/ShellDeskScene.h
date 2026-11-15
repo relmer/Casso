@@ -75,6 +75,7 @@ public:
     // drives: a click opens the file dialog and inserts the chosen image, as
     // a dropped image is.
     static bool  IsFloppy35         (const DeskDrive & drive);
+    static bool  TakesImage         (const DeskDrive & drive);
     void         BrowseExtraDrive   (int index);
     void         BrowseFloppy35     (const DeskDrive & drive);
 

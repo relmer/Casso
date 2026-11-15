@@ -1840,7 +1840,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
             for (int i = 0; i < comp.extraCount && i < m_scene->m_deskScene.GetExtraCount() && !driveTook; i++)
             {
-                if (ShellDeskScene::IsFloppy35 (m_scene->m_deskScene.GetExtraDrive (i)) && PtInRect (&comp.extraRectPx[i], pt))
+                if (ShellDeskScene::TakesImage (m_scene->m_deskScene.GetExtraDrive (i)) && PtInRect (&comp.extraRectPx[i], pt))
                 {
                     m_scene->BrowseExtraDrive (i);
                     driveTook = true;

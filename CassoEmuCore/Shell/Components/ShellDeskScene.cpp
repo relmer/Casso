@@ -1419,7 +1419,7 @@ void ShellDeskScene::SyncSceneDriveChrome()
 
     for (int i = 0; i < comp.extraCount && i < m_deskScene.GetExtraCount(); i++)
     {
-        if (IsFloppy35 (m_deskScene.GetExtraDrive (i)) && !IsRectEmpty (&comp.extraRectPx[i]))
+        if (TakesImage (m_deskScene.GetExtraDrive (i)) && !IsRectEmpty (&comp.extraRectPx[i]))
         {
             m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { comp.extraRectPx[i], DxuiHitSlot::Custom, kExtraDropTagBase + i });
         }
@@ -1436,7 +1436,7 @@ void ShellDeskScene::SyncSceneDriveChrome()
         {
             for (int i = 0; i < fan.GetEntryCount (c); i++)
             {
-                if (fan.IsSlotShown (c, i) && IsFloppy35 (fan.GetDrive (c, i)))
+                if (fan.IsSlotShown (c, i) && TakesImage (fan.GetDrive (c, i)))
                 {
                     m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { fan.GetSlotRect (c, i), DxuiHitSlot::Custom,
                                                                              kBarDropTagBase + c * kBarDropClassStride + i });
@@ -3465,6 +3465,24 @@ bool ShellDeskScene::IsFloppy35 (const DeskDrive & drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDeskScene::TakesImage
+//
+//  A 3.5-inch drive, which mounts the image, or a hard disk, for which the
+//  image is staged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::TakesImage (const DeskDrive & drive)
+{
+    return IsFloppy35 (drive) || drive.model == DeskDriveModel::HardDisk20SC || drive.model == DeskDriveModel::ProFile;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDeskScene::IsDriveBusy
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3881,7 +3899,7 @@ void ShellDeskScene::BrowseExtraDrive (int index)
 
 void ShellDeskScene::BrowseFloppy35 (const DeskDrive & drive)
 {
-    if (IsFloppy35 (drive))
+    if (TakesImage (drive))
     {
         m_shell.m_drivePickers->OpenForDeskDrive (drive);
     }

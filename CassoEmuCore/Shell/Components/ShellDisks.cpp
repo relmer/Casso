@@ -1094,11 +1094,20 @@ void ShellDisks::InstallChangeReporting()
     //  a dialog -- the strip routes nothing back, which is why a lost-file
     //  prompt sent here had two buttons that did nothing. Dismissing it and
     //  its countdown running out are the same thing.
+    //  The staged-image notice is the exception: its one button restarts the
+    //  machine.
     m_changeBanner.SetOnAction ([this] (size_t index)
     {
+        bool  isRestart = m_isStagedBanner;
+
         UNREFERENCED_PARAMETER (index);
 
         HideChangeBanner();
+
+        if (isRestart)
+        {
+            m_shell.RestartMachineFromSettings();
+        }
     });
 
     m_changeBanner.SetOnDismiss ([this] ()
@@ -1151,6 +1160,8 @@ void ShellDisks::ShowChangeBanner (const ChangeNotice & notice)
         }
     }
 
+    m_isStagedBanner = false;
+
     m_changeBanner.SetText        (notice.prompt.message);
     m_changeBanner.SetActions     (labels);
     m_changeBanner.SetDismissible (dismissible);
@@ -1173,6 +1184,71 @@ void ShellDisks::ShowChangeBanner (const ChangeNotice & notice)
     m_shell.m_chrome->ReflowChromeForChangeBand();
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::ShowStagedImageBanner
+//
+//  A hard disk's image is attached when the machine is built, so the image
+//  just staged is not in the drive yet. The strip stays until it is closed
+//  or the machine restarts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::ShowStagedImageBanner (const std::wstring & driveLabel)
+{
+    m_isStagedBanner = true;
+
+    m_changeBanner.SetText        (MakeStagedImageText (driveLabel));
+    m_changeBanner.SetActions     ({ L"Restart now" });
+    m_changeBanner.SetDismissible (true);
+
+    m_changeBannerHideAtMs = 0;
+    m_changeBannerTickMs   = ChangeBannerNowMs();
+
+    m_changeBanner.SetVisible (true);
+    m_shell.m_chrome->ReflowChromeForChangeBand();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::HideStagedImageBanner
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::HideStagedImageBanner()
+{
+    if (m_isStagedBanner && m_changeBanner.IsVisible())
+    {
+        HideChangeBanner();
+    }
+
+    m_isStagedBanner = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::MakeStagedImageText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ShellDisks::MakeStagedImageText (const std::wstring & driveLabel)
+{
+    return driveLabel.empty() ? std::wstring (L"The new hard disk image takes effect at the next restart.")
+                              : std::format (L"{}: the new image takes effect at the next restart.", driveLabel);
 }
 
 

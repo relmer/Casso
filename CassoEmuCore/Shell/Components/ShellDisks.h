@@ -220,6 +220,13 @@ public:
     void  ShowChangeBanner (const ChangeNotice & notice);
     void  AskAboutChange   (const ChangeNotice & notice);
 
+    // The same strip, for an image staged for a hard disk: the drive, when
+    // the image takes effect, and a button that restarts the machine. A
+    // restart of the machine closes it.
+    void                 ShowStagedImageBanner (const std::wstring & driveLabel);
+    void                 HideStagedImageBanner ();
+    static std::wstring  MakeStagedImageText   (const std::wstring & driveLabel);
+
     // Non-modal notice over the running machine: a disk changed outside Casso.
     //
     // IT DOES NOT CLEAR ITSELF, and that is the design rather than an
@@ -306,6 +313,7 @@ private:
     //  what was left when it arrived.
     int64_t                            m_changeBannerHideAtMs = 0;
     int64_t                            m_changeBannerTickMs   = 0;
+    bool                               m_isStagedBanner       = false;   // the strip is the staged-image notice, whose button restarts the machine
 
     std::unique_ptr<DiskManager>       m_diskManager;
 

@@ -68,19 +68,25 @@ public:
 
 
 
-    TEST_METHOD (HardDisksTakeNoDrop)
+    TEST_METHOD (HardDiskReceivingDriveHasItsCapacity)
     {
         ReceivingDrive  drive;
 
 
 
-        Assert::IsTrue  (DriveDropRule::TryGetReceivingDrive (DeskDriveModel::DiskII, drive));
+        Assert::IsTrue  (DriveDropRule::TryGetReceivingDrive (DeskDriveModel::DiskII, 0, drive));
         Assert::AreEqual ((int) ReceivingDriveKind::Floppy525, (int) drive.kind);
-        Assert::IsTrue  (DriveDropRule::TryGetReceivingDrive (DeskDriveModel::Apple35Drive, drive));
+        Assert::IsTrue  (DriveDropRule::TryGetReceivingDrive (DeskDriveModel::Apple35Drive, 0, drive));
         Assert::AreEqual ((int) ReceivingDriveKind::Apple35, (int) drive.kind);
-        Assert::IsTrue  (DriveDropRule::TryGetReceivingDrive (DeskDriveModel::UniDisk35, drive));
+        Assert::IsTrue  (DriveDropRule::TryGetReceivingDrive (DeskDriveModel::UniDisk35, 0, drive));
         Assert::AreEqual ((int) ReceivingDriveKind::UniDisk35, (int) drive.kind);
-        Assert::IsFalse (DriveDropRule::TryGetReceivingDrive (DeskDriveModel::HardDisk20SC, drive));
-        Assert::IsFalse (DriveDropRule::TryGetReceivingDrive (DeskDriveModel::ProFile, drive));
+        Assert::AreEqual ((uint32_t) 0, drive.maxBlocks);
+
+        Assert::IsTrue  (DriveDropRule::TryGetReceivingDrive (DeskDriveModel::ProFile, 9728, drive));
+        Assert::AreEqual ((int) ReceivingDriveKind::HardDisk, (int) drive.kind);
+        Assert::AreEqual ((uint32_t) 9728, drive.maxBlocks);
+
+        //  A hard disk whose capacity is not known receives nothing.
+        Assert::IsFalse (DriveDropRule::TryGetReceivingDrive (DeskDriveModel::HardDisk20SC, 0, drive));
     }
 };
