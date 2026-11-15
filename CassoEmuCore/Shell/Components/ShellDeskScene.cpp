@@ -3544,6 +3544,32 @@ bool ShellDeskScene::IsDriveBusy (const DeskDrive & drive, uint64_t now, uint64_
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDeskScene::HasDiskIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::HasDiskIn (const DeskDrive & drive) const
+{
+    Sony35Drive  * sony     = nullptr;
+    bool           hasDisk  = false;
+
+
+
+    if (drive.model == DeskDriveModel::UniDisk35 || drive.model == DeskDriveModel::Apple35Drive || drive.model == DeskDriveModel::Apple35Plus)
+    {
+        sony    = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+        hasDisk = sony != nullptr && sony->HasDisk();
+    }
+
+    return hasDisk;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDeskScene::GetDriveImagePath
 //
 ////////////////////////////////////////////////////////////////////////////////

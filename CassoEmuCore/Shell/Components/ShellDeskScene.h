@@ -72,6 +72,10 @@ public:
     // after a command, a 3.5-inch drive while its motor runs.
     bool  IsDriveBusy (const DeskDrive & drive, uint64_t now, uint64_t windowCycles) const;
 
+    // Whether a 3.5-inch drive has a disk in. A hard disk has no removable
+    // disk, so it returns false.
+    bool  HasDiskIn   (const DeskDrive & drive) const;
+
     // A 3.5-inch drive on the desk, by its index among the desk's extra
     // drives: a click opens the file dialog and inserts the chosen image, as
     // a dropped image is.

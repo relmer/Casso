@@ -504,6 +504,7 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
     m_lamps.clear();
     m_regions.clear();
     m_surface = {};
+    m_slotBox = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
 
     // THE TILTING ASSEMBLY GOES WITH THE OLD MONITOR. It is built only from
     // parts this mesh names -- the Monitor II's bezel and its two tilt marks
@@ -582,6 +583,20 @@ HRESULT DeskSceneModel::Load (DeskDeviceKind kind, std::span<const uint8_t> mesh
             }
 
             continue;
+        }
+
+        // The back of a 3.5-inch drive's slot is drawn with the case, and its
+        // box is where a disk in the drive is drawn.
+        if (part == s_kpszSlotBack)
+        {
+            for (const float * p : { tri.p0, tri.p1, tri.p2 })
+            {
+                for (size_t axis = 0; axis < 3; axis++)
+                {
+                    m_slotBox[axis]     = (std::min) (m_slotBox[axis],     p[axis]);
+                    m_slotBox[axis + 3] = (std::max) (m_slotBox[axis + 3], p[axis]);
+                }
+            }
         }
 
         if (part == s_kpszCassetteTitleAnchor)
@@ -2441,6 +2456,94 @@ void DeskSceneModel::StampDriveLabel (std::vector<Dxui3DRenderer::Vertex> & out,
                    s_kDriveLabelLeftMm + wordWidth + s_kDriveNumberGapMm,
                    centerZ + digitCap * 0.5f,
                    digitCap / (float) digitRows, s_kDriveLabelFrontY, ink.data(), true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneModel::BuildDiskInSlot
+//
+//  A 3.5-inch disk is 90 mm wide and 3.3 mm thick, and in the drive its back
+//  edge is a little behind the front of the case. The box is centered in
+//  the slot, and lit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneModel::BuildDiskInSlot (std::vector<Dxui3DRenderer::Vertex> & out) const
+{
+    constexpr float  kDiskWidthMm = 90.0f;
+    constexpr float  kDiskThickMm = 3.3f;
+    constexpr float  kClearMm     = 0.4f;
+    constexpr float  kRecessMm    = 2.0f;
+    constexpr float  kDiskRgb[3]  = { 0.150f, 0.155f, 0.180f };
+    float            midX         = (m_slotBox[0] + m_slotBox[3]) * 0.5f;
+    float            midZ         = (m_slotBox[2] + m_slotBox[5]) * 0.5f;
+    float            halfW        = 0.0f;
+    float            halfH        = 0.0f;
+    float            lo[3]        = {};
+    float            hi[3]        = {};
+
+
+
+    out.clear();
+
+    if (!HasSlot())
+    {
+        return;
+    }
+
+    halfW = std::min (kDiskWidthMm, m_slotBox[3] - m_slotBox[0] - 2.0f * kClearMm) * 0.5f;
+    halfH = std::min (kDiskThickMm, m_slotBox[5] - m_slotBox[2] - 2.0f * kClearMm) * 0.5f;
+
+    lo[0] = midX - halfW;
+    hi[0] = midX + halfW;
+    lo[1] = std::min (m_frontPlaneY + kRecessMm, m_slotBox[1] - kClearMm);
+    hi[1] = m_slotBox[1];
+    lo[2] = midZ - halfH;
+    hi[2] = midZ + halfH;
+
+    // Each face as two triangles, wound outward, with its face normal.
+    for (int axis = 0; axis < 3; axis++)
+    {
+        for (int side = 0; side < 2; side++)
+        {
+            int     u            = (axis + 1) % 3;
+            int     v            = (axis + 2) % 3;
+            float   sign         = (side == 0) ? -1.0f : 1.0f;
+            float   corner[4][3] = {};
+
+            for (int c = 0; c < 4; c++)
+            {
+                bool  atU = (c == 1 || c == 2);
+                bool  atV = (c >= 2);
+
+                corner[c][axis] = (side == 0) ? lo[axis] : hi[axis];
+                corner[c][u]    = atU ? hi[u] : lo[u];
+                corner[c][v]    = atV ? hi[v] : lo[v];
+            }
+
+            for (int c : (side == 0) ? std::array<int, 6> { 0, 2, 1, 0, 3, 2 } : std::array<int, 6> { 0, 1, 2, 0, 2, 3 })
+            {
+                Dxui3DRenderer::Vertex  vert = {};
+
+                vert.x  = corner[c][0];
+                vert.y  = corner[c][1];
+                vert.z  = corner[c][2];
+                vert.r  = kDiskRgb[0];
+                vert.g  = kDiskRgb[1];
+                vert.b  = kDiskRgb[2];
+                vert.a  = 1.0f;
+                vert.nx = (axis == 0) ? sign : 0.0f;
+                vert.ny = (axis == 1) ? sign : 0.0f;
+                vert.nz = (axis == 2) ? sign : 0.0f;
+
+                out.push_back (vert);
+            }
+        }
+    }
 }
 
 

@@ -24,13 +24,15 @@ without touching the loader.
 | `cad_apple35.py` | `Resources/Models/Apple35Drive/`, `Apple35Plus/` | Apple 3.5 Drive (121×210×57), on `cad_floppy35.py`; `--plus` for the //c Plus colors |
 | `cad_badge.py` | (module) | The rainbow Apple badge from `CassoBranding.cpp`, shared by the models |
 
-**Color is identity.** The desk scene splits a model into sub-meshes by
-matching `Kd` VALUES within ±0.02 per channel (`DeskSceneModel::kKdEpsilon`)
-against the palette in `DeskSceneModel.h` — glass, monitor lamp, drive lamp,
-door, latch. A color that drifts inside that epsilon of one of them is swept
-into that sub-mesh with no diagnostic, and for glass that means *dropped*
-(the scene generates its own tube). Keep every other color at least a channel
-clear of the palette.
+**The part name is identity.** The desk scene splits a model into
+sub-meshes by material name (`glass`, `lamp`, `door`, `slot_back` and the
+rest in `DeskSceneModel.h`). Two finishes are matched by `Kd` value within
+±0.02 per channel (`DeskSceneModel::kKdEpsilon`): the pebbled black
+(`kPlatePebbledKd`) and the recessed black (`kPlateRecessKd`). A color that
+drifts inside that epsilon of one of them takes that finish with no
+diagnostic, so every other color has to be at least a channel clear of
+both.
+`DeskModelAssetTests` checks the drive models for it.
 
 The Monitor //c's glass is a true spherical-sag mesh — the surface the
 live emulator framebuffer will texture onto in the desk scene, with the

@@ -750,6 +750,19 @@ bool ShellRenderer::TryPresentUiFrame()
         }
     }
 
+    // Refresh the drive bar's labels and lamps, in the desk theme and in a
+    // compact one.
+    if (m_shell.m_chrome->m_driveBarFan.IsVisible())
+    {
+        bool  sliding = m_shell.m_chrome->AnimateDriveBarFan();
+        bool  changed = m_shell.m_chrome->SyncDriveBarViews();
+
+        if (sliding || changed)
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+    }
+
     // 3D scene drive visuals: activity lamp, door swing, and the padlock,
     // pushed from the same per-drive state the 2D widgets mirror. The scene
     // only rebuilds geometry when a value actually moved.
@@ -780,7 +793,8 @@ bool ShellRenderer::TryPresentUiFrame()
 
         // Each desk drive's lamp is lit for a tenth of a second after a hard
         // disk command, so a run of reads reads as steady activity, and while
-        // a 3.5-inch drive's motor runs. An HD20SC's front has its card's
+        // a 3.5-inch drive's motor runs. A 3.5-inch drive with a disk in is
+        // drawn with the disk in its slot. An HD20SC's front has its card's
         // model label ("20SC").
         {
             const auto  & cards  = m_shell.m_machine.GetRefs().scsiCards;
@@ -797,19 +811,7 @@ bool ShellRenderer::TryPresentUiFrame()
 
 
 
-                scene.SetExtraVisuals (i, m_shell.m_scene->IsDriveBusy (drive, now, window), label);
-            }
-        }
-
-        // Refresh the drive bar's labels and lamps.
-        if (m_shell.m_chrome->m_driveBarFan.IsVisible())
-        {
-            bool  sliding = m_shell.m_chrome->AnimateDriveBarFan();
-            bool  changed = m_shell.m_chrome->SyncDriveBarViews();
-
-            if (sliding || changed)
-            {
-                m_d3dRenderer.MarkRedrawNeeded();
+                scene.SetExtraVisuals (i, m_shell.m_scene->IsDriveBusy (drive, now, window), m_shell.m_scene->HasDiskIn (drive), label);
             }
         }
 

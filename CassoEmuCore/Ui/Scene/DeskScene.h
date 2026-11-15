@@ -121,12 +121,13 @@ public:
     bool                    HasRecorder      () const { return m_hasRecorder && m_recorderShown; }
 
     // The drives other than the Disk II pair, from the drive plan: the ones
-    // on the desk in plan order, each with its lamp and, for an HD20SC, its
-    // size label ("20SC"); and the Disk II pair's spot and levels.
+    // on the desk in plan order, each with its lamp, for a 3.5-inch drive
+    // the disk in its slot, and for an HD20SC its size label ("20SC"); and
+    // the Disk II pair's spot and levels.
     void               SetDrivePlan    (const std::vector<DeskDrivePlacement> & plan);
     int                GetExtraCount   () const { return (int) m_extras.size(); }
     const DeskDrive  & GetExtraDrive   (int index) const { return m_extras[(size_t) index].drive; }
-    void               SetExtraVisuals (int index, bool lampOn, const std::wstring & label);
+    void               SetExtraVisuals (int index, bool lampOn, bool hasDisk, const std::wstring & label);
 
     bool  IsRecorderLoaded   () const { return m_hasRecorder; }
     void  SetRecorderShown   (bool shown);
@@ -675,9 +676,10 @@ private:
     struct ExtraDrive
     {
         DeskDrive                            drive;
-        DeskDriveSpot                        spot   = DeskDriveSpot::LeftStack;
-        int                                  level  = 0;
-        bool                                 lampOn = false;
+        DeskDriveSpot                        spot    = DeskDriveSpot::LeftStack;
+        int                                  level   = 0;
+        bool                                 lampOn  = false;
+        bool                                 hasDisk = false;
         std::wstring                         label;
         std::vector<Dxui3DRenderer::Vertex>  labelVerts;
     };
@@ -721,6 +723,7 @@ private:
 
     std::array<std::vector<Dxui3DRenderer::Vertex>, kModelKinds>                 m_extraShadowVerts;
     std::array<std::array<std::vector<Dxui3DRenderer::Vertex>, 2>, kModelKinds>  m_extraLampVerts;   // [model][lit]
+    std::array<std::vector<Dxui3DRenderer::Vertex>, kModelKinds>                 m_extraDiskVerts;   // a disk in the slot
 
     bool                                  m_powerLampOn     = false;
     bool                                  m_driveActive[2]  = {};
@@ -769,6 +772,7 @@ private:
 
     std::array<Dxui3DRenderer::StaticMesh, kModelKinds>                 m_extraOpaqueMesh;
     std::array<Dxui3DRenderer::StaticMesh, kModelKinds>                 m_extraShadowMesh;
+    std::array<Dxui3DRenderer::StaticMesh, kModelKinds>                 m_extraDiskMesh;
     std::array<std::array<Dxui3DRenderer::StaticMesh, 2>, kModelKinds>  m_extraLampMesh;
     std::array<Dxui3DRenderer::StaticMesh, kMaxDeskExtras>              m_extraLabelMesh;
 
