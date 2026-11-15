@@ -237,39 +237,6 @@ void ExplorerDeletion::RemoveThumbnails (const std::vector<std::wstring> & paths
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerDeletion::ClearThumbnails
-//
-//  The thumbnails made by booting are removed. With thumbnails the user set,
-//  the confirmation has a checkbox that removes those too, with their count.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerDeletion::ClearThumbnails (HWND owner)
-{
-    HRESULT       hr        = S_OK;
-    int           userSet   = m_context.app.pictures->CountUserSet();
-    std::wstring  check     = DiskImagePictures::GetClearCheck (userSet);
-    bool          alsoUsers = false;
-    int           answer    = IDCANCEL;
-
-
-
-    answer = DxuiMessageBox (owner, m_context.theme, DiskImagePictures::GetClearQuestion().c_str(), L"Clear thumbnails", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2,
-                             { L"Remove", L"Cancel" }, -1, userSet > 0 ? check.c_str() : nullptr, &alsoUsers);
-
-    if (answer == IDOK)
-    {
-        hr = m_context.app.pictures->Clear (alsoUsers);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerDeletion::ConfirmA2PicoDrives
 //
 //  True when none of the files is an A2Pico card's drive image, or the user

@@ -13,7 +13,8 @@
 //  A program's title from the text screen it draws once booted. A line is
 //  the title when a line with COPYRIGHT or (C) is within three lines under
 //  it, or when it is the one line of the screen's first four that isn't
-//  blank. The punctuation at its ends is dropped, and its letters are as
+//  blank, and when it doesn't read as a sentence. A line over a copyright
+//  line is also on the top row, under a blank line or centered. The punctuation at its ends is dropped, and its letters are as
 //  drawn. A screen in a graphics mode has no title.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,9 +35,13 @@ private:
     static constexpr size_t  s_kCopyrightReach = 3;
     static constexpr size_t  s_kTopRows        = 4;
     static constexpr size_t  s_kMinLetters     = 2;
+    static constexpr size_t  s_kNarrowColumns  = 40;
+    static constexpr size_t  s_kWideColumns    = 80;
 
     static bool         IsBlank      (const std::string & row);
     static std::string  ToTitleCase  (const std::string & word, bool isFirst);
     static bool         HasCopyright (const std::string & row);
+    static bool         IsSentence   (const std::string & row);
+    static bool         IsSetOff     (const std::vector<std::string> & rows, size_t line);
     static std::string  Trim         (const std::string & row);
 };

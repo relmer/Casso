@@ -37,6 +37,9 @@ struct FullSendRow
     //  marked.
     std::string  boot;
     std::string  marks;
+
+    //  Whether the disk was write-protected, as its image is.
+    bool         writeProtected = false;
 };
 
 
@@ -132,7 +135,8 @@ public:
     void                 RestoreRows       (const FullSendRemoval & removal);
 
 private:
-    static constexpr size_t  kColumns       = 14;
+    static constexpr size_t  kColumns       = 15;
+static constexpr size_t  kBootColumns   = 14;      // before write-protect
     static constexpr size_t  kPriorColumns  = 12;      // before the boot result and the capture's marks
     static constexpr size_t  kLegacyColumns = 9;
     static constexpr size_t  kHashChars     = 64;

@@ -80,6 +80,10 @@ public:
     //  Removes the thumbnail the user set; the booted one is returned again.
     HRESULT  Remove           (const std::filesystem::path & image);
 
+    //  Every thumbnail of an image and its streams; the image is booted again
+    //  for a new one.
+    HRESULT  RemoveAll        (const std::filesystem::path & image);
+
     //  Everything for a hash, for an image that was deleted.
     HRESULT  RemoveForDeleted (const std::string & hash);
 

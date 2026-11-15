@@ -46,6 +46,7 @@ public:
 
     HRESULT  FlushToStorage         (const std::string & path) override;
     HRESULT  CopyFileMetadata       (const std::string & fromPath, const std::string & toPath) override;
+    HRESULT  SetReadOnly            (const std::string & path, bool readOnly) override;
     HRESULT  RenameWithoutReplacing (const std::string & tempPath, const std::string & targetPath) override;
     bool     IsHeldByAnotherProcess (const std::string & path) override;
 

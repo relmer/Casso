@@ -594,6 +594,23 @@ bool CassoLinkFullSend::HasBootTones()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkFullSend::IsWriteProtected
+//
+//  As the program sensed it when it began the drive's latest read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkFullSend::IsWriteProtected (int drive)
+{
+    return m_session.m_host->IsWriteProtected ((Byte) drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkFullSend::AwaitBoot
 //
 //  The result arrives from the thread that boots the image. With none by the

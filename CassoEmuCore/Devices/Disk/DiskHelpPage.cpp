@@ -312,15 +312,36 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
     },
 
     {
-        CommandLineOptions::DiskOptions::Command::Thumbnail,
-        "thumbnail",
-        "Set, remove, or save a disk image's thumbnail",
-        "CassoCli disk thumbnail <image> [<picture>] [%Lremove] [%Lout <file>]",
-        "  %Lremove                Remove the thumbnail the user set, so the image has the one made by booting it\n"
-        "  %Lout <file>            Write the image's thumbnail to <file> as a PNG\n",
-        "A <picture> in PNG, JPEG, BMP, GIF, or TIFF becomes the image's thumbnail in Casso Explorer, marked as set by the user,"
-        " in place of the one made by booting the image. Use one of <picture>, %Lremove, and %Lout.",
-        "CassoCli disk thumbnail Archon.woz title.png"
+        CommandLineOptions::DiskOptions::Command::SetThumbnail,
+        "setthumbnail",
+        "Set a disk image's thumbnail from a picture",
+        "CassoCli disk setthumbnail <image> <picture>",
+        nullptr,
+        "<picture>, a PNG, JPEG, BMP, GIF, or TIFF file, becomes the thumbnail Casso Explorer draws for <image>, in place of"
+        " the one it captured by booting the image.",
+        "CassoCli disk setthumbnail Archon.woz title.png"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::GetThumbnail,
+        "getthumbnail",
+        "Save a disk image's thumbnail as a PNG",
+        "CassoCli disk getthumbnail <image> <file>",
+        nullptr,
+        "Saves the thumbnail Casso Explorer draws for <image> to <file> as a PNG: the one set with setthumbnail, or the one"
+        " captured by booting the image.",
+        "CassoCli disk getthumbnail Archon.woz archon.png"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::RemoveThumbnail,
+        "removethumbnail",
+        "Remove a disk image's thumbnail",
+        "CassoCli disk removethumbnail <image>",
+        nullptr,
+        "Removes the thumbnail set with setthumbnail, so Casso Explorer draws the one it captured by booting the image. With"
+        " none set, removes the captured one, and Casso Explorer boots the image for a new one the next time it is in view.",
+        "CassoCli disk removethumbnail Archon.woz"
     },};
 
 

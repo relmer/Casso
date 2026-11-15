@@ -19,8 +19,7 @@ class DisplayPage;
 //  CassoExplorerGeneralPage
 //
 //  Automatic preview, its description below its box, then the disk image
-//  types, File Explorer's raw copy menu item, automatic thumbnails, and Clear
-//  thumbnails.
+//  types, File Explorer's raw copy menu item, and automatic thumbnails.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,13 +29,12 @@ public:
     explicit CassoExplorerGeneralPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
     void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & rawCopyMenu,
-                   DxuiCheckbox & autoThumbnails, DxuiButton & clearThumbnails);
+                   DxuiCheckbox & autoThumbnails);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
     static constexpr int  kNoteHeightDip = 40;
     static constexpr int  kNoteIndentDip = 22;   // under the checkbox's label
-    static constexpr int  kClearWidthDip = 160;
 
 private:
     DxuiLabel     * m_previewNote  = nullptr;
@@ -45,7 +43,6 @@ private:
     DxuiCheckbox  * m_register     = nullptr;
     DxuiCheckbox  * m_rawCopyMenu  = nullptr;
     DxuiCheckbox  * m_thumbnails   = nullptr;
-    DxuiButton    * m_clear        = nullptr;
 };
 
 
@@ -250,7 +247,6 @@ public:
         std::function<void (HWND owner, std::wstring & ioFolder)>  pickFolder;
 
         //  Clear thumbnails, with its confirmation over the dialog.
-        std::function<void (HWND owner)>  clearThumbnails;
     };
 
     //  The host file name forms, in the order the setting stores them.
@@ -298,7 +294,6 @@ private:
     DxuiCheckbox                                   m_autoThumbnails;
     DxuiCheckbox                                   m_register;
     DxuiCheckbox                                   m_rawCopyMenu;
-    DxuiButton                                     m_clearThumbnails;
     DxuiLabel                                      m_fullSendNote;
     DxuiLabel                                      m_fullSendFolderLabel;
     DxuiLabel                                      m_fullSendFormatLabel;

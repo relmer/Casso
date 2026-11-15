@@ -175,6 +175,10 @@ comparing two quarter tracks of one disk.
   maps scaled by count, and Scans marks each address field the guest read
   while searching for a sector (FR-031, FR-161).
 
+
+### Session 2026-11-14
+
+- Q: Does the inspector repair a damaged file system, or only report it? -> A: It repairs the bookkeeping, now rather than later, since the inspector hasn't shipped yet (owner, 2026-11-14). The checks and repairs follow the published Repair_DSK series by Michael Heilemann (norsewanderer.com, parts 4 and 5) and Beneath Apple DOS's "Emergency Repairs": a repaired copy beside the image, never the image itself; the bitmap made from the files; the catalog relinked first; nothing done to a file's data or chain; and no repair of a disk without a standard file system. Full Send runs the same check on each image (033, FR-290).
 ## Scope
 
 **Image formats.** Every 5.25" disk image format Casso mounts in a Disk II
@@ -1374,6 +1378,80 @@ legend, and tilt the platter and back.
    button, **Then** the platter tilts, and its tooltips and clicks match the
    cell under the pointer; **When** the user chooses "Top down", **Then** it
    is flat again.
+
+---
+
+### User Story 18 - Check a disk's file system and repair its bookkeeping (Priority: P5)
+
+A user who has captured or downloaded a DOS 3.3, ProDOS or Apple Pascal disk
+opens it in the inspector. The inspector has a verdict for its file system:
+OK, Suspect or Bad, and the findings it came from. Where the damage is in the
+volume's bookkeeping rather than in its files' data, Repair writes a repaired
+copy beside the image: the free-space bitmap matched to the files,
+the catalog's links and counts set right, and the VTOC's header and next-track
+hint set back to DOS's values. The image itself is never changed, and a disk
+whose files can't all be followed, or that has no standard file system, as a
+copy-protected disk often has, isn't repaired.
+
+**Why this priority**: The inspector ships for the first time in 033's
+release, so the repair ships with it rather than after (owner, 2026-11-14).
+It builds on the File map (Story 8), whose walk of every file it reads, and
+the sector writing of Story 9. Full Send runs the same check on each image
+it saves (033, FR-290).
+
+**Independent Test**: Make DOS 3.3, ProDOS and Apple Pascal images with
+planted bookkeeping damage, open each, check the verdict and the findings,
+repair it, and compare the repaired copy with the image before the damage
+was planted.
+
+**Acceptance Scenarios**:
+
+1. **Given** a standard DOS 3.3 disk with files, **When** it is opened,
+   **Then** the verdict is OK, Findings doesn't list a file-system finding,
+   and Repair is unavailable.
+2. **Given** a DOS 3.3 disk whose bitmap marks free a sector a file uses,
+   and marks used a sector no file uses, **When** it is opened, **Then** the
+   verdict is Bad, Findings lists both sectors, and Repair is available.
+3. **Given** that disk, **When** the user chooses Repair and confirms,
+   **Then** a copy is written beside the image, with " (repaired)" before its
+   extension, the copy's bitmap marks the file's sector used and the unused
+   one free, every other byte of the copy is the image's, the image's bytes
+   are as they were, and the copy opens with the verdict OK.
+4. **Given** a DOS 3.3 disk whose catalog chain loops back to its second
+   sector, and whose catalog sectors on track 17 are linked as DOS's INIT
+   links them, **When** it is repaired, **Then** the copy's catalog links
+   run from sector $F down to sector $1 and end there, and every file in
+   those sectors is listed.
+5. **Given** a DOS 3.3 disk whose VTOC header has been zeroed while its
+   catalog sectors and bitmap are intact, **When** it is repaired, **Then**
+   the copy's VTOC has DOS's standard header values, and the bitmap is made
+   from the files.
+6. **Given** a disk with a file whose track/sector list points off the disk,
+   or two files that use one sector, **When** it is opened, **Then** the
+   verdict is Bad and Repair isn't available, with the reason: a file's data
+   can't be recovered by changing the bookkeeping.
+7. **Given** a copy-protected disk with no standard catalog, **When** it is
+   opened, **Then** the verdict is "No standard file system", no file-system
+   finding is listed as damage, and Repair isn't available.
+8. **Given** a DOS 3.3 disk whose catalog has entries with deliberately odd
+   filenames and types, as a modified DOS or a protection writes, **When** it is
+   opened, **Then** the catalog is reported as non-standard, not as damaged.
+9. **Given** a ProDOS disk whose volume bitmap disagrees with its directory
+   tree, and a directory whose file count disagrees with its entries, **When**
+   it is repaired, **Then** the copy's bitmap and file count match the
+   tree.
+10. **Given** a disk with sectors marked used that no file owns, **When** the
+    user turns on "Don't free sectors that no file uses" in Repair's
+    confirmation and repairs it, **Then** those sectors are marked used in
+    the copy, for a protection that hides data in them.
+11. **Given** any image, **When** it is checked from the command line with
+    `CassoCli disk repair <image>`, **Then** the same verdict, findings and
+    repairs are reported, and the copy is written as in Casso Explorer.
+12. **Given** a disk image selected in Casso Explorer, **When** the preview
+    pane draws it, **Then** its file-system verdict is with the inspector's
+    other details there: a Bad verdict as a warning banner at the top of the
+    pane with its first finding of damage, and Repair disk image beside it
+    when the image can be repaired; Suspect as a line, and OK as nothing more.
 
 ---
 ### Edge Cases
@@ -3487,6 +3565,79 @@ release (Delivery). The first release MUST NOT depend on them.
   the layout Casso builds for sector, NIB and NB2 images give, MUST NOT
   produce a run, so a disk in a standard layout lists none.
 
+- **FR-166**: Each DOS 3.3, ProDOS and Apple Pascal volume MUST have a
+  file-system verdict: Bad for a finding of damage (a link off the disk, a
+  chain that loops or doesn't end, a file whose sectors reachable by its chain
+  differ by more than one from its catalog count, a sector a file uses that
+  the bitmap marks free, a sector two files use, a VTOC or volume directory
+  that couldn't be read, a file that is one repeated byte throughout, or an
+  image almost all blank); Suspect for a finding that is only worth a look;
+  OK for none; and "No standard file system" for a disk with none. The verdict
+  MUST be drawn with the File map and in the summary, and returned by
+  `CassoCli disk test`.
+- **FR-167**: The DOS 3.3 check MUST read the VTOC's header: 256 bytes a
+  sector and 122 pairs a track/sector list, as findings that make the disk
+  Suspect when they differ; the next-track hint at $30 and $31, Suspect when
+  the track is off the disk or the direction isn't $01 or $FF; and a release
+  number other than 3, a volume number outside 1 to 254, or nonzero bytes
+  after a track's bitmap word, as notes.
+- **FR-168**: The check MUST test each catalog entry's name, type and sector
+  count: a name with the high bit set on some characters and clear on others,
+  a type DOS 3.3 doesn't have, or a count larger than the disk. When at least
+  two entries and more than 15% of them fail, the catalog MUST be reported as
+  non-standard, as a modified DOS or a protection writes it, and the files in
+  it MUST NOT be followed or counted as damage.
+- **FR-169**: A file's reachable sector count MUST be compared with its
+  catalog count allowing one either way; a catalog count of zero MUST NOT be
+  compared, and a file over 255 sectors MUST match modulo 256.
+- **FR-170**: A BASIC file's stored length, or a binary file's load address
+  and length, MUST be compared with the bytes in its sectors, and a
+  track/sector list's file-relative sector number at $05 and $06 with its
+  place in the chain, each as a note, since data files are often stored under
+  a program's type.
+- **FR-171**: Repair MUST write a copy beside the image, with " (repaired)"
+  before its extension and a number after it when a file of that name
+  exists, in the image's format, and MUST NOT change the image. It MUST be
+  offered only for a volume whose catalog and every file's chain could be
+  followed to their ends after the catalog repair of FR-173, and never for
+  a disk with no standard file system.
+- **FR-172**: Repair MUST match the bitmap to the files: a sector a
+  file uses marked used, and a sector no file uses marked free, except tracks
+  0 to 2 and track 17 on DOS 3.3, and the boot blocks, the directory and the
+  bitmap itself on ProDOS. With "Don't free sectors that no file uses"
+  turned on, a sector marked used that no file uses MUST be marked used in
+  the copy.
+- **FR-173**: Repair MUST first relink a DOS 3.3 catalog whose chain loops,
+  points off the disk or ends early, when its sectors on track 17 are linked
+  as DOS's INIT links them, from sector $F down, through every such sector
+  with believable entries. The bitmap is then made from the relinked catalog.
+- **FR-174**: Repair MUST set a DOS 3.3 VTOC header that differs from DOS's
+  standard values back to them when the catalog on track 17 has at least four
+  sectors linked as INIT links them with believable entries, and MUST NOT
+  change a header on a disk that otherwise reads as DOS 3.3 or that has no
+  DOS on tracks 0 to 2. A next-track hint off the disk MUST be set to track 17,
+  moving up.
+- **FR-175**: Repair MUST set the catalog sector count of a file on DOS
+  3.3, and the file count of a directory on ProDOS or Apple Pascal, to the
+  count of the chain or of the entries, when they differ.
+- **FR-176**: Repair MUST NOT change a file's data or its chain: a file with a
+  chain off the disk, a loop, or a sector another file uses is reported, and
+  Repair is unavailable for its volume, with the reason.
+- **FR-177**: Before Repair writes, its confirmation MUST list the changes,
+  each as a line (for example "Mark 3 sectors HELLO uses as used in the
+  bitmap"), and after it writes, the copy MUST be selected in Casso
+  Explorer.
+- **FR-179**: Casso Explorer's preview pane MUST have a disk image's
+  file-system verdict with the inspector's other details: Bad as a warning
+  banner at the top of the pane, in the theme's error color, with the first
+  finding of damage and Repair disk image when the volume can be repaired;
+  Suspect as a line with its first finding; and nothing more for OK or for a
+  disk with no standard file system.
+- **FR-178**: `CassoCli disk repair <image> [<copy>]` MUST report the verdict,
+  the findings and the changes, write the copy as Repair does, take
+  `--no-free-unowned` for "Don't free sectors that no file uses" and `--list` to report the
+  changes without writing, and exit nonzero when the volume can't be repaired.
+
 ### Key Entities
 
 - **Disk analysis**: all the results for one disk image: the summary, one
@@ -3821,6 +3972,12 @@ release (Delivery). The first release MUST NOT depend on them.
 - **SC-036**: No source file of the inspector is longer than about 2,000
   lines, and the window class accesses its components only through their
   interface (FR-162).
+
+- **SC-045**: For each planted kind of bookkeeping damage on DOS 3.3,
+  ProDOS and Apple Pascal test images, the repaired copy is byte for byte the
+  image before the damage was planted, and on 30 standard and copy-protected
+  disks from the test collection, no copy-protected disk is reported Bad and
+  no standard disk without damage is reported other than OK.
 
 ## Assumptions
 

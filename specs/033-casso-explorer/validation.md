@@ -1026,3 +1026,44 @@ T751 to T757 and T759 were fixed 2026-11-14. T758 is open.
   Enter on a path that isn't there does nothing. Not seen with real typing.
 - A short packed super hi-res picture previews with the missing part black,
   rather than failing.
+
+## Thumbnails and the Full Send window on screen, 2026-11-14 (Stories 42 and 43)
+
+Walked on x64 Debug in this worktree's Casso Explorer, Casso and CassoCli, on
+copies of disk images in a scratch folder. Input was posted to the windows and
+each result captured; a composited popup was captured from the screen. The
+thumbnail cache is the user's, so nothing was cleared there.
+
+| Step | Result |
+|---|---|
+| `CassoCli disk thumbnail <image> <picture>` | the picture in the icon view and the preview pane, marked as set by the user |
+| `--out`, `--remove` with none set, no action, a file that isn't a picture | the PNG written, and each error as on the help page |
+| A picture set from the command line while the folder is in view | the icon redrawn with no refresh, after the cache watcher below |
+| Remove thumbnail on a disk image's menu | the item there for a picture the user set; the picture made by booting drawn again |
+| Casso's "Save screenshot as disk 1's thumbnail" with a disk mounted | the screen, Arcticfox's title, as the image's thumbnail; byte-identical copies of the image have it too |
+| A folder of eight images with no thumbnails | "Capturing thumbnails: 8" in the status bar, gone once all eight were booted |
+| Options, General page | "Automatically create thumbnails for disk images by booting them headlessly and capturing the screen", checked; the Clear thumbnails button removed (owner) |
+| The Full Send window with no session | the disks of the folder's manifest, newest first |
+| A row's right-click | Open, Inspect disk image and Disk properties for a WOZ |
+| A row's double-click | the Full Send folder in the window that opened it, the image selected and previewed with "Boots on the enhanced Apple //e" |
+| The window moved, closed, Casso Explorer restarted | the window at the place it was moved to |
+
+Found and fixed:
+
+- A row whose image was renamed or deleted outside Casso Explorer went to the
+  folder and selected nothing. A message with the file's name is drawn instead.
+- A thumbnail set by Casso or CassoCli wasn't drawn until the list was filled
+  again. Casso Explorer watches the cache folder for pictures the user sets and
+  removes, and redraws the icons.
+- The boot check read only main memory for an 80-column screen, so Apple
+  Pascal's title came out as every other character. Both memory banks are read.
+- Clear thumbnails deleted every `.json` in the cache folder, `given.json`
+  among them. Only files that begin with an image's hash are cleared.
+
+Found and left as is: the activity list's Copy is on its menu only while the
+list has lines, and a click on the status bar's Full Send line works only with a session
+in progress, so both have unit tests and no walk. Apple Pascal's boot disk
+reported "did not boot" on the ][ plus once on 2026-11-14 at 10:55 and boots
+on the enhanced //e in every run since, ten of ten in
+`ImagesInAFolder_AreCheckedAsCassoExplorerChecksThem`; the cause wasn't found.
+

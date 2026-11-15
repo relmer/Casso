@@ -77,6 +77,7 @@ public:
         std::vector<std::string>               noted;   // the path of each image written
         std::function<void (const std::string &)>  onAwait;               // with one, each image is booted, and this is the wait for its result
         bool                                  bootTones      = false;
+        std::array<bool, 2>                   writeProtected = { false, false };
 
         //  Called at the end of the Nth whole-disk read, counted from 1, and
         //  at the Nth wait for a key.
@@ -178,6 +179,7 @@ public:
         bool     NoteImage (const std::string & path) override { noted.push_back (path); return (bool) onAwait; }
 
         bool     HasBootTones() override { return bootTones; }
+        bool     IsWriteProtected (int drive) override { return writeProtected[(size_t) drive - 1]; }
 
         HRESULT  AwaitBoot (const std::string & file) override
         {
@@ -1036,6 +1038,24 @@ public:
         Assert::IsFalse (has (rig.link.pauseLines[2], "0002 still does not boot."), L"Space after that is a repeat's");
         Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001.woz") && rig.io.files.contains ("C:\\Box\\0002.woz"), L"Each capture has its image");
         Assert::AreEqual ((size_t) 2, session->GetManifest().GetRows().size());
+    }
+
+    //  A write-protected disk's image is write-protected: a sector image by
+    //  its read-only attribute, and its manifest row has the flag.
+    TEST_METHOD (Session_AWriteProtectedDisk_HasAWriteProtectedImage)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]         = Other (1);
+        rig.link.present[1]        = false;
+        rig.link.writeProtected[0] = true;
+
+        auto  session = rig.Run();
+
+        Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size());
+        Assert::IsTrue (session->GetManifest().GetRows()[0].writeProtected);
+        Assert::IsTrue (rig.io.readOnlyFiles.contains ("C:\\Box\\" + session->GetManifest().GetRows()[0].file), L"The read-only attribute");
+        Assert::IsTrue (rig.io.readOnlyFiles["C:\\Box\\" + session->GetManifest().GetRows()[0].file]);
     }
 
     TEST_METHOD (Session_WithBootTonesOnTheApple_TheResultsToneIsInPlaceOfTheDisks)

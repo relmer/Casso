@@ -57,7 +57,7 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & rawCopyMenu,
-                                     DxuiCheckbox & autoThumbnails, DxuiButton & clearThumbnails)
+                                     DxuiCheckbox & autoThumbnails)
 {
     m_previewNote  = &previewNote;
     m_autoPreview  = &autoPreview;
@@ -65,7 +65,6 @@ void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & aut
     m_register     = &registration;
     m_rawCopyMenu  = &rawCopyMenu;
     m_thumbnails   = &autoThumbnails;
-    m_clear        = &clearThumbnails;
 
     Adopt (previewNote);
     Adopt (autoPreview);
@@ -73,7 +72,6 @@ void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & aut
     Adopt (registration);
     Adopt (rawCopyMenu);
     Adopt (autoThumbnails);
-    Adopt (clearThumbnails);
 }
 
 
@@ -99,8 +97,6 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     int  rawCopyEnd   = rawCopyTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
     int  thumbsTop    = rawCopyEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
     int  thumbsEnd    = thumbsTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  clearTop     = thumbsEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
-    int  clearEnd     = clearTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
 
 
 
@@ -112,10 +108,8 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     m_register->Layout    (RECT { boundsDip.left, registerTop, boundsDip.right, registerEnd }, scaler);
     m_rawCopyMenu->Layout (RECT { boundsDip.left, rawCopyTop, boundsDip.right, rawCopyEnd }, scaler);
     m_thumbnails->Layout  (RECT { boundsDip.left, thumbsTop, boundsDip.right, thumbsEnd }, scaler);
-    m_clear->SetDpi       (scaler.GetDpi());
-    m_clear->Layout       (RECT { boundsDip.left, clearTop, boundsDip.left + scaler.ToPx (kClearWidthDip), clearEnd });
 
-    SetContentHeightPx (clearEnd - boundsDip.top);
+    SetContentHeightPx (thumbsEnd - boundsDip.top);
 }
 
 
@@ -130,7 +124,7 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
 
 bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_rawCopyMenu->OnMouse (ev) || m_thumbnails->OnMouse (ev) || m_clear->OnMouse (ev);
+    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_rawCopyMenu->OnMouse (ev) || m_thumbnails->OnMouse (ev);
 }
 
 
@@ -520,7 +514,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_register.SetChecked (m_choices.registered);
     m_register.SetEnabled (!m_choices.packaged);
 
-    m_rawCopyMenu.SetLabel   (L"Offer Copy here as raw bytes when dragging files into File Explorer with the right mouse button");
+    m_rawCopyMenu.SetLabel   (L"Offer Copy here without conversion (raw bytes) on right-drags into File Explorer");
     m_rawCopyMenu.SetChecked (m_choices.rawCopyMenu);
 
     m_previewNote.SetText      (L"When a file is selected, the preview pane opens if the file is of a known type, and closes if it isn't. "
@@ -538,17 +532,8 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_autoThumbnails.SetLabel   (L"Automatically create thumbnails for disk images by booting them headlessly and capturing the screen");
     m_autoThumbnails.SetChecked (m_choices.autoThumbnails);
 
-    m_clearThumbnails.SetLabel   (L"Clear thumbnails...");
-    m_clearThumbnails.SetEnabled ((bool) m_display.clearThumbnails);
-    m_clearThumbnails.SetOnClick ([this] ()
-    {
-        if (m_display.clearThumbnails)
-        {
-            m_display.clearThumbnails (GetHwnd());
-        }
-    });
 
-    m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register, m_rawCopyMenu, m_autoThumbnails, m_clearThumbnails);
+    m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register, m_rawCopyMenu, m_autoThumbnails);
 
     m_hostNames = CreatePage<CassoExplorerHostNamesPage> (L"Host file names");
     m_hostNames->Init (m_namingNote, m_naming);

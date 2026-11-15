@@ -15,9 +15,10 @@ class ThumbnailStore;
 //
 //  DiskThumbnailCommand
 //
-//  The disk tool's `thumbnail`: a picture file as an image's thumbnail,
-//  marked as set by the user; the removal of the thumbnail the user set; or
-//  the image's thumbnail written to a PNG file.
+//  The disk tool's `setthumbnail`, `getthumbnail` and `removethumbnail`: a
+//  picture file as an image's thumbnail, marked as set by the user; the
+//  image's thumbnail saved as a PNG file; and the removal of the thumbnail
+//  the user set, or with none, of the one captured by booting.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +36,7 @@ public:
 private:
     static void     Set          (const CommandLineOptions & options, ThumbnailStore & store, DiskCommandResult & result);
     static void     Remove       (const CommandLineOptions & options, ThumbnailStore & store, DiskCommandResult & result);
-    static void     WriteOut     (const CommandLineOptions & options, ThumbnailStore & store, DiskCommandResult & result);
+    static void     Get          (const CommandLineOptions & options, ThumbnailStore & store, DiskCommandResult & result);
 
     static constexpr int  kPngDpi = 96;
 };

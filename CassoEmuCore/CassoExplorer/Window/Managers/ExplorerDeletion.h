@@ -29,7 +29,6 @@ public:
     void     DeleteSelected             ();
     void     DeleteSelectionPermanently ();
     HRESULT  RecycleHostFiles           (const std::vector<std::wstring> & paths);
-    void     ClearThumbnails            (HWND owner);
 
 private:
     void                      DeleteHostSelection ();

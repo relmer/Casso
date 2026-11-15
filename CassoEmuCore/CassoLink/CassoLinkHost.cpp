@@ -1515,11 +1515,17 @@ HRESULT CassoLinkHost::ReadStatus (const CassoLinkPacket & packet, CassoLinkStat
 
     CBREx (status, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    outStatus.operation = packet.payload[0];
-    outStatus.drive     = packet.payload[1];
-    outStatus.track     = packet.payload[2];
-    outStatus.done      = packet.payload[3];
-    outStatus.error     = packet.payload[4];
+    outStatus.operation      = packet.payload[0];
+    outStatus.drive          = (Byte) (packet.payload[1] & ~CassoLinkCodec::kStatusWriteProtected);
+    outStatus.writeProtected = (packet.payload[1] & CassoLinkCodec::kStatusWriteProtected) != 0;
+    outStatus.track          = packet.payload[2];
+    outStatus.done           = packet.payload[3];
+    outStatus.error          = packet.payload[4];
+
+    if (outStatus.drive >= 1 && outStatus.drive <= 2)
+    {
+        m_writeProtected[outStatus.drive - 1] = outStatus.writeProtected;
+    }
 
 Error:
     return hr;

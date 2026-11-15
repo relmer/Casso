@@ -620,7 +620,7 @@ hardware.
 - Q: Where is a Full Send's progress on the PC? -> A: In a Full Send window, since one line in the status bar can't list both drives, the disks done and the time left. It opens without taking focus when a session starts, and closing it doesn't end the session. It has a state line with what the session is doing or what it waits for, a panel per drive with the disk's title, a track map, a progress bar, the time elapsed and the time left, the session's totals, a list of the disks done, and an activity list with each event's time. The status bar has a one-line summary, and a click on it opens the window.
 - Q: Is a boot check, a thumbnail and a name for each captured image part of 033? -> A: Yes. On 2026-11-13 the owner called it critical: without it the captured images aren't useful. It had been deferred as T713 and T720 an hour earlier; it is Story 43 now, for every disk image Casso Explorer lists and not Full Send's alone.
 - Q: Where is a thumbnail stored? -> A: In a cache under the user's local application data, a PNG whose file name is the image's content hash, with a copy in an alternate data stream of the image file. The owner chose the stream so a thumbnail travels with a moved or copied file; OneDrive, a zip, email and a FAT volume drop streams, so the cache restores it. A chunk inside a WOZ was set aside: it changes the file, whose hash the manifest has, and covers WOZ alone.
-- Q: How are orphaned thumbnails removed? -> A: The owner chose removal when the image is deleted in Casso Explorer, and nothing timed. An image deleted elsewhere has an orphan, which a command in Options clears.
+- Q: How are orphaned thumbnails removed? -> A: The owner chose removal when the image is deleted in Casso Explorer, and nothing timed. An image deleted elsewhere has an orphan, which stays in the cache; the command in Options that cleared the cache was built and removed (owner, 2026-11-14), as its pictures are small and the user can delete the folder.
 - Q: What counts as booted? -> A: The screen changed from its power-on state and the drive stopped seeking. Did not boot: the screen never changed, the machine stopped in the monitor or at a BASIC prompt with an error, or the drive sought without end. Anything else is unclear (the owner's choice of three, 2026-11-13; a verdict from any change of the screen would pass a loader that draws a logo and stops).
 - Q: Which machine is an image booted on? -> A: An enhanced //e with 128K, and once more on a ][+ when it did not boot there, so an older title that fails on a //e isn't reported as bad (the owner's choice, 2026-11-13).
 - Q: Where is a thumbnail the user set stored? -> A: In the cache and the image file's alternate data stream, as every thumbnail is, marked as set by the user; no picture file beside the image and no folder of pictures (the owner, 2026-11-13). A file beside the image was set aside: a capture is a bare number until its thumbnail is seen, and a second file with that number would be one more file to rename. The cost accepted: a thumbnail the user set is gone when the stream is dropped and the image is opened on another PC, where a new one is made by booting.
@@ -2257,8 +2257,7 @@ as they arrive.
     is captured later, **Then** the new image has that name with a new
     number.
 11. **Given** an image is deleted in Casso Explorer, **When** the delete is
-    done, **Then** its thumbnail is removed with it, and Clear thumbnails
-    in Options removes every thumbnail made by booting.
+    done, **Then** its thumbnail is removed with it.
 
 ### Edge Cases
 
@@ -3631,6 +3630,22 @@ as they arrive.
   reads differ in length, or a sector taken from another read MUST have
   that with its boot result, in the manifest, the Full Send window and the
   preview pane, as a boot reads only the sectors a title starts from.
+- **FR-290**: Each image a Full Send saves, a sector image or the sectors a
+  raw capture decodes to, MUST have the disk inspector's file-system check
+  (040, FR-166): its verdict in the manifest's `fscheck` column, after the
+  status in the Full Send window's list, and with the image's boot result in
+  the activity list, with its first finding of damage. A Bad verdict
+  MUST count as a failed capture for the failure sound, as a boot that failed
+  does, and a disk row's menu MUST have Repair disk image when the inspector
+  can repair it. A raw capture with no standard file system has the verdict
+  "No standard file system", which isn't a failure.
+- **FR-291**: A disk that is write-protected when Full Send reads it MUST
+  have a write-protected image: a WOZ with its INFO chunk's write-protect
+  flag set, and a sector image with the file's read-only attribute, which
+  Casso mounts as write-protected. The manifest's `writeProtected` column
+  MUST have it too, as the attribute doesn't survive a zip or a checkout.
+  A title that tests for a copy by writing to its disk, as Wizardry I's boot
+  disk does, runs only from a write-protected image (owner, 2026-11-14).
 - **FR-288**: When an image is first to be booted and the ROMs of the enhanced //e
   or the ][+ aren't installed, Casso Explorer MUST offer them in the dialog
   Casso has for a machine's missing ROMs, once in a run of the program,
@@ -3673,9 +3688,8 @@ as they arrive.
   menu, which removes a thumbnail the user set and restores the one made
   by booting.
 - **FR-286**: Deleting an image in Casso Explorer MUST remove its
-  thumbnail. Options MUST have a command that clears every thumbnail made
-  by booting, and that command MUST NOT remove one the user set without a
-  confirmation that lists how many.
+  thumbnail. The cache has no command to clear it: its pictures are small,
+  and the user can delete its folder (owner, 2026-11-14).
 - **FR-287**: An image written by Casso or Casso Explorer, such as a disk
   with a saved game, MUST have the thumbnail it had before the write.
 - **FR-198**: A capture's INFO chunk MUST list Casso Explorer and its
@@ -4279,6 +4293,11 @@ as they arrive.
   thumbnail within 30 seconds.
 - **SC-075**: An image renamed, moved and copied on an NTFS volume has its
   thumbnail in all three places with no boot.
+- **SC-076**: A Full Send of a disk with planted bookkeeping damage has
+  the verdict Bad in the manifest and the window, sounds the failure, and
+  its row's Repair disk image writes a copy with the verdict OK; a Full Send
+  of a copy-protected disk has "No standard file system" and sounds success
+  when it boots.
 
 ## Assumptions
 

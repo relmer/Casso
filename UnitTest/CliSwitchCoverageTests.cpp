@@ -448,9 +448,6 @@ namespace CliSwitchCoverageTests
             { "disk", "yes", { "CassoCli", "disk", "rmdir", "d.po", "GAMES", "--recurse", "--yes" },
               [] (const CommandLineOptions & o) { return o.disk.yes; },
               "--yes answers the confirmation in advance" },
-            { "disk", "remove", { "CassoCli", "disk", "thumbnail", "d.po", "--remove" },
-              [] (const CommandLineOptions & o) { return o.disk.remove; },
-              "--remove removes the thumbnail the user set" },
         };
     }
 

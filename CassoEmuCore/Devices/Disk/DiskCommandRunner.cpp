@@ -160,7 +160,8 @@ std::vector<std::string> DiskCommandRunner::FindMissingParameters (const Command
     std::vector<std::string>  missing;
     Command                   command   = options.disk.command;
     bool                      wantsFile = command == Command::Put || command == Command::SectorWrite
-                                       || command == Command::BlockWrite;
+                                       || command == Command::BlockWrite || command == Command::GetThumbnail;
+    bool                      wantsPic  = command == Command::SetThumbnail;
     bool                      wantsName = command == Command::Get || command == Command::Delete
                                        || command == Command::Boot;
     bool                      wantsPath = command == Command::Mkdir || command == Command::Rmdir;
@@ -196,6 +197,11 @@ std::vector<std::string> DiskCommandRunner::FindMissingParameters (const Command
     if (wantsPath && options.disk.path.empty())
     {
         missing.push_back ("<path>");
+    }
+
+    if (wantsPic && options.disk.picturePath.empty())
+    {
+        missing.push_back ("<picture>");
     }
 
     if (wantsFile && options.disk.hostFile.empty())
@@ -3211,7 +3217,9 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
             DiskInspectCommand::Run (m_fileIo, options.disk.imagePath, result);
             break;
 
-        case CommandLineOptions::DiskOptions::Command::Thumbnail:
+        case CommandLineOptions::DiskOptions::Command::SetThumbnail:
+        case CommandLineOptions::DiskOptions::Command::GetThumbnail:
+        case CommandLineOptions::DiskOptions::Command::RemoveThumbnail:
             RunThumbnail (options, result);
             break;
 

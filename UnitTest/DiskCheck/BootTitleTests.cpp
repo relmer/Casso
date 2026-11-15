@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
 #include "DiskCheck/BootTitle.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -80,6 +81,26 @@ public:
         Assert::AreEqual (std::string ("Lord of the Rings"), BootTitle::ToName ("LORD OF THE RINGS"));
         Assert::AreEqual (std::string ("DOS 3.3 System Master"), BootTitle::ToName ("DOS 3.3 SYSTEM MASTER"));
         Assert::AreEqual (std::string ("One-On-One"), BootTitle::ToName ("ONE-ON-ONE"));
+    }
+
+    //  Apple Pascal 1.3's welcome: the lines over its copyright are a block
+    //  of sentences, none set off, so it has no title. A centered line with
+    //  text above it is a title.
+    TEST_METHOD (ASentenceOrALineInABlock_IsNotATitle)
+    {
+        std::vector<std::string>  welcome  = Screen ({ { 0, "Command: F(ile, E(dit, R(un, C(omp, L(ink" },
+                                                       { 1, "Welcome APPLE1, to Apple II Pascal 1.3" },
+                                                       { 2, "Based on UCSD Pascal II.1" },
+                                                       { 3, "Current date is 10-Apr-90" },
+                                                       { 4, "Pascal system size is 64K" },
+                                                       { 5, "Copyright Apple Computer 1979-1985" } });
+        std::vector<std::string>  centered = Screen ({ { 3, "PRESENTED BY BRODERBUND" },
+                                                       { 4, "                KARATEKA" },
+                                                       { 5, "COPYRIGHT 1984 JORDAN MECHNER" } });
+
+        Assert::IsTrue (BootTitle::Find (welcome, true).empty(), TextEncoding::NarrowToWide (BootTitle::Find (welcome, true)).c_str());
+        Assert::AreEqual (std::string ("KARATEKA"), BootTitle::Find (centered, true));
+        Assert::IsTrue (BootTitle::Find (Screen ({ { 1, "INSERT DISK 2 AND PRESS RETURN." } }), true).empty(), L"A sentence alone in the first four");
     }
 
     TEST_METHOD (AScreenInAGraphicsMode_HasNoTitle)
