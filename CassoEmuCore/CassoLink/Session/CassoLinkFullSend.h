@@ -43,6 +43,7 @@ public:
     bool     NoteImage      (const std::string & path) override;
     HRESULT  AwaitBoot      (const std::string & file) override;
     bool     HasBootTones   () override;
+    bool     IsWriteProtected (int drive) override;
     void     Report         (const std::string & text) override;
 
     //  The time for a manifest's row: UTC, in ISO 8601.

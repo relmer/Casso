@@ -86,6 +86,10 @@ public:
     virtual HRESULT  ListFolders   (const std::string & folder, std::vector<std::string> & outNames) { (void) folder; outNames.clear(); return S_OK; }
     virtual bool     IsFolder      (const std::string & path) { (void) path; return false; }
 
+    //  The file's read-only attribute, which Casso reads as a write-protected
+    //  disk; a store with no attributes takes it as done.
+    virtual HRESULT  SetReadOnly   (const std::string & path, bool readOnly) { (void) path; (void) readOnly; return S_OK; }
+
     //  Replaces the target with the temporary in one step, so an interrupted
     //  write cannot leave a half-written image behind.
     virtual HRESULT  ReplaceAtomically (const std::string & tempPath,

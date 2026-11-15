@@ -11,6 +11,7 @@
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 
 
@@ -1234,7 +1235,9 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
     title = FullSendDisk::MakeImageTitle (sequence, FullSendDisk::GetCatalogTitle (image), m_prefix);
 
-    hr = WriteImage (title, image, earlier == nullptr ? raw : std::vector<Byte>(), unreadable, report.marks, row.file);
+    row.writeProtected = m_link.IsWriteProtected (drive);
+
+    hr = WriteImage (title, image, earlier == nullptr ? raw : std::vector<Byte>(), unreadable, report.marks, row.writeProtected, row.file);
     CHRF (hr, m_fileFailed = true);
 
     //  The disk just sent isn't a duplicate while it stays in its drive.
@@ -1437,7 +1440,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FullSendSession::WriteImage (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile)
+HRESULT FullSendSession::WriteImage (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, bool writeProtected, std::string & outFile)
 {
     HRESULT               hr        = S_OK;
     std::string           extension = raw.empty() ? FullSendDisk::GetImageExtension (image, m_extension) : std::string (kRawExtension);
@@ -1464,8 +1467,23 @@ HRESULT FullSendSession::WriteImage (const std::string & title, const std::vecto
         outFile = std::format ("{} ({}){}", title, copy, extension);
     }
 
+    //  A write-protected disk's image is write-protected: a WOZ by its INFO
+    //  chunk, and a sector image by the file's read-only attribute. A title
+    //  that writes to its disk to test for a copy runs only from such an image.
+    if (writeProtected && extension == kRawExtension)
+    {
+        hr = WozLoader::SetWriteProtectFlag (bytes, true);
+        CHR (hr);
+    }
+
     hr = DurableCommit::Commit (m_fileIo, GetPath (outFile), bytes, m_commitTag++, CommitMode::CreateNew, progress);
     CHR (hr);
+
+    if (writeProtected && extension != kRawExtension)
+    {
+        hr = m_fileIo.SetReadOnly (GetPath (outFile), true);
+        CHR (hr);
+    }
 
     if (!raw.empty() && !m_rawReads.empty())
     {

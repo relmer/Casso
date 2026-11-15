@@ -296,6 +296,14 @@ public:
         return Exists (path) ? S_OK : HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
     }
 
+    HRESULT  SetReadOnly (const std::string & path, bool readOnly) override
+    {
+        readOnlyFiles[path] = readOnly;
+        return S_OK;
+    }
+
+    std::map<std::string, bool>  readOnlyFiles;   // each SetReadOnly, by path
+
     HRESULT  CopyFileMetadata (const std::string & fromPath, const std::string & toPath) override
     {
         metadataCount++;

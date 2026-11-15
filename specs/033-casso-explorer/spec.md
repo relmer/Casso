@@ -3639,6 +3639,13 @@ as they arrive.
   does, and a disk row's menu MUST have Repair disk image when the inspector
   can repair it. A raw capture with no standard file system has the verdict
   "No standard file system", which isn't a failure.
+- **FR-291**: A disk that is write-protected when Full Send reads it MUST
+  have a write-protected image: a WOZ with its INFO chunk's write-protect
+  flag set, and a sector image with the file's read-only attribute, which
+  Casso mounts as write-protected. The manifest's `writeProtected` column
+  MUST have it too, as the attribute doesn't survive a zip or a checkout.
+  A title that tests for a copy by writing to its disk, as Wizardry I's boot
+  disk does, runs only from a write-protected image (owner, 2026-11-14).
 - **FR-288**: When an image is first to be booted and the ROMs of the enhanced //e
   or the ][+ aren't installed, Casso Explorer MUST offer them in the dialog
   Casso has for a machine's missing ROMs, once in a run of the program,
