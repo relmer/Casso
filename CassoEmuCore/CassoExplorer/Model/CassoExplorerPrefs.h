@@ -59,6 +59,7 @@ struct CassoExplorerPrefs
     //  Open in viewer setting would.
     bool                   enterExpandsPreview = false;
     bool                   autoThumbnails      = true;     // a disk image in view with no thumbnail is booted for one
+    bool                   rawCopyMenu         = true;     // a drag into File Explorer offers Copy here without conversion (raw bytes)
 
     std::string            hostNaming      = kNamingDescriptive;
 

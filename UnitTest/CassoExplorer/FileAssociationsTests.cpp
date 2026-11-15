@@ -2,6 +2,9 @@
 #include "../EhmTestHelper.h"
 
 #include "Config/FileAssociations.h"
+#include "Config/ShellExtensionRegistration.h"
+#include "../UpdateTests/FakeInstallEnvironment.h"
+#include "../UpdateTests/FakeSignatureVerifier.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -208,5 +211,106 @@ public:
         Assert::IsFalse (FileAssociations::IsRegistered (classes, L"C:\\Casso\\Casso.exe", L"C:\\Casso\\CassoExplorer.exe"));
         Assert::IsTrue  (classes.keys == before.keys, L"Registering twice gives the type back, and nothing Casso wrote is left");
         Assert::IsTrue  (fileExts.keys == beforeExts.keys, L"File Explorer's record lists Casso's type nowhere");
+    }
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellExtensionRegistrationTests
+//
+//  CassoShellExtension.dll's per-user registration, in the fake registry
+//  above: the class with its DLL and threading model, a handler entry for
+//  folders and drives, and all of it removed again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (ShellExtensionRegistrationTests)
+{
+public:
+
+    static constexpr const wchar_t *  kDll   = L"C:\\Casso\\CassoShellExtension.dll";
+    static constexpr const wchar_t *  kClass = L"CLSID\\{8E3B6C41-2F7A-4D59-B1C8-6A0E9D24F713}";
+
+
+    TEST_METHOD (Register_WritesTheClassAndAHandlerForFoldersAndDrives)
+    {
+        FakeUserClasses  classes;
+        std::wstring     value;
+
+        AssertSucceeded (ShellExtensionRegistration::Register (classes, kDll));
+
+        Assert::IsTrue   (classes.GetValue (std::wstring (kClass) + L"\\InprocServer32", L"", value));
+        Assert::AreEqual (std::wstring (kDll), value);
+        Assert::IsTrue   (classes.GetValue (std::wstring (kClass) + L"\\InprocServer32", L"ThreadingModel", value));
+        Assert::AreEqual (std::wstring (L"Apartment"), value);
+
+        Assert::IsTrue   (classes.GetValue (L"Directory\\shellex\\DragDropHandlers\\CassoExplorer", L"", value));
+        Assert::AreEqual (std::wstring (L"{8E3B6C41-2F7A-4D59-B1C8-6A0E9D24F713}"), value);
+        Assert::IsTrue   (classes.GetValue (L"Drive\\shellex\\DragDropHandlers\\CassoExplorer", L"", value));
+
+        Assert::IsTrue   (ShellExtensionRegistration::IsRegistered (classes, kDll));
+        Assert::IsTrue   (classes.notified > 0, L"NotifyChanged is called, for File Explorer to reread the handlers");
+    }
+
+
+    TEST_METHOD (IsRegistered_OnlyForThisDll)
+    {
+        FakeUserClasses  classes;
+
+        Assert::IsFalse (ShellExtensionRegistration::IsRegistered (classes, kDll));
+
+        AssertSucceeded (ShellExtensionRegistration::Register (classes, L"D:\\Old\\CassoShellExtension.dll"));
+        Assert::IsFalse (ShellExtensionRegistration::IsRegistered (classes, kDll), L"another copy's registration is not this one's");
+        Assert::IsTrue  (ShellExtensionRegistration::IsRegistered (classes, L"d:\\old\\cassoshellextension.dll"), L"paths compare without case");
+
+        classes.DeleteKey (L"Drive\\shellex\\DragDropHandlers\\CassoExplorer");
+        Assert::IsFalse (ShellExtensionRegistration::IsRegistered (classes, L"D:\\Old\\CassoShellExtension.dll"), L"a missing handler entry is not registered");
+    }
+
+
+    TEST_METHOD (Unregister_RemovesEveryKeyRegisterWrote)
+    {
+        FakeUserClasses  classes;
+
+        classes.SetValue (L"Directory\\shellex\\DragDropHandlers\\WinRAR", L"", L"{B41DB860-64E4-11D2-9906-E49FADC173CA}");
+
+        AssertSucceeded (ShellExtensionRegistration::Register (classes, kDll));
+        AssertSucceeded (ShellExtensionRegistration::Unregister (classes));
+
+        Assert::IsTrue  (classes.IsEmpty (kClass));
+        Assert::IsTrue  (classes.IsEmpty (L"Directory\\shellex\\DragDropHandlers\\CassoExplorer"));
+        Assert::IsTrue  (classes.IsEmpty (L"Drive\\shellex\\DragDropHandlers\\CassoExplorer"));
+        Assert::IsFalse (classes.IsEmpty (L"Directory\\shellex\\DragDropHandlers\\WinRAR"), L"another program's handler stays");
+        Assert::IsFalse (ShellExtensionRegistration::IsRegistered (classes, kDll));
+    }
+
+
+    //  An official zip release is registered for the DLL beside it, once; a
+    //  package and a developer build are not.
+    TEST_METHOD (RegisterForInstall_OnlyAnOfficialZipCopy)
+    {
+        FakeUserClasses         classes;
+        FakeInstallEnvironment  environment;
+        FakeSignatureVerifier   verifier;
+
+        AssertSucceeded (ShellExtensionRegistration::RegisterForInstall (classes, environment, verifier, kDll));
+        Assert::IsFalse (ShellExtensionRegistration::IsRegistered (classes, kDll), L"an unsigned developer build is not registered");
+
+        environment.isPackaged = true;
+        verifier.isOfficial    = true;
+        AssertSucceeded (ShellExtensionRegistration::RegisterForInstall (classes, environment, verifier, kDll));
+        Assert::IsFalse (ShellExtensionRegistration::IsRegistered (classes, kDll), L"a package declares the handler in its manifest");
+
+        environment.isPackaged = false;
+        AssertSucceeded (ShellExtensionRegistration::RegisterForInstall (classes, environment, verifier, kDll));
+        Assert::IsTrue  (ShellExtensionRegistration::IsRegistered (classes, kDll));
+
+        classes.notified = 0;
+        AssertSucceeded (ShellExtensionRegistration::RegisterForInstall (classes, environment, verifier, kDll));
+        Assert::AreEqual (0, classes.notified, L"a registration that matches is not written again");
     }
 };

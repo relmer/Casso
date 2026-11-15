@@ -1033,6 +1033,7 @@ void ExplorerCommandManager::ShowOptions()
     //  so the box is checked and cannot be changed there.
     choices.hostNaming   = (int) GetNamingStyle();
     choices.registered   = wasRegistered;
+    choices.rawCopyMenu  = m_context.prefs.rawCopyMenu;
     choices.packaged     = packaged;
     choices.autoPreview  = m_context.prefs.autoPreview;
     choices.enterExpands = m_context.prefs.enterExpandsPreview;
@@ -1088,6 +1089,7 @@ void ExplorerCommandManager::ShowOptions()
     m_context.prefs.autoPreview         = choices.autoPreview;
     m_context.prefs.enterExpandsPreview = choices.enterExpands;
     m_context.prefs.autoThumbnails      = choices.autoThumbnails;
+    m_context.prefs.rawCopyMenu         = choices.rawCopyMenu;
     m_context.prefs.fullSendFolder    = choices.fullSendFolder == CassoLinkManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
     m_context.prefs.fullSendExtension = choices.fullSendExtension;
     m_context.prefs.bootSoundPlace    = choices.bootSoundPlace;

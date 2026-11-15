@@ -3008,19 +3008,23 @@ namespace CommandLineTests
                 //  Both halves of the raw pairs, which are the cases worth
                 //  sweeping: each pair shares a prefix, and a table matched by
                 //  anything less than the whole word would fold them together.
-                { "sectorread",  CommandLineOptions::DiskOptions::Command::SectorRead  },
-                { "sectorwrite", CommandLineOptions::DiskOptions::Command::SectorWrite },
-                { "blockread",   CommandLineOptions::DiskOptions::Command::BlockRead   },
-                { "blockwrite",  CommandLineOptions::DiskOptions::Command::BlockWrite  },
-                { "krunch",      CommandLineOptions::DiskOptions::Command::Krunch      },
-                { "test",        CommandLineOptions::DiskOptions::Command::Test        },
-                { "dupes",       CommandLineOptions::DiskOptions::Command::Dupes       },
-                { "search",      CommandLineOptions::DiskOptions::Command::Search      },
-                { "inspect",     CommandLineOptions::DiskOptions::Command::Inspect     },
-                { "repair",      CommandLineOptions::DiskOptions::Command::Repair      },
-                { "setthumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
-                { "getthumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
-                { "removethumbnail", CommandLineOptions::DiskOptions::Command::RemoveThumbnail },
+                { "sectorread",       CommandLineOptions::DiskOptions::Command::SectorRead      },
+                { "read-sector",      CommandLineOptions::DiskOptions::Command::SectorRead      },
+                { "sectorwrite",      CommandLineOptions::DiskOptions::Command::SectorWrite     },
+                { "write-sector",     CommandLineOptions::DiskOptions::Command::SectorWrite     },
+                { "blockread",        CommandLineOptions::DiskOptions::Command::BlockRead       },
+                { "read-block",       CommandLineOptions::DiskOptions::Command::BlockRead       },
+                { "blockwrite",       CommandLineOptions::DiskOptions::Command::BlockWrite      },
+                { "write-block",      CommandLineOptions::DiskOptions::Command::BlockWrite      },
+                { "krunch",           CommandLineOptions::DiskOptions::Command::Krunch          },
+                { "test",             CommandLineOptions::DiskOptions::Command::Test            },
+                { "dupes",            CommandLineOptions::DiskOptions::Command::Dupes           },
+                { "search",           CommandLineOptions::DiskOptions::Command::Search          },
+                { "inspect",          CommandLineOptions::DiskOptions::Command::Inspect         },
+                { "repair",           CommandLineOptions::DiskOptions::Command::Repair          },
+                { "set-thumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
+                { "get-thumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
+                { "remove-thumbnail", CommandLineOptions::DiskOptions::Command::RemoveThumbnail },
             };
 
             for (const auto & form : kSpellings)
@@ -3051,7 +3055,7 @@ namespace CommandLineTests
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
             }
 
-            Assert::AreEqual (size_t (34), CommandLineParser::GetAllDiskCommands().size(),
+            Assert::AreEqual (size_t (38), CommandLineParser::GetAllDiskCommands().size(),
                 L"and the table holds exactly the forms swept above");
         }
 

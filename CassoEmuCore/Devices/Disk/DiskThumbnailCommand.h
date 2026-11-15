@@ -15,7 +15,7 @@ class ThumbnailStore;
 //
 //  DiskThumbnailCommand
 //
-//  The disk tool's `setthumbnail`, `getthumbnail` and `removethumbnail`: a
+//  The disk tool's `set-thumbnail`, `get-thumbnail` and `remove-thumbnail`: a
 //  picture file as an image's thumbnail, marked as set by the user; the
 //  image's thumbnail saved as a PNG file; and the removal of the thumbnail
 //  the user set, or with none, of the one captured by booting.

@@ -3687,7 +3687,7 @@ as they arrive.
 - **FR-285**: Casso Explorer MUST have Remove thumbnail on the menu of a
   disk image with a thumbnail. It removes a thumbnail the user set and
   restores the one made by booting; with none set, it removes the one made
-  by booting, as `disk removethumbnail` does, since automatic thumbnails
+  by booting, as `disk remove-thumbnail` does, since automatic thumbnails
   can be turned off (owner, 2026-11-14).
 - **FR-286**: Deleting an image in Casso Explorer MUST remove its
   thumbnail. The cache has no command to clear it: its pictures are small,

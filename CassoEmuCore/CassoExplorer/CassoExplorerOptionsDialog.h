@@ -19,7 +19,7 @@ class DisplayPage;
 //  CassoExplorerGeneralPage
 //
 //  Automatic preview, its description below its box, then the disk image
-//  types, and automatic thumbnails.
+//  types, File Explorer's raw copy menu item, and automatic thumbnails.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +28,8 @@ class CassoExplorerGeneralPage : public DxuiPropertyPage
 public:
     explicit CassoExplorerGeneralPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & autoThumbnails);
+    void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & rawCopyMenu,
+                   DxuiCheckbox & autoThumbnails);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
@@ -40,6 +41,7 @@ private:
     DxuiCheckbox  * m_autoPreview  = nullptr;
     DxuiCheckbox  * m_enterExpands = nullptr;
     DxuiCheckbox  * m_register     = nullptr;
+    DxuiCheckbox  * m_rawCopyMenu  = nullptr;
     DxuiCheckbox  * m_thumbnails   = nullptr;
 };
 
@@ -203,8 +205,9 @@ public:
 
         //  Whether Casso is the program for its disk image types, and whether
         //  it runs from an installed package, whose manifest declares them.
-        bool  registered = false;
-        bool  packaged   = false;
+        bool  registered  = false;
+        bool  rawCopyMenu = true;    // CassoExplorerPrefs::rawCopyMenu
+        bool  packaged    = false;
 
         //  Whether the preview pane opens and closes for the selected file, and
         //  whether Enter on a file expands its preview.
@@ -290,6 +293,7 @@ private:
     DxuiCheckbox                                   m_enterExpands;
     DxuiCheckbox                                   m_autoThumbnails;
     DxuiCheckbox                                   m_register;
+    DxuiCheckbox                                   m_rawCopyMenu;
     DxuiLabel                                      m_fullSendNote;
     DxuiLabel                                      m_fullSendFolderLabel;
     DxuiLabel                                      m_fullSendFormatLabel;

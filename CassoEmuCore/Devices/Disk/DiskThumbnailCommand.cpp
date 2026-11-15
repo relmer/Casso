@@ -16,7 +16,7 @@
 //
 //  DiskThumbnailCommand::Run
 //
-//  setthumbnail, getthumbnail or removethumbnail.
+//  set-thumbnail, get-thumbnail or remove-thumbnail.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

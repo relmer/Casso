@@ -161,7 +161,7 @@ struct CommandLineOptions
         bool         force          = false;           // --force
         bool         yes            = false;           // --yes, -y
         std::string  hostFile;                         // source for put, --out for get
-        std::string  picturePath;                      // the picture `setthumbnail` sets
+        std::string  picturePath;                      // the picture `set-thumbnail` sets
         bool         noFreeUnowned  = false;           // --no-free-unowned, for `repair`
         bool         listOnly       = false;           // --list, for `repair`
         std::string  typeName;                         // --type, as the user wrote it

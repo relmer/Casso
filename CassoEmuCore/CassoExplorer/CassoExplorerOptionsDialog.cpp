@@ -56,18 +56,21 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & autoThumbnails)
+void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & rawCopyMenu,
+                                     DxuiCheckbox & autoThumbnails)
 {
     m_previewNote  = &previewNote;
     m_autoPreview  = &autoPreview;
     m_enterExpands = &enterExpands;
     m_register     = &registration;
+    m_rawCopyMenu  = &rawCopyMenu;
     m_thumbnails   = &autoThumbnails;
 
     Adopt (previewNote);
     Adopt (autoPreview);
     Adopt (enterExpands);
     Adopt (registration);
+    Adopt (rawCopyMenu);
     Adopt (autoThumbnails);
 }
 
@@ -90,7 +93,9 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     int  enterEnd     = enterTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
     int  registerTop  = enterEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
     int  registerEnd  = registerTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
-    int  thumbsTop    = registerEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
+    int  rawCopyTop   = registerEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
+    int  rawCopyEnd   = rawCopyTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  thumbsTop    = rawCopyEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
     int  thumbsEnd    = thumbsTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
 
 
@@ -101,6 +106,7 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     m_previewNote->Layout (RECT { boundsDip.left + scaler.ToPx (kNoteIndentDip), noteTop, boundsDip.right, noteBottom }, scaler);
     m_enterExpands->Layout (RECT { boundsDip.left, enterTop, boundsDip.right, enterEnd }, scaler);
     m_register->Layout    (RECT { boundsDip.left, registerTop, boundsDip.right, registerEnd }, scaler);
+    m_rawCopyMenu->Layout (RECT { boundsDip.left, rawCopyTop, boundsDip.right, rawCopyEnd }, scaler);
     m_thumbnails->Layout  (RECT { boundsDip.left, thumbsTop, boundsDip.right, thumbsEnd }, scaler);
 
     SetContentHeightPx (thumbsEnd - boundsDip.top);
@@ -118,7 +124,7 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
 
 bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_thumbnails->OnMouse (ev);
+    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_rawCopyMenu->OnMouse (ev) || m_thumbnails->OnMouse (ev);
 }
 
 
@@ -508,6 +514,9 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_register.SetChecked (m_choices.registered);
     m_register.SetEnabled (!m_choices.packaged);
 
+    m_rawCopyMenu.SetLabel   (L"Offer Copy here without conversion (raw bytes) on right-drags into File Explorer");
+    m_rawCopyMenu.SetChecked (m_choices.rawCopyMenu);
+
     m_previewNote.SetText      (L"When a file is selected, the preview pane opens if the file is of a known type, and closes if it isn't. "
                                 L"Turn the pane on from the toolbar to keep it open for every file.");
     ExplorerTextStyles::Apply (m_previewNote, ExplorerTextStyles::kFormNote);
@@ -524,7 +533,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_autoThumbnails.SetChecked (m_choices.autoThumbnails);
 
 
-    m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register, m_autoThumbnails);
+    m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register, m_rawCopyMenu, m_autoThumbnails);
 
     m_hostNames = CreatePage<CassoExplorerHostNamesPage> (L"Host file names");
     m_hostNames->Init (m_namingNote, m_naming);
@@ -873,6 +882,7 @@ void CassoExplorerOptionsDialog::PreviewChoices()
 HRESULT CassoExplorerOptionsDialog::OnOk()
 {
     m_choices.registered  = m_register.IsChecked();
+    m_choices.rawCopyMenu = m_rawCopyMenu.IsChecked();
     m_choices.autoPreview  = m_autoPreview.IsChecked();
     m_choices.enterExpands = m_enterExpands.IsChecked();
     m_choices.autoThumbnails = m_autoThumbnails.IsChecked();
