@@ -422,9 +422,10 @@ void CassoLinkManager::WriteImageToDisk (const Location & drive, bool forceVerif
 
     spec.filters    = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib, *.nb2)", L"*.dsk;*.do;*.po;*.woz;*.nib;*.nb2" },
                         FileDialogFilter { L"All files (*.*)", L"*.*" } };
-    spec.clientGuid = s_kLinkDiskPickerGuid;
-    spec.title      = std::format (L"Write image to {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
-    spec.content = FileDialogContent::Images;
+    spec.clientGuid     = s_kLinkDiskPickerGuid;
+    spec.title          = std::format (L"Write image to {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
+    spec.content        = FileDialogContent::Images;
+    spec.receivingDrive = ReceivingDrive { ReceivingDriveKind::Floppy525, 0 };
 
     hr = m_context.dialogs.PickFileToOpen (m_context.window.GetHwnd(), spec, picked, chosen);
     CHR (hr);
