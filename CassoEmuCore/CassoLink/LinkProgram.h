@@ -206,5 +206,6 @@ public:
     static bool         GetSpeedControl  (DWORD baud, Byte & outControl);
 
 private:
-    static HRESULT      Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults = false, std::unordered_map<std::string, Word> * outSymbols = nullptr);
+    static std::string  GetCommandLines ();
+    static HRESULT      Assemble        (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults = false, std::unordered_map<std::string, Word> * outSymbols = nullptr);
 };

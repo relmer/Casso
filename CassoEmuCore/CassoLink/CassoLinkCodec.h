@@ -182,6 +182,65 @@ public:
     static constexpr size_t  kPageSize   = 256;
     static constexpr size_t  kSectorSize = 256;
 
+    //  Every packet's command, ADTPro's and Casso's, each once, so no two
+    //  have the same byte: CassoLinkCodecTests checks it. LinkProgram puts
+    //  each one with an assembler name ahead of the Apple sources it
+    //  assembles, and the sources don't define any. Acknowledge is
+    //  ADTPro's, and Casso's program sends it too.
+    struct Command
+    {
+        Byte          value;
+        const char *  symbol;      // the Apple sources' name, or nullptr for ADTPro's alone
+    };
+
+    static constexpr Command  kCommands[] =
+    {
+        { kCd,            nullptr       },
+        { kDirectory,     nullptr       },
+        { kGet,           nullptr       },
+        { kPut,           nullptr       },
+        { kBatch,         nullptr       },
+        { kNibble,        nullptr       },
+        { kMultiple,      nullptr       },
+        { kSize,          nullptr       },
+        { kImageData,     nullptr       },
+        { kSummary,       nullptr       },
+        { kHome,          nullptr       },
+        { kSendFile,      nullptr       },
+        { kVirtualDrive,  nullptr       },
+        { kAcknowledge,   "CMDACK"      },
+        { kReady,         "CMDREADY"    },
+        { kIdle,          "CMDIDLE"     },
+        { kSectorData,    "CMDDATA"     },
+        { kSectorNibbles, "CMDNIBS"     },
+        { kLoadProgram,   "CMDLOAD"     },
+        { kSetSpeed,      "CMDSPEED"    },
+        { kReadSectors,   "CMDREAD"     },
+        { kWriteSectors,  "CMDWRITE"    },
+        { kFormatTrack,   "CMDFORMAT"   },
+        { kWriteTrack,    "CMDWTRACK"   },
+        { kStatus,        "CMDSTATUS"   },
+        { kCancel,        "CMDCANCEL"   },
+        { kLabel,         "CMDLABEL"    },
+        { kLog,           "CMDLOG"      },
+        { kTimeDrive,     "CMDTIME"     },
+        { kExit,          "CMDEXIT"     },
+        { kSectorBlank,   "CMDBLANK"    },
+        { kSessionScreen, "CMDSCREEN"   },
+        { kWaitForKey,    "CMDKEY"      },
+        { kSetColumns,    "CMDCOLS"     },
+        { kReadCrcs,      "CMDREADCRC"  },
+        { kSectorCrcs,    "CMDCRCS"     },
+        { kFault,         "CMDFAULT"    },
+        { kKrunch,        "CMDKRUNCH"   },
+        { kKrunchProgress, "CMDKPROG"   },
+        { kLoadModule,    "CMDMODULE"   },
+        { kCapture,       "CMDCAPTURE"  },
+        { kCaptureData,   "CMDCAPDATA"  },
+        { kMeasureTrack,  "CMDMEASURE"  },
+        { kTrackMeasure,  "CMDMEASURED" },
+    };
+
     static HRESULT   Encode            (Byte command, std::span<const Byte> payload, std::vector<Byte> & out);
     static HRESULT   EncodeImageData   (Word startBlock, std::span<const Byte> data, std::vector<Byte> & out);
     static HRESULT   EncodeSectorData  (Byte track, Byte sector, std::span<const Byte> data, std::vector<Byte> & out);

@@ -160,36 +160,8 @@ RDALTCHAR = $C01E               ; a //e's or //c's alternate characters, in bit 
 ALTCHAROFF = $C00E              ; the primary characters, which flash
 ALTCHARON = $C00F               ; the alternate characters, which have inverse lowercase
 
-; Commands.
-CMDREADY  = $D2
-CMDIDLE   = $C9
-CMDDATA   = $CA
-CMDNIBS   = $CC                 ; a sector's data field nibbles, for Write sectors
-CMDACK    = $CB
-CMDSPEED  = $D7
-CMDREAD   = $D5
-CMDWRITE  = $D6
-CMDFORMAT = $C8
-CMDWTRACK = $DB
-CMDSTATUS = $D4
-CMDCANCEL = $D1
-CMDLOAD   = $CF
-CMDLABEL  = $DC
-CMDLOG    = $DD
-CMDTIME   = $DE
-CMDEXIT   = $DF
-CMDBLANK  = $E0                 ; Write track's sector of zeros: its numbers alone
-CMDSCREEN = $E1                 ; a Full Send's screen
-CMDCOLS   = $E3                 ; 40 or 80 columns
-CMDREADCRC = $E4                ; Read CRCs
-CMDCRCS   = $E5                 ; and the CRCs in reply
-CMDKEY    = $E2                 ; Wait for key, and the key in reply
-CMDFAULT  = $E6                 ; Debug builds: a fault for the next operation
-CMDKRUNCH = $E7                 ; Krunch
-CMDKPROG  = $E8                 ; and its progress in reply
-CMDMODULE = $E9                 ; Load module, and a module's id and version in reply
-CMDMEASURE = $EC                ; Measure track
-CMDMEASURED = $ED               ; and its counts and volume in reply
+; Commands: CMDREADY and the rest are assigned ahead of this source by
+; LinkProgram, from CassoLinkCodec::kCommands, the one list of them.
 
 ; A module: code the PC loads at MODBASE for requests that aren't the
 ; program's. It is on the disk buffers, RAWBUF to the end of ENCBUF, so an
