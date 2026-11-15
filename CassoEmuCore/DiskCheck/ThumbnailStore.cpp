@@ -149,13 +149,14 @@ HRESULT ThumbnailStore::WriteStreams (const std::filesystem::path & image, std::
     std::wstring               fields     = image.wstring() + kRecordStreamName;
     HANDLE                     whole      = INVALID_HANDLE_VALUE;
     bool                       isReadOnly = hasTimes && (before.dwFileAttributes & FILE_ATTRIBUTE_READONLY) != 0;
+    bool                       hasStreams = HasStreams (image);
     bool                       isCleared  = false;
     bool                       isTouched  = false;
 
 
 
     CBREx (hasTimes, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
-    CBREx (HasStreams (image), HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+    CBREx (hasStreams, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
     if (isReadOnly)
     {
@@ -213,8 +214,8 @@ Error:
 //
 //  ThumbnailStore::HasStreams
 //
-//  Whether the image's drive has named streams: NTFS and ReFS do, FAT and
-//  exFAT don't.
+//  Whether the image's drive has alternate data streams: NTFS and ReFS do,
+//  FAT and exFAT don't.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
