@@ -1423,6 +1423,26 @@ void ShellDeskScene::SyncSceneDriveChrome()
         }
     }
 
+    // The drive bar's 3.5-inch drives that are showing.
+    if (m_shell.m_chrome->GetDriveBarFan().IsVisible())
+    {
+        const DriveBarFan  & fan = m_shell.m_chrome->GetDriveBarFan().GetFan();
+
+
+
+        for (int c = 0; c < fan.GetClassCount(); c++)
+        {
+            for (int i = 0; i < fan.GetEntryCount (c); i++)
+            {
+                if (fan.IsSlotShown (c, i) && IsFloppy35 (fan.GetDrive (c, i)))
+                {
+                    m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { fan.GetSlotRect (c, i), DxuiHitSlot::Custom,
+                                                                             kBarDropTagBase + c * kBarDropClassStride + i });
+                }
+            }
+        }
+    }
+
     m_shell.m_tapeDeck->RegisterTapeDropTarget();
 }
 
@@ -3545,6 +3565,36 @@ std::string ShellDeskScene::GetDriveImagePath (const DeskDrive & drive) const
     }
 
     return path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetDriveTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ShellDeskScene::GetDriveTitle (const DeskDrive & drive)
+{
+    std::wstring  title;
+
+
+
+    switch (drive.model)
+    {
+        case DeskDriveModel::DiskII:        title = std::format (L"Disk II, drive {}", drive.drive + 1);  break;
+        case DeskDriveModel::Disk2c:        title = std::format (L"//c drive {}", drive.drive + 1);       break;
+        case DeskDriveModel::UniDisk35:     title = L"UniDisk 3.5";                                       break;
+        case DeskDriveModel::Apple35Drive:  title = L"Apple 3.5 Drive";                                   break;
+        case DeskDriveModel::Apple35Plus:   title = L"Built-in 3.5 drive";                                break;
+        case DeskDriveModel::HardDisk20SC:  title = std::format (L"Hard Disk 20SC, SCSI ID {}", drive.drive); break;
+        case DeskDriveModel::ProFile:       title = L"ProFile";                                           break;
+    }
+
+    return title;
 }
 
 

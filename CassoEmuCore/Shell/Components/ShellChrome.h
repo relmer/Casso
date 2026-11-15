@@ -118,6 +118,8 @@ public:
     bool    SyncDriveBarViews      ();
     bool    AnimateDriveBarFan     ();
 
+    const DriveBarFanControl &  GetDriveBarFan () const { return m_driveBarFan; }
+
     // With auto-hide on the desk, the bar rides the desk slide: it is laid
     // out again at the slide's progress. The slide remains up while the
     // pointer is on the bar or on its fan.

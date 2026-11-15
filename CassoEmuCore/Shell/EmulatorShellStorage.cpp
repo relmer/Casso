@@ -40,6 +40,19 @@ void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
             m_tapeDeck->InsertTape (path);
         }
     }
+    else if (tag >= ShellDeskScene::kBarDropTagBase)
+    {
+        const DriveBarFan  & fan   = m_chrome->m_driveBarFan.GetFan();
+        int                  c     = (tag - ShellDeskScene::kBarDropTagBase) / ShellDeskScene::kBarDropClassStride;
+        int                  entry = (tag - ShellDeskScene::kBarDropTagBase) % ShellDeskScene::kBarDropClassStride;
+
+
+
+        if (entry < fan.GetEntryCount (c) && ShellDeskScene::IsFloppy35 (fan.GetDrive (c, entry)))
+        {
+            m_disks->Mount (fan.GetDrive (c, entry).slot, fan.GetDrive (c, entry).drive, path);
+        }
+    }
     else if (tag >= ShellDeskScene::kExtraDropTagBase)
     {
         m_scene->InsertInExtraDrive (tag - ShellDeskScene::kExtraDropTagBase, path);
@@ -209,6 +222,32 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
         return;
     }
 
+    if (device >= kStorageMenuBar)
+    {
+        const DriveBarFan  & fan   = m_chrome->m_driveBarFan.GetFan();
+        int                  c     = (device - kStorageMenuBar) / ShellDeskScene::kBarDropClassStride;
+        int                  entry = (device - kStorageMenuBar) % ShellDeskScene::kBarDropClassStride;
+
+
+
+        if (entry < fan.GetEntryCount (c))
+        {
+            ShowDriveContextMenu (fan.GetDrive (c, entry), x, y);
+        }
+
+        return;
+    }
+
+    if (device >= kStorageMenuDeskExtra)
+    {
+        if (device - kStorageMenuDeskExtra < m_scene->m_deskScene.GetExtraCount())
+        {
+            ShowDriveContextMenu (m_scene->m_deskScene.GetExtraDrive (device - kStorageMenuDeskExtra), x, y);
+        }
+
+        return;
+    }
+
     if (device == kStorageMenuRecorder)
     {
         ids = { IDM_STORAGE_RECORDER, 0, IDM_TAPE_INSERT, IDM_TAPE_PLAY, IDM_TAPE_STOP, IDM_TAPE_REWIND,
@@ -254,6 +293,61 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
     for (int id : ids)
     {
         items.push_back (id == 0 ? DxuiPopupMenuItem::ForSeparator() : DxuiPopupMenuItem::ForCommand (commands.Find (id)));
+    }
+
+    DxuiContextMenu::Show (*m_host, x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowDriveContextMenu
+//
+//  A 3.5-inch drive's or hard disk's menu: the drive's name, then for a
+//  3.5-inch drive its insert and eject, then the switches every storage
+//  menu ends with. A hard disk's image is set in Settings.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
+{
+    const EmulatorCommands          & commands = m_chrome->m_mainMenu.GetCommands();
+    std::vector<DxuiPopupMenuItem>    items;
+
+
+
+    if (m_host == nullptr)
+    {
+        return;
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForHeader (ShellDeskScene::GetDriveTitle (drive)));
+
+    if (ShellDeskScene::IsFloppy35 (drive))
+    {
+        auto  insert = std::make_shared<DxuiCommand>();
+        auto  eject  = std::make_shared<DxuiCommand>();
+
+
+
+        insert->label     = L"&Insert disk...";
+        insert->dispatch  = [this, drive] () { m_scene->BrowseFloppy35 (drive); };
+        eject->label      = L"&Eject disk";
+        eject->dispatch   = [this, drive] () { m_disks->Eject (drive.slot, drive.drive); };
+        eject->isEnabled  = [this, drive] () { return !m_scene->GetDriveImagePath (drive).empty(); };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (insert));
+        items.push_back (DxuiPopupMenuItem::ForCommand (eject));
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    for (int id : { IDM_VIEW_AUTOHIDE_DRIVES, IDM_VIEW_FLOPPIES_ON_DESK, IDM_VIEW_HARD_DISKS_ON_DESK, IDM_VIEW_FLOPPY_PAIR_BESIDE })
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (id)));
     }
 
     DxuiContextMenu::Show (*m_host, x, y, std::move (items));

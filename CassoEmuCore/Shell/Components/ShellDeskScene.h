@@ -82,8 +82,15 @@ public:
     std::string  GetDriveImagePath  (const DeskDrive & drive) const;
     void         InsertInExtraDrive (int index, const std::wstring & path);
 
-    // The drop tags of the desk's extra drives start after the tape's.
-    static constexpr int  kExtraDropTagBase = 3;
+    // The drop tags of the desk's extra drives start after the tape's, and
+    // the drive bar's after those: a class's drives are kBarDropClassStride
+    // apart.
+    static constexpr int  kExtraDropTagBase   = 3;
+    static constexpr int  kBarDropTagBase     = 64;
+    static constexpr int  kBarDropClassStride = 16;
+
+    // A drive's name, as its right-click menu is headed.
+    static std::wstring  GetDriveTitle (const DeskDrive & drive);
 
     // The overlays drawn over the scene, which the chrome hides and lays out
     // with the rest of what sits over the picture, and the user's framing.

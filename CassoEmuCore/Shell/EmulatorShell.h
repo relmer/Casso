@@ -28,6 +28,7 @@
 
 
 class ClipboardManager;
+struct DeskDrive;
 class DxuiHwndSource;
 class MachineBuilder;
 class MachineManager;
@@ -384,8 +385,14 @@ private:
 
     // A drive's (0 or 1) or the recorder's (kStorageMenuRecorder) right-click
     // menu, at a client point.
-    static constexpr int  kStorageMenuRecorder = 2;
+    // A 3.5-inch drive or hard disk on the desk is kStorageMenuDeskExtra plus
+    // its index; one on the drive bar is kStorageMenuBar plus its class times
+    // ShellDeskScene::kBarDropClassStride plus its place in the class.
+    static constexpr int  kStorageMenuRecorder  = 2;
+    static constexpr int  kStorageMenuDeskExtra = 32;
+    static constexpr int  kStorageMenuBar       = 64;
     void    ShowStorageContextMenu    (int device, int x, int y);
+    void    ShowDriveContextMenu      (const DeskDrive & drive, int x, int y);
     int     StorageDeviceAt           (int x, int y) const;
 
     // Bounds-changed callback wired onto m_viewport. Stores the new

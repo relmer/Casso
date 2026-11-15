@@ -2050,14 +2050,38 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
 
     if (DeskSceneActive())
     {
-        bool            inStrip  = AreDrivesOnStrip() &&
-                                   m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
-                                   PtInRect (&m_scene->m_stripRectPx, pt);
-        SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
+        bool                          inStrip  = AreDrivesOnStrip() &&
+                                                 m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
+                                                 PtInRect (&m_scene->m_stripRectPx, pt);
+        SceneHitResult                sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
+        const DriveBarFan           & fan      = m_chrome->m_driveBarFan.GetFan();
+        const DeskSceneComposition  & comp     = m_scene->m_deskScene.Composition();
+        int                           c        = -1;
+        int                           entry    = -1;
+
+
+
+        // The drive bar first: it is drawn over the scene.
+        if (m_chrome->m_driveBarFan.IsVisible() && fan.HitTest (pt, c, entry))
+        {
+            const DeskDrive  & drive = fan.GetDrive (c, entry);
+
+            return (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
+                   ? drive.drive
+                   : kStorageMenuBar + c * ShellDeskScene::kBarDropClassStride + entry;
+        }
 
         if (sceneHit.target == SceneHitResult::Target::Drive)
         {
             return sceneHit.driveIndex;
+        }
+
+        for (int i = 0; i < comp.extraCount && i < m_scene->m_deskScene.GetExtraCount(); i++)
+        {
+            if (PtInRect (&comp.extraRectPx[i], pt))
+            {
+                return kStorageMenuDeskExtra + i;
+            }
         }
 
         // The recorder has its own hit test, which checks whether it is on
