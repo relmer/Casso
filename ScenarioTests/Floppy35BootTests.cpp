@@ -392,7 +392,7 @@ public:
 
     //  A 140K DISK IN A 5.25-INCH DRIVE at the end of the //c Plus's disk port
     //  chain boots with the internal drive empty: drive 1 returns nibbles
-    //  with 3.5 select on, so ROM 05 runs the slot 6 firmware. The drive is
+    //  with 3.5 select off, so ROM 05 runs the slot 6 firmware. The drive is
     //  the disk port's device, as on the //c.
     TEST_METHOD (Apple2cPlus_BootsFromAnExternalFloppy)
     {
@@ -534,6 +534,152 @@ public:
         GuestSession::StartFromPowerOn (machine);
 
         Assert::IsTrue (RunUntilScreenShows (machine, "SYSTEM MASTER", kBootCap), L"DOS 3.3 boots from the 5.25-inch drive behind the UniDisk");
+    }
+
+
+    //  AN 800K DISK IN AN EXTERNAL APPLE 3.5 DRIVE, first on the //c Plus's
+    //  disk port chain, boots with the internal drive empty: the drive is
+    //  IWM drive 1 with the MIG's 3.5 select on.
+    TEST_METHOD (Apple2cPlus_BootsFromAnExternalApple35Drive)
+    {
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  scratch;
+        std::vector<PortConfig>  ports (2);
+
+
+
+        Attach (io, Make800K (GuestSession::RequireProDosUsersDisk()), scratch);
+        ports[0].name   = "internal";
+        ports[0].device = kpszApple35DriveDevice;
+        ports[1].name   = "disk";
+        ports[1].chain.resize (1);
+        ports[1].chain[0].device = kpszApple35DriveDevice;
+        ports[1].chain[0].image  = kDiskPath;
+
+        TestMachine  machine ("Apple2cPlus", ports, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::AreEqual (1, machine.GetRefs().apple2cPlusDiskPort->GetExternalCount());
+        Assert::IsTrue (machine.GetRefs().apple2cPlusDiskPort->GetExternalDrive (0).HasDisk());
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the external Apple 3.5 Drive");
+    }
+
+
+    //  A UNIDISK 3.5 BEHIND AN EXTERNAL APPLE 3.5 DRIVE is on the SmartPort
+    //  bus with 3.5 select off, and takes its unit number at startup: ROM 05
+    //  numbers the internal drive 1 and the Apple 3.5 Drive 2. ROM 05 boots
+    //  from the Apple 3.5 Drive.
+    TEST_METHOD (Apple2cPlus_UniDiskBehindAnApple35DriveIsOnline)
+    {
+        constexpr Word  kUnitNumber = 0x0B;
+
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  scratch;
+        std::vector<PortConfig>  ports (2);
+        std::vector<Byte>        image = Make800K (GuestSession::RequireProDosUsersDisk());
+
+
+
+        Attach (io, image, scratch);
+        io.files["C:\\disks\\second.po"]  = image;
+        io.stamps["C:\\disks\\second.po"] = FileStamp { image.size(), 1 };
+        ports[0].name   = "internal";
+        ports[0].device = kpszApple35DriveDevice;
+        ports[1].name   = "disk";
+        ports[1].chain.resize (2);
+        ports[1].chain[0].device = kpszApple35DriveDevice;
+        ports[1].chain[0].image  = kDiskPath;
+        ports[1].chain[1].device = kpszUniDisk35Device;
+        ports[1].chain[1].image  = "C:\\disks\\second.po";
+
+        TestMachine  machine ("Apple2cPlus", ports, io);
+        SmartPortHost  & port = machine.GetRefs().apple2cPlusDiskPort->GetPort();
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::AreEqual ((size_t) 1, port.GetDriveCount(), L"the UniDisk is on the chain");
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the Apple 3.5 Drive");
+        Assert::AreEqual ((Byte) 0x83, port.GetDrive (0).Read (kUnitNumber), L"the UniDisk is unit 3, after the internal drive and the Apple 3.5 Drive");
+    }
+
+    //  A SECOND EXTERNAL APPLE 3.5 DRIVE is IWM drive 2 with 3.5 select on
+    //  and the internal drive off: ROM 05 numbers it 3, ahead of the UniDisk
+    //  behind it.
+    TEST_METHOD (Apple2cPlus_TwoApple35DrivesAheadOfAUniDisk)
+    {
+        constexpr Word  kUnitNumber = 0x0B;
+
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  scratch;
+        std::vector<PortConfig>  ports (2);
+        std::vector<Byte>        image = Make800K (GuestSession::RequireProDosUsersDisk());
+
+
+
+        Attach (io, image, scratch);
+        io.files["C:\\disks\\second.po"]  = image;
+        io.stamps["C:\\disks\\second.po"] = FileStamp { image.size(), 1 };
+        ports[0].name   = "internal";
+        ports[0].device = kpszApple35DriveDevice;
+        ports[1].name   = "disk";
+        ports[1].chain.resize (3);
+        ports[1].chain[0].device = kpszApple35DriveDevice;
+        ports[1].chain[0].image  = kDiskPath;
+        ports[1].chain[1].device = kpszApple35DriveDevice;
+        ports[1].chain[1].image  = "C:\\disks\\second.po";
+        ports[1].chain[2].device = kpszUniDisk35Device;
+
+        TestMachine  machine ("Apple2cPlus", ports, io);
+        Apple2cPlusDiskPort  & port = *machine.GetRefs().apple2cPlusDiskPort;
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::AreEqual (2, port.GetExternalCount());
+        Assert::IsTrue (port.GetExternalDrive (1).HasDisk());
+        Assert::IsTrue (machine.FindFloppy35 (0, 1) == &port.GetExternalDrive (0), L"the desk's drive 1 is the first Apple 3.5 Drive");
+        Assert::IsTrue (machine.FindFloppy35 (0, 2) == &port.GetExternalDrive (1), L"drive 2 is the second");
+        Assert::IsTrue (machine.FindFloppy35 (0, 3) == &port.GetPort().GetDrive (0).GetMechanism(), L"drive 3 is the UniDisk");
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the first Apple 3.5 Drive");
+        Assert::AreEqual ((Byte) 0x84, port.GetPort().GetDrive (0).Read (kUnitNumber), L"the UniDisk is unit 4, after both Apple 3.5 Drives");
+    }
+
+
+    //  A 5.25-INCH DRIVE BEHIND AN EMPTY EXTERNAL APPLE 3.5 DRIVE boots: the
+    //  Apple 3.5 Drive is drive 1 with 3.5 select on, and the floppy is
+    //  drive 1 with it off.
+    TEST_METHOD (Apple2cPlus_BootsAFloppyBehindAnEmptyApple35Drive)
+    {
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  ports (2);
+
+
+
+        ports[0].name   = "internal";
+        ports[0].device = kpszApple35DriveDevice;
+        ports[1].name   = "disk";
+        ports[1].chain.resize (2);
+        ports[1].chain[0].device = kpszApple35DriveDevice;
+        ports[1].chain[1].device = kpszDiskIicDevice;
+
+        TestMachine  machine ("Apple2cPlus", ports, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "SYSTEM MASTER", kBootCap), L"DOS 3.3 boots from the 5.25-inch drive behind the Apple 3.5 Drive");
     }
 
 

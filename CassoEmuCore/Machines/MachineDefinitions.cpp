@@ -134,6 +134,7 @@ std::map<std::string, MachineDefinition> MachineDefinitions::BuildTable()
         definition.hasCaseSwitches = machine->HasCaseSwitches();
         definition.hasBuiltInDrive = machine->HasBuiltInDrive();
         definition.diskPortFloppyCount = machine->GetDiskPortFloppyCount();
+        definition.diskPortApple35Count = machine->GetDiskPortApple35Count();
         definition.wozHardwareFlag = machine->GetWozHardwareFlag();
 
         table.emplace (definition.id, std::move (definition));

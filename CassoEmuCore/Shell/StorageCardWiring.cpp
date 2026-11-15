@@ -494,8 +494,9 @@ void StorageCardWiring::AddChainDrives (const PortConfig & port, SmartPortHost &
 //  WireApple2cPlusDrives
 //
 //  The //c Plus's internal Apple 3.5 Drive, with the disk the machine's
-//  `internal` port has, and the disk port's chain. The 5.25-inch drives at
-//  the chain's end are counted for the port; their disks are the Disk II
+//  `internal` port has, and the disk port's chain. The Apple 3.5 Drives at
+//  the chain's start are the port's external drives. The 5.25-inch drives
+//  at the chain's end are counted for the port; their disks are the Disk II
 //  controller's.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -516,6 +517,25 @@ void StorageCardWiring::WireApple2cPlusDrives (Apple2cPlusDiskPort & port)
             if (FAILED (hr))
             {
                 m_host.GetBlockMediaProblems().push_back (std::format (L"Internal drive: {}", error));
+            }
+        }
+
+        for (size_t i = 0; i < entry.chain.size() && entry.chain[i].device == kpszApple35DriveDevice; i++)
+        {
+            const PortConfig  & external = entry.chain[i];
+
+
+
+            port.AddExternalDrive();
+
+            if (!external.image.empty())
+            {
+                hr = port.GetExternalDrive ((int) i).Insert (m_host.GetBlockMediaFileIo(), external.image, m_host.ProbeBlockMedia (external.image), error);
+
+                if (FAILED (hr))
+                {
+                    m_host.GetBlockMediaProblems().push_back (std::format (L"Disk port, drive {}: {}", i + 1, error));
+                }
             }
         }
 

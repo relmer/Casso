@@ -99,10 +99,10 @@ public:
         Read (mig, 0xCE40);
         Assert::IsFalse (mig.IsHeadOne());
 
-        Write (mig, 0xCE60, 0);
-        Assert::IsTrue (mig.IsSel35());
         Write (mig, 0xCE40, 0);
-        Assert::IsFalse (mig.IsSel35());
+        Assert::IsTrue (mig.IsSel35(), L"ROM 05 writes $CE40 before it accesses an external Apple 3.5 Drive");
+        Write (mig, 0xCE60, 0);
+        Assert::IsFalse (mig.IsSel35(), L"and $CE60 before it accesses the SmartPort bus");
 
         Write (mig, 0xCC40, 0);
         Assert::AreEqual (1, resets);

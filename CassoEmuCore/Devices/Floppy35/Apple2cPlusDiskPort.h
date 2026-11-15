@@ -20,11 +20,13 @@ class MigChip;
 //  Apple2cPlusDiskPort
 //
 //  The //c Plus's IWM at $C0E0-$C0EF, its internal Apple 3.5 Drive, and the
-//  disk port's SmartPort chain. With drive 2 selected and the MIG's internal
-//  drive on, the IWM drives the internal drive, its head the MIG's head
-//  select; otherwise it drives the disk port. The phases go only to the one
-//  the IWM drives, so the internal drive's register selects are never on
-//  the chain.
+//  disk port's chain. With drive 2 selected and the MIG's internal drive
+//  on, the IWM drives the internal drive. With the MIG's 3.5 select on, IWM
+//  drive 1 is the first external Apple 3.5 Drive at the start of the chain
+//  and drive 2 the second, when the chain has them. Otherwise the IWM
+//  drives the SmartPort bus. Each 3.5-inch drive's head is the MIG's head
+//  select. The phases go only to the one the IWM drives, so a 3.5-inch
+//  drive's register selects are never on the bus.
 //
 //  With 5.25-inch drives at the end of the chain, a Disk II controller in
 //  IWM mode is at $C0E0 in place of this class, and this class is its port
@@ -34,11 +36,12 @@ class MigChip;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Apple2cPlusDiskPort : public MemoryDevice, public IDiskDriveBus, public IDiskPortHook, public IFloppy35EventSource
+class Apple2cPlusDiskPort : public MemoryDevice, public IDiskPortHook, public IFloppy35EventSource
 {
 public:
-    static constexpr Word  kIoStart = 0xC0E0;
-    static constexpr Word  kIoEnd   = 0xC0EF;
+    static constexpr Word  kIoStart     = 0xC0E0;
+    static constexpr Word  kIoEnd       = 0xC0EF;
+    static constexpr int   kMaxExternal = 2;
 
     Apple2cPlusDiskPort();
     ~Apple2cPlusDiskPort() override;
@@ -49,14 +52,6 @@ public:
     Word  GetStart () const override { return kIoStart; }
     Word  GetEnd   () const override { return kIoEnd; }
     void  Reset    () override { m_port.Reset(); }
-
-    // IDiskDriveBus: the IWM's drive 2.
-    void      SetPhases (bool ph0, bool ph1, bool ph2, bool ph3) override;
-    bool      GetSense  () const override;
-    Byte      ReadCell  (uint64_t cellEndNs) override;
-    void      WriteCell (Byte bit, uint64_t cellEndNs) override;
-    void      Advance   (uint64_t elapsedNs) override { m_internal.Advance (elapsedNs); }
-    uint32_t  GetCellNs () const override;
 
     // IDiskPortHook
     bool  OnIwmAccess        (int offset, bool isWrite, Byte value, Byte & outValue) override;
@@ -76,19 +71,49 @@ public:
     void             SetFloppyCount   (int count) { m_floppyCount = count; }
     int              GetFloppyCount   () const    { return m_floppyCount; }
 
+    //  The Apple 3.5 Drives at the start of the chain, drive 1 first.
+    void             AddExternalDrive ()          { m_externalCount = std::min (m_externalCount + 1, kMaxExternal); }
+    int              GetExternalCount () const    { return m_externalCount; }
+    Sony35Drive    & GetExternalDrive (int index) { return m_externals[(size_t) index]; }
+
 private:
     static constexpr Word  kSwitchMask    = 0x0F;
     static constexpr int   kInternalDrive = 1;
 
-    bool  IsInternal () const;
-    void  SyncHead   ();
+    //  One of the IWM's two drives. After a switch between the 3.5-inch
+    //  drive and the bus, the newly driven one is set to the IWM's phases.
+    class PortDrive : public IDiskDriveBus
+    {
+    public:
+        PortDrive (Apple2cPlusDiskPort & diskPort, int drive) : m_diskPort (diskPort), m_drive (drive) {}
 
-    SmartPortHost             m_port;
-    Sony35Drive               m_internal    { 0 };
-    std::unique_ptr<MigChip>  m_ownedMig;
-    MigChip                 * m_mig         = nullptr;
-    std::array<bool, 4>       m_phases      = {};
-    bool                      m_wasInternal = false;
-    int                       m_floppyCount = 0;
-    bool                      m_floppies    = false;
+        void      SetPhases (bool ph0, bool ph1, bool ph2, bool ph3) override;
+        bool      GetSense  () const override;
+        Byte      ReadCell  (uint64_t cellEndNs) override;
+        void      WriteCell (Byte bit, uint64_t cellEndNs) override;
+        void      Advance   (uint64_t elapsedNs) override;
+        uint32_t  GetCellNs () const override;
+
+    private:
+        IDiskDriveBus  & Sync ();
+
+        Apple2cPlusDiskPort  & m_diskPort;
+        int                    m_drive  = 0;
+        IDiskDriveBus        * m_driven = nullptr;
+    };
+
+    bool             IsInternal () const;
+    IDiskDriveBus  & GetDriven  (int drive);
+    void             SyncHeads  ();
+
+    SmartPortHost                          m_port;
+    Sony35Drive                            m_internal      { 0 };
+    std::array<Sony35Drive, kMaxExternal>  m_externals     { Sony35Drive { 1 }, Sony35Drive { 2 } };
+    std::array<PortDrive, Iwm::kDrives>    m_drives        { PortDrive { *this, 0 }, PortDrive { *this, 1 } };
+    std::unique_ptr<MigChip>               m_ownedMig;
+    MigChip                              * m_mig           = nullptr;
+    std::array<bool, 4>                    m_phases        = {};
+    int                                    m_externalCount = 0;
+    int                                    m_floppyCount   = 0;
+    bool                                   m_floppies      = false;
 };

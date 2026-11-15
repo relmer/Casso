@@ -38,8 +38,9 @@ the user has not configured that slot.
 ]
 ```
 
-The //c Plus also accepts `apple35-drive` in the chain. Its internal drive is
-built in and not a port.
+The //c Plus also accepts up to two `apple35-drive` entries at the start of
+the chain, ahead of the SmartPort drives, and up to two 5.25-inch drives at
+its end. Its internal drive is built in and not a port.
 
 ## Rules
 

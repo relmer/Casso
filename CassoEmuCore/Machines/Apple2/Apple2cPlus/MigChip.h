@@ -44,8 +44,8 @@ public:
 //      $CCC0-$CCDF    written, turns the internal drive off
 //      $CE00-$CE1F    32 bytes of its 2 KB of RAM, at the page pointer
 //      $CE20-$CE3F    the same, the pointer advanced $20 after the access
-//      $CE40-$CE5F    read, selects head 0; written, turns 3.5 select off
-//      $CE60-$CE7F    read, selects head 1; written, turns 3.5 select on
+//      $CE40-$CE5F    read, selects head 0; written, turns 3.5 select on
+//      $CE60-$CE7F    read, selects head 1; written, turns 3.5 select off
 //      $CEA0          resets the page pointer
 //
 //  Other addresses in the two pages read as the floating bus value the

@@ -11,13 +11,12 @@
 //
 //  Apple2cPlusDiskPort
 //
-//  The IWM's drive 1 is the disk port's bus; drive 2 is this class.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 Apple2cPlusDiskPort::Apple2cPlusDiskPort()
 {
-    m_port.GetIwm().AttachDrive (1, this);
+    m_port.GetIwm().AttachDrive (0, &m_drives[0]);
+    m_port.GetIwm().AttachDrive (1, &m_drives[1]);
 }
 
 
@@ -86,103 +85,6 @@ void Apple2cPlusDiskPort::Write (Word address, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetPhases
-//
-//  After a switch between the internal drive and the port, the newly
-//  driven one is set to the IWM's phases.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Apple2cPlusDiskPort::SetPhases (bool ph0, bool ph1, bool ph2, bool ph3)
-{
-    m_phases = { ph0, ph1, ph2, ph3 };
-    SyncHead();
-
-    if (IsInternal())
-    {
-        m_internal.SetPhases (ph0, ph1, ph2, ph3);
-    }
-    else
-    {
-        m_port.GetBus().SetPhases (ph0, ph1, ph2, ph3);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetSense
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Apple2cPlusDiskPort::GetSense() const
-{
-    return IsInternal() ? m_internal.GetSense() : m_port.GetBus().GetSense();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReadCell
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte Apple2cPlusDiskPort::ReadCell (uint64_t cellEndNs)
-{
-    SyncHead();
-
-    return IsInternal() ? m_internal.ReadCell (cellEndNs) : m_port.GetBus().ReadCell (cellEndNs);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WriteCell
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Apple2cPlusDiskPort::WriteCell (Byte bit, uint64_t cellEndNs)
-{
-    if (IsInternal())
-    {
-        m_internal.WriteCell (bit, cellEndNs);
-    }
-    else
-    {
-        m_port.GetBus().WriteCell (bit, cellEndNs);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetCellNs
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t Apple2cPlusDiskPort::GetCellNs() const
-{
-    return IsInternal() ? m_internal.GetCellNs() : SmartPortBus::kCellNs;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnIwmAccess
 //
 //  The IWM follows every access. A read returns its byte unless the
@@ -210,9 +112,10 @@ bool Apple2cPlusDiskPort::OnIwmAccess (int offset, bool isWrite, Byte value, Byt
 //
 //  Called before each access, with the IWM's state from before it. A
 //  5.25-inch drive has no 3.5 select input: that pin is ground on the Disk
-//  IIc's connector. At startup, drive 1 is read with 3.5 select on; a
+//  IIc's connector. At startup, ROM 05 reads drive 1 with 3.5 select off; a
 //  5.25-inch drive returns nibbles there, and only then does ROM 05 run the
-//  slot 6 firmware.
+//  slot 6 firmware. An Apple 3.5 Drive ahead of it on the chain is drive 1
+//  while 3.5 select is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -220,10 +123,11 @@ bool Apple2cPlusDiskPort::AreFloppiesEnabled()
 {
     int   drive  = m_port.GetIwm().GetDrive();
     bool  hasBus = m_port.GetDriveCount() > 0 && (m_port.GetBus().IsEnabledAt (0) || m_port.GetBus().IsReset());
+    bool  is35   = &GetDriven (drive) != &m_port.GetBus();
 
 
 
-    m_floppies = drive < m_floppyCount && !(drive == kInternalDrive && IsInternal()) && !hasBus;
+    m_floppies = drive < m_floppyCount && !is35 && !hasBus;
 
     return m_floppies;
 }
@@ -241,6 +145,12 @@ bool Apple2cPlusDiskPort::AreFloppiesEnabled()
 void Apple2cPlusDiskPort::SetFloppy35EventSink (IFloppy35EventSink * sink)
 {
     m_internal.SetFloppy35EventSink (sink);
+
+    for (Sony35Drive & external : m_externals)
+    {
+        external.SetFloppy35EventSink (sink);
+    }
+
     m_port.SetFloppy35EventSink (sink);
 }
 
@@ -265,28 +175,182 @@ bool Apple2cPlusDiskPort::IsInternal() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SyncHead
+//  GetDriven
 //
-//  The MIG's head select is the internal drive's SEL line. After a switch
-//  to the internal drive, it is set to the IWM's phases.
+//  What IWM drive `drive` (0 or 1) drives: the internal drive, an external
+//  Apple 3.5 Drive or the SmartPort bus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2cPlusDiskPort::SyncHead()
+IDiskDriveBus & Apple2cPlusDiskPort::GetDriven (int drive)
 {
-    bool  internal = IsInternal();
-
-
-
-    if (m_mig != nullptr)
+    if (drive == kInternalDrive && IsInternal())
     {
-        m_internal.SetSel (m_mig->IsHeadOne());
+        return m_internal;
     }
 
-    if (internal && !m_wasInternal)
+    if (drive < m_externalCount && m_mig != nullptr && m_mig->IsSel35())
     {
-        m_internal.SetPhases (m_phases[0], m_phases[1], m_phases[2], m_phases[3]);
+        return m_externals[(size_t) drive];
     }
 
-    m_wasInternal = internal;
+    return m_port.GetBus();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncHeads
+//
+//  The MIG's head select is each 3.5-inch drive's SEL line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cPlusDiskPort::SyncHeads()
+{
+    if (m_mig == nullptr)
+    {
+        return;
+    }
+
+    m_internal.SetSel (m_mig->IsHeadOne());
+
+    for (int i = 0; i < m_externalCount; i++)
+    {
+        m_externals[(size_t) i].SetSel (m_mig->IsHeadOne());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PortDrive::Sync
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDiskDriveBus & Apple2cPlusDiskPort::PortDrive::Sync()
+{
+    IDiskDriveBus        & driven = m_diskPort.GetDriven (m_drive);
+    std::array<bool, 4>  & phases = m_diskPort.m_phases;
+
+
+
+    m_diskPort.SyncHeads();
+
+    if (&driven != m_driven)
+    {
+        driven.SetPhases (phases[0], phases[1], phases[2], phases[3]);
+        m_driven = &driven;
+    }
+
+    return driven;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PortDrive::SetPhases
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cPlusDiskPort::PortDrive::SetPhases (bool ph0, bool ph1, bool ph2, bool ph3)
+{
+    m_diskPort.m_phases = { ph0, ph1, ph2, ph3 };
+
+    Sync().SetPhases (ph0, ph1, ph2, ph3);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PortDrive::GetSense
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2cPlusDiskPort::PortDrive::GetSense() const
+{
+    return m_diskPort.GetDriven (m_drive).GetSense();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PortDrive::ReadCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2cPlusDiskPort::PortDrive::ReadCell (uint64_t cellEndNs)
+{
+    return Sync().ReadCell (cellEndNs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PortDrive::WriteCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cPlusDiskPort::PortDrive::WriteCell (Byte bit, uint64_t cellEndNs)
+{
+    m_diskPort.GetDriven (m_drive).WriteCell (bit, cellEndNs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PortDrive::Advance
+//
+//  Time passes for the 3.5-inch drives at this drive's place, driven or
+//  not, so a motor spins down and a step finishes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cPlusDiskPort::PortDrive::Advance (uint64_t elapsedNs)
+{
+    if (m_drive == kInternalDrive)
+    {
+        m_diskPort.m_internal.Advance (elapsedNs);
+    }
+
+    if (m_drive < m_diskPort.m_externalCount)
+    {
+        m_diskPort.m_externals[(size_t) m_drive].Advance (elapsedNs);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PortDrive::GetCellNs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t Apple2cPlusDiskPort::PortDrive::GetCellNs() const
+{
+    return m_diskPort.GetDriven (m_drive).GetCellNs();
 }

@@ -239,4 +239,32 @@ public:
         Logger::WriteMessage (std::format ("loop: //c {:.3f} s, //c Plus {:.3f} s, ratio {:.2f}\n", cSeconds, plusSeconds, cSeconds / plusSeconds).c_str());
         Assert::IsTrue (cSeconds / plusSeconds > 3.8 && cSeconds / plusSeconds < 4.0, L"the //c Plus runs the loop 3.92 times as fast, as on MAME");
     }
+
+
+    //  THE //C PLUS BOOTS FROM AN EXTERNAL APPLE 3.5 DRIVE with its internal
+    //  drive empty, as MAME's apple2cp does with the image in flop4.
+    TEST_METHOD (Apple2cPlus_BootsFromTheExternalDrive)
+    {
+        std::filesystem::path    folder;
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  ports (2);
+
+
+
+        if (!GetFolder (folder))
+        {
+            return;
+        }
+
+        ports[0].name   = "internal";
+        ports[0].device = kpszApple35DriveDevice;
+        ports[1].name   = "disk";
+        ports[1].chain.resize (1);
+        ports[1].chain[0].device = kpszApple35DriveDevice;
+        ports[1].chain[0].image  = Load (io, folder, "800k.po");
+
+        TestMachine  machine ("Apple2cPlus", ports, io);
+
+        BootAndLog (machine, "//c Plus external Apple 3.5 Drive, 800k.po");
+    }
 };
