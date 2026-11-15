@@ -10,6 +10,8 @@
 #include "resource.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/Picker/ExplorerPickerHost.h"
+#include "Seams/CassoHostDialogs.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/Model/IFolderWatcher.h"
 #include "CassoExplorer/Model/FolderWatch.h"
 #include "Core/AppTimerIds.h"
@@ -32,8 +34,68 @@ CassoExplorerWindow::CassoExplorerWindow (CassoExplorerBrowser & browser, CassoE
       m_actions  (actions),
       m_prefs    (prefs),
       m_context  (std::move (context)),
-      m_parts    (std::make_unique<ExplorerWindowParts> (*this, browser, actions, prefs, m_context, m_scaler, m_theme, ExplorerServices::CreateWin32()))
+      m_parts    (std::make_unique<ExplorerWindowParts> (*this, browser, actions, prefs, m_context, m_scaler, m_theme, MakeServices()))
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::MakeServices
+//
+//  A file manager window's image requests open a modal picker. A picker's
+//  window has Windows' dialogs alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ExplorerServices CassoExplorerWindow::MakeServices()
+{
+    ExplorerServices  services = ExplorerServices::CreateWin32();
+
+
+
+    if (m_context.picker == nullptr && m_context.fs != nullptr)
+    {
+        services.dialogs = std::make_unique<CassoHostDialogs> (std::move (services.dialogs), [this] (HWND owner, PickerRequest request, PickerOutcome & outOutcome)
+        {
+            return RunModalPicker (owner, std::move (request), outOutcome);
+        });
+    }
+
+    return services;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RunModalPicker
+//
+//  The picker has a host apart from the app's windows: no session, no
+//  CassoLink connections, and a preferences file that is not this
+//  window's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerWindow::RunModalPicker (HWND owner, PickerRequest request, PickerOutcome & outOutcome)
+{
+    HRESULT             hr = S_OK;
+    ExplorerPickerHost  host (*m_context.fs, m_browser.GetFileIo(), m_context.baseDir);
+
+
+
+    host.Prepare (std::move (request), m_prefs.theme, (owner != nullptr) ? owner : GetHwnd(), false);
+
+    hr = host.RunModal (GetModuleHandleW (nullptr));
+
+    outOutcome = host.GetOutcome();
+
+    return hr;
 }
 
 
@@ -992,7 +1054,9 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     if (m_parts->input.HasCaretFocus())
     {
         ExplorerPane  focus   = m_parts->input.GetFocusPane();
-        bool          caretOn = (focus == ExplorerPane::LocationSearch) ? m_parts->addressBar.IsCaretOn() : m_parts->preview.GetFind().IsCaretOn (focus);
+        bool          caretOn = (focus == ExplorerPane::LocationSearch) ? m_parts->addressBar.IsCaretOn()
+                              : (focus == ExplorerPane::PickerName)     ? m_parts->pickerBar.IsCaretOn()
+                                                                        : m_parts->preview.GetFind().IsCaretOn (focus);
 
         if (caretOn != m_caretOn)
         {

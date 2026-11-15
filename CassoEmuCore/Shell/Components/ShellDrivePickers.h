@@ -49,6 +49,10 @@ public:
 
     DrivePickers &  GetPickers () { return m_pickers; }
 
+    //  A modal picker over owner for a caller that waits for a path. The
+    //  emulator's frames are drawn while it is open.
+    HRESULT  RunModal (HWND owner, PickerRequest request, PickerOutcome & outOutcome);
+
     //  IDrivePickerFactory
     std::unique_ptr<IDrivePicker>  OpenPicker (PickerRequest request, bool cascade, std::function<void ()> onClosed) override;
 
@@ -58,6 +62,8 @@ private:
     DrivePickers::Hooks  MakeHooks      ();
     bool                 Insert         (const PickerDrive & drive, const std::wstring & path, std::wstring & outError);
     bool                 FetchStockDisk (const std::wstring & path);
+
+    std::unique_ptr<class ExplorerPickerHost>  MakeHost (PickerRequest request, HWND owner, bool cascade);
 
     EmulatorShell  & m_shell;
     DrivePickers     m_pickers;

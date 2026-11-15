@@ -234,6 +234,7 @@ public:
         HardwarePage        page;
         JsonValue           machine = Parse (kMachineJson);
         std::wstring        error;
+        std::string         browsedFor;
         int                 liron   = -1;
 
 
@@ -243,7 +244,7 @@ public:
         liron = SlotCards::FindSlot (st.GetHardware(), 5);
 
         page.SetState (&st);
-        page.SetOnBrowseImage ([] (std::string & path) { path = "C:/disks/800k.po"; return true; });
+        page.SetOnBrowseImage ([&browsedFor] (const std::string & device, std::string & path) { browsedFor = device; path = "C:/disks/800k.po"; return true; });
         page.SelectTreeRow (std::format (L"drive:{}:0", liron));
         Assert::AreEqual (5, page.GetSelectedSlot());
         Assert::IsTrue (page.GetAttachButton().IsEnabled());
@@ -251,6 +252,7 @@ public:
 
         page.AttachImage();
         Assert::AreEqual (std::string ("C:/disks/800k.po"), st.GetHardware()[(size_t) liron].portImages[0]);
+        Assert::AreEqual (std::string (kpszUniDisk35Device), browsedFor, L"the request has the port's drive, whose images the picker lists");
 
         for (int i = 0; i < 4; i++)
         {

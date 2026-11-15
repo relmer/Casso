@@ -123,7 +123,79 @@ bool ExplorerPickerMode::CanConfirm() const
 
 
 
+    if (m_context.IsPicker() && m_context.app.picker->IsSave())
+    {
+        return TryGetSavePath (path);
+    }
+
     return TryGetSelectedFile (path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerMode::TryGetSavePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPickerMode::TryGetSavePath (std::wstring & outPath) const
+{
+    return m_context.IsPicker()
+        && TryMakeSavePath (*m_context.app.picker, m_scope.GetActiveFilter(), m_context.browser.GetLocation(), m_context.pickerBar.GetNameText(), outPath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerMode::TryMakeSavePath
+//
+//  The path a save form returns: the name typed, in the folder listed. A
+//  name typed without an extension gets the request's default extension,
+//  or else the active filter entry's first one. False for an empty name, a
+//  name with a character a file name can't have, and a list that is no
+//  folder, such as the Casso node's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPickerMode::TryMakeSavePath (const PickerRequest & request, size_t activeFilter, const Location & location, const std::wstring & typedName, std::wstring & outPath)
+{
+    static constexpr const wchar_t *  kInvalid = L"\\/:*?\"<>|";
+
+
+
+    size_t        first     = typedName.find_first_not_of (L" \t");
+    size_t        last      = typedName.find_last_not_of (L" \t.");
+    std::wstring  name      = (first == std::wstring::npos || last == std::wstring::npos) ? std::wstring() : typedName.substr (first, last - first + 1);
+    std::wstring  extension = request.defaultExtension;
+
+
+
+    outPath.clear();
+
+    if (name.empty() || name.find_first_of (kInvalid) != std::wstring::npos || location.kind != Location::Kind::HostFolder || location.path.empty())
+    {
+        return false;
+    }
+
+    if (extension.empty() && activeFilter < request.filters.size())
+    {
+        extension = FileMaskSet (request.filters[activeFilter].pattern).GetFirstExtension();
+    }
+
+    if (!extension.empty() && std::filesystem::path (name).extension().empty())
+    {
+        name += L"." + extension;
+    }
+
+    outPath = CassoExplorerBrowser::JoinPath (location.path, name);
+
+    return true;
 }
 
 
@@ -143,6 +215,20 @@ void ExplorerPickerMode::Confirm()
 
 
 
+    //  A save form returns the path typed. With askToReplace, a file already
+    //  there is replaced only on a yes.
+    if (m_context.IsPicker() && m_context.app.picker->IsSave())
+    {
+        bool  isTaken = TryGetSavePath (path) && m_context.app.fs != nullptr && m_context.app.fs->Exists (path);
+
+        if (!path.empty() && (!isTaken || !m_context.app.picker->askToReplace || AskToReplace (path)))
+        {
+            ConfirmPath (path);
+        }
+
+        return;
+    }
+
     if (!TryGetSelectedFile (path))
     {
         return;
@@ -156,6 +242,30 @@ void ExplorerPickerMode::Confirm()
     }
 
     ConfirmPath (path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerMode::AskToReplace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPickerMode::AskToReplace (const std::wstring & path)
+{
+    std::wstring  text = std::format (L"{} already exists. Replace it?", std::filesystem::path (path).filename().wstring());
+
+
+
+    if (m_askToReplace)
+    {
+        return m_askToReplace (path);
+    }
+
+    return DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, text.c_str(), L"Confirm save", MB_YESNO | MB_DEFBUTTON2, { L"Replace", L"Cancel" }) == IDYES;
 }
 
 
@@ -326,6 +436,13 @@ bool ExplorerPickerMode::HandleActivateRow (int row)
     }
 
     m_context.browser.SetSelectedRows ({ row });
+
+    //  In a save form the opened file's name is the name saved under.
+    if (m_context.app.picker->IsSave())
+    {
+        m_context.pickerBar.SetNameText (std::filesystem::path (path).filename().wstring());
+    }
+
     Confirm();
 
     return true;

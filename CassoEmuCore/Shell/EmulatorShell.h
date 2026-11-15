@@ -10,6 +10,7 @@
 #include "Shell/MachineGamePortSink.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
+#include "Seams/CassoHostDialogs.h"
 #include "Seams/Win32HostNetwork.h"
 #include "Seams/Win32HostFirewall.h"
 #include "Seams/Win32NetworkChanges.h"
@@ -406,6 +407,9 @@ private:
     //  Restarts the machine from its saved settings, as a hardware change
     //  in Settings does.
     void    RestartMachineFromSettings ();
+
+    //  A modal picker over owner, for a caller that waits for a path.
+    HRESULT RunModalPicker            (HWND owner, PickerRequest request, PickerOutcome & outOutcome);
 
     // A drive's (0 or 1) or the recorder's (kStorageMenuRecorder) right-click
     // menu, at a client point.
@@ -1033,7 +1037,10 @@ private:
     // The host services the clipboard manager and the dialogs go through.
     // Declared ahead of the manager, which holds a reference to the clipboard.
     Win32Clipboard                            m_hostClipboard;
-    Win32HostDialogs                          m_hostDialogs;
+    // An image request opens the Casso Explorer picker, and any other
+    // opens Windows' dialog.
+    Win32HostDialogs                          m_win32Dialogs;
+    CassoHostDialogs                          m_hostDialogs { m_win32Dialogs, [this] (HWND owner, PickerRequest request, PickerOutcome & outOutcome) { return RunModalPicker (owner, std::move (request), outOutcome); } };
 
     // Whether the //e and //c Caps Lock key is down: down until the first
     // Caps Lock press in this window, the host's from then on. Session-scoped,

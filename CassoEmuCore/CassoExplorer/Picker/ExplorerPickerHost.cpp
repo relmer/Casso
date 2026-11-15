@@ -229,6 +229,66 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPickerHost::RunModal
+//
+//  The owner is enabled again before the picker's window is hidden, so the
+//  owner, not some other app's window, is activated when it closes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ExplorerPickerHost::RunModal (HINSTANCE instance)
+{
+    HRESULT  hr      = S_OK;
+    MSG      message = {};
+    BOOL     got     = TRUE;
+
+
+
+    hr = Open (instance);
+    CHR (hr);
+
+    m_disabledOwner = m_owner != nullptr && IsWindowEnabled (m_owner);
+
+    if (m_disabledOwner)
+    {
+        EnableWindow (m_owner, FALSE);
+    }
+
+    while (!m_outcome.isClosed)
+    {
+        got = GetMessageW (&message, nullptr, 0, 0);
+
+        //  A quit is for the loop this one runs inside.
+        if (got == 0)
+        {
+            PostQuitMessage ((int) message.wParam);
+            break;
+        }
+
+        if (got == -1)
+        {
+            break;
+        }
+
+        TranslateMessage (&message);
+        DispatchMessageW (&message);
+    }
+
+    if (!m_outcome.isClosed)
+    {
+        Close();
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPickerHost::GetHwnd
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -324,6 +384,12 @@ void ExplorerPickerHost::End()
 
     hr = SaveView();
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (m_disabledOwner)
+    {
+        EnableWindow (m_owner, TRUE);
+        m_disabledOwner = false;
+    }
 
     if (m_window != nullptr)
     {

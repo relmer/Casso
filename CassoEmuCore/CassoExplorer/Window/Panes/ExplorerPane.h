@@ -15,4 +15,4 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class ExplorerPane { Toolbar, Address, Tabs, Tree, List, PreviewToolbar, GoTo, Search, Preview, CommandBar, LocationSearch };
+enum class ExplorerPane { Toolbar, Address, Tabs, Tree, List, PreviewToolbar, GoTo, Search, Preview, CommandBar, LocationSearch, PickerName };

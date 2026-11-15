@@ -6,6 +6,7 @@
 
 struct ExplorerContext;
 struct PickerRequest;
+struct Location;
 
 
 
@@ -37,6 +38,14 @@ public:
     //  node's list.
     bool  TryGetSelectedFile (std::wstring & outPath) const;
     bool  CanConfirm         () const;
+
+    //  A save form's path for the name in its box, and the rule it is made
+    //  by.
+    bool         TryGetSavePath  (std::wstring & outPath) const;
+    static bool  TryMakeSavePath (const PickerRequest & request, size_t activeFilter, const Location & location, const std::wstring & typedName, std::wstring & outPath);
+
+    //  Replaces the save form's question before a file is replaced, for tests.
+    void  SetAskToReplace    (std::function<bool (const std::wstring & path)> ask) { m_askToReplace = std::move (ask); }
     void  Confirm            ();
     void  Cancel             ();
 
@@ -66,8 +75,10 @@ public:
 private:
     bool  TryGetRowFile      (int row, std::wstring & outPath) const;
     bool  IsStockDiskToFetch (int row) const;
+    bool  AskToReplace       (const std::wstring & path);
     void  ConfirmPath        (const std::wstring & path);
 
     ExplorerContext  & m_context;
     PickerScope        m_scope;
+    std::function<bool (const std::wstring & path)>  m_askToReplace;
 };

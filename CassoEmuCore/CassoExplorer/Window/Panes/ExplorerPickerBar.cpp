@@ -3,6 +3,7 @@
 #include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
 #include "CassoExplorer/Window/IExplorerWindow.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
@@ -60,6 +61,17 @@ void ExplorerPickerBar::Create()
 
     m_header = m_context.window.CreateChild<DxuiLabel> (m_context.pickerMode.GetHeaderText());
     m_header->SetElide (DxuiElide::Tail);
+
+    if (request->IsSave())
+    {
+        m_nameLabel = m_context.window.CreateChild<DxuiLabel> (L"File name:");
+        m_name      = m_context.window.CreateChild<DxuiTextInput>();
+
+        m_context.window.SetMouseHandler (m_name, [this] (const DxuiMouseEvent & ev) { return HandleNameMouse (ev); });
+
+        m_name->SetText     (request->defaultFileName);
+        m_name->SetOnChange ([this] (const std::wstring &) { Update(); });
+    }
 
     if (m_context.pickerMode.GetFilterCount() > 1)
     {
@@ -126,7 +138,32 @@ void ExplorerPickerBar::Layout (const RECT & band)
         right -= width + gap;
     }
 
-    m_header->Layout (RECT { band.left + scaler.ToPx (kEdgePadDip), band.top, (std::max) (band.left, (LONG) right), band.bottom }, scaler);
+    if (m_name == nullptr)
+    {
+        m_header->Layout (RECT { band.left + scaler.ToPx (kEdgePadDip), band.top, (std::max) (band.left, (LONG) right), band.bottom }, scaler);
+        return;
+    }
+
+    //  A save form has the file name box where a drive's picker has its
+    //  header.
+    if (!m_isNameConfigured && m_context.window.GetHwnd() != nullptr)
+    {
+        m_name->SetTextRenderer   (m_context.window.GetTextRenderer());
+        m_name->SetHwnd           (m_context.window.GetHwnd());
+        m_name->SetFont           (DxuiAddressBar::kVariableTextFace, DxuiAddressBar::kFontDip);
+        m_name->SetExplorerChrome (true);
+
+        m_isNameConfigured = true;
+    }
+
+    {
+        int  left  = band.left + scaler.ToPx (kEdgePadDip);
+        int  label = left + scaler.ToPx (kNameLabelDip);
+
+        m_header->Layout    (RECT { left, band.top, left, band.bottom }, scaler);
+        m_nameLabel->Layout (RECT { left, band.top, label, band.bottom }, scaler);
+        m_name->Layout      (RECT { label, top, (std::max) (label + scaler.ToPx (kNameMinDip), right), top + height }, scaler);
+    }
 }
 
 
@@ -144,6 +181,19 @@ void ExplorerPickerBar::Update()
     if (m_confirm == nullptr)
     {
         return;
+    }
+
+    //  Selecting a file puts its name in a save form's box, once for each
+    //  selection, so typing over it is not undone by a repaint.
+    if (m_name != nullptr)
+    {
+        std::wstring  selected;
+
+        if (m_context.pickerMode.TryGetSelectedFile (selected) && selected != m_copiedFrom)
+        {
+            m_copiedFrom = selected;
+            m_name->SetText (std::filesystem::path (selected).filename().wstring());
+        }
     }
 
     m_confirm->SetEnabled (m_context.pickerMode.CanConfirm());
@@ -169,6 +219,127 @@ void ExplorerPickerBar::Update()
 bool ExplorerPickerBar::IsConfirmEnabled() const
 {
     return m_confirm != nullptr && m_confirm->IsEnabled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerBar::GetNameText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ExplorerPickerBar::GetNameText() const
+{
+    return (m_name != nullptr) ? m_name->GetText() : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerBar::SetNameText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPickerBar::SetNameText (const std::wstring & text)
+{
+    if (m_name != nullptr)
+    {
+        m_name->SetText (text);
+        Update();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerBar::HandleNameMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPickerBar::HandleNameMouse (const DxuiMouseEvent & ev)
+{
+    if (m_name == nullptr)
+    {
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down)
+    {
+        m_context.input.SetFocusPane (ExplorerPane::PickerName);
+    }
+
+    m_name->OnMouse (ev);
+    m_context.window.Invalidate();
+
+    return ev.kind != DxuiMouseEventKind::Leave;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerBar::HandleNameKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPickerBar::HandleNameKey (const DxuiKeyEvent & ev)
+{
+    if (m_name == nullptr)
+    {
+        return false;
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_RETURN && !ev.ctrl && !ev.alt)
+    {
+        m_context.pickerMode.Confirm();
+        return true;
+    }
+
+    return m_name->OnKey (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerBar::HandleFocusChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPickerBar::HandleFocusChanged (bool isFocused)
+{
+    if (m_name != nullptr)
+    {
+        m_name->SetFocused (isFocused);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerBar::IsCaretOn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPickerBar::IsCaretOn() const
+{
+    return m_name != nullptr && m_name->IsCaretOn();
 }
 
 

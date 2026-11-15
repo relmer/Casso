@@ -629,7 +629,9 @@ void ShellTapeDeck::BrowseForTape()
 
 
 
-    spec.filters = { { L"Tape recordings", L"*.wav;*.aif;*.aiff;*.aifc;*.mp3;*.flac" }, { L"All files", L"*.*" } };
+    spec.filters        = { { L"Tape recordings", L"*.wav;*.aif;*.aiff;*.aifc;*.mp3;*.flac" }, { L"All files", L"*.*" } };
+    spec.content        = FileDialogContent::Images;
+    spec.receivingDrive = ReceivingDrive { ReceivingDriveKind::Recorder, 0 };
 
     spec.initialFolder = m_shell.m_windowCommandManager->GetDiskCreateFolder();
 
@@ -671,6 +673,7 @@ bool ShellTapeDeck::CreateBlankTape()
 
 
     spec.filters          = { { L"WAV recordings", L"*.wav" } };
+    spec.content          = FileDialogContent::Images;
     spec.defaultExtension = L"wav";
     spec.defaultFileName  = L"New tape.wav";
     spec.initialFolder    = m_shell.m_windowCommandManager->GetDiskCreateFolder();

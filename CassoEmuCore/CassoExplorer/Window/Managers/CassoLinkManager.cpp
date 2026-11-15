@@ -194,6 +194,7 @@ void CassoLinkManager::ReadDiskToImage (const Location & drive, bool forceVerify
     spec.defaultExtension = L"dsk";
     spec.askToReplace     = false;
     spec.title            = std::format (L"Create image from {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
+    spec.content = FileDialogContent::Images;
 
     //  The picker's own replace prompt is Win32's; this one follows the theme,
     //  and No goes back to the picker.
@@ -283,6 +284,7 @@ void CassoLinkManager::CaptureRawDisk (const Location & drive)
     spec.defaultFileName  = std::filesystem::path (ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number)).replace_extension (L".woz").wstring();
     spec.defaultExtension = L"woz";
     spec.title            = std::format (L"Capture raw disk from {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
+    spec.content = FileDialogContent::Images;
 
     hr = m_context.dialogs.PickFileToSave (owner, spec, picked, chosen);
     CHR (hr);
@@ -422,6 +424,7 @@ void CassoLinkManager::WriteImageToDisk (const Location & drive, bool forceVerif
                         FileDialogFilter { L"All files (*.*)", L"*.*" } };
     spec.clientGuid = s_kLinkDiskPickerGuid;
     spec.title      = std::format (L"Write image to {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
+    spec.content = FileDialogContent::Images;
 
     hr = m_context.dialogs.PickFileToOpen (m_context.window.GetHwnd(), spec, picked, chosen);
     CHR (hr);
@@ -828,6 +831,7 @@ void CassoLinkManager::SaveLinkDiskImage (const std::string & name)
     spec.defaultFileName  = L"CassoLink.dsk";
     spec.defaultExtension = L"dsk";
     spec.title            = L"Save CassoLink disk image";
+    spec.content = FileDialogContent::Images;
 
     hr = m_context.dialogs.PickFileToSave (m_context.window.GetHwnd(), spec, picked, chosen);
     CHR (hr);

@@ -59,6 +59,11 @@ public:
     void     Prepare (PickerRequest request, const std::string & theme, HWND owner, bool cascade);
     HRESULT  Open    (HINSTANCE instance);
 
+    //  The modal form: opens the picker with its owner disabled and runs
+    //  the thread's messages until the picker has ended. The result is in
+    //  the outcome.
+    HRESULT  RunModal (HINSTANCE instance);
+
     bool     IsOpen       () const { return m_window != nullptr && !m_outcome.isClosed; }
     HWND     GetHwnd      () const;
     void     BringToFront ();
@@ -107,9 +112,10 @@ private:
     PickerRequest                            m_request;
     PickerOutcome                            m_outcome;
     CassoExplorerPrefs                       m_prefs;
-    HWND                                     m_owner    = nullptr;
-    bool                                     m_cascade  = false;
-    bool                                     m_ended    = false;
+    HWND                                     m_owner         = nullptr;
+    bool                                     m_cascade       = false;
+    bool                                     m_ended         = false;
+    bool                                     m_disabledOwner = false;   // a modal run disabled the owner, which End enables again
     std::function<void ()>                   m_onClosed;
     std::unique_ptr<IFolderWatcher>          m_watcher;
     std::unique_ptr<CassoExplorerBrowser>    m_browser;

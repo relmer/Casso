@@ -325,17 +325,11 @@ void ShellDrivePickers::OpenForRecorder()
 
 std::unique_ptr<IDrivePicker> ShellDrivePickers::OpenPicker (PickerRequest request, bool cascade, std::function<void()> onClosed)
 {
-    HRESULT                              hr    = S_OK;
-    std::string                          theme = CassoExplorerPrefs::MapCassoTheme (m_shell.m_settings->GetPrefs().activeTheme);
-    std::unique_ptr<ExplorerPickerHost>  host  = std::make_unique<ExplorerPickerHost> (m_shell.m_settings->GetFileSystem(),
-                                                                                         m_shell.m_machine.GetBlockMediaFileIo(),
-                                                                                         AssetBootstrap::GetAssetBaseDirectory().wstring());
+    HRESULT                              hr   = S_OK;
+    std::unique_ptr<ExplorerPickerHost>  host = MakeHost (std::move (request), m_shell.m_hwnd, cascade);
 
 
 
-    request.createFolder = m_shell.m_windowCommandManager->GetDiskCreateFolder();
-
-    host->Prepare (std::move (request), theme, m_shell.m_hwnd, cascade);
     host->SetOnClosed (std::move (onClosed));
 
     hr = host->Open (GetModuleHandle (nullptr));
@@ -346,4 +340,62 @@ std::unique_ptr<IDrivePicker> ShellDrivePickers::OpenPicker (PickerRequest reque
     }
 
     return std::make_unique<HostDrivePicker> (std::move (host));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDrivePickers::MakeHost
+//
+//  A picker's host over the emulator's file services, in its theme. A
+//  request with no create folder gets the emulator's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<ExplorerPickerHost> ShellDrivePickers::MakeHost (PickerRequest request, HWND owner, bool cascade)
+{
+    std::string                          theme = CassoExplorerPrefs::MapCassoTheme (m_shell.m_settings->GetPrefs().activeTheme);
+    std::unique_ptr<ExplorerPickerHost>  host  = std::make_unique<ExplorerPickerHost> (m_shell.m_settings->GetFileSystem(),
+                                                                                         m_shell.m_machine.GetBlockMediaFileIo(),
+                                                                                         AssetBootstrap::GetAssetBaseDirectory().wstring());
+
+
+
+    if (request.createFolder.empty())
+    {
+        request.createFolder = m_shell.m_windowCommandManager->GetDiskCreateFolder();
+    }
+
+    host->Prepare (std::move (request), theme, owner, cascade);
+
+    return host;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDrivePickers::RunModal
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellDrivePickers::RunModal (HWND owner, PickerRequest request, PickerOutcome & outOutcome)
+{
+    HRESULT                              hr   = S_OK;
+    std::unique_ptr<ExplorerPickerHost>  host = MakeHost (std::move (request), (owner != nullptr) ? owner : m_shell.m_hwnd, false);
+
+
+
+    m_shell.m_host->BeginModalKeepAlive();
+    hr = host->RunModal (GetModuleHandle (nullptr));
+    m_shell.m_host->EndModalKeepAlive();
+
+    outOutcome = host->GetOutcome();
+
+    return hr;
 }

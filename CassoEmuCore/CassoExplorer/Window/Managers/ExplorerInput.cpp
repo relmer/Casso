@@ -66,6 +66,7 @@ void ExplorerInput::SetFocusPane (ExplorerPane pane)
     m_context.listPane.HandleFocusChanged     (pane == ExplorerPane::List);
     m_context.tabManager.HandleFocusChanged     (pane == ExplorerPane::Tabs);
     m_context.addressBar.HandleFocusChanged   (pane);
+    m_context.pickerBar.HandleFocusChanged    (pane == ExplorerPane::PickerName);
     m_context.toolbars.GetNavToolbar().SetFocusIndex      (pane == ExplorerPane::Toolbar ? m_toolbarFocus : -1);
     m_context.toolbars.GetCommandBar().SetFocusIndex   (pane == ExplorerPane::CommandBar ? m_commandBarFocus : -1);
     m_context.preview.HandleFocusChanged  (pane);
@@ -692,6 +693,18 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         }
     }
 
+    //  A save form's file name box, as the search box above.
+    if (m_focus == ExplorerPane::PickerName)
+    {
+        handled = m_context.pickerBar.HandleNameKey (ev);
+
+        if (handled || ev.kind != DxuiKeyEventKind::Down)
+        {
+            m_context.window.Invalidate();
+            return handled;
+        }
+    }
+
     if (m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo)
     {
         handled = m_context.preview.GetFind().HandleBoxKey (m_focus, ev);
@@ -822,6 +835,7 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         case ExplorerPane::GoTo:                                                 break;
         case ExplorerPane::Address: handled = m_context.addressBar.HandleKey (ev); break;
         case ExplorerPane::LocationSearch: handled = m_context.addressBar.HandleFindBoxKey (ev);  break;
+        case ExplorerPane::PickerName:                                           break;
         case ExplorerPane::Tabs:    handled = m_context.tabManager.HandleKey (ev); break;
         case ExplorerPane::Tree:    handled = m_context.treePane.HandleKey (ev); break;
         case ExplorerPane::List:    handled = m_context.listPane.HandleKey (ev); break;

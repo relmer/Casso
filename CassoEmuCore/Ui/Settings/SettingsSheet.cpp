@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "SettingsSheet.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
@@ -643,16 +644,30 @@ HRESULT SettingsSheet::OpenModeless (
     // reported, and both are synced to it.
     m_printingPage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
     m_hardwarePage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
-    m_hardwarePage->SetOnBrowseImage ([this] (std::string & inOutPath) -> bool
+    m_hardwarePage->SetOnBrowseImage ([this] (const std::string & device, std::string & inOutPath) -> bool
     {
-        FileDialogSpec  spec;
-        fs::path        picked;
-        bool            isPicked = false;
-        HRESULT         hr       = S_OK;
+        FileDialogSpec          spec;
+        fs::path                picked;
+        bool                    isPicked = false;
+        HRESULT                 hr       = S_OK;
+        const BlockDriveSpec  * drive    = BlockDeviceCatalog::FindDrive (device);
 
 
 
         spec.filters = { { L"Disk images", L"*.po;*.hdv;*.2mg;*.2img;*.dsk;*.dc;*.dc42;*.image;*.woz" }, { L"All files", L"*.*" } };
+        spec.content = FileDialogContent::Images;
+
+        //  The picker lists what the port's drive accepts: a hard disk up to
+        //  its capacity, or a 3.5-inch drive's disks.
+        if (drive != nullptr)
+        {
+            bool  isUniDisk = device == kpszUniDisk35Device;
+            bool  isApple35 = device == kpszApple35DriveDevice;
+
+            spec.receivingDrive = ReceivingDrive { isUniDisk ? ReceivingDriveKind::UniDisk35 : isApple35 ? ReceivingDriveKind::Apple35 : ReceivingDriveKind::HardDisk,
+                                                   (isUniDisk || isApple35) ? 0 : drive->maxBlocks };
+            spec.driveLabel     = TextEncoding::Utf8ToWide (drive->label);
+        }
 
         if (!inOutPath.empty())
         {

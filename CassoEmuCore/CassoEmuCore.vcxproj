@@ -942,6 +942,7 @@
     <ClCompile Include="Devices\Disk\PreservedCopy.cpp" />
     <ClCompile Include="Seams\Win32IntentChannel.cpp" />
     <ClCompile Include="Seams\Win32HostDialogs.cpp" />
+    <ClCompile Include="Seams\CassoHostDialogs.cpp" />
     <ClCompile Include="Seams\Win32Clipboard.cpp" />
     <ClCompile Include="Controllers\ControllerTokens.cpp" />
     <ClCompile Include="Controllers\GamePortInputMixer.cpp" />
@@ -1762,6 +1763,7 @@
     <ClInclude Include="Seams\IIntentChannel.h" />
     <ClInclude Include="Seams\Win32IntentChannel.h" />
     <ClInclude Include="Seams\Win32HostDialogs.h" />
+    <ClInclude Include="Seams\CassoHostDialogs.h" />
     <ClInclude Include="Seams\Win32Clipboard.h" />
     <ClInclude Include="Seams\IPrintDialog.h" />
     <ClInclude Include="Seams\IHostDialogs.h" />

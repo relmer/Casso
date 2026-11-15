@@ -1446,6 +1446,11 @@ bool ShellDisks::AskWhereToSaveLostDisk (const std::string & imagePath,
     spec.filters       = { { L"Disk image", L"*.dsk;*.do;*.po;*.woz" } };
     spec.initialFolder = original.parent_path();
 
+    //  The picker while the machine runs. This is also the last-chance route
+    //  at shutdown, after the message loop has gone, where only Windows'
+    //  dialog can open.
+    spec.content       = m_shell.m_cpuManager.IsRunning() ? FileDialogContent::Images : FileDialogContent::Any;
+
     if (!original.filename().empty())
     {
         std::string  suggested = PreservedCopy::MakePath (
