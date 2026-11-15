@@ -129,11 +129,14 @@ Error:
 //  time, by which a backup or a sync would take the image for a changed one.
 //  An empty PNG deletes both streams.
 //
-//  The times are set again only after a stream is written or deleted. A
-//  read-only file, or one on a drive with no streams, can't be written, and
-//  its times set again would be a change to the file: a folder that Casso
-//  Explorer watches would be loaded again, the thumbnail found, and the
-//  streams written again without end.
+//  A read-only image, made so that no emulator writes to the disk, has its
+//  streams written too: the attribute is cleared for the write and set
+//  again after it.
+//
+//  Nothing is touched on a drive with no streams, and the times are set
+//  again only after a stream is written or deleted. A file changed with no
+//  stream written would load a folder that Casso Explorer watches again, the
+//  thumbnail would be found, and the streams written again without end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,12 +149,19 @@ HRESULT ThumbnailStore::WriteStreams (const std::filesystem::path & image, std::
     std::wstring               fields     = image.wstring() + kRecordStreamName;
     HANDLE                     whole      = INVALID_HANDLE_VALUE;
     bool                       isReadOnly = hasTimes && (before.dwFileAttributes & FILE_ATTRIBUTE_READONLY) != 0;
+    bool                       isCleared  = false;
     bool                       isTouched  = false;
 
 
 
     CBREx (hasTimes, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
-    CBREx (!isReadOnly, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
+    CBREx (HasStreams (image), HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+    if (isReadOnly)
+    {
+        isCleared = ::SetFileAttributesW (image.c_str(), before.dwFileAttributes & ~FILE_ATTRIBUTE_READONLY) != FALSE;
+        CBREx (isCleared, HRESULT_FROM_WIN32 (::GetLastError()));
+    }
 
     if (png.empty())
     {
@@ -187,7 +197,38 @@ Error:
         ::CloseHandle (whole);
     }
 
+    if (isCleared)
+    {
+        ::SetFileAttributesW (image.c_str(), before.dwFileAttributes);
+    }
+
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailStore::HasStreams
+//
+//  Whether the image's drive has named streams: NTFS and ReFS do, FAT and
+//  exFAT don't.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ThumbnailStore::HasStreams (const std::filesystem::path & image)
+{
+    wchar_t  volume[MAX_PATH] = {};
+    DWORD    flags            = 0;
+    BOOL     isFound          = ::GetVolumePathNameW (image.c_str(), volume, MAX_PATH);
+
+
+
+    isFound = isFound && ::GetVolumeInformationW (volume, nullptr, 0, nullptr, nullptr, &flags, nullptr, 0);
+
+    return isFound && (flags & FILE_NAMED_STREAMS) != 0;
 }
 
 
