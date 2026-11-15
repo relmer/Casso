@@ -42,7 +42,7 @@ The drive of a picker: `slot`, `drive`, and `isRecorder`. Two addresses are equa
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|
-| `content` | `FileDialogContent` | `Any` | `Images` sends an open request to the Casso Explorer picker |
+| `content` | `FileDialogContent` | `Any` | `Images` sends an open or save request to the Casso Explorer picker |
 | `receivingDrive` | `std::optional<ReceivingDrive>` | empty | adds the drive rule to the masks |
 
 The existing fields are used as today: `filters` (label and masks), `initialFolder`, `title`, `defaultFileName`, `clientGuid`. `clientGuid` selects the picker's saved view when it is set.
@@ -61,7 +61,10 @@ Built from a pattern string such as `*.po;*.2mg`. `Matches (name)` is case-insen
 | `receivingDrive` | `std::optional<ReceivingDrive>` | adds the drive rule |
 | `driveLabel` | `std::wstring` | "Apple 3.5 Drive, slot 5 drive 1", for the header |
 | `viewKey` | `std::wstring` | selects the saved view: one per receiving drive kind, or the caller's `clientGuid` |
-| `form` | `PickerForm` | `DriveWindow` (not modal, confirm calls `onConfirm`) or `ModalPath` (returns the path) |
+| `form` | `PickerForm` | `DriveWindow` (not modal, confirm calls `onConfirm`), `ModalOpen` (returns an existing file's path) or `ModalSave` (returns a path that may not exist) |
+| `defaultFileName` | `std::wstring` | `ModalSave`: fills the file name box |
+| `defaultExtension` | `std::wstring` | `ModalSave`: added to a name typed without one; without the dot |
+| `askToReplace` | `bool` | `ModalSave`: the picker prompts before returning an existing path |
 | `onConfirm` | `std::function<bool (const std::wstring & path)>` | `DriveWindow` only; on false the picker stays open and the failure is reported |
 | `onCreateNew` | `std::function<bool (std::wstring & outPath)>` | empty hides the command |
 | `stockDisks` | `std::vector<StockDiskRow>` | the listing of the "Stock disks" node under the Casso node; empty hides the node |

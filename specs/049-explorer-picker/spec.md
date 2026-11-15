@@ -19,7 +19,7 @@ Casso Explorer already lists folders of images with columns, sorting, search and
 ### Session 2026-11-14
 
 - Q: Can the picker list an image the drive rule excludes? → A: No. The rule is final.
-- Q: Which file requests open the picker? → A: Requests to open a disk or tape image, in the emulator. No save or folder variant.
+- Q: Which file requests open the picker? → A: Every request to open or save a disk or tape image, in the emulator and in Casso Explorer. That includes Casso Explorer's "Write image to...", "Create image from..." and raw capture commands for a connected Apple. Requests for other files, and folder requests, go to the Windows dialogs.
 - Q: Is a drive's picker modal? → A: No. It stays associated with the drive that opened it until it is closed; a click on another drive opens another picker.
 - Q: Does a hard disk accept a 140K, 400K or 800K image? → A: No. CFFA and A2Pico cards are not covered by this rule.
 - Q: Where do recent images go? → A: The Casso node lists every image in its folders, most recently used first, in the file manager and in the picker.
@@ -112,6 +112,9 @@ A caller that requires a file from the user passes a title, a starting folder an
 4. **Given** a starting folder that does not exist, **When** the picker opens, **Then** it opens in a fallback folder without an error.
 5. **Given** the picker is open, **When** the user looks for commands that change files, start transfers, open connections or open other windows, **Then** none is reachable by menu, toolbar, keyboard shortcut or context menu.
 6. **Given** a picker opened for a drive with the mask `*.po`, **When** a folder has a 140K `.po` and an 800K `.po` and the drive is a Disk II, **Then** only the 140K `.po` is listed.
+7. **Given** Casso Explorer has a connected Apple with a 5.25-inch drive, **When** the user chooses "Write image to..." for that drive, **Then** the picker opens over the Casso Explorer window and lists 140K images and no 800K or hard disk images.
+8. **Given** the user chooses "Create image from..." for a connected Apple's drive, **When** the picker opens, **Then** it has a file name box with the suggested name, lists the existing images in the folder, and returns the typed path on Save.
+9. **Given** the save form and a name that exists, **When** the user chooses Save and the request has the picker confirm replacement, **Then** a prompt appears before the path is returned, and No returns to the picker.
 
 ---
 
@@ -195,7 +198,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 #### The picker contract
 
 - **FR-020**: A caller MUST be able to open the picker with a title, a starting folder, a list of filter entries (each a label and a set of file masks), and optionally a receiving drive, and MUST receive one of three results: a chosen path, a cancel, or a failure.
-- **FR-021**: The picker MUST be available through the same request that Casso's callers already make for a file to open, so a caller that passes filter entries gets the picker without changing. Requests to open a disk or tape image in the emulator go to the picker. Other requests (serial files, printer output, screenshots, and Casso Explorer's dialogs), and all file-save and folder requests, go to the Windows dialogs.
+- **FR-021**: The picker MUST be available through the same request that Casso's callers already make for a file to open, so a caller that passes filter entries gets the picker without changing. Requests to open or save a disk or tape image go to the picker, in the emulator and in Casso Explorer. Requests for other files (serial files, printer output, screenshots, raw sector and block dumps, sound files that are not tapes), and all folder requests, go to the Windows dialogs.
 - **FR-022**: With no receiving drive, the picker MUST list folders and the files matching the active filter entry's masks, and nothing else.
 - **FR-023**: With a receiving drive, the picker MUST list folders and the files that both match the active entry's masks and are accepted by that drive under the drive rule.
 - **FR-024**: Masks MUST match by file name, case-insensitively, with `*` and `?` wildcards and `;` between masks, as the Windows dialogs do. `*.*` matches every file.
@@ -203,7 +206,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - **FR-026**: The picker has two forms. Opened for a drive of the running machine, it is a window of the emulator that is not modal: the emulator stays usable while it is open, and a confirm inserts the image in the drive. Opened by a caller that waits for a path, such as the Hardware page of Settings, it is modal to the caller's window and returns the path. Both forms confirm on the button, Enter or a double-click on a file, and cancel on the button, Esc or the close box.
 - **FR-050**: A picker opened for a drive MUST stay associated with that drive until it is closed. A click on another drive MUST NOT change the drive of an open picker; it opens a picker for the other drive, so several pickers can be open, one per drive.
 - **FR-051**: Opening the picker for a drive whose picker is already open MUST bring that picker to the front instead of opening a second one.
-- **FR-052**: After a confirm that inserts the image, a picker opened for a drive MUST close. There is no option to leave it open. A confirm whose mount fails reports the failure and the picker stays open.
+- **FR-052**: After a confirm that inserts the image, a picker opened for a drive MUST close. There is no stay-open option. A confirm whose mount fails reports the failure and the picker stays open.
 - **FR-053**: A picker opened for a drive MUST close without inserting when the drive is removed, the machine is switched or the emulator window closes.
 - **FR-054**: While a picker is open for a drive, the drive's door MUST be open if the drive is empty, and MUST follow the old dialog's door animation on insert and on close.
 - **FR-027**: Confirm MUST be unavailable while the selection is empty or is a folder; Enter or a double-click on a folder opens the folder.
@@ -243,6 +246,17 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - **FR-048**: In a picker opened for a drive, a "Stock disks" node under the Casso node MUST list the stock system disks that the drive accepts, whether downloaded or not, with a column or mark for the ones not downloaded. Picking one that is not downloaded MUST download it with the consent step the old dialog had, then return it as the pick. The node is absent when no stock disk fits the drive, and stock disks are not rows of the Casso node's list.
 - **FR-049**: An insert through the picker MUST update the recent list and the Casso node's folders exactly as an insert through the old dialog did.
 
+#### The save form
+
+- **FR-056**: A caller MUST be able to request a path to save an image to, with the same title, starting folder and filter entries as an open request, plus a default file name, a default extension, and whether the picker confirms a replacement.
+- **FR-057**: The save form MUST have a file name box, filled with the default file name. Selecting a file row copies its name into the box. Confirm is labeled "Save" and is available when the box has a valid file name.
+- **FR-058**: A name typed without an extension MUST get the default extension, or the first extension of the active filter entry when the request has no default extension.
+- **FR-059**: When the chosen path exists and the request has the picker confirm replacement, the picker MUST prompt, in the theme, and a No returns to the picker. When the caller confirms replacement itself, the picker returns the path without a prompt.
+- **FR-060**: The save form MUST list folders and the files matching the active filter entry, and the drive rule too when the request has a receiving drive, so the user can read which file names are in use. It MUST allow "New folder", and no other file-changing command.
+- **FR-061**: The save form MUST start in the caller's starting folder, else the last folder used for that kind of request, else the folder new disks are created in. It does not start on the Casso node, because the Casso node is not a folder a file can be saved in; choosing Save while on the Casso node is unavailable.
+- **FR-062**: Casso Explorer's "Write image to..." for a connected Apple's drive MUST open the picker with that drive as the receiving drive, so only images the real drive can take are listed. "Create image from...", the raw capture and "Save CassoLink disk image" MUST use the save form. The emulator's "Save disk as" and new tape requests MUST use the save form.
+- **FR-063**: A picker opened from a Casso Explorer window is modal to that window, runs in Casso Explorer's process, and has the same limits as any picker: no session, no links, and no file-changing command beyond FR-060. It does not change the connection the command is running over.
+
 ### Key Entities
 - **Image classification**: what one file is: not an image, an unclassified image, or an image with a form factor and a formatted size.
 - **Drive kind**: the kinds of receiving drive: Disk II and //c 5.25-inch drives, Apple 3.5 Drive, //c Plus drive, UniDisk 3.5, HD20SC, ProFile, and the recorder.
@@ -267,7 +281,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 
 ## Assumptions
 
-- The picker opens a file. A file-save variant and a folder variant are out of scope. The contract is modeled on the Windows open dialog so a save variant can be added later without changing callers.
+- The picker opens or saves one file. A folder variant is out of scope.
 - One file is picked at a time; multi-select is not offered.
 - The picker lists folders and files. It does not browse into an image or an archive to pick something inside, although the preview of the selected image is available.
 - An "All files" filter entry passed by a caller for a drive-scoped request widens the masks only. The drive rule applies regardless.

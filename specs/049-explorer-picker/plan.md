@@ -77,7 +77,7 @@ CassoEmuCore/
 ├── Ui/Scene/DeskDrivePlan.h/.cpp       # add GetReceivingKind (DeskDriveModel)
 ├── Seams/
 │   ├── IHostDialogs.h                  # FileDialogSpec: content, receivingDrive
-│   └── CassoHostDialogs.h/.cpp         # new: image requests to the picker, the rest to Win32HostDialogs
+│   └── CassoHostDialogs.h/.cpp         # new: image open and save requests to the picker, the rest to Win32HostDialogs
 ├── Shell/
 │   ├── DiskMru.h/.cpp                  # capacity 1,000, kMenuEntries
 │   ├── EmulatorShellStorage.cpp        # TryGetReceivingDrive, OnFileDropped through the rule
@@ -105,6 +105,7 @@ CassoEmuCore/
     │   └── ImageVolumeFacts.h/.cpp     # new: file system and volume name per image, with its worker
     ├── CassoExplorerCommands.h/.cpp    # picker allowlist
     ├── CassoExplorerBrowser.cpp        # single-folder special case of the Casso node removed
+    ├── Window/Managers/CassoLinkManager.cpp   # image requests set content; "Write image to..." passes the connected drive
     └── Window/
         ├── ExplorerContext.h           # PickerRequest in CassoExplorerWindowContext
         ├── Managers/ExplorerPickerMode.h/.cpp   # new: mode state, confirm, cancel
@@ -136,7 +137,7 @@ The parts depend on each other in one direction, so they are built and committed
 5. **Recent list capacity and the Casso node's list** (R8, R9), with `LastUsed`.
 6. **Picker core** (R4, R5): `FileMaskSet`, `PickerScope`, the command allowlist, `ExplorerPickerHost`, picker prefs, the picker bar.
 7. **Drive pickers** (R6): `ShellDrivePickers`, door callbacks, create new disk, blank tape, the stock disks node.
-8. **Modal form behind the seam** (R6): `FileDialogSpec` fields, `CassoHostDialogs`, the Settings Hardware page.
+8. **Modal forms behind the seam** (R6, R6a): `FileDialogSpec` fields, `CassoHostDialogs` for the emulator and for Casso Explorer's windows, the open form for the Settings Hardware page and "Write image to...", the save form for "Create image from...", raw capture, "Save disk as" and new tapes.
 9. **Removal** (R10) of the old dialog and pickers, once every caller is moved.
 10. **Validation**: scenario test over real fixtures, the window checks in quickstart.md, CHANGELOG and README, then merge 048 again and run the merge gate.
 

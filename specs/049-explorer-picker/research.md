@@ -103,6 +103,18 @@ A test builds an `ExplorerPickerHost` over a fake file system and asserts that t
 
 **Verify**: how Dxui runs a modal top-level window (the Settings sheet and `MessageDialog` are modal `DxuiWindow`s), so the modal form reuses that loop.
 
+## R6a. The save form and Casso Explorer's callers
+
+**Decision**: `PickFileToSave` with `content == Images` runs the picker in a save form (`PickerForm::ModalSave`): the same window with a file name box, a Save button, "New folder" allowed, and the replacement prompt of FR-059. `CassoHostDialogs` becomes the `IHostDialogs` of Casso Explorer's windows as well as the emulator's, so `CassoLinkManager::WriteImageToDisk` and the image saves in `CassoLinkManager` get the picker by setting `content`.
+
+**Rationale**: The owner requested that Casso Explorer's "Write image to..." and its companions use the picker. "Write image to..." is the same question as inserting in a drive: the connected Apple's drive is the receiving drive, so the drive rule lists only images that drive can take. The save requests already pass `askToReplace = false` and ask in the theme themselves, which the save form supports through `askToReplace`.
+
+**In Casso Explorer's process** the picker is a second `CassoExplorerWindow` made by an `ExplorerPickerHost`, modal over the requesting window. It is not opened through `CassoExplorerShell::OpenWindow`, so it is not in the session, not counted as an app window, and has null `links`. The requesting command continues over its existing connection when the picker returns.
+
+**Verify**: which object a Casso Explorer window's `ExplorerContext::dialogs` refers to and where it is constructed, so `CassoHostDialogs` is put there. **Verify** the form factor of a connected Apple's drive is available to `CassoLinkManager::WriteImageToDisk` (5.25-inch today; 3.5-inch if CassoLink reports one). **Verify** what `ExplorerCommandManager::ReplacePartition` and the request near `ExplorerCommandManager.cpp:1375` ask for, and set `content` where they ask for an image.
+
+**Alternatives considered**: Leaving saves on the Windows dialog. Not chosen: the owner requested the picker, and a user would get two different dialogs for reading and writing the same disk.
+
 ## R7. Columns
 
 **Decision**: Append `FormFactor`, `FormattedSize` and `LastUsed` to `CatalogModel::Column` after `Sha256`. `CatalogRow` gets an `ImageClass` and `lastUsedUnix`. `FromHostEntry` receives the class. Sorting by `FormattedSize` compares bytes; `FormFactor` sorts in the order 5.25-inch, 3.5-inch, hard disk, tape.
@@ -148,7 +160,8 @@ Searched every unmerged remote branch for picker, classifier and dialog seam cha
 | Scope | `PickerScope` over a fake listing, with and without a drive | unit |
 | Command gate | sweep of every command id in picker mode | unit |
 | Host | `ExplorerPickerHost` over a fake file system: no session, no explorer prefs, null links | unit |
-| Seam routing | `CassoHostDialogs`: image request to the picker, others to the inner dialogs | unit with a fake inner |
+| Seam routing | `CassoHostDialogs`: image open and save requests to the picker, others to the inner dialogs | unit with a fake inner |
+| Save form | name box rules, default extension, replacement prompt, start folder, "New folder" allowed and nothing else | unit over the picker mode's model |
 | Drops | `TryGetReceivingDrive` per tag range; `OnFileDropped` with a mismatched image mounts nothing | unit (`EmulatorShell` is unit-testable) |
 | Casso node list | folders merged, duplicates removed, missing folder skipped, sort order | unit |
 | Recent list | capacity, menu limit | unit |

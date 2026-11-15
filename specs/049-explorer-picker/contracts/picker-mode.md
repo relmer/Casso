@@ -4,7 +4,7 @@ What a `CassoExplorerWindow` does when its context has a `PickerRequest`.
 
 ## Hosting
 
-`ExplorerPickerHost` creates the window in the emulator's process.
+`ExplorerPickerHost` creates the window in the requesting process: the emulator's, or Casso Explorer's for a request from a Casso Explorer window. In Casso Explorer's process it is a separate object from `CassoExplorerShell` and does not share its windows, session or links.
 
 | Service in `CassoExplorerWindowContext` | Picker value |
 |---|---|
@@ -30,7 +30,7 @@ Guarantees (FR-031):
 
 ## Commands
 
-Allowed in picker mode: back, forward, up, go to a path, refresh, change view, sort, choose columns, size columns, search in the listing, show or hide the preview pane, select, confirm, cancel, create new disk or blank tape.
+Allowed in picker mode: back, forward, up, go to a path, refresh, change view, sort, choose columns, size columns, search in the listing, show or hide the preview pane, select, confirm, cancel, create new disk or blank tape, and, in the save form only, new folder.
 
 Every other command id is disabled and hidden, including by shortcut and context menu: copy, cut, paste, move, delete, rename, new folder, new disk from the file manager's menu, properties, undo, format, inspector, compare, transfers, CassoLink, serial, cards, options, updates, new window, new tab, tab tear-off, and drag to any target other than the emulator's drives.
 
@@ -50,7 +50,8 @@ Every other command id is disabled and hidden, including by shortcut and context
 | Header: drive label and `DriveImageRule::GetAcceptedText` | the request has a receiving drive |
 | Filter choice | the request has more than one filter entry |
 | "Create new disk..." / "New blank tape" | `onCreateNew` is set |
-| Insert (or Open for a request without a drive) | always; enabled when the selection is one file row |
+| File name box | `form == ModalSave`; filled with `defaultFileName`, and with a selected file row's name |
+| Insert, Open (a request without a drive) or Save (`ModalSave`) | always; Insert and Open are enabled when the selection is one file row, Save when the box has a valid file name |
 | Cancel | always |
 
 Keys: Enter confirms a file or opens a folder; Esc cancels; the list's existing navigation and type-to-select keys apply.
