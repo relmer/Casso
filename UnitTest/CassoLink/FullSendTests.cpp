@@ -18,6 +18,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -79,6 +80,8 @@ public:
         std::function<void (const std::string &)>  onAwait;               // with one, each image is booted, and this is the wait for its result
         bool                                  bootTones      = false;
         std::array<bool, 2>                   writeProtected = { false, false };
+        bool                                  measuring      = false;
+        std::vector<TrackLayout>              layouts;   // a disk read's, when measuring
 
         //  Called at the end of the Nth whole-disk read, counted from 1, and
         //  at the Nth wait for a key.
@@ -116,12 +119,14 @@ public:
 
         bool     IsVerifying() override { return verifying; }
         void     ToggleVerify() override { verifying = !verifying; }
+        void     SetMeasuring (bool on) override { measuring = on; }
 
         HRESULT  ReadDisk (int drive, Image & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport) override
         {
             outReport.marks          = reportMarks;
             outReport.tracksVerified = reportVerified;
             outReport.emptyTracks    = reportEmpty;
+            outReport.layouts        = measuring ? layouts : std::vector<TrackLayout>();
 
             int  read = (int) diskReads.size() + 1;
 
@@ -1084,6 +1089,44 @@ public:
         Assert::IsTrue (session->GetManifest().GetRows()[0].writeProtected);
         Assert::IsTrue (rig.io.readOnlyFiles.contains ("C:\\Box\\" + session->GetManifest().GetRows()[0].file), L"The read-only attribute");
         Assert::IsTrue (rig.io.readOnlyFiles["C:\\Box\\" + session->GetManifest().GetRows()[0].file]);
+    }
+
+    //  With WOZ chosen, each disk is measured and its image is built to the
+    //  measured layouts, write-protected as its disk is; with another type,
+    //  no disk is measured.
+    TEST_METHOD (Session_WithWozChosen_TheImageIsBuiltToTheMeasuredLayouts)
+    {
+        Rig    rig;
+        Rig    sectors;
+        Image  built;
+
+        rig.extension              = ".woz";
+        rig.link.drives[0]         = Dos ("GAME");
+        rig.link.present[1]        = false;
+        rig.link.writeProtected[0] = true;
+
+        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            rig.link.layouts.push_back (TrackLayout { 254, 6337, 51244, (track * 30763LL + 4111) % 51244 });
+        }
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (rig.link.measuring);
+        Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size());
+
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (rig.link.drives[0], rig.link.layouts, built));
+        AssertSucceeded (WozLoader::SetWriteProtectFlag (built, true));
+
+        Assert::IsTrue (rig.io.files["C:\\Box\\" + session->GetManifest().GetRows()[0].file] == built, L"The WOZ is built to the layouts, write-protected");
+
+        sectors.extension       = ".dsk";
+        sectors.link.drives[0]  = Dos ("GAME");
+        sectors.link.present[1] = false;
+
+        sectors.Run();
+
+        Assert::IsFalse (sectors.link.measuring);
     }
 
     TEST_METHOD (Session_WithBootTonesOnTheApple_TheResultsToneIsInPlaceOfTheDisks)

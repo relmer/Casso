@@ -35,11 +35,14 @@ class TrackMeasures
 public:
     static std::vector<TrackLayout>  ToLayouts (const std::vector<CassoLinkHost::TrackMeasure> & measures, int bitsPerTurn);
 
-    //  A turn's bits on a drive with this revolution; kDefaultBits for none.
+    //  A turn's bits on a drive with this revolution; kDefaultBits for none
+    //  or for one far from 300 rpm.
     static int  GetBitsPerTurn (double revolutionMs);
 
     static constexpr long long  kStepBits     = 12630;
     static constexpr int        kTurnNibbles  = 4;
     static constexpr double     kCyclesPerMs  = 1020.484;     // the Apple's clock
     static constexpr int        kCyclesPerBit = 4;
+    static constexpr double     kNominalMs    = 200.0;        // a revolution at 300 rpm
+    static constexpr double     kMaxDeviation = 0.05;
 };

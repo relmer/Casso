@@ -94,10 +94,33 @@ public:
         }
     }
 
-    //  A turn's bits: the revolution's cycles at 4 a bit.
+    //  A turn's bits: the revolution's cycles at 4 a bit, and a turn at 300
+    //  rpm for a revolution far from it.
     TEST_METHOD (BitsPerTurn_AreTheRevolutionsCyclesOver4)
     {
         Assert::AreEqual (51024, TrackMeasures::GetBitsPerTurn (200.0));
+        Assert::AreEqual (52045, TrackMeasures::GetBitsPerTurn (204.0));
         Assert::AreEqual (TrackLayoutWriter::kDefaultBits, TrackMeasures::GetBitsPerTurn (0.0));
+        Assert::AreEqual (TrackLayoutWriter::kDefaultBits, TrackMeasures::GetBitsPerTurn (2.0));
+        Assert::AreEqual (TrackLayoutWriter::kDefaultBits, TrackMeasures::GetBitsPerTurn (230.0));
+    }
+
+    //  A track with no sector 0 and a track whose turn can't fit 16 sectors
+    //  have no layout and the volume of the track before, and the tracks
+    //  after them are placed from the measures.
+    TEST_METHOD (Layouts_OfAnUnmeasuredOrImpossibleTrack_AreTheDefault)
+    {
+        std::vector<CassoLinkHost::TrackMeasure>  measures = { { 0, 6330, 7 }, { 0, 0, 0 }, { 1000, 4000, 7 }, { 1000, 6330, 9 } };
+        std::vector<TrackLayout>                  layouts  = TrackMeasures::ToLayouts (measures, TrackLayoutWriter::kDefaultBits);
+
+        Assert::AreEqual ((size_t) 4, layouts.size());
+        Assert::AreEqual (6334, layouts[0].nibbles);
+        Assert::AreEqual (0, layouts[1].nibbles);
+        Assert::AreEqual ((Byte) 7, layouts[1].volume);
+        Assert::AreEqual (0, layouts[2].nibbles);
+        Assert::AreEqual ((Byte) 7, layouts[2].volume);
+        Assert::AreEqual (6334, layouts[3].nibbles);
+        Assert::AreEqual ((Byte) 9, layouts[3].volume);
+        Assert::IsTrue (layouts[3].sector0 > 0, L"Placed from the measures");
     }
 };

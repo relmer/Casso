@@ -2,6 +2,7 @@
 
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
+#include "CassoLink/Session/TrackMeasures.h"
 #include "CassoLink/Session/TrackVerifier.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
@@ -202,28 +203,43 @@ std::string CassoLinkDiskTransfer::FormatDuration (double seconds)
 //  CassoLinkDiskTransfer::ReadWholeDisk
 //
 //  The image is written only once every track has been read, so a failed or
-//  canceled read writes nothing.
+//  canceled read writes nothing. A WOZ is built to each track's measured
+//  layout, so a title that times the turn from track to track runs from it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
 {
-    HRESULT               hr       = S_OK;
-    DiskFormat            format   = DiskFormat::Dsk;
-    std::vector<Byte>     sectors (NibblizationLayer::kImageByteSize, 0);
-    std::vector<Byte>     bytes;
-    CommitPlan::Progress  progress;
-    bool                  complete = false;
+    HRESULT                                   hr          = S_OK;
+    DiskFormat                                format      = DiskFormat::Dsk;
+    std::vector<Byte>                         sectors (NibblizationLayer::kImageByteSize, 0);
+    std::vector<Byte>                         bytes;
+    CommitPlan::Progress                      progress;
+    bool                                      complete    = false;
+    std::vector<CassoLinkHost::TrackMeasure>  measures;
+    int                                       bitsPerTurn = 0;
 
 
 
     hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, format);
     CHR (hr);
 
+    if (format == DiskFormat::Woz)
+    {
+        hr = TimeDriveForLayout (operation.drive, bitsPerTurn);
+        CHR (hr);
+    }
+
     for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
         m_session.Report (operation, track * 100 / NibblizationLayer::kTrackCount);
         m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
+
+        if (format == DiskFormat::Woz)
+        {
+            hr = MeasureTrack (operation.drive, track, measures);
+            CHR (hr);
+        }
 
         if (operation.verifyReads)
         {
@@ -247,8 +263,16 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
 
     CBREx (complete, HRESULT_FROM_WIN32 (ERROR_CRC));
 
-    hr = BlankDiskBuilder::WrapInContainer (format, NibbleImageCodec::GetTrackSizeForPath (operation.imagePath), false, 0, sectors, bytes);
-    CHR (hr);
+    if (format == DiskFormat::Woz)
+    {
+        hr = TrackLayoutWriter::BuildWoz (sectors, TrackMeasures::ToLayouts (measures, bitsPerTurn), bytes);
+        CHR (hr);
+    }
+    else
+    {
+        hr = BlankDiskBuilder::WrapInContainer (format, NibbleImageCodec::GetTrackSizeForPath (operation.imagePath), false, 0, sectors, bytes);
+        CHR (hr);
+    }
 
     hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, bytes, m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);
@@ -887,7 +911,7 @@ HRESULT CassoLinkDiskTransfer::TimeDriveForFormat (int drive, Byte & outGap)
 
     outGap = 0;
 
-    BAIL_OUT_IF (m_session.m_settings.transport != LinkTransport::Serial && m_session.m_settings.transport != LinkTransport::WifiModem, S_OK);
+    BAIL_OUT_IF (!IsTimed(), S_OK);
 
     //  A drive's speed is its own, not its disk's: timed once a connection.
     revolution = m_revolutionMs[(size_t) drive - 1];
@@ -914,6 +938,95 @@ Error:
     outGap = (revolution > 0.0) ? CassoLinkHost::ComputeFormatGap (revolution) : 0;
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::TimeDriveForLayout
+//
+//  As for a format, the drive is timed on track 0 once a connection, and
+//  only on a real Apple. A disk being read is never formatted, so a drive
+//  whose track 0 has no sector 0 gets the bits of a turn at 300 rpm.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::TimeDriveForLayout (int drive, int & outBitsPerTurn)
+{
+    HRESULT          hr         = S_OK;
+    CassoLinkStatus  status;
+    double           revolution = 0.0;
+
+
+
+    BAIL_OUT_IF (!IsTimed(), S_OK);
+
+    revolution = m_revolutionMs[(size_t) drive - 1];
+    BAIL_OUT_IF (revolution > 0.0, S_OK);
+
+    hr = m_session.m_host->TimeDrive ((Byte) drive, 0, kTimedRevolutions, revolution, status);
+    CHR (hr);
+
+    BAIL_OUT_IF (revolution == 0.0, S_OK);
+
+    m_revolutionMs[(size_t) drive - 1] = revolution;
+    m_session.m_sink.OnActivity (DescribeDriveSpeed (drive, revolution));
+
+Error:
+    outBitsPerTurn = TrackMeasures::GetBitsPerTurn (revolution);
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::MeasureTrack
+//
+//  A track with no sector 0, as a copy-protected disk can have, is not a
+//  failure: its layout is left to TrackLayoutWriter's default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::MeasureTrack (int drive, int track, std::vector<CassoLinkHost::TrackMeasure> & ioMeasures)
+{
+    HRESULT                      hr      = S_OK;
+    CassoLinkHost::TrackMeasure  measure;
+    CassoLinkStatus              status;
+
+
+
+    hr = m_session.m_host->MeasureTrack ((Byte) drive, (Byte) track, measure, status);
+    CHR (hr);
+
+    ioMeasures.push_back (measure);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::IsTimed
+//
+//  Only a real Apple's drive is timed: the PC times the revolution by its
+//  clock, and an emulated Apple does not always run in real time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkDiskTransfer::IsTimed() const
+{
+    return m_session.m_settings.transport == LinkTransport::Serial || m_session.m_settings.transport == LinkTransport::WifiModem;
 }
 
 

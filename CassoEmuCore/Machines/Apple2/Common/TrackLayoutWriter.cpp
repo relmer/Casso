@@ -29,6 +29,7 @@ HRESULT TrackLayoutWriter::BuildTrack (const std::vector<Byte> & sectors, int tr
     long long             length    = 0;
     long long             shift     = 0;
     bool                  isWhole   = sectors.size() >= (size_t) NibblizationLayer::kImageByteSize;
+    bool                  isFit     = IsFeasible (layout);
     std::vector<uint8_t>  bits;
 
 
@@ -36,7 +37,7 @@ HRESULT TrackLayoutWriter::BuildTrack (const std::vector<Byte> & sectors, int tr
     outBits.clear();
 
     CBREx (track >= 0 && track < NibblizationLayer::kTrackCount && isWhole, E_INVALIDARG);
-    CBREx (syncs >= NibblizationLayer::kSectorsPerTrack * kMinGapSyncs && fills >= 0, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (isFit, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     bits.reserve ((size_t) layout.bits);
 
@@ -132,6 +133,30 @@ HRESULT TrackLayoutWriter::BuildWoz (const std::vector<Byte> & sectors, const st
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackLayoutWriter::IsFeasible
+//
+//  The bits beyond the nibbles' 8 each are the sync nibbles' zeros, 2 a
+//  sync, and the gaps take at least kMinGapSyncs syncs each.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrackLayoutWriter::IsFeasible (const TrackLayout & layout)
+{
+    int  gapNibs = layout.nibbles - NibblizationLayer::kSectorsPerTrack * kFieldNibbles;
+    int  zeros   = layout.bits - NibblizationLayer::kSectorsPerTrack * kFieldBits - 8 * gapNibs;
+    int  syncs   = (zeros + 1) / 2;
+
+
+
+    return syncs >= NibblizationLayer::kSectorsPerTrack * kMinGapSyncs && gapNibs - syncs >= 0;
 }
 
 

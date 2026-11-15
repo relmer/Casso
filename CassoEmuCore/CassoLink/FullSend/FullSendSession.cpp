@@ -216,6 +216,10 @@ HRESULT FullSendSession::Run()
 
     m_status.Begin();
 
+    //  A WOZ is built to each track's measured layout, so a title that times
+    //  the turn from track to track runs from it.
+    m_link.SetMeasuring (m_extension == kRawExtension);
+
     hr = LoadManifest();
     CHR (hr);
 
@@ -1238,7 +1242,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
     row.writeProtected = m_link.IsWriteProtected (drive);
 
-    hr = WriteImage (title, image, earlier == nullptr ? raw : std::vector<Byte>(), unreadable, report.marks, row.writeProtected, row.file);
+    hr = WriteImage (title, image, earlier == nullptr ? raw : std::vector<Byte>(), unreadable, report, row.writeProtected, row.file);
     CHRF (hr, m_fileFailed = true);
 
     //  The disk just sent isn't a duplicate while it stays in its drive.
@@ -1447,22 +1451,29 @@ Error:
 //  is added. The list of unreadable sectors goes beside the image, as for
 //  Read disk to image. A raw capture is written as the image, a WOZ, with
 //  no list, as it has every sector the disk has; its reads, when the link
-//  returned them, go beside it with kReadsSuffix added.
+//  returned them, go beside it with kReadsSuffix added. A sector image saved
+//  as a WOZ is built to the tracks' layouts when the link measured them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FullSendSession::WriteImage (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, bool writeProtected, std::string & outFile)
+HRESULT FullSendSession::WriteImage (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, bool writeProtected, std::string & outFile)
 {
-    HRESULT               hr        = S_OK;
-    std::string           extension = raw.empty() ? FullSendDisk::GetImageExtension (image, m_extension) : std::string (kRawExtension);
-    std::string           text;
-    std::vector<Byte>     bytes     = raw;
-    DiskFormat            format    = DiskFormat::Dsk;
-    CommitPlan::Progress  progress;
+    HRESULT                          hr        = S_OK;
+    std::string                      extension = raw.empty() ? FullSendDisk::GetImageExtension (image, m_extension) : std::string (kRawExtension);
+    std::string                      text;
+    std::vector<Byte>                bytes     = raw;
+    DiskFormat                       format    = DiskFormat::Dsk;
+    CommitPlan::Progress             progress;
+    const std::vector<SectorMark>  & marks     = report.marks;
 
 
 
-    if (raw.empty())
+    if (raw.empty() && extension == kRawExtension && !report.layouts.empty())
+    {
+        hr = TrackLayoutWriter::BuildWoz (image, report.layouts, bytes);
+        CHR (hr);
+    }
+    else if (raw.empty())
     {
         hr = DiskImageStore::GetSourceFormatByExtension (extension, format);
         CHR (hr);

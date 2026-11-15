@@ -3,6 +3,7 @@
 #include "CassoLink/Session/CassoLinkFullSend.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
+#include "CassoLink/Session/TrackMeasures.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoLink/CassoLinkSession.h"
@@ -229,27 +230,42 @@ Error:
 //  Read disk to image's track reads, with an unreadable sector listed and left
 //  as zeros, and the check for Q and Cancel between tracks. The session
 //  writes the file only when every track has been read. The operation's drive
-//  is the one being read, for the status bar.
+//  is the one being read, for the status bar. When measuring, every track is
+//  measured, the tracks the check read too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport)
 {
-    HRESULT  hr      = S_OK;
-    size_t   before  = 0;
-    size_t   marked  = 0;
-    bool     stop    = false;
-    int      damaged = 0;
+    HRESULT                                   hr          = S_OK;
+    size_t                                    before      = 0;
+    size_t                                    marked      = 0;
+    bool                                      stop        = false;
+    int                                       damaged     = 0;
+    std::vector<CassoLinkHost::TrackMeasure>  measures;
+    int                                       bitsPerTurn = 0;
 
 
 
     m_operation->drive            = drive;
     m_operation->fullSendChecking = false;
 
+    if (m_measuring)
+    {
+        hr = m_session.m_diskTransfer.TimeDriveForLayout (drive, bitsPerTurn);
+        CHR (hr);
+    }
+
     for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
         hr = CheckStop();
         CHR (hr);
+
+        if (m_measuring)
+        {
+            hr = m_session.m_diskTransfer.MeasureTrack (drive, track, measures);
+            CHR (hr);
+        }
 
         //  A track the check read once still has its three reads when verifying.
         if (!m_verifying && std::find (haveTracks.begin(), haveTracks.end(), track) != haveTracks.end())
@@ -299,6 +315,11 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
     //  after this one draws the bar full.
     m_session.m_host->SetProgress (100, 100);
     m_barFull = true;
+
+    if (m_measuring)
+    {
+        outReport.layouts = TrackMeasures::ToLayouts (measures, bitsPerTurn);
+    }
 
 Error:
     return hr;
