@@ -880,6 +880,7 @@
     <ClCompile Include="BlockDeviceTests\BlockDeviceAttachmentsTests.cpp" />
     <ClCompile Include="BlockDeviceTests\StockHardDiskImageTests.cpp" />
     <ClCompile Include="BlockDeviceTests\ProFileTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Floppy35AttachTests.cpp" />
     <ClCompile Include="Floppy35Tests\Gcr35TrackTests.cpp" />
     <ClCompile Include="Floppy35Tests\Sony35DriveTests.cpp" />
     <ClCompile Include="Floppy35Tests\IwmTests.cpp" />
