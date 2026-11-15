@@ -9,6 +9,7 @@
 #include "Ui/DiskInspector/Views/IssuesView.h"
 #include "../EmuTests/FakeInspectorHost.h"
 #include "../EmuTests/FileMapTestImages.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
 #include "RepairFixtures.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -25,8 +26,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  verdict beside the File map's "Copy map", a link to its finding on the
 //  Issues tab for a Bad or Suspect volume; the verdict chip in the status
 //  band; a Repair button on each finding of the Issues tab that a change
-//  sets right, and "Repair disk image..." above them; and Repair's
-//  confirmation with a check box for each change.
+//  sets right, and "Repair disk image..." above them; Repair's
+//  confirmation with a check box for each change; and the report after a
+//  repair, as wide as its widest line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,6 +120,8 @@ public:
             Assert::IsTrue   (verdict.right <= copy.left, std::format (L"the verdict, then Copy map, at {} dpi", dpi).c_str());
             Assert::IsTrue   (verdict.left >= map.area.left && copy.right <= map.area.right, L"inside the view");
             Assert::AreEqual (verdict.top, copy.top, L"on the row of Copy map");
+            Assert::IsTrue   (map.host.panel.GetCursorForPoint (POINT { (verdict.left + verdict.right) / 2, (verdict.top + verdict.bottom) / 2 }) == IDC_HAND,
+                              L"the hand cursor over the link");
 
             Click (map.host.panel, verdict);
             Assert::AreEqual (GetVerdictFinding (map.session.analysis), map.host.shownFinding, L"the link opens the verdict's finding");
@@ -349,6 +353,84 @@ public:
             Assert::IsTrue (checks.front()->GetBounds().bottom <= repairs.front()->GetBounds().top, L"the repair under its problem");
             Assert::IsTrue (repairs.front()->GetBounds().bottom < checks.back()->GetBounds().top, L"a gap before the next change");
             Assert::IsTrue (repairs.back()->GetBounds().bottom <= status.GetBounds().top && status.GetBounds().bottom <= bounds.bottom, L"and the status under them");
+        }
+    }
+
+
+
+    TEST_METHOD (TheReportFitsItsWidestLineAndWrapsAFixAfterItsMark_At100And150Percent)
+    {
+        DiskAnalysis  analysis;
+        RepairPlan    plan;
+
+
+
+        Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, analysis);
+        plan = DiskRepair::Plan (analysis, {});
+
+        Assert::AreEqual (std::wstring (L"Applied these fixes:"), RepairReportDialog::FormatHeading());
+        Assert::AreEqual (std::wstring (L"Press OK to load the repaired disk image into Disk Inspector."), RepairReportDialog::FormatFooter (true, L"Game (repaired).dsk"));
+        Assert::AreEqual (std::wstring (L"The repaired copy is \"Game (repaired).dsk\"."), RepairReportDialog::FormatFooter (false, L"Game (repaired).dsk"));
+
+        for (UINT dpi : { 96u, 144u })
+        {
+            MockDxuiTextRenderer  text;
+            DxuiTheme             theme   = DxuiTheme::Dark();
+            DxuiDpiScaler         scaler;
+            RepairReportBody      fitted;
+            RepairReportBody      wrapped;
+            vector<std::wstring>  fixes;
+            std::wstring          footer  = RepairReportDialog::FormatFooter (true, L"Game.dsk");
+            int                   maxPx   = 0;
+            int                   widthPx = 0;
+            int                   height  = 0;
+            RECT                  bounds  = {};
+
+            scaler.SetDpi (dpi);
+            maxPx  = scaler.ToPx (RepairReportDialog::kMaxWidthDip);
+            bounds = { 0, 0, maxPx, scaler.ToPx (400) };
+
+            //  Short lines narrow the dialog to the widest of them.
+            for (const RepairChange & change : plan.changes)
+            {
+                fixes.push_back (change.text);
+            }
+
+            fitted.Init   (RepairReportDialog::FormatHeading(), fixes, footer);
+            fitted.Layout (bounds, scaler);
+
+            Assert::IsTrue (fitted.TryMeasureWidthPx (text, theme, maxPx, widthPx));
+            Assert::IsTrue (widthPx < maxPx && widthPx >= scaler.ToPx (RepairReportBody::kMinDip), std::format (L"{} px of {} at {} dpi", widthPx, maxPx, dpi).c_str());
+            Assert::AreEqual (plan.changes.size() + 2, fitted.GetRowCount(), L"the heading, a row for each fix, and the bottom line");
+            Assert::IsNull    (fitted.GetMark (0), L"the heading has no mark");
+            Assert::IsNotNull (fitted.GetMark (1), L"a fix has its mark");
+
+            //  A fix longer than the widest dialog wraps after its mark.
+            fixes.push_back (std::wstring());
+
+            for (int i = 0; i < 60; i++)
+            {
+                fixes.back() += L"word ";
+            }
+
+            wrapped.Init   (RepairReportDialog::FormatHeading(), fixes, footer);
+            wrapped.Layout (bounds, scaler);
+
+            Assert::IsTrue   (wrapped.TryMeasureWidthPx (text, theme, maxPx, widthPx));
+            Assert::AreEqual (maxPx, widthPx, L"no wider than the most");
+            Assert::IsTrue   (wrapped.TryMeasureHeightPx (text, theme, widthPx, height));
+
+            wrapped.Layout (RECT { 0, 0, widthPx, height }, scaler);
+
+            const DxuiLabel  & longFix = wrapped.GetLabel (fixes.size());
+            const DxuiLabel  & mark    = *wrapped.GetMark (fixes.size());
+
+            Assert::AreEqual (static_cast<long> (scaler.ToPx (RepairReportBody::kMarkDip)), longFix.GetBounds().left, L"the text starts after the marks' column");
+            Assert::AreEqual (mark.GetBounds().right, longFix.GetBounds().left);
+            Assert::AreEqual (mark.GetBounds().top, longFix.GetBounds().top, L"the mark on the first line");
+            Assert::IsTrue   (longFix.GetBounds().bottom - longFix.GetBounds().top > scaler.ToPx (RepairReportBody::kLineDip), L"on more than one line");
+            Assert::IsTrue   (longFix.GetBounds().bottom < wrapped.GetLabel (fixes.size() + 1).GetBounds().top, L"the bottom line under it");
+            Assert::IsTrue   (wrapped.GetLabel (fixes.size() + 1).GetBounds().bottom <= height, L"inside the measured height");
         }
     }
 };

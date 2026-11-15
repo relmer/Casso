@@ -80,9 +80,9 @@ void FilesView::Create()
     m_mapNext->SetOnClick     ([this] () { StepFileSector (1); });
     m_filePicker->SetOnClick  ([this] () { OpenFilePicker (!m_isPickerOpen); });
     m_mapCopy->SetOnClick     ([this] () { CopyFileMap(); });
-    m_mapVerdict->SetOnClick          ([this] () { ShowVerdictFinding(); });
-    m_mapVerdict->SetVariant          (DxuiButton::Variant::Link);
-    m_mapVerdict->SetUnderlineOnHover (true);}
+    m_mapVerdict->SetOnClick  ([this] () { ShowVerdictFinding(); });
+    m_mapVerdict->SetVariant  (DxuiButton::Variant::Link);
+}
 
 
 

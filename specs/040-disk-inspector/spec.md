@@ -3682,8 +3682,10 @@ release (Delivery). The first release MUST NOT depend on them.
   Repair are. The Issues tab MUST have one Repair disk image... button,
   in the accent, centered under the list, with no Repair button on a row.
   An error's icon and the Issues tab's count MUST be in the bad sector
-  color. The report after a repair MUST have a check mark on each fix and
-  only OK, which opens the copy.
+  color. The report after a repair MUST be titled Repair complete, have a
+  check mark on each fix with the fix's wrapped lines after the mark, be as
+  wide as its widest line up to 560 DIP, and have only OK, which opens the
+  copy. A link MUST have the hand cursor and no underline.
 - **FR-182**: Each finding MUST have a severity: an error for file-system
   damage, a sector whose checksum fails or that is missing, and an image
   record that is damaged or doesn't match its checksum; information for

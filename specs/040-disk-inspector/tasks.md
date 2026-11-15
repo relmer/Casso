@@ -575,4 +575,5 @@ compared byte for byte with the image before the damage.
 - [X] T782 [US18] An error's icon and the Issues count in the bad sector color, and the linked chip tinted with its color on hover (FR-183) Done 2026-11-15: `DxuiSeverityBadge` and `DxuiSegmentedControl::SetBadge` take an error color.
 - [X] T783 [US18] Smooth animation in an inspector opened from Casso Explorer, and slower marching dashes Done 2026-11-15: the 16 ms frame timer fired every second 15.6 ms clock tick, about 32 frames a second; the clock runs at 1 ms while the timer runs.
 - [X] T784 [US18] A file name with a space in quotes in the Repair dialogs, and the report after a repair with check marks and only OK (FR-183) Done 2026-11-15: `RepairDialog::FormatName`.
+- [X] T785 [US18] The report after a repair titled Repair complete, as wide as its widest line up to 560 DIP, with a fix's wrapped lines after its check mark, and links with the hand cursor and no underline (FR-183) Done 2026-11-15: `RepairReportDialog` fits its width on each layout, since the window's frame isn't applied yet when `OnDialogShowing` runs. Checked on screen.
 

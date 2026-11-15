@@ -39,8 +39,8 @@ public:
     void  ApplySettings      (const DecodeSettings & settings);
 
     //  A modal question with a button for the action and one for Cancel;
-    //  true for the action. Without Cancel, a report with the one button.
-    bool  Confirm (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action, bool hasCancel = true);
+    //  true for the action.
+    bool  Confirm (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action);
 
 private:
     InspectorSession         & m_session;

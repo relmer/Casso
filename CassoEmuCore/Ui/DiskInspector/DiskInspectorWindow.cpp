@@ -1653,6 +1653,11 @@ LPCWSTR DiskInspectorWindow::GetCursorForPoint (POINT clientPx) const
     {
         cursor = IDC_HAND;
     }
+    else if (DxuiWindow::GetCursorForPoint (clientPx) != nullptr)
+    {
+        //  A child's cursor: the hand over a link, a column's resize arrows.
+        cursor = DxuiWindow::GetCursorForPoint (clientPx);
+    }
 
     return cursor;
 }

@@ -130,3 +130,106 @@ private:
     vector<std::unique_ptr<DxuiLabel>>       m_repairs;
     DxuiButton                             * m_repair      = nullptr;
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RepairReportBody
+//
+//  The report's body after a repair: a heading, a line for each fix with a
+//  check mark in a column at the left, so a fix that wraps lines up after the
+//  mark, and a line at the bottom. Each line is measured as it draws, both
+//  for the dialog's width and for its height.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class RepairReportBody : public DxuiPanel, public IDxuiMeasuredContent
+{
+public:
+    static constexpr int  kLineDip   = 18;
+    static constexpr int  kMarkDip   = 26;     // the check marks' column
+    static constexpr int  kGapDip    = 10;     // under the heading and over the bottom line
+    static constexpr int  kFixGapDip = 4;
+    static constexpr int  kMinDip    = 300;
+
+    void  Init (const std::wstring & heading, const vector<std::wstring> & fixes, const std::wstring & footer);
+
+    //  The height with each line on one line, for the dialog's first size.
+    int   GetPreferredHeightDip () const;
+
+    //  The width the widest line takes unwrapped, from kMinDip up to `maxPx`.
+    bool  TryMeasureWidthPx  (IDxuiTextRenderer & text, const IDxuiTheme & theme, int maxPx, int & widthPx);
+    bool  TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxuiTheme & theme, int widthPx, int & heightPx) override;
+    void  Layout             (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+
+    size_t             GetRowCount () const               { return m_rows.size(); }
+    const DxuiLabel  * GetMark     (size_t row) const     { return m_rows[row].mark; }
+    const DxuiLabel  & GetLabel    (size_t row) const     { return *m_rows[row].label; }
+
+private:
+    struct Row
+    {
+        DxuiLabel  * mark     = nullptr;   // a fix's check mark; null on the heading and the bottom line
+        DxuiLabel  * label    = nullptr;
+        int          heightPx = 0;         // measured; 0 until TryMeasureHeightPx
+    };
+
+    int    GetGapAfterDip (size_t row) const;
+    float  GetFontPx      (const DxuiLabel & label, const IDxuiTheme & theme) const;
+
+    vector<Row>    m_rows;
+    DxuiDpiScaler  m_scaler;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RepairReportDialog
+//
+//  The report after a repair, titled Repair complete, with the fixes applied
+//  and only OK. The dialog is as wide as its widest line, up to kMaxWidthDip,
+//  where longer lines wrap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class RepairReportDialog : public DxuiDialogWindow
+{
+public:
+    static constexpr int  kMaxWidthDip = 560;
+    static constexpr int  kChromeDip   = 108;
+
+    void  Configure (const RepairPlan & plan, const std::wstring & footer);
+
+    //  The window's width fitted to the body's widest line on each layout,
+    //  once the window's frame is applied, as the base grows its height.
+    void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+
+    RepairReportBody  * GetBody () const { return m_body; }
+    bool                IsOk    () const { return m_isOk; }
+
+    //  The heading and the bottom line: the copy loaded on OK where the host
+    //  can open it, or the copy's name.
+    static std::wstring  FormatHeading ();
+    static std::wstring  FormatFooter  (bool canOpen, const std::wstring & copyName);
+
+    //  Runs the report as a modal dialog; true when it's closed with OK.
+    static bool  Run (HWND owner, const IDxuiTheme * theme, const RepairPlan & plan, const std::wstring & footer);
+
+protected:
+    void  OnCreate () override;
+
+private:
+    void  FitWidth (const DxuiDpiScaler & scaler);
+
+    vector<std::wstring>   m_fixes;
+    std::wstring           m_footer;
+    RepairReportBody     * m_body      = nullptr;
+    bool                   m_isOk      = false;
+    bool                   m_isFitting = false;
+};

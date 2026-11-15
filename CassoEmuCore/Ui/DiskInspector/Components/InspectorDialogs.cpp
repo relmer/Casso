@@ -105,7 +105,7 @@ void InspectorDialogs::OpenRepair (const std::set<std::wstring> & chosen)
     std::string           written;
     std::wstring          note;
     RepairPlan            applied;
-    vector<std::wstring>  lines   = { L"Applied these fixes:" };
+    std::wstring          footer;
     bool                  hasPath = !path.empty();
     bool                  canOpen = m_session.host != nullptr && m_session.host->CanOpenRepairedCopy();
 
@@ -124,15 +124,9 @@ void InspectorDialogs::OpenRepair (const std::set<std::wstring> & chosen)
 
     //  What the copy has, and the copy opened in the window on OK where the
     //  host opens it.
-    for (const RepairChange & change : applied.changes)
-    {
-        lines.push_back (std::wstring (s_kpszGreenCheck) + L" " + change.text);
-    }
+    footer = RepairReportDialog::FormatFooter (canOpen, fs::path (TextEncoding::Utf8ToWide (written)).filename().wstring());
 
-    lines.push_back (canOpen ? std::wstring (L"Press OK to load the repaired disk image into Disk Inspector.")
-                             : L"The repaired copy is " + RepairDialog::FormatName (fs::path (TextEncoding::Utf8ToWide (written)).filename().wstring()) + L".");
-
-    if (Confirm (L"Repair disk image", lines, L"OK", false) && canOpen)
+    if (RepairReportDialog::Run (m_host.GetOwnerHwnd(), m_session.theme, applied, footer) && canOpen)
     {
         m_session.host->OnRepairedCopyWritten (TextEncoding::Utf8ToWide (written));
     }
@@ -364,7 +358,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool InspectorDialogs::Confirm (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action, bool hasCancel)
+bool InspectorDialogs::Confirm (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action)
 {
     static constexpr int  kWidthDip  = 560;
     static constexpr int  kChromeDip = 108;
@@ -390,14 +384,7 @@ bool InspectorDialogs::Confirm (const std::wstring & title, const vector<std::ws
     content->SetRuns (runs);
     params.initialSizeDip = { kWidthDip, std::min (kMaxDip, kChromeDip + content->GetPreferredHeightDip()) };
 
-    if (hasCancel)
-    {
-        dialog.Configure (std::move (content), { { action, kYes, true, false }, { L"Cancel", 0, false, true } }, 0);
-    }
-    else
-    {
-        dialog.Configure (std::move (content), { { action, kYes, true, true } }, kYes);
-    }
+    dialog.Configure (std::move (content), { { action, kYes, true, false }, { L"Cancel", 0, false, true } }, 0);
 
     params.title                    = title;
     params.hInstance                = GetModuleHandle (nullptr);
