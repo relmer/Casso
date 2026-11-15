@@ -3638,10 +3638,13 @@ release (Delivery). The first release MUST NOT depend on them.
 - **FR-176**: Repair MUST NOT change a file's data or its chain: a file with a
   chain off the disk, a loop, or a sector another file uses is reported, and
   Repair is unavailable for its volume, with the reason.
-- **FR-177**: Before Repair writes, its confirmation MUST list the changes,
-  each as a line (for example "Mark 3 sectors of HELLO as used in the
-  bitmap"), and after it writes, the copy MUST be selected in Casso
-  Explorer.
+- **FR-177**: Before Repair writes, its confirmation MUST list every change
+  the volume can have, each with a check box (for example "Mark 3 sectors of
+  HELLO as used in the bitmap"), and write one copy with the checked
+  changes; Repair is unavailable, with the reason, while the checked
+  changes can't be made. After it writes, the copy MUST be selected in
+  Casso Explorer, and an inspector window opened from Casso Explorer MUST
+  have the copy open in the image's place with the same selection.
 - **FR-180**: The checks MUST also report a file that uses a volume's
   bookkeeping (the VTOC, a catalog sector or the boot sector on DOS 3.3; a
   boot block, a volume directory block or the bitmap on ProDOS; a boot
@@ -3657,11 +3660,21 @@ release (Delivery). The first release MUST NOT depend on them.
   speech, with "Expected X, but found Y" only for a value that differs from
   a known one.
 - **FR-179**: Casso Explorer's preview pane MUST have a disk image's
-  file-system verdict with the inspector's other details: Bad as a warning
-  banner at the top of the pane, in the theme's error color, with the first
-  finding of damage and Repair disk image when the volume can be repaired;
-  Suspect as a line with its first finding; and nothing more for OK or for a
-  disk with no standard file system.
+  file-system verdict with the inspector's other details: Bad as an error
+  infobar at the top of the pane, with the first finding of damage; Suspect
+  as a warning infobar with its first suspect finding; each with Repair disk
+  image when the volume can be repaired, under the text in a narrow pane;
+  and nothing more for OK or for a disk with no standard file system. The
+  infobar's text MUST wrap within it at any width. The thumbnail and the
+  catalog under it MUST scroll as one: the wheel scrolls the thumbnail away
+  before the catalog, and the catalog back to its top before the thumbnail.
+- **FR-181**: The inspector's Issues tab MUST have a Repair button on each
+  finding a repair change sets right, which opens Repair's confirmation
+  with those changes checked, and Repair disk image above the list, which
+  opens it with every change checked. The verdict on the File map tab and
+  the file-system chip in the status band MUST, for a Bad or Suspect
+  volume, open the Issues tab with the verdict's finding selected, focused
+  and scrolled into view.
 - **FR-178**: `CassoCli disk repair <image> [<copy>]` MUST report the verdict,
   the findings and the changes, write the copy as Repair does, take
   `--no-free-unowned` for "Don't free sectors that no file uses" and `--list` to report the
