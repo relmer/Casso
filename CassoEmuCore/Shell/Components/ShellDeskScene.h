@@ -57,6 +57,7 @@ public:
     // the drive bar from the drives' right-click menu.
     const std::vector<DeskDrivePlacement> &  GetDrivePlan           () const { return m_drivePlan; }
     void                                     PlanDrives             ();
+    void                                     ReplanIfDrivesChanged  ();
     bool                                     IsClassOnDesk          (DeskDriveClass driveClass) const;
     void                                     ToggleClassOnDesk      (DeskDriveClass driveClass);
     void                                     ToggleFloppyPairBeside ();
@@ -456,6 +457,7 @@ private:
     // does not cross the //c boundary skips the reload.
     bool                             m_deskSceneMachineIsC = false;
     std::vector<DeskDrivePlacement>  m_drivePlan;
+    int                              m_plannedDiskIiCount  = -1;
     int                              m_deskSceneDebug      = 0;   // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
 
     // Fullscreen drive overlay strip (FR-015): the pure FSM plus this
