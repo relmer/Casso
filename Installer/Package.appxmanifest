@@ -198,7 +198,7 @@
                     </uap3:AppExecutionAlias>
                 </uap3:Extension>
 
-                <!-- Copy here as raw bytes on File Explorer's right-drag menu
+                <!-- Copy here without conversion (raw bytes) on File Explorer's right-drag menu
                      for a drag out of Casso Explorer: CassoShellExtension.dll's
                      RawCopyDropHandler, for folders and drives. Windows 11 21H2
                      and later read these; earlier versions ignore them. The

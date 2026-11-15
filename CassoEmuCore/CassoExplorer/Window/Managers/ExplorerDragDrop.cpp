@@ -1583,7 +1583,7 @@ void ExplorerDragDrop::BeginDragOut()
                                     });
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    //  Copy here as raw bytes on File Explorer's right-drag menu: File
+    //  Copy here without conversion (raw bytes) on File Explorer's right-drag menu: File
     //  Explorer copied nothing, and the selection is copied raw to its folder
     //  as Get does.
     if (!rawFolder.empty())

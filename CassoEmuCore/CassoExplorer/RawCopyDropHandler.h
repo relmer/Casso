@@ -13,15 +13,15 @@
 //  File Explorer's drag-and-drop handler for a right-drag out of Casso
 //  Explorer. File Explorer draws the menu for a right-drag into its windows,
 //  so its Copy here writes each file in its conversion, and this handler adds
-//  Copy here as raw bytes beside it.
+//  Copy here without conversion (raw bytes) beside it.
 //
 //  Casso Explorer marks a drag whose files have a conversion with
 //  kOfferedFormat, unless Options has the item turned off. When the user
 //  picks the item, the handler stores the target folder's path on the
-//  drag's data object in kFolderFormat, and
-//  File Explorer copies nothing. Casso Explorer reads the folder when the
-//  drag ends and copies the selection there raw, with its collision prompt
-//  and its report, as Get does.
+//  drag's data object in kFolderFormat, and File Explorer copies nothing.
+//  Casso Explorer reads the folder when the drag ends and copies the
+//  selection there raw, with its collision prompt and its report, as Get
+//  does.
 //
 //  The class is built into CassoShellExtension.dll, which File Explorer loads.
 //  A drag without the mark doesn't get the item, so other programs' drags
@@ -34,7 +34,7 @@ class RawCopyDropHandler : public IShellExtInit, public IContextMenu
 public:
     static constexpr const wchar_t *  kOfferedFormat = L"CassoExplorer.RawCopyOffered";
     static constexpr const wchar_t *  kFolderFormat  = L"CassoExplorer.RawCopyFolder";
-    static constexpr const wchar_t *  kMenuText      = L"Copy here as &raw bytes";
+    static constexpr const wchar_t *  kMenuText      = L"Copy here &without conversion (raw bytes)";
     static constexpr const wchar_t *  kVerb          = L"CassoRawCopy";
     static constexpr const char *     kVerbA         = "CassoRawCopy";
 
