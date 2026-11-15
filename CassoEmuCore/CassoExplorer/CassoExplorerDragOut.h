@@ -5,6 +5,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
+#include "CassoExplorer/RawCopyDropHandler.h"
 
 
 
@@ -120,7 +121,11 @@ public:
     static constexpr const wchar_t *  kFilesFormatName = L"CassoExplorer.Files";
 
     //  The marker above, as a format to offer.
-    static DxuiDragDropSource::Format  MakeFilesMarker ();
+    static DxuiDragDropSource::Format  MakeFilesMarker   ();
+
+    //  RawCopyDropHandler::kOfferedFormat, on a drag of files with a
+    //  conversion, so File Explorer's right-drag menu offers a raw copy.
+    static DxuiDragDropSource::Format  MakeRawCopyMarker ();
 
     //  A linked Apple's whole drive as one image file, its volume in its name:
     //  the drive's id for Casso Explorer's own drops, and the image's bytes,

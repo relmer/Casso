@@ -1509,6 +1509,7 @@ void ExplorerDragDrop::BeginDragOut()
     Location                                 drive;
     std::shared_ptr<const DxuiIconImage>     icon     = GetRowDragImage();
     bool                                     images   = !m_context.browser.GetSelectedRows().empty();
+    std::wstring                             rawFolder;
 
 
 
@@ -1570,8 +1571,27 @@ void ExplorerDragDrop::BeginDragOut()
     IGNORE_RETURN_VALUE (got, TRUE);
 
     hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY | DROPEFFECT_MOVE, start, effect, &logical,
-                                    (images || inImage || m_context.browser.IsAppleDriveLocation()) ? icon.get() : nullptr);
+                                    (images || inImage || m_context.browser.IsAppleDriveLocation()) ? icon.get() : nullptr,
+                                    [&rawFolder] (const DxuiDragDropSource & source)
+                                    {
+                                        std::vector<uint8_t>  stored;
+
+                                        if (source.GetStoredBytes (RawCopyDropHandler::kFolderFormat, stored))
+                                        {
+                                            rawFolder = RawCopyDropHandler::GetFolder (stored);
+                                        }
+                                    });
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    //  Copy here as raw bytes on File Explorer's right-drag menu: File
+    //  Explorer copied nothing, and the selection is copied raw to its folder
+    //  as Get does.
+    if (!rawFolder.empty())
+    {
+        m_context.commandManager.ReportOutcome (m_context.actions.GetSelected (rawFolder, style, m_context.prompts.MakeCollisionPrompt(), true), L"Copy");
+        m_context.window.Invalidate();
+        return;
+    }
 
     //  File Explorer reports a move of files it read from the drag's streams
     //  in the logical effect, and the drag itself returns DROPEFFECT_NONE.

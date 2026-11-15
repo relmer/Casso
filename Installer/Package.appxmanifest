@@ -12,8 +12,10 @@
     xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
     xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
     xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
+    xmlns:desktop9="http://schemas.microsoft.com/appx/manifest/desktop/windows10/9"
+    xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
     xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-    IgnorableNamespaces="uap uap2 uap3 desktop desktop2 rescap">
+    IgnorableNamespaces="uap uap2 uap3 desktop desktop2 desktop9 com rescap">
 
     <!--
       Publisher must match the signing certificate's subject exactly. Windows
@@ -195,7 +197,26 @@
                         <desktop:ExecutionAlias Alias="CassoExplorer.exe" />
                     </uap3:AppExecutionAlias>
                 </uap3:Extension>
-            </Extensions>
+
+                <!-- Copy here as raw bytes on File Explorer's right-drag menu
+                     for a drag out of Casso Explorer: CassoShellExtension.dll's
+                     RawCopyDropHandler, for folders and drives. Windows 11 21H2
+                     and later read these; earlier versions ignore them. The
+                     class id is RawCopyDropHandler::kClsid. -->
+                <com:Extension Category="windows.comServer">
+                    <com:ComServer>
+                        <com:SurrogateServer DisplayName="Casso Explorer raw copy">
+                            <com:Class Id="8E3B6C41-2F7A-4D59-B1C8-6A0E9D24F713" Path="CassoShellExtension.dll" ThreadingModel="STA" />
+                        </com:SurrogateServer>
+                    </com:ComServer>
+                </com:Extension>
+
+                <desktop9:Extension Category="windows.fileExplorerClassicDragDropContextMenuHandler">
+                    <desktop9:FileExplorerClassicDragDropContextMenuHandler>
+                        <desktop9:ExtensionHandler Type="Directory" Clsid="8E3B6C41-2F7A-4D59-B1C8-6A0E9D24F713" />
+                        <desktop9:ExtensionHandler Type="Drive" Clsid="8E3B6C41-2F7A-4D59-B1C8-6A0E9D24F713" />
+                    </desktop9:FileExplorerClassicDragDropContextMenuHandler>
+                </desktop9:Extension>            </Extensions>
 
         </Application>
 

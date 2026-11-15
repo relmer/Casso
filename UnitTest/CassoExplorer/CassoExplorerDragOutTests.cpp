@@ -240,8 +240,11 @@ public:
         const DxuiDragDropSource::Format  * fileContents = Find (formats, CFSTR_FILECONTENTS);
 
 
-        Assert::AreEqual ((size_t) 4, formats.size());
+        Assert::AreEqual ((size_t) 5, formats.size());
         Assert::IsNotNull (Find (formats, CassoExplorerDragOut::kFilesFormatName), L"marked as Casso Explorer's own copy");
+        Assert::IsNotNull (Find (formats, RawCopyDropHandler::kOfferedFormat), L"HELLO has a conversion, so a right-drag into File Explorer offers a raw copy");
+        Assert::IsNull    (Find (CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive, nullptr, true), RawCopyDropHandler::kOfferedFormat),
+                           L"a raw drag doesn't offer a second raw copy");
         Assert::IsNotNull (fileContents);
         Assert::AreEqual (1, fileContents->count);
         Assert::IsFalse  (log->IsWhole(), L"a file the target has not read is not whole, so a move deletes nothing");
