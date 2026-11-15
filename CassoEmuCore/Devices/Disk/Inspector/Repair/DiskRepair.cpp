@@ -115,8 +115,16 @@ RepairPlan DiskRepair::Plan (const DiskAnalysis & analysis, const RepairOptions 
 
                 break;
 
+            //  A cross-link or a chain that can't be followed is the reason,
+            //  as on a DOS 3.3, ProDOS or Apple Pascal volume.
             default:
-                plan.reason = L"Only DOS 3.3, ProDOS and Apple Pascal volumes can be repaired.";
+                CheckChains (work, analysis.fileMaps[0]);
+
+                if (plan.reason.empty())
+                {
+                    plan.reason = L"Only DOS 3.3, ProDOS and Apple Pascal volumes can be repaired.";
+                }
+
                 break;
         }
     }

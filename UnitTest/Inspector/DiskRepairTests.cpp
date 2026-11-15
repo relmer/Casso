@@ -226,6 +226,35 @@ public:
 
 
 
+    TEST_METHOD (ACrossLinkedCpmVolumeHasTheCrossLinkAsItsReason)
+    {
+        vector<Byte>  shared = Images::MakeCpm();
+        vector<Byte>  odd    = Images::MakeCpm();
+        DiskAnalysis  analysis;
+        RepairPlan    plan;
+
+
+
+        //  NOTES.TXT takes SPARSE.DAT's first block.
+        Images::GetCpmSector (shared, 3, 0)[3 * 32 + 16] = 20;
+        Analyze (shared, false, analysis);
+        plan = DiskRepair::Plan (analysis, {});
+
+        Assert::IsTrue  (analysis.verdict == FileSystemVerdict::Bad);
+        Assert::IsFalse (plan.canRepair);
+        Assert::IsTrue  (plan.reason.starts_with (L"Repairing this would change a file's data: "), plan.reason.c_str());
+
+        //  An entry with user 40: Suspect, and no cross-link to give.
+        Images::GetCpmSector (odd, 3, 0)[6 * 32] = 40;
+        Analyze (odd, false, analysis);
+        plan = DiskRepair::Plan (analysis, {});
+
+        Assert::IsTrue   (analysis.verdict == FileSystemVerdict::Suspect);
+        Assert::AreEqual (std::wstring (L"Only DOS 3.3, ProDOS and Apple Pascal volumes can be repaired."), plan.reason);
+    }
+
+
+
     TEST_METHOD (ACopyProtectedDiskIsNotRepaired)
     {
         DiskAnalysis  analysis;
