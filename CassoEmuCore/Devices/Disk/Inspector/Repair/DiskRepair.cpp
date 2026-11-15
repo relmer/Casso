@@ -595,7 +595,7 @@ void DiskRepair::CheckChains (Work & work, const FileMap & map)
 
         if (work.plan.reason.empty() && isBlocking)
         {
-            work.plan.reason = L"Repairing this would change a file's data: " + TextEncoding::Utf8ToWide (finding.detail) + L".";
+            work.plan.reason = L"Repairing this would change a file's data: " + TextEncoding::Utf8ToWide (finding.detail) + (finding.detail.ends_with ('.') ? L"" : L".");
         }
     }
 }

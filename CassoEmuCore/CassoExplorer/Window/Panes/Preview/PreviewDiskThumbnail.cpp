@@ -204,7 +204,7 @@ std::wstring ThumbnailVerdict::FormatText (FileSystemVerdict verdict, const std:
 
     if (verdict == FileSystemVerdict::Bad || verdict == FileSystemVerdict::Suspect)
     {
-        text = L"File system: " + FileSystemCheck::FormatVerdict (verdict) + L"." + (sentence.empty() ? std::wstring() : L" " + sentence + L".");
+        text = L"File system: " + FileSystemCheck::FormatVerdict (verdict) + L"." + (sentence.empty() ? std::wstring() : L" " + sentence + (sentence.ends_with (L'.') ? L"" : L"."));
     }
 
     return text;
