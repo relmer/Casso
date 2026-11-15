@@ -72,6 +72,40 @@ public:
     }
 
 
+    //  A picture row is as many lines as the picture is tall, and the picture
+    //  is drawn once, a pixel a DIP.
+    TEST_METHOD (Picture_TakesTheLinesOfItsHeightAndIsDrawnOnce)
+    {
+        DxuiTextView          view;
+        DxuiTextView::Row     row     = MakeRow ({ L"" });
+        auto                  picture = std::make_shared<DxuiTextView::Picture>();
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        int                   drawn   = 0;
+
+        picture->bgra.assign (10 * 40, 0xFF336699);
+        picture->width  = 10;
+        picture->height = 40;
+        row.picture     = picture;
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ MakeRow ({ L"above" }), row, MakeRow ({ L"below" }) });
+
+        Assert::AreEqual (5, view.GetLineCount(), L"a line above, three for 40 pixels of 16-pixel lines, and one below");
+
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            drawn += (call.kind == RecordedTextKind::DrawFramebuffer) ? 1 : 0;
+        }
+
+        Assert::AreEqual (1,  drawn);
+        Assert::AreEqual (10, text.GetLastFramebufferWidth());
+    }
+
+
     //  A row's wrap indent starts each wrapped line that many characters past
     //  the last cell's first, as source code wraps under its operand.
     TEST_METHOD (WrapIndent_StartsAWrappedLinePastTheCellsFirstCharacter)

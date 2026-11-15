@@ -6,6 +6,8 @@
 #include "Machines/Apple2/Common/HfsWriter.h"
 #include "Machines/Apple2/Common/VolumeIntegrityReport.h"
 #include "Devices/Disk/BlockImage.h"
+#include "Devices/Disk/BlockVolumeOpener.h"
+#include "FakeDiskFileIo.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -103,6 +105,36 @@ public:
         Assert::AreEqual (std::string ("Untitled"), listing.volumeName);
         Assert::AreEqual ((size_t) 0, listing.entries.size());
         Assert::IsTrue (listing.freeUnits > 0 && listing.freeUnits < listing.totalUnits);
+    }
+
+
+    //  Byte 0x404, where a ProDOS volume header's storage type is, is part
+    //  of an HFS volume's creation date, and for an hour in every 18 it reads
+    //  as ProDOS's $F. The volume opens as HFS all the same.
+    TEST_METHOD (BlockVolumeOpener_OpensHfsWhateverItsCreationDate)
+    {
+        constexpr uint32_t  kBlocks = 4096;
+
+        vector<Byte>                  image;
+        FakeDiskFileIo                io;
+        std::unique_ptr<IBlockStore>  store;
+        std::unique_ptr<IVolume>      volume;
+        VolumeKind                    kind = VolumeKind::Unknown;
+
+
+
+        AssertSucceeded (HfsWriter::Format (image, kBlocks, "Dated"));
+
+        image[0x402] = 0xE5;
+        image[0x403] = 0x12;
+        image[0x404] = 0xF4;
+        image[0x405] = 0x00;
+
+        io.files["C:\\Disks\\dated.po"]  = image;
+        io.stamps["C:\\Disks\\dated.po"] = FileStamp { image.size(), 100 };
+
+        Assert::IsTrue (BlockVolumeOpener::TryOpen (io, "C:\\Disks\\dated.po", VolumeKind::Unknown, store, volume, kind));
+        Assert::IsTrue (kind == VolumeKind::Hfs);
     }
 
 

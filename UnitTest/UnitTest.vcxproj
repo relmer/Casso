@@ -313,6 +313,7 @@
     <ClCompile Include="EmuTests\CommitPlanTests.cpp" />
     <ClCompile Include="EmuTests\DiskAccessTests.cpp" />
     <ClCompile Include="EmuTests\DiskCommandRunnerTests.cpp" />
+    <ClCompile Include="EmuTests\InfocomSaveTests.cpp" />
     <ClCompile Include="EmuTests\DiskHelpTextTests.cpp" />
     <ClCompile Include="EmuTests\DiskInspectCommandTests.cpp" />
     <ClCompile Include="EmuTests\TextEncodingTests.cpp" />

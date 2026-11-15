@@ -3,6 +3,7 @@
 #include "Core/TextEncoding.h"
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/WizardryScenario.h"
+#include "Core/UnicodeSymbols.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -16,10 +17,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  WizardryScenarioTests
 //
 //  A SCENARIO.DATA built here in the layout of Wizardry I's: a table of
-//  contents, one maze level, two monsters, an item and a character. The
-//  level has walls around its edge, a door on the east side of square
-//  (0, 0), stairs at (1, 0) and a fight zone at (0, 1). The real scenarios
-//  are in ScenarioTests/WizardryTests.
+//  contents, one maze level, two monsters, two items, a character with
+//  both items in its inventory and a deleted character. The level has walls around its
+//  edge, a door on the east side of square (0, 0), stairs at (1, 0) and a
+//  fight zone at (0, 1). The real scenarios are in ScenarioTests/GameDataTests.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +70,7 @@ public:
         const char *       statuses[] = { "OK", "AFRAID", "ASLEEP", "P-LYZE", "STONED", "DEAD", "ASHES", "LOST" };
         const char *       aligns[]   = { "UNALIGN", "GOOD", "NEUTRAL", "EVIL" };
         int                perPair[]  = { 6, 1, 6, 6, 13, 4, 2, 1 };
-        int                counts[]   = { 1, 1, 2, 0, 1, 1, 0, 1 };
+        int                counts[]   = { 1, 1, 2, 0, 2, 2, 0, 1 };
         int                firsts[]   = { 0, kMazeBlock, kMonsterBlock, kItemBlock, kItemBlock, kCharacterBlock, kCharacterBlock, kCharacterBlock };
         size_t             at         = 106;
         size_t             maze       = kMazeBlock      * WizardryScenario::kBlockBytes;
@@ -129,15 +130,29 @@ public:
         PutWord   (bytes, item + 36, 1);
         PutWord   (bytes, item + 44, 2500);
         PutWord   (bytes, item + 46, 1);
+        PutString (bytes, item + WizardryScenario::kItemBytes + 0,  "ROBES");
+        PutString (bytes, item + WizardryScenario::kItemBytes + 16, "ARMOR");
 
         PutString (bytes, character + 0,   "GANDALF");
         PutWord   (bytes, character + 34,  2);
         PutWord   (bytes, character + 36,  1);
         PutWord   (bytes, character + 40,  0);
         PutWord   (bytes, character + 42,  3);
+        PutWord   (bytes, character + 52,  4321);
+        PutWord   (bytes, character + 54,  1);
+        PutWord   (bytes, character + 58,  2);
+        PutWord   (bytes, character + 60,  1);
+        PutWord   (bytes, character + 64,  1);
+        PutWord   (bytes, character + 66,  0);
+        PutWord   (bytes, character + 74,  1);
+        PutWord   (bytes, character + 124, 2500);
         PutWord   (bytes, character + 132, 13);
         PutWord   (bytes, character + 134, 40);
         PutWord   (bytes, character + 136, 52);
+
+        //  A slot whose character was deleted has the status LOST.
+        PutString (bytes, character + WizardryScenario::kCharacterBytes + 0,  "DELETED");
+        PutWord   (bytes, character + WizardryScenario::kCharacterBytes + 40, 7);
 
         return bytes;
     }
@@ -156,9 +171,44 @@ public:
     }
 
 
-    static bool HasLine (const DecodedFile & file, const std::wstring & text)
+    //  Each paragraph's text, its runs joined.
+    static std::vector<std::wstring> GetTexts (const DecodedFile & file)
     {
-        return std::find (file.lines.begin(), file.lines.end(), text) != file.lines.end();
+        std::vector<std::wstring>  texts;
+
+        for (const Paragraph & paragraph : file.paragraphs)
+        {
+            std::wstring  text;
+
+            for (const Run & run : paragraph.runs)
+            {
+                text += run.text;
+            }
+
+            texts.push_back (text);
+        }
+
+        return texts;
+    }
+
+
+    static bool HasText (const DecodedFile & file, const std::wstring & text)
+    {
+        std::vector<std::wstring>  texts = GetTexts (file);
+
+        return std::find (texts.begin(), texts.end(), text) != texts.end();
+    }
+
+
+    //  The paragraph whose text is `text`, which must be there.
+    static const Paragraph & FindParagraph (const DecodedFile & file, const std::wstring & text)
+    {
+        std::vector<std::wstring>  texts = GetTexts (file);
+        auto                       found = std::find (texts.begin(), texts.end(), text);
+
+        Assert::IsTrue (found != texts.end(), text.c_str());
+
+        return file.paragraphs[(size_t) (found - texts.begin())];
     }
 
 
@@ -177,7 +227,10 @@ public:
     }
 
 
-    TEST_METHOD (Decode_ListsMonstersItemsAndCharacters)
+    //  The saved game: a block for each character, with its items under it
+    //  by name and marked, and none of the scenario's monsters or items. A
+    //  deleted character isn't listed.
+    TEST_METHOD (Decode_ListsTheRosterWithEachCharactersItems)
     {
         std::vector<Byte>  bytes = MakeScenario();
         DecodedFile        file;
@@ -187,32 +240,100 @@ public:
 
         AssertSucceeded (WizardryScenario::Decode (bytes, MakeFacts ("SCENARIO.DATA"), DecodeOptions(), file, error));
 
-        Assert::IsTrue   (file.kind == DecodedFile::Kind::Lines);
-        Assert::AreEqual (std::wstring (L"TEST SCENARIO"), file.lines[0]);
-        Assert::AreEqual (std::wstring (L"Wizardry scenario: 1 maze levels, 2 monsters, 1 items, 1 characters"), file.lines[1]);
-        Assert::IsTrue   (HasLine (file, L"   0  BUBBLY SLIME     BUBBLY SLIMES    SLIME            1d3+1       12      8        1"));
-        Assert::IsTrue   (HasLine (file, L"   1  ORC                                                0d0+0       -2      0        0"));
-        Assert::IsTrue   (HasLine (file, L"   0  LONG SWORD       SWORD            Weapon         12500  GOOD      Yes"));
-        Assert::IsTrue   (HasLine (file, L"   0  GANDALF          ELF       MAGE         13      40/52  OK       EVIL"));
-        Assert::IsTrue   (file.notes.empty());
+        Assert::IsTrue   (file.kind == DecodedFile::Kind::Document);
+        Assert::AreEqual (std::wstring (L"Wizardry: TEST SCENARIO"), GetTexts (file)[0]);
+        Assert::AreEqual (std::wstring (L"Saved game: 1 character"), GetTexts (file)[1]);
+
+        const Paragraph &  gandalf = FindParagraph (file, L"GANDALF   Level 13 Elf Mage, Evil");
+        const Paragraph &  sword   = FindParagraph (file, std::wstring (L"      ") + s_kpszCheckMark + L" LONG SWORD");
+        const Paragraph &  armor   = FindParagraph (file, L"      ? ARMOR");
+
+        Assert::IsTrue (gandalf.runs[0].bold);
+        Assert::IsTrue (HasText (file, L"Status: OK   Hit points: 40/52   Gold: 14,321   Experience: 2,500"));
+        Assert::IsTrue (sword.runs[1].color == RunColor::Good, L"an equipped item's check is green");
+        Assert::IsTrue (armor.runs[2].italic && armor.runs[2].color == RunColor::Muted, L"one not identified is gray italics, by its unknown name");
+        Assert::IsFalse (HasText (file, L"DELETED"));
+        Assert::IsFalse (std::any_of (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & p) { return !p.picture.empty(); }),
+                         L"no map, with no character in the maze");
+        Assert::IsTrue  (file.notes.empty());
     }
 
 
-    TEST_METHOD (DrawLevel_ShowsWallsDoorsStairsAndFightZones)
+    //  A character's saved square on a level: that level is drawn as a
+    //  picture with the party's square marked.
+    TEST_METHOD (Decode_DrawsTheLevelThePartyIsOn)
     {
-        std::vector<Byte>          bytes = MakeScenario();
-        std::vector<std::wstring>  map;
+        std::vector<Byte>  bytes     = MakeScenario();
+        size_t             character = kCharacterBlock * WizardryScenario::kBlockBytes;
+        DecodedFile        file;
+        std::wstring       error;
 
 
 
-        WizardryScenario::DrawLevel (std::span<const Byte> (bytes).subspan (kMazeBlock * WizardryScenario::kBlockBytes, WizardryScenario::kMazeBytes), map);
+        PutWord (bytes, character + 40,  5);
+        PutWord (bytes, character + 200, 1);
+        PutWord (bytes, character + 202, 0);
+        PutWord (bytes, character + 204, 1);
 
-        Assert::AreEqual ((size_t) 41, map.size());
-        Assert::IsTrue   (map[0].starts_with (L"+--+--+"));
-        Assert::IsTrue   (map[37].starts_with (L"|*    "), map[37].c_str());
-        Assert::IsTrue   (map[39].starts_with (L"|  DSt "), map[39].c_str());
-        Assert::IsTrue   (map[39].ends_with (L"   |"));
-        Assert::IsTrue   (map[40].starts_with (L"+--+--+"));
+        AssertSucceeded (WizardryScenario::Decode (bytes, MakeFacts ("SCENARIO.DATA"), DecodeOptions(), file, error));
+
+        auto  map = std::find_if (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & p) { return !p.picture.empty(); });
+
+        Assert::IsTrue   (HasText (file, L"Maze level 1, the party at 1 east, 0 north"));
+        Assert::IsTrue   (map != file.paragraphs.end());
+        Assert::AreEqual (map->width, map->height);
+        Assert::IsTrue   (FindParagraph (file, L"Status: Dead   Hit points: 40/52   Gold: 14,321   Experience: 2,500").runs[1].color == RunColor::Bad);
+    }
+
+
+    TEST_METHOD (ToTitleCaseAndGroupDigits)
+    {
+        Assert::AreEqual (std::wstring (L"Human"),  WizardryScenario::ToTitleCase (L"HUMAN"));
+        Assert::AreEqual (std::wstring (L"P-lyze"), WizardryScenario::ToTitleCase (L"P-LYZE"));
+        Assert::AreEqual (std::wstring (L"OK"),     WizardryScenario::ToTitleCase (L"OK"));
+        Assert::AreEqual (std::wstring (L"7,811,260"), WizardryScenario::GroupDigits (7811260));
+        Assert::AreEqual (std::wstring (L"441"),       WizardryScenario::GroupDigits (441));
+    }
+
+
+    //  The square at (x, y)'s center, and a point a few pixels in from its
+    //  west side, in a map RenderLevel drew.
+    static uint32_t Pixel (const std::vector<uint32_t> & bgra, int width, int x, int y, int dx, int dy)
+    {
+        constexpr int  kCell   = 24;
+        constexpr int  kBorder = 4;
+
+        return bgra[(size_t) (kBorder + (19 - y) * kCell + dy) * (size_t) width + (size_t) (kBorder + x * kCell + dx)];
+    }
+
+
+    TEST_METHOD (RenderLevel_DrawsWallsDoorsStairsFightZonesAndTheParty)
+    {
+        std::vector<Byte>      bytes  = MakeScenario();
+        std::vector<uint32_t>  bgra;
+        int                    width  = 0;
+        int                    height = 0;
+
+
+
+        WizardryScenario::RenderLevel (std::span<const Byte> (bytes).subspan (kMazeBlock * WizardryScenario::kBlockBytes, WizardryScenario::kMazeBytes), 5, 5, bgra, width, height);
+
+        Assert::AreEqual (24 * 20 + 9, width);
+        Assert::AreEqual (0xFF202020u, Pixel (bgra, width, 0,  0, 0,  12), L"the wall west of (0, 0)");
+        Assert::AreEqual (0xFFC0601Au, Pixel (bgra, width, 0,  0, 24, 12), L"the door east of (0, 0), brown in the middle");
+        Assert::AreEqual (0xFFCFE0FFu, Pixel (bgra, width, 1,  0, 8,  8),  L"the stairs at (1, 0)");
+        Assert::AreEqual (0xFFFBE0E0u, Pixel (bgra, width, 0,  1, 8,  8),  L"the fight zone at (0, 1)");
+        Assert::AreEqual (0xFFE0A800u, Pixel (bgra, width, 5,  5, 12, 12), L"the party at (5, 5)");
+        Assert::AreEqual (0xFFFFFFFFu, Pixel (bgra, width, 10, 10, 12, 12), L"an empty square");
+    }
+
+
+    TEST_METHOD (GetTitle_TheRomanNumeralAndTheTitle)
+    {
+        Assert::AreEqual (std::wstring (L"Wizardry I: Proving Grounds of the Mad Overlord"), WizardryScenario::GetTitle (L"PROVING GROUNDS OF THE MAD OVERLORD!"));
+        Assert::AreEqual (std::wstring (L"Wizardry II: The Knight of Diamonds"),             WizardryScenario::GetTitle (L"THE KNIGHT OF DIAMONDS"));
+        Assert::AreEqual (std::wstring (L"Wizardry III: Legacy of Llylgamyn"),               WizardryScenario::GetTitle (L"THE LEGACY OF LLYLGAMYN"));
+        Assert::AreEqual (std::wstring (L"Wizardry: A NEW SCENARIO"),                        WizardryScenario::GetTitle (L"A NEW SCENARIO"));
     }
 
 
@@ -227,6 +348,6 @@ public:
         entry.type = 5;
 
         Assert::IsTrue   (FileFormatTable::Identify (entry, VolumeKind::Pascal, bytes) == FileFormat::WizardryScenario);
-        Assert::AreEqual (L".Wizardry.txt", FileFormatTable::GetSuffix (FileFormat::WizardryScenario));
+        Assert::AreEqual (L".Wizardry.rtf", FileFormatTable::GetSuffix (FileFormat::WizardryScenario));
     }
 };

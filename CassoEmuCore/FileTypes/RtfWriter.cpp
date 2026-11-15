@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "FileTypes/RtfWriter.h"
+#include "CassoExplorer/Model/PicturePreview.h"
 
 
 
@@ -10,14 +11,15 @@
 //
 //  RtfWriter::Write
 //
-//  Each run sets every style it has, so a run is styled the same whichever
-//  run is before it.
+//  Each run sets every style and its color, so a run is styled the same
+//  whichever run is before it. A picture is a PNG at 96 pixels an inch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void RtfWriter::Write (const std::vector<Paragraph> & paragraphs, std::vector<Byte> & outBytes)
 {
-    std::string  rtf = "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Courier New;}}\r\n";
+    std::string  rtf = "{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Courier New;}}"
+                       "{\\colortbl ;\\red0\\green128\\blue0;\\red192\\green0\\blue0;\\red128\\green128\\blue128;}\r\n";
 
 
 
@@ -31,8 +33,14 @@ void RtfWriter::Write (const std::vector<Paragraph> & paragraphs, std::vector<By
             default:                   rtf += "\\pard\\ql ";  break;
         }
 
+        if (!paragraph.picture.empty())
+        {
+            AppendPicture (paragraph, rtf);
+        }
+
         for (const Run & run : paragraph.runs)
         {
+            rtf += std::format ("\\cf{} ", (int) run.color);
             rtf += run.bold      ? "\\b "   : "\\b0 ";
             rtf += run.italic    ? "\\i "   : "\\i0 ";
             rtf += run.underline ? "\\ul "  : "\\ulnone ";
@@ -46,6 +54,44 @@ void RtfWriter::Write (const std::vector<Paragraph> & paragraphs, std::vector<By
     rtf += "}\r\n";
 
     outBytes.assign (rtf.begin(), rtf.end());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RtfWriter::AppendPicture
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RtfWriter::AppendPicture (const Paragraph & paragraph, std::string & inOutRtf)
+{
+    HRESULT            hr = S_OK;
+    std::vector<Byte>  png;
+
+
+
+    hr = PicturePreview::EncodePng (paragraph.picture, paragraph.width, paragraph.height, png);
+
+    if (SUCCEEDED (hr))
+    {
+        inOutRtf += std::format ("{{\\pict\\pngblip\\picw{}\\pich{}\\picwgoal{}\\pichgoal{} ",
+                                 paragraph.width, paragraph.height, paragraph.width * s_kTwipsPerPixel, paragraph.height * s_kTwipsPerPixel);
+
+        for (size_t i = 0; i < png.size(); i++)
+        {
+            inOutRtf += std::format ("{:02x}", png[i]);
+
+            if (i % 64 == 63)
+            {
+                inOutRtf += "\r\n";
+            }
+        }
+
+        inOutRtf += "}";
+    }
 }
 
 

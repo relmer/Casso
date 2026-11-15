@@ -8,6 +8,8 @@
 #include "Devices/Disk/FilePath.h"
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/WizardryScenario.h"
+#include "Core/UnicodeSymbols.h"
+#include "Machines/Apple2/Common/InfocomSave.h"
 #include "Machines/Apple2/Common/InfocomVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -22,12 +24,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  GameDataTests
 //
 //  The game data viewers on real game disks: the SCENARIO.DATA of Wizardry
-//  I, II and III, each identified and listed with the scenario's name,
-//  monsters, items and first maze level, and Zork I, release 88, whose
+//  I, II and III, each identified with the scenario's name and the saved
+//  game's roster, the owner's Wizardry I disk with a game in progress and
+//  the party's items, and Zork I, release 88, whose
 //  story is found on its disk and decoded. The front door and the mailbox are
 //  in the room the game opens in, and the leaflet is in the mailbox.
-//  Wizardry's lists are checked against facts from its manual. The disks
-//  come from scripts/FetchStockDisks.ps1.
+//  The stock disks come from scripts/FetchStockDisks.ps1, and the disk with
+//  a game in progress was read from the owner's disk on the //c.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +41,12 @@ public:
     //  SCENARIO.DATA from a Wizardry scenario disk, decoded.
     static DecodedFile DecodeScenario (const char * diskName)
     {
-        std::vector<Byte>         image   = GuestSession::RequireFetchedDisk (diskName);
+        return DecodeScenario (GuestSession::RequireFetchedDisk (diskName), diskName);
+    }
+
+
+    static DecodedFile DecodeScenario (const std::vector<Byte> & image, const char * diskName)
+    {
         std::vector<Byte>         sectors;
         SectorDecodeReport        report;
         std::unique_ptr<IVolume>  volume;
@@ -68,9 +76,39 @@ public:
     }
 
 
+    //  Each line of a decoded file, or each paragraph of a document with its
+    //  runs joined.
+    static std::vector<std::wstring> GetTexts (const DecodedFile & file)
+    {
+        std::vector<std::wstring>  texts = file.lines;
+
+        for (const Paragraph & paragraph : file.paragraphs)
+        {
+            std::wstring  text;
+
+            for (const Run & run : paragraph.runs)
+            {
+                text += run.text;
+            }
+
+            texts.push_back (text);
+        }
+
+        return texts;
+    }
+
+
     static bool HasLineStarting (const DecodedFile & file, const std::wstring & start)
     {
-        return std::any_of (file.lines.begin(), file.lines.end(), [&] (const std::wstring & line) { return line.starts_with (start); });
+        std::vector<std::wstring>  texts = GetTexts (file);
+
+        return std::any_of (texts.begin(), texts.end(), [&] (const std::wstring & line) { return line.starts_with (start); });
+    }
+
+
+    static bool HasPicture (const DecodedFile & file)
+    {
+        return std::any_of (file.paragraphs.begin(), file.paragraphs.end(), [] (const Paragraph & paragraph) { return !paragraph.picture.empty(); });
     }
 
 
@@ -99,47 +137,73 @@ public:
     }
 
 
-    TEST_METHOD (WizardryI_ListsTheProvingGrounds)
+    //  Every slot on this disk is free.
+    TEST_METHOD (WizardryI_HasTheProvingGroundsWithNoCharacters)
     {
         DecodedFile  file = DecodeScenario ("wizardry1-scenario.dsk");
 
 
 
-        Assert::AreEqual (std::wstring (L"PROVING GROUNDS OF THE MAD OVERLORD!"), file.lines[0]);
-        Assert::AreEqual (std::wstring (L"Wizardry scenario: 10 maze levels, 101 monsters, 101 items, 20 characters"), file.lines[1]);
-        Assert::IsTrue   (HasLineStarting (file, L"   0  BUBBLY SLIME     BUBBLY SLIMES    SLIME            1d3+1       12"));
-        Assert::IsTrue   (HasLineStarting (file, L"   1  LONG SWORD       SWORD            Weapon            25"), L"Boltac's price in the manual");
-
-        //  The first level's stairs up to the castle are in its southwest
-        //  corner, where a party enters.
-        Assert::IsTrue   (HasLineStarting (file, L"MAZE LEVEL 10"));
-        Assert::IsTrue   (HasLineStarting (file, L"|St                              |"));
+        Assert::AreEqual (std::wstring (L"Wizardry I: Proving Grounds of the Mad Overlord"), GetTexts (file)[0]);
+        Assert::AreEqual (std::wstring (L"Saved game: 0 characters"), GetTexts (file)[1]);
+        Assert::IsTrue   (HasLineStarting (file, L"No characters."));
+        Assert::IsFalse  (HasLineStarting (file, L"BUBBLY SLIME"), L"the scenario's monsters aren't listed");
+        Assert::IsFalse  (HasPicture (file));
     }
 
 
-    TEST_METHOD (WizardryII_ListsTheKnightOfDiamonds)
+    //  This disk has a party saved on it, with the Knight of Diamonds' gear.
+    TEST_METHOD (WizardryII_ListsTheSavedParty)
     {
         DecodedFile  file = DecodeScenario ("wizardry2-scenario.dsk");
 
 
 
-        Assert::AreEqual (std::wstring (L"THE KNIGHT OF DIAMONDS"), file.lines[0]);
-        Assert::AreEqual (std::wstring (L"Wizardry scenario: 6 maze levels, 78 monsters, 130 items, 20 characters"), file.lines[1]);
-        Assert::IsTrue   (HasLineStarting (file, L"   0  DINK             DINKS            LITTLE OLD MAN"));
-        Assert::IsFalse  (HasLineStarting (file, L"MAZE LEVEL 7"));
+        Assert::AreEqual (std::wstring (L"Wizardry II: The Knight of Diamonds"), GetTexts (file)[0]);
+        Assert::AreEqual (std::wstring (L"Saved game: 4 characters"), GetTexts (file)[1]);
+        Assert::IsTrue   (HasLineStarting (file, L"THUG   Level 38 Human Fighter, Neutral"));
+        Assert::IsTrue   (HasLineStarting (file, L"Status: OK   Hit points: 338/338   Gold: 121,657   Experience: 7,811,260"));
+        Assert::IsTrue   (HasLineStarting (file, std::wstring (L"      ") + s_kpszCheckMark + L" KOD'S GAUNTLETS"));
+        Assert::IsTrue   (HasLineStarting (file, L"           DAMIEN STONE"), L"in the inventory, not equipped");
     }
 
 
-    TEST_METHOD (WizardryIII_ListsTheLegacyOfLlylgamyn)
+    TEST_METHOD (WizardryIII_HasTheLegacyOfLlylgamyn)
     {
         DecodedFile  file = DecodeScenario ("wizardry3-scenario.dsk");
 
 
 
-        Assert::AreEqual (std::wstring (L"THE LEGACY OF LLYLGAMYN"), file.lines[0]);
-        Assert::AreEqual (std::wstring (L"Wizardry scenario: 6 maze levels, 78 monsters, 104 items, 20 characters"), file.lines[1]);
-        Assert::IsTrue   (HasLineStarting (file, L"   0  MOAT MONSTER     MOAT MONSTERS    GIANT SERPENT"));
-        Assert::IsTrue   (HasLineStarting (file, L"   1  ORB OF EARITHIN  CRYSTAL SPHERE   Special"));
+        Assert::AreEqual (std::wstring (L"Wizardry III: Legacy of Llylgamyn"), GetTexts (file)[0]);
+        Assert::AreEqual (std::wstring (L"Saved game: 0 characters"), GetTexts (file)[1]);
+    }
+
+
+    //  The owner's Wizardry I disk, read from it on the //c: the party of
+    //  five, each with the inventory the game has for them, and none of the
+    //  deleted characters. No one is in the maze.
+    TEST_METHOD (WizardryI_PlayedDisk_ListsThePartyAndTheirItems)
+    {
+        std::vector<Byte>  image = GuestSession::FindTestDisk ("wizardry-played.dsk");
+        DecodedFile        file;
+
+
+
+        if (image.empty())
+        {
+            Logger::WriteMessage ("SKIPPED: wizardry-played.dsk, read from the owner's disk, is not on this machine\n");
+            return;
+        }
+
+        file = DecodeScenario (image, "wizardry-played.dsk");
+
+        Assert::AreEqual (std::wstring (L"Saved game: 5 characters"), GetTexts (file)[1]);
+        Assert::IsTrue   (HasLineStarting (file, L"BART   Level 2 Human Samurai, Good"));
+        Assert::IsTrue   (HasLineStarting (file, std::wstring (L"      ") + s_kpszCheckMark + L" MURASAMA BLADE"));
+        Assert::IsTrue   (HasLineStarting (file, L"           BLADE CUSINART'"), L"in the inventory, not equipped");
+        Assert::IsTrue   (HasLineStarting (file, L"DIRTY DAN   Level 2 Gnome Samurai, Neutral"));
+        Assert::IsFalse  (HasLineStarting (file, L"CHUNKY"), L"a deleted character");
+        Assert::IsFalse  (HasPicture (file));
     }
 
 
@@ -236,5 +300,72 @@ public:
         GuestSession::Mount (machine, image);
 
         AssertZorkReachesWestOfHouse (machine);
+    }
+
+
+    //  Types `text` a key at a time, then RETURN when `enter`, and runs on
+    //  long enough for the interpreter to print its response.
+    static void TypeToZork (MachineHost & machine, const std::string & text, bool enter = true)
+    {
+        constexpr uint64_t  kPerKey   = 900'000ULL;
+        constexpr uint64_t  kToAnswer = 6'000'000ULL;
+
+        for (char c : text)
+        {
+            AssertSucceeded (KeystrokeInjector::InjectKey (machine, (Byte) c));
+            machine.RunCycles (kPerKey);
+        }
+
+        if (enter)
+        {
+            AssertSucceeded (KeystrokeInjector::InjectKey (machine, (Byte) '\r'));
+        }
+
+        machine.RunCycles (kToAnswer);
+    }
+
+
+    //  A game saved in Casso to a blank disk in drive 2, at position 0, is
+    //  summarized from that disk alone, as on the status line: the kitchen,
+    //  ten points for coming in through the window, after four moves.
+    TEST_METHOD (ZorkI_ASaveIsSummarizedWithoutTheStoryDisk)
+    {
+        constexpr uint64_t  kSaveCap = 100'000'000ULL;
+
+        TestMachine                         machine ("Apple2eEnhanced");
+        std::vector<Byte>                   image  = GuestSession::RequireFetchedDisk ("zork1.dsk");
+        std::vector<Byte>                   blank (143360, 0);
+        std::vector<Byte>                   saved;
+        std::vector<InfocomSave::Position>  positions;
+        SectorDecodeReport                  report;
+
+
+
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "zork1.dsk", DiskFormat::Dsk, image));
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "save.dsk",  DiskFormat::Dsk, blank));
+        machine.PowerCycle();
+
+        AssertZorkReachesWestOfHouse (machine);
+
+        TypeToZork (machine, "N");
+        TypeToZork (machine, "E");
+        TypeToZork (machine, "OPEN WINDOW");
+        TypeToZork (machine, "W");
+        Assert::IsTrue (RunUntilScreenShows (machine, "KITCHEN", kSaveCap));
+
+        //  Position 0, drive 2, slot 6, yes, and RETURN with the disk in.
+        TypeToZork (machine, "SAVE");
+        TypeToZork (machine, "", true);
+        TypeToZork (machine, "2", false);
+        TypeToZork (machine, "", true);
+        TypeToZork (machine, "", true);
+        TypeToZork (machine, "", true);
+        Assert::IsTrue (RunUntilScreenShows (machine, "OK.", kSaveCap), L"the interpreter saves the game");
+
+        saved = GuestSession::DecodeThroughTheDrive (*machine.GetDiskStore().GetImage (6, 1), report);
+        InfocomSave::FindPositions (saved, positions);
+
+        Assert::AreEqual ((size_t) 1, positions.size());
+        Assert::AreEqual (std::string ("Zork I (release 88): Kitchen, score 10 of 350, 4 moves"), InfocomSave::Describe (positions[0]));
     }
 };

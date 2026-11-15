@@ -91,13 +91,32 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDetailRows (const std::vector<s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreviewText::BuildDocumentRows
-//
-//  A row for each paragraph, aligned as it is, a span for each styled run.
+//  PreviewText::GetRunColor
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector<Paragraph> & paragraphs)
+uint32_t PreviewText::GetRunColor (RunColor color, const SourceSyntax::Colors & colors)
+{
+    return (color == RunColor::Good)  ? colors.comment
+         : (color == RunColor::Bad)   ? colors.string
+         : (color == RunColor::Muted) ? colors.address
+                                      : 0u;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::BuildDocumentRows
+//
+//  A row for each paragraph, aligned as it is, a span for each styled or
+//  colored run, and a paragraph with a picture a row of the picture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector<Paragraph> & paragraphs, const SourceSyntax::Colors & colors)
 {
     std::vector<DxuiTextView::Row>  rows;
 
@@ -111,14 +130,27 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
                       : (paragraph.alignment == Alignment::Right)  ? DxuiTextHAlign::Right
                                                                    : DxuiTextHAlign::Left;
 
+        if (!paragraph.picture.empty())
+        {
+            auto  picture = std::make_shared<DxuiTextView::Picture>();
+
+            picture->bgra   = paragraph.picture;
+            picture->width  = paragraph.width;
+            picture->height = paragraph.height;
+            row.picture     = picture;
+        }
+
         for (const Run & run : paragraph.runs)
         {
-            if (run.bold || run.italic || run.underline)
+            uint32_t  argb = GetRunColor (run.color, colors);
+
+            if (run.bold || run.italic || run.underline || argb != 0)
             {
                 DxuiTextView::Span  span;
 
                 span.start     = (int) row.cells[0].size();
                 span.length    = (int) run.text.size();
+                span.argb      = argb;
                 span.bold      = run.bold;
                 span.italic    = run.italic;
                 span.underline = run.underline;
@@ -237,7 +269,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
     }
     else if (preview.kind == PreviewContent::Kind::Document)
     {
-        rows = BuildDocumentRows (preview.paragraphs);
+        rows = BuildDocumentRows (preview.paragraphs, colors);
     }
     else if (preview.kind == PreviewContent::Kind::Details)
     {

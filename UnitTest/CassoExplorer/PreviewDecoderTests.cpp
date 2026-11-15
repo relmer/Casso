@@ -828,6 +828,34 @@ public:
 
 
 
+    //  A colored run is a span in its color, and a paragraph with a picture
+    //  a picture row.
+    TEST_METHOD (BuildDocumentRows_ColorsAndPictures)
+    {
+        SourceSyntax::Colors            colors;
+        std::vector<Paragraph>          paragraphs (2);
+        std::vector<DxuiTextView::Row>  rows;
+
+
+
+        colors.comment = 0xFF00AA00;
+
+        paragraphs[0].runs    = { Run { L"BART " }, Run { L"OK", false, false, false, RunColor::Good } };
+        paragraphs[1].picture = { 0xFF000000 };
+        paragraphs[1].width   = 1;
+        paragraphs[1].height  = 1;
+
+        rows = PreviewText::BuildDocumentRows (paragraphs, colors);
+
+        Assert::IsTrue   (rows[0].cells == std::vector<std::wstring> { L"BART OK" });
+        Assert::AreEqual ((size_t) 1, rows[0].spans.size());
+        Assert::AreEqual (5, rows[0].spans[0].start);
+        Assert::AreEqual (0xFF00AA00u, rows[0].spans[0].argb);
+        Assert::IsTrue   (rows[1].picture != nullptr && rows[1].picture->width == 1);
+    }
+
+
+
     //  A source line wraps under its operand, after the label and the
     //  mnemonic, and a comment line under its first character.
     TEST_METHOD (GetOperandColumn_AfterTheLabelAndTheMnemonic)

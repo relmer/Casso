@@ -65,16 +65,27 @@ public:
         bool      underline = false;
     };
 
+    //  A picture in 32-bit BGRA pixels, drawn a pixel a DIP, or smaller to
+    //  fit the text's width.
+    struct Picture
+    {
+        std::vector<uint32_t>  bgra;
+        int                    width  = 0;
+        int                    height = 0;
+    };
+
     //  A row of cells. A row of one cell is aligned in the text's width on
-    //  each line it wraps onto; Justify draws as Left.
+    //  each line it wraps onto; Justify draws as Left. A row with a picture
+    //  is the picture alone, on as many lines as it is tall.
     struct Row
     {
-        std::vector<std::wstring>  cells;
-        bool                       warning    = false;
-        bool                       heading    = false;     // drawn in the accent color
-        std::vector<Span>          spans;
-        DxuiTextHAlign             alignment  = DxuiTextHAlign::Left;
-        int                        wrapIndent = 0;         // characters past the last cell's start that a wrapped line starts at
+        std::vector<std::wstring>       cells;
+        bool                            warning    = false;
+        bool                            heading    = false;     // drawn in the accent color
+        std::vector<Span>               spans;
+        DxuiTextHAlign                  alignment  = DxuiTextHAlign::Left;
+        int                             wrapIndent = 0;         // characters past the last cell's start that a wrapped line starts at
+        std::shared_ptr<const Picture>  picture;
     };
 
     //  A character in a row's text, its cells joined by tabs.
@@ -179,8 +190,6 @@ private:
     static constexpr int  s_kPadDip             = 6;
     static constexpr int  s_kScrollbarWidthDip  = 10;
 
-    static int             GetWrapIndent  (const Row & row, int avail);
-    static DxuiFontWeight  GetStyleWeight (uint8_t style);
 
     void          Rebuild                ();
     void          BuildLines             (int columns);
@@ -207,6 +216,8 @@ private:
     //  what a double-click selects.
     static int    GetCharClass      (wchar_t ch) { return (ch == L'\t') ? 2 : (ch == L' ') ? 1 : 0; }
     void          PaintLine         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font);
+    void          PaintPicture      (IDxuiTextRenderer & text, int lineIndex) const;
+    void          AddPictureLines   (int row, float widthPx);
     void          FillSelectedRange (IDxuiPainter & painter, int y, int row, int cell, int cellFrom, int flatStart, int count, float trailPx, int selFrom, int selTo, uint32_t argb) const;
     void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int row, int cell, int cellFrom,
                                      int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo,

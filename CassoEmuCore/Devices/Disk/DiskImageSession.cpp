@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskImageSession.h"
+#include "Machines/Apple2/Common/InfocomSave.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -563,7 +564,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
+std::string DiskImageSession::DescribeSurface (const OpenedImage & opened, bool bootSector)
 {
     int                     complete     = 0;
     int                     partial      = 0;
@@ -681,11 +682,11 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
     // "blank". A track that decoded cleanly and holds zeros really is empty; a
     // track that never decoded reads back as zeros too, and calling that one
     // blank would tell somebody their bootable disk does not boot.
-    if (!trackZeroOk && !opened.report.IsSectorRecovered (0, 0))
+    if (bootSector && !trackZeroOk && !opened.report.IsSectorRecovered (0, 0))
     {
         text += FormatDetailLine ("boot sector", "track 0 doesn't have a standard sector 0, so its contents are unknown");
     }
-    else
+    else if (bootSector)
     {
         for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize && i < opened.sectors.size(); i++)
         {
@@ -719,7 +720,43 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
 
 std::string DiskImageSession::DescribeUnrecognizedImage (const OpenedImage & opened)
 {
-    return DescribeWozChunks (opened.fileBytes) + DescribeContainerHeader (opened.fileBytes) + DescribeSurface (opened);
+    std::string  saves = DescribeInfocomSaves (opened);
+
+
+
+    return DescribeWozChunks (opened.fileBytes) + DescribeContainerHeader (opened.fileBytes) + saves + DescribeSurface (opened, saves.empty());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageSession::DescribeInfocomSaves
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::DescribeInfocomSaves (const OpenedImage & opened)
+{
+    std::vector<InfocomSave::Position>  positions;
+    std::string                         text;
+
+
+
+    InfocomSave::FindPositions (opened.sectors, positions);
+
+    if (!positions.empty())
+    {
+        text = FormatDetailHeading ("Infocom saved game");
+
+        for (const InfocomSave::Position & position : positions)
+        {
+            text += FormatDetailLine (std::format ("position {}", position.number).c_str(), InfocomSave::Describe (position));
+        }
+    }
+
+    return text;
 }
 
 
