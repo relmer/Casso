@@ -64,7 +64,7 @@ Built from a pattern string such as `*.po;*.2mg`. `Matches (name)` is case-insen
 | `form` | `PickerForm` | `DriveWindow` (not modal, confirm calls `onConfirm`) or `ModalPath` (returns the path) |
 | `onConfirm` | `std::function<bool (const std::wstring & path)>` | `DriveWindow` only; on false the picker stays open and the failure is reported |
 | `onCreateNew` | `std::function<bool (std::wstring & outPath)>` | empty hides the command |
-| `stockDisks` | `std::vector<StockDiskRow>` | rows appended to the Casso node's list |
+| `stockDisks` | `std::vector<StockDiskRow>` | the listing of the "Stock disks" node under the Casso node; empty hides the node |
 | `recent` | `std::vector<DiskMru::Entry>` | load times for the `LastUsed` column |
 
 ## PickerScope (`CassoExplorer/Picker/PickerScope.h`)
@@ -77,7 +77,7 @@ Changing the active filter re-applies the scope to the current listing without r
 
 ## PickerPrefs (`CassoExplorer/Picker/PickerPrefs.h`)
 
-Per `viewKey`: last folder (or the Casso node), column ids, order and widths, sort column and direction, window placement, pinned. Stored in a picker file under the asset base folder. `CassoExplorerPrefs.json` and the session file are not read or written.
+Per `viewKey`: column ids, order and widths, sort column and direction, and window placement. A request with no receiving drive also has its last folder; a drive picker always starts on the Casso node. Stored in a picker file under the asset base folder. `CassoExplorerPrefs.json` and the session file are not read or written.
 
 ## CatalogRow additions (`CassoExplorer/Model/CatalogModel.h`)
 
@@ -85,7 +85,7 @@ Per `viewKey`: last folder (or the Casso node), column ids, order and widths, so
 |---|---|---|
 | `imageClass` | `ImageClass` | filled for host files in every folder listing |
 | `lastUsedUnix` | `int64_t` | load time from the recent list; 0 when never loaded |
-| `isStockDisk` | `bool` | a stock system disk row in a drive picker |
+| `isStockDisk` | `bool` | a row of the "Stock disks" node in a drive picker |
 | `stockDownloaded` | `bool` | false until the stock disk is on disk |
 
 `CatalogModel::Column` gains `FormFactor`, `FormattedSize` and `LastUsed` after `Sha256`. Sort keys: `FormattedSize` by `formattedBytes`; `FormFactor` by the enum's order; `LastUsed` by `lastUsedUnix` with 0 last in a descending sort. Rows without a class sort after rows with one.
@@ -95,8 +95,7 @@ Per `viewKey`: last folder (or the Casso node), column ids, order and widths, so
 ```text
 Closed --Open (drive)--> Open
 Open   --Open (same drive)--> Open            (brought to the front)
-Open   --confirm, mount ok, not pinned--> Closed
-Open   --confirm, mount ok, pinned--> Open
+Open   --confirm, mount ok--> Closed
 Open   --confirm, mount failed--> Open        (failure reported in the picker)
 Open   --cancel / close box / Esc--> Closed
 Open   --drive removed / machine switched / emulator closing--> Closed

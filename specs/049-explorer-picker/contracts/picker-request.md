@@ -53,6 +53,6 @@ public:
 
 - One picker per `DriveAddress`. A second `Open` for the same address creates nothing.
 - A picker's drive never changes after `Open`.
-- Confirm: `ConfirmInspectorDiscard` for a Disk II drive, then the mount (`ShellDisks::Mount`, or `ShellTapeDeck::InsertTape` for the recorder). A failed mount is reported in the picker and the picker stays open. A successful mount adds the image to the recent list, then closes the picker unless it is pinned.
+- Confirm: `ConfirmInspectorDiscard` for a Disk II drive, then the mount (`ShellDisks::Mount`, or `ShellTapeDeck::InsertTape` for the recorder). A failed mount is reported in the picker and the picker stays open. A successful mount adds the image to the recent list, then closes the picker.
 - `Close` and `CloseAll` never mount.
 - Callers replaced: `ShellDisks::BrowseForDisk`, `ShellDeskScene::BrowseFloppy35` and `BrowseExtraDrive`, the drive bar's click, `EmulatorShell::ShowDriveContextMenu`'s insert item, the Disk menu's insert commands and their shortcuts, and the tape deck's insert.

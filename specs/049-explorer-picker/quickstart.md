@@ -56,7 +56,7 @@ For each drive kind on a machine that has it:
 2. Click the same drive again. No second picker opens.
 3. Click a second drive. A second picker opens, and the first has the same drive and listing.
 4. Double-click an image. It is inserted in that picker's drive, the door animation runs, and the picker closes.
-5. Pin a picker, insert twice, and confirm it stays open.
+5. Browse to another folder, close the picker, and open it again for the same drive. It is on the Casso node's list with the same columns, sort and size. Select "Stock disks" under the Casso node and confirm only stock disks the drive accepts are listed.
 6. Open and cancel. The drive's contents do not change and an empty drive's door rests open.
 7. Switch the machine with a picker open. The picker closes and nothing is inserted.
 8. Try Delete, F2, Ctrl+C, Ctrl+V, Ctrl+N and a right-click on a row and on the background. No file-changing command runs or is offered.

@@ -96,18 +96,19 @@ CassoEmuCore/
     │   ├── FileMaskSet.h/.cpp          # new: "*.po;*.2mg" matching
     │   ├── PickerScope.h/.cpp          # new: the row filter (masks and drive rule)
     │   ├── ExplorerPickerHost.h/.cpp   # new: ICassoExplorerHost with no session and no links
-    │   └── PickerPrefs.h/.cpp          # new: last folder, view and pin per request kind
+    │   └── PickerPrefs.h/.cpp          # new: view per request kind; last folder for a request with no drive
     ├── Model/
     │   ├── CatalogModel.h/.cpp         # columns FormFactor, FormattedSize, LastUsed; ImageClass on the row
     │   ├── BrowserModel.h/.cpp         # row filter hook; Casso root lists images
     │   ├── CassoImagesListing.h/.cpp   # new: the Casso node's list
+    │   ├── StockDisksListing.h/.cpp    # new: the "Stock disks" node's list in a drive picker
     │   └── ImageVolumeFacts.h/.cpp     # new: file system and volume name per image, with its worker
     ├── CassoExplorerCommands.h/.cpp    # picker allowlist
     ├── CassoExplorerBrowser.cpp        # single-folder special case of the Casso node removed
     └── Window/
         ├── ExplorerContext.h           # PickerRequest in CassoExplorerWindowContext
-        ├── Managers/ExplorerPickerMode.h/.cpp   # new: mode state, confirm, cancel, pin
-        └── Panes/ExplorerPickerBar.h/.cpp       # new: header, filter choice, create, pin, Insert, Cancel
+        ├── Managers/ExplorerPickerMode.h/.cpp   # new: mode state, confirm, cancel
+        └── Panes/ExplorerPickerBar.h/.cpp       # new: header, filter choice, create, Insert, Cancel
 
 UnitTest/
 ├── DiskTests/ImageClassifierTests.cpp, DriveImageRuleTests.cpp, DriveRuleMountAgreementTests.cpp
@@ -134,7 +135,7 @@ The parts depend on each other in one direction, so they are built and committed
 4. **Columns** (R7): `FormFactor` and `FormattedSize` in folder listings, then file system and volume name.
 5. **Recent list capacity and the Casso node's list** (R8, R9), with `LastUsed`.
 6. **Picker core** (R4, R5): `FileMaskSet`, `PickerScope`, the command allowlist, `ExplorerPickerHost`, picker prefs, the picker bar.
-7. **Drive pickers** (R6): `ShellDrivePickers`, door callbacks, create new disk, blank tape, stock disks, pin.
+7. **Drive pickers** (R6): `ShellDrivePickers`, door callbacks, create new disk, blank tape, the stock disks node.
 8. **Modal form behind the seam** (R6): `FileDialogSpec` fields, `CassoHostDialogs`, the Settings Hardware page.
 9. **Removal** (R10) of the old dialog and pickers, once every caller is moved.
 10. **Validation**: scenario test over real fixtures, the window checks in quickstart.md, CHANGELOG and README, then merge 048 again and run the merge gate.

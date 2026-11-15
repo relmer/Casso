@@ -30,7 +30,7 @@ Guarantees (FR-031):
 
 ## Commands
 
-Allowed in picker mode: back, forward, up, go to a path, refresh, change view, sort, choose columns, size columns, search in the listing, show or hide the preview pane, select, confirm, cancel, create new disk or blank tape, pin.
+Allowed in picker mode: back, forward, up, go to a path, refresh, change view, sort, choose columns, size columns, search in the listing, show or hide the preview pane, select, confirm, cancel, create new disk or blank tape.
 
 Every other command id is disabled and hidden, including by shortcut and context menu: copy, cut, paste, move, delete, rename, new folder, new disk from the file manager's menu, properties, undo, format, inspector, compare, transfers, CassoLink, serial, cards, options, updates, new window, new tab, tab tear-off, and drag to any target other than the emulator's drives.
 
@@ -40,7 +40,7 @@ Every other command id is disabled and hidden, including by shortcut and context
 
 - Folders are always listed. Files are listed when `PickerScope::Passes` is true.
 - Opening a file row confirms it. Opening a folder row opens the folder. A disk image or an archive is a file here: the picker does not open it as a folder.
-- The Casso node lists images (FR-043). With a receiving drive, stock disk rows that pass the rule follow the folder images.
+- The Casso node lists images (FR-043). With a receiving drive and at least one stock disk that passes the rule, the tree has a "Stock disks" node under the Casso node, and its listing is those stock disks.
 - The status bar reports how many files are listed and how many the scope left out, so an empty list is not mistaken for an empty folder.
 
 ## Picker bar
@@ -50,7 +50,6 @@ Every other command id is disabled and hidden, including by shortcut and context
 | Header: drive label and `DriveImageRule::GetAcceptedText` | the request has a receiving drive |
 | Filter choice | the request has more than one filter entry |
 | "Create new disk..." / "New blank tape" | `onCreateNew` is set |
-| Pin | `form == DriveWindow` |
 | Insert (or Open for a request without a drive) | always; enabled when the selection is one file row |
 | Cancel | always |
 
@@ -58,4 +57,4 @@ Keys: Enter confirms a file or opens a folder; Esc cancels; the list's existing 
 
 ## First-use view
 
-A request with a receiving drive and no saved view opens on the Casso node in details view with the columns Name, Form factor, Formatted size, File system, Volume name, Last used and Folder, sorted by Last used, newest first. A request without a drive opens on its starting folder in details view with Name, Date modified, Type and Size, sorted by name.
+A request with a receiving drive always opens on the Casso node. With no saved view it is in details view with the columns Name, Form factor, Formatted size, File system, Volume name, Last used and Folder, sorted by Last used, newest first. A request without a drive opens on its starting folder in details view with Name, Date modified, Type and Size, sorted by name.

@@ -81,7 +81,7 @@ A test builds an `ExplorerPickerHost` over a fake file system and asserts that t
 
 1. **Commands**: `CassoExplorerCommands` gets a picker allowlist (navigation, view, sort, column choice, search, refresh, preview toggle, confirm, cancel, create new disk). Every other command reports disabled and hidden in picker mode, by every route: menu, toolbar, shortcut or context menu. A test sweeps every command id and asserts each is on the allowlist or disabled (FR-030, SC-007).
 2. **Rows**: `BrowserModel` gets a row filter, `PickerScope`, applied where a listing becomes rows. A file row passes when its name matches the active filter entry's masks (`FileMaskSet`) and, with a receiving drive, `DriveImageRule::Accepts` passes its `ImageClass`. Folders always pass.
-3. **Chrome**: the menu bar and the file-changing toolbar groups are not built. A picker bar is added with the receiving drive and what is listed (FR-034), the filter entries as a choice when there are several (FR-025), "Create new disk..." or "New blank tape", the pin, and Insert and Cancel.
+3. **Chrome**: the menu bar and the file-changing toolbar groups are not built. A picker bar is added with the receiving drive and what is listed (FR-034), the filter entries as a choice when there are several (FR-025), "Create new disk..." or "New blank tape", and Insert and Cancel.
 
 **Rationale**: Scoping by command id covers every input route at one point, where a per-menu approach would miss a shortcut. The row filter is in the model so a test exercises mask and drive scoping without a window (FR-028).
 
@@ -92,7 +92,7 @@ A test builds an `ExplorerPickerHost` over a fake file system and asserts that t
 ## R6. Two forms of the picker
 
 **Decision**:
-- **Drive picker, not modal** (FR-026, FR-050 to FR-054). A new shell component, `ShellDrivePickers`, has one entry per receiving drive (slot and drive, or the recorder). `Open (drive)` fronts the drive's picker when one exists, else creates one owned by the emulator window. A confirm calls a callback that mounts through `ShellDisks::Mount` or `ShellTapeDeck::InsertTape`, then closes the picker unless it is pinned. A machine switch, a drive's removal and the emulator window's close call `CloseAll` or `Close (drive)`.
+- **Drive picker, not modal** (FR-026, FR-050 to FR-054). A new shell component, `ShellDrivePickers`, has one entry per receiving drive (slot and drive, or the recorder). `Open (drive)` fronts the drive's picker when one exists, else creates one owned by the emulator window. A confirm calls a callback that mounts through `ShellDisks::Mount` or `ShellTapeDeck::InsertTape`, then closes the picker. A machine switch, a drive's removal and the emulator window's close call `CloseAll` or `Close (drive)`.
 - **Path picker, modal** (the Hardware page of Settings). `CassoHostDialogs`, a decorator over `Win32HostDialogs`, implements `IHostDialogs::PickFileToOpen`: when the `FileDialogSpec` is for images, it runs a picker window modally over `owner` and returns the path; every other request, and `PickFileToSave` and `PickFolder`, pass through to `Win32HostDialogs`.
 
 **`FileDialogSpec` additions**: `content` (`Any` or `Images`, default `Any`) and `receivingDrive` (an optional `ReceivingDrive`). An image caller sets `content`, which is a one-line change per caller. Inferring "image" from the masks is not used: a caller with `*.*` would be routed by accident.
@@ -117,7 +117,7 @@ A test builds an `ExplorerPickerHost` over a fake file system and asserts that t
 
 **Rationale**: `CatalogRow` already has `folderPath` and `folderShown` for search results and a Folder column, so the list reuses the results-list drawing. `CassoExplorerBrowser.cpp:1526` opens the single folder directly when the node has one folder; that special case is removed so the node always lists images.
 
-**Stock disks (FR-048)**: in a drive picker, the stock system disks that pass the drive rule are appended as rows marked "Stock disk", from the same catalog `AssetBootstrap::PromptInsertDiskMru` reads. Confirming one that is not downloaded runs the existing consent and download, then mounts. **Verify** the catalog's API and where the consent prompt is.
+**Stock disks (FR-048)**: in a drive picker, the tree has a "Stock disks" node under the Casso node. Its listing is the stock system disks that pass the drive rule, from the same catalog `AssetBootstrap::PromptInsertDiskMru` reads, built by a `StockDisksListing` model class. The node is not added when the listing would be empty. Confirming one that is not downloaded runs the existing consent and download, then mounts. **Verify** the catalog's API and where the consent prompt is.
 
 ## R9. The recent list
 
