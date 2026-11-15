@@ -50,8 +50,9 @@ public:
     //  RegisterForInstall for the DLL beside this program, on a separate
     //  thread, since checking the program's signature takes a moment.
     static void     StartInstallRegistration ();
-    static HRESULT  Unregister   (IUserClasses & classes);
-    static bool     IsRegistered (const IUserClasses & classes, const std::wstring & dllPath);
+
+    static HRESULT  Unregister               (IUserClasses & classes);
+    static bool     IsRegistered             (const IUserClasses & classes, const std::wstring & dllPath);
 
 private:
     //  The class's key below Classes, as CLSID\{...}.
