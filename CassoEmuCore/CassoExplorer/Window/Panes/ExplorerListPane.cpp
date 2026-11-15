@@ -1158,8 +1158,11 @@ void ExplorerListPane::FillList()
         //  other, each column fits its rows, so its values are not cut short
         //  and no column is wider than its widest value. A large folder is
         //  measured a screenful at a time. The name's width doesn't change, as a
-        //  long name is cut short in File Explorer too.
-        for (size_t column = (size_t) CatalogModel::Column::Name + 1; column < m_columns.GetChosen().size() && !m_columns.HasFolderColumnWidths(); column++)
+        //  long name is cut short in File Explorer too, except in a picker,
+        //  whose list is of images that are picked by name.
+        size_t  first = (size_t) CatalogModel::Column::Name + (m_context.IsPicker() ? 0 : 1);
+
+        for (size_t column = first; column < m_columns.GetChosen().size() && !m_columns.HasFolderColumnWidths(); column++)
         {
             if (!ExplorerListColumns::IsListColumnShown (column, m_columns.GetChosen()[column], m_listLocation.kind, false))
             {
@@ -1392,6 +1395,14 @@ void ExplorerListPane::RefreshVolumeCells()
             m_rowCells[at][fileSystem].text = rows[at].collection.fileSystem;
             m_rowCells[at][volumeName].text = rows[at].collection.volumeName;
         }
+    }
+
+    //  A picker's columns are fitted when it opens, before these values are
+    //  read, so the two columns are fitted again to the values.
+    if (m_context.IsPicker() && m_columns.GetView() == DxuiListView::View::Details && !m_columns.HasFolderColumnWidths() && rows.size() <= s_kFitAllRowsMax)
+    {
+        m_list->AutoFitColumnToContent (fileSystem);
+        m_list->AutoFitColumnToContent (volumeName);
     }
 
     m_context.window.Invalidate();
