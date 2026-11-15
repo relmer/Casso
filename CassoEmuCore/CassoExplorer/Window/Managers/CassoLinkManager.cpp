@@ -378,6 +378,8 @@ void CassoLinkManager::ApplyFullSendPrefs()
         m_context.app.links->SetAppleBootSounds (m_context.prefs.bootSoundPlace == CassoExplorerPrefs::kBootSoundApple
                                                  || m_context.prefs.bootSoundPlace == CassoExplorerPrefs::kBootSoundBoth);
 
+        m_context.app.links->SetFullSendProtection (m_context.prefs.fullSendProtection);
+
         m_context.app.links->SetFullSendTarget (TextEncoding::WideToNarrow (folder), m_context.prefs.fullSendExtension, [] (const std::string & path)
         {
             std::error_code  error;

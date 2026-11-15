@@ -53,6 +53,9 @@ public:
 
     void  SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder);
 
+    //  The Copy-protected disks section's choices for each Full Send.
+    void  SetFullSendProtection (const FullSendProtectionChoices & choices);
+
     //  Whether a Full Send saves a raw capture's reads beside its image.
     void  SetFullSendReads  (bool on);
 
@@ -325,6 +328,7 @@ private:
         void  OnDone               (const std::shared_ptr<LinkOperation> & operation) override;
         bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override;
         bool  HasFullSendReadsOn   () override;
+        FullSendProtectionChoices  GetFullSendProtection () override;
         bool  HasAppleBootSounds   () override { return m_owner.m_appleBootSounds; }
         bool  OnImageWritten       (const std::string & path, const std::string & model) override;
         void  OnOperationQueued    (const std::shared_ptr<LinkOperation> & operation) override;
@@ -402,6 +406,7 @@ private:
 
     std::string           m_fullSendFolder;
     std::string           m_fullSendExtension;
+    FullSendProtectionChoices  m_fullSendProtection;
     bool                  m_fullSendReads      = false;
     std::atomic<bool>     m_appleBootSounds    { false };
     bool                  m_verifyReads        = false;

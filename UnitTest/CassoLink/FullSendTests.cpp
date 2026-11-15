@@ -6,6 +6,7 @@
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "CassoLink/FullSend/FullSendManifestFile.h"
+#include "CassoLink/FullSend/FullSendProtection.h"
 #include "CassoLink/FullSend/FullSendSession.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkProgram.h"
@@ -237,13 +238,16 @@ public:
     {
         ScriptedLink    link;
         FakeDiskFileIo  io;
-        std::string     extension;
-        std::string     prefix;
-        FullSendStatus  status { [] () { return 0.0; }, [] () { return std::string(); } };
+        std::string                extension;
+        std::string                prefix;
+        FullSendStatus             status { [] () { return 0.0; }, [] () { return std::string(); } };
+        FullSendProtectionChoices  protection;
 
         std::unique_ptr<FullSendSession>  Run (HRESULT result = HRESULT_FROM_WIN32 (ERROR_CANCELLED))
         {
             auto  session = std::make_unique<FullSendSession> (link, io, [] () { return std::string ("2026-10-30T12:00:00Z"); }, kFolder, extension, prefix, &status);
+
+            session->SetProtection (protection);
 
             Assert::AreEqual (result, session->Run());
             Assert::IsTrue (session->GetState() == FullSendSession::State::Ended);
@@ -1164,6 +1168,60 @@ public:
 
         Assert::IsTrue (damaged.link.captures.empty(), L"A damaged disk isn't captured");
         Assert::AreEqual (std::string (FullSendManifest::kStatusDamaged), other->GetManifest().GetRows()[0].status);
+    }
+
+    //  A disk that reads cleanly with a program that reads the disk drive's
+    //  data register itself, as Wizardry I's boot disk does, is captured raw;
+    //  saved as its sector copy with the likely copy-protected status when
+    //  the choice is to save it; and sent as any disk when its condition is
+    //  off.
+    TEST_METHOD (Session_ADiskWithDiskCode_IsCapturedRaw_OrMarked_ByTheChoices)
+    {
+        Image        buffer (NibblizationLayer::kImageByteSize, 0);
+        Image        disk;
+        FilePayload  payload;
+        Rig          capture;
+        Rig          marked;
+        Rig          off;
+
+
+
+        payload.type           = Dos33Volume::kTypeBinary;
+        payload.loadAddress    = 0x8A00;
+        payload.hasLoadAddress = true;
+
+        for (int i = 0; i < FullSendProtection::kDiskCodeReads; i++)
+        {
+            payload.bytes.insert (payload.bytes.end(), { 0xBD, 0x8C, 0xC0, 0x10, 0xFB, 0xEA, 0xEA });
+        }
+
+        AssertSucceeded (Dos33Skeleton::Write (buffer, 254));
+        AssertSucceeded (Dos33Volume (buffer).Write (FilePath::Parse ("GAME"), payload, disk));
+
+        for (Rig * rig : { &capture, &marked, &off })
+        {
+            rig->link.drives[0]  = disk;
+            rig->link.present[1] = false;
+        }
+
+        marked.protection.captureRaw = false;
+        off.protection.diskCode      = false;
+
+        auto  captured = capture.Run();
+        auto  saved    = marked.Run();
+        auto  sent     = off.Run();
+
+        Assert::IsTrue  (capture.link.captures == std::vector<int> { 1 }, L"Captured raw");
+        Assert::AreEqual (std::string (FullSendManifest::kStatusRawCapture), captured->GetManifest().GetRows()[0].status);
+        Assert::IsTrue  (std::any_of (capture.link.reports.begin(), capture.link.reports.end(), [] (const std::string & text) { return text.starts_with ("GAME on the disk in drive 1 accesses the disk drive directly"); }));
+
+        Assert::IsTrue  (marked.link.captures.empty(), L"Not captured when the choice is to save the sector copy");
+        Assert::AreEqual (std::string (FullSendManifest::kStatusProtected), saved->GetManifest().GetRows()[0].status);
+        Assert::AreEqual (std::string ("0001 GAME.dsk"), saved->GetManifest().GetRows()[0].file);
+        Assert::AreEqual (1, saved->GetScreen().prot);
+
+        Assert::IsTrue  (off.link.captures.empty(), L"Not captured with the condition off");
+        Assert::AreEqual (std::string (FullSendManifest::kStatusSent), sent->GetManifest().GetRows()[0].status);
     }
 
     //  The Full Send window's model after a disk: its row, title, file

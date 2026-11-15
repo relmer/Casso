@@ -20,8 +20,9 @@
 ProtectionSigns FullSendProtection::Find (const std::vector<Byte> & image)
 {
     ProtectionSigns  signs;
-    VolumeKind       kind   = VolumeKind::Unknown;
-    BootFamily       family = BootFamily::None;
+    VolumeKind       kind    = VolumeKind::Unknown;
+    BootFamily       family  = BootFamily::None;
+    bool             uniform = false;
 
 
 
@@ -30,13 +31,15 @@ ProtectionSigns FullSendProtection::Find (const std::vector<Byte> & image)
         return signs;
     }
 
-    kind   = VolumeImage::DetectFilesystem (image);
-    family = GetBootFamily (image);
+    kind    = VolumeImage::DetectFilesystem (image);
+    family  = GetBootFamily (image);
+    uniform = IsUniform (image);
 
     //  A disk with CP/M's loader is a CP/M disk, though its directory can be
-    //  empty and then isn't recognized.
-    signs.isUnrecognized = kind == VolumeKind::Unknown && family != BootFamily::Cpm && !IsUniform (image);
-    signs.hasOtherBoot   = family == BootFamily::Other;
+    //  empty and then isn't recognized. A disk with every byte the same has
+    //  no file system and no loader.
+    signs.isUnrecognized = kind == VolumeKind::Unknown && family != BootFamily::Cpm && !uniform;
+    signs.hasOtherBoot   = family == BootFamily::Other && !uniform;
     signs.hasDiskCode    = (kind == VolumeKind::Dos33 || kind == VolumeKind::ProDos || kind == VolumeKind::Pascal) && FindDiskCode (kind, image, signs.diskCodeFile);
 
     return signs;

@@ -32,6 +32,34 @@ struct ProtectionSigns
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendProtectionChoices
+//
+//  The Full Send options' Copy-protected disks section: the conditions that
+//  mark a disk as likely copy-protected, and whether such a disk is captured
+//  raw or saved as its sector copy with that status.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct FullSendProtectionChoices
+{
+    bool  readErrors   = true;
+    bool  unrecognized = true;
+    bool  diskCode     = true;
+    bool  otherBoot    = true;
+    bool  captureRaw   = true;
+
+    bool  IsMet (const ProtectionSigns & signs) const
+    {
+        return (unrecognized && signs.isUnrecognized) || (diskCode && signs.hasDiskCode) || (otherBoot && signs.hasOtherBoot);
+    }
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendProtection
 //
 //  ProtectionSigns from a disk's sectors, in DOS logical order in an

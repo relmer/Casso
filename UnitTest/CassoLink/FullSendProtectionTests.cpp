@@ -173,6 +173,7 @@ public:
         Assert::IsTrue  (FullSendProtection::Find (noise).hasOtherBoot, L"No known loader");
         Assert::IsFalse (FullSendProtection::Find (zeros).isUnrecognized, L"Every byte the same");
         Assert::IsFalse (FullSendProtection::Find (zeros).hasOtherBoot, L"A boot sector of zeros");
+        Assert::IsFalse (FullSendProtection::Find (Image (NibblizationLayer::kImageByteSize, 0x01)).hasOtherBoot, L"Every byte 1");
         Assert::IsFalse (FullSendProtection::Find (cpm).isUnrecognized, L"CP/M's loader");
     }
 };

@@ -93,11 +93,24 @@ private:
 class CassoExplorerFullSendPage : public DxuiPropertyPage
 {
 public:
+    //  The Copy-protected disks section, below the image types: a heading, a
+    //  note, a checkbox for each condition, and the choice for a disk with
+    //  any of them.
+    struct ProtectionParts
+    {
+        DxuiLabel                    head;
+        DxuiLabel                    note;
+        std::array<DxuiCheckbox, 4>  conditions;
+        DxuiLabel                    actionLabel;
+        DxuiRadioGroup               action;
+    };
+
     explicit CassoExplorerFullSendPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & soundsLabel, DxuiSegmentedControl & sounds, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel);
-    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
+    void  Init           (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & soundsLabel, DxuiSegmentedControl & sounds, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel);
+    void  InitProtection (ProtectionParts & parts);
+    void  Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    bool  OnMouse        (const DxuiMouseEvent & ev) override;
 
     static constexpr int  kNoteHeightDip         = 60;
     static constexpr int  kBrowseWidthDip        = 100;
@@ -119,6 +132,9 @@ private:
     DxuiLabel             * m_soundsLabel    = nullptr;
     DxuiSegmentedControl  * m_sounds         = nullptr;
     DxuiRadioGroup        * m_format         = nullptr;
+    ProtectionParts       * m_protection     = nullptr;
+
+    int  LayoutProtection (int top, const RECT & boundsDip, const DxuiDpiScaler & scaler);
 };
 
 
@@ -227,6 +243,9 @@ public:
         bool          verifyWrites = false;
         bool          autoVerify   = true;
 
+        //  The Full Send page's Copy-protected disks section.
+        FullSendProtectionChoices  fullSendProtection;
+
 
         //  The preview's monitor, as a PicturePreview::Monitor, the custom
         //  monitor's color, and the effects changed on each monitor, by its
@@ -277,6 +296,7 @@ private:
     void            WireDisplay     ();
     void            WireColorPicker ();
     void            WireFullSend    ();
+    void            WireProtection  ();
     void            WireVerify      ();
     void            SetCustomColor  (uint32_t argb);
     void            PreviewChoices  ();
@@ -303,6 +323,7 @@ private:
     DxuiLabel                                      m_fullSendSoundsLabel;
     DxuiSegmentedControl                           m_fullSendSounds;
     DxuiRadioGroup                                 m_fullSendFormat;
+    CassoExplorerFullSendPage::ProtectionParts     m_fullSendProtection;
     CassoExplorerFullSendPage                    * m_fullSend            = nullptr;
     DxuiLabel                                      m_verifyIntro;
     std::array<CassoExplorerVerifyPage::Row, 3>    m_verifyRows;

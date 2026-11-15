@@ -2078,6 +2078,25 @@ void CassoLinkConnections::SetFullSendTarget (const std::string & folder, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnections::SetFullSendProtection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::SetFullSendProtection (const FullSendProtectionChoices & choices)
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+    m_fullSendProtection = choices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnections::SetVerifyDefaults
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2279,6 +2298,25 @@ bool CassoLinkConnections::Sink::TryGetFullSendTarget (std::string & outFolder, 
     outExtension = m_owner.m_fullSendExtension;
 
     return ready;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::Sink::GetFullSendProtection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FullSendProtectionChoices CassoLinkConnections::Sink::GetFullSendProtection()
+{
+    std::lock_guard<std::mutex>  lock (m_owner.m_lock);
+
+
+
+    return m_owner.m_fullSendProtection;
 }
 
 
