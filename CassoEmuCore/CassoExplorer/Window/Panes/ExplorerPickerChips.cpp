@@ -48,10 +48,11 @@ void ExplorerPickerChips::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
             break;
         }
 
-        //  The edge is a capsule in the border's color, and the fill a capsule
-        //  a pixel inside it.
-        FillCapsule (text, x, top, width, height, theme.Border());
-        FillCapsule (text, x + 1.0f, top + 1.0f, width - 2.0f, height - 2.0f, theme.ControlBackground());
+        //  Drawn as a row of a multiple selection: the selection's fill, outlined
+        //  in the accent. The edge is a capsule in the accent, and the fill a
+        //  capsule a pixel inside it.
+        FillCapsule (text, x, top, width, height, theme.ContentSelectionMultiEdge());
+        FillCapsule (text, x + 1.0f, top + 1.0f, width - 2.0f, height - 2.0f, theme.ContentSelectionMulti());
 
         hr = text.DrawString (term.c_str(), x, top, width, height, theme.Foreground(), fontPx, face.c_str(),
                               DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal);
