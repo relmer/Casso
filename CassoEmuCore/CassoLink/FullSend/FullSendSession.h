@@ -176,6 +176,9 @@ public:
     //  Whether the disk in a drive was write-protected when it was last read.
     virtual bool     IsWriteProtected (int drive) { UNREFERENCED_PARAMETER (drive); return false; }
 
+    //  The Apple's model, as Apple //c; empty when it isn't known.
+    virtual std::string  GetModelName () { return std::string(); }
+
     //  A line for the activity log.
     virtual void     Report     (const std::string & text) = 0;
 };

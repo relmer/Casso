@@ -2,6 +2,8 @@
 
 #include "DiskCheck/BootCheck.h"
 #include "Config/Win32FileSystem.h"
+#include "Core/JsonParser.h"
+#include "Core/JsonWriter.h"
 #include "Core/MachineConfig.h"
 #include "Core/PathResolver.h"
 #include "Core/Prng.h"
@@ -34,6 +36,14 @@ BootMachine::BootMachine() :
 //  changes to the machine, such as a card added to a slot, aren't applied:
 //  the boot is of the machine as shipped.
 //
+//  Every card but the Disk II is dropped from the slots: a boot doesn't use one,
+//  and a card this build can't make, such as one a newer build of Casso
+//  added to the JSON, or one whose ROM isn't installed, would fail the whole
+//  machine. A Mockingboard is left out too: a title that finds one can
+//  install an interrupt handler in the language card, which the enhanced
+//  //e's firmware switches to ROM before it jumps to the handler, as
+//  One-on-One does.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT BootMachine::Build (const std::string & machineId, std::string & outError)
@@ -55,28 +65,71 @@ HRESULT BootMachine::Build (const std::string & machineId, std::string & outErro
     hr = files.ReadAllText (configPath.wstring(), jsonText);
     CHR (hr);
 
+    hr = KeepDiskSlots (jsonText);
+    CHRF (hr, outError = std::format ("The machine {}'s configuration couldn't be read.", machineId));
+
     hr = MachineConfigLoader::Load (jsonText, machineId, searchPaths, config, outError);
     CHR (hr);
 
     SetPrng (std::make_unique<Prng> (s_kSeed));
     SetCurrentMachineName (TextEncoding::NarrowToWide (machineId));
 
-    //  A Mockingboard is left out. No title requires one, and a title that
-    //  finds one can install an interrupt handler in the language card,
-    //  which the enhanced //e's firmware switches to ROM before it jumps to
-    //  the handler, as One-on-One does.
-    for (SlotConfig & slot : config.slots)
-    {
-        if (slot.device.starts_with ("mockingboard"))
-        {
-            slot.enabled = false;
-        }
-    }
-
     GetConfig() = config;
 
     hr = m_builder.Build (config);
     CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BootMachine::KeepDiskSlots
+//
+//  The machine's JSON again, with only its Disk II cards in its slots.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BootMachine::KeepDiskSlots (std::string & ioJson)
+{
+    HRESULT                                         hr      = S_OK;
+    JsonValue                                       root;
+    JsonParseError                                  error;
+    std::vector<std::pair<std::string, JsonValue>>  entries;
+
+
+
+    hr = JsonParser::Parse (ioJson, root, error);
+    CHR (hr);
+
+    for (const auto & [key, value] : root.GetObjectEntries())
+    {
+        std::vector<JsonValue>  disks;
+        std::string             device;
+
+        if (key != "slots" || value.GetType() != JsonType::Array)
+        {
+            entries.emplace_back (key, value);
+            continue;
+        }
+
+        for (size_t at = 0; at < value.GetArraySize(); at++)
+        {
+            if (value.GetArrayElement (at).HasString ("device", device) && device == "disk-ii")
+            {
+                disks.push_back (value.GetArrayElement (at));
+            }
+        }
+
+        entries.emplace_back (key, JsonValue (std::move (disks)));
+    }
+
+    ioJson = JsonWriter::Write (JsonValue (std::move (entries)));
 
 Error:
     return hr;

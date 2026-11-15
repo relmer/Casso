@@ -234,18 +234,18 @@ bool PreviewTextView::HandleTextMouse (const DxuiMouseEvent & ev)
 //
 //  PreviewTextView::GetCursorForPoint
 //
-//  The text selects as text does, so the cursor over it is the I-beam,
-//  except over its scrollbars.
+//  The text selects as text does, so the cursor over it is the I-beam;
+//  over its scrollbars it is the arrow, so no control under them sets it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 LPCWSTR PreviewTextView::GetCursorForPoint (POINT clientPx) const
 {
-    bool  over = m_text->IsVisible() && ExplorerLayout::Contains (m_text->GetBounds(), clientPx) && !m_text->IsOverScrollbar (clientPx);
+    bool  inside = m_text->IsVisible() && ExplorerLayout::Contains (m_text->GetBounds(), clientPx);
 
 
 
-    return over ? IDC_IBEAM : nullptr;
+    return !inside ? nullptr : m_text->IsOverScrollbar (clientPx) ? IDC_ARROW : IDC_IBEAM;
 }
 
 
