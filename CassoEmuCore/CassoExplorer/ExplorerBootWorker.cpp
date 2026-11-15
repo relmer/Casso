@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/ExplorerBootWorker.h"
 #include "CassoExplorer/Model/PicturePreview.h"
+#include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendManifestFile.h"
 #include "Core/TextEncoding.h"
 #include "DiskCheck/BootTitle.h"
@@ -341,9 +342,14 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
 
         result.isComplete = status.empty() || status == FullSendManifest::kStatusSent || status == FullSendManifest::kStatusRawCapture;
 
-        //  A raw capture saved as a number is renamed with the user's earlier
-        //  name for its disk, or its title once it boots, as its disk has no
-        //  catalog to read a name from.
+        //  An image saved as a number is renamed with the user's earlier name
+        //  for its disk, or its title once it boots, or with neither, a DOS
+        //  3.3 disk's first program after HELLO.
+        if (titled.empty() && (format == DiskFormat::Dsk || format == DiskFormat::Do))
+        {
+            titled = MakeNumberedName (name, FullSendDisk::GetProgramTitle (bytes));
+        }
+
         titled = fromUser.empty() ? titled : fromUser;
 
         if (!titled.empty())

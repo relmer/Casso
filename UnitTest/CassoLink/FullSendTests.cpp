@@ -575,6 +575,29 @@ public:
         Assert::AreEqual (std::string ("0005"),       FullSendDisk::MakeImageTitle (5, FullSendDisk::GetCatalogTitle (Other (9)), ""));
     }
 
+    //  With HELLO first, the next program is the title, less a version at
+    //  its end; a disk with HELLO alone has no title.
+    TEST_METHOD (ProgramTitle_IsTheFirstProgramAfterHello_LessItsVersion)
+    {
+        Image        disk = Dos ("HELLO");
+        Image        next;
+        FilePayload  payload;
+
+
+
+        payload.type           = Dos33Volume::kTypeBinary;
+        payload.loadAddress    = 0x2000;
+        payload.hasLoadAddress = true;
+        payload.bytes.assign (100, 3);
+
+        Assert::AreEqual (std::string(), FullSendDisk::GetProgramTitle (disk), L"HELLO alone");
+
+        AssertSucceeded (Dos33Volume (disk).Write (FilePath::Parse ("WIZFIX.2"), payload, next));
+        Assert::AreEqual (std::string ("WIZFIX"), FullSendDisk::GetProgramTitle (next));
+        Assert::AreEqual (std::string ("GAME"),   FullSendDisk::GetProgramTitle (Dos ("GAME")));
+        Assert::AreEqual (std::string(),          FullSendDisk::GetProgramTitle (Other (9)), L"no DOS 3.3 catalog");
+    }
+
     TEST_METHOD (Title_CleansCharactersAHostNameCannotHave)
     {
         Assert::AreEqual (std::string ("0001 A_B"), FullSendDisk::MakeImageTitle (1, "A/B", ""));
