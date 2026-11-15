@@ -1429,6 +1429,9 @@ public:
             Assert::IsFalse  (row.isMissing);
         }
     }
+
+
+
     TEST_METHOD (OpenRow_EntersImagesAndRefusesPlainFiles)
     {
         Host  host;

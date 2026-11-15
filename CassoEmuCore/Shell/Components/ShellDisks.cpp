@@ -687,6 +687,7 @@ void ShellDisks::RestoreDoorAfterPicker (int drive, bool isInserted)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ShellDisks::ShowSalvageDialog

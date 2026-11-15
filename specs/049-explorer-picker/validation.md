@@ -40,3 +40,10 @@ Window checks run on a test copy of the emulator: `CASSO_PROFILE_DIR` set to a s
 - References to the removed code (`PromptInsertDiskMru`, `PromptInsertTapeMru`, `PromptForDiskImage`, `BrowseFloppy35`, `MakeDiskPickerKind`, `PromptBootDiskMru`, `DiskMruPickerSession`, `MediaPickerKind`) in the C++ sources: 0.
 - `PickFileToOpen` and `PickFileToSave` calls in `CassoEmuCore/Shell` and `CassoEmuCore/Ui`: 11. Image requests with `content = Images`: the lost-disk save (while the machine runs), the tape open and the new tape, the inspector's compare, its image save and its WOZ export, and the Hardware page's image. Not image requests: the printout's PNG, the block inspector's text and binary export, and the serial card's two file requests.
 - `WindowCommandManager::CreateBlankDiskForDrive` and its dialog are no longer called: a drive's picker creates through Casso Explorer's New disk image dialog.
+
+## Phase 11 (2026-11-15)
+
+- Unit suite: 9,913 of 9,913 passed. Scenario suite: 245 of 245 passed, `ImageClassifierScenarioTests` among them (18 fixture images, each mounted on a Disk II, a 3.5-inch drive, an HD20SC and a 5 MB ProFile).
+- `scripts\CheckStyle.ps1 -Mode Tree`: OK after three blank-line fixes.
+- The startup form, on a test copy with no saved boot disk: it opened minimized without activation, had the Stock disks node and "Start without a disk", and closing it quit Casso. Start and Start without a disk were not clicked on screen; unit tests cover both outcomes.
+- T097: the docs that mention the insert disk dialog are release notes in `docs/WhatsNew.md`, which describe past releases and are left as written.
