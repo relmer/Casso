@@ -18,8 +18,8 @@ What one file is.
 Rules:
 - `status != Classified` implies `formFactor == None` and `formattedBytes == 0`.
 - `formFactor == Tape` implies `formattedBytes == 0` and `isBlockReadable == false`.
-- A block image's form factor follows `BlockDeviceMedia::IsFloppyBlockCount`: 280, 800 and 1,600 blocks are floppies, any other count is a hard disk.
-- `FormatSize` returns "140K", "400K", "800K", "113K" for a 13-sector disk, megabytes with one decimal below 10 MB and whole megabytes above, and an empty string for a tape or an unclassified file.
+- A block image's form factor follows `BlockDeviceMedia::IsFloppyBlockCount`: 280, 800, 1,600 and 2,880 blocks are floppies, any other count is a hard disk.
+- `FormatSize` returns "140K", "400K", "800K", "1.44 MB", "113K" for a 13-sector disk, megabytes with one decimal below 10 MB and whole megabytes above, and an empty string for a tape or an unclassified file.
 
 ## ImageClassCache (`Devices/Disk/ImageClassCache.h`)
 
