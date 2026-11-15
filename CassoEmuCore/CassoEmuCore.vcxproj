@@ -2158,6 +2158,7 @@
     <ClInclude Include="Shell\Layout\DriveRowLayout.h" />
     <ClInclude Include="Shell\Layout\DriveBarFan.h" />
     <ClInclude Include="Shell\Layout\DriveLabel.h" />
+    <ClInclude Include="Shell\Layout\DriveLamp.h" />
     <ClInclude Include="Shell\Layout\ChromeBandLayout.h" />
     <ClInclude Include="Seams\IHostFirewall.h" />
     <ClInclude Include="Seams\IHostNetwork.h" />

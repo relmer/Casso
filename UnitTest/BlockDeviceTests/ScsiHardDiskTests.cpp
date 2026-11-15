@@ -2,6 +2,7 @@
 
 #include "Devices/BlockDevice/BlockDeviceEventRing.h"
 #include "Devices/BlockDevice/ScsiHardDisk.h"
+#include "Shell/Layout/DriveLamp.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -270,5 +271,32 @@ public:
         Assert::AreEqual (12u, event.firstBlock);
         Assert::AreEqual (4u,  event.blockCount);
         Assert::AreEqual ((Byte) 6, event.unit);
+    }
+
+    //  A READ LIGHTS THE DRIVE'S LAMP: the command stamps its CPU cycle, and
+    //  the lamp is lit for the window after it and dark once the window has
+    //  passed. A drive with no command yet is dark.
+    TEST_METHOD (ReadLightsTheLampForTheWindow)
+    {
+        constexpr uint64_t  kReadCycle = 5'000'000;
+        constexpr uint64_t  kWindow    = 102'273;
+
+        FakeDiskFileIo  io;
+        ScsiHardDisk    disk (6, 7);
+        uint64_t        last = 0;
+
+
+
+        AttachBlocks (io, disk, kBlocks);
+
+        Assert::IsFalse (DriveLamp::IsLit (disk.GetLastActivityCycle(), kReadCycle, kWindow), L"dark before any command");
+
+        Run (disk, { 0x08, 0, 0, 3, 1, 0 }, kReadCycle);
+        last = disk.GetLastActivityCycle();
+
+        Assert::AreEqual (kReadCycle, last, L"the read stamps its cycle");
+        Assert::IsTrue   (DriveLamp::IsLit (last, kReadCycle,               kWindow), L"lit at the read");
+        Assert::IsTrue   (DriveLamp::IsLit (last, kReadCycle + kWindow - 1, kWindow), L"lit to the end of the window");
+        Assert::IsFalse  (DriveLamp::IsLit (last, kReadCycle + kWindow,     kWindow), L"dark after it");
     }
 };

@@ -75,6 +75,7 @@
 #include "Devices/Disk/PreservedCopy.h"
 #include "Core/TextEncoding.h"
 #include "Shell/Layout/DriveLabel.h"
+#include "Shell/Layout/DriveLamp.h"
 
 
 
@@ -3483,7 +3484,7 @@ bool ShellDeskScene::IsDriveBusy (const DeskDrive & drive, uint64_t now, uint64_
             for (AppleScsiCard * card : refs.scsiCards)
             {
                 last = card->GetTarget (drive.drive).GetLastActivityCycle();
-                busy = busy || (last != 0 && now >= last && now - last < windowCycles);
+                busy = busy || DriveLamp::IsLit (last, now, windowCycles);
             }
 
             break;
@@ -3492,7 +3493,7 @@ bool ShellDeskScene::IsDriveBusy (const DeskDrive & drive, uint64_t now, uint64_
             for (ProFileCard * card : refs.proFileCards)
             {
                 last = card->GetDrive().GetLastActivityCycle();
-                busy = busy || (last != 0 && now >= last && now - last < windowCycles);
+                busy = busy || DriveLamp::IsLit (last, now, windowCycles);
             }
 
             break;

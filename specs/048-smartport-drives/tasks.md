@@ -230,7 +230,7 @@ interaction, sounds and events.
 
 ### Events
 
-- [ ] T098 [US7] Feed the drive lamps and audio sources from the block device and floppy event feeds, with tests that a read lights the lamp and a seek starts its sound **Partial**: the side device's lamp follows SCSI and ProFile activity and the 3.5-inch drive motors (`ShellDeskScene::IsDriveBusy`, now one lamp per drive on the desk and one busy rail per drive on the bar), and the drive sounds are made from the floppy and block device events (`DeviceAudioSourceTests`); a test that a read lights the lamp is open.
+- [X] T098 [US7] Feed the drive lamps and audio sources from the block device and floppy event feeds, with tests that a read lights the lamp and a seek starts its sound **Partial**: the side device's lamp follows SCSI and ProFile activity and the 3.5-inch drive motors (`ShellDeskScene::IsDriveBusy`, now one lamp per drive on the desk and one busy rail per drive on the bar), and the drive sounds are made from the floppy and block device events (`DeviceAudioSourceTests`); `ScsiHardDiskTests::ReadLightsTheLampForTheWindow` checks that a read lights the lamp for the window, through the rule `IsDriveBusy` applies (`DriveLamp::IsLit`).
 - [X] T099 [US7] Write a note in `specs/048-smartport-drives/handoff.md` for spec 035 that lists the two feeds, their event structs, and where `MachineHost::AttachObservers` attaches them, so 035's debugger can log them as it logs `Disk2Event` (FR-022, research R14) **Done**: `specs/048-smartport-drives/handoff.md`.
 
 ---
