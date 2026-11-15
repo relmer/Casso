@@ -135,7 +135,7 @@
 
 ## STOP: model gate G1
 
-- [ ] G1 **Stop here. Do not start Phase 6.** Commit and push, then end the turn with this message to the owner: "Phases 1 to 5 are done. Phases 6 to 9 (picker core, drive pickers, modal and save forms) are next: switch this session to the stronger model, then reply to continue." Mark G1 done only after the owner replies.
+- [x] G1 **Stop here. Do not start Phase 6.** Commit and push, then end the turn with this message to the owner: "Phases 1 to 5 are done. Phases 6 to 9 (picker core, drive pickers, modal and save forms) are next: switch this session to the stronger model, then reply to continue." Mark G1 done only after the owner replies.
 
 ---
 
