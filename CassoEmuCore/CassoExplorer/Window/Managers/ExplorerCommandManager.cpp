@@ -1063,7 +1063,6 @@ void ExplorerCommandManager::ShowOptions()
     };
     if (m_context.app.pictures != nullptr)
     {
-        display.clearThumbnails = [this] (HWND owner) { m_context.deletion.ClearThumbnails (owner); };
     }
 
     display.themeDefaults = m_context.preview.GetPicture().GetCrtDefaults();

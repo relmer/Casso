@@ -549,5 +549,6 @@ compared byte for byte with the image before the damage.
 - [ ] T756 [US18] The copy (FR-171): " (repaired)" before the extension and a number when that name exists, in the image's format through `VolumeImage::Save`; the image isn't written
 - [ ] T757 [US18] Repair in the inspector window: a command beside the verdict, a confirmation with a line for each change and "Don't free sectors that no file uses", and the copy selected in Casso Explorer once written (FR-177); window-part tests at 100% and 150%
 - [ ] T758 [US18] `CassoCli disk repair <image> [<copy>] [--no-free-unowned] [--list]` with its help page and option rows (FR-178)
+- [ ] T760 [US18] The verdict in Casso Explorer's preview pane (FR-179): a warning banner for Bad with the first finding of damage and Repair disk image, a line for Suspect, nothing more for OK; window-part tests at 100% and 150%
 - [ ] T759 [US18] Scenario test (SC-045): every planted kind repaired to the image before the damage, and 30 disks from the test collection, standard and copy-protected, with no protected disk Bad and no undamaged standard disk other than OK
 

@@ -1447,6 +1447,11 @@ was planted.
 11. **Given** any image, **When** it is checked from the command line with
     `CassoCli disk repair <image>`, **Then** the same verdict, findings and
     repairs are reported, and the copy is written as in Casso Explorer.
+12. **Given** a disk image selected in Casso Explorer, **When** the preview
+    pane draws it, **Then** its file-system verdict is with the inspector's
+    other details there: a Bad verdict as a warning banner at the top of the
+    pane with its first finding of damage, and Repair disk image beside it
+    when the image can be repaired; Suspect as a line, and OK as nothing more.
 
 ---
 ### Edge Cases
@@ -3622,6 +3627,12 @@ release (Delivery). The first release MUST NOT depend on them.
   each as a line (for example "Mark 3 sectors HELLO uses as used in the
   bitmap"), and after it writes, the copy MUST be selected in Casso
   Explorer.
+- **FR-179**: Casso Explorer's preview pane MUST have a disk image's
+  file-system verdict with the inspector's other details: Bad as a warning
+  banner at the top of the pane, in the theme's error color, with the first
+  finding of damage and Repair disk image when the volume can be repaired;
+  Suspect as a line with its first finding; and nothing more for OK or for a
+  disk with no standard file system.
 - **FR-178**: `CassoCli disk repair <image> [<copy>]` MUST report the verdict,
   the findings and the changes, write the copy as Repair does, take
   `--no-free-unowned` for "Don't free sectors that no file uses" and `--list` to report the

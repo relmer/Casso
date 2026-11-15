@@ -228,14 +228,4 @@ public:
 
         std::filesystem::remove_all (root);
     }
-
-
-
-    //  The confirmation's question is about the cache of thumbnails;
-    //  its checkbox has the count of those the user set.
-    TEST_METHOD (TheClearConfirmation_HasACheckboxWithTheCountTheUserSet)
-    {
-        Assert::IsTrue (DiskImagePictures::GetClearQuestion().find (L"cache") != std::wstring::npos);
-        Assert::AreEqual (std::wstring (L"Also remove manually assigned thumbnails (3)"), DiskImagePictures::GetClearCheck (3));
-    }
 };
