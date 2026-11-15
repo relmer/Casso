@@ -2,6 +2,7 @@
 
 #include "Core/MachineConfig.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Devices/Disk/DriveImageRule.h"
 #include "Ui/Scene/DeskDrivePlan.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -201,6 +202,45 @@ public:
         Assert::AreEqual (1, drives[2].drive, L"after the built-in drive");
         Assert::AreEqual (2, drives[3].drive);
         Assert::AreEqual (6, drives[4].drive);
+    }
+
+
+    //  On the //c Plus port, drive 0 is the built-in drive, then the Apple
+    //  3.5 Drives, then the UniDisks, and each drive's picker takes the
+    //  images for its kind.
+    TEST_METHOD (Collect_CPlusPort_Apple35DrivesComeFirst)
+    {
+        MachineConfig  config;
+        PortConfig     internal;
+        PortConfig     disk;
+
+
+
+        internal.name   = "internal";
+        internal.device = kpszApple35DriveDevice;
+        disk.name       = "disk";
+        disk.chain.resize (3);
+        disk.chain[0].device = kpszApple35DriveDevice;
+        disk.chain[1].device = kpszApple35DriveDevice;
+        disk.chain[2].device = kpszUniDisk35Device;
+        config.ports  = { internal, disk };
+
+        auto  drives = DeskDrivePlan::Collect (config, 0, true);
+
+        Assert::AreEqual ((size_t) 4, drives.size());
+        Assert::IsTrue   (drives[0].model == M::Apple35Plus);
+        Assert::AreEqual (0, drives[0].drive);
+
+        for (int i = 1; i <= 2; i++)
+        {
+            Assert::IsTrue   (drives[i].model == M::Apple35Drive);
+            Assert::AreEqual (i, drives[i].drive);
+            Assert::IsTrue   (DeskDrivePlan::GetReceivingKind (drives[i].model) == ReceivingDriveKind::Apple35);
+        }
+
+        Assert::IsTrue   (drives[3].model == M::UniDisk35);
+        Assert::AreEqual (3, drives[3].drive);
+        Assert::IsTrue   (DeskDrivePlan::GetReceivingKind (drives[3].model) == ReceivingDriveKind::UniDisk35);
     }
 
 
