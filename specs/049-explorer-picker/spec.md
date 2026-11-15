@@ -98,18 +98,34 @@ A caller that requires a file from the user passes a title, a starting folder an
 
 ---
 
-### User Story 5 - What the old dialog offered besides browsing (Priority: P2)
+### User Story 5 - Recent images, new disks and stock disks in the picker (Priority: P2)
 
-The insert disk dialog lists recently used images, offers a "Create new disk..." row, and offers downloads of stock system disks. The recorder's dialog lists recent tapes and offers a blank tape.
+The insert disk dialog lists recently used images, has a "Create new disk..." row, and offers downloads of stock system disks. The recorder's dialog lists recent tapes and offers a blank tape. All of these move into the picker.
 
-[NEEDS CLARIFICATION: Where do recent images, "Create new disk...", the stock system disk downloads and the blank tape go when the dialog is removed? Options are in the picker itself, on the drive's menu, or dropped.]
+Casso Explorer's tree already has a Casso node. Its children are the folders Casso has opened images from, most recently used first. Selecting the Casso node itself lists every image in those folders as one list, most recently used first. A picker opened for a drive starts on that list, filtered to the drive, so the images a user inserted lately are the first rows, as in the old dialog. The same list is available in the file manager.
+
+**Why this priority**: Without it, removing the dialog takes away the fastest route to a disk used yesterday, and the routes to a new disk and to the stock system disks.
+
+**Independent Test**: Insert images from two folders, open the picker from a drive, and confirm that the Casso node's list has the images of both folders that the drive accepts, with the ones just inserted first. Create a new disk and pick a stock disk from the picker and confirm each is inserted.
+
+**Acceptance Scenarios**:
+
+1. **Given** images were inserted from two folders, **When** the user selects the Casso node, **Then** one list has the images of both folders, without the folders as rows, and each row has its folder in a column.
+2. **Given** that list, **When** it is drawn with its default sort, **Then** images Casso has loaded come first, newest load first, and the images never loaded follow, ordered by name.
+3. **Given** the picker is opened from a drive for the first time, **When** it opens, **Then** it is on the Casso node's list, filtered to the images the drive accepts.
+4. **Given** the picker is opened from the recorder, **When** it opens, **Then** the list has the recent tapes first.
+5. **Given** the picker is open for a floppy drive, **When** the user chooses "Create new disk...", **Then** the create disk flow runs for that drive's form factor, and on completion the picker closes and the new disk is inserted.
+6. **Given** the picker is open for the recorder, **When** the user chooses "New blank tape", **Then** a blank tape is created and loaded, and the picker closes.
+7. **Given** the picker is open for a drive that a stock system disk fits, **When** the user picks a stock disk that is not downloaded yet, **Then** it is downloaded, after the consent step the old dialog had, and inserted.
+8. **Given** a folder under the Casso node no longer exists, **When** the list is built, **Then** the folder is skipped and the rest of the list is complete.
+9. **Given** the Casso node is selected in the file manager, outside picker mode, **When** the list is drawn, **Then** it is the same list with every image, not filtered to a drive.
 
 ---
 
 ### Edge Cases
 
 - A raw 800K block image with a `.po` or `.dsk` extension could be a 3.5-inch disk or a small hard disk volume. It is classified as a 3.5-inch 800K disk. The hard disks accept it anyway, because a hard disk accepts any block image up to its capacity.
-- A raw 140K image is classified as 5.25-inch. A UniDisk 3.5 or a hard disk does not list it by default; see FR-012.
+- A raw 140K image is classified as 5.25-inch. A UniDisk 3.5 or a hard disk does not list it.
 - A WOZ image's form factor comes from its header, not its length. A 3.5-inch WOZ and a 5.25-inch WOZ of similar length get different form factors.
 - A 2IMG or DiskCopy 4.2 image has a header, so its formatted size comes from the header and not from the file length.
 - A 2IMG image in nibble or DOS sector order is a 5.25-inch image and is not a block image for the hard disks.
@@ -119,6 +135,7 @@ The insert disk dialog lists recently used images, offers a "Create new disk..."
 - A folder on a slow or disconnected network share does not freeze the picker; classification of its files can be abandoned on navigation to another folder.
 - A tape has no formatted size. Its size column is empty or reports its duration.
 - The receiving drive is removed, or the machine is switched, while the picker is open: the picker closes as a cancel.
+- An image in the Casso node's list is deleted or moved after the list is built: picking it reports the failure and the picker stays open.
 - The picker is open and the user clicks a second drive: the picker is modal, so the click is ignored. There is one picker per emulator window.
 - Casso Explorer is already running as a file manager, possibly with a serial session open. Opening a picker neither disturbs that window nor uses its session.
 - A hard disk image larger than the receiving drive's capacity is not listed for that drive.
@@ -144,7 +161,7 @@ The insert disk dialog lists recently used images, offers a "Create new disk..."
 - **FR-009**: A Disk II and the //c's 5.25-inch drives MUST accept 5.25-inch images only.
 - **FR-010**: An Apple 3.5 Drive and the //c Plus's built-in drive MUST accept 400K and 800K images, including 3.5-inch WOZ images.
 - **FR-011**: A UniDisk 3.5 MUST accept 400K and 800K images that can be read as blocks.
-- **FR-012**: An HD20SC and a ProFile MUST accept hard disk images and 3.5-inch block images up to the drive's capacity. [NEEDS CLARIFICATION: Is there a way in the picker to list an image the rule excludes, such as a 140K ProDOS volume for a hard disk, or is the rule final?]
+- **FR-012**: An HD20SC and a ProFile MUST accept hard disk images and 3.5-inch block images up to the drive's capacity. The rule is final: the picker has no way to list an image that fails it.
 - **FR-013**: The recorder MUST accept tapes only, and no disk drive accepts a tape.
 - **FR-014**: The rule MUST be total over the drive kinds: a drive kind added later without an entry MUST fail a test instead of accepting everything or nothing.
 - **FR-015**: The rule and the mount code MUST be consistent. An image that passes the rule for a drive MUST NOT then fail at mount for its form factor or size, and the reverse.
@@ -159,7 +176,7 @@ The insert disk dialog lists recently used images, offers a "Create new disk..."
 #### The picker contract
 
 - **FR-020**: A caller MUST be able to open the picker with a title, a starting folder, a list of filter entries (each a label and a set of file masks), and optionally a receiving drive, and MUST receive one of three results: a chosen path, a cancel, or a failure.
-- **FR-021**: The picker MUST be available through the same request that Casso's callers already make for a file to open, so a caller that passes filter entries gets the picker without changing. [NEEDS CLARIFICATION: Which requests go to the Casso Explorer picker: only those for disk and tape images, or every file-open request in the emulator and in Casso Explorer itself, and are file-save and folder requests included?]
+- **FR-021**: The picker MUST be available through the same request that Casso's callers already make for a file to open, so a caller that passes filter entries gets the picker without changing. Requests to open a disk or tape image in the emulator go to the picker. Other requests (serial files, printer output, screenshots, and Casso Explorer's dialogs), and all file-save and folder requests, go to the Windows dialogs.
 - **FR-022**: With no receiving drive, the picker MUST list folders and the files matching the active filter entry's masks, and nothing else.
 - **FR-023**: With a receiving drive, the picker MUST list folders and the files that both match the active entry's masks and are accepted by that drive under the drive rule.
 - **FR-024**: Masks MUST match by file name, case-insensitively, with `*` and `?` wildcards and `;` between masks, as the Windows dialogs do. `*.*` matches every file.
@@ -176,7 +193,7 @@ The insert disk dialog lists recently used images, offers a "Create new disk..."
 - **FR-032**: Picker mode MUST save, per kind of request, the last folder and the view (columns, sort, window size) between uses, separately from the file manager's saved state.
 - **FR-033**: A picker opened for a drive MUST use, the first time, a details view with file name, form factor, formatted size, file system and volume name columns, sorted by name, at a density suited to several hundred rows.
 - **FR-034**: A picker opened for a drive MUST state the receiving drive in its title or header, for example "Insert disk - Apple 3.5 Drive, slot 5 drive 1", and MUST state what is being listed, for example "400K and 800K images".
-- **FR-035**: The picker MUST start in the caller's starting folder; without one, in the last folder used for that kind of request; without that, in the emulator's disk folder.
+- **FR-035**: The picker MUST start in the caller's starting folder. Without one, a picker opened for a drive starts on the Casso node's list (FR-043), and any other picker starts in the last folder used for that kind of request, or the emulator's disk folder the first time.
 
 #### Columns
 
@@ -191,8 +208,17 @@ The insert disk dialog lists recently used images, offers a "Create new disk..."
 - **FR-041**: The Windows file pickers for 3.5-inch images (the drive bar, the desk drives and the drive context menu), for hard disk images in Settings, and for tapes MUST be replaced by the picker for the corresponding drive kind.
 - **FR-042**: The drive door animation and the confirmation before replacing a disk with unsaved inspector edits MUST work around the picker the way they work around the dialog today.
 
-### Key Entities
+#### The Casso node's list, new disks and stock disks
 
+- **FR-043**: Selecting the Casso node MUST list every image in the folders under it as one list, with a folder column, in the file manager and in the picker.
+- **FR-044**: That list's default sort MUST be most recently used first: images with a load time from the recent list, newest first, then the images never loaded, by name. A "Last used" column MUST report the load time and be sortable.
+- **FR-045**: The list MUST be built without blocking the window, MUST skip folders that are missing or unreadable, and MUST list an image once when two listed folders overlap.
+- **FR-046**: In a picker opened for a floppy drive or a hard disk, a "Create new disk..." command MUST run the existing create flow, limited to the kinds of disk the drive accepts, and MUST return the new image as the pick.
+- **FR-047**: In a picker opened for the recorder, a "New blank tape" command MUST create a blank tape and return it as the pick.
+- **FR-048**: In a picker opened for a drive, the stock system disks that the drive accepts MUST be offered, marked as stock disks, whether downloaded or not. Picking one that is not downloaded MUST download it with the consent step the old dialog had, then return it as the pick.
+- **FR-049**: An insert through the picker MUST update the recent list and the Casso node's folders exactly as an insert through the old dialog did.
+
+### Key Entities
 - **Image classification**: what one file is: not an image, an unclassified image, or an image with a form factor and a formatted size.
 - **Drive kind**: the kinds of receiving drive: Disk II and //c 5.25-inch drives, Apple 3.5 Drive, //c Plus drive, UniDisk 3.5, HD20SC, ProFile, and the recorder.
 - **Drive rule**: the table from drive kind and classification to accepted or not.
@@ -216,11 +242,11 @@ The insert disk dialog lists recently used images, offers a "Create new disk..."
 
 ## Assumptions
 
-- The picker opens a file. A file-save variant and a folder variant are out of scope unless the answer to FR-021 includes them.
+- The picker opens a file. A file-save variant and a folder variant are out of scope. The contract is modeled on the Windows open dialog so a save variant can be added later without changing callers.
 - One file is picked at a time; multi-select is not offered.
 - The picker lists folders and files. It does not browse into an image or an archive to pick something inside, although the preview of the selected image is available.
-- An "All files" filter entry passed by a caller for a drive-scoped request widens the masks only. The drive rule applies regardless, subject to FR-012.
+- An "All files" filter entry passed by a caller for a drive-scoped request widens the masks only. The drive rule applies regardless.
 - Hidden files, natural sort order and locale formatting follow the file manager's existing behavior.
-- How the emulator hosts or starts Casso Explorer in picker mode, in the emulator's process or as a separate one, and how the result returns, are design decisions for the plan. Either way FR-031 applies.
+- The picker runs inside the emulator's process as a modal window of the emulator, unless the plan finds a reason against it. It is not the user's running Casso Explorer and has no access to that window or its session. FR-031 applies either way.
 - This work is cut from `048-smartport-drives` and merges 048 again before it lands, so 048's drive kinds and Casso Explorer from 033 are both present.
 - Command-line mounting (`--disk1` and related options) is outside the picker, but uses the drive rule through the mount commands (FR-008).

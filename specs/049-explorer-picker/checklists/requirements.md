@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -32,5 +32,5 @@
 ## Notes
 
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
-- Open markers: User Story 5 (recent images, "Create new disk...", stock disk downloads, blank tape), FR-012 (listing an image the rule excludes), FR-021 (which requests go to the picker).
-- User Story 5 has no acceptance scenarios until its marker is resolved.
+- Resolved 2026-11-14 by the owner: the old dialog's extras move into the picker, and recent images are the Casso node's list, most recently used first (User Story 5, FR-043 to FR-049).
+- Assumed and awaiting the owner's confirmation: the rule is final (FR-012); only disk and tape image requests go to the picker, open only (FR-021); the picker runs in the emulator's process (Assumptions).
