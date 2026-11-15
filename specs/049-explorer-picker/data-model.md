@@ -13,7 +13,7 @@ What one file is.
 | `formattedBytes` | `uint64_t` | capacity of the medium; 0 for a tape |
 | `blockCount` | `uint32_t` | 512-byte blocks when the image is readable as blocks, else 0 |
 | `isBlockReadable` | `bool` | a block device can mount it: raw block, 2IMG ProDOS order, DiskCopy 4.2, 3.5-inch WOZ |
-| `container` | `ImageContainer` | `Raw`, `TwoImg`, `DiskCopy42`, `Woz`, `Nibble`, `Tape` |
+| `container` | `ImageLayout` | `Raw`, `TwoImg`, `DiskCopy42`, `Woz`, `Nibble`, `Tape` |
 
 Rules:
 - `status != Classified` implies `formFactor == None` and `formattedBytes == 0`.

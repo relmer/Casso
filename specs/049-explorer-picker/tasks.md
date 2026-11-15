@@ -30,7 +30,7 @@
 ## Phase 1: Setup
 
 - [x] T001 Confirm the fixtures are present by running `scripts\RunTests.ps1 -Build -Filter BlockDeviceMedia` and record the result; if the suite stops for missing ROMs, run `scripts\FetchRoms.ps1 -Fixtures` and `scripts\FetchCiderPressTestFiles.ps1 -Extract`
-- [ ] T002 Create the folder `CassoEmuCore/CassoExplorer/Picker/` and its filter entries in `CassoEmuCore/CassoEmuCore.vcxproj.filters`
+- [x] T002 Create the folder `CassoEmuCore/CassoExplorer/Picker/` and its filter entries in `CassoEmuCore/CassoEmuCore.vcxproj.filters`
 - [x] T003 [P] Verify (research.md R1): read `CassoEmuCore/Machines/Apple2/Common/WozLoader.cpp` `Describe` and record in `specs/049-explorer-picker/research.md` whether it returns the INFO disk type and side count from a 512-byte buffer; if it does not, add a task note that T010 factors the INFO read into a function both call
 - [x] T004 [P] Verify (research.md R1): list every extension accepted by `DiskImageStore::IsMountableImageExtension`, `BlockImageFile`, `BlockDeviceMedia` and `TapeImageLoader::IsTapeFileExtension` and record the list in `specs/049-explorer-picker/research.md`
 - [x] T005 [P] Verify (research.md R2): read `CassoEmuCore/Devices/Floppy35/UniDisk35Drive.cpp` and its wiring and record in `specs/049-explorer-picker/research.md` whether the UniDisk 3.5 mounts 400K images and 3.5-inch WOZ images, and the maximum block count each of the HD20SC and the ProFile mounts; if a finding contradicts FR-011 or FR-012, update spec.md before T013
@@ -45,18 +45,18 @@
 
 ### Tests
 
-- [ ] T008 [P] Write `UnitTest/Devices/ImageClassifierTests.cpp`: one case per row of research.md R1's table (WOZ 5.25, WOZ 3.5 one side and two sides, 2IMG ProDOS order, 2IMG DOS order, 2IMG nibble, DiskCopy 4.2 at 400K and 800K, `.nib` and `.nb2`, `.dsk` / `.do` / `.po` at 143,360 bytes, an 800K `.dsk`, a `.d13` (`NotAnImage`), raw 800 and 1,600 blocks, a raw hard disk size, a 100-block and a 2,880-block image as hard disks, each tape extension); a truncated `.dsk`, a zero-length `.po`, a WOZ with a damaged signature and a 2IMG with an inconsistent length are `Unclassified`; a `.txt` is `NotAnImage`; `status != Classified` implies `formFactor == None` and `formattedBytes == 0`; `FormatSize` returns "140K", "400K", "800K" and megabytes
-- [ ] T009 [P] Write `UnitTest/Devices/DriveImageRuleTests.cpp`: every cell of the table in contracts/drive-image-rule.md, an unclassified image fails every kind, a hard disk image one block over `maxBlocks` fails, a 100-block image passes for a hard disk, each floppy block count (280, 800, 1,600) fails for a hard disk, a 2,880-block image passes for a hard disk and fails for every floppy drive, and a sweep of every `DeskDriveModel` value through `DeskDrivePlan::GetReceivingKind`
+- [x] T008 [P] Write `UnitTest/Devices/ImageClassifierTests.cpp`: one case per row of research.md R1's table (WOZ 5.25, WOZ 3.5 one side and two sides, 2IMG ProDOS order, 2IMG DOS order, 2IMG nibble, DiskCopy 4.2 at 400K and 800K, `.nib` and `.nb2`, `.dsk` / `.do` / `.po` at 143,360 bytes, an 800K `.dsk`, a `.d13` (`NotAnImage`), raw 800 and 1,600 blocks, a raw hard disk size, a 100-block and a 2,880-block image as hard disks, each tape extension); a truncated `.dsk`, a zero-length `.po`, a WOZ with a damaged signature and a 2IMG with an inconsistent length are `Unclassified`; a `.txt` is `NotAnImage`; `status != Classified` implies `formFactor == None` and `formattedBytes == 0`; `FormatSize` returns "140K", "400K", "800K" and megabytes
+- [x] T009 [P] Write `UnitTest/Devices/DriveImageRuleTests.cpp`: every cell of the table in contracts/drive-image-rule.md, an unclassified image fails every kind, a hard disk image one block over `maxBlocks` fails, a 100-block image passes for a hard disk, each floppy block count (280, 800, 1,600) fails for a hard disk, a 2,880-block image passes for a hard disk and fails for every floppy drive, and a sweep of every `DeskDriveModel` value through `DeskDrivePlan::GetReceivingKind`
 
 ### Implementation
 
-- [ ] T010 Add `ImageClass`, `ImageStatus`, `ImageFormFactor`, `ImageContainer` and `ImageClassifier` (`ClassifyHeader`, `Classify`, `FormatSize`, `FormatFormFactor`, `IsImageExtension`, `kHeadBytes = 512`) in `CassoEmuCore/Devices/Disk/ImageClassifier.h` and `.cpp` per contracts/image-classifier.md; floppy block counts come from `BlockDeviceMedia::IsFloppyBlockCount`
-- [ ] T011 Add an extension-sweep case to `UnitTest/Devices/ImageClassifierTests.cpp` asserting `IsImageExtension` is true for every extension in T004's list
-- [ ] T012 [P] Add `ImageClassCache` (key: path, length, modified time; thread-safe; no cap) in `CassoEmuCore/Devices/Disk/ImageClassCache.h` and `.cpp`, with `UnitTest/Devices/ImageClassCacheTests.cpp`: a hit, a replaced entry after a length change, and a replaced entry after a time change
-- [ ] T013 Add `ReceivingDriveKind`, `ReceivingDrive` and `DriveImageRule` (`Accepts`, `GetAcceptedText`) in `CassoEmuCore/Devices/Disk/DriveImageRule.h` and `.cpp` per contracts/drive-image-rule.md, using T005's finding for `UniDisk35`
-- [ ] T014 Add `DeskDrivePlan::GetReceivingKind (DeskDriveModel)` in `CassoEmuCore/Ui/Scene/DeskDrivePlan.h` and `.cpp`, as a switch with no `default:` arm
-- [ ] T015 Write `UnitTest/BlockDeviceTests/DriveRuleMountAgreementTests.cpp`: for one in-memory fixture per image class and each device class (Disk II through `DiskImageStore`, `Sony35Drive`, the UniDisk 3.5, HD20SC and ProFile through `StorageCardWiring`, the tape loader), mount success for form factor and size equals `DriveImageRule::Accepts`; assert a non-zero count of pairings checked
-- [ ] T016 Stub `ClassifyHeader` to return a constant and `Accepts` to return true, confirm T008, T009 and T015 fail, restore, touch the restored files' timestamps, rebuild, and confirm they pass
+- [x] T010 Add `ImageClass`, `ImageStatus`, `ImageFormFactor`, `ImageContainer` and `ImageClassifier` (`ClassifyHeader`, `Classify`, `FormatSize`, `FormatFormFactor`, `IsImageExtension`, `kHeadBytes = 512`) in `CassoEmuCore/Devices/Disk/ImageClassifier.h` and `.cpp` per contracts/image-classifier.md; floppy block counts come from `BlockDeviceMedia::IsFloppyBlockCount`
+- [x] T011 Add an extension-sweep case to `UnitTest/Devices/ImageClassifierTests.cpp` asserting `IsImageExtension` is true for every extension in T004's list
+- [x] T012 [P] Add `ImageClassCache` (key: path, length, modified time; thread-safe; no cap) in `CassoEmuCore/Devices/Disk/ImageClassCache.h` and `.cpp`, with `UnitTest/Devices/ImageClassCacheTests.cpp`: a hit, a replaced entry after a length change, and a replaced entry after a time change
+- [x] T013 Add `ReceivingDriveKind`, `ReceivingDrive` and `DriveImageRule` (`Accepts`, `GetAcceptedText`) in `CassoEmuCore/Devices/Disk/DriveImageRule.h` and `.cpp` per contracts/drive-image-rule.md, using T005's finding for `UniDisk35`
+- [x] T014 Add `DeskDrivePlan::GetReceivingKind (DeskDriveModel)` in `CassoEmuCore/Ui/Scene/DeskDrivePlan.h` and `.cpp`, as a switch with no `default:` arm
+- [x] T015 Write `UnitTest/BlockDeviceTests/DriveRuleMountAgreementTests.cpp`: for one in-memory fixture per image class and each device class (Disk II through `DiskImageStore`, `Sony35Drive`, the UniDisk 3.5, HD20SC and ProFile through `StorageCardWiring`, the tape loader), mount success for form factor and size equals `DriveImageRule::Accepts`; assert a non-zero count of pairings checked
+- [x] T016 Stub `ClassifyHeader` to return a constant and `Accepts` to return true, confirm T008, T009 and T015 fail, restore, touch the restored files' timestamps, rebuild, and confirm they pass
 
 **Checkpoint**: classifier and rule tested; commit and push.
 
@@ -70,15 +70,15 @@
 
 ### Tests
 
-- [ ] T017 [P] [US3] Write `UnitTest/EmuTests/DropRuleTests.cpp`: `EmulatorShell::TryGetReceivingDrive` for tags 0 and 1, the tape tag, a desk extra at `ShellDeskScene::kExtraDropTagBase`, a drive bar entry at `kBarDropTagBase`, and a tag with no drive; `OnFileDropped` with an 800K image on tag 0 mounts nothing and ejects nothing; with a 140K image on tag 0 it mounts; a tape on a disk tag does nothing; a drop with no drive under it mounts in the existing target drive only when the rule accepts the image there (FR-018)
+- [x] T017 [P] [US3] Write `UnitTest/EmuTests/DropRuleTests.cpp`: `EmulatorShell::TryGetReceivingDrive` for tags 0 and 1, the tape tag, a desk extra at `ShellDeskScene::kExtraDropTagBase`, a drive bar entry at `kBarDropTagBase`, and a tag with no drive; `OnFileDropped` with an 800K image on tag 0 mounts nothing and ejects nothing; with a 140K image on tag 0 it mounts; a tape on a disk tag does nothing; a drop with no drive under it mounts in the existing target drive only when the rule accepts the image there (FR-018)
 
 ### Implementation
 
-- [ ] T018 [US3] Add `DriveAddress` (slot, drive, `isRecorder`, equality, conversion from `DeskDrive`) in `CassoEmuCore/Shell/Components/ShellDrivePickers.h` (the class itself is added in Phase 7)
-- [ ] T019 [US3] Add `EmulatorShell::TryGetReceivingDrive (int dropTag, ReceivingDrive & outDrive, DriveAddress & outAddress)` in `CassoEmuCore/Shell/EmulatorShell.h` and `CassoEmuCore/Shell/EmulatorShellStorage.cpp`, covering the tag ranges that `OnFileDropped` branches on today
-- [ ] T020 [US3] Rewrite `EmulatorShell::OnFileDropped` in `CassoEmuCore/Shell/EmulatorShellStorage.cpp` to classify the path, resolve the tag through `TryGetReceivingDrive`, return without a mount when `DriveImageRule::Accepts` is false, and mount by `DriveAddress` otherwise
-- [ ] T021 [US3] Pass an `OverFn` through `SetDataHandlers` in `ShellWindow::InstallDragDropTarget` (`CassoEmuCore/Shell/Components/ShellWindow.cpp`): one file only, classification cached per drag by path, `DROPEFFECT_COPY` when the rule accepts and `DROPEFFECT_NONE` otherwise, including several files and a file that is not an image (FR-019)
-- [ ] T022 [US3] Stub `TryGetReceivingDrive` to return false, confirm T017 fails, restore and confirm it passes
+- [x] T018 [US3] Add `DriveAddress` (slot, drive, `isRecorder`, equality, conversion from `DeskDrive`) in `CassoEmuCore/Shell/Components/ShellDrivePickers.h` (the class itself is added in Phase 7)
+- [x] T019 [US3] Add `EmulatorShell::TryGetReceivingDrive (int dropTag, ReceivingDrive & outDrive, DriveAddress & outAddress)` in `CassoEmuCore/Shell/EmulatorShell.h` and `CassoEmuCore/Shell/EmulatorShellStorage.cpp`, covering the tag ranges that `OnFileDropped` branches on today
+- [x] T020 [US3] Rewrite `EmulatorShell::OnFileDropped` in `CassoEmuCore/Shell/EmulatorShellStorage.cpp` to classify the path, resolve the tag through `TryGetReceivingDrive`, return without a mount when `DriveImageRule::Accepts` is false, and mount by `DriveAddress` otherwise
+- [x] T021 [US3] Pass an `OverFn` through `SetDataHandlers` in `ShellWindow::InstallDragDropTarget` (`CassoEmuCore/Shell/Components/ShellWindow.cpp`): one file only, classification cached per drag by path, `DROPEFFECT_COPY` when the rule accepts and `DROPEFFECT_NONE` otherwise, including several files and a file that is not an image (FR-019)
+- [x] T022 [US3] Stub `TryGetReceivingDrive` to return false, confirm T017 fails, restore and confirm it passes
 - [ ] T023 [US3] Window check per quickstart.md "Drops" with a test copy of the emulator: capture the cursor result over a Disk II and an Apple 3.5 Drive for a 140K and an 800K image, by posted drag where possible; record the result in `specs/049-explorer-picker/validation.md`
 
 **Checkpoint**: merge `origin/048-smartport-drives`, build, run `-Filter DropRule`; commit and push.
@@ -93,17 +93,17 @@
 
 ### Tests
 
-- [ ] T024 [P] [US2] Write `UnitTest/CassoExplorer/PickerColumnTests.cpp`: `FromHostEntry` fills `imageClass` for an image, and both column texts are empty for a file that is not one; sort by `FormattedSize` orders 140K, 400K, 800K, 5 MB, 32 MB by bytes; sort by `FormFactor` orders 5.25-inch, 3.5-inch, hard disk, tape; rows without a class sort after rows with one; folders sort ahead of files in both; column ids of every column that existed before equal the values in a table written into the test
+- [x] T024 [P] [US2] Write `UnitTest/CassoExplorer/PickerColumnTests.cpp`: `FromHostEntry` fills `imageClass` for an image, and both column texts are empty for a file that is not one; sort by `FormattedSize` orders 140K, 400K, 800K, 5 MB, 32 MB by bytes; sort by `FormFactor` orders 5.25-inch, 3.5-inch, hard disk, tape; rows without a class sort after rows with one; folders sort ahead of files in both; column ids of every column that existed before equal the values in a table written into the test
 - [ ] T025 [P] [US2] Write `UnitTest/CassoExplorer/ImageVolumeFactsTests.cpp`: file system and volume name for a DOS 3.3, a ProDOS, a Pascal and an HFS image from in-memory bytes; an unreadable volume has empty values and is not a failure; a cached entry is reused for the same path, length and time
 
 ### Implementation
 
-- [ ] T026 [US2] Append `FormFactor`, `FormattedSize` and `LastUsed` after `Sha256` in `CatalogModel::Column`, add `imageClass`, `lastUsedUnix`, `isStockDisk` and `stockDownloaded` to `CatalogRow`, and extend `GetColumnId`, `TryGetColumn`, `GetDefaultOrder`, `IsHiddenUntilChosen`, `Sort` and `IsBefore` in `CassoEmuCore/CassoExplorer/Model/CatalogModel.h` and `.cpp` per data-model.md
-- [ ] T027 [US2] Classify host files while a listing is built: call `ImageClassifier::Classify` through an `ImageClassCache` on the loader's thread in `CassoEmuCore/CassoExplorer/Browser/BrowserLoader.cpp` (or where `FromHostEntry` is called for a folder) and pass the class to `FromHostEntry`
-- [ ] T028 [US2] Add the column headings "Form factor", "Formatted size" and "Last used", their cell text and alignment in `CassoEmuCore/CassoExplorer/Browser/BrowserCells.cpp` and the header menu's list, and include the two columns' text where the file manager's search and column filtering read cell text (FR-038), with a case in `UnitTest/CassoExplorer/PickerColumnTests.cpp` that a search for "800K" finds an 800K image
+- [x] T026 [US2] Append `FormFactor`, `FormattedSize` and `LastUsed` after `Sha256` in `CatalogModel::Column`, add `imageClass`, `lastUsedUnix`, `isStockDisk` and `stockDownloaded` to `CatalogRow`, and extend `GetColumnId`, `TryGetColumn`, `GetDefaultOrder`, `IsHiddenUntilChosen`, `Sort` and `IsBefore` in `CassoEmuCore/CassoExplorer/Model/CatalogModel.h` and `.cpp` per data-model.md
+- [x] T027 [US2] Classify host files while a listing is built: call `ImageClassifier::Classify` through an `ImageClassCache` on the loader's thread in `CassoEmuCore/CassoExplorer/Browser/BrowserLoader.cpp` (or where `FromHostEntry` is called for a folder) and pass the class to `FromHostEntry`
+- [x] T028 [US2] Add the column headings "Form factor", "Formatted size" and "Last used", their cell text and alignment in `CassoEmuCore/CassoExplorer/Browser/BrowserCells.cpp` and the header menu's list, and include the two columns' text where the file manager's search and column filtering read cell text (FR-038), with a case in `UnitTest/CassoExplorer/PickerColumnTests.cpp` that a search for "800K" finds an 800K image
 - [ ] T029 [US2] Add `ImageVolumeFacts` (file system and volume name per image, a cache keyed like `ImageClassCache`, a worker modeled on `DiskThumbnailWorker` that reads the volume's directory header only) in `CassoEmuCore/CassoExplorer/Model/ImageVolumeFacts.h` and `.cpp`
 - [ ] T030 [US2] Make `FileSystem` and `VolumeName` available in folder listings: change `CatalogModel::IsCollectionColumn` so they are no longer collection-only, fill them from `ImageVolumeFacts` as results arrive, and repaint only the rows that changed, in `CassoEmuCore/CassoExplorer/Model/CatalogModel.cpp` and the list pane
-- [ ] T031 [US2] Stub the classification call in T027 to return `NotAnImage`, confirm T024 fails, restore and confirm it passes
+- [x] T031 [US2] Stub the classification call in T027 to return `NotAnImage`, confirm T024 fails, restore and confirm it passes
 - [ ] T032 [US2] Measure per quickstart.md "Performance" in a Release build with a folder of 500 generated images and record the three times in `specs/049-explorer-picker/validation.md`
 
 **Checkpoint**: run `-Filter PickerColumn` and `-Filter CassoExplorer`; commit and push.
@@ -118,16 +118,16 @@
 
 ### Tests
 
-- [ ] T033 [P] [US5] Extend the `DiskMru` tests in `UnitTest/EmuTests/` (the file T007 found): the list has 1,000 entries at most, the oldest is dropped at 1,001, `kMenuEntries` is 16, and a file with 16 entries written by the old format loads
-- [ ] T034 [P] [US5] Write `UnitTest/CassoExplorer/CassoImagesListingTests.cpp` over a fake `IDiskFileIo`: images of two folders in one list with `folderPath` set; no folder rows; a file that is not an image is absent; a path listed through two overlapping folders appears once; a missing folder is skipped and the rest is complete; default order is load time newest first, then never-loaded images by name; assert a non-zero row count before asserting over rows
+- [x] T033 [P] [US5] Extend the `DiskMru` tests in `UnitTest/EmuTests/` (the file T007 found): the list has 1,000 entries at most, the oldest is dropped at 1,001, `kMenuEntries` is 16, and a file with 16 entries written by the old format loads
+- [x] T034 [P] [US5] Write `UnitTest/CassoExplorer/CassoImagesListingTests.cpp` over a fake `IDiskFileIo`: images of two folders in one list with `folderPath` set; no folder rows; a file that is not an image is absent; a path listed through two overlapping folders appears once; a missing folder is skipped and the rest is complete; default order is load time newest first, then never-loaded images by name; assert a non-zero row count before asserting over rows
 
 ### Implementation
 
-- [ ] T035 [US5] Change `DiskMru::k_capacity` to 1,000 and add `kMenuEntries = 16` in `CassoEmuCore/Shell/DiskMru.h` and `.cpp`; limit each displaying reader T007 found to `kMenuEntries`; move the missing-file pruning in `WindowCommandManager::GetRecentMedia` off the per-open path, per research.md R9
-- [ ] T036 [US5] Add `CassoImagesListing` in `CassoEmuCore/CassoExplorer/Model/CassoImagesListing.h` and `.cpp` per research.md R8: folders from `KnownFolderStore`, files without recursion, classification through `ImageClassCache`, duplicates removed by full path, `lastUsedUnix` from the recent list
-- [ ] T037 [US5] List the root `TreeModel::kCassoRootId` through `CassoImagesListing` on the loader's thread in `CassoEmuCore/CassoExplorer/Model/BrowserModel.cpp`, with default sort `LastUsed` descending and the Folder and Last used columns in its default view; the tree's children are not changed
+- [x] T035 [US5] Change `DiskMru::k_capacity` to 1,000 and add `kMenuEntries = 16` in `CassoEmuCore/Shell/DiskMru.h` and `.cpp`; limit each displaying reader T007 found to `kMenuEntries`; move the missing-file pruning in `WindowCommandManager::GetRecentMedia` off the per-open path, per research.md R9
+- [x] T036 [US5] Add `CassoImagesListing` in `CassoEmuCore/CassoExplorer/Model/CassoImagesListing.h` and `.cpp` per research.md R8: folders from `KnownFolderStore`, files without recursion, classification through `ImageClassCache`, duplicates removed by full path, `lastUsedUnix` from the recent list
+- [x] T037 [US5] List the root `TreeModel::kCassoRootId` through `CassoImagesListing` on the loader's thread in `CassoEmuCore/CassoExplorer/Model/BrowserModel.cpp`, with default sort `LastUsed` descending and the Folder and Last used columns in its default view; the tree's children are not changed
 - [ ] T038 [US5] Remove the single-folder special case at `CassoEmuCore/CassoExplorer/CassoExplorerBrowser.cpp:1526` so the Casso node always lists images, and update `ExplorerTreePane::kCassoNodeTip` in `CassoEmuCore/CassoExplorer/Window/Panes/ExplorerTreePane.h` to "Disk and tape images in the folders Casso has opened images from, most recently used first" (owner approves the text before it is pushed)
-- [ ] T039 [US5] Stub `CassoImagesListing` to return no rows, confirm T034 fails, restore and confirm it passes
+- [x] T039 [US5] Stub `CassoImagesListing` to return no rows, confirm T034 fails, restore and confirm it passes
 
 **Checkpoint**: run `-Filter CassoImagesListing` and `-Filter DiskMru`; commit and push.
 
@@ -326,3 +326,16 @@ The feature ships whole. Phases are checkpoints for commits, pushes and merges o
 - A task that finds its assumption false stops and updates research.md and this file before code is written.
 - `specs/049-explorer-picker/validation.md` is created by the first task with a result to write.
 - `.specify/feature.json` is per-checkout state and is never committed.
+
+## Progress notes (2026-11-14, Phases 1 to 5)
+
+- T002: the projects have no `.vcxproj.filters` files, so there was nothing to add.
+- T015: `DriveRuleMountAgreementTests` is red until 048 makes an HD20SC or ProFile fail to mount a `.nib` file (455 blocks) and a raw file that isn't whole blocks; both were reported to the 048 session. A third mismatch, a 3.5-inch WOZ mounting in a Disk II, was fixed here (`MountFailure::WozNot525`).
+- T018: `DriveAddress` is in `Shell/DriveDropRule.h` with the drop tag rule, not in `ShellDrivePickers.h`.
+- T017: the tag decoding and which drives take drops are tested as `DriveDropRule`; `EmulatorShell::TryGetDropDrive` and `OnFileDropped` are the glue over it.
+- Hard disks take no drop and have no picker from the desk or the drive bar: in 048 a hard disk's image is set in Settings and attached when the machine is built. Their picker is the Settings form (Phase 9).
+- T023: an OLE drag can't be posted, so the drop cursor check is for the owner, or for the real pointer with the owner's OK.
+- T025, T029, T030 (file system and volume name in folder listings) are deferred pending the owner's decision at G1: each image has to be read whole and decoded, so filling them requires a worker and list refresh plumbing.
+- T032 (timing) is not measured yet; classification runs synchronously in the listing, through the cache.
+- T038: the Casso node's tip ("Folders Casso has opened disk images from, most recently used first") is about the node and its tree children, the folders, so it is accurate for the new list too. The single-folder special case at `CassoExplorerBrowser.cpp:1526` turned out to be a search's Up target, not the Casso node, so it was not changed either.
+- The classifier's layout enum is `ImageLayout`, since `ImageContainer` is an existing class. `isBlockReadable` was dropped: the UniDisk 3.5 and the Apple 3.5 Drive share one mechanism and accept the same images.
