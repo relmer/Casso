@@ -508,6 +508,7 @@
     <ClCompile Include="CassoExplorer\HostFileNamingTests.cpp" />
     <ClCompile Include="CassoExplorer\ContentSnifferTests.cpp" />
     <ClCompile Include="CassoExplorer\CatalogModelTests.cpp" />
+    <ClCompile Include="CassoExplorer\PickerColumnTests.cpp" />
     <ClCompile Include="CassoExplorer\ApplesoftVariablesTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewDecoderTests.cpp" />
     <ClCompile Include="CassoExplorer\DiskOperationsTests.cpp" />
@@ -610,6 +611,7 @@
     <ClCompile Include="Devices\Disk2ControllerIdleTests.cpp" />
     <ClCompile Include="Devices\DiskFieldFormatTests.cpp" />
     <ClCompile Include="Devices\ImageClassifierTests.cpp" />
+    <ClCompile Include="Devices\ImageClassCacheTests.cpp" />
     <ClCompile Include="Devices\DriveImageRuleTests.cpp" />
     <ClCompile Include="Devices\DiskMarkPatternTests.cpp" />
     <ClCompile Include="Devices\Disk2EventRingTests.cpp" />

@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/BrowserModel.h"
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/TypedPathHistory.h"
+#include "Devices/Disk/ImageClassCache.h"
 
 class CassoLinkConnections;
 class FilesystemChoices;
@@ -49,6 +50,7 @@ public:
     const TreeModel  & GetTreeModel    () const { return m_tree;  }
     BrowserModel     & GetBrowserModel ()       { return m_model; }
     DiskOperations   & GetOperations   ()       { return m_operations; }
+    ImageClassCache  & GetImageClasses ()       { return m_imageClasses; }
 
     //  The tree's roots, collapsed with children unloaded, and one node's
     //  children for the tree widget's provider.
@@ -427,6 +429,8 @@ private:
     void  SelectRowsByKeys (const std::vector<std::wstring> & names);
 
     IFileSystem                       & m_fs;
+    IDiskFileIo                       & m_fileIo;
+    ImageClassCache                     m_imageClasses;
     TreeModel                           m_tree;
     BrowserModel                        m_model;
     DiskOperations                      m_operations;

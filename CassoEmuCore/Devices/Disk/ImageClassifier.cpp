@@ -57,7 +57,7 @@ ImageClass ImageClassifier::ClassifyHeader (std::wstring_view extension, uint64_
 
     if (IsTapeExtension (extension))
     {
-        return MakeClassified (ImageFormFactor::Tape, ImageContainer::Tape, 0, 0);
+        return MakeClassified (ImageFormFactor::Tape, ImageLayout::Tape, 0, 0);
     }
 
     if (!IsImageExtension (extension))
@@ -329,7 +329,7 @@ bool ImageClassifier::HasSignature (std::span<const Byte> head, std::string_view
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ImageClass ImageClassifier::MakeClassified (ImageFormFactor formFactor, ImageContainer container, uint64_t formattedBytes, uint32_t blockCount)
+ImageClass ImageClassifier::MakeClassified (ImageFormFactor formFactor, ImageLayout layout, uint64_t formattedBytes, uint32_t blockCount)
 {
     ImageClass  result;
 
@@ -337,7 +337,7 @@ ImageClass ImageClassifier::MakeClassified (ImageFormFactor formFactor, ImageCon
 
     result.status         = ImageStatus::Classified;
     result.formFactor     = formFactor;
-    result.container      = container;
+    result.layout         = layout;
     result.formattedBytes = formattedBytes;
     result.blockCount     = blockCount;
 
@@ -397,7 +397,7 @@ ImageClass ImageClassifier::ClassifyWoz (std::span<const Byte> head)
 
     if (about.diskType == WozLoader::kDiskType525)
     {
-        return MakeClassified (ImageFormFactor::Floppy525, ImageContainer::Woz, k525Bytes, 0);
+        return MakeClassified (ImageFormFactor::Floppy525, ImageLayout::Woz, k525Bytes, 0);
     }
 
     if (about.diskType != WozLoader::kDiskType35)
@@ -408,7 +408,7 @@ ImageClass ImageClassifier::ClassifyWoz (std::span<const Byte> head)
     isOneSide = about.info.sides == 1;
     blocks    = isOneSide ? Gcr35Track::kBlocksOneSide : Gcr35Track::kBlocksTwoSides;
 
-    return MakeClassified (ImageFormFactor::Floppy35, ImageContainer::Woz, (uint64_t) blocks * BlockImageFile::kBlockBytes, blocks);
+    return MakeClassified (ImageFormFactor::Floppy35, ImageLayout::Woz, (uint64_t) blocks * BlockImageFile::kBlockBytes, blocks);
 }
 
 
@@ -439,12 +439,12 @@ ImageClass ImageClassifier::ClassifyTwoImg (uint64_t fileBytes, std::span<const 
 
     if (format == BlockImageFile::kTwoImgProDos)
     {
-        return ClassifyBlocks (ImageContainer::TwoImg, dataBytes);
+        return ClassifyBlocks (ImageLayout::TwoImg, dataBytes);
     }
 
     if ((format == BlockImageFile::kTwoImgDos && dataBytes == k525Bytes) || (format == BlockImageFile::kTwoImgNibble && dataBytes == kNibBytes))
     {
-        return MakeClassified (ImageFormFactor::Floppy525, ImageContainer::TwoImg, k525Bytes, 0);
+        return MakeClassified (ImageFormFactor::Floppy525, ImageLayout::TwoImg, k525Bytes, 0);
     }
 
     return MakeUnclassified();
@@ -468,7 +468,7 @@ ImageClass ImageClassifier::ClassifyDiskCopy (std::span<const Byte> head)
 
 
 
-    return ClassifyBlocks (ImageContainer::DiskCopy42, dataBytes);
+    return ClassifyBlocks (ImageLayout::DiskCopy42, dataBytes);
 }
 
 
@@ -491,7 +491,7 @@ ImageClass ImageClassifier::ClassifyNibble (uint64_t fileBytes)
         return MakeUnclassified();
     }
 
-    return MakeClassified (ImageFormFactor::Floppy525, ImageContainer::Nibble, k525Bytes, 0);
+    return MakeClassified (ImageFormFactor::Floppy525, ImageLayout::Nibble, k525Bytes, 0);
 }
 
 
@@ -516,10 +516,10 @@ ImageClass ImageClassifier::ClassifyRaw (std::wstring_view extension, uint64_t f
 
     if (fileBytes == k525Bytes && IsExtensionIn (extension, s_kSectorExtensions))
     {
-        return MakeClassified (ImageFormFactor::Floppy525, ImageContainer::Sector, k525Bytes, k525Blocks);
+        return MakeClassified (ImageFormFactor::Floppy525, ImageLayout::Sector, k525Bytes, k525Blocks);
     }
 
-    return ClassifyBlocks (ImageContainer::Raw, fileBytes);
+    return ClassifyBlocks (ImageLayout::Raw, fileBytes);
 }
 
 
@@ -532,7 +532,7 @@ ImageClass ImageClassifier::ClassifyRaw (std::wstring_view extension, uint64_t f
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ImageClass ImageClassifier::ClassifyBlocks (ImageContainer container, uint64_t dataBytes)
+ImageClass ImageClassifier::ClassifyBlocks (ImageLayout layout, uint64_t dataBytes)
 {
     constexpr uint64_t  kMaxBlocks = UINT32_MAX;
 
@@ -547,5 +547,5 @@ ImageClass ImageClassifier::ClassifyBlocks (ImageContainer container, uint64_t d
         return MakeUnclassified();
     }
 
-    return MakeClassified (GetBlockFormFactor ((uint32_t) blocks), container, dataBytes, (uint32_t) blocks);
+    return MakeClassified (GetBlockFormFactor ((uint32_t) blocks), layout, dataBytes, (uint32_t) blocks);
 }

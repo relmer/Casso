@@ -5,6 +5,7 @@
 #include "CassoExplorer/Model/SearchExpression.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/ImageClassifier.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
@@ -247,6 +248,9 @@ std::vector<DxuiListView::Column> BrowserCells::GetColumns()
     columns.push_back (DxuiListView::Column { L"Free space",    kForkColumnDip,     false, DxuiTextHAlign::Right });
     columns.push_back (DxuiListView::Column { L"CRC-32",        kForkColumnDip,     false, DxuiTextHAlign::Left  });
     columns.push_back (DxuiListView::Column { L"SHA-256",       kOriginalColumnDip, false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Form factor",   kTypeColumnDip,     false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Formatted size", kSizeColumnDip,    false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Last used",     kModifiedColumnDip, false, DxuiTextHAlign::Left  });
 
     return columns;
 }
@@ -396,6 +400,9 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
     cells.push_back (DxuiListView::Cell { row.collection.isDisk && !row.collection.fileSystem.empty() ? FormatSizeColumn (row.collection.freeBytes) : std::wstring(), false });
     cells.push_back (DxuiListView::Cell { row.collection.crc32, false });
     cells.push_back (DxuiListView::Cell { row.collection.sha256, false });
+    cells.push_back (DxuiListView::Cell { ImageClassifier::FormatFormFactor (row.imageClass), false });
+    cells.push_back (DxuiListView::Cell { ImageClassifier::FormatSize (row.imageClass), false });
+    cells.push_back (DxuiListView::Cell { (row.lastUsedUnix != 0) ? FormatModified (row.lastUsedUnix, false) : std::wstring(), false });
 
     if (icons != nullptr && !cells.empty())
     {

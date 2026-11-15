@@ -6,6 +6,7 @@
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/A2retroNetConfig.h"
+#include "Devices/Disk/ImageClassifier.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Devices/Tape/TapeImageLoader.h"
@@ -92,6 +93,16 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
 
         m_browser.m_rows.push_back (CatalogModel::FromHostEntry (entry, isImage, index));
         m_browser.m_rows.back().isArchive = !entry.isFolder && !isImage && m_browser.m_tree.IsArchive (CassoExplorerBrowser::JoinPath (path, entry.name));
+
+        //  An image's form factor and formatted size, from its first bytes, and
+        //  read once while its length and time stay the same.
+        if (!entry.isFolder && ImageClassifier::IsImageExtension (std::filesystem::path (entry.name).extension().wstring()))
+        {
+            m_browser.m_rows.back().imageClass = m_browser.m_imageClasses.Get (m_browser.m_fileIo,
+                                                                               TextEncoding::WideToUtf8 (CassoExplorerBrowser::JoinPath (path, entry.name)),
+                                                                               entry.sizeBytes,
+                                                                               entry.modifiedUnix);
+        }
 
         //  A folder is listed by the name in its desktop.ini, as in the tree,
         //  read only for a read-only or system folder on this computer.

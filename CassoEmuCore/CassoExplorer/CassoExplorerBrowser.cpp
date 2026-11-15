@@ -21,6 +21,7 @@
 
 CassoExplorerBrowser::CassoExplorerBrowser (IFileSystem & fs, IDiskFileIo & fileIo)
     : m_fs         (fs),
+      m_fileIo     (fileIo),
       m_tree       (fs),
       m_operations (fileIo)
 {

@@ -21,9 +21,9 @@
 
 bool DriveImageRule::Accepts (const ReceivingDrive & drive, const ImageClass & imageClass)
 {
-    ImageContainer  container = imageClass.container;
-    bool            isSector  = container == ImageContainer::Sector || container == ImageContainer::Nibble || container == ImageContainer::Woz;
-    bool            isBlocks  = container == ImageContainer::Raw || container == ImageContainer::TwoImg || container == ImageContainer::DiskCopy42;
+    ImageLayout  layout   = imageClass.layout;
+    bool         isSector = layout == ImageLayout::Sector || layout == ImageLayout::Nibble || layout == ImageLayout::Woz;
+    bool         isBlocks = layout == ImageLayout::Raw || layout == ImageLayout::TwoImg || layout == ImageLayout::DiskCopy42;
 
 
 

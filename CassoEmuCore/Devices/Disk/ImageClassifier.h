@@ -10,7 +10,7 @@ class IDiskFileIo;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ImageStatus, ImageFormFactor, ImageContainer
+//  ImageStatus, ImageFormFactor, ImageLayout
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +32,7 @@ enum class ImageFormFactor
 };
 
 
-enum class ImageContainer
+enum class ImageLayout
 {
     None,
     Sector,       // a 5.25-inch disk's sectors in DOS or ProDOS order: .dsk, .do, .po
@@ -62,7 +62,7 @@ struct ImageClass
 {
     ImageStatus      status         = ImageStatus::NotAnImage;
     ImageFormFactor  formFactor     = ImageFormFactor::None;
-    ImageContainer   container      = ImageContainer::None;
+    ImageLayout      layout         = ImageLayout::None;
     uint64_t         formattedBytes = 0;
     uint32_t         blockCount     = 0;
 
@@ -119,12 +119,12 @@ public:
 private:
     static bool        IsExtensionIn    (std::wstring_view extension, std::span<const wchar_t * const> list);
     static bool        HasSignature     (std::span<const Byte> head, std::string_view signature);
-    static ImageClass  MakeClassified   (ImageFormFactor formFactor, ImageContainer container, uint64_t formattedBytes, uint32_t blockCount);
+    static ImageClass  MakeClassified   (ImageFormFactor formFactor, ImageLayout layout, uint64_t formattedBytes, uint32_t blockCount);
     static ImageClass  MakeUnclassified ();
     static ImageClass  ClassifyWoz      (std::span<const Byte> head);
     static ImageClass  ClassifyTwoImg   (uint64_t fileBytes, std::span<const Byte> head);
     static ImageClass  ClassifyDiskCopy (std::span<const Byte> head);
     static ImageClass  ClassifyNibble   (uint64_t fileBytes);
     static ImageClass  ClassifyRaw      (std::wstring_view extension, uint64_t fileBytes);
-    static ImageClass  ClassifyBlocks   (ImageContainer container, uint64_t dataBytes);
+    static ImageClass  ClassifyBlocks   (ImageLayout layout, uint64_t dataBytes);
 };
