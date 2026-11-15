@@ -10,6 +10,10 @@
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Devices/Tape/TapeImageLoader.h"
+#include "Devices/Disk/DriveImageRule.h"
+#include "Devices/Disk/ImageClassifier.h"
+#include "Shell/DriveDropRule.h"
+#include "Core/TextEncoding.h"
 #include "Shell/TapeManager.h"
 #include "Core/JsonParser.h"
 #include "Core/PathResolver.h"
@@ -25,42 +29,121 @@
 //  EmulatorShell::OnFileDropped
 //
 //  A file dropped on a drive mounts there and one dropped on the recorder is
-//  inserted into it, but only the kind each takes: a tape dropped on a drive,
-//  or a disk on the recorder, is ignored rather than mounted somewhere it
-//  cannot be read.
+//  inserted into it, when DriveImageRule passes the image for that drive.
+//  Any other drop does nothing: no mount, no eject and no message, since the
+//  cursor over that drive was the no-drop cursor.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
 {
-    if (tag == ShellTapeDeck::kTapeDropTag)
-    {
-        if (TapeImageLoader::IsTapeFileExtension (path))
-        {
-            m_tapeDeck->InsertTape (path);
-        }
-    }
-    else if (tag >= ShellDeskScene::kBarDropTagBase)
-    {
-        const DriveBarFan  & fan   = m_chrome->m_driveBarFan.GetFan();
-        int                  c     = (tag - ShellDeskScene::kBarDropTagBase) / ShellDeskScene::kBarDropClassStride;
-        int                  entry = (tag - ShellDeskScene::kBarDropTagBase) % ShellDeskScene::kBarDropClassStride;
+    HRESULT         hr       = S_OK;
+    ReceivingDrive  drive;
+    DriveAddress    address;
+    ImageClass      image    = ImageClassifier::Classify (m_machine.GetBlockMediaFileIo(), TextEncoding::WideToUtf8 (path));
+    bool            hasDrive = TryGetDropDrive (tag, drive, address);
+    bool            accepted = hasDrive && DriveImageRule::Accepts (drive, image);
 
 
 
-        if (entry < fan.GetEntryCount (c) && ShellDeskScene::IsFloppy35 (fan.GetDrive (c, entry)))
-        {
-            m_disks->Mount (fan.GetDrive (c, entry).slot, fan.GetDrive (c, entry).drive, path);
-        }
-    }
-    else if (tag >= ShellDeskScene::kExtraDropTagBase)
+    BAIL_OUT_IF (!accepted, S_OK);
+
+    if (address.isRecorder)
     {
-        m_scene->InsertInExtraDrive (tag - ShellDeskScene::kExtraDropTagBase, path);
+        m_tapeDeck->InsertTape (path);
     }
-    else if (IsSupportedDiskImageExtension (path))
+    else
     {
-        m_disks->Mount (6, tag, path);
+        hr = m_disks->Mount (address.slot, address.drive, path);
+        CHR (hr);
     }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::TryGetDropDrive
+//
+//  The drive under a drop tag: a Disk II drive, the recorder, or a drive on
+//  the desk or the drive bar that takes a disk while the machine runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::TryGetDropDrive (int tag, ReceivingDrive & outDrive, DriveAddress & outAddress)
+{
+    const DriveBarFan  & fan       = m_chrome->m_driveBarFan.GetFan();
+    int                  index     = 0;
+    int                  barClass  = 0;
+    int                  entry     = 0;
+    bool                 isExtra   = DriveDropRule::TryGetExtraIndex (tag, index);
+    bool                 isBar     = DriveDropRule::TryGetBarEntry (tag, barClass, entry);
+    const DeskDrive    * deskDrive = nullptr;
+
+
+
+    outDrive   = ReceivingDrive();
+    outAddress = DriveAddress();
+
+    if (DriveDropRule::IsRecorderTag (tag))
+    {
+        outDrive.kind         = ReceivingDriveKind::Recorder;
+        outAddress.isRecorder = true;
+        return true;
+    }
+
+    if (DriveDropRule::IsDiskIiTag (tag))
+    {
+        outDrive.kind    = ReceivingDriveKind::Floppy525;
+        outAddress.slot  = DriveDropRule::kDiskIiSlot;
+        outAddress.drive = tag;
+        return true;
+    }
+
+    if (isExtra && index < m_scene->m_deskScene.GetExtraCount())
+    {
+        deskDrive = &m_scene->m_deskScene.GetExtraDrive (index);
+    }
+    else if (isBar && barClass < fan.GetClassCount() && entry < fan.GetEntryCount (barClass))
+    {
+        deskDrive = &fan.GetDrive (barClass, entry);
+    }
+
+    if (deskDrive == nullptr)
+    {
+        return false;
+    }
+
+    outAddress.slot  = deskDrive->slot;
+    outAddress.drive = deskDrive->drive;
+
+    return DriveDropRule::TryGetReceivingDrive (deskDrive->model, outDrive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::IsDropAccepted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsDropAccepted (int tag, const ImageClass & image)
+{
+    ReceivingDrive  drive;
+    DriveAddress    address;
+    bool            hasDrive = TryGetDropDrive (tag, drive, address);
+
+
+
+    return hasDrive && DriveImageRule::Accepts (drive, image);
 }
 
 

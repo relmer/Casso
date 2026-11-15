@@ -182,6 +182,7 @@ void DxuiDragDropTarget::Shutdown()
     m_hitTester             = nullptr;
     m_drop                  = {};
     m_filter                = {};
+    m_tagFilter             = {};
     m_lastHitTag            = -1;
     m_fDragActive           = false;
     m_fDragHasSupportedFile = false;
@@ -494,7 +495,7 @@ STDMETHODIMP DxuiDragDropTarget::DragOver (
     m_allowed    = *pdwEffect;
     tag          = PickAtScreen (pt);
     m_lastHitTag = tag;
-    *pdwEffect   = (m_fDragHasSupportedFile && tag >= 0) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
+    *pdwEffect   = IsAcceptedAt (tag) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
 
     if (m_over && m_data != nullptr)
     {
@@ -670,10 +671,10 @@ STDMETHODIMP DxuiDragDropTarget::Drop (
 
     if (pdwEffect != nullptr)
     {
-        *pdwEffect = (m_fDragHasSupportedFile && tag >= 0) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
+        *pdwEffect = IsAcceptedAt (tag) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
     }
 
-    if (m_fDragHasSupportedFile && tag >= 0 && m_drop)
+    if (IsAcceptedAt (tag) && m_drop)
     {
         m_drop (tag, m_dragPath);
         m_fSuppressNextClick = true;   // swallow the post-drop WM_LBUTTONUP
@@ -755,4 +756,28 @@ int DxuiDragDropTarget::PickAtScreen (POINTL pt) const
     }
 
     return tag;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsAcceptedAt
+//
+//  Whether a drop on the widget with `tag` would be taken: the drag has a
+//  file the filter took, the pointer is over a widget, and the widget takes
+//  that file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDragDropTarget::IsAcceptedAt (int tag) const
+{
+    if (!m_fDragHasSupportedFile || tag < 0)
+    {
+        return false;
+    }
+
+    return !m_tagFilter || m_tagFilter (tag, m_dragPath);
 }

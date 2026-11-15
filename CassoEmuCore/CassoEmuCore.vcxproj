@@ -1179,6 +1179,7 @@
     <ClCompile Include="Shell\WindowCommandManager.cpp" />
     <ClCompile Include="Shell\WindowManager.cpp" />
     <ClCompile Include="Shell\DiskMru.cpp" />
+    <ClCompile Include="Shell\DriveDropRule.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
     <ClCompile Include="BuildInfo.cpp" />
     <ClCompile Include="CrtPostProcess.cpp" />
@@ -2103,6 +2104,7 @@
     <ClInclude Include="Ui\PrinterPanel.h" />
     <ClInclude Include="Ui\PrinterPaperView.h" />
     <ClInclude Include="Shell\DiskMru.h" />
+    <ClInclude Include="Shell\DriveDropRule.h" />
     <ClInclude Include="Shell\RepoCheckout.h" />
     <ClInclude Include="Shell\ClipboardManager.h" />
     <ClInclude Include="Shell\ScreenshotCapture.h" />

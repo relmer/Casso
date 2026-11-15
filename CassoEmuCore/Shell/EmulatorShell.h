@@ -29,6 +29,9 @@
 
 class ClipboardManager;
 struct DeskDrive;
+struct DriveAddress;
+struct ImageClass;
+struct ReceivingDrive;
 class DxuiHwndSource;
 class MachineBuilder;
 class MachineManager;
@@ -663,6 +666,11 @@ private:
 
     // A file dropped on a drive or the recorder.
     void    OnFileDropped      (int tag, const std::wstring & path);
+
+    // The drive under a drop tag, when it takes a disk while the machine
+    // runs, and whether it takes the image.
+    bool    TryGetDropDrive    (int tag, ReceivingDrive & outDrive, DriveAddress & outAddress);
+    bool    IsDropAccepted     (int tag, const ImageClass & image);
 
     // The operating system's pickers, behind their seam. The shell owns the
     // Win32 implementation; whoever needs to put one up asks for the
