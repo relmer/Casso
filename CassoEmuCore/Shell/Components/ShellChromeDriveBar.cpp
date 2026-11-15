@@ -5,6 +5,7 @@
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Layout/DriveLabel.h"
 #include "Ui/Chrome/DriveWidget.h"
 
 
@@ -178,7 +179,7 @@ void ShellChrome::SetDiskIiBarCaptions (bool onBar)
 
         if (onBar)
         {
-            widgets[(size_t) w].SetBarCaption (DriveBarFan::GetTitle (drive, false), DriveBarFan::GetDetail (model, 0, 0), s_kDriveBarCaptionDip);
+            widgets[(size_t) w].SetBarCaption (DriveLabel::GetTitle (drive, false), DriveLabel::GetDetail (model, 0, 0), s_kDriveBarCaptionDip);
         }
         else
         {
@@ -407,7 +408,7 @@ bool ShellChrome::AnimateDriveBarFan()
 //
 //  Each drive's two-line label, image name and busy lamp. The label is
 //  numbered with its ProDOS slot and drive when the class has two drives of
-//  that kind (DriveBarFan::GetTitle). Returns true when a label, name or lamp
+//  that kind (DriveLabel::GetTitle). Returns true when a label, name or lamp
 //  changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -443,8 +444,8 @@ bool ShellChrome::SyncDriveBarViews()
 
 
             view.diskII = drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c;
-            view.title  = DriveBarFan::GetTitle  (drive, kinds[drive.model] > 1);
-            view.detail = DriveBarFan::GetDetail (drive.model, m_shell.m_scene->GetDriveDiskBlocks (drive), m_shell.m_scene->GetDriveCapacityBlocks (drive));
+            view.title  = DriveLabel::GetTitle  (drive, kinds[drive.model] > 1);
+            view.detail = DriveLabel::GetDetail (drive.model, m_shell.m_scene->GetDriveDiskBlocks (drive), m_shell.m_scene->GetDriveCapacityBlocks (drive));
 
             if (!view.diskII)
             {

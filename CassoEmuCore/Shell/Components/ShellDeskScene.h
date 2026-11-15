@@ -84,6 +84,17 @@ public:
     std::string  GetDriveImagePath      (const DeskDrive & drive) const;
     uint32_t     GetDriveDiskBlocks     (const DeskDrive & drive) const;
     uint32_t     GetDriveCapacityBlocks (const DeskDrive & drive) const;
+    bool         IsDriveWriteProtected  (const DeskDrive & drive) const;
+
+    // A 3.5-inch drive's or hard disk's tip on the desk, for the drive at
+    // `extraIndex` among the desk's extra drives.
+    std::wstring GetExtraDriveTip       (int extraIndex) const;
+
+    // Whether the Disk II drives are in a stack on the desk, where a drive
+    // has no room under it for a label: each drive's label text is in its tip
+    // instead, as the other desk drives' is.
+    bool         AreDiskIiStacked       () const;
+    std::wstring GetDiskIiTip           (int drive) const;
 
     void         InsertInExtraDrive (int index, const std::wstring & path);
 

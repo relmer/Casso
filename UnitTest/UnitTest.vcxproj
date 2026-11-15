@@ -845,6 +845,7 @@
     <ClCompile Include="EmuTests\ShellKeyWiringTests.cpp" />
     <ClCompile Include="EmuTests\DriveRowLayoutTests.cpp" />
     <ClCompile Include="EmuTests\DriveBarFanTests.cpp" />
+    <ClCompile Include="EmuTests\DriveLabelTests.cpp" />
     <ClCompile Include="NetworkTests\FakeHostSocket.cpp" />
     <ClCompile Include="NetworkTests\FirewallCheckTests.cpp" />
     <ClCompile Include="NetworkTests\FirewallMonitorTests.cpp" />

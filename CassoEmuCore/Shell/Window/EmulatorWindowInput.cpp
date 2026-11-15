@@ -612,6 +612,34 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
             }
         }
 
+        // A 3.5-inch drive or hard disk on the desk, or a Disk II in a stack,
+        // has no name strip, so its case's tip has its name, its size and its
+        // image.
+        if (tip.empty() && DeskSceneActive() && !AreDrivesOnStrip())
+        {
+            const DeskSceneComposition  & comp = m_scene->m_deskScene.Composition();
+
+
+
+            for (int i = 0; i < comp.driveCount && i < 2 && m_scene->AreDiskIiStacked() && tip.empty(); i++)
+            {
+                if (PtInRect (&comp.driveRectPx[i], pointer))
+                {
+                    anchor = comp.driveRectPx[i];
+                    tip    = m_scene->GetDiskIiTip (i);
+                }
+            }
+
+            for (int i = 0; i < comp.extraCount && i < m_scene->m_deskScene.GetExtraCount() && tip.empty(); i++)
+            {
+                if (PtInRect (&comp.extraRectPx[i], pointer))
+                {
+                    anchor = comp.extraRectPx[i];
+                    tip    = m_scene->GetExtraDriveTip (i);
+                }
+            }
+        }
+
         if (tip.empty() && !DeskSceneActive() && wpDrive != nullptr)
         {
             std::wstring  imageName = std::filesystem::path (

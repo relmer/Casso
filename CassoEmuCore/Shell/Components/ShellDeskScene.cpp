@@ -74,6 +74,7 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Core/TextEncoding.h"
+#include "Shell/Layout/DriveLabel.h"
 
 
 
@@ -1522,7 +1523,7 @@ void ShellDeskScene::SyncSceneDriveLabels()
         RECT            iconHit  = {};
         bool            showIcon = false;
 
-        if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
+        if (visible && (onStrip || !AreDiskIiStacked()) && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
             name = std::filesystem::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, i)).filename().wstring();
 
@@ -2160,6 +2161,10 @@ bool ShellDeskScene::GetRecorderLabelAnchor (const DeskSceneComposition & comp, 
 //  small scene -- a narrow window, the fullscreen strip -- cannot run one
 //  name into the next. What no longer fits scrolls under the pointer.
 //
+//  Stacked drives on the desk have no labels under them, so they count for
+//  nothing here: their labels share one x, and counting them collapsed every
+//  label to its margin, leaving only a padlock visible.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int ShellDeskScene::GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp)
@@ -2172,7 +2177,7 @@ int ShellDeskScene::GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp)
 
 
 
-    for (int i = 0; i < comp.driveCount; i++)
+    for (int i = 0; i < comp.driveCount && (&comp == &m_stripComp || !AreDiskIiStacked()); i++)
     {
         centers.push_back ((float) comp.driveLabelPx[i].x);
     }
@@ -3686,6 +3691,139 @@ uint32_t ShellDeskScene::GetDriveCapacityBlocks (const DeskDrive & drive) const
     }
 
     return blocks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsDriveWriteProtected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsDriveWriteProtected (const DeskDrive & drive) const
+{
+    const MachineRefs  & refs      = m_shell.m_machine.GetRefs();
+    bool                 protect   = false;
+    Sony35Drive        * sony      = nullptr;
+
+
+
+    switch (drive.model)
+    {
+        case DeskDriveModel::HardDisk20SC:
+            for (AppleScsiCard * card : refs.scsiCards)
+            {
+                protect = protect || (card->GetSlot() == drive.slot && card->GetTarget (drive.drive).GetMedia().IsWriteProtected());
+            }
+
+            break;
+
+        case DeskDriveModel::ProFile:
+            for (ProFileCard * card : refs.proFileCards)
+            {
+                protect = protect || card->GetDrive().GetMedia().IsWriteProtected();
+            }
+
+            break;
+
+        case DeskDriveModel::UniDisk35:
+        case DeskDriveModel::Apple35Drive:
+        case DeskDriveModel::Apple35Plus:
+            sony    = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+            protect = sony != nullptr && sony->HasDisk() && sony->IsWriteProtected();
+            break;
+
+        default:
+            break;
+    }
+
+    return protect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetExtraDriveTip
+//
+//  The drive's two-line label, numbered as on the drive bar when the desk
+//  has two of its kind, then its image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ShellDeskScene::GetExtraDriveTip (int extraIndex) const
+{
+    const DeskDrive  & drive = m_deskScene.GetExtraDrive (extraIndex);
+    int                kind  = 0;
+    std::string        path  = GetDriveImagePath (drive);
+
+
+
+    for (int i = 0; i < m_deskScene.GetExtraCount(); i++)
+    {
+        kind += (m_deskScene.GetExtraDrive (i).model == drive.model) ? 1 : 0;
+    }
+
+    return DriveLabel::GetTip (DriveLabel::GetTitle (drive, kind > 1),
+                               DriveLabel::GetDetail (drive.model, GetDriveDiskBlocks (drive), GetDriveCapacityBlocks (drive)),
+                               path.empty() ? std::wstring() : fs::path (path).filename().wstring(),
+                               DeskDrivePlan::GetClass (drive.model) == DeskDriveClass::HardDisk,
+                               IsDriveWriteProtected (drive));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::AreDiskIiStacked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::AreDiskIiStacked() const
+{
+    bool  stacked = false;
+
+
+
+    for (const DeskDrivePlacement & placement : m_drivePlan)
+    {
+        bool  isDiskIi = placement.drive.model == DeskDriveModel::DiskII || placement.drive.model == DeskDriveModel::Disk2c;
+
+        stacked = stacked || (isDiskIi && (placement.spot == DeskDriveSpot::LeftStack || placement.spot == DeskDriveSpot::RightStack));
+    }
+
+    return stacked;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetDiskIiTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ShellDeskScene::GetDiskIiTip (int drive) const
+{
+    DeskDriveModel  model = m_deskSceneMachineIsC ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII;
+    std::string     path  = m_shell.m_machine.GetDiskStore().GetSourcePath (6, drive);
+
+
+
+    return DriveLabel::GetTip (DriveLabel::GetTitle ({ model, 6, drive }, false),
+                               DriveLabel::GetDetail (model, 0, 0),
+                               path.empty() ? std::wstring() : fs::path (path).filename().wstring(),
+                               false,
+                               m_shell.m_disks->GetDriveWidgetState()[(size_t) drive].writeProtect.Any());
 }
 
 

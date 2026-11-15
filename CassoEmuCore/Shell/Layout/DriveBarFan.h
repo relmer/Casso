@@ -42,16 +42,6 @@ public:
     //  Width of a row of `classCount` widgets.
     static int  GetRowWidth (int classCount, int slotWidthPx, int gapPx);
 
-    //  A drive's label, two lines: its name, and its form factor and
-    //  capacity. A Disk II is numbered as DOS numbers it; an HD20SC's has
-    //  its SCSI ID. A 3.5-inch drive or ProFile has its ProDOS slot and
-    //  drive added when `numbered`, for a class with two of the same kind.
-    //  `diskBlocks` is the mounted disk's or image's size, 0 for none;
-    //  `capacityBlocks` is a ProFile's fixed size.
-    static std::wstring  GetTitle   (const DeskDrive & drive, bool numbered);
-    static std::wstring  GetDetail  (DeskDriveModel model, uint32_t diskBlocks, uint32_t capacityBlocks);
-    static std::wstring  FormatSize (uint32_t blocks);
-
     //  Lays the widgets out in a row from (originX, rowTop) and each fan
     //  above its widget. `panelPadPx` is the box's margin round the drives,
     //  and `arrowPx` the extra room at the right of a box whose fan is closed
