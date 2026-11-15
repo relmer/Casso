@@ -584,10 +584,10 @@ TreeNode TreeModel::MakeRootNode (const std::wstring & id) const
         node.kind     = TreeNode::Kind::CassoLinkRoot;
         node.location = Location::MakeRoot (kCassoLinkRootId);
     }
-    else if (id == kStockDisksId)
+    else if (id == kStockDisksId || id == kDemoDisksId)
     {
         node.kind      = TreeNode::Kind::CassoRoot;
-        node.location  = Location::MakeRoot (kStockDisksId);
+        node.location  = Location::MakeRoot (id);
         node.canExpand = false;
     }
     else if (id == Location::kRecycleBinId)
@@ -872,6 +872,11 @@ std::wstring TreeModel::GetRootLabel (const std::wstring & id)
     if (id == kStockDisksId)
     {
         return L"Stock disks";
+    }
+
+    if (id == kDemoDisksId)
+    {
+        return L"Demo disks";
     }
 
     if (id == Location::kRecycleBinId)
@@ -1842,12 +1847,17 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     {
         hr = ListRoot (true, outNodes);
 
+        if (m_showDemoDisks)
+        {
+            outNodes.insert (outNodes.begin(), MakeRootNode (kDemoDisksId));
+        }
+
         if (m_showStockDisks)
         {
             outNodes.insert (outNodes.begin(), MakeRootNode (kStockDisksId));
         }
     }
-    else if (id == kStockDisksId)
+    else if (id == kStockDisksId || id == kDemoDisksId)
     {
         //  Nothing under it in the tree: the stock disks are in the list.
     }

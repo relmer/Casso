@@ -482,7 +482,8 @@ public:
     {
         Rig            rig;
         Rig            closing;
-        PickerRequest  request  = StartupDiskPicker::MakeRequest (L"Apple //e", { { L"ProDOS Users Disk", L"C:\\Stock\\ProDOS Users Disk.dsk", false } });
+        PickerRequest  request  = StartupDiskPicker::MakeRequest (L"Apple //e", { { L"ProDOS Users Disk", L"C:\\Stock\\ProDOS Users Disk.dsk", false } },
+                                                                  { { L"casso-rocks", L"C:\\Demos\\casso-rocks.dsk", true } });
         PickerRequest  copy     = request;
         PickerOutcome  outcome;
         PickerOutcome  closed;
@@ -494,6 +495,7 @@ public:
         Assert::AreEqual (std::wstring (L"Choose a boot disk - Apple //e"), request.title);
         Assert::AreEqual (std::wstring (StartupDiskPicker::kViewKey), request.viewKey);
         Assert::AreEqual ((size_t) 1, request.stockDisks.size());
+        Assert::AreEqual ((size_t) 1, request.demoDisks.size());
         Assert::IsTrue ((bool) request.onFetchStock);
 
         rig.app.picker  = &request;
@@ -515,4 +517,39 @@ public:
 
         Assert::IsTrue (closing.window.closed);
         Assert::IsFalse (closed.isConfirmed, L"closing quits Casso");
+    }
+
+
+    //  The stock disks and the demo disks are separate nodes, the stock
+    //  disks first, and neither lists the other's disks.
+    TEST_METHOD (Picker_StockAndDemoDisks_AreSeparateNodes)
+    {
+        Rig                    rig;
+        PickerRequest          request;
+        std::vector<TreeNode>  nodes;
+
+
+
+        request.form           = PickerForm::DriveWindow;
+        request.receivingDrive = ReceivingDrive { ReceivingDriveKind::Floppy525, 0 };
+        request.stockDisks     = { { L"DOS 3.3 System Master", L"C:\\Stock\\DOS 3.3 System Master.dsk", false } };
+        request.demoDisks      = { { L"casso-rocks", L"C:\\Demos\\casso-rocks.dsk", true }, { L"Sixies", L"C:\\Demos\\Sixies.dsk", true } };
+
+        rig.app.picker = &request;
+        rig.Open();
+
+        AssertSucceeded (rig.browser.GetTreeModel().GetChildren (TreeModel::kCassoRootId, nodes));
+        Assert::IsTrue (nodes.size() >= 2);
+        Assert::AreEqual (std::wstring (L"Stock disks"), nodes[0].label);
+        Assert::AreEqual (std::wstring (L"Demo disks"),  nodes[1].label);
+
+        rig.browser.NavigateToLocation (Location::MakeRoot (TreeModel::kStockDisksId));
+        Assert::AreEqual ((size_t) 1, rig.browser.GetRows().size());
+        Assert::AreEqual (std::wstring (L"DOS 3.3 System Master"), rig.browser.GetRows()[0].name);
+
+        rig.browser.NavigateToLocation (Location::MakeRoot (TreeModel::kDemoDisksId));
+        Assert::AreEqual ((size_t) 2, rig.browser.GetRows().size());
+
+        rig.browser.SetSelectedRows ({ 0 });
+        Assert::IsTrue (rig.parts->pickerMode.CanConfirm(), L"a demo disk is picked as a file");
     }};

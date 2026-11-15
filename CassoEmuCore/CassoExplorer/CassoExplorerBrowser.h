@@ -365,6 +365,7 @@ public:
 
     //  The rows of a picker's "Stock disks" node.
     void                    SetStockDisks        (std::vector<StockDiskRow> disks)  { m_stockDisks = std::move (disks); }
+    void                    SetDemoDisks         (std::vector<StockDiskRow> disks)  { m_demoDisks  = std::move (disks); }
     IDiskFileIo           & GetFileIo            ()                              { return m_fileIo; }
     size_t                  GetScopedOutCount    () const                        { return m_scopedOut; }
 
@@ -487,6 +488,7 @@ private:
     RowScopeFn                          m_rowScope;
     std::map<std::wstring, std::wstring>  m_mountedImages;   // by CassoImagesListing::MakePathKey
     std::vector<StockDiskRow>             m_stockDisks;
+    std::vector<StockDiskRow>             m_demoDisks;
     size_t                              m_scopedOut      = 0;
     bool                                m_cardOpenAllowed = false;
     FilesystemChoices                 * m_filesystemChoices = nullptr;

@@ -518,13 +518,13 @@ HRESULT BrowserLoader::LoadRoot (const std::wstring & id)
         m_browser.m_tree.SetLinks (m_browser.m_links->BuildTreeEntries());
     }
 
-    //  A picker's stock disks, which have no folder.
-    if (id == TreeModel::kStockDisksId)
+    //  A picker's stock disks and demo disks, which have no folder.
+    if (id == TreeModel::kStockDisksId || id == TreeModel::kDemoDisksId)
     {
         std::vector<CatalogRow>  stock;
 
         m_rootChildren.clear();
-        StockDisksListing::Build (m_browser.m_stockDisks, stock);
+        StockDisksListing::Build ((id == TreeModel::kStockDisksId) ? m_browser.m_stockDisks : m_browser.m_demoDisks, stock);
 
         for (CatalogRow & row : stock)
         {

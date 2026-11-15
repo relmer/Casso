@@ -134,12 +134,17 @@ DrivePickers::Hooks ShellDrivePickers::MakeHooks()
         };
     };
 
-    //  The DOS 3.3 and ProDOS masters and the disks bundled with Casso, each
-    //  listed for a drive that accepts it. A master is downloaded when it is
-    //  picked, as the old dialog's Download rows did.
-    hooks.getStockDisks = [this] (const PickerDrive & drive)
+    //  The DOS 3.3 and ProDOS masters, and apart from them the disks in the
+    //  Apple2\Demos folder, each listed for a drive that accepts it. A master
+    //  is downloaded when it is picked, as the old dialog's Download rows did.
+    hooks.getStockDisks = [] (const PickerDrive & drive)
     {
-        return StartupDiskPicker::GetStockDisks (m_shell.m_machine.GetBlockMediaFileIo(), drive.receiving);
+        return StartupDiskPicker::GetStockDisks (drive.receiving);
+    };
+
+    hooks.getDemoDisks = [this] (const PickerDrive & drive)
+    {
+        return StartupDiskPicker::GetDemoDisks (m_shell.m_machine.GetBlockMediaFileIo(), drive.receiving);
     };
 
     hooks.fetchStockDisk = [] (const std::wstring & path, std::wstring & outError)

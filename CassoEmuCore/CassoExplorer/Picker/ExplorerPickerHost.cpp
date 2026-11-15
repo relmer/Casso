@@ -97,11 +97,13 @@ void ExplorerPickerHost::Prepare (PickerRequest request, const std::string & the
     hr = store.Load (entries);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    //  Before the window lists the tree: the stock disks' node is the Casso
-    //  node's first child.
+    //  Before the window lists the tree: the stock disks' and demo disks'
+    //  nodes are the Casso node's first children.
     m_browser->GetTreeModel().SetCassoLinkShown (false);
     m_browser->GetTreeModel().SetStockDisksShown (!m_request.stockDisks.empty());
     m_browser->SetStockDisks (m_request.stockDisks);
+    m_browser->GetTreeModel().SetDemoDisksShown (!m_request.demoDisks.empty());
+    m_browser->SetDemoDisks (m_request.demoDisks);
     m_browser->GetTreeModel().SetKnownFolders (KnownFolderStore::ListRootFolders (m_fs, m_baseDir, entries));
     m_browser->SetRecentLoads ([this] () { return CassoImagesListing::LoadRecent (m_fs, m_baseDir); });
 }

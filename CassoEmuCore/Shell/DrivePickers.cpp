@@ -176,6 +176,11 @@ void DrivePickers::Open (const PickerDrive & drive)
         request.onFetchStock = m_hooks.fetchStockDisk;
     }
 
+    if (m_hooks.getDemoDisks)
+    {
+        request.demoDisks = m_hooks.getDemoDisks (drive);
+    }
+
     if (m_hooks.getMounted)
     {
         request.mounted = m_hooks.getMounted();

@@ -19,7 +19,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PickerRequest StartupDiskPicker::MakeRequest (const std::wstring & machineName, std::vector<StockDiskRow> stockDisks)
+PickerRequest StartupDiskPicker::MakeRequest (const std::wstring & machineName, std::vector<StockDiskRow> stockDisks, std::vector<StockDiskRow> demoDisks)
 {
     PickerRequest  request;
 
@@ -32,6 +32,7 @@ PickerRequest StartupDiskPicker::MakeRequest (const std::wstring & machineName, 
     request.viewKey        = kViewKey;
     request.filters        = { { L"Disk images", ImageClassifier::GetDiskMask() }, { L"All files", L"*.*" } };
     request.stockDisks     = std::move (stockDisks);
+    request.demoDisks      = std::move (demoDisks);
     request.onFetchStock   = &StartupDiskPicker::FetchStockDisk;
     request.confirmLabel   = L"Start";
     request.skipLabel      = L"Start without a disk";
@@ -47,16 +48,14 @@ PickerRequest StartupDiskPicker::MakeRequest (const std::wstring & machineName, 
 //
 //  StartupDiskPicker::GetStockDisks
 //
-//  The masters are 140K 5.25-inch disks. A bundled disk is classified from
-//  its file.
+//  The DOS 3.3 and ProDOS masters, which are 140K 5.25-inch disks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<StockDiskRow> StartupDiskPicker::GetStockDisks (IDiskFileIo & fileIo, const ReceivingDrive & drive)
+std::vector<StockDiskRow> StartupDiskPicker::GetStockDisks (const ReceivingDrive & drive)
 {
-    std::vector<StockDiskRow>    rows;
-    std::vector<DiskMru::Entry>  bundled;
-    ImageClass                   master;
+    std::vector<StockDiskRow>  rows;
+    ImageClass                 master;
 
 
 
@@ -75,6 +74,28 @@ std::vector<StockDiskRow> StartupDiskPicker::GetStockDisks (IDiskFileIo & fileIo
             rows.push_back (StockDiskRow { path.stem().wstring(), path.wstring(), AssetBootstrap::IsStockBootDiskCached (disk), master });
         }
     }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartupDiskPicker::GetDemoDisks
+//
+//  Each disk is classified from its file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<StockDiskRow> StartupDiskPicker::GetDemoDisks (IDiskFileIo & fileIo, const ReceivingDrive & drive)
+{
+    std::vector<StockDiskRow>    rows;
+    std::vector<DiskMru::Entry>  bundled;
+
+
 
     AssetBootstrap::AppendBundledDemoDisks (bundled, [] (const std::wstring & path) { return ImageClassifier::IsImageExtension (std::filesystem::path (path).extension().wstring()); });
 
@@ -155,7 +176,7 @@ HRESULT StartupDiskPicker::Run (HINSTANCE instance, HWND owner, const std::wstri
     outDiskPath.clear();
     outIsClosed = false;
 
-    host.Prepare (MakeRequest (machineName, GetStockDisks (fileIo, drive)), CassoExplorerPrefs::MapCassoTheme (activeTheme), owner, false);
+    host.Prepare (MakeRequest (machineName, GetStockDisks (drive), GetDemoDisks (fileIo, drive)), CassoExplorerPrefs::MapCassoTheme (activeTheme), owner, false);
 
     hr = host.RunModal (instance);
     CHR (hr);

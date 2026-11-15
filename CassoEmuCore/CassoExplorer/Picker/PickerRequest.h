@@ -81,6 +81,10 @@ struct PickerRequest
     //  is confirmed before its image is on the disk; false with the reason
     //  when it could not, which the picker reports.
     std::vector<StockDiskRow>      stockDisks;
+
+    //  The "Demo disks" node's rows: the disks that come with Casso in its
+    //  Apple2\Demos folder. With none the tree has no such node.
+    std::vector<StockDiskRow>      demoDisks;
     std::function<bool (const std::wstring & path, std::wstring & outError)>  onFetchStock;
 
     //  The confirm button's label in place of Insert, Open or Save; empty

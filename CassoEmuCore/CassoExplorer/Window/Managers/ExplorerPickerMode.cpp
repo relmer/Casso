@@ -47,6 +47,8 @@ void ExplorerPickerMode::Start()
     m_context.browser.SetMountedImages (m_context.app.picker->mounted);
     m_context.browser.SetStockDisks (m_context.app.picker->stockDisks);
     m_context.browser.GetTreeModel().SetStockDisksShown (!m_context.app.picker->stockDisks.empty());
+    m_context.browser.SetDemoDisks (m_context.app.picker->demoDisks);
+    m_context.browser.GetTreeModel().SetDemoDisksShown (!m_context.app.picker->demoDisks.empty());
 }
 
 
@@ -57,8 +59,9 @@ void ExplorerPickerMode::Start()
 //
 //  ExplorerPickerMode::TryGetRowFile
 //
-//  A file row of a folder on the disk, or of the Casso node's list or the
-//  stock disks' list, where each row has its file's path. A row inside a
+//  A file row of a folder on the disk, or of the Casso node's list, the
+//  stock disks' list or the demo disks' list, where each row has its
+//  file's path. A row inside a
 //  disk image is no file to pick.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,7 +71,7 @@ bool ExplorerPickerMode::TryGetRowFile (int row, std::wstring & outPath) const
     const std::vector<CatalogRow> &  rows     = m_context.browser.GetRows();
     Location                         location = m_context.browser.GetLocation();
     bool                             inFolder = location.kind == Location::Kind::HostFolder && !location.path.empty();
-    bool                             inCasso  = location.kind == Location::Kind::Root && (location.path == TreeModel::kCassoRootId || location.path == TreeModel::kStockDisksId);
+    bool                             inCasso  = location.kind == Location::Kind::Root && (location.path == TreeModel::kCassoRootId || location.path == TreeModel::kStockDisksId || location.path == TreeModel::kDemoDisksId);
 
 
 
