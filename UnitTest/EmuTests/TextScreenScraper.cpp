@@ -43,26 +43,28 @@ Word TextScreenScraper::GetRowBaseAddress (Word pageBase, int row)
 //
 //  Glyph
 //
-//  Maps a //e screen byte to a printable 7-bit character. Handles the
-//  three character regions (inverse $00-$3F, flashing $40-$7F, normal
-//  $80-$FF) by clearing bit 7 and folding the inverse-uppercase block
-//  into ASCII uppercase. Non-printable results collapse to '.'.
+//  Maps a //e screen byte to a printable 7-bit character. Normal $A0-$FF is
+//  ASCII with bit 7 set, and normal $80-$9F is a second copy of uppercase,
+//  which Apple Pascal writes. Inverse $00-$3F has uppercase at ASCII minus
+//  $40, and setting bit 6 folds it back; its punctuation, $20-$3F, comes
+//  back in the lowercase range ('`' for an inverse space), so a highlight
+//  stays visible in the scraped text. Non-printable results collapse to '.'.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 char TextScreenScraper::Glyph (Byte screenByte)
 {
-    constexpr Byte  kInverseUpper = 0x40;
-    constexpr Byte  kPrintableMin = 0x20;
-    constexpr Byte  kPrintableMax = 0x7E;
+    constexpr Byte  kInverseUpper  = 0x40;
+    constexpr Byte  kNormal        = 0x80;
+    constexpr Byte  kNormalSymbols = 0xA0;
+    constexpr Byte  kPrintableMin  = 0x20;
+    constexpr Byte  kPrintableMax  = 0x7E;
 
 
 
     Byte   ch = static_cast<Byte> (screenByte & 0x7F);
 
-    // The inverse block $00-$3F contains uppercase at ASCII minus $40, so
-    // setting bit 6 folds it back.
-    if (screenByte < kInverseUpper)
+    if (screenByte < kInverseUpper || (screenByte >= kNormal && screenByte < kNormalSymbols))
     {
         ch = static_cast<Byte> (ch | 0x40);
     }
