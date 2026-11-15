@@ -566,7 +566,7 @@ tomain: jmp main
 exitlink: sei
         cld
         jsr col40
-        bit lcase               ; the primary characters, as BASIC expects
+        bit lcase               ; the primary characters again, for BASIC
         bpl xlprim
         sta ALTCHAROFF
 xlprim:
