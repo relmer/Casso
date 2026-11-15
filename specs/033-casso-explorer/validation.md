@@ -997,11 +997,11 @@ emulator targets are that session's.
 | 2. The expanded preview | On Release: expanded on a hi-res picture, a step to the next file and back, and Escape back to the list with the selection as it was. `ExpandedPreview_StepsWithinHalfASecond` measures the steps |
 | 3. Disk list and Find duplicates | `CollectionScaleTests` |
 | 4. Tokenize and renumber | `GuestVisibleBasicToolsTests` and `BasicCorpusFixtureTests` |
-| 5. Wizardry and Infocom | `GameDataTests` |
+| 5. Wizardry and Infocom | `GameDataTests`. Checked against the games in Casso 2026-11-14: `WizardryI_ACharacterMadeInTheGame_DecodesAsItsSheet` creates a fighter in Wizardry I and decodes the saved SCENARIO.DATA as the game's character sheet has it, and the Zork I tests boot the story to the room the decoded story opens in and decode a save made in the game |
 
 ### Findings left open
 
-T751 to T757 and T759 were fixed 2026-11-14. T758 is open.
+T751 to T759 were fixed 2026-11-14.
 
 - Bold and italic runs overlap the text after them in an AppleWorks or Teach
   document's preview (T751).
