@@ -92,7 +92,7 @@ public:
     //  fails at once, with kFullSendBusy, and has isBlocked set.
     bool  IsFullSendRunning () const;
 
-    static constexpr const char *  kFullSendBusy = "Full Send is using the drives until it ends.";
+    static constexpr const char *  kFullSendBusy = "Full Send is using the drives. Try again when you're finished.";
 
     //  The Apple's model, as its program reported it on connecting; empty
     //  before then.
