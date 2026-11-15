@@ -1514,6 +1514,32 @@ public:
 
 
 
+    //  A history line longer than the Apple's line has the image's name cut
+    //  short, so the drive is drawn; a line with no name in it is cut at
+    //  the end; a line that fits is as it is.
+    TEST_METHOD (FitToApple_CutsTheNameShort_SoTheDriveIsDrawn)
+    {
+        LinkOperation  operation;
+        std::string    line;
+
+        operation.kind      = LinkOperationKind::WriteDisk;
+        operation.drive     = 2;
+        operation.imagePath = "C:\\Disks\\DOS 3.3 System Master.dsk";
+
+        line = CassoLinkSession::FitToApple (operation, "OK " + CassoLinkSession::DescribeOperation (operation, std::nullopt, true), CassoLinkCodec::kLogLength);
+        Assert::AreEqual (std::string ("OK Wrote image DOS 3.3 Sy... to D2"), line);
+        Assert::AreEqual (CassoLinkCodec::kLogLength, line.size());
+
+        line = CassoLinkSession::FitToApple (operation, "OK Wrote image GAMES.DSK to D2", CassoLinkCodec::kLogLength);
+        Assert::AreEqual (std::string ("OK Wrote image GAMES.DSK to D2"), line, L"a line that fits");
+
+        operation.imagePath.clear();
+        line = CassoLinkSession::FitToApple (operation, "ERR The Apple stopped answering in the middle", CassoLinkCodec::kLogLength);
+        Assert::AreEqual (std::string ("ERR The Apple stopped answering..."), line);
+    }
+
+
+
     //  A krunch that the program stops because the directory isn't the one
     //  the host checked is ERROR_MEDIA_CHANGED.
     TEST_METHOD (FromStatusError_ADirectoryChanged_IsTheMediaChanged)
