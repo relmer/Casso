@@ -3570,8 +3570,9 @@ release (Delivery). The first release MUST NOT depend on them.
   chain that loops or doesn't end, a file whose sectors reachable by its chain
   differ by more than one from its catalog count, a sector a file uses that
   the bitmap marks free, a sector two files use, a VTOC or volume directory
-  that couldn't be read, a file that is one repeated byte throughout, or an
-  image almost all blank); Suspect for a finding that is only worth a look;
+  that couldn't be read, or an image almost all blank); Suspect for a finding
+  that is only worth a look, such as a file that is one repeated byte
+  throughout;
   OK for none; and "No standard file system" for a disk with none. The verdict
   MUST be drawn with the File map and in the summary, and returned by
   `CassoCli disk test`.

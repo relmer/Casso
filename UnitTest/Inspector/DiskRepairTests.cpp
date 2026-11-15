@@ -575,7 +575,7 @@ public:
 
 
 
-    TEST_METHOD (AFileOfOneByteAndAnAlmostBlankImageAreDamage)
+    TEST_METHOD (AFileOfOneByteIsSuspectAndAnAlmostBlankImageIsDamage)
     {
         vector<Byte>  repeated = RepairFixtures::MakeDos33();
         vector<Byte>  blank    = Images::MakeDos33();
@@ -592,7 +592,7 @@ public:
 
         Analyze (repeated, false, repeatedAnalysis);
         Assert::IsTrue (HasKind (repeatedAnalysis, FindingKind::FileRepeatedByte));
-        Assert::IsTrue (repeatedAnalysis.verdict == FileSystemVerdict::Bad);
+        Assert::IsTrue (repeatedAnalysis.verdict == FileSystemVerdict::Suspect);
 
         //  Every file's data sectors zeroed: only the VTOC, the catalog and
         //  the lists aren't blank.

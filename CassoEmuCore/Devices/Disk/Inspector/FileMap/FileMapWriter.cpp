@@ -449,9 +449,10 @@ void FileMapWriter::SettleFiles()
 //  FileMapWriter::CheckRepeatedBytes
 //
 //  A file whose data is one byte value throughout, up to the size in its
-//  entry on ProDOS and Apple Pascal, is damage: a capture that read nothing produces such a
-//  file. A file with less than a sector of data to compare, or with a
-//  sector that can't be read, isn't checked.
+//  entry on ProDOS and Apple Pascal, is worth a look: a capture that read
+//  nothing produces such a file, and so does a saved black screen. A file
+//  with less than a sector of data to compare, or with a sector that can't
+//  be read, isn't checked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -850,8 +851,8 @@ int FileMapWriter::CountBad (const MappedFile & file) const
 //
 //  Damage makes a volume Bad: a link off the volume, a loop, a sector two
 //  files use or a file uses that the bitmap marks free, a count that
-//  disagrees, a header or directory that can't be read, a file of one
-//  repeated byte or an image almost blank. A finding that is only
+//  disagrees, a header or directory that can't be read, or an image almost
+//  blank. A file of one repeated byte is worth a look. A finding that is only
 //  worth a look makes it Suspect, and a note doesn't change the verdict.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -872,7 +873,6 @@ FindingWeight FileMapWriter::GetWeight (FindingKind kind)
         case FindingKind::PascalFileCountDiffers:
         case FindingKind::ProDosFileCountDiffers:
         case FindingKind::Dos33HeaderLost:
-        case FindingKind::FileRepeatedByte:
         case FindingKind::ImageAlmostBlank:
         case FindingKind::CpmExtentMissing:
         case FindingKind::CpmRecordsPastBlocks:
@@ -898,6 +898,7 @@ FindingWeight FileMapWriter::GetWeight (FindingKind kind)
         case FindingKind::ProDosParentPointer:
         case FindingKind::ProDosBitmapPastEnd:
         case FindingKind::ProDosNameInvalid:
+        case FindingKind::FileRepeatedByte:
         case FindingKind::PascalLastBytesInvalid:
         case FindingKind::PascalNameInvalid:
             weight = FindingWeight::Suspect;
