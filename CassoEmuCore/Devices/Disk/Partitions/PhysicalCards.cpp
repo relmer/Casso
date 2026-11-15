@@ -201,6 +201,7 @@ std::wstring PhysicalCards::MakePartitionImageName (const std::wstring & label, 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PhysicalCards::FormatCardLabel
