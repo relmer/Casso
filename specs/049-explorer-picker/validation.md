@@ -63,4 +63,4 @@ Test copies of Casso at `3a8b17f67`, each with `CASSO_PROFILE_DIR` set to a scra
 - //c Plus: no startup form, since the machine has no Disk II controller. The built-in 3.5-inch drive's picker listed the two 800K images and hid seven, and Insert closed it.
 - Insert tape: the picker was empty, with nine images hidden. New blank tape opened the modal Save as form in Documents\Casso Disks, and Cancel returned to the tape picker.
 - Not run: Casso Explorer's image requests. A test copy from this build uses the window class `CassoExplorerTestCopyWindow`, and another session's test copy with that class was running, so a launch would go to that copy.
-- Found: on a //c Plus the 3.5-inch drive's motor sound runs from launch with no disk inserted (code from 048, reported to that branch). The Size column of a stock disk that isn't downloaded yet reads "0 bytes".
+- Found: on a //c Plus the 3.5-inch drive's motor sound runs from launch with no disk inserted (code from 048, reported to that branch). The Size column of a stock disk that isn't downloaded yet read "0 bytes", and is now blank.

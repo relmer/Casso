@@ -306,7 +306,7 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCatalogPreviewCells (const Catal
     //  A folder has no size of its own, except in the Recycle Bin, which adds up
     //  what each deleted folder held, as Explorer shows; nor does a shell item
     //  that is not a file, such as a computer on the network.
-    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty()) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
+    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty()) || (row.isStockDisk && !row.stockDownloaded) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
 
     return cells;
 }
@@ -384,7 +384,7 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
     //  A folder has no size of its own, except in the Recycle Bin, which adds up
     //  what each deleted folder held, as Explorer shows; nor does a shell item
     //  that is not a file, such as a computer on the network.
-    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty() && row.sizeBytes == 0) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
+    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty() && row.sizeBytes == 0) || (row.isStockDisk && !row.stockDownloaded) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
     cells.push_back (DxuiListView::Cell { row.addressText, false });
     cells.push_back (DxuiListView::Cell { row.locked ? L"Yes" : L"", false });
     cells.push_back (DxuiListView::Cell { row.originalFolder, false });

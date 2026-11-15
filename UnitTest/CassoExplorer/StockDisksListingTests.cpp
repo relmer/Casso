@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "CassoExplorer/Browser/BrowserCells.h"
 #include "CassoExplorer/Model/StockDisksListing.h"
 #include "Devices/Disk/DriveImageRule.h"
 
@@ -56,6 +57,35 @@ public:
 
         Assert::IsTrue  (DriveImageRule::Accepts (ReceivingDrive { ReceivingDriveKind::Floppy525, 0 }, rows[0].imageClass));
         Assert::IsFalse (DriveImageRule::Accepts (ReceivingDrive { ReceivingDriveKind::Apple35, 0 }, rows[0].imageClass));
+    }
+
+
+
+    //  A stock disk that isn't downloaded has no file, so its Size cell is
+    //  blank; a downloaded one has its file's size.
+    TEST_METHOD (StockRowSize_IsBlankUntilDownloaded)
+    {
+        std::vector<CatalogRow>  rows;
+        std::wstring             blank;
+        std::wstring             downloaded;
+
+
+
+        StockDisksListing::Build ({ { L"ProDOS Users Disk", L"C:\\Stock\\ProDOS Users Disk.dsk", false },
+                                    { L"DOS 3.3 System Master", L"C:\\Stock\\DOS 3.3 System Master.dsk", true } }, rows);
+
+        for (const DxuiListView::Cell & cell : BrowserCells::ToCells (rows[0]))
+        {
+            blank += cell.text + L"|";
+        }
+
+        for (const DxuiListView::Cell & cell : BrowserCells::ToCells (rows[1]))
+        {
+            downloaded += cell.text + L"|";
+        }
+
+        Assert::AreEqual (std::wstring::npos, blank.find (BrowserCells::FormatSizeColumn (0)), blank.c_str());
+        Assert::AreNotEqual (std::wstring::npos, downloaded.find (BrowserCells::FormatSizeColumn (rows[1].sizeBytes)), downloaded.c_str());
     }
 
 
