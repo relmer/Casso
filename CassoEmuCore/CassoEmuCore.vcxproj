@@ -358,6 +358,7 @@
     <ClCompile Include="Devices\Disk\MountDiagnosis.cpp" />
     <ClCompile Include="Machines\Apple2\Common\NibbleImageCodec.cpp" />
     <ClCompile Include="Machines\Apple2\Common\NibblizationLayer.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\TrackLayoutWriter.cpp" />
     <ClCompile Include="Machines\Apple2\Common\SectorDecodeReport.cpp" />
     <ClCompile Include="Machines\Apple2\Common\TrackWritability.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VolumeIntegrityReport.cpp" />
@@ -1417,6 +1418,7 @@
     <ClInclude Include="Devices\Disk\MountDiagnosis.h" />
     <ClInclude Include="Machines\Apple2\Common\NibbleImageCodec.h" />
     <ClInclude Include="Machines\Apple2\Common\NibblizationLayer.h" />
+    <ClInclude Include="Machines\Apple2\Common\TrackLayoutWriter.h" />
     <ClInclude Include="Machines\Apple2\Common\SectorDecodeReport.h" />
     <ClInclude Include="Machines\Apple2\Common\TrackWritability.h" />
     <ClInclude Include="Machines\Apple2\Common\IVolume.h" />

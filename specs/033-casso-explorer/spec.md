@@ -641,6 +641,7 @@ hardware.
 - Q: When does Full Send capture a disk raw in place of a sector copy? -> A: When a condition checked in a Copy-protected disks section of the Full Send options turns up (owner, 2026-11-15): sectors that can't be read; a file system that isn't recognized, apart from a blank disk; a program outside the operating system that accesses the disk drive directly; boot code other than the DOS 3.3, ProDOS or Apple Pascal loader. A choice in the section either captures the disk raw or saves the sector copy marked likely copy-protected. Sectors marked in use that aren't part of any file aren't a condition: interrupted writes and stale free-space maps cause it on ordinary disks.
 - Q: Do those conditions switch a manual Create image to a raw capture? -> A: No (owner, 2026-11-15). The save dialog's file type is an explicit choice of container. When a condition turns up, a question after the copy offers a raw capture, in the owner's words: "This disk may be copy-protected and may not boot successfully as a .dsk image. Would you like to capture in raw mode, which is compatible with copy protection?" A Capture as submenu was considered and dropped: the save dialog's file types cover it.
 - Q: What happens to a disk whose address fields have a volume that a sector image can't reproduce? -> A: A separate rule, outside the copy protection section (owner, 2026-11-15): a volume other than 254, or other than a DOS 3.3 catalog's volume, is saved in a WOZ built from the sectors, without a raw capture. A sector image has no place for the volume.
+- Q: Which measurements make a WOZ built from a sector copy pass Wizardry I's check? -> A: Each track's sector-0 position, its bits in a turn and its nibbles in a turn, as measured on 2026-11-15 by building a WOZ from the sector image and the owner's raw capture, which boots to the title. Rotation alone fails, as Casso's standard layout has 2% fewer nibbles in a turn than the real disk and the counts come out 2.3% low. Wizardry accepts track lengths from 0.5% short to 1% long, and sector-0 offsets about 20 nibbles early to 40 late. A NIB has 6,656 nibbles in every track, 5% over the disk's, so NIB and NB2 aren't built to measurements.
 - Q: Is an image whose screen ends nearly blank booted? -> A: No, unclear. Wizardry's sector image ends on a blank screen with a cursor, with the drive stopped, and was judged booted.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -3659,12 +3660,13 @@ as they arrive.
   between tracks, so its sector image doesn't run either way (FR-293).
 - **FR-292**: A boot check whose final screen is blank apart from a few
   characters' worth of lit pixels MUST judge the image unclear, not booted.
-- **FR-293**: With WOZ, NIB or NB2 selected, a Full Send's sector pass and
-  Create image MUST measure each track's sector-0 rotation from the previous
-  track and the address fields' volume, and MUST build the image from the
-  sectors with both, so a title that measures the rotation between tracks,
-  as Wizardry I does, runs from it. With DSK, DO or PO selected, the copy is
-  a plain sector copy.
+- **FR-293**: With WOZ selected, a Full Send's sector pass and Create image
+  MUST measure each track's sector-0 rotation from the previous track, its
+  nibbles in one turn and the address fields' volume, and MUST build the
+  WOZ from the sectors to those measurements and the drive's bits in a turn,
+  so a title that measures the time between tracks, as Wizardry I does, runs
+  from it. With DSK, DO, PO, NIB or NB2 selected, the copy is a plain sector
+  copy: a NIB or NB2 has a fixed count of nibbles in a track.
 - **FR-294**: The Full Send options MUST have a Copy-protected disks section:
   a note that a copy-protected disk has to be captured raw, which is always
   a WOZ whatever image type is selected; a checkbox for each condition (sectors

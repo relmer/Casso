@@ -2124,7 +2124,7 @@ rename, move and copy an image and find its thumbnail on each.
 - [X] T782 [US43] Add the Copy-protected disks section to the Full Send options page in `CassoExplorerOptionsDialog.cpp` and its prefs, with the conditions and the choice of FR-294, and apply them in `FullSendSession` in place of the read-error test alone
 - [X] T783 [US43] Offer a raw capture after a manual Create image when a condition of FR-294 turns up (FR-295)
 - [ ] T784 [US43] Measure each track's sector-0 rotation from the previous track and the address fields' volume in the CassoLink program's sector pass, and return them in Status; bump `LinkProgram::kProgramVersion` (FR-293, FR-296)
-- [ ] T785 [US43] Build a WOZ, NIB or NB2 from a sector image with each track rotated by its measurement and with its volume, through `NibblizationLayer`, with a test that Wizardry I's measured counts come back from the built image (FR-293)
+- [X] T785 [US43] Build a WOZ from a sector image to each track's measured layout and volume (FR-293) Done 2026-11-15: `TrackLayoutWriter`, with `TrackLayoutWriterTests` and the scenario test `AWozBuiltToTheMeasuredLayouts_PassesWizardrysTrackCheck`, which boots past Wizardry I's check from the owner's files
 - [ ] T786 [US43] Save a disk with a volume a sector image can't reproduce as a built WOZ whatever image type is selected (FR-296), as a separate option outside the copy protection section
 - [ ] T787 [US43] On the owner's //c: Full Send the Wizardry I boot disk with WOZ selected and with DSK selected; the first runs past its title in Casso, the second is captured raw by the conditions
 - [ ] T788 [US43] Get the owner's approval of the Copy-protected disks section's text, the volume option's text and the Create image note
