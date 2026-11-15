@@ -36,7 +36,7 @@ BootMachine::BootMachine() :
 //  changes to the machine, such as a card added to a slot, aren't applied:
 //  the boot is of the machine as shipped.
 //
-//  Only the Disk II cards are kept in the slots. A boot needs nothing else,
+//  Every card but the Disk II is dropped from the slots: a boot uses no other,
 //  and a card this build can't make, such as one a newer build of Casso
 //  added to the JSON, or one whose ROM isn't installed, would fail the whole
 //  machine. A Mockingboard is left out too: a title that finds one can
@@ -109,7 +109,7 @@ HRESULT BootMachine::KeepDiskSlots (std::string & ioJson)
 
     for (const auto & [key, value] : root.GetObjectEntries())
     {
-        std::vector<JsonValue>  kept;
+        std::vector<JsonValue>  disks;
         std::string             device;
 
         if (key != "slots" || value.GetType() != JsonType::Array)
@@ -122,11 +122,11 @@ HRESULT BootMachine::KeepDiskSlots (std::string & ioJson)
         {
             if (value.GetArrayElement (at).HasString ("device", device) && device == "disk-ii")
             {
-                kept.push_back (value.GetArrayElement (at));
+                disks.push_back (value.GetArrayElement (at));
             }
         }
 
-        entries.emplace_back (key, JsonValue (std::move (kept)));
+        entries.emplace_back (key, JsonValue (std::move (disks)));
     }
 
     ioJson = JsonWriter::Write (JsonValue (std::move (entries)));

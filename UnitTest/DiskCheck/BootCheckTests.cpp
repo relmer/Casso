@@ -117,10 +117,10 @@ public:
                                    { "slot": 4, "device": "mockingboard-c" },
                                    { "slot": 5, "device": "liron-card", "rom": "Liron.rom" },
                                    { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" } ] })";
-        JsonValue       root;
-        JsonParseError  error;
-        const JsonValue * slots = nullptr;
-        std::string     device;
+        JsonValue          root;
+        JsonParseError     error;
+        const JsonValue  * slots = nullptr;
+        std::string        device;
 
 
 
@@ -131,6 +131,6 @@ public:
         Assert::AreEqual ((size_t) 1, slots->GetArraySize());
         Assert::IsTrue (slots->GetArrayElement (0).HasString ("device", device));
         Assert::AreEqual (std::string ("disk-ii"), device);
-        Assert::IsTrue (root.HasString ("name", device), L"The rest is kept");
+        Assert::IsTrue (root.HasString ("name", device), L"The other fields are as they were");
     }
 };
