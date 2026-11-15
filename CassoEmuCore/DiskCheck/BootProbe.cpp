@@ -74,6 +74,7 @@ HRESULT BootProbe::Probe (MachineHost & host, MachineBuilder & builder, const st
     ReadTextRows (host, trace.rows);
 
     trace.isTextMode = !host.GetSoftSwitchMirror().graphicsMode;
+    trace.isBlank    = IsBlank (trace.rows, trace.isTextMode, outReport.frame);
 
     outReport.rows       = trace.rows;
     outReport.isTextMode = trace.isTextMode;
@@ -228,6 +229,41 @@ bool BootProbe::IsStuck (const Trace & trace)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BootProbe::IsBlank
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BootProbe::IsBlank (const std::vector<std::string> & rows, bool isTextMode, const std::vector<uint32_t> & frame)
+{
+    std::string_view  prompts  = s_kPrompts;
+    int               chars    = 0;
+    bool              isPrompt = false;
+    size_t            lit      = 0;
+
+
+
+    for (const std::string & row : rows)
+    {
+        isPrompt = isPrompt || (!row.empty() && prompts.find (row[0]) != std::string_view::npos);
+        chars   += (int) std::count_if (row.begin(), row.end(), [] (char c) { return c != ' '; });
+    }
+
+    for (uint32_t pixel : frame)
+    {
+        bool  isLit = (pixel & 0xFF) > s_kLitLevel || ((pixel >> 8) & 0xFF) > s_kLitLevel || ((pixel >> 16) & 0xFF) > s_kLitLevel;
+
+        lit += isLit ? 1 : 0;
+    }
+
+    return isTextMode ? chars < s_kBlankChars && !isPrompt : lit * s_kBlankLitDivisor < frame.size();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BootProbe::Judge
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -275,6 +311,10 @@ BootVerdict BootProbe::Judge (const Trace & trace, const Limits & limits, std::s
     {
         verdict   = BootVerdict::DidNotBoot;
         outReason = "The program did not appear to be running valid code: it stopped in a short loop with no input or output.";
+    }
+    else if ((IsSettled (trace, limits) || IsHeadAtRest (trace, limits)) && trace.isBlank)
+    {
+        outReason = "The screen was nearly blank at the end of the boot. A failed copy-protection check often ends this way.";
     }
     else if (IsSettled (trace, limits))
     {

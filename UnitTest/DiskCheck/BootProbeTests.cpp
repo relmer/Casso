@@ -90,6 +90,12 @@ public:
         booted.loopBytes = { 0xAD, 0x00, 0xC0, 0x10, 0xFB };
         Assert::IsTrue (BootProbe::Judge (booted, limits, reason) == BootVerdict::Booted, L"A loop that reads the keyboard");
         booted.loopBytes.clear();
+
+        //  The same boot, ended on a nearly blank screen.
+        booted.isBlank = true;
+        Assert::IsTrue (BootProbe::Judge (booted, limits, reason) == BootVerdict::Unclear, L"A nearly blank screen at the end");
+        booted.isBlank = false;
+
         Assert::IsTrue (BootProbe::Judge (stuck, limits, reason) == BootVerdict::DidNotBoot, L"The screen never changed");
         Assert::IsTrue (BootProbe::Judge (loading, limits, reason) == BootVerdict::Unclear, L"The head was moving at the limit");
         Assert::IsTrue (BootProbe::Judge (running, limits, reason) == BootVerdict::Booted, L"The motor on and the head at rest at the limit");
@@ -101,6 +107,29 @@ public:
         Assert::IsFalse (reason.empty(), L"Each verdict has a reason");
 
         Assert::AreEqual ("did-not-boot", BootProbe::GetVerdictName (BootVerdict::DidNotBoot));
+    }
+
+    //  A text screen is blank with fewer than four characters and no prompt,
+    //  as the Wizardry I boot disk's sector image ends, with an ampersand in
+    //  the middle; a bare prompt is a boot to BASIC. A graphics screen is
+    //  blank with less than half a percent of its pixels lit.
+    TEST_METHOD (IsBlank_IsAFewCharactersWithNoPrompt_OrAFewLitPixels)
+    {
+        static constexpr uint32_t  kBlack = 0xFF000000;
+        static constexpr uint32_t  kWhite = 0xFFFFFFFF;
+        std::vector<uint32_t>      dark (1000, kBlack);
+        std::vector<uint32_t>      drawn (1000, kBlack);
+
+
+
+        std::fill_n (dark.begin(), 4, kWhite);
+        std::fill_n (drawn.begin(), 100, kWhite);
+
+        Assert::IsTrue  (BootProbe::IsBlank ({ "", "                     &" }, true, {}), L"An ampersand alone");
+        Assert::IsFalse (BootProbe::IsBlank ({ "]", "]" }, true, {}), L"A bare prompt");
+        Assert::IsFalse (BootProbe::IsBlank ({ "    DOS VERSION 3.3  SYSTEM MASTER" }, true, {}), L"A line of text");
+        Assert::IsTrue  (BootProbe::IsBlank ({}, false, dark), L"Four lit pixels in a thousand");
+        Assert::IsFalse (BootProbe::IsBlank ({}, false, drawn), L"A tenth of the pixels lit");
     }
 
     //  The DOS 3.3 System Master boots on an enhanced //e to a BASIC prompt:

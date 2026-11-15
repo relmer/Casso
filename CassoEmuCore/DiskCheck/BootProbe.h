@@ -93,6 +93,7 @@ public:
         int                       driveStarted = -1;
         std::vector<std::string>  rows;
         bool                      isTextMode   = true;
+        bool                      isBlank      = false;     // the screen at the end, by IsBlank
 
         //  The program counter at short intervals once the boot ended, and
         //  the memory from the lowest to the highest of them and of the
@@ -131,6 +132,12 @@ public:
     static bool         IsSettled    (const Trace & trace, const Limits & limits);
     static bool         IsHeadAtRest (const Trace & trace, const Limits & limits);
 
+    //  Whether the screen is nearly blank: a text screen with fewer than
+    //  s_kBlankChars characters and no row that begins with a prompt, or a
+    //  graphics screen with less than 1 / s_kBlankLitDivisor of its pixels
+    //  lit. A bare prompt is a boot to BASIC.
+    static bool         IsBlank      (const std::vector<std::string> & rows, bool isTextMode, const std::vector<uint32_t> & frame);
+
     //  The verdict as the manifest has it: booted, did-not-boot,
     //  not-bootable or unclear.
     static const char * GetVerdictName (BootVerdict verdict);
@@ -145,7 +152,11 @@ private:
     static uint64_t     HashFrame (const std::vector<uint32_t> & frame);
     static bool         HasRow    (const std::vector<std::string> & rows, std::string_view text);
 
-    static constexpr uint32_t  s_kTextArgb  = 0xFFFFFFFF;
-    static constexpr Word      s_kTextPage1 = 0x0400;
-    static constexpr Word      s_kTextPage2 = 0x0800;
+    static constexpr uint32_t  s_kTextArgb         = 0xFFFFFFFF;
+    static constexpr Word      s_kTextPage1        = 0x0400;
+    static constexpr Word      s_kTextPage2        = 0x0800;
+    static constexpr int       s_kBlankChars       = 4;
+    static constexpr size_t    s_kBlankLitDivisor  = 200;
+    static constexpr uint32_t  s_kLitLevel         = 0x40;     // a channel above this is lit
+    static constexpr char      s_kPrompts[]        = "]>*";
 };
