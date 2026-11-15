@@ -129,25 +129,34 @@ Error:
 //  time, by which a backup or a sync would take the image for a changed one.
 //  An empty PNG deletes both streams.
 //
+//  The times are set again only after a stream is written or deleted. A
+//  read-only file, or one on a drive with no streams, can't be written, and
+//  its times set again would be a change to the file: a folder that Casso
+//  Explorer watches would be loaded again, find the thumbnail, and try the
+//  streams again without end.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ThumbnailStore::WriteStreams (const std::filesystem::path & image, std::span<const Byte> png, const std::string & record)
 {
-    HRESULT                    hr       = S_OK;
-    WIN32_FILE_ATTRIBUTE_DATA  before   = {};
-    BOOL                       hasTimes = ::GetFileAttributesExW (image.c_str(), GetFileExInfoStandard, &before);
-    std::wstring               picture  = image.wstring() + kStreamName;
-    std::wstring               fields   = image.wstring() + kRecordStreamName;
-    HANDLE                     whole    = INVALID_HANDLE_VALUE;
+    HRESULT                    hr         = S_OK;
+    WIN32_FILE_ATTRIBUTE_DATA  before     = {};
+    BOOL                       hasTimes   = ::GetFileAttributesExW (image.c_str(), GetFileExInfoStandard, &before);
+    std::wstring               picture    = image.wstring() + kStreamName;
+    std::wstring               fields     = image.wstring() + kRecordStreamName;
+    HANDLE                     whole      = INVALID_HANDLE_VALUE;
+    bool                       isReadOnly = hasTimes && (before.dwFileAttributes & FILE_ATTRIBUTE_READONLY) != 0;
+    bool                       isTouched  = false;
 
 
 
     CBREx (hasTimes, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+    CBREx (!isReadOnly, HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED));
 
     if (png.empty())
     {
-        ::DeleteFileW (picture.c_str());
-        ::DeleteFileW (fields.c_str());
+        isTouched = ::DeleteFileW (picture.c_str()) != FALSE;
+        isTouched = ::DeleteFileW (fields.c_str()) != FALSE || isTouched;
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -159,14 +168,15 @@ HRESULT ThumbnailStore::WriteStreams (const std::filesystem::path & image, std::
 
         CBREx (file != INVALID_HANDLE_VALUE, HRESULT_FROM_WIN32 (::GetLastError()));
 
-        isDone = ::WriteFile (file, bytes.data(), (DWORD) bytes.size(), &written, nullptr) && written == (DWORD) bytes.size();
+        isTouched = true;
+        isDone    = ::WriteFile (file, bytes.data(), (DWORD) bytes.size(), &written, nullptr) && written == (DWORD) bytes.size();
         ::CloseHandle (file);
 
         CBREx (isDone, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
     }
 
 Error:
-    if (hasTimes)
+    if (isTouched)
     {
         whole = ::CreateFileW (image.c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     }

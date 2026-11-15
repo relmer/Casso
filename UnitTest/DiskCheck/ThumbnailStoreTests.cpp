@@ -307,4 +307,37 @@ public:
         AssertSucceeded (store.Find (rig.image, found, read, isUserSet));
         Assert::IsTrue (found.empty());
     }
+
+    //  A read-only image's streams can't be written: its thumbnail is found
+    //  in the cache, and nothing in its folder changes, as a change would load
+    //  a folder that Casso Explorer has open again, and Find would run again.
+    TEST_METHOD (AReadOnlyImage_IsFoundInTheCache_AndItsFolderDoesntChange)
+    {
+        Rig                rig;
+        ThumbnailStore     store (rig.root / L"cache");
+        std::vector<Byte>  png       = { 0x89, 'P', 'N', 'G', 5 };
+        std::vector<Byte>  found;
+        ThumbnailRecord    read;
+        bool               isUserSet = false;
+        HANDLE             changes   = INVALID_HANDLE_VALUE;
+        DWORD              waited    = 0;
+
+
+
+        ::SetFileAttributesW (rig.image.c_str(), FILE_ATTRIBUTE_READONLY);
+
+        AssertSucceeded (store.Store (rig.image, png, ThumbnailRecord()));
+
+        changes = ::FindFirstChangeNotificationW (rig.image.parent_path().c_str(), FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE);
+        Assert::IsTrue (changes != INVALID_HANDLE_VALUE);
+
+        AssertSucceeded (store.Find (rig.image, found, read, isUserSet));
+        waited = ::WaitForSingleObject (changes, 250);
+        ::FindCloseChangeNotification (changes);
+        ::SetFileAttributesW (rig.image.c_str(), FILE_ATTRIBUTE_NORMAL);
+
+        Assert::IsTrue (found == png, L"From the cache");
+        Assert::IsFalse (std::filesystem::exists (rig.GetStream (rig.image)));
+        Assert::AreEqual<DWORD> (WAIT_TIMEOUT, waited, L"Nothing in the folder changed");
+    }
 };
