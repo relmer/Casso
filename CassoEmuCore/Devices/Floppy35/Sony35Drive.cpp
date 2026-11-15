@@ -124,6 +124,14 @@ HRESULT Sony35Drive::Insert (IDiskFileIo & fileIo, const std::string & path, con
     m_dirty.clear();
     Emit (Floppy35Op::Insert);
 
+    //  A motor-on command latched while the drive was empty starts the
+    //  spindle now.
+    if (m_motorOn)
+    {
+        m_spinLeftNs = kSpinUpNs;
+        Emit (Floppy35Op::MotorOn);
+    }
+
     m_diskSwitched = true;
 
 Error:
@@ -162,6 +170,11 @@ HRESULT Sony35Drive::Eject()
     {
         hr = m_media.Detach();
         CHR (hr);
+    }
+
+    if (m_motorOn)
+    {
+        Emit (Floppy35Op::MotorOff);
     }
 
     m_tracks.clear();
@@ -495,7 +508,11 @@ void Sony35Drive::RunCommand (int command)
             {
                 m_motorOn    = true;
                 m_spinLeftNs = kSpinUpNs;
-                Emit (Floppy35Op::MotorOn);
+
+                if (HasDisk())
+                {
+                    Emit (Floppy35Op::MotorOn);
+                }
             }
 
             break;
@@ -508,7 +525,11 @@ void Sony35Drive::RunCommand (int command)
 
 
                 m_motorOn = false;
-                Emit (Floppy35Op::MotorOff);
+
+                if (HasDisk())
+                {
+                    Emit (Floppy35Op::MotorOff);
+                }
 
                 hr = Flush();
                 IGNORE_RETURN_VALUE (hr, S_OK);

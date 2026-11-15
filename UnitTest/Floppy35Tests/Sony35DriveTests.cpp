@@ -170,6 +170,44 @@ public:
     }
 
 
+    //  The operations a drive reports, in order.
+    struct EventLog : public IFloppy35EventSink
+    {
+        void  OnFloppy35Event (const Floppy35Event & event) override { ops.push_back (event.op); }
+
+        std::vector<Floppy35Op>  ops;
+    };
+
+
+    //  WITHOUT A DISK THE SPINDLE DOESN'T TURN: the motor-on command is
+    //  latched, and the register reads it, but the motor starts only when a
+    //  disk is in. An eject stops the motor before the disk comes out.
+    TEST_METHOD (Motor_TurnsOnlyWithADisk)
+    {
+        FakeDiskFileIo  io;
+        Sony35Drive     drive (0);
+        EventLog        log;
+
+
+
+        drive.SetFloppy35EventSink (&log);
+
+        Command (drive, kCmdMotorOn);
+        Assert::IsFalse (Sense (drive, kRegMotor), L"the command is latched");
+        Assert::IsFalse (drive.IsMotorOn(), L"an empty drive's spindle doesn't turn");
+        Assert::IsTrue (log.ops.empty(), L"no motor event for an empty drive");
+
+        Insert (io, drive, Gcr35Track::kBlocksTwoSides);
+        Assert::IsTrue (drive.IsMotorOn(), L"the latched command starts the motor once a disk is in");
+
+        Command (drive, kCmdEject);
+        drive.Advance (kSecondNs);
+
+        Assert::IsFalse (drive.IsMotorOn());
+        Assert::IsTrue (log.ops == std::vector<Floppy35Op> { Floppy35Op::Insert, Floppy35Op::MotorOn, Floppy35Op::MotorOff, Floppy35Op::Eject });
+    }
+
+
     TEST_METHOD (Step_MovesInAndOut)
     {
         Sony35Drive  drive (0);

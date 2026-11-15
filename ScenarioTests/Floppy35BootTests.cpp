@@ -390,6 +390,35 @@ public:
     }
 
 
+    //  A //C PLUS WITH NO DISK IS QUIET after ROM 05 reports that it can't find
+    //  a bootable disk: the motor-on commands of its startup don't turn an
+    //  empty drive's spindle, so the motors are stopped and there is no motor
+    //  sound.
+    TEST_METHOD (Apple2cPlus_EmptyDrivesStayStopped)
+    {
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  ports (2);
+
+
+
+        ports[0].name   = "internal";
+        ports[0].device = kpszApple35DriveDevice;
+        ports[1].name   = "disk";
+        ports[1].chain.resize (1);
+        ports[1].chain[0].device = kpszApple35DriveDevice;
+
+        TestMachine            machine ("Apple2cPlus", ports, io);
+        Apple2cPlusDiskPort  & port = *machine.GetRefs().apple2cPlusDiskPort;
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "UNABLE TO FIND A BOOTABLE DISK", kBootCap), L"ROM 05 reports that there is no bootable disk");
+        Assert::IsFalse (port.GetInternalDrive().IsMotorOn(), L"the internal drive's motor is stopped");
+        Assert::IsFalse (port.GetExternalDrive (0).IsMotorOn(), L"the Apple 3.5 Drive's motor is stopped");
+    }
+
+
     //  A 140K DISK IN A 5.25-INCH DRIVE at the end of the //c Plus's disk port
     //  chain boots with the internal drive empty: drive 1 returns nibbles
     //  with 3.5 select off, so ROM 05 runs the slot 6 firmware. The drive is

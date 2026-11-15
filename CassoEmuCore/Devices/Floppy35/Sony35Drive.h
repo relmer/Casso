@@ -28,7 +28,8 @@ class IDiskFileIo;
 //
 //  A command is the register index strobed by LSTRB, CA2 its value: $0 and
 //  $1 step direction in and out, $4 step, $8 and $9 motor on and off, $D
-//  eject. SEL is also the head.
+//  eject. SEL is also the head. The motor-on command is latched, and
+//  register $8 reads the latch; the spindle turns only while a disk is in.
 //
 //  The disk is a block image of 800K or 400K, its tracks built as GCR bit
 //  streams the first time the head is on them; a track written to is decoded
@@ -79,11 +80,11 @@ public:
 
     void      SetSel    (bool sel);
 
-    bool  IsMotorOn  () const { return m_motorOn; }
+    bool  IsMotorOn  () const { return m_motorOn && HasDisk(); }
 
     //  Nothing changes with time alone: the motor is off and no step or
     //  eject is under way.
-    bool  IsIdle     () const { return !m_motorOn && m_stepLeftNs == 0 && m_ejectLeftNs == 0; }
+    bool  IsIdle     () const { return !IsMotorOn() && m_stepLeftNs == 0 && m_ejectLeftNs == 0; }
     int   GetTrack   () const { return m_track; }
     int   GetSide    () const { return m_sel ? 1 : 0; }
 
