@@ -4,7 +4,6 @@
 
 #include "WindowCommandManager.h"
 
-#include "../AssetBootstrap.h"
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
@@ -25,7 +24,6 @@
 #include "../Shell/DiskMru.h"
 #include "../Ui/Dialogs/KeyboardMapText.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
-#include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PngCodec.h"
 #include "Devices/Printer/PrintDelivery.h"
@@ -40,8 +38,6 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Dialogs/AttributionsText.h"
-#include "Ui/Dialogs/CreateDiskDialog.h"
-#include "Ui/FileBrowseModel.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineManager.h"
@@ -1089,198 +1085,6 @@ void WindowCommandManager::OnViewCommand (int id)
             break;
         }
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CreateBlankDiskForDrive
-//
-//  The create-a-blank-disk flow: a themed save-style dialog over a
-//  FileBrowseModel picks the target; BlankDiskBuilder produces the image
-//  bytes; the file lands through the filesystem's atomic temp+rename write;
-//  and the standard Mount path takes it from there (drive widget, MRU,
-//  persistence, door choreography all behave as for any insert).
-//
-//  Every backing-out path -- cancel, refused target, replace declined --
-//  returns S_OK with no mount started, so the caller's door choreography
-//  restores the drive. A failed build or write reports the cause and leaves
-//  the prior mount and the host filesystem untouched (the atomic write can
-//  never leave a partial image).
-//
-//  The default folder is Documents\Casso Disks, created on demand; the
-//  dialog's model refuses any target currently mounted in a drive.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, const RECT * placeAtPx, bool & outMountStarted)
-{
-    HRESULT                    hr        = S_OK;
-    int                        choice    = IDYES;
-    bool                       occupied  = false;
-    std::wstring               folder;
-    std::wstring               message;
-    std::vector<std::wstring>  mountedPaths;
-    std::vector<int>           mountedDrives;
-    vector<Byte>               imageBytes;
-    std::string                imageContent;
-    BootPayload                payload;
-    FileBrowseModel            model;
-    CreateDiskDialog           dialog;
-    DxuiWindow::CreateParams   params;
-
-
-
-    outMountStarted = false;
-
-    folder = GetDiskCreateFolder();
-
-    // The model refuses a target that is currently mounted in any drive; the
-    // store's backing paths are UTF-8 and go wide through the same u8string
-    // interpretation the MRU uses.
-    for (const DiskImageStore::MountedSource & mounted : m_shell.m_machine.GetDiskStore().GetMountedSourcePaths())
-    {
-        std::u8string  u8 (reinterpret_cast<const char8_t *> (mounted.path.data()),
-                           mounted.path.size());
-
-        mountedPaths.push_back (std::filesystem::path (u8).wstring());
-        mountedDrives.push_back (mounted.drive);
-    }
-
-    model.Bind (&m_shell.m_settings->GetFileSystem());
-    model.SetExtensionFilter (L".woz");
-    model.SetMountedPaths (std::move (mountedPaths), std::move (mountedDrives));
-
-    hr = model.SetFolder (folder);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
-                              L"Could not open the disk folder.",
-                              L"Create new disk", MB_OK | MB_ICONERROR));
-
-    // Boot-payload plumbing: availability answers from the download cache;
-    // the download callback runs on the dialog's explicit button click.
-    dialog.Configure (&model, &m_shell.m_chrome->GetTheme(),
-        [] (BlankDiskContents contents)
-        {
-            return AssetBootstrap::IsStockBootDiskCached (
-                (contents == BlankDiskContents::ProDos)
-                    ? AssetBootstrap::StockBootDisk::ProDosUsersDisk
-                    : AssetBootstrap::StockBootDisk::Dos33Master);
-        },
-        [] (BlankDiskContents contents)
-        {
-            std::wstring  path;
-            std::string   error;
-
-            return AssetBootstrap::EnsureStockBootDisk (
-                (contents == BlankDiskContents::ProDos)
-                    ? AssetBootstrap::StockBootDisk::ProDosUsersDisk
-                    : AssetBootstrap::StockBootDisk::Dos33Master,
-                path, error);
-        });
-
-    params.title                    = std::format (L"Create new disk (Drive {})", drive);
-    params.hInstance                = GetModuleHandle (nullptr);
-    params.ownerHwnd                = m_shell.m_hwnd;
-    params.initialSizeDip           = { 560, 480 };
-    params.minSizeDip               = { 420, 360 };
-    params.resizable                = true;
-    params.insetContentBelowCaption = true;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
-
-    hr = dialog.Create (params);
-    CHRA (hr);
-
-    //  Opened from the picker, it takes the picker's place, so it reads as
-    //  the same window moving on to its next step.
-    if (placeAtPx != nullptr && placeAtPx->right > placeAtPx->left)
-    {
-        SetWindowPos (dialog.GetHwnd(), nullptr, placeAtPx->left, placeAtPx->top,
-                      placeAtPx->right - placeAtPx->left, placeAtPx->bottom - placeAtPx->top,
-                      SWP_NOZORDER | SWP_NOACTIVATE);
-    }
-
-    dialog.SetTheme (&m_shell.m_chrome->GetTheme());
-    dialog.ShowModalDialog (IDOK);
-
-    // Cancel / Escape / close box: nothing to do, and no mount started.
-    BAIL_OUT_IF (!dialog.GetOutcome().confirmed, S_OK);
-
-    // The target drive may already hold a disk; replacing it needs a yes.
-    occupied = m_shell.m_machine.GetDiskStore().IsMounted (6, drive - 1);
-
-    if (occupied)
-    {
-        message = std::format (L"Drive {} already has a disk. Replace it with the new disk?", drive);
-        choice  = DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(), message.c_str(),
-                                  L"Create new disk", MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
-
-        BAIL_OUT_IF (choice != IDYES, S_OK);
-    }
-
-    // A bootable spec needs the OS master's bytes. The dialog only enables
-    // the toggle when the cache has them, but the file is re-read here so a
-    // master that vanished in between reports instead of failing silently.
-    if (dialog.GetOutcome().spec.bootable)
-    {
-        bool  isProDos = (dialog.GetOutcome().spec.contents == BlankDiskContents::ProDos);
-
-        std::filesystem::path  masterPath = AssetBootstrap::GetStockBootDiskPath (
-            isProDos ? AssetBootstrap::StockBootDisk::ProDosUsersDisk
-                     : AssetBootstrap::StockBootDisk::Dos33Master);
-
-        std::ifstream  master (masterPath, std::ios::binary);
-
-        bool  opened = master.good();
-
-        CBRF (opened, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
-                                      L"The OS master disk is missing from the download cache.",
-                                      L"Create new disk", MB_OK | MB_ICONERROR));
-
-        vector<Byte> &  dest = isProDos ? payload.proDosUsersDisk
-                                        : payload.dosMasterSectors;
-
-        dest.assign (std::istreambuf_iterator<char> (master),
-                     std::istreambuf_iterator<char> ());
-    }
-
-    hr = BlankDiskBuilder::Build (dialog.GetOutcome().spec, payload, imageBytes);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
-                              L"Could not build the new disk image.",
-                              L"Create new disk", MB_OK | MB_ICONERROR));
-
-    // Atomic: the filesystem stages a sibling temp file and swaps it in, so
-    // a failure here leaves no partial image behind.
-    imageContent.assign (reinterpret_cast<const char *> (imageBytes.data()), imageBytes.size());
-
-    hr = m_shell.m_settings->GetFileSystem().WriteAllText (dialog.GetOutcome().targetPath, imageContent);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
-                              (L"Could not write \"" + dialog.GetOutcome().targetPath + L"\".\n\n"
-                               + FormatSystemError (hr)).c_str(),
-                              L"Create new disk", MB_OK | MB_ICONERROR));
-
-    // Remember where this disk landed (the user may have navigated away
-    // from the starting folder); the next create opens there.
-    {
-        std::u8string  u8folder = std::filesystem::path (dialog.GetOutcome().targetPath)
-                                      .parent_path().u8string();
-
-        m_shell.m_settings->GetPrefs().lastDiskCreateFolder.assign (u8folder.begin(), u8folder.end());
-        m_shell.m_settings->SaveGlobalPrefs();
-    }
-
-    hr = m_shell.m_disks->Mount (6, drive - 1, dialog.GetOutcome().targetPath);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
-                              L"The disk was created but could not be mounted.",
-                              L"Create new disk", MB_OK | MB_ICONERROR));
-
-    outMountStarted = true;
-
-Error:
-    return hr;
 }
 
 

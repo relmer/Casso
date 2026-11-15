@@ -86,7 +86,6 @@ public:
 
     // The create-a-blank-disk flow: dialog -> BlankDiskBuilder -> atomic
     // write -> Mount.
-    HRESULT  CreateBlankDiskForDrive (int drive, const RECT * placeAtPx, bool & outMountStarted);
 
 private:
     // How a delivery attempt ended, reported separately from the HRESULT.
