@@ -871,15 +871,18 @@ bool ExplorerPreviewManager::IsOverPane (POINT point) const
 //
 //  The preview's text -- a listing, a catalog, a hex dump -- selects as text
 //  does, so the cursor over it is the I-beam, except over its scrollbars.
+//  Over the thumbnail's platter or block map, which opens the inspector on
+//  a click, the cursor is IDC_HAND.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 LPCWSTR ExplorerPreviewManager::GetCursorForPoint (POINT clientPx) const
 {
-    LPCWSTR  cursor = m_text.GetCursorForPoint (clientPx);
+    LPCWSTR  cursor = m_thumbnail.IsShown() && m_thumbnail.IsOverPlatter (clientPx) ? IDC_HAND : nullptr;
 
 
 
+    cursor = (cursor != nullptr) ? cursor : m_text.GetCursorForPoint (clientPx);
     cursor = (cursor != nullptr) ? cursor : m_hex.GetCursorForPoint (clientPx);
     cursor = (cursor != nullptr) ? cursor : m_listing.GetCursorForPoint (clientPx);
 

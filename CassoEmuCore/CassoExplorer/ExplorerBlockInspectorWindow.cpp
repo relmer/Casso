@@ -14,11 +14,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerBlockInspectorWindow::ExplorerBlockInspectorWindow (const std::wstring & path, IDiskFileIo & fileIo) :
+ExplorerBlockInspectorWindow::ExplorerBlockInspectorWindow (const std::wstring & path, IDiskFileIo & fileIo, const std::wstring & displayName) :
     m_path   (path),
     m_fileIo (fileIo),
     m_window (std::make_unique<BlockInspectorWindow>())
 {
+    m_window->SetDisplayName (displayName);
 }
 
 

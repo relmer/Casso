@@ -131,6 +131,10 @@ public:
     //  "Storage card (I:, SanDisk Ultra, 29.7 GB)".
     static std::wstring  FormatCardLabel (const PhysicalDrive & drive, const std::wstring & letters = {});
 
+    //  "Partition 2: GAMES on SanDisk Ultra (29.7 GB)" for a partition of an
+    //  open card, as Casso Explorer lists it; empty for any other path.
+    std::wstring  DescribePartition (const std::wstring & path);
+
     void     SetConfirmWrite     (ConfirmWrite confirm) { m_confirmWrite = std::move (confirm); }
 
     //  Called before an open or an initialize that starts the broker, which

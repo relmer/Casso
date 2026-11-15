@@ -67,6 +67,7 @@ public:
     //  empty when it has nothing in it.
     std::wstring  DescribeEmptyArchive (const std::wstring & path) const;
     void          AddWozDetails        (const std::wstring & imagePath);
+    void          PreviewImageCatalog  (const std::wstring & imagePath);
 
     using DetailIterator = std::vector<std::pair<std::wstring, std::wstring>>::iterator;
 

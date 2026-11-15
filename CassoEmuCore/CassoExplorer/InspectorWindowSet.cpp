@@ -65,7 +65,10 @@ InspectorWindowSet::InspectorWindowSet (IImageWatcher & watcher, DiskInspectorPr
 
     if (!m_seams.makeBlockWindow)
     {
-        m_seams.makeBlockWindow = [this] (const std::wstring & path) { return std::unique_ptr<Window> (std::make_unique<ExplorerBlockInspectorWindow> (path, *m_seams.fileIo)); };
+        m_seams.makeBlockWindow = [this] (const std::wstring & path)
+        {
+            return std::unique_ptr<Window> (std::make_unique<ExplorerBlockInspectorWindow> (path, *m_seams.fileIo, m_seams.describePath ? m_seams.describePath (path) : std::wstring()));
+        };
     }
 
     if (!m_seams.isBlockImage)

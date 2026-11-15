@@ -64,7 +64,9 @@ public:
     //  The functions for the window, the block mode window and the check
     //  for an image of blocks, the file check, the clock and the channel to
     //  Casso, and the file access the windows read and save through. Each
-    //  one left empty is the real one.
+    //  one left empty is the real one. describePath returns the name a block
+    //  mode window's title has for a path, such as a card's partition, or
+    //  empty for the file's name.
     struct Seams
     {
         std::function<std::unique_ptr<Window> ()>                      makeWindow;
@@ -74,6 +76,7 @@ public:
         std::function<ULONGLONG ()>                                    nowMs;
         std::function<std::unique_ptr<IIntentChannel> (HWND)>          makeIntents;
         IDiskFileIo                                                  * fileIo = nullptr;
+        std::function<std::wstring (const std::wstring &)>             describePath;
     };
 
     InspectorWindowSet (IImageWatcher & watcher, DiskInspectorPrefs & prefs, Seams seams = {});

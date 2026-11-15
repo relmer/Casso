@@ -56,7 +56,11 @@ public:
                    const std::wstring  & path,
                    std::wstring        & outError);
 
-    void  SetOnClosed (std::function<void ()> fn) { m_onClosed = std::move (fn); }
+    void  SetOnClosed    (std::function<void ()> fn) { m_onClosed = std::move (fn); }
+
+    //  The name in the title and messages in place of the file's name, such
+    //  as a card's partition as Casso Explorer lists it. Set before Open.
+    void  SetDisplayName (const std::wstring & name) { m_displayName = name; }
 
     //  The file read again when it changed and no edits are pending; with
     //  edits pending, a note in the title.
@@ -89,7 +93,7 @@ private:
     void          Close         ();
     void          SaveRun       (LeftoverRun run);
     void          ShowMessage   (const std::wstring & text);
-    std::wstring  GetFileName   () const { return fs::path (m_path).filename().wstring(); }
+    std::wstring  GetFileName   () const { return m_displayName.empty() ? fs::path (m_path).filename().wstring() : m_displayName; }
 
     //  m_worker follows m_model, so it is destroyed first and its thread
     //  ends before the model goes away.
@@ -101,6 +105,7 @@ private:
     DxuiButton              * m_discard         = nullptr;
     IDiskFileIo             * m_fileIo          = nullptr;
     std::wstring              m_path;
+    std::wstring              m_displayName;
     const IDxuiTheme        * m_theme           = nullptr;
     std::function<void ()>    m_onClosed;
     bool                      m_isDirty         = true;

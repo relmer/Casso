@@ -338,9 +338,6 @@ void BrowserPreviewer::UpdatePreview()
 {
     const FileEntry         * entry     = nullptr;
     Location                  location  = m_browser.GetLocation();
-    DiskOperations::Result    result;
-    VolumeListing             listing;
-    VolumeKind                kind      = VolumeKind::Unknown;
     std::wstring              imagePath;
     std::wstring              folder    = location.path;
 
@@ -418,6 +415,12 @@ void BrowserPreviewer::UpdatePreview()
         PreviewShellItem (m_browser.m_rows[m_browser.m_selectedRows[0]]);
         return;
     }
+    else if (m_browser.m_isPartitionList && m_browser.m_selectedRows.size() == 1 && !m_browser.m_rows[m_browser.m_selectedRows[0]].containerPath.empty())
+    {
+        //  A partition of a card or a card image previews as its volume's catalog.
+        PreviewImageCatalog (m_browser.m_rows[m_browser.m_selectedRows[0]].containerPath);
+        return;
+    }
     else if (m_browser.m_isImage || location.kind != Location::Kind::HostFolder || m_browser.m_selectedRows.size() != 1)
     {
         return;
@@ -445,6 +448,29 @@ void BrowserPreviewer::UpdatePreview()
     }
 
     imagePath += m_browser.m_rows[m_browser.m_selectedRows[0]].name;
+
+    PreviewImageCatalog (imagePath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::PreviewImageCatalog
+//
+//  The image's catalog, cached; its details when it has no file system.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
+{
+    DiskOperations::Result  result;
+    VolumeListing           listing;
+    VolumeKind              kind = VolumeKind::Unknown;
+
+
 
     if (!m_browser.m_model.TryGetCachedCatalog (imagePath, listing, kind))
     {

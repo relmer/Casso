@@ -24,7 +24,7 @@ class IDiskFileIo;
 class ExplorerBlockInspectorWindow : public InspectorWindowSet::Window
 {
 public:
-    ExplorerBlockInspectorWindow  (const std::wstring & path, IDiskFileIo & fileIo);
+    ExplorerBlockInspectorWindow  (const std::wstring & path, IDiskFileIo & fileIo, const std::wstring & displayName = {});
     ~ExplorerBlockInspectorWindow () override;
 
     HRESULT  Create          (HINSTANCE hInstance, HWND anchor, const DxuiTheme * theme, IDiskInspectorHost * host) override;

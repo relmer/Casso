@@ -826,6 +826,52 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PhysicalCards::DescribePartition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PhysicalCards::DescribePartition (const std::wstring & path)
+{
+    int                          drive     = 0;
+    int                          partition = 0;
+    int                          number    = 0;
+    PartitionLayoutKind          kind      = PartitionLayoutKind::None;
+    std::vector<PartitionEntry>  entries;
+    PhysicalDrive                card;
+    std::wstring                 text;
+    HRESULT                      hr        = S_OK;
+
+
+
+    if (ParsePath (TextEncoding::WideToUtf8 (path), drive, partition) != PathKind::Partition || !TryGetDrive (drive, card))
+    {
+        return text;
+    }
+
+    hr = ListPartitions (drive, kind, entries);
+
+    if (FAILED (hr))
+    {
+        return text;
+    }
+
+    for (const PartitionEntry & entry : entries)
+    {
+        if (text.empty() && PartitionAccess::TryParseStepName (entry.step, number) && number == partition)
+        {
+            text = TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, false)) + L" on " + FormatDrive (card);
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PhysicalCards::EndThreadConfirmation
 //
 //  Only the confirmed thread ends its confirmation.

@@ -258,6 +258,26 @@ public:
     }
 
 
+    TEST_METHOD (DescribePartition_TheRowsLabelOnTheCard)
+    {
+        FakeCardHost   host;
+        PhysicalCards  cards (host);
+        std::wstring   text;
+
+
+
+        Assert::IsTrue (cards.DescribePartition (L"\\\\.\\PhysicalDrive2|#2.po").empty(), L"a card that isn't open");
+
+        AssertSucceeded (cards.Open (2, nullptr));
+
+        text = cards.DescribePartition (L"\\\\.\\PhysicalDrive2|#2.po");
+
+        Assert::IsTrue (text.starts_with (L"Partition 2"), text.c_str());
+        Assert::IsTrue (text.find (L" on Test Card") != std::wstring::npos, text.c_str());
+        Assert::IsTrue (cards.DescribePartition (L"C:\\Disks\\vol.po").empty());
+    }
+
+
     TEST_METHOD (FileIo_ReadsAPartitionPathFromTheCard)
     {
         FakeCardHost        host;

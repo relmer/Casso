@@ -48,7 +48,7 @@ HRESULT BlockInspectorWindow::Open (
 
     outError.clear();
 
-    params.title                    = GetFileName() + L" - Disk inspector";
+    params.title                    = L"Disk inspector - " + GetFileName();
     params.hInstance                = hInstance;
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { kWidthDip, kHeightDip };
@@ -435,7 +435,7 @@ void BlockInspectorWindow::Reload()
                          {
                              if (*outcome == Outcome::EditsPending)
                              {
-                                 SetTitle (GetFileName() + L" - Disk inspector (the file changed; apply or discard to read it again)");
+                                 SetTitle (L"Disk inspector - " + GetFileName() + L" (the file changed; apply or discard to read it again)");
                              }
                              else if (*outcome == Outcome::Gone)
                              {
@@ -458,7 +458,7 @@ void BlockInspectorWindow::Reload()
 
 void BlockInspectorWindow::NoteFileGone()
 {
-    SetTitle (GetFileName() + L" - Disk inspector (the file can't be read)");
+    SetTitle (L"Disk inspector - " + GetFileName() + L" (the file can't be read)");
 }
 
 
@@ -570,7 +570,7 @@ void BlockInspectorWindow::CompareWithFile (const std::wstring & path)
                              }
                              else if (SUCCEEDED (result->hr))
                              {
-                                 SetTitle (GetFileName() + L" compared with " + name + L" - Disk inspector");
+                                 SetTitle (L"Disk inspector - " + GetFileName() + L" compared with " + name);
                              }
 
                              m_panel->Refresh();

@@ -199,6 +199,7 @@ private:
     ThumbnailChips                        * m_chips    = nullptr;
     ThumbnailScreen                       * m_screen   = nullptr;
     DxuiLabel                             * m_bootLine = nullptr;   // the boot result, under the picture
+    DxuiButton                            * m_open     = nullptr;   // Open in the disk inspector, under the chips
     std::shared_ptr<const DxuiIconImage>    m_picture;
     std::wstring                            m_path;
     State                                   m_state    = State::Analyzing;

@@ -220,17 +220,22 @@ void PreviewDiskThumbnail::Create()
     m_chips    = m_context.window.CreateChild<ThumbnailChips> (m_view.palette);
     m_screen   = m_context.window.CreateChild<ThumbnailScreen>();
     m_bootLine = m_context.window.CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    m_open     = m_context.window.CreateChild<DxuiButton> (L"Open in the disk inspector");
 
     m_context.window.SetMouseHandler (m_platter,  [this] (const DxuiMouseEvent & ev) { return HandlePlatterMouse (ev); });
     m_context.window.SetMouseHandler (m_blockMap, [this] (const DxuiMouseEvent & ev) { return HandlePlatterMouse (ev); });
     m_context.window.SetMouseHandler (m_screen,   [this] (const DxuiMouseEvent & ev) { return HandleScreenMouse (ev); });
 
+    m_open->SetVariant (DxuiButton::Variant::Link);
+    m_open->SetOnClick ([this]() { m_context.commandManager.InspectDiskImages ({ m_path }); });
+
     m_platter->SetSelectionShown (false);
     m_platter->SetVisible  (false);
     m_blockMap->SetVisible (false);
     m_chips->SetVisible    (false);
-    m_screen->SetVisible  (false);
-    m_bootLine->SetVisible  (false);
+    m_screen->SetVisible   (false);
+    m_bootLine->SetVisible (false);
+    m_open->SetVisible     (false);
 }
 
 
@@ -446,7 +451,7 @@ int PreviewDiskThumbnail::GetHeightPx (int widthPx) const
     const DxuiDpiScaler  & scaler = m_context.scaler;
     int                    rows   = scaler.ToPx (static_cast<int> (ThumbnailChips::kRowDip));
     int                    gap    = scaler.ToPx (kGapDip);
-    int                    height = scaler.ToPx (kPlatterDip) + 2 * rows + 2 * gap;
+    int                    height = scaler.ToPx (kPlatterDip) + 3 * rows + 2 * gap;
 
 
 
@@ -517,10 +522,11 @@ void PreviewDiskThumbnail::Layout (const RECT & area)
         top += screenH + gap;
     }
 
+    //  A block map is as wide as the pane, as a volume of blocks isn't round.
     if (m_state != State::Note35)
     {
         m_platter->Layout  (RECT { left, top, left + platter, top + platter }, scaler);
-        m_blockMap->Layout (RECT { left, top, left + platter, top + platter }, scaler);
+        m_blockMap->Layout (RECT { isBeside ? left : area.left + gap, top, area.right - gap, top + platter }, scaler);
         chipsTop = top + platter + gap;
     }
 
@@ -531,11 +537,13 @@ void PreviewDiskThumbnail::Layout (const RECT & area)
     }
 
     m_chips->Layout (RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows }, scaler);
+    m_open->Layout  (RECT { area.left + gap, chipsTop + 2 * rows, area.right - gap, chipsTop + 3 * rows }, scaler);
     m_chips->SetVisible    (true);
     m_platter->SetVisible  (m_state == State::Ready && !IsBlocks());
     m_blockMap->SetVisible (m_state == State::Ready && IsBlocks());
     m_screen->SetVisible   (hasScreen);
     m_bootLine->SetVisible (hasScreen);
+    m_open->SetVisible     (m_state == State::Ready);
 }
 
 
@@ -555,6 +563,7 @@ void PreviewDiskThumbnail::Hide()
     m_chips->SetVisible    (false);
     m_screen->SetVisible   (false);
     m_bootLine->SetVisible (false);
+    m_open->SetVisible     (false);
 }
 
 
