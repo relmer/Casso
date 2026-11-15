@@ -52,9 +52,12 @@ Byte SmartPortHost::Access (int offset, bool isWrite, Byte value)
 //
 //  CatchUp
 //
+//  A reading IWM moves its cells after the drives catch up, as an access
+//  moves them, so a turn-off delay ends without an access too.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void SmartPortHost::CatchUp()
+void SmartPortHost::CatchUp (CatchUpKind kind)
 {
     uint64_t  nowNs = GetNowNs();
 
@@ -65,7 +68,9 @@ void SmartPortHost::CatchUp()
         m_iwm.AdvanceTo (nowNs);
     }
 
-    m_bus.CatchUp (nowNs);
+    m_bus.CatchUp (nowNs, kind);
+
+    m_iwm.AdvanceTo (nowNs);
 }
 
 

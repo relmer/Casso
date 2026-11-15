@@ -30,6 +30,9 @@ class IDiskFileIo;
 //  $1 step direction in and out, $4 step, $8 and $9 motor on and off, $D
 //  eject. SEL is also the head. The motor-on command is latched, and
 //  register $8 reads the latch; the spindle turns only while a disk is in.
+//  A disabled drive doesn't take commands. A second after the drive is
+//  disabled the motor stops and the latch clears, unless it is enabled
+//  again first. A drive is enabled until its controller sets it.
 //
 //  The disk is a block image of 800K or 400K, its tracks built as GCR bit
 //  streams the first time the head is on them; a track written to is decoded
@@ -77,6 +80,7 @@ public:
     //  A cell reads 0, with the disk left where it is, while the motor is off,
     //  the drive is empty or the head is on a side the disk doesn't have.
     uint64_t  GetQuietUntil () const override { return (!m_motorOn || !HasDisk() || GetSide() >= m_sides) ? kQuietForever : 0; }
+    void      SetEnabled    (bool isEnabled) override;
 
     void      SetSel    (bool sel);
 
@@ -94,6 +98,7 @@ private:
     static constexpr uint64_t  kStepNs     = 12'000'000;
     static constexpr uint64_t  kSpinUpNs   = 50'000'000;
     static constexpr uint64_t  kEjectNs    = 100'000'000;
+    static constexpr uint64_t  kMotorOffNs = 1'000'000'000;
 
     int                  GetRegister  () const;
     void                 RunCommand   (int command);
@@ -114,11 +119,13 @@ private:
     bool                                        m_sel        = false;
     bool                                        m_stepOut    = false;
     bool                                        m_motorOn    = false;
+    bool                                        m_enabled    = true;
     bool                                        m_diskSwitched = true;
     int                                         m_track      = 0;
     uint64_t                                    m_stepLeftNs = 0;
     uint64_t                                    m_spinLeftNs = 0;
     uint64_t                                    m_ejectLeftNs = 0;
+    uint64_t                                    m_offLeftNs   = 0;
     size_t                                      m_position   = 0;
     std::map<int, std::vector<Byte>>            m_tracks;
     std::set<int>                               m_dirty;

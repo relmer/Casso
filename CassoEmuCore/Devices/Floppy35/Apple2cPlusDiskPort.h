@@ -94,6 +94,7 @@ private:
         void      Advance       (uint64_t elapsedNs) override;
         uint32_t  GetCellNs     () const override;
         uint64_t  GetQuietUntil () const override;
+        void      SetEnabled    (bool isEnabled) override;
 
     private:
         IDiskDriveBus  & Sync ();
@@ -103,9 +104,10 @@ private:
         IDiskDriveBus        * m_driven = nullptr;
     };
 
-    bool             IsInternal () const;
-    IDiskDriveBus  & GetDriven  (int drive);
-    void             SyncHeads  ();
+    bool             IsInternal  () const;
+    IDiskDriveBus  & GetDriven   (int drive);
+    void             SyncHeads   ();
+    void             SyncEnables ();
 
     SmartPortHost                          m_port;
     Sony35Drive                            m_internal      { 0 };
@@ -114,6 +116,7 @@ private:
     std::unique_ptr<MigChip>               m_ownedMig;
     MigChip                              * m_mig           = nullptr;
     std::array<bool, 4>                    m_phases        = {};
+    std::array<bool, Iwm::kDrives>         m_iwmEnabled    = {};
     int                                    m_externalCount = 0;
     int                                    m_floppyCount   = 0;
     bool                                   m_floppies      = false;

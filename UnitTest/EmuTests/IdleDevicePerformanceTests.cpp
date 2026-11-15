@@ -128,6 +128,82 @@ public:
     }
 
 
+    //  The two machines' CPUs, run to the same cycle with every pass run, have
+    //  the same registers and the same RAM.
+    static void AssertSameState (DeviceCpu & skipped, DeviceCpu & ran, const std::function<Byte (Word)> & skippedRam, const std::function<Byte (Word)> & ranRam, Word ramSize, const wchar_t * name)
+    {
+        constexpr uint64_t  kPastBoth = 1000;
+
+        uint64_t          target = std::max (skipped.GetCycles(), ran.GetCycles()) + kPastBoth;
+        Cpu6502Registers  a      = {};
+        Cpu6502Registers  b      = {};
+
+
+
+        skipped.SetIdleLoop (0, 0, {});
+        ran.SetIdleLoop (0, 0, {});
+        skipped.RunUntil (target);
+        ran.RunUntil (target);
+
+        a = skipped.GetRegisters();
+        b = ran.GetRegisters();
+
+        Assert::AreEqual (ran.GetCycles(), skipped.GetCycles(), name);
+        Assert::IsTrue (a.pc == b.pc && a.a == b.a && a.x == b.x && a.y == b.y && a.sp == b.sp && a.p == b.p, name);
+
+        for (Word address = 0; address < ramSize; address++)
+        {
+            Assert::AreEqual (ranRam (address), skippedRam (address), std::format (L"{}: RAM ${:04X}", name, address).c_str());
+        }
+    }
+
+
+    //  SKIPPED IDLE PASSES END WHERE RUN ONES DO: a machine whose card CPUs
+    //  skip their idle loops and one whose CPUs run every pass, run the same
+    //  Apple cycles, have the same CPU registers and RAM at the same cycle.
+    TEST_METHOD (EveryCardIdle_SkippedPassesEndWhereRunPassesEnd)
+    {
+        constexpr uint64_t  kLongRun    = 12'000'000ULL;
+        constexpr Word      kUniDiskRam = 0x800;
+
+        FakeDiskFileIo                       skipIo;
+        FakeDiskFileIo                       runIo;
+        std::vector<TestMachine::BlockCard>  cards;
+
+
+
+        cards.push_back ({ 5, kpszLironCardDevice,   std::vector<PortConfig> (1) });
+        cards.push_back ({ 4, kpszApple35CardDevice, std::vector<PortConfig> (1) });
+
+        cards[0].ports[0].device = kpszUniDisk35Device;
+        cards[1].ports[0].device = kpszApple35DriveDevice;
+
+        TestMachine  skipping ("Apple2eEnhanced", TestMachine::Slots::Empty, cards, skipIo);
+        TestMachine  running  ("Apple2eEnhanced", TestMachine::Slots::Empty, cards, runIo);
+        LironCard              & skipLiron = *skipping.GetRefs().lironCards[0];
+        LironCard              & runLiron  = *running.GetRefs().lironCards[0];
+        Apple35ControllerCard  & skipCard  = *skipping.GetRefs().apple35Cards[0];
+        Apple35ControllerCard  & runCard   = *running.GetRefs().apple35Cards[0];
+
+        runLiron.GetDrive (0).GetCpu().SetIdleLoop (0, 0, {});
+        runCard.GetCardCpu().SetIdleLoop (0, 0, {});
+
+        StartIdleLoop (skipping);
+        StartIdleLoop (running);
+        RunFrames (skipping, kLongRun);
+        RunFrames (running, kLongRun);
+
+        AssertSameState (skipLiron.GetDrive (0).GetCpu(), runLiron.GetDrive (0).GetCpu(),
+                         [&] (Word address) { return skipLiron.GetDrive (0).Read (address); },
+                         [&] (Word address) { return runLiron.GetDrive (0).Read (address); },
+                         kUniDiskRam, L"UniDisk 3.5");
+        AssertSameState (skipCard.GetCardCpu(), runCard.GetCardCpu(),
+                         [&] (Word address) { return skipCard.GetCardMemory().GetRam()[address]; },
+                         [&] (Word address) { return runCard.GetCardMemory().GetRam()[address]; },
+                         (Word) Apple35CardMemory::kRamSize, L"3.5 controller card");
+    }
+
+
     //  IDLE DEVICE CPUS SKIP THEIR FIRMWARE'S IDLE LOOPS: with the guest away
     //  from the cards, the UniDisk 3.5's and the 3.5 controller card's CPUs
     //  run under one instruction for each hundred of the Apple's cycles.

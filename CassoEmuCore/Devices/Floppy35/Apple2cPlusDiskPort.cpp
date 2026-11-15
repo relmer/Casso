@@ -230,6 +230,35 @@ void Apple2cPlusDiskPort::SyncHeads()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SyncEnables
+//
+//  The internal drive is enabled while the IWM enables drive 2 and the
+//  MIG's internal drive is on; an Apple 3.5 Drive on the port while the IWM
+//  enables its drive with 3.5 select on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cPlusDiskPort::SyncEnables()
+{
+    bool  internal = IsInternal();
+    bool  sel35    = m_mig != nullptr && m_mig->IsSel35();
+
+
+
+    m_internal.SetEnabled (m_iwmEnabled[kInternalDrive] && internal);
+
+    for (int i = 0; i < m_externalCount; i++)
+    {
+        m_externals[(size_t) i].SetEnabled (m_iwmEnabled[(size_t) i] && sel35 && !(i == kInternalDrive && internal));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PortDrive::Sync
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -242,6 +271,7 @@ IDiskDriveBus & Apple2cPlusDiskPort::PortDrive::Sync()
 
 
     m_diskPort.SyncHeads();
+    m_diskPort.SyncEnables();
 
     if (&driven != m_driven)
     {
@@ -373,4 +403,20 @@ uint64_t Apple2cPlusDiskPort::PortDrive::GetQuietUntil() const
     m_diskPort.SyncHeads();
 
     return m_diskPort.GetDriven (m_drive).GetQuietUntil();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PortDrive::SetEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cPlusDiskPort::PortDrive::SetEnabled (bool isEnabled)
+{
+    m_diskPort.m_iwmEnabled[(size_t) m_drive] = isEnabled;
+    m_diskPort.SyncEnables();
 }

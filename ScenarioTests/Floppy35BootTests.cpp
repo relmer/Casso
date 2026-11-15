@@ -123,6 +123,23 @@ public:
     }
 
 
+    //  The machine runs a frame's cycles at a time, as the shell runs it, so
+    //  the drives catch up once a frame.
+    static void RunFrames (MachineHost & host, uint64_t cycles)
+    {
+        constexpr uint64_t  kFrameCycles = 17'030ULL;
+
+        uint64_t  ran = 0;
+
+
+
+        while (ran < cycles)
+        {
+            ran += host.RunCycles (std::min (kFrameCycles, cycles - ran));
+        }
+    }
+
+
     static void Attach (FakeDiskFileIo & io, const std::vector<Byte> & image, std::vector<PortConfig> & ports)
     {
         io.files[kDiskPath]  = image;
@@ -360,6 +377,41 @@ public:
     }
 
 
+    //  A 5.25-INCH DRIVE AT THE END OF THE //C'S CHAIN, behind an empty UniDisk
+    //  3.5, is drive 2 of port 6: DOS 3.3, booted from the built-in drive,
+    //  saves a program to it and catalogs it there.
+    TEST_METHOD (Apple2c_FloppyBehindAUniDiskIsDriveTwo)
+    {
+        FakeDiskFileIo             io;
+        std::vector<PortConfig>    diskPort (1);
+        std::vector<std::string>   rows;
+
+
+
+        diskPort[0].name = "disk";
+        diskPort[0].chain.resize (2);
+        diskPort[0].chain[0].device = kpszUniDisk35Device;
+        diskPort[0].chain[1].device = kpszDiskIicDevice;
+
+        TestMachine  machine ("Apple2c", diskPort, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::AreEqual ((size_t) 1, machine.GetRefs().apple2cSmartPort->GetPort().GetDriveCount(), L"the UniDisk is on the chain");
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "second.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
+
+        GuestSession::BootToPrompt (machine, GuestSession::RequireDos33Master());
+
+        rows = GuestSession::TypeAndCollect (machine, "10 PRINT \"TWO\"");
+        rows = GuestSession::TypeAndCollect (machine, "SAVE DRIVETWO,D2");
+
+        Assert::IsFalse (GuestSession::AnyRowContains (rows, "ERROR"), L"DOS saves to drive 2 without an error");
+
+        rows = GuestSession::TypeAndCollect (machine, "CATALOG,D2");
+
+        Assert::IsTrue (GuestSession::AnyRowContains (rows, "DRIVETWO"), L"drive 2's catalog lists the program");
+    }
+
+
     //  THE //C PLUS BOOTS AN 800K DISK IN ITS INTERNAL APPLE 3.5 DRIVE through
     //  ROM 05, the IWM driving the drive through the MIG at the accelerator's
     //  4 MHz.
@@ -416,6 +468,105 @@ public:
         Assert::IsTrue (RunUntilScreenShows (machine, "UNABLE TO FIND A BOOTABLE DISK", kBootCap), L"ROM 05 reports that there is no bootable disk");
         Assert::IsFalse (port.GetInternalDrive().IsMotorOn(), L"the internal drive's motor is stopped");
         Assert::IsFalse (port.GetExternalDrive (0).IsMotorOn(), L"the Apple 3.5 Drive's motor is stopped");
+    }
+
+
+    //  A //C PLUS'S INTERNAL DRIVE STOPS after ROM 05 reads a disk that isn't
+    //  bootable: ROM 05 disables the drive, and a disabled drive's motor
+    //  stops. ROM 05 sends the motor-off command only before an eject.
+    TEST_METHOD (Apple2cPlus_InternalDriveStopsAfterANonBootableDisk)
+    {
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  scratch;
+        std::vector<PortConfig>  ports (1);
+
+
+
+        Attach (io, std::vector<Byte> (kBlocks800K * Gcr35Track::kDataBytes, 0), scratch);
+        ports[0].name   = "internal";
+        ports[0].device = kpszApple35DriveDevice;
+        ports[0].image  = kDiskPath;
+
+        TestMachine            machine ("Apple2cPlus", ports, io);
+        Apple2cPlusDiskPort  & port = *machine.GetRefs().apple2cPlusDiskPort;
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "UNABLE TO FIND A BOOTABLE DISK", kBootCap), L"ROM 05 reports that the disk isn't bootable");
+        Assert::IsFalse (port.GetInternalDrive().IsMotorOn(), L"the internal drive's motor is stopped");
+    }
+
+
+    //  EACH 3.5-INCH DRIVE'S MOTOR STOPS once the ProDOS Users Disk's menu is
+    //  up and the drive is idle: the //c Plus's ROM 05 and the 3.5 controller card's
+    //  firmware disable the drive after each access, and the UniDisk 3.5's
+    //  firmware deselects its mechanism after a timeout. The motor stops a
+    //  second after the drive is disabled.
+    TEST_METHOD (MotorsStopWhenIdleAfterABoot)
+    {
+        constexpr uint64_t  kIdle = 8'000'000ULL;
+
+        std::vector<Byte>  image = Make800K (GuestSession::RequireProDosUsersDisk());
+
+
+
+        {
+            FakeDiskFileIo           io;
+            std::vector<PortConfig>  scratch;
+            std::vector<PortConfig>  ports (1);
+
+
+
+            Attach (io, image, scratch);
+            ports[0].name   = "internal";
+            ports[0].device = kpszApple35DriveDevice;
+            ports[0].image  = kDiskPath;
+
+            TestMachine  machine ("Apple2cPlus", ports, io);
+
+            machine.PowerCycle();
+            GuestSession::StartFromPowerOn (machine);
+            Assert::IsTrue (RunUntilScreenShows (machine, "PLEASE SELECT ONE OF THE ABOVE", kBootCap), L"the //c Plus boots to the menu");
+            RunFrames (machine, kIdle);
+            Assert::IsFalse (machine.GetRefs().apple2cPlusDiskPort->GetInternalDrive().IsMotorOn(), L"the //c Plus's internal drive stops");
+        }
+
+        {
+            FakeDiskFileIo           io;
+            std::vector<PortConfig>  ports;
+
+
+
+            Attach (io, image, ports);
+
+            TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszApple35CardDevice, ports } }, io);
+
+            machine.PowerCycle();
+            GuestSession::StartFromPowerOn (machine);
+            Assert::IsTrue (RunUntilScreenShows (machine, "PLEASE SELECT ONE OF THE ABOVE", kBootCap), L"the 3.5 controller card boots to the menu");
+            RunFrames (machine, kIdle);
+            Assert::IsFalse (machine.GetRefs().apple35Cards[0]->GetCardMemory().GetDrive (0).IsMotorOn(), L"the Apple 3.5 Drive stops");
+        }
+
+        {
+            FakeDiskFileIo           io;
+            std::vector<PortConfig>  ports;
+
+
+
+            Attach (io, image, ports);
+            ports.resize (1);
+            ports[0].device = kpszUniDisk35Device;
+
+            TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszLironCardDevice, ports } }, io);
+
+            machine.PowerCycle();
+            GuestSession::StartFromPowerOn (machine);
+            Assert::IsTrue (RunUntilScreenShows (machine, "PLEASE SELECT ONE OF THE ABOVE", kBootCap), L"the UniDisk 3.5 boots to the menu");
+            RunFrames (machine, kIdle);
+            Assert::IsFalse (machine.GetRefs().lironCards[0]->GetDrive (0).GetMechanism().IsMotorOn(), L"the UniDisk 3.5's mechanism stops");
+        }
     }
 
 

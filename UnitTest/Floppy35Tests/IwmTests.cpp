@@ -26,6 +26,7 @@ public:
     Byte      ReadCell (uint64_t) override { Byte b = loop.empty() ? (Byte) 0 : loop[at % loop.size()]; at++; return b; }
     void      WriteCell (Byte bit, uint64_t) override { written.push_back (bit); }
     void      Advance   (uint64_t elapsedNs) override { elapsed += elapsedNs; }
+    void      SetEnabled (bool isEnabled) override { enabled = isEnabled; }
     uint32_t  GetCellNs() const override { return kCellNs; }
     uint64_t  GetQuietUntil() const override { return quiet; }
 
@@ -38,6 +39,7 @@ public:
     uint64_t             elapsed = 0;
     uint64_t             quiet   = 0;
     bool                 sense   = true;
+    bool                 enabled = false;
 };
 
 
@@ -145,6 +147,37 @@ public:
         data = iwm.Access (kQ6Off, false, 0, 16 * FakeDriveBus::kCellNs);
         Assert::AreEqual ((Byte) 0xAA, data);
         Assert::AreEqual (16 * (uint64_t) FakeDriveBus::kCellNs, drive.elapsed);
+    }
+
+
+    //  A drive is enabled while the IWM's enable is on and the drive is
+    //  selected; the other drive isn't.
+    TEST_METHOD (Enable_ReachesTheSelectedDrive)
+    {
+        constexpr int  kDrive1 = 0xA;
+        constexpr int  kDrive2 = 0xB;
+
+        Iwm           iwm;
+        FakeDriveBus  one;
+        FakeDriveBus  two;
+
+
+
+        iwm.AttachDrive (0, &one);
+        iwm.AttachDrive (1, &two);
+        WriteMode (iwm, 0x07);
+
+        iwm.Access (kMotorOn, false, 0, 0);
+        Assert::IsTrue (one.enabled && !two.enabled, L"drive 1 is selected");
+
+        iwm.Access (kDrive2, false, 0, 0);
+        Assert::IsTrue (!one.enabled && two.enabled, L"drive 2 is selected");
+
+        iwm.Access (kMotorOff, false, 0, 0);
+        Assert::IsTrue (!one.enabled && !two.enabled, L"with the mode's timer off, the enable drops at once");
+
+        iwm.Access (kDrive1, false, 0, 0);
+        Assert::IsFalse (one.enabled, L"selecting a drive doesn't enable it");
     }
 
 

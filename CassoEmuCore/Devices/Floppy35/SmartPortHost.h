@@ -34,7 +34,7 @@ public:
     Byte  Access (int offset, bool isWrite, Byte value);
 
     //  Runs the drives up to the Apple's time.
-    void  CatchUp ();
+    void  CatchUp (CatchUpKind kind = CatchUpKind::Access);
 
     //  The Apple's power-on resets the IWM. The drives are separate devices
     //  on the bus and continue to run, so the time continues from where it

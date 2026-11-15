@@ -146,6 +146,7 @@ void Apple35ControllerCard::SoftReset()
     m_memory.Reset();
     m_cpu.Reset();
     m_hostSynced = (m_hostCycles != nullptr) ? *m_hostCycles : 0;
+    m_cardTarget = m_cpu.GetCycles();
 }
 
 
@@ -251,7 +252,7 @@ HRESULT Apple35ControllerCard::SetFirmware (std::vector<Byte> firmware)
 
     if (IsIdleLoopInRom())
     {
-        m_cpu.SetIdleLoop (kIdleLoop, [this] (uint64_t cyclesLeft) { return SkipIdleLoop (cyclesLeft); });
+        m_cpu.SetIdleLoop (kIdleLoop, kIdlePassCycles, [this] (uint64_t cyclesLeft) { return SkipIdleLoop (cyclesLeft); });
     }
 
 Error:
@@ -273,6 +274,7 @@ void Apple35ControllerCard::SetHostClock (const uint64_t * cycles, uint32_t cloc
     m_hostCycles = cycles;
     m_hostHz     = clockHz;
     m_hostSynced = (cycles != nullptr) ? *cycles : 0;
+    m_cardTarget = m_cpu.GetCycles();
 }
 
 
@@ -285,11 +287,14 @@ void Apple35ControllerCard::SetHostClock (const uint64_t * cycles, uint32_t cloc
 //
 //  The card's CPU runs the cycles that match the Apple's since the last
 //  catch-up, at most four million at a time: a card left alone for longer
-//  is waiting in its loop, and the difference is not visible.
+//  is in its idle loop, and the difference is not visible. The target
+//  counts from the last target, not from where the CPU stopped, so a CPU
+//  that ran past it or stopped short in its idle loop makes up the
+//  difference.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple35ControllerCard::CatchUp()
+void Apple35ControllerCard::CatchUp (CatchUpKind kind)
 {
     uint64_t  now      = 0;
     uint64_t  elapsed  = 0;
@@ -307,7 +312,9 @@ void Apple35ControllerCard::CatchUp()
     m_hostSynced = now;
     cardRun      = std::min (elapsed * kCardClockHz / m_hostHz, kMaxCatchUp);
 
-    m_cpu.RunUntil (m_cpu.GetCycles() + cardRun);
+    m_cardTarget += cardRun;
+
+    m_cpu.RunUntil (m_cardTarget, kind);
 }
 
 
@@ -319,37 +326,66 @@ void Apple35ControllerCard::CatchUp()
 //  SkipIdleLoop
 //
 //  The firmware's loop at $D1A6 polls for a command from the Apple. A pass
-//  decrements the counter at $AD and, while the counter isn't zero, reads
-//  the mailbox at $00 and loops while its bit 7 is set: 14 cycles, with no
-//  I/O. The Apple writes the mailbox only between catch-ups. The passes
-//  before the one that takes the counter to zero are skipped, and that one
-//  runs.
+//  decrements the counter at $AD, and when that is zero, the counter at
+//  $AE; when that is zero, it decrements X, and when X is zero it calls
+//  $D8DD. It then reads the mailbox at $00 and loops while its
+//  bit 7 is set. A pass is 14 cycles, 21 with $AE decremented and 25 with X
+//  decremented too, with no I/O. The Apple writes the mailbox only between
+//  catch-ups. The passes before the one that calls $D8DD are skipped, and
+//  that one runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 uint64_t Apple35ControllerCard::SkipIdleLoop (uint64_t cyclesLeft)
 {
-    constexpr Word       kMailbox  = 0x00;
-    constexpr Word       kCounter  = 0xAD;
-    constexpr Byte       kNegative = 0x80;
-    constexpr Byte       kZero     = 0x02;
-    std::vector<Byte>  & ram       = m_memory.GetRam();
-    Cpu6502Registers     regs      = m_cpu.GetRegisters();
-    Byte                 counter   = ram[kCounter];
-    uint64_t             passes    = (counter == 0) ? 0xFF : (uint64_t) counter - 1;
-    bool                 waiting   = (ram[kMailbox] & kNegative) != 0 && regs.a == ram[kMailbox] && (regs.p & (kNegative | kZero)) == kNegative;
+    constexpr Word       kMailbox     = 0x00;
+    constexpr Word       kCounterLow  = 0xAD;
+    constexpr Word       kCounterHigh = 0xAE;
+    constexpr Byte       kNegative    = 0x80;
+    constexpr Byte       kZero        = 0x02;
+    constexpr uint64_t   kHighPass    = 21;
+    constexpr uint64_t   kXPass       = 25;
+    std::vector<Byte>  & ram          = m_memory.GetRam();
+    Cpu6502Registers     regs         = m_cpu.GetRegisters();
+    bool                 waiting      = (ram[kMailbox] & kNegative) != 0 && regs.a == ram[kMailbox] && (regs.p & (kNegative | kZero)) == kNegative;
+    uint64_t             skipped      = 0;
+    bool                 done         = !waiting;
 
 
 
-    if (!waiting)
+    while (!done)
     {
-        return 0;
+        Byte      low    = ram[kCounterLow];
+        uint64_t  quick  = (low == 0) ? 0xFF : (uint64_t) low - 1;
+        uint64_t  fits   = (cyclesLeft - skipped) / kIdlePassCycles;
+        Byte      high   = (Byte) (ram[kCounterHigh] - 1);
+        uint64_t  wrap   = (high != 0) ? kHighPass : kXPass;
+
+
+
+        //  The passes that decrement only $AD.
+        ram[kCounterLow] = (Byte) (low - std::min (quick, fits));
+        skipped         += std::min (quick, fits) * kIdlePassCycles;
+
+        //  The pass that takes $AD to zero, unless it is the one that calls
+        //  $D8DD or doesn't fit.
+        done = fits < quick || (high == 0 && regs.x == 1) || cyclesLeft - skipped < wrap;
+
+        if (!done)
+        {
+            ram[kCounterLow]  = 0;
+            ram[kCounterHigh] = high;
+            regs.x            = (high == 0) ? (Byte) (regs.x - 1) : regs.x;
+            skipped          += wrap;
+        }
     }
 
-    passes        = std::min (passes, cyclesLeft / kIdlePassCycles);
-    ram[kCounter] = (Byte) (counter - passes);
+    if (skipped > 0)
+    {
+        m_cpu.SetRegisters (regs);
+    }
 
-    return passes * kIdlePassCycles;
+    return skipped;
 }
 
 

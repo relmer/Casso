@@ -14,6 +14,27 @@ class MemoryDevice;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CatchUpKind
+//
+//  Why a device's CPU runs up to the Apple's time. Before an access from the
+//  Apple it runs to that time exactly. Between frames, a CPU in its idle loop
+//  may stop less than a pass short; the next catch-up, at the latest the one
+//  before the Apple's next access, runs it the rest of the way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class CatchUpKind
+{
+    Access,
+    BetweenFrames,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeviceCpu
 //
 //  The 65C02 inside a card or a drive, on a separate bus: the card's
@@ -45,17 +66,23 @@ public:
     //  The 65C02's RESET: the PC from $FFFC.
     void              Reset           ();
 
-    //  Runs instructions until the cycle count is at least `targetCycle`.
-    void              RunUntil        (uint64_t targetCycle);
+    //  Runs instructions until the cycle count is at least `targetCycle`, or,
+    //  between frames, until the CPU is in its idle loop less than a pass
+    //  short of it.
+    void              RunUntil        (uint64_t targetCycle, CatchUpKind kind = CatchUpKind::Access);
 
-    //  The firmware's idle loop, at `pc`. Each time the CPU is at `pc` short
-    //  of the target, `skip` is called with the cycles left. It makes the
-    //  memory changes of the whole passes it skips and returns their cycles,
-    //  at most the cycles left, or 0 to run the loop.
+    //  The firmware's idle loop, at `pc`, its shortest pass `passCycles`
+    //  long. At the start of each pass short of the target, `skip` is called
+    //  with the cycles left. It makes the changes to memory and registers of
+    //  the whole passes it skips and returns their cycles, at most the cycles
+    //  left, or 0 to run the pass. Between frames, with less than a pass left
+    //  after a skip, RunUntil returns with the CPU at `pc` and the cycle
+    //  count short of the target. An empty `skip` runs every pass.
     using IdleLoopFn = std::function<uint64_t (uint64_t cyclesLeft)>;
-    void              SetIdleLoop     (Word pc, IdleLoopFn skip) { m_idlePc = pc; m_idleLoop = std::move (skip); }
+    void              SetIdleLoop     (Word pc, uint64_t passCycles, IdleLoopFn skip);
 
     Cpu6502Registers  GetRegisters    () const;
+    void              SetRegisters    (const Cpu6502Registers & regs);
 
     //  Moves the cycle count to `cycle` without running instructions, for a
     //  device in reset, or idle for long enough that it doesn't matter.
@@ -73,5 +100,6 @@ private:
     uint64_t                       m_cycles       = 0;
     uint64_t                       m_instructions = 0;
     Word                           m_idlePc       = 0;
+    uint64_t                       m_idlePass     = 0;
     IdleLoopFn                     m_idleLoop;
 };

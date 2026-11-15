@@ -109,15 +109,27 @@ void DeviceCpu::Reset()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeviceCpu::RunUntil (uint64_t targetCycle)
+void DeviceCpu::RunUntil (uint64_t targetCycle, CatchUpKind kind)
 {
-    uint32_t  cycles = 0;
-    HRESULT   hr     = S_OK;
+    uint32_t  cycles  = 0;
+    uint64_t  skipped = 0;
+    HRESULT   hr      = S_OK;
 
 
 
     while (m_cpu != nullptr && m_cycles < targetCycle)
     {
+        if (m_idleLoop && m_cpu->GetPC() == m_idlePc)
+        {
+            skipped   = m_idleLoop (targetCycle - m_cycles);
+            m_cycles += skipped;
+
+            if (kind == CatchUpKind::BetweenFrames && skipped > 0 && targetCycle - m_cycles < m_idlePass)
+            {
+                break;
+            }
+        }
+
         hr = m_cpu->Step (cycles);
 
         if (FAILED (hr) || cycles == 0)
@@ -128,12 +140,24 @@ void DeviceCpu::RunUntil (uint64_t targetCycle)
 
         m_cycles += cycles;
         m_instructions++;
-
-        if (m_idleLoop && m_cycles < targetCycle && m_cpu->GetPC() == m_idlePc)
-        {
-            m_cycles += m_idleLoop (targetCycle - m_cycles);
-        }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetIdleLoop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeviceCpu::SetIdleLoop (Word pc, uint64_t passCycles, IdleLoopFn skip)
+{
+    m_idlePc   = pc;
+    m_idlePass = passCycles;
+    m_idleLoop = std::move (skip);
 }
 
 
@@ -164,4 +188,22 @@ Word DeviceCpu::GetPC() const
 Cpu6502Registers DeviceCpu::GetRegisters() const
 {
     return (m_cpu != nullptr) ? m_cpu->GetRegisters() : Cpu6502Registers {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetRegisters
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeviceCpu::SetRegisters (const Cpu6502Registers & regs)
+{
+    if (m_cpu != nullptr)
+    {
+        m_cpu->SetRegisters (regs);
+    }
 }

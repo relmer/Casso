@@ -86,11 +86,11 @@ void SmartPortBus::AddDevice (ISmartPortDevice * device)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SmartPortBus::CatchUp (uint64_t nowNs)
+void SmartPortBus::CatchUp (uint64_t nowNs, CatchUpKind kind)
 {
     for (ISmartPortDevice * device : m_devices)
     {
-        device->CatchUp (nowNs);
+        device->CatchUp (nowNs, kind);
     }
 }
 

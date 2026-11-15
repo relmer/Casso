@@ -44,13 +44,22 @@ the fetch on 2026-11-14) and `apple2cp` ROM 05; all verify.
 | Case | Casso | MAME |
 |---|---|---|
 | SCSI card in slot 7, ID 6: 5 MB `.hdv`, 32 MB `.hdv`, 32 MB `.2mg` (an 800K `.hdv` was in the first run; a hard disk no longer mounts a floppy-size image) | ProDOS BASIC prompt at 2.84 s | ProDOS BASIC prompt at 2.97 s |
-| 3.5 controller card in slot 5, Apple 3.5 Drive: 800K `.po`, DiskCopy 4.2 | 3.33 s | 3.97 s |
+| 3.5 controller card in slot 5, Apple 3.5 Drive: 800K `.po`, DiskCopy 4.2 | 3.72 s | 3.97 s |
+| 3.5 controller card in slot 5, Apple 3.5 Drive: WOZ 2 3.5-inch image of the same blocks | 3.72 s | 4.43 s |
 | //c Plus internal drive, 800K `.po` | 11.76 s | 12.10 s |
 | //c Plus external Apple 3.5 Drive, internal drive empty, 800K `.po` | 11.86 s | No boot by 40 s; the "Apple IIc +" startup screen |
 | //c, 140K `.po` | 9.11 s | 9.08 s |
 
-Every image boots to the same screen on both. Each case's four or two images
-take the same time on each emulator.
+Every image boots to the same screen on both. Each case's images take the
+same time on each emulator, except the WOZ image on MAME. CassoCli doesn't
+write an 800K WOZ image, so `MameComparisonTests::Apple35Card_BootsEachImage`
+writes `800k.woz` from `800k.po` with the tests' `Woz35Builder`. MAME ran the
+card as `-sl5 superdrive -sl6 ""`, the image in `flop1` (2026-11-15).
+
+The 3.5 controller card's boot was 3.33 s in Casso until 2026-11-15. The
+card's catch-up then counted from the cycle its CPU stopped at, so each
+instruction it ran past a target added to the next one, and the card ran
+slightly fast. The catch-up counts from the last target now.
 
 The first run had the 3.5 controller card at 14.80 s. Casso's Apple 3.5
 Drive read every register it didn't model as 1, so the card's firmware took

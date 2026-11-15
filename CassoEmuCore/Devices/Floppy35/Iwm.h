@@ -90,6 +90,7 @@ private:
     void             WriteRegister (Byte value);
     void             MoveCell      (uint64_t cellEndNs);
     void             UpdatePhases  ();
+    void             UpdateEnables ();
 
     std::array<IDiskDriveBus *, kDrives>  m_drives          = {};
     std::array<bool, 4>                   m_phases          = {};
