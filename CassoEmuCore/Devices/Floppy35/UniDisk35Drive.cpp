@@ -83,6 +83,11 @@ HRESULT UniDisk35Drive::SetFirmware (std::vector<Byte> firmware)
     MapPages();
     Reset();
 
+    if (IsIdleLoopInRom())
+    {
+        m_cpu.SetIdleLoop (kIdleLoop, [this] (uint64_t cyclesLeft) { return SkipIdleLoop (cyclesLeft); });
+    }
+
 Error:
     return hr;
 }
@@ -241,6 +246,91 @@ void UniDisk35Drive::CatchUp (uint64_t nowNs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SkipIdleLoop
+//
+//  The firmware's loop at $EC08 polls the bus. With its counter at $6A-$6B
+//  zero, a pass writes the gate array's register 1, reads the button
+//  latches and reads the IWM's status, the same 109 cycles each time. A
+//  pass of 109 cycles since the last one at $EC08 indicates the CPU is in
+//  that loop. The latches and the bus change only between catch-ups, and
+//  with the mechanism idle its registers don't change with time, so every
+//  pass up to the target is the same.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t UniDisk35Drive::SkipIdleLoop (uint64_t cyclesLeft)
+{
+    constexpr Word  kCounterLow  = 0x6A;
+    constexpr Word  kCounterHigh = 0x6B;
+    constexpr Byte  kLatchBits   = 0x0C;
+    uint64_t        now          = m_cpu.GetCycles();
+    bool            inLoop       = now - m_idleAt == kIdlePassCycles;
+    uint64_t        skipped      = 0;
+
+
+
+    if (inLoop && m_ram[kCounterLow] == 0 && m_ram[kCounterHigh] == 0 && (ReadGateArray (0x0801) & kLatchBits) == 0 && m_mechanism.IsIdle())
+    {
+        skipped = cyclesLeft / kIdlePassCycles * kIdlePassCycles;
+    }
+
+    m_idleAt = now + skipped;
+
+    return skipped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsIdleLoopInRom
+//
+//  Whether the ROM's bytes at the idle loop and the routines it calls are
+//  the ones SkipIdleLoop is written for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool UniDisk35Drive::IsIdleLoopInRom() const
+{
+    struct Piece
+    {
+        Word                     address;
+        std::vector<Byte>        bytes;
+    };
+
+    static const Piece  s_kPieces[] =
+    {
+        { 0xEC08, { 0xA5, 0x6A, 0x05, 0x6B, 0xD0, 0x05, 0x20, 0xEA, 0xE9, 0x80, 0x06, 0xE6, 0x6A, 0xD0, 0x02, 0xE6, 0x6B, 0x20, 0xC3, 0xE5, 0xAD, 0x0D, 0x0A, 0xAD, 0x0E, 0x0A, 0x10, 0xE4 } },
+        { 0xE9EA, { 0xA9, 0x03, 0x4C, 0x81, 0xE6 } },
+        { 0xE5C3, { 0xAD, 0x01, 0x08, 0x29, 0x0C, 0xF0, 0x23 } },
+        { 0xE5ED, { 0x60 } },
+        { 0xE681, { 0xDA, 0xA2, 0x01, 0x48, 0x49, 0x0F, 0x09, 0xF0, 0x35, 0x09, 0x95, 0x09, 0x68, 0x4A, 0x4A, 0x4A, 0x4A, 0x15, 0x09, 0x95, 0x09, 0x9D, 0x00, 0x08, 0xFA, 0x60 } },
+    };
+
+    bool  matches = m_rom.size() == kRomSize;
+
+
+
+    for (const Piece & piece : s_kPieces)
+    {
+        size_t  offset = (size_t) (piece.address - kRomStart);
+
+
+
+        matches = matches && std::equal (piece.bytes.begin(), piece.bytes.end(), m_rom.begin() + (ptrdiff_t) offset);
+    }
+
+    return matches;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetBusReset
 //
 //  The drive is in reset while the bus is; the end of the bus's reset
@@ -354,6 +444,38 @@ Byte UniDisk35Drive::ReadCell (uint64_t cellEndNs)
     }
 
     return bit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetQuietUntil
+//
+//  On the bus, a cell reads 0 while the bus isn't enabled at the drive or
+//  no bits from the Apple are waiting; the Apple's bits for a time are on
+//  the line before the drive's IWM reads to that time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t UniDisk35Drive::GetQuietUntil() const
+{
+    uint64_t  quiet = kQuietForever;
+
+
+
+    if (IsOnBus())
+    {
+        quiet = (!IsBusEnabled() || m_input.IsEmpty()) ? kQuietForever : 0;
+    }
+    else if (IsMechanismActive())
+    {
+        quiet = m_mechanism.GetQuietUntil();
+    }
+
+    return quiet;
 }
 
 

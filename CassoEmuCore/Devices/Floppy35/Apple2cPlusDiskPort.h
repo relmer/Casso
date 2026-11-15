@@ -87,12 +87,13 @@ private:
     public:
         PortDrive (Apple2cPlusDiskPort & diskPort, int drive) : m_diskPort (diskPort), m_drive (drive) {}
 
-        void      SetPhases (bool ph0, bool ph1, bool ph2, bool ph3) override;
-        bool      GetSense  () const override;
-        Byte      ReadCell  (uint64_t cellEndNs) override;
-        void      WriteCell (Byte bit, uint64_t cellEndNs) override;
-        void      Advance   (uint64_t elapsedNs) override;
-        uint32_t  GetCellNs () const override;
+        void      SetPhases     (bool ph0, bool ph1, bool ph2, bool ph3) override;
+        bool      GetSense      () const override;
+        Byte      ReadCell      (uint64_t cellEndNs) override;
+        void      WriteCell     (Byte bit, uint64_t cellEndNs) override;
+        void      Advance       (uint64_t elapsedNs) override;
+        uint32_t  GetCellNs     () const override;
+        uint64_t  GetQuietUntil () const override;
 
     private:
         IDiskDriveBus  & Sync ();

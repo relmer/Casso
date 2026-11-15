@@ -354,3 +354,23 @@ uint32_t Apple2cPlusDiskPort::PortDrive::GetCellNs() const
 {
     return m_diskPort.GetDriven (m_drive).GetCellNs();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PortDrive::GetQuietUntil
+//
+//  The heads are brought to the MIG's head select first, as a read brings
+//  them, since a side the disk doesn't have reads 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t Apple2cPlusDiskPort::PortDrive::GetQuietUntil() const
+{
+    m_diskPort.SyncHeads();
+
+    return m_diskPort.GetDriven (m_drive).GetQuietUntil();
+}
