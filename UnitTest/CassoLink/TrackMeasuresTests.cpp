@@ -38,8 +38,8 @@ public:
     //  come back, and each offset from the track before is within 3 nibbles.
     TEST_METHOD (Measures_OfABuiltWoz_GiveBackItsLayouts)
     {
-        static constexpr int        kBits        = 51244;
-        static constexpr int        kNibbles     = 6337;
+        static constexpr int        kBits          = 51244;
+        static constexpr int        kNibbles       = 6337;
         static constexpr long long  kToleranceBits = 3 * 8;
         Image                                     sectors (NibblizationLayer::kImageByteSize);
         std::vector<TrackLayout>                  built;

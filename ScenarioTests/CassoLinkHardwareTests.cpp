@@ -978,6 +978,7 @@ public:
 
         Assert::IsTrue (PassesBoot (built, kBootCycles), L"The WOZ built to the measures");
     }
+
     //  Whether a //c booted from the WOZ for `cycles` is outside the ROM's BRK
     //  handler at each of a few hundred samples after it.
     static bool  PassesBoot (const std::vector<Byte> & woz, uint64_t cycles)
