@@ -405,8 +405,8 @@ public:
         Assert::IsFalse  (FullSendPanel::MakeManifestView (std::vector<Byte> { 'x' }, snapshot), L"Not a manifest");
     }
 
-    //  Ending a session asks first only while a disk is being read, as that
-    //  disk isn't saved; a session waiting for a disk ends with no question.
+    //  A confirmation comes before a session ends only while a disk is being
+    //  read, as that disk isn't saved; a session waiting for a disk ends at once.
     TEST_METHOD (IsReadingDisk_OnlyWhileADriveIsCheckedOrRead)
     {
         FullSendSnapshot  snapshot;

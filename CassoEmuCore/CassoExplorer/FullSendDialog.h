@@ -190,8 +190,8 @@ public:
     //  Whether a session is in progress, so End session applies.
     static bool  IsRunning (const FullSendSnapshot & snapshot);
 
-    //  Whether a drive's disk is being checked or read, so ending the session
-    //  loses it.
+    //  Whether a drive's disk is being checked or read, so that disk isn't
+    //  saved if the session ends.
     static bool  IsReadingDisk (const FullSendSnapshot & snapshot);
 
     //  At position, the window's top left on the screen, when it is on a
