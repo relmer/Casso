@@ -26,11 +26,16 @@ void StockDisksListing::Build (const std::vector<StockDiskRow> & disks, std::vec
         row.isStockDisk               = true;
         row.stockDownloaded           = disk.isDownloaded;
         row.sizeBytes                 = disk.isDownloaded ? kDiskBytes : 0;
-        row.imageClass.status         = ImageStatus::Classified;
-        row.imageClass.formFactor     = ImageFormFactor::Floppy525;
-        row.imageClass.layout         = ImageLayout::Sector;
-        row.imageClass.formattedBytes = kDiskBytes;
-        row.imageClass.blockCount     = kDiskBlocks;
+        row.imageClass                = disk.imageClass;
+
+        if (!row.imageClass.IsClassified())
+        {
+            row.imageClass.status         = ImageStatus::Classified;
+            row.imageClass.formFactor     = ImageFormFactor::Floppy525;
+            row.imageClass.layout         = ImageLayout::Sector;
+            row.imageClass.formattedBytes = kDiskBytes;
+            row.imageClass.blockCount     = kDiskBlocks;
+        }
 
         outRows.push_back (std::move (row));
     }

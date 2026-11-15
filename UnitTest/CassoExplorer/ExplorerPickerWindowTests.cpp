@@ -3,6 +3,7 @@
 #include "ExplorerWindowPartsRig.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "CassoExplorer/Picker/StartupDiskPicker.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -350,7 +351,7 @@ public:
         request.form           = PickerForm::DriveWindow;
         request.receivingDrive = ReceivingDrive { ReceivingDriveKind::Floppy525, 0 };
         request.stockDisks     = { { L"ProDOS Users Disk", L"C:\\Stock\\ProDOS Users Disk.dsk", false } };
-        request.onFetchStock   = [&] (const std::wstring & path) { log.push_back (L"fetch " + path); return fetchResult; };
+        request.onFetchStock   = [&] (const std::wstring & path, std::wstring & outError) { log.push_back (L"fetch " + path); outError = L"The server could not be reached."; return fetchResult; };
         request.onConfirm      = [&] (const std::wstring & path) { log.push_back (L"insert " + path); return true; };
 
         plain.Open();
@@ -374,6 +375,7 @@ public:
         rig.parts->pickerMode.Confirm();
         Assert::IsTrue (log == std::vector<std::wstring> { L"fetch C:\\Stock\\ProDOS Users Disk.dsk" });
         Assert::IsFalse (rig.window.closed);
+        Assert::IsTrue (rig.window.messages == std::vector<std::wstring> { L"The server could not be reached." }, L"the failure is reported");
 
         fetchResult = true;
         rig.parts->pickerMode.Confirm();
@@ -472,4 +474,45 @@ public:
         Assert::IsTrue (rig.window.closed);
         Assert::AreEqual (std::wstring (L"C:\\Disks\\blank.dsk"), outcome.path);
     }
-};
+
+
+    //  The startup form: drive 1's 5.25-inch rule, the stock disks, Start,
+    //  and a skip button that ends the picker confirmed with no path.
+    TEST_METHOD (StartupForm_StartsOrSkips_AndClosingConfirmsNothing)
+    {
+        Rig            rig;
+        Rig            closing;
+        PickerRequest  request  = StartupDiskPicker::MakeRequest (L"Apple //e", { { L"ProDOS Users Disk", L"C:\\Stock\\ProDOS Users Disk.dsk", false } });
+        PickerRequest  copy     = request;
+        PickerOutcome  outcome;
+        PickerOutcome  closed;
+
+
+
+        Assert::IsTrue (request.form == PickerForm::ModalOpen);
+        Assert::IsTrue (request.receivingDrive.has_value() && request.receivingDrive->kind == ReceivingDriveKind::Floppy525);
+        Assert::AreEqual (std::wstring (L"Choose a boot disk - Apple //e"), request.title);
+        Assert::AreEqual (std::wstring (StartupDiskPicker::kViewKey), request.viewKey);
+        Assert::AreEqual ((size_t) 1, request.stockDisks.size());
+        Assert::IsTrue ((bool) request.onFetchStock);
+
+        rig.app.picker  = &request;
+        rig.app.outcome = &outcome;
+        rig.Open();
+
+        Assert::AreEqual (std::wstring (L"Start"), rig.parts->pickerMode.GetConfirmLabel());
+        Assert::IsFalse (rig.parts->pickerMode.CanCreateNew());
+
+        rig.parts->pickerMode.Skip();
+        Assert::IsTrue (rig.window.closed);
+        Assert::IsTrue (outcome.isConfirmed);
+        Assert::IsTrue (outcome.path.empty());
+
+        closing.app.picker  = &copy;
+        closing.app.outcome = &closed;
+        closing.Open();
+        closing.parts->pickerMode.Cancel();
+
+        Assert::IsTrue (closing.window.closed);
+        Assert::IsFalse (closed.isConfirmed, L"closing quits Casso");
+    }};

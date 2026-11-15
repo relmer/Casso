@@ -608,7 +608,7 @@ void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
 
 
         insert->label     = L"&Insert disk...";
-        insert->dispatch  = [this, drive] () { m_scene->BrowseFloppy35 (drive); };
+        insert->dispatch  = [this, drive] () { m_scene->BrowseDeskDrive (drive); };
         eject->label      = L"&Eject disk";
         eject->dispatch   = [this, drive] () { m_disks->Eject (drive.slot, drive.drive); };
         eject->isEnabled  = [this, drive] () { return !m_scene->GetDriveImagePath (drive).empty(); };

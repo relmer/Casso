@@ -49,6 +49,9 @@ public:
     void  Confirm            ();
     void  Cancel             ();
 
+    //  The request's skip button: the picker ends confirmed, with no path.
+    void  Skip               ();
+
     //  Creates a disk or a tape for the drive and confirms it.
     bool  CanCreateNew       () const;
     void  CreateNew          ();
@@ -76,6 +79,7 @@ private:
     bool  TryGetRowFile      (int row, std::wstring & outPath) const;
     bool  IsStockDiskToFetch (int row) const;
     bool  AskToReplace       (const std::wstring & path);
+    bool  FetchStockDisk     (const std::wstring & path);
     void  ConfirmPath        (const std::wstring & path);
 
     ExplorerContext  & m_context;

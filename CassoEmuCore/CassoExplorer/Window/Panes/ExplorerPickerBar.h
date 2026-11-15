@@ -63,6 +63,7 @@ private:
     DxuiTextInput    * m_name             = nullptr;
     DxuiButton       * m_filter           = nullptr;
     DxuiButton       * m_create           = nullptr;
+    DxuiButton       * m_skip             = nullptr;
     DxuiButton       * m_confirm          = nullptr;
     DxuiButton       * m_cancel           = nullptr;
     std::wstring       m_copiedFrom;                 // the selected file whose name the box was last given

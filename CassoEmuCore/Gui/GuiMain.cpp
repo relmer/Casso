@@ -20,6 +20,7 @@
 #include "Core/MachineScanner.h"
 #include "Shell/DiskMru.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
+#include "CassoExplorer/Picker/StartupDiskPicker.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Dialogs/CommandLineHelpDialog.h"
 #include "Shell/Components/ShellWindow.h"
@@ -369,68 +370,36 @@ static HRESULT LoadMachineConfig (
 
         if (savedDisk.empty())
         {
-            wstring                downloaded;
-            GlobalUserPrefs        prefs;
-            Win32FileSystem        fs_prefs;
-            DiskMru                mru;
-            vector<DiskMru::Entry> mruPruned;
-            vector<DiskMru::Entry> mruExisting;
-            HRESULT                hrPrefs    = S_OK;
-            bool                   userClosed = false;
-
-            diskDir = AssetBootstrap::GetDiskDirectory();
+            wstring          picked;
+            GlobalUserPrefs  prefs;
+            Win32FileSystem  fs_prefs;
+            HRESULT          hrPrefs    = S_OK;
+            bool             hasDisk    = false;
+            bool             userClosed = false;
 
             hrPrefs = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(), fs_prefs);
             IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
-            mru       = DiskMru::FromUtf8 (prefs.recentDisks, prefs.recentDiskLoadedAt);
+            hr = AssetBootstrap::HasDiskController (hInstance, machineName, hasDisk, error);
+            CHRN (hr, format (L"Boot disk picker failed:\n{}", TextEncoding::NarrowToWide (error)).c_str());
 
-            // The picker shows a few recent disks; checking that each of a long
-            // list still exists would hold up startup.
-            mru.TrimTo (DiskMru::kMenuEntries);
-
-            mruExisting = mru.Prune ([] (const fs::path & p)
-                                     {
-                                         return fs::exists (p)
-                                                && !AssetBootstrap::IsForeignCheckoutDisk (p);
-                                     });
-
-            // The recent list holds tapes too; a boot disk is a disk.
-            mruPruned = mru.Prune ([] (const fs::path & p)
-                                   {
-                                       return fs::exists (p)
-                                              && !AssetBootstrap::IsForeignCheckoutDisk (p)
-                                              && IsSupportedDiskImageExtension (p.wstring());
-                                   });
-
-            AssetBootstrap::AppendSiblingDisksFromFolders (
-                KnownFolderStore::LoadPickerFolders (fs_prefs, AssetBootstrap::GetAssetBaseDirectory().wstring(),
-                                                     mruExisting,
-                                                     (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
-                                                         std::chrono::system_clock::now().time_since_epoch()).count()),
-                mruPruned,
-                IsSupportedDiskImageExtension);
-
-            AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned, mruExisting, IsSupportedDiskImageExtension);
-            AssetBootstrap::AppendBundledDemoDisks (mruPruned, IsSupportedDiskImageExtension);
-
-            hr = AssetBootstrap::PromptBootDiskMru (
-                hInstance, hwndParent, machineName, mruPruned, diskDir, prefs.activeTheme, downloaded, userClosed, error);
-
-            // A failed download is shown by the picker itself, which then
-            // comes back; what reaches here is a machine whose embedded
-            // config could not be read.
-            CHRN (hr, format (L"Boot disk picker failed:\n{}",
-                              TextEncoding::NarrowToWide (error)).c_str());
-
-            // Closing the boot-disk picker is the same clean-shutdown
-            // request as choosing Exit above.
-            outUserExited = userClosed;
-            BAIL_OUT_IF (userClosed, S_OK);
-
-            if (!downloaded.empty())
+            //  The startup form of the Casso Explorer picker, for drive 1 of a
+            //  machine with slot 6's drives.
+            if (hasDisk)
             {
-                inoutDisk1Path = downloaded;
+                hr = StartupDiskPicker::Run (hInstance, hwndParent, AssetBootstrap::GetEmbeddedDisplayName (hInstance, machineName),
+                                             prefs.activeTheme, picked, userClosed);
+                CHRN (hr, L"The boot disk picker could not be opened.");
+
+                // Closing the boot-disk picker is the same clean-shutdown
+                // request as choosing Exit above.
+                outUserExited = userClosed;
+                BAIL_OUT_IF (userClosed, S_OK);
+
+                if (!picked.empty())
+                {
+                    inoutDisk1Path = picked;
+                }
             }
 
             hr = S_OK;

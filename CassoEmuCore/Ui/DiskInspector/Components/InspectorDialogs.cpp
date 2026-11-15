@@ -271,6 +271,12 @@ void InspectorDialogs::OpenExport()
     spec.defaultFileName  = dialog.GetRequest().fileName;
     spec.initialFolder    = image.parent_path();
 
+    //  A WOZ export is a disk image, saved through the picker.
+    if (dialog.GetRequest().extension == L"woz")
+    {
+        spec.content = FileDialogContent::Images;
+    }
+
     hr = dialogs.PickFileToSave (m_host.GetOwnerHwnd(), spec, target, isPicked);
     CHR (hr);
     BAIL_OUT_IF (!isPicked, S_OK);

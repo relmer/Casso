@@ -3886,7 +3886,7 @@ void ShellDeskScene::BrowseExtraDrive (int index)
 {
     if (index >= 0 && index < m_deskScene.GetExtraCount())
     {
-        BrowseFloppy35 (m_deskScene.GetExtraDrive (index));
+        BrowseDeskDrive (m_deskScene.GetExtraDrive (index));
     }
 }
 
@@ -3896,11 +3896,11 @@ void ShellDeskScene::BrowseExtraDrive (int index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDeskScene::BrowseFloppy35
+//  ShellDeskScene::BrowseDeskDrive
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDeskScene::BrowseFloppy35 (const DeskDrive & drive)
+void ShellDeskScene::BrowseDeskDrive (const DeskDrive & drive)
 {
     if (TakesImage (drive))
     {

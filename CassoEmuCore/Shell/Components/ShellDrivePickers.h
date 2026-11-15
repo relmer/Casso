@@ -61,7 +61,6 @@ public:
 private:
     DrivePickers::Hooks  MakeHooks      ();
     bool                 Insert         (const PickerDrive & drive, const std::wstring & path, std::wstring & outError);
-    bool                 FetchStockDisk (const std::wstring & path);
 
     std::unique_ptr<class ExplorerPickerHost>  MakeHost (PickerRequest request, HWND owner, bool cascade);
 

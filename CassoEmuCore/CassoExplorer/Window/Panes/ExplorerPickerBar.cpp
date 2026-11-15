@@ -86,6 +86,12 @@ void ExplorerPickerBar::Create()
         m_create->SetOnClick ([this] () { m_context.pickerMode.CreateNew(); });
     }
 
+    if (!request->skipLabel.empty())
+    {
+        m_skip = m_context.window.CreateChild<DxuiButton> (request->skipLabel);
+        m_skip->SetOnClick ([this] () { m_context.pickerMode.Skip(); });
+    }
+
     m_confirm = m_context.window.CreateChild<DxuiButton> (m_context.pickerMode.GetConfirmLabel());
     m_confirm->SetVariant (DxuiButton::Variant::Primary);
     m_confirm->SetOnClick ([this] () { m_context.pickerMode.Confirm(); });
@@ -104,8 +110,9 @@ void ExplorerPickerBar::Create()
 //
 //  ExplorerPickerBar::Layout
 //
-//  Cancel and the confirm button at the right, the create command and the
-//  filter choice before them, and the header in what is left.
+//  Cancel and the confirm button at the right, the skip button, the create
+//  command and the filter choice before them, and the header in what is
+//  left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,7 +132,7 @@ void ExplorerPickerBar::Layout (const RECT & band)
         return;
     }
 
-    for (DxuiButton * button : { m_cancel, m_confirm, m_create, m_filter })
+    for (DxuiButton * button : { m_cancel, m_confirm, m_skip, m_create, m_filter })
     {
         if (button == nullptr)
         {

@@ -345,7 +345,7 @@ bool ShellChrome::HandleDriveBarClick (POINT pt)
         }
         else if (ShellDeskScene::TakesImage (drive))
         {
-            m_shell.m_scene->BrowseFloppy35 (drive);
+            m_shell.m_scene->BrowseDeskDrive (drive);
         }
 
         took = true;

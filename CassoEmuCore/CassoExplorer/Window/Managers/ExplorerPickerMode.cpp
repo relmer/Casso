@@ -235,13 +235,79 @@ void ExplorerPickerMode::Confirm()
     }
 
     //  A stock disk not yet on the disk is downloaded first. A download
-    //  that fails is reported by the request, and the picker stays open.
-    if (IsStockDiskToFetch (selected[0]) && (!m_context.app.picker->onFetchStock || !m_context.app.picker->onFetchStock (path)))
+    //  that fails is reported, and the picker stays open.
+    if (IsStockDiskToFetch (selected[0]) && !FetchStockDisk (path))
     {
         return;
     }
 
     ConfirmPath (path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerMode::FetchStockDisk
+//
+//  The download blocks, under the wait cursor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPickerMode::FetchStockDisk (const std::wstring & path)
+{
+    const PickerRequest *  request   = m_context.app.picker;
+    std::wstring           error;
+    bool                   isFetched = false;
+    HCURSOR                previous  = nullptr;
+
+
+
+    if (!request->onFetchStock)
+    {
+        return false;
+    }
+
+    previous  = SetCursor (LoadCursorW (nullptr, IDC_WAIT));
+    isFetched = request->onFetchStock (path, error);
+    SetCursor (previous);
+
+    if (!isFetched)
+    {
+        m_context.window.ShowMessage (error.empty() ? std::wstring (L"The stock disk could not be downloaded.") : error, MB_ICONWARNING);
+    }
+
+    return isFetched;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerMode::Skip
+//
+//  The request's skip button: confirmed, with no path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPickerMode::Skip()
+{
+    if (!m_context.IsPicker() || m_context.app.picker->skipLabel.empty())
+    {
+        return;
+    }
+
+    if (m_context.app.outcome != nullptr)
+    {
+        m_context.app.outcome->isConfirmed = true;
+        m_context.app.outcome->path.clear();
+    }
+
+    m_context.window.CloseWindow();
 }
 
 
@@ -562,6 +628,11 @@ std::wstring ExplorerPickerMode::GetConfirmLabel() const
     if (request == nullptr)
     {
         return std::wstring();
+    }
+
+    if (!request->confirmLabel.empty())
+    {
+        return request->confirmLabel;
     }
 
     return request->IsSave() ? L"Save" : (request->form == PickerForm::DriveWindow) ? L"Insert" : L"Open";

@@ -78,10 +78,18 @@ struct PickerRequest
 
     //  The "Stock disks" node's rows; with none the tree has no such node.
     //  `onFetchStock` downloads the stock disk at a row's path when the row
-    //  is confirmed before its image is on the disk; false when it could not,
-    //  which the caller reports.
+    //  is confirmed before its image is on the disk; false with the reason
+    //  when it could not, which the picker reports.
     std::vector<StockDiskRow>      stockDisks;
-    std::function<bool (const std::wstring & path)>  onFetchStock;
+    std::function<bool (const std::wstring & path, std::wstring & outError)>  onFetchStock;
+
+    //  The confirm button's label in place of Insert, Open or Save; empty
+    //  for the form's.
+    std::wstring                   confirmLabel;
+
+    //  A button that confirms with no path, such as the startup form's
+    //  "Start without a disk"; empty for none.
+    std::wstring                   skipLabel;
 
     //  The images inserted in the running machine's drives, by path, each
     //  with its drive's label, for the "In drive" mark.

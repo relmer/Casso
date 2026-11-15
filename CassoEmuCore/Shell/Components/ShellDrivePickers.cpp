@@ -3,6 +3,7 @@
 #include "AssetBootstrap.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoExplorer/Picker/ExplorerPickerHost.h"
+#include "CassoExplorer/Picker/StartupDiskPicker.h"
 #include "Core/TextEncoding.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellDrivePickers.h"
@@ -133,29 +134,17 @@ DrivePickers::Hooks ShellDrivePickers::MakeHooks()
         };
     };
 
-    //  The DOS 3.3 and ProDOS masters, which are 140K 5.25-inch disks, for a
-    //  5.25-inch drive. One is downloaded when it is picked, as the old
-    //  dialog's Download rows did.
-    hooks.getStockDisks = [] (const PickerDrive & drive)
+    //  The DOS 3.3 and ProDOS masters and the disks bundled with Casso, each
+    //  listed for a drive that accepts it. A master is downloaded when it is
+    //  picked, as the old dialog's Download rows did.
+    hooks.getStockDisks = [this] (const PickerDrive & drive)
     {
-        std::vector<StockDiskRow>  rows;
-
-        if (drive.receiving.kind == ReceivingDriveKind::Floppy525)
-        {
-            for (AssetBootstrap::StockBootDisk disk : { AssetBootstrap::StockBootDisk::Dos33Master, AssetBootstrap::StockBootDisk::ProDosUsersDisk })
-            {
-                std::filesystem::path  path = AssetBootstrap::GetStockBootDiskPath (disk);
-
-                rows.push_back (StockDiskRow { path.stem().wstring(), path.wstring(), AssetBootstrap::IsStockBootDiskCached (disk) });
-            }
-        }
-
-        return rows;
+        return StartupDiskPicker::GetStockDisks (m_shell.m_machine.GetBlockMediaFileIo(), drive.receiving);
     };
 
-    hooks.fetchStockDisk = [this] (const std::wstring & path)
+    hooks.fetchStockDisk = [] (const std::wstring & path, std::wstring & outError)
     {
-        return FetchStockDisk (path);
+        return StartupDiskPicker::FetchStockDisk (path, outError);
     };
 
     //  The disks in the machine's drives, for the picker's "In slot 6
@@ -196,46 +185,6 @@ bool ShellDrivePickers::Insert (const PickerDrive & drive, const std::wstring & 
     outError.clear();
 
     return m_shell.InsertInDrive (drive.address, drive.receiving.kind, drive.label, path);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDrivePickers::FetchStockDisk
-//
-//  The download blocks, under the wait cursor. A failure is reported in
-//  the emulator's window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellDrivePickers::FetchStockDisk (const std::wstring & path)
-{
-    HRESULT       hr       = E_INVALIDARG;
-    HCURSOR       previous = SetCursor (LoadCursorW (nullptr, IDC_WAIT));
-    std::wstring  fetched;
-    std::string   error;
-
-
-
-    for (AssetBootstrap::StockBootDisk disk : { AssetBootstrap::StockBootDisk::Dos33Master, AssetBootstrap::StockBootDisk::ProDosUsersDisk })
-    {
-        if (_wcsicmp (AssetBootstrap::GetStockBootDiskPath (disk).c_str(), path.c_str()) == 0)
-        {
-            hr = AssetBootstrap::EnsureStockBootDisk (disk, fetched, error);
-        }
-    }
-
-    SetCursor (previous);
-
-    if (FAILED (hr))
-    {
-        m_shell.ShowNotification (error.empty() ? std::wstring (L"The stock disk could not be downloaded.") : TextEncoding::Utf8ToWide (error));
-    }
-
-    return SUCCEEDED (hr);
 }
 
 

@@ -33,3 +33,10 @@ Window checks run on a test copy of the emulator: `CASSO_PROFILE_DIR` set to a s
 - The no-drop cursor during a real drag. An OLE drag cannot be posted. `DropRuleTests` covers which tags accept which images.
 - Casso Explorer's image requests. A test copy of Casso Explorer was not launched.
 - Listing time for a Casso node with 500 images.
+
+
+## Phase 10 (T091)
+
+- References to the removed code (`PromptInsertDiskMru`, `PromptInsertTapeMru`, `PromptForDiskImage`, `BrowseFloppy35`, `MakeDiskPickerKind`, `PromptBootDiskMru`, `DiskMruPickerSession`, `MediaPickerKind`) in the C++ sources: 0.
+- `PickFileToOpen` and `PickFileToSave` calls in `CassoEmuCore/Shell` and `CassoEmuCore/Ui`: 11. Image requests with `content = Images`: the lost-disk save (while the machine runs), the tape open and the new tape, the inspector's compare, its image save and its WOZ export, and the Hardware page's image. Not image requests: the printout's PNG, the block inspector's text and binary export, and the serial card's two file requests.
+- `WindowCommandManager::CreateBlankDiskForDrive` and its dialog are no longer called: a drive's picker creates through Casso Explorer's New disk image dialog.

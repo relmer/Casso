@@ -248,16 +248,16 @@
 
 ## STOP: model gate G2
 
-- [ ] G2 **Stop here. Do not start Phase 10.** Commit and push, then end the turn with this message to the owner: "Phases 6 to 9 are done. Phases 10 and 11 (removal, validation) are next: switch this session back to Opus if you want to, then reply to continue." Mark G2 done only after the owner replies.
+- [x] G2 **Stop here. Do not start Phase 10.** Commit and push, then end the turn with this message to the owner: "Phases 6 to 9 are done. Phases 10 and 11 (removal, validation) are next: switch this session back to Opus if you want to, then reply to continue." Mark G2 done only after the owner replies.
 
 ---
 
 ## Phase 10: Removal of the old dialog (FR-040, FR-041, SC-005)
 
-- [ ] T090 Remove `WindowCommandManager::PromptInsertDiskMru`, `PromptInsertTapeMru` and `PromptForDiskImage` from `CassoEmuCore/Shell/WindowCommandManager.h` and `.cpp`, `ShellDeskScene::BrowseFloppy35` from `CassoEmuCore/Shell/Components/ShellDeskScene.h` and `.cpp`, the dialog call and the modal keep-alive in `ShellDisks::BrowseForDisk`, and the themed dialog behind `AssetBootstrap::PromptInsertDiskMru` with its tests; the stock disk catalog, the create flow and the recent list are not removed
-- [ ] T091 Confirm with `rg -n "PromptInsertDiskMru|PromptInsertTapeMru|PromptForDiskImage|BrowseFloppy35|MakeDiskPickerKind" -g "*.cpp" -g "*.h"` that nothing references the removed code, and that every remaining `PickFileToOpen` in `CassoEmuCore/Shell` and `CassoEmuCore/Ui` is either `content = Images` or not an image request; record the two listings' totals in `specs/049-explorer-picker/validation.md`
+- [x] T090 Remove `WindowCommandManager::PromptInsertDiskMru`, `PromptInsertTapeMru` and `PromptForDiskImage` from `CassoEmuCore/Shell/WindowCommandManager.h` and `.cpp`, `ShellDeskScene::BrowseFloppy35` from `CassoEmuCore/Shell/Components/ShellDeskScene.h` and `.cpp`, the dialog call and the modal keep-alive in `ShellDisks::BrowseForDisk`, and the themed dialog behind `AssetBootstrap::PromptInsertDiskMru` with its tests; the stock disk catalog, the create flow and the recent list are not removed
+- [x] T091 Confirm with `rg -n "PromptInsertDiskMru|PromptInsertTapeMru|PromptForDiskImage|BrowseFloppy35|MakeDiskPickerKind" -g "*.cpp" -g "*.h"` that nothing references the removed code, and that every remaining `PickFileToOpen` in `CassoEmuCore/Shell` and `CassoEmuCore/Ui` is either `content = Images` or not an image request; record the two listings' totals in `specs/049-explorer-picker/validation.md`
 
-- [ ] T101 Replace the startup boot disk picker (`AssetBootstrap::PromptBootDiskMru`, called from `CassoEmuCore/Gui/GuiMain.cpp`) with the picker in a startup form (FR-068): no owner window, drive 1 of the machine being started, the Casso node's list and the "Stock disks" node, a pick boots with the image, closing quits Casso; with a unit test of the startup request
+- [x] T101 Replace the startup boot disk picker (`AssetBootstrap::PromptBootDiskMru`, called from `CassoEmuCore/Gui/GuiMain.cpp`) with the picker in a startup form (FR-068): no owner window, drive 1 of the machine being started, the Casso node's list and the "Stock disks" node, a pick boots with the image, closing quits Casso; with a unit test of the startup request
 **Checkpoint**: full unit suite; commit and push.
 
 ---
