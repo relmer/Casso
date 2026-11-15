@@ -116,6 +116,12 @@ public:
     static constexpr Byte  kReadCrcs      = 0xE4;
     static constexpr Byte  kSectorCrcs    = 0xE5;
     static constexpr Byte  kFault         = 0xE6;     // a Debug build's program alone
+
+    //  Measure track, drive and track, and Track measure in reply: the nibbles
+    //  from the step to sector 0's address field and the nibbles in a turn,
+    //  each low byte first, and the field's volume.
+    static constexpr Byte  kMeasureTrack  = 0xEC;
+    static constexpr Byte  kTrackMeasure  = 0xED;
     static constexpr Byte  kKeySpace      = 0xA0;
     static constexpr Byte  kKeyQuit       = 0xD1;
     static constexpr Byte  kKeyNone       = 0x00;

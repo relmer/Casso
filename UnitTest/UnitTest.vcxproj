@@ -446,6 +446,7 @@
     <ClCompile Include="CassoLink\FullSendManifestRenameTests.cpp" />
     <ClCompile Include="CassoLink\FullSendProtectionTests.cpp" />
     <ClCompile Include="CassoLink\FullSendStatusTests.cpp" />
+    <ClCompile Include="CassoLink\TrackMeasuresTests.cpp" />
     <ClCompile Include="CassoLink\TrackVerifierTests.cpp" />
     <ClCompile Include="CassoLink\LinkedDiskTests.cpp" />
     <ClCompile Include="CassoLink\AdtProServerSessionTests.cpp" />

@@ -594,6 +594,76 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::MeasureTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::MeasureTrack (Byte drive, Byte track, TrackMeasure & outMeasure, CassoLinkStatus & outStatus)
+{
+    return Resend ([&] () { return MeasureTrackOnce (drive, track, outMeasure, outStatus); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::MeasureTrackOnce
+//
+//  Track measure, then the Status; a track with no sector 0 has the Status
+//  alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::MeasureTrackOnce (Byte drive, Byte track, TrackMeasure & outMeasure, CassoLinkStatus & outStatus)
+{
+    constexpr size_t  kMeasureBytes = 5;
+    HRESULT           hr            = S_OK;
+    const Byte        request[]     = { GetRequestDrive (drive), track };
+    CassoLinkPacket   packet;
+    bool              valid         = false;
+
+
+
+    outMeasure = {};
+    outStatus  = {};
+
+    hr = AwaitRequest();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kMeasureTrack, request);
+    CHR (hr);
+
+    hr = ReadReply (packet);
+    CHR (hr);
+
+    if (packet.command == CassoLinkCodec::kTrackMeasure)
+    {
+        valid = packet.payload.size() == kMeasureBytes;
+        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        outMeasure.fromStep = (Word) (packet.payload[0] | (packet.payload[1] << 8));
+        outMeasure.turn     = (Word) (packet.payload[2] | (packet.payload[3] << 8));
+        outMeasure.volume   = packet.payload[4];
+
+        hr = ReadReply (packet);
+        CHR (hr);
+    }
+
+    hr = ReadStatus (packet, outStatus);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::Krunch
 //
 //  Two Readies in a row after Krunch progress are a Status lost on the line:

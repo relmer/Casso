@@ -271,6 +271,7 @@
     <ClCompile Include="CassoLink\LinkedDisk.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSession.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkConnector.cpp" />
+    <ClCompile Include="CassoLink\Session\TrackMeasures.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkDiskTransfer.cpp" />
     <ClCompile Include="CassoLink\Session\TrackVerifier.cpp" />
     <ClCompile Include="CassoLink\Session\CaptureStream.cpp" />
@@ -1788,6 +1789,7 @@
     <ClInclude Include="CassoLink\LinkedDisk.h" />
     <ClInclude Include="CassoLink\CassoLinkSession.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkConnector.h" />
+    <ClInclude Include="CassoLink\Session\TrackMeasures.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkDiskTransfer.h" />
     <ClInclude Include="CassoLink\Session\TrackVerifier.h" />
     <ClInclude Include="CassoLink\Session\CaptureStream.h" />
