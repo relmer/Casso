@@ -185,8 +185,9 @@ bool ThumbnailVerdict::SetVerdict (FileSystemVerdict verdict, const std::wstring
 //
 //  ThumbnailVerdict::FormatText
 //
-//  "File system: Bad. " and the finding as a sentence, or the same for
-//  Suspect; nothing for OK or a disk with no standard file system.
+//  "File system damaged." and the finding as a sentence on the next line;
+//  "File system: Suspect." and the finding on one line; nothing for OK or a
+//  disk with no standard file system.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,9 +203,18 @@ std::wstring ThumbnailVerdict::FormatText (FileSystemVerdict verdict, const std:
         sentence[0] = static_cast<wchar_t> (towupper (sentence[0]));
     }
 
-    if (verdict == FileSystemVerdict::Bad || verdict == FileSystemVerdict::Suspect)
+    if (!sentence.empty() && !sentence.ends_with (L'.'))
     {
-        text = L"File system: " + FileSystemCheck::FormatVerdict (verdict) + L"." + (sentence.empty() ? std::wstring() : L" " + sentence + (sentence.ends_with (L'.') ? L"" : L"."));
+        sentence += L".";
+    }
+
+    if (verdict == FileSystemVerdict::Bad)
+    {
+        text = L"File system damaged." + (sentence.empty() ? std::wstring() : L"\n" + sentence);
+    }
+    else if (verdict == FileSystemVerdict::Suspect)
+    {
+        text = L"File system: Suspect." + (sentence.empty() ? std::wstring() : L" " + sentence);
     }
 
     return text;
