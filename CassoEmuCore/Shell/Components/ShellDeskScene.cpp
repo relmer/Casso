@@ -3603,6 +3603,97 @@ std::wstring ShellDeskScene::GetDriveTitle (const DeskDrive & drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDeskScene::GetDriveDiskBlocks
+//
+//  A 3.5-inch disk's size follows its sides: one side is 400K, two 800K.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t ShellDeskScene::GetDriveDiskBlocks (const DeskDrive & drive) const
+{
+    constexpr uint32_t   kBlocksPerSide = 800;
+    const MachineRefs  & refs           = m_shell.m_machine.GetRefs();
+    uint32_t             blocks         = 0;
+    Sony35Drive        * sony           = nullptr;
+
+
+
+    switch (drive.model)
+    {
+        case DeskDriveModel::HardDisk20SC:
+            for (AppleScsiCard * card : refs.scsiCards)
+            {
+                if (card->GetSlot() == drive.slot && card->GetTarget (drive.drive).GetMedia().IsAttached())
+                {
+                    blocks = card->GetTarget (drive.drive).GetMedia().GetBlockCount();
+                }
+            }
+
+            break;
+
+        case DeskDriveModel::ProFile:
+            for (ProFileCard * card : refs.proFileCards)
+            {
+                if (blocks == 0 && card->GetDrive().GetMedia().IsAttached())
+                {
+                    blocks = card->GetDrive().GetMedia().GetBlockCount();
+                }
+            }
+
+            break;
+
+        case DeskDriveModel::UniDisk35:
+        case DeskDriveModel::Apple35Drive:
+        case DeskDriveModel::Apple35Plus:
+            sony = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+
+            if (sony != nullptr && sony->HasDisk())
+            {
+                blocks = (uint32_t) sony->GetSides() * kBlocksPerSide;
+            }
+
+            break;
+
+        default:
+            break;
+    }
+
+    return blocks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetDriveCapacityBlocks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t ShellDeskScene::GetDriveCapacityBlocks (const DeskDrive & drive) const
+{
+    uint32_t  blocks = 0;
+
+
+
+    if (drive.model == DeskDriveModel::ProFile)
+    {
+        for (ProFileCard * card : m_shell.m_machine.GetRefs().proFileCards)
+        {
+            blocks = (blocks == 0) ? card->GetDrive().GetCapacity() : blocks;
+        }
+    }
+
+    return blocks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDeskScene::AreDrivesOnBar
 //
 ////////////////////////////////////////////////////////////////////////////////

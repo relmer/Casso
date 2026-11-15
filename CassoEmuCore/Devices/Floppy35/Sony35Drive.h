@@ -61,6 +61,7 @@ public:
     bool  IsWoz            () const { return m_woz != nullptr; }
 
     const std::string &  GetImagePath () const { return IsWoz() ? m_wozPath : m_media.GetPath(); }
+    int                  GetSides     () const { return m_sides; }
 
     // IDiskDriveBus: the phases are CA0, CA1, CA2 and LSTRB; time passing,
     // in nanoseconds, runs stepping, spin-up and eject; a cell is the bit

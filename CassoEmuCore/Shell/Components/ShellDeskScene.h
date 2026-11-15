@@ -78,8 +78,13 @@ public:
     void         BrowseExtraDrive   (int index);
     void         BrowseFloppy35     (const DeskDrive & drive);
 
-    // The image in a 3.5-inch drive or a hard disk, or an empty string.
-    std::string  GetDriveImagePath  (const DeskDrive & drive) const;
+    // The image in a 3.5-inch drive or a hard disk, or an empty string; the
+    // size in blocks of the disk or image, 0 for none; and a ProFile's fixed
+    // capacity, 0 for any other drive.
+    std::string  GetDriveImagePath      (const DeskDrive & drive) const;
+    uint32_t     GetDriveDiskBlocks     (const DeskDrive & drive) const;
+    uint32_t     GetDriveCapacityBlocks (const DeskDrive & drive) const;
+
     void         InsertInExtraDrive (int index, const std::wstring & path);
 
     // The drop tags of the desk's extra drives start after the tape's, and

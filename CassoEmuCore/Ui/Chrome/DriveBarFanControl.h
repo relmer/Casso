@@ -13,7 +13,8 @@
 //  placed in the drive's slot, so the control draws only the slot's panel.
 struct DriveBarEntryView
 {
-    std::wstring  caption;
+    std::wstring  title;
+    std::wstring  detail;
     std::wstring  name;
     bool          busy   = false;
     bool          diskII = false;
@@ -48,6 +49,9 @@ public:
     void  SetDpi     (UINT dpi)                                          { m_dpi = (dpi == 0) ? kBaseDpi : dpi; }
     void  SetHovered (int classIndex, int entry)                         { m_hoverClass = classIndex; m_hoverEntry = entry; }
 
+    //  The label column's width, the same as the Disk II widgets' on the bar.
+    void  SetCaptionWidthDip (int widthDip)                              { m_captionWidthDip = widthDip; }
+
     //  Cuts a name longer than `maxChars` and ends it with an ellipsis.
     static std::wstring  CutName (const std::wstring & name, size_t maxChars);
 
@@ -61,7 +65,6 @@ private:
     static constexpr int      kBarGapPx          = 3;
     static constexpr int      kBarHeightPx       = 5;
     static constexpr int      kBottomPadPx       = 8;
-    static constexpr int      kCaptionWidthPx    = 44;
     static constexpr int      kCaptionGapXPx     = 6;
     static constexpr int      kCaptionHeightPx   = 14;
     static constexpr int      kPanelRadiusPx     = 4;
@@ -79,7 +82,8 @@ private:
 
     DriveBarFan                                   m_fan;
     std::vector<std::vector<DriveBarEntryView>>   m_views;
-    UINT                                          m_dpi        = kBaseDpi;
-    int                                           m_hoverClass = -1;
-    int                                           m_hoverEntry = -1;
+    UINT                                          m_dpi             = kBaseDpi;
+    int                                           m_hoverClass      = -1;
+    int                                           m_hoverEntry      = -1;
+    int                                           m_captionWidthDip = 44;
 };

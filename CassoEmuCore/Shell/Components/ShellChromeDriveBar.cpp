@@ -53,6 +53,8 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
     scaler.SetDpi (dpi);
 
     fan.SetClasses (DriveBarFan::Group (m_shell.m_scene->GetDrivePlan()));
+    SetDiskIiBarCaptions (true);
+    m_driveBarFan.SetCaptionWidthDip (s_kDriveBarCaptionDip);
 
     widgets[0].Layout (RECT {}, scaler);
     probe   = widgets[0].GetOuterRect();
@@ -147,6 +149,42 @@ void ShellChrome::HideDriveBar()
 {
     m_driveBarFan.GetFan().Close();
     m_driveBarFan.SetVisible (false);
+    SetDiskIiBarCaptions (false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::SetDiskIiBarCaptions
+//
+//  On the bar, each Disk II widget has the drive bar's two-line label;
+//  off it, "DRIVE N" again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::SetDiskIiBarCaptions (bool onBar)
+{
+    std::array<DriveWidget, 2>  & widgets = m_shell.m_disks->GetDriveChrome();
+    DeskDriveModel                model   = m_shell.m_scene->IsMachineC() ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII;
+
+
+
+    for (int w = 0; w < (int) widgets.size(); w++)
+    {
+        DeskDrive  drive = { model, 6, w };
+
+        if (onBar)
+        {
+            widgets[(size_t) w].SetBarCaption (DriveBarFan::GetTitle (drive, false), DriveBarFan::GetDetail (model, 0, 0), s_kDriveBarCaptionDip);
+        }
+        else
+        {
+            widgets[(size_t) w].SetBarCaption (std::wstring(), std::wstring(), 0);
+        }
+    }
 }
 
 
@@ -367,9 +405,10 @@ bool ShellChrome::AnimateDriveBarFan()
 //
 //  ShellChrome::SyncDriveBarViews
 //
-//  Each drive's caption, image name and busy lamp. A caption is the drive's
-//  kind, numbered when the class has more than one of that kind; an HD20SC's
-//  is its SCSI ID. Returns true when a caption, name or lamp changed.
+//  Each drive's two-line label, image name and busy lamp. The label is
+//  numbered with its ProDOS slot and drive when the class has two drives of
+//  that kind (DriveBarFan::GetTitle). Returns true when a label, name or lamp
+//  changed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -385,15 +424,14 @@ bool ShellChrome::SyncDriveBarViews()
 
     for (int c = 0; c < fan.GetClassCount(); c++)
     {
-        std::vector<DriveBarEntryView>  row;
-        int                             floppy35Count = 0;
-        int                             floppy35Index = 0;
+        std::vector<DriveBarEntryView>    row;
+        std::map<DeskDriveModel, int>     kinds;
 
 
 
         for (int i = 0; i < fan.GetEntryCount (c); i++)
         {
-            floppy35Count += ShellDeskScene::IsFloppy35 (fan.GetDrive (c, i)) ? 1 : 0;
+            kinds[fan.GetDrive (c, i).model]++;
         }
 
         for (int i = 0; i < fan.GetEntryCount (c); i++)
@@ -404,26 +442,9 @@ bool ShellChrome::SyncDriveBarViews()
 
 
 
-            switch (drive.model)
-            {
-                case DeskDriveModel::DiskII:
-                case DeskDriveModel::Disk2c:
-                    view.diskII = true;
-                    break;
-
-                case DeskDriveModel::HardDisk20SC:
-                    view.caption = std::format (L"ID {}", drive.drive);
-                    break;
-
-                case DeskDriveModel::ProFile:
-                    view.caption = L"PROFILE";
-                    break;
-
-                default:
-                    floppy35Index++;
-                    view.caption = (floppy35Count > 1) ? std::format (L"3.5 #{}", floppy35Index) : std::wstring (L"3.5");
-                    break;
-            }
+            view.diskII = drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c;
+            view.title  = DriveBarFan::GetTitle  (drive, kinds[drive.model] > 1);
+            view.detail = DriveBarFan::GetDetail (drive.model, m_shell.m_scene->GetDriveDiskBlocks (drive), m_shell.m_scene->GetDriveCapacityBlocks (drive));
 
             if (!view.diskII)
             {
@@ -446,8 +467,8 @@ bool ShellChrome::SyncDriveBarViews()
 
         for (size_t i = 0; i < views[c].size() && !moved; i++)
         {
-            moved = views[c][i].name != m_driveBarViews[c][i].name || views[c][i].busy != m_driveBarViews[c][i].busy ||
-                    views[c][i].caption != m_driveBarViews[c][i].caption;
+            moved = views[c][i].name  != m_driveBarViews[c][i].name  || views[c][i].busy   != m_driveBarViews[c][i].busy ||
+                    views[c][i].title != m_driveBarViews[c][i].title || views[c][i].detail != m_driveBarViews[c][i].detail;
         }
     }
 
