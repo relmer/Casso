@@ -203,7 +203,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     {
         CommandLineOptions::DiskOptions::Command::SectorRead,
-        "sectorread",
+        "sectorread | read-sector",
         "Read sectors directly from the disk",
         "CassoCli disk sectorread <image> %Llogical|%Lphysical %Ltrack <n> %Lsector <n> [%Lcount <n>] [%Lout <file>]",
         "  %Llogical               Sector numbers are DOS logical: what catalogs, DOS tools and reference books use\n"
@@ -219,7 +219,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     {
         CommandLineOptions::DiskOptions::Command::SectorWrite,
-        "sectorwrite",
+        "sectorwrite | write-sector",
         "Write sectors directly to the disk",
         "CassoCli disk sectorwrite <image> <file> %Llogical|%Lphysical %Ltrack <n> %Lsector <n>",
         "  %Llogical               Sector numbers are DOS logical: what catalogs, DOS tools and reference books use\n"
@@ -234,7 +234,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     {
         CommandLineOptions::DiskOptions::Command::BlockRead,
-        "blockread",
+        "blockread | read-block",
         "Read 512-byte ProDOS blocks directly from the disk",
         "CassoCli disk blockread <image> %Lblock <n> [%Lcount <n>] [%Lout <file>]",
         "  %Lblock <n>             Block to start at, 0 to 279\n"
@@ -247,7 +247,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     {
         CommandLineOptions::DiskOptions::Command::BlockWrite,
-        "blockwrite",
+        "blockwrite | write-block",
         "Write 512-byte ProDOS blocks directly to the disk",
         "CassoCli disk blockwrite <image> <file> %Lblock <n>",
         "  %Lblock <n>             Block to start at, 0 to 279. Continues to subsequent blocks if file is larger than one block\n",
@@ -313,34 +313,34 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     {
         CommandLineOptions::DiskOptions::Command::SetThumbnail,
-        "setthumbnail",
+        "set-thumbnail",
         "Set a disk image's thumbnail from a picture",
-        "CassoCli disk setthumbnail <image> <picture>",
+        "CassoCli disk set-thumbnail <image> <picture>",
         nullptr,
         "<picture>, a PNG, JPEG, BMP, GIF, or TIFF file to use as the custom thumbnail Casso Explorer draws for <image>."
         " Replaces the thumbnail automatically captured by Casso Explorer.",
-        "CassoCli disk setthumbnail Archon.woz title.png"
+        "CassoCli disk set-thumbnail Archon.woz title.png"
     },
 
     {
         CommandLineOptions::DiskOptions::Command::GetThumbnail,
-        "getthumbnail",
+        "get-thumbnail",
         "Save a disk image's thumbnail as a PNG",
-        "CassoCli disk getthumbnail <image> <file>",
+        "CassoCli disk get-thumbnail <image> <file>",
         nullptr,
         "Saves the disk image's thumbnail to <file> as a PNG.",
-        "CassoCli disk getthumbnail Archon.woz archon.png"
+        "CassoCli disk get-thumbnail Archon.woz archon.png"
     },
 
     {
         CommandLineOptions::DiskOptions::Command::RemoveThumbnail,
-        "removethumbnail",
+        "remove-thumbnail",
         "Remove a disk image's thumbnail",
-        "CassoCli disk removethumbnail <image>",
+        "CassoCli disk remove-thumbnail <image>",
         nullptr,
         "Removes the disk image's custom thumbnail, or the automatically captured thumbnail if no custom thumbnail is"
         " set.",
-        "CassoCli disk removethumbnail Archon.woz"
+        "CassoCli disk remove-thumbnail Archon.woz"
     },};
 
 

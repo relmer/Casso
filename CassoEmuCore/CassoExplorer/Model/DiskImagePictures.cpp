@@ -323,7 +323,7 @@ Error:
 //  DiskImagePictures::RemoveThumbnail
 //
 //  The thumbnail the user set, or with none set, the one made by booting, as
-//  CassoCli's disk removethumbnail removes it.
+//  CassoCli's disk remove-thumbnail removes it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
