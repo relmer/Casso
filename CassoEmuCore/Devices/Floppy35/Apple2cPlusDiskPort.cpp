@@ -183,6 +183,57 @@ uint32_t Apple2cPlusDiskPort::GetCellNs() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnIwmAccess
+//
+//  The IWM follows every access. A read returns its byte unless the
+//  5.25-inch drives were enabled for the access and Q7 is off: the
+//  controller has the floppy's data and status registers, and the write
+//  handshake is the IWM's whatever drive is enabled. ROM 05 waits on the
+//  handshake while it probes the SmartPort bus with drive 1 selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2cPlusDiskPort::OnIwmAccess (int offset, bool isWrite, Byte value, Byte & outValue)
+{
+    outValue = m_port.Access (offset, isWrite, value);
+
+    return !m_floppies || m_port.GetIwm().IsWriting();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AreFloppiesEnabled
+//
+//  Called before each access, with the IWM's state from before it. A
+//  5.25-inch drive has no 3.5 select input: that pin is ground on the Disk
+//  IIc's connector. At startup, drive 1 is read with 3.5 select on; a
+//  5.25-inch drive returns nibbles there, and only then does ROM 05 run the
+//  slot 6 firmware.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2cPlusDiskPort::AreFloppiesEnabled()
+{
+    int   drive  = m_port.GetIwm().GetDrive();
+    bool  hasBus = m_port.GetDriveCount() > 0 && (m_port.GetBus().IsEnabledAt (0) || m_port.GetBus().IsReset());
+
+
+
+    m_floppies = drive < m_floppyCount && !(drive == kInternalDrive && IsInternal()) && !hasBus;
+
+    return m_floppies;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetFloppy35EventSink
 //
 ////////////////////////////////////////////////////////////////////////////////

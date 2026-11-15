@@ -8,6 +8,13 @@
 
 
 
+//  The drive select, Q6 and Q7: the switches the IWM has whatever drive is
+//  enabled.
+static constexpr int  s_kFirstSelectSwitch = 0xA;
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -69,22 +76,32 @@ Disk2Controller::Disk2Controller (int slot)
 //  Read
 //
 //  Apply soft-switch side effects then dispatch the data path per Q6/Q7.
+//  With the drives not enabled, only the drive select, Q6 and Q7 change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte Disk2Controller::Read (Word address)
 {
-    int   offset = (address - m_ioStart) & 0x0F;
-    Byte  value  = 0;
-    Byte  port   = 0;
+    int   offset  = (address - m_ioStart) & 0x0F;
+    Byte  value   = 0;
+    Byte  port    = 0;
+    bool  enabled = false;
 
 
 
     CatchUpToCpu();
 
-    HandleSwitch (offset);
+    enabled = PollFloppyEnable();
 
-    value = HandleReadDispatch();
+    if (enabled || offset >= s_kFirstSelectSwitch)
+    {
+        HandleSwitch (offset);
+    }
+
+    if (enabled)
+    {
+        value = HandleReadDispatch();
+    }
 
     if (m_portHook != nullptr && m_portHook->OnIwmAccess (offset, false, 0, port))
     {
@@ -109,15 +126,21 @@ Byte Disk2Controller::Read (Word address)
 
 void Disk2Controller::Write (Word address, Byte value)
 {
-    int   offset = (address - m_ioStart) & 0x0F;
+    int   offset  = (address - m_ioStart) & 0x0F;
+    bool  enabled = false;
 
 
 
     CatchUpToCpu();
 
-    HandleSwitch (offset);
+    enabled = PollFloppyEnable();
 
-    if (m_q7 && m_q6)
+    if (enabled || offset >= s_kFirstSelectSwitch)
+    {
+        HandleSwitch (offset);
+    }
+
+    if (enabled && m_q7 && m_q6)
     {
         // IWM (//c): Q6H + Q7H with the motor off loads the MODE register
         // instead of the write latch; with the motor on it is the data-field
@@ -147,6 +170,34 @@ void Disk2Controller::Write (Word address, Byte value)
 
         m_portHook->OnIwmAccess (offset, true, value, ignored);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PollFloppyEnable
+//
+//  Whether the drives are enabled for this access: always, with no port
+//  hook. A drive whose enable drops stops at the next tick, without the
+//  spin-down a motor-off command starts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2Controller::PollFloppyEnable()
+{
+    bool  enabled = m_portHook == nullptr || m_portHook->AreFloppiesEnabled();
+
+
+
+    if (!enabled && m_motorOn)
+    {
+        m_motorSpindownCycles = 1;
+    }
+
+    return enabled;
 }
 
 

@@ -494,7 +494,9 @@ void StorageCardWiring::AddChainDrives (const PortConfig & port, SmartPortHost &
 //  WireApple2cPlusDrives
 //
 //  The //c Plus's internal Apple 3.5 Drive, with the disk the machine's
-//  `internal` port has, and the disk port's chain.
+//  `internal` port has, and the disk port's chain. The 5.25-inch drives at
+//  the chain's end are counted for the port; their disks are the Disk II
+//  controller's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -522,6 +524,8 @@ void StorageCardWiring::WireApple2cPlusDrives (Apple2cPlusDiskPort & port)
             AddChainDrives (entry, port.GetPort());
         }
     }
+
+    port.SetFloppyCount (m_host.GetConfig().CountDiskPortFloppies());
 
     m_host.GetRefs().apple2cPlusDiskPort = &port;
     m_host.GetRefs().floppy35Sources.push_back (&port);

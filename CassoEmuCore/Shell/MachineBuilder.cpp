@@ -587,7 +587,24 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             auto port = std::make_unique<Apple2cPlusDiskPort>();
 
             StorageCardWiring (*this, m_host, m_services).WireApple2cPlusDrives (*port);
-            m_host.GetMemoryBus().AddDevice (port.get());
+
+            // 5.25-inch drives at the end of the disk port's chain are a
+            // Disk II controller's, in IWM mode at $C0E0, with the port as
+            // its hook.
+            if (port->GetFloppyCount() > 0)
+            {
+                auto floppies = std::make_unique<Disk2Controller> (6);
+
+                floppies->SetIwmMode (true);
+                floppies->SetPortHook (port.get());
+                m_host.GetMemoryBus().AddDevice (floppies.get());
+                m_host.GetOwnedDevices().push_back (std::move (floppies));
+            }
+            else
+            {
+                m_host.GetMemoryBus().AddDevice (port.get());
+            }
+
             m_host.GetOwnedDevices().push_back (std::move (port));
         }
         else

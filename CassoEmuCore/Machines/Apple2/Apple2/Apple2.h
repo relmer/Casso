@@ -43,6 +43,7 @@ public:
     bool  HasCassettePort      () const override { return (true); }
     bool  HasCaseSwitches      () const override { return (false); }
     bool  HasBuiltInDrive      () const override { return (false); }
+    int   GetDiskPortFloppyCount () const override { return (0); }
 
     uint16_t  GetWozHardwareFlag () const override { return (WozCompatibility::kApple2); }
 };

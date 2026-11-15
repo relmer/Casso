@@ -144,6 +144,7 @@ public:
     // Whether the machine's drive is soldered in rather than plugged into a
     // card, which decides the drive the desk scene draws.
     bool  MachineHasBuiltInDrive () const;
+    bool  HasDiskIicDrives       () const;
 
     // The info icon's tooltip for a drive: what its WOZ image declares about
     // the machine, and what conflicts with the one running. Empty when nothing
