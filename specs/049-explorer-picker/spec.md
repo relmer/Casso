@@ -21,7 +21,7 @@ Casso Explorer already lists folders of images with columns, sorting, search and
 - Q: Can the picker list an image the drive rule excludes? → A: No. The rule is final.
 - Q: Which file requests open the picker? → A: Every request to open or save a disk or tape image, in the emulator and in Casso Explorer. That includes Casso Explorer's "Write image to...", "Create image from..." and raw capture commands for a connected Apple. Requests for other files, and folder requests, go to the Windows dialogs.
 - Q: Is a drive's picker modal? → A: No. It stays associated with the drive that opened it until it is closed; a click on another drive opens another picker.
-- Q: Does a hard disk accept a 140K, 400K or 800K image? → A: No. CFFA and A2Pico cards are not covered by this rule.
+- Q: Does a hard disk accept a 140K, 400K or 800K image? → A: No, and nothing else under 5 MB (9,728 blocks) either. CFFA and A2Pico cards are not covered by this rule.
 - Q: Where do recent images go? → A: The Casso node lists every image in its folders, most recently used first, in the file manager and in the picker.
 - Q: How many recent images have a load time? → A: 1,000, up from 16.
 - Q: After an image is inserted from a drive's picker, does the picker close or stay open? → A: It always closes. There is no pin.
@@ -161,6 +161,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - A picker is open for a drive and the user inserts or ejects a disk in that drive by another route (a drop, the menu, the command line): the picker stays open and its drive is the same.
 - Casso Explorer is already running as a file manager, possibly with a serial session open. Opening a picker neither disturbs that window nor uses its session.
 - A hard disk image larger than the receiving drive's capacity is not listed for that drive.
+- A block image that is not a floppy size and is under 5 MB is classified as a hard disk image with its size, and is listed for no HD20SC or ProFile.
 - A hidden or system file matching the masks follows the file manager's existing setting for hidden files.
 
 ## Requirements *(mandatory)*
@@ -183,7 +184,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - **FR-009**: A Disk II and the //c's 5.25-inch drives MUST accept 5.25-inch images only.
 - **FR-010**: An Apple 3.5 Drive and the //c Plus's built-in drive MUST accept 400K and 800K images, including 3.5-inch WOZ images.
 - **FR-011**: A UniDisk 3.5 MUST accept 400K and 800K images that can be read as blocks.
-- **FR-012**: An HD20SC and a ProFile MUST accept hard disk images up to the drive's capacity, and MUST NOT accept a 140K, 400K or 800K image. The rule is final: the picker has no way to list an image that fails it, and a mount by any other route fails the same way.
+- **FR-012**: An HD20SC and a ProFile MUST accept hard disk images of at least 5 MB (9,728 blocks, the capacity of a 5 MB ProFile) up to the drive's capacity, and MUST NOT accept a 140K, 400K or 800K image or any other image under 5 MB. The rule is final: the picker has no way to list an image that fails it, and a mount by any other route fails the same way.
 - **FR-013**: The recorder MUST accept tapes only, and no disk drive accepts a tape.
 - **FR-014**: The rule MUST be total over the drive kinds: a drive kind added later without an entry MUST fail a test instead of accepting everything or nothing.
 - **FR-015**: The rule and the mount code MUST be consistent. An image that passes the rule for a drive MUST NOT then fail at mount for its form factor or size, and the reverse.

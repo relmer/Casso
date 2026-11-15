@@ -31,7 +31,7 @@ public:
 | `Floppy525` | `formFactor == Floppy525` |
 | `Apple35` | `formFactor == Floppy35` |
 | `UniDisk35` | `formFactor == Floppy35` and `isBlockReadable` |
-| `HardDisk` | `formFactor == HardDisk` and `blockCount <= maxBlocks` |
+| `HardDisk` | `formFactor == HardDisk` and `BlockDeviceCatalog::kMinHardDiskBlocks <= blockCount <= maxBlocks` |
 | `Recorder` | `formFactor == Tape` |
 
 ## Guarantees

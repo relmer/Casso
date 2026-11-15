@@ -38,7 +38,7 @@ Findings from the tree at `c1b467925` (048 merged, including `0436d69df`). Each 
 | Floppy525 (Disk II, //c drives) | 5.25-inch |
 | Apple35 (Apple 3.5 Drive, //c Plus drive) | 3.5-inch 400K and 800K, block or WOZ |
 | UniDisk35 | 3.5-inch images readable as blocks |
-| HardDisk (HD20SC, ProFile) | hard disk images with a block count no larger than the drive's capacity |
+| HardDisk (HD20SC, ProFile) | hard disk images of at least `BlockDeviceCatalog::kMinHardDiskBlocks` (9,728 blocks, 5 MB) and no larger than the drive's capacity |
 | Recorder | tape |
 
 **Verify**: whether the UniDisk 3.5 device in 048 mounts a 400K image and a 3.5-inch WOZ. `BlockDeviceMedia::Attach` decodes a WOZ to blocks, so both are likely. The rule is written to match the device, and the agreement test below fails if it does not.

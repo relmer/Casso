@@ -45,7 +45,7 @@
 ### Tests
 
 - [ ] T008 [P] Write `UnitTest/Devices/ImageClassifierTests.cpp`: one case per row of research.md R1's table (WOZ 5.25, WOZ 3.5 one side and two sides, 2IMG ProDOS order, 2IMG DOS order, 2IMG nibble, DiskCopy 4.2 at 400K and 800K, `.nib`, `.d13`, `.dsk` / `.do` / `.po` at 143,360 bytes, raw 800 and 1,600 blocks, a raw hard disk size, each tape extension); a truncated `.dsk`, a zero-length `.po`, a WOZ with a damaged signature and a 2IMG with an inconsistent length are `Unclassified`; a `.txt` is `NotAnImage`; `status != Classified` implies `formFactor == None` and `formattedBytes == 0`; `FormatSize` returns "140K", "400K", "800K", "113K" and megabytes
-- [ ] T009 [P] Write `UnitTest/Devices/DriveImageRuleTests.cpp`: every cell of the table in contracts/drive-image-rule.md, an unclassified image fails every kind, a hard disk image one block over `maxBlocks` fails, and a sweep of every `DeskDriveModel` value through `DeskDrivePlan::GetReceivingKind`
+- [ ] T009 [P] Write `UnitTest/Devices/DriveImageRuleTests.cpp`: every cell of the table in contracts/drive-image-rule.md, an unclassified image fails every kind, a hard disk image one block over `maxBlocks` fails, one block under `BlockDeviceCatalog::kMinHardDiskBlocks` fails and exactly that count passes, and a sweep of every `DeskDriveModel` value through `DeskDrivePlan::GetReceivingKind`
 
 ### Implementation
 
