@@ -3018,7 +3018,9 @@ namespace CommandLineTests
                 { "search",      CommandLineOptions::DiskOptions::Command::Search      },
                 { "inspect",     CommandLineOptions::DiskOptions::Command::Inspect     },
                 { "repair",      CommandLineOptions::DiskOptions::Command::Repair      },
-                { "thumbnail",   CommandLineOptions::DiskOptions::Command::Thumbnail   },
+                { "setthumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
+                { "getthumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
+                { "removethumbnail", CommandLineOptions::DiskOptions::Command::RemoveThumbnail },
             };
 
             for (const auto & form : kSpellings)
@@ -3049,7 +3051,7 @@ namespace CommandLineTests
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
             }
 
-            Assert::AreEqual (size_t (32), CommandLineParser::GetAllDiskCommands().size(),
+            Assert::AreEqual (size_t (34), CommandLineParser::GetAllDiskCommands().size(),
                 L"and the table holds exactly the forms swept above");
         }
 

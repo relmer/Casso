@@ -74,7 +74,9 @@ static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
     { "search",      CommandLineOptions::DiskOptions::Command::Search      },
     { "inspect",     CommandLineOptions::DiskOptions::Command::Inspect     },
     { "repair",      CommandLineOptions::DiskOptions::Command::Repair      },
-    { "thumbnail",   CommandLineOptions::DiskOptions::Command::Thumbnail   },
+    { "setthumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
+    { "getthumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
+    { "removethumbnail", CommandLineOptions::DiskOptions::Command::RemoveThumbnail },
 };
 
 
@@ -264,7 +266,6 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "recurse",
     "force",
     "yes",
-    "remove",
     "no-free-unowned",
     "list",
 
@@ -1016,6 +1017,7 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::Test:
         case CommandLineOptions::DiskOptions::Command::Dupes:
         case CommandLineOptions::DiskOptions::Command::Inspect:
+        case CommandLineOptions::DiskOptions::Command::RemoveThumbnail:
             count = 1;
             break;
 
@@ -1032,7 +1034,8 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::BlockWrite:
         case CommandLineOptions::DiskOptions::Command::Search:
         case CommandLineOptions::DiskOptions::Command::Repair:
-        case CommandLineOptions::DiskOptions::Command::Thumbnail:
+        case CommandLineOptions::DiskOptions::Command::SetThumbnail:
+        case CommandLineOptions::DiskOptions::Command::GetThumbnail:
             count = 2;
             break;
 
@@ -1339,12 +1342,6 @@ void CommandLineParser::ParseDiskOptions (
         if (arg == "--yes" || arg == "-y")
         {
             options.disk.yes = true;
-            continue;
-        }
-
-        if (arg == "--remove")
-        {
-            options.disk.remove = true;
             continue;
         }
 
@@ -1737,11 +1734,12 @@ void CommandLineParser::ParseDiskOptions (
             if (options.disk.command == CommandLineOptions::DiskOptions::Command::Put
              || options.disk.command == CommandLineOptions::DiskOptions::Command::SectorWrite
              || options.disk.command == CommandLineOptions::DiskOptions::Command::BlockWrite
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::GetThumbnail
              || options.disk.command == CommandLineOptions::DiskOptions::Command::Repair)
             {
                 options.disk.hostFile = arg;
             }
-            else if (options.disk.command == CommandLineOptions::DiskOptions::Command::Thumbnail)
+            else if (options.disk.command == CommandLineOptions::DiskOptions::Command::SetThumbnail)
             {
                 options.disk.picturePath = arg;
             }

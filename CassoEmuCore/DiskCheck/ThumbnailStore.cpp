@@ -742,6 +742,37 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ThumbnailStore::RemoveAll
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ThumbnailStore::RemoveAll (const std::filesystem::path & image)
+{
+    HRESULT      hr       = S_OK;
+    HRESULT      hrStream = S_OK;
+    std::string  hash;
+
+
+
+    hr = GetHash (image, hash);
+    CHR (hr);
+
+    hr = RemoveForDeleted (hash);
+    CHR (hr);
+
+    hrStream = WriteStreams (image, {}, std::string());
+    IGNORE_RETURN_VALUE (hrStream, S_OK);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ThumbnailStore::RemoveForDeleted
 //
 ////////////////////////////////////////////////////////////////////////////////
