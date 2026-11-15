@@ -161,7 +161,7 @@ struct CommandLineOptions
         bool         force          = false;           // --force
         bool         yes            = false;           // --yes, -y
         std::string  hostFile;                         // source for put, --out for get
-        std::string  picturePath;                      // the picture `setthumbnail` sets
+        std::string  picturePath;                      // the picture `set-thumbnail` sets
         std::string  typeName;                         // --type, as the user wrote it
         Word         loadAddress    = 0;               // --load
         bool         hasLoadAddress = false;           // $0000 is a legal address

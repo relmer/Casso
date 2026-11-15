@@ -291,11 +291,11 @@ bool DiskImagePictures::IsCandidate (const std::filesystem::path & file)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImagePictures::IsUserSet
+//  DiskImagePictures::HasThumbnail
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskImagePictures::IsUserSet (const std::wstring & path)
+bool DiskImagePictures::HasThumbnail (const std::wstring & path)
 {
     HRESULT            hr        = S_OK;
     std::vector<Byte>  png;
@@ -311,7 +311,7 @@ bool DiskImagePictures::IsUserSet (const std::wstring & path)
     CHR (hr);
 
 Error:
-    return SUCCEEDED (hr) && isUserSet;
+    return SUCCEEDED (hr) && !png.empty();
 }
 
 
@@ -320,17 +320,26 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImagePictures::RemoveUserSet
+//  DiskImagePictures::RemoveThumbnail
+//
+//  The thumbnail the user set, or with none set, the one made by booting, as
+//  CassoCli's disk remove-thumbnail removes it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImagePictures::RemoveUserSet (const std::wstring & path)
+HRESULT DiskImagePictures::RemoveThumbnail (const std::wstring & path)
 {
-    HRESULT  hr = S_OK;
+    HRESULT            hr        = S_OK;
+    std::vector<Byte>  png;
+    ThumbnailRecord    record;
+    bool               isUserSet = false;
 
 
 
-    hr = m_store.Remove (path);
+    hr = m_store.Find (path, png, record, isUserSet);
+    CHR (hr);
+
+    hr = isUserSet ? m_store.Remove (path) : m_store.RemoveAll (path);
     CHR (hr);
 
     NotifyReady (kPicturesChanged);
