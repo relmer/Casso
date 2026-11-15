@@ -154,12 +154,26 @@ void DrivePickers::Open (const PickerDrive & drive)
 
     if (m_hooks.getCreateNew)
     {
-        request.onCreateNew = m_hooks.getCreateNew (drive);
+        std::function<bool (std::wstring & outPath)>  create = m_hooks.getCreateNew (drive);
+
+        //  A create flow that returns an empty path inserted what it made.
+        if (create)
+        {
+            request.onCreateNew = [raw, create] (std::wstring & outPath)
+            {
+                bool  isCreated = create (outPath);
+
+                raw->isInserted = raw->isInserted || (isCreated && outPath.empty());
+
+                return isCreated;
+            };
+        }
     }
 
     if (m_hooks.getStockDisks)
     {
-        request.stockDisks = m_hooks.getStockDisks (drive);
+        request.stockDisks   = m_hooks.getStockDisks (drive);
+        request.onFetchStock = m_hooks.fetchStockDisk;
     }
 
     if (m_hooks.getMounted)

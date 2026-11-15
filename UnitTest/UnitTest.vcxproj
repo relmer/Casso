@@ -515,6 +515,7 @@
     <ClCompile Include="CassoExplorer\FileMaskSetTests.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerPickerHostTests.cpp" />
     <ClCompile Include="CassoExplorer\PickerScopeTests.cpp" />
+    <ClCompile Include="CassoExplorer\StockDisksListingTests.cpp" />
     <ClCompile Include="CassoExplorer\ApplesoftVariablesTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewDecoderTests.cpp" />
     <ClCompile Include="CassoExplorer\DiskOperationsTests.cpp" />

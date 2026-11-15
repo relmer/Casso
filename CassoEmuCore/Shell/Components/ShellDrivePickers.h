@@ -55,8 +55,9 @@ public:
     static constexpr const wchar_t *  kRecorderLabel = L"Cassette recorder";
 
 private:
-    DrivePickers::Hooks  MakeHooks ();
-    bool                 Insert    (const PickerDrive & drive, const std::wstring & path, std::wstring & outError);
+    DrivePickers::Hooks  MakeHooks      ();
+    bool                 Insert         (const PickerDrive & drive, const std::wstring & path, std::wstring & outError);
+    bool                 FetchStockDisk (const std::wstring & path);
 
     EmulatorShell  & m_shell;
     DrivePickers     m_pickers;

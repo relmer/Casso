@@ -57,6 +57,7 @@ public:
     //  the shell properties added, up to the ids set aside for them.
     int                        GetSortColumnCount         () const;
     void                       CreateDisk                 (const CassoExplorerNewDiskDialog::Outcome & newDisk);
+    bool                       CreateDiskForPicker        (std::wstring & outPath);
     void                       ShowOptions                ();
     bool                       IsToolbarEntryAvailable    (int index) const;
     bool                       IsCommandBarEntryAvailable (int index) const;

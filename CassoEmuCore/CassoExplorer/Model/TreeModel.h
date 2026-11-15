@@ -216,6 +216,9 @@ public:
     //  which has no connections.
     void  SetCassoLinkShown  (bool shown) { m_showCassoLink = shown; }
 
+    //  True adds the "Stock disks" node under the Casso node.
+    void  SetStockDisksShown (bool shown) { m_showStockDisks = shown; m_children.erase (kCassoRootId); }
+
     //  The CassoLink connections, each under CassoLink. Their drives are listed
     //  again on the next expand.
     void  SetLinks           (std::vector<LinkTreeEntry> links);
@@ -300,6 +303,9 @@ public:
     //  CassoLink's root, after This PC, and its copy after Casso: every
     //  linked Apple, with CassoLink.dsk and its help beside them in the list.
     static constexpr const wchar_t *  kCassoLinkRootId = L"cassolink:";
+
+    //  A picker's "Stock disks" node, the first child of the Casso node.
+    static constexpr const wchar_t *  kStockDisksId    = L"stock:";
 
     //  A folder listed where it is not on the disk, adtpro:<path>: an ADTPro
     //  server's under its connection, or a Full Send's under CassoLink,
@@ -403,6 +409,7 @@ private:
     std::vector<IShellItemVerbs::ShellFolderItem>    m_pinned;
     NavPaneOptions                                   m_navOptions;
     bool                                             m_showCassoLink = true;
+    bool                                             m_showStockDisks = false;
     std::vector<LinkTreeEntry>                       m_links;
     std::wstring                                     m_fullSendFolder;
 };

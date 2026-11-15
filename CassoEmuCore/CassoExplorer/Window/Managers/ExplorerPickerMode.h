@@ -40,7 +40,8 @@ public:
     void  Confirm            ();
     void  Cancel             ();
 
-    //  The request's create flow, and its new image confirmed.
+    //  Creates a disk or a tape for the drive and confirms it.
+    bool  CanCreateNew       () const;
     void  CreateNew          ();
 
     //  A row opened by Enter or a double-click. True when the row is a file,
@@ -63,8 +64,9 @@ public:
     static std::wstring  MakeHeaderText (const PickerRequest & request);
 
 private:
-    bool  TryGetRowFile (int row, std::wstring & outPath) const;
-    void  ConfirmPath   (const std::wstring & path);
+    bool  TryGetRowFile      (int row, std::wstring & outPath) const;
+    bool  IsStockDiskToFetch (int row) const;
+    void  ConfirmPath        (const std::wstring & path);
 
     ExplorerContext  & m_context;
     PickerScope        m_scope;

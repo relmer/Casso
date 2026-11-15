@@ -659,9 +659,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellTapeDeck::CreateBlankTape()
+bool ShellTapeDeck::CreateBlankTape()
 {
     HRESULT                hr        = S_OK;
+    bool                   isCreated = false;
     FileDialogSpec         spec;
     std::filesystem::path  picked;
     std::u8string          folderUtf8;
@@ -689,8 +690,10 @@ void ShellTapeDeck::CreateBlankTape()
     m_tapeManager->CreateBlank (picked.string());
     m_shell.m_disks->RecordRecentDisk (picked.wstring(), S_OK);
 
+    isCreated = true;
+
 Error:
-    return;
+    return isCreated;
 }
 
 

@@ -3,6 +3,7 @@
 #include "CassoExplorer/Browser/BrowserLoader.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/CassoImagesListing.h"
+#include "CassoExplorer/Model/StockDisksListing.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
@@ -517,6 +518,23 @@ HRESULT BrowserLoader::LoadRoot (const std::wstring & id)
         m_browser.m_tree.SetLinks (m_browser.m_links->BuildTreeEntries());
     }
 
+    //  A picker's stock disks, which have no folder.
+    if (id == TreeModel::kStockDisksId)
+    {
+        std::vector<CatalogRow>  stock;
+
+        m_rootChildren.clear();
+        StockDisksListing::Build (m_browser.m_stockDisks, stock);
+
+        for (CatalogRow & row : stock)
+        {
+            row.sourceIndex = m_browser.m_rows.size();
+            m_browser.m_rows.push_back (std::move (row));
+        }
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     //  The Casso node lists its folders' images; its folders are in the tree.
     if (id == TreeModel::kCassoRootId)
     {
@@ -631,7 +649,7 @@ HRESULT BrowserLoader::LoadCassoImages()
 
     for (const TreeNode & node : nodes)
     {
-        if (!node.missing && !node.location.path.empty())
+        if (!node.missing && node.location.kind == Location::Kind::HostFolder && !node.location.path.empty())
         {
             folders.push_back (node.location.path);
         }

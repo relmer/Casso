@@ -6,6 +6,7 @@
 #include "CassoExplorer/Browser/BrowserCells.h"
 
 #include "CassoExplorer/Model/BrowserModel.h"
+#include "CassoExplorer/Model/StockDisksListing.h"
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/TypedPathHistory.h"
 #include "CassoExplorer/Model/ImageVolumeFacts.h"
@@ -361,6 +362,9 @@ public:
     //  The images inserted in the running machine's drives, by path, each
     //  with its drive. Their rows are marked with the drive.
     void                    SetMountedImages     (const std::map<std::wstring, std::wstring> & mounted);
+
+    //  The rows of a picker's "Stock disks" node.
+    void                    SetStockDisks        (std::vector<StockDiskRow> disks)  { m_stockDisks = std::move (disks); }
     size_t                  GetScopedOutCount    () const                        { return m_scopedOut; }
 
     void                    SetVolumeFactsNotify (std::function<void ()> notify) { m_onVolumeFacts = std::move (notify); }
@@ -481,6 +485,7 @@ private:
     RecentLoadsFn                       m_recentLoads;
     RowScopeFn                          m_rowScope;
     std::map<std::wstring, std::wstring>  m_mountedImages;   // by CassoImagesListing::MakePathKey
+    std::vector<StockDiskRow>             m_stockDisks;
     size_t                              m_scopedOut      = 0;
     bool                                m_cardOpenAllowed = false;
     FilesystemChoices                 * m_filesystemChoices = nullptr;

@@ -115,7 +115,10 @@ public:
         //  without one.
         std::function<std::function<bool (std::wstring & outPath)> (const PickerDrive & drive)>  getCreateNew;
 
+        //  The stock disks the drive takes, and the download of one that
+        //  is not on the disk yet; false when it could not be downloaded.
         std::function<std::vector<StockDiskRow> (const PickerDrive & drive)>             getStockDisks;
+        std::function<bool (const std::wstring & path)>                                  fetchStockDisk;
         std::function<std::map<std::wstring, std::wstring> ()>                           getMounted;
     };
 

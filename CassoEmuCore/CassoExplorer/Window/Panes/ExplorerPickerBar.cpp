@@ -68,7 +68,7 @@ void ExplorerPickerBar::Create()
         m_filter->SetOnClick ([this] () { ShowFilterMenu(); });
     }
 
-    if (request->onCreateNew)
+    if (m_context.pickerMode.CanCreateNew())
     {
         m_create = m_context.window.CreateChild<DxuiButton> ((request->receivingDrive.has_value() && request->receivingDrive->kind == ReceivingDriveKind::Recorder) ? L"New blank tape" : L"Create new disk...");
         m_create->SetOnClick ([this] () { m_context.pickerMode.CreateNew(); });

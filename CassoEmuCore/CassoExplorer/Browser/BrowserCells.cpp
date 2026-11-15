@@ -402,7 +402,8 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
     cells.push_back (DxuiListView::Cell { row.collection.sha256, false });
     cells.push_back (DxuiListView::Cell { ImageClassifier::FormatFormFactor (row.imageClass), false });
     cells.push_back (DxuiListView::Cell { ImageClassifier::FormatSize (row.imageClass), false });
-    cells.push_back (DxuiListView::Cell { !row.inDrive.empty()    ? L"In " + row.inDrive
+    cells.push_back (DxuiListView::Cell { (row.isStockDisk && !row.stockDownloaded) ? std::wstring (L"Not downloaded")
+                                        : !row.inDrive.empty()    ? L"In " + row.inDrive
                                         : (row.lastUsedUnix != 0) ? FormatModified (row.lastUsedUnix, false)
                                                                   : std::wstring(), false });
 

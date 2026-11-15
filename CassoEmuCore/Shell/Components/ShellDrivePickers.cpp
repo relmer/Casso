@@ -3,12 +3,14 @@
 #include "AssetBootstrap.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoExplorer/Picker/ExplorerPickerHost.h"
+#include "Core/TextEncoding.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/Layout/DriveLabel.h"
+#include "Shell/WindowCommandManager.h"
 
 
 
@@ -113,6 +115,49 @@ DrivePickers::Hooks ShellDrivePickers::MakeHooks()
         }
     };
 
+    //  The recorder makes a blank tape through its save request, and the
+    //  tape is in the recorder when that returns. A disk drive's picker
+    //  creates through the New disk image dialog.
+    hooks.getCreateNew = [this] (const PickerDrive & drive) -> std::function<bool (std::wstring & outPath)>
+    {
+        if (!drive.address.isRecorder)
+        {
+            return nullptr;
+        }
+
+        return [this] (std::wstring & outPath)
+        {
+            outPath.clear();
+
+            return m_shell.m_tapeDeck->CreateBlankTape();
+        };
+    };
+
+    //  The DOS 3.3 and ProDOS masters, which are 140K 5.25-inch disks, for a
+    //  5.25-inch drive. One is downloaded when it is picked, as the old
+    //  dialog's Download rows did.
+    hooks.getStockDisks = [] (const PickerDrive & drive)
+    {
+        std::vector<StockDiskRow>  rows;
+
+        if (drive.receiving.kind == ReceivingDriveKind::Floppy525)
+        {
+            for (AssetBootstrap::StockBootDisk disk : { AssetBootstrap::StockBootDisk::Dos33Master, AssetBootstrap::StockBootDisk::ProDosUsersDisk })
+            {
+                std::filesystem::path  path = AssetBootstrap::GetStockBootDiskPath (disk);
+
+                rows.push_back (StockDiskRow { path.stem().wstring(), path.wstring(), AssetBootstrap::IsStockBootDiskCached (disk) });
+            }
+        }
+
+        return rows;
+    };
+
+    hooks.fetchStockDisk = [this] (const std::wstring & path)
+    {
+        return FetchStockDisk (path);
+    };
+
     //  The disks in the machine's drives, for the picker's "In slot 6
     //  drive 1" mark. The store's paths are UTF-8.
     hooks.getMounted = [this] ()
@@ -151,6 +196,46 @@ bool ShellDrivePickers::Insert (const PickerDrive & drive, const std::wstring & 
     outError.clear();
 
     return m_shell.InsertInDrive (drive.address, drive.receiving.kind, drive.label, path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDrivePickers::FetchStockDisk
+//
+//  The download blocks, under the wait cursor. A failure is reported in
+//  the emulator's window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDrivePickers::FetchStockDisk (const std::wstring & path)
+{
+    HRESULT       hr       = E_INVALIDARG;
+    HCURSOR       previous = SetCursor (LoadCursorW (nullptr, IDC_WAIT));
+    std::wstring  fetched;
+    std::string   error;
+
+
+
+    for (AssetBootstrap::StockBootDisk disk : { AssetBootstrap::StockBootDisk::Dos33Master, AssetBootstrap::StockBootDisk::ProDosUsersDisk })
+    {
+        if (_wcsicmp (AssetBootstrap::GetStockBootDiskPath (disk).c_str(), path.c_str()) == 0)
+        {
+            hr = AssetBootstrap::EnsureStockBootDisk (disk, fetched, error);
+        }
+    }
+
+    SetCursor (previous);
+
+    if (FAILED (hr))
+    {
+        m_shell.ShowNotification (error.empty() ? std::wstring (L"The stock disk could not be downloaded.") : TextEncoding::Utf8ToWide (error));
+    }
+
+    return SUCCEEDED (hr);
 }
 
 
@@ -247,6 +332,8 @@ std::unique_ptr<IDrivePicker> ShellDrivePickers::OpenPicker (PickerRequest reque
                                                                                          AssetBootstrap::GetAssetBaseDirectory().wstring());
 
 
+
+    request.createFolder = m_shell.m_windowCommandManager->GetDiskCreateFolder();
 
     host->Prepare (std::move (request), theme, m_shell.m_hwnd, cascade);
     host->SetOnClosed (std::move (onClosed));

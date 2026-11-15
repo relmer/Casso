@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Model/StockDisksListing.h"
 #include "Devices/Disk/DriveImageRule.h"
 #include "Seams/IHostDialogs.h"
 #include "Shell/DiskMru.h"
@@ -26,26 +27,6 @@ enum class PickerForm
     DriveWindow,
     ModalOpen,
     ModalSave,
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  StockDiskRow
-//
-//  A stock system disk the "Stock disks" node lists: its label, where its
-//  image is or will be, and whether it has been downloaded.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct StockDiskRow
-{
-    std::wstring  label;
-    std::wstring  path;
-    bool          isDownloaded = false;
 };
 
 
@@ -88,12 +69,19 @@ struct PickerRequest
     //  DriveWindow: inserts the image. False leaves the picker open.
     std::function<bool (const std::wstring & path)>  onConfirm;
 
-    //  Runs the create flow for the drive and returns the new image's path;
-    //  empty hides the command.
+    //  The caller's create flow, which the recorder has: true with the new
+    //  file's path, which is then confirmed, or true with no path when the
+    //  flow inserted it. A disk drive without one creates through the New
+    //  disk image dialog, in the folder listed or else in `createFolder`.
     std::function<bool (std::wstring & outPath)>     onCreateNew;
+    std::filesystem::path                            createFolder;
 
-    //  The "Stock disks" node's rows; empty hides the node.
+    //  The "Stock disks" node's rows; with none the tree has no such node.
+    //  `onFetchStock` downloads the stock disk at a row's path when the row
+    //  is confirmed before its image is on the disk; false when it could not,
+    //  which the caller reports.
     std::vector<StockDiskRow>      stockDisks;
+    std::function<bool (const std::wstring & path)>  onFetchStock;
 
     //  The images inserted in the running machine's drives, by path, each
     //  with its drive's label, for the "In drive" mark.

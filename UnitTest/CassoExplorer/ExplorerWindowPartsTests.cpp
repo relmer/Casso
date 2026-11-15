@@ -1824,4 +1824,100 @@ public:
         {
             Assert::AreEqual (std::wstring (row.name == L"prodos.po" ? L"slot 6 drive 1" : L""), row.inDrive, row.name.c_str());
         }
+    }
+
+    //  A disk drive's picker creates through the New disk image dialog; the
+    //  recorder's only through its request's flow; a request without a
+    //  drive, and a window that is no picker, not at all.
+    TEST_METHOD (Picker_CreatesNewForADrive)
+    {
+        Rig            plain;
+        Rig            forDisk;
+        Rig            forTape;
+        Rig            forTapeWithFlow;
+        Rig            forFile;
+        PickerRequest  disk;
+        PickerRequest  tape;
+        PickerRequest  tapeWithFlow;
+        PickerRequest  file;
+
+
+
+        disk.form                   = PickerForm::DriveWindow;
+        disk.receivingDrive         = ReceivingDrive { ReceivingDriveKind::Apple35, 0 };
+        tape.form                   = PickerForm::DriveWindow;
+        tape.receivingDrive         = ReceivingDrive { ReceivingDriveKind::Recorder, 0 };
+        tapeWithFlow                = tape;
+        tapeWithFlow.onCreateNew    = [] (std::wstring & outPath) { outPath.clear(); return true; };
+        file.form                   = PickerForm::ModalOpen;
+
+        forDisk.app.picker         = &disk;
+        forTape.app.picker         = &tape;
+        forTapeWithFlow.app.picker = &tapeWithFlow;
+        forFile.app.picker         = &file;
+
+        plain.Open();
+        forDisk.Open();
+        forTape.Open();
+        forTapeWithFlow.Open();
+        forFile.Open();
+
+        Assert::IsFalse (plain.parts->pickerMode.CanCreateNew());
+        Assert::IsTrue  (forDisk.parts->pickerMode.CanCreateNew());
+        Assert::IsFalse (forTape.parts->pickerMode.CanCreateNew());
+        Assert::IsTrue  (forTapeWithFlow.parts->pickerMode.CanCreateNew());
+        Assert::IsFalse (forFile.parts->pickerMode.CanCreateNew());
+
+        //  The flow inserted what it made, so the picker closes.
+        forTapeWithFlow.parts->pickerMode.CreateNew();
+        Assert::IsTrue (forTapeWithFlow.window.closed);
+    }
+
+    //  The "Stock disks" node is the Casso node's first child in a picker
+    //  with stock disks. A stock disk not on the disk yet is downloaded by
+    //  the request before it is confirmed, and a download that fails
+    //  confirms nothing.
+    TEST_METHOD (Picker_StockDisk_IsDownloadedBeforeItIsConfirmed)
+    {
+        Rig                        rig;
+        Rig                        plain;
+        PickerRequest              request;
+        std::vector<TreeNode>      nodes;
+        std::vector<std::wstring>  log;
+        bool                       fetchResult = false;
+
+
+
+        request.form           = PickerForm::DriveWindow;
+        request.receivingDrive = ReceivingDrive { ReceivingDriveKind::Floppy525, 0 };
+        request.stockDisks     = { { L"ProDOS Users Disk", L"C:\\Stock\\ProDOS Users Disk.dsk", false } };
+        request.onFetchStock   = [&] (const std::wstring & path) { log.push_back (L"fetch " + path); return fetchResult; };
+        request.onConfirm      = [&] (const std::wstring & path) { log.push_back (L"insert " + path); return true; };
+
+        plain.Open();
+        AssertSucceeded (plain.browser.GetTreeModel().GetChildren (TreeModel::kCassoRootId, nodes));
+        Assert::IsTrue (nodes.empty() || nodes[0].id != TreeModel::kStockDisksId);
+
+        rig.app.picker = &request;
+        rig.Open();
+
+        AssertSucceeded (rig.browser.GetTreeModel().GetChildren (TreeModel::kCassoRootId, nodes));
+        Assert::IsFalse (nodes.empty());
+        Assert::AreEqual (std::wstring (TreeModel::kStockDisksId), nodes[0].id);
+        Assert::AreEqual (std::wstring (L"Stock disks"), nodes[0].label);
+
+        rig.browser.NavigateToLocation (Location::MakeRoot (TreeModel::kStockDisksId));
+        Assert::AreEqual ((size_t) 1, rig.browser.GetRows().size());
+
+        rig.browser.SetSelectedRows ({ 0 });
+        Assert::IsTrue (rig.parts->pickerMode.CanConfirm());
+
+        rig.parts->pickerMode.Confirm();
+        Assert::IsTrue (log == std::vector<std::wstring> { L"fetch C:\\Stock\\ProDOS Users Disk.dsk" });
+        Assert::IsFalse (rig.window.closed);
+
+        fetchResult = true;
+        rig.parts->pickerMode.Confirm();
+        Assert::AreEqual (std::wstring (L"insert C:\\Stock\\ProDOS Users Disk.dsk"), log.back());
+        Assert::IsTrue (rig.window.closed);
     }};

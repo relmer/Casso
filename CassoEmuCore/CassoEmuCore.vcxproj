@@ -417,6 +417,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerWindow.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerAddressBar.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerCommandManager.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\ExplorerCommandManagerDisks.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerDragDrop.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerClipboard.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerTransferPrompts.cpp" />
@@ -468,6 +469,7 @@
     <ClCompile Include="Seams\Win32FolderWatcher.cpp" />
     <ClCompile Include="CassoExplorer\Model\CatalogModel.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoImagesListing.cpp" />
+    <ClCompile Include="CassoExplorer\Model\StockDisksListing.cpp" />
     <ClCompile Include="CassoExplorer\Model\ImageVolumeFacts.cpp" />
     <ClCompile Include="CassoExplorer\Picker\FileMaskSet.cpp" />
     <ClCompile Include="CassoExplorer\Picker\ExplorerPickerHost.cpp" />
@@ -1582,6 +1584,7 @@
     <ClInclude Include="Seams\Win32FolderWatcher.h" />
     <ClInclude Include="CassoExplorer\Model\CatalogModel.h" />
     <ClInclude Include="CassoExplorer\Model\CassoImagesListing.h" />
+    <ClInclude Include="CassoExplorer\Model\StockDisksListing.h" />
     <ClInclude Include="CassoExplorer\Model\ImageVolumeFacts.h" />
     <ClInclude Include="CassoExplorer\Picker\FileMaskSet.h" />
     <ClInclude Include="CassoExplorer\Picker\PickerRequest.h" />

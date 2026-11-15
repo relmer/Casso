@@ -378,4 +378,46 @@ public:
 
         Assert::AreEqual ((size_t) 5, keys.size());
     }
-};
+
+
+    //  The recorder's create flow inserts the tape it makes, so the picker's
+    //  close is an insert's. A drive whose create flow is null gets a
+    //  request without one.
+    TEST_METHOD (CreateFlowThatInserted_ClosesThePickerAsAnInsert)
+    {
+        FakeFactory                factory;
+        DrivePickers::Hooks        hooks;
+        std::vector<std::wstring>  closes;
+        PickerDrive                tape = MakeDrive (0, 0, ReceivingDriveKind::Recorder,  L"Cassette recorder");
+        PickerDrive                disk = MakeDrive (6, 0, ReceivingDriveKind::Floppy525, L"Drive 1 - Disk ][");
+        std::wstring               path;
+
+
+
+        hooks.onClosed     = [&closes] (const DriveAddress & address, bool inserted) { closes.push_back (std::format (L"{} {}", address.isRecorder ? L"tape" : L"disk", inserted ? L"inserted" : L"not inserted")); };
+        hooks.getCreateNew = [] (const PickerDrive & drive) -> std::function<bool (std::wstring & outPath)>
+        {
+            if (!drive.address.isRecorder)
+            {
+                return nullptr;
+            }
+
+            return [] (std::wstring & outPath) { outPath.clear(); return true; };
+        };
+
+        {
+            DrivePickers  pickers (factory, std::move (hooks));
+
+            pickers.Open (tape);
+            pickers.Open (disk);
+
+            Assert::IsTrue  ((bool) factory.opened[0]->request.onCreateNew);
+            Assert::IsFalse ((bool) factory.opened[1]->request.onCreateNew);
+
+            Assert::IsTrue (factory.opened[0]->request.onCreateNew (path));
+            factory.opened[0]->End();
+            factory.opened[1]->End();
+        }
+
+        Assert::IsTrue (closes == std::vector<std::wstring> { L"tape inserted", L"disk not inserted" });
+    }};

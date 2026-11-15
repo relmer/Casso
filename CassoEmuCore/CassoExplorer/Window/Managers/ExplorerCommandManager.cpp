@@ -398,25 +398,6 @@ bool ExplorerCommandManager::IsCommandBarEntryAvailable (int index) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerCommandManager::IsBlockedInPicker
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerCommandManager::IsBlockedInPicker (int id) const
-{
-    const PickerRequest *  picker = m_context.app.picker;
-
-
-
-    return picker != nullptr && !CassoExplorerCommands::IsAllowedInPicker (id, picker->IsSave());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerCommandManager::IsEnabled
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1005,30 +986,6 @@ void ExplorerCommandManager::ChooseCharset (Charset charset)
 {
     m_context.browser.SetPreviewCharset (charset);
     m_context.preview.FillPreview();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerCommandManager::CreateDisk
-//
-//  Create an empty disk in the listed folder, whatever is selected, as File
-//  Explorer's New does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerCommandManager::CreateDisk (const CassoExplorerNewDiskDialog::Outcome & newDisk)
-{
-    CassoExplorerActions::Outcome  outcome = m_context.actions.CreateImage (m_context.browser.GetLocation().path, newDisk.fileName, newDisk.request);
-
-
-
-    ReportOutcome (outcome, L"New disk");
-    m_context.folderSync.RefreshAfterHostChange();
-    m_context.listPane.SelectRowNamed (newDisk.fileName);
 }
 
 

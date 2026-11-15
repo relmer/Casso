@@ -4,6 +4,7 @@
 #include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
 #include "CassoExplorer/Window/IExplorerWindow.h"
+#include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
@@ -44,6 +45,8 @@ void ExplorerPickerMode::Start()
 
     m_context.browser.SetRowScope ([this] (const CatalogRow & row) { return m_scope.Passes (row); });
     m_context.browser.SetMountedImages (m_context.app.picker->mounted);
+    m_context.browser.SetStockDisks (m_context.app.picker->stockDisks);
+    m_context.browser.GetTreeModel().SetStockDisksShown (!m_context.app.picker->stockDisks.empty());
 }
 
 
@@ -54,8 +57,9 @@ void ExplorerPickerMode::Start()
 //
 //  ExplorerPickerMode::TryGetRowFile
 //
-//  A file row of a folder on the disk, or of the Casso node's list, whose
-//  rows have their own paths. A row inside a disk image is no file to pick.
+//  A file row of a folder on the disk, or of the Casso node's list or the
+//  stock disks' list, where each row has its file's path. A row inside a
+//  disk image is no file to pick.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +68,7 @@ bool ExplorerPickerMode::TryGetRowFile (int row, std::wstring & outPath) const
     const std::vector<CatalogRow> &  rows     = m_context.browser.GetRows();
     Location                         location = m_context.browser.GetLocation();
     bool                             inFolder = location.kind == Location::Kind::HostFolder && !location.path.empty();
-    bool                             inCasso  = location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId;
+    bool                             inCasso  = location.kind == Location::Kind::Root && (location.path == TreeModel::kCassoRootId || location.path == TreeModel::kStockDisksId);
 
 
 
@@ -134,14 +138,43 @@ bool ExplorerPickerMode::CanConfirm() const
 
 void ExplorerPickerMode::Confirm()
 {
-    std::wstring  path;
+    const std::vector<int> &  selected = m_context.browser.GetSelectedRows();
+    std::wstring              path;
 
 
 
-    if (TryGetSelectedFile (path))
+    if (!TryGetSelectedFile (path))
     {
-        ConfirmPath (path);
+        return;
     }
+
+    //  A stock disk not yet on the disk is downloaded first. A download
+    //  that fails is reported by the request, and the picker stays open.
+    if (IsStockDiskToFetch (selected[0]) && (!m_context.app.picker->onFetchStock || !m_context.app.picker->onFetchStock (path)))
+    {
+        return;
+    }
+
+    ConfirmPath (path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerMode::IsStockDiskToFetch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPickerMode::IsStockDiskToFetch (int row) const
+{
+    const std::vector<CatalogRow> &  rows = m_context.browser.GetRows();
+
+
+
+    return row >= 0 && (size_t) row < rows.size() && rows[(size_t) row].isStockDisk && !rows[(size_t) row].stockDownloaded;
 }
 
 
@@ -196,14 +229,58 @@ void ExplorerPickerMode::CreateNew()
 {
     const PickerRequest *  request   = m_context.app.picker;
     std::wstring           path;
-    bool                   isCreated = request != nullptr && request->onCreateNew && request->onCreateNew (path);
+    bool                   isCreated = false;
 
 
+
+    if (!CanCreateNew())
+    {
+        return;
+    }
+
+    isCreated = request->onCreateNew ? request->onCreateNew (path) : m_context.commandManager.CreateDiskForPicker (path);
 
     if (isCreated && !path.empty())
     {
         ConfirmPath (path);
     }
+    else if (isCreated)
+    {
+        //  The caller's flow inserted what it created.
+        if (m_context.app.outcome != nullptr)
+        {
+            m_context.app.outcome->isConfirmed = true;
+        }
+
+        m_context.window.CloseWindow();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerMode::CanCreateNew
+//
+//  A drive's picker creates what the drive takes: a disk through the New
+//  disk image dialog, or what the request's create flow makes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPickerMode::CanCreateNew() const
+{
+    const PickerRequest *  request = m_context.app.picker;
+
+
+
+    if (request == nullptr || request->form != PickerForm::DriveWindow)
+    {
+        return false;
+    }
+
+    return request->onCreateNew || (request->IsForDrive() && request->receivingDrive->kind != ReceivingDriveKind::Recorder);
 }
 
 
