@@ -5,6 +5,7 @@
 #include "Devices/Disk/Inspector/Blocks/HfsBlockLayout.h"
 #include "Devices/Disk/Inspector/Blocks/PascalBlockLayout.h"
 #include "Devices/Disk/Inspector/Blocks/ProDosBlockLayout.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Machines/Apple2/Common/HfsVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -297,5 +298,5 @@ void BlockMapBuilder::AnnotateData (const BlockMap & map, uint32_t block, BlockB
 
 
 
-    list.AddRun (0, kBlockBytes, L"Data, block " + std::to_wstring (entry.node) + L" of the file" + fork, owner);
+    list.AddRun (0, kBlockBytes, L"Data, block " + InspectorFormat::FormatCount (entry.node) + L" of the file" + fork, owner);
 }

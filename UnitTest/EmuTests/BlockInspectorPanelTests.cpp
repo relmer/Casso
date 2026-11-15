@@ -5,6 +5,7 @@
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Ui/DiskInspector/Blocks/BlockFieldsView.h"
@@ -322,6 +323,8 @@ public:
 
         Assert::IsTrue  (BlockInspectorPanel::TryParseBlock (L" 123 ", block));
         Assert::AreEqual (123u, block);
+        Assert::IsTrue  (BlockInspectorPanel::TryParseBlock (InspectorFormat::FormatCount (21820), block));
+        Assert::AreEqual (21820u, block);
         Assert::IsTrue  (BlockInspectorPanel::TryParseBlock (L"$1F", block));
         Assert::AreEqual (31u, block);
         Assert::IsFalse (BlockInspectorPanel::TryParseBlock (L"12x", block));

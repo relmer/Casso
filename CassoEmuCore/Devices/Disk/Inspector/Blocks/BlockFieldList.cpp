@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/Blocks/BlockFieldList.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 
 
 
@@ -92,7 +93,7 @@ void BlockFieldList::AddWord (uint32_t offset, const std::wstring & label)
 
 
 
-    AddRun (offset, kBytes, label, FormatHex (value, kDigits) + L" (" + std::to_wstring (value) + L")");
+    AddRun (offset, kBytes, label, FormatHex (value, kDigits) + L" (" + InspectorFormat::FormatCount (value) + L")");
 }
 
 
@@ -123,7 +124,7 @@ void BlockFieldList::AddLong (uint32_t offset, uint32_t length, const std::wstri
         value |= (uint32_t) GetByte (offset + i) << (kBitsPerByte * i);
     }
 
-    AddRun (offset, length, label, FormatHex (value, (int) length * 2) + L" (" + std::to_wstring (value) + L")");
+    AddRun (offset, length, label, FormatHex (value, (int) length * 2) + L" (" + InspectorFormat::FormatCount (value) + L")");
 }
 
 
@@ -147,7 +148,7 @@ void BlockFieldList::AddBigWord (uint32_t offset, const std::wstring & label)
 
 
 
-    AddRun (offset, kBytes, label, FormatHex (value, kDigits) + L" (" + std::to_wstring (value) + L")");
+    AddRun (offset, kBytes, label, FormatHex (value, kDigits) + L" (" + InspectorFormat::FormatCount (value) + L")");
 }
 
 
@@ -171,7 +172,7 @@ void BlockFieldList::AddBigLong (uint32_t offset, const std::wstring & label)
 
 
 
-    AddRun (offset, kBytes, label, FormatHex (value, kDigits) + L" (" + std::to_wstring (value) + L")");
+    AddRun (offset, kBytes, label, FormatHex (value, kDigits) + L" (" + InspectorFormat::FormatCount (value) + L")");
 }
 
 
@@ -268,7 +269,7 @@ void BlockFieldList::AddSplitLink (uint32_t lowOffset, uint32_t highOffset, cons
     field.length     = 1;
     field.pairOffset = (int32_t) highOffset;
     field.label      = label;
-    field.value      = FormatHex (value, kDigits) + L" (" + std::to_wstring (value) + L")";
+    field.value      = FormatHex (value, kDigits) + L" (" + InspectorFormat::FormatCount (value) + L")";
 
     if (value != 0 && value < blockCount)
     {

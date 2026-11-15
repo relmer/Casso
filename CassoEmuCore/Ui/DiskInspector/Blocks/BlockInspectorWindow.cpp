@@ -2,6 +2,7 @@
 
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/IDiskFileIo.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/Blocks/BlockGoToDialog.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
@@ -448,7 +449,7 @@ vector<InspectorStatusBar::LeadItem> BlockInspectorWindow::BuildLead() const
     if (m_model.IsComparing())
     {
         differ = m_model.CountDifferent();
-        items.push_back ({ differ == 0 ? std::wstring (L"No blocks differ") : differ == 1 ? std::wstring (L"1 block differs") : std::format (L"{} blocks differ", differ),
+        items.push_back ({ differ == 0 ? std::wstring (L"No blocks differ") : differ == 1 ? std::wstring (L"1 block differs") : std::format (L"{} blocks differ", InspectorFormat::FormatCount (differ)),
                            LeadKind::Result });
     }
 
@@ -761,7 +762,7 @@ bool BlockInspectorWindow::ConfirmClose()
     if (bytes > 0)
     {
         answer = DxuiMessageBox (GetHwnd(), m_theme,
-                                 (std::to_wstring (bytes) + (bytes == 1 ? L" changed byte isn't" : L" changed bytes aren't") + L" written. Close and discard the edits?").c_str(),
+                                 (InspectorFormat::FormatCount (bytes) + (bytes == 1 ? L" changed byte isn't" : L" changed bytes aren't") + L" written. Close and discard the edits?").c_str(),
                                  L"Disk inspector", MB_YESNO | MB_ICONWARNING, { L"Discard edits", L"Keep editing" }, 0);
     }
 

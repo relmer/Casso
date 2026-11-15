@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/Blocks/BlockFieldsView.h"
 #include "Ui/DiskInspector/Blocks/BlockFilesView.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
@@ -258,10 +259,11 @@ bool BlockInspectorPanel::TryParseBlock (const std::wstring & text, uint32_t & o
 
 
 
-    std::wstring  trimmed = text;
-    wchar_t     * end     = nullptr;
-    int           base    = kDecimal;
-    uint64_t      value   = 0;
+    std::wstring  trimmed   = text;
+    std::wstring  separator = InspectorFormat::GetThousandsSeparator();
+    wchar_t     * end       = nullptr;
+    int           base      = kDecimal;
+    uint64_t      value     = 0;
 
 
 
@@ -272,6 +274,11 @@ bool BlockInspectorPanel::TryParseBlock (const std::wstring & text, uint32_t & o
     {
         trimmed.erase (0, 1);
         base = kHex;
+    }
+    else
+    {
+        //  A decimal block number may have thousands separators, as in FormatCount's output.
+        std::erase_if (trimmed, [&] (wchar_t c) { return c == L',' || separator.find (c) != std::wstring::npos; });
     }
 
     if (trimmed.empty() || !iswxdigit (trimmed[0]))
@@ -785,7 +792,7 @@ void BlockInspectorPanel::Present()
     m_leftChip->SetOn    (m_model->HasLeftovers());
     m_diffsChip->SetOn   (m_isDiffsOn);
     m_diffsChip->SetVisible (isComparing);
-    m_editNote->SetText  (std::to_wstring (m_model->GetEdits().CountChangedBytes()) + (m_model->GetEdits().CountChangedBytes() == 1 ? L" byte changed, not written" : L" bytes changed, not written"));
+    m_editNote->SetText  (InspectorFormat::FormatCount (m_model->GetEdits().CountChangedBytes()) + (m_model->GetEdits().CountChangedBytes() == 1 ? L" byte changed, not written" : L" bytes changed, not written"));
 
     m_hasEdits = hasEdits;
 
@@ -872,7 +879,7 @@ void BlockInspectorPanel::ShowBytes()
 
 
 
-    m_title = L"Block " + std::to_wstring (block);
+    m_title = L"Block " + InspectorFormat::FormatCount (block);
     BuildCapsules();
 
     if (header)
@@ -889,7 +896,7 @@ void BlockInspectorPanel::ShowBytes()
 
         m_source.SetBytes (bytes);
         m_model->GetFields (block, bytes, fields);
-        m_fields->SetHeading   (L"Fields in block " + std::to_wstring (block));
+        m_fields->SetHeading   (L"Fields in block " + InspectorFormat::FormatCount (block));
         m_fields->SetEmptyText (L"There are no fields in this block.");
 
         for (i = 0; i < bytes.size(); i++)
@@ -1022,7 +1029,7 @@ void BlockInspectorPanel::BuildFieldLine()
     if (m_model->IsComparing())
     {
         parts.push_back ((m_model->IsDifferent (block) ? L"Differs from " : L"Same as ") + other
-                         + (differ == 0 ? std::wstring (L" (no blocks differ)") : differ == 1 ? std::wstring (L" (1 block differs)") : std::format (L" ({} blocks differ)", differ)));
+                         + (differ == 0 ? std::wstring (L" (no blocks differ)") : differ == 1 ? std::wstring (L" (1 block differs)") : std::format (L" ({} blocks differ)", InspectorFormat::FormatCount (differ))));
     }
 
     if (run != nullptr)
@@ -1030,12 +1037,12 @@ void BlockInspectorPanel::BuildFieldLine()
         kind = BlockLeftovers::GetKindName (run->kind);
         kind = kind.empty() ? kind : (wchar_t) towupper (kind[0]) + kind.substr (1);
 
-        parts.push_back (kind + L" in free blocks " + std::to_wstring (run->first) + L" to " + std::to_wstring (run->first + run->count - 1));
+        parts.push_back (kind + L" in free blocks " + InspectorFormat::FormatCount (run->first) + L" to " + InspectorFormat::FormatCount (run->first + run->count - 1));
     }
     else if (m_model->HasLeftovers())
     {
         parts.push_back (runs == 0 ? std::wstring (L"No free blocks with text or code") : runs == 1 ? std::wstring (L"1 run of free blocks with text or code")
-                                                                                                 : std::format (L"{} runs of free blocks with text or code", runs));
+                                                                                                 : std::format (L"{} runs of free blocks with text or code", InspectorFormat::FormatCount (runs)));
     }
 
     m_fieldLine.clear();
@@ -1166,7 +1173,7 @@ std::wstring BlockInspectorPanel::BuildBlockText() const
 
 std::wstring BlockInspectorPanel::GetSelectionLine() const
 {
-    return m_model != nullptr && m_model->IsOpen() ? L"Selected: block " + std::to_wstring (m_model->GetBlock()) : std::wstring();
+    return m_model != nullptr && m_model->IsOpen() ? L"Selected: block " + InspectorFormat::FormatCount (m_model->GetBlock()) : std::wstring();
 }
 
 

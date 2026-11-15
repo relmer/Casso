@@ -3,6 +3,7 @@
 #include "Devices/Disk/BlockImage.h"
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/Inspector/Blocks/BlockMapBuilder.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Machines/Apple2/Common/HfsVolume.h"
 #include "Machines/Apple2/Common/HfsWriter.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
@@ -260,7 +261,7 @@ public:
 
 
         Assert::AreEqual ((size_t) 1, fields.size());
-        Assert::AreEqual (std::wstring (L"Volume bitmap, blocks 0 to 4095"), fields[0].label);
+        Assert::AreEqual (L"Volume bitmap, blocks 0 to " + InspectorFormat::FormatCount (4095), fields[0].label);
     }
 
 

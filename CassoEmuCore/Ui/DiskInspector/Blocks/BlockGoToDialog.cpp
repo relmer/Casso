@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/Blocks/BlockGoToDialog.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
 
@@ -126,7 +127,7 @@ void BlockGoToDialog::OnCreate()
     m_input.SetHwnd         (GetHwnd());
     m_input.SetTextRenderer (GetTextRenderer());
     m_input.SetMaxLength    (s_kMaxChars);
-    m_input.SetText         (std::to_wstring (m_current));
+    m_input.SetText         (InspectorFormat::FormatCount (m_current));
     m_input.SetOnChange     ([this] (const std::wstring &) { Validate(); });
 
     m_body = CreateDialogContent<Body> (m_label, m_input, m_error);
@@ -158,7 +159,7 @@ void BlockGoToDialog::Validate()
     m_block   = block;
 
     m_error.SetText (m_isValid ? std::wstring (L"Decimal, or hex after $.")
-                               : std::format (L"Enter a block from 0 to {}, in decimal or in hex after $.", m_blockCount == 0 ? 0 : m_blockCount - 1));
+                               : std::format (L"Enter a block from 0 to {}, in decimal or in hex after $.", InspectorFormat::FormatCount (m_blockCount == 0 ? 0 : m_blockCount - 1)));
 
     if (m_ok != nullptr)
     {

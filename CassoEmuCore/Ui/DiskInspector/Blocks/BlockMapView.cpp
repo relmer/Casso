@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
 
@@ -333,7 +334,7 @@ std::wstring BlockMapView::DescribeCell (uint32_t cell) const
         return text;
     }
 
-    text   = first == last ? L"Block " + std::to_wstring (first) : L"Blocks " + std::to_wstring (first) + L" to " + std::to_wstring (last);
+    text   = first == last ? L"Block " + InspectorFormat::FormatCount (first) : L"Blocks " + InspectorFormat::FormatCount (first) + L" to " + InspectorFormat::FormatCount (last);
     text  += L": ";
     text  += first == last && m_model->GetMapLabel (first) != nullptr ? m_model->GetMapLabel (first) : BlockMapGrid::GetRoleName (m_roles[cell]);
     owners = m_model->GetOwners (first);

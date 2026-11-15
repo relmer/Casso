@@ -2,6 +2,7 @@
 
 #include "Devices/Disk/BlockImage.h"
 #include "Devices/Disk/Inspector/Blocks/PascalBlockLayout.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 
 
 
@@ -226,7 +227,7 @@ void PascalBlockLayout::Annotate (const BlockMap & map, uint32_t block, BlockByt
     for (i = 0; i <= files; i++)
     {
         base = i * kEntryBytes;
-        head = i == 0 ? std::wstring (L"Volume: ") : L"Entry " + std::to_wstring (i) + L" " + map.files[i - 1] + L": ";
+        head = i == 0 ? std::wstring (L"Volume: ") : L"Entry " + InspectorFormat::FormatCount (i) + L" " + map.files[i - 1] + L": ";
 
         for (const EntryField & field : (i == 0 ? std::span<const EntryField> (kVolumeFields) : std::span<const EntryField> (kFileFields)))
         {

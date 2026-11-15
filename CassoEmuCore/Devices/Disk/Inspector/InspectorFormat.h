@@ -14,8 +14,9 @@
 //  Track numbers, blocks, volumes, counts, cell positions, times and angles
 //  are decimal, angles in degrees clockwise from the index. Sector numbers,
 //  byte and nibble values and offsets are hex with a "$", except in byte
-//  sequences such as marks, which are bare hex. Counts above 999 take a
-//  thousands separator. Go to parses each value in the base it is shown in.
+//  sequences such as marks, which are bare hex. Counts above 999 take the
+//  user's regional thousands separator. Go to parses each value in the base
+//  it is written in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +33,7 @@ public:
     static std::wstring  FormatDegrees          (double fractionOfTurn);
     static std::wstring  FormatMicroseconds     (double ticks);
     static std::wstring  FormatPercent          (double fraction);
+    static std::wstring  GetThousandsSeparator  ();
 
     static bool          TryParseQuarterTrack   (std::wstring_view text, int & outQuarterTrack);
     static bool          TryParseHex            (std::wstring_view text, int & outValue);

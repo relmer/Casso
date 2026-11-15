@@ -159,22 +159,61 @@ std::wstring InspectorFormat::FormatByteSequence (std::span<const Byte> bytes)
 //
 //  InspectorFormat::FormatCount
 //
-//  51,007: decimal with a comma every three digits.
+//  Decimal, grouped with the user's regional thousands separator, as
+//  51,007 in English (United States). If the locale can't be read, the
+//  digits are grouped by three with a comma.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring InspectorFormat::FormatCount (uint64_t count)
 {
-    static constexpr int  kGroup = 3;
+    static constexpr int  kGroup       = 3;
+    static constexpr int  kMaxLocale   = 16;
+    static constexpr int  kMaxText     = 64;
+    static constexpr int  kRepeatScale = 10;
 
 
 
-    std::wstring  digits = std::to_wstring (count);
+    std::wstring  digits                = std::to_wstring (count);
     std::wstring  text;
-    int           i      = 0;
-    int           length = static_cast<int> (digits.size());
+    wchar_t       thousands[kMaxLocale] = {};
+    wchar_t       decimal[kMaxLocale]   = {};
+    wchar_t       grouping[kMaxLocale]  = {};
+    wchar_t       formatted[kMaxText]   = {};
+    NUMBERFMTW    format                = {};
+    int           gotThousands          = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_STHOUSAND, thousands, kMaxLocale);
+    int           gotDecimal            = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_SDECIMAL,  decimal,   kMaxLocale);
+    int           gotGrouping           = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_SGROUPING, grouping,  kMaxLocale);
+    std::wstring  pattern               = grouping;
+    int           i                     = 0;
+    int           length                = static_cast<int> (digits.size());
 
 
+
+    if (gotThousands != 0 && gotDecimal != 0 && gotGrouping != 0)
+    {
+        //  "3;0" is groups of 3, "3;2;0" is 3 then 2s (32), and "3" without the
+        //  closing 0 is one group of 3 (30).
+        format.Grouping = 0;
+
+        for (wchar_t c : pattern.ends_with (L";0") ? pattern.substr (0, pattern.size() - 2) : pattern)
+        {
+            if (c >= L'0' && c <= L'9')
+            {
+                format.Grouping = format.Grouping * kRepeatScale + (UINT) (c - L'0');
+            }
+        }
+
+        format.Grouping      = pattern.ends_with (L";0") ? format.Grouping : format.Grouping * kRepeatScale;
+        format.lpDecimalSep  = decimal;
+        format.lpThousandSep = thousands;
+        format.NegativeOrder = 1;
+
+        if (GetNumberFormatEx (LOCALE_NAME_USER_DEFAULT, 0, digits.c_str(), &format, formatted, kMaxText) != 0)
+        {
+            return formatted;
+        }
+    }
 
     for (i = 0; i < length; i++)
     {
@@ -187,6 +226,33 @@ std::wstring InspectorFormat::FormatCount (uint64_t count)
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorFormat::GetThousandsSeparator
+//
+//  The user's regional thousands separator, or a comma if the locale can't
+//  be read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorFormat::GetThousandsSeparator()
+{
+    static constexpr int  kMaxLocale = 16;
+
+
+
+    wchar_t  thousands[kMaxLocale] = {};
+    int      got                   = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_STHOUSAND, thousands, kMaxLocale);
+
+
+
+    return got > 1 ? std::wstring (thousands) : std::wstring (L",");
 }
 
 
@@ -356,7 +422,8 @@ bool InspectorFormat::TryParseHex (std::wstring_view text, int & outValue)
 //
 //  InspectorFormat::TryParseDecimal
 //
-//  Digits, with or without thousands commas.
+//  Digits, with or without thousands separators: commas or the user's
+//  regional separator.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -366,15 +433,16 @@ bool InspectorFormat::TryParseDecimal (std::wstring_view text, int & outValue)
 
 
 
-    std::string  narrow;
-    int          value   = 0;
-    bool         isValid = !text.empty();
+    std::string   narrow;
+    std::wstring  separator = GetThousandsSeparator();
+    int           value     = 0;
+    bool          isValid   = !text.empty();
 
 
 
     for (wchar_t c : text)
     {
-        if (c == L',')
+        if (c == L',' || separator.find (c) != std::wstring::npos)
         {
             continue;
         }

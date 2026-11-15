@@ -5,6 +5,7 @@
 #include "Devices/Disk/Containers/TwoImgContainer.h"
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Machines/Apple2/Common/HfsWriter.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -255,7 +256,7 @@ public:
         model.GetFile().AnnotateHeader (fields);
 
         Assert::IsNotNull (FindField (fields, L"2IMG: blocks"));
-        Assert::AreEqual (std::wstring (L"$00000640 (1600)"), FindField (fields, L"2IMG: blocks")->value);
+        Assert::AreEqual (L"$00000640 (" + InspectorFormat::FormatCount (1600) + L")", FindField (fields, L"2IMG: blocks")->value);
         Assert::AreEqual (std::wstring (L"\"2IMG\""), FindField (fields, L"2IMG: magic")->value);
     }
 

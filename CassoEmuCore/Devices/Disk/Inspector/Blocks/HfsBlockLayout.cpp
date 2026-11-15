@@ -2,6 +2,7 @@
 
 #include "Devices/Disk/BlockImage.h"
 #include "Devices/Disk/Inspector/Blocks/HfsBlockLayout.h"
+#include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Machines/Apple2/Common/HfsVolume.h"
 
 
@@ -684,8 +685,8 @@ void HfsBlockLayout::Annotate (const BlockMap & map, uint32_t block, BlockBytes 
             }
 
             list.AddRun (0, kBlockBytes,
-                         L"Volume bitmap, allocation blocks " + std::to_wstring (first) + L" to " + std::to_wstring (first + kBitsPerBlock - 1),
-                         std::to_wstring (used) + L" used");
+                         L"Volume bitmap, allocation blocks " + InspectorFormat::FormatCount (first) + L" to " + InspectorFormat::FormatCount (first + kBitsPerBlock - 1),
+                         InspectorFormat::FormatCount (used) + L" used");
             break;
 
         case BlockStructure::HfsNode:
@@ -871,7 +872,7 @@ void HfsBlockLayout::AnnotateNode (const BlockMap & map, const BlockMapEntry & e
 
     for (r = 0; r <= records; r++)
     {
-        list.AddBigWord (kBlockBytes - 2 * (r + 1), r < records ? L"Offset of record " + std::to_wstring (r) : std::wstring (L"Offset of free space"));
+        list.AddBigWord (kBlockBytes - 2 * (r + 1), r < records ? L"Offset of record " + InspectorFormat::FormatCount (r) : std::wstring (L"Offset of free space"));
     }
 
     if (type == kHeaderNode)
@@ -979,7 +980,7 @@ void HfsBlockLayout::AnnotateRecord (
 
 
 
-    std::wstring  head   = L"Record " + std::to_wstring (number) + L": ";
+    std::wstring  head   = L"Record " + InspectorFormat::FormatCount (number) + L": ";
     uint32_t      data   = at + 1 + list.GetByte (at);
     uint32_t      child  = 0;
     uint32_t      linked = 0;
