@@ -9,6 +9,7 @@
 #include "Shell/WindowManager.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellSerialCard.h"
 #include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/DiskManager.h"
@@ -1008,6 +1009,10 @@ int EmulatorShell::RunMessageLoop()
             SyncPaddleSourceList();
         }
 
+        // A drive picker closes inside a message of its window, so it is
+        // released here, between messages.
+        m_drivePickers->ReleaseClosed();
+
         // Process pending messages, bounded by the drain deadline (see banner):
         // the deadline check gates the NEXT retrieval, so a message already
         // removed from the queue is always dispatched, never dropped.
@@ -1053,7 +1058,11 @@ int EmulatorShell::RunMessageLoop()
             bool  inspectorTarget = (m_diskInspector != nullptr && m_diskInspector->GetHwnd() != nullptr && msg.hwnd != nullptr &&
                                      GetAncestor (msg.hwnd, GA_ROOTOWNER) == m_diskInspector->GetHwnd());
 
-            if (settingsActive || inspectorTarget ||
+            // Keystrokes in a drive picker are the picker's, as the
+            // inspector's are.
+            bool  pickerTarget = msg.hwnd != nullptr && m_drivePickers->IsPickerWindow (msg.hwnd);
+
+            if (settingsActive || inspectorTarget || pickerTarget ||
                 m_window->m_accelTable == nullptr ||
                 !TranslateAccelerator (m_hwnd, m_window->m_accelTable, &msg))
             {
@@ -1280,6 +1289,10 @@ void EmulatorShell::OnDestroy()
     // P6 -- revoke the IDropTarget before the HWND is destroyed.
     // RevokeDragDrop requires a valid window handle.
     m_window->m_dragDropTarget.Shutdown();
+
+    // The pickers are owned by this window and insert in this machine's
+    // drives.
+    m_drivePickers->CloseAll();
 
     // Join the printer drain thread before teardown frees the card, and
     // persist the pending strip on clean exit (FR-026); empty clears any stale
@@ -2123,6 +2136,10 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
     if (msg == (UINT) AppMessage::ShellUpdateTitle)
     {
+        // The switched machine's drives are not the ones the open pickers
+        // were opened for.
+        m_drivePickers->CloseAll();
+
         m_window->UpdateWindowTitle();
         m_chrome->ReflowChromeForMachineChange();
 

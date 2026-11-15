@@ -97,6 +97,7 @@ void ExplorerPickerHost::Prepare (PickerRequest request, const std::string & the
     hr = store.Load (entries);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    m_browser->GetTreeModel().SetCassoLinkShown (false);
     m_browser->GetTreeModel().SetKnownFolders (KnownFolderStore::ListRootFolders (m_fs, m_baseDir, entries));
     m_browser->SetRecentLoads ([this] () { return CassoImagesListing::LoadRecent (m_fs, m_baseDir); });
 }
@@ -183,7 +184,9 @@ CassoExplorerWindowContext ExplorerPickerHost::MakeContext()
 
 HRESULT ExplorerPickerHost::Open (HINSTANCE instance)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr         = S_OK;
+    HWND     foreground = GetForegroundWindow();
+    bool     isInFront  = m_owner == nullptr || (foreground != nullptr && GetAncestor (foreground, GA_ROOTOWNER) == m_owner);
 
 
 
@@ -202,7 +205,9 @@ HRESULT ExplorerPickerHost::Open (HINSTANCE instance)
 
     m_window = std::make_unique<CassoExplorerWindow> (*m_browser, *m_actions, m_prefs, MakeContext());
 
-    hr = m_window->Open (instance, m_request.title, SW_SHOWNORMAL);
+    //  A picker opened while another app is in front does not take the
+    //  keyboard from it.
+    hr = m_window->Open (instance, m_request.title, isInFront ? SW_SHOWNORMAL : SW_SHOWNOACTIVATE);
     CHR (hr);
 
 Error:

@@ -418,6 +418,12 @@ void BrowserPreviewer::UpdatePreview()
         PreviewShellItem (m_browser.m_rows[m_browser.m_selectedRows[0]]);
         return;
     }
+    else if (!m_browser.m_isImage && location == Location::MakeRoot (TreeModel::kCassoRootId) && m_browser.m_selectedRows.size() == 1
+             && !m_browser.m_rows[m_browser.m_selectedRows[0]].isDirectory && !m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath.empty())
+    {
+        //  An image in the Casso node's list previews as it does in its folder.
+        folder = CassoExplorerBrowser::GetParentFolder (m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath);
+    }
     else if (m_browser.m_isImage || location.kind != Location::Kind::HostFolder || m_browser.m_selectedRows.size() != 1)
     {
         return;

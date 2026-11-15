@@ -337,12 +337,11 @@ bool ShellChrome::HandleDriveBarClick (POINT pt)
     if (fan.HitTest (pt, c, entry))
     {
         const DeskDrive  & drive = fan.GetDrive (c, entry);
-        RECT               slot  = fan.GetSlotRect (c, entry);
 
         if (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
         {
             m_shell.m_disks->Eject (6, drive.drive);
-            m_shell.m_disks->BrowseForDisk (drive.drive, &slot);
+            m_shell.m_disks->BrowseForDisk (drive.drive);
         }
         else if (ShellDeskScene::IsFloppy35 (drive))
         {

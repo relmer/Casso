@@ -212,6 +212,10 @@ public:
 
     void  SetNavPaneOptions  (const NavPaneOptions & options) { m_navOptions = options; }
 
+    //  With false the CassoLink root is not in the pane, as in a picker,
+    //  which has no connections.
+    void  SetCassoLinkShown  (bool shown) { m_showCassoLink = shown; }
+
     //  The CassoLink connections, each under CassoLink. Their drives are listed
     //  again on the next expand.
     void  SetLinks           (std::vector<LinkTreeEntry> links);
@@ -398,6 +402,7 @@ private:
     std::vector<IShellItemVerbs::ShellFolderItem>    m_navRoots;
     std::vector<IShellItemVerbs::ShellFolderItem>    m_pinned;
     NavPaneOptions                                   m_navOptions;
+    bool                                             m_showCassoLink = true;
     std::vector<LinkTreeEntry>                       m_links;
     std::wstring                                     m_fullSendFolder;
 };

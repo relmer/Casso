@@ -1799,4 +1799,29 @@ public:
         rig.browser.NavigateToAddress (L"C:\\Disks");
 
         Assert::AreEqual ((size_t) 1, rig.browser.GetScopedOutCount());
+    }
+
+    //  An image in one of the running machine's drives is marked with the
+    //  drive, whatever the case of its path.
+    TEST_METHOD (Picker_MarksTheImageInADrive)
+    {
+        Rig            rig;
+        PickerRequest  request;
+
+
+
+        request.mounted = { { L"c:\\disks\\PRODOS.PO", L"slot 6 drive 1" } };
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.app.picker = &request;
+        rig.Open();
+        rig.browser.NavigateToAddress (L"C:\\Disks");
+
+        Assert::AreEqual ((size_t) 2, rig.browser.GetRows().size());
+
+        for (const CatalogRow & row : rig.browser.GetRows())
+        {
+            Assert::AreEqual (std::wstring (row.name == L"prodos.po" ? L"slot 6 drive 1" : L""), row.inDrive, row.name.c_str());
+        }
     }};

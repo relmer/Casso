@@ -8,6 +8,7 @@
 #include "Devices/Floppy35/Apple35ControllerCard.h"
 #include "Devices/Floppy35/LironCard.h"
 #include "Shell/Components/ShellDeskScene.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Capture/ScreenshotMetadata.h"
@@ -3880,26 +3881,10 @@ void ShellDeskScene::BrowseExtraDrive (int index)
 
 void ShellDeskScene::BrowseFloppy35 (const DeskDrive & drive)
 {
-    HRESULT         hr     = S_OK;
-    FileDialogSpec  spec;
-    fs::path        chosen;
-    bool            picked = false;
-
-
-
-    BAIL_OUT_IF (!IsFloppy35 (drive), S_OK);
-
-    spec.filters = { { L"3.5-inch disk image", L"*.po;*.2mg;*.2img;*.dc;*.dc42;*.image;*.dsk;*.woz" }, { L"All files", L"*.*" } };
-
-    hr = m_shell.m_hostDialogs.PickFileToOpen (m_shell.m_hwnd, spec, chosen, picked);
-    CHR (hr);
-    BAIL_OUT_IF (!picked, S_OK);
-
-    hr = m_shell.m_disks->Mount (drive.slot, drive.drive, chosen.wstring());
-    CHR (hr);
-
-Error:
-    return;
+    if (IsFloppy35 (drive))
+    {
+        m_shell.m_drivePickers->OpenForDeskDrive (drive);
+    }
 }
 
 

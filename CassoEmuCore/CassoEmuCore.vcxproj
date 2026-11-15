@@ -146,6 +146,7 @@
     <ClCompile Include="Audio\TapeAudioSource.cpp" />
     <ClCompile Include="Devices\Tape\TapeTurboGovernor.cpp" />
     <ClCompile Include="Shell\EmulatorShellStorage.cpp" />
+    <ClCompile Include="Shell\Components\ShellDrivePickers.cpp" />
     <ClCompile Include="Shell\Components\ShellTapeDeck.cpp" />
     <ClCompile Include="Ui\Chrome\TapeDeckWidget.cpp" />
     <ClCompile Include="Shell\TapeManager.cpp" />
@@ -1189,6 +1190,7 @@
     <ClCompile Include="Shell\WindowManager.cpp" />
     <ClCompile Include="Shell\DiskMru.cpp" />
     <ClCompile Include="Shell\DriveDropRule.cpp" />
+    <ClCompile Include="Shell\DrivePickers.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
     <ClCompile Include="BuildInfo.cpp" />
     <ClCompile Include="CrtPostProcess.cpp" />
@@ -2125,6 +2127,7 @@
     <ClInclude Include="Ui\PrinterPaperView.h" />
     <ClInclude Include="Shell\DiskMru.h" />
     <ClInclude Include="Shell\DriveDropRule.h" />
+    <ClInclude Include="Shell\DrivePickers.h" />
     <ClInclude Include="Shell\RepoCheckout.h" />
     <ClInclude Include="Shell\ClipboardManager.h" />
     <ClInclude Include="Shell\ScreenshotCapture.h" />
@@ -2157,6 +2160,7 @@
     <ClInclude Include="Shell\Components\ShellSerialCard.h" />
     <ClInclude Include="Shell\SerialCardNotice.h" />
     <ClInclude Include="Shell\Components\ShellSettings.h" />
+    <ClInclude Include="Shell\Components\ShellDrivePickers.h" />
     <ClInclude Include="Shell\Components\ShellTapeDeck.h" />
     <ClInclude Include="Shell\Components\EmulatorUpdaterHost.h" />
     <ClInclude Include="Shell\Components\ShellUpdater.h" />

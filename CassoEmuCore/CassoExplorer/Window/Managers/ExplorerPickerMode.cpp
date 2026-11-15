@@ -43,6 +43,7 @@ void ExplorerPickerMode::Start()
     m_scope = PickerScope (*m_context.app.picker);
 
     m_context.browser.SetRowScope ([this] (const CatalogRow & row) { return m_scope.Passes (row); });
+    m_context.browser.SetMountedImages (m_context.app.picker->mounted);
 }
 
 

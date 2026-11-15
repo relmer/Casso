@@ -402,7 +402,9 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
     cells.push_back (DxuiListView::Cell { row.collection.sha256, false });
     cells.push_back (DxuiListView::Cell { ImageClassifier::FormatFormFactor (row.imageClass), false });
     cells.push_back (DxuiListView::Cell { ImageClassifier::FormatSize (row.imageClass), false });
-    cells.push_back (DxuiListView::Cell { (row.lastUsedUnix != 0) ? FormatModified (row.lastUsedUnix, false) : std::wstring(), false });
+    cells.push_back (DxuiListView::Cell { !row.inDrive.empty()    ? L"In " + row.inDrive
+                                        : (row.lastUsedUnix != 0) ? FormatModified (row.lastUsedUnix, false)
+                                                                  : std::wstring(), false });
 
     if (icons != nullptr && !cells.empty())
     {

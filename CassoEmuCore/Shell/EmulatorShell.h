@@ -47,6 +47,7 @@ class ShellRenderer;
 class ShellWindow;
 class ShellDeskScene;
 class ShellDisks;
+class ShellDrivePickers;
 class ShellPrinter;
 class ShellSettings;
 class ShellSerialCard;
@@ -759,6 +760,7 @@ private:
     friend class ShellWindow;
     friend class ShellDeskScene;
     friend class ShellDisks;
+    friend class ShellDrivePickers;
     friend class ShellPrinter;
     friend class ShellSettings;
     friend class ShellSerialCard;
@@ -1024,6 +1026,7 @@ private:
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<ShellDisks>               m_disks;
     std::unique_ptr<ShellTapeDeck>            m_tapeDeck;
+    std::unique_ptr<ShellDrivePickers>        m_drivePickers;
     std::unique_ptr<ShellSerialCard>          m_serialCard;
     std::unique_ptr<ShellNetworkCard>         m_networkCard;
     std::wstring                              m_lastListenProblem;   // CPU thread: the sentence last passed to m_networkCard

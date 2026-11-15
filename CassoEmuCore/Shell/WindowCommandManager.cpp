@@ -10,6 +10,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/Components/ShellWindow.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
@@ -612,6 +613,7 @@ void WindowCommandManager::OnExternalDriveCommand (int id)
     // than tearing state out from under the running machine.
     if (!connected && m_shell.m_disks->GetManager() != nullptr)
     {
+        m_shell.m_drivePickers->Close (DriveAddress { 6, 1, false });
         m_shell.m_disks->GetManager()->Eject (6, 1);
     }
 

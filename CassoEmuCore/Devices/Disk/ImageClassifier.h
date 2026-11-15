@@ -104,6 +104,11 @@ public:
     static bool          IsImageExtension  (std::wstring_view extension);
     static bool          IsTapeExtension   (std::wstring_view extension);
 
+    //  A file dialog pattern of every disk image extension, and of every
+    //  tape extension.
+    static std::wstring  GetDiskMask       ();
+    static std::wstring  GetTapeMask       ();
+
     //  "140K", "800K", "1.4 MB", "32 MB"; empty for a tape or a file with
     //  no class.
     static std::wstring  FormatSize        (const ImageClass & imageClass);
@@ -118,6 +123,7 @@ public:
 
 private:
     static bool        IsExtensionIn    (std::wstring_view extension, std::span<const wchar_t * const> list);
+    static void        AppendMasks      (std::wstring & mask, std::span<const wchar_t * const> list);
     static bool        HasSignature     (std::span<const Byte> head, std::string_view signature);
     static ImageClass  MakeClassified   (ImageFormFactor formFactor, ImageLayout layout, uint64_t formattedBytes, uint32_t blockCount);
     static ImageClass  MakeUnclassified ();

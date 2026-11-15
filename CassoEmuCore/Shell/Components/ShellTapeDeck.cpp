@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/Components/ShellTapeDeck.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Core/JsonValue.h"
 #include "Devices/Tape/TapeImageLoader.h"
@@ -700,29 +701,13 @@ Error:
 //
 //  PickTape
 //
-//  The disk picker, choosing a tape, anchored under the tape widget.
+//  Opens the recorder's picker, or brings it to the front when it is open.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellTapeDeck::PickTape()
 {
-    HRESULT       hr       = S_OK;
-    RECT          anchor   = m_tapeChrome.GetNameRect();
-    const RECT  * pAnchor  = nullptr;
-
-
-
-    if (!IsRectEmpty (&anchor))
-    {
-        MapWindowPoints (m_shell.m_hwnd, HWND_DESKTOP, reinterpret_cast<POINT *> (&anchor), 2);
-        pAnchor = &anchor;
-    }
-
-    m_shell.m_host->BeginModalKeepAlive();
-    hr = m_shell.m_windowCommandManager->PromptInsertTapeMru (pAnchor);
-    m_shell.m_host->EndModalKeepAlive();
-
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    m_shell.m_drivePickers->OpenForRecorder();
 }
 
 

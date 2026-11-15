@@ -17,6 +17,7 @@
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellSerialCard.h"
 #include "Shell/Components/ShellNetworkCard.h"
@@ -148,6 +149,7 @@ EmulatorShell::EmulatorShell() :
     m_tapeDeck      = std::make_unique<ShellTapeDeck> (*this);
     m_printer       = std::make_unique<ShellPrinter> (*this);
     m_disks         = std::make_unique<ShellDisks> (*this);
+    m_drivePickers  = std::make_unique<ShellDrivePickers> (*this);
     m_serialCard    = std::make_unique<ShellSerialCard> (*this);
     m_networkCard   = std::make_unique<ShellNetworkCard> (*this);
     m_scene         = std::make_unique<ShellDeskScene> (*this);
@@ -268,6 +270,7 @@ EmulatorShell::~EmulatorShell()
     m_cpuManager.Stop();
 
     m_diskInspector.reset();
+    m_drivePickers.reset();
     // The printer panel holds no machine sinks -- just close its window.
     m_printer->ClosePrinterPanel();
 

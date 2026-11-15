@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Config/UserConfigStore.h"
 #include "Shell/Components/ShellSettings.h"
@@ -196,6 +197,11 @@ void EmulatorShell::SetTapeRecorderConnected (bool connected)
     if (!connected && m_tapeDeck->GetManager() != nullptr)
     {
         m_tapeDeck->GetManager()->Eject();
+    }
+
+    if (!connected)
+    {
+        m_drivePickers->Close (DriveAddress { 0, 0, true });
     }
 
     m_tapeDeck->SetRecorderConnected (connected);

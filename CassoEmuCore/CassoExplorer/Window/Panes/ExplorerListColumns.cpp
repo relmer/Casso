@@ -594,6 +594,65 @@ void ExplorerListColumns::ApplyFolderView()
             {
                 m_chosen[(size_t) column] = true;
             }
+
+            if (m_context.IsPicker())
+            {
+                ApplyPickerImageColumns (entry.columnOrder.empty());
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::ApplyPickerImageColumns
+//
+//  A picker's first view of the Casso node's images: what each image is
+//  before the file's dates and size. A 140K disk and an 800K disk differ
+//  in the first columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListColumns::ApplyPickerImageColumns (bool isOrderDefault)
+{
+    static constexpr CatalogModel::Column  s_kShown[]  = { CatalogModel::Column::Name,       CatalogModel::Column::FormFactor, CatalogModel::Column::FormattedSize,
+                                                           CatalogModel::Column::FileSystem, CatalogModel::Column::VolumeName, CatalogModel::Column::LastUsed,
+                                                           CatalogModel::Column::Folder };
+    static constexpr CatalogModel::Column  s_kHidden[] = { CatalogModel::Column::Modified, CatalogModel::Column::Type, CatalogModel::Column::Size };
+
+
+
+    for (CatalogModel::Column column : s_kShown)
+    {
+        m_chosen[(size_t) column] = true;
+    }
+
+    for (CatalogModel::Column column : s_kHidden)
+    {
+        m_chosen[(size_t) column] = false;
+    }
+
+    if (!isOrderDefault)
+    {
+        return;
+    }
+
+    m_folderOrder.clear();
+
+    for (CatalogModel::Column column : s_kShown)
+    {
+        m_folderOrder.push_back (CatalogModel::GetColumnId ((size_t) column));
+    }
+
+    for (CatalogModel::Column column : CatalogModel::GetDefaultOrder())
+    {
+        if (std::find (std::begin (s_kShown), std::end (s_kShown), column) == std::end (s_kShown))
+        {
+            m_folderOrder.push_back (CatalogModel::GetColumnId ((size_t) column));
         }
     }
 }

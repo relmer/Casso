@@ -357,6 +357,10 @@ public:
     //  it are counted, for the status bar.
     using RowScopeFn = std::function<bool (const CatalogRow & row)>;
     void                    SetRowScope          (RowScopeFn scope)              { m_rowScope = std::move (scope); }
+
+    //  The images inserted in the running machine's drives, by path, each
+    //  with its drive. Their rows are marked with the drive.
+    void                    SetMountedImages     (const std::map<std::wstring, std::wstring> & mounted);
     size_t                  GetScopedOutCount    () const                        { return m_scopedOut; }
 
     void                    SetVolumeFactsNotify (std::function<void ()> notify) { m_onVolumeFacts = std::move (notify); }
@@ -476,6 +480,7 @@ private:
     PhysicalCards                     * m_cards          = nullptr;
     RecentLoadsFn                       m_recentLoads;
     RowScopeFn                          m_rowScope;
+    std::map<std::wstring, std::wstring>  m_mountedImages;   // by CassoImagesListing::MakePathKey
     size_t                              m_scopedOut      = 0;
     bool                                m_cardOpenAllowed = false;
     FilesystemChoices                 * m_filesystemChoices = nullptr;

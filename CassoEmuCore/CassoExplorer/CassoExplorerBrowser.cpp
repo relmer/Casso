@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/CollectionQuery.h"
+#include "CassoExplorer/Model/CassoImagesListing.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Archives/ContainerPath.h"
@@ -271,6 +272,17 @@ HRESULT CassoExplorerBrowser::Refresh()
     if (m_rowScope && (location.kind == Location::Kind::HostFolder || (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)))
     {
         m_scopedOut = std::erase_if (m_rows, [this] (const CatalogRow & row) { return !m_rowScope (row); });
+    }
+
+    if (!m_mountedImages.empty() && (location.kind == Location::Kind::HostFolder || (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)))
+    {
+        for (CatalogRow & row : m_rows)
+        {
+            std::wstring  path  = !row.hostPath.empty() ? row.hostPath : JoinPath (location.path, row.name);
+            auto          found = row.isDirectory ? m_mountedImages.end() : m_mountedImages.find (CassoImagesListing::MakePathKey (path));
+
+            row.inDrive = (found != m_mountedImages.end()) ? found->second : std::wstring();
+        }
     }
 
     m_rowsUnfiltered = true;
@@ -1194,6 +1206,26 @@ bool CassoExplorerBrowser::TryGetSelectedEntry (const FileEntry *& outEntry) con
     outEntry = &m_listing.entries[source];
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::SetMountedImages
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::SetMountedImages (const std::map<std::wstring, std::wstring> & mounted)
+{
+    m_mountedImages.clear();
+
+    for (const auto & [path, drive] : mounted)
+    {
+        m_mountedImages[CassoImagesListing::MakePathKey (path)] = drive;
+    }
 }
 
 

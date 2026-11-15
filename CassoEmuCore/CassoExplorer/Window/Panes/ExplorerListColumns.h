@@ -47,6 +47,7 @@ public:
     //  hidden, and of those hidden until chosen that are visible.
     void         GetChoiceIds               (std::vector<int> & outHidden, std::vector<int> & outShown) const;
     void         ApplyChoiceIds             (const std::vector<int> & hidden, const std::vector<int> & shown);
+    void         ApplyPickerImageColumns    (bool isOrderDefault);
 
     static std::vector<int>  ToColumnIds    (const std::vector<size_t> & columns);
     static void              SetColumnWidth (std::vector<int> & widthsDip, std::vector<int> & addedWidthsDip, size_t column, int widthDip);

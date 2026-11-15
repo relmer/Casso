@@ -102,13 +102,14 @@ public:
     HRESULT  Mount (int slot, int drive, const std::wstring & path) override;
     void     Eject (int slot, int drive) override;
 
-    // UI helper: open the drive door for visual feedback, show the
-    // file-open dialog, then close the door again. Mount-on-success
-    // is handled by the existing PromptForDiskImage path; this
-    // method just owns the door visual. `anchorClientPx` is the clicked
-    // drive in client pixels, which the picker opens below; null (the menu
-    // and accelerator path) centers the picker on the window.
-    void  BrowseForDisk (int drive, const RECT * anchorClientPx = nullptr);
+    // Opens the drive's picker, or brings it to the front when it is open.
+    void  BrowseForDisk (int drive);
+
+    // The door while the drive's picker is open: opened with the picker,
+    // and on its close left to the insert or put back to the mount state.
+    void            OpenDoorForPicker      (int drive);
+    void            RestoreDoorAfterPicker (int drive, bool isInserted);
+    static int64_t  GetDoorNowMs           ();
 
     // Push a freshly mounted disk image onto the recent-disks MRU
     // and persist user prefs. Best-effort; never propagates failures

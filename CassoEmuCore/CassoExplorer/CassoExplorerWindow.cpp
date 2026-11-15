@@ -198,6 +198,31 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
         }
     }
 
+    //  A picker with no saved place opens over the middle of the window
+    //  that opened it.
+    if (m_context.picker != nullptr && !saved.valid && m_context.request.owner != nullptr)
+    {
+        RECT  owner = {};
+        RECT  self  = {};
+
+        if (GetWindowRect (m_context.request.owner, &owner) && GetWindowRect (GetHwnd(), &self) && !IsIconic (m_context.request.owner))
+        {
+            int  x = owner.left + ((owner.right - owner.left) - (self.right - self.left)) / 2;
+            int  y = owner.top  + ((owner.bottom - owner.top) - (self.bottom - self.top)) / 2;
+
+            if (m_context.request.cascade)
+            {
+                int  step = MulDiv (kCascadeStepDip, (int) GetDpiForWindow (GetHwnd()), USER_DEFAULT_SCREEN_DPI);
+
+                x += step;
+                y += step;
+            }
+
+            result = SetWindowPos (GetHwnd(), nullptr, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            IGNORE_RETURN_VALUE (result, TRUE);
+        }
+    }
+
     //  A window for a torn-off tab opens where the drop put it, at the size
     //  of the window it came from, and never maximized. Twice, for the DPI,
     //  as above.

@@ -456,8 +456,12 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
 
     //  CassoLink first, at the top of the pane, then Casso.
     outNodes.clear();
-    outNodes.push_back (MakeRootNode (kCassoLinkRootId));
-    outNodes.back().id = kLinkCopyTag + outNodes.back().id;
+    if (m_showCassoLink)
+    {
+        outNodes.push_back (MakeRootNode (kCassoLinkRootId));
+        outNodes.back().id = kLinkCopyTag + outNodes.back().id;
+    }
+
     outNodes.push_back (casso);
 
     //  With the all-folders option on, Explorer's pane has the desktop alone, with
@@ -476,7 +480,10 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
             outNodes.push_back (pc);
         }
 
-        outNodes.push_back (MakeRootNode (kCassoLinkRootId));
+        if (m_showCassoLink)
+        {
+            outNodes.push_back (MakeRootNode (kCassoLinkRootId));
+        }
 
         if (m_navOptions.showAllFolders)
         {
@@ -527,7 +534,7 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
 
         outNodes.push_back (root.isThisPc ? pc : MakeShellNode (root));
 
-        if (root.isThisPc)
+        if (root.isThisPc && m_showCassoLink)
         {
             outNodes.push_back (MakeRootNode (kCassoLinkRootId));
         }

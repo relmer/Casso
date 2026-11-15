@@ -165,6 +165,76 @@ bool ImageClassifier::IsImageExtension (std::wstring_view extension)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ImageClassifier::GetDiskMask
+//
+//  "*.dsk;*.do;..." for every disk image extension, each once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ImageClassifier::GetDiskMask()
+{
+    std::wstring  mask;
+
+
+
+    AppendMasks (mask, s_kSectorExtensions);
+    AppendMasks (mask, s_kNibbleExtensions);
+    AppendMasks (mask, s_kBlockExtensions);
+    AppendMasks (mask, std::array<const wchar_t *, 1> { L".woz" });
+
+    return mask;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ImageClassifier::GetTapeMask
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ImageClassifier::GetTapeMask()
+{
+    std::wstring  mask;
+
+
+
+    AppendMasks (mask, s_kTapeExtensions);
+
+    return mask;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ImageClassifier::AppendMasks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ImageClassifier::AppendMasks (std::wstring & mask, std::span<const wchar_t * const> list)
+{
+    for (const wchar_t * extension : list)
+    {
+        std::wstring  one = std::wstring (L"*") + extension;
+
+        if ((L";" + mask + L";").find (L";" + one + L";") == std::wstring::npos)
+        {
+            mask += mask.empty() ? one : L";" + one;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ImageClassifier::IsTapeExtension
 //
 ////////////////////////////////////////////////////////////////////////////////

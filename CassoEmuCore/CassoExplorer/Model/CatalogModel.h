@@ -128,6 +128,10 @@ struct CatalogRow
     bool          isStockDisk     = false;
     bool          stockDownloaded = false;
 
+    //  In a picker opened from the emulator: the drive of the running machine
+    //  the image is inserted in, such as "slot 6 drive 1", or empty.
+    std::wstring  inDrive;
+
     //  A shell folder's row: the shell's own name for the item, which opens it
     //  whether or not it is a file; hostPath holds its path when it has one.
     std::wstring  shellId;
