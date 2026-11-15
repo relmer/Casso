@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Core/MachineConfig.h"
+#include "Core/TextEncoding.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/Floppy35/Apple2cSmartPort.h"
 #include "Machines/MachineDefinitions.h"
@@ -103,7 +104,7 @@ public:
 
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), Resolve (two, error));
-        Assert::IsTrue (error.find ("at most one 5.25-inch drive.") != std::string::npos, std::wstring (error.begin(), error.end()).c_str());
+        Assert::IsTrue (error.find ("at most one 5.25-inch drive.") != std::string::npos, TextEncoding::Utf8ToWide (error).c_str());
 
         two   = MakePorts ({ kpszUniDisk35Device, kpszDiskIicDevice, kpszDiskIicDevice });
         error.clear();
