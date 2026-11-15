@@ -479,7 +479,7 @@ Error:
 
 std::wstring DiskImagePictures::GetClearQuestion()
 {
-    return L"Remove every thumbnail Casso Explorer captured by booting a disk image? Each image is booted again for a new one the next time it's in view.";
+    return L"Remove the cache of thumbnails that Casso Explorer captured automatically from disk images?";
 }
 
 

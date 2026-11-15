@@ -231,11 +231,11 @@ public:
 
 
 
-    //  The confirmation's question is about the thumbnails made by booting;
+    //  The confirmation's question is about the cache of thumbnails;
     //  its checkbox has the count of those the user set.
     TEST_METHOD (TheClearConfirmation_HasACheckboxWithTheCountTheUserSet)
     {
-        Assert::IsTrue (DiskImagePictures::GetClearQuestion().find (L"booting") != std::wstring::npos);
+        Assert::IsTrue (DiskImagePictures::GetClearQuestion().find (L"cache") != std::wstring::npos);
         Assert::AreEqual (std::wstring (L"Also remove manually assigned thumbnails (3)"), DiskImagePictures::GetClearCheck (3));
     }
 };
