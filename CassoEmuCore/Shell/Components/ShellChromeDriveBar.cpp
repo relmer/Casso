@@ -5,7 +5,6 @@
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellDisks.h"
-#include "Shell/Components/ShellRenderer.h"
 #include "Ui/Chrome/DriveWidget.h"
 
 
@@ -21,9 +20,11 @@
 //  drawn at the window's DPI, not zoomed with the desk scene: the scene
 //  zooms out to fit the desk, and the bar shrank with it.
 //
-//  With auto-hide on the desk, every class is expanded, and the whole bar
-//  rises from the bottom edge as far as the desk slide has come, so the fans
-//  arrive with the widgets. The bar is hidden while the slide is down.
+//  With the drives auto-hidden (the auto-hide setting, or fullscreen), every
+//  class is expanded, and the whole bar rises from the bottom edge as far as
+//  the slide has come: the desk slide with the monitor, the strip without
+//  it. The fans arrive with the widgets, and the bar is hidden while the
+//  slide is down.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +40,7 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
     int                           gapY      = MulDiv (4, (int) dpi, s_kBaseDpi);
     int                           pad       = MulDiv (6, (int) dpi, s_kBaseDpi);
     int                           arrow     = MulDiv (14, (int) dpi, s_kBaseDpi);
-    bool                          sliding   = m_shell.IsDeskSlideActive();
+    bool                          sliding   = m_shell.AreDrivesAutoHidden();
     int                           originX   = 0;
     int                           rowTop    = 0;
 
@@ -70,13 +71,13 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
         // The band has no height under auto-hide, so the row is placed from
         // the window's bottom edge.
         rowTop = clientH - (int) slot.cy - bottomGap
-               + (int) lroundf ((1.0f - m_deskSlideProgress) * (float) (fan.GetExpandedHeight() + pad + bottomGap));
+               + (int) lroundf ((1.0f - m_driveBarSlideProgress) * (float) (fan.GetExpandedHeight() + pad + bottomGap));
         fan.Layout (originX, rowTop, slot, gap, gapY, pad, arrow);
     }
 
     m_driveBarFan.SetDpi     (dpi);
     m_driveBarFan.SetBounds  (RECT { 0, 0, clientW, clientH });
-    m_driveBarFan.SetVisible (fan.GetClassCount() > 0 && (!sliding || m_deskSlideProgress > 0.0f));
+    m_driveBarFan.SetVisible (fan.GetClassCount() > 0 && (!sliding || m_driveBarSlideProgress > 0.0f));
 
     PlaceDriveBarWidgets();
     (void) SyncDriveBarViews();
@@ -92,9 +93,11 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellChrome::SlideDriveBar()
+void ShellChrome::SlideDriveBar (float progress)
 {
-    if (m_driveBarClientW > 0 && m_shell.m_scene->AreDrivesOnBar() && !m_shell.m_renderer->GetD3D().IsFullscreen())
+    m_driveBarSlideProgress = progress;
+
+    if (m_driveBarClientW > 0 && m_shell.m_scene->AreDrivesOnBar())
     {
         LayoutDriveBar (m_driveBarInsetPx, m_driveBarClientW, m_driveBarClientH, m_driveBarDpi);
         m_shell.m_scene->SyncSceneDriveChrome();

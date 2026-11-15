@@ -120,10 +120,10 @@ public:
 
     const DriveBarFanControl &  GetDriveBarFan () const { return m_driveBarFan; }
 
-    // With auto-hide on the desk, the bar rides the desk slide: it is laid
-    // out again at the slide's progress. The slide remains up while the
-    // pointer is on the bar or on its fan.
-    void    SlideDriveBar          ();
+    // With the drives auto-hidden, the bar rides the slide: it is laid out
+    // again at the slide's progress. The slide remains up while the pointer
+    // is on the bar or on its fan.
+    void    SlideDriveBar          (float progress);
     bool    IsPointOnDriveBar      (POINT pt) const;
 
     void    LayoutSwitchBar        (UINT dpi);
@@ -239,13 +239,14 @@ private:
     // The drive bar under the desk scene, and the DPI its slots were laid out
     // at, which the Disk II widgets placed in them are laid out at too.
     DriveBarFanControl         m_driveBarFan;
-    UINT                       m_driveBarDpi        = 96;
-    int                        m_driveBarInsetPx    = 0;
-    int                        m_driveBarClientW    = 0;
-    int                        m_driveBarClientH    = 0;
-    uint64_t                   m_driveBarFanStartMs = 0;
-    int                        m_driveBarHoverClass = -1;
-    int                        m_driveBarHoverEntry = -1;
+    UINT                       m_driveBarDpi           = 96;
+    int                        m_driveBarInsetPx       = 0;
+    int                        m_driveBarClientW       = 0;
+    int                        m_driveBarClientH       = 0;
+    uint64_t                   m_driveBarFanStartMs    = 0;
+    float                      m_driveBarSlideProgress = 0.0f;
+    int                        m_driveBarHoverClass    = -1;
+    int                        m_driveBarHoverEntry    = -1;
 
     static constexpr uint64_t  s_kDriveBarFanSlideMs = 160;
 

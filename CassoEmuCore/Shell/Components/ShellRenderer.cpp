@@ -898,7 +898,7 @@ bool ShellRenderer::TryPresentUiFrame()
 
             inputs.pointerAtBottomEdge = PtInRect (&area, cursor) && cursor.y >= edgeTop;
             inputs.pointerOverStrip    = m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden &&
-                                         (PtInRect (&engageRect, cursor) || (deskSlide && m_shell.m_chrome->IsPointOnDriveBar (cursor)));
+                                         (PtInRect (&engageRect, cursor) || m_shell.m_chrome->IsPointOnDriveBar (cursor));
         }
 
         inputs.hotkey        = m_shell.m_scene->m_stripHotkeyPending;
@@ -952,7 +952,7 @@ bool ShellRenderer::TryPresentUiFrame()
             if (progress != m_shell.m_chrome->m_deskSlideProgress)
             {
                 m_shell.m_chrome->ComposeDeskSlide (progress);
-                m_shell.m_chrome->SlideDriveBar();
+                m_shell.m_chrome->SlideDriveBar (progress);
                 m_d3dRenderer.MarkRedrawNeeded();
             }
         }
@@ -967,6 +967,13 @@ bool ShellRenderer::TryPresentUiFrame()
             int    bandH      = m_shell.DeskSceneActive() ? m_shell.m_scaler.ToPx (s_kStripBandDp)
                                                           : m_shell.m_scaler.ToPx (m_shell.m_chrome->m_driveBarThicknessDp);
             bool   wasShowing = m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top;
+
+            // The drive bar rides the strip's slide too.
+            if (m_shell.DeskSceneActive() && progress != m_shell.m_chrome->m_driveBarSlideProgress)
+            {
+                m_shell.m_chrome->SlideDriveBar (progress);
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
 
             // On the frame where the strip finishes hiding, the mode is
             // already Hidden, so nothing else requests a present. Without
