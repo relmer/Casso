@@ -4,6 +4,7 @@
 
 #include "Ui/DiskInspector/Components/IInspectorComponent.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
+#include "Ui/DiskInspector/Components/InspectorMenuBar.h"
 
 class IInspectorComponentHost;
 class InspectorSession;
@@ -28,20 +29,19 @@ public:
     InspectorMenus (InspectorSession & session, IInspectorComponentHost & host, const InspectorCommands & commands);
 
     void  Create () override;
-    void  Tick   (int64_t nowMs) override;
-    bool  OnKey  (const DxuiKeyEvent & ev) override;
+    void  Tick   (int64_t nowMs) override            { m_bar.Tick (nowMs); }
+    bool  OnKey  (const DxuiKeyEvent & ev) override  { return m_bar.OnKey (ev); }
 
     void  Layout      (const RECT & area, const DxuiDpiScaler & scaler);
-    int   GetHeightPx (const DxuiDpiScaler & scaler) const;
-    void  Rebuild     ();
-    bool  IsActive    () const;
+    int   GetHeightPx (const DxuiDpiScaler & scaler) const { return m_bar.GetHeightPx (scaler); }
+    void  Rebuild     ()                                    { m_bar.Rebuild (m_commands); }
+    bool  IsActive    () const                              { return m_bar.IsActive(); }
 
-    const DxuiMenuBar &  GetMenuBar () const { return *m_menuBar; }
+    const DxuiMenuBar &  GetMenuBar () const { return m_bar.GetMenuBar(); }
 
 private:
     InspectorSession           & m_session;
     IInspectorComponentHost    & m_host;
     const InspectorCommands    & m_commands;
-    DxuiMenuBar                * m_menuBar     = nullptr;
-    bool                         m_isAltAlone  = false;
+    InspectorMenuBar             m_bar;
 };
