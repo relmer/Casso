@@ -53,7 +53,8 @@ class DxuiTextView : public IDxuiControl
 public:
     //  A run of a cell's characters drawn in a color of their own.
     //  A stretch of a cell's text in a color, zero for the text color, and
-    //  bold, italic or underlined.
+    //  bold, italic or underlined. An inverse stretch is filled with that
+    //  color and its text drawn in the background color.
     struct Span
     {
         int       cell      = 0;
@@ -63,6 +64,7 @@ public:
         bool      bold      = false;
         bool      italic    = false;
         bool      underline = false;
+        bool      inverse   = false;
     };
 
     //  A picture in 32-bit BGRA pixels, drawn a pixel a DIP, or smaller to
@@ -227,10 +229,12 @@ private:
     float                  GetLineShift (int lineIndex) const;
 
     //  The line being painted: its shift for its row's alignment, each
-    //  character's style bits, and the painter an underline is drawn with.
+    //  character's style bits, and the painter an underline and an inverse
+    //  fill are drawn with.
     static constexpr uint8_t  kStyleBold      = 0x01;
     static constexpr uint8_t  kStyleItalic    = 0x02;
     static constexpr uint8_t  kStyleUnderline = 0x04;
+    static constexpr uint8_t  kStyleInverse   = 0x08;
 
     float                  m_paintShift    = 0.0f;
     std::vector<uint8_t>   m_paintStyles;
