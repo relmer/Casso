@@ -11,7 +11,9 @@
 //  BootTitle::Find
 //
 //  The line over a copyright line is the first choice, as a page of prose can
-//  have one line in its first four.
+//  have one line in its first four. A line that reads as a sentence, or that
+//  runs on from the line above it, isn't a title, as the lines over Apple
+//  Pascal's copyright aren't.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,6 +22,7 @@ std::string BootTitle::Find (const std::vector<std::string> & rows, bool isTextM
     std::string  title;
     size_t       filled = 0;
     size_t       only   = 0;
+    bool         isDone = false;
 
 
 
@@ -35,12 +38,19 @@ std::string BootTitle::Find (const std::vector<std::string> & rows, bool isTextM
             continue;
         }
 
-        for (size_t back = 1; back <= s_kCopyrightReach && back <= at && title.empty(); back++)
+        isDone = false;
+
+        for (size_t back = 1; back <= s_kCopyrightReach && back <= at && !isDone; back++)
         {
-            if (!IsBlank (rows[at - back]) && !HasCopyright (rows[at - back]))
+            size_t  line = at - back;
+
+            if (IsBlank (rows[line]) || HasCopyright (rows[line]))
             {
-                title = Trim (rows[at - back]);
+                continue;
             }
+
+            isDone = true;
+            title  = (!IsSentence (rows[line]) && IsSetOff (rows, line)) ? Trim (rows[line]) : std::string();
         }
     }
 
@@ -53,7 +63,7 @@ std::string BootTitle::Find (const std::vector<std::string> & rows, bool isTextM
         }
     }
 
-    if (title.empty() && filled == 1 && !HasCopyright (rows[only]))
+    if (title.empty() && filled == 1 && !HasCopyright (rows[only]) && !IsSentence (rows[only]))
     {
         title = Trim (rows[only]);
     }
@@ -164,6 +174,76 @@ std::string BootTitle::ToTitleCase (const std::string & word, bool isFirst)
 bool BootTitle::IsBlank (const std::string & row)
 {
     return std::all_of (row.begin(), row.end(), [] (char each) { return each == ' '; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BootTitle::IsSentence
+//
+//  A line that ends with a period, or that has a verb a title rarely has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BootTitle::IsSentence (const std::string & row)
+{
+    static constexpr std::array<std::string_view, 8>  s_kVerbs = { "IS", "ARE", "WAS", "WERE", "HAS", "HAVE", "WILL", "CAN" };
+    std::string                                       text     = Trim (row);
+    std::string                                       word;
+    bool                                              isVerb   = false;
+
+
+
+    for (size_t at = 0; at <= text.size() && !isVerb; at++)
+    {
+        char  each = at < text.size() ? text[at] : ' ';
+
+        if (isalpha ((unsigned char) each))
+        {
+            word.push_back ((char) toupper ((unsigned char) each));
+            continue;
+        }
+
+        isVerb = std::find (s_kVerbs.begin(), s_kVerbs.end(), word) != s_kVerbs.end();
+        word.clear();
+    }
+
+    return isVerb || (!row.empty() && row.find_last_not_of (' ') != std::string::npos && row[row.find_last_not_of (' ')] == '.');
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BootTitle::IsSetOff
+//
+//  On the top row, under a blank line, or centered within a character of the
+//  screen's width, 80 columns when a row is longer than 40.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BootTitle::IsSetOff (const std::vector<std::string> & rows, size_t line)
+{
+    size_t  width = s_kNarrowColumns;
+    size_t  first = rows[line].find_first_not_of (' ');
+    size_t  last  = rows[line].find_last_not_of (' ');
+    size_t  right = 0;
+
+
+
+    for (const std::string & row : rows)
+    {
+        width = row.find_last_not_of (' ') != std::string::npos && row.find_last_not_of (' ') >= s_kNarrowColumns ? s_kWideColumns : width;
+    }
+
+    right = (last == std::string::npos) ? 0 : width - 1 - last;
+
+    return line == 0 || IsBlank (rows[line - 1]) || (first != std::string::npos && (first > right ? first - right : right - first) <= 1);
 }
 
 
