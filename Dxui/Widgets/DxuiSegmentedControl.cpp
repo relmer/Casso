@@ -545,7 +545,7 @@ void DxuiSegmentedControl::PaintBadgedLabel (
     hr = text.DrawString (label.c_str(), start, top, labelW + 1.0f, height, color, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    DxuiSeverityBadge::DrawCount (painter, text, m_badgeSeverities[static_cast<size_t> (index)], count, start + labelW + gap, top + height / 2.0f, badgeH, theme);
+    DxuiSeverityBadge::DrawCount (painter, text, m_badgeSeverities[static_cast<size_t> (index)], count, start + labelW + gap, top + height / 2.0f, badgeH, theme, m_badgeErrorArgb);
 }
 
 
@@ -558,12 +558,13 @@ void DxuiSegmentedControl::PaintBadgedLabel (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiSegmentedControl::SetBadge (int index, const std::wstring & count, DxuiSeverity severity)
+void DxuiSegmentedControl::SetBadge (int index, const std::wstring & count, DxuiSeverity severity, uint32_t errorArgb)
 {
     if (index >= 0 && index < static_cast<int> (m_badges.size()))
     {
         m_badges[static_cast<size_t> (index)]          = count;
         m_badgeSeverities[static_cast<size_t> (index)] = severity;
+        m_badgeErrorArgb                               = errorArgb;
     }
 }
 

@@ -187,7 +187,7 @@ public:
 
 
 
-    TEST_METHOD (TheIssuesTabHasRepairOnEachFindingAChangeSetsRight_At100And150Percent)
+    TEST_METHOD (TheIssuesTabHasOneRepairButtonUnderTheListAndCenteredIcons_At100And150Percent)
     {
         for (UINT dpi : { 96u, 144u })
         {
@@ -196,8 +196,8 @@ public:
             DxuiDpiScaler           scaler;
             RepairPlan              plan;
             std::set<std::wstring>  chosen  = { L"none" };
-            int                     buttons = 0;
-            RECT                    all     = {};
+            RECT                    button  = {};
+            RECT                    icon    = {};
 
             Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session.analysis);
             session.context.hasDisk = true;
@@ -209,26 +209,18 @@ public:
             issues.Refresh();
             issues.Layout ({ 0, 0, scaler.ToPx (900), scaler.ToPx (400) }, scaler);
 
-            for (int row = 0; row < static_cast<int> (issues.GetRows().size()); row++)
-            {
-                RECT  rect    = issues.GetRepairRect (row);
-                bool  isShown = rect.right > rect.left;
+            Assert::AreEqual (InspectorTables::GetFindingColumns().size(), static_cast<size_t> (6), L"no Repair column");
 
-                Assert::AreEqual (!issues.GetFixingKeys (issues.GetRows()[row].finding).empty(), isShown, std::format (L"row {} at {} dpi", row, dpi).c_str());
+            button = issues.GetRepairButton().GetBounds();
+            Assert::IsTrue (issues.GetRepairButton().IsVisible(), std::format (L"Repair disk image... at {} dpi", dpi).c_str());
+            Assert::IsTrue (button.bottom <= scaler.ToPx (400) && button.top >= scaler.ToPx (400) - scaler.ToPx (IssuesView::kButtonBandDip), L"under the list");
+            Assert::IsTrue (std::abs ((button.left + button.right) / 2 - scaler.ToPx (900) / 2) <= 1, L"centered");
+            Assert::AreEqual (static_cast<long> (scaler.ToPx (IssuesView::kButtonWideDip)), button.right - button.left, L"a normal button's size");
 
-                if (isShown && buttons++ == 0)
-                {
-                    Click (issues, rect);
-                    Assert::IsTrue (chosen == issues.GetFixingKeys (issues.GetRows()[row].finding), L"a row's Repair checks its changes");
-                }
-            }
+            icon = issues.GetSeverityRect (0);
+            Assert::IsTrue (icon.right > icon.left, L"the first row has its icon");
 
-            Assert::IsTrue (buttons >= 2, L"the HELLO and unowned findings each have Repair");
-
-            all = issues.GetRepairAllRect();
-            Assert::IsTrue (all.right > all.left && all.right <= scaler.ToPx (900) && all.bottom <= scaler.ToPx (IssuesView::kFilterDip));
-
-            Click (issues, all);
+            Click (issues, button);
             Assert::IsTrue (chosen.empty(), L"Repair disk image... checks every change");
         }
     }

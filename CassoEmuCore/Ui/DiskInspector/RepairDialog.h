@@ -85,10 +85,12 @@ public:
     //  The dialog's size for the plan's changes.
     static SIZE  GetSizeDip (const RepairPlan & plan);
 
-    //  The intro, with a caution after it for a volume that is only Suspect,
+    //  A file's name, in quotes when it has a space; the intro, with a
+    //  caution after it for a volume that is only Suspect,
     //  whose findings can be normal for the disk; the intro's lines; a
     //  change's repair line; and the line under the changes: the reason the
     //  plan can't be made, or nothing.
+    static std::wstring  FormatName     (const std::wstring & fileName);
     static std::wstring  FormatIntro    (const std::wstring & fileName);
     static std::wstring  FormatIntro    (const std::wstring & fileName, const RepairPlan & plan);
     static int           GetIntroLines  (const RepairPlan & plan);

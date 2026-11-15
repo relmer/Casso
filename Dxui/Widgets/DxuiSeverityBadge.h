@@ -44,17 +44,19 @@ enum class DxuiSeverity
 class DxuiSeverityBadge
 {
 public:
-    //  Draws the mark into the square box at (left, top).
-    static void  Draw (IDxuiPainter & painter, DxuiSeverity severity, float left, float top, float size, const IDxuiTheme & theme);
+    //  Draws the mark into the square box at (left, top). An error color
+    //  other than 0 takes the theme's error color's place, for a host whose
+    //  bad things are drawn in a color of its choosing.
+    static void  Draw (IDxuiPainter & painter, DxuiSeverity severity, float left, float top, float size, const IDxuiTheme & theme, uint32_t errorArgb = 0);
 
     //  The count badge's width for its text, and the badge drawn with its
     //  left edge at left, centered on cy.
     static float  GetCountWidth (IDxuiTextRenderer & text, const std::wstring & count, float height);
     static void   DrawCount     (IDxuiPainter & painter, IDxuiTextRenderer & text, DxuiSeverity severity, const std::wstring & count,
-                                 float left, float cy, float height, const IDxuiTheme & theme);
+                                 float left, float cy, float height, const IDxuiTheme & theme, uint32_t errorArgb = 0);
 
     //  The severity's color: the error color, the warning accent, or the accent.
-    static uint32_t  GetColor (DxuiSeverity severity, const IDxuiTheme & theme);
+    static uint32_t  GetColor (DxuiSeverity severity, const IDxuiTheme & theme, uint32_t errorArgb = 0);
 
 private:
     static constexpr float  s_kStrokeEm = 0.085f;   // the ring's and the "i"'s pen, as a fraction of the box

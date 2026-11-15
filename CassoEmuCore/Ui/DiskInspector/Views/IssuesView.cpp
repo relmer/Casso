@@ -2,6 +2,7 @@
 
 #include "Ui/DiskInspector/Views/IssuesView.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 
 
 
@@ -10,10 +11,6 @@
 static constexpr int      s_kToggleDip    = 104;
 static constexpr int      s_kToggleGapDip = 4;
 static constexpr float    s_kToggleHDip   = 22.0f;
-static constexpr int      s_kButtonPadDip = 3;
-static constexpr int      s_kHotAll       = -2;
-static constexpr LPCWSTR  s_kpszRepair    = L"Repair";
-static constexpr LPCWSTR  s_kpszRepairAll = L"Repair disk image...";
 
 
 
@@ -24,8 +21,8 @@ static constexpr LPCWSTR  s_kpszRepairAll = L"Repair disk image...";
 //  IssuesView::IssuesView
 //
 //  The finding columns, the severity as an icon and the finding wrapped to
-//  its column's width, and an untitled one at the end for the Repair
-//  buttons.
+//  its column's width; Repair disk image... in the accent, as the one thing
+//  under the list to do.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,18 +30,25 @@ IssuesView::IssuesView (InspectorViewContext & context) :
     InspectorTableView (context)
 {
     vector<std::wstring>  columns = InspectorTables::GetFindingColumns();
-    vector<int>           widths  (columns.size() + 1, 0);
+    vector<int>           widths  (columns.size(), 0);
 
 
 
-    columns.push_back (L"");
     widths.front() = kSeverityColumnDip;
-    widths.back()  = kRepairColumnDip;
 
     SetColumns    (columns, widths, kFindingColumn);
     SetIconColumn (0);
     SetWrapsText  (true);
     SetOnSort     ([this] (int column) { OnSort (column); });
+
+    m_repairButton.SetVariant (DxuiButton::Variant::Primary);
+    m_repairButton.SetOnClick ([this] ()
+    {
+        if (m_repair)
+        {
+            m_repair ({});
+        }
+    });
 }
 
 
@@ -59,26 +63,16 @@ IssuesView::IssuesView (InspectorViewContext & context) :
 
 void IssuesView::Refresh()
 {
-    vector<TableRow>  rows;
-
-
-
     if (m_context.analysis != nullptr && m_context.hasDisk)
     {
         m_counts = InspectorTables::CountCategories (*m_context.analysis);
-        rows     = InspectorTables::BuildFindings (*m_context.analysis, m_mask, m_sortColumn, m_isDescending);
+        SetRows (InspectorTables::BuildFindings (*m_context.analysis, m_mask, m_sortColumn, m_isDescending));
     }
     else
     {
         m_counts = {};
+        SetRows ({});
     }
-
-    for (TableRow & row : rows)
-    {
-        row.cells.push_back (L"");
-    }
-
-    SetRows (std::move (rows));
 }
 
 
@@ -130,72 +124,10 @@ void IssuesView::ShowFinding (int finding)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IssuesView::GetFixingKeys
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::set<std::wstring> IssuesView::GetFixingKeys (int finding) const
-{
-    std::set<std::wstring>  keys;
-
-
-
-    if (m_plan != nullptr && m_plan->canRepair && m_context.analysis != nullptr && finding >= 0 && finding < static_cast<int> (m_context.analysis->findings.size()))
-    {
-        keys = DiskRepair::GetFixingKeys (*m_plan, m_context.analysis->findings[finding]);
-    }
-
-    return keys;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IssuesView::GetRepairRect
-//
-//  The Repair column's cell of a row in view, inset, for a finding a change
-//  sets right.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT IssuesView::GetRepairRect (int row) const
-{
-    RECT    cell   = {};
-    RECT    list   = m_list.GetBounds();
-    int     pad    = m_scaler.ToPx (s_kButtonPadDip);
-    size_t  column = InspectorTables::GetFindingColumns().size();
-    bool    isIn   = row >= 0 && row < static_cast<int> (m_rows.size()) && m_list.GetCellTextRectPx (row, column, cell) && !GetFixingKeys (m_rows[row].finding).empty();
-
-
-
-    if (!isIn)
-    {
-        return RECT {};
-    }
-
-    cell = RECT { list.left + cell.left, list.top + cell.top + pad, list.left + cell.right - pad, list.top + (std::min) (cell.bottom, cell.top + m_scaler.ToPx (kLineDip)) - pad };
-
-    if (cell.top < list.top + m_list.GetHeaderHeightPx() || cell.bottom > list.bottom || cell.right <= cell.left)
-    {
-        return RECT {};
-    }
-
-    return cell;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  IssuesView::GetSeverityRect
 //
-//  The severity icon of a row in view, on its first line, centered in its
-//  column; empty out of view.
+//  The severity icon of a row in view, centered in its cell; empty out of
+//  view.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -204,7 +136,6 @@ RECT IssuesView::GetSeverityRect (int row) const
     RECT  cell = {};
     RECT  list = m_list.GetBounds();
     int   size = m_scaler.ToPx (kSeverityIconDip);
-    int   line = m_scaler.ToPx (kLineDip);
     int   left = 0;
     int   top  = 0;
 
@@ -216,7 +147,7 @@ RECT IssuesView::GetSeverityRect (int row) const
     }
 
     left = list.left + (cell.left + cell.right - size) / 2;
-    top  = list.top + cell.top + (line - size) / 2;
+    top  = list.top + (cell.top + cell.bottom - size) / 2;
 
     if (top < list.top + m_list.GetHeaderHeightPx() || top + size > list.bottom)
     {
@@ -232,27 +163,32 @@ RECT IssuesView::GetSeverityRect (int row) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IssuesView::GetRepairAllRect
+//  IssuesView::Layout
 //
-//  At the right of the toggles while the volume can be repaired; empty
-//  otherwise.
+//  The list over the bounds but for the band at the bottom, and Repair disk
+//  image... centered in the band.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT IssuesView::GetRepairAllRect() const
+void IssuesView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int   h    = m_scaler.ToPx (static_cast<int> (s_kToggleHDip));
-    int   top  = m_boundsDip.top + (GetTopHeightPx() - h) / 2;
-    RECT  rect = {};
+    RECT  list   = boundsDip;
+    int   band   = HasButtonBand() ? scaler.ToPx (kButtonBandDip) : 0;
+    int   wide   = scaler.ToPx (kButtonWideDip);
+    int   high   = scaler.ToPx (kButtonHighDip);
+    int   center = (boundsDip.left + boundsDip.right) / 2;
 
 
 
-    if (m_plan != nullptr && m_plan->canRepair)
-    {
-        rect = RECT { m_boundsDip.right - m_scaler.ToPx (kRepairAllDip), top, m_boundsDip.right, top + h };
-    }
+    list.bottom = (std::max) (list.top, list.bottom - band);
 
-    return rect;
+    InspectorTableView::Layout (list, scaler);
+    SetBounds (boundsDip);
+
+    m_bandPx = RECT { boundsDip.left, list.bottom, boundsDip.right, boundsDip.bottom };
+
+    m_repairButton.Layout     (RECT { center - wide / 2, m_bandPx.top + (band - high) / 2, center + wide / 2, m_bandPx.top + (band + high) / 2 }, scaler);
+    m_repairButton.SetVisible (band > 0 && m_plan != nullptr && m_plan->canRepair);
 }
 
 
@@ -263,8 +199,8 @@ RECT IssuesView::GetRepairAllRect() const
 //
 //  IssuesView::Paint
 //
-//  The table, then a Repair button over each row whose finding a change
-//  sets right.
+//  The table, a severity icon on each row, and the band under it with
+//  Repair disk image... or the reason the volume can't be repaired.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -283,41 +219,22 @@ void IssuesView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
         if (rect.right > rect.left && m_rows[row].severity >= 0)
         {
             DxuiSeverityBadge::Draw (painter, static_cast<DxuiSeverity> (m_rows[row].severity), static_cast<float> (rect.left), static_cast<float> (rect.top),
-                                     static_cast<float> (rect.right - rect.left), theme);
-        }
-
-        rect = GetRepairRect (row);
-
-        if (rect.right > rect.left)
-        {
-            PaintButton (painter, text, theme, rect, s_kpszRepair, row == m_hotRow);
+                                     static_cast<float> (rect.right - rect.left), theme, m_context.palette.colors.sectorBad);
         }
     }
-}
 
+    if (m_repairButton.IsVisible())
+    {
+        m_repairButton.Paint (painter, text, theme);
+    }
+    else if (m_bandPx.bottom > m_bandPx.top && m_plan != nullptr)
+    {
+        std::wstring  reason = L"Repair isn't available. " + m_plan->reason;
 
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IssuesView::PaintButton
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void IssuesView::PaintButton (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & rect, LPCWSTR label, bool isHot) const
-{
-    float  left   = static_cast<float> (rect.left);
-    float  top    = static_cast<float> (rect.top);
-    float  width  = static_cast<float> (rect.right - rect.left);
-    float  height = static_cast<float> (rect.bottom - rect.top);
-
-
-
-    painter.FillRoundedRect    (left, top, width, height, m_scaler.ToPxf (4.0f), isHot ? theme.ButtonHover() : theme.ButtonIdle());
-    painter.OutlineRoundedRect (left, top, width, height, m_scaler.ToPxf (4.0f), m_scaler.ToPxf (1.0f), theme.ButtonBorder());
-    text.DrawString (label, left, top, width, height, theme.Foreground(), m_scaler.ToPxf (kSmallDip), DxuiTheme::kBodyFace,
-                     DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        text.DrawString (reason.c_str(), static_cast<float> (m_bandPx.left), static_cast<float> (m_bandPx.top), static_cast<float> (m_bandPx.right - m_bandPx.left),
+                         static_cast<float> (m_bandPx.bottom - m_bandPx.top), theme.ForegroundMuted(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace,
+                         DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, true);
+    }
 }
 
 
@@ -328,55 +245,18 @@ void IssuesView::PaintButton (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 //
 //  IssuesView::OnMouse
 //
-//  A click on a category toggles it in the filter. A Repair button, or
-//  "Repair disk image...", opens the confirmation on release over the
-//  button it was pressed on.
+//  Repair disk image... first, then a click on a category toggles it in the
+//  filter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IssuesView::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool  isHandled = false;
+    bool  isHandled = m_repairButton.IsVisible() && m_repairButton.OnMouse (ev);
     int   c         = 0;
-    int   hot       = -1;
     RECT  r         = {};
 
 
-
-    r = GetRepairAllRect();
-
-    if (PtInRect (&r, ev.positionDip))
-    {
-        hot = s_kHotAll;
-    }
-
-    for (int row = m_list.GetTopRow(); row < static_cast<int> (m_rows.size()) && hot == -1; row++)
-    {
-        r   = GetRepairRect (row);
-        hot = PtInRect (&r, ev.positionDip) ? row : -1;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
-    {
-        m_hotRow = (ev.kind == DxuiMouseEventKind::Move) ? hot : -1;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && hot != -1)
-    {
-        m_pressedRow = hot;
-        isHandled    = true;
-    }
-    else if (ev.kind == DxuiMouseEventKind::Up && m_pressedRow != -1)
-    {
-        isHandled = true;
-
-        if (hot == m_pressedRow && m_repair)
-        {
-            m_repair ((hot == s_kHotAll) ? std::set<std::wstring>() : GetFixingKeys (m_rows[hot].finding));
-        }
-
-        m_pressedRow = -1;
-    }
 
     if (!isHandled && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
     {
@@ -407,6 +287,29 @@ bool IssuesView::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IssuesView::HasButtonBand
+//
+//  A band under the list while the volume has a Bad or Suspect verdict, for
+//  Repair disk image... or the reason it isn't available.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool IssuesView::HasButtonBand() const
+{
+    bool  isDamaged = m_context.analysis != nullptr && m_context.hasDisk &&
+                      (m_context.analysis->verdict == FileSystemVerdict::Bad || m_context.analysis->verdict == FileSystemVerdict::Suspect);
+
+
+
+    return m_plan != nullptr && (m_plan->canRepair || isDamaged);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IssuesView::GetTopHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -425,9 +328,8 @@ int IssuesView::GetTopHeightPx() const
 //  IssuesView::PaintTop
 //
 //  A toggle per category that has findings, with its count; one filtered
-//  out is drawn without its fill. "Repair disk image..." is at the right
-//  while the volume can be repaired. With no findings, the list has a line
-//  to that effect.
+//  out is drawn without its fill. With no findings, the list has a line to
+//  that effect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -440,6 +342,8 @@ void IssuesView::PaintTop (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     std::wstring  label;
 
 
+
+    (void) top;
 
     for (c = 0; c < InspectorTables::kCategoryCount; c++)
     {
@@ -461,13 +365,6 @@ void IssuesView::PaintTop (IDxuiPainter & painter, IDxuiTextRenderer & text, con
         text.DrawString (label.c_str(), static_cast<float> (r.left), static_cast<float> (r.top), static_cast<float> (r.right - r.left), static_cast<float> (r.bottom - r.top),
                          isOn ? theme.Foreground() : theme.ForegroundMuted(), m_scaler.ToPxf (kSmallDip), DxuiTheme::kBodyFace,
                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    }
-
-    r = GetRepairAllRect();
-
-    if (r.right > r.left)
-    {
-        PaintButton (painter, text, theme, r, s_kpszRepairAll, m_hotRow == s_kHotAll);
     }
 
     SetEmptyText ((total == 0 && m_context.hasDisk) ? L"No findings" : L"");

@@ -31,7 +31,6 @@ struct DiskThumbnailResult
     vector<std::shared_ptr<const PlatterRenderer::Levels>>  levels;
     vector<std::shared_ptr<const PlatterRenderer::Levels>>  edges;
     vector<SummaryChip>                                     chips;
-    bool                                                    canRepair = false;
 };
 
 

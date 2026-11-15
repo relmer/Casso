@@ -636,13 +636,24 @@ void InspectorWindowSet::Release()
 //
 //  InspectorWindowSet::StartTimer
 //
+//  Windows times a timer to its clock's tick, 15.6 ms by default, so a 16 ms
+//  timer waits for the second tick and frames come every 31 ms, unevenly. The
+//  clock runs at 1 ms while the timer runs, so a frame comes every 16 ms and
+//  the windows' animations are smooth.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InspectorWindowSet::StartTimer()
 {
+    MMRESULT  result = TIMERR_NOERROR;
+
+
+
     if (m_timer == 0)
     {
-        m_timer = SetTimer (nullptr, 0, kFrameMs, &OnTimer);
+        result         = timeBeginPeriod (kClockMs);
+        m_isClockFast  = result == TIMERR_NOERROR;
+        m_timer        = SetTimer (nullptr, 0, kFrameMs, &OnTimer);
 
         if (m_timer != 0)
         {
@@ -673,6 +684,12 @@ void InspectorWindowSet::StopTimer()
         IGNORE_RETURN_VALUE (isKilled, TRUE);
         s_timers.erase (m_timer);
         m_timer = 0;
+    }
+
+    if (m_isClockFast)
+    {
+        timeEndPeriod (kClockMs);
+        m_isClockFast = false;
     }
 }
 

@@ -70,6 +70,7 @@ void ViewTables::RefreshTables()
                                      : L"");
         m_session.repairPlan = m_session.context.hasDisk ? DiskRepair::Plan (m_session.analysis, {}) : RepairPlan();
         m_session.views.issues->SetRepairPlan (&m_session.repairPlan);
+        m_session.isLayoutStale = true;
         m_session.views.issues->Refresh();
 
         vector<TableRow>  imageRows = m_session.context.hasDisk ? InspectorTables::BuildImage (m_session.analysis.image, m_session.context.drive != nullptr ? m_session.analysis.copy.get() : nullptr,

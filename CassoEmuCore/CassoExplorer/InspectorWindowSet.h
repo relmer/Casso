@@ -38,6 +38,7 @@ class InspectorWindowSet
 {
 public:
     static constexpr UINT       kFrameMs  = 16;
+    static constexpr UINT       kClockMs  = 1;       // the system clock's period while the frame timer runs
     static constexpr ULONGLONG  kSettleMs = 250;
 
     //  One inspector window, as the set drives it: DiskInspectorWindow in
@@ -134,20 +135,21 @@ private:
     //  Casso Explorer window.
     void     ShowRepairedCopy (Entry & entry, const std::wstring & path);
 
-    IImageWatcher                        & m_watcher;
-    DiskInspectorPrefs                   & m_prefs;
-    Seams                                  m_seams;
-    Win32DiskFileIo                        m_fileIo;
-    vector<std::unique_ptr<Entry>>         m_entries;
-    std::map<std::wstring, int>            m_folders;
-    std::mutex                             m_changeLock;
-    vector<std::wstring>                   m_changes;
-    UINT_PTR                               m_timer = 0;
-    DxuiLightTheme                         m_lightTheme;
-    DxuiDarkTheme                          m_darkTheme;
-    CassoTheme                             m_cassoTheme;
-    DxuiTheme                              m_otherTheme;
-    const DxuiTheme                      * m_theme = &m_darkTheme;
+    IImageWatcher                   & m_watcher;
+    DiskInspectorPrefs              & m_prefs;
+    Seams                             m_seams;
+    Win32DiskFileIo                   m_fileIo;
+    vector<std::unique_ptr<Entry>>    m_entries;
+    std::map<std::wstring, int>       m_folders;
+    std::mutex                        m_changeLock;
+    vector<std::wstring>              m_changes;
+    UINT_PTR                          m_timer       = 0;
+    bool                              m_isClockFast = false;   // timeBeginPeriod succeeded for the frame timer
+    DxuiLightTheme                    m_lightTheme;
+    DxuiDarkTheme                     m_darkTheme;
+    CassoTheme                        m_cassoTheme;
+    DxuiTheme                         m_otherTheme;
+    const DxuiTheme                 * m_theme       = &m_darkTheme;
 
     static std::map<UINT_PTR, InspectorWindowSet *>  s_timers;
 };

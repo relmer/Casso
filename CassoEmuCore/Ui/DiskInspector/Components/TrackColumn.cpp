@@ -306,7 +306,7 @@ void TrackColumn::Update()
     {
         if (m_shown[v].isDisk && m_shown[v].tab == kTabFindings)
         {
-            m_views->SetBadge (static_cast<int> (v), m_issues > 0 ? std::to_wstring (m_issues) : std::wstring(), m_severity);
+            m_views->SetBadge (static_cast<int> (v), m_issues > 0 ? std::to_wstring (m_issues) : std::wstring(), m_severity, m_session.context.palette.colors.sectorBad);
         }
     }
 

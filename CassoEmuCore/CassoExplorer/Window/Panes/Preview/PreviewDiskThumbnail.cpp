@@ -15,9 +15,7 @@
 #include "CassoExplorer/Window/Panes/Preview/PreviewListingView.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
-#include "Devices/Disk/Inspector/Repair/RepairCopy.h"
-#include "Seams/Win32DiskFileIo.h"
-#include "Ui/DiskInspector/RepairDialog.h"
+
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 
@@ -144,9 +142,9 @@ void ThumbnailChips::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 //
 //  PreviewDiskThumbnail::FormatVerdict
 //
-//  "File system damaged." or "Possible inconsistencies found.", and the
-//  finding as a sentence on the next line; nothing for OK or a disk with no
-//  standard file system.
+//  "File system damaged." or "Possible inconsistencies found.", the finding
+//  as a sentence on the next line, and after a blank line, the pointer to
+//  Inspect...; nothing for OK or a disk with no standard file system.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -174,6 +172,11 @@ std::wstring PreviewDiskThumbnail::FormatVerdict (FileSystemVerdict verdict, con
     else if (verdict == FileSystemVerdict::Suspect)
     {
         text = L"Possible inconsistencies found." + (sentence.empty() ? std::wstring() : L"\n" + sentence);
+    }
+
+    if (!text.empty())
+    {
+        text += L"\n\nInspect for more details.";
     }
 
     return text;
@@ -375,15 +378,10 @@ void PreviewDiskThumbnail::Create()
     m_screen   = m_header->CreateChild<ThumbnailScreen>();
     m_bootLine = m_header->CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left, DxuiTextVAlign::Top);
     m_verdict  = m_header->CreateChild<DxuiInfoBanner>();
-    m_inspect  = m_header->CreateChild<DxuiButton> (L"Inspect disk image");
+    m_inspect  = m_header->CreateChild<DxuiButton> (L"Inspect...");
 
-    m_header->SetScrollbarShown  (false);
-    m_verdict->SetActionWidthDip (static_cast<float> (kRepairDip));
-    m_verdict->SetActionsBelow   (true);
-    m_verdict->SetOnAction       ([this] (size_t) { RunVerdictAction(); });
-    m_inspect->SetVariant        (DxuiButton::Variant::Link);
-    m_inspect->SetUnderlineOnHover (true);
-    m_inspect->SetOnClick        ([this] () { m_context.commandManager.InspectDiskImages ({ m_path }); });
+    m_header->SetScrollbarShown (false);
+    m_inspect->SetOnClick       ([this] () { m_context.commandManager.InspectDiskImages ({ m_path }); });
 
     m_context.window.SetMouseHandler (m_header, [this] (const DxuiMouseEvent & ev) { return HandleHeaderMouse (ev); });
 
@@ -549,10 +547,7 @@ void PreviewDiskThumbnail::ApplyResult()
     m_isVerdictShown = !text.empty();
 
     m_verdict->SetText     (text);
-    m_isBad          = m_result.analysis->verdict == FileSystemVerdict::Bad;
-
-    m_verdict->SetSeverity (m_isBad ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info);
-    m_verdict->SetActions  ((m_isBad && m_result.canRepair) ? vector<std::wstring> { L"Repair disk image" } : vector<std::wstring> { L"Inspect disk image" });
+    m_verdict->SetSeverity ((m_result.analysis->verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info);
 }
 
 
@@ -614,8 +609,11 @@ int PreviewDiskThumbnail::GetHeightPx (int widthPx) const
         height += 2 * rows + gap + (IsBeside (widthPx) ? 0 : scaler.ToPx (kScreenDip) * 3 / 4 + gap);
     }
 
-    //  Inspect disk image's row under the platter.
-    height += rows;
+    //  Inspect...'s row under the platter, where there's no room beside it.
+    if (!IsInspectBeside (widthPx))
+    {
+        height += scaler.ToPx (kInspectHighDip) + gap;
+    }
 
     return height + GetVerdictHeightPx (widthPx);
 }
@@ -650,7 +648,8 @@ int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx,
     int                    top       = area.top + gap;
     int                    chipsTop  = area.top + gap;
     int                    shown     = 0;
-    int                    inspect   = GetInspectWidthPx();
+    int                    inspectW  = GetInspectWidthPx();
+    int                    inspectH  = scaler.ToPx (kInspectHighDip);
 
 
 
@@ -681,10 +680,19 @@ int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx,
     if (m_state != State::Note35)
     {
         m_header->PlaceChild (*m_platter, RECT { left, top, left + platter, top + platter });
-        chipsTop = top + platter;
+        chipsTop = top + platter + gap;
 
-        m_header->PlaceChild (*m_inspect, RECT { area.left + (width - inspect) / 2, chipsTop, area.left + (width + inspect) / 2, chipsTop + rows });
-        chipsTop += rows + gap;
+        //  Inspect... at the platter area's bottom right, or under the
+        //  platter at the right where it would overlap it.
+        if (IsInspectBeside (width))
+        {
+            m_header->PlaceChild (*m_inspect, RECT { area.right - gap - inspectW, top + platter - inspectH, area.right - gap, top + platter });
+        }
+        else
+        {
+            m_header->PlaceChild (*m_inspect, RECT { area.right - gap - inspectW, chipsTop, area.right - gap, chipsTop + inspectH });
+            chipsTop += inspectH + gap;
+        }
     }
 
     if (hasScreen)
@@ -788,36 +796,17 @@ bool PreviewDiskThumbnail::HandleHeaderMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreviewDiskThumbnail::IsOverInspect
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool PreviewDiskThumbnail::IsOverInspect (POINT pointPx) const
-{
-    RECT  bounds = m_inspect->GetBounds();
-
-
-
-    return m_inspect->IsVisible() && PtInRect (&bounds, pointPx) != FALSE;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  PreviewDiskThumbnail::GetInspectWidthPx
 //
-//  Inspect disk image's text, measured where the window has a text
-//  renderer, and a little room either side.
+//  Inspect...'s text, measured where the window has a text renderer, and a
+//  button's padding either side.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int PreviewDiskThumbnail::GetInspectWidthPx() const
 {
     static constexpr float  kFontDip = 13.0f;
-    static constexpr int    kRoomDip = 8;
+    static constexpr int    kRoomDip = 32;
 
 
 
@@ -829,10 +818,35 @@ int PreviewDiskThumbnail::GetInspectWidthPx() const
 
     if (text != nullptr)
     {
-        text->MeasureString (L"Inspect disk image", m_context.scaler.ToPxf (kFontDip), DxuiTheme::GetUiFace(), width, high);
+        text->MeasureString (L"Inspect...", m_context.scaler.ToPxf (kFontDip), DxuiTheme::GetUiFace(), width, high);
     }
 
-    return (width > 0.0f) ? static_cast<int> (std::ceil (width)) + m_context.scaler.ToPx (kRoomDip) : m_context.scaler.ToPx (kRepairDip);
+    return (width > 0.0f) ? static_cast<int> (std::ceil (width)) + m_context.scaler.ToPx (kRoomDip) : m_context.scaler.ToPx (kInspectWideDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::IsInspectBeside
+//
+//  Whether Inspect... fits at the platter area's right without overlapping
+//  the platter, which is centered, or with the screen's picture beside it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::IsInspectBeside (int widthPx) const
+{
+    const DxuiDpiScaler  & scaler  = m_context.scaler;
+    int                    gap     = scaler.ToPx (kGapDip);
+    int                    platter = scaler.ToPx (kPlatterDip);
+    int                    group   = platter + ((HasScreen() && IsBeside (widthPx)) ? scaler.ToPx (kScreenDip) + gap : 0);
+
+
+
+    return (widthPx - group) / 2 >= GetInspectWidthPx() + 2 * gap;
 }
 
 
@@ -903,8 +917,7 @@ int PreviewDiskThumbnail::GetVerdictHeightPx (int widthPx) const
 //
 //  PreviewDiskThumbnail::PlaceVerdict
 //
-//  The infobar across the area's top. Repair disk image is at its right, or
-//  under its text in a narrow pane, when the volume can be repaired.
+//  The infobar across the area's top.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -915,45 +928,6 @@ void PreviewDiskThumbnail::PlaceVerdict (const RECT & area, int top, int height)
 
 
     m_header->PlaceChild (*m_verdict, RECT { area.left + gap, top, area.right - gap, top + height });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PreviewDiskThumbnail::RepairImage
-//
-//  The confirmation from the file as saved, with every change checked, and
-//  the copy written beside the image and selected. The status bar has the
-//  copy's name or the reason it wasn't written.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void PreviewDiskThumbnail::RepairImage()
-{
-    HRESULT          hr     = S_OK;
-    Win32DiskFileIo  fileIo;
-    std::string      written;
-    std::wstring     note;
-    RepairPlan       applied;
-
-
-
-    hr = RepairDialog::Run (m_context.window.GetHwnd(), m_context.theme, fileIo, TextEncoding::WideToUtf8 (m_path), {}, written, applied, note);
-
-    if (!note.empty())
-    {
-        m_context.statusBar.SetActivity (note);
-    }
-
-    if (SUCCEEDED (hr) && !written.empty())
-    {
-        m_context.tabManager.SelectInFolder (TextEncoding::Utf8ToWide (written));
-    }
-
-    m_context.window.Invalidate();
 }
 
 
@@ -996,31 +970,6 @@ std::wstring PreviewDiskThumbnail::GetFileSystemText() const
     }
 
     return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PreviewDiskThumbnail::RunVerdictAction
-//
-//  Repair for a Bad volume that can be repaired; the inspector, where the
-//  findings are, for any other.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void PreviewDiskThumbnail::RunVerdictAction()
-{
-    if (m_isBad && m_result.canRepair)
-    {
-        RepairImage();
-    }
-    else
-    {
-        m_context.commandManager.InspectDiskImages ({ m_path });
-    }
 }
 
 

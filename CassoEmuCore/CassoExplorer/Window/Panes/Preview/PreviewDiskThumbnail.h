@@ -166,10 +166,11 @@ private:
 class PreviewDiskThumbnail
 {
 public:
-    static constexpr int  kPlatterDip = 180;
-    static constexpr int  kGapDip     = 8;
-    static constexpr int  kScreenDip  = 240;     // the screen's picture, three quarters as tall
-    static constexpr int  kRepairDip  = 140;     // Repair disk image, in the infobar
+    static constexpr int  kPlatterDip     = 180;
+    static constexpr int  kGapDip         = 8;
+    static constexpr int  kScreenDip      = 240;   // the screen's picture, three quarters as tall
+    static constexpr int  kInspectWideDip = 90;   // Inspect..., before its text is measured
+    static constexpr int  kInspectHighDip = 28;
 
     explicit PreviewDiskThumbnail (ExplorerContext & context);
 
@@ -188,8 +189,6 @@ public:
     //  area. Returns the bottom of the visible part.
     int   Layout        (const RECT & area, int scrollPx, int bottomPx, int rightPx);
 
-    //  Whether the point is on Inspect disk image, under the platter.
-    bool  IsOverInspect (POINT pointPx) const;
 
     bool                  IsShown       () const { return !m_path.empty() && m_state != State::Failed; }
     bool                  IsReady       () const { return m_state == State::Ready; }
@@ -203,18 +202,19 @@ public:
     RECT                  GetScreenRect () const { return HasScreen() ? m_screen->GetBounds() : RECT {}; }
     const std::wstring  & GetResultLine () const { return m_bootLine->GetText(); }
 
-    //  The verdict's infobar above the thumbnail and its action, Repair
-    //  disk image or Inspect disk image; for a test.
-    const DxuiInfoBanner  & GetVerdict      () const { return *m_verdict; }
-    ThumbnailScrollbar    & GetScrollbar    () const { return *m_scrollbar; }
-    DxuiButton            * GetActionButton () const { return m_verdict->GetAction (0); }
+    //  The verdict's infobar above the thumbnail, the pane's bar, and
+    //  Inspect... at the platter's bottom right; for a test.
+    const DxuiInfoBanner  & GetVerdict       () const { return *m_verdict; }
+    ThumbnailScrollbar    & GetScrollbar     () const { return *m_scrollbar; }
+    const DxuiButton      & GetInspectButton () const { return *m_inspect; }
+    RECT                    GetPlatterRect   () const { return m_platter->GetBounds(); }
 
     //  A disk image's file-system verdict above its thumbnail: Bad as an
-    //  error infobar with its first finding of damage and Repair disk image
-    //  when it can be repaired, Suspect as an info infobar with its first
-    //  suspect finding and Inspect disk image, since a suspect finding can be
-    //  normal for the disk; each finding on the line under the verdict, and
-    //  nothing for OK or a disk with no standard file system.
+    //  error infobar with its first finding of damage, Suspect as an info
+    //  infobar with its first suspect finding, since a suspect finding can be
+    //  normal for the disk; each finding on the line under the verdict, and a
+    //  pointer to Inspect..., where the findings and Repair are; nothing for
+    //  OK or a disk with no standard file system.
     static std::wstring  FormatVerdict (FileSystemVerdict verdict, const std::wstring & finding);
 
     //  The file system the analysis found and its verdict, as "DOS 3.3,
@@ -225,14 +225,12 @@ public:
 
     //  The repaired copy written beside the image and selected, after the
     //  confirmation.
-    void  RepairImage ();
 
-    //  The infobar's action: Repair disk image or Inspect disk image.
-    void  RunVerdictAction ();
 
 private:
     bool  HandleHeaderMouse  (const DxuiMouseEvent & ev);
     int   GetInspectWidthPx  () const;
+    bool  IsInspectBeside    (int widthPx) const;
     bool  HandlePlatterMouse (const DxuiMouseEvent & ev);
     bool  HandleScreenMouse  (const DxuiMouseEvent & ev);
 
@@ -262,10 +260,10 @@ private:
     ThumbnailScreen                       * m_screen         = nullptr;
     DxuiLabel                             * m_bootLine       = nullptr;   // the boot result, under the picture
     DxuiInfoBanner                        * m_verdict        = nullptr;
-    DxuiButton                            * m_inspect        = nullptr;   // Inspect disk image, under the platter
+    DxuiButton                            * m_inspect        = nullptr;   // Inspect..., at the platter area's bottom right
     ThumbnailScrollbar                    * m_scrollbar      = nullptr;   // a window child after the views, so it's offered the mouse first
     bool                                    m_isVerdictShown = false;
-    bool                                    m_isBad          = false;
+
     std::shared_ptr<const DxuiIconImage>    m_picture;
     std::wstring                            m_path;
     State                                   m_state          = State::Analyzing;

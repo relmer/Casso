@@ -1069,8 +1069,8 @@ LPCWSTR ExplorerPreviewManager::GetCursorForPoint (POINT clientPx) const
         cursor = m_message->GetCursorForPoint (clientPx);
     }
 
-    //  The small platter and Inspect disk image open the inspector.
-    if (cursor == nullptr && (m_thumbnail.IsOverPlatter (clientPx) || m_thumbnail.IsOverInspect (clientPx)))
+    //  A click on the small platter opens the inspector.
+    if (cursor == nullptr && m_thumbnail.IsOverPlatter (clientPx))
     {
         cursor = IDC_HAND;
     }

@@ -16,6 +16,8 @@ static constexpr float    s_kChipPadDip    = 8.0f;
 static constexpr float    s_kChipGapDip    = 6.0f;
 static constexpr float    s_kChipHeightDip = 20.0f;
 static constexpr float    s_kChipTextDip   = 12.0f;
+static constexpr uint32_t s_kRgbMask       = 0x00FFFFFFu;
+static constexpr uint32_t s_kHotTintAlpha  = 0x4C000000u;   // a linked chip's fill under the pointer, its color at 30%
 static constexpr float    s_kHintTextDip   = 12.0f;
 static constexpr LPCWSTR  s_kpszAnalyzing  = L"Analyzing";
 
@@ -355,11 +357,17 @@ void StatusBand::PaintLead (IDxuiPainter & painter, IDxuiTextRenderer & text, co
             case LeadKind::Chip:
             case LeadKind::BadChip:
             {
-                //  A linked chip is in the accent unless it's bad, and lit like a
-                //  button while the pointer is on it.
+                //  A linked chip is in the accent unless it's bad, and tinted with
+                //  that color while the pointer is on it.
                 uint32_t  ink = (item.kind == LeadKind::BadChip) ? bad : (item.isLinked ? theme.Accent() : theme.Foreground());
 
-                painter.FillRoundedRect    (item.x, y, item.w, chipH, chipH / 2, (item.isLinked && m_isLinkHot) ? theme.ButtonHover() : theme.ButtonIdle());
+                painter.FillRoundedRect    (item.x, y, item.w, chipH, chipH / 2, theme.ButtonIdle());
+
+                if (item.isLinked && m_isLinkHot)
+                {
+                    painter.FillRoundedRect (item.x, y, item.w, chipH, chipH / 2, (ink & s_kRgbMask) | s_kHotTintAlpha);
+                }
+
                 painter.OutlineRoundedRect (item.x, y, item.w, chipH, chipH / 2, m_scaler.ToPxf (1.0f),
                                             (item.kind == LeadKind::BadChip || item.isLinked) ? ink : theme.ButtonBorder());
                 text.DrawString (item.text.c_str(), item.x, y, item.w, chipH, ink, textPx,

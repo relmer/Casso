@@ -204,8 +204,27 @@ SIZE RepairDialog::GetSizeDip (const RepairPlan & plan)
 
 std::wstring RepairDialog::FormatIntro (const std::wstring & fileName)
 {
-    return L"Repairing an image writes a repaired copy of " + fileName + L" in the same folder. " + fileName + L" isn't changed. "
+    std::wstring  name = FormatName (fileName);
+
+
+
+    return L"Repairing an image writes a repaired copy of " + name + L" in the same folder. " + name + L" isn't changed. "
            L"Select the repairs below to apply to the repaired image.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RepairDialog::FormatName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring RepairDialog::FormatName (const std::wstring & fileName)
+{
+    return (fileName.find (L' ') != std::wstring::npos) ? L"\"" + fileName + L"\"" : fileName;
 }
 
 

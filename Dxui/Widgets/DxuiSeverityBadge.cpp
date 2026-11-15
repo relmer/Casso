@@ -17,7 +17,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiSeverityBadge::Draw (IDxuiPainter & painter, DxuiSeverity severity, float left, float top, float size, const IDxuiTheme & theme)
+void DxuiSeverityBadge::Draw (IDxuiPainter & painter, DxuiSeverity severity, float left, float top, float size, const IDxuiTheme & theme, uint32_t errorArgb)
 {
     static constexpr int  kSegments = 20;
 
@@ -36,7 +36,7 @@ void DxuiSeverityBadge::Draw (IDxuiPainter & painter, DxuiSeverity severity, flo
         {
             float  stem = stroke * 1.4f;
 
-            painter.FillCircle (cx, cy, r, theme.ErrorForeground());
+            painter.FillCircle (cx, cy, r, GetColor (DxuiSeverity::Error, theme, errorArgb));
             painter.FillRect   (cx - stem * 0.5f, cy - r * 0.55f, stem, r * 0.7f, theme.Background());
             painter.FillCircle (cx, cy + r * 0.42f, stem * 0.6f, theme.Background());
             break;
@@ -111,7 +111,8 @@ void DxuiSeverityBadge::DrawCount (
     float                left,
     float                cy,
     float                height,
-    const IDxuiTheme   & theme)
+    const IDxuiTheme   & theme,
+    uint32_t             errorArgb)
 {
     static constexpr uint32_t  kWhite = 0xFFFFFFFFu;
 
@@ -123,7 +124,7 @@ void DxuiSeverityBadge::DrawCount (
 
 
 
-    painter.FillRoundedRect (left, cy - height * 0.5f, width, height, height * 0.5f, GetColor (severity, theme));
+    painter.FillRoundedRect (left, cy - height * 0.5f, width, height, height * 0.5f, GetColor (severity, theme, errorArgb));
 
     hr = text.DrawString (count.c_str(), left, cy - height * 0.5f, width, height, ink, height * s_kCountEm, DxuiTheme::kBodyFace,
                           DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
@@ -140,7 +141,7 @@ void DxuiSeverityBadge::DrawCount (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t DxuiSeverityBadge::GetColor (DxuiSeverity severity, const IDxuiTheme & theme)
+uint32_t DxuiSeverityBadge::GetColor (DxuiSeverity severity, const IDxuiTheme & theme, uint32_t errorArgb)
 {
     uint32_t  color = theme.Accent();
 
@@ -148,7 +149,7 @@ uint32_t DxuiSeverityBadge::GetColor (DxuiSeverity severity, const IDxuiTheme & 
 
     switch (severity)
     {
-        case DxuiSeverity::Error:   color = theme.ErrorForeground(); break;
+        case DxuiSeverity::Error:   color = (errorArgb != 0) ? errorArgb : theme.ErrorForeground(); break;
         case DxuiSeverity::Warning: color = theme.WarningAccent();   break;
         case DxuiSeverity::Info:                                     break;
     }

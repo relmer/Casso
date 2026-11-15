@@ -1566,10 +1566,10 @@ public:
 
         const Case  cases[] =
         {
-            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"File system damaged.\nTrack 18, sector $E is used by HELLO but marked free.",
-              DxuiInfoBanner::Severity::Error, L"Repair disk image" },
-            { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"Possible inconsistencies found.\nThe VTOC's next track to allocate, track 40, is off the disk.",
-              DxuiInfoBanner::Severity::Info,  L"Inspect disk image" },
+            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"File system damaged.\nTrack 18, sector $E is used by HELLO but marked free.\n\nInspect for more details.",
+              DxuiInfoBanner::Severity::Error, L"" },
+            { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"Possible inconsistencies found.\nThe VTOC's next track to allocate, track 40, is off the disk.\n\nInspect for more details.",
+              DxuiInfoBanner::Severity::Info,  L"" },
             { L"ok.dsk",      RepairFixtures::MakeDos33(),                     L"", DxuiInfoBanner::Severity::Info, L"" },
         };
 
@@ -1623,17 +1623,17 @@ public:
                 if (isShown)
                 {
                     Assert::IsTrue (thumbnail.GetVerdict().GetSeverity() == c.severity, c.name);
-                    Assert::IsNotNull (thumbnail.GetActionButton());
-                    Assert::AreEqual  (std::wstring (c.action), thumbnail.GetActionButton()->GetAccessibleName(), c.name);
-
-                    repair = thumbnail.GetActionButton()->GetBounds();
-
-                    Assert::IsTrue (banner.left >= pane.left && banner.right <= pane.right && banner.bottom <= pane.top, L"the infobar is inside the pane, above the catalog");
-                    Assert::IsTrue (repair.left > banner.left && repair.right <= banner.right && repair.top >= banner.top && repair.bottom <= banner.bottom,
-                                    L"and its action is inside the infobar");
-                    Assert::AreEqual ((long) rig.scaler.ToPx (PreviewDiskThumbnail::kRepairDip), repair.right - repair.left,
-                                      L"at its width");
+                    Assert::AreEqual ((size_t) 0, thumbnail.GetVerdict().GetActionCount(), L"the infobar has no button; Inspect... is under it");
+                    Assert::IsTrue   (banner.left >= pane.left && banner.right <= pane.right && banner.bottom <= pane.top, L"the infobar is inside the pane, above the catalog");
                 }
+
+                //  Inspect... at the platter area's bottom right, or under the
+                //  platter at the right where the pane is too narrow beside it.
+                repair = thumbnail.GetInspectButton().GetBounds();
+                Assert::IsTrue (thumbnail.GetInspectButton().IsVisible(), c.name);
+                Assert::IsTrue ((repair.left >= thumbnail.GetPlatterRect().right && repair.bottom == thumbnail.GetPlatterRect().bottom) ||
+                                repair.top >= thumbnail.GetPlatterRect().bottom, std::format (L"Inspect... beside the platter's bottom or under it at {} dpi", dpi).c_str());
+                Assert::IsTrue (repair.right <= pane.right && repair.right >= pane.right - rig.scaler.ToPx (40), L"at the right");
 
                 std::filesystem::remove_all (folder);
             }

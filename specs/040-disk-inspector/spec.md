@@ -3676,6 +3676,14 @@ release (Delivery). The first release MUST NOT depend on them.
   before the catalog, and the catalog back to its top before the thumbnail,
   and one scrollbar down the pane's right edge, from the thumbnail's top,
   MUST scroll both.
+- **FR-183**: Casso Explorer's preview pane MUST NOT repair an image: its infobar has no button, and ends, after a blank
+  line, with "Inspect for more details.", and an Inspect... button at the
+  platter area's bottom right opens the inspector, where the findings and
+  Repair are. The Issues tab MUST have one Repair disk image... button,
+  in the accent, centered under the list, with no Repair button on a row.
+  An error's icon and the Issues tab's count MUST be in the bad sector
+  color. The report after a repair MUST have a check mark on each fix and
+  only OK, which opens the copy.
 - **FR-182**: Each finding MUST have a severity: an error for file-system
   damage, a sector whose checksum fails or that is missing, and an image
   record that is damaged or doesn't match its checksum; information for

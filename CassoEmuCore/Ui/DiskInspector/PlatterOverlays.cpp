@@ -32,6 +32,7 @@ static constexpr uint32_t s_kSweepLineArgb  = 0xFF808080u;
 static constexpr uint32_t s_kErrorEdgeArgb  = 0xFF000000u;   // under an error selection's dashes
 static constexpr uint32_t s_kErrorDashArgb  = 0xFFFFFFFFu;   // between its red dashes
 static constexpr int      s_kErrorDashPieces = 1;            // outline pieces a dash spans
+static constexpr double   s_kErrorDashStepMs = 160.0;        // how long the dashes take to march one piece
 static constexpr float    s_kMinMarkDip     = 8.0f;
 static constexpr float    s_kShimmerStepDip = 3.0f;
 static constexpr double   s_kPiecesPerTurn   = 96.0;
@@ -464,7 +465,7 @@ void PlatterOverlays::PaintArcMark (IDxuiPainter & painter, const PlatterPlaceme
     auto      getX   = [&] (double turn, double r) { float x = 0.0f; float y = 0.0f; PlatterGeometry::ProjectAt (view, turn, r, x, y); return x; };
     auto      getY   = [&] (double turn, double r) { float x = 0.0f; float y = 0.0f; PlatterGeometry::ProjectAt (view, turn, r, x, y); return y; };
     bool      isError = isSelected && m_view.m_context.IsErrorSelected();
-    int       phase   = static_cast<int> (now / InspectorMarquee::kStepMs);
+    int       phase   = static_cast<int> (now / s_kErrorDashStepMs);
     auto      drawOutline = [&] (float w, const std::function<uint32_t (float, float, int)> & colorAt)
     {
         for (const std::pair<double, double> & part : GetVisibleParts (view, start, end))
