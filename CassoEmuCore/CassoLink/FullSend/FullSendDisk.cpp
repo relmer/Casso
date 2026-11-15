@@ -260,6 +260,58 @@ std::string FullSendDisk::GetCatalogTitle (const std::vector<Byte> & image)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendDisk::GetProgramTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string FullSendDisk::GetProgramTitle (const std::vector<Byte> & image)
+{
+    constexpr Byte  kDosProgramTypes = 0x01 | 0x02 | 0x04 | 0x20 | 0x40;
+    HRESULT         hr               = S_OK;
+    VolumeListing   listing;
+    std::string     title;
+    size_t          dot              = std::string::npos;
+
+
+
+    BAIL_OUT_IF (VolumeImage::DetectFilesystem (image) != VolumeKind::Dos33, S_OK);
+
+    hr = Dos33Volume (image).Enumerate (listing);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        std::string  name = entry.name;
+
+        std::erase_if (name, [] (char ch) { return (unsigned char) ch < ' ' || ch == '\x7F'; });
+        name.erase (0, name.find_first_not_of (' '));
+        name.erase (name.find_last_not_of (' ') + 1);
+
+        if ((entry.type & kDosProgramTypes) != 0 && std::any_of (name.begin(), name.end(), [] (char ch) { return std::isalnum ((unsigned char) ch) != 0; })
+            && _stricmp (name.c_str(), s_kStartupProgram) != 0)
+        {
+            title = name;
+            break;
+        }
+    }
+
+    dot = title.find_last_of ('.');
+
+    if (dot != std::string::npos && dot > 0 && dot + 1 < title.size() && std::all_of (title.begin() + (ptrdiff_t) dot + 1, title.end(), [] (char ch) { return std::isdigit ((unsigned char) ch) != 0; }))
+    {
+        title.erase (dot);
+    }
+
+Error:
+    return title;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendDisk::GetDosSectorOffset
 //
 ////////////////////////////////////////////////////////////////////////////////

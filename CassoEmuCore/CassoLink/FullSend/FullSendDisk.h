@@ -37,6 +37,11 @@ public:
     //  DOS 3.3 unless it is HELLO; empty when the catalog has neither.
     static std::string  GetCatalogTitle (const std::vector<Byte> & image);
 
+    //  On DOS 3.3, the first program that isn't HELLO, less a version at its
+    //  end such as .2, as WIZFIX from WIZFIX.2: a title for a disk whose
+    //  catalog and boot screen have no title. Empty with no such program.
+    static std::string  GetProgramTitle (const std::vector<Byte> & image);
+
     //  Whether a disk's tracks 0 and 17 have no file system Casso recognizes, so
     //  that its fingerprint adds CP/M's directory track. A CP/M data disk can
     //  have nothing on the other two. Judged from those tracks alone, so the
