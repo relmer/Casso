@@ -411,6 +411,14 @@ void ShellDeskScene::ApplyChromeThemeByName (const std::string & themeName)
 
 
     m_shell.m_chrome->GetTheme() = CassoTheme::MakeByName (themeName, !m_deskSceneFailed);
+
+    // A compact theme plans the drives for its drive band, so the plan
+    // follows the theme, before the chrome is laid out for it.
+    if (m_deskSceneReady)
+    {
+        PlanDrives();
+    }
+
     m_shell.m_chrome->ApplyThemeToChrome (m_shell.m_chrome->GetTheme());
 
     if (needsDeskScene && m_deskSceneFailed)
@@ -3311,10 +3319,13 @@ void ShellDeskScene::UpdateSceneOrbit (int x, int y)
 
 void ShellDeskScene::PlanDrives()
 {
-    const GlobalUserPrefs  & prefs   = m_shell.m_settings->GetPrefs();
-    float                    lo[3]   = {};
-    float                    hi[3]   = {};
-    float                    monitor = 0.0f;
+    const GlobalUserPrefs   & prefs     = m_shell.m_settings->GetPrefs();
+    float                     lo[3]     = {};
+    float                     hi[3]     = {};
+    float                     monitor   = 0.0f;
+    std::vector<DeskDrive>    drives;
+    DeskClassPlace            floppies  = DeskDrivePlan::ParsePlace (prefs.deskFloppies);
+    DeskClassPlace            hardDisks = DeskDrivePlan::ParsePlace (prefs.deskHardDisks);
 
 
 
@@ -3323,12 +3334,15 @@ void ShellDeskScene::PlanDrives()
     monitor = hi[0] - lo[0];
 
     m_plannedDiskIiCount = CountDiskIiDrives();
+    drives               = DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), m_plannedDiskIiCount, m_shell.m_disks->HasDiskIicDrives());
 
-    m_drivePlan = DeskDrivePlan::Place (DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), m_plannedDiskIiCount, m_shell.m_disks->HasDiskIicDrives()),
-                                        DeskDrivePlan::ParsePlace (prefs.deskFloppies),
-                                        DeskDrivePlan::ParsePlace (prefs.deskHardDisks),
-                                        monitor,
-                                        prefs.deskFloppyPairBeside);
+    // A compact theme's drive band has the Disk II widgets or the drive bar.
+    if (m_shell.m_chrome->GetTheme().compactDrives)
+    {
+        DeskDrivePlan::GetCompactPlaces (drives, floppies, hardDisks);
+    }
+
+    m_drivePlan = DeskDrivePlan::Place (drives, floppies, hardDisks, monitor, prefs.deskFloppyPairBeside);
 
     for (const DeskDrivePlacement & placed : m_drivePlan)
     {

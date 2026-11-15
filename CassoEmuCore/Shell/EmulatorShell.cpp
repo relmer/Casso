@@ -1572,10 +1572,10 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     // chrome controls) on top of the Apple ][ framebuffer. The
     // per-frame drive-widget tick + door-animation redraw that
     // used to live in that hook now run in RunMessageLoop.
-    if (DeskSceneActive())
+    if (DeskSceneActive() || m_scene->AreDrivesOnBar())
     {
-        // The 3D scene owns the drives: widgets hidden, drop-target rects
-        // from the composition's projected drive bounds.
+        // The 3D scene or the drive bar has the drives: drop-target rects
+        // from the composition's projected drive bounds and the bar's slots.
         m_scene->SyncSceneDriveChrome();
     }
     else if (!fHasDisk)
@@ -1596,7 +1596,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         m_disks->GetDriveChrome()[1].Hide();
     }
 
-    if (!DeskSceneActive())
+    if (!DeskSceneActive() && !m_scene->AreDrivesOnBar())
     {
         m_uiShell.GetHitTester().Clear();
         if (fHasDisk)

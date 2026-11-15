@@ -103,6 +103,34 @@ public:
     }
 
 
+    //  IN THE COMPACT THEMES every drive is on the drive bar when the machine
+    //  has a drive other than its Disk II drives. With only Disk II drives
+    //  the band has the Disk II widgets, and the plan has nothing on the bar.
+    TEST_METHOD (Compact_DrivesBeyondTheDiskIiPair_GoOnTheBar)
+    {
+        std::vector<DeskDrive>  diskIi    = { { M::DiskII, 6, 0 }, { M::DiskII, 6, 1 } };
+        std::vector<DeskDrive>  withHd    = { { M::DiskII, 6, 0 }, { M::DiskII, 6, 1 }, { M::HardDisk20SC, 7, 6 } };
+        P                       floppies  = P::Auto;
+        P                       hardDisks = P::Auto;
+
+
+
+        DeskDrivePlan::GetCompactPlaces (diskIi, floppies, hardDisks);
+
+        for (const DeskDrivePlacement & placed : DeskDrivePlan::Place (diskIi, floppies, hardDisks, kMonitorII))
+        {
+            Assert::IsTrue (placed.spot != S::DriveBar, L"the Disk II widgets, not the bar");
+        }
+
+        DeskDrivePlan::GetCompactPlaces (withHd, floppies, hardDisks);
+
+        for (const DeskDrivePlacement & placed : DeskDrivePlan::Place (withHd, floppies, hardDisks, kMonitorII))
+        {
+            Assert::IsTrue (placed.spot == S::DriveBar, L"every drive on the bar");
+        }
+    }
+
+
     //  A single ProFile goes under the monitor, and the floppies stack on
     //  the right.
     TEST_METHOD (SingleProFile_UnderTheMonitorAndFloppiesOnTheRight)

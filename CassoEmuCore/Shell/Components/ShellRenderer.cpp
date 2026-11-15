@@ -867,7 +867,8 @@ bool ShellRenderer::TryPresentUiFrame()
     // way everywhere and brings them back the same way too.
     bool  stripHasDrives = m_shell.DeskSceneActive()
                          ? m_shell.m_scene->DeskSceneDriveCount() > 0 || m_shell.m_scene->AreDrivesOnBar()
-                         : (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
+                         : ((m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller()) ||
+                           m_shell.m_scene->AreDrivesOnBar();
 
     // On the windowed desk with the monitor, the same FSM moves the desk's
     // drives instead: its progress raises them onto the desk.
@@ -971,7 +972,7 @@ bool ShellRenderer::TryPresentUiFrame()
             bool   wasShowing = m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top;
 
             // The drive bar rides the strip's slide too.
-            if (m_shell.DeskSceneActive() && progress != m_shell.m_chrome->m_driveBarSlideProgress)
+            if ((m_shell.DeskSceneActive() || m_shell.m_scene->AreDrivesOnBar()) && progress != m_shell.m_chrome->m_driveBarSlideProgress)
             {
                 m_shell.m_chrome->SlideDriveBar (progress);
                 m_d3dRenderer.MarkRedrawNeeded();
@@ -1019,7 +1020,7 @@ bool ShellRenderer::TryPresentUiFrame()
                                                              DeskSceneLayout::kDriveBandGazeDownRad);
                     IGNORE_RETURN_VALUE (hrStrip, S_OK);
                 }
-                else
+                else if (!m_shell.m_scene->AreDrivesOnBar())
                 {
                     // The flat widgets sit in the band wherever the slide has
                     // put it this frame, bottom-anchored the way the windowed
@@ -1042,7 +1043,7 @@ bool ShellRenderer::TryPresentUiFrame()
                 m_shell.m_scene->m_stripRectPx = {};
                 m_shell.m_scene->m_stripComp   = {};
 
-                if (!m_shell.DeskSceneActive())
+                if (!m_shell.DeskSceneActive() && !m_shell.m_scene->AreDrivesOnBar())
                 {
                     m_shell.m_chrome->m_driveBandSurface.SetVisible (false);
                     m_shell.m_disks->GetDriveChrome()[0].SetVisible (false);

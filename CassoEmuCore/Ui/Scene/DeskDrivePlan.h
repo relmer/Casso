@@ -132,6 +132,12 @@ public:
                                                    float                          monitorWidthMm,
                                                    bool                           floppyPairBeside = false);
 
+    //  The classes' places in the compact themes, whose drive band has the
+    //  Disk II widgets or the drive bar: both classes on the bar when the
+    //  machine has a drive other than its Disk II drives, and otherwise on
+    //  the desk, which in a compact theme is the band's Disk II widgets.
+    static void  GetCompactPlaces (const std::vector<DeskDrive> & drives, DeskClassPlace & outFloppies, DeskClassPlace & outHardDisks);
+
 private:
     static void  Stack (std::vector<DeskDrivePlacement> & out, const std::vector<DeskDrive> & drives, DeskDriveSpot spot);
 };

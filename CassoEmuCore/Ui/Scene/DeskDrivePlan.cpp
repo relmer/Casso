@@ -195,6 +195,26 @@ void DeskDrivePlan::Stack (std::vector<DeskDrivePlacement> & out, const std::vec
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetCompactPlaces
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskDrivePlan::GetCompactPlaces (const std::vector<DeskDrive> & drives, DeskClassPlace & outFloppies, DeskClassPlace & outHardDisks)
+{
+    bool  beyondDiskIi = std::any_of (drives.begin(), drives.end(), [] (const DeskDrive & drive) { return !IsDiskII (drive.model); });
+
+
+
+    outFloppies  = beyondDiskIi ? DeskClassPlace::Bar : DeskClassPlace::Desk;
+    outHardDisks = outFloppies;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ParsePlace
 //
 ////////////////////////////////////////////////////////////////////////////////
