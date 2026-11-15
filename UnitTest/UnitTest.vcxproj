@@ -550,6 +550,7 @@
     <ClCompile Include="EmuTests\ProDosModifiedDateTests.cpp" />
     <ClCompile Include="EmuTests\FrameClockTests.cpp" />
     <ClCompile Include="EmuTests\OpenAppleResetTests.cpp" />
+    <ClCompile Include="EmuTests\AcceleratorTableTests.cpp" />
     <ClCompile Include="EmuTests\CpuCommandDispatcherTests.cpp" />
     <ClCompile Include="EmuTests\GuestSession.cpp" />
     <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
