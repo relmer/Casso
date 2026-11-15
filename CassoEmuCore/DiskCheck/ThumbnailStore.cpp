@@ -132,8 +132,8 @@ Error:
 //  The times are set again only after a stream is written or deleted. A
 //  read-only file, or one on a drive with no streams, can't be written, and
 //  its times set again would be a change to the file: a folder that Casso
-//  Explorer watches would be loaded again, find the thumbnail, and try the
-//  streams again without end.
+//  Explorer watches would be loaded again, the thumbnail found, and the
+//  streams written again without end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -994,12 +994,11 @@ std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation
 std::string CassoLinkSession::FitToApple (const LinkOperation & operation, const std::string & text, size_t limit)
 {
     static constexpr std::string_view  s_kCut = "...";
-
-    std::string  image  = std::filesystem::path (operation.imagePath).filename().string();
-    std::string  name   = !image.empty() && text.find (image) != std::string::npos ? image : operation.path.ToString();
-    size_t       at     = name.empty() ? std::string::npos : text.find (name);
-    size_t       excess = text.size() > limit ? text.size() - limit : 0;
-    std::string  fitted = text;
+    std::string                        image  = std::filesystem::path (operation.imagePath).filename().string();
+    std::string                        name   = !image.empty() && text.find (image) != std::string::npos ? image : operation.path.ToString();
+    size_t                             at     = name.empty() ? std::string::npos : text.find (name);
+    size_t                             excess = text.size() > limit ? text.size() - limit : 0;
+    std::string                        fitted = text;
 
 
 
