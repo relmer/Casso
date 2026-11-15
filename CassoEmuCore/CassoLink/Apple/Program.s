@@ -153,6 +153,9 @@ Q6L      = $C08C
 Q6H      = $C08D
 Q7L      = $C08E
 Q7H      = $C08F
+RDALTCHAR = $C01E               ; a //e's or //c's alternate characters, in bit 7
+ALTCHAROFF = $C00E              ; the primary characters, which flash
+ALTCHARON = $C00F               ; the alternate characters, which have inverse lowercase
 
 ; Commands.
 CMDREADY  = $D2
@@ -563,6 +566,10 @@ tomain: jmp main
 exitlink: sei
         cld
         jsr col40
+        bit lcase               ; the primary characters, as BASIC expects
+        bpl xlprim
+        sta ALTCHAROFF
+xlprim:
         ldx #$FF
         txs
         ldx diskx
@@ -1461,10 +1468,11 @@ readyend:
 ; on an enhanced //e's bytes.
 readid: lda $FBB3
         sta readyrom
-        cmp #$06                ; a //e, //c or IIgs has lowercase
-        bne ridcaps
+        cmp #$06                ; a //e, //c or IIgs has lowercase, and in
+        bne ridcaps             ; its alternate characters, inverse lowercase
         lda #$80
         sta lcase
+        sta ALTCHARON
 ridcaps: lda $FBC0
         sta readyrom+1
         lda $FBBF
@@ -3525,18 +3533,22 @@ ptdone: ldy tmp
 ; putch: A into the field at Y, and Y on, in inverse left of barcells, so that
 ; text over a bar inverts where the bar has passed. Nothing is drawn at a Y of 40 or
 ; more, so a text from a row's start is never drawn on the row below it. A
-; lowercase letter is drawn as a capital in inverse, which the primary
-; characters have no lowercase for, and on a ][ or ][ plus.
+; lowercase letter is drawn as a capital on a ][ or ][ plus, and in inverse
+; while the primary characters are selected, which have no inverse lowercase.
 putch:  cpy rowwidth
         bcs pcnext
         cmp #$61
         bcc pcbar
         cmp #$7B
         bcs pcbar
-        cpy barcells
-        bcc pccaps
         bit lcase
-        bmi pcbar
+        bpl pccaps
+        cpy barcells
+        bcs pcnorm
+        bit RDALTCHAR
+        bpl pccaps
+        and #$7F                ; inverse lowercase, $60 to $7F in the alternate characters
+        bcc pcput
 pccaps: and #$DF
 pcbar:  cpy barcells
         bcs pcnorm
@@ -4118,18 +4130,18 @@ oidle:   .text "Idle"
          .byte 0
 onodisk: .text "Empty or no recognized sectors"
          .byte 0
-oread:   .text "READING"
+oread:   .text "Reading"
          .byte 0
-owrite:  .text "WRITING"
+owrite:  .text "Writing"
          .byte 0
-oformat: .text "FORMATTING"
+oformat: .text "Formatting"
          .byte 0
-overify: .text "VERIFYING"
+overify: .text "Verifying"
          .byte 0
-ocapt:   .text "CAPTURING"
+ocapt:   .text "Capturing"
          .byte 0
 qtens:   .text "257"            ; a quarter's tens digit
-ofailed: .text "FAILED"
+ofailed: .text "Failed"
          .byte 0
 
 ; percent: the whole operation's percentage in A, plo plus index / count of
@@ -4841,9 +4853,6 @@ KCINVSP  = $20                  ; an inverse space
 KLEGCOL80 = 15                 ; the legend's column in 80 columns, centered
 KNAMEAT  = 6                    ; a directory entry's name length, then its name
 KNAMEMAX = 15                   ; the characters a name has at most
-RDALTCHAR = $C01E               ; a //e's or //c's alternate characters, in bit 7
-ALTCHAROFF = $C00E              ; the primary characters, which flash
-ALTCHARON = $C00F
 
 dokrunch: jsr modoff           ; the disk buffers, and the module on them
         lda PKTBUF+1

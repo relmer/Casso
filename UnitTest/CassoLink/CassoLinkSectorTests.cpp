@@ -638,7 +638,7 @@ public:
 
         for (const std::string & screen : rig.screens)
         {
-            if (screen.find ("D1: READING") != std::string::npos && screen.find (" 50%") != std::string::npos)
+            if (screen.find ("D1: Reading") != std::string::npos && screen.find (" 50%") != std::string::npos)
             {
                 reading = screen;
                 break;
