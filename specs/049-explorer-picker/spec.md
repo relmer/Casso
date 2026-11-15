@@ -173,7 +173,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 
 - **FR-001**: One classification call MUST return, for a file, whether it is an image and, when it is, its form factor (5.25-inch, 3.5-inch, hard disk or tape) and its formatted size.
 - **FR-002**: Classification MUST read only the file's extension, length and header. It MUST NOT read the whole image, decode tracks or parse the file system.
-- **FR-003**: Classification MUST cover WOZ images (form factor and side count from the header), `.dsk`, `.do`, `.po`, `.nib` and `.d13` sector and nibble images, 2IMG, DiskCopy 4.2, raw block images including `.hdv`, and tape recordings.
+- **FR-003**: Classification MUST cover WOZ images (form factor and side count from the header), `.dsk`, `.do`, `.po`, `.nib` and `.nb2` sector and nibble images, 2IMG, DiskCopy 4.2, raw block images including `.hdv`, and tape recordings.
 - **FR-004**: A block image's form factor MUST follow from its block count: 280 blocks is 5.25-inch 140K, 800 blocks is 3.5-inch 400K, 1,600 blocks is 3.5-inch 800K, and any other count, including the 2,880 blocks of a 1.44 MB disk, is a hard disk whose formatted size is its capacity.
 - **FR-005**: A tape MUST be classified from its extension alone.
 - **FR-006**: A file that has an image extension and fails the checks in FR-003 and FR-004 MUST be reported as not classified, distinct from a file that is not an image, so a damaged image is never listed as a healthy one.

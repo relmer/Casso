@@ -14,7 +14,6 @@ Findings from the tree at `c1b467925` (048 merged, including `0436d69df`). Each 
 | 2IMG | `2IMG` signature | image format field (DOS order, ProDOS order, nibble) and block count; nibble and DOS order are 5.25-inch |
 | DiskCopy 4.2 | magic word at offset 0x52 and a consistent data length | data length: 409,600 is 400K, 819,200 is 800K, anything else by block count |
 | `.nib` | extension and length 232,960 | 5.25-inch 140K |
-| `.d13` | extension and length 116,480 | 5.25-inch, 13-sector, labeled 113K |
 | `.dsk`, `.do` | extension and length 143,360 | 5.25-inch 140K; other lengths that are a multiple of 512 follow the block rule |
 | `.po`, `.hdv`, raw | extension and a length that is a non-zero multiple of 512 | block count through `BlockDeviceMedia::IsFloppyBlockCount`: 280 is 5.25-inch 140K, 800 is 3.5-inch 400K, 1,600 is 3.5-inch 800K, any other count is a hard disk, including the 2,880 blocks of a 1.44 MB disk |
 | tape | `TapeImageLoader::IsTapeFileExtension` | tape, no size |
@@ -169,3 +168,27 @@ Searched every unmerged remote branch for picker, classifier and dialog seam cha
 | Window | picker opened from each drive kind, posted input, captured | manual validation with a test instance, see quickstart.md |
 
 Each new test is checked against a stubbed implementation to confirm it fails, as `.github/copilot-instructions.md` requires for tests of new API.
+
+## Verification results (Phase 1, 2026-11-14)
+
+**T003, `WozLoader::Describe`.** It walks chunks while `chunkPos + chunkSize <= rawSize` and stops at the first chunk that does not fit, so a 512-byte head is enough for INFO (always the first chunk, at offset 20, 60 bytes). `Description::diskType` comes from INFO. The 3.5-inch side count is INFO byte 2 (`disk sides`, version 2 and up); `WozInfo` does not expose it today, so the classifier reads that byte directly from the head with the offsets `WozLoader` uses, and falls back to the TMAP-independent rule "two sides" when INFO is version 1. No change to `WozLoader` is required.
+
+**T004, extension lists.**
+- `DiskImageStore::IsMountableImageExtension` (Disk II): `.dsk`, `.do`, `.po`, `.woz`, `.nib`, `.nb2`.
+- `BlockImageFile` block extensions (3.5-inch drives and hard disks): `.po`, `.hdv`, `.2mg`, `.2img`, `.img`, `.dc`, `.dc42`, `.image`, `.iso`, `.hd`. `BlockDeviceMedia::Attach` also takes WOZ by signature.
+- `TapeImageLoader::IsTapeFileExtension`: `.wav`, `.aif`, `.aiff`, `.aifc`, `.mp3`, `.flac`, `.ogg`.
+- `.d13` is in none of them: no drive mounts a 13-sector image. The classifier does not treat `.d13` as an image, and the `.d13` rows are removed from R1's table and T008.
+- `.dsk` reaches the 3.5-inch drives through `BlockImageFile::Open`, which opens any extension as raw blocks, so an 800K `.dsk` is a 3.5-inch image (as the old 3.5-inch filter listed).
+
+**T005, drives.**
+- The UniDisk 3.5 is a `Sony35Drive` mechanism (`UniDisk35Drive::m_mechanism`), the same as the Apple 3.5 Drive. `Sony35Drive::Insert` takes a WOZ by signature (`InsertWoz`) and a block image of exactly 800 or 1,600 blocks. So `UniDisk35` and `Apple35` accept the same images, and `isBlockReadable` is not a condition for either. `ReceivingDriveKind::UniDisk35` is kept as a kind for the picker's header text only.
+- Hard disks attach through `StorageCardWiring` with `BlockDriveSpec::maxBlocks` from `BlockDeviceCatalog::FindDrive`, and `StorageCardWiring::RejectFloppyImage` rejects `BlockDeviceMedia::IsFloppyBlockCount` (280, 800, 1,600). `ReceivingDrive::maxBlocks` is taken from the drive's `BlockDriveSpec`.
+
+**T006, column ids.** In `GetColumnId`, an added column's id is `kFirstAddedColumnId + (column - kOriginalColumnCount)` and a shell property's is `kOriginalColumnCount + (column - kColumnCount)`, so columns appended after `Sha256` get new ids and every stored id has the same value. `IsCollectionColumn` is `column >= FileSystem && column < kColumnCount`, which would make the appended columns collection-only; T026 changes it to an explicit range ending at `Sha256`.
+
+**T007, recent list readers.**
+- `ShellDisks.cpp:328`: records a mount and writes the prefs.
+- `WindowCommandManager::GetRecentMedia`: prunes missing files on every open; used only by `PromptInsertDiskMru` and `PromptInsertTapeMru`, which Phase 10 removes. No menu displays the list, so `kMenuEntries` limits only the startup boot disk picker.
+- `GuiMain.cpp:386` and `AssetBootstrap::PromptBootDiskMru`: the startup boot disk picker, shown before the emulator window exists when no disk is saved. It prunes with `fs::exists` per entry; at 1,000 entries this is up to 1,000 file checks once at startup. It is limited to `kMenuEntries` before the check.
+- `KnownFolderStore::SeedFromMru` and `LoadPickerFolders`: seed the Casso node's folders.
+- **Open question for the owner:** the startup boot disk picker is a separate dialog from the insert disk dialog. This plan does not change it. The question goes to the owner at gate G1.
