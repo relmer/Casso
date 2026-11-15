@@ -316,6 +316,8 @@ void CassoExplorerFullSendPage::InitProtection (ProtectionParts & parts)
 {
     m_protection = &parts;
 
+    Adopt (parts.volume);
+    Adopt (parts.volumeNote);
     Adopt (parts.head);
     Adopt (parts.note);
 
@@ -336,7 +338,8 @@ void CassoExplorerFullSendPage::InitProtection (ProtectionParts & parts)
 //
 //  CassoExplorerFullSendPage::LayoutProtection
 //
-//  The section from `top` down; returns its bottom.
+//  The volume's checkbox and the section from `top` down; returns their
+//  bottom.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -346,7 +349,12 @@ int CassoExplorerFullSendPage::LayoutProtection (int top, const RECT & boundsDip
     int                           labelH   = scaler.ToPx (kLabelHeightDip);
     int                           fieldH   = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
     int                           optionH  = scaler.ToPx (kOptionLabelHeightDip + kOptionGapDip);
-    int                           headTop  = top + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
+    int                           indent   = scaler.ToPx (CassoExplorerGeneralPage::kNoteIndentDip);
+    int                           volTop   = top + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
+    int                           volEnd   = volTop + fieldH;
+    int                           volNote  = volEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int                           volBelow = volNote + CassoExplorerVerifyPage::GetNoteHeightPx (m_protection->volumeNote, width - indent, scaler, 0);
+    int                           headTop  = volBelow + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
     int                           noteTop  = headTop + labelH;
     int                           noteEnd  = noteTop + CassoExplorerVerifyPage::GetNoteHeightPx (m_protection->note, width, scaler, kNoteHeightDip);
     int                           at       = noteEnd;
@@ -356,6 +364,8 @@ int CassoExplorerFullSendPage::LayoutProtection (int top, const RECT & boundsDip
 
 
 
+    m_protection->volume.Layout     (RECT { boundsDip.left, volTop, boundsDip.right, volEnd }, scaler);
+    m_protection->volumeNote.Layout (RECT { boundsDip.left + indent, volNote, boundsDip.right, volBelow }, scaler);
     m_protection->head.Layout (RECT { boundsDip.left, headTop, boundsDip.right, noteTop }, scaler);
     m_protection->note.Layout (RECT { boundsDip.left, noteTop, boundsDip.right, noteEnd }, scaler);
 
@@ -401,6 +411,8 @@ bool CassoExplorerFullSendPage::OnMouse (const DxuiMouseEvent & ev)
 
     if (m_protection != nullptr)
     {
+        handled = handled || m_protection->volume.OnMouse (ev);
+
         for (DxuiCheckbox & condition : m_protection->conditions)
         {
             handled = handled || condition.OnMouse (ev);
@@ -750,6 +762,15 @@ void CassoExplorerOptionsDialog::WireProtection()
 
 
 
+    m_fullSendProtection.volume.SetLabel (L"Save a disk with a nonstandard volume number as a WOZ image");
+    m_fullSendProtection.volume.SetSingleLineLabel (true);
+    m_fullSendProtection.volume.SetChecked (choices.volumeWoz);
+
+    m_fullSendProtection.volumeNote.SetText (L"A .dsk, .do or .po image can't store a disk's volume number: Casso uses 254, or the volume in a DOS 3.3 catalog. "
+                                             L"With this on, a disk with any other volume number is saved as a WOZ image, whatever image type is selected above.");
+    ExplorerTextStyles::Apply (m_fullSendProtection.volumeNote, ExplorerTextStyles::kFormNote);
+    m_fullSendProtection.volumeNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+
     m_fullSendProtection.head.SetText (L"Copy-protected disks");
     ExplorerTextStyles::Apply (m_fullSendProtection.head, ExplorerTextStyles::kFormLabel);
 
@@ -1043,6 +1064,7 @@ HRESULT CassoExplorerOptionsDialog::OnOk()
     m_choices.fullSendProtection.diskCode     = m_fullSendProtection.conditions[2].IsChecked();
     m_choices.fullSendProtection.otherBoot    = m_fullSendProtection.conditions[3].IsChecked();
     m_choices.fullSendProtection.captureRaw   = m_fullSendProtection.action.GetSelected() == 0;
+    m_choices.fullSendProtection.volumeWoz    = m_fullSendProtection.volume.IsChecked();
     m_choices.hostNaming = m_naming.GetSelected();
     m_confirmed          = true;
 

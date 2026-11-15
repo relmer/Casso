@@ -554,6 +554,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("protectDiskCode",     JsonValue (fullSendProtection.diskCode));
     root.emplace_back ("protectOtherBoot",    JsonValue (fullSendProtection.otherBoot));
     root.emplace_back ("protectCaptureRaw",   JsonValue (fullSendProtection.captureRaw));
+    root.emplace_back ("volumeWoz",           JsonValue (fullSendProtection.volumeWoz));
     root.emplace_back ("bootSoundPlace", JsonValue ((double) bootSoundPlace));
 
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
@@ -820,6 +821,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("protectDiskCode",     fullSendProtection.diskCode);
     root.HasBool ("protectOtherBoot",    fullSendProtection.otherBoot);
     root.HasBool ("protectCaptureRaw",   fullSendProtection.captureRaw);
+    root.HasBool ("volumeWoz",           fullSendProtection.volumeWoz);
     //  One of the places, and the PC for a number that isn't.
     {
         double  place = bootSoundPlace;

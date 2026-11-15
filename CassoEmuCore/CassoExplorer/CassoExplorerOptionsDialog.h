@@ -93,11 +93,14 @@ private:
 class CassoExplorerFullSendPage : public DxuiPropertyPage
 {
 public:
-    //  The Copy-protected disks section, below the image types: a heading, a
-    //  note, a checkbox for each condition, and the choice for a disk with
+    //  Below the image types, the checkbox for a disk with a nonstandard
+    //  volume and its note, then the Copy-protected disks section: a heading,
+    //  a note, a checkbox for each condition, and the choice for a disk with
     //  any of them.
     struct ProtectionParts
     {
+        DxuiCheckbox                 volume;
+        DxuiLabel                    volumeNote;
         DxuiLabel                    head;
         DxuiLabel                    note;
         std::array<DxuiCheckbox, 4>  conditions;

@@ -36,7 +36,9 @@ struct ProtectionSigns
 //
 //  The Full Send options' Copy-protected disks section: the conditions that
 //  mark a disk as likely copy-protected, and whether such a disk is captured
-//  raw or saved as its sector copy with that status.
+//  raw or saved as its sector copy with that status. And, from outside the
+//  section, whether a disk whose address fields' volume a sector image can't
+//  reproduce is saved as a WOZ built from its sectors.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +49,7 @@ struct FullSendProtectionChoices
     bool  diskCode     = true;
     bool  otherBoot    = true;
     bool  captureRaw   = true;
+    bool  volumeWoz    = true;
 
     bool  IsMet (const ProtectionSigns & signs) const
     {

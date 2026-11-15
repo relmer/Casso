@@ -81,7 +81,8 @@ public:
         bool                                  bootTones      = false;
         std::array<bool, 2>                   writeProtected = { false, false };
         bool                                  measuring      = false;
-        std::vector<TrackLayout>              layouts;   // a disk read's, when measuring
+        std::vector<TrackLayout>              layouts;   // each track's, for a read when measuring and for MeasureLayouts
+        std::vector<int>                      measures;  // the tracks of each MeasureLayouts
 
         //  Called at the end of the Nth whole-disk read, counted from 1, and
         //  at the Nth wait for a key.
@@ -120,6 +121,15 @@ public:
         bool     IsVerifying() override { return verifying; }
         void     ToggleVerify() override { verifying = !verifying; }
         void     SetMeasuring (bool on) override { measuring = on; }
+
+        HRESULT  MeasureLayouts (int drive, int tracks, std::vector<TrackLayout> & outLayouts) override
+        {
+            UNREFERENCED_PARAMETER (drive);
+
+            measures.push_back (tracks);
+            outLayouts.assign (layouts.begin(), layouts.begin() + (ptrdiff_t) std::min ((size_t) tracks, layouts.size()));
+            return S_OK;
+        }
 
         HRESULT  ReadDisk (int drive, Image & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport) override
         {
@@ -1127,6 +1137,73 @@ public:
         sectors.Run();
 
         Assert::IsFalse (sectors.link.measuring);
+    }
+
+    //  The layouts of a disk at 300 rpm whose address fields have `volume`.
+    static std::vector<TrackLayout>  MakeLayouts (Byte volume)
+    {
+        std::vector<TrackLayout>  layouts;
+
+        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            layouts.push_back (TrackLayout { volume, 6330, TrackLayoutWriter::kDefaultBits, (track * 30763LL) % TrackLayoutWriter::kDefaultBits });
+        }
+
+        return layouts;
+    }
+
+    //  A disk whose track 0 has a volume its sector image can't reproduce is
+    //  measured on every track and saved as a WOZ built to the layouts,
+    //  whatever image type is chosen.
+    TEST_METHOD (Session_ADiskWithAVolumeItsImageCantStore_IsSavedAsABuiltWoz)
+    {
+        Rig    rig;
+        Image  built;
+
+        rig.extension       = ".dsk";
+        rig.link.drives[0]  = Dos ("GAME");
+        rig.link.present[1] = false;
+        rig.link.layouts    = MakeLayouts (0);
+
+        auto  session = rig.Run();
+
+        Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size());
+        Assert::IsTrue (session->GetManifest().GetRows()[0].file.ends_with (".woz"), L"A WOZ in place of the .dsk");
+        Assert::IsTrue (rig.link.measures == std::vector<int> { 1, NibblizationLayer::kTrackCount }, L"Track 0, then every track");
+
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (rig.link.drives[0], rig.link.layouts, built));
+        Assert::IsTrue (rig.io.files["C:\\Box\\" + session->GetManifest().GetRows()[0].file] == built, L"The WOZ is built to the layouts");
+        Assert::IsTrue (std::any_of (rig.link.reports.begin(), rig.link.reports.end(), [] (const std::string & line) { return line.find ("volume number 0") != std::string::npos; }));
+    }
+
+    //  A disk with the volume its image is nibblized with, the DOS 3.3
+    //  catalog's here, is a sector image after a measure of track 0; with
+    //  the option off, no track is measured.
+    TEST_METHOD (Session_ADiskWithItsImagesVolume_OrWithTheOptionOff_IsASectorImage)
+    {
+        Rig  rig;
+        Rig  off;
+
+        rig.extension       = ".dsk";
+        rig.link.drives[0]  = Dos ("GAME");
+        rig.link.present[1] = false;
+        rig.link.layouts    = MakeLayouts (254);
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (session->GetManifest().GetRows()[0].file.ends_with (".dsk"));
+        Assert::IsTrue (rig.link.measures == std::vector<int> { 1 });
+
+        off.extension            = ".dsk";
+        off.link.drives[0]       = Dos ("GAME");
+        off.link.present[1]      = false;
+        off.link.layouts         = MakeLayouts (0);
+        off.protection.volumeWoz = false;
+
+        auto  unmeasured = off.Run();
+
+        Assert::IsTrue (unmeasured->GetManifest().GetRows()[0].file.ends_with (".dsk"));
+        Assert::IsTrue (off.link.measures.empty());
     }
 
     TEST_METHOD (Session_WithBootTonesOnTheApple_TheResultsToneIsInPlaceOfTheDisks)

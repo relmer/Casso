@@ -1204,6 +1204,12 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     hr = CaptureProtected (drive, image, unreadable, report, raw, isLikely);
     CHR (hr);
 
+    if (raw.empty())
+    {
+        hr = CheckVolume (drive, image, report);
+        CHR (hr);
+    }
+
     //  The disk is numbered, written and listed under the folder's lock, from
     //  the manifest as it is now: another Apple may have sent to this folder
     //  during the read.
@@ -1444,6 +1450,49 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendSession::CheckVolume
+//
+//  A sector image has no place for the address fields' volume, so a disk
+//  whose track 0 has a volume other than the one its sector image is
+//  nibblized with is measured on every track and saved as a WOZ built to
+//  the layouts, whatever image type is chosen. A disk measured during its
+//  read, or whose track 0 can't be measured, is left as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::CheckVolume (int drive, const std::vector<Byte> & image, FullSendReadReport & ioReport)
+{
+    HRESULT                   hr          = S_OK;
+    std::vector<TrackLayout>  layouts;
+    Byte                      imageVolume = NibblizationLayer::GetImageVolume (image);
+    bool                      differs     = false;
+
+
+
+    BAIL_OUT_IF (!m_protection.volumeWoz || !ioReport.layouts.empty(), S_OK);
+
+    hr = m_link.MeasureLayouts (drive, 1, layouts);
+    CHR (hr);
+
+    differs = !layouts.empty() && layouts[0].nibbles != 0 && layouts[0].volume != imageVolume;
+    BAIL_OUT_IF (!differs, S_OK);
+
+    Report (std::format ("The disk in drive {} has volume number {}, which a {} image can't store, so it is saved as a WOZ image",
+                         drive, layouts[0].volume, FullSendDisk::GetImageExtension (image, m_extension)));
+
+    hr = m_link.MeasureLayouts (drive, NibblizationLayer::kTrackCount, ioReport.layouts);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendSession::WriteImage
 //
 //  CreateNew, so an existing file is never overwritten. When a file from another
@@ -1451,15 +1500,16 @@ Error:
 //  is added. The list of unreadable sectors goes beside the image, as for
 //  Read disk to image. A raw capture is written as the image, a WOZ, with
 //  no list, as it has every sector the disk has; its reads, when the link
-//  returned them, go beside it with kReadsSuffix added. A sector image saved
-//  as a WOZ is built to the tracks' layouts when the link measured them.
+//  returned them, go beside it with kReadsSuffix added. A disk whose tracks
+//  the link measured is saved as a WOZ built to their layouts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT FullSendSession::WriteImage (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, bool writeProtected, std::string & outFile)
 {
     HRESULT                          hr        = S_OK;
-    std::string                      extension = raw.empty() ? FullSendDisk::GetImageExtension (image, m_extension) : std::string (kRawExtension);
+    bool                             isWoz     = !raw.empty() || !report.layouts.empty();
+    std::string                      extension = isWoz ? std::string (kRawExtension) : FullSendDisk::GetImageExtension (image, m_extension);
     std::string                      text;
     std::vector<Byte>                bytes     = raw;
     DiskFormat                       format    = DiskFormat::Dsk;
@@ -1468,7 +1518,7 @@ HRESULT FullSendSession::WriteImage (const std::string & title, const std::vecto
 
 
 
-    if (raw.empty() && extension == kRawExtension && !report.layouts.empty())
+    if (raw.empty() && !report.layouts.empty())
     {
         hr = TrackLayoutWriter::BuildWoz (image, report.layouts, bytes);
         CHR (hr);
