@@ -1089,6 +1089,7 @@ cradv:  jsr pollcancel
         bne crnext
         lda peor
         jsr putb
+        jsr showprog            ; the last sector's share, so the bar is drawn to the request's end
 crdone: jmp opdone
 
 ; sectorcrc: crclo and crchi for the sector at dst and dstp, from its raw values
