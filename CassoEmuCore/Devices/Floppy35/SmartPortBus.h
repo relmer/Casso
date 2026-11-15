@@ -28,8 +28,9 @@ class BitLine
 {
 public:
     void  Write (Byte bit, uint64_t cellEndNs, uint32_t cellNs);
-    Byte  Read  (uint64_t cellEndNs, uint32_t cellNs);
-    void  Clear () { m_events.clear(); }
+    Byte  Read    (uint64_t cellEndNs, uint32_t cellNs);
+    void  Clear   () { m_events.clear(); }
+    bool  IsEmpty () const { return m_events.empty(); }
 
 private:
     static constexpr size_t  kMaxEvents = 16384;

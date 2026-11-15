@@ -127,6 +127,12 @@ void DeviceCpu::RunUntil (uint64_t targetCycle)
         }
 
         m_cycles += cycles;
+        m_instructions++;
+
+        if (m_idleLoop && m_cycles < targetCycle && m_cpu->GetPC() == m_idlePc)
+        {
+            m_cycles += m_idleLoop (targetCycle - m_cycles);
+        }
     }
 }
 
@@ -143,4 +149,19 @@ void DeviceCpu::RunUntil (uint64_t targetCycle)
 Word DeviceCpu::GetPC() const
 {
     return (m_cpu != nullptr) ? m_cpu->GetPC() : (Word) 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRegisters
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Cpu6502Registers DeviceCpu::GetRegisters() const
+{
+    return (m_cpu != nullptr) ? m_cpu->GetRegisters() : Cpu6502Registers {};
 }

@@ -14,7 +14,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  FakeDriveBus
 //
 //  A drive whose disk is a loop of bits, recording what is written and the
-//  phases it was given.
+//  phases it was given. `quiet` is what GetQuietUntil returns.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,6 +27,7 @@ public:
     void      WriteCell (Byte bit, uint64_t) override { written.push_back (bit); }
     void      Advance   (uint64_t elapsedNs) override { elapsed += elapsedNs; }
     uint32_t  GetCellNs() const override { return kCellNs; }
+    uint64_t  GetQuietUntil() const override { return quiet; }
 
     static constexpr uint32_t  kCellNs = 2000;
 
@@ -35,6 +36,7 @@ public:
     std::array<bool, 4>  phases  = {};
     size_t               at      = 0;
     uint64_t             elapsed = 0;
+    uint64_t             quiet   = 0;
     bool                 sense   = true;
 };
 
@@ -143,6 +145,57 @@ public:
         data = iwm.Access (kQ6Off, false, 0, 16 * FakeDriveBus::kCellNs);
         Assert::AreEqual ((Byte) 0xAA, data);
         Assert::AreEqual (16 * (uint64_t) FakeDriveBus::kCellNs, drive.elapsed);
+    }
+
+
+    //  While the drive's cells read 0 and the shift register is empty, the
+    //  IWM passes over them without reading them, up to the drive's quiet
+    //  time, and then reads cells again.
+    TEST_METHOD (Read_PassesOverQuietCells)
+    {
+        constexpr uint64_t  kQuietCells = 500;
+
+        Iwm           iwm;
+        FakeDriveBus  drive;
+        Byte          data = 0;
+
+
+
+        drive.quiet = kQuietCells * FakeDriveBus::kCellNs;
+        AppendByte (drive.loop, 0xD5);
+        iwm.AttachDrive (0, &drive);
+        iwm.Access (kMotorOn, false, 0, 0);
+
+        iwm.AdvanceTo (kQuietCells * FakeDriveBus::kCellNs);
+        Assert::AreEqual ((size_t) 0, drive.at, L"no quiet cell is read");
+
+        drive.quiet = 0;
+        data        = iwm.Access (kQ6Off, false, 0, (kQuietCells + 8) * FakeDriveBus::kCellNs);
+
+        Assert::AreEqual ((size_t) 8, drive.at, L"the cells after the quiet time are read");
+        Assert::AreEqual ((Byte) 0xD5, data);
+    }
+
+
+    //  A shift register with bits in it reads every cell, quiet or not, until
+    //  the byte is complete.
+    TEST_METHOD (Read_ReadsQuietCellsWhileAByteIsInTheShiftRegister)
+    {
+        Iwm           iwm;
+        FakeDriveBus  drive;
+
+
+
+        drive.loop = { 1 };
+        iwm.AttachDrive (0, &drive);
+        iwm.Access (kMotorOn, false, 0, 0);
+        iwm.AdvanceTo (FakeDriveBus::kCellNs);
+
+        drive.loop  = { 0 };
+        drive.quiet = IDiskDriveBus::kQuietForever;
+        iwm.AdvanceTo (20 * FakeDriveBus::kCellNs);
+
+        Assert::AreEqual ((size_t) 8, drive.at, L"the shift register's bit is in bit 7 after seven more cells");
     }
 
 

@@ -86,6 +86,7 @@ public:
     void      WriteCell (Byte bit, uint64_t cellEndNs) override;
     void      Advance   (uint64_t elapsedNs) override { m_mechanism.Advance (elapsedNs); }
     uint32_t  GetCellNs () const override;
+    uint64_t  GetQuietUntil () const override;
 
     // IFloppy35EventSource
     void  SetFloppy35EventSink (IFloppy35EventSink * sink) override { m_mechanism.SetFloppy35EventSink (sink); }
@@ -105,6 +106,11 @@ private:
     static constexpr uint64_t  kNsPerCycle = 1'000'000'000 / kClockHz;
     static constexpr uint64_t  kMaxCatchUp = kClockHz;
 
+    static constexpr Word      kIdleLoop       = 0xEC08;
+    static constexpr uint64_t  kIdlePassCycles = 109;
+
+    uint64_t  SkipIdleLoop      (uint64_t cyclesLeft);
+    bool      IsIdleLoopInRom   () const;
     bool      IsOnBus           () const { return (m_reg0 & kIwmDir) != 0; }
     bool      IsMechanismActive () const { return !IsOnBus() && (m_reg1 & kDrive1) != 0; }
     bool      IsBusEnabled      () const;
@@ -128,4 +134,5 @@ private:
     bool                  m_latch1    = false;
     bool                  m_latch2    = false;
     bool                  m_resetHeld = false;
+    uint64_t              m_idleAt    = 0;
 };

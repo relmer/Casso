@@ -78,18 +78,22 @@ public:
     Byte                 GetBank       () const { return m_bank; }
 
 private:
-    static constexpr Word      kSlotIoBase    = 0xC080;
-    static constexpr Word      kSlotIoStride  = 0x10;
-    static constexpr Word      kBankWindow    = 0xC800;
-    static constexpr Word      kFixedWindow   = 0xCC00;
-    static constexpr Word      kBankBytes     = 0x400;
-    static constexpr Word      kPageRam       = 0x7B00;
-    static constexpr Word      kFixedRam      = 0x7C00;
-    static constexpr uint32_t  kCardClockHz   = 2'045'454;
-    static constexpr uint64_t  kMaxCatchUp    = 4'000'000;
+    static constexpr Word      kSlotIoBase     = 0xC080;
+    static constexpr Word      kSlotIoStride   = 0x10;
+    static constexpr Word      kBankWindow     = 0xC800;
+    static constexpr Word      kFixedWindow    = 0xCC00;
+    static constexpr Word      kBankBytes      = 0x400;
+    static constexpr Word      kPageRam        = 0x7B00;
+    static constexpr Word      kFixedRam       = 0x7C00;
+    static constexpr uint32_t  kCardClockHz    = 2'045'454;
+    static constexpr uint64_t  kMaxCatchUp     = 4'000'000;
+    static constexpr Word      kIdleLoop       = 0xD1A6;
+    static constexpr uint64_t  kIdlePassCycles = 14;
 
-    Word  GetRamAddress (Word address) const;
-    void  MapCardPages  ();
+    Word      GetRamAddress   (Word address) const;
+    void      MapCardPages    ();
+    uint64_t  SkipIdleLoop    (uint64_t cyclesLeft);
+    bool      IsIdleLoopInRom ();
 
     int                  m_slot       = 0;
     Word                 m_ioStart    = 0;

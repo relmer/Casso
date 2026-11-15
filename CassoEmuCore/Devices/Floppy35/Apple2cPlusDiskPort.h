@@ -93,6 +93,7 @@ private:
         void      WriteCell (Byte bit, uint64_t cellEndNs) override;
         void      Advance   (uint64_t elapsedNs) override;
         uint32_t  GetCellNs () const override;
+        uint64_t  GetQuietUntil () const override;
 
     private:
         IDiskDriveBus  & Sync ();

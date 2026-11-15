@@ -187,8 +187,29 @@ void Iwm::AdvanceTo (uint64_t nowNs)
 
     while (m_cellCarryNs >= drive->GetCellNs())
     {
-        m_cellCarryNs -= drive->GetCellNs();
-        boundary      += drive->GetCellNs();
+        uint64_t  cellNs = drive->GetCellNs();
+        uint64_t  quiet  = 0;
+        uint64_t  cells  = 1;
+
+
+
+        //  Reading, with nothing shifted in: cells that read 0 shift in only
+        //  zeros, so the shift register is 0 after them and no byte completes.
+        if (!m_q7 && m_shift == 0)
+        {
+            quiet = drive->GetQuietUntil();
+            cells = (quiet > boundary + cellNs) ? std::min (m_cellCarryNs / cellNs, (quiet - boundary) / cellNs) : 1;
+        }
+
+        if (cells > 1)
+        {
+            m_cellCarryNs -= cells * cellNs;
+            boundary      += cells * cellNs;
+            continue;
+        }
+
+        m_cellCarryNs -= cellNs;
+        boundary      += cellNs;
         MoveCell (boundary);
     }
 }

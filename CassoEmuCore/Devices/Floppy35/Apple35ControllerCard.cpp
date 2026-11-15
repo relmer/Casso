@@ -249,6 +249,11 @@ HRESULT Apple35ControllerCard::SetFirmware (std::vector<Byte> firmware)
     MapCardPages();
     m_cpu.Reset();
 
+    if (IsIdleLoopInRom())
+    {
+        m_cpu.SetIdleLoop (kIdleLoop, [this] (uint64_t cyclesLeft) { return SkipIdleLoop (cyclesLeft); });
+    }
+
 Error:
     return hr;
 }
@@ -303,6 +308,73 @@ void Apple35ControllerCard::CatchUp()
     cardRun      = std::min (elapsed * kCardClockHz / m_hostHz, kMaxCatchUp);
 
     m_cpu.RunUntil (m_cpu.GetCycles() + cardRun);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SkipIdleLoop
+//
+//  The firmware's loop at $D1A6 polls for a command from the Apple. A pass
+//  decrements the counter at $AD and, while the counter isn't zero, reads
+//  the mailbox at $00 and loops while its bit 7 is set: 14 cycles, with no
+//  I/O. The Apple writes the mailbox only between catch-ups. The passes
+//  before the one that takes the counter to zero are skipped, and that one
+//  runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t Apple35ControllerCard::SkipIdleLoop (uint64_t cyclesLeft)
+{
+    constexpr Word       kMailbox  = 0x00;
+    constexpr Word       kCounter  = 0xAD;
+    constexpr Byte       kNegative = 0x80;
+    constexpr Byte       kZero     = 0x02;
+    std::vector<Byte>  & ram       = m_memory.GetRam();
+    Cpu6502Registers     regs      = m_cpu.GetRegisters();
+    Byte                 counter   = ram[kCounter];
+    uint64_t             passes    = (counter == 0) ? 0xFF : (uint64_t) counter - 1;
+    bool                 waiting   = (ram[kMailbox] & kNegative) != 0 && regs.a == ram[kMailbox] && (regs.p & (kNegative | kZero)) == kNegative;
+
+
+
+    if (!waiting)
+    {
+        return 0;
+    }
+
+    passes        = std::min (passes, cyclesLeft / kIdlePassCycles);
+    ram[kCounter] = (Byte) (counter - passes);
+
+    return passes * kIdlePassCycles;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsIdleLoopInRom
+//
+//  Whether the ROM's bytes at the idle loop are the ones SkipIdleLoop is
+//  written for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple35ControllerCard::IsIdleLoopInRom()
+{
+    constexpr Word             kRomStart = 0x8000;
+    static const Byte          s_kLoop[] = { 0xC6, 0xAD, 0xD0, 0x0C, 0xC6, 0xAE, 0xD0, 0x08, 0xCA, 0xD0, 0x05, 0x20, 0xDD, 0xD8, 0xA2, 0x03, 0xA5, 0x00, 0x30, 0xEC };
+    const std::vector<Byte>  & rom       = m_memory.GetRom();
+    size_t                     offset    = (size_t) (kIdleLoop - kRomStart);
+
+
+
+    return rom.size() >= offset + std::size (s_kLoop) && std::equal (std::begin (s_kLoop), std::end (s_kLoop), rom.begin() + (ptrdiff_t) offset);
 }
 
 

@@ -73,9 +73,17 @@ public:
     void      Advance   (uint64_t elapsedNs) override;
     uint32_t  GetCellNs () const override { return kCellNs; }
 
+    //  A cell reads 0, with the disk left where it is, while the motor is off,
+    //  the drive is empty or the head is on a side the disk doesn't have.
+    uint64_t  GetQuietUntil () const override { return (!m_motorOn || !HasDisk() || GetSide() >= m_sides) ? kQuietForever : 0; }
+
     void      SetSel    (bool sel);
 
     bool  IsMotorOn  () const { return m_motorOn; }
+
+    //  Nothing changes with time alone: the motor is off and no step or
+    //  eject is under way.
+    bool  IsIdle     () const { return !m_motorOn && m_stepLeftNs == 0 && m_ejectLeftNs == 0; }
     int   GetTrack   () const { return m_track; }
     int   GetSide    () const { return m_sel ? 1 : 0; }
 
