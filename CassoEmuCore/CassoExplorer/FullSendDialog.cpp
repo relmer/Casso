@@ -533,7 +533,7 @@ std::wstring FullSendPanel::DescribeTotals (const FullSendTotals & totals)
 
 
 
-    text += std::format (L"    {} elapsed", FormatSeconds (totals.elapsed));
+    text += std::format (L"    {} active, {} idle", FormatSeconds (totals.elapsed), FormatSeconds (totals.idle));
 
     if (totals.sent != 0)
     {
