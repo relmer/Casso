@@ -237,6 +237,13 @@ std::string FullSendDisk::GetCatalogTitle (const std::vector<Byte> & image)
             std::erase_if (title, [] (char ch) { return (unsigned char) ch < ' ' || ch == '\x7F'; });
             title.erase (0, title.find_first_not_of (' '));
             title.erase (title.find_last_not_of (' ') + 1);
+
+            //  HELLO is the startup program's name on most DOS 3.3 disks, so
+            //  it's no title: the image's title comes from its boot screen.
+            if (_stricmp (title.c_str(), s_kStartupProgram) == 0)
+            {
+                title.clear();
+            }
         }
     }
     else if (!TryGetPascalVolume (image, title))

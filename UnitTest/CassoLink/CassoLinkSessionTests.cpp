@@ -1246,7 +1246,7 @@ public:
         auto  send = rig.Finish (rig.session->FullSend ("C:\\Box", "", ""));
 
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
-        Assert::IsTrue (rig.fileIo.files["C:\\Box\\0001 HELLO.dsk"] == rig.Drive (1));
+        Assert::IsTrue (rig.fileIo.files["C:\\Box\\0001.dsk"] == rig.Drive (1));
         Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\0002 LINKED.po"));
         Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\manifest.fullsend"));
         Assert::AreEqual (2, rig.apple.keyWaits.load(), L"the entry screen and the pause");
@@ -1327,7 +1327,7 @@ public:
 
         rig.Finish (send);
 
-        Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\0001 HELLO.do"));
+        Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\0001.do"));
     }
 
 

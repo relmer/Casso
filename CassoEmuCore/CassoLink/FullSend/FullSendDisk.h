@@ -34,7 +34,7 @@ public:
     static HRESULT  ComputeHash        (std::span<const Byte> image, std::string & outHex);
 
     //  The volume's name on ProDOS or Apple Pascal, the first program's on
-    //  DOS 3.3; empty when the catalog has neither.
+    //  DOS 3.3 unless it is HELLO; empty when the catalog has neither.
     static std::string  GetCatalogTitle (const std::vector<Byte> & image);
 
     //  Whether a disk's tracks 0 and 17 have no file system Casso recognizes, so
@@ -84,6 +84,8 @@ public:
     static std::string  GetImageExtension (const std::vector<Byte> & image, const std::string & chosen);
 
 private:
+    static constexpr const char *  s_kStartupProgram = "HELLO";
+
     static bool         TryGetPascalVolume (const std::vector<Byte> & image, std::string & outName);
     static std::string  ToHex              (const std::vector<Byte> & digest);
     static int          FindDosEntries     (const std::vector<Byte> & image, Byte & outListTrack, Byte & outListSector, Byte & outType, int & outSectors);
