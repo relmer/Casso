@@ -1057,6 +1057,7 @@ public:
         Assert::IsTrue (rig.io.readOnlyFiles.contains ("C:\\Box\\" + session->GetManifest().GetRows()[0].file), L"The read-only attribute");
         Assert::IsTrue (rig.io.readOnlyFiles["C:\\Box\\" + session->GetManifest().GetRows()[0].file]);
     }
+
     TEST_METHOD (Session_WithBootTonesOnTheApple_TheResultsToneIsInPlaceOfTheDisks)
     {
         Rig  rig;

@@ -93,6 +93,7 @@ public:
 
     //  The bit of Status's drive byte that marks a write-protected disk.
     static constexpr Byte  kStatusWriteProtected = 0x40;
+
     static constexpr Byte  kCancel        = 0xD1;
     static constexpr Byte  kLabel         = 0xDC;
     static constexpr Byte  kLog           = 0xDD;
