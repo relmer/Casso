@@ -327,7 +327,7 @@ HRESULT RepairDialog::Run (
     dialog.ShowModalDialog (IDOK);
 
     canWrite = dialog.IsConfirmed();
-    BAIL_OUT_IF (!canWrite, S_FALSE);
+    BAIL_OUT_IF (!canWrite, S_OK);
 
     hr = RepairCopy::Write (io, imagePath, "", dialog.GetPlan(), outCopyPath, reason);
     CHRF (hr, outNote = L"Repair failed: " + reason);

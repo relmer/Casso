@@ -729,7 +729,7 @@ void PreviewDiskThumbnail::RepairImage()
         m_context.statusBar.SetActivity (note);
     }
 
-    if (hr == S_OK)
+    if (SUCCEEDED (hr) && !written.empty())
     {
         m_context.tabManager.SelectInFolder (TextEncoding::Utf8ToWide (written));
     }

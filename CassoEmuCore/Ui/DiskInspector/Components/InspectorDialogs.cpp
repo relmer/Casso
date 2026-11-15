@@ -115,7 +115,7 @@ void InspectorDialogs::OpenRepair (const std::set<std::wstring> & chosen)
         m_host.SetStatusNote (note);
     }
 
-    if (hr == S_OK && m_session.host != nullptr)
+    if (SUCCEEDED (hr) && !written.empty() && m_session.host != nullptr)
     {
         m_session.host->OnRepairedCopyWritten (TextEncoding::Utf8ToWide (written));
     }

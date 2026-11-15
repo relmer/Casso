@@ -85,8 +85,9 @@ public:
 
     //  The image file analyzed as saved, the confirmation with the chosen
     //  changes checked, and the copy written beside the image. S_OK with the
-    //  copy's path; S_FALSE when the user cancels; a failure with a note for
-    //  the status bar when repair isn't available or the copy isn't written.
+    //  copy's path, which is empty when the user cancels; a failure with a
+    //  note for the status bar when repair isn't available or the copy isn't
+    //  written.
     static HRESULT  Run (HWND                            owner,
                          const IDxuiTheme              * theme,
                          IDiskFileIo                   & io,

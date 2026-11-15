@@ -888,6 +888,8 @@ bool ExplorerPreviewManager::HandleWheel (const DxuiMouseEvent & ev)
 {
     static constexpr float  kStepDip = 3.0f * PreviewListingView::kRowHeightDip;
 
+
+
     POINT  point    = ev.positionDip;
     bool   isOver   = m_shown && m_thumbnail.IsShown() && point.x >= m_rect.left && point.x < m_rect.right && point.y >= m_headerTop && point.y < m_rect.bottom;
     bool   isHeader = isOver && point.y < m_content.top;
