@@ -116,6 +116,7 @@ public:
     bool    UpdateDriveBarHover    (POINT pt);
     bool    HandleDriveBarClick    (POINT pt);
     bool    SyncDriveBarViews      ();
+    bool    AnimateDriveBarFan     ();
 
     // With auto-hide on the desk, the bar rides the desk slide: it is laid
     // out again at the slide's progress. The slide remains up while the
@@ -240,8 +241,11 @@ private:
     int                        m_driveBarInsetPx    = 0;
     int                        m_driveBarClientW    = 0;
     int                        m_driveBarClientH    = 0;
+    uint64_t                   m_driveBarFanStartMs = 0;
     int                        m_driveBarHoverClass = -1;
     int                        m_driveBarHoverEntry = -1;
+
+    static constexpr uint64_t  s_kDriveBarFanSlideMs = 160;
 
     // The views from the last sync, so a repaint is requested only on a change.
     std::vector<std::vector<DriveBarEntryView>>  m_driveBarViews;

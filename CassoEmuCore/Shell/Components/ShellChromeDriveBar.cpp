@@ -21,8 +21,9 @@
 //  drawn at the window's DPI, not zoomed with the desk scene: the scene
 //  zooms out to fit the desk, and the bar shrank with it.
 //
-//  With auto-hide on the desk, the row rises from the bottom edge as far as
-//  the desk slide has come, and the bar is hidden while the slide is down.
+//  With auto-hide on the desk, every class is expanded, and the whole bar
+//  rises from the bottom edge as far as the desk slide has come, so the fans
+//  arrive with the widgets. The bar is hidden while the slide is down.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +38,8 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
     int                           bottomGap = MulDiv (s_kLabelBottomGapDp,        (int) dpi, s_kBaseDpi);
     int                           gapY      = MulDiv (4, (int) dpi, s_kBaseDpi);
     int                           pad       = MulDiv (6, (int) dpi, s_kBaseDpi);
+    int                           arrow     = MulDiv (14, (int) dpi, s_kBaseDpi);
+    bool                          sliding   = m_shell.IsDeskSlideActive();
     int                           originX   = 0;
     int                           rowTop    = 0;
 
@@ -56,21 +59,24 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
     originX = std::max (0, (clientW - DriveBarFan::GetRowWidth (fan.GetClassCount(), slot.cx, gap)) / 2);
     rowTop  = std::max (clientH - bottomInsetPx, clientH - (int) slot.cy - bottomGap);
 
-    if (m_shell.IsDeskSlideActive())
-    {
-        rowTop = clientH - (int) lroundf (m_deskSlideProgress * (float) (slot.cy + bottomGap));
-    }
+    fan.SetExpandAll (sliding);
+    fan.Layout       (originX, rowTop, slot, gap, gapY, pad, arrow);
 
-    fan.Layout (originX, rowTop, slot, gap, gapY, pad);
-
-    if (m_shell.IsDeskSlideActive() && m_deskSlideProgress <= 0.0f)
+    if (sliding)
     {
         fan.Close();
+        fan.SetFanProgress (1.0f);
+
+        // The band has no height under auto-hide, so the row is placed from
+        // the window's bottom edge.
+        rowTop = clientH - (int) slot.cy - bottomGap
+               + (int) lroundf ((1.0f - m_deskSlideProgress) * (float) (fan.GetExpandedHeight() + pad + bottomGap));
+        fan.Layout (originX, rowTop, slot, gap, gapY, pad, arrow);
     }
 
     m_driveBarFan.SetDpi     (dpi);
     m_driveBarFan.SetBounds  (RECT { 0, 0, clientW, clientH });
-    m_driveBarFan.SetVisible (fan.GetClassCount() > 0 && (!m_shell.IsDeskSlideActive() || m_deskSlideProgress > 0.0f));
+    m_driveBarFan.SetVisible (fan.GetClassCount() > 0 && (!sliding || m_deskSlideProgress > 0.0f));
 
     PlaceDriveBarWidgets();
     (void) SyncDriveBarViews();
@@ -103,20 +109,25 @@ void ShellChrome::SlideDriveBar()
 //
 //  ShellChrome::IsPointOnDriveBar
 //
-//  On a visible drive's slot or on the open fan's panel.
+//  In a class's box.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ShellChrome::IsPointOnDriveBar (POINT pt) const
 {
-    const DriveBarFan  & fan   = m_driveBarFan.GetFan();
-    RECT                 panel = fan.GetPanelRect();
-    int                  c     = -1;
-    int                  entry = -1;
+    const DriveBarFan  & fan = m_driveBarFan.GetFan();
+    bool                 on  = false;
 
 
 
-    return m_driveBarFan.IsVisible() && (fan.HitTest (pt, c, entry) || PtInRect (&panel, pt) != FALSE);
+    for (int c = 0; c < fan.GetClassCount() && m_driveBarFan.IsVisible(); c++)
+    {
+        RECT  panel = fan.GetPanelRect (c);
+
+        on = on || PtInRect (&panel, pt) != FALSE;
+    }
+
+    return on;
 }
 
 
@@ -144,7 +155,9 @@ void ShellChrome::HideDriveBar()
 //  ShellChrome::PlaceDriveBarWidgets
 //
 //  Each Disk II widget is placed in its drive's slot while the slot is
-//  visible, and hidden otherwise.
+//  visible, and hidden otherwise. In a fan sliding out from behind the
+//  widget, a Disk II appears once its slot is clear of the widget: its
+//  widget draws over everything, so it cannot be cropped like the others.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -172,7 +185,8 @@ void ShellChrome::PlaceDriveBarWidgets()
                 const DeskDrive  & drive = fan.GetDrive (c, i);
 
                 if ((drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c) &&
-                    drive.drive == w && fan.IsSlotShown (c, i))
+                    drive.drive == w && fan.IsSlotShown (c, i) &&
+                    (i == 0 || fan.GetSlotRect (c, i).bottom <= fan.GetRowTop()))
                 {
                     slot  = fan.GetSlotRect (c, i);
                     shown = true;
@@ -222,6 +236,12 @@ bool ShellChrome::UpdateDriveBarHover (POINT pt)
 
     if (fan.UpdateHover (pt))
     {
+        if (fan.GetOpenClass() >= 0)
+        {
+            fan.SetFanProgress (0.0f);
+            m_driveBarFanStartMs = GetTickCount64();
+        }
+
         PlaceDriveBarWidgets();
         m_shell.m_scene->SyncSceneDriveChrome();
         changed = true;
@@ -253,7 +273,7 @@ bool ShellChrome::UpdateDriveBarHover (POINT pt)
 //  ShellChrome::HandleDriveBarClick
 //
 //  A Disk II ejects and browses, as its widget does elsewhere; a 3.5-inch
-//  drive browses. A click on a hard disk, or on the panel between drives, is
+//  drive browses. A click on a hard disk, or in a box between drives, is
 //  taken and does nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -261,7 +281,6 @@ bool ShellChrome::UpdateDriveBarHover (POINT pt)
 bool ShellChrome::HandleDriveBarClick (POINT pt)
 {
     const DriveBarFan  & fan   = m_driveBarFan.GetFan();
-    RECT                 panel = fan.GetPanelRect();
     int                  c     = -1;
     int                  entry = -1;
     bool                 took  = false;
@@ -292,10 +311,49 @@ bool ShellChrome::HandleDriveBarClick (POINT pt)
     }
     else
     {
-        took = PtInRect (&panel, pt) != FALSE;
+        took = IsPointOnDriveBar (pt);
     }
 
     return took;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::AnimateDriveBarFan
+//
+//  Slides an opening fan up from behind its widget. Returns true while it is
+//  moving, which requires a repaint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellChrome::AnimateDriveBarFan()
+{
+    DriveBarFan  & fan    = m_driveBarFan.GetFan();
+    bool           moving = fan.GetOpenClass() >= 0 && !fan.IsExpandAll() && fan.GetFanProgress() < 1.0f;
+    float          t      = 0.0f;
+
+
+
+    if (moving)
+    {
+        t = (float) (GetTickCount64() - m_driveBarFanStartMs) / (float) s_kDriveBarFanSlideMs;
+        t = std::min (1.0f, t);
+
+        // Ease out, so the fan arrives rather than stopping.
+        fan.SetFanProgress (1.0f - (1.0f - t) * (1.0f - t));
+        PlaceDriveBarWidgets();
+
+        if (t >= 1.0f)
+        {
+            m_shell.m_scene->SyncSceneDriveChrome();
+        }
+    }
+
+    return moving;
 }
 
 

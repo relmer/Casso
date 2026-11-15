@@ -802,9 +802,15 @@ bool ShellRenderer::TryPresentUiFrame()
         }
 
         // Refresh the drive bar's labels and lamps.
-        if (m_shell.m_chrome->m_driveBarFan.IsVisible() && m_shell.m_chrome->SyncDriveBarViews())
+        if (m_shell.m_chrome->m_driveBarFan.IsVisible())
         {
-            m_d3dRenderer.MarkRedrawNeeded();
+            bool  sliding = m_shell.m_chrome->AnimateDriveBarFan();
+            bool  changed = m_shell.m_chrome->SyncDriveBarViews();
+
+            if (sliding || changed)
+            {
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
         }
 
         // The volume wheel stands where the tape volume is, however it was

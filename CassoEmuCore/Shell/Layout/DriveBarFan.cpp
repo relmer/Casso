@@ -63,8 +63,6 @@ std::vector<std::vector<DeskDrive>> DriveBarFan::Group (const std::vector<DeskDr
 void DriveBarFan::SetClasses (std::vector<std::vector<DeskDrive>> classes)
 {
     m_classes = std::move (classes);
-    m_slots.assign (m_classes.size(), {});
-    m_panels.assign (m_classes.size(), RECT {});
 
     if (m_openClass >= (int) m_classes.size())
     {
@@ -95,33 +93,44 @@ int DriveBarFan::GetRowWidth (int classCount, int slotWidthPx, int gapPx)
 //
 //  DriveBarFan::Layout
 //
+//  Only the inputs are stored: the slots and boxes follow the open fan and
+//  its progress, which change between layouts.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DriveBarFan::Layout (int originX, int rowTop, SIZE slotPx, int gapXPx, int gapYPx, int panelPadPx)
+void DriveBarFan::Layout (int originX, int rowTop, SIZE slotPx, int gapXPx, int gapYPx, int panelPadPx, int arrowPx)
 {
-    for (size_t c = 0; c < m_classes.size(); c++)
+    m_originX = originX;
+    m_rowTop  = rowTop;
+    m_slot    = slotPx;
+    m_gapX    = gapXPx;
+    m_gapY    = gapYPx;
+    m_pad     = panelPadPx;
+    m_arrow   = arrowPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveBarFan::GetExpandedHeight
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DriveBarFan::GetExpandedHeight() const
+{
+    int  tallest = 0;
+
+
+
+    for (const std::vector<DeskDrive> & drives : m_classes)
     {
-        int  x = originX + (int) c * (slotPx.cx + gapXPx);
-
-
-
-        m_slots[c].assign (m_classes[c].size(), RECT {});
-        m_panels[c] = {};
-
-        for (size_t i = 0; i < m_classes[c].size(); i++)
-        {
-            int  y = rowTop - (int) i * (slotPx.cy + gapYPx);
-
-            m_slots[c][i] = { x, y, x + slotPx.cx, y + slotPx.cy };
-        }
-
-        if (m_classes[c].size() > 1)
-        {
-            const RECT &  top = m_slots[c].back();
-
-            m_panels[c] = { x - panelPadPx, top.top - panelPadPx, x + slotPx.cx + panelPadPx, rowTop };
-        }
+        tallest = std::max (tallest, (int) drives.size());
     }
+
+    return (tallest == 0) ? 0 : tallest * (int) m_slot.cy + (tallest - 1) * m_gapY + m_pad;
 }
 
 
@@ -162,19 +171,41 @@ const DeskDrive & DriveBarFan::GetDrive (int classIndex, int entry) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DriveBarFan::IsClassOpen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DriveBarFan::IsClassOpen (int classIndex) const
+{
+    return GetEntryCount (classIndex) > 1 && (m_expandAll || classIndex == m_openClass);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DriveBarFan::GetSlotRect
+//
+//  A fan drive's slot rises from the widget's slot to its place in the fan
+//  as the progress runs to 1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT DriveBarFan::GetSlotRect (int classIndex, int entry) const
 {
-    RECT  rc = {};
+    RECT   rc       = {};
+    int    x        = m_originX + classIndex * ((int) m_slot.cx + m_gapX);
+    float  progress = IsClassOpen (classIndex) ? m_fanProgress : 0.0f;
+    int    y        = 0;
 
 
 
-    if (entry >= 0 && entry < GetEntryCount (classIndex) && (size_t) entry < m_slots[(size_t) classIndex].size())
+    if (entry >= 0 && entry < GetEntryCount (classIndex))
     {
-        rc = m_slots[(size_t) classIndex][(size_t) entry];
+        y  = m_rowTop - (int) lroundf ((float) (entry * ((int) m_slot.cy + m_gapY)) * progress);
+        rc = { x, y, x + (int) m_slot.cx, y + (int) m_slot.cy };
     }
 
     return rc;
@@ -194,7 +225,7 @@ RECT DriveBarFan::GetSlotRect (int classIndex, int entry) const
 
 bool DriveBarFan::IsSlotShown (int classIndex, int entry) const
 {
-    return entry >= 0 && entry < GetEntryCount (classIndex) && (entry == 0 || classIndex == m_openClass);
+    return entry >= 0 && entry < GetEntryCount (classIndex) && (entry == 0 || IsClassOpen (classIndex));
 }
 
 
@@ -207,9 +238,27 @@ bool DriveBarFan::IsSlotShown (int classIndex, int entry) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DriveBarFan::GetPanelRect() const
+RECT DriveBarFan::GetPanelRect (int classIndex) const
 {
-    return (m_openClass < 0 || m_openClass >= (int) m_panels.size()) ? RECT {} : m_panels[(size_t) m_openClass];
+    RECT  rc    = {};
+    RECT  head  = GetSlotRect (classIndex, 0);
+    RECT  top   = head;
+    int   count = GetEntryCount (classIndex);
+    int   extra = (count > 1 && !m_expandAll) ? m_arrow : 0;
+
+
+
+    if (count > 0)
+    {
+        if (IsClassOpen (classIndex))
+        {
+            top = GetSlotRect (classIndex, count - 1);
+        }
+
+        rc = { head.left - m_pad, top.top - m_pad, head.right + m_pad + extra, head.bottom + m_pad };
+    }
+
+    return rc;
 }
 
 
@@ -229,12 +278,16 @@ bool DriveBarFan::UpdateHover (POINT pt)
 
 
 
+    if (m_expandAll)
+    {
+        return false;
+    }
+
     if (m_openClass >= 0 && m_openClass < (int) m_classes.size())
     {
-        RECT  head  = GetSlotRect (m_openClass, 0);
-        RECT  panel = m_panels[(size_t) m_openClass];
+        RECT  panel = GetPanelRect (m_openClass);
 
-        if (PtInRect (&head, pt) || PtInRect (&panel, pt))
+        if (PtInRect (&panel, pt))
         {
             open = m_openClass;
         }
@@ -277,6 +330,9 @@ void DriveBarFan::Close()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DriveBarFan::HitTest
+//
+//  The widget first: the fan drives slide out from behind it, so while they
+//  overlap, the widget is the one in front.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -70,47 +70,66 @@ void DriveBarFanControl::Layout (const RECT & boundsDip, const DxuiDpiScaler & s
 //
 //  DriveBarFanControl::Paint
 //
+//  Each class's box, then its fan drives, cropped above the widget while
+//  they slide out from behind it, then the widget, so the widget is in front
+//  of them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DriveBarFanControl::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & dxuiTheme)
 {
-    const CassoTheme  & theme = static_cast<const CassoTheme &> (dxuiTheme);
-    RECT                panel = m_fan.GetPanelRect();
+    HRESULT             hr     = S_OK;
+    const CassoTheme  & theme  = static_cast<const CassoTheme &> (dxuiTheme);
+    float               radius = (float) Scale (kPanelRadiusPx, m_dpi);
 
 
 
     _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
 
-    if (panel.right > panel.left)
+    for (int c = 0; c < m_fan.GetClassCount() && c < (int) m_views.size(); c++)
     {
-        float  radius = (float) Scale (kPanelRadiusPx, m_dpi);
-        float  w      = (float) (panel.right  - panel.left);
-        float  h      = (float) (panel.bottom - panel.top);
+        RECT   panel   = m_fan.GetPanelRect (c);
+        RECT   head    = m_fan.GetSlotRect (c, 0);
+        float  w       = (float) (panel.right  - panel.left);
+        float  h       = (float) (panel.bottom - panel.top);
+        bool   sliding = m_fan.IsClassOpen (c) && m_fan.GetFanProgress() < 1.0f;
+
+
 
         painter.FillRoundedRect    ((float) panel.left, (float) panel.top, w, h, radius, theme.dropdownBg);
         painter.OutlineRoundedRect ((float) panel.left, (float) panel.top, w, h, radius, 1.0f, theme.dropdownBorder);
-    }
 
-    for (int c = 0; c < m_fan.GetClassCount() && c < (int) m_views.size(); c++)
-    {
-        for (int i = 0; i < m_fan.GetEntryCount (c) && i < (int) m_views[(size_t) c].size(); i++)
+        if (sliding)
         {
-            RECT  slot = m_fan.GetSlotRect (c, i);
+            painter.PushClipRect ((float) panel.left, (float) panel.top, w, (float) (head.top - panel.top));
+            hr = text.PushClipRect ((float) panel.left, (float) panel.top, w, (float) (head.top - panel.top));
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
 
-            if (!m_fan.IsSlotShown (c, i))
+        for (int i = (int) m_views[(size_t) c].size() - 1; i >= 1; i--)
+        {
+            if (i < m_fan.GetEntryCount (c) && m_fan.IsSlotShown (c, i) && !m_views[(size_t) c][(size_t) i].diskII)
             {
-                continue;
+                PaintEntry (painter, text, theme, m_fan.GetSlotRect (c, i), m_views[(size_t) c][(size_t) i],
+                            c == m_hoverClass && i == m_hoverEntry);
             }
+        }
 
-            if (!m_views[(size_t) c][(size_t) i].diskII)
-            {
-                PaintEntry (painter, text, theme, slot, m_views[(size_t) c][(size_t) i], c == m_hoverClass && i == m_hoverEntry);
-            }
+        if (sliding)
+        {
+            painter.PopClipRect();
+            hr = text.PopClipRect();
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
 
-            if (i == 0 && m_fan.GetEntryCount (c) > 1)
-            {
-                PaintArrow (painter, theme, slot);
-            }
+        if (!m_views[(size_t) c].empty() && !m_views[(size_t) c][0].diskII)
+        {
+            PaintEntry (painter, text, theme, head, m_views[(size_t) c][0], c == m_hoverClass && m_hoverEntry == 0);
+        }
+
+        if (m_fan.GetEntryCount (c) > 1 && !m_fan.IsClassOpen (c))
+        {
+            PaintArrow (painter, theme, head, panel);
         }
     }
 }
@@ -194,15 +213,15 @@ void DriveBarFanControl::PaintEntry (
 //
 //  DriveBarFanControl::PaintArrow
 //
-//  An up arrow just right of a class widget's name row, clear of the name,
-//  marking the drives that fan out above it.
+//  An up arrow in the room at the right of a closed class's box, level with
+//  the widget's name row, marking the drives that fan out above it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DriveBarFanControl::PaintArrow (IDxuiPainter & painter, const CassoTheme & theme, const RECT & slot)
+void DriveBarFanControl::PaintArrow (IDxuiPainter & painter, const CassoTheme & theme, const RECT & slot, const RECT & panel)
 {
     float  half  = (float) Scale (kArrowHalfPx, m_dpi);
-    float  cx    = (float) slot.right + half * 2.0f;
+    float  cx    = (float) (slot.right + panel.right) * 0.5f;
     float  cy    = (float) slot.top + (float) Scale (kNameHeightPx, m_dpi) * 0.5f;
     float  thick = std::max (1.0f, (float) m_dpi / (float) kBaseDpi * 1.5f);
 

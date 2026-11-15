@@ -30,8 +30,8 @@ struct DriveBarEntryView
 //  The drive bar's 3.5-inch drives and hard disks under the desk scene, in
 //  the compact drive widget's layout: the caption in a column on the left,
 //  the image's name, and a rail under it that lights while the drive is busy.
-//  Over a class's widget with more drives, an up arrow at the right of the
-//  name row marks the fan, and the open fan is drawn on a panel above it.
+//  Each class is drawn in a box. A closed class with more drives has an up
+//  arrow at the right of its box, and its open fan grows the box upward.
 //
 //  Adopted ahead of the Disk II widgets, so the panel is drawn behind the
 //  ones placed on it.
@@ -75,7 +75,7 @@ private:
 
     void  PaintEntry (IDxuiPainter & painter, IDxuiTextRenderer & text, const CassoTheme & theme,
                       const RECT & slot, const DriveBarEntryView & view, bool hovered);
-    void  PaintArrow (IDxuiPainter & painter, const CassoTheme & theme, const RECT & slot);
+    void  PaintArrow (IDxuiPainter & painter, const CassoTheme & theme, const RECT & slot, const RECT & panel);
 
     DriveBarFan                                   m_fan;
     std::vector<std::vector<DriveBarEntryView>>   m_views;

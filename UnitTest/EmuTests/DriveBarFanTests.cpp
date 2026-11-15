@@ -55,7 +55,7 @@ public:
         plan.push_back (onDesk);
 
         fan.SetClasses (DriveBarFan::Group (plan));
-        fan.Layout (100, 500, SIZE { 200, 40 }, 20, 4, 6);
+        fan.Layout (100, 500, SIZE { 200, 40 }, 20, 4, 6, 10);
 
         return fan;
     }
@@ -80,12 +80,19 @@ public:
     TEST_METHOD (Layout_WidgetsInARow_FanStacksUpward)
     {
         DriveBarFan  fan   = MakeFan();
-        RECT         head0 = fan.GetSlotRect (0, 0);
-        RECT         head1 = fan.GetSlotRect (1, 0);
-        RECT         fan1  = fan.GetSlotRect (0, 1);
-        RECT         fan2  = fan.GetSlotRect (0, 2);
+        RECT         head0 = {};
+        RECT         head1 = {};
+        RECT         fan1  = {};
+        RECT         fan2  = {};
 
 
+
+        fan.UpdateHover (POINT { 150, 510 });
+
+        head0 = fan.GetSlotRect (0, 0);
+        head1 = fan.GetSlotRect (1, 0);
+        fan1  = fan.GetSlotRect (0, 1);
+        fan2  = fan.GetSlotRect (0, 2);
 
         Assert::AreEqual (100L, head0.left);
         Assert::AreEqual (500L, head0.top);
@@ -111,16 +118,68 @@ public:
         Assert::AreEqual (0, fan.GetOpenClass());
         Assert::IsTrue (fan.IsSlotShown (0, 2));
 
-        panel = fan.GetPanelRect();
-        Assert::AreEqual (500L, panel.bottom, L"the panel extends to the widget's top");
+        panel = fan.GetPanelRect (0);
+        Assert::AreEqual (546L, panel.bottom, L"the box takes in the widget");
         Assert::AreEqual (406L, panel.top);
+        Assert::AreEqual (316L, panel.right, L"the arrow's room remains, so the box does not change width");
 
         Assert::IsFalse (fan.UpdateHover (POINT { 150, 498 }), L"between a fan slot and the widget");
         Assert::IsFalse (fan.UpdateHover (POINT { 150, 420 }), L"on the top fan slot");
 
         Assert::IsTrue (fan.UpdateHover (POINT { 150, 300 }), L"off the panel");
         Assert::AreEqual (-1, fan.GetOpenClass());
-        Assert::IsTrue (fan.GetPanelRect().right == 0);
+        Assert::IsFalse (fan.IsClassOpen (0));
+    }
+
+
+    TEST_METHOD (Panel_ClosedClass_BoxesItsWidget_WithRoomForTheArrow)
+    {
+        DriveBarFan  fan   = MakeFan();
+        RECT         panel = fan.GetPanelRect (0);
+
+
+
+        Assert::AreEqual (494L, panel.top,    L"the widget's top less the margin");
+        Assert::AreEqual (546L, panel.bottom);
+        Assert::AreEqual (316L, panel.right,  L"the margin and the arrow's room");
+    }
+
+
+    TEST_METHOD (Progress_SlidesTheFanUpFromBehindTheWidget)
+    {
+        DriveBarFan  fan = MakeFan();
+
+
+
+        fan.UpdateHover (POINT { 150, 510 });
+
+        fan.SetFanProgress (0.0f);
+        Assert::AreEqual (500L, fan.GetSlotRect (0, 2).top, L"behind the widget at the start");
+
+        fan.SetFanProgress (0.5f);
+        Assert::AreEqual (456L, fan.GetSlotRect (0, 2).top, L"halfway up");
+        Assert::AreEqual (450L, fan.GetPanelRect (0).top,   L"the box grows with it");
+
+        fan.SetFanProgress (1.0f);
+        Assert::AreEqual (412L, fan.GetSlotRect (0, 2).top);
+    }
+
+
+    TEST_METHOD (ExpandAll_OpensEveryClass_AndIgnoresHover)
+    {
+        DriveBarFan  fan = MakeFan();
+
+
+
+        fan.SetExpandAll (true);
+
+        Assert::IsTrue  (fan.IsClassOpen (0));
+        Assert::IsTrue  (fan.IsClassOpen (1));
+        Assert::IsTrue  (fan.IsSlotShown (1, 1));
+        Assert::IsFalse (fan.UpdateHover (POINT { 150, 300 }), L"the pointer does not close it");
+        Assert::IsTrue  (fan.IsClassOpen (0));
+        Assert::AreEqual (134, fan.GetExpandedHeight(), L"three drives, two gaps and the margin");
+        Assert::AreEqual (306L, fan.GetPanelRect (0).right, L"no arrow when everything is open");
     }
 
 
@@ -132,7 +191,7 @@ public:
 
 
         fan.SetClasses (DriveBarFan::Group (plan));
-        fan.Layout (0, 100, SIZE { 200, 40 }, 20, 4, 6);
+        fan.Layout (0, 100, SIZE { 200, 40 }, 20, 4, 6, 10);
 
         Assert::IsFalse (fan.UpdateHover (POINT { 10, 110 }));
         Assert::AreEqual (-1, fan.GetOpenClass());
