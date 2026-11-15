@@ -89,10 +89,12 @@ the interaction, sound and event log the Disk II already has.
   than two, stacks on the right,
   the hard disks on the left, and nothing is under the monitor. A hard disk narrower than the monitor stands on the left, as the
   HD20SC beside a //e does now.
-- Q: Does a hard disk mount a floppy-size image? A: No. An HD20SC or a
-  ProFile doesn't mount a 140K, 400K or 800K image, whatever its container:
-  no real hard disk has that capacity. The CFFA and A2Pico cards mount
-  floppy-size images.
+- Q: What is the smallest image a hard disk mounts? A: 5 MB, the 5 MB
+  ProFile's 9,728 blocks: no hard disk an Apple II used was smaller. An
+  HD20SC or a ProFile doesn't mount a smaller image, and a 140K, 400K or
+  800K one is reported as a floppy disk image. `TestMachine` takes a lower
+  minimum for tests; there is no switch for it in Casso. The CFFA
+  and A2Pico cards mount small images.
 - Q: Should a hard disk's spindle be audible? A: No. The synthesized spindle
   hum was annoying, so a hard disk makes only its seek ticks.
 

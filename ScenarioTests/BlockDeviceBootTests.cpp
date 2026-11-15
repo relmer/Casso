@@ -79,11 +79,11 @@ public:
     }
 
 
-    //  A hard disk doesn't take a floppy-size image, so a 140K volume becomes
-    //  a hard disk image by being padded to a size no floppy has. The volume
-    //  inside it is 280 blocks long, and ToDosOrder reads those 280 back.
+    //  A hard disk mounts an image of at least 5 MB, so a 140K volume becomes
+    //  a hard disk image by being padded to that size. The volume inside it
+    //  is 280 blocks long, and ToDosOrder reads those 280 back.
     static constexpr size_t  kFloppyBytes    = 143'360;
-    static constexpr size_t  kHardDiskBlocks = 2'048;
+    static constexpr size_t  kHardDiskBlocks = BlockDeviceCatalog::kMinHardDiskBlocks;
 
     static std::vector<Byte> ToHardDiskImage (const std::vector<Byte> & dosOrder)
     {
@@ -182,6 +182,47 @@ public:
         Assert::IsTrue   (saw800, L"an 800K image on the ProFile is a media problem");
         Assert::IsFalse  (machine.GetRefs().scsiCards[0]->GetTarget (6).GetMedia().IsAttached());
         Assert::IsFalse  (machine.GetRefs().proFileCards[0]->GetDrive().GetMedia().IsAttached());
+    }
+
+
+    //  AN IMAGE UNDER 5 MB DOESN'T MOUNT ON A HARD DISK, and the message has
+    //  the image's size and the smallest a hard disk image is.
+    TEST_METHOD (HardDisks_RefuseAnImageUnderFiveMegabytes)
+    {
+        FakeDiskFileIo     io;
+        std::vector<Byte>  under ((size_t) (BlockDeviceCatalog::kMinHardDiskBlocks - 2) * BlockDeviceMedia::kBlockBytes, 0);
+
+
+
+        io.files[kHardDiskPath]  = under;
+        io.stamps[kHardDiskPath] = FileStamp { under.size(), 1 };
+
+        TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty,
+                              { { 7, kpszAppleScsiCardDevice, MakeScsiPorts (6, kHardDiskPath) } }, io);
+
+        Assert::AreEqual ((size_t) 1, machine.GetBlockMediaProblems().size());
+        Assert::AreEqual (std::wstring (L"Slot 7, SCSI ID 6: The image is 4863K, and a hard disk image is at least 4864K, the capacity of a 5 MB ProFile."),
+                          machine.GetBlockMediaProblems()[0]);
+        Assert::IsFalse  (machine.GetRefs().scsiCards[0]->GetTarget (6).GetMedia().IsAttached());
+    }
+
+
+    //  A TEST THAT LOWERS THE MINIMUM RUNS A HARD DISK OVER A SMALL IMAGE.
+    TEST_METHOD (HardDisks_MountASmallImageWhenATestLowersTheMinimum)
+    {
+        FakeDiskFileIo     io;
+        std::vector<Byte>  under (64 * BlockDeviceMedia::kBlockBytes, 0);
+
+
+
+        io.files[kHardDiskPath]  = under;
+        io.stamps[kHardDiskPath] = FileStamp { under.size(), 1 };
+
+        TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty,
+                              { { 7, kpszAppleScsiCardDevice, MakeScsiPorts (6, kHardDiskPath) } }, io, 0);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsTrue (machine.GetRefs().scsiCards[0]->GetTarget (6).GetMedia().IsAttached());
     }
 
 
@@ -473,7 +514,7 @@ public:
     //  SLOT 6 BOOTS.
     TEST_METHOD (ScsiCard_PassesToTheFloppyWithNoBootableDisk)
     {
-        constexpr size_t   kBlankBlocks = 2048;
+        constexpr size_t   kBlankBlocks = BlockDeviceCatalog::kMinHardDiskBlocks;
 
         std::vector<Byte>  floppy = GuestSession::RequireProDosUsersDisk();
 

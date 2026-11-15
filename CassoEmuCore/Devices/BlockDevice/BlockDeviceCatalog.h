@@ -91,7 +91,12 @@ struct BlockDriveSpec
 class BlockDeviceCatalog
 {
 public:
-    static constexpr uint32_t  kProDosMaxBlocks = 65535;
+    static constexpr uint32_t  kProDosMaxBlocks   = 65535;
+
+    //  The smallest hard disk image an HD20SC or a ProFile mounts: the 5 MB
+    //  ProFile's capacity, the smallest hard disk Apple shipped. No real
+    //  hard disk an Apple II used was smaller.
+    static constexpr uint32_t  kMinHardDiskBlocks = 9728;
 
     static std::span<const BlockCardSpec>   GetCards  ();
     static std::span<const BlockDriveSpec>  GetDrives ();
