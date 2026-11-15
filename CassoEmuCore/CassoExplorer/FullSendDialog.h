@@ -190,6 +190,10 @@ public:
     //  Whether a session is in progress, so End session applies.
     static bool  IsRunning (const FullSendSnapshot & snapshot);
 
+    //  Whether a drive's disk is being checked or read, so ending the session
+    //  loses it.
+    static bool  IsReadingDisk (const FullSendSnapshot & snapshot);
+
     //  At position, the window's top left on the screen, when it is on a
     //  monitor; centered on the owner otherwise. The title is Full Send and
     //  the connection's name, or Full Send for none.

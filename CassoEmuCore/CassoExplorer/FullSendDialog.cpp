@@ -1021,6 +1021,24 @@ bool FullSendDialog::IsRunning (const FullSendSnapshot & snapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendDialog::IsReadingDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendDialog::IsReadingDisk (const FullSendSnapshot & snapshot)
+{
+    return std::any_of (snapshot.drives.begin(), snapshot.drives.end(), [] (const FullSendDriveStatus & drive)
+    {
+        return drive.state == FullSendDiskState::Checking || drive.state == FullSendDiskState::Sending || drive.state == FullSendDiskState::Capturing;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendDialog::OnCreate
 //
 ////////////////////////////////////////////////////////////////////////////////

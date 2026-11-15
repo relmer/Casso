@@ -404,4 +404,24 @@ public:
 
         Assert::IsFalse  (FullSendPanel::MakeManifestView (std::vector<Byte> { 'x' }, snapshot), L"Not a manifest");
     }
+
+    //  Ending a session asks first only while a disk is being read, as that
+    //  disk isn't saved; a session waiting for a disk ends with no question.
+    TEST_METHOD (IsReadingDisk_OnlyWhileADriveIsCheckedOrRead)
+    {
+        FullSendSnapshot  snapshot;
+
+
+
+        snapshot.activity = FullSendActivity::WaitingForDisk;
+        snapshot.drives[0].state = FullSendDiskState::Sent;
+        snapshot.drives[1].state = FullSendDiskState::Blank;
+        Assert::IsFalse (FullSendDialog::IsReadingDisk (snapshot));
+
+        for (FullSendDiskState state : { FullSendDiskState::Checking, FullSendDiskState::Sending, FullSendDiskState::Capturing })
+        {
+            snapshot.drives[1].state = state;
+            Assert::IsTrue (FullSendDialog::IsReadingDisk (snapshot));
+        }
+    }
 };

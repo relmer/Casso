@@ -1777,7 +1777,7 @@ void FullSendSession::End (HRESULT hr)
     switch (m_endReason)
     {
         case EndReason::Quit:          why = "Q was pressed on the Apple.";                                                                                            break;
-        case EndReason::Canceled:        why = "It was canceled.";                                                                                                            break;
+        case EndReason::Canceled:        why = "Full Send session exited from PC.";                                                                                           break;
         case EndReason::ManifestDamaged: why = std::format ("{} could not be read, so no disk was read. Repair or move it, then start again.", FullSendManifest::kFileName); break;
         case EndReason::FileFailed:      why = "A file could not be written to the folder.";                                                                                  break;
         default:                         why = "The link failed.";                                                                                                            break;
