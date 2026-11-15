@@ -104,8 +104,8 @@ the interaction, sound and event log the Disk II already has.
 - Q: How does a //c Plus run downloaded 140K disks? A: From an external
   5.25-inch drive on its disk port, as on the real machine: up to two, at the
   end of the chain, as the //c Technical Reference lists. The port's
-  `device` set to `disk-iic` is one drive, as on the //c; a chain lists each
-  drive. ROM 05 boots port 6 drive 1 when the built-in drive has no disk. A
+  `device` set to `disk-iic-drive` is one drive, as on the //c; a chain
+  lists each drive. ROM 05 boots port 6 drive 1 when the built-in drive has no disk. A
   3.5-inch drive doesn't mount a 140K image.
 
 ## User Scenarios & Testing *(mandatory)*

@@ -61,6 +61,19 @@ public:
     }
 
 
+    //  The //c's built-in drive and its external Disk IIc sit under the
+    //  monitor.
+    TEST_METHOD (CPair_UnderTheMonitor)
+    {
+        auto  plan = DeskDrivePlan::Place ({ { M::Disk2c, 6, 0, true }, { M::Disk2c, 6, 1 } }, P::Auto, P::Auto, kMonitorC);
+
+
+
+        Assert::IsTrue (Find (plan, M::Disk2c, 0).spot == S::UnderMonitor);
+        Assert::IsTrue (Find (plan, M::Disk2c, 1).spot == S::UnderMonitor);
+    }
+
+
     //  A pair that isn't two Disk IIs, such as the //c Plus's 3.5-inch drive
     //  and a Disk IIc, stacks beside the monitor.
     TEST_METHOD (MixedFloppyPair_StacksBesideTheMonitor)
@@ -219,6 +232,10 @@ public:
         config.ports = { disk };
 
         Assert::AreEqual (1, config.CountDiskPortFloppies());
+
+        config.ports[0].device = "disk-iic-drive";
+
+        Assert::AreEqual (1, config.CountDiskPortFloppies(), L"the //c's id for its external drive");
 
         config.ports[0].chain.resize (3);
         config.ports[0].chain[0].device = kpszUniDisk35Device;

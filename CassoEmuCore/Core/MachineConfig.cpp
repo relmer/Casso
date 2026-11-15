@@ -13,6 +13,10 @@ static constexpr int    kMaxSlot       = 7;
 static constexpr Word   kRamMaxAddress = 0xFFFF;
 static constexpr size_t kRamMaxSize    = 0x10000;
 
+// The //c disk port's device while its external drive is connected, as
+// Settings and MachineConfigUpgrade write it.
+static constexpr const char *  s_kpszDiskIicDrive = "disk-iic-drive";
+
 
 
 
@@ -792,7 +796,8 @@ Error:
 //  MachineConfig::CountDiskPortFloppies
 //
 //  A port with no chain and a 5.25-inch drive as its device has that one
-//  drive, as the //c's disk port lists its external drive.
+//  drive: `disk-iic-drive`, as the //c's disk port lists its external
+//  drive, or the chain's `disk-iic`.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -806,7 +811,7 @@ int MachineConfig::CountDiskPortFloppies() const
     {
         if (port.chain.empty())
         {
-            floppies += (port.device == kpszDiskIicDevice) ? 1 : 0;
+            floppies += (port.device == s_kpszDiskIicDrive || port.device == kpszDiskIicDevice) ? 1 : 0;
         }
 
         for (const PortConfig & entry : port.chain)

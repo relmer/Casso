@@ -3323,7 +3323,9 @@ void ShellDeskScene::PlanDrives()
     m_deskScene.MonitorModel().BoundsMax (hi);
     monitor = hi[0] - lo[0];
 
-    m_drivePlan = DeskDrivePlan::Place (DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), CountDiskIiDrives(), m_shell.m_disks->HasDiskIicDrives()),
+    m_plannedDiskIiCount = CountDiskIiDrives();
+
+    m_drivePlan = DeskDrivePlan::Place (DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), m_plannedDiskIiCount, m_shell.m_disks->HasDiskIicDrives()),
                                         DeskDrivePlan::ParsePlace (prefs.deskFloppies),
                                         DeskDrivePlan::ParsePlace (prefs.deskHardDisks),
                                         monitor,
@@ -3356,6 +3358,28 @@ void ShellDeskScene::PlanDrives()
     }
 
     m_deskScene.SetDrivePlan (m_drivePlan);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::ReplanIfDrivesChanged
+//
+//  The plan is made when the machine's models load, which at startup is
+//  ahead of the //c's external drive being connected from its saved state.
+//  Planned for one drive, the pair stacked beside the monitor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::ReplanIfDrivesChanged()
+{
+    if (m_deskSceneReady && CountDiskIiDrives() != m_plannedDiskIiCount)
+    {
+        PlanDrives();
+    }
 }
 
 

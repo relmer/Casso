@@ -1525,6 +1525,10 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
     m_chrome->m_inChromeLayout = true;
 
+    // A drive connected or removed since the desk was planned moves the
+    // floppies, and this layout is laid out from the plan.
+    m_scene->ReplanIfDrivesChanged();
+
     // A resize restretches the window; drop any open menu so its
     // window-anchored popup is not left stranded.
     if (m_chrome->m_mainMenu.IsOpen())
