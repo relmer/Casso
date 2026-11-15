@@ -69,6 +69,10 @@ public:
 
     static bool  IsPathAttached (const std::string & path);
 
+    //  Whether a block count is a floppy disk's: 280 blocks (140K), 800
+    //  (400K) or 1,600 (800K). A hard disk doesn't take a floppy image.
+    static bool  IsFloppyBlockCount (uint32_t blockCount);
+
 private:
     static std::string  NormalizePath  (const std::string & path);
     static bool         ChangeClaim    (const std::string & key, bool isClaim);

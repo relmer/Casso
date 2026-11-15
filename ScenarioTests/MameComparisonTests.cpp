@@ -155,7 +155,7 @@ public:
             return;
         }
 
-        for (const char * name : { "800k.hdv", "5m.hdv", "32m.hdv", "32m.2mg" })
+        for (const char * name : { "5m.hdv", "32m.hdv", "32m.2mg" })
         {
             FakeDiskFileIo           io;
             std::vector<PortConfig>  ports (AppleScsiCard::kTargets);

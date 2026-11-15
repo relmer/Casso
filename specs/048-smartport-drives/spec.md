@@ -89,6 +89,10 @@ the interaction, sound and event log the Disk II already has.
   than two, stacks on the right,
   the hard disks on the left, and nothing is under the monitor. A hard disk narrower than the monitor stands on the left, as the
   HD20SC beside a //e does now.
+- Q: Does a hard disk mount a floppy-size image? A: No. An HD20SC or a
+  ProFile doesn't mount a 140K, 400K or 800K image, whatever its container:
+  no real hard disk has that capacity. The CFFA and A2Pico cards mount
+  floppy-size images.
 - Q: Should a hard disk's spindle be audible? A: No. The synthesized spindle
   hum was annoying, so a hard disk makes only its seek ticks.
 

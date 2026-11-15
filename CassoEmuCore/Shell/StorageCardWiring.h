@@ -6,6 +6,10 @@
 
 
 
+class BlockDeviceMedia;
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,6 +39,10 @@ public:
 
 private:
     void  AddChainDrives (const PortConfig & port, SmartPortHost & host);
+
+    //  Detaches a floppy-size image from a hard disk. Returns true when it
+    //  was one, with the reason in `outError`.
+    static bool  RejectFloppyImage (BlockDeviceMedia & media, std::wstring & outError);
 
     MachineBuilder        & m_builder;
     MachineHost           & m_host;

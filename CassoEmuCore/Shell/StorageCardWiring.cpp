@@ -117,7 +117,7 @@ void StorageCardWiring::WireAppleScsiCard (const SlotConfig & slot, AppleScsiCar
 
         hr = target.GetMedia().Attach (m_host.GetBlockMediaFileIo(), image, drive->maxBlocks, m_host.ProbeBlockMedia (image), error);
 
-        if (FAILED (hr))
+        if (FAILED (hr) || RejectFloppyImage (target.GetMedia(), error))
         {
             m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, SCSI ID {}: {}", slot.slot, id, error));
         }
@@ -125,6 +125,40 @@ void StorageCardWiring::WireAppleScsiCard (const SlotConfig & slot, AppleScsiCar
 
     m_host.GetRefs().scsiCards.push_back (&card);
     m_host.GetRefs().blockDeviceSources.push_back (&card);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RejectFloppyImage
+//
+//  A 140K, 400K or 800K image is a floppy disk, whatever its container, and
+//  an HD20SC or a ProFile doesn't mount one: no real hard disk has that
+//  capacity. The CFFA and A2Pico cards host floppy images legitimately, so
+//  this is checked here and not in BlockDeviceMedia.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool StorageCardWiring::RejectFloppyImage (BlockDeviceMedia & media, std::wstring & outError)
+{
+    uint32_t  blocks   = media.GetBlockCount();
+    bool      isFloppy = media.IsAttached() && BlockDeviceMedia::IsFloppyBlockCount (blocks);
+    HRESULT   hr       = S_OK;
+
+
+
+    if (isFloppy)
+    {
+        hr = media.Detach();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        outError = std::format (L"The image is a {}K floppy disk image, not a hard disk image.", blocks / 2);
+    }
+
+    return isFloppy;
 }
 
 
@@ -192,7 +226,7 @@ void StorageCardWiring::WireProFileCard (const SlotConfig & slot, ProFileCard & 
 
         hr = card.GetDrive().GetMedia().Attach (m_host.GetBlockMediaFileIo(), image, drive->maxBlocks, m_host.ProbeBlockMedia (image), error);
 
-        if (FAILED (hr))
+        if (FAILED (hr) || RejectFloppyImage (card.GetDrive().GetMedia(), error))
         {
             m_host.GetBlockMediaProblems().push_back (std::format (L"Slot {}, ProFile: {}", slot.slot, error));
         }

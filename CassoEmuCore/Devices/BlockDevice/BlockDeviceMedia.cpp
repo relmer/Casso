@@ -46,6 +46,27 @@ BlockDeviceMedia::~BlockDeviceMedia()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsFloppyBlockCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockDeviceMedia::IsFloppyBlockCount (uint32_t blockCount)
+{
+    constexpr uint32_t  kBlocks140K = 280;
+    constexpr uint32_t  kBlocks400K = 800;
+    constexpr uint32_t  kBlocks800K = 1600;
+
+
+
+    return blockCount == kBlocks140K || blockCount == kBlocks400K || blockCount == kBlocks800K;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Attach
 //
 //  Opens the image and checks it before claiming the path: a DOS-order 2IMG
