@@ -270,7 +270,7 @@
 - [ ] T095 Window check of Casso Explorer as a file manager with a test copy that has no saved serial session: the two columns in an ordinary folder and the Casso node's list; restore only the preferences the run changed
 - [x] T096 Draft the `CHANGELOG.md` entries under `[Unreleased]` (one terse line each: the picker and its save form, the columns, the Casso node's list, the drop cursor, the recent list's size) and the `README.md` changes, and get the owner's approval of the text before pushing them
 - [x] T097 Update `docs/` pages about inserting a disk or the insert disk dialog, found by `rg -il "insert disk" docs README.md`
-- [ ] T098 Merge `origin/048-smartport-drives`, run `scripts\CheckStyle.ps1 -Mode Tree`, then `scripts\RunMergeGate.ps1`; record the results in `specs/049-explorer-picker/validation.md`; push; merge to another branch only on the owner's instruction
+- [x] T098 Merge `origin/048-smartport-drives`, run `scripts\CheckStyle.ps1 -Mode Tree`, then `scripts\RunMergeGate.ps1`; record the results in `specs/049-explorer-picker/validation.md`; push; merge to another branch only on the owner's instruction
 
 ---
 
