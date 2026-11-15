@@ -266,9 +266,9 @@
 
 - [x] T092 [P] Write `ScenarioTests/ImageClassifierScenarioTests.cpp`: for every fixture under `UnitTest/Fixtures/CiderPress/` and `Disks/` that the emulator mounts, the classification's form factor and size equal what the mount reports; a fixture that cannot be read fails the test; assert a non-zero count compared (SC-008)
 - [x] T093 Run `scripts\RunTests.ps1 -Build` and `scripts\RunTests.ps1 -Build -Scenario` and record both results in `specs/049-explorer-picker/validation.md`
-- [ ] T094 Captures of the picker for each drive kind in a light and a dark theme, sent to the owner for the gestalt check; apply the owner's layout changes
+- [x] T094 Captures of the picker for each drive kind in a light and a dark theme, sent to the owner for the gestalt check; apply the owner's layout changes
 - [ ] T095 Window check of Casso Explorer as a file manager with a test copy that has no saved serial session: the two columns in an ordinary folder and the Casso node's list; restore only the preferences the run changed
-- [ ] T096 Draft the `CHANGELOG.md` entries under `[Unreleased]` (one terse line each: the picker and its save form, the columns, the Casso node's list, the drop cursor, the recent list's size) and the `README.md` changes, and get the owner's approval of the text before pushing them
+- [x] T096 Draft the `CHANGELOG.md` entries under `[Unreleased]` (one terse line each: the picker and its save form, the columns, the Casso node's list, the drop cursor, the recent list's size) and the `README.md` changes, and get the owner's approval of the text before pushing them
 - [x] T097 Update `docs/` pages about inserting a disk or the insert disk dialog, found by `rg -il "insert disk" docs README.md`
 - [ ] T098 Merge `origin/048-smartport-drives`, run `scripts\CheckStyle.ps1 -Mode Tree`, then `scripts\RunMergeGate.ps1`; record the results in `specs/049-explorer-picker/validation.md`; push; merge to another branch only on the owner's instruction
 
