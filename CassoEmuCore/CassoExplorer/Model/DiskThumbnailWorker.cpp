@@ -3,6 +3,7 @@
 #include "CassoExplorer/Model/DiskThumbnailWorker.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/InspectorImageLoader.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -230,6 +231,46 @@ DiskThumbnailResult DiskThumbnailWorker::BuildFromBytes (const vector<Byte> & by
     }
 
     result.analysis = analysis;
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskThumbnailWorker::BuildBlocks
+//
+//  The image opened as the inspector's block mode opens it, which reads its
+//  blocks as they are touched, so a 32 MB volume or a card's partition is
+//  not read whole.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskThumbnailResult DiskThumbnailWorker::BuildBlocks (IDiskFileIo & fileIo, const std::wstring & path)
+{
+    HRESULT                          hr    = S_OK;
+    DiskThumbnailResult              result;
+    std::unique_ptr<BlockImageFile>  file;
+    std::wstring                     error;
+    auto                             model = std::make_shared<BlockInspectorModel>();
+
+
+
+    result.path = path;
+
+    hr = BlockImageFile::Open (fileIo, TextEncoding::WideToUtf8 (path), file, error);
+    CHR (hr);
+
+    hr = model->Open (std::move (file));
+    CHR (hr);
+
+    result.isOpened = true;
+    result.chips    = InspectorText::BuildBlockChips (*model);
+    result.blocks   = model;
 
 Error:
     return result;

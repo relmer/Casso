@@ -5,6 +5,8 @@
 #include "Devices/Disk/Inspector/DiskAnalysis.h"
 #include "Devices/Disk/IDiskImage.h"
 
+class BlockInspectorModel;
+enum class BlockFileSystem;
 struct FileMap;
 
 
@@ -31,6 +33,11 @@ enum class SummaryChipKind
     Flux,
     Damaged,
     Volume,
+    Partitions,
+    Blocks,
+    BlocksUsed,
+    Files,
+    CrossLinked,
 };
 
 
@@ -73,6 +80,8 @@ class InspectorText
 {
 public:
     static vector<SummaryChip>  BuildChips          (const DiskSummary & summary);
+    static vector<SummaryChip>  BuildBlockChips     (const BlockInspectorModel & model);
+    static std::wstring         FormatFileSystem    (BlockFileSystem fileSystem);
     static std::wstring         FormatDiskFormat    (DiskFormatClass format);
     static std::wstring         FormatOrdinal       (int n);
     static std::wstring         FormatCount         (int count, LPCWSTR singular, LPCWSTR plural);

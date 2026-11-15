@@ -39,6 +39,9 @@ public:
     void  SetOnSelect (SelectFn fn) { m_onSelect = std::move (fn); }
     void  SetOnHover  (HoverFn fn)  { m_onHover  = std::move (fn); }
 
+    //  Whether the current block's cell is outlined.
+    void  SetOutlined (bool isOutlined) { m_isOutlined = isOutlined; }
+
     //  Reads each cell's role and highlight from the model again.
     void  Refresh ();
 
@@ -69,4 +72,5 @@ private:
     SelectFn               m_onSelect;
     HoverFn                m_onHover;
     int64_t                m_hoverCell   = -1;
+    bool                   m_isOutlined  = true;
 };

@@ -6,6 +6,8 @@
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/PlatterRenderer.h"
 
+class BlockInspectorModel;
+class IDiskFileIo;
 
 
 
@@ -18,6 +20,8 @@
 //  analysis, each record's ring levels, and the summary chips (FR-072). An
 //  image that does not open has isOpened false, and only its error is in
 //  the preview; a 3.5" WOZ has is35 true, and a note is drawn in its place.
+//  An image of blocks, such as a card's partition, has `blocks`, and its
+//  block map is drawn in place of the platter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +35,7 @@ struct DiskThumbnailResult
     vector<std::shared_ptr<const PlatterRenderer::Levels>>  levels;
     vector<std::shared_ptr<const PlatterRenderer::Levels>>  edges;
     vector<SummaryChip>                                     chips;
+    std::shared_ptr<BlockInspectorModel>                    blocks;
 };
 
 
@@ -66,9 +71,11 @@ public:
     void      Cancel     ();
     bool      TakeResult (DiskThumbnailResult & outResult);
 
-    //  The thumbnail of one file, or of a file's bytes, on the calling thread.
+    //  The thumbnail of one file, of a file's bytes, or of an image of blocks
+    //  read through `fileIo`, on the calling thread.
     static DiskThumbnailResult  Build          (const std::wstring & path);
     static DiskThumbnailResult  BuildFromBytes (const vector<Byte> & bytes, const std::wstring & path);
+    static DiskThumbnailResult  BuildBlocks    (IDiskFileIo & fileIo, const std::wstring & path);
 
 private:
     void  Run ();

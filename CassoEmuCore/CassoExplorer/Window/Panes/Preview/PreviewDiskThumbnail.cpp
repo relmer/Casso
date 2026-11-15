@@ -4,8 +4,13 @@
 #include "Seams/IDiskPictures.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
+#include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "Core/AppMessages.h"
+#include "Core/TextEncoding.h"
+#include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 
@@ -154,9 +159,45 @@ void ThumbnailScreen::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
 PreviewDiskThumbnail::PreviewDiskThumbnail (ExplorerContext & context) :
     m_context (context),
-    m_worker  ([this] () { PostMessageW (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerThumbnail, 0, 0); })
+    m_worker  ([this] () { PostMessageW (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerThumbnail, 0, 0); },
+               [this] (const std::wstring & path) { return BuildThumbnail (path); })
 {
     m_view.model = &m_model;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::BuildThumbnail
+//
+//  The image is read through the browser's file I/O, which reads a partition
+//  of a card that is open. A file in neither form has no thumbnail.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskThumbnailResult PreviewDiskThumbnail::BuildThumbnail (const std::wstring & path)
+{
+    IDiskFileIo          & fileIo   = m_context.browser.GetOperations().GetFileIo();
+    bool                   isBlocks = BlockImageFile::IsBlockImage (fileIo, TextEncoding::WideToUtf8 (path));
+    DiskThumbnailResult    result;
+
+
+
+    result.path = path;
+
+    if (isBlocks)
+    {
+        result = DiskThumbnailWorker::BuildBlocks (fileIo, path);
+    }
+    else if (InspectorWindowSet::HasTrackFormat (path))
+    {
+        result = DiskThumbnailWorker::Build (path);
+    }
+
+    return result;
 }
 
 
@@ -171,16 +212,19 @@ PreviewDiskThumbnail::PreviewDiskThumbnail (ExplorerContext & context) :
 
 void PreviewDiskThumbnail::Create()
 {
-    m_platter = m_context.window.CreateChild<ThumbnailPlatterView> (m_view, m_context.theme);
-    m_chips   = m_context.window.CreateChild<ThumbnailChips> (m_view.palette);
-    m_screen  = m_context.window.CreateChild<ThumbnailScreen>();
+    m_platter  = m_context.window.CreateChild<ThumbnailPlatterView> (m_view, m_context.theme);
+    m_blockMap = m_context.window.CreateChild<ThumbnailBlockMap>();
+    m_chips    = m_context.window.CreateChild<ThumbnailChips> (m_view.palette);
+    m_screen   = m_context.window.CreateChild<ThumbnailScreen>();
     m_bootLine = m_context.window.CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
-    m_context.window.SetMouseHandler (m_platter, [this] (const DxuiMouseEvent & ev) { return HandlePlatterMouse (ev); });
+    m_context.window.SetMouseHandler (m_platter,  [this] (const DxuiMouseEvent & ev) { return HandlePlatterMouse (ev); });
+    m_context.window.SetMouseHandler (m_blockMap, [this] (const DxuiMouseEvent & ev) { return HandlePlatterMouse (ev); });
 
     m_platter->SetSelectionShown (false);
-    m_platter->SetVisible (false);
-    m_chips->SetVisible   (false);
+    m_platter->SetVisible  (false);
+    m_blockMap->SetVisible (false);
+    m_chips->SetVisible    (false);
     m_screen->SetVisible  (false);
     m_bootLine->SetVisible  (false);
 }
@@ -204,6 +248,8 @@ void PreviewDiskThumbnail::SetPath (const std::wstring & path)
     {
         return;
     }
+
+    m_blockMap->SetModel (nullptr);
 
     m_path         = path;
     m_state        = State::Analyzing;
@@ -234,7 +280,8 @@ void PreviewDiskThumbnail::SetPath (const std::wstring & path)
 //  PreviewDiskThumbnail::RefreshScreen
 //
 //  An image with no picture yet is queued to be booted by the read, and the
-//  window is posted a message when its picture is made.
+//  window is posted a message when its picture is made. A partition of a
+//  card isn't booted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -247,7 +294,7 @@ void PreviewDiskThumbnail::RefreshScreen()
 
     m_picture.reset();
 
-    if (!m_path.empty() && m_context.app.pictures != nullptr)
+    if (!m_path.empty() && m_context.app.pictures != nullptr && !PhysicalCards::IsOnCard (m_path))
     {
         found = m_context.app.pictures->Find (m_path, m_picture, result);
     }
@@ -264,12 +311,21 @@ void PreviewDiskThumbnail::RefreshScreen()
 //
 //  PreviewDiskThumbnail::TakeResult
 //
+//  The block map's model is released only once a result for this selection
+//  replaces it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void PreviewDiskThumbnail::TakeResult()
 {
-    if (m_worker.TakeResult (m_result) && m_result.path == m_path)
+    DiskThumbnailResult  result;
+
+
+
+    if (m_worker.TakeResult (result) && result.path == m_path)
     {
+        m_blockMap->SetModel (nullptr);
+        m_result = std::move (result);
         ApplyResult();
     }
 }
@@ -283,7 +339,8 @@ void PreviewDiskThumbnail::TakeResult()
 //  PreviewDiskThumbnail::ApplyResult
 //
 //  Each quarter track's ring set from its record's levels, as the
-//  inspector sets them, with nothing selected.
+//  inspector sets them, with nothing selected. An image of blocks has its
+//  block map read from the model.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -294,6 +351,15 @@ void PreviewDiskThumbnail::ApplyResult()
     int               slot = 0;
 
 
+
+    if (m_result.isOpened && IsBlocks())
+    {
+        m_state = State::Ready;
+        m_blockMap->SetModel (m_result.blocks.get());
+        m_blockMap->Refresh();
+        m_chips->SetChips (m_result.chips);
+        return;
+    }
 
     if (!m_result.isOpened || copy == nullptr)
     {
@@ -449,7 +515,8 @@ void PreviewDiskThumbnail::Layout (const RECT & area)
 
     if (m_state != State::Note35)
     {
-        m_platter->Layout (RECT { left, top, left + platter, top + platter }, scaler);
+        m_platter->Layout  (RECT { left, top, left + platter, top + platter }, scaler);
+        m_blockMap->Layout (RECT { left, top, left + platter, top + platter }, scaler);
         chipsTop = top + platter + gap;
     }
 
@@ -460,10 +527,11 @@ void PreviewDiskThumbnail::Layout (const RECT & area)
     }
 
     m_chips->Layout (RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows }, scaler);
-    m_chips->SetVisible   (true);
-    m_platter->SetVisible (m_state == State::Ready);
-    m_screen->SetVisible  (hasScreen);
-    m_bootLine->SetVisible  (hasScreen);
+    m_chips->SetVisible    (true);
+    m_platter->SetVisible  (m_state == State::Ready && !IsBlocks());
+    m_blockMap->SetVisible (m_state == State::Ready && IsBlocks());
+    m_screen->SetVisible   (hasScreen);
+    m_bootLine->SetVisible (hasScreen);
 }
 
 
@@ -478,10 +546,11 @@ void PreviewDiskThumbnail::Layout (const RECT & area)
 
 void PreviewDiskThumbnail::Hide()
 {
-    m_platter->SetVisible (false);
-    m_chips->SetVisible   (false);
-    m_screen->SetVisible  (false);
-    m_bootLine->SetVisible  (false);
+    m_platter->SetVisible  (false);
+    m_blockMap->SetVisible (false);
+    m_chips->SetVisible    (false);
+    m_screen->SetVisible   (false);
+    m_bootLine->SetVisible (false);
 }
 
 
@@ -492,15 +561,19 @@ void PreviewDiskThumbnail::Hide()
 //
 //  PreviewDiskThumbnail::IsOverPlatter
 //
+//  Over the platter, or over the block map in its place.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PreviewDiskThumbnail::IsOverPlatter (POINT pointPx) const
 {
-    RECT  bounds = m_platter->GetBounds();
+    RECT  platter = m_platter->GetBounds();
+    RECT  map     = m_blockMap->GetBounds();
+    bool  isOver  = (m_platter->IsVisible() && PtInRect (&platter, pointPx) != FALSE) || (m_blockMap->IsVisible() && PtInRect (&map, pointPx) != FALSE);
 
 
 
-    return m_state == State::Ready && m_platter->IsVisible() && PtInRect (&bounds, pointPx) != FALSE;
+    return m_state == State::Ready && isOver;
 }
 
 
@@ -511,7 +584,7 @@ bool PreviewDiskThumbnail::IsOverPlatter (POINT pointPx) const
 //
 //  PreviewDiskThumbnail::HandlePlatterMouse
 //
-//  A click on the small platter opens the inspector.
+//  A click on the small platter or the block map opens the inspector.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

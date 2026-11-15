@@ -1,8 +1,13 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "../EmuTests/FakeDiskFileIo.h"
 #include "../EmuTests/FileMapTestImages.h"
 #include "CassoExplorer/Model/DiskThumbnailWorker.h"
+#include "Devices/Disk/FilePath.h"
+#include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -17,8 +22,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  The preview's small platter and chips (FR-072, SC-009): the rings and
 //  chips of an image, no thumbnail for one that does not open, the note for
-//  a 3.5" WOZ, only the newest selection's thumbnail taken, and a 140 KB
-//  image's thumbnail built within 300 ms in Release.
+//  a 3.5" WOZ, the block map and chips of an image of blocks, only the
+//  newest selection's thumbnail taken, and a 140 KB image's thumbnail built
+//  within 300 ms in Release.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,6 +149,65 @@ public:
         Assert::IsTrue (result.isOpened);
         Assert::IsTrue (result.is35, L"the note in place of the platter and chips");
         Assert::IsTrue (result.chips.empty());
+    }
+
+
+
+    TEST_METHOD (AnImageOfBlocksGivesItsMapAndChips)
+    {
+        static constexpr size_t   kBlocks      = 1600;
+        static constexpr size_t   kSeedBytes   = 300;
+        static constexpr Byte     kFill        = 0x5A;
+        static constexpr Word     kLoadAddress = 0x2000;
+        static constexpr int64_t  kTime        = 1'700'000'000;
+
+        FakeDiskFileIo       io;
+        vector<Byte>         volume (kBlocks * BlockImageFile::kBlockBytes, 0);
+        vector<Byte>         written;
+        FilePayload          payload;
+        DiskThumbnailResult  result;
+
+
+
+        AssertSucceeded (ProDosSkeleton::Write (volume, "CARDVOL"));
+
+        payload.bytes.assign (kSeedBytes, kFill);
+        payload.type           = ProDosVolume::kTypeBinary;
+        payload.loadAddress    = kLoadAddress;
+        payload.hasLoadAddress = true;
+        AssertSucceeded (ProDosVolume (volume).Write (FilePath::Parse ("SEED"), payload, written));
+
+        io.files["card.po"]  = written;
+        io.stamps["card.po"] = { written.size(), kTime };
+
+        result = DiskThumbnailWorker::BuildBlocks (io, L"card.po");
+
+        Assert::IsTrue    (result.isOpened);
+        Assert::IsNotNull (result.blocks.get(), L"the block map is drawn from the model");
+        Assert::AreEqual  ((uint32_t) kBlocks, result.blocks->GetBlockCount());
+        Assert::IsTrue    (result.chips.size() >= 5);
+        Assert::AreEqual  (std::wstring (L"ProDOS"),       result.chips[0].text);
+        Assert::AreEqual  (std::wstring (L"/CARDVOL"),     result.chips[1].text);
+        Assert::AreEqual  (std::wstring (L"1,600 blocks"), result.chips[2].text);
+        Assert::AreEqual  (static_cast<int> (SummaryChipKind::BlocksUsed), static_cast<int> (result.chips[3].kind));
+        Assert::AreEqual  (static_cast<int> (SummaryChipKind::Files),      static_cast<int> (result.chips[4].kind));
+        Assert::IsFalse   (result.chips[3].isBad);
+    }
+
+
+
+    TEST_METHOD (AnImageOfBlocksThatDoesNotOpenGetsNoBlockMap)
+    {
+        FakeDiskFileIo       io;
+        DiskThumbnailResult  result;
+
+
+
+        result = DiskThumbnailWorker::BuildBlocks (io, L"missing.po");
+
+        Assert::IsFalse  (result.isOpened);
+        Assert::IsNull   (result.blocks.get());
+        Assert::IsTrue   (result.chips.empty());
     }
 
 

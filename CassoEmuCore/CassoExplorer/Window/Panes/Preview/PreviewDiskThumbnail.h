@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/DiskThumbnailWorker.h"
+#include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/InspectorView.h"
 #include "Ui/DiskInspector/InspectorViewModel.h"
 #include "Ui/DiskInspector/PlatterView.h"
@@ -32,6 +33,27 @@ public:
 
 private:
     const DxuiTheme * const  & m_theme;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailBlockMap
+//
+//  Block mode's map at the platter's size, with no current block outlined
+//  and no pointer text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ThumbnailBlockMap : public BlockMapView
+{
+public:
+    ThumbnailBlockMap () { SetOutlined (false); }
+
+    bool  OnMouse (const DxuiMouseEvent & ev) override { (void) ev; return false; }
 };
 
 
@@ -107,6 +129,10 @@ private:
 //  dropped. A 3.5" WOZ has a note in its place, and an image that does not
 //  open has no thumbnail. A click on the platter opens the inspector.
 //
+//  An image of blocks, such as a 32 MB volume or a partition of a card, has
+//  its block map in place of the platter, and a click on the map opens the
+//  inspector in block mode.
+//
 //  An image that has been booted has the picture of its screen beside the
 //  platter, or above it in a narrow pane, and a line with its boot result.
 //
@@ -153,8 +179,13 @@ private:
         Failed,
     };
 
+    //  On the worker's thread: the block map of an image of blocks, and the
+    //  platter of any other.
+    DiskThumbnailResult  BuildThumbnail (const std::wstring & path);
+
     void  ApplyResult ();
     bool  HasScreen   () const { return m_picture != nullptr && m_state == State::Ready; }
+    bool  IsBlocks    () const { return m_result.blocks != nullptr; }
     bool  IsBeside    (int widthPx) const;
 
     ExplorerContext                       & m_context;
@@ -163,6 +194,7 @@ private:
     DiskThumbnailWorker                     m_worker;
     DiskThumbnailResult                     m_result;
     ThumbnailPlatterView                  * m_platter  = nullptr;
+    ThumbnailBlockMap                     * m_blockMap = nullptr;
     ThumbnailChips                        * m_chips    = nullptr;
     ThumbnailScreen                       * m_screen   = nullptr;
     DxuiLabel                             * m_bootLine = nullptr;   // the boot result, under the picture

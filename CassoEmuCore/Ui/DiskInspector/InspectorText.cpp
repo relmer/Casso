@@ -2,6 +2,7 @@
 
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Core/UnicodeSymbols.h"
+#include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
@@ -86,6 +87,112 @@ vector<SummaryChip> InspectorText::BuildChips (const DiskSummary & summary)
     }
 
     return chips;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::BuildBlockChips
+//
+//  An image of one volume has its file system, its volume name, its blocks,
+//  its blocks in use, its files and any cross-linked blocks. A partitioned
+//  image has its partitions and its blocks. Blocks in use are counted rather
+//  than free blocks, as the blocks of an image past its volume's end are
+//  free on the map.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<SummaryChip> InspectorText::BuildBlockChips (const BlockInspectorModel & model)
+{
+    vector<SummaryChip>   chips;
+    const BlockMap      * map        = nullptr;
+    uint32_t              first      = 0;
+    uint32_t              inner      = 0;
+    int                   partitions = 0;
+    int                   used       = 0;
+    int                   crossed    = 0;
+    std::wstring          volume;
+
+
+
+    for (const BlockBand & band : model.GetBands())
+    {
+        if (!band.isMap)
+        {
+            first = partitions == 0 ? band.first : first;
+            partitions++;
+        }
+    }
+
+    map = partitions <= 1 ? model.FindMap (first, inner) : nullptr;
+
+    if (partitions > 1)
+    {
+        chips.push_back ({ SummaryChipKind::Partitions, FormatCount (partitions, L"partition", L"partitions"), false });
+    }
+    else
+    {
+        chips.push_back ({ SummaryChipKind::Format, FormatFileSystem (map != nullptr ? map->fileSystem : BlockFileSystem::None), false });
+    }
+
+    if (map != nullptr && !map->volumeName.empty())
+    {
+        volume = map->fileSystem == BlockFileSystem::ProDos || map->fileSystem == BlockFileSystem::Sos ? L"/" + map->volumeName : map->volumeName;
+        chips.push_back ({ SummaryChipKind::Volume, volume, false });
+    }
+
+    chips.push_back ({ SummaryChipKind::Blocks, FormatCount (static_cast<int> (model.GetBlockCount()), L"block", L"blocks"), false });
+
+    if (map != nullptr && map->fileSystem != BlockFileSystem::None)
+    {
+        for (const BlockMapEntry & entry : map->blocks)
+        {
+            used    += entry.role != SectorRole::Free        ? 1 : 0;
+            crossed += entry.role == SectorRole::CrossLinked ? 1 : 0;
+        }
+
+        chips.push_back ({ SummaryChipKind::BlocksUsed, FormatCount (used, L"block used", L"blocks used"), false });
+        chips.push_back ({ SummaryChipKind::Files, FormatCount (static_cast<int> (map->files.size()), L"file", L"files"), false });
+    }
+
+    if (crossed > 0)
+    {
+        chips.push_back ({ SummaryChipKind::CrossLinked, FormatCount (crossed, L"cross-linked block", L"cross-linked blocks"), true });
+    }
+
+    return chips;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatFileSystem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatFileSystem (BlockFileSystem fileSystem)
+{
+    std::wstring  text = L"No file system";
+
+
+
+    switch (fileSystem)
+    {
+        case BlockFileSystem::None:                      break;
+        case BlockFileSystem::ProDos: text = L"ProDOS";  break;
+        case BlockFileSystem::Sos:    text = L"SOS";     break;
+        case BlockFileSystem::Pascal: text = L"Pascal";  break;
+        case BlockFileSystem::Hfs:    text = L"HFS";     break;
+        case BlockFileSystem::Dos33:  text = L"DOS 3.3"; break;
+    }
+
+    return text;
 }
 
 

@@ -343,7 +343,7 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme,
         }
     }
 
-    if (m_grid.GetCellCount() != 0)
+    if (m_isOutlined && m_grid.GetCellCount() != 0)
     {
         at = m_grid.GetCellOrigin (m_grid.GetCellOf (m_model->GetBlock()));
 
