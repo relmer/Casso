@@ -31,8 +31,13 @@ public:
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override { (void) ev; return false; }
 
+    //  The pointer is on the platter, which a click opens in the inspector:
+    //  a ring in the accent is drawn around it.
+    void  SetHot  (bool isHot) { m_isHot = isHot; }
+
 private:
     const DxuiTheme * const  & m_theme;
+    bool                       m_isHot = false;
 };
 
 
@@ -43,8 +48,9 @@ private:
 //
 //  ThumbnailBlockMap
 //
-//  Block mode's map at the platter's size, with no current block outlined
-//  and no pointer text.
+//  Block mode's map at the platter's height, with no current block outlined
+//  and no pointer text. While the pointer is on it, a box in the accent is
+//  drawn around it, as the ring is around the platter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +59,13 @@ class ThumbnailBlockMap : public BlockMapView
 public:
     ThumbnailBlockMap () { SetOutlined (false); }
 
+    void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override { (void) ev; return false; }
+    void  SetHot  (bool isHot) { m_isHot = isHot; }
+    bool  IsHot   () const     { return m_isHot; }
+
+private:
+    bool  m_isHot = false;
 };
 
 
@@ -127,7 +139,8 @@ private:
 //  once. The thumbnail is built off the UI thread, with "Analyzing" in its
 //  place until it arrives, and a result for a selection that moved on is
 //  dropped. A 3.5" WOZ has a note in its place, and an image that does not
-//  open has no thumbnail. A click on the platter opens the inspector.
+//  open has no thumbnail. A click on the platter or on Inspect... opens
+//  the inspector.
 //
 //  An image of blocks, such as a 32 MB volume or a partition of a card, has
 //  its block map in place of the platter, and a click on the map opens the
@@ -141,9 +154,11 @@ private:
 class PreviewDiskThumbnail
 {
 public:
-    static constexpr int  kPlatterDip = 180;
-    static constexpr int  kGapDip     = 8;
-    static constexpr int  kScreenDip  = 240;     // the screen's picture, three quarters as tall
+    static constexpr int  kPlatterDip     = 180;
+    static constexpr int  kGapDip         = 8;
+    static constexpr int  kScreenDip      = 240;  // the screen's picture, three quarters as tall
+    static constexpr int  kInspectWideDip = 90;   // Inspect..., before its text is measured
+    static constexpr int  kInspectHighDip = 28;
 
     explicit PreviewDiskThumbnail (ExplorerContext & context);
 
@@ -168,9 +183,18 @@ public:
     RECT                  GetScreenRect () const { return HasScreen() ? m_screen->GetBounds() : RECT {}; }
     const std::wstring  & GetResultLine () const { return m_bootLine->GetText(); }
 
+    //  Inspect..., at the platter's bottom right or under the map, and the
+    //  block map as it is laid out, empty when it isn't drawn; for a test.
+    const DxuiButton    & GetInspectButton () const { return *m_inspect; }
+    RECT                  GetBlockMapRect  () const { return m_blockMap->IsVisible() ? m_blockMap->GetBounds() : RECT {}; }
+    bool                  IsBlockMapHot    () const { return m_blockMap->IsHot(); }
+
 private:
     bool  HandlePlatterMouse (const DxuiMouseEvent & ev);
     bool  HandleScreenMouse  (const DxuiMouseEvent & ev);
+    void  SetHot             (bool isHot);
+    int   GetInspectWidthPx  () const;
+    bool  IsInspectBeside    (int widthPx) const;
 
     enum class State
     {
@@ -199,7 +223,7 @@ private:
     ThumbnailChips                        * m_chips    = nullptr;
     ThumbnailScreen                       * m_screen   = nullptr;
     DxuiLabel                             * m_bootLine = nullptr;   // the boot result, under the picture
-    DxuiButton                            * m_open     = nullptr;   // Open in the disk inspector, under the chips
+    DxuiButton                            * m_inspect  = nullptr;   // Inspect..., at the platter area's bottom right
     std::shared_ptr<const DxuiIconImage>    m_picture;
     std::wstring                            m_path;
     State                                   m_state    = State::Analyzing;

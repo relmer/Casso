@@ -77,6 +77,9 @@ public:
     std::wstring        GetAccessibleName () const override { return L"Block map"; }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
 
+protected:
+    const DxuiDpiScaler & GetScaler () const { return m_scaler; }
+
 private:
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 

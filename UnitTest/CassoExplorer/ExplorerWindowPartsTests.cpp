@@ -1553,6 +1553,66 @@ public:
     }
 
 
+    //  The preview of an 800K ProDOS image has its block map, with Inspect...
+    //  under it at the right. Pointing at the map draws the box around it,
+    //  and moving off it clears the box.
+    TEST_METHOD (Preview_ABlockMapIsHotUnderThePointerAndInspectIsUnderIt)
+    {
+        static constexpr size_t  kBlocks800K = 1600;
+        static constexpr size_t  kBlockBytes = 512;
+
+        Rig                rig;
+        std::vector<Byte>  bytes (kBlocks800K * kBlockBytes, 0);
+        std::string        path   = "C:\\Disks\\big.po";
+        bool               isMap  = false;
+        RECT               map    = {};
+        RECT               button = {};
+        DxuiMouseEvent     mouse;
+
+
+
+        AssertSucceeded (ProDosSkeleton::Write (bytes, "BIG"));
+
+        rig.io.files[path]  = bytes;
+        rig.io.stamps[path] = FileStamp { bytes.size(), 100 };
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\big.po", std::string (bytes.begin(), bytes.end())));
+
+        rig.prefs.previewVisible = true;
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"big.po"));
+        rig.parts->preview.FillPreview();
+
+        isMap = WaitFor (rig, [&rig]()
+        {
+            rig.parts->layout.RecomputeLayout();
+
+            return rig.parts->preview.GetThumbnail().GetBlockMapRect().right > 0;
+        });
+
+        Assert::IsTrue (isMap, L"the block map is drawn");
+
+        map    = rig.parts->preview.GetThumbnail().GetBlockMapRect();
+        button = rig.parts->preview.GetThumbnail().GetInspectButton().GetBounds();
+
+        Assert::IsTrue (rig.parts->preview.GetThumbnail().GetInspectButton().IsVisible());
+        Assert::IsTrue (button.top >= map.bottom, L"Inspect... is under the map");
+        Assert::AreEqual (map.right, button.right, L"Inspect... is at the map's right");
+
+        mouse.kind        = DxuiMouseEventKind::Move;
+        mouse.positionDip = { (map.left + map.right) / 2, (map.top + map.bottom) / 2 };
+        rig.parts->input.HandleMouse (mouse);
+
+        Assert::IsTrue (rig.parts->preview.GetThumbnail().IsBlockMapHot(), L"the box is drawn under the pointer");
+
+        mouse.positionDip = { (button.left + button.right) / 2, (button.top + button.bottom) / 2 };
+        rig.parts->input.HandleMouse (mouse);
+
+        Assert::IsFalse (rig.parts->preview.GetThumbnail().IsBlockMapHot(), L"the box is cleared off the map");
+    }
+
+
     TEST_METHOD (HandleTimer_TakesTheWindowsTimersButTheTick)
     {
         Rig  rig;

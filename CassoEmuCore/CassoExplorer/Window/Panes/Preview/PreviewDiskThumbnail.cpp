@@ -25,6 +25,8 @@ static constexpr float     s_kChipPadDip  = 8.0f;
 static constexpr float     s_kChipGapDip  = 6.0f;
 static constexpr float     s_kChipHighDip = 22.0f;
 static constexpr float     s_kChipTextDip = 12.0f;
+static constexpr float     s_kHotRingDip  = 2.0f;
+static constexpr float     s_kHotBoxDip   = 6.0f;      // the corner of the box around a hot block map
 static constexpr LPCWSTR   s_kpszWaiting  = L"Analyzing";
 static constexpr LPCWSTR   s_kpszNote35   = L"Casso does not analyze 3.5\" disks";
 
@@ -52,7 +54,9 @@ ThumbnailPlatterView::ThumbnailPlatterView (InspectorViewContext & context, cons
 //
 //  ThumbnailPlatterView::Paint
 //
-//  The palette follows a theme change in Explorer (FR-078).
+//  The palette follows a theme change in Explorer (FR-078). While the
+//  pointer is on it, a ring in the accent is drawn around it, since a click
+//  opens it in the inspector.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,6 +68,45 @@ void ThumbnailPlatterView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
     }
 
     PlatterView::Paint (painter, text, theme);
+
+    if (m_isHot)
+    {
+        RECT     bounds = GetBounds();
+        float    stroke = m_scaler.ToPxf (s_kHotRingDip);
+        float    radius = static_cast<float> ((std::min) (bounds.right - bounds.left, bounds.bottom - bounds.top)) / 2.0f - stroke;
+        HRESULT  hr     = text.DrawEllipse ((bounds.left + bounds.right) / 2.0f, (bounds.top + bounds.bottom) / 2.0f, radius, radius, stroke, theme.Accent());
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailBlockMap::Paint
+//
+//  While the pointer is on it, a box in the accent is drawn around the map,
+//  since a click opens it in the inspector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ThumbnailBlockMap::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    RECT   bounds = GetBounds();
+    float  stroke = GetScaler().ToPxf (s_kHotRingDip);
+
+
+
+    BlockMapView::Paint (painter, text, theme);
+
+    if (m_isHot && IsVisible())
+    {
+        painter.OutlineRoundedRect (bounds.left + stroke / 2.0f, bounds.top + stroke / 2.0f, (bounds.right - bounds.left) - stroke, (bounds.bottom - bounds.top) - stroke,
+                                    GetScaler().ToPxf (s_kHotBoxDip), stroke, theme.Accent());
+    }
 }
 
 
@@ -220,22 +263,16 @@ void PreviewDiskThumbnail::Create()
     m_chips    = m_context.window.CreateChild<ThumbnailChips> (m_view.palette);
     m_screen   = m_context.window.CreateChild<ThumbnailScreen>();
     m_bootLine = m_context.window.CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left, DxuiTextVAlign::Top);
-    m_open     = m_context.window.CreateChild<DxuiButton> (L"Open in the disk inspector");
+    m_inspect  = m_context.window.CreateChild<DxuiButton> (L"Inspect...");
 
     m_context.window.SetMouseHandler (m_platter,  [this] (const DxuiMouseEvent & ev) { return HandlePlatterMouse (ev); });
     m_context.window.SetMouseHandler (m_blockMap, [this] (const DxuiMouseEvent & ev) { return HandlePlatterMouse (ev); });
     m_context.window.SetMouseHandler (m_screen,   [this] (const DxuiMouseEvent & ev) { return HandleScreenMouse (ev); });
 
-    m_open->SetVariant (DxuiButton::Variant::Link);
-    m_open->SetOnClick ([this]() { m_context.commandManager.InspectDiskImages ({ m_path }); });
+    m_inspect->SetOnClick ([this] () { m_context.commandManager.InspectDiskImages ({ m_path }); });
 
     m_platter->SetSelectionShown (false);
-    m_platter->SetVisible  (false);
-    m_blockMap->SetVisible (false);
-    m_chips->SetVisible    (false);
-    m_screen->SetVisible   (false);
-    m_bootLine->SetVisible (false);
-    m_open->SetVisible     (false);
+    Hide();
 }
 
 
@@ -451,7 +488,7 @@ int PreviewDiskThumbnail::GetHeightPx (int widthPx) const
     const DxuiDpiScaler  & scaler = m_context.scaler;
     int                    rows   = scaler.ToPx (static_cast<int> (ThumbnailChips::kRowDip));
     int                    gap    = scaler.ToPx (kGapDip);
-    int                    height = scaler.ToPx (kPlatterDip) + 3 * rows + 2 * gap;
+    int                    height = scaler.ToPx (kPlatterDip) + 2 * rows + 2 * gap;
 
 
 
@@ -468,6 +505,12 @@ int PreviewDiskThumbnail::GetHeightPx (int widthPx) const
     if (HasScreen())
     {
         height += 2 * rows + gap + (IsBeside (widthPx) ? 0 : scaler.ToPx (kScreenDip) * 3 / 4 + gap);
+    }
+
+    //  Inspect...'s row under the platter, where there's no room beside it.
+    if (!IsInspectBeside (widthPx))
+    {
+        height += scaler.ToPx (kInspectHighDip) + gap;
     }
 
     return height;
@@ -502,6 +545,8 @@ void PreviewDiskThumbnail::Layout (const RECT & area)
     int                    left      = area.left + (std::max) (0, (width - group) / 2);
     int                    top       = area.top + gap;
     int                    chipsTop  = area.top + gap;
+    int                    inspectW  = GetInspectWidthPx();
+    int                    inspectH  = scaler.ToPx (kInspectHighDip);
 
 
 
@@ -528,6 +573,18 @@ void PreviewDiskThumbnail::Layout (const RECT & area)
         m_platter->Layout  (RECT { left, top, left + platter, top + platter }, scaler);
         m_blockMap->Layout (RECT { isBeside ? left : area.left + gap, top, area.right - gap, top + platter }, scaler);
         chipsTop = top + platter + gap;
+
+        //  Inspect... at the platter area's bottom right, or under the
+        //  platter or the map at the right where it would overlap it.
+        if (IsInspectBeside (width))
+        {
+            m_inspect->Layout (RECT { area.right - gap - inspectW, top + platter - inspectH, area.right - gap, top + platter }, scaler);
+        }
+        else
+        {
+            m_inspect->Layout (RECT { area.right - gap - inspectW, chipsTop, area.right - gap, chipsTop + inspectH }, scaler);
+            chipsTop += inspectH + gap;
+        }
     }
 
     if (hasScreen)
@@ -537,13 +594,12 @@ void PreviewDiskThumbnail::Layout (const RECT & area)
     }
 
     m_chips->Layout (RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows }, scaler);
-    m_open->Layout  (RECT { area.left + gap, chipsTop + 2 * rows, area.right - gap, chipsTop + 3 * rows }, scaler);
     m_chips->SetVisible    (true);
     m_platter->SetVisible  (m_state == State::Ready && !IsBlocks());
     m_blockMap->SetVisible (m_state == State::Ready && IsBlocks());
     m_screen->SetVisible   (hasScreen);
     m_bootLine->SetVisible (hasScreen);
-    m_open->SetVisible     (m_state == State::Ready);
+    m_inspect->SetVisible  (m_state == State::Ready);
 }
 
 
@@ -563,7 +619,9 @@ void PreviewDiskThumbnail::Hide()
     m_chips->SetVisible    (false);
     m_screen->SetVisible   (false);
     m_bootLine->SetVisible (false);
-    m_open->SetVisible     (false);
+    m_inspect->SetVisible  (false);
+
+    SetHot (false);
 }
 
 
@@ -597,13 +655,23 @@ bool PreviewDiskThumbnail::IsOverPlatter (POINT pointPx) const
 //
 //  PreviewDiskThumbnail::HandlePlatterMouse
 //
-//  A click on the small platter or the block map opens the inspector.
+//  A click on the small platter or the block map opens the inspector. While
+//  the pointer is on either, it is drawn hot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PreviewDiskThumbnail::HandlePlatterMouse (const DxuiMouseEvent & ev)
 {
-    if (!IsOverPlatter (ev.positionDip))
+    bool  isOver = IsOverPlatter (ev.positionDip);
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Enter || ev.kind == DxuiMouseEventKind::Leave)
+    {
+        SetHot (ev.kind != DxuiMouseEventKind::Leave && isOver);
+    }
+
+    if (!isOver)
     {
         return false;
     }
@@ -614,6 +682,82 @@ bool PreviewDiskThumbnail::HandlePlatterMouse (const DxuiMouseEvent & ev)
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::SetHot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::SetHot (bool isHot)
+{
+    m_platter->SetHot  (isHot);
+    m_blockMap->SetHot (isHot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::GetInspectWidthPx
+//
+//  Inspect...'s text, measured where the window has a text renderer, and a
+//  button's padding either side.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewDiskThumbnail::GetInspectWidthPx() const
+{
+    static constexpr float  kFontDip = 13.0f;
+    static constexpr int    kRoomDip = 32;
+
+
+
+    IDxuiTextRenderer  * text  = m_context.window.GetTextRenderer();
+    float                width = 0.0f;
+    float                high  = 0.0f;
+
+
+
+    if (text != nullptr)
+    {
+        text->MeasureString (L"Inspect...", m_context.scaler.ToPxf (kFontDip), DxuiTheme::GetUiFace(), width, high);
+    }
+
+    return (width > 0.0f) ? static_cast<int> (std::ceil (width)) + m_context.scaler.ToPx (kRoomDip) : m_context.scaler.ToPx (kInspectWideDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::IsInspectBeside
+//
+//  Whether Inspect... fits at the platter area's right without overlapping
+//  the platter, which is centered, or with the screen's picture beside it.
+//  A block map is as wide as the pane, so Inspect... goes under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::IsInspectBeside (int widthPx) const
+{
+    const DxuiDpiScaler  & scaler  = m_context.scaler;
+    int                    gap     = scaler.ToPx (kGapDip);
+    int                    platter = scaler.ToPx (kPlatterDip);
+    int                    group   = platter + ((HasScreen() && IsBeside (widthPx)) ? scaler.ToPx (kScreenDip) + gap : 0);
+
+
+
+    return !IsBlocks() && (widthPx - group) / 2 >= GetInspectWidthPx() + 2 * gap;
 }
 
 
