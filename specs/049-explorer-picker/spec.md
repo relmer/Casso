@@ -249,4 +249,6 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - Hidden files, natural sort order and locale formatting follow the file manager's existing behavior.
 - The picker runs inside the emulator's process as a modal window of the emulator, unless the plan finds a reason against it. It is not the user's running Casso Explorer and has no access to that window or its session. FR-031 applies either way.
 - This work is cut from `048-smartport-drives` and merges 048 again before it lands, so 048's drive kinds and Casso Explorer from 033 are both present.
+- The hard disk limit in FR-012 covers the HD20SC and the ProFile only. Other block devices, such as CFFA and A2Pico cards, are not drive kinds on the desk or the drive bar and accept 140K and 800K block images; the drive rule does not apply to them.
+- 048 makes the mount-side check for FR-012 in its hard disk wiring. This work merges it and does not duplicate it.
 - Command-line mounting (`--disk1` and related options) is outside the picker, but uses the drive rule through the mount commands (FR-008).
