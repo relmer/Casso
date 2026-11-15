@@ -264,7 +264,7 @@
 
 ## Phase 11: Polish & Cross-Cutting Concerns
 
-- [ ] T092 [P] Write `ScenarioTests/ImageClassifierScenarioTests.cpp`: for every fixture under `UnitTest/Fixtures/CiderPress/` and `Disks/` that the emulator mounts, the classification's form factor and size equal what the mount reports; a fixture that cannot be read fails the test; assert a non-zero count compared (SC-008)
+- [x] T092 [P] Write `ScenarioTests/ImageClassifierScenarioTests.cpp`: for every fixture under `UnitTest/Fixtures/CiderPress/` and `Disks/` that the emulator mounts, the classification's form factor and size equal what the mount reports; a fixture that cannot be read fails the test; assert a non-zero count compared (SC-008)
 - [ ] T093 Run `scripts\RunTests.ps1 -Build` and `scripts\RunTests.ps1 -Build -Scenario` and record both results in `specs/049-explorer-picker/validation.md`
 - [ ] T094 Captures of the picker for each drive kind in a light and a dark theme, sent to the owner for the gestalt check; apply the owner's layout changes
 - [ ] T095 Window check of Casso Explorer as a file manager with a test copy that has no saved serial session: the two columns in an ordinary folder and the Casso node's list; restore only the preferences the run changed
