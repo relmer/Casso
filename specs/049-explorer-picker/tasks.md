@@ -94,15 +94,15 @@
 ### Tests
 
 - [x] T024 [P] [US2] Write `UnitTest/CassoExplorer/PickerColumnTests.cpp`: `FromHostEntry` fills `imageClass` for an image, and both column texts are empty for a file that is not one; sort by `FormattedSize` orders 140K, 400K, 800K, 5 MB, 32 MB by bytes; sort by `FormFactor` orders 5.25-inch, 3.5-inch, hard disk, tape; rows without a class sort after rows with one; folders sort ahead of files in both; column ids of every column that existed before equal the values in a table written into the test
-- [ ] T025 [P] [US2] Write `UnitTest/CassoExplorer/ImageVolumeFactsTests.cpp`: file system and volume name for a DOS 3.3, a ProDOS, a Pascal and an HFS image from in-memory bytes; an unreadable volume has empty values and is not a failure; a cached entry is reused for the same path, length and time
+- [x] T025 [P] [US2] Write `UnitTest/CassoExplorer/ImageVolumeFactsTests.cpp`: file system and volume name for a DOS 3.3, a ProDOS, a Pascal and an HFS image from in-memory bytes; an unreadable volume has empty values and is not a failure; a cached entry is reused for the same path, length and time
 
 ### Implementation
 
 - [x] T026 [US2] Append `FormFactor`, `FormattedSize` and `LastUsed` after `Sha256` in `CatalogModel::Column`, add `imageClass`, `lastUsedUnix`, `isStockDisk` and `stockDownloaded` to `CatalogRow`, and extend `GetColumnId`, `TryGetColumn`, `GetDefaultOrder`, `IsHiddenUntilChosen`, `Sort` and `IsBefore` in `CassoEmuCore/CassoExplorer/Model/CatalogModel.h` and `.cpp` per data-model.md
 - [x] T027 [US2] Classify host files while a listing is built: call `ImageClassifier::Classify` through an `ImageClassCache` on the loader's thread in `CassoEmuCore/CassoExplorer/Browser/BrowserLoader.cpp` (or where `FromHostEntry` is called for a folder) and pass the class to `FromHostEntry`
 - [x] T028 [US2] Add the column headings "Form factor", "Formatted size" and "Last used", their cell text and alignment in `CassoEmuCore/CassoExplorer/Browser/BrowserCells.cpp` and the header menu's list, and include the two columns' text where the file manager's search and column filtering read cell text (FR-038), with a case in `UnitTest/CassoExplorer/PickerColumnTests.cpp` that a search for "800K" finds an 800K image
-- [ ] T029 [US2] Add `ImageVolumeFacts` (file system and volume name per image, a cache keyed like `ImageClassCache`, a worker modeled on `DiskThumbnailWorker` that reads the volume's directory header only) in `CassoEmuCore/CassoExplorer/Model/ImageVolumeFacts.h` and `.cpp`
-- [ ] T030 [US2] Make `FileSystem` and `VolumeName` available in folder listings: change `CatalogModel::IsCollectionColumn` so they are no longer collection-only, fill them from `ImageVolumeFacts` as results arrive, and repaint only the rows that changed, in `CassoEmuCore/CassoExplorer/Model/CatalogModel.cpp` and the list pane
+- [x] T029 [US2] Add `ImageVolumeFacts` (file system and volume name per image, a cache keyed like `ImageClassCache`, a worker modeled on `DiskThumbnailWorker` that reads the volume's directory header only) in `CassoEmuCore/CassoExplorer/Model/ImageVolumeFacts.h` and `.cpp`
+- [x] T030 [US2] Make `FileSystem` and `VolumeName` available in folder listings: change `CatalogModel::IsCollectionColumn` so they are no longer collection-only, fill them from `ImageVolumeFacts` as results arrive, and repaint only the rows that changed, in `CassoEmuCore/CassoExplorer/Model/CatalogModel.cpp` and the list pane
 - [x] T031 [US2] Stub the classification call in T027 to return `NotAnImage`, confirm T024 fails, restore and confirm it passes
 - [ ] T032 [US2] Measure per quickstart.md "Performance" in a Release build with a folder of 500 generated images and record the three times in `specs/049-explorer-picker/validation.md`
 
@@ -199,6 +199,8 @@
 - [ ] T067 [US1] Stub `ShellDrivePickers::Open` to always create a picker, confirm T060 fails, restore and confirm it passes
 - [ ] T068 [US1] Window checks 1 to 8 of quickstart.md for each drive kind present on a //e with a Disk II, an Apple 3.5 Drive, a UniDisk 3.5, an HD20SC and a ProFile, and on a //c Plus, using a test copy and posted input; capture each picker; confirm no `CassoExplorer.exe` was started and `CassoExplorerPrefs.json` and the session file have the timestamps read at the start of the run; record in `specs/049-explorer-picker/validation.md`
 
+- [ ] T099 [US1] Hard disks while the machine runs (FR-065 to FR-067): `DriveDropRule::TryGetReceivingDrive` returns the hard disk kind with the drive's capacity from `BlockDeviceCatalog`; a pick or a drop on an HD20SC or ProFile stages the image in the machine's configuration for that port (the path Settings' Hardware page writes) instead of mounting it, with `UnitTest/EmuTests/DrivePickersTests.cpp` cases for staging, replacing a staged image, and no mount before restart
+- [ ] T100 [US1] The staged-image infobar: drive label, "takes effect at the next restart", Restart now; closed by the restart; owner approves the text before it is pushed
 **Checkpoint**: merge `origin/048-smartport-drives`, build, run `-Filter DrivePickers`; commit and push.
 
 ---
@@ -255,6 +257,7 @@
 - [ ] T090 Remove `WindowCommandManager::PromptInsertDiskMru`, `PromptInsertTapeMru` and `PromptForDiskImage` from `CassoEmuCore/Shell/WindowCommandManager.h` and `.cpp`, `ShellDeskScene::BrowseFloppy35` from `CassoEmuCore/Shell/Components/ShellDeskScene.h` and `.cpp`, the dialog call and the modal keep-alive in `ShellDisks::BrowseForDisk`, and the themed dialog behind `AssetBootstrap::PromptInsertDiskMru` with its tests; the stock disk catalog, the create flow and the recent list are not removed
 - [ ] T091 Confirm with `rg -n "PromptInsertDiskMru|PromptInsertTapeMru|PromptForDiskImage|BrowseFloppy35|MakeDiskPickerKind" -g "*.cpp" -g "*.h"` that nothing references the removed code, and that every remaining `PickFileToOpen` in `CassoEmuCore/Shell` and `CassoEmuCore/Ui` is either `content = Images` or not an image request; record the two listings' totals in `specs/049-explorer-picker/validation.md`
 
+- [ ] T101 Replace the startup boot disk picker (`AssetBootstrap::PromptBootDiskMru`, called from `CassoEmuCore/Gui/GuiMain.cpp`) with the picker in a startup form (FR-068): no owner window, drive 1 of the machine being started, the Casso node's list and the "Stock disks" node, a pick boots with the image, closing quits Casso; with a unit test of the startup request
 **Checkpoint**: full unit suite; commit and push.
 
 ---
@@ -333,9 +336,10 @@ The feature ships whole. Phases are checkpoints for commits, pushes and merges o
 - T015: `DriveRuleMountAgreementTests` is red until 048 makes an HD20SC or ProFile fail to mount a `.nib` file (455 blocks) and a raw file that isn't whole blocks; both were reported to the 048 session. A third mismatch, a 3.5-inch WOZ mounting in a Disk II, was fixed here (`MountFailure::WozNot525`).
 - T018: `DriveAddress` is in `Shell/DriveDropRule.h` with the drop tag rule, not in `ShellDrivePickers.h`.
 - T017: the tag decoding and which drives take drops are tested as `DriveDropRule`; `EmulatorShell::TryGetDropDrive` and `OnFileDropped` are the glue over it.
-- Hard disks take no drop and have no picker from the desk or the drive bar: in 048 a hard disk's image is set in Settings and attached when the machine is built. Their picker is the Settings form (Phase 9).
+- Hard disks: in 048 a hard disk's image is set in Settings and attached when the machine is built. Owner's decision at G1: a pick or a drop on a hard disk stages the image for the next restart, with an infobar (T099, T100). Until then the cursor over a hard disk is the no-drop cursor.
 - T023: an OLE drag can't be posted, so the drop cursor check is for the owner, or for the real pointer with the owner's OK.
-- T025, T029, T030 (file system and volume name in folder listings) are deferred pending the owner's decision at G1: each image has to be read whole and decoded, so filling them requires a worker and list refresh plumbing.
+- T025, T029, T030: file system and volume name are filled by ImageVolumeFacts, a background reader, in folder listings and the Casso node's list (owner's decision at G1).
 - T032 (timing) is not measured yet; classification runs synchronously in the listing, through the cache.
 - T038: the Casso node's tip ("Folders Casso has opened disk images from, most recently used first") is about the node and its tree children, the folders, so it is accurate for the new list too. The single-folder special case at `CassoExplorerBrowser.cpp:1526` turned out to be a search's Up target, not the Casso node, so it was not changed either.
 - The classifier's layout enum is `ImageLayout`, since `ImageContainer` is an existing class. `isBlockReadable` was dropped: the UniDisk 3.5 and the Apple 3.5 Drive share one mechanism and accept the same images.
+- 2026-11-14, owner's decisions at G1: hard disk staging (T099, T100), background file system and volume name (done), the startup boot disk picker replaced (T101), and hard disk sizes rounded to whole megabytes from 2 MB up (done).

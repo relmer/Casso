@@ -28,6 +28,11 @@ Casso Explorer already lists folders of images with columns, sorting, search and
 - Q: Where does a drive's picker start when it is opened again? → A: Always on the Casso node's list. Columns, sort and window size are saved; the location is not.
 - Q: Where do the stock system disks appear? → A: In a "Stock disks" node under the Casso node, not as rows in the recent list.
 
+- Q: Does an HD20SC or ProFile take a new image while the machine runs? → A: Not live. A pick or a drop on a hard disk stages the image; an infobar states that it takes effect at the next restart and offers Restart now. Live mounting under a running ProDOS or GS/OS risks the new image.
+- Q: Are file system and volume name filled in folder listings? → A: Yes, in the background: the names list at once, the columns fill as each image is read, and the reading stops when the list moves to another folder.
+- Q: Does the startup boot disk picker stay a separate dialog? → A: No. The picker replaces it in a startup form, which opens before the emulator window, offers the stock disks, and quits Casso when it is closed.
+- Q: How is a 5 MB ProFile's capacity labeled? → A: 5 MB. Hard disk sizes from 2 MB up are rounded to whole megabytes, as Apple labels its drives; under 2 MB they have one decimal (1.4 MB), and under 1 MB they are in kilobytes.
+
 ## Terms
 
 - **Image**: a file that a drive or the recorder can load: a floppy disk image, a hard disk image or a tape recording.
@@ -177,7 +182,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - **FR-004**: A block image's form factor MUST follow from its block count: 280 blocks is 5.25-inch 140K, 800 blocks is 3.5-inch 400K, 1,600 blocks is 3.5-inch 800K, and any other count, including the 2,880 blocks of a 1.44 MB disk, is a hard disk whose formatted size is its capacity.
 - **FR-005**: A tape MUST be classified from its extension alone.
 - **FR-006**: A file that has an image extension and fails the checks in FR-003 and FR-004 MUST be reported as not classified, distinct from a file that is not an image, so a damaged image is never listed as a healthy one.
-- **FR-007**: Formatted size MUST be available both as a number, for sorting and comparison, and as a label: "140K", "400K", "800K", and megabytes for hard disks.
+- **FR-007**: Formatted size MUST be available both as a number, for sorting and comparison, and as a label: kilobytes under 1 MB ("140K", "400K", "800K"), one decimal under 2 MB ("1.4 MB"), and whole megabytes, rounded, from 2 MB up ("5 MB" for a 9,728-block ProFile, "32 MB").
 
 #### The drive rule
 
@@ -229,7 +234,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - **FR-036**: Casso Explorer MUST have a form factor column and a formatted size column, available in every folder listing, in the file manager and in the picker.
 - **FR-037**: The columns MUST be filled without blocking the listing: the file list first, classification after, with results cached so that a return to a folder classifies only new and modified files.
 - **FR-038**: Both columns MUST be sortable, with formatted size ordered by capacity, and MUST take part in the file manager's existing filtering and search where columns do.
-- **FR-039**: The file system and volume name columns, filled today only in collection results, MUST also be filled for images in ordinary folder listings where the picker's default view includes them.
+- **FR-039**: The file system and volume name columns, filled today only in collection results, MUST also be filled for images in ordinary folder listings and in the Casso node's list, read in the background (FR-037).
 
 #### Replaced surfaces
 
@@ -249,6 +254,16 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - **FR-049**: An insert through the picker MUST update the recent list and the Casso node's folders exactly as an insert through the old dialog did.
 
 - **FR-064**: In a picker opened from the emulator, a row whose image is inserted in a drive of the running machine MUST be marked with that drive, for example "In slot 6 drive 1".
+
+#### Hard disks while the machine runs
+
+- **FR-065**: A picker opened from an HD20SC or a ProFile on the desk or the drive bar, and a drop on one, MUST stage the image for that drive in the machine's configuration rather than mount it. The drive's image changes at the next restart of the machine.
+- **FR-066**: After an image is staged for a hard disk, an infobar MUST state the drive and that the image takes effect at the next restart, with a Restart now button. Staging another image for the same drive replaces the staged one; the infobar closes after the restart.
+- **FR-067**: Over a hard disk, the cursor MUST be the copy cursor when the rule accepts the dragged image, as for any other drive (FR-016), since the drop stages it.
+
+#### The startup form
+
+- **FR-068**: The startup boot disk picker MUST be replaced by the picker in a startup form: opened before the emulator window, for drive 1 of the machine being started, starting on the Casso node's list and offering the "Stock disks" node. A pick boots the machine with the image; closing the picker quits Casso, as closing the startup dialog does today.
 
 #### The save form
 
@@ -278,7 +293,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - **SC-002**: Opened for a drive, the picker lists zero images that the drive then fails to mount for form factor or size.
 - **SC-003**: A folder of 500 images on a local drive is listed in under one second and has both columns filled in under two seconds on first visit, and in under half a second on a return visit.
 - **SC-004**: A user can go from a click on a drive to an inserted image in three actions when the image is in the Casso node's list: click the drive, click the image, confirm.
-- **SC-005**: No insert disk dialog and no Windows file dialog for opening or saving a disk or tape image remains reachable in the emulator or in Casso Explorer.
+- **SC-005**: No insert disk dialog, no startup boot disk dialog, and no Windows file dialog for opening or saving a disk or tape image remains reachable in the emulator or in Casso Explorer.
 - **SC-006**: Opening and closing the picker any number of times does not open a serial port, does not restore a saved session and does not change the file manager's saved session.
 - **SC-007**: In picker mode, zero file-changing or connection commands are reachable by any input route.
 - **SC-008**: Every image in the test collection that the emulator can mount is classified, and every classification matches what the mount reports for that image.
