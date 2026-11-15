@@ -608,6 +608,8 @@
     <ClCompile Include="Devices\Disk2ControllerAudioTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerIdleTests.cpp" />
     <ClCompile Include="Devices\DiskFieldFormatTests.cpp" />
+    <ClCompile Include="Devices\ImageClassifierTests.cpp" />
+    <ClCompile Include="Devices\DriveImageRuleTests.cpp" />
     <ClCompile Include="Devices\DiskMarkPatternTests.cpp" />
     <ClCompile Include="Devices\Disk2EventRingTests.cpp" />
     <ClCompile Include="Devices\Disk2AddressMarkWatcherTests.cpp" />
@@ -872,6 +874,7 @@
     <ClCompile Include="UiTests\NetworkPageTests.cpp" />
     <ClCompile Include="BlockDeviceTests\BlockDeviceEventRingTests.cpp" />
     <ClCompile Include="BlockDeviceTests\BlockDeviceMediaTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\DriveRuleMountAgreementTests.cpp" />
     <ClCompile Include="BlockDeviceTests\Ncr5380Tests.cpp" />
     <ClCompile Include="BlockDeviceTests\ScsiHardDiskTests.cpp" />
     <ClCompile Include="BlockDeviceTests\AppleScsiCardTests.cpp" />
@@ -951,6 +954,7 @@
     <ClInclude Include="NetworkTests\RecordingPacketSink.h" />
     <ClInclude Include="UiTests\SettingsRecordingSink.h" />
     <ClInclude Include="EmuTests\Woz35Builder.h" />
+    <ClInclude Include="Devices\ImageHeadBuilder.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ehm\Ehm.vcxproj">

@@ -4,6 +4,7 @@
 
 #include "Core/MachineConfig.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Devices/Disk/DriveImageRule.h"
 
 
 
@@ -19,6 +20,35 @@ DeskDriveClass DeskDrivePlan::GetClass (DeskDriveModel model)
 {
     return (model == DeskDriveModel::HardDisk20SC || model == DeskDriveModel::ProFile) ? DeskDriveClass::HardDisk
                                                                                          : DeskDriveClass::Floppy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetReceivingKind
+//
+//  No default arm, so a model added without a kind is a compiler warning
+//  and fails the sweep in DriveImageRuleTests.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ReceivingDriveKind DeskDrivePlan::GetReceivingKind (DeskDriveModel model)
+{
+    switch (model)
+    {
+        case DeskDriveModel::DiskII:        return ReceivingDriveKind::Floppy525;
+        case DeskDriveModel::Disk2c:        return ReceivingDriveKind::Floppy525;
+        case DeskDriveModel::UniDisk35:     return ReceivingDriveKind::UniDisk35;
+        case DeskDriveModel::Apple35Drive:  return ReceivingDriveKind::Apple35;
+        case DeskDriveModel::Apple35Plus:   return ReceivingDriveKind::Apple35;
+        case DeskDriveModel::HardDisk20SC:  return ReceivingDriveKind::HardDisk;
+        case DeskDriveModel::ProFile:       return ReceivingDriveKind::HardDisk;
+    }
+
+    return ReceivingDriveKind::Floppy525;
 }
 
 

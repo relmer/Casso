@@ -321,6 +321,8 @@
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockEditBuffer.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockHistory.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockImageFile.cpp" />
+    <ClCompile Include="Devices\Disk\ImageClassifier.cpp" />
+    <ClCompile Include="Devices\Disk\DriveImageRule.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockInspectorModel.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockLeftovers.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockFieldList.cpp" />
@@ -1404,6 +1406,8 @@
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockEditBuffer.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockHistory.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockImageFile.h" />
+    <ClInclude Include="Devices\Disk\ImageClassifier.h" />
+    <ClInclude Include="Devices\Disk\DriveImageRule.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockInspectorModel.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockLeftovers.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockFieldList.h" />
