@@ -20,7 +20,10 @@ void BlockMapView::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 
     m_scaler = scaler;
 
-    Refresh();
+    if (!m_isFrozen)
+    {
+        Refresh();
+    }
 }
 
 
@@ -41,7 +44,7 @@ RECT BlockMapView::GetGridRect() const
 
 
 
-    if (m_model != nullptr && !m_model->GetBands().empty())
+    if (!m_bands.empty())
     {
         grid.top += (LONG) (m_scaler.ToPxf (kBandDip) + m_scaler.ToPxf (kBandGapDip));
     }
@@ -61,15 +64,20 @@ RECT BlockMapView::GetGridRect() const
 
 void BlockMapView::Refresh()
 {
-    RECT        grid  = GetGridRect();
-    uint32_t    count = m_model != nullptr ? m_model->GetBlockCount() : 0;
-    uint32_t    block = 0;
-    uint32_t    cell  = 0;
-    SectorRole  role  = SectorRole::Free;
+    bool        isOpen = m_model != nullptr && m_model->IsOpen();
+    uint32_t    count  = isOpen ? m_model->GetBlockCount() : 0;
+    uint32_t    block  = 0;
+    uint32_t    cell   = 0;
+    SectorRole  role   = SectorRole::Free;
+    RECT        grid   = {};
 
 
 
-    m_grid = BlockMapGrid (count, grid.right - grid.left, grid.bottom - grid.top);
+    m_bands      = isOpen ? m_model->GetBands() : vector<BlockBand>();
+    m_blockCount = count;
+    m_current    = isOpen ? m_model->GetBlock() : 0;
+    grid         = GetGridRect();
+    m_grid       = BlockMapGrid (count, grid.right - grid.left, grid.bottom - grid.top);
 
     m_roles.assign (m_grid.GetCellCount(), SectorRole::Free);
     m_highlighted.assign (m_grid.GetCellCount(), false);
@@ -198,9 +206,9 @@ bool BlockMapView::OnMouse (const DxuiMouseEvent & ev)
 
     if (isBand && bounds.right > bounds.left)
     {
-        at = (double) (ev.positionDip.x - bounds.left) / (bounds.right - bounds.left) * m_model->GetBlockCount();
+        at = (double) (ev.positionDip.x - bounds.left) / (bounds.right - bounds.left) * m_blockCount;
 
-        for (const BlockBand & band : m_model->GetBands())
+        for (const BlockBand & band : m_bands)
         {
             if (!band.isMap && band.Contains ((uint32_t) at))
             {
@@ -260,7 +268,7 @@ void BlockMapView::PaintBands (IDxuiPainter & painter, IDxuiTextRenderer & text,
     RECT      bounds = GetBounds();
     float     width  = (float) (bounds.right - bounds.left);
     float     height = m_scaler.ToPxf (kBandDip);
-    float     count  = (float) std::max<uint32_t> (1, m_model->GetBlockCount());
+    float     count  = (float) std::max<uint32_t> (1, m_blockCount);
     float     x      = 0.0f;
     float     w      = 0.0f;
     float     pad    = m_scaler.ToPxf (kTextPadDip);
@@ -268,7 +276,7 @@ void BlockMapView::PaintBands (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 
 
-    for (const BlockBand & band : m_model->GetBands())
+    for (const BlockBand & band : m_bands)
     {
         x = bounds.left + width * band.first / count;
         w = std::max (1.0f, width * band.count / count);
@@ -345,7 +353,7 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme,
 
     if (m_isOutlined && m_grid.GetCellCount() != 0)
     {
-        at = m_grid.GetCellOrigin (m_grid.GetCellOf (m_model->GetBlock()));
+        at = m_grid.GetCellOrigin (m_grid.GetCellOf (m_current));
 
         painter.OutlineRect ((float) (grid.left + at.x) - outline * 0.5f, (float) (grid.top + at.y) - outline * 0.5f,
                              size + outline, size + outline, outline, theme.Accent());

@@ -215,7 +215,7 @@ public:
 
         OpenModel (io, model);
 
-        panel.Init   (&model, &theme, nullptr, &text);
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
         panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
         panel.SelectBlock (2);
         panel.Paint  (painter, text, theme);
@@ -235,6 +235,48 @@ public:
 
         Assert::IsTrue (HasText (text, L"1 byte changed, not written"));
     }
+
+
+    TEST_METHOD (Panel_ABlockIsDrawnOnlyAfterTheWorkerLoadsIt)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorWorker  worker;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, &worker, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+
+        worker.WaitForWork();
+        worker.RunFinished();
+        panel.SelectBlock (2);
+
+        Assert::IsTrue  (panel.IsBusy(), L"block 2 is loaded by a job");
+        Assert::IsFalse (panel.GetHexView()->OnChar (L'C'), L"typing is ignored while the job runs");
+
+        worker.WaitForWork();
+        Assert::IsTrue  (model.IsLoaded (2));
+
+        text.Reset();
+        panel.Paint (painter, text, theme);
+        Assert::IsFalse (HasText (text, L"Block 2: Volume header"), L"drawn only once the job's completion runs");
+
+        worker.RunFinished();
+        Assert::IsFalse (panel.IsBusy());
+
+        text.Reset();
+        panel.Paint (painter, text, theme);
+        Assert::IsTrue  (HasText (text, L"Block 2: Volume header"));
+    }
+
 
 
     TEST_METHOD (Panel_ParsesDecimalAndHexBlockNumbers)

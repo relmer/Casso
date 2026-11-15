@@ -486,4 +486,176 @@ public:
         Assert::IsTrue (model.FindDifference (false, block));
         Assert::AreEqual (900u, block, L"back from 500 wraps to the last difference");
     }
+
+
+    TEST_METHOD (CompareWith_ACanceledComparisonEndsIt)
+    {
+        FakeDiskFileIo                   io;
+        BlockInspectorModel              model;
+        vector<Byte>                     volume = MakeProDos();
+        std::unique_ptr<BlockImageFile>  file;
+        std::wstring                     error;
+        BlockJobProgress                 progress;
+
+
+
+        Seed (io, "a.po", volume);
+        Seed (io, "b.po", volume);
+        OpenModel (io, "a.po", model);
+
+        AssertSucceeded (BlockImageFile::Open (io, "b.po", file, error));
+
+        progress.isCanceled = true;
+
+        Assert::AreEqual (E_ABORT, model.CompareWith (std::move (file), &progress));
+        Assert::IsFalse  (model.IsComparing());
+    }
+
+
+    TEST_METHOD (Leftovers_ACanceledSearchFindsNothing)
+    {
+        FakeDiskFileIo       io;
+        BlockInspectorModel  model;
+        BlockJobProgress     progress;
+
+
+
+        Seed (io, "vol.po", MakeProDos());
+        OpenModel (io, "vol.po", model);
+
+        progress.isCanceled = true;
+        model.FindLeftovers (&progress);
+
+        Assert::IsFalse (model.HasLeftovers());
+    }
+
+
+    TEST_METHOD (Leftovers_ReportsItsProgress)
+    {
+        FakeDiskFileIo       io;
+        BlockInspectorModel  model;
+        BlockJobProgress     progress;
+
+
+
+        Seed (io, "vol.po", MakeProDos());
+        OpenModel (io, "vol.po", model);
+
+        model.FindLeftovers (&progress);
+
+        Assert::IsTrue   (model.HasLeftovers());
+        Assert::AreEqual ((uint64_t) k800KBlocks, progress.total.load());
+        Assert::IsTrue   (progress.done > 0);
+    }
+
+
+    TEST_METHOD (LoadBlock_LoadsTheBlockUntilAWriteClearsIt)
+    {
+        FakeDiskFileIo       io;
+        BlockInspectorModel  model;
+        std::wstring         error;
+
+
+
+        Seed (io, "vol.po", MakeProDos());
+        OpenModel (io, "vol.po", model);
+
+        Assert::IsFalse (model.IsLoaded (700));
+
+        model.LoadBlock (700);
+        model.SelectBlock (700);
+
+        Assert::IsTrue (model.IsLoaded (700));
+        Assert::IsTrue (model.TypeHexDigit (0, true, L'A'));
+
+        AssertSucceeded (model.ApplyEdits (error));
+
+        Assert::IsFalse (model.IsLoaded (700), L"read again after the write");
+    }
+
+
+    TEST_METHOD (Worker_RunsJobsInOrderAndCompletionsOnRunFinished)
+    {
+        BlockInspectorWorker  worker;
+        std::vector<int>      order;
+        std::mutex            lock;
+        int                   finished  = 0;
+        std::wstring          label;
+        bool                  canCancel = false;
+        uint64_t              done      = 0;
+        uint64_t              total     = 0;
+
+
+
+        worker.Queue ({ L"", false, [&] (BlockJobProgress &) { std::lock_guard<std::mutex> guard (lock); order.push_back (1); }, [&] () { finished++; } });
+        worker.Queue ({ L"Long", true, [&] (BlockJobProgress &) { std::lock_guard<std::mutex> guard (lock); order.push_back (2); }, [&] () { finished++; } });
+        worker.WaitForWork();
+
+        Assert::AreEqual ((size_t) 2, order.size());
+        Assert::AreEqual (1, order[0]);
+        Assert::AreEqual (2, order[1]);
+        Assert::AreEqual (0, finished, L"no completion runs on the worker's thread");
+        Assert::IsTrue   (worker.IsBusy(), L"busy until the completions run");
+        Assert::IsFalse  (worker.TryGetLongJob (label, canCancel, done, total));
+
+        worker.RunFinished();
+
+        Assert::AreEqual (2, finished);
+        Assert::IsFalse  (worker.IsBusy());
+    }
+
+
+    TEST_METHOD (Worker_CancelsARunningJobAndReportsItsProgress)
+    {
+        BlockInspectorWorker     worker;
+        std::mutex               lock;
+        std::condition_variable  changed;
+        bool                     isStarted  = false;
+        bool                     isCanceled = false;
+        std::wstring             label;
+        bool                     canCancel  = false;
+        uint64_t                 done       = 0;
+        uint64_t                 total      = 0;
+
+
+
+        worker.Queue ({ L"Finding", true,
+                        [&] (BlockJobProgress & progress)
+                        {
+                            progress.total = 10;
+                            progress.done  = 3;
+
+                            {
+                                std::lock_guard<std::mutex>  guard (lock);
+
+                                isStarted = true;
+                            }
+
+                            changed.notify_all();
+
+                            while (!progress.IsCanceled())
+                            {
+                                std::this_thread::yield();
+                            }
+
+                            isCanceled = true;
+                        },
+                        nullptr });
+
+        {
+            std::unique_lock<std::mutex>  guard (lock);
+
+            Assert::IsTrue (changed.wait_for (guard, std::chrono::seconds (5), [&] () { return isStarted; }));
+        }
+
+        Assert::IsTrue   (worker.TryGetLongJob (label, canCancel, done, total));
+        Assert::AreEqual (std::wstring (L"Finding"), label);
+        Assert::IsTrue   (canCancel);
+        Assert::AreEqual ((uint64_t) 10, total);
+
+        worker.Cancel();
+        worker.WaitForWork();
+
+        Assert::IsTrue (isCanceled);
+    }
 };

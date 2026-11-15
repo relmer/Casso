@@ -556,6 +556,26 @@ bool ExplorerOpen::ConfirmElevation (const std::wstring & card)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerOpen::ConfirmCardWrite
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerOpen::ConfirmCardWrite (const std::wstring & question)
+{
+    int  choice = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, question.c_str(), L"Write to card",
+                                  MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Write", L"Cancel" });
+
+
+
+    return choice == IDOK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerOpen::FinishInitialize
 //
 ////////////////////////////////////////////////////////////////////////////////

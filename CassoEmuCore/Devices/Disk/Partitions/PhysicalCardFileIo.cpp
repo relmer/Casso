@@ -348,7 +348,8 @@ Error:
 //
 //  PhysicalCardFileIo::FlushToStorage
 //
-//  A write to a card is on the card when WritePartition returns.
+//  A write to a card is on the card when WritePartition returns. A flush
+//  ends a command's writes, so it ends the calling thread's confirmation.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -357,6 +358,11 @@ HRESULT PhysicalCardFileIo::FlushToStorage (const std::string & path)
     bool  isOnDrive = Resolve (path).kind != PhysicalCards::PathKind::None;
 
 
+
+    if (isOnDrive)
+    {
+        m_cards.EndThreadConfirmation();
+    }
 
     return isOnDrive ? S_OK : m_inner.FlushToStorage (path);
 }

@@ -2,9 +2,8 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
-
-class BlockInspectorModel;
 
 
 
@@ -20,7 +19,8 @@ class BlockInspectorModel;
 //  a block that differs has a mark in its top right corner, and a free block
 //  with leftover data has one in its bottom left. Pointing at a
 //  cell reports its blocks, role and files; a click on a cell or a band
-//  steps to its first block.
+//  steps to its first block. Refresh copies what is drawn from the model,
+//  so Paint doesn't read the model while a worker's thread uses it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +41,9 @@ public:
 
     //  Whether the current block's cell is outlined.
     void  SetOutlined (bool isOutlined) { m_isOutlined = isOutlined; }
+
+    //  While frozen, Layout moves the map without reading the model again.
+    void  SetFrozen   (bool isFrozen)   { m_isFrozen = isFrozen; }
 
     //  Reads each cell's role and highlight from the model again.
     void  Refresh ();
@@ -73,4 +76,8 @@ private:
     HoverFn                m_onHover;
     int64_t                m_hoverCell   = -1;
     bool                   m_isOutlined  = true;
+    bool                   m_isFrozen    = false;
+    vector<BlockBand>      m_bands;
+    uint32_t               m_blockCount  = 0;
+    uint32_t               m_current     = 0;
 };

@@ -794,7 +794,7 @@ HRESULT PhysicalCards::WritePartitionAt (int number, int partition, uint64_t off
     m_confirming = true;
 
     lock.unlock();
-    confirmed = m_confirmed || (m_confirmWrite && m_confirmWrite (drive));
+    confirmed = m_confirmed || m_confirmedThread == GetCurrentThreadId() || (m_confirmWrite && m_confirmWrite (drive));
     lock.lock();
 
     m_confirming = false;
@@ -818,6 +818,27 @@ HRESULT PhysicalCards::WritePartitionAt (int number, int partition, uint64_t off
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::EndThreadConfirmation
+//
+//  Only the confirmed thread ends its confirmation.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PhysicalCards::EndThreadConfirmation()
+{
+    DWORD  current = GetCurrentThreadId();
+
+
+
+    m_confirmedThread.compare_exchange_strong (current, 0);
 }
 
 

@@ -525,7 +525,8 @@ void BlockImageFile::AnnotateDiskCopy (BlockFieldList & list)
 
 HRESULT BlockImageFile::Commit()
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr      = S_OK;
+    HRESULT  flushed = S_OK;
 
 
 
@@ -542,6 +543,9 @@ HRESULT BlockImageFile::Commit()
     CHR (hr);
 
 Error:
+    flushed = m_fileIo.FlushToStorage (m_path);
+    IGNORE_RETURN_VALUE (flushed, S_OK);
+
     return hr;
 }
 

@@ -44,15 +44,144 @@ HRESULT BlockInspectorModel::Open (std::unique_ptr<BlockImageFile> file)
     m_history.Clear();
     m_edits.DiscardAll();
     ClearHighlight();
+    ClearCache();
 
     hr = BuildVolumes();
     CHR (hr);
+
+    m_headerFields.clear();
+
+    if (!m_file->GetHeader().empty())
+    {
+        m_file->AnnotateHeader (m_headerFields);
+    }
 
     m_block = 0;
     m_history.Record (m_block);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::ClearCache
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorModel::ClearCache()
+{
+    m_stored.clear();
+    m_storedOther.clear();
+    m_tags.clear();
+    m_untagged.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::LoadBlock
+//
+//  A block that can't be read is cached as zeros, as ReadStoredBlock returns
+//  it, so it is drawn as zeros rather than read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorModel::LoadBlock (uint32_t block)
+{
+    Block    bytes = {};
+    Tags     tags  = {};
+    HRESULT  hr    = S_OK;
+
+
+
+    if (m_file == nullptr || block >= GetBlockCount())
+    {
+        return;
+    }
+
+    hr = ReadStoredBlock (block, bytes);
+
+    if (FAILED (hr))
+    {
+        m_stored[block] = bytes;
+    }
+
+    if (!m_tags.contains (block) && !m_untagged.contains (block))
+    {
+        if (m_file->TryReadTags (block, tags))
+        {
+            m_tags[block] = tags;
+        }
+        else
+        {
+            m_untagged.insert (block);
+        }
+    }
+
+    if (IsComparing())
+    {
+        hr = ReadOtherBlock (block, bytes);
+
+        if (FAILED (hr))
+        {
+            m_storedOther[block] = bytes;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::IsLoaded
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorModel::IsLoaded (uint32_t block) const
+{
+    bool  isStored = m_stored.contains (block);
+    bool  isTagged = m_tags.contains (block) || m_untagged.contains (block);
+    bool  isOther  = !IsComparing() || m_storedOther.contains (block);
+
+
+
+    return isStored && isTagged && isOther;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::TryGetTags
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorModel::TryGetTags (uint32_t block, Tags & outTags) const
+{
+    auto  found = m_tags.find (block);
+
+
+
+    if (found == m_tags.end())
+    {
+        return false;
+    }
+
+    outTags = found->second;
+
+    return true;
 }
 
 
@@ -488,18 +617,29 @@ bool BlockInspectorModel::GoForward()
 //
 //  BlockInspectorModel::ReadStoredBlock
 //
+//  From the cache, or read from the file and cached.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT BlockInspectorModel::ReadStoredBlock (uint32_t block, Block & outBytes)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr     = S_OK;
+    auto     cached = m_stored.find (block);
 
 
 
     outBytes.fill (0);
 
+    if (cached != m_stored.end())
+    {
+        outBytes = cached->second;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     hr = m_file->GetStore().ReadBlocks (block, 1, outBytes);
     CHR (hr);
+
+    m_stored[block] = outBytes;
 
 Error:
     return hr;
@@ -980,9 +1120,12 @@ bool BlockInspectorModel::TypeCharacter (int offset, wchar_t ch)
 //
 //  BlockInspectorModel::ApplyEdits
 //
+//  The cache is cleared after the write, as a card's partition or a Disk
+//  Copy image can differ from the blocks written once committed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT BlockInspectorModel::ApplyEdits (std::wstring & outError)
+HRESULT BlockInspectorModel::ApplyEdits (std::wstring & outError, BlockJobProgress * progress)
 {
     HRESULT           hr        = S_OK;
     vector<uint32_t>  changed   = m_edits.GetChangedBlocks();
@@ -1011,19 +1154,34 @@ HRESULT BlockInspectorModel::ApplyEdits (std::wstring & outError)
 
     m_edits.DiscardAll();
     ClearHighlight();
+    ClearCache();
 
     hr = BuildVolumes();
     CHR (hr);
 
+    m_headerFields.clear();
+
+    if (!m_file->GetHeader().empty())
+    {
+        m_file->AnnotateHeader (m_headerFields);
+    }
+
     if (IsComparing())
     {
-        hr = ComputeDifferences();
+        hr = ComputeDifferences (progress);
+
+        if (hr == E_ABORT)
+        {
+            EndComparison();
+            hr = S_OK;
+        }
+
         CHR (hr);
     }
 
     if (m_hasLeftovers)
     {
-        FindLeftovers();
+        FindLeftovers (progress);
     }
 
 Error:
@@ -1040,7 +1198,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT BlockInspectorModel::CompareWith (std::unique_ptr<BlockImageFile> other)
+HRESULT BlockInspectorModel::CompareWith (std::unique_ptr<BlockImageFile> other, BlockJobProgress * progress)
 {
     HRESULT  hr      = S_OK;
     bool     isOther = other != nullptr;
@@ -1050,8 +1208,9 @@ HRESULT BlockInspectorModel::CompareWith (std::unique_ptr<BlockImageFile> other)
     CBRAEx (isOther, E_INVALIDARG);
 
     m_other = std::move (other);
+    m_storedOther.clear();
 
-    hr = ComputeDifferences();
+    hr = ComputeDifferences (progress);
     CHR (hr);
 
 Error:
@@ -1071,42 +1230,70 @@ Error:
 //
 //  BlockInspectorModel::ComputeDifferences
 //
+//  Both images are read kRunBlocks at a time. A block past either image's
+//  end is compared as zeros. Fails with E_ABORT once canceled.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT BlockInspectorModel::ComputeDifferences()
+HRESULT BlockInspectorModel::ComputeDifferences (BlockJobProgress * progress)
 {
-    HRESULT   hr     = S_OK;
-    uint32_t  count  = std::max (GetBlockCount(), m_other->GetBlockCount());
-    uint32_t  block  = 0;
-    Block     mine   = {};
-    Block     theirs = {};
+    HRESULT   hr         = S_OK;
+    uint32_t  count      = std::max (GetBlockCount(), m_other->GetBlockCount());
+    uint32_t  first      = 0;
+    uint32_t  step       = 0;
+    uint32_t  inMine     = 0;
+    uint32_t  inOther    = 0;
+    uint32_t  i          = 0;
+    bool      isCanceled = false;
+    vector<Byte>  mine       (kRunBlocks * kBlockBytes);
+    vector<Byte>  theirs     (kRunBlocks * kBlockBytes);
 
 
 
     m_differs.assign (count, false);
     m_differCount = 0;
 
-    for (block = 0; block < count; block++)
+    if (progress != nullptr)
     {
-        mine.fill (0);
-        theirs.fill (0);
+        progress->total = count;
+    }
 
-        if (block < GetBlockCount())
+    for (first = 0; first < count; first += step)
+    {
+        isCanceled = progress != nullptr && progress->IsCanceled();
+        CBREx (!isCanceled, E_ABORT);
+
+        if (progress != nullptr)
         {
-            hr = ReadStoredBlock (block, mine);
+            progress->done = first;
+        }
+
+        step    = std::min (kRunBlocks, count - first);
+        inMine  = first < GetBlockCount()           ? std::min (step, GetBlockCount() - first)           : 0;
+        inOther = first < m_other->GetBlockCount()  ? std::min (step, m_other->GetBlockCount() - first)  : 0;
+
+        std::fill (mine.begin(),   mine.end(),   Byte (0));
+        std::fill (theirs.begin(), theirs.end(), Byte (0));
+
+        if (inMine > 0)
+        {
+            hr = m_file->GetStore().ReadBlocks (first, inMine, mine);
             CHR (hr);
         }
 
-        if (block < m_other->GetBlockCount())
+        if (inOther > 0)
         {
-            hr = ReadOtherBlock (block, theirs);
+            hr = m_other->GetStore().ReadBlocks (first, inOther, theirs);
             CHR (hr);
         }
 
-        if (mine != theirs)
+        for (i = 0; i < step; i++)
         {
-            m_differs[block] = true;
-            m_differCount++;
+            if (!std::equal (mine.begin() + (ptrdiff_t) i * kBlockBytes, mine.begin() + (ptrdiff_t) (i + 1) * kBlockBytes, theirs.begin() + (ptrdiff_t) i * kBlockBytes))
+            {
+                m_differs[first + i] = true;
+                m_differCount++;
+            }
         }
     }
 
@@ -1128,6 +1315,7 @@ void BlockInspectorModel::EndComparison()
 {
     m_other.reset();
     m_differs.clear();
+    m_storedOther.clear();
 
     m_differCount = 0;
 }
@@ -1140,7 +1328,8 @@ void BlockInspectorModel::EndComparison()
 //
 //  BlockInspectorModel::ReadOtherBlock
 //
-//  A block past the other image's end is zeros.
+//  A block past the other image's end is zeros. From the cache, or read
+//  from the other image and cached.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1149,16 +1338,27 @@ HRESULT BlockInspectorModel::ReadOtherBlock (uint32_t block, Block & outBytes)
     HRESULT  hr      = S_OK;
     bool     isOther = m_other != nullptr;
     bool     isPast  = isOther && block >= m_other->GetBlockCount();
+    auto     cached  = m_storedOther.find (block);
 
 
 
     outBytes.fill (0);
 
     CBRAEx (isOther, E_UNEXPECTED);
-    BAIL_OUT_IF (isPast, S_OK);
 
-    hr = m_other->GetStore().ReadBlocks (block, 1, outBytes);
-    CHR (hr);
+    if (cached != m_storedOther.end())
+    {
+        outBytes = cached->second;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (!isPast)
+    {
+        hr = m_other->GetStore().ReadBlocks (block, 1, outBytes);
+        CHR (hr);
+    }
+
+    m_storedOther[block] = outBytes;
 
 Error:
     return hr;
@@ -1207,32 +1407,61 @@ bool BlockInspectorModel::FindDifference (bool isForward, uint32_t & outBlock) c
 //
 //  BlockInspectorModel::FindLeftovers
 //
-//  Each free block's bytes as the file has them.
+//  Each free block's bytes as the file has them. Each run of free blocks is
+//  read up to kRunBlocks at a time. With one read for each block, the window
+//  didn't respond for about a minute on a card's 32 MB partition.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorModel::FindLeftovers()
+void BlockInspectorModel::FindLeftovers (BlockJobProgress * progress)
 {
     vector<LeftoverKind>  kinds (GetBlockCount(), LeftoverKind::None);
+    vector<Byte>          run   (kRunBlocks * kBlockBytes);
     uint32_t              block = 0;
-    Block                 bytes = {};
+    uint32_t              count = 0;
+    uint32_t              i     = 0;
     HRESULT               hr    = S_OK;
 
 
 
-    for (block = 0; block < GetBlockCount(); block++)
+    if (progress != nullptr)
     {
-        if (GetRole (block) != SectorRole::Free)
+        progress->total = GetBlockCount();
+    }
+
+    while (block < GetBlockCount())
+    {
+        if (progress != nullptr && progress->IsCanceled())
         {
+            return;
+        }
+
+        if (progress != nullptr)
+        {
+            progress->done = block;
+        }
+
+        count = 0;
+
+        while (count < kRunBlocks && block + count < GetBlockCount() && GetRole (block + count) == SectorRole::Free)
+        {
+            count++;
+        }
+
+        if (count == 0)
+        {
+            block++;
             continue;
         }
 
-        hr = ReadStoredBlock (block, bytes);
+        hr = m_file->GetStore().ReadBlocks (block, count, run);
 
-        if (SUCCEEDED (hr))
+        for (i = 0; SUCCEEDED (hr) && i < count; i++)
         {
-            kinds[block] = BlockLeftovers::Classify (bytes);
+            kinds[block + i] = BlockLeftovers::Classify (BlockBytes (run).subspan ((size_t) i * kBlockBytes, kBlockBytes));
         }
+
+        block += count;
     }
 
     m_leftovers    = BlockLeftovers::FindRuns (kinds);

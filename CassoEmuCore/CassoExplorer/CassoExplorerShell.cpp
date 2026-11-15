@@ -1889,8 +1889,9 @@ int CassoExplorerShell::RunMessageLoop()
 //
 //  CassoExplorerShell::ConfirmCardWrite
 //
-//  A write from a thread other than the UI thread is canceled, as the prompt
-//  is a window of the UI thread. One prompt covers every write of a command.
+//  The prompt is sent to an Explorer window, as it is a window of the UI
+//  thread. On the UI thread one prompt covers every write of a command; from
+//  another thread it covers that thread's writes until their flush.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1898,34 +1899,41 @@ bool CassoExplorerShell::ConfirmCardWrite (const PhysicalDrive & drive)
 {
     CassoExplorerWindow  * window   = GetWindowFor (GetForegroundWindow());
     std::wstring           question = std::format (L"Write to {}? The card is changed in place.", PhysicalCards::FormatDrive (drive));
-    int                    choice   = IDCANCEL;
+    bool                   choice   = false;
     UINT_PTR               timer    = 0;
 
 
 
-    if (GetCurrentThreadId() != m_uiThread)
+    for (const std::unique_ptr<WindowSlot> & slot : m_windows)
+    {
+        if (window == nullptr && !slot->closed)
+        {
+            window = slot->window.get();
+        }
+    }
+
+    if (window == nullptr)
     {
         return false;
     }
 
-    choice = DxuiMessageBox (window != nullptr ? window->GetHwnd() : nullptr,
-                             window != nullptr ? window->GetDialogTheme() : nullptr,
-                             question.c_str(),
-                             L"Write to card",
-                             MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2,
-                             { L"Write", L"Cancel" });
+    SendMessageW (window->GetHwnd(), (UINT) AppMessage::ExplorerCardWrite, (WPARAM) &choice, (LPARAM) &question);
 
     //  The writes that follow in the same command are sent without a prompt.
-    //  The timer fires once the UI thread is back in its message loop.
-    if (choice == IDOK)
+    //  On the UI thread the timer fires once the thread is back in its loop.
+    if (choice && GetCurrentThreadId() == m_uiThread)
     {
         s_confirmedCards = &m_cards;
         m_cards.SetConfirmed (true);
         timer = SetTimer (nullptr, 0, 0, &CassoExplorerShell::EndCardConfirmation);
         IGNORE_RETURN_VALUE (timer, 0);
     }
+    else if (choice)
+    {
+        m_cards.SetConfirmedThread (GetCurrentThreadId());
+    }
 
-    return choice == IDOK;
+    return choice;
 }
 
 

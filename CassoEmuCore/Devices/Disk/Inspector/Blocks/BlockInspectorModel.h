@@ -7,6 +7,7 @@
 #include "Devices/Disk/Inspector/Blocks/BlockFieldList.h"
 #include "Devices/Disk/Inspector/Blocks/BlockHistory.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
+#include "Devices/Disk/Inspector/Blocks/BlockInspectorWorker.h"
 #include "Devices/Disk/Inspector/Blocks/BlockLeftovers.h"
 #include "Devices/Disk/Inspector/Blocks/BlockMap.h"
 #include "Devices/Disk/OffsetBlockStore.h"
@@ -54,6 +55,12 @@ struct BlockBand
 //  in place, only when it has not changed since it was opened, and the map
 //  is read again after. Pure apart from the file's reads and writes.
 //
+//  Each block read is cached, so a block loaded by LoadBlock is read from
+//  memory after. Open, FindLeftovers, CompareWith, ApplyEdits, LoadBlock and
+//  ReadRun read or write the file, and a window calls them on its
+//  BlockInspectorWorker's thread. Every other method is pure once the
+//  current block is loaded.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class BlockInspectorModel
@@ -62,15 +69,30 @@ public:
     static constexpr size_t  kBlockBytes = 512;
 
     using Block = BlockEditBuffer::Block;
+    using Tags  = std::array<Byte, BlockImageFile::kTagBytesPerBlock>;
 
     BlockInspectorModel  ();
     ~BlockInspectorModel ();
 
     HRESULT  Open (std::unique_ptr<BlockImageFile> file);
 
+    bool              IsOpen        () const { return m_file != nullptr; }
     BlockImageFile  & GetFile       () { return *m_file; }
     uint32_t          GetBlockCount () const;
     uint32_t          GetBlock      () const { return m_block; }
+
+    //  A block's bytes, its Disk Copy tag bytes and, while comparing, the
+    //  other image's block, read and cached. IsLoaded is true once they are.
+    void  LoadBlock (uint32_t block);
+    bool  IsLoaded  (uint32_t block) const;
+
+    //  A loaded block's Disk Copy tag bytes. False for an image without tag
+    //  bytes.
+    bool  TryGetTags (uint32_t block, Tags & outTags) const;
+
+    //  The container header's fields, read when the file is opened and after
+    //  each write.
+    const vector<BlockField> &  GetHeaderFields () const { return m_headerFields; }
 
     //  Steps to a block, clamped to the image, and adds it to the history for
     //  Back and Forward. ReplaceBlock steps in place of the current entry, as
@@ -122,12 +144,13 @@ public:
 
     //  Writes each changed block and reads the map again. Fails, writing
     //  nothing, when the file changed since it was opened.
-    HRESULT  ApplyEdits (std::wstring & outError);
+    HRESULT  ApplyEdits (std::wstring & outError, BlockJobProgress * progress = nullptr);
 
     //  Another image compared block by block with this one: each block
     //  whose bytes differ, a block past either image's end differing when it
-    //  isn't all zeros.
-    HRESULT           CompareWith    (std::unique_ptr<BlockImageFile> other);
+    //  isn't all zeros. A comparison canceled through `progress` ends with
+    //  E_ABORT.
+    HRESULT           CompareWith    (std::unique_ptr<BlockImageFile> other, BlockJobProgress * progress = nullptr);
     void              EndComparison  ();
     bool              IsComparing    () const { return m_other != nullptr; }
     bool              IsDifferent    (uint32_t block) const { return block < m_differs.size() && m_differs[block]; }
@@ -137,7 +160,8 @@ public:
     BlockImageFile  * GetOther       () const { return m_other.get(); }
 
     //  The free blocks with text or code in them, and the run a block is in.
-    void                         FindLeftovers   ();
+    //  A search canceled through `progress` finds nothing.
+    void                         FindLeftovers   (BlockJobProgress * progress = nullptr);
     void                         ClearLeftovers  ()       { m_leftovers.clear(); m_hasLeftovers = false; }
     bool                         HasLeftovers    () const { return m_hasLeftovers; }
     const vector<LeftoverRun>  & GetLeftovers    () const { return m_leftovers; }
@@ -145,6 +169,8 @@ public:
     HRESULT                      ReadRun         (const LeftoverRun & run, vector<Byte> & outBytes);
 
 private:
+    static constexpr uint32_t  kRunBlocks = 256;     // blocks read at once while finding leftovers or comparing
+
     //  A volume of blocks, or of DOS sectors in track and sector order: two
     //  to a block, or one in the first or second half of each block, by
     //  `half`. A sector volume's map units are its sectors.
@@ -180,7 +206,8 @@ private:
     uint32_t GetUnitBlock       (const Volume & volume, uint32_t unit) const;
     void     AnnotateSector     (const Place & place, const Block & bytes, vector<BlockField> & ioFields) const;
     bool     IsMapBlock         (uint32_t block, bool & outIsDescriptor) const;
-    HRESULT  ComputeDifferences ();
+    HRESULT  ComputeDifferences (BlockJobProgress * progress);
+    void     ClearCache         ();
 
     std::unique_ptr<BlockImageFile>  m_file;
     vector<std::unique_ptr<Volume>>  m_volumes;
@@ -196,4 +223,9 @@ private:
     size_t                           m_differCount     = 0;
     vector<LeftoverRun>              m_leftovers;
     bool                             m_hasLeftovers    = false;
+    std::map<uint32_t, Block>        m_stored;
+    std::map<uint32_t, Block>        m_storedOther;
+    std::map<uint32_t, Tags>         m_tags;
+    std::set<uint32_t>               m_untagged;
+    vector<BlockField>               m_headerFields;
 };

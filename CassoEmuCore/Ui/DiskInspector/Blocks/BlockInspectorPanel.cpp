@@ -30,7 +30,7 @@ BlockInspectorPanel::~BlockInspectorPanel() = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorPanel::Init (BlockInspectorModel * model, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text)
+void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorker * worker, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text)
 {
     constexpr uint32_t  kChangedColor = 0xFFE0A030;
     constexpr uint32_t  kDiffersColor = 0xFFF06060;
@@ -40,7 +40,8 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, const IDxuiTheme * 
 
 
 
-    m_model = model;
+    m_model  = model;
+    m_worker = worker;
 
     m_back      = CreateChild<DxuiButton> (L"Back");
     m_forward   = CreateChild<DxuiButton> (L"Forward");
@@ -52,6 +53,16 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, const IDxuiTheme * 
     m_map       = CreateChild<BlockMapView>();
     m_hex       = CreateChild<BlockHexView>();
     m_fields    = CreateChild<BlockFieldsView>();
+    m_cancel    = CreateChild<DxuiButton> (L"Cancel");
+
+    m_cancel->SetVisible (false);
+    m_cancel->SetOnClick ([this]()
+    {
+        if (m_worker != nullptr)
+        {
+            m_worker->Cancel();
+        }
+    });
 
     m_back->SetOnClick     ([this]() { GoBack(); });
     m_forward->SetOnClick  ([this]() { GoForward(); });
@@ -60,6 +71,11 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, const IDxuiTheme * 
 
     m_highlight->SetOnClick ([this]()
     {
+        if (IsBusy())
+        {
+            return;
+        }
+
         if (m_model->HasHighlight())
         {
             m_model->ClearHighlight();
@@ -74,6 +90,11 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, const IDxuiTheme * 
 
     m_header->SetOnClick ([this]()
     {
+        if (IsBusy())
+        {
+            return;
+        }
+
         m_isHeader   = !m_isHeader;
         m_shownBlock = -1;
         Refresh();
@@ -104,7 +125,7 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, const IDxuiTheme * 
     m_hex->SetOnNavigate   ([this] (const DxuiKeyEvent & ev) { return OnNavigateKey (ev); });
     m_hex->SetOnClick      ([this] (uint64_t offset)
     {
-        if (!m_isHeader && m_model->TryFollowLink ((int) offset))
+        if (!IsBusy() && !m_isHeader && m_model->IsLoaded (m_model->GetBlock()) && m_model->TryFollowLink ((int) offset))
         {
             m_isTyping = false;
             Refresh();
@@ -123,6 +144,11 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, const IDxuiTheme * 
 
     m_fields->SetOnHover  ([this] (const BlockField * field)
     {
+        if (IsBusy())
+        {
+            return;
+        }
+
         MarkField (field);
 
         if (m_onChanged)
@@ -133,7 +159,7 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, const IDxuiTheme * 
 
     m_fields->SetOnFollow ([this] (const BlockField * field)
     {
-        if (field != nullptr && field->link != BlockField::kNoLink && !m_isHeader)
+        if (field != nullptr && field->link != BlockField::kNoLink && !m_isHeader && !IsBusy())
         {
             SelectBlock ((uint32_t) field->link);
         }
@@ -168,7 +194,7 @@ void BlockInspectorPanel::InitSecondRow()
         {
             uint32_t  block = 0;
 
-            if (m_model->FindDifference (isForward, block))
+            if (!IsBusy() && m_model->FindDifference (isForward, block))
             {
                 SelectBlock (block);
             }
@@ -177,21 +203,28 @@ void BlockInspectorPanel::InitSecondRow()
 
     m_leftovers->SetOnClick ([this]()
     {
+        BlockInspectorModel  * model = m_model;
+
+        if (IsBusy())
+        {
+            return;
+        }
+
         if (m_model->HasLeftovers())
         {
             m_model->ClearLeftovers();
-        }
-        else
-        {
-            m_model->FindLeftovers();
+            Refresh();
+            return;
         }
 
-        Refresh();
+        QueueJob ({ L"Finding leftover data", true,
+                    [model] (BlockJobProgress & progress) { model->FindLeftovers (&progress); },
+                    [this] () { Refresh(); } });
     });
 
     m_saveRun->SetOnClick ([this]()
     {
-        const LeftoverRun  * run = m_model->FindLeftoverRun (m_model->GetBlock());
+        const LeftoverRun  * run = IsBusy() ? nullptr : m_model->FindLeftoverRun (m_model->GetBlock());
 
         if (run != nullptr && m_onSaveRun)
         {
@@ -269,7 +302,7 @@ void BlockInspectorPanel::OnInputChange (const std::wstring & text)
 
 
 
-    if (!TryParseBlock (text, block) || block >= m_model->GetBlockCount())
+    if (IsBusy() || !m_model->IsOpen() || !TryParseBlock (text, block) || block >= m_model->GetBlockCount())
     {
         return;
     }
@@ -284,9 +317,7 @@ void BlockInspectorPanel::OnInputChange (const std::wstring & text)
         m_isTyping = true;
     }
 
-    ShowBytes();
-    BuildStatus();
-    m_map->Refresh();
+    Refresh();
 }
 
 
@@ -301,6 +332,11 @@ void BlockInspectorPanel::OnInputChange (const std::wstring & text)
 
 void BlockInspectorPanel::SelectBlock (uint32_t block)
 {
+    if (IsBusy() || !m_model->IsOpen())
+    {
+        return;
+    }
+
     m_isHeader = false;
     m_isTyping = false;
     m_model->SelectBlock (block);
@@ -320,6 +356,11 @@ void BlockInspectorPanel::SelectBlock (uint32_t block)
 
 void BlockInspectorPanel::Step (int64_t delta)
 {
+    if (IsBusy() || !m_model->IsOpen())
+    {
+        return;
+    }
+
     m_isHeader = false;
     m_isTyping = false;
     m_model->StepBlock (delta);
@@ -339,6 +380,11 @@ void BlockInspectorPanel::Step (int64_t delta)
 
 void BlockInspectorPanel::GoBack()
 {
+    if (IsBusy() || !m_model->IsOpen())
+    {
+        return;
+    }
+
     m_isHeader = false;
     m_isTyping = false;
     m_model->GoBack();
@@ -358,6 +404,11 @@ void BlockInspectorPanel::GoBack()
 
 void BlockInspectorPanel::GoForward()
 {
+    if (IsBusy() || !m_model->IsOpen())
+    {
+        return;
+    }
+
     m_isHeader = false;
     m_isTyping = false;
     m_model->GoForward();
@@ -409,7 +460,8 @@ bool BlockInspectorPanel::OnNavigateKey (const DxuiKeyEvent & ev)
 //
 //  BlockInspectorPanel::OnType
 //
-//  The header isn't edited here.
+//  The header isn't edited here, and a block is edited only once it is
+//  loaded, so typing reads the block from memory.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -419,7 +471,7 @@ bool BlockInspectorPanel::OnType (uint64_t offset, bool isHexColumn, bool isHigh
 
 
 
-    if (m_isHeader)
+    if (m_isHeader || IsBusy() || !m_model->IsOpen() || !m_model->IsLoaded (m_model->GetBlock()))
     {
         return false;
     }
@@ -463,7 +515,7 @@ void BlockInspectorPanel::ShowBytes()
     if (m_isHeader)
     {
         m_source.SetBytes (m_model->GetFile().GetHeader());
-        m_model->GetFile().AnnotateHeader (fields);
+        fields = m_model->GetHeaderFields();
         m_fields->SetHeading (L"Container header");
     }
     else
@@ -576,7 +628,7 @@ void BlockInspectorPanel::BuildStatus()
 {
     uint32_t                                                 block  = m_model->GetBlock();
     std::wstring                                             owners = m_model->GetOwners (block);
-    std::array<Byte, BlockImageFile::kTagBytesPerBlock>      tags   = {};
+    BlockInspectorModel::Tags                                tags   = {};
     int                                                      edits  = m_model->GetEdits().CountChangedBytes();
     wchar_t                                                  hex[4] = {};
     LPCWSTR                                                  label  = m_model->GetMapLabel (block);
@@ -597,7 +649,7 @@ void BlockInspectorPanel::BuildStatus()
         m_status += L". " + owners;
     }
 
-    if (m_model->GetFile().TryReadTags (block, tags))
+    if (m_model->TryGetTags (block, tags))
     {
         m_status += L". Tag bytes:";
 
@@ -668,17 +720,142 @@ void BlockInspectorPanel::AppendSecondRowStatus (uint32_t block)
 //
 //  BlockInspectorPanel::Refresh
 //
+//  A block not loaded yet is loaded by a job, and drawn when it ends. The
+//  last block drawn stays on screen until then.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorPanel::Refresh()
 {
-    if (m_model == nullptr)
+    BlockInspectorModel  * model = m_model;
+    uint32_t               block = 0;
+
+
+
+    if (m_model == nullptr || IsBusy() || !m_model->IsOpen())
     {
         return;
     }
 
+    block = m_model->GetBlock();
+
+    if (!m_isHeader && !m_model->IsLoaded (block))
+    {
+        QueueJob ({ L"", false,
+                    [model, block] (BlockJobProgress & progress) { (void) progress; model->LoadBlock (block); },
+                    [this] () { Refresh(); } });
+        return;
+    }
+
+    Present();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::QueueJob
+//
+//  With no worker, as in a test, the job runs on the calling thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::QueueJob (BlockInspectorWorker::Job job)
+{
+    BlockJobProgress  progress;
+
+
+
+    if (m_worker == nullptr)
+    {
+        job.work (progress);
+        job.finish();
+        return;
+    }
+
+    m_worker->Queue (std::move (job));
+    UpdateBusy();
+
+    if (m_onQueued)
+    {
+        m_onQueued();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::UpdateBusy
+//
+//  While a long job is queued or running, every control but Cancel is
+//  disabled and the map isn't laid out again from the model. A short job,
+//  such as loading a block, changes nothing on screen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::UpdateBusy()
+{
+    bool  canCancel = false;
+    bool  wasLong   = m_isLongJob;
+
+
+
+    if (m_worker == nullptr)
+    {
+        return;
+    }
+
+    m_isLongJob = m_worker->TryGetLongJob (m_jobLabel, canCancel, m_jobDone, m_jobTotal);
+
+    m_map->SetFrozen     (IsBusy());
+    m_cancel->SetVisible (m_isLongJob && canCancel);
+
+    if (m_isLongJob)
+    {
+        for (DxuiButton * button : { m_back, m_forward, m_previous, m_next, m_highlight, m_header, m_prevDiff, m_nextDiff, m_leftovers, m_saveRun })
+        {
+            button->SetEnabled (false);
+        }
+
+        m_input->SetEnabled (false);
+    }
+    else if (wasLong)
+    {
+        m_input->SetEnabled     (true);
+        m_highlight->SetEnabled (true);
+        m_header->SetEnabled    (true);
+        m_leftovers->SetEnabled (true);
+    }
+
+    if (m_onChanged && (m_isLongJob || wasLong))
+    {
+        m_onChanged();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::Present
+//
+//  The current block, loaded, and the controls set from the model.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::Present()
+{
     ShowBytes();
     BuildStatus();
+
+    m_blockCount = m_model->GetBlockCount();
 
     if (!m_input->IsFocused() || !m_isTyping)
     {
@@ -787,6 +964,8 @@ void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     m_hex->Layout    (RECT { split, body, boundsPx.right, hexEnd }, scaler);
     m_fields->Layout (RECT { split, hexEnd + pad, boundsPx.right, bottom }, scaler);
     m_statusRect     = RECT { boundsPx.left, bottom + pad, boundsPx.right, boundsPx.bottom };
+
+    m_cancel->Layout (RECT { boundsPx.right - scaler.ToPx (kCancelDip), bottom + pad, boundsPx.right, boundsPx.bottom }, scaler);
 }
 
 
@@ -802,7 +981,7 @@ void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     float         font  = m_scaler.ToPxf (kFontDip);
-    std::wstring  count = L"of " + std::to_wstring (m_model != nullptr ? m_model->GetBlockCount() : 0);
+    std::wstring  count = L"of " + std::to_wstring (m_blockCount);
     HRESULT       hr    = S_OK;
 
 
@@ -822,7 +1001,59 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     draw (count, m_countRect, theme.ForegroundMuted(), DxuiTextHAlign::Center);
     draw (m_hoverText.empty() ? std::wstring (L"Point at the map to see a block's role and files.") : m_hoverText,
           m_hoverRect, theme.ForegroundMuted(), DxuiTextHAlign::Left);
-    draw (m_status, m_statusRect, theme.Foreground(), DxuiTextHAlign::Left);
+
+    if (m_isLongJob)
+    {
+        PaintProgress (painter, text, theme);
+    }
+    else
+    {
+        draw (m_status, m_statusRect, theme.Foreground(), DxuiTextHAlign::Left);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::PaintProgress
+//
+//  A long job's bar and label in place of the status line. A job with no
+//  count yet has an empty bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::PaintProgress (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    constexpr float  kBarHighDip = 8.0f;
+    constexpr float  kGapDip     = 10.0f;
+    constexpr int    kPercent    = 100;
+
+
+
+    float         left    = (float) m_statusRect.left;
+    float         top     = (float) m_statusRect.top;
+    float         height  = (float) (m_statusRect.bottom - m_statusRect.top);
+    float         barW    = m_scaler.ToPxf (kBarDip);
+    float         barH    = m_scaler.ToPxf (kBarHighDip);
+    float         barTop  = top + (height - barH) / 2.0f;
+    double        share   = m_jobTotal > 0 ? std::min (1.0, (double) m_jobDone / (double) m_jobTotal) : 0.0;
+    std::wstring  label   = m_jobTotal > 0 ? std::format (L"{} ({}%)", m_jobLabel, (int) (share * kPercent)) : m_jobLabel;
+    float         textX   = left + barW + m_scaler.ToPxf (kGapDip);
+    float         textW   = (float) m_statusRect.right - textX - m_scaler.ToPxf (kCancelDip + kGapDip);
+    HRESULT       hr      = S_OK;
+
+
+
+    painter.FillRoundedRect    (left, barTop, barW, barH, barH / 2, theme.ButtonIdle());
+    painter.FillRoundedRect    (left, barTop, (float) (barW * share), barH, barH / 2, theme.Accent());
+    painter.OutlineRoundedRect (left, barTop, barW, barH, barH / 2, 1.0f, theme.ButtonBorder());
+
+    hr = text.DrawString (label.c_str(), textX, top, std::max (0.0f, textW), height, theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
@@ -833,12 +1064,23 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 //
 //  BlockInspectorPanel::OnMouse
 //
-//  A press on the block number or the hex view focuses it.
+//  A press on the block number or the hex view focuses it. While a job is
+//  queued or running, only Cancel gets mouse events, so pointing at the map
+//  or a field doesn't read the model.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 {
+    RECT  cancel = m_cancel->GetBounds();
+
+
+
+    if (IsBusy())
+    {
+        return m_cancel->IsVisible() && PtInRect (&cancel, ev.positionDip) ? DxuiPanel::OnMouse (ev) : true;
+    }
+
     if (ev.kind == DxuiMouseEventKind::Down && m_onPressed)
     {
         for (IDxuiControl * control : { (IDxuiControl *) m_input, (IDxuiControl *) m_hex })

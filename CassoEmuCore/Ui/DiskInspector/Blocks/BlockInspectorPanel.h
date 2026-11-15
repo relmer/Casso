@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/Inspector/Blocks/BlockInspectorWorker.h"
 #include "Devices/Disk/Inspector/Blocks/BlockLeftovers.h"
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
 
@@ -33,6 +34,12 @@ struct BlockField;
 //  forward, and a click on a linked field, or a Ctrl+click on a linked byte,
 //  follows the link.
 //
+//  The model's reads run as jobs on the window's BlockInspectorWorker: a
+//  block is loaded before it is drawn, and Find leftover data runs there
+//  with its progress drawn in place of the status line and a Cancel button.
+//  While a job is queued or running, input to the panel is ignored and the
+//  model isn't read.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class BlockInspectorPanel : public DxuiPanel
@@ -49,21 +56,36 @@ public:
     static constexpr float  kMapShare    = 0.42f;
     static constexpr float  kHexShare    = 0.60f;
     static constexpr int    kBytesPerRow = 16;
+    static constexpr float  kBarDip      = 240.0f;
+    static constexpr float  kCancelDip   = 90.0f;
 
     using PressedFn = std::function<void (IDxuiControl * child)>;
     using ChangedFn = std::function<void ()>;
     using SaveRunFn = std::function<void (const LeftoverRun & run)>;
+    using QueuedFn  = std::function<void ()>;
 
     BlockInspectorPanel  ();
     ~BlockInspectorPanel () override;
 
-    void  Init              (BlockInspectorModel * model, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text);
+    void  Init              (BlockInspectorModel * model, BlockInspectorWorker * worker, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text);
     void  SetOnChildPressed (PressedFn fn) { m_onPressed = std::move (fn); }
     void  SetOnChanged      (ChangedFn fn) { m_onChanged = std::move (fn); }
     void  SetOnSaveRun      (SaveRunFn fn) { m_onSaveRun = std::move (fn); }
+    void  SetOnJobQueued    (QueuedFn fn)  { m_onQueued  = std::move (fn); }
 
-    //  Reads the model again after a change.
+    //  Reads the model again after a change, once the current block is
+    //  loaded. A block not loaded yet is loaded by a job first.
     void  Refresh ();
+
+    //  The job queued on the worker. The window is notified, so the job's
+    //  completion runs soon after its work ends.
+    void  QueueJob (BlockInspectorWorker::Job job);
+
+    //  The controls enabled or disabled, and the progress read, from the
+    //  worker's jobs. The window calls it on each tick.
+    void  UpdateBusy ();
+
+    bool  IsBusy () const { return m_worker != nullptr && m_worker->IsBusy(); }
 
     BlockHexView  * GetHexView () const { return m_hex; }
 
@@ -91,8 +113,18 @@ private:
     void  BuildStatus           ();
     void  InitSecondRow         ();
     void  AppendSecondRowStatus (uint32_t block);
+    void  Present               ();
+    void  PaintProgress         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
     BlockInspectorModel  * m_model      = nullptr;
+    BlockInspectorWorker * m_worker     = nullptr;
+    DxuiButton           * m_cancel     = nullptr;
+    QueuedFn               m_onQueued;
+    std::wstring           m_jobLabel;
+    uint64_t               m_jobDone    = 0;
+    uint64_t               m_jobTotal   = 0;
+    bool                   m_isLongJob  = false;
+    uint32_t               m_blockCount = 0;
     DxuiDpiScaler          m_scaler;
     DxuiButton           * m_back       = nullptr;
     DxuiButton           * m_forward    = nullptr;

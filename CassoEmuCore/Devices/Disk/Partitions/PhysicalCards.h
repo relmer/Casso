@@ -142,6 +142,12 @@ public:
     //  command that writes several times prompts once.
     void     SetConfirmed        (bool confirmed)       { m_confirmed = confirmed; }
 
+    //  The writes of one thread sent without the confirmation callback,
+    //  until EndThreadConfirmation is called on that thread, for a command
+    //  that writes from a thread other than the UI thread.
+    void     SetConfirmedThread    (DWORD threadId) { m_confirmedThread = threadId; }
+    void     EndThreadConfirmation ();
+
     HRESULT  ListRemovableDrives (std::vector<PhysicalDrive> & outDrives);
     HRESULT  ListStorageCards    (std::vector<StorageCard> & outCards);
     HRESULT  ListVolumes         (int number, std::vector<WindowsVolume> & outVolumes) { return m_host.ListVolumes (number, outVolumes); }
@@ -230,7 +236,8 @@ private:
     std::map<int, Session>    m_sessions;
     std::mutex                m_workMutex;
     std::map<int, Work>       m_work;
-    int64_t                   m_nextStamp  = 1;
-    bool                      m_confirming = false;
-    std::atomic<bool>         m_confirmed  = false;
+    int64_t                   m_nextStamp        = 1;
+    bool                      m_confirming       = false;
+    std::atomic<bool>         m_confirmed        = false;
+    std::atomic<DWORD>        m_confirmedThread  = 0;
 };

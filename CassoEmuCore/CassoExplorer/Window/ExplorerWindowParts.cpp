@@ -270,6 +270,12 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
+    if (msg == (UINT) AppMessage::ExplorerCardWrite)
+    {
+        *(bool *) wParam = opener.ConfirmCardWrite (*(const std::wstring *) lParam);
+        return true;
+    }
+
     if (msg == (UINT) AppMessage::ExplorerCardProgress)
     {
         opener.HandleCardProgress();

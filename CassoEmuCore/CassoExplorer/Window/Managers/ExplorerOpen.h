@@ -61,6 +61,10 @@ public:
     //  unless it was turned off. True to go on to the prompt.
     bool  ConfirmElevation      (const std::wstring & card);
 
+    //  For ExplorerCardWrite: the question before a write to a storage card.
+    //  True to write.
+    bool  ConfirmCardWrite      (const std::wstring & question);
+
     //  Initialize card for Apple, for a storage card or for the root of a
     //  drive letter on one. Nothing for any other folder.
     void  AddInitializeRow      (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);

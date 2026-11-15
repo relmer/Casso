@@ -224,6 +224,40 @@ public:
     }
 
 
+    //  A command that writes from another thread, as block mode does, is
+    //  confirmed for that thread until the file is flushed.
+    TEST_METHOD (WritePartition_AConfirmedThreadWritesWithoutAPromptUntilItsFlush)
+    {
+        static constexpr const char *  kPath = "\\\\.\\PhysicalDrive2|#2.po";
+
+
+
+        FakeCardHost        host;
+        PhysicalCards       cards (host);
+        FakeDiskFileIo      unused;
+        std::vector<Byte>   block (IBlockStore::kBlockBytes, 0x5A);
+        int                 prompts = 0;
+
+        cards.SetConfirmWrite ([&prompts] (const PhysicalDrive &) { prompts++; return false; });
+        AssertSucceeded (cards.Open (2, nullptr));
+
+        {
+            PhysicalCardFileIo  io (unused, cards);
+
+            cards.SetConfirmedThread (GetCurrentThreadId());
+
+            AssertSucceeded (io.WriteAt (kPath, 0, block));
+            Assert::AreEqual (0, prompts, L"no prompt for the confirmed thread");
+
+            AssertSucceeded (io.FlushToStorage (kPath));
+
+            block.assign (IBlockStore::kBlockBytes, 0x6B);
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANCELLED), io.WriteAt (kPath, 0, block));
+            Assert::AreEqual (1, prompts, L"a prompt again after the flush");
+        }
+    }
+
+
     TEST_METHOD (FileIo_ReadsAPartitionPathFromTheCard)
     {
         FakeCardHost        host;

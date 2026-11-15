@@ -79,7 +79,8 @@ public:
     void     AnnotateHeader (vector<BlockField> & outFields);
 
     //  The store's writes made to the file, then the Disk Copy 4.2 data
-    //  checksum computed again and written.
+    //  checksum computed again and written. The file is flushed after, even
+    //  when a write fails, which ends a card's confirmation for the thread.
     HRESULT  Commit ();
 
     //  Whether the file's size and time are as they were when it was opened
