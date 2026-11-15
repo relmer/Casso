@@ -206,7 +206,7 @@ HRESULT InspectorWindowSet::Open (HINSTANCE hInstance, HWND anchor, const std::w
 
     entry->intents = m_seams.makeIntents (entry->window->GetHwnd());
     entry->host->SetIntents (entry->intents.get());
-    entry->host->SetOnRepaired ([this] (const std::wstring & copy) { SelectRepairedCopy (copy); });
+    entry->host->SetOnRepaired ([this, raw = entry.get()] (const std::wstring & copy) { ShowRepairedCopy (*raw, copy); });
 
     entry->host->SetOnClosed ([this, raw = entry.get()] ()
     {
@@ -682,15 +682,20 @@ void InspectorWindowSet::StopTimer()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InspectorWindowSet::SelectRepairedCopy
+//  InspectorWindowSet::ShowRepairedCopy
 //
-//  The copy selected in Casso Explorer's first window; nothing with no
-//  explorer, as in a test.
+//  The window reads the copy, which is beside the image in the same folder,
+//  and the copy is selected in Casso Explorer's first window; nothing is
+//  selected with no explorer, as in a test.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InspectorWindowSet::SelectRepairedCopy (const std::wstring & path)
+void InspectorWindowSet::ShowRepairedCopy (Entry & entry, const std::wstring & path)
 {
+    entry.key = MakeKey (path);
+    entry.host->Retarget (path);
+    entry.window->ReloadDisk();
+
     if (m_seams.explorer != nullptr)
     {
         m_seams.explorer->SelectInFolder (path);

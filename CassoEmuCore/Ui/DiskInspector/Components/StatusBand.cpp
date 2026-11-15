@@ -6,6 +6,7 @@
 #include "Ui/DiskInspector/Components/InspectorMetrics.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 
 
 
@@ -199,6 +200,8 @@ void StatusBand::PaintUnder (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
     PaintLead (painter, text, theme, items);
     PaintHelp (text, theme);
+
+    m_placed = std::move (items);
 }
 
 
@@ -234,6 +237,7 @@ vector<StatusBand::LeadItem> StatusBand::BuildLead() const
         for (const SummaryChip & chip : InspectorText::BuildChips (m_session.analysis.summary, m_session.analysis.verdict))
         {
             items.push_back ({ chip.text, chip.isBad ? LeadKind::BadChip : LeadKind::Chip });
+            items.back().isLinked = chip.kind == SummaryChipKind::FileSystem && FileSystemCheck::GetVerdictFinding (m_session.analysis) != nullptr;
         }
 
         if (!m_session.analysis.settings.IsStandard())
@@ -428,22 +432,59 @@ void StatusBand::PaintHelp (IDxuiTextRenderer & text, const IDxuiTheme & theme) 
 //
 //  StatusBand::OnMouse
 //
-//  A press on "?" opens the walkthrough.
+//  A press on "?" opens the walkthrough, and one on the file-system chip of
+//  a Bad or Suspect volume opens its finding on the Issues tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool StatusBand::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool  isPress = ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_helpPx, ev.positionDip);
+    bool             isDown  = ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left;
+    bool             isHelp  = isDown && PtInRect (&m_helpPx, ev.positionDip);
+    const LeadItem * chip    = isDown ? GetLinkedChipAt (ev.positionDip) : nullptr;
+    const Finding  * finding = (chip != nullptr) ? FileSystemCheck::GetVerdictFinding (m_session.analysis) : nullptr;
 
 
 
-    if (isPress)
+    if (isHelp)
     {
         m_host.OpenWalkthrough();
     }
 
-    return isPress;
+    if (finding != nullptr)
+    {
+        m_host.ShowFinding (static_cast<int> (finding - m_session.analysis.findings.data()));
+    }
+
+    return isHelp || chip != nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StatusBand::GetLinkedChipAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const StatusBand::LeadItem * StatusBand::GetLinkedChipAt (POINT pointPx) const
+{
+    float             chipH = m_scaler.ToPxf (s_kChipHeightDip);
+    float             top   = (m_chipsPx.top + m_chipsPx.bottom - chipH) / 2.0f;
+    const LeadItem  * found = nullptr;
+
+
+
+    for (const LeadItem & item : m_placed)
+    {
+        bool  isOver = item.isLinked && item.isPlaced && pointPx.x >= item.x && pointPx.x < item.x + item.w && pointPx.y >= top && pointPx.y < top + chipH;
+
+        found = (found == nullptr && isOver) ? &item : found;
+    }
+
+    return found;
 }
 
 
@@ -462,10 +503,19 @@ std::wstring StatusBand::GetTip (POINT pointPx, RECT & outAnchorPx) const
 
 
 
+    const LeadItem *  chip = GetLinkedChipAt (pointPx);
+
+
+
     if (PtInRect (&m_helpPx, pointPx))
     {
         tip         = L"Open the walkthrough";
         outAnchorPx = m_helpPx;
+    }
+    else if (chip != nullptr)
+    {
+        tip         = L"Go to this issue on the Issues tab";
+        outAnchorPx = RECT { static_cast<LONG> (chip->x), m_chipsPx.top, static_cast<LONG> (chip->x + chip->w), m_chipsPx.bottom };
     }
 
     return tip;

@@ -249,6 +249,7 @@ void FileMapBuilder::ReadLostHeader (const SectorSource & source, int volume, Fi
     finding.weight       = FindingWeight::Damage;
     finding.quarterTrack = Dos33MapReader::kVtocTrack * DiskImage::kQuarterTracksPerWholeTrack;
     finding.sector       = SectorSource::GetDos33Physical (0);
+    finding.mapCell      = Dos33MapReader::GetCell (Dos33MapReader::kVtocTrack, 0);
     finding.detail       = std::format ("The VTOC header is {}. The catalog is read from track 17, sector $F.", isZero ? "zeroed" : "not DOS 3.3's");
 
     outMap.isHeaderLost = true;

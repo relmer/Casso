@@ -19,7 +19,6 @@ static constexpr int      s_kMapButtonDip    = 30;
 static constexpr int      s_kMapStepLabelDip = 150;
 static constexpr int      s_kMapVolumeDip    = 150;
 static constexpr int      s_kMapVerdictDip   = 170;
-static constexpr int      s_kMapRepairDip    = 90;
 static constexpr int      s_kPickerPadDip    = 8;
 static constexpr int      s_kChevronDip      = 5;
 static constexpr wchar_t  s_kpszStepLabel[]  = L"Previous/next sector in";
@@ -69,8 +68,7 @@ void FilesView::Create()
     m_mapStepLabel = parent.CreateChild<DxuiLabel> (s_kpszStepLabel, DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_filePicker   = parent.CreateChild<DxuiButton> (L"");
     m_mapCopy      = parent.CreateChild<DxuiButton> (L"Copy map");
-    m_mapVerdict   = parent.CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Right);
-    m_mapRepair    = parent.CreateChild<DxuiButton> (L"Repair...");
+    m_mapVerdict   = parent.CreateChild<DxuiButton> (L"");
 
     m_mapGrid->SetOnChoose    ([this] (int cell) { SelectMapCell (cell); });
     m_fileList->SetOnSelect   ([this] (const TableRow & row) { ChooseFile (row.finding); });
@@ -82,8 +80,8 @@ void FilesView::Create()
     m_mapNext->SetOnClick     ([this] () { StepFileSector (1); });
     m_filePicker->SetOnClick  ([this] () { OpenFilePicker (!m_isPickerOpen); });
     m_mapCopy->SetOnClick     ([this] () { CopyFileMap(); });
-    m_mapRepair->SetOnClick   ([this] () { m_host.OpenRepair(); });
-}
+    m_mapVerdict->SetOnClick  ([this] () { ShowVerdictFinding(); });
+    m_mapVerdict->SetVariant  (DxuiButton::Variant::Link);}
 
 
 
@@ -107,7 +105,7 @@ std::wstring FilesView::GetTip (POINT pointPx, RECT & outAnchorPx) const
 
 
     std::wstring  tip;
-    RECT          repair = m_mapRepair->GetBounds();
+    RECT          verdict = m_mapVerdict->GetBounds();
 
 
 
@@ -122,10 +120,10 @@ std::wstring FilesView::GetTip (POINT pointPx, RECT & outAnchorPx) const
         }
     }
 
-    if (tip.empty() && m_mapRepair->IsVisible() && PtInRect (&repair, pointPx))
+    if (tip.empty() && m_mapVerdict->IsVisible() && IsVerdictLinked() && PtInRect (&verdict, pointPx))
     {
-        tip         = m_session.repairPlan.canRepair ? std::wstring (L"Write a repaired copy of the image beside it") : L"Repair isn't available. " + m_session.repairPlan.reason;
-        outAnchorPx = repair;
+        tip         = L"Go to this issue on the Issues tab";
+        outAnchorPx = verdict;
     }
 
     return tip;
@@ -310,10 +308,8 @@ void FilesView::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     int                          gridH       = 0;
     bool                         isList      = map != nullptr && map->notMapped == NotMappedReason::None;
     int                          copyLeft    = area.right - scaler.ToPx (InspectorMetrics::kExportButtonDip);
-    int                          repair      = scaler.ToPx (s_kMapRepairDip);
-    int                          repairLeft  = copyLeft - margin - repair;
     int                          verdict     = scaler.ToPx (s_kMapVerdictDip);
-    int                          verdictLeft = (IsRepairShown() ? repairLeft : copyLeft) - margin - verdict;
+    int                          verdictLeft = copyLeft - margin - verdict;
     vector<DxuiTabStrip::Tab>    tabs;
 
 
@@ -325,7 +321,6 @@ void FilesView::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     m_mapStepLabel->Layout ({ area.left + 2 * button + margin, y, area.left + 2 * button + margin + label, y + row }, scaler);
     m_filePicker->Layout   ({ area.left + 2 * button + margin + label, y, area.left + 2 * button + margin + label + picker, y + row }, scaler);
     m_mapCopy->Layout      ({ copyLeft, y, area.right, y + row }, scaler);
-    m_mapRepair->Layout    ({ repairLeft, y, repairLeft + repair, y + row }, scaler);
     m_mapVerdict->Layout   ({ verdictLeft, y, verdictLeft + verdict, y + row }, scaler);
 
     for (size_t v = 0; v < m_session.analysis.fileMaps.size() && m_session.analysis.fileMaps.size() > 1; v++)
@@ -415,8 +410,7 @@ void FilesView::Show (bool isShown)
     m_mapStepLabel->SetVisible (isList);
     m_mapCopy->SetVisible    (isList);
     m_mapVerdict->SetVisible (isList && map->verdict != FileSystemVerdict::None);
-    m_mapRepair->SetVisible  (isList && IsRepairShown());
-    m_mapRepair->SetEnabled  (m_session.repairPlan.canRepair);
+    m_mapVerdict->SetEnabled (IsVerdictLinked());
     m_mapVolumes->SetVisible (isShown && m_session.analysis.fileMaps.size() > 1);
 }
 
@@ -582,8 +576,7 @@ void FilesView::RefreshFileList()
         m_fileList->SetColumns (FileMapText::GetFileColumns (*map));
         m_fileList->SetRows    (FileMapText::BuildFileRows (*map, m_mapDeleted->IsChecked(), m_mapBadOnly->IsChecked(), m_fileSortColumn, m_fileSortDescending));
         m_fileList->SetCaption (map->isCatalogComplete ? L"" : L"The catalog is incomplete: " + FileMapText::FormatCell (*map, map->unreadableCell) + L" could not be read");
-        m_mapVerdict->SetText     (L"File system: " + FileSystemCheck::FormatVerdict (map->verdict));
-        m_mapVerdict->SetTextRole (map->verdict == FileSystemVerdict::Bad ? DxuiTextRole::Error : DxuiTextRole::Body);
+        m_mapVerdict->SetLabel (L"File system: " + FileSystemCheck::FormatVerdict (map->verdict));
     }
     else
     {
@@ -875,18 +868,42 @@ void FilesView::CopyFileMap()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FilesView::IsRepairShown
+//  FilesView::IsVerdictLinked
 //
-//  Repair is beside a Bad or Suspect verdict, and enabled when the volume
-//  can be repaired; its tooltip has the reason when it can't.
+//  A Bad or Suspect verdict is a link to its finding.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool FilesView::IsRepairShown() const
+bool FilesView::IsVerdictLinked() const
 {
     const FileMap *  map = m_session.GetFileMap();
 
 
 
-    return map != nullptr && (map->verdict == FileSystemVerdict::Bad || map->verdict == FileSystemVerdict::Suspect);
+    return map != nullptr && (map->verdict == FileSystemVerdict::Bad || map->verdict == FileSystemVerdict::Suspect) &&
+           FileSystemCheck::GetVerdictFinding (m_session.analysis) != nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FilesView::ShowVerdictFinding
+//
+//  The finding the verdict comes from, on the Issues tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FilesView::ShowVerdictFinding()
+{
+    const Finding *  finding = FileSystemCheck::GetVerdictFinding (m_session.analysis);
+
+
+
+    if (finding != nullptr)
+    {
+        m_host.ShowFinding (static_cast<int> (finding - m_session.analysis.findings.data()));
+    }
 }

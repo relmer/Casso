@@ -288,7 +288,7 @@ float DxuiInfoBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler &
     float   padX      = scaler.ToPxf (s_kPadXDip);
     float   padY      = scaler.ToPxf (m_padYDip);
     float   iconCol   = scaler.ToPxf (s_kIconBoxDip) + scaler.ToPxf (s_kIconGapDip);
-    float   textWidth = widthPx - padX * 2.0f - iconCol - GetTextReservePx (scaler);
+    float   textWidth = widthPx - padX * 2.0f - iconCol - GetTextReservePx (widthPx, scaler);
     float   lineH     = scaler.ToPxf (s_kFontDip) * s_kLineHeightEm;
     float   lineBox   = (textWidth > 1.0f) ? textWidth : 1.0f;
     int     lines     = 0;
@@ -317,7 +317,10 @@ float DxuiInfoBanner::GetPreferredHeightPx (float widthPx, const DxuiDpiScaler &
 
     // The content is the taller of the wrapped text and the icon, plus padding,
     // and never shorter than the controls, since a clipped button offers nothing.
-    return (std::max) (((textH > iconH) ? textH : iconH) + padY * 2.0f, GetControlHeightPx (scaler));
+    (void) iconH;
+    (void) padY;
+
+    return GetBoxHeightPx (textH, widthPx, scaler);
 }
 
 
@@ -338,7 +341,7 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
     float    padX      = scaler.ToPxf (s_kPadXDip);
     float    padY      = scaler.ToPxf (m_padYDip);
     float    iconCol   = scaler.ToPxf (s_kIconBoxDip) + scaler.ToPxf (s_kIconGapDip);
-    float    textWidth = widthPx - padX * 2.0f - iconCol - GetTextReservePx (scaler);
+    float    textWidth = widthPx - padX * 2.0f - iconCol - GetTextReservePx (widthPx, scaler);
     float    iconH     = scaler.ToPxf (s_kIconBoxDip);
     float    outW      = 0.0f;
     float    outH      = 0.0f;
@@ -367,7 +370,10 @@ float DxuiInfoBanner::GetMeasuredHeightPx (IDxuiTextRenderer   &  text,
         return GetPreferredHeightPx (widthPx, scaler);
     }
 
-    return (std::max) (((outH > iconH) ? outH : iconH) + padY * 2.0f, GetControlHeightPx (scaler));
+    (void) iconH;
+    (void) padY;
+
+    return GetBoxHeightPx (outH, widthPx, scaler);
 }
 
 
@@ -433,6 +439,10 @@ void DxuiInfoBanner::PaintIconGlyph (IDxuiTextRenderer & text, const IDxuiTheme 
     {
         argb = theme.WarningAccent();
     }
+    else if (m_severity == Severity::Error)
+    {
+        argb = theme.ErrorForeground();
+    }
 
     hr = text.DrawString (m_iconGlyph,
                           iconLeft,
@@ -491,11 +501,13 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     float           iconGap  = m_scaler.ToPxf (s_kIconGapDip);
     float           fontPx   = m_scaler.ToPxf (s_kFontDip);
     float           textX    = left + padX + iconBox + iconGap;
-    float           reserve  = GetTextReservePx (m_scaler);
+    bool            stacked  = IsStacked (width, m_scaler);
+    float           reserve  = GetTextReservePx (width, m_scaler);
+    float           textH    = height - padY * 2.0f - (stacked ? GetControlHeightPx (m_scaler) - m_scaler.ToPxf (s_kEdgePadDip) : 0.0f);
     float           textW    = width - padX * 2.0f - iconBox - iconGap - reserve;
     float           iconR    = iconBox * 0.5f;
     float           iconCx   = left + padX + iconR;
-    float           iconCy   = top + height * 0.5f;   // vertically centered in the bordered area
+    float           iconCy   = top + padY + textH * 0.5f;   // vertically centered on the text
     DxuiTextHAlign  hAlign   = DxuiTextHAlign::Left;
 
 
@@ -540,6 +552,11 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         painter.FillRect    (left, top, width, height, theme.InfoBannerWarningBackground());
         painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBannerWarningBorder());
     }
+    else if (m_severity == Severity::Error)
+    {
+        painter.FillRect    (left, top, width, height, theme.InfoBannerErrorBackground());
+        painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBannerErrorBorder());
+    }
     else
     {
         painter.FillRect    (left, top, width, height, theme.InfoBannerBackground());
@@ -558,6 +575,16 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                 iconCx - iconR, iconCy - iconR,
                                 iconBox, iconBox,
                                 theme.WarningAccent(), theme.WarningEdge(), theme.WarningMark());
+    }
+    else if (m_severity == Severity::Error)
+    {
+        // A disc in the error color with an exclamation mark cut out of it in
+        // the panel's color, proportioned off the radius as the info badge is.
+        float  stem = iconBox * s_kBadgeStrokeEm * 1.4f;
+
+        painter.FillCircle (iconCx, iconCy, iconR, theme.ErrorForeground());
+        painter.FillRect   (iconCx - stem * 0.5f, iconCy - iconR * 0.55f, stem, iconR * 0.7f, theme.Background());
+        painter.FillCircle (iconCx, iconCy + iconR * 0.42f, stem * 0.6f, theme.Background());
     }
     else
     {
@@ -604,7 +631,7 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                           textX,
                           top + padY,
                           (textW > 1.0f) ? textW : 1.0f,
-                          height - padY * 2.0f,
+                          textH,
                           theme.InfoBannerForeground(),
                           fontPx,
                           DxuiTheme::GetUiFace(),
@@ -707,7 +734,7 @@ float DxuiInfoBanner::GetControlColumnPx (const DxuiDpiScaler & scaler) const
 
     if (!m_actions.empty() || m_dismissible)
     {
-        width = (scaler.ToPxf (s_kActionWidthDip) + scaler.ToPxf (s_kActionGapDip)) * (float) m_actions.size()
+        width = (scaler.ToPxf (m_actionWidthDip) + scaler.ToPxf (s_kActionGapDip)) * (float) m_actions.size()
               + scaler.ToPxf (s_kEdgePadDip);
     }
 
@@ -729,9 +756,58 @@ float DxuiInfoBanner::GetControlColumnPx (const DxuiDpiScaler & scaler) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float DxuiInfoBanner::GetTextReservePx (const DxuiDpiScaler & scaler) const
+float DxuiInfoBanner::GetTextReservePx (float widthPx, const DxuiDpiScaler & scaler) const
 {
-    return m_trailingReservePx + GetControlColumnPx (scaler);
+    return m_trailingReservePx + (IsStacked (widthPx, scaler) ? 0.0f : GetControlColumnPx (scaler));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::IsStacked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiInfoBanner::IsStacked (float widthPx, const DxuiDpiScaler & scaler) const
+{
+    float  iconCol = scaler.ToPxf (s_kIconBoxDip) + scaler.ToPxf (s_kIconGapDip);
+    float  besideW = widthPx - scaler.ToPxf (s_kPadXDip) * 2.0f - iconCol - m_trailingReservePx - GetControlColumnPx (scaler);
+
+
+
+    return m_stackBelowDip > 0.0f && !m_actions.empty() && besideW < scaler.ToPxf (m_stackBelowDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::GetBoxHeightPx
+//
+//  Stacked, the controls' row is under the padded text, its bottom pad
+//  replacing the text's; beside it, the box is at least the controls' height.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::GetBoxHeightPx (float textH, float widthPx, const DxuiDpiScaler & scaler) const
+{
+    float  padY    = scaler.ToPxf (m_padYDip);
+    float  iconH   = scaler.ToPxf (s_kIconBoxDip);
+    float  content = ((textH > iconH) ? textH : iconH) + padY * 2.0f;
+
+
+
+    if (IsStacked (widthPx, scaler))
+    {
+        return content + GetControlHeightPx (scaler) - scaler.ToPxf (s_kEdgePadDip);
+    }
+
+    return (std::max) (content, GetControlHeightPx (scaler));
 }
 
 
@@ -785,13 +861,21 @@ float DxuiInfoBanner::GetControlHeightPx (const DxuiDpiScaler & scaler) const
 
 void DxuiInfoBanner::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    float  actionW = scaler.ToPxf (s_kActionWidthDip);
+    float  actionW = scaler.ToPxf (m_actionWidthDip);
     float  actionH = scaler.ToPxf (s_kActionHeightDip);
     float  gap     = scaler.ToPxf (s_kActionGapDip);
     float  closeW  = scaler.ToPxf (s_kCloseBoxDip);
     float  right   = (float) boundsDip.right - scaler.ToPxf (s_kEdgePadDip);
     float  midY    = (float) (boundsDip.top + boundsDip.bottom) * 0.5f;
     size_t i       = 0;
+
+
+
+    //  Stacked, the controls are centered on a row along the bottom.
+    if (IsStacked ((float) (boundsDip.right - boundsDip.left), scaler))
+    {
+        midY = (float) boundsDip.bottom - scaler.ToPxf (s_kEdgePadDip) - actionH * 0.5f;
+    }
 
 
 

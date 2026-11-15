@@ -1555,19 +1555,20 @@ public:
 
 
     //  The preview of a disk image has its file-system verdict at the top, at
-    //  100% and at 150%: Bad as a banner with its first finding of damage
-    //  and Repair disk image inside it, Suspect as a line with no button, and
-    //  nothing for OK. The analysis reads the file from the disk, so each
-    //  image is in a folder of the test's in the temporary folder as well.
+    //  100% and at 150%: Bad as an error infobar with its first finding of
+    //  damage, Suspect as a warning infobar with its first suspect finding,
+    //  each with Repair disk image inside it, and nothing for OK. The analysis
+    //  reads the file from the disk, so each image is in a folder of the
+    //  test's in the temporary folder as well.
     TEST_METHOD (Preview_HasTheFileSystemVerdictAboveTheThumbnail_At100And150Percent)
     {
-        struct Case { const wchar_t * name; vector<Byte> bytes; const wchar_t * text; bool isBanner; };
+        struct Case { const wchar_t * name; vector<Byte> bytes; const wchar_t * text; DxuiInfoBanner::Severity severity; };
 
         const Case  cases[] =
         {
-            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"File system damaged.\nTrack 18, sector $E is used by HELLO but marked free.", true  },
-            { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"File system: Suspect. The VTOC's next track to allocate, track 40, is off the disk.", false },
-            { L"ok.dsk",      RepairFixtures::MakeDos33(),                     L"", false },
+            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"File system damaged.\nTrack 18, sector $E is used by HELLO but marked free.", DxuiInfoBanner::Severity::Error   },
+            { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"File system suspect.\nThe VTOC's next track to allocate, track 40, is off the disk.", DxuiInfoBanner::Severity::Warning },
+            { L"ok.dsk",      RepairFixtures::MakeDos33(),                     L"", DxuiInfoBanner::Severity::Info },
         };
 
 
@@ -1608,26 +1609,114 @@ public:
                 Assert::IsTrue (isDrawn, c.name);
                 rig.parts->layout.RecomputeLayout();
 
+                const PreviewDiskThumbnail  & thumbnail = rig.parts->preview.GetThumbnail();
+                bool                          isShown   = *c.text != L'\0';
+
                 pane   = rig.parts->preview.GetContentRect();
-                banner = rig.parts->preview.GetThumbnail().GetVerdict().GetBounds();
-                repair = rig.parts->preview.GetThumbnail().GetRepairButton().GetBounds();
+                banner = thumbnail.GetVerdict().GetBounds();
 
-                Assert::AreEqual (std::wstring (c.text), rig.parts->preview.GetThumbnail().GetVerdict().GetText(), std::format (L"{} at {} dpi", c.name, dpi).c_str());
-                Assert::AreEqual (*c.text != L'\0', rig.parts->preview.GetThumbnail().GetVerdict().IsVisible(), c.name);
-                Assert::AreEqual (c.isBanner, rig.parts->preview.GetThumbnail().GetVerdict().IsBanner(), c.name);
-                Assert::AreEqual (c.isBanner, rig.parts->preview.GetThumbnail().GetRepairButton().IsVisible(), L"Repair disk image is in a banner only");
+                Assert::AreEqual (std::wstring (c.text), thumbnail.GetVerdict().GetText(), std::format (L"{} at {} dpi", c.name, dpi).c_str());
+                Assert::AreEqual (isShown, thumbnail.GetVerdict().IsVisible(), c.name);
 
-                if (c.isBanner)
+                if (isShown)
                 {
-                    Assert::IsTrue (banner.left >= pane.left && banner.right <= pane.right, L"the banner is inside the pane");
+                    Assert::IsTrue (thumbnail.GetVerdict().GetSeverity() == c.severity, c.name);
+                    Assert::IsNotNull (thumbnail.GetRepairButton(), L"both volumes can be repaired");
+
+                    repair = thumbnail.GetRepairButton()->GetBounds();
+
+                    Assert::IsTrue (banner.left >= pane.left && banner.right <= pane.right && banner.bottom <= pane.top, L"the infobar is inside the pane, above the catalog");
                     Assert::IsTrue (repair.left > banner.left && repair.right <= banner.right && repair.top >= banner.top && repair.bottom <= banner.bottom,
-                                    L"and Repair disk image is inside the banner");
+                                    L"and Repair disk image is inside the infobar");
                     Assert::AreEqual ((long) rig.scaler.ToPx (PreviewDiskThumbnail::kRepairDip), repair.right - repair.left,
                                       L"at its width");
                 }
 
                 std::filesystem::remove_all (folder);
             }
+        }
+    }
+
+
+    //  In a pane too short for a disk image's thumbnail and catalog, the wheel
+    //  scrolls the thumbnail away before the catalog, clipped under the
+    //  toolbar, and back again, at 100% and at 150%.
+    TEST_METHOD (Preview_TheWheelScrollsTheThumbnailAwayBeforeTheCatalog_At100And150Percent)
+    {
+        vector<Byte>  bytes = RepairFixtures::MakeDos33Bitmap().damaged;
+
+
+
+        for (UINT dpi : { 96u, 144u })
+        {
+            Rig                    rig;
+            bool                   isDrawn = false;
+            std::filesystem::path  folder  = std::filesystem::temp_directory_path() / std::format (L"CassoPreviewScroll{}_{}", ::GetCurrentProcessId(), dpi);
+            std::filesystem::path  image   = folder / L"bad.dsk";
+            std::string            narrow  = image.string();
+            RECT                   start   = {};
+            RECT                   banner  = {};
+            RECT                   moved   = {};
+            DxuiMouseEvent         wheel;
+
+            rig.scaler.SetDpi (dpi);
+            rig.prefs.previewVisible = true;
+            AssertSucceeded (rig.fs.WriteAllText (image.c_str(), std::string (bytes.begin(), bytes.end())));
+            rig.io.files[narrow]  = bytes;
+            rig.io.stamps[narrow] = FileStamp { bytes.size(), 100 };
+            std::filesystem::create_directories (folder);
+            AssertSucceeded (DiskImageStore::WriteFileAtomically (narrow, bytes));
+            rig.Open();
+            rig.parts->layout.SetClient (RECT { 0, 0, rig.scaler.ToPx (1280), rig.scaler.ToPx (440) });
+            Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+            rig.parts->listPane.FillList();
+            Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"bad.dsk"));
+            rig.parts->preview.FillPreview();
+
+            isDrawn = WaitFor (rig, [&rig]()
+            {
+                rig.parts->layout.RecomputeLayout();
+
+                return rig.parts->preview.GetThumbnail().IsReady();
+            });
+
+            Assert::IsTrue (isDrawn);
+            rig.parts->layout.RecomputeLayout();
+
+            start  = rig.parts->preview.GetContentRect();
+            banner = rig.parts->preview.GetThumbnail().GetVerdict().GetBounds();
+
+            wheel.kind        = DxuiMouseEventKind::Wheel;
+            wheel.wheelDelta  = -1.0f;
+            wheel.positionDip = { (banner.left + banner.right) / 2, banner.bottom - 2 };
+
+            Assert::IsTrue (rig.parts->input.HandleMouse (wheel), std::format (L"the thumbnail takes the wheel at {} dpi", dpi).c_str());
+            Assert::IsTrue (rig.parts->preview.GetThumbnail().GetVerdict().GetBounds().top < banner.top, L"the thumbnail moves up");
+
+            for (int i = 0; i < 40; i++)
+            {
+                (void) rig.parts->input.HandleMouse (wheel);
+            }
+
+            moved = rig.parts->preview.GetThumbnail().GetVerdict().GetBounds();
+            Assert::IsTrue (moved.top < banner.top, L"the infobar scrolls up");
+            Assert::IsTrue (rig.parts->preview.GetContentRect().top <= start.top && rig.parts->preview.GetContentRect().top >= rig.parts->preview.GetRect().top,
+                            L"the thumbnail stays inside the pane");
+
+            (void) rig.parts->input.HandleMouse (wheel);
+            Assert::AreEqual (moved.top, rig.parts->preview.GetThumbnail().GetVerdict().GetBounds().top, L"and stops");
+
+            wheel.wheelDelta = 1.0f;
+
+            for (int i = 0; i < 40; i++)
+            {
+                (void) rig.parts->input.HandleMouse (wheel);
+            }
+
+            Assert::AreEqual (start.top, rig.parts->preview.GetContentRect().top, L"the wheel brings it back");
+            Assert::AreEqual (banner.top, rig.parts->preview.GetThumbnail().GetVerdict().GetBounds().top);
+
+            std::filesystem::remove_all (folder);
         }
     }
 

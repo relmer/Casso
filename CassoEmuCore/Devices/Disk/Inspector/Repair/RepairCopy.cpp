@@ -44,6 +44,37 @@ std::string RepairCopy::GetCopyPath (IDiskFileIo & io, const std::string & image
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RepairCopy::AnalyzeFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT RepairCopy::AnalyzeFile (
+    IDiskFileIo          & io,
+    const std::string    & imagePath,
+    DiskAnalysis         & outAnalysis,
+    std::wstring         & outReason)
+{
+    HRESULT       hr = S_OK;
+    vector<Byte>  bytes;
+
+
+
+    hr = io.ReadAllBytes (imagePath, bytes);
+    CHRF (hr, outReason = L"Unable to read the image.");
+
+    hr = FileSystemCheck::Analyze (bytes, imagePath, outAnalysis, outReason);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RepairCopy::PlanFile
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,17 +87,13 @@ HRESULT RepairCopy::PlanFile (
     std::wstring           & outReason)
 {
     HRESULT       hr = S_OK;
-    vector<Byte>  bytes;
     DiskAnalysis  analysis;
 
 
 
     outPlan = RepairPlan();
 
-    hr = io.ReadAllBytes (imagePath, bytes);
-    CHRF (hr, outReason = L"Unable to read the image.");
-
-    hr = FileSystemCheck::Analyze (bytes, imagePath, analysis, outReason);
+    hr = AnalyzeFile (io, imagePath, analysis, outReason);
     CHR (hr);
 
     outPlan = DiskRepair::Plan (analysis, options);

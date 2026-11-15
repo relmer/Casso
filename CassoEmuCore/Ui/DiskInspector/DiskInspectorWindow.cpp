@@ -292,9 +292,31 @@ void DiskInspectorWindow::OpenWalkthrough()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskInspectorWindow::OpenRepair()
+void DiskInspectorWindow::OpenRepair (const std::set<std::wstring> & chosen)
 {
-    m_dialogs->OpenRepair();
+    m_dialogs->OpenRepair (chosen);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ShowFinding
+//
+//  The Issues tab, with the finding selected as a click selects it, and the
+//  keys on the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ShowFinding (int finding)
+{
+    ShowDiskTab (kTabFindings);
+
+    m_session.keyTarget = KeyTarget::Findings;
+    m_session.views.issues->ShowFinding (finding);
+    Invalidate();
 }
 
 
@@ -647,6 +669,7 @@ void DiskInspectorWindow::OnCreate()
     m_session.views.image->SetColumns   (InspectorTables::GetImageColumns());
     m_session.views.tracks->SetOnSelect   ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
     m_session.views.issues->SetOnSelect ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
+    m_session.views.issues->SetOnRepair ([this] (const std::set<std::wstring> & chosen) { OpenRepair (chosen); });
     m_session.views.image->SetGrouped   (true);
     m_session.views.image->SetWrapsText (true);
     m_session.views.image->SetOnSelect  ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
@@ -891,7 +914,7 @@ void DiskInspectorWindow::BuildCommands()
     c.decodeSettings            = make (L"&Decode settings...", L"", [this] () { m_dialogs->OpenDecodeSettings(); });
     c.decodeSettings->isEnabled = hasDisk;
     c.decodeSettings->glyph     = kpszGlyphSettings;
-    c.repair                    = make (L"&Repair disk image...", L"", [this] () { OpenRepair(); });
+    c.repair                    = make (L"&Repair disk image...", L"", [this] () { OpenRepair ({}); });
     c.repair->isEnabled         = [this] () { return m_session.repairPlan.canRepair; };
 
     //  Window

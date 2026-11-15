@@ -72,44 +72,6 @@ private:
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ThumbnailVerdict
-//
-//  A disk image's file-system verdict above its thumbnail: Bad as
-//  a warning banner in the theme's error color with its first finding of
-//  damage, Suspect as a line with its first finding, and nothing for OK or
-//  a disk with no standard file system.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-class ThumbnailVerdict : public IDxuiControl
-{
-public:
-    static constexpr float  kTextDip = 12.0f;
-    static constexpr float  kPadDip  = 8.0f;
-
-    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override { SetBounds (boundsDip); m_scaler = scaler; }
-    void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-
-    //  The verdict and its finding; true when there's something to draw.
-    bool                  SetVerdict   (FileSystemVerdict verdict, const std::wstring & finding);
-    bool                  IsBanner     () const { return m_verdict == FileSystemVerdict::Bad; }
-    const std::wstring  & GetText      () const { return m_text; }
-    void                  SetTextRight (int rightPx) { m_textRight = rightPx; }
-
-    static std::wstring  FormatText (FileSystemVerdict verdict, const std::wstring & finding);
-
-private:
-    DxuiDpiScaler      m_scaler;
-    FileSystemVerdict  m_verdict   = FileSystemVerdict::None;
-    std::wstring       m_text;
-    int                m_textRight = 0;
-};
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -157,7 +119,8 @@ public:
     static constexpr int  kPlatterDip = 180;
     static constexpr int  kGapDip     = 8;
     static constexpr int  kScreenDip  = 240;     // the screen's picture, three quarters as tall
-    static constexpr int  kRepairDip  = 150;     // Repair disk image, in the banner
+    static constexpr int  kRepairDip  = 140;     // Repair disk image, in the infobar
+    static constexpr int  kStackDip   = 160;     // the narrowest the infobar's text is beside Repair disk image
 
     explicit PreviewDiskThumbnail (ExplorerContext & context);
 
@@ -168,8 +131,12 @@ public:
     //  The picture of the image's screen and its result, read again: a
     //  picture that was missing has been made.
     void  RefreshScreen ();
-    void  Layout        (const RECT & area);
     void  Hide          ();
+
+    //  Laid out in the area, as tall as GetHeightPx, with its top scrolled
+    //  away by scrollPx and clipped there and at bottomPx, the pane's bottom.
+    //  Returns the bottom of the visible part.
+    int   Layout        (const RECT & area, int scrollPx, int bottomPx);
 
     bool                  IsShown       () const { return !m_path.empty() && m_state != State::Failed; }
     bool                  IsReady       () const { return m_state == State::Ready; }
@@ -183,16 +150,23 @@ public:
     RECT                  GetScreenRect () const { return HasScreen() ? m_screen->GetBounds() : RECT {}; }
     const std::wstring  & GetResultLine () const { return m_bootLine->GetText(); }
 
-    //  The verdict above the thumbnail and Repair disk image in it, for a
-    //  test.
-    const ThumbnailVerdict  & GetVerdict      () const { return *m_verdict; }
-    const DxuiButton        & GetRepairButton () const { return *m_repair; }
+    //  The verdict's infobar above the thumbnail and Repair disk image in
+    //  it, null when the volume can't be repaired; for a test.
+    const DxuiInfoBanner  & GetVerdict      () const { return *m_verdict; }
+    DxuiButton            * GetRepairButton () const { return m_verdict->GetAction (0); }
+
+    //  A disk image's file-system verdict above its thumbnail: Bad as an
+    //  error infobar with its first finding of damage, Suspect as a warning
+    //  infobar with its first suspect finding, each on the line under the
+    //  verdict, and nothing for OK or a disk with no standard file system.
+    static std::wstring  FormatVerdict (FileSystemVerdict verdict, const std::wstring & finding);
 
     //  The repaired copy written beside the image and selected, after the
     //  confirmation.
     void  RepairImage ();
 
 private:
+    bool  HandleHeaderMouse  (const DxuiMouseEvent & ev);
     bool  HandlePlatterMouse (const DxuiMouseEvent & ev);
     bool  HandleScreenMouse  (const DxuiMouseEvent & ev);
 
@@ -208,20 +182,20 @@ private:
     bool  HasScreen          () const { return m_picture != nullptr && m_state == State::Ready; }
     bool  IsBeside           (int widthPx) const;
     bool  HasVerdict         () const { return m_state == State::Ready && m_isVerdictShown; }
-    int   GetVerdictHeightPx () const;
-    void  PlaceVerdict       (const RECT & area, int top);
+    int   GetVerdictHeightPx (int widthPx) const;
+    void  PlaceVerdict       (const RECT & area, int top, int height);
 
     ExplorerContext                       & m_context;
     InspectorViewContext                    m_view;
     InspectorViewModel                      m_model;
     DiskThumbnailWorker                     m_worker;
     DiskThumbnailResult                     m_result;
+    DxuiScrollPanel                       * m_header         = nullptr;   // the controls below, clipped where the pane scrolls them away
     ThumbnailPlatterView                  * m_platter        = nullptr;
     ThumbnailChips                        * m_chips          = nullptr;
     ThumbnailScreen                       * m_screen         = nullptr;
     DxuiLabel                             * m_bootLine       = nullptr;   // the boot result, under the picture
-    ThumbnailVerdict                      * m_verdict        = nullptr;
-    DxuiButton                            * m_repair         = nullptr;
+    DxuiInfoBanner                        * m_verdict        = nullptr;
     bool                                    m_isVerdictShown = false;
     std::shared_ptr<const DxuiIconImage>    m_picture;
     std::wstring                            m_path;

@@ -1,10 +1,12 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/Repair/DiskRepair.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/RepairDialog.h"
 #include "Ui/DiskInspector/Views/FilesView.h"
+#include "Ui/DiskInspector/Views/IssuesView.h"
 #include "../EmuTests/FakeInspectorHost.h"
 #include "../EmuTests/FileMapTestImages.h"
 #include "RepairFixtures.h"
@@ -20,10 +22,11 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  RepairWindowPartsTests
 //
 //  The verdict and Repair in the inspector's window at 100% and 150%: the
-//  verdict and Repair beside the File map's "Copy map", Repair enabled only
-//  for a volume that can be repaired and its tip with the reason when it
-//  can't, the verdict chip in the status band, and Repair's confirmation
-//  with a line for each change and its check box inside the dialog.
+//  verdict beside the File map's "Copy map", a link to its finding on the
+//  Issues tab for a Bad or Suspect volume; the verdict chip in the status
+//  band; a Repair button on each finding of the Issues tab that a change
+//  sets right, and "Repair disk image..." above them; and Repair's
+//  confirmation with a check box for each change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +67,7 @@ public:
 
 
 
-    static void Click (Map & map, const RECT & bounds)
+    static void Click (IDxuiControl & control, const RECT & bounds)
     {
         DxuiMouseEvent  ev;
 
@@ -76,8 +79,19 @@ public:
         for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Move, DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
         {
             ev.kind = kind;
-            (void) map.host.panel.OnMouse (ev);
+            (void) control.OnMouse (ev);
         }
+    }
+
+
+
+    static int GetVerdictFinding (const DiskAnalysis & analysis)
+    {
+        const Finding *  finding = FileSystemCheck::GetVerdictFinding (analysis);
+
+
+
+        return (finding != nullptr) ? static_cast<int> (finding - analysis.findings.data()) : -1;
     }
 
 
@@ -86,59 +100,34 @@ public:
 
 
 
-    TEST_METHOD (TheVerdictAndRepairAreBesideCopyMap_At100And150Percent)
+    TEST_METHOD (TheVerdictIsALinkBesideCopyMap_At100And150Percent)
     {
         for (UINT dpi : { 96u, 144u })
         {
             Map    map;
             RECT   verdict = {};
-            RECT   repair  = {};
             RECT   copy    = {};
 
             Open (map, RepairFixtures::MakeDos33Bitmap().damaged, dpi);
 
-            verdict = map.files.GetVerdictLabel().GetBounds();
-            repair  = map.files.GetRepairButton().GetBounds();
+            verdict = map.files.GetVerdictLink().GetBounds();
             copy    = map.files.GetCopyButton().GetBounds();
 
-            Assert::AreEqual (std::wstring (L"File system: Bad"), map.files.GetVerdictLabel().GetText());
-            Assert::IsTrue   (map.files.GetVerdictLabel().IsVisible());
-            Assert::IsTrue   (map.files.GetRepairButton().IsVisible() && map.files.GetRepairButton().IsEnabled());
-            Assert::IsTrue   (verdict.right <= repair.left && repair.right <= copy.left, std::format (L"verdict, Repair, Copy map in order at {} dpi", dpi).c_str());
+            Assert::AreEqual (std::wstring (L"File system: Bad"), map.files.GetVerdictLink().GetAccessibleName());
+            Assert::IsTrue   (map.files.GetVerdictLink().IsVisible() && map.files.GetVerdictLink().IsEnabled());
+            Assert::IsTrue   (verdict.right <= copy.left, std::format (L"the verdict, then Copy map, at {} dpi", dpi).c_str());
             Assert::IsTrue   (verdict.left >= map.area.left && copy.right <= map.area.right, L"inside the view");
-            Assert::AreEqual (static_cast<long> (map.scaler.ToPx (90)), repair.right - repair.left, L"Repair's width scales");
-            Assert::AreEqual (repair.top, copy.top, L"on the row of Copy map");
+            Assert::AreEqual (verdict.top, copy.top, L"on the row of Copy map");
 
-            Click (map, repair);
-            Assert::AreEqual (1, map.host.repairs, L"Repair opens the confirmation");
+            Click (map.host.panel, verdict);
+            Assert::AreEqual (GetVerdictFinding (map.session.analysis), map.host.shownFinding, L"the link opens the verdict's finding");
+            Assert::IsTrue   (map.host.shownFinding >= 0);
         }
     }
 
 
 
-    TEST_METHOD (RepairIsDisabledWithTheReasonForAVolumeThatCantBeRepaired)
-    {
-        for (UINT dpi : { 96u, 144u })
-        {
-            Map           map;
-            RECT          repair = {};
-            RECT          anchor = {};
-            std::wstring  tip;
-
-            Open (map, RepairFixtures::MakeDos33ChainOffDisk().damaged, dpi);
-
-            repair = map.files.GetRepairButton().GetBounds();
-            tip    = map.files.GetTip ({ (repair.left + repair.right) / 2, (repair.top + repair.bottom) / 2 }, anchor);
-
-            Assert::IsTrue  (map.files.GetRepairButton().IsVisible());
-            Assert::IsFalse (map.files.GetRepairButton().IsEnabled());
-            Assert::IsTrue  (tip.find (L"Repair isn't available. Repairing this would change a file's data: ") != std::wstring::npos, tip.c_str());
-        }
-    }
-
-
-
-    TEST_METHOD (RepairIsntShownForAnOkVolume)
+    TEST_METHOD (AnOkVerdictIsntALink)
     {
         Map  map;
 
@@ -146,9 +135,9 @@ public:
 
         Open (map, RepairFixtures::MakeDos33(), 96);
 
-        Assert::AreEqual (std::wstring (L"File system: OK"), map.files.GetVerdictLabel().GetText());
-        Assert::IsTrue   (map.files.GetVerdictLabel().IsVisible());
-        Assert::IsFalse  (map.files.GetRepairButton().IsVisible());
+        Assert::AreEqual (std::wstring (L"File system: OK"), map.files.GetVerdictLink().GetAccessibleName());
+        Assert::IsTrue   (map.files.GetVerdictLink().IsVisible());
+        Assert::IsFalse  (map.files.GetVerdictLink().IsEnabled());
     }
 
 
@@ -180,38 +169,145 @@ public:
 
 
 
-    TEST_METHOD (TheConfirmationHasALineForEachChangeAndItsCheckBox_At100And150Percent)
+    TEST_METHOD (TheIssuesTabHasRepairOnEachFindingAChangeSetsRight_At100And150Percent)
+    {
+        for (UINT dpi : { 96u, 144u })
+        {
+            InspectorSession        session;
+            IssuesView              issues  { session.context };
+            DxuiDpiScaler           scaler;
+            RepairPlan              plan;
+            std::set<std::wstring>  chosen  = { L"none" };
+            int                     buttons = 0;
+            RECT                    all     = {};
+
+            Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session.analysis);
+            session.context.hasDisk = true;
+            plan = DiskRepair::Plan (session.analysis, {});
+            scaler.SetDpi (dpi);
+
+            issues.SetRepairPlan (&plan);
+            issues.SetOnRepair   ([&chosen] (const std::set<std::wstring> & keys) { chosen = keys; });
+            issues.Refresh();
+            issues.Layout ({ 0, 0, scaler.ToPx (900), scaler.ToPx (400) }, scaler);
+
+            for (int row = 0; row < static_cast<int> (issues.GetRows().size()); row++)
+            {
+                RECT  rect    = issues.GetRepairRect (row);
+                bool  isShown = rect.right > rect.left;
+
+                Assert::AreEqual (!issues.GetFixingKeys (issues.GetRows()[row].finding).empty(), isShown, std::format (L"row {} at {} dpi", row, dpi).c_str());
+
+                if (isShown && buttons++ == 0)
+                {
+                    Click (issues, rect);
+                    Assert::IsTrue (chosen == issues.GetFixingKeys (issues.GetRows()[row].finding), L"a row's Repair checks its changes");
+                }
+            }
+
+            Assert::IsTrue (buttons >= 2, L"the HELLO and unowned findings each have Repair");
+
+            all = issues.GetRepairAllRect();
+            Assert::IsTrue (all.right > all.left && all.right <= scaler.ToPx (900) && all.bottom <= scaler.ToPx (IssuesView::kFilterDip));
+
+            Click (issues, all);
+            Assert::IsTrue (chosen.empty(), L"Repair disk image... checks every change");
+        }
+    }
+
+
+
+    TEST_METHOD (ShowFindingSelectsItEvenWhenItsCategoryIsHidden)
+    {
+        InspectorSession  session;
+        IssuesView        issues  { session.context };
+        DxuiDpiScaler     scaler;
+        int               chosen  = -1;
+        int               finding = -1;
+        RECT              toggle  = {};
+
+
+
+        Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session.analysis);
+        session.context.hasDisk = true;
+        scaler.SetDpi (96);
+        finding = GetVerdictFinding (session.analysis);
+
+        issues.SetOnSelect ([&chosen] (const TableRow & row) { chosen = row.finding; });
+        issues.Refresh();
+        issues.Layout ({ 0, 0, 900, 400 }, scaler);
+
+        //  The toggles are 104 DIPs wide with 4 between them; each is turned
+        //  off until the finding's row is gone.
+        for (int c = 0; c < InspectorTables::kCategoryCount && HasRow (issues, finding); c++)
+        {
+            toggle = { c * 108 + 50, 14, c * 108 + 51, 15 };
+            Click (issues, toggle);
+        }
+
+        Assert::IsFalse (HasRow (issues, finding), L"the category is filtered out");
+
+        issues.ShowFinding (finding);
+
+        Assert::AreEqual (finding, chosen);
+        Assert::IsTrue   (HasRow (issues, finding), L"and the row is back");
+    }
+
+
+
+    static bool HasRow (const IssuesView & issues, int finding)
+    {
+        return std::any_of (issues.GetRows().begin(), issues.GetRows().end(), [finding] (const TableRow & row) { return row.finding == finding; });
+    }
+
+
+
+    TEST_METHOD (TheConfirmationHasACheckBoxForEachChange_At100And150Percent)
     {
         DiskAnalysis  analysis;
-        RepairPlan    plan;
+        RepairDialog  dialog;
 
 
 
         Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, analysis);
-        plan = DiskRepair::Plan (analysis, {});
+        dialog.Configure (nullptr, L"Game.dsk", analysis, {});
 
-        Assert::AreEqual (std::wstring (L"\x2022 Mark 1 sector of HELLO as used in the bitmap\n\x2022 Mark 1 sector not in any file as free in the bitmap"),
-                          RepairDialog::FormatChanges (plan));
-        Assert::AreEqual (std::wstring (L"Writes a repaired copy of Game.dsk in the same folder, with these changes. Game.dsk isn't changed."), RepairDialog::FormatIntro (L"Game.dsk"));
+        Assert::AreEqual (std::wstring (L"Writes a repaired copy of Game.dsk in the same folder, with the changes checked below. Game.dsk isn't changed."),
+                          RepairDialog::FormatIntro (L"Game.dsk"));
+        Assert::AreEqual (static_cast<size_t> (2), dialog.GetFullPlan().changes.size());
+        Assert::IsTrue   (dialog.GetChosen() == DiskRepair::GetKeys (dialog.GetFullPlan()), L"none chosen checks every change");
+
+        dialog.SetChosen (L"unowned", false);
+        Assert::AreEqual (static_cast<size_t> (1), dialog.GetPlan().changes.size());
+        Assert::IsTrue   (dialog.GetPlan().canRepair);
+        Assert::AreEqual (std::wstring(), RepairDialog::FormatStatus (dialog.GetPlan()));
+
+        dialog.SetChosen (L"used:HELLO", false);
+        Assert::IsFalse  (dialog.GetPlan().canRepair);
+        Assert::AreEqual (std::wstring (L"No changes are selected."), RepairDialog::FormatStatus (dialog.GetPlan()));
 
         for (UINT dpi : { 96u, 144u })
         {
-            DxuiDpiScaler     scaler;
-            RepairDialogBody  body;
-            DxuiLabel         intro;
-            DxuiLabel         changes;
-            DxuiCheckbox      noFree { L"Keep sectors not in any file marked as used" };
-            RECT              bounds = {};
+            DxuiDpiScaler                          scaler;
+            RepairDialogBody                       body;
+            DxuiLabel                              intro;
+            DxuiLabel                              status;
+            vector<std::unique_ptr<DxuiCheckbox>>  checks;
+            RECT                                   bounds = {};
+
+            for (const RepairChange & change : dialog.GetFullPlan().changes)
+            {
+                checks.push_back (std::make_unique<DxuiCheckbox> (change.text));
+            }
 
             scaler.SetDpi (dpi);
-            bounds = { 0, 0, scaler.ToPx (RepairDialog::kWidthDip), scaler.ToPx (RepairDialogBody::GetHeightDip (plan.changes.size())) };
-            body.Init   (intro, changes, noFree);
+            bounds = { 0, 0, scaler.ToPx (RepairDialog::kWidthDip), scaler.ToPx (RepairDialogBody::GetHeightDip (checks.size())) };
+            body.Init   (intro, checks, status);
             body.Layout (bounds, scaler);
 
-            Assert::IsTrue (noFree.GetBounds().bottom <= bounds.bottom && noFree.GetBounds().top >= changes.GetBounds().bottom, L"the check box is under the changes");
-            Assert::IsTrue (changes.GetBounds().bottom - changes.GetBounds().top >= static_cast<long> (plan.changes.size()) * scaler.ToPx (RepairDialogBody::kLineDip),
-                            std::format (L"a line for each change at {} dpi", dpi).c_str());
-            Assert::IsTrue (intro.GetBounds().bottom <= changes.GetBounds().top);
+            Assert::IsTrue (intro.GetBounds().bottom <= checks.front()->GetBounds().top, std::format (L"the intro, then the changes, at {} dpi", dpi).c_str());
+            Assert::IsTrue (checks.front()->GetBounds().bottom <= checks.back()->GetBounds().top, L"a row for each change");
+            Assert::IsTrue (checks.back()->GetBounds().bottom <= status.GetBounds().top && status.GetBounds().bottom <= bounds.bottom, L"and the status under them");
         }
     }
 };

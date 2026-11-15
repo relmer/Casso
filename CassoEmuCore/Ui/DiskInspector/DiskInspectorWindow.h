@@ -99,8 +99,10 @@ public:
     //  The walkthrough from its first step (FR-153).
     void     OpenWalkthrough () override;
 
-    //  Repair's confirmation, then the repaired copy written.
-    void     OpenRepair () override;
+    //  Repair's confirmation with the chosen changes checked, or every
+    //  change for none, then the repaired copy written.
+    void     OpenRepair  (const std::set<std::wstring> & chosen) override;
+    void     ShowFinding (int finding) override;
 
     //  After an Explorer window's file changes on disk, ReloadDisk requests a
     //  new copy. For a file that is gone, NoteFileGone adds a note and the

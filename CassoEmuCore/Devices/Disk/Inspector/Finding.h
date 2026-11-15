@@ -135,6 +135,7 @@ struct Finding
     int                         field        = -1;
     uint32_t                    cell         = 0;
     bool                        hasCell      = false;
+    int                         mapCell      = -1;      // a file-system finding's sector or block in its file map
     int                         value        = 0;
     int                         value2       = 0;
     vector<int>                 quarterTracks;

@@ -41,6 +41,8 @@ public:
     void            ToggleCrossReference  ();
     bool            IsCrossReference      () const { return m_crossReference; }
     IDxuiControl  * GetControl            () const { return m_text; }
+    int             GetContentHeightPx    () const override { return m_text->IsVisible() ? m_text->GetContentHeightPx() : 0; }
+    bool            IsAtTop               () const override { return !m_text->IsVisible() || m_text->GetTopLine() == 0; }
 
     bool            HandleKey             (const DxuiKeyEvent & ev) { return m_text->OnKey (ev); }
 

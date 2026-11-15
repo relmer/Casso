@@ -70,7 +70,7 @@ InspectorTableView::InspectorTableView (InspectorViewContext & context) :
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InspectorTableView::SetColumns (const vector<std::wstring> & titles)
+void InspectorTableView::SetColumns (const vector<std::wstring> & titles, int trailingDip)
 {
     vector<DxuiListView::Column>  columns;
 
@@ -87,7 +87,16 @@ void InspectorTableView::SetColumns (const vector<std::wstring> & titles)
         columns.push_back (column);
     }
 
-    columns.back().stretch = true;
+    if (trailingDip > 0 && columns.size() > 1)
+    {
+        columns.back().widthDip            = trailingDip;
+        columns[columns.size() - 2].stretch = true;
+    }
+    else
+    {
+        columns.back().stretch = true;
+    }
+
     m_list.SetColumns (std::move (columns));
 }
 

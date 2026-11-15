@@ -12,18 +12,22 @@ class SectorSource;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RepairOptions / RepairSector / RepairPlan
+//  RepairOptions / RepairSector / RepairFix / RepairChange / RepairPlan
 //
-//  Repair's options, a sector it writes (by track and DOS logical
-//  sector, all 256 bytes), and the plan: whether the volume can be repaired
-//  and why not, a line for each change, the sectors, and the verdict before
-//  and after.
+//  Repair's options, a sector it writes (by track and DOS logical sector,
+//  all 256 bytes), a finding a change sets right, a change, and the plan:
+//  whether the volume can be repaired and why not, the changes, the sectors,
+//  and the verdict before and after.
+//
+//  A change's key identifies it from one plan to the next, so a change can
+//  be left out by adding its key to RepairOptions::skipped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct RepairOptions
 {
-    bool  isKeepingUnowned = false;
+    bool                    isKeepingUnowned = false;
+    std::set<std::wstring>  skipped;
 };
 
 
@@ -37,11 +41,30 @@ struct RepairSector
 };
 
 
+//  A finding matches when its kind is the fix's, and its map cell and detail
+//  are the fix's where the fix sets them (a cell of -1 or an empty detail
+//  matches any).
+struct RepairFix
+{
+    FindingKind  kind   = FindingKind::FileCountDiffers;
+    int          cell   = -1;
+    std::string  detail;
+};
+
+
+struct RepairChange
+{
+    std::wstring       key;
+    std::wstring       text;
+    vector<RepairFix>  fixes;
+};
+
+
 struct RepairPlan
 {
     bool                   canRepair = false;
     std::wstring           reason;
-    vector<std::wstring>   changes;
+    vector<RepairChange>   changes;
     vector<RepairSector>   sectors;
     FileSystemVerdict      before    = FileSystemVerdict::None;
     FileSystemVerdict      after     = FileSystemVerdict::None;
@@ -71,8 +94,21 @@ class DiskRepair
 public:
     static RepairPlan  Plan  (const DiskAnalysis & analysis, const RepairOptions & options);
 
+    //  The plan with only the changes whose keys are chosen. A change that
+    //  appears only once others are left out, such as a count read through a
+    //  catalog that isn't relinked, is left out too.
+    static RepairPlan  PlanChosen (const DiskAnalysis & analysis, const RepairOptions & options, const std::set<std::wstring> & chosen);
+
     //  The plan's sectors written over a 140 KB volume in DOS logical order.
     static void        Apply (const RepairPlan & plan, vector<Byte> & inOutSectors);
+
+    static bool        IsFixing    (const RepairChange & change, const Finding & finding);
+
+    //  The keys of the plan's changes that set the finding right.
+    static std::set<std::wstring>  GetFixingKeys (const RepairPlan & plan, const Finding & finding);
+
+    //  Every change's key.
+    static std::set<std::wstring>  GetKeys       (const RepairPlan & plan);
 
 private:
     struct Work
@@ -86,6 +122,19 @@ private:
         RepairPlan &          plan;
     };
 
+    //  What a bitmap rebuild marked: for each file, the count of its sectors
+    //  or blocks marked used and the findings that sets right; and the same
+    //  for the volume's structures, and for those not in any file marked free.
+    struct BitmapTally
+    {
+        vector<int>                markedUsed;
+        vector<vector<RepairFix>>  usedFixes;
+        int                        structures = 0;
+        vector<RepairFix>          structureFixes;
+        int                        unowned    = 0;
+        vector<RepairFix>          unownedFixes;
+    };
+
     static void   PlanDos33        (Work & work, const FileMap & map);
     static void   PlanHeader       (Work & work, const FileMap & map);
     static void   PlanRelink       (Work & work, const FileMap & map);
@@ -93,11 +142,13 @@ private:
     static void   PlanProDos       (Work & work, const FileMap & map);
     static void   PlanCounts       (Work & work, const FileMap & map);
     static void   CheckChains      (Work & work, const FileMap & map);
-    static void   AddBitmapChanges (Work & work, const FileMap & map, const vector<int> & markedUsed, int unowned, int structures, LPCWSTR unit, LPCWSTR structure);
+    static void   AddBitmapChanges (Work & work, const FileMap & map, const BitmapTally & tally, LPCWSTR unit, LPCWSTR structure);
+    static void   AddChange        (Work & work, std::wstring key, std::wstring text, vector<RepairFix> fixes);
     static void   CollectSectors   (Work & work);
 
     static bool   BuildMap         (const Work & work, std::unique_ptr<SectorSource> & outSource, FileMap & outMap);
     static Byte * GetDos33         (Work & work, int track, int sector);
     static Byte * GetBlockByte     (Work & work, int block, int offset, int & outTrack, int & outSector);
     static bool   IsReadable       (const Work & work, int track, int sector);
+    static bool   IsSkipped        (const Work & work, const std::wstring & key);
 };

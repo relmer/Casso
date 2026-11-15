@@ -128,73 +128,15 @@ void ThumbnailChips::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ThumbnailVerdict::Paint
+//  PreviewDiskThumbnail::FormatVerdict
 //
-//  Bad on a tinted band outlined in the error color, its text in that color
-//  to the left of Repair disk image; Suspect as muted text.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ThumbnailVerdict::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    static constexpr uint32_t  kTintAlpha = 0x26000000u;
-    static constexpr uint32_t  kRgb       = 0x00FFFFFFu;
-
-
-
-    float     pad    = m_scaler.ToPxf (kPadDip);
-    float     left   = static_cast<float> (m_boundsDip.left);
-    float     top    = static_cast<float> (m_boundsDip.top);
-    float     width  = static_cast<float> (m_boundsDip.right - m_boundsDip.left);
-    float     height = static_cast<float> (m_boundsDip.bottom - m_boundsDip.top);
-    float     right  = (m_textRight > m_boundsDip.left) ? static_cast<float> (m_textRight) : left + width - pad;
-    uint32_t  color  = IsBanner() ? theme.ErrorForeground() : theme.ForegroundMuted();
-
-
-
-    if (IsBanner())
-    {
-        painter.FillRoundedRect    (left, top, width, height, pad / 2, (theme.ErrorForeground() & kRgb) | kTintAlpha);
-        painter.OutlineRoundedRect (left, top, width, height, pad / 2, m_scaler.ToPxf (1.0f), theme.ErrorForeground());
-    }
-
-    text.DrawString (m_text.c_str(), left + pad, top, (std::max) (0.0f, right - left - pad), height, color, m_scaler.ToPxf (kTextDip),
-                     DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, true);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ThumbnailVerdict::SetVerdict
+//  "File system damaged." or "File system suspect.", and the finding as a
+//  sentence on the next line; nothing for OK or a disk with no standard
+//  file system.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ThumbnailVerdict::SetVerdict (FileSystemVerdict verdict, const std::wstring & finding)
-{
-    m_verdict = verdict;
-    m_text    = FormatText (verdict, finding);
-
-    return !m_text.empty();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ThumbnailVerdict::FormatText
-//
-//  "File system damaged." and the finding as a sentence on the next line;
-//  "File system: Suspect." and the finding on one line; nothing for OK or a
-//  disk with no standard file system.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ThumbnailVerdict::FormatText (FileSystemVerdict verdict, const std::wstring & finding)
+std::wstring PreviewDiskThumbnail::FormatVerdict (FileSystemVerdict verdict, const std::wstring & finding)
 {
     std::wstring  text;
     std::wstring  sentence = finding;
@@ -217,7 +159,7 @@ std::wstring ThumbnailVerdict::FormatText (FileSystemVerdict verdict, const std:
     }
     else if (verdict == FileSystemVerdict::Suspect)
     {
-        text = L"File system: Suspect." + (sentence.empty() ? std::wstring() : L" " + sentence);
+        text = L"File system suspect." + (sentence.empty() ? std::wstring() : L"\n" + sentence);
     }
 
     return text;
@@ -283,25 +225,22 @@ PreviewDiskThumbnail::PreviewDiskThumbnail (ExplorerContext & context) :
 
 void PreviewDiskThumbnail::Create()
 {
-    m_platter = m_context.window.CreateChild<ThumbnailPlatterView> (m_view, m_context.theme);
-    m_chips   = m_context.window.CreateChild<ThumbnailChips> (m_view.palette);
-    m_screen  = m_context.window.CreateChild<ThumbnailScreen>();
-    m_bootLine = m_context.window.CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left, DxuiTextVAlign::Top);
-    m_verdict  = m_context.window.CreateChild<ThumbnailVerdict>();
-    m_repair   = m_context.window.CreateChild<DxuiButton> (L"Repair disk image");
+    m_header   = m_context.window.CreateChild<DxuiScrollPanel>();
+    m_platter  = m_header->CreateChild<ThumbnailPlatterView> (m_view, m_context.theme);
+    m_chips    = m_header->CreateChild<ThumbnailChips> (m_view.palette);
+    m_screen   = m_header->CreateChild<ThumbnailScreen>();
+    m_bootLine = m_header->CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    m_verdict  = m_header->CreateChild<DxuiInfoBanner>();
 
-    m_repair->SetOnClick ([this] () { RepairImage(); });
+    m_header->SetScrollbarShown  (false);
+    m_verdict->SetActionWidthDip (static_cast<float> (kRepairDip));
+    m_verdict->SetStackBelowDip  (static_cast<float> (kStackDip));
+    m_verdict->SetOnAction       ([this] (size_t) { RepairImage(); });
 
-    m_context.window.SetMouseHandler (m_platter, [this] (const DxuiMouseEvent & ev) { return HandlePlatterMouse (ev); });
-    m_context.window.SetMouseHandler (m_screen,  [this] (const DxuiMouseEvent & ev) { return HandleScreenMouse (ev); });
+    m_context.window.SetMouseHandler (m_header, [this] (const DxuiMouseEvent & ev) { return HandleHeaderMouse (ev); });
 
     m_platter->SetSelectionShown (false);
-    m_platter->SetVisible (false);
-    m_chips->SetVisible   (false);
-    m_screen->SetVisible  (false);
-    m_bootLine->SetVisible  (false);
-    m_verdict->SetVisible   (false);
-    m_repair->SetVisible    (false);
+    Hide();
 }
 
 
@@ -413,6 +352,7 @@ void PreviewDiskThumbnail::ApplyResult()
     const Finding   * finding = nullptr;
     int               qt      = 0;
     int               slot    = 0;
+    std::wstring      text;
 
 
 
@@ -457,7 +397,12 @@ void PreviewDiskThumbnail::ApplyResult()
     m_platter->SetVisible (m_chips->IsVisible());
 
     finding          = FileSystemCheck::GetVerdictFinding (*m_result.analysis);
-    m_isVerdictShown = m_verdict->SetVerdict (m_result.analysis->verdict, finding != nullptr ? FindingFormatter::Format (*finding) : std::wstring());
+    text             = FormatVerdict (m_result.analysis->verdict, finding != nullptr ? FindingFormatter::Format (*finding) : std::wstring());
+    m_isVerdictShown = !text.empty();
+
+    m_verdict->SetText     (text);
+    m_verdict->SetSeverity ((m_result.analysis->verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Warning);
+    m_verdict->SetActions  (m_result.canRepair ? vector<std::wstring> { L"Repair disk image" } : vector<std::wstring>());
 }
 
 
@@ -519,7 +464,7 @@ int PreviewDiskThumbnail::GetHeightPx (int widthPx) const
         height += 2 * rows + gap + (IsBeside (widthPx) ? 0 : scaler.ToPx (kScreenDip) * 3 / 4 + gap);
     }
 
-    return height + GetVerdictHeightPx();
+    return height + GetVerdictHeightPx (widthPx);
 }
 
 
@@ -536,7 +481,7 @@ int PreviewDiskThumbnail::GetHeightPx (int widthPx) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PreviewDiskThumbnail::Layout (const RECT & area)
+int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx)
 {
     const DxuiDpiScaler  & scaler    = m_context.scaler;
     int                    platter   = scaler.ToPx (kPlatterDip);
@@ -551,52 +496,63 @@ void PreviewDiskThumbnail::Layout (const RECT & area)
     int                    left      = area.left + (std::max) (0, (width - group) / 2);
     int                    top       = area.top + gap;
     int                    chipsTop  = area.top + gap;
+    int                    shown     = 0;
 
 
 
     if (!IsShown())
     {
         Hide();
-        return;
+        return area.top;
     }
 
     if (HasVerdict())
     {
-        PlaceVerdict (area, top);
-        top     += GetVerdictHeightPx();
+        PlaceVerdict (area, top, GetVerdictHeightPx (width) - gap);
+        top     += GetVerdictHeightPx (width);
         chipsTop = top;
     }
 
     if (hasScreen && isBeside)
     {
-        m_screen->Layout (RECT { left, top + (platter - screenH) / 2, left + screenW, top + (platter - screenH) / 2 + screenH }, scaler);
+        m_header->PlaceChild (*m_screen, RECT { left, top + (platter - screenH) / 2, left + screenW, top + (platter - screenH) / 2 + screenH });
         left += screenW + gap;
     }
     else if (hasScreen)
     {
-        m_screen->Layout (RECT { area.left + (width - screenW) / 2, top, area.left + (width - screenW) / 2 + screenW, top + screenH }, scaler);
+        m_header->PlaceChild (*m_screen, RECT { area.left + (width - screenW) / 2, top, area.left + (width - screenW) / 2 + screenW, top + screenH });
         top += screenH + gap;
     }
 
     if (m_state != State::Note35)
     {
-        m_platter->Layout (RECT { left, top, left + platter, top + platter }, scaler);
+        m_header->PlaceChild (*m_platter, RECT { left, top, left + platter, top + platter });
         chipsTop = top + platter + gap;
     }
 
     if (hasScreen)
     {
-        m_bootLine->Layout (RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows }, scaler);
+        m_header->PlaceChild (*m_bootLine, RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows });
         chipsTop += 2 * rows + gap;
     }
 
-    m_chips->Layout (RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows }, scaler);
+    m_header->PlaceChild (*m_chips, RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows });
+
+    m_header->SetVisible  (true);
     m_chips->SetVisible   (true);
     m_platter->SetVisible (m_state == State::Ready);
     m_screen->SetVisible  (hasScreen);
     m_bootLine->SetVisible  (hasScreen);
     m_verdict->SetVisible (HasVerdict());
-    m_repair->SetVisible  (HasVerdict() && m_verdict->IsBanner() && m_result.canRepair);
+
+    //  Laid out whole to measure it, then in the part not scrolled away.
+    m_header->Layout (area, scaler);
+    shown = std::clamp ((std::min) (static_cast<int> (area.bottom - area.top), m_header->GetContentHeightPx()) - scrollPx, 0, (std::max) (0, bottomPx - static_cast<int> (area.top)));
+
+    m_header->Layout         (RECT { area.left, area.top, area.right, area.top + shown }, scaler);
+    m_header->SetScrollPosPx (scrollPx);
+
+    return area.top + shown;
 }
 
 
@@ -611,12 +567,12 @@ void PreviewDiskThumbnail::Layout (const RECT & area)
 
 void PreviewDiskThumbnail::Hide()
 {
+    m_header->SetVisible  (false);
     m_platter->SetVisible (false);
     m_chips->SetVisible   (false);
     m_screen->SetVisible  (false);
     m_bootLine->SetVisible  (false);
     m_verdict->SetVisible   (false);
-    m_repair->SetVisible    (false);
 }
 
 
@@ -636,6 +592,29 @@ bool PreviewDiskThumbnail::IsOverPlatter (POINT pointPx) const
 
 
     return m_state == State::Ready && m_platter->IsVisible() && PtInRect (&bounds, pointPx) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::HandleHeaderMouse
+//
+//  The platter's and the picture's clicks, then the infobar's action. The
+//  wheel is the pane's, so the header doesn't scroll by itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::HandleHeaderMouse (const DxuiMouseEvent & ev)
+{
+    if (ev.kind == DxuiMouseEventKind::Wheel)
+    {
+        return true;
+    }
+
+    return HandlePlatterMouse (ev) || HandleScreenMouse (ev) || m_header->OnMouse (ev);
 }
 
 
@@ -673,18 +652,29 @@ bool PreviewDiskThumbnail::HandlePlatterMouse (const DxuiMouseEvent & ev)
 //
 //  PreviewDiskThumbnail::GetVerdictHeightPx
 //
-//  Two rows and a gap for a verdict, so a finding has room to wrap once;
-//  nothing for none.
+//  The infobar as tall as its text wrapped to the pane's width, measured
+//  where the window has a text renderer, and a gap; nothing for none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int PreviewDiskThumbnail::GetVerdictHeightPx() const
+int PreviewDiskThumbnail::GetVerdictHeightPx (int widthPx) const
 {
     const DxuiDpiScaler  & scaler = m_context.scaler;
+    IDxuiTextRenderer    * text   = m_context.window.GetTextRenderer();
+    int                    gap    = scaler.ToPx (kGapDip);
+    float                  width  = static_cast<float> ((std::max) (0, widthPx - 2 * gap));
+    float                  height = 0.0f;
 
 
 
-    return HasVerdict() ? 2 * scaler.ToPx (static_cast<int> (ThumbnailChips::kRowDip)) + scaler.ToPx (kGapDip) : 0;
+    if (!HasVerdict())
+    {
+        return 0;
+    }
+
+    height = (text != nullptr) ? m_verdict->GetMeasuredHeightPx (*text, width, scaler) : m_verdict->GetPreferredHeightPx (width, scaler);
+
+    return static_cast<int> (std::ceil (height)) + gap;
 }
 
 
@@ -695,32 +685,18 @@ int PreviewDiskThumbnail::GetVerdictHeightPx() const
 //
 //  PreviewDiskThumbnail::PlaceVerdict
 //
-//  The verdict across the area's top, with Repair disk image at the right
-//  of a banner when the volume can be repaired.
+//  The infobar across the area's top. Repair disk image is at its right, or
+//  under its text in a narrow pane, when the volume can be repaired.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PreviewDiskThumbnail::PlaceVerdict (const RECT & area, int top)
+void PreviewDiskThumbnail::PlaceVerdict (const RECT & area, int top, int height)
 {
-    const DxuiDpiScaler  & scaler  = m_context.scaler;
-    int                    gap     = scaler.ToPx (kGapDip);
-    int                    rows    = scaler.ToPx (static_cast<int> (ThumbnailChips::kRowDip));
-    int                    repairW = scaler.ToPx (kRepairDip);
-    int                    left    = area.left + gap;
-    int                    right   = area.right - gap;
-    int                    bottom  = top + 2 * rows;
-    bool                   isShown = m_verdict->IsBanner() && m_result.canRepair;
-    int                    button  = isShown ? (std::max) (left, right - gap - repairW) : right;
+    int  gap = m_context.scaler.ToPx (kGapDip);
 
 
 
-    m_verdict->Layout       (RECT { left, top, right, bottom }, scaler);
-    m_verdict->SetTextRight (button - gap);
-
-    if (isShown)
-    {
-        m_repair->Layout (RECT { button, top + (2 * rows - rows) / 2, right - gap, top + (2 * rows + rows) / 2 }, scaler);
-    }
+    m_header->PlaceChild (*m_verdict, RECT { area.left + gap, top, area.right - gap, top + height });
 }
 
 
@@ -731,67 +707,34 @@ void PreviewDiskThumbnail::PlaceVerdict (const RECT & area, int top)
 //
 //  PreviewDiskThumbnail::RepairImage
 //
-//  The plan is made again from the file as saved, confirmed with its
-//  changes, and the copy written beside the image and selected. The status
-//  bar has the copy's name or the reason it wasn't written.
+//  The confirmation from the file as saved, with every change checked, and
+//  the copy written beside the image and selected. The status bar has the
+//  copy's name or the reason it wasn't written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PreviewDiskThumbnail::RepairImage()
 {
-    HRESULT                   hr       = S_OK;
-    Win32DiskFileIo           fileIo;
-    RepairDialog              dialog;
-    DxuiWindow::CreateParams  params;
-    std::string               path     = TextEncoding::WideToUtf8 (m_path);
-    std::wstring              name     = fs::path (m_path).filename().wstring();
-    std::string               written;
-    std::wstring              reason;
-    bool                      canWrite = false;
+    HRESULT          hr     = S_OK;
+    Win32DiskFileIo  fileIo;
+    std::string      written;
+    std::wstring     note;
 
 
 
-    dialog.Configure (m_context.theme, name, [&fileIo, &path] (bool isKeepingUnowned)
+    hr = RepairDialog::Run (m_context.window.GetHwnd(), m_context.theme, fileIo, TextEncoding::WideToUtf8 (m_path), {}, written, note);
+
+    if (!note.empty())
     {
-        RepairPlan    plan;
-        std::wstring  why;
-        HRESULT       planned = RepairCopy::PlanFile (fileIo, path, { isKeepingUnowned }, plan, why);
+        m_context.statusBar.SetActivity (note);
+    }
 
-        IGNORE_RETURN_VALUE (planned, S_OK);
-        return plan;
-    });
+    if (hr == S_OK)
+    {
+        m_context.tabManager.SelectInFolder (TextEncoding::Utf8ToWide (written));
+    }
 
-    canWrite = dialog.GetPlan().canRepair;
-    CBRF (canWrite, m_context.statusBar.SetActivity (L"Repair isn't available. " + dialog.GetPlan().reason));
-
-    params.title                    = L"Repair disk image";
-    params.hInstance                = GetModuleHandle (nullptr);
-    params.ownerHwnd                = m_context.window.GetHwnd();
-    params.initialSizeDip           = RepairDialog::GetSizeDip (dialog.GetPlan());
-    params.minSizeDip               = params.initialSizeDip;
-    params.resizable                = false;
-    params.insetContentBelowCaption = true;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
-
-    hr = dialog.Create (params);
-    CHRA (hr);
-
-    dialog.SetTheme (m_context.theme);
-    dialog.ShowModalDialog (IDOK);
-
-    canWrite = dialog.IsConfirmed();
-    CBR (canWrite);
-
-    hr = RepairCopy::Write (fileIo, path, "", dialog.GetPlan(), written, reason);
-    CHRF (hr, m_context.statusBar.SetActivity (L"Repair failed: " + reason));
-
-    m_context.statusBar.SetActivity (L"Repaired copy written: " + fs::path (TextEncoding::Utf8ToWide (written)).filename().wstring());
-    m_context.tabManager.SelectInFolder (TextEncoding::Utf8ToWide (written));
     m_context.window.Invalidate();
-
-Error:
-    return;
 }
 
 

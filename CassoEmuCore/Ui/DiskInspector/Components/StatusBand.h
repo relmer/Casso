@@ -61,7 +61,8 @@ private:
         Selection
     };
 
-    //  One thing drawn at the band's left end, and where it goes.
+    //  One thing drawn at the band's left end, and where it goes. A linked
+    //  chip opens its finding on the Issues tab when clicked.
     struct LeadItem
     {
         std::wstring  text;
@@ -69,6 +70,7 @@ private:
         float         x        = 0;
         float         w        = 0;
         bool          isPlaced = false;
+        bool          isLinked = false;
     };
 
     void                   LayOutBar        (int leadPx);
@@ -77,6 +79,7 @@ private:
     void                   PaintLead        (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::vector<LeadItem> & items) const;
     void                   PaintHelp        (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     std::wstring           GetSelectionLine () const;
+    const LeadItem       * GetLinkedChipAt  (POINT pointPx) const;
 
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;
@@ -87,4 +90,5 @@ private:
     RECT                       m_helpPx      = {};
     RECT                       m_chipsPx     = {};
     std::wstring               m_hint;
+    std::vector<LeadItem>      m_placed;      // the lead as last drawn
 };

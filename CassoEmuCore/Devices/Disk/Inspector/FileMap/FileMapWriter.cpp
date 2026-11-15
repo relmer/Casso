@@ -252,6 +252,7 @@ void FileMapWriter::AddFinding (FindingKind kind, int cell, const std::wstring &
 
     if (cell >= 0 && cell < static_cast<int> (m_map.cells.size()))
     {
+        finding.mapCell      = cell;
         finding.quarterTrack = m_map.GetTrack (cell) * DiskImage::kQuarterTracksPerWholeTrack;
         finding.sector       = GetPhysical (cell);
     }
@@ -295,7 +296,17 @@ void FileMapWriter::CheckCount (int file, int cell, int offset, LPCWSTR what)
 
 void FileMapWriter::AddCount (const RecordedCount & count)
 {
-    m_map.counts.push_back (count);
+    RecordedCount  stamped = count;
+
+
+
+    if (!m_map.findings.empty())
+    {
+        stamped.kind    = m_map.findings.back().kind;
+        stamped.finding = m_map.findings.back().detail;
+    }
+
+    m_map.counts.push_back (std::move (stamped));
 }
 
 

@@ -30,7 +30,9 @@ public:
 
     explicit InspectorTableView (InspectorViewContext & context);
 
-    void  SetColumns  (const vector<std::wstring> & titles);
+    //  The last column stretches, or with a trailing width, the one before it
+    //  stretches and the last is that wide.
+    void  SetColumns  (const vector<std::wstring> & titles, int trailingDip = 0);
     void  SetRows     (vector<TableRow> rows);
     void  SetCaption  (const std::wstring & caption) { m_caption = caption; }
 

@@ -35,7 +35,7 @@ public:
     void  OpenGoTo           ();
     void  OpenExport         ();
     void  OpenDecodeSettings ();
-    void  OpenRepair         ();
+    void  OpenRepair         (const std::set<std::wstring> & chosen);
     void  ApplySettings      (const DecodeSettings & settings);
 
     //  A modal question with a button for the action and one for Cancel;

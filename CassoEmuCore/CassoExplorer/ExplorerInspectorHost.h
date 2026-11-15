@@ -64,6 +64,11 @@ public:
     //  The file is read again for the next copy, as a new disk.
     void  Reload ();
 
+    //  Another file in the window, read for the next copy with the same media
+    //  id, so the selection stays; its bytes are then the window's "As first
+    //  opened".
+    void  Retarget (const std::wstring & path);
+
     //  Whether the file's size and time are as the window last read or
     //  saved it, so a change the window made itself is not read again.
     bool  IsFileCurrent ();

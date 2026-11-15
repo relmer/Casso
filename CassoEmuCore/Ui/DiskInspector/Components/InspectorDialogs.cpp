@@ -87,68 +87,35 @@ Error:
 //
 //  InspectorDialogs::OpenRepair
 //
-//  The plan is made again from the image file as saved, the confirmation
-//  lists its changes, and the copy is written beside the image. The status
-//  band has the copy's name or the reason it wasn't written, and Casso
-//  Explorer selects the copy.
+//  The confirmation from the image file as saved, with the chosen changes
+//  checked, and the copy written beside the image. The status band has the
+//  copy's name or the reason it wasn't written. The host's
+//  OnRepairedCopyWritten is called with the copy, and Casso Explorer opens
+//  the copy in the window in the image's place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InspectorDialogs::OpenRepair()
+void InspectorDialogs::OpenRepair (const std::set<std::wstring> & chosen)
 {
-    HRESULT                   hr       = S_OK;
-    Win32DiskFileIo           fileIo;
-    RepairDialog              dialog;
-    DxuiWindow::CreateParams  params;
-    std::string               path     = (m_session.analysis.copy != nullptr) ? m_session.analysis.copy->fileName : std::string();
-    std::wstring              name     = fs::path (TextEncoding::Utf8ToWide (path)).filename().wstring();
-    std::string               written;
-    std::wstring              reason;
-    bool                      hasPath  = !path.empty();
-    bool                      canWrite = false;
+    HRESULT          hr      = S_OK;
+    Win32DiskFileIo  fileIo;
+    std::string      path    = (m_session.analysis.copy != nullptr) ? m_session.analysis.copy->fileName : std::string();
+    std::string      written;
+    std::wstring     note;
+    bool             hasPath = !path.empty();
 
 
 
     CBRA (hasPath);
 
-    dialog.Configure (m_session.theme, name, [&fileIo, &path] (bool isKeepingUnowned)
+    hr = RepairDialog::Run (m_host.GetOwnerHwnd(), m_session.theme, fileIo, path, chosen, written, note);
+
+    if (!note.empty())
     {
-        RepairPlan    plan;
-        std::wstring  why;
-        HRESULT       planned = RepairCopy::PlanFile (fileIo, path, { isKeepingUnowned }, plan, why);
+        m_host.SetStatusNote (note);
+    }
 
-        IGNORE_RETURN_VALUE (planned, S_OK);
-        return plan;
-    });
-
-    canWrite = dialog.GetPlan().canRepair;
-    CBRF (canWrite, m_host.SetStatusNote (L"Repair isn't available. " + dialog.GetPlan().reason));
-
-    params.title                    = L"Repair disk image";
-    params.hInstance                = GetModuleHandle (nullptr);
-    params.ownerHwnd                = m_host.GetOwnerHwnd();
-    params.initialSizeDip           = RepairDialog::GetSizeDip (dialog.GetPlan());
-    params.minSizeDip               = params.initialSizeDip;
-    params.resizable                = false;
-    params.insetContentBelowCaption = true;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
-
-    hr = dialog.Create (params);
-    CHRA (hr);
-
-    dialog.SetTheme (m_session.theme);
-    dialog.ShowModalDialog (IDOK);
-
-    canWrite = dialog.IsConfirmed();
-    CBR (canWrite);
-
-    hr = RepairCopy::Write (fileIo, path, "", dialog.GetPlan(), written, reason);
-    CHRF (hr, m_host.SetStatusNote (L"Repair failed: " + reason));
-
-    m_host.SetStatusNote (L"Repaired copy written: " + fs::path (TextEncoding::Utf8ToWide (written)).filename().wstring());
-
-    if (m_session.host != nullptr)
+    if (hr == S_OK && m_session.host != nullptr)
     {
         m_session.host->OnRepairedCopyWritten (TextEncoding::Utf8ToWide (written));
     }

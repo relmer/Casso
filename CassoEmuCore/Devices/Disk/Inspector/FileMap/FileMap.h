@@ -146,7 +146,7 @@ struct MappedFile
 //  A count or pointer a catalog entry or a directory header has that
 //  differs from the value in the volume's structure: a little-endian byte or
 //  word at a byte offset in a cell, which Repair sets to the actual value
-//  (FR-175).
+//  (FR-175). The finding that reports it is identified by its kind and detail.
 struct RecordedCount
 {
     int           cell     = -1;
@@ -155,6 +155,8 @@ struct RecordedCount
     int           actual   = 0;
     std::wstring  what;
     int           width    = 2;
+    FindingKind   kind     = FindingKind::FileCountDiffers;
+    std::string   finding;
 };
 
 

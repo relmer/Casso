@@ -68,6 +68,8 @@ void ViewTables::RefreshTables()
         m_session.views.tracks->SetCaption (m_session.context.hasDisk && InspectorTables::IsAlignmentNoteShown (m_session.analysis)
                                      ? L"This image's INFO says its tracks were not imaged in sync, so their alignment to one another was not kept"
                                      : L"");
+        m_session.repairPlan = m_session.context.hasDisk ? DiskRepair::Plan (m_session.analysis, {}) : RepairPlan();
+        m_session.views.issues->SetRepairPlan (&m_session.repairPlan);
         m_session.views.issues->Refresh();
 
         vector<TableRow>  imageRows = m_session.context.hasDisk ? InspectorTables::BuildImage (m_session.analysis.image, m_session.context.drive != nullptr ? m_session.analysis.copy.get() : nullptr,
@@ -75,7 +77,6 @@ void ViewTables::RefreshTables()
                                                                 : vector<TableRow>();
 
         m_session.views.image->SetRows (std::move (imageRows));
-        m_session.repairPlan = m_session.context.hasDisk ? DiskRepair::Plan (m_session.analysis, {}) : RepairPlan();
         m_session.views.files->RefreshFileList();
 
         //  Casso does not analyze 3.5" disks; such a WOZ opens on the Image

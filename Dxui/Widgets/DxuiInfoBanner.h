@@ -36,12 +36,14 @@
 class DxuiInfoBanner : public IDxuiControl
 {
 public:
-    //  Info states something; Warning cautions about a consequence. The
-    //  difference is the badge and the tint, not the layout.
+    //  Info states something; Warning cautions about a consequence; Error
+    //  reports damage or a failure. The difference is the badge and the
+    //  tint, not the layout.
     enum class Severity
     {
         Info,
-        Warning
+        Warning,
+        Error
     };
 
     using ActionFn  = std::function<void (size_t index)>;
@@ -107,6 +109,17 @@ public:
 
     //  Called with the index of the action that was pressed.
     void  SetOnAction (ActionFn action) { m_onAction = std::move (action); }
+
+    //  Each action's width, in DIPs, for a label longer than the default
+    //  width fits.
+    void  SetActionWidthDip (float widthDip) { m_actionWidthDip = widthDip; }
+
+    //  The actions move onto a row under the text, at the trailing edge,
+    //  while beside them the text would be narrower than this many DIPs. For
+    //  a banner in a pane the user can make narrow. With zero, the default,
+    //  they are beside the text at any width.
+    void  SetStackBelowDip (float textDip) { m_stackBelowDip = textDip; }
+    bool  IsStacked        (float widthPx, const DxuiDpiScaler & scaler) const;
 
     //  A close box at the trailing edge, an X as on a tab, for a notice the
     //  user may put away. A click on it calls SetOnDismiss's function, and the
@@ -219,11 +232,16 @@ private:
     static void  StrokeCircle (IDxuiPainter & painter, float cx, float cy,
                                float radiusPx, float strokePx, uint32_t argb);
 
-    // The text's trailing reserve: the caller's, and the controls' column.
-    float  GetTextReservePx (const DxuiDpiScaler & scaler) const;
+    // The text's trailing reserve at a width: the caller's, and the controls'
+    // column unless they are stacked under the text.
+    float  GetTextReservePx (float widthPx, const DxuiDpiScaler & scaler) const;
 
     // The controls' height, edge padding included; zero with none.
     float  GetControlHeightPx (const DxuiDpiScaler & scaler) const;
+
+    // The box height for text of a height at a width: the text and the icon
+    // padded, beside the controls or above their row when stacked.
+    float  GetBoxHeightPx (float textH, float widthPx, const DxuiDpiScaler & scaler) const;
 
     // The close box's X, over a wash while the pointer is on it.
     void  PaintCloseBox (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
@@ -244,6 +262,10 @@ private:
 
     //  See SetIconGlyph.
     const wchar_t * m_iconGlyph = nullptr;
+
+    //  See SetActionWidthDip and SetStackBelowDip.
+    float           m_actionWidthDip = s_kActionWidthDip;
+    float           m_stackBelowDip  = 0.0f;
 
     //  See SetActions and SetDismissible.
     std::vector<std::unique_ptr<DxuiButton>>  m_actions;

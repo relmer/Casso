@@ -152,16 +152,29 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         content.top += barPx;
     }
 
-    //  A disk image's small platter and chips, under the toolbar (FR-072).
+    //  A disk image's small platter and chips, under the toolbar (FR-072),
+    //  scrolled away by the wheel no further than the view under them
+    //  overflows the pane.
+    m_headerTop = content.top;
+
     if (m_thumbnail.IsShown())
     {
         int  height = m_thumbnail.GetHeightPx (static_cast<int> (content.right - content.left));
+        int  need   = 0;
 
-        m_thumbnail.Layout (RECT { content.left, content.top, content.right, content.top + height });
-        content.top += height;
+        for (const PreviewView * view : m_views)
+        {
+            need = (std::max) (need, view->GetContentHeightPx());
+        }
+
+        m_headerMax    = std::clamp (height + need - static_cast<int> (content.bottom - content.top), 0, height);
+        m_headerScroll = std::clamp (m_headerScroll, 0, m_headerMax);
+        content.top    = m_thumbnail.Layout (RECT { content.left, content.top, content.right, content.top + height }, m_headerScroll, content.bottom);
     }
     else
     {
+        m_headerMax    = 0;
+        m_headerScroll = 0;
         m_thumbnail.Hide();
     }
 
@@ -287,6 +300,7 @@ void ExplorerPreviewManager::FillPreview()
         bool          isImage  = visible && !error && m_context.browser.AreSelectedRowsImages() && m_context.browser.GetSelectedRows().size() == 1;
         std::wstring  path     = isImage ? m_context.cassoTarget.GetSelectedImagePath() : std::wstring();
 
+        m_headerScroll = (InspectorWindowSet::HasTrackFormat (path) && path == m_thumbnail.GetPath()) ? m_headerScroll : 0;
         m_thumbnail.SetPath (InspectorWindowSet::HasTrackFormat (path) ? path : std::wstring());
 
         if (m_thumbnail.IsShown() != wasShown || m_thumbnail.IsShown())
@@ -854,6 +868,55 @@ bool ExplorerPreviewManager::TickScrollbars (int64_t nowMs)
 bool ExplorerPreviewManager::IsOverPane (POINT point) const
 {
     return m_shown && ExplorerLayout::Contains (m_rect, point);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::HandleWheel
+//
+//  A notch moves the thumbnail as far as three of the catalog's rows. The
+//  wheel over the thumbnail is always the thumbnail's, so the thumbnail
+//  doesn't scroll by itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::HandleWheel (const DxuiMouseEvent & ev)
+{
+    static constexpr float  kStepDip = 3.0f * PreviewListingView::kRowHeightDip;
+
+    POINT  point    = ev.positionDip;
+    bool   isOver   = m_shown && m_thumbnail.IsShown() && point.x >= m_rect.left && point.x < m_rect.right && point.y >= m_headerTop && point.y < m_rect.bottom;
+    bool   isHeader = isOver && point.y < m_content.top;
+    int    step     = static_cast<int> (std::lround (std::abs (ev.wheelDelta) * m_context.scaler.ToPxf (kStepDip)));
+    int    before   = m_headerScroll;
+    bool   isAtTop  = std::all_of (m_views.begin(), m_views.end(), [] (const PreviewView * view) { return view->IsAtTop(); });
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Wheel || ev.ctrl || ev.wheelHorizontal || !isOver)
+    {
+        return false;
+    }
+
+    if (ev.wheelDelta < 0.0f && m_headerScroll < m_headerMax)
+    {
+        m_headerScroll = (std::min) (m_headerMax, m_headerScroll + step);
+    }
+    else if (ev.wheelDelta > 0.0f && m_headerScroll > 0 && isAtTop)
+    {
+        m_headerScroll = (std::max) (0, m_headerScroll - step);
+    }
+
+    if (m_headerScroll != before)
+    {
+        Layout (m_rect);
+    }
+
+    return m_headerScroll != before || isHeader;
 }
 
 

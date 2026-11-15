@@ -187,24 +187,24 @@ public:
         Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, bitmap);
         plan = DiskRepair::Plan (bitmap, {});
         Assert::AreEqual (static_cast<size_t> (2), plan.changes.size());
-        Assert::AreEqual (std::wstring (L"Mark 1 sector of HELLO as used in the bitmap"),     plan.changes[0]);
-        Assert::AreEqual (std::wstring (L"Mark 1 sector not in any file as free in the bitmap"),   plan.changes[1]);
+        Assert::AreEqual (std::wstring (L"Mark 1 sector of HELLO as used in the bitmap"),     plan.changes[0].text);
+        Assert::AreEqual (std::wstring (L"Mark 1 sector not in any file as free in the bitmap"),   plan.changes[1].text);
 
         Analyze (RepairFixtures::MakeDos33CatalogLoop().damaged, false, loop);
         plan = DiskRepair::Plan (loop, {});
         Assert::AreEqual (static_cast<size_t> (1), plan.changes.size());
-        Assert::AreEqual (std::wstring (L"End the catalog at sector $1"), plan.changes[0]);
+        Assert::AreEqual (std::wstring (L"End the catalog at sector $1"), plan.changes[0].text);
 
         Analyze (RepairFixtures::MakeDos33HeaderZeroed().damaged, false, header);
         Assert::IsTrue (HasKind (header, FindingKind::Dos33HeaderLost));
         plan = DiskRepair::Plan (header, {});
         Assert::AreEqual (static_cast<size_t> (1), plan.changes.size());
-        Assert::AreEqual (std::wstring (L"Set the VTOC header to DOS 3.3's standard values"), plan.changes[0]);
+        Assert::AreEqual (std::wstring (L"Set the VTOC header to DOS 3.3's standard values"), plan.changes[0].text);
 
         Analyze (RepairFixtures::MakeDos33CountDiffers().damaged, false, count);
         plan = DiskRepair::Plan (count, {});
         Assert::AreEqual (static_cast<size_t> (1), plan.changes.size());
-        Assert::AreEqual (std::wstring (L"Set the catalog sector count of HELLO to 4"), plan.changes[0]);
+        Assert::AreEqual (std::wstring (L"Set the catalog sector count of HELLO to 4"), plan.changes[0].text);
     }
 
 
@@ -221,7 +221,7 @@ public:
 
         Assert::IsTrue   (analysis.verdict == FileSystemVerdict::Bad);
         Assert::AreEqual (static_cast<size_t> (1), plan.changes.size());
-        Assert::AreEqual (std::wstring (L"Set the blocks-used count of SEED to 1"), plan.changes[0]);
+        Assert::AreEqual (std::wstring (L"Set the blocks-used count of SEED to 1"), plan.changes[0].text);
     }
 
 
@@ -279,7 +279,7 @@ public:
         else
         {
             Assert::IsTrue   (plan.canRepair, plan.reason.c_str());
-            Assert::IsTrue   (std::find (plan.changes.begin(), plan.changes.end(), std::wstring (change)) != plan.changes.end(), change);
+            Assert::IsTrue   (std::any_of (plan.changes.begin(), plan.changes.end(), [change] (const RepairChange & c) { return c.text == change; }), change);
             DiskRepair::Apply (plan, copy);
             Assert::IsTrue   (copy == ToDosOrder (before, isProDosOrder), change);
         }
@@ -447,6 +447,94 @@ public:
         bits = RepairFixtures::GetDosSector (copy, 17, 0)[0x38 + RepairFixtures::kUnusedTrack * 4 + 1];
         Assert::AreEqual (0, (bits >> RepairFixtures::kUnusedSector) & 1, L"the sector no file uses is marked used");
         Assert::IsTrue   (VerdictOf (copy, false) == FileSystemVerdict::Ok, L"a sector no file uses is a note");
+    }
+
+
+
+    TEST_METHOD (OnlyTheChosenChangesAreMade)
+    {
+        RepairFixture  fixture  = RepairFixtures::MakeDos33Bitmap();
+        DiskAnalysis   analysis;
+        RepairPlan     plan;
+        vector<Byte>   copy     = fixture.damaged;
+        Byte           bits     = 0;
+
+
+
+        Analyze (fixture.damaged, false, analysis);
+        plan = DiskRepair::PlanChosen (analysis, {}, { L"used:HELLO" });
+
+        Assert::IsTrue   (plan.canRepair, plan.reason.c_str());
+        Assert::AreEqual (static_cast<size_t> (1), plan.changes.size());
+        Assert::AreEqual (std::wstring (L"Mark 1 sector of HELLO as used in the bitmap"), plan.changes[0].text);
+        DiskRepair::Apply (plan, copy);
+
+        bits = RepairFixtures::GetDosSector (copy, 17, 0)[0x38 + RepairFixtures::kUnusedTrack * 4 + 1];
+        Assert::AreEqual (0, (bits >> RepairFixtures::kUnusedSector) & 1, L"the sector no file uses stays marked used");
+
+        plan = DiskRepair::PlanChosen (analysis, {}, {});
+        Assert::IsFalse  (plan.canRepair);
+        Assert::AreEqual (std::wstring (L"No changes are selected."), plan.reason);
+
+        plan = DiskRepair::PlanChosen (analysis, {}, DiskRepair::GetKeys (DiskRepair::Plan (analysis, {})));
+        Assert::AreEqual (static_cast<size_t> (2), plan.changes.size(), L"every change chosen is the whole plan");
+    }
+
+
+
+    TEST_METHOD (EachChangeIsLinkedToTheFindingsItSetsRight)
+    {
+        struct Case { RepairFixture fixture; FindingKind kind; const wchar_t * key; };
+
+        const Case  cases[] =
+        {
+            { RepairFixtures::MakeDos33Bitmap(),       FindingKind::FileOwnedMarkedFree,   L"used:HELLO" },
+            { RepairFixtures::MakeDos33Bitmap(),       FindingKind::FileAllocatedUnowned,  L"unowned"    },
+            { RepairFixtures::MakeDos33HeaderZeroed(), FindingKind::Dos33HeaderLost,       L"header"     },
+            { RepairFixtures::MakeDos33NextTrackOff(), FindingKind::Dos33NextTrackOffDisk, L"next"       },
+            { RepairFixtures::MakeDos33CatalogLoop(),  FindingKind::FileChainBroken,       L"end:1"      },
+        };
+
+
+
+        for (const Case & c : cases)
+        {
+            DiskAnalysis     analysis;
+            RepairPlan       plan;
+            const Finding *  finding = nullptr;
+
+            Analyze (c.fixture.damaged, c.fixture.isProDosOrder, analysis);
+            plan = DiskRepair::Plan (analysis, {});
+
+            for (const Finding & f : analysis.findings)
+            {
+                finding = (finding == nullptr && f.kind == c.kind) ? &f : finding;
+            }
+
+            Assert::IsNotNull (finding, c.key);
+            Assert::IsTrue    (DiskRepair::GetFixingKeys (plan, *finding).contains (c.key), c.key);
+        }
+    }
+
+
+
+    TEST_METHOD (ACountChangeIsLinkedToItsFinding)
+    {
+        DiskAnalysis     analysis;
+        RepairPlan       plan;
+        int              linked = 0;
+
+
+
+        Analyze (RepairFixtures::MakeDos33CountDiffers().damaged, false, analysis);
+        plan = DiskRepair::Plan (analysis, {});
+
+        for (const Finding & f : analysis.findings)
+        {
+            linked += (f.kind == FindingKind::FileCountDiffers && !DiskRepair::GetFixingKeys (plan, f).empty()) ? 1 : 0;
+        }
+
+        Assert::AreEqual (1, linked);
     }
 
 

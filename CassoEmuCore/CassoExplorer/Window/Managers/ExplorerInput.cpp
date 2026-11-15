@@ -562,6 +562,14 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  The wheel over a disk image's preview scrolls its thumbnail away
+    //  before the catalog under it.
+    if (m_context.preview.HandleWheel (ev))
+    {
+        m_context.window.Invalidate();
+        return true;
+    }
+
     //  A right-click on a scrollbar opens the bar's menu, as Windows' bars
     //  do.
     if (press && ev.button == DxuiMouseButton::Right && m_context.menus.ShowScrollbarMenu (ev))

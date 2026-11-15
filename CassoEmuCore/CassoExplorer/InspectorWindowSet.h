@@ -130,8 +130,9 @@ private:
     void     StartTimer    ();
     void     StopTimer     ();
 
-    //  Repair's copy selected in a Casso Explorer window.
-    void     SelectRepairedCopy (const std::wstring & path);
+    //  Repair's copy in the window in place of the image, and selected in a
+    //  Casso Explorer window.
+    void     ShowRepairedCopy (Entry & entry, const std::wstring & path);
 
     IImageWatcher                        & m_watcher;
     DiskInspectorPrefs                   & m_prefs;

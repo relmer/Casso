@@ -134,7 +134,7 @@ RepairPlan DiskRepair::Plan (const DiskAnalysis & analysis, const RepairOptions 
 
     if (plan.reason.empty() && plan.changes.empty())
     {
-        plan.reason = L"None of the damage is in the volume's bookkeeping.";
+        plan.reason = options.skipped.empty() ? L"None of the damage is in the volume's bookkeeping." : L"No changes are selected.";
     }
 
     if (plan.reason.empty() && BuildMap (work, patched, after))
@@ -151,6 +151,127 @@ RepairPlan DiskRepair::Plan (const DiskAnalysis & analysis, const RepairOptions 
     }
 
     return plan;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskRepair::PlanChosen
+//
+//  Each change of a plan that isn't chosen is skipped and the volume planned
+//  again, until every change in the plan is chosen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RepairPlan DiskRepair::PlanChosen (const DiskAnalysis & analysis, const RepairOptions & options, const std::set<std::wstring> & chosen)
+{
+    static constexpr int  kMaxPasses = 8;
+
+    RepairOptions  narrowed = options;
+    RepairPlan     plan     = Plan (analysis, narrowed);
+    bool           isExtra  = true;
+
+
+
+    for (int pass = 0; pass < kMaxPasses && isExtra && plan.canRepair; pass++)
+    {
+        isExtra = false;
+
+        for (const RepairChange & change : plan.changes)
+        {
+            if (!chosen.contains (change.key))
+            {
+                narrowed.skipped.insert (change.key);
+                isExtra = true;
+            }
+        }
+
+        if (isExtra)
+        {
+            plan = Plan (analysis, narrowed);
+        }
+    }
+
+    if (isExtra && plan.canRepair)
+    {
+        plan = RepairPlan();
+        plan.before = analysis.verdict;
+        plan.reason = L"The chosen changes can't be made without others.";
+    }
+
+    return plan;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskRepair::IsFixing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskRepair::IsFixing (const RepairChange & change, const Finding & finding)
+{
+    return std::any_of (change.fixes.begin(), change.fixes.end(), [&finding] (const RepairFix & fix)
+    {
+        return fix.kind == finding.kind && (fix.cell < 0 || fix.cell == finding.mapCell) && (fix.detail.empty() || fix.detail == finding.detail);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskRepair::GetFixingKeys
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::set<std::wstring> DiskRepair::GetFixingKeys (const RepairPlan & plan, const Finding & finding)
+{
+    std::set<std::wstring>  keys;
+
+
+
+    for (const RepairChange & change : plan.changes)
+    {
+        if (IsFixing (change, finding))
+        {
+            keys.insert (change.key);
+        }
+    }
+
+    return keys;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskRepair::GetKeys
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::set<std::wstring> DiskRepair::GetKeys (const RepairPlan & plan)
+{
+    std::set<std::wstring>  keys;
+
+
+
+    for (const RepairChange & change : plan.changes)
+    {
+        keys.insert (change.key);
+    }
+
+    return keys;
 }
 
 
@@ -250,16 +371,17 @@ void DiskRepair::PlanHeader (Work & work, const FileMap & map)
 
 
 
-    if (map.isHeaderLost)
+    if (map.isHeaderLost && !IsSkipped (work, L"header"))
     {
         Dos33MapReader::MakeStandardHeader (static_cast<Byte> (work.volume), vtoc);
-        work.plan.changes.push_back (L"Set the VTOC header to DOS 3.3's standard values");
+        AddChange (work, L"header", L"Set the VTOC header to DOS 3.3's standard values", { { FindingKind::Dos33HeaderLost } });
     }
-    else if (vtoc[Dos33MapReader::kNextTrack] >= s_kTracks || (vtoc[Dos33MapReader::kDirection] != s_kUp && vtoc[Dos33MapReader::kDirection] != s_kDown))
+    else if (!map.isHeaderLost && !IsSkipped (work, L"next") &&
+             (vtoc[Dos33MapReader::kNextTrack] >= s_kTracks || (vtoc[Dos33MapReader::kDirection] != s_kUp && vtoc[Dos33MapReader::kDirection] != s_kDown)))
     {
         vtoc[Dos33MapReader::kNextTrack] = static_cast<Byte> (Dos33MapReader::kVtocTrack);
         vtoc[Dos33MapReader::kDirection] = s_kUp;
-        work.plan.changes.push_back (L"Set the VTOC's next track to allocate to track 17, allocating upward");
+        AddChange (work, L"next", L"Set the VTOC's next track to allocate to track 17, allocating upward", { { FindingKind::Dos33NextTrackOffDisk } });
     }
 }
 
@@ -281,15 +403,17 @@ void DiskRepair::PlanHeader (Work & work, const FileMap & map)
 
 void DiskRepair::PlanRelink (Work & work, const FileMap & map)
 {
-    SectorSource  source   (work.analysis);
-    vector<int>   path;
-    int           linked   = 0;
-    size_t        i        = 0;
-    bool          isEarly  = false;
-    bool          isPrefix = true;
-    int           next     = 0;
-    Byte *        vtoc     = GetDos33 (work, Dos33MapReader::kVtocTrack, 0);
-    Byte *        at       = nullptr;
+    SectorSource       source   (work.analysis);
+    vector<int>          path;
+    vector<RepairFix>    fixes;
+    std::wstring         key;
+    int                  linked   = 0;
+    size_t               i        = 0;
+    bool                 isEarly  = false;
+    bool                 isPrefix = true;
+    int                  next     = 0;
+    Byte               * vtoc     = GetDos33 (work, Dos33MapReader::kVtocTrack, 0);
+    Byte               * at       = nullptr;
 
 
 
@@ -336,22 +460,37 @@ void DiskRepair::PlanRelink (Work & work, const FileMap & map)
         return;
     }
 
+    //  A relink sets right a broken chain found on the catalog's track.
+    for (const Finding & finding : map.findings)
+    {
+        if (finding.kind == FindingKind::FileChainBroken && finding.mapCell / s_kSectors == Dos33MapReader::kVtocTrack)
+        {
+            fixes.push_back ({ FindingKind::FileChainBroken, finding.mapCell });
+        }
+    }
+
     for (i = 0; i < path.size(); i++)
     {
         at   = GetDos33 (work, Dos33MapReader::kVtocTrack, path[i]);
         next = (i + 1 < path.size()) ? path[i + 1] : -1;
+        key  = std::format (L"{}:{:X}", (next >= 0) ? L"link" : L"end", path[i]);
+
+        if (IsSkipped (work, key))
+        {
+            continue;
+        }
 
         if (next >= 0 && (at[s_kCatalogTrack] != Dos33MapReader::kVtocTrack || at[s_kCatalogSector] != next))
         {
             at[s_kCatalogTrack]  = static_cast<Byte> (Dos33MapReader::kVtocTrack);
             at[s_kCatalogSector] = static_cast<Byte> (next);
-            work.plan.changes.push_back (std::format (L"Link catalog sector ${:X} to sector ${:X}", path[i], next));
+            AddChange (work, key, std::format (L"Link catalog sector ${:X} to sector ${:X}", path[i], next), fixes);
         }
         else if (next < 0 && (at[s_kCatalogTrack] != 0 || at[s_kCatalogSector] != 0))
         {
             at[s_kCatalogTrack]  = 0;
             at[s_kCatalogSector] = 0;
-            work.plan.changes.push_back (std::format (L"End the catalog at sector ${:X}", path[i]));
+            AddChange (work, key, std::format (L"End the catalog at sector ${:X}", path[i]), fixes);
         }
     }
 }
@@ -372,10 +511,10 @@ void DiskRepair::PlanRelink (Work & work, const FileMap & map)
 void DiskRepair::PlanDos33Bitmap (Work & work, const FileMap & map)
 {
     Byte *       vtoc       = GetDos33 (work, Dos33MapReader::kVtocTrack, 0);
-    vector<int>  markedUsed (map.files.size(), 0);
     vector<int>  structure  = map.catalogCells;
-    int          unowned    = 0;
-    int          structures = 0;
+    BitmapTally  tally      { vector<int> (map.files.size(), 0), vector<vector<RepairFix>> (map.files.size()) };
+    bool         isFreeing  = !work.options.isKeepingUnowned && !IsSkipped (work, L"unowned");
+    bool         isMarking  = !IsSkipped (work, L"structures");
     int          t          = 0;
     int          s          = 0;
 
@@ -385,21 +524,24 @@ void DiskRepair::PlanDos33Bitmap (Work & work, const FileMap & map)
     {
         for (s = 0; t != Dos33MapReader::kVtocTrack && s < s_kSectors; s++)
         {
-            const MapCell &  cell    = map.cells[Dos33MapReader::GetCell (t, s)];
+            int              at      = Dos33MapReader::GetCell (t, s);
+            const MapCell &  cell    = map.cells[at];
             Byte &           bits    = vtoc[s_kBitmap + t * s_kBitmapBytes + (s >= s_kBitsPerByte ? 0 : 1)];
             Byte             mask    = static_cast<Byte> (1 << (s % s_kBitsPerByte));
             bool             isUsed  = (bits & mask) == 0;
             bool             isOwned = !cell.owners.empty();
 
-            if (isOwned && !isUsed)
+            if (isOwned && !isUsed && !IsSkipped (work, L"used:" + map.files[cell.owners[0]].path))
             {
                 bits = static_cast<Byte> (bits & ~mask);
-                markedUsed[cell.owners[0]]++;
+                tally.markedUsed[cell.owners[0]]++;
+                tally.usedFixes[cell.owners[0]].push_back ({ FindingKind::FileOwnedMarkedFree, at });
             }
-            else if (!isOwned && isUsed && !work.options.isKeepingUnowned)
+            else if (!isOwned && isUsed && isFreeing)
             {
                 bits = static_cast<Byte> (bits | mask);
-                unowned++;
+                tally.unowned++;
+                tally.unownedFixes.push_back ({ FindingKind::FileAllocatedUnowned, at });
             }
         }
     }
@@ -413,14 +555,15 @@ void DiskRepair::PlanDos33Bitmap (Work & work, const FileMap & map)
         Byte &  bits = vtoc[s_kBitmap + (cell / s_kSectors) * s_kBitmapBytes + (cell % s_kSectors >= s_kBitsPerByte ? 0 : 1)];
         Byte    mask = static_cast<Byte> (1 << (cell % s_kSectors % s_kBitsPerByte));
 
-        if ((bits & mask) != 0)
+        if ((bits & mask) != 0 && isMarking)
         {
             bits = static_cast<Byte> (bits & ~mask);
-            structures++;
+            tally.structures++;
+            tally.structureFixes.push_back ({ FindingKind::Dos33StructureMarkedFree, cell });
         }
     }
 
-    AddBitmapChanges (work, map, markedUsed, unowned, structures, L"sector", L"VTOC and catalog");
+    AddBitmapChanges (work, map, tally, L"sector", L"VTOC and catalog");
 }
 
 
@@ -439,9 +582,10 @@ void DiskRepair::PlanDos33Bitmap (Work & work, const FileMap & map)
 
 void DiskRepair::PlanProDos (Work & work, const FileMap & map)
 {
-    vector<int>  markedUsed (map.files.size(), 0);
-    int     unowned     = 0;
-    int     structures  = 0;
+    BitmapTally  tally      { vector<int> (map.files.size(), 0), vector<vector<RepairFix>> (map.files.size()) };
+    bool    isFreeing   = !work.options.isKeepingUnowned && !IsSkipped (work, L"unowned");
+    bool    isMarking   = !IsSkipped (work, L"structures");
+    bool    isEnding    = !IsSkipped (work, L"pastend");
     int     pastEnd     = 0;
     int     bitmapAt    = 0;
     int     track       = 0;
@@ -480,29 +624,29 @@ void DiskRepair::PlanProDos (Work & work, const FileMap & map)
         isStructure = b < s_kBootBlocks || cell.role == SectorRole::BootArea || cell.role == SectorRole::VtocOrKeyBlock ||
                    cell.role == SectorRole::CatalogOrDirectory || cell.role == SectorRole::VolumeBitmap;
 
-        if ((isOwned || isStructure) && !isUsed)
+        if (isOwned && !isUsed && !IsSkipped (work, L"used:" + map.files[cell.owners[0]].path))
         {
             *bits = static_cast<Byte> (*bits & ~mask);
-
-            if (isOwned)
-            {
-                markedUsed[cell.owners[0]]++;
-            }
-            else
-            {
-                structures++;
-            }
+            tally.markedUsed[cell.owners[0]]++;
+            tally.usedFixes[cell.owners[0]].push_back ({ FindingKind::FileOwnedMarkedFree, b });
         }
-        else if (!isOwned && !isStructure && isUsed && !work.options.isKeepingUnowned)
+        else if (!isOwned && isStructure && !isUsed && isMarking)
+        {
+            *bits = static_cast<Byte> (*bits & ~mask);
+            tally.structures++;
+            tally.structureFixes.push_back ({ FindingKind::FileOwnedMarkedFree, b });
+        }
+        else if (!isOwned && !isStructure && isUsed && isFreeing)
         {
             *bits = static_cast<Byte> (*bits | mask);
-            unowned++;
+            tally.unowned++;
+            tally.unownedFixes.push_back ({ FindingKind::FileAllocatedUnowned, b });
         }
     }
 
     //  Blocks past the end of the volume, which the bitmap's last block has
     //  bits for, marked used, so ProDOS doesn't allocate them.
-    for (b = s_kBlocks; work.plan.reason.empty() && b < s_kBitsPerBitmapBlock; b++)
+    for (b = s_kBlocks; work.plan.reason.empty() && isEnding && b < s_kBitsPerBitmapBlock; b++)
     {
         bits = GetBlockByte (work, bitmapAt, b / s_kBitsPerByte, track, sector);
         mask = static_cast<Byte> (s_kFirstBlockBit >> (b % s_kBitsPerByte));
@@ -516,12 +660,12 @@ void DiskRepair::PlanProDos (Work & work, const FileMap & map)
 
     if (work.plan.reason.empty())
     {
-        AddBitmapChanges (work, map, markedUsed, unowned, structures, L"block", L"boot, directory and bitmap");
+        AddBitmapChanges (work, map, tally, L"block", L"boot, directory and bitmap");
     }
 
     if (work.plan.reason.empty() && pastEnd > 0)
     {
-        work.plan.changes.push_back (std::format (L"Mark {} blocks past the end of the volume as used in the bitmap", pastEnd));
+        AddChange (work, L"pastend", std::format (L"Mark {} blocks past the end of the volume as used in the bitmap", pastEnd), { { FindingKind::ProDosBitmapPastEnd } });
     }
 }
 
@@ -540,15 +684,23 @@ void DiskRepair::PlanProDos (Work & work, const FileMap & map)
 
 void DiskRepair::PlanCounts (Work & work, const FileMap & map)
 {
-    Byte *  at     = nullptr;
-    Byte *  high   = nullptr;
-    int     track  = 0;
-    int     sector = 0;
+    Byte *        at     = nullptr;
+    Byte *        high   = nullptr;
+    int           track  = 0;
+    int           sector = 0;
+    std::wstring  key;
 
 
 
     for (const RecordedCount & count : map.counts)
     {
+        key = std::format (L"count:{}:{}", count.cell, count.offset);
+
+        if (IsSkipped (work, key))
+        {
+            continue;
+        }
+
         if (map.fileSystem == MapFileSystem::Dos33)
         {
             at   = GetDos33 (work, count.cell / s_kSectors, count.cell % s_kSectors) + count.offset;
@@ -567,7 +719,7 @@ void DiskRepair::PlanCounts (Work & work, const FileMap & map)
             *high = static_cast<Byte> (count.actual >> s_kBitsPerByte);
         }
 
-        work.plan.changes.push_back (std::format (L"Set {} to {}", count.what, count.actual));
+        AddChange (work, key, std::format (L"Set {} to {}", count.what, count.actual), { { count.kind, -1, count.finding } });
     }
 }
 
@@ -610,29 +762,45 @@ void DiskRepair::CheckChains (Work & work, const FileMap & map)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskRepair::AddBitmapChanges (Work & work, const FileMap & map, const vector<int> & markedUsed, int unowned, int structures, LPCWSTR unit, LPCWSTR structure)
+void DiskRepair::AddBitmapChanges (Work & work, const FileMap & map, const BitmapTally & tally, LPCWSTR unit, LPCWSTR structure)
 {
     auto  plural = [] (int count) { return (count == 1) ? L"" : L"s"; };
 
 
 
-    for (size_t f = 0; f < markedUsed.size(); f++)
+    for (size_t f = 0; f < tally.markedUsed.size(); f++)
     {
-        if (markedUsed[f] > 0)
+        if (tally.markedUsed[f] > 0)
         {
-            work.plan.changes.push_back (std::format (L"Mark {} {}{} of {} as used in the bitmap", markedUsed[f], unit, plural (markedUsed[f]), map.files[f].path));
+            AddChange (work, L"used:" + map.files[f].path,
+                       std::format (L"Mark {} {}{} of {} as used in the bitmap", tally.markedUsed[f], unit, plural (tally.markedUsed[f]), map.files[f].path), tally.usedFixes[f]);
         }
     }
 
-    if (structures > 0)
+    if (tally.structures > 0)
     {
-        work.plan.changes.push_back (std::format (L"Mark {} {} {}{} as used in the bitmap", structures, structure, unit, plural (structures)));
+        AddChange (work, L"structures", std::format (L"Mark {} {} {}{} as used in the bitmap", tally.structures, structure, unit, plural (tally.structures)), tally.structureFixes);
     }
 
-    if (unowned > 0)
+    if (tally.unowned > 0)
     {
-        work.plan.changes.push_back (std::format (L"Mark {} {}{} not in any file as free in the bitmap", unowned, unit, plural (unowned)));
+        AddChange (work, L"unowned", std::format (L"Mark {} {}{} not in any file as free in the bitmap", tally.unowned, unit, plural (tally.unowned)), tally.unownedFixes);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskRepair::AddChange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskRepair::AddChange (Work & work, std::wstring key, std::wstring text, vector<RepairFix> fixes)
+{
+    work.plan.changes.push_back ({ std::move (key), std::move (text), std::move (fixes) });
 }
 
 
@@ -773,4 +941,19 @@ Byte * DiskRepair::GetBlockByte (Work & work, int block, int offset, int & outTr
 bool DiskRepair::IsReadable (const Work & work, int track, int sector)
 {
     return work.isReadable[track * s_kSectors + sector];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskRepair::IsSkipped
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskRepair::IsSkipped (const Work & work, const std::wstring & key)
+{
+    return work.options.skipped.contains (key);
 }

@@ -23,13 +23,15 @@ class FakeInspectorHost : public IInspectorComponentHost
 public:
     //  The panel the component creates its controls in, and the component's
     //  calls to the window, newest last.
-    DxuiPanel     panel;
-    vector<int>   trackTabs;
-    vector<int>   diskTabs;
-    int           selections = 0;
-    int           relayouts  = 0;
-    int           repairs    = 0;
-    std::wstring  statusNote;
+    DxuiPanel               panel;
+    vector<int>             trackTabs;
+    vector<int>             diskTabs;
+    int                     selections   = 0;
+    int                     relayouts    = 0;
+    int                     repairs      = 0;
+    int                     shownFinding = -1;
+    std::set<std::wstring>  repairChosen;
+    std::wstring            statusNote;
 
     DxuiPanel          & GetControlParent    () override { return panel; }
     HWND                 GetOwnerHwnd        () const override { return nullptr; }
@@ -48,7 +50,8 @@ public:
     void                 TakeTracks          (const InspectorReply &) override {}
     void                 SetWindowZoom       (double) override {}
     void                 OpenWalkthrough     () override {}
-    void                 OpenRepair          () override { repairs++; }
+    void                 OpenRepair          (const std::set<std::wstring> & chosen) override { repairs++; repairChosen = chosen; }
+    void                 ShowFinding         (int finding) override { shownFinding = finding; }
 
     void                 NotifyDiskStarting    (const DiskChange &) override {}
     void                 NotifyDiskStarted     (const DiskChange &) override {}

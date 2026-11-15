@@ -47,9 +47,9 @@ void DiskRepairCommand::Run (IDiskFileIo & io, const CommandLineOptions & option
     plan                    = DiskRepair::Plan (analysis, repair);
     result.output          += FormatVerdict (imagePath, analysis);
 
-    for (const std::wstring & change : plan.changes)
+    for (const RepairChange & change : plan.changes)
     {
-        result.output += imagePath + ": change: " + TextEncoding::WideToNarrow (change) + "\n";
+        result.output += imagePath + ": change: " + TextEncoding::WideToNarrow (change.text) + "\n";
     }
 
     if (!plan.canRepair)
