@@ -770,9 +770,14 @@ void CassoLinkSession::Run (std::stop_token stop)
         operation->result   = hr;
         operation->progress = 100;
 
+        //  A Full Send ended on the Apple, with Q, isn't a failure: its message
+        //  has the disks sent.
         if (operation->kind != LinkOperationKind::Enumerate && operation->kind != LinkOperationKind::CheckLinkDisk)
         {
+            bool  isEnded = operation->kind == LinkOperationKind::FullSend && hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED) && !operation->message.empty();
+
             m_sink.OnFinished (*operation, SUCCEEDED (hr) ? std::format ("{}: done", DescribeOperation (*operation))
+                                         : isEnded        ? operation->message
                                                           : std::format ("{}: failed (error 0x{:08X}){}{}", DescribeOperation (*operation), (uint32_t) hr,
                                                                          operation->message.empty() ? "" : ": ", operation->message));
         }
@@ -791,8 +796,10 @@ void CassoLinkSession::Run (std::stop_token stop)
             //  A Full Send's summary fills a history line, so it has no OK.
             status  = (SUCCEEDED (hr) || (operation->kind == LinkOperationKind::FullSend && hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))) ? "OK " : "ERR";
             summary = operation->kind == LinkOperationKind::FullSend && !operation->fullSendSummary.empty() && status[0] == 'O';
-            logged  = m_connector.LogOnApple (summary ? DescribeOperation (*operation, std::nullopt, true)
-                                                      : std::format ("{} {}", status, DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr) || operation->kind == LinkOperationKind::FullSend)));
+            logged  = m_connector.LogOnApple (FitToApple (*operation,
+                                                          summary ? DescribeOperation (*operation, std::nullopt, true)
+                                                                  : std::format ("{} {}", status, DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr) || operation->kind == LinkOperationKind::FullSend)),
+                                                          CassoLinkCodec::kLogLength));
             IGNORE_RETURN_VALUE (logged, S_OK);
         }
 
@@ -985,6 +992,39 @@ std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkSession::FitToApple
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkSession::FitToApple (const LinkOperation & operation, const std::string & text, size_t limit)
+{
+    static constexpr std::string_view  s_kCut = "...";
+    std::string                        image  = std::filesystem::path (operation.imagePath).filename().string();
+    std::string                        name   = !image.empty() && text.find (image) != std::string::npos ? image : operation.path.ToString();
+    size_t                             at     = name.empty() ? std::string::npos : text.find (name);
+    size_t                             excess = text.size() > limit ? text.size() - limit : 0;
+    std::string                        fitted = text;
+
+
+
+    if (excess != 0 && at != std::string::npos && name.size() > excess + s_kCut.size())
+    {
+        fitted = text.substr (0, at) + name.substr (0, name.size() - excess - s_kCut.size()) + std::string (s_kCut) + text.substr (at + name.size());
+    }
+    else if (excess != 0)
+    {
+        fitted = text.substr (0, limit - s_kCut.size()) + std::string (s_kCut);
+    }
+
+    return fitted;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkSession::DescribeDrive
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1070,7 +1110,7 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
         m_listings[index].reset();
     }
 
-    hr = m_host->SendLabel (DescribeOperation (operation, m_listings[index]));
+    hr = m_host->SendLabel (FitToApple (operation, DescribeOperation (operation, m_listings[index]), CassoLinkCodec::kLabelLength));
     CHR (hr);
 
     ArmNextFault();

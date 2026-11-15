@@ -168,6 +168,11 @@ public:
     //  `finished`, the past tense for the history line of one that succeeded.
     static std::string  DescribeOperation (const LinkOperation & operation, const std::optional<VolumeListing> & listing = std::nullopt, bool finished = false);
 
+    //  Text for one of the program's lines of `limit` characters: a longer
+    //  one has the operation's file name or path cut short, ending in "...",
+    //  so the drive after it is drawn; with no name in it, the end is cut.
+    static std::string  FitToApple        (const LinkOperation & operation, const std::string & text, size_t limit);
+
     //  A drive as the label has it: D2, and the disk's volume, as
     //  D2 (/GAMES) or D2 (VOL 254), once its catalog is read; the label has 38 characters.
     static std::string  DescribeDrive     (int drive, const std::optional<VolumeListing> & listing);

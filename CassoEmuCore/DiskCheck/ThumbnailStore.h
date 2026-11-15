@@ -118,6 +118,7 @@ private:
     static HRESULT         ReadFile           (const std::filesystem::path & path, std::vector<Byte> & outBytes);
     static HRESULT         WriteFile          (const std::filesystem::path & path, std::span<const Byte> bytes);
     static HRESULT         WriteStreams       (const std::filesystem::path & image, std::span<const Byte> png, const std::string & record);
+    static bool            HasStreams         (const std::filesystem::path & image);
     static HRESULT         ParseRecord        (std::span<const Byte> bytes, ThumbnailRecord & outRecord, bool & outIsUserSet, int & outClears);
     static Fields          GetRecordFields    (const ThumbnailRecord & record);
     static bool            IsHashName         (const std::wstring & file);
