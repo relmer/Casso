@@ -11,10 +11,6 @@
 #include "Ui/Scene/DeskSceneLayout.h"
 #include "Ui/Scene/DeskSceneModel.h"
 
-// Each test here builds the system under test in the test frame, which is
-// larger than C6262's limit, so the warning is off for this file.
-#pragma warning (disable: 6262)
-
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
@@ -586,11 +582,11 @@ public:
     //
     TEST_METHOD (No_Recorder_Without_A_Cassette_Port)
     {
-        DeskScene             scene;
+        auto                  scene = std::make_unique<DeskScene>();
         std::vector<uint8_t>  monitor;
         std::vector<uint8_t>  drive;
         std::vector<uint8_t>  recorder;
-        RECT                  vp = { 0, 0, 1280, 800 };
+        RECT                  vp    = { 0, 0, 1280, 800 };
         DeskSceneComposition  comp;
 
 
@@ -599,15 +595,15 @@ public:
         Bake (DriveObj(),    drive);
         Bake (RecorderObj(), recorder);
 
-        AssertSucceeded (scene.LoadModels (DeskDeviceKind::Monitor2, monitor, drive, recorder));
-        Assert::IsTrue (scene.HasRecorder());
-        Assert::IsTrue (scene.Metrics().hasRecorder);
+        AssertSucceeded (scene->LoadModels (DeskDeviceKind::Monitor2, monitor, drive, recorder));
+        Assert::IsTrue (scene->HasRecorder());
+        Assert::IsTrue (scene->Metrics().hasRecorder);
 
-        AssertSucceeded (scene.LoadModels (DeskDeviceKind::Monitor2, monitor, drive));
-        Assert::IsFalse (scene.HasRecorder());
-        Assert::IsFalse (scene.Metrics().hasRecorder);
+        AssertSucceeded (scene->LoadModels (DeskDeviceKind::Monitor2, monitor, drive));
+        Assert::IsFalse (scene->HasRecorder());
+        Assert::IsFalse (scene->Metrics().hasRecorder);
 
-        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, scene.Metrics(), comp));
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, scene->Metrics(), comp));
         Assert::AreEqual (0, comp.hasRecorder);
         Assert::IsTrue (IsRectEmpty (&comp.recorderRectPx) != FALSE);
     }
