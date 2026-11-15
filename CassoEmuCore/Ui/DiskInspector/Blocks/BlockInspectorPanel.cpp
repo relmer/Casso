@@ -1409,7 +1409,8 @@ void BlockInspectorPanel::PaintHeader (IDxuiPainter & painter, IDxuiTextRenderer
         return;
     }
 
-    text.MeasureString (m_title.c_str(), title, DxuiTheme::kBodyFace, w, h);
+    hr = text.MeasureStringWeighted (m_title.c_str(), title, DxuiTheme::kBodyFace, DxuiFontWeight::SemiBold, w, h);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = text.DrawString (m_title.c_str(), x, top, w + 1.0f, height, theme.Foreground(), title, DxuiTheme::kBodyFace,
                           DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
