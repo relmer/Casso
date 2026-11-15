@@ -54,8 +54,11 @@ struct ReceivingDrive
 class DriveImageRule
 {
 public:
-    static bool          Accepts         (const ReceivingDrive & drive, const ImageClass & imageClass);
+    static bool                       Accepts          (const ReceivingDrive & drive, const ImageClass & imageClass);
 
     //  What the picker lists for the drive, as "400K and 800K disk images".
-    static std::wstring  GetAcceptedText (const ReceivingDrive & drive);
+    static std::wstring               GetAcceptedText  (const ReceivingDrive & drive);
+
+    //  The same as separate terms, as 3.5", 400K and 800K.
+    static std::vector<std::wstring>  GetAcceptedTerms (const ReceivingDrive & drive);
 };

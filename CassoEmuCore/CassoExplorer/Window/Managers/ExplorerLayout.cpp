@@ -271,6 +271,7 @@ void ExplorerLayout::RecomputeLayout()
 
     sashRect = m_context.prefs.navigationPane ? m_treeSplitter->GetSashRect() : RECT { body.left, body.top, body.left, body.bottom };
     m_context.treePane.Layout (RECT { body.left, body.top, sashRect.left, body.bottom });
+    m_context.pickerBar.LayoutChips (m_context.toolbars.GetCommandBar().GetFreeRect(), sashRect.right);
 
     right    = RECT { sashRect.right, body.top, body.right, body.bottom };
     rightDip = MulDiv (right.right - right.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_context.scaler.GetDpi());

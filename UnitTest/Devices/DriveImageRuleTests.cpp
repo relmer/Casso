@@ -161,4 +161,20 @@ public:
         Assert::AreEqual (std::wstring (L"Hard disk images up to 5 MB"),  DriveImageRule::GetAcceptedText ({ ReceivingDriveKind::HardDisk, kProFileBlocks }));
         Assert::AreEqual (std::wstring (L"Tape recordings"),              DriveImageRule::GetAcceptedText ({ ReceivingDriveKind::Recorder,  0 }));
     }
+
+
+
+    //  The picker's capsules: one term each.
+    TEST_METHOD (AcceptedTermsForEachKind)
+    {
+        using Terms = std::vector<std::wstring>;
+
+
+
+        Assert::IsTrue (DriveImageRule::GetAcceptedTerms ({ ReceivingDriveKind::Floppy525, 0 })           == Terms { L"5.25\"", L"140K" });
+        Assert::IsTrue (DriveImageRule::GetAcceptedTerms ({ ReceivingDriveKind::Apple35,   0 })           == Terms { L"3.5\"", L"400K", L"800K" });
+        Assert::IsTrue (DriveImageRule::GetAcceptedTerms ({ ReceivingDriveKind::UniDisk35, 0 })           == Terms { L"3.5\"", L"400K", L"800K" });
+        Assert::IsTrue (DriveImageRule::GetAcceptedTerms ({ ReceivingDriveKind::HardDisk,  kScsiBlocks }) == Terms { L"Hard disk", L"Up to 32 MB" });
+        Assert::IsTrue (DriveImageRule::GetAcceptedTerms ({ ReceivingDriveKind::Recorder,  0 })           == Terms { L"Tape recordings" });
+    }
 };

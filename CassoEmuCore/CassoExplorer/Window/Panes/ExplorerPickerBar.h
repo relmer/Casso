@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 struct ExplorerContext;
+class ExplorerPickerChips;
 
 
 
@@ -36,8 +37,12 @@ public:
     //  The band's height in the window: kBandDip in a picker, 0 otherwise.
     int   GetBandDip () const;
 
-    void  Create     ();
-    void  Layout     (const RECT & band);
+    void  Create      ();
+    void  Layout      (const RECT & band);
+
+    //  The capsules of what a drive's picker lists, in the command bar's free
+    //  area from the left edge of the list.
+    void  LayoutChips (const RECT & freeArea, int listLeft);
 
     //  The confirm button follows the selection, and the filter button the
     //  active entry.
@@ -57,15 +62,16 @@ public:
 private:
     void  ShowFilterMenu ();
 
-    ExplorerContext  & m_context;
-    DxuiLabel        * m_header           = nullptr;
-    DxuiLabel        * m_nameLabel        = nullptr;
-    DxuiTextInput    * m_name             = nullptr;
-    DxuiButton       * m_filter           = nullptr;
-    DxuiButton       * m_create           = nullptr;
-    DxuiButton       * m_skip             = nullptr;
-    DxuiButton       * m_confirm          = nullptr;
-    DxuiButton       * m_cancel           = nullptr;
-    std::wstring       m_copiedFrom;                 // the selected file whose name the box was last given
-    bool               m_isNameConfigured = false;
+    ExplorerContext      & m_context;
+    DxuiLabel            * m_header           = nullptr;
+    ExplorerPickerChips  * m_chips            = nullptr;
+    DxuiLabel            * m_nameLabel        = nullptr;
+    DxuiTextInput        * m_name             = nullptr;
+    DxuiButton           * m_filter           = nullptr;
+    DxuiButton           * m_create           = nullptr;
+    DxuiButton           * m_skip             = nullptr;
+    DxuiButton           * m_confirm          = nullptr;
+    DxuiButton           * m_cancel           = nullptr;
+    std::wstring           m_copiedFrom;                 // the selected file whose name the box was last given
+    bool                   m_isNameConfigured = false;
 };

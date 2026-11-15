@@ -105,3 +105,50 @@ std::wstring DriveImageRule::GetAcceptedText (const ReceivingDrive & drive)
 
     return std::wstring();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveImageRule::GetAcceptedTerms
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DriveImageRule::GetAcceptedTerms (const ReceivingDrive & drive)
+{
+    ImageClass  capacity;
+
+
+
+    switch (drive.kind)
+    {
+        case ReceivingDriveKind::Floppy525:
+        {
+            return { L"5.25\"", L"140K" };
+        }
+
+        case ReceivingDriveKind::Apple35:
+        case ReceivingDriveKind::UniDisk35:
+        {
+            return { L"3.5\"", L"400K", L"800K" };
+        }
+
+        case ReceivingDriveKind::HardDisk:
+        {
+            capacity.status         = ImageStatus::Classified;
+            capacity.formFactor     = ImageFormFactor::HardDisk;
+            capacity.formattedBytes = (uint64_t) drive.maxBlocks * BlockImageFile::kBlockBytes;
+
+            return { L"Hard disk", std::format (L"Up to {}", ImageClassifier::FormatSize (capacity)) };
+        }
+
+        case ReceivingDriveKind::Recorder:
+        {
+            return { L"Tape recordings" };
+        }
+    }
+
+    return {};
+}

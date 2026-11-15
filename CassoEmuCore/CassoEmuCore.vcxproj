@@ -453,6 +453,7 @@
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerTabManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerStatusBar.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerPickerBar.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Panes\ExplorerPickerChips.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerPickerMode.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerThemes.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerTips.cpp" />
@@ -1570,6 +1571,7 @@
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerTabManager.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerStatusBar.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerPickerBar.h" />
+    <ClInclude Include="CassoExplorer\Window\Panes\ExplorerPickerChips.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerPickerMode.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerThemes.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerTips.h" />

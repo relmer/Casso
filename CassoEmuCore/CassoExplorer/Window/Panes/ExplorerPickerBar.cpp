@@ -7,6 +7,8 @@
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerChips.h"
+#include "Devices/Disk/DriveImageRule.h"
 
 
 
@@ -61,6 +63,12 @@ void ExplorerPickerBar::Create()
 
     m_header = m_context.window.CreateChild<DxuiLabel> (m_context.pickerMode.GetHeaderText());
     m_header->SetElide (DxuiElide::Tail);
+
+    if (request->receivingDrive.has_value())
+    {
+        m_chips = m_context.window.CreateChild<ExplorerPickerChips>();
+        m_chips->SetTerms (DriveImageRule::GetAcceptedTerms (*request->receivingDrive));
+    }
 
     if (request->IsSave())
     {
@@ -380,4 +388,34 @@ void ExplorerPickerBar::ShowFilterMenu()
     }
 
     DxuiContextMenu::ShowUnder (*m_context.window.GetPopupHost(), m_filter->GetBounds(), std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPickerBar::LayoutChips
+//
+//  The capsules start a gap past the divider between the tree and the list,
+//  or past View when View ends to the right of the divider.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPickerBar::LayoutChips (const RECT & freeArea, int listLeft)
+{
+    RECT  bounds = freeArea;
+
+
+
+    if (m_chips == nullptr)
+    {
+        return;
+    }
+
+    bounds.left = (std::max) (freeArea.left, (LONG) (listLeft + m_context.scaler.ToPx (kGapDip)));
+
+    m_chips->SetVisible (bounds.right > bounds.left && bounds.bottom > bounds.top);
+    m_chips->Layout     (bounds, m_context.scaler);
 }
