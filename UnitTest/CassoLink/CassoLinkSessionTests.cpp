@@ -1439,7 +1439,7 @@ public:
 
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
         Assert::IsTrue (rig.fileIo.files.empty(), L"no image, no manifest");
-        Assert::IsTrue (send->message.find ("Q was") != std::string::npos);
+        Assert::IsTrue (send->message.find ("Full Send exited on the") != std::string::npos);
     }
 
 
