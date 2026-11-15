@@ -375,13 +375,14 @@ public:
     }
 
 
-    //  THE FLOPPY SIZES ARE 140K, 400K AND 800K, and nothing either side of
-    //  them, so a small test volume is not one.
-    TEST_METHOD (IsFloppyBlockCount_TheThreeFloppySizes)
+    //  THE FLOPPY SIZES ARE 140K, 400K, 800K AND 1.44 MB, and nothing either
+    //  side of them, so a small test volume is not one.
+    TEST_METHOD (IsFloppyBlockCount_TheFloppySizes)
     {
         Assert::IsTrue  (BlockDeviceMedia::IsFloppyBlockCount (280));
         Assert::IsTrue  (BlockDeviceMedia::IsFloppyBlockCount (800));
         Assert::IsTrue  (BlockDeviceMedia::IsFloppyBlockCount (1600));
+        Assert::IsTrue  (BlockDeviceMedia::IsFloppyBlockCount (2880));
         Assert::IsFalse (BlockDeviceMedia::IsFloppyBlockCount (64));
         Assert::IsFalse (BlockDeviceMedia::IsFloppyBlockCount (1601));
         Assert::IsFalse (BlockDeviceMedia::IsFloppyBlockCount (65535));
