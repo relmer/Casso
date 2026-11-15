@@ -36,7 +36,7 @@ A user clicks a drive, chooses "Insert disk..." on its menu, or chooses the driv
 
 1. **Given** a machine with a Disk II and a folder containing 140K, 800K and 32 MB images, **When** the user opens the picker from the Disk II, **Then** the list has the folder's subfolders and the 140K images, and it has neither the 800K nor the 32 MB images.
 2. **Given** the same folder, **When** the user opens the picker from an Apple 3.5 Drive, **Then** the list has the 400K and 800K images, including 3.5-inch WOZ images, and no 140K or hard disk images.
-3. **Given** the same folder, **When** the user opens the picker from an HD20SC or a ProFile, **Then** the list has the block images the drive accepts and no nibble or flux images.
+3. **Given** the same folder, **When** the user opens the picker from an HD20SC or a ProFile, **Then** the list has the hard disk images that fit the drive, and no 140K, 400K or 800K images.
 4. **Given** the picker is open for a drive, **When** the user picks an image and confirms, **Then** the picker closes and the image is inserted in that drive, with the drive door animation the old dialog had.
 5. **Given** the picker is open for a drive, **When** the user cancels with the button, Esc or the close box, **Then** the picker closes and the drive's contents do not change.
 6. **Given** a `.dsk` file whose length is not a known image length, **When** the picker lists its folder, **Then** the file is not in the list for any drive.
@@ -124,7 +124,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 
 ### Edge Cases
 
-- A raw 800K block image with a `.po` or `.dsk` extension could be a 3.5-inch disk or a small hard disk volume. It is classified as a 3.5-inch 800K disk. The hard disks accept it anyway, because a hard disk accepts any block image up to its capacity.
+- A raw 800K block image with a `.po` or `.dsk` extension is classified as a 3.5-inch 800K disk, never as a hard disk volume. The hard disks do not accept it.
 - A raw 140K image is classified as 5.25-inch. A UniDisk 3.5 or a hard disk does not list it.
 - A WOZ image's form factor comes from its header, not its length. A 3.5-inch WOZ and a 5.25-inch WOZ of similar length get different form factors.
 - A 2IMG or DiskCopy 4.2 image has a header, so its formatted size comes from the header and not from the file length.
@@ -161,7 +161,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - **FR-009**: A Disk II and the //c's 5.25-inch drives MUST accept 5.25-inch images only.
 - **FR-010**: An Apple 3.5 Drive and the //c Plus's built-in drive MUST accept 400K and 800K images, including 3.5-inch WOZ images.
 - **FR-011**: A UniDisk 3.5 MUST accept 400K and 800K images that can be read as blocks.
-- **FR-012**: An HD20SC and a ProFile MUST accept hard disk images and 3.5-inch block images up to the drive's capacity. The rule is final: the picker has no way to list an image that fails it.
+- **FR-012**: An HD20SC and a ProFile MUST accept hard disk images up to the drive's capacity, and MUST NOT accept a 140K, 400K or 800K image. The rule is final: the picker has no way to list an image that fails it, and a mount by any other route fails the same way.
 - **FR-013**: The recorder MUST accept tapes only, and no disk drive accepts a tape.
 - **FR-014**: The rule MUST be total over the drive kinds: a drive kind added later without an entry MUST fail a test instead of accepting everything or nothing.
 - **FR-015**: The rule and the mount code MUST be consistent. An image that passes the rule for a drive MUST NOT then fail at mount for its form factor or size, and the reverse.
