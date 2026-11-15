@@ -80,12 +80,12 @@ public:
     BitLine  & GetOutput    () override { return m_output; }
 
     // IDiskDriveBus: the IWM's side, to the bus or the mechanism.
-    void      SetPhases (bool ph0, bool ph1, bool ph2, bool ph3) override;
-    bool      GetSense  () const override;
-    Byte      ReadCell  (uint64_t cellEndNs) override;
-    void      WriteCell (Byte bit, uint64_t cellEndNs) override;
-    void      Advance   (uint64_t elapsedNs) override { m_mechanism.Advance (elapsedNs); }
-    uint32_t  GetCellNs () const override;
+    void      SetPhases     (bool ph0, bool ph1, bool ph2, bool ph3) override;
+    bool      GetSense      () const override;
+    Byte      ReadCell      (uint64_t cellEndNs) override;
+    void      WriteCell     (Byte bit, uint64_t cellEndNs) override;
+    void      Advance       (uint64_t elapsedNs) override { m_mechanism.Advance (elapsedNs); }
+    uint32_t  GetCellNs     () const override;
     uint64_t  GetQuietUntil () const override;
 
     // IFloppy35EventSource
