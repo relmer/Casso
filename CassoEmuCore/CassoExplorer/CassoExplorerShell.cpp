@@ -11,6 +11,7 @@
 #include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
+#include "CassoExplorer/Model/CassoImagesListing.h"
 #include "Seams/Win32FolderWatcher.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Seams/Win32IntentChannel.h"
@@ -1094,6 +1095,8 @@ void CassoExplorerShell::ConfigureBrowser (CassoExplorerBrowser & browser)
     browser.GetTreeModel().SetDrives (GetDriveRoots());
     browser.GetTreeModel().SetLocalizedNameLookup (&CassoExplorerShell::GetLocalizedFolderName);
     browser.SetPhysicalCards (&m_cards);
+
+    browser.SetRecentLoads ([this] () { return CassoImagesListing::LoadRecent (m_fs, m_baseDir); });
     browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path)
     {
         DWORD  attributes = GetFileAttributesW (path.c_str());

@@ -54,7 +54,7 @@ void ExplorerListColumns::ShowChosenColumns()
 
     for (size_t c = 0; c < m_chosen.size(); c++)
     {
-        m_pane.GetListView()->SetColumnVisible (c, IsListColumnShown (c, m_chosen[c], location.kind, SearchQuery::IsId (location.path), CollectionQuery::IsId (location.path)));
+        m_pane.GetListView()->SetColumnVisible (c, IsListColumnShown (c, m_chosen[c], location.kind, SearchQuery::IsId (location.path), IsResultsList (location)));
 
         //  File Explorer's filters, on a folder's or a disk's list.
         m_pane.GetListView()->SetColumnFilter (c, CassoExplorerBrowser::GetFilterField (c) != RowGrouping::Field::None && location.kind != Location::Kind::Root,
@@ -155,6 +155,42 @@ bool ExplorerListColumns::StepIconSize (int notches)
     m_pane.GetListView()->SetView (m_view);
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::IsCassoImageList
+//
+//  The Casso node's list of its folders' images.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListColumns::IsCassoImageList (const Location & location)
+{
+    return location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::IsResultsList
+//
+//  A list of files from several folders, which has the Folder column and
+//  Disk list's columns: Disk list's and Find duplicates' results, and the
+//  Casso node's images.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListColumns::IsResultsList (const Location & location)
+{
+    return CollectionQuery::IsId (location.path) || IsCassoImageList (location);
 }
 
 
@@ -490,6 +526,12 @@ void ExplorerListColumns::ApplyFolderView()
             //  Each duplicate set is a group.
             entry.groupBy = (int) RowGrouping::Field::DuplicateSet;
         }
+        else if (IsCassoImageList (m_context.browser.GetLocation()))
+        {
+            //  The Casso node's images open with the one Casso loaded last first.
+            sortColumn           = (size_t) CatalogModel::Column::LastUsed;
+            entry.sortDescending = true;
+        }
         else if (searching)
         {
             //  Search results open by relevance, as File Explorer's do.
@@ -534,9 +576,18 @@ void ExplorerListColumns::ApplyFolderView()
         ApplyChoiceIds (m_context.prefs.hiddenColumns, m_context.prefs.shownColumns);
 
         //  The Folder column distinguishes Disk list's and Find duplicates' rows.
-        if (CollectionQuery::IsId (m_context.browser.GetLocation().path) && m_chosen.size() > (size_t) CatalogModel::Column::Folder)
+        if (IsResultsList (m_context.browser.GetLocation()) && m_chosen.size() > (size_t) CatalogModel::Column::Folder)
         {
             m_chosen[(size_t) CatalogModel::Column::Folder] = true;
+        }
+
+        //  The Casso node's images, with what each is and when Casso last loaded it.
+        if (IsCassoImageList (m_context.browser.GetLocation()) && m_chosen.size() > (size_t) CatalogModel::Column::LastUsed)
+        {
+            for (CatalogModel::Column column : { CatalogModel::Column::FormFactor, CatalogModel::Column::FormattedSize, CatalogModel::Column::LastUsed })
+            {
+                m_chosen[(size_t) column] = true;
+            }
         }
     }
 }
@@ -1180,7 +1231,7 @@ void ExplorerListColumns::ChooseDetails()
                                                           L"System.Recycle.DeletedFrom", L"System.Recycle.DateDeleted", L"System.ItemFolderPathDisplay" };
     const Location &                         location  = m_context.browser.GetLocation();
     bool                                     searching = SearchQuery::IsId (location.path);
-    bool                                     results   = CollectionQuery::IsId (location.path);
+    bool                                     results   = IsResultsList (location);
     std::vector<ChooseDetailsModel::Column>  columns;
     std::vector<std::wstring>                names     = m_context.prefs.propertyColumns;
     ChooseDetailsModel                       model;

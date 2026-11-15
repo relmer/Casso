@@ -1315,21 +1315,21 @@ public:
     }
 
 
-    TEST_METHOD (SelectRoot_ListsItsChildrenAndOpensThem)
+    //  The Casso root lists the images of its folders, not the folders, and
+    //  an image opens from there as it does in its own folder.
+    TEST_METHOD (CassoRoot_ListsItsFoldersImages_AndOpensThem)
     {
         Host                       host;
         std::vector<DxuiTreeNode>  roots;
-        int                        missing = 0;
 
         host.browser.GetTreeRoots (roots);
 
         AssertSucceeded (host.browser.SelectTreeNode (roots[1].id));
-        Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
-        Assert::IsTrue   (host.browser.GetRows()[0].isDirectory);
+        Assert::AreEqual ((size_t) 2, host.browser.GetRows().size(), L"dos33.dsk and prodos.po, without readme.txt");
+        Assert::IsFalse  (host.browser.GetRows()[0].isDirectory);
 
-        Assert::IsTrue   (host.browser.OpenRow (0));
-        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeHostFolder (kDisks));
-        Assert::AreEqual ((size_t) 3, host.browser.GetRows().size());
+        Assert::IsTrue   (host.browser.OpenRow (FindRow (host.browser, L"dos33.dsk")));
+        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeDiskImage (L"C:\\Disks\\dos33.dsk"));
     }
 
 
@@ -1354,7 +1354,7 @@ public:
         //  The root is in the history like any other location.
         AssertSucceeded (host.browser.SelectTreeNode (TreeModel::kCassoRootId));
         Assert::AreEqual (std::wstring (L"Casso"), host.browser.GetTabLabel (0));
-        Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
+        Assert::AreEqual ((size_t) 2, host.browser.GetRows().size(), L"the known folder's two images");
 
         Assert::IsTrue   (host.browser.GoBack());
         Assert::IsTrue   (host.browser.GetLocation() == Location::MakeRoot (TreeModel::kThisPcRootId));
@@ -1363,7 +1363,7 @@ public:
         //  And its label, typed, goes there.
         Assert::IsTrue   (host.browser.NavigateToAddress (L"casso"));
         Assert::IsTrue   (host.browser.GetLocation() == Location::MakeRoot (TreeModel::kCassoRootId));
-        Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
+        Assert::AreEqual ((size_t) 2, host.browser.GetRows().size());
     }
 
 
@@ -1410,11 +1410,12 @@ public:
     }
 
 
-    TEST_METHOD (CassoRoot_MissingFolder_IsDimmedAndDoesNotOpen)
+    //  A known folder whose drive is gone adds no rows; the others' images
+    //  are listed.
+    TEST_METHOD (CassoRoot_SkipsAMissingFolder)
     {
         Host                       host;
         std::vector<DxuiTreeNode>  roots;
-        int                        missing = 0;
 
         host.browser.GetTreeModel().SetKnownFolders ({ L"H:\\Games", kDisks });
         host.browser.GetTreeRoots (roots);
@@ -1422,15 +1423,12 @@ public:
 
         Assert::AreEqual ((size_t) 2, host.browser.GetRows().size());
 
-        missing = _wcsicmp (host.browser.GetRows()[0].hostPath.c_str(), L"H:\\Games") == 0 ? 0 : 1;
-
-        Assert::IsTrue   (host.browser.GetRows()[(size_t) missing].isMissing);
-        Assert::IsTrue   (BrowserCells::ToCells (host.browser.GetRows()[(size_t) missing])[0].dim);
-        Assert::IsFalse  (host.browser.GetRows()[(size_t) (1 - missing)].isMissing);
-        Assert::IsFalse  (host.browser.OpenRow (missing));
-        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeRoot (TreeModel::kCassoRootId));
+        for (const CatalogRow & row : host.browser.GetRows())
+        {
+            Assert::AreEqual (std::wstring (kDisks), row.folderPath);
+            Assert::IsFalse  (row.isMissing);
+        }
     }
-
     TEST_METHOD (OpenRow_EntersImagesAndRefusesPlainFiles)
     {
         Host  host;

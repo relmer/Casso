@@ -1314,6 +1314,16 @@ bool CassoExplorerBrowser::TryGetRowLocation (int row, Location & outLocation)
             found = false;
         }
     }
+    else if (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)
+    {
+        //  The Casso node's images, each by its own path.
+        found = m_rows[row].isDiskImage && !m_rows[row].hostPath.empty() && m_loader.CanListImage (m_rows[row].hostPath);
+
+        if (found)
+        {
+            outLocation = Location::MakeDiskImage (m_rows[row].hostPath);
+        }
+    }
     else if (location.kind != Location::Kind::HostFolder)
     {
         found = false;

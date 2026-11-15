@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Browser/BrowserLoader.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/CassoImagesListing.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
@@ -514,6 +515,15 @@ HRESULT BrowserLoader::LoadRoot (const std::wstring & id)
         m_browser.m_tree.SetLinks (m_browser.m_links->BuildTreeEntries());
     }
 
+    //  The Casso node lists its folders' images; its folders are in the tree.
+    if (id == TreeModel::kCassoRootId)
+    {
+        hr = LoadCassoImages();
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     hr = m_browser.m_tree.GetChildren (id, m_rootChildren);
     CHR (hr);
 
@@ -582,6 +592,60 @@ HRESULT BrowserLoader::LoadRoot (const std::wstring & id)
     if (m_browser.m_links != nullptr && TreeModel::TryParseLinkId (id, link, slot, drive) && drive == 0 && IsAdtProServer (TextEncoding::WideToNarrow (link)))
     {
         AddAdtProHelpItem();
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserLoader::LoadCassoImages
+//
+//  The images of the Casso node's folders, as CassoImagesListing builds
+//  them. The root's children are left empty, so a row opens its own file
+//  rather than a folder of the root.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BrowserLoader::LoadCassoImages()
+{
+    HRESULT                      hr = S_OK;
+    std::vector<TreeNode>        nodes;
+    std::vector<std::wstring>    folders;
+    std::vector<DiskMru::Entry>  recent;
+    std::vector<CatalogRow>      rows;
+
+
+
+    m_rootChildren.clear();
+
+    hr = m_browser.m_tree.GetChildren (TreeModel::kCassoRootId, nodes);
+    CHR (hr);
+
+    for (const TreeNode & node : nodes)
+    {
+        if (!node.missing && !node.location.path.empty())
+        {
+            folders.push_back (node.location.path);
+        }
+    }
+
+    if (m_browser.m_recentLoads)
+    {
+        recent = m_browser.m_recentLoads();
+    }
+
+    CassoImagesListing::Build (m_browser.m_fs, m_browser.m_fileIo, m_browser.m_imageClasses, folders, recent, rows);
+
+    for (CatalogRow & row : rows)
+    {
+        row.sourceIndex = m_browser.m_rows.size();
+        m_browser.m_rows.push_back (std::move (row));
     }
 
 Error:

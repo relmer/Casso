@@ -61,6 +61,7 @@ public:
     bool     IsOnMissingDrive      (const Location & location) const;
     HRESULT  LoadHostFolder        (const std::wstring & path);
     HRESULT  LoadRoot              (const std::wstring & id);
+    HRESULT  LoadCassoImages       ();
     HRESULT  LoadRecycleBin        ();
     HRESULT  LoadShellFolder       (const std::wstring & id);
     HRESULT  LoadImage             (const std::wstring & path, const std::string & directory);

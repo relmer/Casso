@@ -464,6 +464,7 @@
     <ClCompile Include="CassoExplorer\Model\RefreshAnchor.cpp" />
     <ClCompile Include="Seams\Win32FolderWatcher.cpp" />
     <ClCompile Include="CassoExplorer\Model\CatalogModel.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CassoImagesListing.cpp" />
     <ClCompile Include="CassoExplorer\Model\AppleFileProperties.cpp" />
     <ClCompile Include="CassoExplorer\Model\BasicConversion.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostAppleFile.cpp" />
@@ -1568,6 +1569,7 @@
     <ClInclude Include="CassoExplorer\Model\IFolderWatcher.h" />
     <ClInclude Include="Seams\Win32FolderWatcher.h" />
     <ClInclude Include="CassoExplorer\Model\CatalogModel.h" />
+    <ClInclude Include="CassoExplorer\Model\CassoImagesListing.h" />
     <ClInclude Include="CassoExplorer\Model\AppleFileProperties.h" />
     <ClInclude Include="CassoExplorer\Model\BasicConversion.h" />
     <ClInclude Include="CassoExplorer\Model\HostAppleFile.h" />

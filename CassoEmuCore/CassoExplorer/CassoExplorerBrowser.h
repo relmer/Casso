@@ -9,6 +9,7 @@
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/TypedPathHistory.h"
 #include "Devices/Disk/ImageClassCache.h"
+#include "Shell/DiskMru.h"
 
 class CassoLinkConnections;
 class FilesystemChoices;
@@ -343,6 +344,11 @@ public:
     //  lists nothing.
     void                    SetPhysicalCards     (PhysicalCards * cards)         { m_cards = cards; }
 
+    //  The recent list's images and their load times, read each time the
+    //  Casso node is listed, for its Last used column.
+    using RecentLoadsFn = std::function<std::vector<DiskMru::Entry> ()>;
+    void                    SetRecentLoads       (RecentLoadsFn recentLoads)     { m_recentLoads = std::move (recentLoads); }
+
     //  Until set, a card that is not open is not opened, so the tabs restored
     //  at launch raise no UAC prompt.
     void                    SetCardOpenAllowed   (bool allowed)                 { m_cardOpenAllowed = allowed; }
@@ -452,6 +458,7 @@ private:
     bool                                m_listingKept    = false;   // an Apple drive's listing as last read, while it is read again
     CassoLinkConnections              * m_links          = nullptr;
     PhysicalCards                     * m_cards          = nullptr;
+    RecentLoadsFn                       m_recentLoads;
     bool                                m_cardOpenAllowed = false;
     FilesystemChoices                 * m_filesystemChoices = nullptr;
     std::vector<int>                    m_selectedRows;

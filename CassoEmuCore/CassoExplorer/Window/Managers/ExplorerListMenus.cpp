@@ -65,7 +65,7 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
     std::vector<DxuiListView::Column>  columns   = m_pane.GetColumns().GetListColumns();
     Location                           location  = m_context.browser.GetLocation();
     bool                               searching = SearchQuery::IsId (location.path);
-    bool                               results   = CollectionQuery::IsId (location.path);
+    bool                               results   = ExplorerListColumns::IsResultsList (location);
 
 
 
@@ -1261,7 +1261,7 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices (bool commandBa
         int                           id      = CassoExplorerCommands::kSortByColumn + (int) column;
         std::shared_ptr<DxuiCommand>  command;
 
-        if (!ExplorerListColumns::IsListColumnShown (column, chosen, m_context.browser.GetLocation().kind, SearchQuery::IsId (m_context.browser.GetLocation().path), CollectionQuery::IsId (m_context.browser.GetLocation().path)))
+        if (!ExplorerListColumns::IsListColumnShown (column, chosen, m_context.browser.GetLocation().kind, SearchQuery::IsId (m_context.browser.GetLocation().path), ExplorerListColumns::IsResultsList (m_context.browser.GetLocation())))
         {
             continue;
         }
