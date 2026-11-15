@@ -27,7 +27,7 @@ std::wstring DriveLabel::GetTitle (const DeskDrive & drive, bool numbered)
     switch (drive.model)
     {
         case DeskDriveModel::DiskII:        title = std::format (L"Drive {} - Disk ][", drive.drive + 1);                            break;
-        case DeskDriveModel::Disk2c:        title = (drive.drive == 0) ? std::wstring (L"Drive 1 - Built-in") : L"Drive 2 - Disk IIc";  break;
+        case DeskDriveModel::Disk2c:        title = drive.builtIn ? std::wstring (L"Drive 1 - Built-in") : std::format (L"Drive {} - Disk IIc", drive.drive + 1);  break;
         case DeskDriveModel::UniDisk35:     title = L"UniDisk 3.5";                                                                  break;
         case DeskDriveModel::Apple35Drive:  title = L"Apple 3.5 Drive";                                                              break;
         case DeskDriveModel::Apple35Plus:   title = L"Built-in 3.5";                                                                 break;

@@ -28,5 +28,8 @@ public:
     //  Its built-in drive is the 3.5-inch drive, not a Disk II mechanism.
     bool  HasBuiltInDrive () const override { return (false); }
 
+    //  Drives 1 and 2 of port 6.
+    int   GetDiskPortFloppyCount () const override { return (2); }
+
     uint16_t  GetWozHardwareFlag () const override { return (WozCompatibility::kApple2cPlus); }
 };

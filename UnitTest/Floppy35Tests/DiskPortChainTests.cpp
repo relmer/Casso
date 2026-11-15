@@ -1,8 +1,10 @@
 #include "Pch.h"
 
 #include "Core/MachineConfig.h"
+#include "Core/TextEncoding.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/Floppy35/Apple2cSmartPort.h"
+#include "Machines/MachineDefinitions.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace fs = std::filesystem;
@@ -47,13 +49,13 @@ public:
     }
 
 
-    static HRESULT Resolve (std::vector<PortConfig> & ports, std::string & error, const fs::path & rom = {})
+    static HRESULT Resolve (std::vector<PortConfig> & ports, std::string & error, const fs::path & rom = {}, size_t maxFloppies = 1)
     {
         MachineConfigLoader::FileResolver  resolver = [&rom] (const std::vector<fs::path> &, const fs::path &) { return rom; };
 
 
 
-        return MachineConfigLoader::ResolveDiskPortChains ({}, resolver, ports, error);
+        return MachineConfigLoader::ResolveDiskPortChains ({}, resolver, ports, error, maxFloppies);
     }
 
 
@@ -90,6 +92,33 @@ public:
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), Resolve (ports, error));
         Assert::IsTrue (error.find ("last") != std::string::npos);
+    }
+
+
+    //  The //c takes one 5.25-inch drive on the port, the //c Plus two.
+    TEST_METHOD (Chain_FloppiesUpToTheMachinesCount)
+    {
+        std::vector<PortConfig>  two = MakePorts ({ kpszUniDisk35Device, kpszDiskIicDevice, kpszDiskIicDevice });
+        std::string              error;
+
+
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), Resolve (two, error));
+        Assert::IsTrue (error.find ("at most one 5.25-inch drive.") != std::string::npos, TextEncoding::Utf8ToWide (error).c_str());
+
+        two   = MakePorts ({ kpszUniDisk35Device, kpszDiskIicDevice, kpszDiskIicDevice });
+        error.clear();
+
+        Assert::AreEqual (S_OK, Resolve (two, error, {}, 2));
+        Assert::IsTrue (error.empty());
+    }
+
+
+    TEST_METHOD (Chain_DiskPortFloppiesPerMachine)
+    {
+        Assert::AreEqual (1, MachineDefinitions::Find ("Apple2c")->diskPortFloppyCount);
+        Assert::AreEqual (2, MachineDefinitions::Find ("Apple2cPlus")->diskPortFloppyCount);
+        Assert::AreEqual (0, MachineDefinitions::Find ("Apple2eEnhanced")->diskPortFloppyCount);
     }
 
 

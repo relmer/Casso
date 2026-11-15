@@ -133,6 +133,7 @@ std::map<std::string, MachineDefinition> MachineDefinitions::BuildTable()
         definition.hasCassettePort = machine->HasCassettePort();
         definition.hasCaseSwitches = machine->HasCaseSwitches();
         definition.hasBuiltInDrive = machine->HasBuiltInDrive();
+        definition.diskPortFloppyCount = machine->GetDiskPortFloppyCount();
         definition.wozHardwareFlag = machine->GetWozHardwareFlag();
 
         table.emplace (definition.id, std::move (definition));

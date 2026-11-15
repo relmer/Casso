@@ -81,3 +81,34 @@ returning; the test types the line and the Return separately.
 MAME doesn't emulate the ProFile, the UniDisk 3.5 or its card, so those have
 no MAME result. A WOZ 3.5-inch image and an external drive on the //c Plus
 port are open with T054 and T073.
+
+## Disk II baseline (T033)
+
+Run on 2026-11-14 before any change to the Disk II or the //c drive path, as
+the reference for T036:
+
+| Run | Result |
+|---|---|
+| `RunTests.ps1 -Filter Disk2` | 158 of 158 pass |
+| `RunTests.ps1 -Scenario` | 239 of 239 pass |
+
+## //c Plus external 5.25-inch drive (T070, T073)
+
+A Disk II controller in IWM mode at $C0E0, with the 3.5-inch port as its
+hook, ROM 05 and the DOS 3.3 System Master, in `ScenarioTests/Floppy35BootTests.cpp`:
+
+| Case | Result |
+|---|---|
+| Built-in drive empty, the disk port's device `disk-iic` | DOS 3.3 boots |
+| The same, the disk write-protected | DOS 3.3 boots |
+| An empty UniDisk 3.5, then `disk-iic`, on the chain | DOS 3.3 boots |
+| An 800K ProDOS disk in the built-in drive as well | ProDOS boots from the built-in drive |
+| `SAVE` at the DOS prompt, then `CATALOG` | The program is listed |
+
+ROM 05 enables drive 1 and reads it with 3.5 select on before it runs the
+slot 6 firmware, so a 5.25-inch drive is enabled whatever 3.5 select is. With
+the disk write-protected, the sense line is high on drive 1, and ROM 05 probes
+the SmartPort bus through drive 1 and waits on the IWM's write handshake; the
+handshake is the IWM's, so the controller's byte is used only for reads with Q7 off.
+The first run had the controller answer every read, and the machine stopped
+at $C8A6 before it cleared the screen.

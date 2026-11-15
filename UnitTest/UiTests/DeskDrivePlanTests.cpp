@@ -61,6 +61,19 @@ public:
     }
 
 
+    //  A pair that isn't two Disk IIs, such as the //c Plus's 3.5-inch drive
+    //  and a Disk IIc, stacks beside the monitor.
+    TEST_METHOD (MixedFloppyPair_StacksBesideTheMonitor)
+    {
+        auto  plan = DeskDrivePlan::Place ({ { M::Disk2c, 6, 0 }, { M::Apple35Plus, 0, 0 } }, P::Auto, P::Auto, kMonitorC);
+
+
+
+        Assert::IsTrue (Find (plan, M::Disk2c, 0).spot == S::RightStack);
+        Assert::IsTrue (Find (plan, M::Apple35Plus, 0).spot == S::RightStack);
+    }
+
+
     //  The shipped //e: two Disk IIs and a UniDisk 3.5 are three floppies, so
     //  they go on the drive bar; the HD20SC stays on the desk.
     TEST_METHOD (ThreeFloppies_GoOnTheDriveBarByDefault)
@@ -169,11 +182,50 @@ public:
 
         Assert::AreEqual ((size_t) 5, drives.size());
         Assert::IsTrue (drives[0].model == M::Disk2c);
+        Assert::IsFalse (drives[0].builtIn, L"with a built-in 3.5-inch drive, the 5.25-inch drive is on the port");
         Assert::IsTrue (drives[1].model == M::Apple35Plus);
         Assert::IsTrue (drives[2].model == M::UniDisk35);
         Assert::AreEqual (1, drives[2].drive, L"after the built-in drive");
         Assert::AreEqual (2, drives[3].drive);
         Assert::AreEqual (6, drives[4].drive);
+    }
+
+
+    //  THE //C'S DRIVE 1 IS BUILT IN; its drive 2 is on the port.
+    TEST_METHOD (Collect_TheCsFirstDriveIsBuiltIn)
+    {
+        MachineConfig  config;
+        auto           drives = DeskDrivePlan::Collect (config, 2, true);
+
+
+
+        Assert::AreEqual ((size_t) 2, drives.size());
+        Assert::IsTrue (drives[0].builtIn);
+        Assert::IsFalse (drives[1].builtIn);
+    }
+
+
+    //  The //c Plus's 5.25-inch drives: the disk port's device with no chain,
+    //  or the chain's last entries.
+    TEST_METHOD (CountDiskPortFloppies_DeviceOrChain)
+    {
+        MachineConfig  config;
+        PortConfig     disk;
+
+
+
+        disk.name   = "disk";
+        disk.device = kpszDiskIicDevice;
+        config.ports = { disk };
+
+        Assert::AreEqual (1, config.CountDiskPortFloppies());
+
+        config.ports[0].chain.resize (3);
+        config.ports[0].chain[0].device = kpszUniDisk35Device;
+        config.ports[0].chain[1].device = kpszDiskIicDevice;
+        config.ports[0].chain[2].device = kpszDiskIicDevice;
+
+        Assert::AreEqual (2, config.CountDiskPortFloppies(), L"a chain lists every drive on the port");
     }
 
 

@@ -390,6 +390,153 @@ public:
     }
 
 
+    //  A 140K DISK IN A 5.25-INCH DRIVE at the end of the //c Plus's disk port
+    //  chain boots with the internal drive empty: drive 1 returns nibbles
+    //  with 3.5 select on, so ROM 05 runs the slot 6 firmware. The drive is
+    //  the disk port's device, as on the //c.
+    TEST_METHOD (Apple2cPlus_BootsFromAnExternalFloppy)
+    {
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  ports (2);
+
+
+
+        ports[0].name   = "internal";
+        ports[0].device = kpszApple35DriveDevice;
+        ports[1].name   = "disk";
+        ports[1].device = kpszDiskIicDevice;
+
+        TestMachine  machine ("Apple2cPlus", ports, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::IsNotNull (machine.GetRefs().diskController, L"the 5.25-inch drive has a controller");
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "SYSTEM MASTER", kBootCap), L"DOS 3.3 boots from the external 5.25-inch drive");
+    }
+
+
+    //  A WRITE-PROTECTED FLOPPY in the //c Plus's external drive boots: the
+    //  drive's sense line is high through ROM 05's reset, which writes the
+    //  IWM's mode and reads it back.
+    TEST_METHOD (Apple2cPlus_BootsAWriteProtectedFloppy)
+    {
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  ports (2);
+
+
+
+        ports[0].name   = "internal";
+        ports[0].device = kpszApple35DriveDevice;
+        ports[1].name   = "disk";
+        ports[1].device = kpszDiskIicDevice;
+
+        TestMachine  machine ("Apple2cPlus", ports, io);
+
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
+        machine.GetRefs().diskController->GetDisk (0)->SetUserWriteProtected (true);
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "SYSTEM MASTER", kBootCap), L"DOS 3.3 boots from the write-protected floppy");
+    }
+
+
+    //  DOS 3.3 SAVES A PROGRAM to the //c Plus's external 5.25-inch drive and
+    //  catalogs it: the accelerator runs the machine at 1 MHz around the
+    //  slot 6 accesses, so the write's timing is the //c's.
+    TEST_METHOD (Apple2cPlus_SavesToTheExternalFloppy)
+    {
+        FakeDiskFileIo             io;
+        std::vector<PortConfig>    ports (2);
+        std::vector<std::string>   rows;
+
+
+
+        ports[0].name   = "internal";
+        ports[0].device = kpszApple35DriveDevice;
+        ports[1].name   = "disk";
+        ports[1].chain.resize (1);
+        ports[1].chain[0].device = kpszDiskIicDevice;
+
+        TestMachine  machine ("Apple2cPlus", ports, io);
+
+        GuestSession::BootToPrompt (machine, GuestSession::RequireDos33Master());
+
+        rows = GuestSession::TypeAndCollect (machine, "10 PRINT \"PLUS\"");
+        rows = GuestSession::TypeAndCollect (machine, "SAVE CPLUS");
+
+        Assert::IsFalse (GuestSession::AnyRowContains (rows, "ERROR"), L"DOS saves without an error");
+
+        rows = GuestSession::TypeAndCollect (machine, "CATALOG");
+
+        Assert::IsTrue (GuestSession::AnyRowContains (rows, "CPLUS"), L"the catalog lists the program DOS saved");
+    }
+
+
+    //  WITH A DISK IN BOTH, the //c Plus boots from its internal drive: ROM
+    //  05's startup order has the internal drive ahead of port 6.
+    TEST_METHOD (Apple2cPlus_BootsTheInternalDriveAheadOfTheFloppy)
+    {
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  scratch;
+        std::vector<PortConfig>  ports (2);
+
+
+
+        Attach (io, Make800K (GuestSession::RequireProDosUsersDisk()), scratch);
+        ports[0].name   = "internal";
+        ports[0].device = kpszApple35DriveDevice;
+        ports[0].image  = kDiskPath;
+        ports[1].name   = "disk";
+        ports[1].chain.resize (1);
+        ports[1].chain[0].device = kpszDiskIicDevice;
+
+        TestMachine  machine ("Apple2cPlus", ports, io);
+
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the internal drive");
+    }
+
+
+    //  AN EMPTY UNIDISK 3.5 AHEAD OF A 5.25-INCH DRIVE on the //c Plus's port
+    //  passes the port through: with no disk on the SmartPort bus, the floppy
+    //  boots.
+    TEST_METHOD (Apple2cPlus_BootsAFloppyBehindAnEmptyUniDisk)
+    {
+        FakeDiskFileIo           io;
+        std::vector<PortConfig>  ports (2);
+
+
+
+        ports[0].name   = "internal";
+        ports[0].device = kpszApple35DriveDevice;
+        ports[1].name   = "disk";
+        ports[1].chain.resize (2);
+        ports[1].chain[0].device = kpszUniDisk35Device;
+        ports[1].chain[1].device = kpszDiskIicDevice;
+
+        TestMachine  machine ("Apple2cPlus", ports, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::AreEqual ((size_t) 1, machine.GetRefs().apple2cPlusDiskPort->GetPort().GetDriveCount(), L"the UniDisk is on the chain");
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "SYSTEM MASTER", kBootCap), L"DOS 3.3 boots from the 5.25-inch drive behind the UniDisk");
+    }
+
+
     //  AN 800K PRODOS DISK BOOTS through Apple's 3.5 controller card firmware
     //  in slot 5 of an enhanced //e with no floppy controller.
     TEST_METHOD (Apple35Card_BootsProDosFrom800K)

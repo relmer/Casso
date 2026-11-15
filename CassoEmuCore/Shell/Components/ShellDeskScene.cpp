@@ -201,7 +201,7 @@ HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
     // //c's drives are part of the machine rather than of what it is plugged
     // into.
     HRESULT                    hr          = S_OK;
-    bool                       isC         = m_shell.m_disks->MachineHasBuiltInDrive();
+    bool                       isC         = m_shell.m_disks->HasDiskIicDrives();
     const MonitorSpec &        monitor     = m_shell.m_renderer->ResolveMonitorForCurrentMachine();
     std::span<const uint8_t>   monitorMesh = PrinterPanel::LoadBinaryResource (monitor.meshResourceId);
     std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
@@ -1022,10 +1022,12 @@ int ShellDeskScene::CountDiskIiDrives() const
 
     // The //c's drives are not carded -- one is soldered in and the second
     // hangs off the back-panel disk port -- so its slot list says nothing
-    // about them and the internal drive is always there.
+    // about them and the internal drive is always there. The //c Plus's
+    // are the ones its disk port's chain lists.
     if (m_shell.m_machine.GetConfig().slots.empty())
     {
-        return m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1;
+        return m_shell.m_disks->MachineHasBuiltInDrive() ? (m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1)
+                                                         : m_shell.m_machine.GetConfig().CountDiskPortFloppies();
     }
 
     // A card with every port empty reports zero, which is the point of being
@@ -3321,7 +3323,7 @@ void ShellDeskScene::PlanDrives()
     m_deskScene.MonitorModel().BoundsMax (hi);
     monitor = hi[0] - lo[0];
 
-    m_drivePlan = DeskDrivePlan::Place (DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), CountDiskIiDrives(), m_shell.m_disks->MachineHasBuiltInDrive()),
+    m_drivePlan = DeskDrivePlan::Place (DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), CountDiskIiDrives(), m_shell.m_disks->HasDiskIicDrives()),
                                         DeskDrivePlan::ParsePlace (prefs.deskFloppies),
                                         DeskDrivePlan::ParsePlace (prefs.deskHardDisks),
                                         monitor,
@@ -3839,7 +3841,7 @@ std::wstring ShellDeskScene::GetDiskIiTip (int drive) const
 
 
 
-    return DriveLabel::GetTip (DriveLabel::GetTitle ({ model, 6, drive }, false),
+    return DriveLabel::GetTip (DriveLabel::GetTitle ({ model, 6, drive, m_shell.m_disks->MachineHasBuiltInDrive() && drive == 0 }, false),
                                DriveLabel::GetDetail (model, 0, 0),
                                path.empty() ? std::wstring() : fs::path (path).filename().wstring(),
                                false,

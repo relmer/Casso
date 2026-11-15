@@ -26,6 +26,8 @@ public:
     TEST_METHOD (Title_NamesEachDrive)
     {
         Assert::AreEqual (std::wstring (L"Drive 1 - Disk ]["),    DriveLabel::GetTitle ({ DeskDriveModel::DiskII,       6, 0 }, false));
+        Assert::AreEqual (std::wstring (L"Drive 1 - Built-in"),   DriveLabel::GetTitle ({ DeskDriveModel::Disk2c,       6, 0, true }, false));
+        Assert::AreEqual (std::wstring (L"Drive 1 - Disk IIc"),   DriveLabel::GetTitle ({ DeskDriveModel::Disk2c,       6, 0 }, false), L"the //c Plus's drive 1 is on its port");
         Assert::AreEqual (std::wstring (L"Drive 2 - Disk IIc"),   DriveLabel::GetTitle ({ DeskDriveModel::Disk2c,       6, 1 }, false));
         Assert::AreEqual (std::wstring (L"UniDisk 3.5"),          DriveLabel::GetTitle ({ DeskDriveModel::UniDisk35,    5, 0 }, false));
         Assert::AreEqual (std::wstring (L"UniDisk 3.5 - S5,D2"),  DriveLabel::GetTitle ({ DeskDriveModel::UniDisk35,    5, 1 }, true));

@@ -81,7 +81,9 @@ the interaction, sound and event log the Disk II already has.
   it on hover, a widget each, like a menu opening from a menu bar.
 - Q: How are the drives on the desk placed? A: Each class on the desk is one
   stack, sorted by the width of the drive's case, narrowest on top. Two
-  floppies sit side by side under the monitor, as now. A single hard disk at
+  5.25-inch floppies sit side by side under the monitor, as now; a pair with
+  a 3.5-inch drive in it, such as the //c Plus's built-in drive and a Disk
+  IIc, stacks on the right. A single hard disk at
   least as wide as the monitor, give or take a few millimeters, goes under it
   (a ProFile under either monitor, an HD20SC under the //c's), and the floppies
   stack on the right. Two floppies stack on the right instead with "Two
@@ -99,6 +101,12 @@ the interaction, sound and event log the Disk II already has.
   floppy-size images.
 - Q: Should a hard disk's spindle be audible? A: No. The synthesized spindle
   hum was annoying, so a hard disk makes only its seek ticks.
+- Q: How does a //c Plus run downloaded 140K disks? A: From an external
+  5.25-inch drive on its disk port, as on the real machine: up to two, at the
+  end of the chain, as the //c Technical Reference lists. The port's
+  `device` set to `disk-iic` is one drive, as on the //c; a chain lists each
+  drive. ROM 05 boots port 6 drive 1 when the built-in drive has no disk. A
+  3.5-inch drive doesn't mount a 140K image.
 
 ## User Scenarios & Testing *(mandatory)*
 

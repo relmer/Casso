@@ -54,5 +54,8 @@ public:
     bool  HasCaseSwitches () const override { return (true); }
     bool  HasBuiltInDrive () const override { return (true); }
 
+    //  The external drive, drive 2 to the built-in drive's 1.
+    int   GetDiskPortFloppyCount () const override { return (1); }
+
     uint16_t  GetWozHardwareFlag () const override { return (WozCompatibility::kApple2c); }
 };

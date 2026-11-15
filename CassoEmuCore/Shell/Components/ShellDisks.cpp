@@ -1624,7 +1624,7 @@ bool ShellDisks::IsSecondDriveOffered() const
 
     if (config.systemRom.romBankSize != 0)
     {
-        return true;
+        return MachineHasBuiltInDrive();
     }
 
     for (const SlotConfig & slot : config.slots)
@@ -1667,6 +1667,12 @@ bool ShellDisks::ShouldShowExternalDrive() const
 
 
 
+    // The //c Plus's two 5.25-inch drives are both on the disk port's chain.
+    if (externalIsOptional && !MachineHasBuiltInDrive())
+    {
+        return m_shell.m_machine.GetConfig().CountDiskPortFloppies() >= kDiskIiPortCount;
+    }
+
     if (externalIsOptional)
     {
         return m_externalDriveConnected;
@@ -1695,6 +1701,28 @@ bool ShellDisks::MachineHasBuiltInDrive() const
 
 
     return (definition != nullptr && definition->hasBuiltInDrive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::HasDiskIicDrives
+//
+//  Whether the machine's 5.25-inch drives are the //c family's, on a disk
+//  port, rather than Disk II drives on a card: the //c and the //c Plus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDisks::HasDiskIicDrives() const
+{
+    const MachineDefinition *  definition = MachineDefinitions::Find (m_shell.m_machine.GetConfig().machineId);
+
+
+
+    return (definition != nullptr && definition->diskPortFloppyCount > 0);
 }
 
 

@@ -789,12 +789,47 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineConfig::CountDiskPortFloppies
+//
+//  A port with no chain and a 5.25-inch drive as its device has that one
+//  drive, as the //c's disk port lists its external drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int MachineConfig::CountDiskPortFloppies() const
+{
+    int  floppies = 0;
+
+
+
+    for (const PortConfig & port : ports)
+    {
+        if (port.chain.empty())
+        {
+            floppies += (port.device == kpszDiskIicDevice) ? 1 : 0;
+        }
+
+        for (const PortConfig & entry : port.chain)
+        {
+            floppies += (entry.device == kpszDiskIicDevice) ? 1 : 0;
+        }
+    }
+
+    return floppies;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ResolveDiskPortChains
 //
 //  A machine port's SmartPort chain: UniDisk 3.5 drives, at most
-//  kMaxChainDrives of them, then at most one 5.25-inch drive, last. Each
-//  UniDisk 3.5's ROM is resolved into its entry. A chain out of that order
-//  or over the limit fails the load.
+//  kMaxChainDrives of them, then at most `maxFloppies` 5.25-inch drives,
+//  last. Each UniDisk 3.5's ROM is resolved into its entry. A chain out of
+//  that order or over a limit fails the load.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -802,16 +837,18 @@ HRESULT MachineConfigLoader::ResolveDiskPortChains (
     const vector<fs::path> & searchPaths,
     const FileResolver     & resolver,
     vector<PortConfig>     & ports,
-    string                 & outError)
+    string                 & outError,
+    size_t                   maxFloppies)
 {
-    HRESULT  hr = S_OK;
+    static constexpr const char *  kCounts[] = { "no", "one", "two" };
+    HRESULT                        hr        = S_OK;
 
 
 
     for (PortConfig & port : ports)
     {
         size_t  smartPort = 0;
-        bool    sawFloppy = false;
+        size_t  floppies  = 0;
         string  problem;
 
 
@@ -829,14 +866,21 @@ HRESULT MachineConfigLoader::ResolveDiskPortChains (
                 CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
             }
 
-            if (sawFloppy)
+            if (isSmartPort && floppies > 0)
             {
-                outError = format ("A 5.25-inch drive is the last drive on the {} port's chain.", port.name);
+                outError = format ("The 5.25-inch drives are the last drives on the {} port's chain.", port.name);
                 CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
             }
 
-            sawFloppy  = isFloppy;
+            floppies  += isFloppy ? 1 : 0;
             smartPort += isSmartPort ? 1 : 0;
+
+            if (floppies > maxFloppies)
+            {
+                outError = format ("The {} port's chain takes at most {} 5.25-inch drive{}.", port.name,
+                                   kCounts[std::min (maxFloppies, std::size (kCounts) - 1)], maxFloppies == 1 ? "" : "s");
+                CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+            }
 
             if (smartPort > kMaxChainDrives)
             {
@@ -1501,8 +1545,14 @@ HRESULT MachineConfigLoader::Load (
     // slotless machine still gets to say what it has and what is on it.
     ParsePorts (root, outConfig.ports);
 
-    hr = ResolveDiskPortChains (searchPaths, resolver, outConfig.ports, outError);
-    CHR (hr);
+    {
+        const MachineDefinition *  definition = MachineDefinitions::Find (machineName);
+
+
+
+        hr = ResolveDiskPortChains (searchPaths, resolver, outConfig.ports, outError, definition != nullptr ? (size_t) definition->diskPortFloppyCount : 1);
+        CHR (hr);
+    }
 
     // Required unless the machine's definition supplies them: video, keyboard
     if (!fDefined)

@@ -455,6 +455,10 @@ struct MachineConfig
     }
 
 
+    // The 5.25-inch drives at the end of the machine's disk port chains.
+    int  CountDiskPortFloppies () const;
+
+
     // Every byte of RAM the machine has, in K: its regions, plus a language
     // card's 16K for each bank -- main, and aux on a machine that has one.
     // ROM is not counted.
@@ -598,11 +602,13 @@ public:
 
     // Each machine port's chain: its order and length checked, and its
     // drives' ROMs resolved. ERROR_INVALID_DATA, with `outError`, for a chain
-    // the port can't take.
+    // the port can't take. `maxFloppies` is the machine's
+    // MachineDefinition::diskPortFloppyCount.
     static HRESULT  ResolveDiskPortChains (const vector<fs::path> & searchPaths,
                                            const FileResolver     & resolver,
                                            vector<PortConfig>     & ports,
-                                           string                 & outError);
+                                           string                 & outError,
+                                           size_t                   maxFloppies = 1);
 
     // `machineName` selects the per-machine ROM subdir
     // (Machines/<machineName>/<file>) used to resolve systemRom and

@@ -13,7 +13,7 @@ enum class ReceivingDriveKind;
 enum class DeskDriveModel
 {
     DiskII,
-    Disk2c,          // the //c's drive, built in or external
+    Disk2c,          // the //c's drive, built in or external, and the //c Plus's
     UniDisk35,
     Apple35Drive,
     Apple35Plus,     // the //c Plus's built-in drive, in its colors
@@ -66,9 +66,12 @@ enum class DeskDriveSpot
 
 struct DeskDrive
 {
-    DeskDriveModel  model = DeskDriveModel::DiskII;
-    int             slot  = 0;
-    int             drive = 0;
+    DeskDriveModel  model   = DeskDriveModel::DiskII;
+    int             slot    = 0;
+    int             drive   = 0;
+
+    //  The //c's drive 1, soldered in.
+    bool            builtIn = false;
 };
 
 
@@ -115,6 +118,7 @@ public:
     static DeskDriveClass      GetClass         (DeskDriveModel model);
     static float               GetCaseWidthMm   (DeskDriveModel model);
     static bool                IsOnDesk         (DeskClassPlace place, size_t count);
+    static bool                IsDiskII         (DeskDriveModel model);
 
     //  The images the model mounts, as the picker and a drop check them.
     static ReceivingDriveKind  GetReceivingKind (DeskDriveModel model);
@@ -125,9 +129,9 @@ public:
     static const char *    FormatPlace    (DeskClassPlace place);
 
     //  The machine's drives: `diskIiCount` Disk II drives in slot 6 (the
-    //  //c's built-in and external drives when `isC`), the //c Plus's built-in drive and the
-    //  //c disk port's chain, and the drives on the enabled storage cards'
-    //  ports.
+    //  //c family's 5.25-inch drives when `isC`), the //c Plus's built-in
+    //  drive and the //c disk port's chain, and the drives on the enabled
+    //  storage cards' ports.
     static std::vector<DeskDrive>  Collect (const MachineConfig & config, int diskIiCount, bool isC);
 
     static std::vector<DeskDrivePlacement>  Place (const std::vector<DeskDrive> & drives,

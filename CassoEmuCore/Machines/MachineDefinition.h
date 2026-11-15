@@ -59,6 +59,9 @@ struct MachineDefinition
     bool                         hasCaseSwitches = false;
     bool                         hasBuiltInDrive = false;
 
+    //  The 5.25-inch drives at the end of the disk port's chain.
+    int                          diskPortFloppyCount = 0;
+
     //  The machine's bit in a WOZ image's compatible-hardware field.
     uint16_t                     wozHardwareFlag = 0;
 };

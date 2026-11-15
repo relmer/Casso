@@ -9,6 +9,7 @@
 
 #include "EmbeddedMachineJson.h"
 #include "FixtureProvider.h"
+#include "Machines/MachineDefinitions.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -156,7 +157,8 @@ TestMachine::TestMachine (
             }
         }
 
-        Assert::AreEqual (S_OK, MachineConfigLoader::ResolveDiskPortChains ({ root }, MakeFixtureResolver(), config.ports, error));
+        Assert::AreEqual (S_OK, MachineConfigLoader::ResolveDiskPortChains ({ root }, MakeFixtureResolver(), config.ports, error,
+                                                                           (size_t) MachineDefinitions::Find (machineId)->diskPortFloppyCount));
     });
 }
 
