@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "Seams/IDiskPictures.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
@@ -164,6 +165,9 @@ void ExplorerStatusBar::Fill()
     std::wstring                          detail = status.detail;
 
 
+
+    //  A picker's confirm button follows the selection, as the counts do.
+    m_context.pickerBar.Update();
 
     //  Bytes or characters selected in the preview take the detail section.
     m_context.preview.TryGetSelectionDetail (detail);

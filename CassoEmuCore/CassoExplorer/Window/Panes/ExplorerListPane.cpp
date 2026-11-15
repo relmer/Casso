@@ -1,6 +1,8 @@
 #include "Pch.h"
 #include "Core/AppTimerIds.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
+#include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
@@ -222,6 +224,12 @@ void ExplorerListPane::Configure()
     {
         //  A double-click isn't a selection for automatic preview.
         KillTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerAutoPreview);
+
+        //  A picker confirms a file rather than opening it.
+        if (m_context.pickerMode.HandleActivateRow (row))
+        {
+            return;
+        }
 
         //  Home's folders open here, and its files as Explorer opens them.
         if (m_context.browser.IsHomeLocation() && row >= 0 && (size_t) row < m_context.browser.GetRows().size())

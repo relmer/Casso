@@ -1605,4 +1605,173 @@ public:
         rig.parts->commandManager.Dispatch (CassoExplorerCommands::kUp);
         Assert::IsFalse (rig.browser.GetLocation() == Location::MakeHostFolder (L"C:\\Disks"), L"Up is on the list and ran");
     }
+
+    //  A picker for a Disk II: only folders and the images the drive takes
+    //  are listed, the confirm button follows the selection, and a confirm
+    //  puts the file's path in the outcome and closes the window.
+    TEST_METHOD (Picker_ListsItsScope_AndConfirmsTheSelectedFile)
+    {
+        Rig            rig;
+        PickerRequest  request;
+        PickerOutcome  outcome;
+        int            image = -1;
+
+
+
+        request.form           = PickerForm::ModalOpen;
+        request.filters        = { { L"Disk images", L"*.dsk;*.po" }, { L"All files", L"*.*" } };
+        request.receivingDrive = ReceivingDrive { ReceivingDriveKind::Floppy525, 0 };
+        request.driveLabel     = L"Disk II, slot 6 drive 1";
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\readme.txt", "hello"));
+        AssertSucceeded (rig.fs.WriteAllText (L"C:\\Disks\\Games\\note.txt", "x"));
+
+        rig.app.picker        = &request;
+        rig.app.outcome = &outcome;
+        rig.Open();
+        rig.browser.NavigateToAddress (L"C:\\Disks");
+        rig.parts->listPane.FillList();
+
+        Assert::AreEqual ((size_t) 2, rig.browser.GetRows().size(), L"the folder and the image, without the text file");
+        Assert::AreEqual (std::wstring (L"Disk II, slot 6 drive 1: 5.25-inch disk images"), rig.parts->pickerMode.GetHeaderText());
+        Assert::AreEqual (std::wstring (L"Open"), rig.parts->pickerMode.GetConfirmLabel());
+        Assert::IsFalse  (rig.parts->pickerBar.IsConfirmEnabled(), L"nothing is selected");
+
+        for (int row = 0; row < (int) rig.browser.GetRows().size(); row++)
+        {
+            image = rig.browser.GetRows()[(size_t) row].isDirectory ? image : row;
+        }
+
+        rig.browser.SetSelectedRows ({ 1 - image });
+        rig.parts->statusBar.Fill();
+        Assert::IsFalse (rig.parts->pickerBar.IsConfirmEnabled(), L"a folder is selected");
+
+        rig.browser.SetSelectedRows ({ image });
+        rig.parts->statusBar.Fill();
+        Assert::IsTrue (rig.parts->pickerBar.IsConfirmEnabled(), L"the image is selected");
+
+        rig.parts->pickerMode.Confirm();
+
+        Assert::IsTrue   (outcome.isConfirmed);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), outcome.path);
+        Assert::IsTrue   (rig.window.closed);
+    }
+
+
+    //  Esc closes a picker with nothing confirmed, and a double-click on a
+    //  file confirms it without opening the image.
+    TEST_METHOD (Picker_EscCancels_AndOpeningAFileConfirmsIt)
+    {
+        Rig            rig;
+        PickerRequest  request;
+        PickerOutcome  outcome;
+        DxuiKeyEvent   escape;
+        std::wstring   inserted;
+
+
+
+        request.form      = PickerForm::DriveWindow;
+        request.onConfirm = [&inserted] (const std::wstring & path) { inserted = path; return true; };
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.app.picker        = &request;
+        rig.app.outcome = &outcome;
+        rig.Open();
+        rig.browser.NavigateToAddress (L"C:\\Disks");
+
+        escape.kind = DxuiKeyEventKind::Down;
+        escape.vk   = VK_ESCAPE;
+
+        Assert::IsTrue  (rig.parts->pickerMode.HandleKey (escape));
+        Assert::IsTrue  (rig.window.closed);
+        Assert::IsFalse (outcome.isConfirmed);
+
+        rig.window.closed = false;
+
+        Assert::IsTrue   (rig.parts->pickerMode.HandleActivateRow (0));
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), inserted, L"the request inserted the image");
+        Assert::IsTrue   (rig.browser.GetLocation() == Location::MakeHostFolder (L"C:\\Disks"), L"the image was not opened as a folder");
+        Assert::IsTrue   (outcome.isConfirmed);
+        Assert::IsTrue   (rig.window.closed);
+        Assert::AreEqual (std::wstring (L"Insert"), rig.parts->pickerMode.GetConfirmLabel());
+    }
+
+
+    //  A drive's picker stays open when the request does not take the image.
+    TEST_METHOD (Picker_StaysOpenWhenTheInsertIsNotTaken)
+    {
+        Rig            rig;
+        PickerRequest  request;
+        PickerOutcome  outcome;
+
+
+
+        request.form      = PickerForm::DriveWindow;
+        request.onConfirm = [] (const std::wstring &) { return false; };
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.app.picker        = &request;
+        rig.app.outcome = &outcome;
+        rig.Open();
+        rig.browser.NavigateToAddress (L"C:\\Disks");
+
+        Assert::IsTrue  (rig.parts->pickerMode.HandleActivateRow (0));
+        Assert::IsFalse (outcome.isConfirmed);
+        Assert::IsFalse (rig.window.closed);
+    }
+
+
+    //  A picker has no tab strip, and its bar above the status bar; a window
+    //  that is not a picker has no such bar.
+    TEST_METHOD (Picker_HasItsBarAndNoTabStrip)
+    {
+        Rig            plain;
+        Rig            rig;
+        PickerRequest  request;
+        RECT           band = {};
+
+
+
+        plain.Open();
+        band = plain.parts->layout.GetPickerBand().GetBounds();
+        Assert::AreEqual (band.top, band.bottom, L"no picker bar in a file manager window");
+
+        rig.app.picker = &request;
+        rig.Open();
+
+        band = rig.parts->layout.GetPickerBand().GetBounds();
+        Assert::AreEqual ((LONG) rig.scaler.ToPx (ExplorerPickerBar::kBandDip), band.bottom - band.top);
+        Assert::AreEqual (rig.parts->layout.GetStatusBand().GetBounds().top, band.bottom, L"above the status bar");
+
+        band = rig.parts->layout.GetTabBand().GetBounds();
+        Assert::AreEqual (band.top, band.bottom, L"no tab strip");
+    }
+
+
+    //  Choosing another filter entry lists the folder by its masks.
+    TEST_METHOD (Picker_SwitchingTheFilterListsTheFolderAgain)
+    {
+        Rig            rig;
+        PickerRequest  request;
+
+
+
+        request.filters = { { L"ProDOS images", L"*.po" }, { L"DOS images", L"*.dsk" } };
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.app.picker = &request;
+        rig.Open();
+        rig.browser.NavigateToAddress (L"C:\\Disks");
+
+        Assert::AreEqual ((size_t) 1, rig.browser.GetRows().size());
+        Assert::AreEqual (std::wstring (L"prodos.po"), rig.browser.GetRows()[0].name);
+        Assert::AreEqual (std::wstring (L"ProDOS images (*.po)"), rig.parts->pickerMode.GetFilterLabel (0));
+
+        rig.parts->pickerMode.SetActiveFilter (1);
+
+        Assert::AreEqual ((size_t) 1, rig.browser.GetRows().size());
+        Assert::AreEqual (std::wstring (L"dos33.dsk"), rig.browser.GetRows()[0].name);
+    }
 };

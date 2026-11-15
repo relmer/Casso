@@ -874,6 +874,12 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
+
     m_context.menus.GetMenuCommands().clear();
 
     //  A known folder that is not there offers only its removal; every other
@@ -1299,6 +1305,12 @@ void ExplorerTreePane::ShowTreeEmptyMenu (int x, int y)
     std::vector<DxuiPopupMenuItem>  items;
 
 
+
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
 
     m_context.menus.GetMenuCommands().clear();
 

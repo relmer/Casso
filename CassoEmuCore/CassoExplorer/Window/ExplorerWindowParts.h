@@ -15,6 +15,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerRename.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
+#include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
 #include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
@@ -27,6 +28,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
@@ -121,4 +123,6 @@ struct ExplorerWindowParts
     ExplorerStatusBar                       statusBar        { context };
     ExplorerToolbars                        toolbars         { context };
     ExplorerTreePane                        treePane         { context };
+    ExplorerPickerMode                      pickerMode       { context };
+    ExplorerPickerBar                       pickerBar        { context };
 };

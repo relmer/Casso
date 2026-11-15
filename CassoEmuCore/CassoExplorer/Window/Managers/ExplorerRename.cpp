@@ -147,6 +147,12 @@ void ExplorerRename::BeginRename()
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
+
     //  The focused item, as Explorer renames, even with others selected
     //  around it.
     row = m_context.listPane.GetFocusedRow();
@@ -217,6 +223,12 @@ void ExplorerRename::BeginTreeRename (const std::wstring & id)
     std::wstring  path;
 
 
+
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
 
     if (!m_context.treePane.HasNode (id) || !m_context.browser.TryGetNodePath (id, path))
     {

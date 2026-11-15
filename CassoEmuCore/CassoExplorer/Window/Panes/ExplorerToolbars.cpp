@@ -3,6 +3,7 @@
 #include "CassoExplorer/Model/FolderOptions.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Model/CollectionQuery.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
@@ -145,7 +146,7 @@ void ExplorerToolbars::Create()
 
     m_commandBar->EnableSeeMore      (s_kpszMdl2More, L"See more", &CassoExplorerIcons::s_kMore);
     m_commandBar->SetSeeMoreRows     ([this]() { return m_context.listPane.GetMenus().GetSeeMoreRows(); });
-    m_commandBar->SetEntries         (m_context.commands.BuildCommandBarEntries());
+    m_commandBar->SetEntries         (GetCommandBarEntries (CassoExplorerCommands::CommandBarExtra::None));
     m_commandBar->SetIconFace        (iconFace);
     m_commandBar->SetIconDip         (kCommandBarIconDip);
     m_commandBar->SetChevronOnIcons  (true);
@@ -571,6 +572,36 @@ void ExplorerToolbars::UpdateCommandBar()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerToolbars::GetCommandBarEntries
+//
+//  The command bar's entries, and in a picker only the ones a picker has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiToolbar::Entry> ExplorerToolbars::GetCommandBarEntries (CassoExplorerCommands::CommandBarExtra extra) const
+{
+    std::vector<DxuiToolbar::Entry>  entries = m_context.commands.BuildCommandBarEntries (extra);
+    const PickerRequest            * picker  = m_context.app.picker;
+
+
+
+    if (picker != nullptr)
+    {
+        std::erase_if (entries, [picker] (const DxuiToolbar::Entry & entry)
+        {
+            return entry.command != nullptr && !CassoExplorerCommands::IsAllowedInPicker (entry.command->id, picker->IsSave());
+        });
+    }
+
+    return entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerToolbars::SetCommandBarEntries
 //
 //  The command bar's buttons for the location's extras, with Explorer's own
@@ -581,7 +612,7 @@ void ExplorerToolbars::UpdateCommandBar()
 void ExplorerToolbars::SetCommandBarEntries()
 {
     SetCommandBarSvgs();
-    m_commandBar->SetEntries (m_context.commands.BuildCommandBarEntries (m_commandBarExtra));
+    m_commandBar->SetEntries (GetCommandBarEntries (m_commandBarExtra));
     m_commandBar->Layout     (m_context.layout.GetMenuBand().GetBounds(), m_context.scaler);
     m_context.window.Invalidate();
 }

@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Model/FocusRing.h"
@@ -716,7 +718,7 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
     }
 
     //  Enter on a file expands its preview, when Options sets it to.
-    if (m_focus == ExplorerPane::List && m_context.preview.HandleEnterKey (ev))
+    if (m_focus == ExplorerPane::List && !m_context.IsPicker() && m_context.preview.HandleEnterKey (ev))
     {
         m_context.window.Invalidate();
         return true;
@@ -749,7 +751,7 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
     //  Ctrl+Z on the files undoes the last file operation; in a text box it is
     //  the box's own, which has the keys before this.
-    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_focus == ExplorerPane::List || m_focus == ExplorerPane::Tree) && !m_context.rename.IsRenaming())
+    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_focus == ExplorerPane::List || m_focus == ExplorerPane::Tree) && !m_context.rename.IsRenaming() && !m_context.IsPicker())
     {
         m_context.undo.UndoLast();
         return true;
@@ -760,6 +762,12 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
     if (command != 0)
     {
         m_context.commandManager.Dispatch (command);
+        return true;
+    }
+
+    //  Esc closes a picker, once nothing above had a use for it.
+    if (m_context.pickerMode.HandleKey (ev))
+    {
         return true;
     }
 

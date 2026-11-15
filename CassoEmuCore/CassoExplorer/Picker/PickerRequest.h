@@ -102,3 +102,22 @@ struct PickerRequest
     bool  IsSave     () const { return form == PickerForm::ModalSave; }
     bool  IsForDrive () const { return receivingDrive.has_value(); }
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PickerOutcome
+//
+//  What a picker ended with: confirmed with a path, or closed without one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct PickerOutcome
+{
+    bool          isConfirmed = false;
+    bool          isClosed    = false;
+    std::wstring  path;
+};

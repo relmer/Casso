@@ -73,6 +73,12 @@ void ExplorerDragDrop::BeginTreeDrag (const Location & location)
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
+
     m_context.treePane.ReleasePress();
 
     //  A disk image has Casso's floppy, which the shell has no icon for.
@@ -112,6 +118,12 @@ void ExplorerDragDrop::BeginDiskDrag (const std::wstring & driveId)
     BOOL                                     got     = FALSE;
 
 
+
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
 
     if (formats.empty())
     {
@@ -715,6 +727,12 @@ DWORD ExplorerDragDrop::GetDropEffect (IDataObject * data, int tag, POINT screen
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return DROPEFFECT_NONE;
+    }
+
     if (tag == CassoExplorerWindow::kDropTagTabs)
     {
         HoverDropTab (screen);
@@ -1253,6 +1271,12 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
     POINTL                         at         = { screen.x, screen.y };
 
 
+
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
 
     //  Back onto the folder the files came from, or onto one of them: nothing
     //  to do.

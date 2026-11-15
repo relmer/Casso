@@ -167,6 +167,12 @@ void ExplorerListMenus::ShowHomeItemMenu (int x, int y, int row)
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
+
     if (row < 0 || (size_t) row >= m_context.browser.GetRows().size())
     {
         return;
@@ -389,6 +395,12 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     size_t                                           undoRow        = 0;
 
 
+
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
 
     //  Home's items have the shell's own menu: Add to Favorites, Remove from
     //  list and the rest are its commands.

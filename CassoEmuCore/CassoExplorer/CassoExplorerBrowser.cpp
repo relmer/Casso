@@ -1485,8 +1485,9 @@ bool CassoExplorerBrowser::TryGetRowPath (int row, std::wstring & outPath) const
     {
         outPath = BrowserModel::FormatAddress (m_loader.m_rootChildren[m_rows[row].sourceIndex].location);
     }
-    else if (m_rows[row].homeGroup > 0 && !m_rows[row].hostPath.empty())
+    else if ((m_rows[row].homeGroup > 0 || (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)) && !m_rows[row].hostPath.empty())
     {
+        //  Home's items and the Casso node's images, each by its own path.
         outPath = m_rows[row].hostPath;
     }
     else if (location.kind == Location::Kind::HostFolder)

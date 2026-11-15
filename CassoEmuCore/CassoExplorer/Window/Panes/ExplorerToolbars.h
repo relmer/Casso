@@ -81,6 +81,7 @@ private:
     RECT                   m_tipMuteRect = {};
 
     void                                    SetCommandBarEntries ();
+    std::vector<DxuiToolbar::Entry>         GetCommandBarEntries (CassoExplorerCommands::CommandBarExtra extra) const;
     void                                    SetCommandBarSvgs    ();
     DxuiPopupMenuItem                       GetShowSubmenu       ();
 
