@@ -3,6 +3,8 @@
 #include "Pch.h"
 
 #include "Seams/IUserClasses.h"
+#include "Update/IInstallEnvironment.h"
+#include "Update/ISignatureVerifier.h"
 
 
 
@@ -16,9 +18,15 @@
 //  folders and drives, so File Explorer's right-drag menu offers Copy here
 //  as raw bytes for a drag out of Casso Explorer (RawCopyDropHandler).
 //
-//  ONLY BY THE USER'S CHOICE, as FileAssociations: nothing calls Register but
-//  the Options dialog's box, and Unregister removes every key Register made.
-//  An installed package declares the handler in its manifest instead.
+//  REGISTERED WITH THE INSTALL. An installed package declares the handler in
+//  its manifest. A copy unzipped from a release has no installer, so Casso
+//  Explorer registers it at startup, for the DLL beside the program, until
+//  the registration matches that DLL. A developer build is never
+//  registered: a DLL File Explorer has loaded from the build output can't be relinked.
+//
+//  Options turns the menu item off through CassoExplorerPrefs::rawCopyMenu,
+//  without changing the registration: with it off, a drag isn't marked and
+//  the handler adds nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,6 +41,15 @@ public:
     static constexpr const wchar_t *  kTargetTypes[] = { L"Directory", L"Drive" };
 
     static HRESULT  Register     (IUserClasses & classes, const std::wstring & dllPath);
+
+    //  Registers dllPath when this copy is an official zip release and it
+    //  isn't registered yet. A package or a developer build is left alone.
+    static HRESULT  RegisterForInstall (IUserClasses & classes, IInstallEnvironment & environment, ISignatureVerifier & verifier,
+                                        const std::wstring & dllPath);
+
+    //  RegisterForInstall for the DLL beside this program, on a separate
+    //  thread, since checking the program's signature takes a moment.
+    static void     StartInstallRegistration ();
     static HRESULT  Unregister   (IUserClasses & classes);
     static bool     IsRegistered (const IUserClasses & classes, const std::wstring & dllPath);
 

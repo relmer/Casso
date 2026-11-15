@@ -57,9 +57,11 @@ public:
 
     //  The formats for the browser's current selection; empty when there is
     //  nothing to drag. `log`, when given, is set with which files the drop read
-    //  whole, so a move deletes only originals the target got intact.
+    //  whole, so a move deletes only originals the target got intact. With
+    //  `offerRawCopy`, a drag of files with a conversion is marked for
+    //  RawCopyDropHandler.
     static std::vector<DxuiDragDropSource::Format>  BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style,
-                                                                  std::shared_ptr<RenderLog> log = nullptr, bool raw = false);
+                                                                  std::shared_ptr<RenderLog> log = nullptr, bool raw = false, bool offerRawCopy = false);
 
     //  The same formats on the clipboard, for a paste into Explorer. A drag
     //  reads each file when the target asks, while it still holds the

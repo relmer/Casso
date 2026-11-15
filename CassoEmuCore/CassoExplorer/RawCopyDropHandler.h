@@ -16,8 +16,9 @@
 //  Copy here as raw bytes beside it.
 //
 //  Casso Explorer marks a drag whose files have a conversion with
-//  kOfferedFormat. When the user picks the item, the handler stores the
-//  target folder's path on the drag's data object in kFolderFormat, and
+//  kOfferedFormat, unless Options has the item turned off. When the user
+//  picks the item, the handler stores the target folder's path on the
+//  drag's data object in kFolderFormat, and
 //  File Explorer copies nothing. Casso Explorer reads the folder when the
 //  drag ends and copies the selection there raw, with its collision prompt
 //  and its report, as Get does.

@@ -1496,7 +1496,7 @@ void ExplorerDragDrop::BeginDragOut()
     bool                                     moved    = false;
     HostFileNaming::Style                    style    = m_context.commandManager.GetNamingStyle();
     auto                                     log      = std::make_shared<CassoExplorerDragOut::RenderLog>();
-    std::vector<DxuiDragDropSource::Format>  formats  = CassoExplorerDragOut::BuildFormats (m_context.browser, style, log);
+    std::vector<DxuiDragDropSource::Format>  formats  = CassoExplorerDragOut::BuildFormats (m_context.browser, style, log, false, m_context.prefs.rawCopyMenu);
     POINT                                    start    = {};
     std::vector<FileEntry>                   entries;
     std::vector<std::string>                 paths;

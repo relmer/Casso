@@ -209,7 +209,7 @@ public:
         //  Whether Casso is the program for its disk image types, and whether
         //  it runs from an installed package, whose manifest declares them.
         bool  registered  = false;
-        bool  rawCopyMenu = false;   // CassoShellExtension.dll registered for File Explorer's right-drag menu
+        bool  rawCopyMenu = true;    // CassoExplorerPrefs::rawCopyMenu
         bool  packaged    = false;
 
         //  Whether the preview pane opens and closes for the selected file, and

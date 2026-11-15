@@ -520,9 +520,8 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_register.SetChecked (m_choices.registered);
     m_register.SetEnabled (!m_choices.packaged);
 
-    m_rawCopyMenu.SetLabel   (L"Add Copy here as raw bytes to File Explorer's right-drag menu");
+    m_rawCopyMenu.SetLabel   (L"Offer Copy here as raw bytes when dragging files into File Explorer with the right mouse button");
     m_rawCopyMenu.SetChecked (m_choices.rawCopyMenu);
-    m_rawCopyMenu.SetEnabled (!m_choices.packaged);
 
     m_previewNote.SetText      (L"When a file is selected, the preview pane opens if the file is of a known type, and closes if it isn't. "
                                 L"Turn the pane on from the toolbar to keep it open for every file.");

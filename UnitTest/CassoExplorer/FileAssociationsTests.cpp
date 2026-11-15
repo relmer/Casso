@@ -3,6 +3,8 @@
 
 #include "Config/FileAssociations.h"
 #include "Config/ShellExtensionRegistration.h"
+#include "../UpdateTests/FakeInstallEnvironment.h"
+#include "../UpdateTests/FakeSignatureVerifier.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -284,5 +286,31 @@ public:
         Assert::IsTrue  (classes.IsEmpty (L"Drive\\shellex\\DragDropHandlers\\CassoExplorer"));
         Assert::IsFalse (classes.IsEmpty (L"Directory\\shellex\\DragDropHandlers\\WinRAR"), L"another program's handler stays");
         Assert::IsFalse (ShellExtensionRegistration::IsRegistered (classes, kDll));
+    }
+
+
+    //  An official zip release is registered for the DLL beside it, once; a
+    //  package and a developer build are not.
+    TEST_METHOD (RegisterForInstall_OnlyAnOfficialZipCopy)
+    {
+        FakeUserClasses         classes;
+        FakeInstallEnvironment  environment;
+        FakeSignatureVerifier   verifier;
+
+        AssertSucceeded (ShellExtensionRegistration::RegisterForInstall (classes, environment, verifier, kDll));
+        Assert::IsFalse (ShellExtensionRegistration::IsRegistered (classes, kDll), L"an unsigned developer build is not registered");
+
+        environment.isPackaged = true;
+        verifier.isOfficial    = true;
+        AssertSucceeded (ShellExtensionRegistration::RegisterForInstall (classes, environment, verifier, kDll));
+        Assert::IsFalse (ShellExtensionRegistration::IsRegistered (classes, kDll), L"a package declares the handler in its manifest");
+
+        environment.isPackaged = false;
+        AssertSucceeded (ShellExtensionRegistration::RegisterForInstall (classes, environment, verifier, kDll));
+        Assert::IsTrue  (ShellExtensionRegistration::IsRegistered (classes, kDll));
+
+        classes.notified = 0;
+        AssertSucceeded (ShellExtensionRegistration::RegisterForInstall (classes, environment, verifier, kDll));
+        Assert::AreEqual (0, classes.notified, L"a registration that matches is not written again");
     }
 };

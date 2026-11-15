@@ -13,7 +13,6 @@
 #include "CassoExplorer/Model/LaunchCommand.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Config/FileAssociations.h"
-#include "Config/ShellExtensionRegistration.h"
 #include "Seams/Win32UserClasses.h"
 #include "Update/Win32InstallEnvironment.h"
 #include "Core/MachineConfig.h"
@@ -1026,10 +1025,6 @@ void ExplorerCommandManager::ShowOptions()
     std::wstring             cassoExe         = LaunchCommand::GetSiblingPath (folder, LaunchCommand::kCassoExe);
     bool                     packaged         = install.HasPackageIdentity();
     bool                     wasRegistered    = packaged || FileAssociations::IsRegistered (classes, cassoExe, module);
-    std::wstring             shellExtension   = LaunchCommand::GetSiblingPath (folder, ShellExtensionRegistration::kDllName);
-    bool                     hadRawCopyMenu   = packaged || ShellExtensionRegistration::IsRegistered (classes, shellExtension);
-    bool                     cutShort         = length == 0 || length >= MAX_PATH;
-    auto                     report           = [this] (HRESULT result, const wchar_t * text) { if (FAILED (result)) { m_context.window.ShowMessage (text, MB_ICONERROR); } };
     HRESULT                  hr               = S_OK;
 
 
@@ -1038,7 +1033,7 @@ void ExplorerCommandManager::ShowOptions()
     //  so the box is checked and cannot be changed there.
     choices.hostNaming   = (int) GetNamingStyle();
     choices.registered   = wasRegistered;
-    choices.rawCopyMenu  = hadRawCopyMenu;
+    choices.rawCopyMenu  = m_context.prefs.rawCopyMenu;
     choices.packaged     = packaged;
     choices.autoPreview  = m_context.prefs.autoPreview;
     choices.enterExpands = m_context.prefs.enterExpandsPreview;
@@ -1095,6 +1090,7 @@ void ExplorerCommandManager::ShowOptions()
     m_context.prefs.autoPreview         = choices.autoPreview;
     m_context.prefs.enterExpandsPreview = choices.enterExpands;
     m_context.prefs.autoThumbnails      = choices.autoThumbnails;
+    m_context.prefs.rawCopyMenu         = choices.rawCopyMenu;
     m_context.prefs.fullSendFolder    = choices.fullSendFolder == CassoLinkManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
     m_context.prefs.fullSendExtension = choices.fullSendExtension;
     m_context.prefs.bootSoundPlace    = choices.bootSoundPlace;
@@ -1104,23 +1100,25 @@ void ExplorerCommandManager::ShowOptions()
     m_context.cassoLinkManager.ApplyFullSendPrefs();
     m_context.cassoLinkManager.ApplyVerifyPrefs();
 
-    //  The user's file types and File Explorer's raw copy item change only
-    //  when their boxes were changed. A path cut short at MAX_PATH would
-    //  register a command that runs nothing, or a DLL that isn't there.
+
+    //  The user's file types change only when the box was changed.
     if (!packaged && choices.registered != wasRegistered)
     {
-        hr = (choices.registered && cutShort) ? HRESULT_FROM_WIN32 (ERROR_INSUFFICIENT_BUFFER)
-           : choices.registered               ? FileAssociations::Register (classes, cassoExe, module)
-                                              : FileAssociations::Unregister (classes, fileExts);
-        report (hr, L"Windows did not take the change to the disk image types.");
-    }
+        //  A path cut short at MAX_PATH would register a command that runs nothing.
+        if (choices.registered && (length == 0 || length >= MAX_PATH))
+        {
+            hr = HRESULT_FROM_WIN32 (ERROR_INSUFFICIENT_BUFFER);
+        }
+        else
+        {
+            hr = choices.registered ? FileAssociations::Register (classes, cassoExe, module)
+                                    : FileAssociations::Unregister (classes, fileExts);
+        }
 
-    if (!packaged && choices.rawCopyMenu != hadRawCopyMenu)
-    {
-        hr = (choices.rawCopyMenu && cutShort) ? HRESULT_FROM_WIN32 (ERROR_INSUFFICIENT_BUFFER)
-           : choices.rawCopyMenu               ? ShellExtensionRegistration::Register (classes, shellExtension)
-                                               : ShellExtensionRegistration::Unregister (classes);
-        report (hr, L"Windows did not take the change to File Explorer's right-drag menu.");
+        if (FAILED (hr))
+        {
+            m_context.window.ShowMessage (L"Windows did not take the change to the disk image types.", MB_ICONERROR);
+        }
     }
 }
 

@@ -235,7 +235,7 @@ public:
 
         browser.SetSelectedRows ({ hello });
 
-        formats = CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive, log);
+        formats = CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive, log, false, true);
 
         const DxuiDragDropSource::Format  * fileContents = Find (formats, CFSTR_FILECONTENTS);
 
@@ -243,8 +243,10 @@ public:
         Assert::AreEqual ((size_t) 5, formats.size());
         Assert::IsNotNull (Find (formats, CassoExplorerDragOut::kFilesFormatName), L"marked as Casso Explorer's own copy");
         Assert::IsNotNull (Find (formats, RawCopyDropHandler::kOfferedFormat), L"HELLO has a conversion, so a right-drag into File Explorer offers a raw copy");
-        Assert::IsNull    (Find (CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive, nullptr, true), RawCopyDropHandler::kOfferedFormat),
+        Assert::IsNull    (Find (CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive, nullptr, true, true), RawCopyDropHandler::kOfferedFormat),
                            L"a raw drag doesn't offer a second raw copy");
+        Assert::IsNull    (Find (CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive), RawCopyDropHandler::kOfferedFormat),
+                           L"with the option off, the drag isn't marked and File Explorer's menu doesn't get the item");
         Assert::IsNotNull (fileContents);
         Assert::AreEqual (1, fileContents->count);
         Assert::IsFalse  (log->IsWhole(), L"a file the target has not read is not whole, so a move deletes nothing");

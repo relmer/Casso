@@ -2,6 +2,11 @@
 
 #include "Config/ShellExtensionRegistration.h"
 #include "CassoExplorer/RawCopyDropHandler.h"
+#include "CassoExplorer/Model/LaunchCommand.h"
+#include "Seams/Win32UserClasses.h"
+#include "Update/AuthenticodeVerifier.h"
+#include "Update/InstallTypeDetector.h"
+#include "Update/Win32InstallEnvironment.h"
 
 
 
@@ -40,6 +45,72 @@ HRESULT ShellExtensionRegistration::Register (IUserClasses & classes, const std:
 Error:
     classes.NotifyChanged();
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellExtensionRegistration::RegisterForInstall
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellExtensionRegistration::RegisterForInstall (IUserClasses & classes, IInstallEnvironment & environment, ISignatureVerifier & verifier,
+                                                        const std::wstring & dllPath)
+{
+    HRESULT      hr   = S_OK;
+    InstallType  type = InstallType::Unknown;
+
+
+
+    hr = InstallTypeDetector::Detect (environment, verifier, type);
+    CHR (hr);
+
+    if (type == InstallType::Zip && !IsRegistered (classes, dllPath))
+    {
+        hr = Register (classes, dllPath);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellExtensionRegistration::StartInstallRegistration
+//
+//  The thread creates everything it touches, so it can run past the window
+//  that started it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellExtensionRegistration::StartInstallRegistration()
+{
+    std::thread ([]()
+    {
+        Win32UserClasses         classes;
+        Win32InstallEnvironment  environment;
+        AuthenticodeVerifier     verifier;
+        wchar_t                  module[MAX_PATH] = {};
+        DWORD                    length           = GetModuleFileNameW (nullptr, module, MAX_PATH);
+        HRESULT                  hr               = S_OK;
+
+
+
+        if (length > 0 && length < MAX_PATH)
+        {
+            hr = RegisterForInstall (classes, environment, verifier,
+                                     LaunchCommand::GetSiblingPath (std::filesystem::path (module).parent_path().wstring(), kDllName));
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }).detach();
 }
 
 
