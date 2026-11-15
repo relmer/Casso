@@ -158,7 +158,8 @@ TestMachine::TestMachine (
         }
 
         Assert::AreEqual (S_OK, MachineConfigLoader::ResolveDiskPortChains ({ root }, MakeFixtureResolver(), config.ports, error,
-                                                                           (size_t) MachineDefinitions::Find (machineId)->diskPortFloppyCount));
+                                                                           (size_t) MachineDefinitions::Find (machineId)->diskPortFloppyCount,
+                                                                           (size_t) MachineDefinitions::Find (machineId)->diskPortApple35Count));
     });
 }
 

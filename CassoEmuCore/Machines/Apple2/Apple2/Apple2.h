@@ -36,14 +36,15 @@ public:
     std::vector<InternalDevice>  GetInternalDevices () const override;
     std::vector<std::string>     GetVideoModes      () const override;
 
-    int   GetSlotCount           () const override { return (7); }
-    int   GetGamePortAxisCount   () const override { return (4); }
-    bool  HasGamePortDevice      () const override { return (true); }
-    bool  HasAnnunciators        () const override { return (true); }
-    bool  HasCassettePort        () const override { return (true); }
-    bool  HasCaseSwitches        () const override { return (false); }
-    bool  HasBuiltInDrive        () const override { return (false); }
-    int   GetDiskPortFloppyCount () const override { return (0); }
+    int   GetSlotCount            () const override { return (7); }
+    int   GetGamePortAxisCount    () const override { return (4); }
+    bool  HasGamePortDevice       () const override { return (true); }
+    bool  HasAnnunciators         () const override { return (true); }
+    bool  HasCassettePort         () const override { return (true); }
+    bool  HasCaseSwitches         () const override { return (false); }
+    bool  HasBuiltInDrive         () const override { return (false); }
+    int   GetDiskPortFloppyCount  () const override { return (0); }
+    int   GetDiskPortApple35Count () const override { return (0); }
 
     uint16_t  GetWozHardwareFlag () const override { return (WozCompatibility::kApple2); }
 };

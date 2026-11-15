@@ -85,6 +85,10 @@ public:
     //  any SmartPort drives: zero on a machine with no disk port.
     virtual int  GetDiskPortFloppyCount () const = 0;
 
+    //  The Apple 3.5 Drives the disk port's chain takes at its start, ahead
+    //  of any SmartPort drives.
+    virtual int  GetDiskPortApple35Count () const = 0;
+
     //  The machine's bit in a WOZ disk image's compatible-hardware field, or
     //  zero for a machine the format has no bit for.
     virtual uint16_t  GetWozHardwareFlag () const = 0;

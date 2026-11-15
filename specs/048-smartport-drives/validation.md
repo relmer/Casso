@@ -46,6 +46,7 @@ the fetch on 2026-11-14) and `apple2cp` ROM 05; all verify.
 | SCSI card in slot 7, ID 6: 5 MB `.hdv`, 32 MB `.hdv`, 32 MB `.2mg` (an 800K `.hdv` was in the first run; a hard disk no longer mounts a floppy-size image) | ProDOS BASIC prompt at 2.84 s | ProDOS BASIC prompt at 2.97 s |
 | 3.5 controller card in slot 5, Apple 3.5 Drive: 800K `.po`, DiskCopy 4.2 | 3.33 s | 3.97 s |
 | //c Plus internal drive, 800K `.po` | 11.76 s | 12.10 s |
+| //c Plus external Apple 3.5 Drive, internal drive empty, 800K `.po` | 11.86 s | No boot by 40 s; the "Apple IIc +" startup screen |
 | //c, 140K `.po` | 9.11 s | 9.08 s |
 
 Every image boots to the same screen on both. Each case's four or two images
@@ -105,10 +106,35 @@ hook, ROM 05 and the DOS 3.3 System Master, in `ScenarioTests/Floppy35BootTests.
 | An 800K ProDOS disk in the built-in drive as well | ProDOS boots from the built-in drive |
 | `SAVE` at the DOS prompt, then `CATALOG` | The program is listed |
 
-ROM 05 enables drive 1 and reads it with 3.5 select on before it runs the
+ROM 05 enables drive 1 and reads it with 3.5 select off before it runs the
 slot 6 firmware, so a 5.25-inch drive is enabled whatever 3.5 select is. With
 the disk write-protected, the sense line is high on drive 1, and ROM 05 probes
 the SmartPort bus through drive 1 and waits on the IWM's write handshake; the
 handshake is the IWM's, so the controller's byte is used only for reads with Q7 off.
 The first run had the controller answer every read, and the machine stopped
 at $C8A6 before it cleared the screen.
+
+## //c Plus external Apple 3.5 Drive (T070, T073)
+
+ROM 05 and an 800K ProDOS disk, in `ScenarioTests/Floppy35BootTests.cpp`:
+
+| Case | Result |
+|---|---|
+| An Apple 3.5 Drive on the disk port, the internal drive empty | ProDOS boots from it |
+| An Apple 3.5 Drive, then a UniDisk 3.5 | ProDOS boots from the Apple 3.5 Drive; the UniDisk is SmartPort unit 3 |
+| Two Apple 3.5 Drives, then a UniDisk 3.5 | ProDOS boots from the first; the UniDisk is unit 4 |
+| An empty Apple 3.5 Drive, then `disk-iic` with the DOS 3.3 System Master | DOS 3.3 boots |
+
+ROM 05 writes $CE40 before it checks IWM drives 1 and 2 for an Apple 3.5
+Drive, with the internal drive off, and $CE60 before it initializes the
+SmartPort bus. Switching the main ROM bank in has the effect of a $CE60
+write, so DOS 3.3 and the slot 6 firmware access a 5.25-inch drive behind
+an Apple 3.5 Drive. With an Apple 3.5 Drive on the port, ROM 05 numbers the
+internal drive 1 and the Apple 3.5 Drives 2 and 3. It doesn't boot from a
+UniDisk behind an Apple 3.5 Drive: with the Apple 3.5 Drive empty, port 6 is
+next.
+
+MAME 0.289 turns its 3.5 select on with a $CE60 write and connects its
+external 3.5-inch drive (`flop4`) while it is on. ROM 05 writes $CE40 before
+it checks for the drive, so it doesn't find it. MAME doesn't connect a second
+external 3.5-inch drive.

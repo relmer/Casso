@@ -49,13 +49,13 @@ public:
     }
 
 
-    static HRESULT Resolve (std::vector<PortConfig> & ports, std::string & error, const fs::path & rom = {}, size_t maxFloppies = 1)
+    static HRESULT Resolve (std::vector<PortConfig> & ports, std::string & error, const fs::path & rom = {}, size_t maxFloppies = 1, size_t maxApple35 = 0)
     {
         MachineConfigLoader::FileResolver  resolver = [&rom] (const std::vector<fs::path> &, const fs::path &) { return rom; };
 
 
 
-        return MachineConfigLoader::ResolveDiskPortChains ({}, resolver, ports, error, maxFloppies);
+        return MachineConfigLoader::ResolveDiskPortChains ({}, resolver, ports, error, maxFloppies, maxApple35);
     }
 
 
@@ -119,6 +119,34 @@ public:
         Assert::AreEqual (1, MachineDefinitions::Find ("Apple2c")->diskPortFloppyCount);
         Assert::AreEqual (2, MachineDefinitions::Find ("Apple2cPlus")->diskPortFloppyCount);
         Assert::AreEqual (0, MachineDefinitions::Find ("Apple2eEnhanced")->diskPortFloppyCount);
+    }
+
+
+    //  Apple 3.5 Drives are on the //c Plus's port only, two of them, ahead
+    //  of the SmartPort drives and the 5.25-inch drives.
+    TEST_METHOD (Chain_Apple35DriveFirstOnThePlus)
+    {
+        std::vector<PortConfig>  ports = MakePorts ({ kpszApple35DriveDevice, kpszApple35DriveDevice, kpszUniDisk35Device, kpszDiskIicDevice });
+        std::string              error;
+
+
+
+        Assert::AreEqual (0, MachineDefinitions::Find ("Apple2c")->diskPortApple35Count);
+        Assert::AreEqual (2, MachineDefinitions::Find ("Apple2cPlus")->diskPortApple35Count);
+
+        Assert::AreEqual (S_OK, Resolve (ports, error, {}, 2, 2));
+        Assert::IsTrue (error.empty(), TextEncoding::Utf8ToWide (error).c_str());
+
+        ports = MakePorts ({ kpszUniDisk35Device, kpszApple35DriveDevice });
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), Resolve (ports, error, {}, 2, 2));
+        Assert::IsTrue (error.find ("first drives") != std::string::npos, TextEncoding::Utf8ToWide (error).c_str());
+
+        ports = MakePorts ({ kpszApple35DriveDevice, kpszApple35DriveDevice, kpszApple35DriveDevice });
+        error.clear();
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), Resolve (ports, error, {}, 2, 2));
+        Assert::IsTrue (error.find ("at most two Apple 3.5 Drives.") != std::string::npos, TextEncoding::Utf8ToWide (error).c_str());
     }
 
 

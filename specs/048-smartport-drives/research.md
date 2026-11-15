@@ -405,6 +405,17 @@ drive 2 selected and the internal drive enabled, the drive is the internal
 drive, or with 3.5 select on, an external 3.5-inch drive. Reads of
 `$CE40` and `$CE60` select head 0 and head 1.
 
+**Checked** (2026-11-15, ROM 05's alternate bank): MAME has the 3.5 select
+writes reversed. ROM 05 writes `$CE40` before it checks IWM drive 1 and,
+with the internal drive off, drive 2 for an Apple 3.5 Drive ($E603-$E64F),
+and `$CE60` before it initializes the SmartPort bus ($E66A). With MAME's
+order, ROM 05 doesn't find an external Apple 3.5 Drive. In Casso a `$CE40`
+write turns 3.5 select on and a `$CE60` write turns it off; with it on, IWM
+drives 1 and 2 are the Apple 3.5 Drives at the start of the chain. The order
+rule to verify above is right: Apple 3.5 Drives, then SmartPort drives, then
+5.25-inch drives. ROM 05 numbers the Apple 3.5
+Drives 2 and 3, after the internal drive.
+
 ## R13. Drive sounds
 
 **Checked**: OpenEmulator's samples, the source of the Disk II sounds, cover

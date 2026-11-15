@@ -603,12 +603,14 @@ public:
     // Each machine port's chain: its order and length checked, and its
     // drives' ROMs resolved. ERROR_INVALID_DATA, with `outError`, for a chain
     // the port can't take. `maxFloppies` is the machine's
-    // MachineDefinition::diskPortFloppyCount.
+    // MachineDefinition::diskPortFloppyCount, and `maxApple35` its
+    // MachineDefinition::diskPortApple35Count.
     static HRESULT  ResolveDiskPortChains (const vector<fs::path> & searchPaths,
                                            const FileResolver     & resolver,
                                            vector<PortConfig>     & ports,
                                            string                 & outError,
-                                           size_t                   maxFloppies = 1);
+                                           size_t                   maxFloppies = 1,
+                                           size_t                   maxApple35  = 0);
 
     // `machineName` selects the per-machine ROM subdir
     // (Machines/<machineName>/<file>) used to resolve systemRom and

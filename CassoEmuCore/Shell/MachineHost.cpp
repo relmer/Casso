@@ -1307,15 +1307,25 @@ Sony35Drive * MachineHost::FindFloppy35 (int slot, int drive)
 
 
 
+    // The //c Plus's drive 0 is its internal drive, then the chain in order.
     if (slot == 0 && m_refs.apple2cPlusDiskPort != nullptr)
     {
+        Apple2cPlusDiskPort  & port     = *m_refs.apple2cPlusDiskPort;
+        size_t                 external = (size_t) port.GetExternalCount();
+
+
+
         if (drive == 0)
         {
-            found = &m_refs.apple2cPlusDiskPort->GetInternalDrive();
+            found = &port.GetInternalDrive();
         }
-        else if (index - 1 < m_refs.apple2cPlusDiskPort->GetPort().GetDriveCount())
+        else if (index <= external)
         {
-            found = &m_refs.apple2cPlusDiskPort->GetPort().GetDrive (index - 1).GetMechanism();
+            found = &port.GetExternalDrive (drive - 1);
+        }
+        else if (index - 1 - external < port.GetPort().GetDriveCount())
+        {
+            found = &port.GetPort().GetDrive (index - 1 - external).GetMechanism();
         }
     }
     else if (slot == 0 && m_refs.apple2cSmartPort != nullptr && index < m_refs.apple2cSmartPort->GetPort().GetDriveCount())

@@ -155,12 +155,12 @@ bool MigChip::Access (Word address, bool isWrite, Byte value, Byte & outValue)
     else if (address >= s_kHeadZeroLow && address <= s_kHeadZeroHigh)
     {
         m_headOne = isWrite ? m_headOne : false;
-        m_sel35   = isWrite ? false : m_sel35;
+        m_sel35   = isWrite ? true : m_sel35;
     }
     else if (address >= s_kHeadOneLow && address <= s_kHeadOneHigh)
     {
         m_headOne = isWrite ? m_headOne : true;
-        m_sel35   = isWrite ? true : m_sel35;
+        m_sel35   = isWrite ? false : m_sel35;
     }
     else if (isWrite && address == s_kIwmReset && m_iwmReset)
     {
