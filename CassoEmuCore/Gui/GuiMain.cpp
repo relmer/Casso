@@ -384,6 +384,11 @@ static HRESULT LoadMachineConfig (
             IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
             mru       = DiskMru::FromUtf8 (prefs.recentDisks, prefs.recentDiskLoadedAt);
+
+            // The picker shows a few recent disks; checking that each of a long
+            // list still exists would hold up startup.
+            mru.TrimTo (DiskMru::kMenuEntries);
+
             mruExisting = mru.Prune ([] (const fs::path & p)
                                      {
                                          return fs::exists (p)

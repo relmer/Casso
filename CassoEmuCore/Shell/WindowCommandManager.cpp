@@ -1406,18 +1406,22 @@ void WindowCommandManager::GetRecentMedia (MediaFilter isWanted, std::vector<Dis
 {
     DiskMru                      mru        = DiskMru::FromUtf8 (m_shell.m_settings->GetPrefs().recentDisks,
                                                                  m_shell.m_settings->GetPrefs().recentDiskLoadedAt);
-    std::vector<DiskMru::Entry>  existing   = mru.Prune ([] (const std::filesystem::path & p)
-                                                         {
-                                                             std::error_code  ignore;
-
-                                                             return std::filesystem::exists (p, ignore)
-                                                                    && !AssetBootstrap::IsForeignCheckoutDisk (p);
-                                                         });
+    std::vector<DiskMru::Entry>  existing;
     Win32FileSystem              fileSystem;
     int64_t                      nowUnix    = (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
                                                   std::chrono::system_clock::now().time_since_epoch()).count();
 
 
+
+    mru.TrimTo (DiskMru::kMenuEntries);
+
+    existing = mru.Prune ([] (const std::filesystem::path & p)
+                          {
+                              std::error_code  ignore;
+
+                              return std::filesystem::exists (p, ignore)
+                                     && !AssetBootstrap::IsForeignCheckoutDisk (p);
+                          });
 
     entries.clear();
 
