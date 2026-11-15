@@ -23,6 +23,7 @@
 - Commits: subject only, `type(scope): Imperative ...`, checked with `~/.claude/scripts/Check-Prose.ps1 -Commit`, no AI attribution. Push after each checkpoint.
 - Never start the owner's Casso Explorer and never open a serial port. Window checks follow quickstart.md's hard rules.
 - Touch 048's drive bar and desk files only at the call sites listed here.
+- **Model gates.** G1 and G2 below are hard stops. At each one, end the turn and ask the owner to change the model; do not start the next phase until the owner replies. The owner's plan (2026-11-14): Opus for Phases 1 to 5 and 10 to 11, the stronger model for Phases 6 to 9.
 
 ---
 
@@ -132,6 +133,12 @@
 
 ---
 
+## STOP: model gate G1
+
+- [ ] G1 **Stop here. Do not start Phase 6.** Commit and push, then end the turn with this message to the owner: "Phases 1 to 5 are done. Phases 6 to 9 (picker core, drive pickers, modal and save forms) are next: switch this session to the stronger model, then reply to continue." Mark G1 done only after the owner replies.
+
+---
+
 ## Phase 6: User Story 4 (first part) - Picker core: masks, scope, command gate, host (Priority: P3)
 
 **Goal**: A Casso Explorer window that can run in picker mode inside the emulator's process, scoped by masks and by the drive rule, with no session and no links.
@@ -234,6 +241,12 @@
 - [ ] T088 [US4] Set `content = Images` on the emulator's "Save disk as" request in `CassoEmuCore/Shell/Components/ShellDisks.cpp` and the new tape request in `CassoEmuCore/Shell/Components/ShellTapeDeck.cpp`
 - [ ] T089 [US4] Window check with a test copy of Casso Explorer that has no saved serial session and no connection opened by the run: the save form from the emulator's "Save disk as", and, if a connection-free route to "Write image to..." exists in a test harness (`ExplorerWindowParts`), the open form with a 5.25-inch receiving drive; record in `specs/049-explorer-picker/validation.md` what was and was not exercised on a real connection
 **Checkpoint**: commit and push.
+
+---
+
+## STOP: model gate G2
+
+- [ ] G2 **Stop here. Do not start Phase 10.** Commit and push, then end the turn with this message to the owner: "Phases 6 to 9 are done. Phases 10 and 11 (removal, validation) are next: switch this session back to Opus if you want to, then reply to continue." Mark G2 done only after the owner replies.
 
 ---
 
