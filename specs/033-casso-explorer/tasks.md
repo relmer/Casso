@@ -2117,6 +2117,18 @@ rename, move and copy an image and find its thumbnail on each.
 - [ ] T739 [US43] On the owner's //c: Full Send a text adventure, a hi-res game and a disk that doesn't boot; confirm each result, thumbnail and name in the folder, and the Apple's line for the one that didn't boot; rename, move and copy an image and confirm its thumbnail; record the time added to each disk (SC-072 to SC-075)
 - [ ] T740 [US43] Get the owner's approval of the UI text: the four results, the Apple's line, Remove thumbnail, Clear thumbnails and its confirmation, and Casso's command
 
+### Copy protection and containers (FR-292 to FR-296)
+
+- [ ] T780 [US43] Judge a boot whose final frame is blank apart from a few characters' worth of lit pixels as unclear in `BootProbe::Judge` (FR-292), with a test in `UnitTest/DiskCheck/BootProbeTests.cpp`
+- [ ] T781 [US43] Find code outside the operating system that accesses the Disk II's registers in a sector image's files, and boot code other than the DOS 3.3, ProDOS or Apple Pascal loader, in `CassoEmuCore/CassoLink/FullSend/FullSendDisk.cpp`, with tests over the Wizardry I boot disk's layout and a plain DOS 3.3 disk (FR-294)
+- [ ] T782 [US43] Add the Copy-protected disks section to the Full Send options page in `CassoExplorerOptionsDialog.cpp` and its prefs, with the conditions and the choice of FR-294, and apply them in `FullSendSession` in place of the read-error test alone
+- [ ] T783 [US43] Add the note after a manual Create image when a condition of FR-294 turns up (FR-295)
+- [ ] T784 [US43] Measure each track's sector-0 rotation from the previous track and the address fields' volume in the CassoLink program's sector pass, and return them in Status; bump `LinkProgram::kProgramVersion` (FR-293, FR-296)
+- [ ] T785 [US43] Build a WOZ, NIB or NB2 from a sector image with each track rotated by its measurement and with its volume, through `NibblizationLayer`, with a test that Wizardry I's measured counts come back from the built image (FR-293)
+- [ ] T786 [US43] Save a disk with a volume a sector image can't reproduce as a built WOZ whatever image type is selected (FR-296), as a separate option outside the copy protection section
+- [ ] T787 [US43] On the owner's //c: Full Send the Wizardry I boot disk with WOZ selected and with DSK selected; the first runs past its title in Casso, the second is captured raw by the conditions
+- [ ] T788 [US43] Get the owner's approval of the Copy-protected disks section's text, the volume option's text and the Create image note
+
 ## Phase 56: Roadmap validation and merge
 
 - [ ] T653 Walk quickstart §7e to §7h on Debug and Release, and write the results to `specs/033-casso-explorer/validation.md`. Partly done 2026-11-13, in validation.md's "Quickstart 7d to 7h": 7e steps 1, 3 and 4 and 7h step 2 walked, and the rest of 7g and 7h by the scenario tests. 7e step 2 passed 2026-11-13 in MAME's //c Plus, 7e step 5 after T759, and 7h step 1 in the Casso //e with VisiCalc 1984. 7h step 5 was checked against Wizardry I running in Casso 2026-11-14 (T652). Left: 7f (the owner's //c, and another session's targets), 7g step 2 in part (GS/OS 6.0.1 in MAME's IIgs mounted the HFS volume in the Finder, and its files weren't opened, as MAME took no typed keys), 7g step 3 (a Gutenberg writer) and step 4 (a CF card)
