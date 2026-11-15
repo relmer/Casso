@@ -224,7 +224,8 @@ public:
         Assert::AreEqual (std::wstring (L"800K"),   ImageClassifier::FormatSize (B::ClassifyRaw (L".po",  B::k800K)));
         Assert::AreEqual (std::wstring (L"50K"),    ImageClassifier::FormatSize (B::ClassifyRaw (L".po",  100 * B::kBlock)));
         Assert::AreEqual (std::wstring (L"1.4 MB"), ImageClassifier::FormatSize (B::ClassifyRaw (L".img", 2880 * B::kBlock)));
-        Assert::AreEqual (std::wstring (L"5.0 MB"), ImageClassifier::FormatSize (B::ClassifyRaw (L".hdv", 5 * 1024 * 1024)));
+        Assert::AreEqual (std::wstring (L"5 MB"),   ImageClassifier::FormatSize (B::ClassifyRaw (L".hdv", 9728 * B::kBlock)), L"a 5 MB ProFile");
+        Assert::AreEqual (std::wstring (L"10 MB"),  ImageClassifier::FormatSize (B::ClassifyRaw (L".hdv", 19456 * B::kBlock)), L"a 10 MB ProFile");
         Assert::AreEqual (std::wstring (L"32 MB"),  ImageClassifier::FormatSize (B::ClassifyRaw (L".hdv", B::k32M)));
     }
 

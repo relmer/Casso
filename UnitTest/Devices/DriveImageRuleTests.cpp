@@ -158,7 +158,7 @@ public:
         Assert::AreEqual (std::wstring (L"400K and 800K disk images"),    DriveImageRule::GetAcceptedText ({ ReceivingDriveKind::Apple35,   0 }));
         Assert::AreEqual (std::wstring (L"400K and 800K disk images"),    DriveImageRule::GetAcceptedText ({ ReceivingDriveKind::UniDisk35, 0 }));
         Assert::AreEqual (std::wstring (L"Hard disk images up to 32 MB"), DriveImageRule::GetAcceptedText ({ ReceivingDriveKind::HardDisk,  kScsiBlocks }));
-        Assert::AreEqual (std::wstring (L"Hard disk images up to 4.8 MB"), DriveImageRule::GetAcceptedText ({ ReceivingDriveKind::HardDisk, kProFileBlocks }));
+        Assert::AreEqual (std::wstring (L"Hard disk images up to 5 MB"),  DriveImageRule::GetAcceptedText ({ ReceivingDriveKind::HardDisk, kProFileBlocks }));
         Assert::AreEqual (std::wstring (L"Tape recordings"),              DriveImageRule::GetAcceptedText ({ ReceivingDriveKind::Recorder,  0 }));
     }
 };

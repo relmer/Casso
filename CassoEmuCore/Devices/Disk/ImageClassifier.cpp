@@ -182,8 +182,10 @@ bool ImageClassifier::IsTapeExtension (std::wstring_view extension)
 //
 //  ImageClassifier::FormatSize
 //
-//  Under a megabyte in kilobytes, as Apple labels its floppies; under ten
-//  megabytes with one decimal; whole megabytes above that.
+//  Under a megabyte in kilobytes, as Apple labels its floppies; under two
+//  megabytes with one decimal, as a 1.44 MB disk is labeled; whole
+//  megabytes, rounded, above that, as Apple labels its hard disks: a
+//  9,728-block ProFile is 4.75 MB and labeled 5 MB.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -191,7 +193,7 @@ std::wstring ImageClassifier::FormatSize (const ImageClass & imageClass)
 {
     constexpr uint64_t  kKilobyte        = 1024;
     constexpr uint64_t  kMegabyte        = kKilobyte * kKilobyte;
-    constexpr uint64_t  kOneDecimalBelow = 10 * kMegabyte;
+    constexpr uint64_t  kOneDecimalBelow = 2 * kMegabyte;
 
 
 
