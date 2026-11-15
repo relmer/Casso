@@ -209,8 +209,14 @@ bool FullSendProtection::FindDiskCode (VolumeKind kind, const std::vector<Byte> 
         FilePayload        payload;
         FilePath           path        = kind == VolumeKind::Dos33 ? FilePath::FromName (entry.name) : FilePath::Parse (entry.name);
         bool               isCandidate = !entry.isDirectory && IsReadableType (kind, entry.type) && !IsSystemFile (kind, entry.name);
+        HRESULT            hrRead      = E_FAIL;
 
-        found   = isCandidate && SUCCEEDED (volume->Read (path, payload)) && CountDiskReads (payload.bytes) >= kDiskCodeReads;
+        if (isCandidate)
+        {
+            hrRead = volume->Read (path, payload);
+        }
+
+        found   = SUCCEEDED (hrRead) && CountDiskReads (payload.bytes) >= kDiskCodeReads;
         outFile = found ? entry.name : outFile;
     }
 
