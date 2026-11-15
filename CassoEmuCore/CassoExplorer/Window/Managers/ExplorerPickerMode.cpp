@@ -57,6 +57,29 @@ void ExplorerPickerMode::Start()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPickerMode::ShowStockDisksIfCassoIsEmpty
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPickerMode::ShowStockDisksIfCassoIsEmpty()
+{
+    const Location &  location = m_context.browser.GetLocation();
+    bool              inCasso  = location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId;
+
+
+
+    if (m_context.IsPicker() && !m_context.app.picker->stockDisks.empty() && inCasso && m_context.browser.GetRows().empty())
+    {
+        m_context.browser.NavigateToLocation (Location::MakeRoot (TreeModel::kStockDisksId));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPickerMode::TryGetRowFile
 //
 //  A file row of a folder on the disk, or of the Casso node's list, the

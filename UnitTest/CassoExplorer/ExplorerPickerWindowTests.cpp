@@ -478,6 +478,34 @@ public:
 
     //  The startup form: drive 1's 5.25-inch rule, the stock disks, Start,
     //  and a skip button that ends the picker confirmed with no path.
+    TEST_METHOD (StartupForm_OpensOnStockDisks_WhenCassoListsNothing)
+    {
+        auto               empty   = std::make_unique<Rig>();
+        auto               listed  = std::make_unique<Rig>();
+        PickerRequest      request = StartupDiskPicker::MakeRequest (L"Apple //e", { { L"ProDOS Users Disk", L"C:\\Stock\\ProDOS Users Disk.dsk", false } }, {});
+        PickerRequest      copy    = request;
+        BrowserModel::Tab  tab;
+
+
+
+        //  The host's start location for a drive's picker.
+        tab.location = Location::MakeRoot (TreeModel::kCassoRootId);
+
+        empty->app.picker       = &request;
+        empty->app.request.tabs = { tab };
+        empty->Open();
+        Assert::AreEqual (std::wstring (TreeModel::kStockDisksId), empty->browser.GetLocation().path);
+
+        listed->Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        listed->browser.GetTreeModel().SetKnownFolders ({ L"C:\\Disks" });
+        listed->browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path) { return _wcsicmp (path.c_str(), L"C:\\Disks") == 0; });
+        listed->app.picker       = &copy;
+        listed->app.request.tabs = { tab };
+        listed->Open();
+        Assert::AreEqual (std::wstring (TreeModel::kCassoRootId), listed->browser.GetLocation().path, L"an image the drive can use keeps the Casso list");
+    }
+
+
     TEST_METHOD (StartupForm_StartsOrSkips_AndClosingConfirmsNothing)
     {
         auto           rig     = std::make_unique<Rig>();

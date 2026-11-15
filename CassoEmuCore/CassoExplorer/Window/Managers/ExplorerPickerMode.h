@@ -34,6 +34,10 @@ public:
     //  Before the first listing: the browser lists only rows in scope.
     void  Start ();
 
+    //  After the first listing: a picker with stock disks opens on them when
+    //  the Casso node lists nothing the picker can use.
+    void  ShowStockDisksIfCassoIsEmpty ();
+
     //  The path of the one file row selected, in a folder or in the Casso
     //  node's list.
     bool  TryGetSelectedFile (std::wstring & outPath) const;
