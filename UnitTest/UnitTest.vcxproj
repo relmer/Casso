@@ -509,6 +509,7 @@
     <ClCompile Include="CassoExplorer\CatalogModelTests.cpp" />
     <ClCompile Include="CassoExplorer\ApplesoftVariablesTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewDecoderTests.cpp" />
+    <ClCompile Include="CassoExplorer\RawCopyDropHandlerTests.cpp" />
     <ClCompile Include="CassoExplorer\DiskOperationsTests.cpp" />
     <ClCompile Include="CassoExplorer\TreeModelTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserModelTests.cpp" />

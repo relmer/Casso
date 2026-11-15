@@ -1,0 +1,4 @@
+LIBRARY CassoShellExtension
+EXPORTS
+    DllGetClassObject   PRIVATE
+    DllCanUnloadNow     PRIVATE

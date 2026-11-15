@@ -873,7 +873,7 @@ HRESULT CassoExplorerDragOut::GetDropError (HRESULT hr)
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style,
-                                                                       std::shared_ptr<RenderLog> log, bool raw)
+                                                                       std::shared_ptr<RenderLog> log, bool raw, bool offerRawCopy)
 {
     std::vector<DxuiDragDropSource::Format>                  formats;
     std::vector<FileEntry>                                   entries;
@@ -936,6 +936,14 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
         }
 
         formats.push_back (MakeFilesMarker());
+
+        //  A right-drag into File Explorer offers the raw copy beside its Copy
+        //  here when a file has a conversion, through RawCopyDropHandler.
+        if (offerRawCopy && !raw && std::any_of (plan.descriptors.begin(), plan.descriptors.end(), [] (const DragPayload::Descriptor & d) { return d.converted || d.format != FileFormat::None; }))
+        {
+            formats.push_back (MakeRawCopyMarker());
+        }
+
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), 1,
                              [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
 
@@ -1110,6 +1118,25 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 DxuiDragDropSource::Format CassoExplorerDragOut::MakeFilesMarker()
 {
     return { (CLIPFORMAT) RegisterClipboardFormatW (kFilesFormatName), 1, [] (int, std::vector<uint8_t> & out)
+    {
+        out.assign (1, 0);
+        return S_OK;
+    } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::MakeRawCopyMarker
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiDragDropSource::Format CassoExplorerDragOut::MakeRawCopyMarker()
+{
+    return { (CLIPFORMAT) RegisterClipboardFormatW (RawCopyDropHandler::kOfferedFormat), 1, [] (int, std::vector<uint8_t> & out)
     {
         out.assign (1, 0);
         return S_OK;

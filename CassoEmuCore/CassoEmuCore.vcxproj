@@ -396,6 +396,8 @@
     <ClCompile Include="CassoExplorer\Browser\BrowserPreviewer.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommands.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDragOut.cpp" />
+    <ClCompile Include="CassoExplorer\RawCopyDropHandler.cpp" />
+    <ClCompile Include="CassoExplorer\ShellExtensionMain.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerNewDiskDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerLinkDialog.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerProperties.cpp" />
@@ -484,6 +486,7 @@
     <ClCompile Include="Seams\Win32ShellIcons.cpp" />
     <ClCompile Include="Seams\Win32UserClasses.cpp" />
     <ClCompile Include="Config\FileAssociations.cpp" />
+    <ClCompile Include="Config\ShellExtensionRegistration.cpp" />
     <ClCompile Include="CassoExplorer\Model\SearchExpression.cpp" />
     <ClCompile Include="CassoExplorer\Model\SearchQuery.cpp" />
     <ClCompile Include="CassoExplorer\Model\WozProperties.cpp" />
@@ -1455,6 +1458,7 @@
     <ClInclude Include="CassoExplorer\Browser\BrowserPreviewer.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerCommands.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerDragOut.h" />
+    <ClInclude Include="CassoExplorer\RawCopyDropHandler.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNamedControl.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNewDiskDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerLinkDialog.h" />
@@ -1557,6 +1561,7 @@
     <ClInclude Include="Seams\IUserClasses.h" />
     <ClInclude Include="Seams\Win32UserClasses.h" />
     <ClInclude Include="Config\FileAssociations.h" />
+    <ClInclude Include="Config\ShellExtensionRegistration.h" />
     <ClInclude Include="CassoExplorer\Model\ISearchSources.h" />
     <ClInclude Include="CassoExplorer\Model\SearchExpression.h" />
     <ClInclude Include="CassoExplorer\Model\SearchQuery.h" />
