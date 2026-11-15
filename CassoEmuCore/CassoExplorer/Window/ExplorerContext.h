@@ -47,6 +47,7 @@ class PhysicalCards;
 class RunningCassoRegistry;
 struct CassoExplorerPrefs;
 struct FolderOptions;
+struct PickerRequest;
 
 
 
@@ -77,6 +78,7 @@ public:
     PhysicalCards              * cards       = nullptr;   // without it, no card can be opened
     IDiskPictures              * pictures    = nullptr;   // without it, a disk image has the floppy icon in every view
     GivenNames                 * givenNames  = nullptr;   // without it, a renamed image's name isn't stored for its disk's fingerprint
+    const PickerRequest        * picker      = nullptr;   // with it, the window is a picker for this request
 };
 
 

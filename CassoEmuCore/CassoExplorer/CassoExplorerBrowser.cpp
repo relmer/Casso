@@ -264,6 +264,15 @@ HRESULT CassoExplorerBrowser::Refresh()
             break;
     }
 
+    //  A picker lists the host rows in its scope; a disk's entries and a
+    //  root's drives aren't host rows.
+    m_scopedOut = 0;
+
+    if (m_rowScope && (location.kind == Location::Kind::HostFolder || (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)))
+    {
+        m_scopedOut = std::erase_if (m_rows, [this] (const CatalogRow & row) { return !m_rowScope (row); });
+    }
+
     m_rowsUnfiltered = true;
 
     if (IsHomeLocation())

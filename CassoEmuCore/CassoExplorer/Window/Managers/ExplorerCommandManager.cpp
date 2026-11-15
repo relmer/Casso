@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/Managers/ExplorerCollectionTools.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
@@ -397,6 +398,25 @@ bool ExplorerCommandManager::IsCommandBarEntryAvailable (int index) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerCommandManager::IsBlockedInPicker
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerCommandManager::IsBlockedInPicker (int id) const
+{
+    const PickerRequest *  picker = m_context.app.picker;
+
+
+
+    return picker != nullptr && !CassoExplorerCommands::IsAllowedInPicker (id, picker->IsSave());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerCommandManager::IsEnabled
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -409,6 +429,12 @@ bool ExplorerCommandManager::IsEnabled (int id) const
     Location              drive;
 
 
+
+    //  A picker has only the commands on its list.
+    if (IsBlockedInPicker (id))
+    {
+        return false;
+    }
 
     //  A standard command row is enabled when the focused control reports it
     //  available, and grayed when no control handles it.
@@ -598,10 +624,17 @@ void ExplorerCommandManager::Dispatch (int id)
 {
     HRESULT  hr     = S_OK;
     bool     refill = false;
-    bool     routed = DxuiCommandRouter::Invoke (m_context.input.GetFocusedControl(),
-                                                  CassoExplorerCommands::GetStandardCommand (id));
+    bool     routed = false;
 
 
+
+    //  A picker has only the commands on its list, whatever sent this one.
+    if (IsBlockedInPicker (id))
+    {
+        return;
+    }
+
+    routed = DxuiCommandRouter::Invoke (m_context.input.GetFocusedControl(), CassoExplorerCommands::GetStandardCommand (id));
 
     //  A standard command belongs to whatever has focus, so it is routed
     //  rather than decided here.

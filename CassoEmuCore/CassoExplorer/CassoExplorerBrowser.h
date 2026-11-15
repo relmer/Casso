@@ -353,6 +353,12 @@ public:
     //  Called on a worker's thread when an image's file system and volume
     //  name are read; ApplyVolumeFacts, on the window's thread, puts them in
     //  the rows and returns whether any row changed.
+    //  A picker's scope: the host rows it lists. The rows a listing drops for
+    //  it are counted, for the status bar.
+    using RowScopeFn = std::function<bool (const CatalogRow & row)>;
+    void                    SetRowScope          (RowScopeFn scope)              { m_rowScope = std::move (scope); }
+    size_t                  GetScopedOutCount    () const                        { return m_scopedOut; }
+
     void                    SetVolumeFactsNotify (std::function<void ()> notify) { m_onVolumeFacts = std::move (notify); }
     bool                    ApplyVolumeFacts     ();
 
@@ -469,6 +475,8 @@ private:
     CassoLinkConnections              * m_links          = nullptr;
     PhysicalCards                     * m_cards          = nullptr;
     RecentLoadsFn                       m_recentLoads;
+    RowScopeFn                          m_rowScope;
+    size_t                              m_scopedOut      = 0;
     bool                                m_cardOpenAllowed = false;
     FilesystemChoices                 * m_filesystemChoices = nullptr;
     std::vector<int>                    m_selectedRows;

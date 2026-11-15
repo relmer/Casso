@@ -12,6 +12,7 @@
 #include "RecordingExplorerServices.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/Model/DiskImagePictures.h"
@@ -1567,5 +1568,41 @@ public:
         }
 
         Assert::IsFalse (rig.parts->HandleTimer ((UINT_PTR) AppTimerId::ExplorerTooltip));
+    }
+
+    //  A picker's window runs only the commands on the picker's list, by
+    //  whatever route: a file command is disabled with a file selected, and
+    //  dispatching one does nothing.
+    TEST_METHOD (Picker_BlocksCommandsOffItsList)
+    {
+        Rig            rig;
+        PickerRequest  request;
+        size_t         tabs = 0;
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.Open();
+        rig.browser.NavigateToAddress (L"C:\\Disks");
+        rig.browser.SetSelectedRows ({ 0 });
+        tabs = rig.browser.GetBrowserModel().GetTabCount();
+
+        Assert::IsTrue (rig.parts->commandManager.IsEnabled (CassoExplorerCommands::kDeleteItems), L"outside a picker, Delete is enabled for the selection");
+
+        rig.app.picker = &request;
+
+        for (int id : CassoExplorerCommands::GetAllIds())
+        {
+            if (!CassoExplorerCommands::IsAllowedInPicker (id, false))
+            {
+                Assert::IsFalse (rig.parts->commandManager.IsEnabled (id), std::format (L"command {}", id).c_str());
+            }
+        }
+
+        rig.parts->commandManager.Dispatch (CassoExplorerCommands::kNewTab);
+        Assert::AreEqual (tabs, rig.browser.GetBrowserModel().GetTabCount(), L"New tab did nothing");
+
+        rig.parts->commandManager.Dispatch (CassoExplorerCommands::kUp);
+        Assert::IsFalse (rig.browser.GetLocation() == Location::MakeHostFolder (L"C:\\Disks"), L"Up is on the list and ran");
     }
 };
