@@ -6,7 +6,7 @@ Window checks run on a test copy of the emulator: `CASSO_PROFILE_DIR` set to a s
 
 | Check | Result |
 |---|---|
-| Storage > Insert disk for drive 1 opens "Insert disk - Drive 1 - Disk ][" on the Casso node's list | Pass. Five 140K images listed; the status bar has "5 items, 4 more not for this drive" |
+| Storage > Insert disk for drive 1 opens "Insert disk - Drive 1 - Disk ][" on the Casso node's list | Pass. Five 140K images listed; the status bar has "5 items, 4 more not for this drive" (the text at the time; since reworded) |
 | First-use columns: Name, Form factor, Formatted size, File system, Volume name, Last used, Folder; last used first | Pass |
 | The tree has no CassoLink node; the header has the drive and "5.25-inch disk images" | Pass |
 | Selecting a row enables Insert; the Preview button lists the selected image's catalog | Pass |

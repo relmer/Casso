@@ -244,10 +244,10 @@ public:
 
 
         Assert::AreEqual (std::wstring (L"3 items"),                              ExplorerStatusBar::DescribePickerCount (L"3 items", 3, 0, true, false));
-        Assert::AreEqual (std::wstring (L"3 items, 12 more not for this drive"),  ExplorerStatusBar::DescribePickerCount (L"3 items", 3, 12, true, false));
-        Assert::AreEqual (std::wstring (L"3 items, 2 more not matching the filter"), ExplorerStatusBar::DescribePickerCount (L"3 items", 3, 2, false, false));
+        Assert::AreEqual (std::wstring (L"3 items (12 more hidden because they don't match this drive)"),  ExplorerStatusBar::DescribePickerCount (L"3 items", 3, 12, true, false));
+        Assert::AreEqual (std::wstring (L"3 items (2 more hidden because they don't match the filter)"), ExplorerStatusBar::DescribePickerCount (L"3 items", 3, 2, false, false));
         Assert::AreEqual (std::wstring (L"No recent folders. Browse from This PC."), ExplorerStatusBar::DescribePickerCount (L"0 items", 0, 0, true, true));
-        Assert::AreEqual (std::wstring (L"0 items, 4 more not for this drive"),   ExplorerStatusBar::DescribePickerCount (L"0 items", 0, 4, true, true));
+        Assert::AreEqual (std::wstring (L"0 items (4 more hidden because they don't match this drive)"),   ExplorerStatusBar::DescribePickerCount (L"0 items", 0, 4, true, true));
 
         request.filters = { { L"ProDOS images", L"*.po" } };
 

@@ -223,7 +223,7 @@ std::wstring ExplorerStatusBar::DescribePickerCount (const std::wstring & count,
         return count;
     }
 
-    return std::format (L"{}, {} more {}", count, scopedOut, isForDrive ? L"not for this drive" : L"not matching the filter");
+    return std::format (L"{} ({} more hidden because they don't match {})", count, scopedOut, isForDrive ? L"this drive" : L"the filter");
 }
 
 
