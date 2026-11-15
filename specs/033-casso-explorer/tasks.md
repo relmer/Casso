@@ -2121,7 +2121,7 @@ rename, move and copy an image and find its thumbnail on each.
 
 - [X] T780 [US43] Judge a boot whose final frame is blank apart from a few characters' worth of lit pixels as unclear in `BootProbe::Judge` (FR-292), with a test in `UnitTest/DiskCheck/BootProbeTests.cpp`
 - [X] T781 [US43] Find code outside the operating system that accesses the Disk II's registers in a sector image's files, and boot code other than the DOS 3.3, ProDOS or Apple Pascal loader, in `CassoEmuCore/CassoLink/FullSend/FullSendDisk.cpp`, with tests over the Wizardry I boot disk's layout and a plain DOS 3.3 disk (FR-294)
-- [ ] T782 [US43] Add the Copy-protected disks section to the Full Send options page in `CassoExplorerOptionsDialog.cpp` and its prefs, with the conditions and the choice of FR-294, and apply them in `FullSendSession` in place of the read-error test alone
+- [X] T782 [US43] Add the Copy-protected disks section to the Full Send options page in `CassoExplorerOptionsDialog.cpp` and its prefs, with the conditions and the choice of FR-294, and apply them in `FullSendSession` in place of the read-error test alone
 - [ ] T783 [US43] Add the note after a manual Create image when a condition of FR-294 turns up (FR-295)
 - [ ] T784 [US43] Measure each track's sector-0 rotation from the previous track and the address fields' volume in the CassoLink program's sector pass, and return them in Status; bump `LinkProgram::kProgramVersion` (FR-293, FR-296)
 - [ ] T785 [US43] Build a WOZ, NIB or NB2 from a sector image with each track rotated by its measurement and with its volume, through `NibblizationLayer`, with a test that Wizardry I's measured counts come back from the built image (FR-293)
