@@ -5,6 +5,10 @@
 #include "Shell/Layout/DriveLamp.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 
+// Each test here builds the system under test in the test frame, which is
+// larger than C6262's limit, so the warning is off for this file.
+#pragma warning (disable: 6262)
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 

@@ -47,3 +47,9 @@ Window checks run on a test copy of the emulator: `CASSO_PROFILE_DIR` set to a s
 - `scripts\CheckStyle.ps1 -Mode Tree`: OK after three blank-line fixes.
 - The startup form, on a test copy with no saved boot disk: it opened minimized without activation, had the Stock disks node and "Start without a disk", and closing it quit Casso. Start and Start without a disk were not clicked on screen; unit tests cover both outcomes.
 - T097: the docs that mention the insert disk dialog are release notes in `docs/WhatsNew.md`, which describe past releases and are left as written.
+
+## Merge gate (2026-11-15)
+
+- Merged `origin/048-smartport-drives` at `929c28d32`. `scripts\CheckStyle.ps1 -Mode Tree`: OK.
+- `scripts\RunMergeGate.ps1`: passed. Unit suite: 9,915 of 9,915 in Debug and 9,914 of 9,914 in Release. Scenario suite: 245 of 245 in Debug and under ASan. x64 and ARM64 build in Debug and Release.
+- Code analysis failed the first runs on code from 048: C6011 in `CommandLineParserBasic.cpp`, C6387 in `Win32VolumeFormat.cpp` and C28020 in `NuLzw.cpp`, each fixed with a check, and C6262 in five test files, turned off for each file as `ControllersPageLiveTests.cpp` does.

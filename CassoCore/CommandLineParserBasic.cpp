@@ -176,24 +176,24 @@ void CommandLineParser::ParseBasicOptions (
         operands[positional++] = argv[i];
     }
 
-    if (problem.empty() && hasNumbers && command->command != Command::Renumber)
+    if (problem.empty() && command != nullptr && hasNumbers && command->command != Command::Renumber)
     {
         problem = "Error: " + FormatLongOption ("--start", options.flagPrefix) + " and "
                 + FormatLongOption ("--step", options.flagPrefix) + " are options of the renumber command\n";
     }
 
-    if (problem.empty() && positional < command->operandCount)
+    if (problem.empty() && command != nullptr && positional < command->operandCount)
     {
         problem = std::string ("Error: required parameter ") + command->operands[positional] + " missing\n";
     }
 
-    if (problem.empty() && command->command == Command::Tokenize && options.basic.dialect == Dialect::Unstated)
+    if (problem.empty() && command != nullptr && command->command == Command::Tokenize && options.basic.dialect == Dialect::Unstated)
     {
         problem = "Error: state the dialect with " + FormatLongOption ("--applesoft", options.flagPrefix) + " or "
                 + FormatLongOption ("--integer", options.flagPrefix) + "\n";
     }
 
-    if (!problem.empty())
+    if (!problem.empty() || command == nullptr)
     {
         Refusal (options) << problem;
 
