@@ -21,6 +21,9 @@
 ;   Time drive      drive, track, revolutions: $A5 the moment each pass of
 ;                   sector 0's address field after the first is read, so the
 ;                   PC times the drive's revolution
+;   Measure track   drive, track: Track measure with the nibbles read from
+;                   the step from the track before to sector 0's address field,
+;                   the nibbles in a turn, and the field's volume
 ;   Cancel          during an operation: it stops, and Ready follows
 ;   Label           the user's operation, as text: drawn, and Ready again
 ;   Log             the PC's hour and minute, then text: a history line,
@@ -157,34 +160,8 @@ RDALTCHAR = $C01E               ; a //e's or //c's alternate characters, in bit 
 ALTCHAROFF = $C00E              ; the primary characters, which flash
 ALTCHARON = $C00F               ; the alternate characters, which have inverse lowercase
 
-; Commands.
-CMDREADY  = $D2
-CMDIDLE   = $C9
-CMDDATA   = $CA
-CMDNIBS   = $CC                 ; a sector's data field nibbles, for Write sectors
-CMDACK    = $CB
-CMDSPEED  = $D7
-CMDREAD   = $D5
-CMDWRITE  = $D6
-CMDFORMAT = $C8
-CMDWTRACK = $DB
-CMDSTATUS = $D4
-CMDCANCEL = $D1
-CMDLOAD   = $CF
-CMDLABEL  = $DC
-CMDLOG    = $DD
-CMDTIME   = $DE
-CMDEXIT   = $DF
-CMDBLANK  = $E0                 ; Write track's sector of zeros: its numbers alone
-CMDSCREEN = $E1                 ; a Full Send's screen
-CMDCOLS   = $E3                 ; 40 or 80 columns
-CMDREADCRC = $E4                ; Read CRCs
-CMDCRCS   = $E5                 ; and the CRCs in reply
-CMDKEY    = $E2                 ; Wait for key, and the key in reply
-CMDFAULT  = $E6                 ; Debug builds: a fault for the next operation
-CMDKRUNCH = $E7                 ; Krunch
-CMDKPROG  = $E8                 ; and its progress in reply
-CMDMODULE = $E9                 ; Load module, and a module's id and version in reply
+; Commands: CMDREADY and the rest are assigned ahead of this source by
+; LinkProgram, from CassoLinkCodec::kCommands, the one list of them.
 
 ; A module: code the PC loads at MODBASE for requests that aren't the
 ; program's. It is on the disk buffers, RAWBUF to the end of ENCBUF, so an
@@ -521,7 +498,10 @@ notlabel: cmp #CMDLOG
 notlog: cmp #CMDTIME
         bne nottime
         jmp dotime
-nottime: cmp #CMDLOAD
+nottime: cmp #CMDMEASURE
+        bne notmeasure
+        jmp domeasure
+notmeasure: cmp #CMDLOAD
         bne notload
         jmp doload
 notload: cmp #CMDEXIT
@@ -668,6 +648,191 @@ tmloop: jsr findsector
         dec revs
         bne tmloop
 tmdone: jmp opdone
+
+; Measure track: on the track before `track`, sector 0's address field found;
+; the arm stepped to `track` by stepto, whose time is always the same; and the
+; nibbles read counted until sector 0's address field on it is read through
+; its sector number, then on to its next pass. Every nibble read is counted,
+; so a count is a time. Track measure has the first count, the second less
+; the field's nine nibbles, so a turn's, each low byte first, and the field's
+; volume; then the status. On track 0 the first count is 0.
+domeasure: jsr modoff           ; the disk buffers, and the module on them
+        lda PKTBUF+1
+        sta mtrack
+        lda #0
+        sta PKTBUF+2            ; no sector count for begin
+        sta PKTBUF+3            ; and no percentages after it
+        sta PKTBUF+4
+        sta mfirst
+        sta mfirst+1
+        lda mtrack
+        beq msbegin
+        dec PKTBUF+1            ; begun on the track before
+msbegin: lda #OPREAD
+        jsr begin
+        bcs msdone
+        lda #0
+        sta mcnt
+        sta mcnt+1
+        lda mtrack
+        beq msturn
+        lda #0
+        sta sector
+        jsr findsector
+        bcs msdone
+        lda mtrack
+        sta track
+        asl a
+        sta target
+        jsr stepto
+        jsr msfind
+        bcs msnone
+        lda mcnt
+        sta mfirst
+        lda mcnt+1
+        sta mfirst+1
+        jmp msagain
+msturn: jsr msfind
+        bcs msnone
+msagain: lda #9                 ; the field's nibbles read so far
+        sta mcnt
+        lda #0
+        sta mcnt+1
+        jsr msfind
+        bcs msnone
+        sec
+        lda mcnt
+        sbc #9
+        sta mcnt
+        lda mcnt+1
+        sbc #0
+        sta mcnt+1
+        jsr sendmeasure
+        jmp msdone
+msnone: lda #ERRNOTFND
+        sta err
+msdone: jmp opdone
+
+; msfind: the nibbles read counted in mcnt until sector 0's address field on
+; `track` is read through its sector number, with the field's volume in mvol.
+; Each nibble is compared as it arrives, so none is missed while another is
+; decoded. C is set when the count is $5000, about three turns.
+msfind: lda track
+        lsr a
+        ora #$AA
+        sta mtodd
+        lda track
+        ora #$AA
+        sta mteven
+        ldx diskx
+msread: lda Q6L,x
+        bpl msread
+        inc mcnt
+        bne msd5
+        inc mcnt+1
+        ldy mcnt+1
+        cpy #$50
+        bcc msd5
+        jmp msover
+msd5:   cmp #$D5
+        bne msread
+msr1:   lda Q6L,x
+        bpl msr1
+        inc mcnt
+        bne msaa
+        inc mcnt+1
+msaa:   cmp #$AA
+        bne msd5
+msr2:   lda Q6L,x
+        bpl msr2
+        inc mcnt
+        bne ms96
+        inc mcnt+1
+ms96:   cmp #$96
+        bne msd5
+msv1:   lda Q6L,x
+        bpl msv1
+        inc mcnt
+        bne msv1s
+        inc mcnt+1
+msv1s:  sta mvodd
+msv2:   lda Q6L,x
+        bpl msv2
+        inc mcnt
+        bne msv2s
+        inc mcnt+1
+msv2s:  sta mveven
+mst1:   lda Q6L,x
+        bpl mst1
+        inc mcnt
+        bne mst1c
+        inc mcnt+1
+mst1c:  cmp mtodd
+        bne msd5
+mst2:   lda Q6L,x
+        bpl mst2
+        inc mcnt
+        bne mst2c
+        inc mcnt+1
+mst2c:  cmp mteven
+        bne msmiss
+mss1:   lda Q6L,x
+        bpl mss1
+        inc mcnt
+        bne mss1c
+        inc mcnt+1
+mss1c:  cmp #$AA                ; sector 0's odd bits
+        bne msmiss
+mss2:   lda Q6L,x
+        bpl mss2
+        inc mcnt
+        bne mss2c
+        inc mcnt+1
+mss2c:  cmp #$AA                ; and its even bits
+        bne msmiss
+        lda mvodd
+        sec
+        rol a
+        and mveven
+        sta mvol
+        clc
+        rts
+msmiss: jmp msd5                ; out of a branch's range
+msover: sec
+        rts
+
+; sendmeasure: Track measure, with mfirst, mcnt and mvol.
+sendmeasure: ldx #0
+mshead: lda mshdr,x
+        jsr putb
+        inx
+        cpx #mshend-mshdr
+        bne mshead
+        lda #0
+        sta peor
+        lda mfirst
+        jsr putpe
+        lda mfirst+1
+        jsr putpe
+        lda mcnt
+        jsr putpe
+        lda mcnt+1
+        jsr putpe
+        lda mvol
+        jsr putpe
+        lda peor
+        jmp putb
+
+mshdr:  .byte $C1, $05, $00, CMDMEASURED, $C1 ^ $05 ^ $00 ^ CMDMEASURED
+mshend:
+mtrack: .byte 0                 ; the track measured
+mfirst: .byte 0, 0              ; the nibbles from the step to sector 0
+mcnt:   .byte 0, 0              ; the nibbles counted
+mvol:   .byte 0                 ; sector 0's address field's volume
+mvodd:  .byte 0                 ; and its two nibbles
+mveven: .byte 0
+mtodd:  .byte 0                 ; the track's two nibbles
+mteven: .byte 0
 
 ; getgap: fgap from the request's byte after its percentages, or 10 when the
 ; request has none or it is outside 4 to 40.

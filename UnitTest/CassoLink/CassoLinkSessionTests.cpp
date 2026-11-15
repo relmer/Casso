@@ -7,6 +7,7 @@
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/LinkBootstrap.h"
 #include "CassoLink/LinkFault.h"
+#include "CassoLink/Session/TrackMeasures.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -17,6 +18,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/TrackLayoutWriter.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -864,6 +866,33 @@ public:
 
         Assert::IsTrue (rig.fileIo.files["out.dsk"] == rig.Drive (2), L"a .dsk is the sectors in DOS 3.3 order");
         Assert::AreEqual (NibbleImageCodec::kNb2ImageSize, rig.fileIo.files["out.nb2"].size(), L"a .nb2 has .nb2's tracks");
+    }
+
+
+
+    //  A WOZ is built to each track's layout as Measure track measured it,
+    //  and no other image type measures.
+    TEST_METHOD (ReadDisk_ToAWoz_BuildsItToEachTracksMeasuredLayout)
+    {
+        Rig                                       rig;
+        std::vector<CassoLinkHost::TrackMeasure>  measures;
+        std::vector<Byte>                         built;
+
+        rig.Start();
+
+        AssertSucceeded (rig.Finish (rig.session->ReadDisk (2, "out.dsk", false))->result);
+        Assert::AreEqual (0, rig.apple.measuredTracks.load(), L"a .dsk isn't measured");
+
+        AssertSucceeded (rig.Finish (rig.session->ReadDisk (2, "out.woz", false))->result);
+        Assert::AreEqual (NibblizationLayer::kTrackCount, rig.apple.measuredTracks.load());
+
+        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            measures.push_back (FakeApple::GetMeasure (track));
+        }
+
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (rig.Drive (2), TrackMeasures::ToLayouts (measures, TrackLayoutWriter::kDefaultBits), built));
+        Assert::IsTrue (rig.fileIo.files["out.woz"] == built, L"the WOZ is built to the measured layouts");
     }
 
 

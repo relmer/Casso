@@ -6,6 +6,7 @@
 #include "CassoLink/FullSend/FullSendProtection.h"
 #include "CassoLink/FullSend/FullSendStatus.h"
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
+#include "Machines/Apple2/Common/TrackLayoutWriter.h"
 
 class IDiskFileIo;
 
@@ -98,16 +99,17 @@ struct FullSendScreen
 //
 //  FullSendReadReport
 //
-//  What a disk's read found: the sectors that weren't clean, and how many of its
-//  tracks were verified.
+//  What a disk's read found: the sectors that weren't clean, how many of its
+//  tracks were verified, and each track's layout when the link measures.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct FullSendReadReport
 {
-    std::vector<SectorMark>  marks;
-    int                      tracksVerified = 0;
-    int                      emptyTracks    = 0;   // tracks where no sector was found
+    std::vector<SectorMark>   marks;
+    int                       tracksVerified = 0;
+    int                       emptyTracks    = 0;   // tracks where no sector was found
+    std::vector<TrackLayout>  layouts;              // each track's, from track 0, or empty
 };
 
 
@@ -142,6 +144,10 @@ public:
     //  as zeros and listed by track and DOS 3.3 sector.
     virtual HRESULT  ReadDisk   (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport) = 0;
     virtual HRESULT  ShowScreen (const FullSendScreen & screen) = 0;
+
+    //  Whether ReadDisk measures each track's layout, for a WOZ built to the
+    //  disk's layout.
+    virtual void     SetMeasuring (bool measuring) { UNREFERENCED_PARAMETER (measuring); }
 
     //  No drive turns until a key arrives. The lines are drawn on the Apple until
     //  then.
@@ -295,7 +301,7 @@ private:
     HRESULT  ReadStableTrack  (int drive, int track, CheckedDisk & ioDisk, bool & outHasDisk, bool & outStable);
     HRESULT  SendDisk         (int drive, const CheckedDisk & checked, bool anyway);
     HRESULT  CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw, bool & outLikely);
-    HRESULT  WriteImage       (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, bool writeProtected, std::string & outFile);
+    HRESULT  WriteImage       (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, bool writeProtected, std::string & outFile);
     void     ApplyBoots       ();
     HRESULT  SendAgain        (int drive, const CheckedDisk & disk);
     HRESULT  WriteManifest    ();

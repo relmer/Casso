@@ -59,6 +59,8 @@ public:
     //  Time drive: the time between markers, and the requests received.
     std::atomic<int>                  revolutionMs   { 2 };
     std::atomic<int>                  timedDrives    { 0 };
+    //  Measure track: each track's measure is GetMeasure's.
+    std::atomic<int>                  measuredTracks { 0 };
     //  Requests to drop as if lost on the line, and those dropped.
     std::atomic<int>                  dropRequests   { 0 };
     std::atomic<int>                  readyEveryMs   { 3000 };
@@ -133,6 +135,13 @@ public:
         }
 
         m_end.reset();
+    }
+
+    //  A track's Measure track reply: a turn of a disk at 300 rpm, with
+    //  sector 0 a little later on each track.
+    static CassoLinkHost::TrackMeasure  GetMeasure (int track)
+    {
+        return CassoLinkHost::TrackMeasure { (Word) (track == 0 ? 0 : 1000 + track * 7), 6330, 254 };
     }
 
 private:
@@ -424,6 +433,16 @@ private:
                     timedDrives++;
                     SendPacket (line, CassoLinkCodec::kStatus, { 1, packet.payload.at (0), packet.payload.at (1), 100, 0 });
                     break;
+
+                case CassoLinkCodec::kMeasureTrack:
+                {
+                    CassoLinkHost::TrackMeasure  measure = GetMeasure (packet.payload.at (1));
+
+                    measuredTracks++;
+                    SendPacket (line, CassoLinkCodec::kTrackMeasure, { (Byte) measure.fromStep, (Byte) (measure.fromStep >> 8), (Byte) measure.turn, (Byte) (measure.turn >> 8), measure.volume });
+                    SendPacket (line, CassoLinkCodec::kStatus, { 1, packet.payload.at (0), packet.payload.at (1), 100, 0 });
+                    break;
+                }
 
                 case CassoLinkCodec::kLabel:
                 {

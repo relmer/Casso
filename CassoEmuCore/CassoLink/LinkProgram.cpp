@@ -534,12 +534,40 @@ bool LinkProgram::GetSpeedControl (DWORD baud, Byte & outControl)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LinkProgram::GetCommandLines
+//
+//  An assignment for each command of CassoLinkCodec::kCommands with an
+//  assembler name, as CMDREADY = $D2.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetCommandLines()
+{
+    std::string  lines;
+
+
+
+    for (const CassoLinkCodec::Command & command : CassoLinkCodec::kCommands)
+    {
+        lines += (command.symbol != nullptr) ? std::format ("{} = ${:02X}\n", command.symbol, command.value) : std::string();
+    }
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkProgram::Assemble
 //
 //  The source starts with its own .org; the result must begin at `origin`,
 //  so a source edited to load elsewhere fails here rather than on the Apple.
 //  A W5100 build is given W5100 ahead of the source, and its source selects
 //  the W5100's code with ifdef; a build with faults is given FAULTS the same way.
+//  The commands' numbers are given ahead of it too, from GetCommandLines.
 //  An error's line is the source's, after the lines put ahead of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -551,9 +579,9 @@ HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip
     Assembler        assembler (InstructionSetProvider (s_cpu.GetInstructionSet()));
     std::string      chipLine  = (chip == LinkChip::W5100) ? "W5100 = 1\n" : "ACIA = 1\n";
     std::string      faultLine = faults ? "FAULTS = 1\n" : "";
-    std::string      text      = std::format ("PROGVER = {}\nSHIMVER = {}\n", kProgramVersion, kShimVersion) + chipLine + faultLine + source;
-    int              ahead     = faults ? 5 : 4;
-    AssemblyResult   result    = assembler.Assemble (text);
+    std::string      prefix    = std::format ("PROGVER = {}\nSHIMVER = {}\n", kProgramVersion, kShimVersion) + chipLine + faultLine + GetCommandLines();
+    int              ahead     = (int) std::count (prefix.begin(), prefix.end(), '\n');
+    AssemblyResult   result    = assembler.Assemble (prefix + source);
     bool             placed    = false;
 
 

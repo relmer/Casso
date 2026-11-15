@@ -276,6 +276,19 @@ public:
     //  the Status's error, when the track has no sector 0 to time.
     HRESULT  TimeDrive    (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);
 
+    //  On the track before `track`, sector 0 found, the arm stepped to `track`,
+    //  and the nibbles counted to its sector 0 and on through a turn, with
+    //  that address field's volume. On track 0 fromStep is 0. Zeros, with the
+    //  Status's error, when a track has no sector 0.
+    struct TrackMeasure
+    {
+        Word  fromStep = 0;
+        Word  turn     = 0;
+        Byte  volume   = 0;
+    };
+
+    HRESULT  MeasureTrack (Byte drive, Byte track, TrackMeasure & outMeasure, CassoLinkStatus & outStatus);
+
     //  The Apple Pascal volume in the drive krunched on the Apple, after it
     //  checks that its directory's CRC is `directoryCrc`, the CRC of the
     //  directory the host checked. `progress` is called with the percentage
@@ -426,6 +439,7 @@ private:
     HRESULT  ReadCrcsOnce      (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Word> & outCrcs, std::vector<bool> & outRead, CassoLinkStatus & outStatus);
     HRESULT  FormatTrackOnce   (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap);
     HRESULT  TimeDriveOnce     (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);
+    HRESULT  MeasureTrackOnce  (Byte drive, Byte track, TrackMeasure & outMeasure, CassoLinkStatus & outStatus);
     HRESULT  KrunchOnce        (Byte drive, Word directoryCrc, const KrunchProgressFn & progress, CassoLinkStatus & outStatus, bool & outTaken);
     HRESULT  SendSectorsOnce   (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
                                 std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer);

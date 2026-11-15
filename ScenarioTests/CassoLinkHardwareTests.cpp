@@ -23,6 +23,7 @@
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/TrackLayoutWriter.h"
+#include "CassoLink/Session/TrackMeasures.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Seams/ByteStreamSettings.h"
 #include "Seams/Win32ByteStreamFactory.h"
@@ -928,6 +929,54 @@ public:
 
         Assert::IsTrue  (PassesBoot (built, kBootCycles), L"The WOZ built to the measured layouts");
         Assert::IsFalse (PassesBoot (plain, kBootCycles), L"The sector image as Casso lays it out");
+    }
+
+    //  The whole path from a disk to a WOZ that passes Wizardry I's check:
+    //  the raw capture CASSO_WIZARDRY_WOZ mounted on an emulated //c, Measure
+    //  track run by the program on each of its tracks, the layouts computed
+    //  from the measures, and a WOZ built to them from the sector image
+    //  CASSO_WIZARDRY_PO. Run only when both are set.
+    TEST_METHOD (TheMeasuresOfAWizardryDisk_BuildAWozThatPassesItsCheck)
+    {
+        static constexpr uint64_t                 kBootCycles = 60'000'000;
+        std::string                               capture     = GetSetting ("CASSO_WIZARDRY_WOZ", "");
+        std::string                               sectorImage = GetSetting ("CASSO_WIZARDRY_PO", "");
+        std::vector<Byte>                         captureBytes;
+        std::vector<Byte>                         sectors;
+        std::vector<Byte>                         built;
+        std::vector<CassoLinkHost::TrackMeasure>  measures;
+        SectorDecodeReport                        report;
+        DiskImage                                 captured;
+
+
+
+        if (capture.empty() || sectorImage.empty())
+        {
+            Logger::WriteMessage ("CASSO_WIZARDRY_WOZ and CASSO_WIZARDRY_PO aren't both set; no disk to measure.\n");
+            return;
+        }
+
+        captureBytes = ReadBytes (capture);
+
+        AssertSucceeded (WozLoader::Load (captureBytes, captured));
+        AssertSucceeded (VolumeImage::Load (ReadBytes (sectorImage), "boot.po", sectors, report));
+
+        ProgramRig  rig (std::vector<Byte> (NibblizationLayer::kImageByteSize, 0));
+
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, captureBytes));
+
+        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            CassoLinkHost::TrackMeasure  measure;
+            CassoLinkStatus              status;
+
+            AssertSucceeded (rig.host->MeasureTrack (1, (Byte) track, measure, status));
+            measures.push_back (measure);
+        }
+
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (sectors, TrackMeasures::ToLayouts (measures, (int) captured.GetTrackBitCount (0)), built));
+
+        Assert::IsTrue (PassesBoot (built, kBootCycles), L"The WOZ built to the measures");
     }
 
     //  Whether a //c booted from the WOZ for `cycles` is outside the ROM's BRK

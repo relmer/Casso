@@ -59,6 +59,9 @@ public:
     //  kDefaultBits, with its sector 0 at the start of the turn.
     static HRESULT  BuildWoz   (const std::vector<Byte> & sectors, const std::vector<TrackLayout> & layouts, std::vector<Byte> & outWoz);
 
+    //  Whether a layout's nibbles and bits fit 16 sectors and their gaps.
+    static bool     IsFeasible (const TrackLayout & layout);
+
     static constexpr int  kFieldNibbles   = 369;      // a sector's fields and its data gap
     static constexpr int  kFieldBits      = kFieldNibbles * 8 + 12;
     static constexpr int  kDataGapSyncs   = 6;
