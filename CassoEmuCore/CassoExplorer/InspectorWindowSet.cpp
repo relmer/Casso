@@ -4,6 +4,7 @@
 #include "CassoExplorer/ExplorerInspectorHost.h"
 #include "CassoExplorer/ExplorerBlockInspectorWindow.h"
 #include "CassoExplorer/ExplorerInspectorWindow.h"
+#include "CassoExplorer/ICassoExplorerHost.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
@@ -205,6 +206,7 @@ HRESULT InspectorWindowSet::Open (HINSTANCE hInstance, HWND anchor, const std::w
 
     entry->intents = m_seams.makeIntents (entry->window->GetHwnd());
     entry->host->SetIntents (entry->intents.get());
+    entry->host->SetOnRepaired ([this] (const std::wstring & copy) { SelectRepairedCopy (copy); });
 
     entry->host->SetOnClosed ([this, raw = entry.get()] ()
     {
@@ -671,5 +673,27 @@ void InspectorWindowSet::StopTimer()
         IGNORE_RETURN_VALUE (isKilled, TRUE);
         s_timers.erase (m_timer);
         m_timer = 0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorWindowSet::SelectRepairedCopy
+//
+//  The copy selected through a /select launch, which switches to the tab of
+//  a window already on the copy's folder; nothing with no explorer, as in a
+//  test.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorWindowSet::SelectRepairedCopy (const std::wstring & path)
+{
+    if (m_seams.explorer != nullptr)
+    {
+        m_seams.explorer->RunLaunch (L"\"/select," + path + L"\"");
     }
 }

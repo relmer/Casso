@@ -7,6 +7,7 @@
 #include "Ui/DiskInspector/FileMapGridView.h"
 #include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/InspectorTableView.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 
 
 
@@ -17,6 +18,8 @@ static constexpr int      s_kMapCheckBoxDip  = 34;
 static constexpr int      s_kMapButtonDip    = 30;
 static constexpr int      s_kMapStepLabelDip = 150;
 static constexpr int      s_kMapVolumeDip    = 150;
+static constexpr int      s_kMapVerdictDip   = 170;
+static constexpr int      s_kMapRepairDip    = 90;
 static constexpr int      s_kPickerPadDip    = 8;
 static constexpr int      s_kChevronDip      = 5;
 static constexpr wchar_t  s_kpszStepLabel[]  = L"Previous/next sector in";
@@ -66,6 +69,8 @@ void FilesView::Create()
     m_mapStepLabel = parent.CreateChild<DxuiLabel> (s_kpszStepLabel, DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_filePicker   = parent.CreateChild<DxuiButton> (L"");
     m_mapCopy      = parent.CreateChild<DxuiButton> (L"Copy map");
+    m_mapVerdict   = parent.CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Right);
+    m_mapRepair    = parent.CreateChild<DxuiButton> (L"Repair...");
 
     m_mapGrid->SetOnChoose    ([this] (int cell) { SelectMapCell (cell); });
     m_fileList->SetOnSelect   ([this] (const TableRow & row) { ChooseFile (row.finding); });
@@ -77,6 +82,7 @@ void FilesView::Create()
     m_mapNext->SetOnClick     ([this] () { StepFileSector (1); });
     m_filePicker->SetOnClick  ([this] () { OpenFilePicker (!m_isPickerOpen); });
     m_mapCopy->SetOnClick     ([this] () { CopyFileMap(); });
+    m_mapRepair->SetOnClick   ([this] () { if (m_session.openRepair) { m_session.openRepair(); } });
 }
 
 
@@ -101,6 +107,7 @@ std::wstring FilesView::GetTip (POINT pointPx, RECT & outAnchorPx) const
 
 
     std::wstring  tip;
+    RECT          repair = m_mapRepair->GetBounds();
 
 
 
@@ -113,6 +120,12 @@ std::wstring FilesView::GetTip (POINT pointPx, RECT & outAnchorPx) const
             tip         = text;
             outAnchorPx = bounds;
         }
+    }
+
+    if (tip.empty() && m_mapRepair->IsVisible() && PtInRect (&repair, pointPx))
+    {
+        tip         = m_session.repairPlan.canRepair ? std::wstring (L"Write a repaired copy of the image beside it") : m_session.repairPlan.reason;
+        outAnchorPx = repair;
     }
 
     return tip;
@@ -284,19 +297,24 @@ void FilesView::ApplyPrefs (const DiskInspectorPrefs & prefs)
 
 void FilesView::Layout (const RECT & area, const DxuiDpiScaler & scaler)
 {
-    const FileMap *            map     = m_session.GetFileMap();
-    int                        row     = scaler.ToPx (InspectorMetrics::kRowDip);
-    int                        margin  = scaler.ToPx (InspectorMetrics::kMarginDip);
-    int                        check   = std::max (scaler.ToPx (s_kMapCheckDip),     static_cast<int> (std::ceil (m_checkTextPx)) + scaler.ToPx (s_kMapCheckBoxDip));
-    int                        button  = scaler.ToPx (s_kMapButtonDip);
-    int                        volume  = scaler.ToPx (s_kMapVolumeDip);
-    int                        label   = std::max (scaler.ToPx (s_kMapStepLabelDip), static_cast<int> (std::ceil (m_stepTextPx)) + margin);
-    int                        picker  = GetPickerWidthPx (scaler);
-    int                        y       = area.top;
-    int                        width   = 0;
-    int                        gridH   = 0;
-    bool                       isList  = map != nullptr && map->notMapped == NotMappedReason::None;
-    vector<DxuiTabStrip::Tab>  tabs;
+    const FileMap              * map         = m_session.GetFileMap();
+    int                          row         = scaler.ToPx (InspectorMetrics::kRowDip);
+    int                          margin      = scaler.ToPx (InspectorMetrics::kMarginDip);
+    int                          check       = std::max (scaler.ToPx (s_kMapCheckDip),     static_cast<int> (std::ceil (m_checkTextPx)) + scaler.ToPx (s_kMapCheckBoxDip));
+    int                          button      = scaler.ToPx (s_kMapButtonDip);
+    int                          volume      = scaler.ToPx (s_kMapVolumeDip);
+    int                          label       = std::max (scaler.ToPx (s_kMapStepLabelDip), static_cast<int> (std::ceil (m_stepTextPx)) + margin);
+    int                          picker      = GetPickerWidthPx (scaler);
+    int                          y           = area.top;
+    int                          width       = 0;
+    int                          gridH       = 0;
+    bool                         isList      = map != nullptr && map->notMapped == NotMappedReason::None;
+    int                          copyLeft    = area.right - scaler.ToPx (InspectorMetrics::kExportButtonDip);
+    int                          repair      = scaler.ToPx (s_kMapRepairDip);
+    int                          repairLeft  = copyLeft - margin - repair;
+    int                          verdict     = scaler.ToPx (s_kMapVerdictDip);
+    int                          verdictLeft = (IsRepairShown() ? repairLeft : copyLeft) - margin - verdict;
+    vector<DxuiTabStrip::Tab>    tabs;
 
 
 
@@ -306,7 +324,9 @@ void FilesView::Layout (const RECT & area, const DxuiDpiScaler & scaler)
     m_mapNext->Layout      ({ area.left + button, y, area.left + 2 * button, y + row }, scaler);
     m_mapStepLabel->Layout ({ area.left + 2 * button + margin, y, area.left + 2 * button + margin + label, y + row }, scaler);
     m_filePicker->Layout   ({ area.left + 2 * button + margin + label, y, area.left + 2 * button + margin + label + picker, y + row }, scaler);
-    m_mapCopy->Layout      ({ area.right - scaler.ToPx (InspectorMetrics::kExportButtonDip), y, area.right, y + row }, scaler);
+    m_mapCopy->Layout      ({ copyLeft, y, area.right, y + row }, scaler);
+    m_mapRepair->Layout    ({ repairLeft, y, repairLeft + repair, y + row }, scaler);
+    m_mapVerdict->Layout   ({ verdictLeft, y, verdictLeft + verdict, y + row }, scaler);
 
     for (size_t v = 0; v < m_session.analysis.fileMaps.size() && m_session.analysis.fileMaps.size() > 1; v++)
     {
@@ -317,7 +337,7 @@ void FilesView::Layout (const RECT & area, const DxuiDpiScaler & scaler)
 
     m_mapVolumes->SetTabs     (std::move (tabs));
     m_mapVolumes->SetSelected (m_session.mapIndex);
-    m_mapVolumes->Layout      ({ area.left + 2 * button + 2 * margin + label + picker, y, area.right - scaler.ToPx (InspectorMetrics::kExportButtonDip) - margin, y + row }, scaler);
+    m_mapVolumes->Layout      ({ area.left + 2 * button + 2 * margin + label + picker, y, verdictLeft - margin, y + row }, scaler);
     y += (isList || m_session.analysis.fileMaps.size() > 1) ? row + margin / 2 : 0;
 
     //  Open, the picker has the list's filters and the file list in the rest
@@ -394,6 +414,9 @@ void FilesView::Show (bool isShown)
     m_mapNext->SetVisible    (isList);
     m_mapStepLabel->SetVisible (isList);
     m_mapCopy->SetVisible    (isList);
+    m_mapVerdict->SetVisible (isList && map->verdict != FileSystemVerdict::None);
+    m_mapRepair->SetVisible  (isList && IsRepairShown());
+    m_mapRepair->SetEnabled  (m_session.repairPlan.canRepair);
     m_mapVolumes->SetVisible (isShown && m_session.analysis.fileMaps.size() > 1);
 }
 
@@ -559,6 +582,8 @@ void FilesView::RefreshFileList()
         m_fileList->SetColumns (FileMapText::GetFileColumns (*map));
         m_fileList->SetRows    (FileMapText::BuildFileRows (*map, m_mapDeleted->IsChecked(), m_mapBadOnly->IsChecked(), m_fileSortColumn, m_fileSortDescending));
         m_fileList->SetCaption (map->isCatalogComplete ? L"" : L"The catalog is incomplete: " + FileMapText::FormatCell (*map, map->unreadableCell) + L" could not be read");
+        m_mapVerdict->SetText     (L"File system: " + FileSystemCheck::FormatVerdict (map->verdict));
+        m_mapVerdict->SetTextRole (map->verdict == FileSystemVerdict::Bad ? DxuiTextRole::Error : DxuiTextRole::Body);
     }
     else
     {
@@ -842,4 +867,26 @@ void FilesView::CopyFileMap()
     {
         (void) m_session.clipboard.SetText (m_host.GetOwnerHwnd(), FileMapText::FormatMap (*map));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FilesView::IsRepairShown
+//
+//  Repair is beside a Bad or Suspect verdict, and enabled when the volume
+//  can be repaired; its tooltip has the reason when it can't.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FilesView::IsRepairShown() const
+{
+    const FileMap *  map = m_session.GetFileMap();
+
+
+
+    return map != nullptr && (map->verdict == FileSystemVerdict::Bad || map->verdict == FileSystemVerdict::Suspect);
 }

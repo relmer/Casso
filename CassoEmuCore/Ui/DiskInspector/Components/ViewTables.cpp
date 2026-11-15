@@ -8,6 +8,7 @@
 #include "Ui/DiskInspector/Views/FilesView.h"
 #include "Ui/DiskInspector/Views/IssuesView.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Devices/Disk/Inspector/Repair/DiskRepair.h"
 
 
 
@@ -74,6 +75,7 @@ void ViewTables::RefreshTables()
                                                                 : vector<TableRow>();
 
         m_session.views.image->SetRows (std::move (imageRows));
+        m_session.repairPlan = m_session.context.hasDisk ? DiskRepair::Plan (m_session.analysis, {}) : RepairPlan();
         m_session.views.files->RefreshFileList();
 
         //  Casso does not analyze 3.5" disks; such a WOZ opens on the Image

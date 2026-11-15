@@ -52,12 +52,14 @@ public:
     std::shared_ptr<const DriveHeadState>  GetHeadState       (int drive) const override { (void) drive; return nullptr; }
     void                                   SetHeadStateWanted (bool isWanted)  override { (void) isWanted; }
 
-    bool          HandleCopyData (const COPYDATASTRUCT & data) override;
-    std::wstring  TakeHostNote   ()                            override;
+    bool          HandleCopyData        (const COPYDATASTRUCT & data) override;
+    std::wstring  TakeHostNote          ()                            override;
+    void          OnRepairedCopyWritten (const std::wstring & path) override { if (m_onRepaired) { m_onRepaired (path); } }
 
-    void                  SetOnClosed (std::function<void ()> onClosed) { m_onClosed = std::move (onClosed); }
-    void                  SetIntents  (IIntentChannel * intents)        { m_intents = intents; }
-    const std::wstring  & GetPath     () const { return m_path; }
+    void                  SetOnClosed   (std::function<void ()> onClosed) { m_onClosed = std::move (onClosed); }
+    void                  SetOnRepaired (std::function<void (const std::wstring &)> onRepaired) { m_onRepaired = std::move (onRepaired); }
+    void                  SetIntents    (IIntentChannel * intents)        { m_intents = intents; }
+    const std::wstring  & GetPath       () const { return m_path; }
 
     //  The file is read again for the next copy, as a new disk.
     void  Reload ();
@@ -96,4 +98,5 @@ private:
     std::wstring                         m_hostNote;
     bool                                 m_isRead     = false;
     std::function<void ()>         m_onClosed;
+    std::function<void (const std::wstring &)>  m_onRepaired;
 };

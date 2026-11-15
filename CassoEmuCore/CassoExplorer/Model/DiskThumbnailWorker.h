@@ -23,14 +23,15 @@
 
 struct DiskThumbnailResult
 {
-    uint64_t                                                request  = 0;
+    uint64_t                                                request   = 0;
     std::wstring                                            path;
-    bool                                                    isOpened = false;
-    bool                                                    is35     = false;
+    bool                                                    isOpened  = false;
+    bool                                                    is35      = false;
     std::shared_ptr<const DiskAnalysis>                     analysis;
     vector<std::shared_ptr<const PlatterRenderer::Levels>>  levels;
     vector<std::shared_ptr<const PlatterRenderer::Levels>>  edges;
     vector<SummaryChip>                                     chips;
+    bool                                                    canRepair = false;
 };
 
 

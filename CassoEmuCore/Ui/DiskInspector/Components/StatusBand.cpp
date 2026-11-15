@@ -231,7 +231,7 @@ vector<StatusBand::LeadItem> StatusBand::BuildLead() const
                                LeadKind::Result });
         }
 
-        for (const SummaryChip & chip : InspectorText::BuildChips (m_session.analysis.summary))
+        for (const SummaryChip & chip : InspectorText::BuildChips (m_session.analysis.summary, m_session.analysis.verdict))
         {
             items.push_back ({ chip.text, chip.isBad ? LeadKind::BadChip : LeadKind::Chip });
         }

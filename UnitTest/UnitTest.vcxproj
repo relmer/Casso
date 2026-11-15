@@ -370,6 +370,7 @@
     <ClCompile Include="Inspector\DiskRepairCommandTests.cpp" />
     <ClCompile Include="Inspector\DiskRepairTests.cpp" />
     <ClCompile Include="Inspector\RepairFixtures.cpp" />
+    <ClCompile Include="Inspector\RepairWindowPartsTests.cpp" />
     <ClCompile Include="EmuTests\FileMapTests.cpp" />
     <ClCompile Include="EmuTests\FluxViewTests.cpp" />
     <ClCompile Include="EmuTests\InspectorClipboardTests.cpp" />

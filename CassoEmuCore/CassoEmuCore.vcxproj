@@ -1157,6 +1157,7 @@
     <ClCompile Include="Ui\DiskInspector\FindSession.cpp" />
     <ClCompile Include="Ui\DiskInspector\Views\FluxView.cpp" />
     <ClCompile Include="Ui\DiskInspector\GoToDialog.cpp" />
+    <ClCompile Include="Ui\DiskInspector\RepairDialog.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterGeometry.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterLegendView.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterRenderer.cpp" />
@@ -2061,6 +2062,7 @@
     <ClInclude Include="Ui\DiskInspector\FindSession.h" />
     <ClInclude Include="Ui\DiskInspector\Views\FluxView.h" />
     <ClInclude Include="Ui\DiskInspector\GoToDialog.h" />
+    <ClInclude Include="Ui\DiskInspector\RepairDialog.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterGeometry.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterLegendView.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterRenderer.h" />

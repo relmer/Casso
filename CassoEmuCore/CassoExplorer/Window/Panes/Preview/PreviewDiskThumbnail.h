@@ -74,6 +74,45 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ThumbnailVerdict
+//
+//  A disk image's file-system verdict above its thumbnail: Bad as
+//  a warning banner in the theme's error color with its first finding of
+//  damage, Suspect as a line with its first finding, and nothing for OK or
+//  a disk with no standard file system.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ThumbnailVerdict : public IDxuiControl
+{
+public:
+    static constexpr float  kTextDip = 12.0f;
+    static constexpr float  kPadDip  = 8.0f;
+
+    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override { SetBounds (boundsDip); m_scaler = scaler; }
+    void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+
+    //  The verdict and its finding; true when there's something to draw.
+    bool                  SetVerdict   (FileSystemVerdict verdict, const std::wstring & finding);
+    bool                  IsBanner     () const { return m_verdict == FileSystemVerdict::Bad; }
+    const std::wstring  & GetText      () const { return m_text; }
+    void                  SetTextRight (int rightPx) { m_textRight = rightPx; }
+
+    static std::wstring  FormatText (FileSystemVerdict verdict, const std::wstring & finding);
+
+private:
+    DxuiDpiScaler      m_scaler;
+    FileSystemVerdict  m_verdict   = FileSystemVerdict::None;
+    std::wstring       m_text;
+    int                m_textRight = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ThumbnailScreen
 //
 //  The picture of a disk image's screen once booted.
@@ -118,6 +157,7 @@ public:
     static constexpr int  kPlatterDip = 180;
     static constexpr int  kGapDip     = 8;
     static constexpr int  kScreenDip  = 240;     // the screen's picture, three quarters as tall
+    static constexpr int  kRepairDip  = 150;     // Repair disk image, in the banner
 
     explicit PreviewDiskThumbnail (ExplorerContext & context);
 
@@ -132,6 +172,7 @@ public:
     void  Hide          ();
 
     bool                  IsShown       () const { return !m_path.empty() && m_state != State::Failed; }
+    bool                  IsReady       () const { return m_state == State::Ready; }
     int                   GetHeightPx   (int widthPx) const;
     bool                  IsOverPlatter (POINT pointPx) const;
     const std::wstring  & GetPath       () const { return m_path; }
@@ -141,6 +182,15 @@ public:
     bool                  IsScreenShown () const { return HasScreen(); }
     RECT                  GetScreenRect () const { return HasScreen() ? m_screen->GetBounds() : RECT {}; }
     const std::wstring  & GetResultLine () const { return m_bootLine->GetText(); }
+
+    //  The verdict above the thumbnail and Repair disk image in it, for a
+    //  test.
+    const ThumbnailVerdict  & GetVerdict      () const { return *m_verdict; }
+    const DxuiButton        & GetRepairButton () const { return *m_repair; }
+
+    //  The repaired copy written beside the image and selected, after the
+    //  confirmation.
+    void  RepairImage ();
 
 private:
     bool  HandlePlatterMouse (const DxuiMouseEvent & ev);
@@ -153,20 +203,26 @@ private:
         Failed,
     };
 
-    void  ApplyResult ();
-    bool  HasScreen   () const { return m_picture != nullptr && m_state == State::Ready; }
-    bool  IsBeside    (int widthPx) const;
+    void  ApplyResult        ();
+    bool  HasScreen          () const { return m_picture != nullptr && m_state == State::Ready; }
+    bool  IsBeside           (int widthPx) const;
+    bool  HasVerdict         () const { return m_state == State::Ready && m_isVerdictShown; }
+    int   GetVerdictHeightPx () const;
+    void  PlaceVerdict       (const RECT & area, int top);
 
     ExplorerContext                       & m_context;
     InspectorViewContext                    m_view;
     InspectorViewModel                      m_model;
     DiskThumbnailWorker                     m_worker;
     DiskThumbnailResult                     m_result;
-    ThumbnailPlatterView                  * m_platter  = nullptr;
-    ThumbnailChips                        * m_chips    = nullptr;
-    ThumbnailScreen                       * m_screen   = nullptr;
-    DxuiLabel                             * m_bootLine = nullptr;   // the boot result, under the picture
+    ThumbnailPlatterView                  * m_platter        = nullptr;
+    ThumbnailChips                        * m_chips          = nullptr;
+    ThumbnailScreen                       * m_screen         = nullptr;
+    DxuiLabel                             * m_bootLine       = nullptr;   // the boot result, under the picture
+    ThumbnailVerdict                      * m_verdict        = nullptr;
+    DxuiButton                            * m_repair         = nullptr;
+    bool                                    m_isVerdictShown = false;
     std::shared_ptr<const DxuiIconImage>    m_picture;
     std::wstring                            m_path;
-    State                                   m_state    = State::Analyzing;
+    State                                   m_state          = State::Analyzing;
 };

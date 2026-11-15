@@ -4,6 +4,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Inspector/Repair/DiskRepair.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 
@@ -35,6 +36,48 @@ std::string RepairCopy::GetCopyPath (IDiskFileIo & io, const std::string & image
     }
 
     return path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RepairCopy::PlanFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT RepairCopy::PlanFile (
+    IDiskFileIo            & io,
+    const std::string      & imagePath,
+    const RepairOptions    & options,
+    RepairPlan             & outPlan,
+    std::wstring           & outReason)
+{
+    HRESULT       hr = S_OK;
+    vector<Byte>  bytes;
+    DiskAnalysis  analysis;
+
+
+
+    outPlan = RepairPlan();
+
+    hr = io.ReadAllBytes (imagePath, bytes);
+    CHRF (hr, outReason = L"The image couldn't be read.");
+
+    hr = FileSystemCheck::Analyze (bytes, imagePath, analysis, outReason);
+    CHR (hr);
+
+    outPlan = DiskRepair::Plan (analysis, options);
+
+Error:
+    if (FAILED (hr))
+    {
+        outPlan.reason = outReason;
+    }
+
+    return hr;
 }
 
 

@@ -18,8 +18,8 @@ class InspectorTableView;
 //  FilesView
 //
 //  The file map of the volume: the step buttons, the file picker and its
-//  list, the volume tabs, "Copy map", and the grid of the volume's sectors
-//  (FR-088 to FR-095, FR-157).
+//  list, the volume tabs, the file-system verdict and Repair, "Copy map",
+//  and the grid of the volume's sectors (FR-088 to FR-095, FR-157).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +50,11 @@ public:
 
     InspectorTableView & GetFileList () const { return *m_fileList; }
 
+    //  The verdict beside the map and the Repair command, for a test.
+    const DxuiLabel  & GetVerdictLabel  () const { return *m_mapVerdict; }
+    const DxuiButton & GetRepairButton  () const { return *m_mapRepair; }
+    const DxuiButton & GetCopyButton    () const { return *m_mapCopy; }
+
 private:
     void  OpenFilePicker     (bool isOpen);
     void  MeasureLabels      (IDxuiTextRenderer & text);
@@ -59,6 +64,7 @@ private:
     void  SelectMapCell      (int cell);
     void  StepFileSector     (int step);
     int   GetSelectedMapCell () const;
+    bool  IsRepairShown      () const;
 
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;
@@ -71,6 +77,8 @@ private:
     DxuiButton               * m_mapPrev            = nullptr;
     DxuiButton               * m_mapNext            = nullptr;
     DxuiButton               * m_mapCopy            = nullptr;
+    DxuiButton               * m_mapRepair          = nullptr;
+    DxuiLabel                * m_mapVerdict         = nullptr;
     DxuiLabel                * m_mapStepLabel       = nullptr;
     DxuiButton               * m_filePicker         = nullptr;
     bool                       m_isPickerOpen       = true;

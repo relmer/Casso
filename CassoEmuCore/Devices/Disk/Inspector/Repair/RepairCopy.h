@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 class IDiskFileIo;
+struct RepairOptions;
 struct RepairPlan;
 
 
@@ -24,6 +25,15 @@ class RepairCopy
 {
 public:
     static std::string  GetCopyPath (IDiskFileIo & io, const std::string & imagePath);
+
+    //  The plan for the image file as saved, which a drive's copy with
+    //  changes not yet saved may differ from; a file that can't be read or
+    //  analyzed fails with the reason.
+    static HRESULT  PlanFile (IDiskFileIo            & io,
+                              const std::string      & imagePath,
+                              const RepairOptions    & options,
+                              RepairPlan             & outPlan,
+                              std::wstring           & outReason);
 
     static HRESULT  MakeCopyBytes (const vector<Byte>   & imageBytes,
                                    const std::string    & imagePath,

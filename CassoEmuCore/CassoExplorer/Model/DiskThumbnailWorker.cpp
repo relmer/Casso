@@ -7,6 +7,7 @@
 #include "Devices/Disk/Inspector/InspectorImageLoader.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Ui/DiskInspector/PlatterCells.h"
+#include "Devices/Disk/Inspector/Repair/DiskRepair.h"
 
 
 
@@ -226,7 +227,8 @@ DiskThumbnailResult DiskThumbnailWorker::BuildFromBytes (const vector<Byte> & by
             }
         }
 
-        result.chips = InspectorText::BuildChips (analysis->summary);
+        result.chips     = InspectorText::BuildChips (analysis->summary);
+        result.canRepair = DiskRepair::Plan (*analysis, {}).canRepair;
     }
 
     result.analysis = analysis;

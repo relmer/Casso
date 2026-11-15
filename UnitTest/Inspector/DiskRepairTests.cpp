@@ -400,6 +400,26 @@ public:
 
 
 
+    TEST_METHOD (AnEmptyProDosFileWithABlankBlockIsNotDamage)
+    {
+        vector<Byte>  image = RepairFixtures::MakeProDos();
+        Byte *        seed  = Images::GetBlock (image, 2) + 4 + 0x27;
+        DiskAnalysis  analysis;
+
+
+
+        //  SEED's end of file is 0, and its block is zeros, as a file has
+        //  after ProDOS's CREATE.
+        seed[0x15] = 0;
+        std::fill (Images::GetBlock (image, 7), Images::GetBlock (image, 7) + Images::kBlockBytes, Byte (0));
+        Analyze (image, true, analysis);
+
+        Assert::IsFalse (HasKind (analysis, FindingKind::FileRepeatedByte));
+        Assert::IsTrue  (analysis.verdict == FileSystemVerdict::Ok);
+    }
+
+
+
     TEST_METHOD (ADiskWithNoStandardFileSystemIsNotRepaired)
     {
         vector<Byte>  image (Images::kImageBytes, 0);

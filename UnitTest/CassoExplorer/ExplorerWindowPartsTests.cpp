@@ -5,6 +5,7 @@
 #include "../CassoLink/InMemoryCassoLinkFolder.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "../EmuTests/FixtureProvider.h"
+#include "../Inspector/RepairFixtures.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "FakeDiskPictures.h"
 #include "FakeExplorerWindow.h"
@@ -1549,6 +1550,84 @@ public:
             Assert::AreEqual ((screen.right - screen.left) * 3 / 4, screen.bottom - screen.top);
 
             std::filesystem::remove_all (folder);
+        }
+    }
+
+
+    //  The preview of a disk image has its file-system verdict at the top, at
+    //  100% and at 150%: Bad as a banner with its first finding of damage
+    //  and Repair disk image inside it, Suspect as a line with no button, and
+    //  nothing for OK. The analysis reads the file from the disk, so each
+    //  image is in a folder of the test's in the temporary folder as well.
+    TEST_METHOD (Preview_HasTheFileSystemVerdictAboveTheThumbnail_At100And150Percent)
+    {
+        struct Case { const wchar_t * name; vector<Byte> bytes; const wchar_t * text; bool isBanner; };
+
+        const Case  cases[] =
+        {
+            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"File system: Bad. Track 18, sector $E belongs to HELLO but the bitmap marks it free.", true  },
+            { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"File system: Suspect. The VTOC's next track to allocate is track 40, which is off the disk.", false },
+            { L"ok.dsk",      RepairFixtures::MakeDos33(),                     L"", false },
+        };
+
+
+
+        for (UINT dpi : { 96u, 144u })
+        {
+            for (const Case & c : cases)
+            {
+                Rig                    rig;
+                bool                   isDrawn = false;
+                std::filesystem::path  folder  = std::filesystem::temp_directory_path() / std::format (L"CassoPreviewVerdict{}_{}", ::GetCurrentProcessId(), dpi);
+                std::filesystem::path  image   = folder / c.name;
+                std::string            narrow  = image.string();
+                RECT                   pane    = {};
+                RECT                   banner  = {};
+                RECT                   repair  = {};
+
+                rig.scaler.SetDpi (dpi);
+                rig.prefs.previewVisible = true;
+                AssertSucceeded (rig.fs.WriteAllText (image.c_str(), std::string (c.bytes.begin(), c.bytes.end())));
+                rig.io.files[narrow]  = c.bytes;
+                rig.io.stamps[narrow] = FileStamp { c.bytes.size(), 100 };
+                std::filesystem::create_directories (folder);
+                AssertSucceeded (DiskImageStore::WriteFileAtomically (narrow, c.bytes));
+                rig.Open();
+                Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+                rig.parts->listPane.FillList();
+                Assert::IsTrue (rig.parts->listPane.SelectRowNamed (c.name));
+                rig.parts->preview.FillPreview();
+
+                isDrawn = WaitFor (rig, [&rig]()
+                {
+                    rig.parts->layout.RecomputeLayout();
+
+                    return rig.parts->preview.GetThumbnail().IsReady();
+                });
+
+                Assert::IsTrue (isDrawn, c.name);
+                rig.parts->layout.RecomputeLayout();
+
+                pane   = rig.parts->preview.GetContentRect();
+                banner = rig.parts->preview.GetThumbnail().GetVerdict().GetBounds();
+                repair = rig.parts->preview.GetThumbnail().GetRepairButton().GetBounds();
+
+                Assert::AreEqual (std::wstring (c.text), rig.parts->preview.GetThumbnail().GetVerdict().GetText(), std::format (L"{} at {} dpi", c.name, dpi).c_str());
+                Assert::AreEqual (*c.text != L'\0', rig.parts->preview.GetThumbnail().GetVerdict().IsVisible(), c.name);
+                Assert::AreEqual (c.isBanner, rig.parts->preview.GetThumbnail().GetVerdict().IsBanner(), c.name);
+                Assert::AreEqual (c.isBanner, rig.parts->preview.GetThumbnail().GetRepairButton().IsVisible(), L"Repair disk image is in a banner only");
+
+                if (c.isBanner)
+                {
+                    Assert::IsTrue (banner.left >= pane.left && banner.right <= pane.right, L"the banner is inside the pane");
+                    Assert::IsTrue (repair.left > banner.left && repair.right <= banner.right && repair.top >= banner.top && repair.bottom <= banner.bottom,
+                                    L"and Repair disk image is inside the banner");
+                    Assert::AreEqual ((long) rig.scaler.ToPx (PreviewDiskThumbnail::kRepairDip), repair.right - repair.left,
+                                      L"at its width");
+                }
+
+                std::filesystem::remove_all (folder);
+            }
         }
     }
 

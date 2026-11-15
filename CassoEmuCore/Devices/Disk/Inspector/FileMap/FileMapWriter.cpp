@@ -445,7 +445,7 @@ void FileMapWriter::SettleFiles()
 //  FileMapWriter::CheckRepeatedBytes
 //
 //  A file whose data is one byte value throughout, up to the size in its
-//  entry where it has one, is damage: a capture that read nothing produces such a
+//  entry on ProDOS and Apple Pascal, is damage: a capture that read nothing produces such a
 //  file. A file with less than a sector of data to compare, or with a
 //  sector that can't be read, isn't checked.
 //
@@ -455,8 +455,9 @@ void FileMapWriter::CheckRepeatedBytes()
 {
     vector<Byte>  bytes;
     vector<Byte>  data;
-    bool          isRead = true;
-    size_t        count  = 0;
+    bool          isRead  = true;
+    size_t        count   = 0;
+    bool          isSized = m_map.fileSystem == MapFileSystem::ProDos || m_map.fileSystem == MapFileSystem::Pascal;
 
 
 
@@ -481,7 +482,7 @@ void FileMapWriter::CheckRepeatedBytes()
             data.insert (data.end(), bytes.begin(), bytes.end());
         }
 
-        count = (file.recordedSize > 0) ? std::min<size_t> (data.size(), static_cast<size_t> (file.recordedSize)) : data.size();
+        count = isSized ? std::min<size_t> (data.size(), static_cast<size_t> (file.recordedSize)) : data.size();
 
         if (isRead && count >= static_cast<size_t> (SectorSource::kBytes) && IsOneByte (data, count))
         {

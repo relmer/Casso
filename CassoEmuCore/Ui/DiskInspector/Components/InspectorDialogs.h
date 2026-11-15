@@ -18,8 +18,8 @@ class InspectorSession;
 //  InspectorDialogs
 //
 //  The inspector's dialogs: Go to (FR-055), Export (FR-058), the decode
-//  settings with the change they make to the analysis (FR-019), and the
-//  confirmations.
+//  settings with the change they make to the analysis (FR-019), Repair's
+//  confirmation, and the confirmations.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +35,7 @@ public:
     void  OpenGoTo           ();
     void  OpenExport         ();
     void  OpenDecodeSettings ();
+    void  OpenRepair         ();
     void  ApplySettings      (const DecodeSettings & settings);
 
     //  A modal question with a button for the action and one for Cancel;

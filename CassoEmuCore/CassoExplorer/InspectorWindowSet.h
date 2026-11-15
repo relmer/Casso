@@ -8,6 +8,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 
 class ExplorerInspectorHost;
+class ICassoExplorerHost;
 class IDiskInspectorHost;
 class IIntentChannel;
 
@@ -73,7 +74,8 @@ public:
         std::function<bool (const std::wstring &)>                     fileExists;
         std::function<ULONGLONG ()>                                    nowMs;
         std::function<std::unique_ptr<IIntentChannel> (HWND)>          makeIntents;
-        IDiskFileIo                                                  * fileIo = nullptr;
+        IDiskFileIo                                                  * fileIo   = nullptr;
+        ICassoExplorerHost                                           * explorer = nullptr;
     };
 
     InspectorWindowSet (IImageWatcher & watcher, DiskInspectorPrefs & prefs, Seams seams = {});
@@ -127,6 +129,9 @@ private:
     void     Release       ();
     void     StartTimer    ();
     void     StopTimer     ();
+
+    //  Repair's copy selected in a Casso Explorer window.
+    void     SelectRepairedCopy (const std::wstring & path);
 
     IImageWatcher                        & m_watcher;
     DiskInspectorPrefs                   & m_prefs;
