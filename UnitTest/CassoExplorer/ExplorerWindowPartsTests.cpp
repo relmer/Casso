@@ -6,6 +6,7 @@
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "../UiTests/InMemoryFileSystem.h"
+#include "FakeDiskPictures.h"
 #include "FakeExplorerWindow.h"
 #include "FakeFolderWatcher.h"
 #include "RecordingExplorerServices.h"
@@ -13,11 +14,15 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "CassoExplorer/Model/DiskImagePictures.h"
 #include "CassoExplorer/Window/ExplorerWindowParts.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/Window/Panes/Preview/PreviewDiskThumbnail.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/AppMessages.h"
 #include "Core/AppTimerIds.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 
@@ -123,6 +128,24 @@ public:
             io.stamps[narrow] = FileStamp { bytes.size(), 100 };
         }
 
+        //  A left click at the middle of the bounds, through the window's
+        //  input, as a real click arrives: a move, a press and a release.
+        void  Click (const RECT & bounds)
+        {
+            DxuiMouseEvent  mouse;
+
+
+
+            mouse.button      = DxuiMouseButton::Left;
+            mouse.positionDip = { (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
+
+            for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Move, DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
+            {
+                mouse.kind = kind;
+                parts->input.HandleMouse (mouse);
+            }
+        }
+
         //  What the window runs as it opens, in order, then its first layout.
         void  Open()
         {
@@ -215,7 +238,7 @@ public:
         for (AppMessage message : { AppMessage::ExplorerFolderChanged, AppMessage::ExplorerShellListed, AppMessage::ExplorerCassoLink,
                                     AppMessage::ExplorerInfoTip, AppMessage::ExplorerContentDetails, AppMessage::ExplorerIconsLoaded,
                                     AppMessage::ExplorerNewChoices, AppMessage::ExplorerReply, AppMessage::ExplorerRecycleBin,
-                                    AppMessage::ExplorerCardProgress })
+                                    AppMessage::ExplorerCardProgress, AppMessage::ExplorerCardArrivals })
         {
             Assert::IsTrue (rig.parts->HandleAppMessage ((UINT) message, 0, 0));
         }
@@ -1163,7 +1186,12 @@ public:
         Assert::IsTrue   (bar.GetText().starts_with (L"A2Pico card. 1 of its 2 A2retroNET drives have an image."), bar.GetText().c_str());
         Assert::AreEqual ((size_t) 2, bar.GetActionCount(), L"A2retroNET drives and Repair");
 
-        bar.GetAction (1)->Click();
+        //  After a second fill the buttons are laid out. New buttons were
+        //  made on each fill before, with no bounds, and weren't drawn.
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (bar.GetAction (0)->GetBounds().right > bar.GetAction (0)->GetBounds().left, L"the button has a place in the bar");
+
+        rig.Click (bar.GetAction (1)->GetBounds());
 
         Assert::AreEqual (std::string ("[drives]\nnumber=2\n1=system.po\n"), std::string (rig.io.files["E:\\A2retroNET.txt"].begin(), rig.io.files["E:\\A2retroNET.txt"].end()));
 
@@ -1216,9 +1244,312 @@ public:
         Assert::AreEqual (std::wstring (L"zork.dsk has a ProDOS volume in a form A2retroNET doesn't read. Write as .po makes a copy it reads."), bar.GetText());
         Assert::AreEqual ((size_t) 1, bar.GetActionCount());
 
-        bar.GetAction (0)->Click();
+        rig.Click (bar.GetAction (0)->GetBounds());
 
         Assert::IsTrue (rig.io.files["E:\\games\\zork.po"] == po);
+    }
+
+
+    //  A control made with the window's CreateChild takes clicks with no
+    //  routing written for it.
+    TEST_METHOD (HandleMouse_RoutesToAControlNoPaneRoutes)
+    {
+        Rig              rig;
+        DxuiButton     * plain   = nullptr;
+        DxuiMouseEvent   mouse;
+        RECT             list    = {};
+        RECT             place   = {};
+        int              clicks  = 0;
+
+
+
+        rig.Open();
+
+        plain = rig.window.CreateChild<DxuiButton> (L"Plain");
+
+        plain->SetOnClick ([&clicks]() { clicks++; });
+
+        //  In front of the list.
+        list  = rig.parts->listPane.GetListView()->GetBounds();
+        place = { list.left + 10, list.top + 10, list.left + 110, list.top + 40 };
+
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.positionDip = { place.left + 5, place.top + 5 };
+
+        plain->Layout (place, rig.scaler);
+
+        for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
+        {
+            mouse.kind = kind;
+            Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+        }
+
+        Assert::AreEqual (1, clicks, L"the press and release went to the control");
+
+        //  A press on the control, then a release off it: no click, and the
+        //  control has the release.
+        mouse.kind = DxuiMouseEventKind::Down;
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+
+        mouse.kind        = DxuiMouseEventKind::Up;
+        mouse.positionDip = { place.right + 200, place.bottom + 200 };
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse), L"the release goes to the control pressed");
+        Assert::AreEqual (1, clicks);
+    }
+
+
+    //  A pane's mouse handler is called in place of its control's OnMouse,
+    //  and a press it takes has the release, wherever the pointer is.
+    TEST_METHOD (HandleMouse_CallsAPaneMouseHandlerForItsControl)
+    {
+        Rig                              rig;
+        DxuiButton                     * button = nullptr;
+        DxuiMouseEvent                   mouse;
+        RECT                             list   = {};
+        RECT                             place  = {};
+        int                              clicks = 0;
+        std::vector<DxuiMouseEventKind>  seen;
+
+
+
+        rig.Open();
+
+        button = rig.window.CreateChild<DxuiButton> (L"Handled");
+        button->SetOnClick ([&clicks]() { clicks++; });
+        rig.window.SetMouseHandler (button, [&seen] (const DxuiMouseEvent & ev)
+        {
+            seen.push_back (ev.kind);
+            return ev.kind != DxuiMouseEventKind::Move;
+        });
+
+        list  = rig.parts->listPane.GetListView()->GetBounds();
+        place = { list.left + 10, list.top + 10, list.left + 110, list.top + 40 };
+        button->Layout (place, rig.scaler);
+
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.positionDip = { place.left + 5, place.top + 5 };
+        mouse.kind        = DxuiMouseEventKind::Down;
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+
+        mouse.kind        = DxuiMouseEventKind::Up;
+        mouse.positionDip = { place.right + 200, place.bottom + 200 };
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+
+        Assert::IsTrue  (std::find (seen.begin(), seen.end(), DxuiMouseEventKind::Down) != seen.end());
+        Assert::IsTrue  (std::find (seen.begin(), seen.end(), DxuiMouseEventKind::Up)   != seen.end(), L"the release goes to the handler of the control pressed");
+        Assert::AreEqual (0, clicks, L"the control's OnMouse isn't called");
+    }
+
+
+    //  A button on the navigation toolbar and one on the command bar under
+    //  it each take a click through the window's input, each from its row.
+    TEST_METHOD (HandleMouse_ClicksTheNavigationToolbarAndTheCommandBar)
+    {
+        Rig    rig;
+        RECT   up      = {};
+        RECT   preview = {};
+        bool   shown   = false;
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\a.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+
+        Assert::IsTrue (rig.parts->toolbars.GetNavToolbar().TryGetEntryRect (CassoExplorerCommands::kUp, up));
+        rig.Click (up);
+        Assert::AreEqual (std::wstring (L"C:\\"), rig.browser.GetLocation().path, L"Up went to the folder above");
+
+        shown = rig.parts->commands.Find (CassoExplorerCommands::kTogglePreview)->IsChecked();
+
+        Assert::IsTrue (rig.parts->toolbars.GetCommandBar().TryGetEntryRect (CassoExplorerCommands::kTogglePreview, preview));
+        rig.Click (preview);
+        Assert::AreNotEqual (shown, rig.parts->commands.Find (CassoExplorerCommands::kTogglePreview)->IsChecked(), L"Preview turned the pane on or off");
+    }
+
+
+    //  While a rename is open, a press outside the box ends it, and goes on
+    //  to what is under the pointer.
+    TEST_METHOD (HandleMouse_APressOutsideARenameEndsIt)
+    {
+        Rig             rig;
+        DxuiMouseEvent  mouse;
+        RECT            tree  = {};
+
+
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\a.dsk");
+        rig.Open();
+        Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
+
+        rig.parts->rename.BeginRename();
+        Assert::IsTrue (rig.parts->rename.IsRenaming());
+
+        tree              = rig.parts->treePane.GetBounds();
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.kind        = DxuiMouseEventKind::Down;
+        mouse.positionDip = { (tree.left + tree.right) / 2, tree.bottom - 10 };
+
+        Assert::IsTrue  (rig.parts->input.HandleMouse (mouse), L"the tree under the pointer takes the press");
+        Assert::IsFalse (rig.parts->rename.IsRenaming(), L"and the rename is over");
+        Assert::IsTrue  (rig.parts->input.GetFocusPane() == ExplorerPane::Tree);
+    }
+
+
+    //  A press in the list or the tree moves focus to it, through the
+    //  window's input with no routing in the pane.
+    TEST_METHOD (HandleMouse_PressInTheListOrTreeMovesFocusToIt)
+    {
+        Rig             rig;
+        RECT            list  = {};
+        RECT            tree  = {};
+        DxuiMouseEvent  mouse;
+
+
+
+        rig.Open();
+
+        list = rig.parts->listPane.GetListView()->GetBounds();
+        tree = rig.parts->treePane.GetBounds();
+
+        rig.parts->input.SetFocusPane (ExplorerPane::Tree);
+
+        mouse.button      = DxuiMouseButton::Left;
+        mouse.kind        = DxuiMouseEventKind::Down;
+        mouse.positionDip = { (list.left + list.right) / 2, list.bottom - 10 };
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::List);
+
+        mouse.kind = DxuiMouseEventKind::Up;
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+
+        mouse.kind        = DxuiMouseEventKind::Down;
+        mouse.positionDip = { (tree.left + tree.right) / 2, tree.bottom - 10 };
+        Assert::IsTrue (rig.parts->input.HandleMouse (mouse));
+        Assert::IsTrue (rig.parts->input.GetFocusPane() == ExplorerPane::Tree);
+    }
+
+
+    //  Polls `isDone`, with the window's message for loaded icons before each
+    //  poll, for up to kWaitMs: the icons are loaded on other threads.
+    static bool  WaitFor (Rig & rig, const std::function<bool()> & isDone)
+    {
+        static constexpr int  kWaitMs  = 5000;
+        static constexpr int  kPollMs  = 10;
+        auto                  deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (kWaitMs);
+        bool                  done     = isDone();
+
+
+
+        while (!done && std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (kPollMs));
+
+            rig.parts->HandleAppMessage ((UINT) AppMessage::ExplorerIconsLoaded, 0, 0);
+            rig.parts->preview.GetThumbnail().TakeResult();
+            done = isDone();
+        }
+
+        return done;
+    }
+
+
+    //  In the large icon view, at 100% and at 150%, a disk image in a folder
+    //  has its picture in place of the floppy, made at a size that covers
+    //  the view's icon.
+    TEST_METHOD (IconViews_DrawADiskImagesThumbnail_At100And150Percent)
+    {
+        for (UINT dpi : { 96u, 144u })
+        {
+            Rig               rig;
+            FakeDiskPictures  pictures;
+            bool              loaded  = false;
+            int               iconPx  = 0;
+
+
+
+            rig.app.pictures = &pictures;
+            rig.scaler.SetDpi (dpi);
+            rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\a.dsk");
+            rig.Open();
+            Assert::IsTrue (rig.browser.NavigateToAddress (L"C:\\Disks"));
+
+            rig.parts->listPane.GetColumns().SetView (DxuiListView::View::LargeIcons);
+            rig.parts->layout.RecomputeLayout();
+            rig.parts->listPane.FillList();
+
+            iconPx = rig.parts->listPane.GetListView()->GetViewIconPx();
+            Assert::IsTrue (iconPx > 0);
+
+            loaded = WaitFor (rig, [&rig]()
+            {
+                const std::vector<DxuiListView::Cell> &  cells = rig.parts->listPane.GetListRowCells (0);
+
+                return !cells.empty() && cells[0].icon != nullptr && !cells[0].icon->bgraPremul.empty()
+                    && cells[0].icon->bgraPremul[0] == FakeDiskPictures::kColor;
+            });
+
+            Assert::IsTrue (loaded, std::format (L"The row's icon is the picture at {} dpi", dpi).c_str());
+            Assert::IsFalse (pictures.GetLoaded().empty());
+            Assert::AreEqual (std::wstring (L"C:\\Disks\\a.dsk"), pictures.GetLoaded()[0].first);
+            Assert::IsTrue (pictures.GetLoaded()[0].second >= iconPx, std::format (L"A picture of {} px for an icon of {} px at {} dpi", pictures.GetLoaded()[0].second, iconPx, dpi).c_str());
+        }
+    }
+
+
+    //  The preview of a disk image has the picture of its screen and the
+    //  line with its boot result under it, at 100% and at 150%: beside the
+    //  platter in a wide pane, and three quarters as tall as it is wide. The
+    //  platter's analysis reads the file from the disk, so the image is in a
+    //  folder of the test's in the temporary folder as well.
+    TEST_METHOD (Preview_HasADiskImagesScreenAndResultLine_At100And150Percent)
+    {
+        for (UINT dpi : { 96u, 144u })
+        {
+            Rig                    rig;
+            FakeDiskPictures       pictures;
+            ThumbnailRecord        record;
+            bool                   isDrawn = false;
+            RECT                   screen  = {};
+            std::filesystem::path  folder  = std::filesystem::temp_directory_path() / std::format (L"CassoPreviewScreen{}_{}", ::GetCurrentProcessId(), dpi);
+            std::filesystem::path  image   = folder / L"a.dsk";
+
+
+
+            record.verdict      = "booted";
+            record.machine      = "Apple2eEnhanced";
+            pictures.resultLine = DiskImagePictures::DescribeRecord (record, false);
+
+            rig.app.pictures = &pictures;
+            rig.scaler.SetDpi (dpi);
+            rig.prefs.previewVisible = true;
+            rig.Seed ("CassoExplorer/dos33.dsk", image.c_str());
+            std::filesystem::create_directories (folder);
+            AssertSucceeded (DiskImageStore::WriteFileAtomically (image.string(), rig.io.files[image.string()]));
+            rig.Open();
+            Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+            rig.parts->listPane.FillList();
+            Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
+            rig.parts->preview.FillPreview();
+
+            isDrawn = WaitFor (rig, [&rig]()
+            {
+                rig.parts->layout.RecomputeLayout();
+
+                return rig.parts->preview.GetThumbnail().IsScreenShown();
+            });
+
+            Assert::IsTrue (isDrawn, std::format (L"The screen's picture at {} dpi", dpi).c_str());
+            Assert::AreEqual (pictures.resultLine, rig.parts->preview.GetThumbnail().GetResultLine());
+
+            screen = rig.parts->preview.GetThumbnail().GetScreenRect();
+            Assert::AreEqual ((long) rig.scaler.ToPx (PreviewDiskThumbnail::kScreenDip), screen.right - screen.left);
+            Assert::AreEqual ((screen.right - screen.left) * 3 / 4, screen.bottom - screen.top);
+
+            std::filesystem::remove_all (folder);
+        }
     }
 
 

@@ -400,13 +400,15 @@ void PicturePreview::RenderMonochrome (std::span<const Byte> bytes, Word address
 //
 //  PicturePreview::EncodePng
 //
-//  Each 0xAARRGGBB pixel becomes R, G, B and an opaque A.
+//  Each 0xAARRGGBB pixel becomes R, G, B and an opaque A. COM is set up for WIC
+//  on a thread where it isn't, as on the command line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT PicturePreview::EncodePng (const std::vector<uint32_t> & bgra, int width, int height, std::vector<Byte> & outPng)
 {
     HRESULT    hr    = S_OK;
+    HRESULT    hrCom = ::CoInitializeEx (nullptr, COINIT_MULTITHREADED);
     size_t     count = bgra.size();
     bool       sized = width > 0 && height > 0 && count == (size_t) width * height;
     RgbaImage  image;
@@ -431,5 +433,10 @@ HRESULT PicturePreview::EncodePng (const std::vector<uint32_t> & bgra, int width
     CHR (hr);
 
 Error:
+    if (SUCCEEDED (hrCom))
+    {
+        ::CoUninitialize();
+    }
+
     return hr;
 }

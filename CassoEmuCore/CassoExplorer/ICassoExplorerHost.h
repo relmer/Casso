@@ -94,4 +94,9 @@ public:
     //  The theme the windows changed to, which the inspector windows follow
     //  (FR-078).
     virtual void  SetInspectorTheme (const DxuiTheme & theme) { (void) theme; }
+
+    //  Called by a window when a disk image has been booted, or couldn't be
+    //  for a machine's missing ROMs: those ROMs are offered once in a run,
+    //  in a dialog on the window.
+    virtual void  OfferBootRoms (HWND hwnd, const DxuiTheme * theme) { (void) hwnd; (void) theme; }
 };

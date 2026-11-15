@@ -25,7 +25,10 @@ class IDiskFileIo;
 class FileBlockStore : public IBlockStore
 {
 public:
-    static constexpr uint32_t  kBlocksPerPage = 128;
+    //  Small, so scattered reads cost little more than the blocks read.
+    //  Missing pages next to each other are read in one request, and dirty
+    //  pages next to each other are written in one.
+    static constexpr uint32_t  kBlocksPerPage = 16;
 
     FileBlockStore (IDiskFileIo & fileIo, std::string path, uint64_t firstByte, uint32_t blockCount);
 
@@ -37,7 +40,11 @@ public:
     size_t    GetDirtyPageCount() const { return m_dirty.size(); }
 
 private:
-    HRESULT   LoadPage (uint32_t page, std::vector<Byte> *& outPage);
+    HRESULT   LoadPage  (uint32_t page, std::vector<Byte> *& outPage);
+
+    //  The pages from `first` to `last` that aren't loaded, each run of them
+    //  read in one request.
+    HRESULT   LoadPages (uint32_t first, uint32_t last);
 
     IDiskFileIo                                 & m_fileIo;
     std::string                                   m_path;

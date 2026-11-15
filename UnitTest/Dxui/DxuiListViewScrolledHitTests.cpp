@@ -70,10 +70,10 @@ public:
         ev.positionDip = POINT { x, y };
 
         ev.kind = DxuiMouseEventKind::Down;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         ev.kind = DxuiMouseEventKind::Up;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
     }
 
 
@@ -140,7 +140,7 @@ public:
         wheel.positionDip = POINT { kRowX, kRowMidY };
         wheel.wheelDelta  = -10.0f;
 
-        list.OnMouse (wheel);
+        list.AsControl().OnMouse (wheel);
 
         expected = list.GetTopRow() + kVisibleIdx;
 

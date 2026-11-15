@@ -55,5 +55,5 @@ private:
     const CardLayoutModel     & m_model;
     DxuiDpiScaler               m_scaler;
     int                         m_position = 1;
-    CardLayoutModel::Adapter    m_adapter  = CardLayoutModel::Adapter::Unsure;
+    CardLayoutModel::Adapter    m_adapter  = CardLayoutModel::kDefaultAdapter;
 };

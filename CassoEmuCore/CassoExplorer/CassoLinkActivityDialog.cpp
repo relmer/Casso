@@ -41,47 +41,6 @@ void CassoLinkActivityList::Layout (const RECT & boundsPx, const DxuiDpiScaler &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkActivityList::OnMouse
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoLinkActivityList::OnMouse (const DxuiMouseEvent & ev)
-{
-    DxuiMouseEvent  local  = ev;
-    RECT            bounds = m_list->GetBounds();
-
-
-
-    local.positionDip = { ev.positionDip.x - bounds.left, ev.positionDip.y - bounds.top };
-
-    return m_list->OnMouse (local);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkActivityList::GetCursorForPoint
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LPCWSTR CassoLinkActivityList::GetCursorForPoint (POINT clientPx) const
-{
-    RECT  bounds = m_list->GetBounds();
-
-
-
-    return m_list->GetCursorForPoint (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoLinkActivityDialog::FormatTime
 //
 ////////////////////////////////////////////////////////////////////////////////

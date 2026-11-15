@@ -1036,8 +1036,10 @@ void ExplorerCommandManager::ShowOptions()
     choices.packaged     = packaged;
     choices.autoPreview  = m_context.prefs.autoPreview;
     choices.enterExpands = m_context.prefs.enterExpandsPreview;
+    choices.autoThumbnails = m_context.prefs.autoThumbnails;
     choices.fullSendFolder    = m_context.prefs.fullSendFolder.empty() ? CassoLinkManager::GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
     choices.fullSendExtension = m_context.prefs.fullSendExtension;
+    choices.bootSoundPlace    = m_context.prefs.bootSoundPlace;
     choices.verifyReads       = m_context.prefs.verifyReads;
     choices.verifyWrites      = m_context.prefs.verifyWrites;
     choices.autoVerify        = m_context.prefs.autoVerify;
@@ -1059,6 +1061,10 @@ void ExplorerCommandManager::ShowOptions()
             ioFolder = picked.wstring();
         }
     };
+    if (m_context.app.pictures != nullptr)
+    {
+    }
+
     display.themeDefaults = m_context.preview.GetPicture().GetCrtDefaults();
     display.preview       = [this] (const CassoExplorerOptionsDialog::Choices & shown)
     {
@@ -1081,8 +1087,10 @@ void ExplorerCommandManager::ShowOptions()
 
     m_context.prefs.autoPreview         = choices.autoPreview;
     m_context.prefs.enterExpandsPreview = choices.enterExpands;
+    m_context.prefs.autoThumbnails      = choices.autoThumbnails;
     m_context.prefs.fullSendFolder    = choices.fullSendFolder == CassoLinkManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
     m_context.prefs.fullSendExtension = choices.fullSendExtension;
+    m_context.prefs.bootSoundPlace    = choices.bootSoundPlace;
     m_context.prefs.verifyReads       = choices.verifyReads;
     m_context.prefs.verifyWrites      = choices.verifyWrites;
     m_context.prefs.autoVerify        = choices.autoVerify;
@@ -1425,21 +1433,8 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
             break;
 
         case CassoExplorerActions::Verb::InspectDiskImage:
-        {
-            std::vector<std::wstring>  paths;
-
-            if (m_context.browser.IsImageLocation())
-            {
-                paths.push_back (m_context.browser.GetLocation().path);
-            }
-            else
-            {
-                m_context.browser.GetSelectedHostPaths (paths);
-            }
-
-            InspectDiskImages (paths);
+            m_context.opener.InspectSelected();
             break;
-        }
 
         case CassoExplorerActions::Verb::CompareDiskImages:
             CompareSelectedDiskImages();

@@ -42,6 +42,208 @@ void HfsWriter::PutLong (std::vector<Byte> & bytes, size_t at, uint32_t value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HfsWriter::PutWord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HfsWriter::PutWord (BlockBuffer & image, size_t at, uint32_t value)
+{
+    image[at]     = (Byte) (value >> 8);
+    image[at + 1] = (Byte) value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::PutLong
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HfsWriter::PutLong (BlockBuffer & image, size_t at, uint32_t value)
+{
+    PutWord (image, at,     value >> 16);
+    PutWord (image, at + 2, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::PutBytes
+//
+//  Whole blocks are written without reading them first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HfsWriter::PutBytes (BlockBuffer & image, size_t at, const Byte * bytes, size_t length)
+{
+    size_t   whole = (at % kSectorBytes == 0) ? length - length % kSectorBytes : 0;
+    HRESULT  hr    = S_OK;
+
+
+
+    if (whole > 0)
+    {
+        hr = image.WriteBlocks ((uint32_t) (at / kSectorBytes), std::span<const Byte> (bytes, whole));
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    for (size_t i = whole; i < length; i++)
+    {
+        image[at + i] = bytes[i];
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::Zero
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HfsWriter::Zero (BlockBuffer & image, size_t at, size_t length)
+{
+    std::vector<Byte>  zeros (length, 0);
+
+
+
+    PutBytes (image, at, zeros.data(), length);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::Edit
+//
+//  The change made on a buffer over the whole image, then copied back to
+//  it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsWriter::Edit (std::vector<Byte> & ioImage, const std::function<HRESULT (BlockBuffer &)> & change)
+{
+    HRESULT      hr     = S_OK;
+    BlockImage   view   (ioImage);
+    BlockBuffer  buffer (view);
+
+
+
+    hr = change (buffer);
+    CHR (hr);
+
+    ioImage = buffer.ToVector();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::Write
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsWriter::Write (std::vector<Byte> & ioImage, const FilePath & path, const FilePayload & payload)
+{
+    return Edit (ioImage, [&] (BlockBuffer & image) { return Write (image, path, payload); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::Delete
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsWriter::Delete (std::vector<Byte> & ioImage, const FilePath & path, DeleteOutcome & outOutcome)
+{
+    return Edit (ioImage, [&] (BlockBuffer & image) { return Delete (image, path, outOutcome); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::CreateDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsWriter::CreateDirectory (std::vector<Byte> & ioImage, const FilePath & path)
+{
+    return Edit (ioImage, [&] (BlockBuffer & image) { return CreateDirectory (image, path); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::RemoveDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsWriter::RemoveDirectory (std::vector<Byte> & ioImage, const FilePath & path, bool force, DeleteOutcome & outOutcome)
+{
+    return Edit (ioImage, [&] (BlockBuffer & image) { return RemoveDirectory (image, path, force, outOutcome); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::Rename
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsWriter::Rename (std::vector<Byte> & ioImage, const FilePath & from, const std::string & to)
+{
+    return Edit (ioImage, [&] (BlockBuffer & image) { return Rename (image, from, to); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsWriter::SetAttributes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HfsWriter::SetAttributes (std::vector<Byte> & ioImage, const FilePath & path, const FileAttributes & attributes)
+{
+    return Edit (ioImage, [&] (BlockBuffer & image) { return SetAttributes (image, path, attributes); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HfsWriter::GetMacNow
 //
 //  The local time as seconds since 1904, as HFS dates are.
@@ -148,14 +350,16 @@ bool HfsWriter::IsValidVolumeName (const std::string & name)
 
 HRESULT HfsWriter::ReadCatalogRecords (std::vector<Byte> & image, std::vector<HfsBTree::Record> & outRecords)
 {
-    HRESULT  hr = S_OK;
-    State    state;
+    HRESULT      hr     = S_OK;
+    BlockImage   view   (image);
+    BlockBuffer  buffer (view);
+    State        state;
 
 
 
     outRecords.clear();
 
-    hr = Load (image, state);
+    hr = Load (buffer, state);
     CHR (hr);
 
     hr = state.catalog.editor->ReadAll (outRecords);
@@ -177,7 +381,9 @@ Error:
 
 HRESULT HfsWriter::CheckTrees (std::vector<Byte> & image, std::string & outProblems)
 {
-    HRESULT      hr = S_OK;
+    HRESULT      hr     = S_OK;
+    BlockImage   view   (image);
+    BlockBuffer  buffer (view);
     State        state;
     std::string  extents;
 
@@ -185,7 +391,7 @@ HRESULT HfsWriter::CheckTrees (std::vector<Byte> & image, std::string & outProbl
 
     outProblems.clear();
 
-    hr = Load (image, state);
+    hr = Load (buffer, state);
     CHR (hr);
 
     state.catalog.editor->Check (outProblems);
@@ -276,7 +482,7 @@ void HfsWriter::MapFromProDos (Byte type, Word auxType, uint32_t & outMacType, u
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsWriter::Load (std::vector<Byte> & image, State & outState)
+HRESULT HfsWriter::Load (BlockBuffer & image, State & outState)
 {
     HRESULT  hr       = S_OK;
     bool     sized    = image.size() >= kMdbOffset + kSectorBytes;
@@ -344,10 +550,14 @@ HRESULT HfsWriter::LoadTree (State & state, HfsBTree::Kind kind, Tree & ioTree)
         size_t  at     = GetBlockOffset (state, extent.start);
         size_t  length = (size_t) extent.count * state.allocationBytes;
         size_t  size   = state.image->size();
+        size_t  end    = ioTree.nodes.size();
 
         CBREx (at + length <= size, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
 
-        ioTree.nodes.insert (ioTree.nodes.end(), state.image->begin() + (ptrdiff_t) at, state.image->begin() + (ptrdiff_t) (at + length));
+        ioTree.nodes.resize (end + length);
+        hr = state.image->ReadBlocks ((uint32_t) (at / kSectorBytes), (uint32_t) (length / kSectorBytes), std::span<Byte> (ioTree.nodes).subspan (end));
+        CHR (hr);
+
         total += length;
     }
 
@@ -406,8 +616,7 @@ void HfsWriter::WriteTree (State & state, const Tree & tree)
 
             if (offset < length)
             {
-                std::copy_n (tree.nodes.begin() + (ptrdiff_t) ((size_t) node * HfsBTree::kNodeBytes), HfsBTree::kNodeBytes,
-                             state.image->begin() + (ptrdiff_t) (GetBlockOffset (state, extent.start) + offset));
+                PutBytes (*state.image, GetBlockOffset (state, extent.start) + offset, tree.nodes.data() + (size_t) node * HfsBTree::kNodeBytes, HfsBTree::kNodeBytes);
                 break;
             }
 
@@ -511,7 +720,7 @@ HRESULT HfsWriter::GrowTree (State & state, Tree & ioTree, uint32_t needed)
 
     for (const Extent & run : runs)
     {
-        std::fill_n (state.image->begin() + (ptrdiff_t) GetBlockOffset (state, run.start), (size_t) run.count * state.allocationBytes, (Byte) 0);
+        Zero (*state.image, GetBlockOffset (state, run.start), (size_t) run.count * state.allocationBytes);
     }
 
     hr = ioTree.editor->Extend (ioTree.bytes / (uint32_t) HfsBTree::kNodeBytes);
@@ -621,9 +830,9 @@ Error:
 
 HRESULT HfsWriter::Save (State & state)
 {
-    std::vector<Byte> &  image = *state.image;
-    uint32_t             free  = 0;
-    size_t               copy  = image.size() - 2 * kSectorBytes;
+    BlockBuffer &  image = *state.image;
+    uint32_t       free  = 0;
+    size_t         copy  = image.size() - 2 * kSectorBytes;
 
 
 
@@ -650,7 +859,10 @@ HRESULT HfsWriter::Save (State & state)
         PutWord (image, kMdbOffset + 152 + i * 4, state.catalog.file[i].count);
     }
 
-    std::copy_n (image.begin() + (ptrdiff_t) kMdbOffset, kSectorBytes, image.begin() + (ptrdiff_t) copy);
+    for (size_t i = 0; i < kSectorBytes; i++)
+    {
+        image[copy + i] = std::as_const (image)[kMdbOffset + i];
+    }
 
     return S_OK;
 }
@@ -671,7 +883,7 @@ bool HfsWriter::IsAllocated (const State & state, Word block)
 
 
 
-    return ((*state.image)[at] & (0x80 >> (block % 8))) != 0;
+    return (std::as_const (*state.image)[at] & (0x80 >> (block % 8))) != 0;
 }
 
 
@@ -688,10 +900,11 @@ void HfsWriter::SetAllocated (State & state, Word block, bool allocated)
 {
     size_t  at   = (size_t) state.bitmapStart * kSectorBytes + block / 8;
     Byte    mask = (Byte) (0x80 >> (block % 8));
+    Byte    bits = std::as_const (*state.image)[at];
 
 
 
-    (*state.image)[at] = allocated ? (Byte) ((*state.image)[at] | mask) : (Byte) ((*state.image)[at] & ~mask);
+    (*state.image)[at] = allocated ? (Byte) (bits | mask) : (Byte) (bits & ~mask);
 }
 
 
@@ -823,8 +1036,8 @@ HRESULT HfsWriter::WriteFork (State & state, const std::vector<Byte> & bytes, st
         size_t  length = (size_t) run.count * state.allocationBytes;
         size_t  copy   = std::min (length, bytes.size() - done);
 
-        std::copy_n (bytes.begin() + (ptrdiff_t) done, copy, state.image->begin() + (ptrdiff_t) at);
-        std::fill_n (state.image->begin() + (ptrdiff_t) (at + copy), length - copy, (Byte) 0);
+        PutBytes (*state.image, at, bytes.data() + done, copy);
+        Zero     (*state.image, at + copy, length - copy);
         done += copy;
     }
 
@@ -1003,8 +1216,8 @@ Error:
 
 void HfsWriter::AdjustCount (State & state, size_t at, int delta)
 {
-    std::vector<Byte> &  image  = *state.image;
-    bool                 isWord = at == 12 || at == 82;
+    BlockBuffer &  image  = *state.image;
+    bool           isWord = at == 12 || at == 82;
 
 
 
@@ -1150,7 +1363,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsWriter::Write (std::vector<Byte> & ioImage, const FilePath & path, const FilePayload & payload)
+HRESULT HfsWriter::Write (BlockBuffer & ioImage, const FilePath & path, const FilePayload & payload)
 {
     HRESULT              hr       = S_OK;
     State                state;
@@ -1264,7 +1477,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsWriter::Delete (std::vector<Byte> & ioImage, const FilePath & path, DeleteOutcome & outOutcome)
+HRESULT HfsWriter::Delete (BlockBuffer & ioImage, const FilePath & path, DeleteOutcome & outOutcome)
 {
     HRESULT            hr     = S_OK;
     State              state;
@@ -1309,7 +1522,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsWriter::CreateDirectory (std::vector<Byte> & ioImage, const FilePath & path)
+HRESULT HfsWriter::CreateDirectory (BlockBuffer & ioImage, const FilePath & path)
 {
     HRESULT            hr       = S_OK;
     State              state;
@@ -1381,7 +1594,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsWriter::RemoveDirectory (std::vector<Byte> & ioImage, const FilePath & path, bool force, DeleteOutcome & outOutcome)
+HRESULT HfsWriter::RemoveDirectory (BlockBuffer & ioImage, const FilePath & path, bool force, DeleteOutcome & outOutcome)
 {
     HRESULT                        hr       = S_OK;
     State                          state;
@@ -1487,7 +1700,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsWriter::Rename (std::vector<Byte> & ioImage, const FilePath & from, const std::string & to)
+HRESULT HfsWriter::Rename (BlockBuffer & ioImage, const FilePath & from, const std::string & to)
 {
     HRESULT            hr      = S_OK;
     State              state;
@@ -1589,7 +1802,7 @@ uint32_t HfsWriter::ToMacDate (Word date, Word time)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT HfsWriter::SetAttributes (std::vector<Byte> & ioImage, const FilePath & path, const FileAttributes & attributes)
+HRESULT HfsWriter::SetAttributes (BlockBuffer & ioImage, const FilePath & path, const FileAttributes & attributes)
 {
     HRESULT            hr      = S_OK;
     State              state;
@@ -1679,6 +1892,8 @@ HRESULT HfsWriter::Format (std::vector<Byte> & outImage, size_t sectors, const s
     std::vector<Byte>  root (kDirectoryBytes, 0);
     std::vector<Byte>  thread (kThreadBytes, 0);
     std::vector<HfsBTree::Record>  records;
+    std::optional<BlockImage>      view;
+    std::optional<BlockBuffer>     buffer;
 
 
 
@@ -1720,7 +1935,10 @@ HRESULT HfsWriter::Format (std::vector<Byte> & outImage, size_t sectors, const s
     PutWord (outImage, kMdbOffset + 150, treeBlocks);
     PutWord (outImage, kMdbOffset + 152, treeBlocks);
 
-    state.image            = &outImage;
+    view.emplace   (outImage);
+    buffer.emplace (*view);
+
+    state.image            = &*buffer;
     state.bitmapStart      = 3;
     state.allocationBlocks = (Word) blocks;
     state.allocationBytes  = perBlock * (uint32_t) kSectorBytes;
@@ -1762,6 +1980,8 @@ HRESULT HfsWriter::Format (std::vector<Byte> & outImage, size_t sectors, const s
 
     hr = Save (state);
     CHR (hr);
+
+    outImage = buffer->ToVector();
 
     PutLong (outImage, kMdbOffset + 70, 0);
     std::copy_n (outImage.begin() + (ptrdiff_t) kMdbOffset, kSectorBytes, outImage.end() - (ptrdiff_t) (2 * kSectorBytes));

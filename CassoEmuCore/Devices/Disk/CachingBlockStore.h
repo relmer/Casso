@@ -38,9 +38,18 @@ public:
     void      Discard              ()       { m_changed.clear(); }
 
 private:
-    static constexpr uint32_t  kChunkBlocks = 128;
+    //  Small, so a volume's metadata scattered over a card costs little
+    //  more than the metadata blocks. Missing chunks next to each other are
+    //  read in one request, so a long read is not slowed. A commit sends runs
+    //  of up to kRunBlocks.
+    static constexpr uint32_t  kChunkBlocks = 16;
+    static constexpr uint32_t  kRunBlocks   = 128;
 
-    HRESULT  LoadChunk (uint32_t chunk, const std::vector<Byte> * & outBytes);
+    HRESULT  LoadChunk  (uint32_t chunk, const std::vector<Byte> * & outBytes);
+
+    //  The chunks from `first` to `last` that aren't cached, each run of them
+    //  read in one request.
+    HRESULT  LoadChunks (uint32_t first, uint32_t last);
 
     IBlockStore                            & m_inner;
 

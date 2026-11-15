@@ -91,13 +91,32 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDetailRows (const std::vector<s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreviewText::BuildDocumentRows
-//
-//  A row for each paragraph, aligned as it is, a span for each styled run.
+//  PreviewText::GetRunColor
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector<Paragraph> & paragraphs)
+uint32_t PreviewText::GetRunColor (RunColor color, const SourceSyntax::Colors & colors)
+{
+    return (color == RunColor::Good)  ? colors.comment
+         : (color == RunColor::Bad)   ? colors.string
+         : (color == RunColor::Muted) ? colors.address
+                                      : 0u;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::BuildDocumentRows
+//
+//  A row for each paragraph, aligned as it is, a span for each styled or
+//  colored run, and a paragraph with a picture a row of the picture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector<Paragraph> & paragraphs, const SourceSyntax::Colors & colors)
 {
     std::vector<DxuiTextView::Row>  rows;
 
@@ -111,14 +130,27 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector
                       : (paragraph.alignment == Alignment::Right)  ? DxuiTextHAlign::Right
                                                                    : DxuiTextHAlign::Left;
 
+        if (!paragraph.picture.empty())
+        {
+            auto  picture = std::make_shared<DxuiTextView::Picture>();
+
+            picture->bgra   = paragraph.picture;
+            picture->width  = paragraph.width;
+            picture->height = paragraph.height;
+            row.picture     = picture;
+        }
+
         for (const Run & run : paragraph.runs)
         {
-            if (run.bold || run.italic || run.underline)
+            uint32_t  argb = GetRunColor (run.color, colors);
+
+            if (run.bold || run.italic || run.underline || argb != 0)
             {
                 DxuiTextView::Span  span;
 
                 span.start     = (int) row.cells[0].size();
                 span.length    = (int) run.text.size();
+                span.argb      = argb;
                 span.bold      = run.bold;
                 span.italic    = run.italic;
                 span.underline = run.underline;
@@ -200,7 +232,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildCrossReferenceRows (const Previ
 std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors)
 {
     std::vector<DxuiTextView::Row>  rows;
-    DxuiTextView::Row               warning;
+    std::vector<DxuiTextView::Row>  warnings;
     std::vector<Word>               addresses;
 
 
@@ -237,7 +269,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
     }
     else if (preview.kind == PreviewContent::Kind::Document)
     {
-        rows = BuildDocumentRows (preview.paragraphs);
+        rows = BuildDocumentRows (preview.paragraphs, colors);
     }
     else if (preview.kind == PreviewContent::Kind::Details)
     {
@@ -256,6 +288,8 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
         for (size_t i = 0; i < preview.lines.size(); i++)
         {
             DxuiTextView::Row  row { { std::format (L"{:>{}}", i + 1, digits), preview.lines[i] } };
+
+            row.wrapIndent = GetOperandColumn (preview.lines[i]);
 
             if (colors.mnemonic != 0)
             {
@@ -309,30 +343,58 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
             {
                 AddBasicSpans (rows.back(), colors);
             }
+
+            if (preview.assembler)
+            {
+                rows.back().wrapIndent = GetOperandColumn (line);
+            }
         }
     }
 
-    //  A catalog's rows don't wrap, so a warning of several sentences, as a
-    //  damaged directory's is, goes in a row a sentence.
     if (!preview.warning.empty())
     {
-        size_t  start = 0;
+        warnings = BuildWarningRows (preview.warning);
 
         rows.push_back (DxuiTextView::Row());
+        rows.insert    (rows.end(), warnings.begin(), warnings.end());
+    }
 
-        while (start < preview.warning.size())
-        {
-            size_t  end = preview.warning.find (L". ", start);
+    return rows;
+}
 
-            end = (end == std::wstring::npos) ? preview.warning.size() : end + 1;
 
-            warning.cells   = { preview.warning.substr (start, end - start) };
-            warning.warning = true;
-            rows.push_back (warning);
 
-            start = preview.warning.find_first_not_of (L' ', end);
-            start = (start == std::wstring::npos) ? preview.warning.size() : start;
-        }
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::BuildWarningRows
+//
+//  A catalog's rows don't wrap, so a warning of several sentences, as a
+//  damaged directory's is, goes in a row a sentence.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> PreviewText::BuildWarningRows (const std::wstring & warning)
+{
+    std::vector<DxuiTextView::Row>  rows;
+    DxuiTextView::Row               row;
+    size_t                          start = 0;
+
+
+
+    row.warning = true;
+
+    while (start < warning.size())
+    {
+        size_t  end = warning.find (L". ", start);
+
+        end       = (end == std::wstring::npos) ? warning.size() : end + 1;
+        row.cells = { warning.substr (start, end - start) };
+        rows.push_back (row);
+
+        start = warning.find_first_not_of (L' ', end);
+        start = (start == std::wstring::npos) ? warning.size() : start;
     }
 
     return rows;
@@ -644,6 +706,30 @@ std::vector<std::wstring> PreviewText::SplitLineNumber (const std::wstring & lin
     }
 
     return { line.substr (0, end), line.substr (text) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::GetOperandColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewText::GetOperandColumn (const std::wstring & line)
+{
+    size_t  at = (line.empty() || line[0] == L'*' || line[0] == L';') ? std::wstring::npos : 0;
+
+
+
+    at = (at == std::wstring::npos) ? at : line.find_first_of (L' ');
+    at = (at == std::wstring::npos) ? at : line.find_first_not_of (L' ', at);
+    at = (at == std::wstring::npos) ? at : line.find_first_of (L' ', at);
+    at = (at == std::wstring::npos) ? at : line.find_first_not_of (L' ', at);
+
+    return (at == std::wstring::npos) ? 0 : (int) at;
 }
 
 

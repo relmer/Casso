@@ -53,6 +53,25 @@ public:
 
     void  SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder);
 
+    //  Whether a Full Send saves a raw capture's reads beside its image.
+    void  SetFullSendReads  (bool on);
+
+    //  Whether the Apple sounds a tone for an image's boot result.
+    void  SetAppleBootSounds (bool on) { m_appleBootSounds = on; }
+
+    //  Called for each disk image a connection writes, a Full Send's or a
+    //  raw capture's, on the connection's thread: the connection, the
+    //  image's path and the model of the Apple.
+    using ImageFn = std::function<void (const std::string & link, const std::string & path, const std::string & model)>;
+
+    void  SetImageHandler   (ImageFn handler);
+
+    //  An image's boot result, from any thread: set in its row of the
+    //  connection's Full Send, with a line in that session's activity list
+    //  and in the activity log. renamedTo is the file's name now, when its
+    //  boot renamed it.
+    void  NoteBoot          (const std::string & link, const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo = std::string());
+
     //  Verified transfers for every connection that doesn't override them.
     void  SetVerifyDefaults (bool reads, bool writes, bool autoReads);
 
@@ -305,6 +324,9 @@ private:
         void  OnProgress           (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnDone               (const std::shared_ptr<LinkOperation> & operation) override;
         bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override;
+        bool  HasFullSendReadsOn   () override;
+        bool  HasAppleBootSounds   () override { return m_owner.m_appleBootSounds; }
+        bool  OnImageWritten       (const std::string & path, const std::string & model) override;
         void  OnOperationQueued    (const std::shared_ptr<LinkOperation> & operation) override;
         void  OnActivity           (const std::string & text) override;
         void  OnTrace              (bool sent, const std::string & text) override;
@@ -380,10 +402,13 @@ private:
 
     std::string           m_fullSendFolder;
     std::string           m_fullSendExtension;
+    bool                  m_fullSendReads      = false;
+    std::atomic<bool>     m_appleBootSounds    { false };
     bool                  m_verifyReads        = false;
     bool                  m_verifyWrites       = false;
     bool                  m_autoVerify         = true;
     MakeFolderFn          m_makeFullSendFolder;
+    ImageFn               m_imageHandler;
     std::vector<Job>      m_jobs;
     std::deque<Activity>  m_activity;
     CassoLinkLogFile      m_logFile;

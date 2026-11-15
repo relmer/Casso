@@ -10,6 +10,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
+#include "Core/AppMessages.h"
 
 
 
@@ -158,16 +159,19 @@ bool ExplorerListBars::FillSearchBar()
 
 bool ExplorerListBars::FillCardBar()
 {
-    const Location             & location = m_context.browser.GetLocation();
-    std::wstring                 root     = std::filesystem::path (location.path).root_path().wstring();
+    const Location             & location  = m_context.browser.GetLocation();
+    std::wstring                 root      = std::filesystem::path (location.path).root_path().wstring();
     std::vector<std::wstring>    labels;
+    std::vector<std::wstring>    arrived;
     std::wstring                 text;
-    HRESULT                      hr       = S_OK;
-    bool                         visible  = m_cardBar->IsVisible();
-    bool                         onCard   = false;
-    bool                         atRoot   = false;
-    bool                         problem  = false;
-    bool                         show     = false;
+    HRESULT                      hr        = S_OK;
+    BOOL                         posted    = TRUE;
+    bool                         visible   = m_cardBar->IsVisible();
+    bool                         onCard    = false;
+    bool                         atRoot    = false;
+    bool                         problem   = false;
+    bool                         show      = false;
+    bool                         relabeled = false;
 
 
 
@@ -176,6 +180,21 @@ bool ExplorerListBars::FillCardBar()
 
     //  Files dropped on or from a card that Windows has moved since.
     m_context.actions.GetA2retroNet().ResolveMoves();
+
+    //  Images copied to a card that A2retroNET doesn't read. The question
+    //  about them waits for a message, so the list is filled first.
+    m_context.actions.GetA2retroNet().TakeArrived (arrived);
+
+    if (!arrived.empty())
+    {
+        m_arrived.insert (m_arrived.end(), arrived.begin(), arrived.end());
+
+        if (m_context.window.GetHwnd() != nullptr)
+        {
+            posted = PostMessageW (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerCardArrivals, 0, 0);
+            IGNORE_RETURN_VALUE (posted, TRUE);
+        }
+    }
 
     onCard = location.kind == Location::Kind::HostFolder && !root.empty() && m_context.actions.IsA2PicoCard (root) && location.path != m_cardBarClosed;
     atRoot = onCard && location.path == root;
@@ -217,19 +236,28 @@ bool ExplorerListBars::FillCardBar()
 
     for (CardAction action : m_cardActions)
     {
-        labels.push_back (action == CardAction::Drives ? L"A2retroNET drives..." : action == CardAction::Repair ? L"Repair" : L"Write as .po");
+        labels.push_back (action == CardAction::Drives ? L"Drives..." : action == CardAction::Repair ? L"Repair" : L"Write as .po");
     }
+
+    //  New buttons have no place until the bar is laid out, so they are
+    //  replaced only when their labels change, and the pane is laid out again.
+    relabeled = show && labels != m_cardLabels;
 
     if (show)
     {
         m_cardBar->SetText     (text);
         m_cardBar->SetSeverity (problem ? DxuiInfoBanner::Severity::Warning : DxuiInfoBanner::Severity::Info);
-        m_cardBar->SetActions  (labels);
+    }
+
+    if (relabeled)
+    {
+        m_cardBar->SetActions (labels);
+        m_cardLabels = labels;
     }
 
     m_cardBar->SetVisible (show);
 
-    return show != visible;
+    return show != visible || relabeled;
 }
 
 
@@ -256,6 +284,51 @@ std::wstring ExplorerListBars::DescribeFiles (const std::vector<std::wstring> & 
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListBars::OfferArrived
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListBars::OfferArrived()
+{
+    std::vector<std::wstring>  paths  = std::move (m_arrived);
+    std::wstring               text;
+    std::wstring               written;
+    int                        choice = IDNO;
+
+
+
+    m_arrived.clear();
+
+    if (paths.empty())
+    {
+        return;
+    }
+
+    text = paths.size() == 1
+         ? std::format (L"A2Pico doesn't support {}. Would you like to convert it to {}?", DescribeFiles (paths), std::filesystem::path (paths[0]).filename().replace_extension (L".po").wstring())
+         : std::format (L"A2Pico doesn't support {}. Would you like to convert them to .po images?", DescribeFiles (paths));
+
+    choice = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, text.c_str(), L"Convert for A2Pico", MB_YESNO, { L"Convert", L"Don't convert" });
+
+    if (choice != IDYES)
+    {
+        return;
+    }
+
+    for (const std::wstring & path : paths)
+    {
+        m_context.commandManager.ReportOutcome (m_context.actions.GetA2retroNet().ReplaceWithPo (path, written), L"Convert for A2Pico");
+    }
+
+    m_context.folderSync.RefreshAfterHostChange();
 }
 
 

@@ -34,6 +34,8 @@ enum class FullSendDriveState : Byte
     Protected,
     Changed,
     Capturing,
+    Blank,
+    Validating,     // the image is being booted on the PC
 };
 
 enum class FullSendTone : Byte
@@ -43,6 +45,8 @@ enum class FullSendTone : Byte
     Duplicate,
     BadSectors,
     Protected,
+    Booted,         // the image booted on the PC
+    DidNotBoot,
 };
 
 enum class FullSendKey
@@ -153,8 +157,21 @@ public:
     //  Whether this PC bootstrapped the Apple, so no CassoLink disk was booted.
     virtual bool     IsBootstrapped () = 0;
 
-    //  A drive's disk captured raw as a WOZ.
-    virtual HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz) = 0;
+    //  A drive's disk captured raw as a WOZ. outReads has every read of the
+    //  capture, as CassoLinkCapture::SerializeReads writes them, when reads
+    //  are saved, and is empty otherwise. With withEarlier, the WOZ is built
+    //  from this capture's reads and those of the drive's capture before it,
+    //  which was of the same disk.
+    virtual HRESULT  CaptureRaw     (int drive, bool withEarlier, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) = 0;
+
+    //  An image the session wrote, by its path, for the boot check. True
+    //  when the image is booted, and AwaitBoot then returns once its result
+    //  is in the session's status, or after a time limit.
+    virtual bool     NoteImage      (const std::string & path) { UNREFERENCED_PARAMETER (path); return false; }
+    virtual HRESULT  AwaitBoot      (const std::string & file) { UNREFERENCED_PARAMETER (file); return S_OK; }
+
+    //  Whether the Apple sounds a tone for an image's boot result.
+    virtual bool     HasBootTones   () { return false; }
 
     //  A line for the activity log.
     virtual void     Report     (const std::string & text) = 0;
@@ -233,6 +250,7 @@ private:
         None,
         New,
         Repeat,
+        Blank,      // formatted, with no files; not sent unless its drive's number is pressed
     };
 
     //  A drive's disk as a check read it. The tracks read whole are not read a
@@ -243,6 +261,7 @@ private:
         std::string        fingerprint;
         std::vector<Byte>  image;
         std::vector<int>   wholeTracks;
+        std::string        system;          // a blank disk's file system
 
         bool  IsReadWhole (int track) const { return std::find (wholeTracks.begin(), wholeTracks.end(), track) != wholeTracks.end(); }
     };
@@ -251,6 +270,7 @@ private:
     static constexpr size_t  kPrefixLength     = 16;
 
     static constexpr const char *  kRawExtension = ".woz";    // a raw capture's
+    static constexpr const char *  kReadsSuffix  = ".reads";  // added to a raw capture's file for its reads
 
     HRESULT  LoadManifest     ();
     HRESULT  ReloadManifest   ();
@@ -259,11 +279,14 @@ private:
     HRESULT  RunRound         ();
     HRESULT  Pause            ();
     HRESULT  CheckDrive       (int drive, CheckedDisk & outDisk);
+    HRESULT  CheckBlank       (int drive, CheckedDisk & ioDisk);
     HRESULT  ReadFingerprint  (int drive, CheckedDisk & outDisk, bool & outStable);
     HRESULT  ReadStableTrack  (int drive, int track, CheckedDisk & ioDisk, bool & outHasDisk, bool & outStable);
     HRESULT  SendDisk         (int drive, const CheckedDisk & checked, bool anyway);
     HRESULT  CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw);
     HRESULT  WriteImage       (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile);
+    void     ApplyBoots       ();
+    HRESULT  SendAgain        (int drive, const CheckedDisk & disk);
     HRESULT  WriteManifest    ();
     void     Report           (const std::string & text);
     void     MarkTracks       (int drive, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report);
@@ -300,7 +323,16 @@ private:
     std::array<bool, 2>         m_repeats    = { false, false };   // drives whose last check matched the manifest
     std::array<bool, 2>         m_swapped    = { false, false };   // and of those, the disks that changed during their read
     std::array<std::string, 2>  m_counted;                         // the repeat each drive last added to the duplicates
+    std::array<bool, 2>         m_blank      = { false, false };   // drives whose last check found a blank disk
+    std::vector<std::string>    m_unbooted;                        // a line for each image that did not boot, for the next pause
+    std::string                 m_retryPrint;                      // the fingerprint of the disk the pause offers to read again
+    std::set<std::string>       m_retried;                         // the fingerprint of each disk read again
+    bool                        m_deeper     = false;              // the disk being sent is one read again
+    std::string                 m_latestBoot;                      // the boot result ApplyBoots took last
+    std::array<std::string, 2>  m_blankDisk;                       // the blank each drive last added to the blanks
     uint64_t                    m_commitTag  = 1;
+    std::vector<Byte>           m_rawReads;                        // the last raw capture's reads, until its image is written
+    std::string                 m_rawMarks;                        // and what it marked, for its row
     std::mt19937                m_random     { std::random_device{}() };
     std::vector<Byte>           m_quips;         // the prompt lines left before any repeats
     Byte                        m_lastQuip   = 0;

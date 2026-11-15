@@ -292,6 +292,12 @@ public:
         Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments ({ L"C:\\One" }, options));
         Assert::IsFalse  (options.newWindow);
         Assert::AreEqual (E_INVALIDARG, CassoExplorerShell::ParseArguments ({ L"--new-window", L"--new-window" }, options));
+
+        //  A raw capture's reads are saved only when the argument is given.
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments ({}, options));
+        Assert::IsFalse (options.saveReads);
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments ({ L"--full-send-save-reads" }, options));
+        Assert::IsTrue (options.saveReads);
     }
 
 

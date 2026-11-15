@@ -40,7 +40,13 @@ public:
     //  and a disassembly have their syntax colored.
     static std::vector<DxuiTextView::Row>  BuildTextRows      (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {});
     static std::vector<DxuiTextView::Row>  BuildDetailRows    (const std::vector<std::pair<std::wstring, std::wstring>> & details);
-    static std::vector<DxuiTextView::Row>  BuildDocumentRows  (const std::vector<Paragraph> & paragraphs);
+    static std::vector<DxuiTextView::Row>  BuildWarningRows   (const std::wstring & warning);
+    static std::vector<DxuiTextView::Row>  BuildDocumentRows  (const std::vector<Paragraph> & paragraphs, const SourceSyntax::Colors & colors = {});
+
+    //  A document run's color: green for Good, red for Bad and the muted
+    //  text color for Muted, from the source colors, or zero for the text
+    //  color.
+    static uint32_t                        GetRunColor        (RunColor color, const SourceSyntax::Colors & colors);
 
     //  A BASIC program's cross-reference, a row a line of it. Any other
     //  preview, and a program that cannot be cross-referenced, has the rows
@@ -54,6 +60,10 @@ public:
     //  Where each line of a BASIC program starts in memory.
     static std::vector<Word>               GetLineAddresses   (const std::vector<Byte> & program, bool integerBasic);
     static std::vector<std::wstring>       SplitLineNumber    (const std::wstring & line);
+
+    //  Where a source line's operand starts, after its label and its
+    //  mnemonic, or zero for a comment line or one with no operand.
+    static int                             GetOperandColumn   (const std::wstring & line);
     static std::wstring                    FormatPreviewError (const std::wstring & message);
 
     //  An NMOS 6502 undocumented instruction's mnemonic, which a disassembly

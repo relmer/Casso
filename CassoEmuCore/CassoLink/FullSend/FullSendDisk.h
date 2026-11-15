@@ -43,6 +43,24 @@ public:
     //  result for a full image and for the tracks read first is the same.
     static bool     NeedsDirectoryTrack (const std::vector<Byte> & image);
 
+    //  Whether a disk is formatted and has no files, and its file system's
+    //  name. DOS 3.3, ProDOS, Pascal and CP/M are recognized. A DOS 3.3 or
+    //  ProDOS disk must also have at least kBlankFreeTenths tenths of its
+    //  sectors or blocks free: a game with a DOS boot and no catalog entries
+    //  isn't blank. A DOS 3.3 disk whose one file is a BASIC program with no
+    //  lines, as INIT writes after NEW, is blank too, when haveTracks has the
+    //  tracks of the program's track/sector list and of its first sector. Only
+    //  the image's directory tracks and those of haveTracks are read.
+    static bool     IsBlank (const std::vector<Byte> & image, std::span<const int> haveTracks, std::string & outSystem);
+
+    //  The track of the track/sector list of a DOS 3.3 disk's one file, when
+    //  that file is a BASIC program of at most kGreetingSectors sectors, and
+    //  -1 otherwise. IsBlank reads the program from that track.
+    static int      FindLoneProgramTrack (const std::vector<Byte> & image);
+
+    static constexpr uint32_t  kBlankFreeTenths = 8;
+    static constexpr int       kGreetingSectors = 3;
+
     //  What a disk with unreadable sectors probably is, as a manifest status.
     //  Sector reads aren't conclusive: a recognized file system comes first,
     //  then whether whole tracks have no sectors at all.
@@ -68,4 +86,6 @@ public:
 private:
     static bool         TryGetPascalVolume (const std::vector<Byte> & image, std::string & outName);
     static std::string  ToHex              (const std::vector<Byte> & digest);
+    static int          FindDosEntries     (const std::vector<Byte> & image, Byte & outListTrack, Byte & outListSector, Byte & outType, int & outSectors);
+    static size_t       GetDosSectorOffset (int track, int sector);
 };

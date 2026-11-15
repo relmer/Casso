@@ -86,10 +86,10 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "                                   [%Ltext | %Lbasic] [%Lon-change <action>]",
         "  %Las <name>             Store the file as <name> on the disk. Without it, the file is stored under its host name;"
                                    " a name Casso Explorer writes, such as HELLO.Applesoft BASIC.txt, PROG.Binary.$6000.bin or PROG#062000,"
-                                   " is stored under the part before the suffix, with the type, load address and conversion in the suffix\n"
+                                   " is stored under the part before the suffix. The type, load address and conversion in such a suffix apply either way\n"
         "  %Ltype <t>              CassoCli detects a file's type automatically; this switch overrides that. For DOS 3.3 the types are"
                                    " T (text), I (Integer BASIC), A (Applesoft BASIC), B (binary) and R (relocatable); for ProDOS,"
-                                   " TXT, BIN, BAS, INT and SYS; for Apple Pascal, BAD, CODE, TEXT, INFO, DATA, GRAF and FOTO; for CP/M, the attributes RO and SYS,"
+                                   " a type's abbreviation, such as TXT, BIN, BAS, INT, SYS or PNT, or its number, such as $C0; for Apple Pascal, BAD, CODE, TEXT, INFO, DATA, GRAF and FOTO; for CP/M, the attributes RO and SYS,"
                                    " with a comma for both. A file it cannot identify is stored as a binary\n"
         "  %Luser <n>              On CP/M, the user to store the file in, 0 to 15\n"
         "  %Lload $XXXX            Load address for a binary file, written as $6000 or 0x6000\n"
@@ -134,7 +134,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "CassoCli disk mkdir <image> <path>",
         nullptr,
         "Directories along the path are made as well when they are not there yet, so mkdir GAMES/CHESS/SAVES makes all three."
-        " ProDOS disks only: DOS 3.3, Apple Pascal, and CP/M have no directories.",
+        " ProDOS and HFS disks only: DOS 3.3, Apple Pascal, and CP/M have no directories.",
         "CassoCli disk mkdir mydisk.po GAMES/CHESS"
     },
 
@@ -148,7 +148,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lyes                   Answer the confirmation, for a script with nobody at the keyboard\n",
         "A directory holding anything needs %Lrecurse, and -r and -s do the same. Before removing a subtree, rmdir lists what"
         " would go, marks the locked entries and totals the blocks, then asks; %Lyes, or -y, answers it in advance."
-        " ProDOS disks only.",
+        " ProDOS and HFS disks only.",
         "CassoCli disk rmdir mydisk.po GAMES %Lrecurse %Lyes"
     },
 
@@ -309,6 +309,18 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         " after it is one of its Issues, tab-separated: the track, the category, the sector, the cell and the finding. A field"
         " the finding doesn't have is a hyphen.",
         "CassoCli disk inspect Capture.woz"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::Thumbnail,
+        "thumbnail",
+        "Set, remove, or save a disk image's thumbnail",
+        "CassoCli disk thumbnail <image> [<picture>] [%Lremove] [%Lout <file>]",
+        "  %Lremove                Remove the thumbnail the user set, so the image has the one made by booting it\n"
+        "  %Lout <file>            Write the image's thumbnail to <file> as a PNG\n",
+        "A <picture> in PNG, JPEG, BMP, GIF, or TIFF becomes the image's thumbnail in Casso Explorer, marked as set by the user,"
+        " in place of the one made by booting the image. Use one of <picture>, %Lremove, and %Lout.",
+        "CassoCli disk thumbnail Archon.woz title.png"
     },};
 
 

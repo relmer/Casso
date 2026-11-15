@@ -39,7 +39,10 @@ public:
     bool     IsVerifying    () override { return m_verifying; }
     void     ToggleVerify   () override { m_verifying = !m_verifying; }
     bool     IsBootstrapped () override;
-    HRESULT  CaptureRaw     (int drive, std::vector<Byte> & outWoz) override;
+    HRESULT  CaptureRaw     (int drive, bool withEarlier, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks) override;
+    bool     NoteImage      (const std::string & path) override;
+    HRESULT  AwaitBoot      (const std::string & file) override;
+    bool     HasBootTones   () override;
     void     Report         (const std::string & text) override;
 
     //  The time for a manifest's row: UTC, in ISO 8601.
@@ -47,6 +50,7 @@ public:
 
     //  The Full Send window's model of this connection's session.
     const FullSendStatus &  GetStatus () const { return m_status; }
+    FullSendStatus       &  GetStatus ()       { return m_status; }
 
 private:
     HRESULT  CheckStop     ();
@@ -56,6 +60,9 @@ private:
     static double       GetSeconds   ();
     static std::string  GetClockTime ();
 
+    static constexpr DWORD  s_kBootWaitMs = 90000;
+    static constexpr DWORD  s_kBootPollMs = 100;
+
     CassoLinkSession   & m_session;
     LinkOperation      * m_operation = nullptr;
     std::atomic<bool>    m_canceled  { false };
@@ -63,4 +70,8 @@ private:
     bool                 m_barFull   = false;   // the next request draws the drive's bar full
     FullSendScreen       m_lastScreen;
     FullSendStatus       m_status    { GetSeconds, GetClockTime };
+
+    //  The reads of each drive's latest raw capture, for a capture of the
+    //  same disk again.
+    std::array<std::vector<CassoLinkCapture::Position>, 2>  m_lastReads;
 };

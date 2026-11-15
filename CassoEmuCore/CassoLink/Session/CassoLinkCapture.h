@@ -92,6 +92,10 @@ public:
         //  and whether the disk is write-protected, which the WOZ's INFO has.
         double                 revolutionCycles = 0.0;
         bool                   writeProtected   = false;
+
+        //  Each sector taken whole from another read (RepairProlog), as its
+        //  position and sector number.
+        std::vector<std::pair<int, int>>  replaced;
     };
 
     //  Where a capture is: the position of its last read, that read's number
@@ -117,6 +121,12 @@ public:
 
     static HRESULT  BuildWoz (const std::vector<Position> & positions, int lastPosition, const std::string & imageDate, Byte drive, Result & outResult);
 
+    //  An earlier capture's reads of the same disk added after the reads
+    //  each position has, so a WOZ built from them has both captures' reads
+    //  to take each byte and sector from. A position only the earlier capture
+    //  read is added whole.
+    static void     MergeReads (std::vector<Position> & ioPositions, const std::vector<Position> & earlier);
+
     //  A capture's reads as a file, so a WOZ can be built from them again:
     //  "CRAW", a version, then each position, its reads and each read's delay
     //  and bytes, little-endian. Parsing fails with ERROR_INVALID_DATA for
@@ -124,10 +134,14 @@ public:
     static void     SerializeReads (const std::vector<Position> & positions, std::vector<Byte> & outFile);
     static HRESULT  ParseReads     (std::span<const Byte> file, std::vector<Position> & outPositions);
 
+    //  What a capture marked, for a manifest row: weak 3, 11; replaced 1.3;
+    //  differs 32, with a track as its number and a replaced sector as its
+    //  track and sector. Empty with nothing marked.
+    static std::string  FormatMarks (const Result & result);
+
     //  Whether a whole track's reads are a standard 16-sector or 13-sector
-    //  track: one stream with no weak bytes, of the same length in every
-    //  read, with every sector's address field for the track and a data
-    //  field after it, a 16-sector one with its checksum right.
+    //  track: a stream with every sector's address field for the track, its
+    //  checksum right.
     static bool     IsStandardTrack (const Position & position);
 
 private:
@@ -140,6 +154,7 @@ private:
         std::vector<uint8_t>  zeros;          // the zero bits after each byte
         std::vector<uint8_t>  bits;
         std::vector<size_t>   starts;         // each byte's first bit in bits
+        std::vector<int>      replaced;       // the sectors taken whole from another read
     };
 
     //  The marks of each byte, at each delay: the count set and the count read.
@@ -204,6 +219,10 @@ private:
     static bool                 IsSameStream   (std::span<const Byte> a, std::span<const Byte> b);
     static size_t               FindDataField  (std::span<const Byte> bytes, size_t at);
     static bool                 RepairFields   (const Position & position, std::vector<Byte> & ioRevolution);
+    static bool                 RepairProlog   (const Position & position, std::vector<Byte> & ioRevolution, std::vector<int> & outSectors);
+    static std::string          DescribeResult (const Result & result, Byte drive);
+    static bool                 IsAddressAt    (std::span<const Byte> bytes, size_t at);
+    static size_t               FindNextField  (std::span<const Byte> bytes, size_t at);
     static void                 UniteSyncZeros (std::map<int, Stream> & ioStreams);
     static bool                 FindGap        (const Stream & stream, size_t & outFirst, size_t & outEnd);
     static void                 FitGap         (Stream & ioStream, double bits);
@@ -276,6 +295,9 @@ private:
     //  The bytes after an address field's prolog that its data field's prolog
     //  must start within; and the reads a pace is estimated after.
     static constexpr size_t  s_kDataWithin   = 48;
+    static constexpr size_t  s_kNextWithin   = 600;     // the bytes after an address field its sector and the gap after it end within
+    static constexpr size_t  s_kPrologBytes  = 3;
+    static constexpr size_t  s_kNotedSectors = 8;       // the sectors taken from another read the notes list one by one
     static constexpr int     s_kPaceReads    = 3;
 
     static constexpr Byte    s_kReadsMagic[] = { 'C', 'R', 'A', 'W' };

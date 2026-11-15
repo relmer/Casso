@@ -281,3 +281,16 @@ never stored in `links`.
 - **ResultsLocation**: `id`, `tool` (disk list, duplicates), `root`, `rows`, `finished`. Closed with its tab, not saved.
 - **Expanded preview**, per tab: `expanded`, saved with the tab. The steps read the list's rows in its sort order when each is taken. **View as**: the current view, reset to the default on each file.
 - **TapeRecording sidecar**, `NAME.tape.txt`: a line per file with its start time (mm:ss.s), length, load address and load command.
+
+## A boot check and a thumbnail (Story 43, R59 to R63)
+
+- **BootVerdict**: Booted, DidNotBoot, NotBootable, Unclear.
+- **BootReport**: the verdict; the machine it was found on; the reason,
+  as text for the activity list; the frame, as BGRA pixels with its width
+  and height; the text screen's rows; the title found, or empty.
+- **ThumbnailRecord**: the image's SHA-256; the verdict and machine; the
+  title; whether the user set the picture; the time it was made.
+- **HashIndexEntry**: a path, its size and last write time, and its
+  SHA-256.
+- **Manifest row**: one column more, `boot`: `booted`, `did-not-boot`,
+  `not-bootable`, `unclear`, or empty for a row written before the check.

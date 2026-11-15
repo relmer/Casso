@@ -720,6 +720,21 @@ Error:
 
 HRESULT PhysicalCards::WritePartition (int number, int partition, std::span<const Byte> bytes)
 {
+    return WritePartitionAt (number, partition, 0, bytes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::WritePartitionAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::WritePartitionAt (int number, int partition, uint64_t offset, std::span<const Byte> bytes)
+{
     HRESULT                       hr        = S_OK;
     std::unique_lock<std::mutex>  lock (m_mutex);
     Session                     * session   = nullptr;
@@ -730,7 +745,7 @@ HRESULT PhysicalCards::WritePartition (int number, int partition, std::span<cons
 
     CBREx (!m_confirming, HRESULT_FROM_WIN32 (ERROR_BUSY));
 
-    hr = StageWrite (number, partition, bytes, session);
+    hr = StageWrite (number, partition, offset, bytes, session);
     CHR (hr);
 
     BAIL_OUT_IF (session->cache->GetChangedBlockCount() == 0, S_OK);
@@ -747,7 +762,7 @@ HRESULT PhysicalCards::WritePartition (int number, int partition, std::span<cons
 
     CBREx (confirmed, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
 
-    hr = StageWrite (number, partition, bytes, session);
+    hr = StageWrite (number, partition, offset, bytes, session);
     CHR (hr);
 
     hr = session->cache->Commit();
@@ -975,13 +990,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT PhysicalCards::StageWrite (int number, int partition, std::span<const Byte> bytes, Session * & outSession)
+HRESULT PhysicalCards::StageWrite (int number, int partition, uint64_t offset, std::span<const Byte> bytes, Session * & outSession)
 {
     HRESULT                 hr      = S_OK;
     Session               * session = nullptr;
     const PartitionEntry  * entry   = nullptr;
     std::vector<Byte>       current;
     bool                    fits    = false;
+    bool                    blocks  = false;
 
 
 
@@ -993,18 +1009,30 @@ HRESULT PhysicalCards::StageWrite (int number, int partition, std::span<const By
     hr = FindPartition (*session, partition, entry);
     CHR (hr);
 
-    fits = bytes.size() <= entry->byteCount;
+    fits   = offset <= entry->byteCount && bytes.size() <= entry->byteCount - offset;
+    blocks = entry->partition.span == PartitionSpan::WholeBlocks && !entry->partition.dosSectors
+          && offset % IBlockStore::kBlockBytes == 0 && bytes.size() % IBlockStore::kBlockBytes == 0;
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH));
 
-    //  A write shorter than the partition is laid over what is there now.
-    if (bytes.size() < entry->byteCount)
+    if (blocks && !bytes.empty())
+    {
+        hr = session->cache->WriteBlocks (entry->partition.firstBlock + (uint32_t) (offset / IBlockStore::kBlockBytes), bytes);
+        CHR (hr);
+
+        outSession = session;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    //  A write that doesn't cover the partition is laid over what is there
+    //  now.
+    if (offset > 0 || bytes.size() < entry->byteCount)
     {
         hr = PartitionAccess::ReadBytes (*session->cache, entry->partition, current);
         CHR (hr);
     }
 
     current.resize ((size_t) entry->byteCount);
-    std::copy (bytes.begin(), bytes.end(), current.begin());
+    std::copy (bytes.begin(), bytes.end(), current.begin() + (ptrdiff_t) offset);
 
     hr = PartitionAccess::WriteUsedBytes (*session->cache, entry->partition, current);
     CHR (hr);

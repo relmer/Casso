@@ -73,24 +73,22 @@ void ChooseDetailsPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & sc
 
 bool ChooseDetailsPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    DxuiMouseEvent  local  = ev;
+    DxuiMouseEvent  leave  = ev;
     RECT            bounds = m_list->GetBounds();
     POINT           point  = { ev.positionDip.x, ev.positionDip.y };
     IDxuiControl  * taker  = nullptr;
 
 
 
-    local.positionDip = { ev.positionDip.x - bounds.left, ev.positionDip.y - bounds.top };
-
     if (m_list->IsInteracting() || PtInRect (&bounds, point))
     {
-        taker = m_list->OnMouse (local) ? m_list : nullptr;
+        taker = m_list->AsControl().OnMouse (ev) ? m_list : nullptr;
     }
     else
     {
         //  A move outside clears the list's hover.
-        local.kind = DxuiMouseEventKind::Leave;
-        m_list->OnMouse (local);
+        leave.kind = DxuiMouseEventKind::Leave;
+        m_list->AsControl().OnMouse (leave);
 
         for (IDxuiControl * control : std::initializer_list<IDxuiControl *> { m_buttons[0], m_buttons[1], m_buttons[2], m_buttons[3] })
         {
@@ -127,7 +125,7 @@ LPCWSTR ChooseDetailsPanel::GetCursorForPoint (POINT clientPx) const
 
     if (PtInRect (&bounds, clientPx))
     {
-        return m_list->GetCursorForPoint (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top });
+        return m_list->AsControl().GetCursorForPoint (clientPx);
     }
 
     return DxuiPanel::GetCursorForPoint (clientPx);

@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "DxuiWinRt.h"
 #include "DxuiPopupHost.h"
 #include "Theme/DxuiDwm.h"
 #include "Theme/DxuiTheme.h"

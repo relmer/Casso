@@ -6,6 +6,7 @@
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -49,11 +50,16 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
     m_operation = &operation;
     m_verifying = operation.verifyReads;
 
+    //  A long wait for the Apple's reply is the window's state line.
+    m_session.m_host->SetWaitObserver ([this] (bool waiting) { m_status.SetWaiting (waiting); });
+
     hr = session.Run();
+
+    m_session.m_host->SetWaitObserver (nullptr);
 
     operation.message         = session.GetMessage();
     operation.imagePrefix     = session.GetPrefix();
-    operation.fullSendSummary = std::format ("{} SENT, {} BAD, {} DUP", session.GetScreen().sent, session.GetScreen().bad, session.GetScreen().duplicates);
+    operation.fullSendSummary = std::format ("{} sent, {} bad, {} dup", session.GetScreen().sent, session.GetScreen().bad, session.GetScreen().duplicates);
     m_session.m_sink.OnActivity (operation.message);
     m_operation       = nullptr;
 
@@ -468,7 +474,7 @@ bool CassoLinkFullSend::IsBootstrapped()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz)
+HRESULT CassoLinkFullSend::CaptureRaw (int drive, bool withEarlier, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks)
 {
     HRESULT                   hr     = S_OK;
     std::vector<Byte>         module;
@@ -478,6 +484,8 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz)
 
 
     outWoz.clear();
+    outReads.clear();
+    outMarks.clear();
     m_operation->drive = drive;
 
     hr = CheckStop();
@@ -489,6 +497,24 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz)
     hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) drive, module, date,
                                     [this, drive] (const CassoLinkCapture::Progress & where) { NoteCapture (drive, where); }, result);
     CHR (hr);
+
+    //  A disk captured again has the reads of both captures for each
+    //  position, this capture's first, and its image is built from them all.
+    {
+        std::vector<CassoLinkCapture::Position>  & earlier = m_lastReads[drive == 2 ? 1 : 0];
+
+        if (withEarlier && !earlier.empty())
+        {
+            m_status.AddLine (std::format ("Combining the reads of both captures of the disk in drive {} to build its image", drive));
+
+            CassoLinkCapture::MergeReads (result.positions, earlier);
+
+            hr = CassoLinkCapture::BuildWoz (result.positions, CassoLinkCapture::kLastPosition, date, (Byte) drive, result);
+            CHR (hr);
+        }
+
+        earlier = result.positions;
+    }
 
     //  The second pass ends at the last position it read, so the positions
     //  after that one are marked here.
@@ -505,9 +531,21 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz)
         m_status.MarkPosition (drive, position, FullSendPositionMark::Weak);
     }
 
+    for (const auto & [position, sector] : result.replaced)
+    {
+        m_status.AddLine (std::format ("Track {} sector {} was taken from another read", CassoLinkDiskTransfer::FormatPosition (position), sector));
+    }
+
     for (int position : result.unstable)
     {
         m_status.MarkPosition (drive, position, FullSendPositionMark::Unstable);
+    }
+
+    outMarks = CassoLinkCapture::FormatMarks (result);
+
+    if (m_session.m_sink.HasFullSendReadsOn())
+    {
+        CassoLinkCapture::SerializeReads (result.positions, outReads);
     }
 
     m_status.SetCaptureTime (drive, result.diskMs / 1000.0, result.lineMs / 1000.0);
@@ -515,6 +553,69 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, std::vector<Byte> & outWoz)
     m_session.m_sink.OnActivity (CassoLinkDiskTransfer::FormatCaptureTimes (result));
 
     outWoz = std::move (result.woz);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::NoteImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkFullSend::NoteImage (const std::string & path)
+{
+    return m_session.m_sink.OnImageWritten (path, TextEncoding::WideToNarrow (m_session.GetModelName()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::HasBootTones
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkFullSend::HasBootTones()
+{
+    return m_session.m_sink.HasAppleBootSounds();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::AwaitBoot
+//
+//  The result arrives from the thread that boots the image. With none by the
+//  time limit, the session goes on, and the result is in the window when it
+//  arrives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkFullSend::AwaitBoot (const std::string & file)
+{
+    HRESULT    hr    = S_OK;
+    ULONGLONG  began = GetTickCount64();
+
+
+
+    while (!m_status.HasBoot (file) && GetTickCount64() - began < s_kBootWaitMs)
+    {
+        hr = CheckStop();
+        CHR (hr);
+
+        Sleep (s_kBootPollMs);
+    }
 
 Error:
     return hr;

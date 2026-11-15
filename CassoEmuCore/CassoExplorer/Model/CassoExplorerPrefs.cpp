@@ -427,6 +427,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
 {
     std::vector<std::pair<std::string, JsonValue>>  root;
     std::vector<std::pair<std::string, JsonValue>>  placementFields;
+    std::vector<std::pair<std::string, JsonValue>>  fullSendFields;
     std::vector<std::pair<std::string, JsonValue>>  splitterFields;
     std::vector<JsonValue>                          tabValues;
     std::vector<JsonValue>                          typedValues;
@@ -520,6 +521,10 @@ JsonValue CassoExplorerPrefs::ToJson() const
     placementFields.emplace_back ("maximized", JsonValue (placement.maximized));
     placementFields.emplace_back ("valid",     JsonValue (placement.valid));
 
+    fullSendFields.emplace_back ("x",     JsonValue ((double) fullSendWindow.x));
+    fullSendFields.emplace_back ("y",     JsonValue ((double) fullSendWindow.y));
+    fullSendFields.emplace_back ("valid", JsonValue (fullSendWindow.valid));
+
     splitterFields.emplace_back ("treeDip",    JsonValue ((double) treeWidthDip));
     splitterFields.emplace_back ("previewDip", JsonValue ((double) previewWidthDip));
 
@@ -536,12 +541,14 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("searchContents",    JsonValue (searchContents));
     root.emplace_back ("autoPreview",    JsonValue (autoPreview));
     root.emplace_back ("enterExpandsPreview", JsonValue (enterExpandsPreview));
+    root.emplace_back ("autoThumbnails", JsonValue (autoThumbnails));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
     root.emplace_back ("fullSendFolder", JsonValue (TextEncoding::WideToUtf8 (fullSendFolder)));
     root.emplace_back ("fullSendExtension", JsonValue (fullSendExtension));
     root.emplace_back ("verifyReads", JsonValue (verifyReads));
     root.emplace_back ("verifyWrites", JsonValue (verifyWrites));
     root.emplace_back ("autoVerify", JsonValue (autoVerify));
+    root.emplace_back ("bootSoundPlace", JsonValue ((double) bootSoundPlace));
 
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
     root.emplace_back ("cffaAdapter",    JsonValue ((double) cffaAdapter));
@@ -577,6 +584,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
 
     root.emplace_back ("crtOverrides",   JsonValue (std::move (crtFields)));
     root.emplace_back ("placement",      JsonValue (std::move (placementFields)));
+    root.emplace_back ("fullSendWindow", JsonValue (std::move (fullSendFields)));
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
     root.emplace_back ("typedPaths",     JsonValue (std::move (typedValues)));
@@ -733,6 +741,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("searchContents",    searchContents);
     root.HasBool ("autoPreview",    autoPreview);
     root.HasBool ("enterExpandsPreview", enterExpandsPreview);
+    root.HasBool ("autoThumbnails", autoThumbnails);
     root.HasBool ("lineAddresses",  lineAddresses);
     root.HasBool ("skipElevationNotice", skipElevationNotice);
     root.HasBool ("hexShowValues",  hexShowValues);
@@ -799,6 +808,13 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("verifyReads", verifyReads);
     root.HasBool ("verifyWrites", verifyWrites);
     root.HasBool ("autoVerify", autoVerify);
+    //  One of the places, and the PC for a number that isn't.
+    {
+        double  place = bootSoundPlace;
+
+        root.HasNumber ("bootSoundPlace", place);
+        bootSoundPlace = (place >= kBootSoundPc && place <= kBootSoundNeither) ? (int) place : (int) kBootSoundPc;
+    }
 
 
     if (root.HasString ("fullSendExtension", text) && (text.empty() || text == ".dsk" || text == ".do" || text == ".po" || text == ".woz" || text == ".nib" || text == ".nb2"))
@@ -829,6 +845,13 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         placed->HasInt  ("h",         placement.h);
         placed->HasBool ("maximized", placement.maximized);
         placed->HasBool ("valid",     placement.valid);
+    }
+
+    if (root.HasObject ("fullSendWindow", placed))
+    {
+        placed->HasInt  ("x",     fullSendWindow.x);
+        placed->HasInt  ("y",     fullSendWindow.y);
+        placed->HasBool ("valid", fullSendWindow.valid);
     }
 
     if (root.HasObject ("splitters", splitters))

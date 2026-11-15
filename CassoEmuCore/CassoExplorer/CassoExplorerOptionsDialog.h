@@ -19,7 +19,7 @@ class DisplayPage;
 //  CassoExplorerGeneralPage
 //
 //  Automatic preview, its description below its box, then the disk image
-//  types.
+//  types, and automatic thumbnails.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,7 +28,7 @@ class CassoExplorerGeneralPage : public DxuiPropertyPage
 public:
     explicit CassoExplorerGeneralPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration);
+    void  Init    (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & autoThumbnails);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
@@ -40,6 +40,7 @@ private:
     DxuiCheckbox  * m_autoPreview  = nullptr;
     DxuiCheckbox  * m_enterExpands = nullptr;
     DxuiCheckbox  * m_register     = nullptr;
+    DxuiCheckbox  * m_thumbnails   = nullptr;
 };
 
 
@@ -92,12 +93,14 @@ class CassoExplorerFullSendPage : public DxuiPropertyPage
 public:
     explicit CassoExplorerFullSendPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel);
+    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & soundsLabel, DxuiSegmentedControl & sounds, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
     static constexpr int  kNoteHeightDip         = 60;
     static constexpr int  kBrowseWidthDip        = 100;
+    static constexpr int  kSoundsWidthDip        = 360;
+    static constexpr int  kSoundsHeightDip       = 30;
     static constexpr int  kLabelHeightDip        = 24;
     static constexpr int  kOptionLabelHeightDip  = 20;
     static constexpr int  kOptionDescHeightDip   = 18;
@@ -105,13 +108,15 @@ public:
     static constexpr int  kCommonFormatCount     = 3;
 
 private:
-    DxuiLabel       * m_note           = nullptr;
-    DxuiLabel       * m_folderLabel    = nullptr;
-    DxuiLabel       * m_esotericaLabel = nullptr;
-    DxuiLabel       * m_formatLabel    = nullptr;
-    DxuiLabel       * m_folder         = nullptr;
-    DxuiButton      * m_browse         = nullptr;
-    DxuiRadioGroup  * m_format         = nullptr;
+    DxuiLabel             * m_note           = nullptr;
+    DxuiLabel             * m_folderLabel    = nullptr;
+    DxuiLabel             * m_esotericaLabel = nullptr;
+    DxuiLabel             * m_formatLabel    = nullptr;
+    DxuiLabel             * m_folder         = nullptr;
+    DxuiButton            * m_browse         = nullptr;
+    DxuiLabel             * m_soundsLabel    = nullptr;
+    DxuiSegmentedControl  * m_sounds         = nullptr;
+    DxuiRadioGroup        * m_format         = nullptr;
 };
 
 
@@ -206,9 +211,13 @@ public:
         bool  autoPreview  = true;
         bool  enterExpands = false;
 
+        //  Whether a disk image in view with no thumbnail is booted for one.
+        bool  autoThumbnails = true;
+
         //  A Full Send's folder and its extension, each empty for the default.
         std::wstring  fullSendFolder;
         std::string   fullSendExtension;
+        int           bootSoundPlace = 0;     // a CassoExplorerPrefs::BootSoundPlace
 
         //  Verified transfers.
         bool          verifyReads  = false;
@@ -233,6 +242,8 @@ public:
 
         //  The folder picker over the dialog; ioFolder changes when one is picked.
         std::function<void (HWND owner, std::wstring & ioFolder)>  pickFolder;
+
+        //  Clear thumbnails, with its confirmation over the dialog.
     };
 
     //  The host file name forms, in the order the setting stores them.
@@ -277,6 +288,7 @@ private:
     DxuiLabel                                      m_previewNote;
     DxuiCheckbox                                   m_autoPreview;
     DxuiCheckbox                                   m_enterExpands;
+    DxuiCheckbox                                   m_autoThumbnails;
     DxuiCheckbox                                   m_register;
     DxuiLabel                                      m_fullSendNote;
     DxuiLabel                                      m_fullSendFolderLabel;
@@ -284,6 +296,8 @@ private:
     DxuiLabel                                      m_fullSendEsotericaLabel;
     DxuiLabel                                      m_fullSendFolder;
     DxuiButton                                     m_fullSendBrowse;
+    DxuiLabel                                      m_fullSendSoundsLabel;
+    DxuiSegmentedControl                           m_fullSendSounds;
     DxuiRadioGroup                                 m_fullSendFormat;
     CassoExplorerFullSendPage                    * m_fullSend            = nullptr;
     DxuiLabel                                      m_verifyIntro;

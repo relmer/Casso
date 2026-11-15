@@ -65,6 +65,37 @@ public:
     //
     ////////////////////////////////////////////////////////////////////////////
 
+    //  A test copy of Casso Explorer run beside the owner's writes its prefs,
+    //  session and logs to the profile folder, so it has no saved
+    //  connections to start.
+    TEST_METHOD (GetLocalAppDataDir_TakesTheProfileFolderWhenOneIsSet)
+    {
+        fs::path  folder = fs::temp_directory_path() / L"CassoProfileTest";
+        fs::path  normal;
+        fs::path  profile;
+        BOOL      set    = FALSE;
+
+
+
+        normal = PathResolver::GetLocalAppDataDir (L"Casso");
+        Assert::IsFalse (PathResolver::IsProfileFolderSet());
+
+        set = SetEnvironmentVariableW (PathResolver::kpszProfileVariable, folder.c_str());
+        Assert::IsTrue (set != FALSE);
+
+        profile = PathResolver::GetLocalAppDataDir (L"Casso");
+
+        set = SetEnvironmentVariableW (PathResolver::kpszProfileVariable, nullptr);
+        Assert::IsTrue (set != FALSE);
+
+        Assert::AreEqual (folder.wstring(), profile.wstring());
+        Assert::IsTrue   (fs::is_directory (folder), L"the folder is made");
+        Assert::AreEqual (normal.wstring(), PathResolver::GetLocalAppDataDir (L"Casso").wstring());
+
+        fs::remove_all (folder);
+    }
+
+
     TEST_METHOD (FindFile_FoundInFirstPath)
     {
         // Use the repo's own machines/ directory as test data

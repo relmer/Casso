@@ -42,12 +42,11 @@ public:
     bool            IsCrossReference      () const { return m_crossReference; }
     IDxuiControl  * GetControl            () const { return m_text; }
 
-    bool            HandleCapturedMouse   (const DxuiMouseEvent & ev);
-    bool            HandleMouse           (const DxuiMouseEvent & ev);
     bool            HandleKey             (const DxuiKeyEvent & ev) { return m_text->OnKey (ev); }
 
 private:
     void  ShowContextMenu (int x, int y);
+    bool  HandleTextMouse (const DxuiMouseEvent & ev);
 
     DxuiTextView  * m_text           = nullptr;
     bool            m_crossReference = false;

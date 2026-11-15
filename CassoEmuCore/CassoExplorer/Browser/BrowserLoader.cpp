@@ -8,6 +8,7 @@
 #include "Devices/Disk/A2retroNetConfig.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Devices/Tape/TapeImageLoader.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -427,6 +428,13 @@ std::wstring BrowserLoader::GetImageProblem (const std::wstring & imagePath)
     std::wstring                problem;
 
 
+
+    //  A recording is decoded when it is opened, not for its row: decoding
+    //  one takes seconds, and a folder of music has hundreds.
+    if (TapeImageLoader::IsTapeFileExtension (imagePath))
+    {
+        return std::wstring();
+    }
 
     if (CanListImage (imagePath))
     {

@@ -41,6 +41,30 @@ public:
         return rc;
     }
 
+    //  A tooltip in a popup has its host's DPI after a layout at a zoomed
+    //  scale, so a balloon that is up draws its text at the size it was
+    //  measured at. One drawn in its window follows the layout.
+    TEST_METHOD (ATooltipInAPopup_KeepsItsDpiThroughAZoomedLayout)
+    {
+        DxuiHwndSource  host;
+        DxuiTooltip     popupTip;
+        DxuiTooltip     windowTip;
+        DxuiDpiScaler   zoomed;
+
+
+
+        zoomed.SetDpi (204);
+
+        popupTip.SetDpi       (144);
+        popupTip.SetPopupHost (&host);
+        popupTip.Layout       (RECT { 0, 0, 100, 20 }, zoomed);
+
+        windowTip.Layout (RECT { 0, 0, 100, 20 }, zoomed);
+
+        Assert::AreEqual (144u, popupTip.GetDpi());
+        Assert::AreEqual (204u, windowTip.GetDpi());
+    }
+
     TEST_METHOD (Request_HiddenUntilDwellElapses)
     {
         DxuiTooltip  t;

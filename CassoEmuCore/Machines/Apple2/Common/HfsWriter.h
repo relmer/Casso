@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/BlockBuffer.h"
 #include "Machines/Apple2/Common/HfsBTree.h"
 #include "Machines/Apple2/Common/HfsBTreeEditor.h"
 #include "Machines/Apple2/Common/IVolume.h"
@@ -14,7 +15,8 @@
 //
 //  HfsWriter
 //
-//  Changes to an HFS volume, each made on a copy of its bytes. The catalog
+//  Changes to an HFS volume, each made on a BlockBuffer over its bytes, so
+//  a change reads the blocks it touches and the trees' files. The catalog
 //  and extents overflow trees are changed in place by HfsBTreeEditor, and
 //  only the nodes it changes are written back, with the volume bitmap, the
 //  master directory block and its copy in the volume's second-last block.
@@ -38,6 +40,14 @@
 class HfsWriter
 {
 public:
+    static HRESULT  Write           (BlockBuffer & ioImage, const FilePath & path, const FilePayload & payload);
+    static HRESULT  Delete          (BlockBuffer & ioImage, const FilePath & path, DeleteOutcome & outOutcome);
+    static HRESULT  CreateDirectory (BlockBuffer & ioImage, const FilePath & path);
+    static HRESULT  RemoveDirectory (BlockBuffer & ioImage, const FilePath & path, bool force, DeleteOutcome & outOutcome);
+    static HRESULT  Rename          (BlockBuffer & ioImage, const FilePath & from, const std::string & to);
+    static HRESULT  SetAttributes   (BlockBuffer & ioImage, const FilePath & path, const FileAttributes & attributes);
+
+    //  The same changes on a whole image.
     static HRESULT  Write           (std::vector<Byte> & ioImage, const FilePath & path, const FilePayload & payload);
     static HRESULT  Delete          (std::vector<Byte> & ioImage, const FilePath & path, DeleteOutcome & outOutcome);
     static HRESULT  CreateDirectory (std::vector<Byte> & ioImage, const FilePath & path);
@@ -83,7 +93,7 @@ private:
 
     struct State
     {
-        std::vector<Byte>  * image            = nullptr;
+        BlockBuffer        * image            = nullptr;
         Word                 bitmapStart      = 0;
         Word                 allocationBlocks = 0;
         uint32_t             allocationBytes  = 0;
@@ -120,12 +130,22 @@ private:
     static void      PutWord (std::vector<Byte> & bytes, size_t at, uint32_t value);
     static void      PutLong (std::vector<Byte> & bytes, size_t at, uint32_t value);
 
+    //  The image is read through a const reference, so a block read isn't
+    //  counted as touched.
+    static Word      GetWord  (const BlockBuffer & image, size_t at) { return (Word) ((image[at] << 8) | image[at + 1]); }
+    static uint32_t  GetLong  (const BlockBuffer & image, size_t at) { return ((uint32_t) GetWord (image, at) << 16) | GetWord (image, at + 2); }
+    static void      PutWord  (BlockBuffer & image, size_t at, uint32_t value);
+    static void      PutLong  (BlockBuffer & image, size_t at, uint32_t value);
+    static void      PutBytes (BlockBuffer & image, size_t at, const Byte * bytes, size_t length);
+    static void      Zero     (BlockBuffer & image, size_t at, size_t length);
+    static HRESULT   Edit     (std::vector<Byte> & ioImage, const std::function<HRESULT (BlockBuffer &)> & change);
+
     static uint32_t           GetMacNow      ();
     static uint32_t           ToMacDate      (Word date, Word time);
     static bool               EncodeName     (const std::string & name, std::vector<Byte> & outName);
     static std::vector<Byte>  MakeCatalogKey (uint32_t parent, const std::vector<Byte> & name);
 
-    static HRESULT   Load            (std::vector<Byte> & image, State & outState);
+    static HRESULT   Load            (BlockBuffer & image, State & outState);
     static HRESULT   Save            (State & state);
     static HRESULT   LoadTree        (State & state, HfsBTree::Kind kind, Tree & ioTree);
     static void      WriteTree       (State & state, const Tree & tree);

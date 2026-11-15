@@ -204,15 +204,15 @@ void CassoExplorerInitializeCardDialog::OnCreate()
     m_adapterLabel.SetText (L"Which adapter do you have?");
     m_layoutLabel.SetText (L"Layout:");
 
-    for (int index = 0; index < (int) CardLayoutModel::Adapter::Count; index++)
+    for (int index = (int) CardLayoutModel::Adapter::First; index < (int) CardLayoutModel::Adapter::Count; index++)
     {
         adapters.push_back (CardLayoutModel::GetAdapterLabel ((CardLayoutModel::Adapter) index));
     }
 
     m_adapterBox.SetPopupHost (GetPopupHost());
     m_adapterBox.SetItems (adapters);
-    m_adapterBox.SetSelected ((int) m_adapter);
-    m_adapterBox.SetSelect ([this] (int index) { ChooseAdapter ((CardLayoutModel::Adapter) index); });
+    m_adapterBox.SetSelected ((int) m_adapter - (int) CardLayoutModel::Adapter::First);
+    m_adapterBox.SetSelect ([this] (int index) { ChooseAdapter ((CardLayoutModel::Adapter) (index + (int) CardLayoutModel::Adapter::First)); });
 
     m_layoutBox.SetPopupHost (GetPopupHost());
     m_layoutBox.SetSelect ([this] (int index) { ChooseLayout (index); });
@@ -370,7 +370,7 @@ bool CassoExplorerInitializeCardDialog::Confirm (HWND                         ow
 
     dialog.m_questionText = question;
     dialog.m_contentsText = contents;
-    dialog.m_adapter      = ioAdapter < CardLayoutModel::Adapter::Count ? ioAdapter : CardLayoutModel::Adapter::Unsure;
+    dialog.m_adapter      = CardLayoutModel::IsAdapter ((int) ioAdapter) ? ioAdapter : CardLayoutModel::kDefaultAdapter;
 
     params.title                    = L"Initialize card for Apple";
     params.hInstance                = GetModuleHandleW (nullptr);

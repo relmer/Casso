@@ -581,10 +581,10 @@ public:
         Assert::AreEqual ((size_t) kSectors, addressed.size(), L"Every sector's address field");
     }
 
-    //  A track of 16 sectors whose data fields begin D5 BB CF, as Archon's
-    //  do, is a standard track, so the positions between two of them aren't
-    //  read; one whose data fields don't decode isn't.
-    TEST_METHOD (ATrackWhoseDataFieldsBeginD5BB_IsStandard)
+    //  A track with all 16 address fields is a standard track whether or not
+    //  its data fields decode, so the positions between two of them aren't
+    //  read; one with an address field whose checksum is wrong isn't.
+    TEST_METHOD (ATrackWithEveryAddressField_IsStandard)
     {
         static constexpr int     kSectors   = 16;
         static constexpr int     kTrack     = 3;
@@ -592,11 +592,13 @@ public:
         static constexpr size_t  kReadBytes = 14000;
         static constexpr Byte    kVolume    = 254;
 
-        for (bool decodes : { true, false })
+        for (int variant = 0; variant < 3; variant++)
         {
+            bool                        decodes   = variant != 1;
+            bool                        addressed = variant != 2;
             std::vector<Byte>           revolution;
             CassoLinkCapture::Position  position;
-            uint32_t                    seed = 1357;
+            uint32_t                    seed      = 1357;
 
 
 
@@ -616,7 +618,7 @@ public:
                 oddEven (kVolume);
                 oddEven (kTrack);
                 oddEven ((Byte) number);
-                oddEven ((Byte) (kVolume ^ kTrack ^ number));
+                oddEven ((Byte) (kVolume ^ kTrack ^ number ^ ((!addressed && number == 5) ? 1 : 0)));
                 revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
                 revolution.insert (revolution.end(), kSyncs, 0xFF);
                 revolution.insert (revolution.end(), { 0xD5, 0xBB, 0xCF });
@@ -648,8 +650,113 @@ public:
                 position.delays.push_back (CassoLinkCapture::kWholeDelays[read]);
             }
 
-            Assert::AreEqual (decodes, CassoLinkCapture::IsStandardTrack (position), decodes ? L"Data fields that decode" : L"Data fields that don't decode");
+            Assert::AreEqual (addressed, CassoLinkCapture::IsStandardTrack (position),
+                              variant == 0 ? L"Data fields that decode" : variant == 1 ? L"Data fields that don't decode" : L"An address field with a wrong checksum");
         }
+    }
+
+    //  A sector whose data prolog one read has as D5 BB BF, on a track whose
+    //  other data fields begin D5 AA AD, is taken from a read with D5 AA AD.
+    //  The stream is the first read's, and the other two reads differ in the
+    //  gap before the prolog, as reads of a write splice do, so no two reads
+    //  outvote the first. The sector is in the result and in the notes.
+    TEST_METHOD (ASectorWithAnotherProlog_IsTakenFromAnotherRead)
+    {
+        static constexpr int     kSectors   = 16;
+        static constexpr int     kTrack     = 1;
+        static constexpr int     kOdd       = 3;
+        static constexpr size_t  kSyncs     = 8;
+        static constexpr size_t  kReadBytes = 14000;
+        static constexpr Byte    kVolume    = 254;
+
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        CassoLinkCapture::Result                 result;
+        DiskImage                                image;
+        std::vector<Byte>                        framed;
+        std::string                              notes = "Track 1 sector 3 taken from another read.";
+        int                                      usual = 0;
+
+
+
+        positions[0].position = kTrack * 4;
+
+        for (size_t read = 0; read < CassoLinkCapture::kWholeReads; read++)
+        {
+            std::vector<Byte>  revolution;
+            std::vector<Byte>  bytes;
+            uint32_t           seed = 2468;
+
+            auto  oddEven = [&revolution] (Byte value)
+            {
+                revolution.push_back ((Byte) ((value >> 1) | 0xAA));
+                revolution.push_back ((Byte) (value | 0xAA));
+            };
+
+            for (int number = 0; number < kSectors; number++)
+            {
+                std::vector<Byte>  data (NibblizationLayer::kSectorByteSize);
+                std::vector<Byte>  nibbles;
+                bool               odd = number == kOdd;
+
+                revolution.insert (revolution.end(), kSyncs, 0xFF);
+                revolution.insert (revolution.end(), { 0xD5, 0xAA, 0x96 });
+                oddEven (kVolume);
+                oddEven (kTrack);
+                oddEven ((Byte) number);
+                oddEven ((Byte) (kVolume ^ kTrack ^ number));
+                revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+
+                //  The first read has a shorter gap and the other prolog; each
+                //  of the other two has a different byte in the gap.
+                if (odd && read == 0)
+                {
+                    revolution.insert (revolution.end(), kSyncs - 3, 0xFF);
+                    revolution.insert (revolution.end(), { 0xD5, 0xBB, 0xBF });
+                }
+                else
+                {
+                    revolution.insert (revolution.end(), kSyncs, 0xFF);
+                    revolution[revolution.size() - 4] = odd ? (Byte) (read == 1 ? 0xD4 : 0xDD) : (Byte) 0xFF;
+                    revolution.insert (revolution.end(), { 0xD5, 0xAA, 0xAD });
+                }
+
+                for (Byte & value : data)
+                {
+                    seed  = seed * 1103515245u + 12345u;
+                    value = (Byte) (seed >> 16);
+                }
+
+                NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+                revolution.insert (revolution.end(), nibbles.begin(), nibbles.end());
+                revolution.insert (revolution.end(), { 0xDE, 0xAA, 0xEB });
+            }
+
+            for (size_t at = 0; at < kReadBytes; at++)
+            {
+                bytes.push_back (revolution[at % revolution.size()]);
+            }
+
+            positions[0].reads.push_back (bytes);
+            positions[0].delays.push_back (CassoLinkCapture::kWholeDelays[read]);
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, kTrack * 4, "2026-11-12T00:00:00Z", 1, result));
+        AssertSucceeded (WozLoader::Load (result.woz, image));
+
+        Assert::AreEqual ((size_t) 1, result.replaced.size(), L"One sector taken from another read");
+        Assert::AreEqual (kTrack * 4, result.replaced[0].first);
+        Assert::AreEqual (kOdd, result.replaced[0].second);
+        Assert::IsTrue (result.weak.empty(), L"No weak bytes");
+        Assert::IsTrue (std::search (result.woz.begin(), result.woz.end(), notes.begin(), notes.end()) != result.woz.end(), L"The notes have the sector");
+
+        FrameTrack (image, image.ResolveQuarterTrack (kTrack * 4), framed);
+
+        for (size_t at = 0; at + 2 < framed.size(); at++)
+        {
+            usual += (framed[at] == 0xD5 && framed[at + 1] == 0xAA && framed[at + 2] == 0xAD) ? 1 : 0;
+        }
+
+        Assert::IsTrue (usual >= kSectors, L"Every data field begins D5 AA AD");
     }
 
     //  A write-protected disk's capture is a write-protected WOZ, as a
@@ -958,4 +1065,32 @@ public:
         0xD6, 0xD7, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF, 0xE5, 0xE6, 0xE7, 0xE9, 0xEA, 0xEB, 0xEC,
         0xED, 0xEE, 0xEF, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFF,
     };
+
+
+
+    //  An earlier capture's reads go after the reads a position has, and a
+    //  position only the earlier capture read is added.
+    TEST_METHOD (AnEarlierCapturesReads_AreAddedAfterAPositionsReads)
+    {
+        std::vector<CassoLinkCapture::Position>  positions (1);
+        std::vector<CassoLinkCapture::Position>  earlier (2);
+
+        positions[0].position = 4;
+        positions[0].reads    = { { 1 }, { 2 } };
+        positions[0].delays   = { 0, 1 };
+        earlier[0].position   = 4;
+        earlier[0].reads      = { { 3 } };
+        earlier[0].delays     = { 0 };
+        earlier[1].position   = 0;
+        earlier[1].reads      = { { 9 } };
+        earlier[1].delays     = { 1 };
+
+        CassoLinkCapture::MergeReads (positions, earlier);
+
+        Assert::AreEqual ((size_t) 2, positions.size());
+        Assert::AreEqual (0, positions[0].position, L"In order of position");
+        Assert::AreEqual ((size_t) 3, positions[1].reads.size());
+        Assert::IsTrue (positions[1].reads[0] == std::vector<Byte> { 1 } && positions[1].reads[2] == std::vector<Byte> { 3 }, L"The reads it had first");
+        Assert::IsTrue (positions[1].delays == std::vector<Byte> { 0, 1, 0 });
+    }
 };

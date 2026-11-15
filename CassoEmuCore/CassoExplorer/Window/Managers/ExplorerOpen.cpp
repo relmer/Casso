@@ -303,7 +303,7 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
     std::wstring                       contents;
     uint64_t                           layout    = 0;
     std::unique_ptr<CardLayoutModel>   model;
-    CardLayoutModel::Adapter           adapter   = CardLayoutModel::Adapter::Unsure;
+    CardLayoutModel::Adapter           adapter   = CardLayoutModel::kDefaultAdapter;
     bool                               confirmed = false;
     std::vector<PhysicalDrive>         drives;
     std::vector<WindowsVolume>         volumes;
@@ -349,11 +349,11 @@ void ExplorerOpen::InitializeCard (const std::wstring & cardPath)
 
     if (model->GetPositionCount() == 0)
     {
-        m_context.window.ShowMessage (std::format (L"{} is too small for a CFFA adapter.", PhysicalCards::FormatDrive (found)), MB_ICONWARNING);
+        m_context.window.ShowMessage (std::format (L"{} is too small for an Apple II storage adapter.", PhysicalCards::FormatDrive (found)), MB_ICONWARNING);
         return;
     }
 
-    question = std::format (L"Initialize {} for use with an Apple CFFA adapter?", PhysicalCards::FormatDrive (found));
+    question = std::format (L"Initialize {} for use with an Apple II storage adapter?", PhysicalCards::FormatDrive (found));
     contents = L"This card currently contains these partitions:";
 
     //  A card with no partition table, as a CFFA card, is one volume to
@@ -553,6 +553,7 @@ void ExplorerOpen::FinishInitialize()
     HRESULT                hrRefresh = S_OK;
     std::wstring           root;
     ActionsTypes::Outcome  outcome;
+    BOOL                   labeled   = TRUE;
 
 
 
@@ -619,6 +620,13 @@ void ExplorerOpen::FinishInitialize()
         {
             m_context.window.ShowMessage (outcome.message, MB_ICONWARNING);
         }
+
+        //  The FAT32 writer labels the volume for a CFFA3000.
+        if (!root.empty())
+        {
+            labeled = SetVolumeLabelW (root.c_str(), kA2PicoLabel);
+            IGNORE_RETURN_VALUE (labeled, TRUE);
+        }
     }
 
     //  A FAT32 card is opened at its drive letter, and a CFFA card as a card.
@@ -647,20 +655,28 @@ void ExplorerOpen::FinishInitialize()
 //
 //  ExplorerOpen::EditA2retroNetDrives
 //
-//  Edit as text opens the file in the program Windows opens .txt files
-//  with.
+//  The Edit button opens the file in the program Windows opens .txt files
+//  with, and its label has that program's name, as "Edit in Notepad...".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerOpen::EditA2retroNetDrives (const std::wstring & root)
 {
     ActionsTypes::Outcome  outcome;
-    HWND                   owner = m_context.window.GetHwnd();
-    bool                   saved = false;
+    HWND                   owner        = m_context.window.GetHwnd();
+    bool                   saved        = false;
+    wchar_t                editor[256]  = {};
+    DWORD                  length       = (DWORD) std::size (editor);
+    HRESULT                hrEditor     = AssocQueryStringW (ASSOCF_INIT_IGNOREUNKNOWN, ASSOCSTR_FRIENDLYAPPNAME, L".txt", L"open", editor, &length);
 
 
 
-    saved = A2retroNetDrivesDialog::Edit (owner, m_context.theme, m_context.actions.GetA2retroNet(), root, &m_context.shellIcons, [this, owner] (const std::wstring & path)
+    if (FAILED (hrEditor))
+    {
+        editor[0] = L'\0';
+    }
+
+    saved = A2retroNetDrivesDialog::Edit (owner, m_context.theme, m_context.actions.GetA2retroNet(), root, &m_context.shellIcons, editor, [this, owner] (const std::wstring & path)
     {
         HRESULT  hr = m_context.shellVerbs.Open (owner, path);
 
@@ -673,6 +689,39 @@ void ExplorerOpen::EditA2retroNetDrives (const std::wstring & root)
     }
 
     m_context.listPane.FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerOpen::InspectSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerOpen::InspectSelected()
+{
+    std::vector<std::wstring>  paths;
+    std::wstring               partition;
+
+
+
+    if (m_context.browser.IsPartitionListLocation() && m_context.actions.TryGetPartition (partition))
+    {
+        paths.push_back (partition);
+    }
+    else if (m_context.browser.IsImageLocation())
+    {
+        paths.push_back (m_context.browser.GetLocation().path);
+    }
+    else
+    {
+        m_context.browser.GetSelectedHostPaths (paths);
+    }
+
+    m_context.commandManager.InspectDiskImages (paths);
 }
 
 

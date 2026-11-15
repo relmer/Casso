@@ -4696,10 +4696,15 @@ fsrow:  lda logrowlo,x
         jmp clrscr
 
 ; fssound: the tone, by $C030, with the request's byte: one note for a finished
-; disk, two for a duplicate and a low pair for bad sectors. Nothing else is
+; disk, two for a duplicate, a low pair for bad sectors, four rising for an
+; image that booted on the host and a buzz for one that did not. Nothing else is
 ; happening: the drive is not being read and the host is waiting for Ready.
 fssound: lda PKTBUF+FSTONE
         beq fsndone
+        cmp #5
+        beq fsnboot
+        cmp #6
+        beq fsnfail
         cmp #4
         beq fsnprot
         cmp #2
@@ -4729,6 +4734,25 @@ fsnprot: lda #60                ; three rising notes for a likely copy-protected
         jsr beep
         lda #27
         ldx #160
+        jmp beep
+
+fsnboot: lda #40                ; four quick rising notes for an image that booted
+        ldx #70
+        jsr beep
+        lda #32
+        ldx #90
+        jsr beep
+        lda #27
+        ldx #110
+        jsr beep
+        lda #20
+        ldx #255
+        jmp beep
+fsnfail: lda #200               ; a low buzz, then a lower one, for an image that did not
+        ldx #160
+        jsr beep
+        lda #240
+        ldx #200
         jmp beep
 
 ; beep: X half-cycles of about 9 times A CPU cycles each.

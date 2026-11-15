@@ -828,6 +828,69 @@ public:
 
 
 
+    //  A colored run is a span in its color, and a paragraph with a picture
+    //  a picture row.
+    TEST_METHOD (BuildDocumentRows_ColorsAndPictures)
+    {
+        SourceSyntax::Colors            colors;
+        std::vector<Paragraph>          paragraphs (2);
+        std::vector<DxuiTextView::Row>  rows;
+
+
+
+        colors.comment = 0xFF00AA00;
+
+        paragraphs[0].runs    = { Run { L"BART " }, Run { L"OK", false, false, false, RunColor::Good } };
+        paragraphs[1].picture = { 0xFF000000 };
+        paragraphs[1].width   = 1;
+        paragraphs[1].height  = 1;
+
+        rows = PreviewText::BuildDocumentRows (paragraphs, colors);
+
+        Assert::IsTrue   (rows[0].cells == std::vector<std::wstring> { L"BART OK" });
+        Assert::AreEqual ((size_t) 1, rows[0].spans.size());
+        Assert::AreEqual (5, rows[0].spans[0].start);
+        Assert::AreEqual (0xFF00AA00u, rows[0].spans[0].argb);
+        Assert::IsTrue   (rows[1].picture != nullptr && rows[1].picture->width == 1);
+    }
+
+
+
+    //  A source line wraps under its operand, after the label and the
+    //  mnemonic, and a comment line under its first character.
+    TEST_METHOD (GetOperandColumn_AfterTheLabelAndTheMnemonic)
+    {
+        Assert::AreEqual (14, PreviewText::GetOperandColumn (L"START   LDA   #$00"));
+        Assert::AreEqual (14, PreviewText::GetOperandColumn (L"        LDA   #$00"));
+        Assert::AreEqual (0,  PreviewText::GetOperandColumn (L"        RTS"));
+        Assert::AreEqual (0,  PreviewText::GetOperandColumn (L"* A COMMENT LINE"));
+        Assert::AreEqual (0,  PreviewText::GetOperandColumn (L""));
+
+        PreviewContent  preview;
+
+        preview.kind      = PreviewContent::Kind::Text;
+        preview.lines     = { L"START   LDA   #$00" };
+        preview.assembler = true;
+        Assert::AreEqual (14, PreviewText::BuildTextRows (preview, false, SourceSyntax::Colors()).front().wrapIndent, L"a Merlin file's line");
+    }
+
+
+
+    //  A decoder's reason, as the summary above a file's bytes has it: a
+    //  row a sentence, each a warning.
+    TEST_METHOD (BuildWarningRows_ARowEachSentence)
+    {
+        std::vector<DxuiTextView::Row>  rows = PreviewText::BuildWarningRows (L"The LZ4FH picture doesn't unpack. Its bytes are below.");
+
+
+
+        Assert::AreEqual ((size_t) 2, rows.size());
+        Assert::AreEqual (std::wstring (L"The LZ4FH picture doesn't unpack."), rows[0].cells[0]);
+        Assert::AreEqual (std::wstring (L"Its bytes are below."),               rows[1].cells[0]);
+        Assert::IsTrue   (rows[0].warning && rows[1].warning);
+    }
+
+
     //  A saved picture is the pixels the preview draws, opaque, at their size.
     TEST_METHOD (EncodePng_WritesThePicturesPixels)
     {

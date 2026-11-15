@@ -5,6 +5,7 @@
 #include "CassoLink/Session/TrackVerifier.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
@@ -46,6 +47,7 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
     std::vector<Byte>         module;
     CassoLinkCapture::Result  result;
     CommitPlan::Progress      progress;
+    bool                      hasData  = false;
     std::string               date     = std::format ("{:%Y-%m-%dT%H:%M:%SZ}", std::chrono::floor<std::chrono::seconds> (std::chrono::system_clock::now()));
     auto                      listTracks = [] (const std::vector<int> & positions)
     {
@@ -68,14 +70,27 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
                                     [this, &operation] (const CassoLinkCapture::Progress & where) { ReportCapture (operation, where); }, result);
     CHR (hr);
 
+    //  A capture with no track that repeats is an empty drive or a disk with
+    //  nothing written on it, and no image is written for it.
+    hasData = !result.streams.empty();
+
+    if (!hasData)
+    {
+        operation.message = std::format ("Nothing was found on the disk in drive {}, so no image was written. The drive may be empty, or the disk unformatted.", operation.drive);
+    }
+
+    CBREx (hasData, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
     m_session.Report (operation, 100);
 
     hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, result.woz, m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);
 
+    m_session.m_sink.OnImageWritten (operation.imagePath, TextEncoding::WideToNarrow (m_session.GetModelName()));
+
     if (!result.weak.empty())
     {
-        operation.message = "Tracks whose reads differ, written as random bits: " + listTracks (result.weak) + ".";
+        operation.message = "Tracks with weak bits, which read differently every time: " + listTracks (result.weak) + ".";
     }
 
     if (!result.unstable.empty())

@@ -137,6 +137,7 @@ public:
     //  centered. An empty grid draws nothing. Drawn in a popup only.
     void  SetTable        (const std::vector<std::vector<std::wstring>> & rows);
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
+    UINT  GetDpi          () const   { return m_scaler.GetDpi(); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
     void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
 

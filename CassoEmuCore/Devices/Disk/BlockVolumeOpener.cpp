@@ -32,6 +32,7 @@ bool BlockVolumeOpener::TryOpen (IDiskFileIo                    & fileIo,
     bool                isBlocks = false;
     bool                is2mg    = false;
     bool                isProDos = false;
+    bool                isHfs    = false;
     uint64_t            offset   = 0;
     uint64_t            length   = 0;
     FileStamp           stamp;
@@ -78,17 +79,22 @@ bool BlockVolumeOpener::TryOpen (IDiskFileIo                    & fileIo,
     {
         BlockImage  image (*outStore);
 
-        isProDos = (image[s_kVolumeHeaderAt] & 0xF0) == s_kVolumeHeaderType;
+        //  HFS first. The byte a ProDOS volume header's storage type is in is
+        //  part of an HFS volume's creation date, so it can read as ProDOS's
+        //  for an hour at a time. A ProDOS volume can't have HFS's signature,
+        //  since its first word there is a block pointer of 0.
+        isHfs    = choice != VolumeKind::ProDos && HfsVolume::IsFound (image);
+        isProDos = !isHfs && (image[s_kVolumeHeaderAt] & 0xF0) == s_kVolumeHeaderType;
 
-        if (isProDos && choice != VolumeKind::Hfs)
-        {
-            outVolume = std::make_unique<ProDosVolume> (image);
-            outKind   = VolumeKind::ProDos;
-        }
-        else if (choice != VolumeKind::ProDos && HfsVolume::IsFound (image))
+        if (isHfs)
         {
             outVolume = std::make_unique<HfsVolume> (image);
             outKind   = VolumeKind::Hfs;
+        }
+        else if (isProDos && choice != VolumeKind::Hfs)
+        {
+            outVolume = std::make_unique<ProDosVolume> (image);
+            outKind   = VolumeKind::ProDos;
         }
     }
 

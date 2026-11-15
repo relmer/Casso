@@ -1561,7 +1561,7 @@ ActionsTypes::Outcome ActionsAppleDrive::FormatAppleDrive (const std::string & l
            : cpm                     ? std::string ("CP/M")
            : listing.hasVolumeName   ? "/" + listing.volumeName
            : listing.hasVolumeNumber ? std::format ("VOL {}", listing.volumeNumber)
-                                     : std::string (prodos ? "PRODOS" : "DOS 3.3");
+                                     : std::string (prodos ? "ProDOS" : "DOS 3.3");
 
     SubmitWrite (link, drive, [drive, path, volume] (CassoLinkSession & session) { return session.WriteDisk (drive, path, volume); }, outcome);
 

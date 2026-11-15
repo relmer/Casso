@@ -1187,7 +1187,15 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 void DxuiTooltip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.GetDpi());
+
+    //  A balloon in a popup is measured and drawn at its host's DPI, set by
+    //  ShowPopup. The scaler a layout passes can be a zoomed one; set while a
+    //  balloon is up, it would draw the text larger than the box it was
+    //  measured into.
+    if (m_popupHost == nullptr)
+    {
+        m_scaler.SetDpi (scaler.GetDpi());
+    }
 }
 
 

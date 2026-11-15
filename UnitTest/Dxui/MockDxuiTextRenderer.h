@@ -70,6 +70,11 @@ public:
     // menu bar reuses its cached item widths instead of collapsing.
     void  SetMeasureReturnsZero (bool returnsZero) { m_measureReturnsZero = returnsZero; }
 
+    //  Test knob: a bold measurement's glyph width, so text measured bold is
+    //  wider than the same text measured regular. Zero measures bold as
+    //  regular.
+    void  SetBoldGlyphWidth (float widthDip) { m_boldGlyphWidthDip = widthDip; }
+
     HRESULT  DrawString    (const wchar_t      * text,
                             float                xDip,
                             float                yDip,
@@ -93,6 +98,13 @@ public:
                             const wchar_t * fontFamily,
                             float         & outWidthDip,
                             float         & outHeightDip) override;
+
+    HRESULT  MeasureStringWeighted (const wchar_t * text,
+                                    float           fontSizeDip,
+                                    const wchar_t * fontFamily,
+                                    DxuiFontWeight  weight,
+                                    float         & outWidthDip,
+                                    float         & outHeightDip) override;
 
     //  Wrapped measurement, modeled rather than laid out, but broken at WORDS
     //  the way a real renderer breaks. Canned metrics still win outright -- a
@@ -139,6 +151,7 @@ private:
     std::map<std::wstring, SIZE>           m_cannedMetrics;
     std::wstring                           m_lastMeasureFamily;
     bool                                   m_measureReturnsZero = false;
+    float                                  m_boldGlyphWidthDip  = 0.0f;
     int                                    m_lastFramebufferW   = 0;
     int                                    m_lastFramebufferH   = 0;
 };

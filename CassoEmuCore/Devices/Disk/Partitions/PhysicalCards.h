@@ -175,6 +175,12 @@ public:
     //  `bytes` is written over the start of the partition.
     HRESULT  WritePartition      (int number, int partition, std::span<const Byte> bytes);
 
+    //  `bytes` is written at `offset` in the partition, after the same
+    //  confirmation. Whole blocks of a partition of whole blocks are written
+    //  through the card's cache alone, so the rest of the partition isn't
+    //  read.
+    HRESULT  WritePartitionAt    (int number, int partition, uint64_t offset, std::span<const Byte> bytes);
+
     //  The partition's length, and a number that changes at each open of the
     //  card and each write to it.
     HRESULT  GetStamp            (int number, int partition, FileStamp & outStamp);
@@ -209,7 +215,7 @@ private:
     void     EndWork        (int number);
     HRESULT  ListSession    (Session & session);
     HRESULT  FindPartition  (Session & session, int partition, const PartitionEntry * & outEntry);
-    HRESULT  StageWrite     (int number, int partition, std::span<const Byte> bytes, Session * & outSession);
+    HRESULT  StageWrite     (int number, int partition, uint64_t offset, std::span<const Byte> bytes, Session * & outSession);
     HRESULT  CheckElevation (const PhysicalDrive & drive);
 
     IPhysicalCardHost       & m_host;

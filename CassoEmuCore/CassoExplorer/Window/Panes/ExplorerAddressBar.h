@@ -55,7 +55,6 @@ public:
     void         SetHidden               (bool hidden) { m_address->SetVisible (!hidden); m_findBox->SetVisible (!hidden); }
     static RECT  GetAddressRect          (const RECT & free, const RECT & strip, const DxuiDpiScaler & scaler);
     void         ApplyTheme              (const DxuiTheme * theme) { m_suggest.SetTheme (theme); }
-    void         CloseSuggestionsOnPress (const DxuiMouseEvent & ev);
     void         CloseSuggestions        () { m_suggest.Close(); }
     LPCWSTR      GetCursorForPoint       (POINT clientPx) const;
 
@@ -103,13 +102,15 @@ public:
     static BrowserModel::AddressRoot           GetProfileRoot             ();
 
     void  HandleLocationChanged (const Location & location);
-    bool  HandleMouse           (const DxuiMouseEvent & ev);
     bool  HandleKey             (const DxuiKeyEvent & ev) { return m_address->OnKey (ev); }
     void  HandleFocusChanged    (ExplorerPane focus);
     bool  HandleFindBoxKey      (const DxuiKeyEvent & ev);
     bool  HandleAddressKey      (WPARAM vk);
 
 private:
+    bool  HandleAddressMouse (const DxuiMouseEvent & ev);
+    bool  HandleFindBoxMouse (const DxuiMouseEvent & ev);
+
     ExplorerContext  & m_context;
     DxuiAddressBar   * m_address = nullptr;
 

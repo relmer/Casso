@@ -1,6 +1,27 @@
 #include "Pch.h"
 
 #include "Devices/Disk/BlockImage.h"
+#include "Devices/Disk/BlockBuffer.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockImage::size
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t BlockImage::size() const
+{
+    if (m_view != nullptr)
+    {
+        return m_view->size();
+    }
+
+    return m_buffer != nullptr ? m_buffer->size() : m_size;
+}
 
 
 
@@ -21,6 +42,11 @@ std::vector<Byte> BlockImage::ToVector() const
     if (m_view != nullptr)
     {
         return *m_view;
+    }
+
+    if (m_buffer != nullptr)
+    {
+        return m_buffer->ToVector();
     }
 
     bytes.resize (m_size);
@@ -48,6 +74,11 @@ std::vector<Byte> BlockImage::ToVector() const
 
 Byte BlockImage::ReadStoreByte (size_t at) const
 {
+    if (m_buffer != nullptr)
+    {
+        return at < m_buffer->size() ? (*m_buffer)[at] : 0;
+    }
+
     if (at >= m_size)
     {
         return 0;

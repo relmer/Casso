@@ -262,14 +262,14 @@ public:
         ev.ctrl        = ctrl;
         ev.kind        = DxuiMouseEventKind::Down;
         ev.positionDip = from;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         ev.kind        = DxuiMouseEventKind::Move;
         ev.positionDip = to;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         ev.kind = DxuiMouseEventKind::Up;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
     }
 
 
@@ -328,9 +328,9 @@ public:
             ev.shift       = shift;
             ev.positionDip = POINT { (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 };
             ev.kind        = DxuiMouseEventKind::Down;
-            f.list.OnMouse (ev);
+            f.list.AsControl().OnMouse (ev);
             ev.kind        = DxuiMouseEventKind::Up;
-            f.list.OnMouse (ev);
+            f.list.AsControl().OnMouse (ev);
         };
 
         (void) m;

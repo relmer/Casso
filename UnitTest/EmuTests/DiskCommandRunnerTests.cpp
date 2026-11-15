@@ -9,6 +9,7 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Machines/Apple2/Common/HfsVolume.h"
+#include "Machines/Apple2/Common/HfsWriter.h"
 #include "Devices/Disk/BlockImage.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/Dos33Geometry.h"
@@ -18,6 +19,8 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "CassoExplorer/Model/HostAppleFile.h"
+#include "Core/AppleSingleCodec.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/FieldLocator.h"
 #include "InspectorTrackBuilder.h"
@@ -315,6 +318,50 @@ public:
     }
 
 
+    //  A recursive listing's name column is as wide as its longest path, so
+    //  every type lines up.
+    TEST_METHOD (List_Recurse_AlignsTheColumnsToTheLongestPath)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+        std::istringstream  lines;
+        std::string         line;
+        size_t              column = std::string::npos;
+        size_t              rows   = 0;
+
+        SeedProDosDisk (io);
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir);
+        options.disk.path = "GRAPHICS.FOLDER/PRINTSHOP.ITEMS";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options              = MakeOptions (CommandLineOptions::DiskOptions::Command::List);
+        options.disk.recurse = true;
+        result               = runner.Run (options);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+
+        lines.str (result.output);
+
+        while (std::getline (lines, line))
+        {
+            size_t  type = line.find (" $");
+
+            if (line.find ("eof=") != std::string::npos)
+            {
+                Assert::IsTrue (column == std::string::npos || type == column, TextEncoding::NarrowToWide (line).c_str());
+                Assert::IsTrue (line.find ("PRINTSHOP.ITEMSDIR") == std::string::npos);
+
+                column = type;
+                rows++;
+            }
+        }
+
+        Assert::IsTrue (rows > 2);
+    }
+
+
     TEST_METHOD (Mkdir_OnADos33Disk_SaysTheFilesystemHasNoDirectories)
     {
         FakeDiskFileIo      io;
@@ -385,6 +432,241 @@ public:
 
         Assert::AreNotEqual (DiskCommandResult::kClean, result.exitStatus,
             L"the directory is gone, so listing it fails");
+    }
+
+
+    //  HFS has folders, as ProDOS has directories: mkdir makes each along
+    //  the path, and rmdir removes them.
+    TEST_METHOD (MkdirAndRmdir_ChangeAnHfsVolume)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+        vector<Byte>        image;
+
+
+
+        AssertSucceeded (HfsWriter::Format (image, 1600, "Mac Disk"));
+        io.files["mac.po"]  = image;
+        io.stamps["mac.po"] = FileStamp { image.size(), 100 };
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::Mkdir, "mac.po");
+        options.disk.path = "Work/Deep Folder";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::List, "mac.po");
+        options.disk.path = "Work";
+        result            = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+        Assert::IsTrue   (result.output.find ("Deep Folder") != std::string::npos, L"the deeper folder is inside the first");
+
+        options              = MakeOptions (CommandLineOptions::DiskOptions::Command::Rmdir, "mac.po");
+        options.disk.path    = "Work";
+        options.disk.recurse = true;
+        options.disk.yes     = true;
+        result               = runner.Run (options);
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        options           = MakeOptions (CommandLineOptions::DiskOptions::Command::List, "mac.po");
+        options.disk.path = "Work";
+        result            = runner.Run (options);
+
+        Assert::AreNotEqual (DiskCommandResult::kClean, result.exitStatus, L"the folder is gone, so listing it fails");
+    }
+
+
+    //  A get to a name in Casso Explorer's text form converts the file as a
+    //  copy out does, the same as --text.
+    TEST_METHOD (Get_ToATextFormName_ConvertsAsCopyOutDoes)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        DiskCommandResult   result;
+        CommandLineOptions  options;
+
+
+
+        SeedProDosDisk (io);
+        io.files["note.txt"]  = { 'O', 'N', 'E', '\r', '\n', 'T', 'W', 'O', '\r', '\n' };
+        io.stamps["note.txt"] = FileStamp { 10, 100 };
+
+        options               = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
+        options.disk.hostFile = "note.txt";
+        options.disk.path     = "NOTE";
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+        result                = runner.Run (options);
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
+
+        options               = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
+        options.disk.path     = "NOTE";
+        options.disk.hostFile = "raw.bin";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.hostFile = "NOTE.Text.txt";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.hostFile = "plain.txt";
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        Assert::IsTrue (io.files["NOTE.Text.txt"] == io.files["plain.txt"], L"the same as --text");
+        Assert::IsTrue (io.files["NOTE.Text.txt"] != io.files["raw.bin"],   L"and not the stored bytes");
+    }
+
+
+    //  Put reads `._NAME` beside the file, as get writes it: the resource fork
+    //  and the ProDOS type go onto the disk, and come back out.
+    TEST_METHOD (Put_ReadsTheAppleDoubleFileBesideIt)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+        AppleSingleFile     single;
+        AppleSingleFile     back;
+        vector<Byte>        sidecar;
+        std::string         error;
+
+
+
+        SeedProDosDisk (io);
+
+        single.resourceFork    = { 1, 2, 3, 4, 5 };
+        single.hasResourceFork = true;
+        single.hasProDosInfo   = true;
+        single.fileType        = 0x50;
+        single.auxType         = 0x5445;
+        single.finderInfo.assign (32, 0);
+        AppleSingleCodec::EncodeDouble (single, sidecar);
+
+        io.files["DOC"]    = { 'T', 'E', 'A', 'C', 'H' };
+        io.files["._DOC"]  = sidecar;
+        io.stamps["DOC"]   = FileStamp { 5, 100 };
+        io.stamps["._DOC"] = FileStamp { sidecar.size(), 100 };
+
+        options               = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
+        options.disk.hostFile = "DOC";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options               = MakeOptions (CommandLineOptions::DiskOptions::Command::Get);
+        options.disk.path     = "DOC";
+        options.disk.hostFile = "out";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        Assert::IsTrue  (io.files["out"] == io.files["DOC"]);
+        AssertSucceeded (AppleSingleCodec::Decode (io.files["._out"], back, error));
+        Assert::IsTrue   (back.resourceFork == single.resourceFork, L"the resource fork went onto the disk");
+        Assert::AreEqual ((uint32_t) 0x50,   (uint32_t) back.fileType);
+        Assert::AreEqual ((uint32_t) 0x5445, (uint32_t) back.auxType);
+    }
+
+
+    //  The entry `name` in the committed ProDOS image's catalog.
+    static FileEntry FindProDosEntry (FakeDiskFileIo & io, const char * name)
+    {
+        vector<Byte>        sectors;
+        SectorDecodeReport  report;
+        VolumeListing       listing;
+        FileEntry           found;
+
+
+
+        AssertSucceeded (VolumeImage::Load (io.files[kImage], kImage, sectors, report));
+        AssertSucceeded (VolumeImage::CreateVolume (VolumeKind::ProDos, sectors)->Enumerate (listing));
+
+        for (const FileEntry & entry : listing.entries)
+        {
+            if (entry.name == name)
+            {
+                found = entry;
+            }
+        }
+
+        return found;
+    }
+
+
+    static Byte GetProDosType (FakeDiskFileIo & io, const char * name)
+    {
+        return FindProDosEntry (io, name).type;
+    }
+
+
+    //  A file put from the PC is dated when it was last written there, in
+    //  local time.
+    TEST_METHOD (Put_DatesTheFileWhenItWasWrittenOnThePc)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
+        FilePayload         expected;
+        FileEntry           entry;
+
+
+
+        SeedProDosDisk (io);
+
+        io.files["note.txt"]  = { 'H', 'I' };
+        io.stamps["note.txt"] = FileStamp { 2, 1700000000 };
+        HostAppleFile::SetHostDates (1700000000, expected);
+
+        options.disk.hostFile = "note.txt";
+        options.disk.path     = "NOTE";
+        options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        entry = FindProDosEntry (io, "NOTE");
+        Assert::IsTrue   (expected.hasDates);
+        Assert::AreEqual ((int) (23 << 9 | 11 << 5), (int) (expected.modifiedDate & 0xFFE0), L"November 2023");
+        Assert::AreEqual ((int) expected.modifiedDate, (int) entry.modifiedDate);
+        Assert::AreEqual ((int) expected.modifiedTime, (int) entry.modifiedTime);
+        Assert::AreEqual ((int) expected.modifiedDate, (int) entry.createdDate);
+    }
+
+
+    //  --type takes any type in ProDOS's table, by its abbreviation or its
+    //  number, and a host name's type applies with --as too.
+    TEST_METHOD (Put_TakesAProDosTypeByNumberOrAbbreviation_AndAHostNamesTypeWithAs)
+    {
+        FakeDiskFileIo      io;
+        DiskCommandRunner   runner (io);
+        CommandLineOptions  options;
+
+
+
+        SeedProDosDisk (io);
+
+        io.files["pic.bin"]     = vector<Byte> (64, 0x11);
+        io.stamps["pic.bin"]    = FileStamp { 64, 100 };
+        io.files["ART#C10001"]  = vector<Byte> (64, 0x22);
+        io.stamps["ART#C10001"] = FileStamp { 64, 100 };
+
+        options                = MakeOptions (CommandLineOptions::DiskOptions::Command::Put);
+        options.disk.hostFile  = "pic.bin";
+        options.disk.path      = "PAINT";
+        options.disk.typeName  = "$C0";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.path      = "SOUND";
+        options.disk.typeName  = "snd";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        options.disk.hostFile  = "ART#C10001";
+        options.disk.path      = "PICTURE";
+        options.disk.typeName  = "";
+        Assert::AreEqual (DiskCommandResult::kClean, runner.Run (options).exitStatus);
+
+        Assert::AreEqual ((int) 0xC0, (int) GetProDosType (io, "PAINT"));
+        Assert::AreEqual ((int) 0xD8, (int) GetProDosType (io, "SOUND"));
+        Assert::AreEqual ((int) 0xC1, (int) GetProDosType (io, "PICTURE"));
+
+        options.disk.path      = "ODD";
+        options.disk.typeName  = "$100";
+        Assert::AreEqual (DiskCommandResult::kNoOutput, runner.Run (options).exitStatus, L"past a byte");
     }
 
 
@@ -3672,10 +3954,10 @@ public:
 
         returned.assign (readBack.payload.begin(), readBack.payload.end());
 
-        Assert::AreEqual (std::string ("10  REM  A SPACED REM\n"
-                                       "20  PRINT \"PRINT AT TO\"\n"
-                                       "30  DATA \"A:B\",C: PRINT 1\n"
-                                       "40  FOR I = 1 TO 9: NEXT\n"),
+        Assert::AreEqual (std::string ("10  REM  A SPACED REM\r\n"
+                                       "20  PRINT \"PRINT AT TO\"\r\n"
+                                       "30  DATA \"A:B\",C: PRINT 1\r\n"
+                                       "40  FOR I = 1 TO 9: NEXT\r\n"),
                           returned,
             L"the listing must come back with the same statements and the same payload "
             L"spacing -- the leading spaces are the ones LIST puts in front of a token");
@@ -3851,10 +4133,10 @@ public:
 
         returned.assign (readBack.payload.begin(), readBack.payload.end());
 
-        Assert::AreEqual (std::string ("10  REM  A SPACED REM\n"
-                                       "20  PRINT \"PRINT AT TO\"\n"
-                                       "30  DATA \"A:B\",C: PRINT 1\n"
-                                       "40  FOR I = 1 TO 9: NEXT\n"),
+        Assert::AreEqual (std::string ("10  REM  A SPACED REM\r\n"
+                                       "20  PRINT \"PRINT AT TO\"\r\n"
+                                       "30  DATA \"A:B\",C: PRINT 1\r\n"
+                                       "40  FOR I = 1 TO 9: NEXT\r\n"),
                           returned,
             L"and the listing comes back off ProDOS exactly as it comes back off DOS 3.3");
     }
@@ -3953,7 +4235,7 @@ public:
         CommandLineOptions  options  = MakePutOptions (kBlankImage, kHostFile, "NOTES");
         DiskCommandResult   stored;
         DiskCommandResult   asText;
-        std::string         source   = "HELLO\nWORLD\n";
+        std::string         source   = "HELLO\r\nWORLD\r\n";
         vector<Byte>        hostText (source.begin(), source.end());
         size_t              i        = 0;
 
@@ -3982,7 +4264,19 @@ public:
                                         CommandLineOptions::DiskOptions::Encoding::Text);
 
         Assert::IsTrue (asText.payload == hostText,
-            L"host text placed and read back as text is the identity");
+            L"Windows text placed and read back as text is the identity");
+    }
+
+    //  Text for the PC ends each line with CR LF, whether the conversion
+    //  wrote LF, as Apple text's does, or CR LF, as Pascal text's does.
+    TEST_METHOD (ToWindowsLineEndings_MakesEachLineEndCrLfOnce)
+    {
+        std::string   text  = "A\nB\r\nC\n\nD";
+        vector<Byte>  bytes (text.begin(), text.end());
+
+        DiskCommandRunner::ToWindowsLineEndings (bytes);
+
+        Assert::AreEqual (std::string ("A\r\nB\r\nC\r\n\r\nD"), std::string (bytes.begin(), bytes.end()));
     }
 
     TEST_METHOD (Put_WithTextAndNoNamedType_TakesTheFilesystemsOwnTextType)

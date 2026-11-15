@@ -50,6 +50,42 @@ public:
         std::vector<std::shared_ptr<LinkOperation>>   queued;
         std::string                                   fullSendFolder;
 
+        //  With a boot result, each image written is booted: the result is
+        //  given to the session from another thread a moment later.
+        std::string                                   bootResult;
+        CassoLinkSession                            * session = nullptr;
+        std::vector<std::string>                      images;
+        std::vector<std::thread>                      boots;
+
+        ~Sink()
+        {
+            for (std::thread & boot : boots)
+            {
+                boot.join();
+            }
+        }
+
+        bool  OnImageWritten (const std::string & path, const std::string &) override
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+            std::string                  file = path.substr (path.find_last_of ('\\') + 1);
+
+            images.push_back (path);
+
+            if (bootResult.empty())
+            {
+                return false;
+            }
+
+            boots.emplace_back ([this, file] ()
+            {
+                Sleep (150);
+                session->NoteBoot (file, bootResult, file + " was booted.");
+            });
+
+            return true;
+        }
+
         bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override
         {
             outFolder    = fullSendFolder;
@@ -1201,6 +1237,41 @@ public:
 
 
 
+    //  An image that is booted is awaited with VALIDATING on the Apple, and
+    //  its result is in the session's status when the Full Send goes on.
+    TEST_METHOD (FullSend_AwaitsEachImagesBoot_WithValidatingOnTheApple)
+    {
+        Rig          rig;
+        std::string  validating = "VALIDATING IMAGE ON PC, PLEASE WAIT";      // in capitals: the rig's Ready has no ROM bytes
+        bool         shown      = false;
+
+        rig.sink.session    = rig.session.get();
+        rig.sink.bootResult = "booted";
+        rig.apple.keys.push_back (CassoLinkCodec::kKeySpace);
+        rig.apple.keys.push_back (CassoLinkCodec::kKeyQuit);
+        rig.Start();
+
+        rig.Finish (rig.session->FullSend ("C:\\Box", "", ""));
+
+        FullSendSnapshot  snapshot = rig.session->GetFullSendStatus().GetSnapshot();
+
+        Assert::AreEqual ((size_t) 2, rig.sink.images.size(), L"Each image is reported for its boot");
+        Assert::AreEqual ((size_t) 2, snapshot.disks.size());
+        Assert::AreEqual (std::string ("booted"), snapshot.disks[0].row.boot);
+        Assert::AreEqual (std::string ("booted"), snapshot.disks[1].row.boot, L"The result arrived before the next disk was read");
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            for (const std::vector<Byte> & screen : rig.apple.screens)
+            {
+                shown = shown || std::search (screen.begin(), screen.end(), validating.begin(), validating.end()) != screen.end();
+            }
+        }
+
+        Assert::IsTrue (shown, L"The Apple had the wait on its screen");
+    }
+
     TEST_METHOD (FullSend_FromTheAppleKeyboard_UsesTheSinksTarget)
     {
         Rig  rig;
@@ -1368,7 +1439,7 @@ public:
         }
 
         Assert::AreEqual ((size_t) 2, labels.size());
-        Assert::AreEqual (std::string ("READING THE CATALOG OF D1"), labels[0]);
+        Assert::AreEqual (std::string ("READING THE CATALOG OF D1"), labels[0], L"In capitals: the rig's Ready has no ROM bytes");
         Assert::AreEqual (std::string ("COPYING NOTES TO D1 (VOL 254)"), labels[1]);
     }
 
@@ -1384,21 +1455,21 @@ public:
         operation.drive   = 2;
         operation.path    = FilePath::Parse ("GAMES/OLD");
         operation.newName = "NEW";
-        Assert::AreEqual (std::string ("RENAMING GAMES/OLD TO NEW"), CassoLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("Renaming GAMES/OLD to NEW"), CassoLinkSession::DescribeOperation (operation));
 
         operation.kind = LinkOperationKind::ReadDisk;
-        Assert::AreEqual (std::string ("SENDING D2 TO PC"), CassoLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("Sending D2 to PC"), CassoLinkSession::DescribeOperation (operation));
 
         listing.hasVolumeName = true;
         listing.volumeName    = "GAMES";
-        Assert::AreEqual (std::string ("SENDING D2 (/GAMES) TO PC"), CassoLinkSession::DescribeOperation (operation, listing));
+        Assert::AreEqual (std::string ("Sending D2 (/GAMES) to PC"), CassoLinkSession::DescribeOperation (operation, listing));
 
         listing.hasVolumeName   = false;
         listing.hasVolumeNumber = true;
         listing.volumeNumber    = 254;
         operation.kind          = LinkOperationKind::WriteDisk;
         operation.imagePath     = "C:\\Disks\\GAMES.DSK";
-        Assert::AreEqual (std::string ("WRITING IMAGE GAMES.DSK TO D2"), CassoLinkSession::DescribeOperation (operation, listing), L"not the volume the write replaces");
+        Assert::AreEqual (std::string ("Writing image GAMES.DSK to D2"), CassoLinkSession::DescribeOperation (operation, listing), L"not the volume the write replaces");
     }
 
 
@@ -1426,19 +1497,19 @@ public:
         operation.drive     = 1;
         operation.imagePath = "C:\\Temp\\casso-format-1.dsk";
         operation.formatted = "VOL 254";
-        Assert::AreEqual (std::string ("FORMATTING VOL 254 IN D1"), CassoLinkSession::DescribeOperation (operation));
-        Assert::AreEqual (std::string ("FORMATTED VOL 254 IN D1"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+        Assert::AreEqual (std::string ("Formatting VOL 254 in D1"), CassoLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("Formatted VOL 254 in D1"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
 
         operation.formatted.clear();
         operation.imagePath = "C:\\Disks\\GAMES.DSK";
-        Assert::AreEqual (std::string ("WROTE IMAGE GAMES.DSK TO D1"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+        Assert::AreEqual (std::string ("Wrote image GAMES.DSK to D1"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
 
         operation.kind = LinkOperationKind::ReadDisk;
-        Assert::AreEqual (std::string ("SENT D1 TO PC"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+        Assert::AreEqual (std::string ("Sent D1 to PC"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
 
         operation.kind = LinkOperationKind::Krunch;
-        Assert::AreEqual (std::string ("KRUNCHING D1"), CassoLinkSession::DescribeOperation (operation));
-        Assert::AreEqual (std::string ("KRUNCHED D1"),  CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+        Assert::AreEqual (std::string ("Krunching D1"), CassoLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("Krunched D1"),  CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
     }
 
 

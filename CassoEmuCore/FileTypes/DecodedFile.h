@@ -89,7 +89,15 @@ struct DecodeOptions
 //  A document's text in styled runs, a tab a character of the text, and a
 //  grid's headings and rows of cell strings.
 //
+//  A run's color is a role, drawn in the theme's color for it on screen and
+//  in a fixed color in a copy out. A paragraph with a picture is the
+//  picture alone, in 32-bit BGRA pixels.
+//
 ////////////////////////////////////////////////////////////////////////////////
+
+enum class RunColor { Text, Good, Bad, Muted };
+
+
 
 struct Run
 {
@@ -97,6 +105,7 @@ struct Run
     bool          bold      = false;
     bool          italic    = false;
     bool          underline = false;
+    RunColor      color     = RunColor::Text;
 
     bool  operator== (const Run &) const = default;
 };
@@ -109,8 +118,11 @@ enum class Alignment { Left, Center, Right, Justified };
 
 struct Paragraph
 {
-    Alignment         alignment = Alignment::Left;
-    std::vector<Run>  runs;
+    Alignment              alignment = Alignment::Left;
+    std::vector<Run>       runs;
+    std::vector<uint32_t>  picture;
+    int                    width     = 0;
+    int                    height    = 0;
 
     bool  operator== (const Paragraph &) const = default;
 };

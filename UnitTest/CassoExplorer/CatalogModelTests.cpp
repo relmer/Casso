@@ -148,6 +148,20 @@ public:
 
 
 
+    //  Every type in Apple's File Type Notes table is listed by its
+    //  abbreviation, and a type outside it by its number.
+    TEST_METHOD (ProDosTypeText_AbbreviationsFromTheFileTypeNotes)
+    {
+        Assert::AreEqual (std::wstring (L"PNT"), CatalogModel::GetTypeText (0xC0, VolumeKind::ProDos));
+        Assert::AreEqual (std::wstring (L"PIC"), CatalogModel::GetTypeText (0xC1, VolumeKind::ProDos));
+        Assert::AreEqual (std::wstring (L"S16"), CatalogModel::GetTypeText (0xB3, VolumeKind::ProDos));
+        Assert::AreEqual (std::wstring (L"LBR"), CatalogModel::GetTypeText (0xE0, VolumeKind::ProDos));
+        Assert::AreEqual (std::wstring (L"SYS"), CatalogModel::GetTypeText (0xFF, VolumeKind::ProDos));
+        Assert::AreEqual (std::wstring (L"$F5"), CatalogModel::GetTypeText (0xF5, VolumeKind::ProDos));
+    }
+
+
+
     //  The columns from Data fork on have ids above every shell property's
     //  id, and every other column's id is its position before they existed.
     TEST_METHOD (ColumnIds_LeaveTheOriginalIdsAndPropertiesAlone)

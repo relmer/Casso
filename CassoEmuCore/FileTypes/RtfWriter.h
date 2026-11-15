@@ -12,9 +12,9 @@
 //
 //  RtfWriter
 //
-//  A document as RTF 1.5, with only bold, italic, underline, the four
-//  alignments, tabs and paragraph ends. A character outside ASCII is a \u
-//  escape of its UTF-16 unit, with ? for readers without Unicode.
+//  A document as RTF 1.5, with only bold, italic, underline, three colors,
+//  the four alignments, tabs, PNG pictures and paragraph ends. A character outside ASCII is a \u escape of its
+//  UTF-16 unit, with ? for readers without Unicode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,5 +24,8 @@ public:
     static void  Write (const std::vector<Paragraph> & paragraphs, std::vector<Byte> & outBytes);
 
 private:
-    static void  AppendText (const std::wstring & text, std::string & inOutRtf);
+    static constexpr int  s_kTwipsPerPixel = 15;     // 96 pixels an inch
+
+    static void  AppendText    (const std::wstring & text, std::string & inOutRtf);
+    static void  AppendPicture (const Paragraph & paragraph, std::string & inOutRtf);
 };

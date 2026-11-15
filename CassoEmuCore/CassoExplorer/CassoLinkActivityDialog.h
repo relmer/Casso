@@ -24,10 +24,8 @@ class IDxuiTheme;
 class CassoLinkActivityList : public DxuiPanel
 {
 public:
-    void     Init              (DxuiListView * list);
-    void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
-    bool     OnMouse           (const DxuiMouseEvent & ev) override;
-    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
+    void  Init   (DxuiListView * list);
+    void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
 
 private:
     DxuiListView  * m_list = nullptr;

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/ExplorerWindowParts.h"
+#include "Seams/IDiskPictures.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
@@ -275,6 +276,12 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
+    if (msg == (UINT) AppMessage::ExplorerCardArrivals)
+    {
+        listPane.GetBars().OfferArrived();
+        return true;
+    }
+
     if (msg == (UINT) AppMessage::ExplorerThumbnail)
     {
         preview.TakeThumbnail();
@@ -349,6 +356,25 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
     if (msg == (UINT) AppMessage::ExplorerIconsLoaded)
     {
         listPane.HandleIconsLoaded();
+        return true;
+    }
+
+    if (msg == (UINT) AppMessage::ExplorerPicturesReady && wParam == IDiskPictures::kQueueChanged)
+    {
+        statusBar.Fill();
+        return true;
+    }
+
+    if (msg == (UINT) AppMessage::ExplorerPicturesReady)
+    {
+        listPane.HandlePicturesReady (wParam);
+        preview.HandlePicturesReady();
+
+        if (context.app.host != nullptr)
+        {
+            context.app.host->OfferBootRoms (context.window.GetHwnd(), context.theme);
+        }
+
         return true;
     }
 

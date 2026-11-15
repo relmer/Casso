@@ -253,6 +253,173 @@ std::string FullSendDisk::GetCatalogTitle (const std::vector<Byte> & image)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendDisk::GetDosSectorOffset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t FullSendDisk::GetDosSectorOffset (int track, int sector)
+{
+    return ((size_t) track * NibblizationLayer::kSectorsPerTrack + (size_t) sector) * NibblizationLayer::kSectorByteSize;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDisk::FindDosEntries
+//
+//  The count of a DOS 3.3 catalog's files, and the first one's track/sector
+//  list, type without its lock bit, and length in sectors. A catalog entry
+//  begins with its list's track: 0 for an entry never used, $FF for a
+//  deleted file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FullSendDisk::FindDosEntries (const std::vector<Byte> & image, Byte & outListTrack, Byte & outListSector, Byte & outType, int & outSectors)
+{
+    constexpr size_t  kFirstEntry   = 0x0B;
+    constexpr size_t  kEntryBytes   = 35;
+    constexpr int     kEntries      = 7;
+    constexpr size_t  kTypeAt       = 2;
+    constexpr size_t  kLengthAt     = 33;
+    constexpr Byte    kDeleted      = 0xFF;
+    constexpr Byte    kLockBit      = 0x80;
+    constexpr int     kMostSectors  = 32;
+    int               count         = 0;
+    size_t            vtoc          = GetDosSectorOffset (kDosCatalogTrack, 0);
+    int               track         = vtoc + 2 < image.size() ? image[vtoc + 1] : 0;
+    int               sector        = vtoc + 2 < image.size() ? image[vtoc + 2] : 0;
+
+
+
+    for (int hop = 0; hop < kMostSectors && track != 0 && GetDosSectorOffset (track, sector) + NibblizationLayer::kSectorByteSize <= image.size(); hop++)
+    {
+        size_t  at = GetDosSectorOffset (track, sector);
+
+        for (int entry = 0; entry < kEntries; entry++)
+        {
+            size_t  from = at + kFirstEntry + (size_t) entry * kEntryBytes;
+
+            if (image[from] == 0 || image[from] == kDeleted)
+            {
+                continue;
+            }
+
+            if (count == 0)
+            {
+                outListTrack  = image[from];
+                outListSector = image[from + 1];
+                outType       = (Byte) (image[from + kTypeAt] & ~kLockBit);
+                outSectors    = image[from + kLengthAt] | (image[from + kLengthAt + 1] << 8);
+            }
+
+            count++;
+        }
+
+        track  = image[at + 1];
+        sector = image[at + 2];
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDisk::FindLoneProgramTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FullSendDisk::FindLoneProgramTrack (const std::vector<Byte> & image)
+{
+    constexpr Byte  kInteger   = 0x01;
+    constexpr Byte  kApplesoft = 0x02;
+    Byte            listTrack  = 0;
+    Byte            listSector = 0;
+    Byte            type       = 0;
+    int             sectors    = 0;
+    bool            lone       = VolumeImage::DetectFilesystem (image) == VolumeKind::Dos33 && FindDosEntries (image, listTrack, listSector, type, sectors) == 1;
+
+
+
+    return (lone && (type == kInteger || type == kApplesoft) && sectors <= kGreetingSectors && listTrack < NibblizationLayer::kTrackCount) ? listTrack : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDisk::IsBlank
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendDisk::IsBlank (const std::vector<Byte> & image, std::span<const int> haveTracks, std::string & outSystem)
+{
+    constexpr size_t          kFirstPair = 0x0C;
+    constexpr size_t          kProgramAt = 2;
+    constexpr int             kNoLines   = 3;
+    VolumeKind                kind       = VolumeImage::DetectFilesystem (image);
+    bool                      known      = kind == VolumeKind::Dos33 || kind == VolumeKind::ProDos || kind == VolumeKind::Pascal || kind == VolumeKind::Cpm;
+    std::unique_ptr<IVolume>  volume     = known ? VolumeImage::CreateVolume (kind, image) : nullptr;
+    VolumeListing             listing;
+    HRESULT                   hrList     = volume != nullptr ? volume->Enumerate (listing) : E_FAIL;
+    bool                      listed     = SUCCEEDED (hrList);
+    bool                      mostlyFree = listed && (listing.totalUnits == 0 || (uint64_t) listing.freeUnits * 10 >= (uint64_t) listing.totalUnits * kBlankFreeTenths);
+    int                       listTrack  = (listed && kind == VolumeKind::Dos33) ? FindLoneProgramTrack (image) : -1;
+    Byte                      track      = 0;
+    Byte                      sector     = 0;
+    Byte                      type       = 0;
+    int                       sectors    = 0;
+    size_t                    list       = 0;
+    size_t                    data       = 0;
+    int                       length     = 0;
+    bool                      blank      = false;
+
+
+
+    auto  have = [&haveTracks] (int number) { return std::find (haveTracks.begin(), haveTracks.end(), number) != haveTracks.end(); };
+
+    outSystem = known ? std::string (VolumeImage::GetSystemName (kind)) : std::string();
+
+    if (!listed || !mostlyFree)
+    {
+        return false;
+    }
+
+    blank = listing.entries.empty() && listing.directoryFiles == 0;
+
+    //  A lone BASIC program with no lines: its first sector has the program's
+    //  length, then the program, which ends with a zero link to the next line.
+    if (!blank && listTrack >= 0 && have (listTrack))
+    {
+        FindDosEntries (image, track, sector, type, sectors);
+
+        list = GetDosSectorOffset (track, sector);
+
+        if (list + NibblizationLayer::kSectorByteSize <= image.size() && image[list + kFirstPair] != 0 && image[list + kFirstPair] < NibblizationLayer::kTrackCount && have (image[list + kFirstPair]))
+        {
+            data   = GetDosSectorOffset (image[list + kFirstPair], image[list + kFirstPair + 1]);
+            length = (data + kProgramAt + 2 <= image.size()) ? (image[data] | (image[data + 1] << 8)) : INT_MAX;
+            blank  = length <= kNoLines || (length != INT_MAX && image[data + kProgramAt] == 0 && image[data + kProgramAt + 1] == 0);
+        }
+    }
+
+    return blank;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendDisk::TryGetPascalVolume
 //
 //  Apple Pascal's directory starts at block 2 with the volume's entry: first

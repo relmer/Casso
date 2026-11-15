@@ -36,6 +36,13 @@ public:
     //  image's or a linked Apple's files.
     static bool  IsCassoCopy (IDataObject * data);
 
+    //  For each copy in `copies` of a ZIP member on the PC, the
+    //  member's AppleDouble entry written as `._NAME` beside the copy, so a
+    //  put reads its type and resource fork. `sources` are the shell's
+    //  parsing name of each dropped item, such as `C:\Disks\set.zip\games\WIZ`;
+    //  a copy is matched to the source of its name.
+    void  WriteZipSidecars (const std::vector<std::wstring> & sources, const std::vector<std::wstring> & copies);
+
     ActionsTypes::Outcome  ExtractImage   (const std::wstring & imagePath, HostFileNaming::Style style, std::wstring & outFolder);
     ActionsTypes::Outcome  PutFiles       (const std::vector<std::wstring> & hostPaths, const ActionsTypes::AddressFn & askAddress = {});
 
@@ -87,7 +94,7 @@ public:
     std::wstring         MakeFreeFolderPath         (const std::wstring & parent, const std::wstring & name);
     static std::wstring  GetAppleDoublePath         (const std::wstring & hostPath);
     bool                 IsAppleDoubleBesideItsFile (const std::wstring & hostPath) const;
-    void                 AttachAppleDouble          (const std::wstring & hostPath, const std::vector<Byte> & bytes, ActionsTypes::PutPlan & inOutPlan) const;
+    void                 AttachAppleDouble          (const std::wstring & hostPath, const std::vector<Byte> & bytes, VolumeKind kind, ActionsTypes::PutPlan & inOutPlan) const;
 
     std::wstring  MakeFreeFilePath   (const std::wstring & folder, const std::wstring & name);
     bool          TryGetHostEntry    (const std::wstring & path, FileSystemEntry & outEntry);

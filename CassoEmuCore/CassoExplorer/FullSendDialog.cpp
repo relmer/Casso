@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/FullSendDialog.h"
+#include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/TextEncoding.h"
 
 
@@ -77,19 +78,329 @@ std::wstring FullSendPanel::FormatSeconds (double seconds)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendPanel::DescribeSummary
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FullSendPanel::DescribeSummary (const FullSendSnapshot & snapshot, const std::wstring & connection)
+{
+    int           done  = snapshot.totals.sent + snapshot.totals.duplicates;
+    std::wstring  tally = std::format (L"{} {} done", done, done == 1 ? L"disk" : L"disks");
+    std::wstring  prefix = connection.empty() ? std::wstring (L"Full Send: ") : std::format (L"Full Send on {}: ", connection);
+    std::wstring  text;
+
+
+
+    switch (snapshot.activity)
+    {
+        case FullSendActivity::Starting:        text = prefix + L"waiting for Space on the Apple";                           break;
+        case FullSendActivity::WaitingForDisk:  text = prefix + std::format (L"waiting for a disk, {}", tally);             break;
+        case FullSendActivity::WaitingForApple: text = prefix + L"waiting for the Apple";                                    break;
+        case FullSendActivity::EditingPrefix:   text = prefix + L"a file name prefix is being typed on the Apple";           break;
+        case FullSendActivity::Checking:        text = prefix + std::format (L"checking drive {}, {}", snapshot.drive, tally); break;
+        case FullSendActivity::Validating:      text = prefix + std::format (L"validating the image, {}", tally);             break;
+        default:                                                                                                                break;
+    }
+
+    if ((snapshot.activity == FullSendActivity::Sending || snapshot.activity == FullSendActivity::Capturing) && snapshot.drive >= 1 && snapshot.drive <= (int) snapshot.drives.size())
+    {
+        const FullSendDriveStatus  & drive = snapshot.drives[(size_t) snapshot.drive - 1];
+
+        text = prefix + std::format (L"drive {}", snapshot.drive);
+        text += drive.title.empty() ? std::wstring() : L", " + TextEncoding::NarrowToWide (drive.title);
+        text += snapshot.activity == FullSendActivity::Capturing ? L", raw capture" : L"";
+        text += std::format (L", {}%", std::clamp (drive.percent, 0, 100));
+        text += drive.secondsLeft >= 0.0 ? std::format (L", about {} left", FormatSeconds (drive.secondsLeft)) : std::wstring();
+        text += L", " + tally;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::DescribeCell
+//
+//  In a raw capture every cell has its position's mark; otherwise a track's
+//  cell has the track's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int position)
+{
+    std::wstring  track = (position % 4 == 0) ? std::format (L"Track {}", position / 4) : std::format (L"Track {:.2f}", position / 4.0);
+    std::wstring  state = L"not read yet";
+
+
+
+    if (!drive.positions.empty())
+    {
+        switch (drive.positions[(size_t) position])
+        {
+            case FullSendPositionMark::Read:     state = L"read";                                                        break;
+            case FullSendPositionMark::Skipped:  state = L"not read, the tracks beside it are complete";                 break;
+            case FullSendPositionMark::Weak:     state = L"weak bits, which read differently every time, as on the disk"; break;
+            case FullSendPositionMark::Unstable: state = L"the reads differ in length";                                  break;
+            default:                                                                                                      break;
+        }
+    }
+    else
+    {
+        switch (drive.tracks[(size_t) position / 4])
+        {
+            case FullSendTrackMark::Read:       state = L"read";                                  break;
+            case FullSendTrackMark::Verified:   state = L"read and verified";                     break;
+            case FullSendTrackMark::Unreliable: state = L"a sector's reads disagree";             break;
+            case FullSendTrackMark::Unreadable: state = L"a sector could not be read";            break;
+            default:                                                                              break;
+        }
+    }
+
+    return track + L": " + state;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::AddCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendPanel::AddCell (float left, float top, float width, float height, int number, int position) const
+{
+    Cell  cell;
+
+
+
+    cell.bounds   = { (LONG) left, (LONG) top, (LONG) (left + width + 1.0f), (LONG) (top + height + 1.0f) };
+    cell.drive    = number - 1;
+    cell.position = position;
+
+    m_cells.push_back (cell);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::OnMouse
+//
+//  The map cell under the pointer has a tip; anywhere else, none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::OnMouse (const DxuiMouseEvent & ev)
+{
+    int64_t  now = (int64_t) GetTickCount64();
+    POINT    pt  = { ev.positionDip.x, ev.positionDip.y };
+
+
+
+    if (HandleClick (ev))
+    {
+        return true;
+    }
+
+    if (m_tooltip == nullptr)
+    {
+        return false;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Enter)
+    {
+        for (const Cell & cell : m_cells)
+        {
+            if (PtInRect (&cell.bounds, pt))
+            {
+                m_tooltip->RequestShow (cell.bounds, DescribeCell (m_view.snapshot.drives[(size_t) cell.drive], cell.position), now);
+                return false;
+            }
+        }
+    }
+
+    m_tooltip->RequestHide (now);
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::HandleClick
+//
+//  A second press on a disk's row within the double-click time opens it; a
+//  right press on a row or on the activity list opens its menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::HandleClick (const DxuiMouseEvent & ev)
+{
+    int64_t      now     = (int64_t) GetTickCount64();
+    POINT        pt      = { ev.positionDip.x, ev.positionDip.y };
+    std::string  file;
+    bool         onRow   = TryGetDiskAt (pt, file);
+    bool         handled = false;
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Down)
+    {
+        return false;
+    }
+
+    if (ev.button == DxuiMouseButton::Left && onRow)
+    {
+        handled = file == m_lastClicked && now - m_lastClickMs <= (int64_t) GetDoubleClickTime();
+
+        m_lastClicked = handled ? std::string() : file;
+        m_lastClickMs = now;
+
+        if (handled && m_onOpen)
+        {
+            m_onOpen (file);
+        }
+    }
+    else if (ev.button == DxuiMouseButton::Right && (onRow || IsOverActivity (pt)) && m_onMenu)
+    {
+        m_onMenu (onRow ? file : std::string(), pt);
+        handled = true;
+    }
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::TryGetDiskAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::TryGetDiskAt (POINT pointPx, std::string & outFile) const
+{
+    auto  found = std::find_if (m_rows.begin(), m_rows.end(), [pointPx] (const Row & row) { return PtInRect (&row.bounds, pointPx) != FALSE; });
+
+
+
+    outFile = (found != m_rows.end()) ? found->file : std::string();
+
+    return found != m_rows.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::IsOverActivity
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::IsOverActivity (POINT pointPx) const
+{
+    return PtInRect (&m_activity, pointPx) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::FormatActivity
+//
+//  Every line of the session, not only those the list has room for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FullSendPanel::FormatActivity (const FullSendSnapshot & snapshot)
+{
+    std::wstring  text;
+
+
+
+    for (const auto & line : snapshot.lines)
+    {
+        text += TextEncoding::NarrowToWide (line.time) + L"  " + TextEncoding::NarrowToWide (line.text) + L"\r\n";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::MakeManifestView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::MakeManifestView (std::span<const Byte> manifest, FullSendSnapshot & outSnapshot)
+{
+    HRESULT           hr     = S_OK;
+    FullSendManifest  parsed;
+
+
+
+    outSnapshot = FullSendSnapshot();
+
+    hr = parsed.Parse (manifest);
+    CHR (hr);
+
+    for (auto row = parsed.GetRows().rbegin(); row != parsed.GetRows().rend(); row++)
+    {
+        FullSendDoneDisk  disk;
+
+        disk.row = *row;
+        outSnapshot.disks.push_back (std::move (disk));
+    }
+
+Error:
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendPanel::DescribeActivity
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring FullSendPanel::DescribeActivity (const FullSendSnapshot & snapshot)
+std::wstring FullSendPanel::DescribeActivity (const FullSendSnapshot & snapshot, const std::wstring & machine)
 {
+    std::wstring  apple = machine.empty() ? std::wstring (L"Apple") : machine.substr (0, machine.find (L" ("));
+
+
+
     switch (snapshot.activity)
     {
-        case FullSendActivity::Starting:        return L"Waiting for Space on the Apple to begin.";
+        case FullSendActivity::Starting:        return std::format (L"The {} is waiting for disks to send.", apple);
         case FullSendActivity::Checking:        return std::format (L"Checking the disk in drive {}.", snapshot.drive);
         case FullSendActivity::Sending:         return std::format (L"Sending the disk in drive {}.", snapshot.drive);
         case FullSendActivity::Capturing:       return std::format (L"The disk in drive {} is likely copy-protected; using raw capture mode.", snapshot.drive);
-        case FullSendActivity::WaitingForDisk:  return L"Waiting for a new disk. Insert one and press Space on the Apple.";
+        case FullSendActivity::WaitingForDisk:  return std::format (L"The {} is waiting for more disks to send.", apple);
+        case FullSendActivity::Validating:      return std::format (L"Validating the image of the disk in drive {}: booting it to check that it runs.", snapshot.drive);
         case FullSendActivity::WaitingForApple: return std::format (L"Waiting for the Apple to reply, {}.", FormatSeconds (snapshot.waited));
         case FullSendActivity::EditingPrefix:   return L"A file name prefix is being typed on the Apple.";
         case FullSendActivity::Ended:           return L"The session ended. " + TextEncoding::NarrowToWide (snapshot.reason);
@@ -120,7 +431,8 @@ std::wstring FullSendPanel::DescribeDrive (const FullSendDriveStatus & drive)
         case FullSendDiskState::Capturing: state = L"Capturing raw";                         break;
         case FullSendDiskState::Sent:      state = L"Sent";                                  break;
         case FullSendDiskState::Duplicate: state = L"Duplicate";                             break;
-        case FullSendDiskState::Empty:     state = L"Empty, or no recognized sectors";       break;
+        case FullSendDiskState::Empty:     state = L"Unformatted, or no disk";               break;
+        case FullSendDiskState::Blank:     state = L"Blank";                                 break;
         default:                           state = L"No disk read yet";                      break;
     }
 
@@ -215,8 +527,8 @@ std::wstring FullSendPanel::DescribeCapture (const FullSendDriveStatus & drive)
 
 std::wstring FullSendPanel::DescribeTotals (const FullSendTotals & totals)
 {
-    std::wstring  text = std::format (L"{} sent, {} {}, {} raw {}, {} with bad sectors", totals.sent,
-                                      totals.duplicates, totals.duplicates == 1 ? L"duplicate" : L"duplicates",
+    std::wstring  text = std::format (L"{} sent, {} {}, {} blank, {} raw {}, {} with bad sectors", totals.sent,
+                                      totals.duplicates, totals.duplicates == 1 ? L"duplicate" : L"duplicates", totals.blanks,
                                       totals.rawCaptures, totals.rawCaptures == 1 ? L"capture" : L"captures", totals.badSectors);
 
 
@@ -245,6 +557,14 @@ std::wstring FullSendPanel::DescribeTotals (const FullSendTotals & totals)
 
 std::wstring FullSendPanel::DescribeStatus (const FullSendRow & row)
 {
+    const wchar_t  * boot = row.boot == FullSendManifest::kBootBooted      ? L", boots"
+                          : row.boot == FullSendManifest::kBootDidNotBoot  ? L", did not boot"
+                          : row.boot == FullSendManifest::kBootNotBootable ? L", not bootable"
+                          : row.boot == FullSendManifest::kBootUnclear     ? L", boot unclear"
+                                                                           : L"";
+
+
+
     if (row.status == FullSendManifest::kStatusDuplicate)
     {
         return L"Duplicate of " + TextEncoding::NarrowToWide (row.duplicateOf);
@@ -252,25 +572,25 @@ std::wstring FullSendPanel::DescribeStatus (const FullSendRow & row)
 
     if (row.status == FullSendManifest::kStatusRawCapture)
     {
-        return L"Raw capture";
+        return std::wstring (L"Raw capture") + boot;
     }
 
     if (row.status == FullSendManifest::kStatusProtected)
     {
-        return L"Likely copy-protected";
+        return std::wstring (L"Likely copy-protected") + boot;
     }
 
     if (row.unreadable != 0)
     {
-        return std::format (L"{} unreadable {}", row.unreadable, row.unreadable == 1 ? L"sector" : L"sectors");
+        return std::format (L"{} unreadable {}", row.unreadable, row.unreadable == 1 ? L"sector" : L"sectors") + boot;
     }
 
     if (row.unreliable != 0)
     {
-        return std::format (L"{} unreliable {}", row.unreliable, row.unreliable == 1 ? L"sector" : L"sectors");
+        return std::format (L"{} unreliable {}", row.unreliable, row.unreliable == 1 ? L"sector" : L"sectors") + boot;
     }
 
-    return row.verification == FullSendManifest::kVerifyFull ? L"Sent, verified" : L"Sent";
+    return std::wstring (row.verification == FullSendManifest::kVerifyFull ? L"Sent, verified" : L"Sent") + boot;
 }
 
 
@@ -356,7 +676,11 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
         return;
     }
 
-    DrawLine (text, DescribeActivity (m_view.snapshot), left, top, width, theme.Foreground(), true);
+    m_cells.clear();
+    m_rows.clear();
+    m_activity = {};
+
+    DrawLine (text, DescribeActivity (m_view.snapshot, m_view.machine), left, top, width, theme.Foreground(), true);
 
     if (!m_view.connection.empty())
     {
@@ -433,6 +757,7 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
         uint32_t  color = drive.positions.empty() ? GetColor (drive.tracks[(size_t) track], theme) : GetColor (drive.positions[(size_t) track * 4], theme);
 
         painter.FillRect (left + track * pitch, top, pitch - space, cellH, color);
+        AddCell (left + track * pitch, top, pitch - space, cellH, number, track * 4);
     }
 
     top += cellH + space;
@@ -449,6 +774,7 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
         }
 
         painter.FillRect (left + position * quarter, top, std::max (1.0f, quarter - space), rawH, GetColor (mark, theme));
+        AddCell (left + position * quarter, top, std::max (1.0f, quarter - space), rawH, number, (int) position);
     }
 
     top += rawH + space * 4.0f;
@@ -569,7 +895,12 @@ float FullSendPanel::PaintDisks (IDxuiTextRenderer & text, const IDxuiTheme & th
             DrawLine (text, name, left + number, top, file, theme.Foreground());
             DrawLine (text, TextEncoding::NarrowToWide (disk.fileSystem), left + number + file, top, system, theme.ForegroundMuted());
             DrawLine (text, DescribeStatus (disk.row), left + number + file + system, top, status, theme.ForegroundMuted());
-            DrawLine (text, FormatSeconds (disk.seconds), left + width - took, top, took, theme.ForegroundMuted(), false, DxuiTextHAlign::Right);
+            DrawLine (text, (disk.seconds > 0.0) ? FormatSeconds (disk.seconds) : std::wstring(), left + width - took, top, took, theme.ForegroundMuted(), false, DxuiTextHAlign::Right);
+
+            if (!disk.row.file.empty())
+            {
+                m_rows.push_back ({ RECT { (LONG) left, (LONG) top, (LONG) (left + width), (LONG) (top + lineH) }, disk.row.file });
+            }
         }
 
         top += lineH;
@@ -586,30 +917,66 @@ float FullSendPanel::PaintDisks (IDxuiTextRenderer & text, const IDxuiTheme & th
 //
 //  FullSendPanel::PaintActivity
 //
-//  The latest activity lines, the newest last, each after its time.
+//  The latest activity lines, the newest last, each after its time. A line
+//  wider than the list wraps onto a second row, and the list has as many of
+//  the latest lines as fit its rows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const
 {
-    RECT    bounds = GetBounds();
-    float   left   = (float) bounds.left;
-    float   width  = (float) (bounds.right - bounds.left);
-    float   lineH  = m_scaler.ToPxf (kLineDip);
-    float   time   = width * 0.10f;
-    size_t  count  = m_view.snapshot.lines.size();
-    size_t  first  = count > (size_t) kActivityRows ? count - (size_t) kActivityRows : 0;
+    RECT                       bounds = GetBounds();
+    float                      left   = (float) bounds.left;
+    float                      width  = (float) (bounds.right - bounds.left);
+    float                      lineH  = m_scaler.ToPxf (kLineDip);
+    float                      time   = width * 0.10f;
+    size_t                     count  = m_view.snapshot.lines.size();
+    size_t                     first  = count;
+    int                        used   = 0;
+    std::vector<std::wstring>  lines  (count);
+    std::vector<int>           rows   (count, 1);
 
 
 
     DrawLine (text, L"Activity", left, top, width, theme.HeadingForeground(), true);
     top += m_scaler.ToPxf (kHeadingDip);
 
+    m_activity = RECT { (LONG) left, (LONG) top, (LONG) (left + width), (LONG) (top + lineH * kActivityRows) };
+
+    while (first > 0)
+    {
+        HRESULT  hr       = S_OK;
+        float    measured = 0.0f;
+        float    height   = 0.0f;
+        size_t   i        = first - 1;
+
+        lines[i] = TextEncoding::NarrowToWide (m_view.snapshot.lines[i].text);
+
+        hr = text.MeasureString (lines[i].c_str(), m_scaler.ToPxf (kFontDip), s_kpszFont, measured, height);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        rows[i] = (measured > width - time) ? 2 : 1;
+
+        if (used + rows[i] > kActivityRows)
+        {
+            break;
+        }
+
+        used += rows[i];
+        first = i;
+    }
+
     for (size_t i = first; i < count; i++)
     {
+        HRESULT  hr = S_OK;
+
         DrawLine (text, TextEncoding::NarrowToWide (m_view.snapshot.lines[i].time), left, top, time, theme.ForegroundMuted());
-        DrawLine (text, TextEncoding::NarrowToWide (m_view.snapshot.lines[i].text), left + time, top, width - time, theme.Foreground());
-        top += lineH;
+
+        hr = text.DrawString (lines[i].c_str(), left + time, top, width - time, lineH * rows[i], theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
+                              DxuiTextHAlign::Left, rows[i] == 1 ? DxuiTextVAlign::Center : DxuiTextVAlign::Top, DxuiFontWeight::Normal, rows[i] > 1);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        top += lineH * rows[i];
     }
 
     return top;
@@ -665,6 +1032,27 @@ void FullSendDialog::OnCreate()
 
 
     m_panel     = CreateDialogContent<FullSendPanel>();
+
+    m_tooltip.SetPopupHost (GetPopupHost());
+    m_tooltip.SetFollowPointer (true);
+
+    if (m_theme != nullptr)
+    {
+        m_tooltip.SetTheme (*m_theme);
+    }
+
+    m_panel->SetTooltip (&m_tooltip);
+    m_panel->SetOnOpenDisk ([this] (const std::string & file)
+    {
+        if (m_diskAction)
+        {
+            m_diskAction (file, DiskAction::Select);
+        }
+    });
+    m_panel->SetOnMenu ([this] (const std::string & file, POINT pointPx)
+    {
+        DxuiContextMenu::Show (*GetPopupHost(), pointPx.x, pointPx.y, MakeMenu (file));
+    });
     m_endButton = AddDialogButton (L"End session", kEndId);
     folder      = AddDialogButton (L"Open folder", kFolderId);
 
@@ -688,7 +1076,7 @@ void FullSendDialog::OnCreate()
         }
     });
 
-    SetDialogTickIntervalMs (kTickMs);
+    SetDialogTickIntervalMs (kTipTickMs);
     Refresh();
 }
 
@@ -704,7 +1092,110 @@ void FullSendDialog::OnCreate()
 
 void FullSendDialog::OnDialogTick()
 {
-    Refresh();
+    m_tooltip.Tick ((int64_t) GetTickCount64());
+    NoteMoved();
+
+    if (m_ticks++ % (kTickMs / kTipTickMs) == 0)
+    {
+        Refresh();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDialog::AddCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendDialog::AddCommand (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch)
+{
+    std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+
+
+    command->label    = label;
+    command->dispatch = std::move (dispatch);
+
+    items.push_back (DxuiPopupMenuItem::ForCommand (command));
+    m_menuCommands.push_back (std::move (command));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDialog::MakeMenu
+//
+//  A disk's row has Open, Inspect disk image and, for a WOZ image, Disk
+//  properties, as the image's menu in the folder has them. The activity
+//  list has Copy, which copies every line of the session.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> FullSendDialog::MakeMenu (const std::string & file)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+    std::filesystem::path           name = file;
+
+
+
+    m_menuCommands.clear();
+
+    if (file.empty())
+    {
+        AddCommand (items, L"&Copy", [this]() { DxuiClipboard::SetText (GetHwnd(), FullSendPanel::FormatActivity (m_view.snapshot)); });
+        return items;
+    }
+
+    AddCommand (items, L"&Open",               [this, file]() { if (m_diskAction) { m_diskAction (file, DiskAction::Open); } });
+    AddCommand (items, L"&Inspect disk image", [this, file]() { if (m_diskAction) { m_diskAction (file, DiskAction::Inspect); } });
+
+    if (_wcsicmp (name.extension().c_str(), L".woz") == 0)
+    {
+        AddCommand (items, L"&Disk properties", [this, file]() { if (m_diskAction) { m_diskAction (file, DiskAction::Properties); } });
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDialog::NoteMoved
+//
+//  The window's top left, passed on each time it changes, so it opens there
+//  the next time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendDialog::NoteMoved()
+{
+    RECT  frame   = {};
+    BOOL  hasRect = (GetHwnd() != nullptr) ? GetWindowRect (GetHwnd(), &frame) : FALSE;
+    POINT topLeft = { frame.left, frame.top };
+
+
+
+    if (!hasRect || !m_onMoved || (topLeft.x == m_lastTopLeft.x && topLeft.y == m_lastTopLeft.y))
+    {
+        return;
+    }
+
+    if (m_lastTopLeft.x != LONG_MIN)
+    {
+        m_onMoved (topLeft);
+    }
+
+    m_lastTopLeft = topLeft;
 }
 
 
@@ -745,17 +1236,19 @@ void FullSendDialog::Refresh()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<FullSendDialog> FullSendDialog::Open (HWND owner, const IDxuiTheme * theme, bool activate, SnapshotFn snapshot, ActionFn endSession, ActionFn openFolder)
+std::unique_ptr<FullSendDialog> FullSendDialog::Open (HWND owner, const IDxuiTheme * theme, bool activate, SnapshotFn snapshot, ActionFn endSession, ActionFn openFolder,
+                                                      const POINT * position, const std::wstring & connection)
 {
-    HRESULT                          hr     = S_OK;
-    std::unique_ptr<FullSendDialog>  dialog = std::make_unique<FullSendDialog>();
+    HRESULT                          hr       = S_OK;
+    std::unique_ptr<FullSendDialog>  dialog   = std::make_unique<FullSendDialog>();
     DxuiWindow::CreateParams         params;
+    bool                             isPlaced = position != nullptr && MonitorFromPoint (*position, MONITOR_DEFAULTTONULL) != nullptr;
 
 
 
     dialog->Configure (theme, std::move (snapshot), std::move (endSession), std::move (openFolder));
 
-    params.title                    = L"Full Send";
+    params.title                    = connection.empty() ? std::wstring (L"Full Send") : L"Full Send - " + connection;
     params.hInstance                = (owner != nullptr) ? (HINSTANCE) GetWindowLongPtrW (owner, GWLP_HINSTANCE) : GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { kWidthDip, kHeightDip };
@@ -770,6 +1263,12 @@ std::unique_ptr<FullSendDialog> FullSendDialog::Open (HWND owner, const IDxuiThe
     CHRA (hr);
 
     dialog->SetTheme (theme);
+
+    if (isPlaced)
+    {
+        SetWindowPos (dialog->GetHwnd(), nullptr, position->x, position->y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+
     dialog->ShowModelessDialog (IDCANCEL, activate);
 
 Error:

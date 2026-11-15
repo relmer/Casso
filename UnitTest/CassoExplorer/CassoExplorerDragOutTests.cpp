@@ -64,6 +64,31 @@ public:
     }
 
 
+    //  A file that fails to convert is dropped from a copy, its descriptor
+    //  and its contents, and the rest are in their order.
+    TEST_METHOD (DropSkipped_LeavesOutTheFilesThatFailed)
+    {
+        std::vector<DragPayload::Descriptor>  descriptors (3);
+        std::vector<std::vector<uint8_t>>     files    = { { 1 }, { 2 }, { 3 } };
+        std::vector<bool>                     skipped  = { false, true, false };
+        std::vector<uint8_t>                  bytes;
+        const FILEGROUPDESCRIPTORW *          group    = nullptr;
+
+        descriptors[0].relativePath = L"A.txt";
+        descriptors[1].relativePath = L"BAD.LZ4FH.png";
+        descriptors[2].relativePath = L"C.txt";
+
+        bytes = CassoExplorerDragOut::DropSkippedDescriptors (CassoExplorerDragOut::MakeFileGroupDescriptor (descriptors), skipped);
+        group = (const FILEGROUPDESCRIPTORW *) bytes.data();
+        CassoExplorerDragOut::DropSkipped (files, skipped);
+
+        Assert::AreEqual ((UINT) 2, group->cItems);
+        Assert::AreEqual (std::wstring (L"A.txt"), std::wstring (group->fgd[0].cFileName));
+        Assert::AreEqual (std::wstring (L"C.txt"), std::wstring (group->fgd[1].cFileName));
+        Assert::IsTrue   (files == std::vector<std::vector<uint8_t>> { { 1 }, { 3 } });
+    }
+
+
     TEST_METHOD (HDrop_ListsThePathsDoubleTerminated)
     {
         std::vector<uint8_t>  bytes  = CassoExplorerDragOut::MakeHDrop ({ L"C:\\a.dsk", L"C:\\b.po" });

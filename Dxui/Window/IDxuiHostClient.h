@@ -372,6 +372,15 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
+    // WM_CAPTURECHANGED. `newCapture` is the window that took the mouse, as a
+    // popup menu or a drag loop takes it, or null when it was released.
+    virtual DxuiMessageResult  OnCaptureChanged (HWND newCapture)
+    {
+        UNREFERENCED_PARAMETER (newCapture);
+
+        return DxuiMessageResult::NotHandled;
+    }
+
     // WM_ENDSESSION. `ending` is true when Windows is signing out or shutting
     // down; the process can end any time after this returns, so anything to
     // save is written here.

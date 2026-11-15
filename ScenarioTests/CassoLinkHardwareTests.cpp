@@ -6,9 +6,15 @@
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/Model/PicturePreview.h"
 #include "Devices/Disk/DiskImage.h"
+#include "DiskCheck/BootCheck.h"
+#include "DiskCheck/BootProbe.h"
+#include "DiskCheck/BootSounds.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/LinkProgram.h"
@@ -238,6 +244,18 @@ public:
         }
 
         AssertSucceeded (CassoLinkCapture::ParseReads (file, positions));
+
+        //  With CASSO_CAPTURE_READS_EARLIER, the reads of an earlier capture
+        //  of the disk too, as a disk read again has.
+        if (!GetSetting ("CASSO_CAPTURE_READS_EARLIER", "").empty())
+        {
+            std::ifstream                            in (GetSetting ("CASSO_CAPTURE_READS_EARLIER", ""), std::ios::binary);
+            std::vector<Byte>                        earlierFile ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char>());
+            std::vector<CassoLinkCapture::Position>  earlier;
+
+            AssertSucceeded (CassoLinkCapture::ParseReads (earlierFile, earlier));
+            CassoLinkCapture::MergeReads (positions, earlier);
+        }
 
         for (const CassoLinkCapture::Position & position : positions)
         {
@@ -671,6 +689,244 @@ public:
         }
     }
 
+    //  Each .woz, .dsk, .do and .po file of the folder CASSO_PROBE_IMAGES,
+    //  booted by BootProbe on an enhanced //e: its verdict, reason and
+    //  seconds are written to probe.txt and its last frame to a PNG with the
+    //  image's file name, in CASSO_LINK_OUT. Run only when
+    //  CASSO_PROBE_IMAGES is set.
+    TEST_METHOD (ImagesInAFolder_AreProbed)
+    {
+        std::string            folder = GetSetting ("CASSO_PROBE_IMAGES", "");
+        std::filesystem::path  out    = GetSetting ("CASSO_LINK_OUT", ".");
+        std::ofstream          log;
+
+
+
+        if (folder.empty())
+        {
+            Logger::WriteMessage ("CASSO_PROBE_IMAGES isn't set; no images to probe.\n");
+            return;
+        }
+
+        log.open (out / "probe.txt");
+
+        for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (folder))
+        {
+            std::string        extension = entry.path().extension().string();
+            bool               isWoz     = extension == ".woz";
+            bool               isSectors = extension == ".dsk" || extension == ".do" || extension == ".po";
+            std::vector<Byte>  bytes;
+            std::vector<Byte>  png;
+            BootReport         report;
+            TestMachine        machine (GetSetting ("CASSO_PROBE_MACHINE", "Apple2eEnhanced"));
+            auto               began     = std::chrono::steady_clock::now();
+            double             seconds   = 0.0;
+
+            if (!isWoz && !isSectors)
+            {
+                continue;
+            }
+
+            {
+                std::ifstream  in (entry.path(), std::ios::binary);
+
+                bytes.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+            }
+
+            AssertSucceeded (BootProbe::Probe (machine, machine.GetBuilder(), bytes, isWoz ? DiskFormat::Woz : extension == ".po" ? DiskFormat::Po : DiskFormat::Dsk, BootProbe::Limits(), report));
+
+            seconds = std::chrono::duration<double> (std::chrono::steady_clock::now() - began).count();
+
+            AssertSucceeded (PicturePreview::EncodePng (report.frame, report.width, report.height, png));
+            WriteFile (out / (entry.path().filename().string() + ".png"), png);
+
+            log << entry.path().filename().string() << ": " << BootProbe::GetVerdictName (report.verdict) << ", " << std::format ("{:.1f}", seconds) << " s. " << report.reason << (report.isTextMode ? " Text." : " Graphics.") << std::endl;
+
+            {
+                std::map<Word, int>  counts;
+
+                for (Word pc : report.endPcs) { counts[pc]++; }
+
+                log << "    pcs " << counts.size() << ":";
+
+                for (const auto & [pc, count] : counts) { log << std::format (" {:04X}x{}", pc, count); }
+
+                log << std::endl;
+
+                if (counts.size() <= 24 && !counts.empty())
+                {
+                    Word  from = (Word) (counts.begin()->first & 0xFFF0);
+                    Word  to   = (Word) (counts.rbegin()->first | 0x000F);
+
+                    for (int at = from; at <= to && at - from < 0x100; at++)
+                    {
+                        log << ((at & 0x0F) == 0 ? std::format ("\n    {:04X}:", at) : std::string()) << std::format (" {:02X}", machine.GetMemoryBus().ReadByte ((Word) at));
+                    }
+
+                    log << std::endl;
+                }
+            }
+
+            for (const std::string & row : report.rows)
+            {
+                if (!row.empty())
+                {
+                    log << "    |" << row << "|" << std::endl;
+                }
+            }
+        }
+    }
+
+    //  Each image in the folder CASSO_PROBE_IMAGES checked as Casso Explorer
+    //  checks it, on the installed machines booted at once, and then on each
+    //  machine alone. The results are written to check.txt in CASSO_LINK_OUT.
+    //  Run only when CASSO_PROBE_IMAGES is set.
+    TEST_METHOD (ImagesInAFolder_AreCheckedAsCassoExplorerChecksThem)
+    {
+        std::string            folder = GetSetting ("CASSO_PROBE_IMAGES", "");
+        std::filesystem::path  out    = GetSetting ("CASSO_LINK_OUT", ".");
+        std::ofstream          log;
+
+
+
+        if (folder.empty())
+        {
+            Logger::WriteMessage ("CASSO_PROBE_IMAGES isn't set; no images to check.\n");
+            return;
+        }
+
+        log.open (out / "check.txt");
+
+        for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (folder))
+        {
+            std::string               extension = entry.path().extension().string();
+            DiskFormat                format    = extension == ".woz" ? DiskFormat::Woz : extension == ".po" ? DiskFormat::Po : DiskFormat::Dsk;
+            std::vector<Byte>         bytes;
+            BootReport                report;
+            std::string               machine;
+            std::vector<std::string>  missing;
+
+            if (extension != ".woz" && extension != ".dsk" && extension != ".do" && extension != ".po")
+            {
+                continue;
+            }
+
+            {
+                std::ifstream  in (entry.path(), std::ios::binary);
+
+                bytes.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+            }
+
+            AssertSucceeded (BootCheck::Run (bytes, format, "", BootProbe::Limits(), BootCheck::BuildInstalled, report, machine, missing));
+
+            log << entry.path().filename().string() << ": at once, " << BootProbe::GetVerdictName (report.verdict) << " on " << machine << ". " << report.reason << std::endl;
+
+            for (const std::string & id : BootCheck::GetMachines (""))
+            {
+                BootCheck::Built  built;
+                BootReport        alone;
+                std::string       error;
+
+                AssertSucceeded (BootCheck::BuildInstalled (id, built, error));
+                AssertSucceeded (BootProbe::Probe (*built.host, *built.builder, bytes, format, BootProbe::Limits(), alone));
+
+                log << "    alone on " << id << ", " << BootProbe::GetVerdictName (alone.verdict) << ". " << alone.reason << std::endl;
+            }
+        }
+    }
+
+    //  A WOZ from CASSO_RUN_IMAGE booted in a //c, then each key of
+    //  CASSO_KEYS pressed, s_kRunKeyCycles apart, then each paddle step of
+    //  CASSO_JOY applied: x, y and millions of cycles, with a semicolon
+    //  between steps. The text screen is written to run.txt and the two
+    //  hi-res pages to run_pages.bin, in CASSO_LINK_OUT. Run only when
+    //  CASSO_RUN_IMAGE is set.
+    TEST_METHOD (TheBootSounds_AreWrittenAsFiles)
+    {
+        std::filesystem::path  folder = GetSetting ("CASSO_LINK_OUT", "");
+
+        if (GetSetting ("CASSO_BOOT_SOUNDS", "").empty())
+        {
+            Logger::WriteMessage ("CASSO_BOOT_SOUNDS isn't set; no sounds are written.\n");
+            return;
+        }
+
+        WriteFile (folder / "booted.wav", BootSounds::MakeBooted());
+        WriteFile (folder / "did-not-boot.wav", BootSounds::MakeDidNotBoot());
+    }
+
+    TEST_METHOD (AnImage_IsRunWithKeys)
+    {
+        std::string               path   = GetSetting ("CASSO_RUN_IMAGE", "");
+        std::filesystem::path     folder = GetSetting ("CASSO_LINK_OUT", ".");
+        std::string               joy    = GetSetting ("CASSO_JOY", "");
+        std::string               keys   = GetSetting ("CASSO_KEYS", " ");
+        std::vector<Byte>         woz;
+        std::vector<Byte>         sectors;
+        std::vector<Byte>         pages;
+        std::vector<std::string>  rows;
+        SectorDecodeReport        report;
+        TestMachine               machine ("Apple2c");
+        size_t                    at     = 0;
+
+
+
+        if (path.empty())
+        {
+            Logger::WriteMessage ("CASSO_RUN_IMAGE isn't set; no image to run.\n");
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            woz.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        AssertSucceeded (VolumeImage::Load (woz, "image.woz", sectors, report));
+
+        GuestSession::MountWoz (machine, woz, sectors);
+        machine.RunCycles (s_kRunBootCycles);
+
+        for (char key : keys)
+        {
+            machine.GetRefs().iieKeyboard->PressKey ((Byte) key);
+            machine.RunCycles (s_kRunKeyCycles);
+        }
+
+        while (at < joy.size())
+        {
+            size_t       end    = joy.find (';', at);
+            std::string  step   = joy.substr (at, end == std::string::npos ? std::string::npos : end - at);
+            size_t       first  = step.find (',');
+            size_t       second = step.find (',', first + 1);
+
+            at = end == std::string::npos ? joy.size() : end + 1;
+
+            machine.GetRefs().iieSoftSwitches->SetPaddle (0, (Byte) std::stoi (step.substr (0, first)));
+            machine.GetRefs().iieSoftSwitches->SetPaddle (1, (Byte) std::stoi (step.substr (first + 1, second - first - 1)));
+            machine.RunCycles ((uint64_t) (std::stod (step.substr (second + 1)) * 1e6));
+        }
+
+        GuestSession::CollectRows (machine, rows);
+
+        {
+            std::ofstream  text (folder / "run.txt");
+
+            for (const std::string & row : rows)
+            {
+                text << "|" << row << "|\n";
+            }
+        }
+
+        for (Word address = s_kHiResFirst; address < s_kHiResEnd; address++)
+        {
+            pages.push_back (machine.GetMemoryBus().ReadByte (address));
+        }
+
+        WriteFile (folder / "run_pages.bin", pages);
+    }
+
     //  The disk inspector's summary and findings for the image, as its Issues    //  list has them.
     static void  LogFindings (const std::vector<Byte> & woz)
     {
@@ -693,6 +949,11 @@ public:
 
         Logger::WriteMessage (log.c_str());
     }
+
+    static constexpr uint64_t  s_kRunBootCycles = 60'000'000ULL;
+    static constexpr uint64_t  s_kRunKeyCycles  = 30'000'000ULL;
+    static constexpr Word      s_kHiResFirst    = 0x2000;
+    static constexpr Word      s_kHiResEnd      = 0x6000;
 
     static constexpr int       s_kBootSteps   = 6;
     static constexpr uint64_t  s_kBootStep    = 10'000'000ULL;

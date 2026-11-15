@@ -163,14 +163,14 @@ public:
         ev.button      = DxuiMouseButton::Left;
         ev.kind        = DxuiMouseEventKind::Down;
         ev.positionDip = POINT { 10, rowH / 2 };
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         ev.kind        = DxuiMouseEventKind::Move;
         ev.positionDip = POINT { 10, rowH * 3 + rowH / 2 };
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         ev.kind = DxuiMouseEventKind::Up;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         Assert::AreEqual ((size_t) 4, list.GetSelectedRows().size(), L"A drag from the first row to the fourth selects all four");
         Assert::IsFalse  (list.IsInteracting(), L"and releasing the button ends the drag");
@@ -201,7 +201,7 @@ public:
         ev.button      = DxuiMouseButton::Left;
         ev.kind        = DxuiMouseEventKind::Down;
         ev.positionDip = POINT { 10, rowH / 2 };
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         Assert::IsTrue (list.IsInteracting(), L"A press on a row starts a drag that extends the selection");
 
@@ -213,7 +213,7 @@ public:
         ev.kind        = DxuiMouseEventKind::Move;
         ev.button      = DxuiMouseButton::None;
         ev.positionDip = POINT { 10, rowH * 3 + rowH / 2 };
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         Assert::AreEqual ((size_t) 1, list.GetSelectedRows().size(), L"so a later move selects nothing more");
     }

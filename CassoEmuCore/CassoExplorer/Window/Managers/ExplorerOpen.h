@@ -73,8 +73,13 @@ public:
     //  again after a save.
     void  EditA2retroNetDrives  (const std::wstring & root);
 
+    //  Inspect disk image for the selected partition, the open image, or the
+    //  selected images.
+    void  InspectSelected       ();
+
 private:
-    static constexpr ULONGLONG  kProgressPostMs = 250;
+    static constexpr ULONGLONG        kProgressPostMs = 250;
+    static constexpr const wchar_t  * kA2PicoLabel    = L"A2PICO";
 
     void          StartInitialize     (const std::wstring & cardPath, const PhysicalDrive & drive, uint64_t layout, CardLayoutModel::Adapter adapter, std::vector<WindowsVolume> volumes);
     void          FinishInitialize    ();
@@ -92,6 +97,6 @@ private:
     std::wstring                  m_initCard;
     PhysicalDrive                 m_initDrive;
     uint64_t                      m_initLayout      = 0;
-    CardLayoutModel::Adapter      m_initAdapter     = CardLayoutModel::Adapter::Unsure;
+    CardLayoutModel::Adapter      m_initAdapter     = CardLayoutModel::kDefaultAdapter;
     std::vector<WindowsVolume>    m_initVolumes;
 };

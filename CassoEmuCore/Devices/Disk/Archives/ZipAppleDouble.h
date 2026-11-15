@@ -28,6 +28,10 @@ public:
     //  Whether a member is the AppleDouble file of another member.
     static bool  IsSidecar (const std::string & path);
 
+    //  The AppleDouble entry of `member`, in the `__MACOSX` form first, or
+    //  null for a member without one.
+    static const ZipEntry *  FindSidecar (const std::vector<ZipEntry> & entries, const std::string & member);
+
     //  The type, aux type, resource fork and Finder information of `member`
     //  from its AppleDouble file, set on the payload; false, and the payload
     //  as it was, for a member without one.

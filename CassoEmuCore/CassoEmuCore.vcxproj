@@ -220,6 +220,7 @@
     <ClCompile Include="CassoExplorer\Model\ImageFileSearchSources.cpp" />
     <ClCompile Include="CassoExplorer\Model\CollectionWalk.cpp" />
     <ClCompile Include="CassoExplorer\Model\CollectionResults.cpp" />
+    <ClCompile Include="CassoExplorer\Model\DiskImagePictures.cpp" />
     <ClCompile Include="CassoExplorer\Model\DiskIdentity.cpp" />
     <ClCompile Include="CassoExplorer\Model\CollectionQuery.cpp" />
     <ClCompile Include="CassoExplorer\Model\CollectionResultsItems.cpp" />
@@ -276,6 +277,13 @@
     <ClCompile Include="CassoLink\Session\CassoLinkCapture.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkCaptureStream.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkFullSend.cpp" />
+    <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
+    <ClCompile Include="DiskCheck\GivenNames.cpp" />
+    <ClCompile Include="DiskCheck\BootCheck.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerBootWorker.cpp" />
+    <ClCompile Include="DiskCheck\BootTitle.cpp" />
+    <ClCompile Include="DiskCheck\BootSounds.cpp" />
+    <ClCompile Include="DiskCheck\BootProbe.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendDisk.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendManifest.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendManifestFile.cpp" />
@@ -366,6 +374,8 @@
     <ClCompile Include="Machines\Apple2\Common\Dos33Geometry.cpp" />
     <ClCompile Include="CassoExplorer\Model\FilesystemChoices.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AssembledFilePlacement.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\InfocomSave.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\ProDosTypeNames.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolumeRemover.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolumeWriter.cpp" />
@@ -507,6 +517,7 @@
     <ClCompile Include="Devices\Disk\DiskCommandRunner.cpp" />
     <ClCompile Include="Devices\Disk\DiskCollectionCommands.cpp" />
     <ClCompile Include="Devices\Disk\DiskInspectCommand.cpp" />
+    <ClCompile Include="Devices\Disk\DiskThumbnailCommand.cpp" />
     <ClCompile Include="Devices\Disk\DiskHelpPage.cpp" />
     <ClCompile Include="Devices\Disk\DiskImageSession.cpp" />
     <ClCompile Include="Devices\Disk\Containers\DiskCopy42Container.cpp" />
@@ -865,6 +876,8 @@
     <ClCompile Include="Devices\Disk\MemoryBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\OffsetBlockStore.cpp" />
     <ClCompile Include="Devices\Disk\CachingBlockStore.cpp" />
+    <ClCompile Include="Devices\Disk\BlockBuffer.cpp" />
+    <ClCompile Include="Devices\Disk\Partitions\CardVolumeEdit.cpp" />
     <ClCompile Include="Devices\Disk\BlockImage.cpp" />
     <ClCompile Include="Machines\Apple2\Common\HfsBTree.cpp" />
     <ClCompile Include="Machines\Apple2\Common\HfsBTreeEditor.cpp" />
@@ -1226,7 +1239,6 @@
     <ClCompile Include="Machines\Apple2\Common\UthernetCard.cpp" />
     <ClCompile Include="Ui\Settings\NetworkPage.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
-      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
       <DisableSpecificWarnings>4244;4456;4457;4701;4702;4706;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -1363,6 +1375,7 @@
     <ClInclude Include="CassoExplorer\Model\ImageFileSearchSources.h" />
     <ClInclude Include="CassoExplorer\Model\CollectionWalk.h" />
     <ClInclude Include="CassoExplorer\Model\CollectionResults.h" />
+    <ClInclude Include="CassoExplorer\Model\DiskImagePictures.h" />
     <ClInclude Include="CassoExplorer\Model\DiskIdentity.h" />
     <ClInclude Include="CassoExplorer\Model\CollectionQuery.h" />
     <ClInclude Include="CassoExplorer\Model\CollectionResultsItems.h" />
@@ -1451,6 +1464,8 @@
     <ClInclude Include="Machines\Apple2\Common\ThirteenSectorCodec.h" />
     <ClInclude Include="Machines\Apple2\Common\Dos33Geometry.h" />
     <ClInclude Include="CassoExplorer\Model\FilesystemChoices.h" />
+    <ClInclude Include="Machines\Apple2\Common\InfocomSave.h" />
+    <ClInclude Include="Machines\Apple2\Common\ProDosTypeNames.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolume.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolumeRemover.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolumeWriter.h" />
@@ -1567,6 +1582,7 @@
     <ClInclude Include="CassoExplorer\Model\FocusRing.h" />
     <ClInclude Include="Seams\IntentReplyTracker.h" />
     <ClInclude Include="Seams\IProcessLauncher.h" />
+    <ClInclude Include="Seams\IDiskPictures.h" />
     <ClInclude Include="Seams\IShellIcons.h" />
     <ClInclude Include="Seams\Win32ProcessLauncher.h" />
     <ClInclude Include="Seams\Win32ShellIcons.h" />
@@ -1611,6 +1627,7 @@
     <ClInclude Include="Devices\Disk\DiskCommandRunner.h" />
     <ClInclude Include="Devices\Disk\DiskCollectionCommands.h" />
     <ClInclude Include="Devices\Disk\DiskInspectCommand.h" />
+    <ClInclude Include="Devices\Disk\DiskThumbnailCommand.h" />
     <ClInclude Include="Devices\Disk\DiskHelpPage.h" />
     <ClInclude Include="Devices\Disk\DiskImageSession.h" />
     <ClInclude Include="Devices\Disk\Containers\DiskCopy42Container.h" />
@@ -1660,6 +1677,8 @@
     <ClInclude Include="Devices\Disk\MemoryBlockStore.h" />
     <ClInclude Include="Devices\Disk\OffsetBlockStore.h" />
     <ClInclude Include="Devices\Disk\CachingBlockStore.h" />
+    <ClInclude Include="Devices\Disk\BlockBuffer.h" />
+    <ClInclude Include="Devices\Disk\Partitions\CardVolumeEdit.h" />
     <ClInclude Include="Devices\Disk\BlockImage.h" />
     <ClInclude Include="Machines\Apple2\Common\HfsBTree.h" />
     <ClInclude Include="Machines\Apple2\Common\HfsBTreeEditor.h" />
@@ -1798,6 +1817,13 @@
     <ClInclude Include="CassoLink\Session\CaptureStream.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkCapture.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
+    <ClInclude Include="DiskCheck\ThumbnailStore.h" />
+    <ClInclude Include="DiskCheck\GivenNames.h" />
+    <ClInclude Include="DiskCheck\BootCheck.h" />
+    <ClInclude Include="CassoExplorer\ExplorerBootWorker.h" />
+    <ClInclude Include="DiskCheck\BootTitle.h" />
+    <ClInclude Include="DiskCheck\BootSounds.h" />
+    <ClInclude Include="DiskCheck\BootProbe.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendDisk.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendManifest.h" />
     <ClInclude Include="CassoLink\FullSend\FullSendManifestFile.h" />
@@ -2206,15 +2232,17 @@
     <None Include="CassoLink\Apple\AppleSources.targets" />
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />
   </ItemGroup>
+  <!--
+    No references to CassoCore or Dxui, though this library includes their
+    headers. A static library does not link the libraries it uses, so a
+    reference here would only make MSBuild wait for them to finish building
+    before starting this project. Without it the libraries build at the same
+    time. Every executable and test DLL that links this library references
+    CassoCore and Dxui directly.
+  -->
   <ItemGroup>
     <ProjectReference Include="..\Ehm\Ehm.vcxproj">
       <Project>{5E1D2C3B-7A49-4F08-B6E1-2C8D9A0F4E71}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">
-      <Project>{B7E3F1A2-4C8D-4F5E-9A6B-1D2E3F4A5B6C}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\Dxui\Dxui.vcxproj">
-      <Project>{C981717F-FA2A-4AEA-9AE6-FA36152C38E5}</Project>
     </ProjectReference>
   </ItemGroup>
     <Import Project="Shaders\Shaders.targets" />

@@ -58,6 +58,7 @@ struct CassoExplorerPrefs
     //  Enter on a file in the list expands its preview over the tab, as an
     //  Open in viewer setting would.
     bool                   enterExpandsPreview = false;
+    bool                   autoThumbnails      = true;     // a disk image in view with no thumbnail is booted for one
 
     std::string            hostNaming      = kNamingDescriptive;
 
@@ -78,12 +79,27 @@ struct CassoExplorerPrefs
     bool                   verifyWrites = false;
     bool                   autoVerify   = true;
 
+    //  Where the sound for the boot result of each image a connection
+    //  writes is played.
+    enum BootSoundPlace : int
+    {
+        kBootSoundPc,
+        kBootSoundApple,
+        kBootSoundBoth,
+        kBootSoundNeither,
+    };
+
+    int                    bootSoundPlace = kBootSoundPc;
+
 
     //  Each folder's view as last chosen, most recent first. A folder with
     //  none opens in its type's view, as Explorer's do; the single listView
     //  of earlier builds is not read.
     FolderViews            folderViews;
     Placement              placement;
+
+    //  Where the Full Send window was last put: its x and y alone.
+    Placement              fullSendWindow;
     int                    treeWidthDip    = kDefaultTreeWidthDip;
     int                    previewWidthDip = kDefaultPreviewWidthDip;
 
@@ -91,7 +107,8 @@ struct CassoExplorerPrefs
     int                    hexGrouping     = kDefaultHexGrouping;
 
     //  The adapter Initialize card for Apple last had chosen, as a
-    //  CardLayoutModel::Adapter. 0 is "I'm not sure".
+    //  CardLayoutModel::Adapter. 0 until one is chosen, for the dialog's
+    //  default.
     int                    cffaAdapter     = 0;
 
     //  Whether the explanation before the storage card broker's UAC prompt

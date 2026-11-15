@@ -64,6 +64,11 @@ public:
     //  Whether bytes are a story whose checksum matches its header's.
     static bool      IsVerifiedStory (std::span<const Byte> bytes);
 
+    //  The name of object `number` in a story's memory, which can be its
+    //  dynamic memory alone, as a save has it. Of the header, only the
+    //  version, the objects and the abbreviations are read.
+    static std::wstring  ReadObjectName (std::span<const Byte> memory, const Header & header, size_t number);
+
     static constexpr size_t  kHeaderBytes = 64;
 
 private:

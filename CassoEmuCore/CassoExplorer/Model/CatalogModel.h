@@ -269,34 +269,6 @@ public:
     static uint64_t  GetUnitBytes (VolumeKind kind);
 
 private:
-    //  The ProDOS file types a catalog names in three letters, as ProDOS's
-    //  own CATALOG writes them. Anything else shows its number.
-    struct ProDosTypeName
-    {
-        Byte             type;
-        const wchar_t  * mnemonic;
-    };
-
-    static constexpr ProDosTypeName  kProDosTypeNames[] =
-    {
-        { 0x00, L"NON" },
-        { 0x01, L"BAD" },
-        { 0x04, L"TXT" },
-        { 0x06, L"BIN" },
-        { 0x0F, L"DIR" },
-        { 0x19, L"ADB" },
-        { 0x1A, L"AWP" },
-        { 0x1B, L"ASP" },
-        { 0xEF, L"PAS" },
-        { 0xF0, L"CMD" },
-        { 0xFA, L"INT" },
-        { 0xFB, L"IVR" },
-        { 0xFC, L"BAS" },
-        { 0xFD, L"VAR" },
-        { 0xFE, L"REL" },
-        { 0xFF, L"SYS" },
-    };
-
     static bool  IsBefore         (const CatalogRow & a, const CatalogRow & b, Column column, bool tiesReversed = false);
     static bool  IsPropertyBefore (const CatalogRow & a, const PropertyKey & keyA, const CatalogRow & b, const PropertyKey & keyB);
 };

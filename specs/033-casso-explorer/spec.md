@@ -607,12 +607,32 @@ hardware.
 - Q: An A2Pico card and a CFFA card are different layouts. How is a card's kind tracked, and how do copies and moves stay within what its adapter reads? -> A: The kind is read from the card's content at each open and never saved: a FAT volume with A2retroNET.txt is an A2Pico card, and a raw card of ProDOS partitions is a CFFA card. On an A2Pico card, a copied image is offered as a .po when the firmware can't read its form, and a rename, move or delete of a drive's image updates A2retroNET.txt (Story 41, FR-258 to FR-263). A CFFA card's partitions are volumes, so files copy into them as into any ProDOS volume and no settings file exists.
 - Q: Is a Wizardry scenario a saved game? -> A: It is both. The scenario disk has the game's fixed data (maze levels, monsters, items) and the player's roster of characters, which the game saves to the same disk. The roster is the part that differs from one player's disk to another. The owner's use for the viewer is the saved game: which characters a disk has and their state. A reference to the game's fixed data doesn't fit Casso Explorer, so the output is the roster and the party's place in the maze (T695, T696).
 - Q: Which parts of DiskBrowser's and WizardryApp's Wizardry views does Casso Explorer take? -> A: The saved game only (owner, 2026-11-13). The roster with a list of each character's inventory, and one map: the level the party is on, with its square marked. Not taken: detail pages for monsters and items, rewards, encounters, a map of every level, and WizardryApp's walk through the maze with a 3D view, since mapping the whole game isn't a use for Casso Explorer. Inventory is per character in the game's records, eight items each, so it is listed under each character.
+- Q: How is the Wizardry saved game laid out? -> A: As a styled document (owner, 2026-11-14). The header is the game's number in Roman numerals and its title, as "Wizardry I: Proving Grounds of the Mad Overlord". Each character is a short block that reads in a narrow pane, with its inventory under it: a green check for an item equipped, a red skull for one cursed, and a question mark and the unknown name in gray italics for one not identified. The map is a picture, not text, and the copy out is one RTF file with the map in it, so the document gains a color for each run and a picture paragraph. Wizardry IV and V save their games in other layouts and are tracked in relmer/Casso#186.
+- Q: What is in an Infocom save summary? -> A: The game's release, the room, and the score and moves, or the time on a 12-hour clock for a timed story, under the save's position, the number entered at the game's POSITION prompt to restore it (owner, 2026-11-14). The serial number, the date the story was compiled, is left out. A built-in table of every version 1 to 3 story by release and serial number, from Paul David Doherty's Infocom Fact Sheet, adds the game's title and maximum score, as in "Zork I (release 88): Kitchen, score 10 of 350, 4 moves". For a story missing from the table, only the release is written (owner, 2026-11-14).
 - Q: Which Infocom views does Casso Explorer take? -> A: None beyond what the story listing has. DiskBrowser's grammar, globals and Z-code disassembly are outside Casso Explorer's scope. The owner asked for a summary of a saved game where it identifies the save for the user (FR-264, T697). Neither DiskBrowser nor WizardryApp reads an Infocom save.
-- Q: Does Casso get a SmartPort or hard drive card for these checks? -> A: Not in 033 (owner, 2026-11-13). It is a separate spec after 033 ships. It runs real firmware, as Casso does elsewhere: Apple's ROM for the Apple II SCSI Card, and A2retroNET's SmartPort firmware, which is MIT licensed, for an A2Pico. Until then, block devices and images larger than 140K are booted in MAME, scripted, on Apple's SCSI card and a CFFA 2.0, each with its ROM.
+- Q: Does Casso get a SmartPort or hard drive card for these checks? -> A: Not in 033 (owner, 2026-11-13). It is a separate spec, begun the same day in a worktree cut from 033, with specific drives the owner picks, each rendered as a realistic 3D model in the desk scene. It runs real firmware, as Casso does elsewhere: Apple's ROM for the Apple II SCSI Card, and A2retroNET's SmartPort firmware, which is MIT licensed, for an A2Pico. Until then, block devices and images larger than 140K are booted in MAME, scripted, on Apple's SCSI card and a CFFA 2.0, each with its ROM.
 - Q: What does the A2Pico do with the card's files that aren't set as drives? -> A: Nothing. ProDOS on the Apple reads only the eight drives' images, as volumes. The firmware's configuration utility on the Apple lists the card's folders and the .po, .hdv and .2mg files in them, for setting a drive, and hides every other file. With the A2retroNET-Link firmware the A2Pico is also a card reader for a PC or a phone over USB, which lists every file. So other files on the card are storage, such as images to switch to.
 - Q: What does an A2Pico card contain, and what are its size limits? -> A: Loose files on one FAT12, FAT16, FAT32 or exFAT volume: `A2retroNET.txt` in the root, and ProDOS block images of up to 32 MB each (65,535 blocks) in the root or in folders, with long file names. Up to eight are drives at one time, and the card can have any number more. The firmware's FatFs build has exFAT and 64-bit block addresses on (`ffconf.h` in FarLeftLane/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico, which its CMakeLists.txt fetches), so the card's size isn't limited by the firmware. It mounts the first volume on the card, so the card has one partition.
 - Q: Is Full Send's raw capture of a likely copy-protected disk a setting in Options? -> A: No. It always happens, and the setting first built for it is removed. A protected disk's sector image rarely runs, so a Full Send without the capture writes an image nobody can use, and a raw capture of a damaged disk assessed alike has more of it than a sector image. The capture's minutes are the cost. The Full Send page's intro is rewritten: many protections are detected and imaged, and Capture raw disk is for the rest.
+- Q: Is an image an A2Pico can't read converted as it is copied to the card? -> A: Yes, after a question (owner, 2026-11-13): "A2Pico doesn't support users.dsk. Would you like to convert it to users.po?" On a yes the copy on the card is replaced by the .po, and the file it was copied from isn't touched. The question follows a copy, paste or drop in Casso Explorer once Windows has finished writing the file. An image copied in File Explorer, or left after a no, has the Write as .po infobar, which writes the .po beside it.
+- Q: Why did the buttons in the infobars above the list take no clicks, and how is that prevented? -> A: Casso Explorer's window routes the mouse to each pane in ExplorerInput::HandleMouse, one line of code per pane, and a control with no line there was offered nothing. A control made with the window's CreateChild is now offered the mouse where it is, with nothing more written, and a pane that routes its controls makes them with CreatePaneRoutedChild (owner, 2026-11-13). Moving each pane's routing into its controls waits on DxuiListView, which takes its events relative to its origin where other controls take the window's coordinates. Changing that compiles on every branch with a list view and breaks its clicks without an error, so it isn't done on 033 (owner, 2026-11-13). It is a change for master, with the entry point renamed so a caller that translates the event fails to compile, and the panes are converted after it. Master took the change (`903227701`), and the panes' controls were converted after 033 merged it: a pane sets a mouse handler for each of its controls, which ExplorerInput calls in place of the control's OnMouse (owner, 2026-11-13). The window's bars followed in T718, with mouse capture: while a bar has a menu open, or the rename box a rename, ExplorerInput offers it every event first, and an event it doesn't take goes on to the control under the pointer, as Windows' capture does for a popup that closes on a click outside it (owner, 2026-11-13).
+- Q: Does Initialize card's adapter list have "I'm not sure"? -> A: No (owner, 2026-11-13). It listed every adapter's support at once, which wasn't useful. The list starts on the adapter chosen last, or CFFA3000 the first time.
 - Q: Where is a Full Send's progress on the PC? -> A: In a Full Send window, since one line in the status bar can't list both drives, the disks done and the time left. It opens without taking focus when a session starts, and closing it doesn't end the session. It has a state line with what the session is doing or what it waits for, a panel per drive with the disk's title, a track map, a progress bar, the time elapsed and the time left, the session's totals, a list of the disks done, and an activity list with each event's time. The status bar has a one-line summary, and a click on it opens the window.
+- Q: Is a boot check, a thumbnail and a name for each captured image part of 033? -> A: Yes. On 2026-11-13 the owner called it critical: without it the captured images aren't useful. It had been deferred as T713 and T720 an hour earlier; it is Story 43 now, for every disk image Casso Explorer lists and not Full Send's alone.
+- Q: Where is a thumbnail stored? -> A: In a cache under the user's local application data, a PNG whose file name is the image's content hash, with a copy in an alternate data stream of the image file. The owner chose the stream so a thumbnail travels with a moved or copied file; OneDrive, a zip, email and a FAT volume drop streams, so the cache restores it. A chunk inside a WOZ was set aside: it changes the file, whose hash the manifest has, and covers WOZ alone.
+- Q: How are orphaned thumbnails removed? -> A: The owner chose removal when the image is deleted in Casso Explorer, and nothing timed. An image deleted elsewhere has an orphan, which stays in the cache; the command in Options that cleared the cache was built and removed (owner, 2026-11-14), as its pictures are small and the user can delete the folder.
+- Q: What counts as booted? -> A: The screen changed from its power-on state and the drive stopped seeking. Did not boot: the screen never changed, the machine stopped in the monitor or at a BASIC prompt with an error, or the drive sought without end. Anything else is unclear (the owner's choice of three, 2026-11-13; a verdict from any change of the screen would pass a loader that draws a logo and stops).
+- Q: Which machine is an image booted on? -> A: An enhanced //e with 128K, and once more on a ][+ when it did not boot there, so an older title that fails on a //e isn't reported as bad (the owner's choice, 2026-11-13).
+- Q: Where is a thumbnail the user set stored? -> A: In the cache and the image file's alternate data stream, as every thumbnail is, marked as set by the user; no picture file beside the image and no folder of pictures (the owner, 2026-11-13). A file beside the image was set aside: a capture is a bare number until its thumbnail is seen, and a second file with that number would be one more file to rename. The cost accepted: a thumbnail the user set is gone when the stream is dropped and the image is opened on another PC, where a new one is made by booting.
+- Q: What happens when the ROMs the boot check uses aren't installed? -> A: Casso Explorer offers them in the dialog Casso has for a machine's missing ROMs (the owner, 2026-11-13). Once in a run, not for each image; a Full Send goes on while the dialog is open; the images that waited are booted when the ROMs arrive.
+- Q: Is the enhanced //e the first machine an image is booted on? -> A: Not for a capture. On 2026-11-13 One-on-One, captured from the owner's //c, drew its title on an emulated //c and a screen of lo-res garbage on an emulated enhanced //e. The model the disk was captured from is first, then the enhanced //e, then the ][+. Proposed to the owner, whose reply was to continue; whether the title fails on a real enhanced //e or Casso's //e is at fault isn't known.
+- Q: Does a boot result of booted mean the image is good? -> A: No. The first bad image of One-on-One from 2026-11-13 boots to its title; its bad sector is on track 27, read later. An image's capture marks go with its boot result (FR-289), proposed to the owner the same day.
+- Q: Is a separate rename feature built for captures saved as numbers? -> A: No. With the thumbnail beside the file, rename is F2.
+
+### Session 2026-11-14
+
+- Q: When two connections have a Full Send at once, is there one window for both? -> A: No. Each connection with a session has a separate Full Send window, with the connection's name in its title and an End session for that session (owner, 2026-11-14). A section per connection in one window was built and removed: the window would be crowded, and End session would apply to one connection only. The status bar's summary has the connection's name, and has each session's summary when two run.
+- Q: Is the Apple's screen text in capitals? -> A: Only for an Apple with no small letters, the ][ and ][+, and for inverse text, whose characters have no small letters (owner, 2026-11-14). The PC writes the text in sentence case and sends it as written to a //e, a //c or a IIgs, by the ROM identification in the program's Ready.
 
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -2118,8 +2138,9 @@ The owner has no A2Pico, so nothing is checked on the hardware.
    an image is set for a drive, a drive is cleared, drives are reordered, a
    drive is switched to one of its commented-out images, and the number of
    drives and the boot delay are set. Comment lines remain in the file.
-   **When** Edit as text is chosen, **Then** the file opens in the user's
-   text editor, and the dialog reads it again after it is saved.
+   **When** the Edit button is chosen, labeled with the program Windows
+   opens text files in, as "Edit in Notepad...", **Then** the file opens in
+   that program, and the dialog reads it again after it is saved.
 6. **Given** a storage card, **When** Initialize card for Apple is run with
    the A2Pico adapter, **Then** the card is one FAT32 partition with an
    `A2retroNET.txt` of the firmware's defaults and no drives set.
@@ -2174,6 +2195,69 @@ status bar, and compare the list with the manifest when the session ends.
 8. **Given** a session in progress, **When** End session in the window is
    clicked and confirmed, **Then** the session ends as Cancel ends it, and
    the window has the session's totals until it is closed.
+
+### User Story 43 - A boot check, a thumbnail and a name for a disk image (Priority: P1)
+
+A user who has fed a box of floppies to the Apple opens the Full Send
+folder and finds, for each image, a picture of what the disk draws when it
+starts, a mark for an image that didn't start, and a name in place of a
+bare number wherever the disk had one to offer.
+
+**Why this priority**: A raw capture has no catalog, so it is saved as a
+number, and a folder of numbered files can't be used without booting each
+one to find out what it is. A capture can also be wrong with nothing in its
+map marked: on 2026-11-13 two Full Sends of One-on-One produced images that
+didn't boot, and each was found only by booting it in the emulator. That
+day the owner required this for 033: without it the images captured aren't
+useful.
+
+**Independent Test**: Full Send a text adventure, a hi-res game, a cracked
+copy and a disk that doesn't boot. In the Full Send folder each image has
+its thumbnail in place of the stock icon; the text adventure has its title
+as its name; the disk that doesn't boot is marked. Rename an image, move it
+to another folder and copy it: each has the thumbnail. Open a folder of
+disk images that Casso Explorer has never listed, and read the thumbnails
+as they arrive.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Full Send has saved an image, **When** the image is
+   written, **Then** it is booted with no window, its result is written
+   as booted, did not boot or unclear, and a picture of its screen is saved
+   as its thumbnail, while the session goes on to the next disk.
+2. **Given** an image that did not boot, **When** the Full Send window, the
+   manifest and the folder are read, **Then** each has that result, and the
+   Apple's screen has it at the next pause, so the disk can be sent again
+   before it is put away.
+3. **Given** a raw capture saved as a bare number, **When** its booted text
+   screen has a title, **Then** the image is renamed to its number and that
+   title, and the manifest has the new name.
+4. **Given** an image with a thumbnail, **When** its folder is listed in
+   Casso Explorer, **Then** the thumbnail is drawn in place of the stock
+   disk image icon in the views with large icons, and in the preview pane
+   with the boot result beside it.
+5. **Given** a folder of disk images with no thumbnails, **When** it is
+   listed, **Then** the list is drawn at once with stock icons, each image
+   in view is booted in the background, and each thumbnail replaces its
+   icon as it is made.
+6. **Given** an image with a thumbnail, **When** it is renamed, moved to
+   another folder or copied, **Then** each file has the thumbnail with no
+   boot.
+7. **Given** an image whose copy of the thumbnail was dropped on the way
+   through a cloud folder, a zip or a FAT volume, **When** it is listed on
+   the PC that made the thumbnail, **Then** the thumbnail is drawn and its
+   copy is written to the file again.
+8. **Given** a disk mounted in Casso, **When** the command that sets the
+   disk's thumbnail is chosen, **Then** the screen as it is at that moment
+   is the image's thumbnail, in place of the one made by booting.
+9. **Given** an image whose thumbnail the user set, **When** Remove
+   thumbnail is chosen in Casso Explorer, **Then** the image has the
+   thumbnail made by booting again.
+10. **Given** an image with a name from the user, **When** another copy of that title
+    is captured later, **Then** the new image has that name with a new
+    number.
+11. **Given** an image is deleted in Casso Explorer, **When** the delete is
+    done, **Then** its thumbnail is removed with it.
 
 ### Edge Cases
 
@@ -2398,6 +2482,32 @@ status bar, and compare the list with the manifest when the session ends.
 - **A time left before anything is measured**: the first disk of a session
   has no estimate until two tracks are read, and the field is blank until
   then rather than a guess.
+
+- **A disk that boots to a prompt for a second disk**: it booted. The
+  thumbnail is the prompt, and the result is booted.
+- **A data disk with no boot code**: a disk with a recognized file system
+  and no boot code has no boot to check. Its result is not bootable, which
+  isn't a failure, and its thumbnail is its catalog as text.
+- **A title drawn as a picture**: no name is taken from a hi-res screen.
+  The image stays a number until the user renames it with the thumbnail in
+  view.
+- **A text screen that is a page of prose**: a title is taken only from a
+  line that reads as one, such as a line with a copyright notice below it;
+  otherwise no name is taken.
+- **Two copies of one image in two folders**: they share one thumbnail. A
+  thumbnail the user set for one is the other's too.
+- **An image that is edited**: a saved game changes the image, and with it
+  the thumbnail's key. An image Casso or Casso Explorer writes takes its
+  thumbnail along; one changed by another program gets a new one.
+- **A boot that never settles**: an animated title is captured after a set
+  time, not when the screen stops changing.
+- **No ROMs installed**: the dialog Casso has for missing ROMs is offered
+  once. Declined, each image's result is unclear with that reason, and the
+  thumbnails wait; no image is reported as did not boot because a ROM is missing.
+- **A blank or unformatted disk**: no image is saved, so there is nothing
+  to boot (FR-273 and the blank disk rule of the Full Send).
+- **Many images at once**: boots in the background are limited so the list
+  scrolls and the Full Send's reads go on at their pace.
 
 ## Requirements *(mandatory)*
 
@@ -3462,8 +3572,9 @@ status bar, and compare the list with the manifest when the session ends.
   drive, a raw capture, a new disk in either drive and Space on the Apple,
   the Apple's reply and for how long, a prefix being typed on the Apple, or
   the session's end and its reason.
-- **FR-267**: The window MUST have a panel for each drive of each
-  connection in a session, with the drive's state, the disk's title and
+- **FR-267**: Each connection in a session MUST have a separate window, with
+  the connection's name in its title. The window MUST have a panel for each
+  drive of its connection, with the drive's state, the disk's title and
   file system once read, a track map, a progress bar, the time elapsed and
   the time left. The track map MUST mark each track as not yet read, read,
   verified, read with unreliable sectors, or unreadable. In a raw capture
@@ -3496,9 +3607,84 @@ status bar, and compare the list with the manifest when the session ends.
   the window MUST have that session's totals, disks and activity until it
   is closed or another session starts.
 - **FR-273**: During a Full Send the status bar MUST have a one-line
-  summary: the drive, the disk's sequence number, the percentage, the time
+  summary for each session: its connection, the drive, the disk's sequence number, the percentage, the time
   left and the count of disks done. The detail that the status bar had for
   a raw capture moves to the window.
+
+**A boot check, a thumbnail and a name**
+
+- **FR-274**: After a Full Send writes an image or a raw capture, and after
+  Capture raw disk writes one, the image MUST be booted with no window and
+  its result written as booted, did not boot, not bootable or unclear.
+  The session MUST NOT wait for the boot. An image booted when its screen
+  changed from the screen at power-on and its drive stopped seeking. It did
+  not boot when the screen never changed, when the machine stopped in the
+  monitor or at a BASIC prompt with an error, or when the drive went on
+  seeking to the end of the time allowed. Any other end is unclear.
+- **FR-275**: The boot MUST use the model of Apple the disk was captured
+  from, when a Full Send or a raw capture has it and Casso has that
+  machine; then an enhanced //e with 128K; then a ][+. A machine after the
+  first is used only when the result before it is did not boot or unclear,
+  and the result written is the best of them.
+- **FR-289**: An image whose capture marked a weak track, a track whose
+  reads differ in length, or a sector taken from another read MUST have
+  that with its boot result, in the manifest, the Full Send window and the
+  preview pane, as a boot reads only the sectors a title starts from.
+- **FR-290**: Each image a Full Send saves, a sector image or the sectors a
+  raw capture decodes to, MUST have the disk inspector's file-system check
+  (040, FR-166): its verdict in the manifest's `fscheck` column, after the
+  status in the Full Send window's list, and with the image's boot result in
+  the activity list, with its first finding of damage. A Bad verdict
+  MUST count as a failed capture for the failure sound, as a boot that failed
+  does, and a disk row's menu MUST have Repair disk image when the inspector
+  can repair it. A raw capture with no standard file system has the verdict
+  "No standard file system", which isn't a failure.
+- **FR-288**: When an image is first to be booted and the ROMs of the enhanced //e
+  or the ][+ aren't installed, Casso Explorer MUST offer them in the dialog
+  Casso has for a machine's missing ROMs, once in a run of the program,
+  with the missing ROMs of both machines in the one dialog. A
+  Full Send in progress MUST NOT wait for the answer. Until the ROMs are
+  installed, an image's result is unclear, with the missing ROMs as its
+  reason, and each such image is booted once they are.
+- **FR-276**: A Full Send's manifest, its window's list of disks done and
+  its activity list MUST have each image's boot result, and the Apple's
+  screen MUST have a result of did not boot at the next pause.
+- **FR-277**: The screen at the end of the boot MUST be saved as the
+  image's thumbnail, drawn as Casso draws that screen: text, lo-res,
+  hi-res or double hi-res, in color.
+- **FR-278**: A thumbnail MUST be found by the image's content, not by its
+  path or name, so that a renamed, moved or copied image has it.
+- **FR-279**: A copy of the thumbnail MUST travel with the image file
+  through a move or a copy on an NTFS volume. Where the copy is gone and
+  the PC has the thumbnail, the copy MUST be written again; where neither
+  exists, the image MUST be booted again.
+- **FR-280**: Casso Explorer MUST draw an image's thumbnail in place of the
+  stock disk image icon in its views with large icons, and in the preview
+  pane with the boot result, for every disk image format it lists.
+- **FR-281**: An image with no thumbnail MUST be listed at once with the
+  stock icon and booted in the background when it comes into view. The
+  boots MUST be limited so the list and a Full Send in progress aren't
+  slowed.
+- **FR-282**: When a raw capture is saved as a bare number and its booted
+  text screen has a line that reads as a title, the image MUST be renamed
+  to its number and that title, and the manifest updated. No name is taken
+  from a graphics screen.
+- **FR-283**: A name from the user for an image MUST be stored with the
+  disk's fingerprint, and a later capture with that fingerprint MUST get
+  that name with a new number.
+- **FR-284**: Casso MUST have a command that makes the mounted disk's
+  screen, as it is when the command is chosen, the image's thumbnail. It
+  MUST be stored as every other thumbnail is, in the cache and in the
+  image file's stream, marked as set by the user, with no other file
+  written.
+- **FR-285**: Casso Explorer MUST have Remove thumbnail on a disk image's
+  menu, which removes a thumbnail the user set and restores the one made
+  by booting.
+- **FR-286**: Deleting an image in Casso Explorer MUST remove its
+  thumbnail. The cache has no command to clear it: its pictures are small,
+  and the user can delete its folder (owner, 2026-11-14).
+- **FR-287**: An image written by Casso or Casso Explorer, such as a disk
+  with a saved game, MUST have the thumbnail it had before the write.
 - **FR-198**: A capture's INFO chunk MUST list Casso Explorer and its
   version as the creator, and its META chunk the capture's date and the
   drive. The image MUST open in the Disk properties window of FR-133.
@@ -3740,18 +3926,24 @@ status bar, and compare the list with the manifest when the session ends.
   changing it, clear a drive, reorder by dragging
   the drives, switch a drive to one of its commented-out images, and set
   the number of drives (2, 4, 6 or 8) and the boot delay (0 to 9 seconds).
-  Edit as text MUST open the file in the user's text editor, and the
-  drives MUST be read again when it is saved.
-- **FR-261**: A copy of a disk image to an A2Pico card MUST offer to write
-  a block volume the firmware can't read as a `.po`, in an infobar in the
-  folder the copy is in. An image with no
-  block volume MUST be copied as it is, and MUST NOT be offered as a drive.
+  An Edit button MUST open the file in the program Windows opens `.txt`
+  files in, with that program in its label, as "Edit in Notepad...", and
+  the drives MUST be read again when it is saved.
+- **FR-261**: A copy, paste or drop in Casso Explorer of a disk image to
+  an A2Pico card, with a block volume in a form the firmware can't read,
+  MUST be followed by a question about converting it, and on a yes MUST replace the copy on the
+  card with a `.po`. An image in that form that is on the card already, as
+  after a copy in File Explorer or a no, MUST be offered as a `.po` beside
+  it, in an infobar in its folder. An image with no block volume MUST be
+  copied as it is, and MUST NOT be offered as a drive.
 - **FR-262**: Renaming or moving a drive's image on the card in Casso
   Explorer, by dragging too, MUST update the drive's path, and deleting it MUST clear the
   drive after a confirmation that lists the drive.
 - **FR-263**: Initialize card for Apple MUST offer an A2Pico adapter: one
-  FAT32 partition and an `A2retroNET.txt` of the firmware's defaults, with
-  the adapter's row in the compatibility grid.
+  FAT32 partition labeled A2PICO and an `A2retroNET.txt` of the firmware's
+  defaults, with the adapter's row in the compatibility grid. The adapter
+  list MUST have only adapters, with no entry for an adapter that isn't
+  known.
 
 **Collection tools**
 
@@ -3796,7 +3988,8 @@ status bar, and compare the list with the manifest when the session ends.
   inventory, and one map of the maze level the party is on with the
   party's square marked, when characters are in the maze. The game's fixed
   data MUST NOT be listed: monsters, items and the other maze levels. A
-  copy out MUST write the roster as text and the map as PNG.
+  copy out MUST write the saved game as one RTF file, with the map as a
+  picture in it.
 - **FR-241**: Infocom story files of each Z-machine version MUST list their
   header, abbreviations, dictionary, object tree and decoded strings, and a
   copy out MUST write the listing as text.
@@ -3878,6 +4071,13 @@ status bar, and compare the list with the manifest when the session ends.
   checksums, saved as CSV.
 - **Viewer**: a window with one file's preview, its folder and the list's
   sort order.
+
+- **Boot result**: what booting an image with no window found: booted, did
+  not boot, not bootable or unclear.
+- **Thumbnail**: a picture of an image's screen at the end of its boot, or
+  one the user set, found by the image's content.
+- **Given name**: a name from the user for an image, stored with the disk's
+  fingerprint for later captures of that title.
 
 ## Success Criteria *(mandatory)*
 
@@ -4072,6 +4272,25 @@ status bar, and compare the list with the manifest when the session ends.
   correct at every pause and wait, the time left for each disk after its
   first quarter is within 20% of the time it then takes, and the list of
   disks matches the manifest row for row.
+
+- **SC-072**: Of the six titles captured on the owner's //c through
+  2026-11-13 (Wizardry I, Archon, Arcticfox, The Witness, One-on-One and
+  the cracked Spy vs. Spy), every image that boots when started in Casso
+  has the result booted; of the two bad images of One-on-One from that day,
+  the second has did not boot, and the first, which boots to its title and
+  is bad on track 27, has booted with its capture's marks (FR-289).
+- **SC-073**: A Full Send's time for a disk is no more than 2 seconds
+  longer with the boot check than without it.
+- **SC-074**: A folder of 200 disk images with no thumbnails is listed in
+  the time it takes without thumbnails, and every image in view has its
+  thumbnail within 30 seconds.
+- **SC-075**: An image renamed, moved and copied on an NTFS volume has its
+  thumbnail in all three places with no boot.
+- **SC-076**: A Full Send of a disk with planted bookkeeping damage has
+  the verdict Bad in the manifest and the window, sounds the failure, and
+  its row's Repair disk image writes a copy with the verdict OK; a Full Send
+  of a copy-protected disk has "No standard file system" and sounds success
+  when it boots.
 
 ## Assumptions
 

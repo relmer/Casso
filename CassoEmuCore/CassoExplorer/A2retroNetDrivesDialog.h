@@ -117,16 +117,18 @@ class A2retroNetDrivesDialog : public DxuiDialogWindow
 public:
     using EditAsTextFn = std::function<void (const std::wstring & path)>;
 
-    A2retroNetDrivesDialog (ActionsA2retroNet & actions, const std::wstring & root, IShellIcons * icons, EditAsTextFn editAsText)
-        : m_actions (actions), m_root (root), m_icons (icons), m_editAsText (std::move (editAsText)) {}
+    A2retroNetDrivesDialog (ActionsA2retroNet & actions, const std::wstring & root, IShellIcons * icons, const std::wstring & editor, EditAsTextFn editAsText)
+        : m_actions (actions), m_root (root), m_icons (icons), m_editor (editor), m_editAsText (std::move (editAsText)) {}
 
     //  False when canceled or the dialog could not open; otherwise the
-    //  outcome of the save.
+    //  outcome of the save. `editor` is the program `editAsText` opens the
+    //  settings file in, for the button's label, or empty when not known.
     static bool  Edit (HWND                        owner,
                        const IDxuiTheme          * theme,
                        ActionsA2retroNet         & actions,
                        const std::wstring        & root,
                        IShellIcons               * icons,
+                       const std::wstring        & editor,
                        EditAsTextFn                editAsText,
                        ActionsTypes::Outcome     & outOutcome);
 
@@ -156,6 +158,7 @@ private:
     ActionsA2retroNet                                                     & m_actions;
     std::wstring                                                            m_root;
     IShellIcons                                                           * m_icons     = nullptr;
+    std::wstring                                                            m_editor;
     EditAsTextFn                                                            m_editAsText;
     A2retroNetConfig                                                        m_config;
     std::vector<std::string>                                                m_images;

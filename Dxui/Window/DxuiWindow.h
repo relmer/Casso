@@ -383,12 +383,15 @@ protected:
     //
     void  DestroyBackend ();
 
-
-private:
-    DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
+    //  The button handlers a window adds to, as for mouse capture around
+    //  them.
     DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+
+
+private:
+    DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnXButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseLeave    () override;

@@ -30,6 +30,13 @@ struct FullSendRow
     std::string  verification = "none";
     int          recovered  = 0;
     int          unreliable = 0;
+
+    //  The image's boot result, as BootProbe::GetVerdictName has it, empty
+    //  before the boot or for a row from before the check; and what its
+    //  raw capture marked, as weak 3, 11; replaced 1.3, empty with nothing
+    //  marked.
+    std::string  boot;
+    std::string  marks;
 };
 
 
@@ -83,6 +90,10 @@ public:
     static constexpr const char *  kVerifyNone      = "none";
     static constexpr const char *  kVerifyFull      = "verified";
     static constexpr const char *  kVerifyPartial   = "partly-verified";
+    static constexpr const char *  kBootBooted      = "booted";
+    static constexpr const char *  kBootDidNotBoot  = "did-not-boot";
+    static constexpr const char *  kBootNotBootable = "not-bootable";
+    static constexpr const char *  kBootUnclear     = "unclear";
 
     //  ERROR_INVALID_DATA for anything but a whole manifest, with no rows then.
     HRESULT            Parse           (std::span<const Byte> bytes);
@@ -106,6 +117,10 @@ public:
     //  set to the new one. False when no row has the old name.
     bool                 RenameImage       (const std::string & oldName, const std::string & newName);
 
+    //  The boot result of the row with the file. False when no row has it,
+    //  or the row has that result.
+    bool                 SetBoot           (const std::string & name, const std::string & boot);
+
     //  An image deleted from the folder: its row is removed, and the rows that
     //  repeat it are changed or removed, as in RemoveImage's comment. What was
     //  removed and changed is returned so RestoreRows can put it back.
@@ -117,7 +132,8 @@ public:
     void                 RestoreRows       (const FullSendRemoval & removal);
 
 private:
-    static constexpr size_t  kColumns       = 12;
+    static constexpr size_t  kColumns       = 14;
+    static constexpr size_t  kPriorColumns  = 12;      // before the boot result and the capture's marks
     static constexpr size_t  kLegacyColumns = 9;
     static constexpr size_t  kHashChars     = 64;
 

@@ -207,6 +207,109 @@ void CassoLinkCapture::SerializeReads (const std::vector<Position> & positions, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkCapture::DescribeResult
+//
+//  The WOZ's notes, one line: where the capture came from, the first
+//  s_kNotedSectors sectors taken from another read and the count of the
+//  rest, and the tracks with weak bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkCapture::DescribeResult (const Result & result, Byte drive)
+{
+    std::string  notes = std::format ("Raw capture by Casso Explorer from drive {} over CassoLink.", drive);
+    std::string  weak;
+
+
+
+    auto  getTrack = [] (int position)
+    {
+        return (position % 4 == 0) ? std::to_string (position / 4) : std::format ("{:.2f}", position / 4.0);
+    };
+
+    for (size_t each = 0; each < result.replaced.size() && each < s_kNotedSectors; each++)
+    {
+        notes += std::format (" Track {} sector {} taken from another read.", getTrack (result.replaced[each].first), result.replaced[each].second);
+    }
+
+    if (result.replaced.size() > s_kNotedSectors)
+    {
+        notes += std::format (" {} more sectors taken from another read.", result.replaced.size() - s_kNotedSectors);
+    }
+
+    for (int position : result.weak)
+    {
+        weak += (weak.empty() ? "" : ", ") + getTrack (position);
+    }
+
+    if (!weak.empty())
+    {
+        notes += std::format (" Weak bits on {} {}.", result.weak.size() == 1 ? "track" : "tracks", weak);
+    }
+
+    return notes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCapture::FormatMarks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkCapture::FormatMarks (const Result & result)
+{
+    std::string  weak;
+    std::string  replaced;
+    std::string  differs;
+    std::string  marks;
+
+
+
+    auto  getTrack = [] (int position)
+    {
+        return (position % 4 == 0) ? std::to_string (position / 4) : std::format ("{:.2f}", position / 4.0);
+    };
+
+    auto  add = [&marks] (const char * label, const std::string & list)
+    {
+        if (!list.empty())
+        {
+            marks += (marks.empty() ? "" : "; ") + std::string (label) + " " + list;
+        }
+    };
+
+    for (int position : result.weak)
+    {
+        weak += (weak.empty() ? "" : ", ") + getTrack (position);
+    }
+
+    for (const auto & [position, sector] : result.replaced)
+    {
+        replaced += (replaced.empty() ? "" : ", ") + getTrack (position) + "." + std::to_string (sector);
+    }
+
+    for (int position : result.unstable)
+    {
+        differs += (differs.empty() ? "" : ", ") + getTrack (position);
+    }
+
+    add ("weak", weak);
+    add ("replaced", replaced);
+    add ("differs", differs);
+
+    return marks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCapture::ParseReads
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -490,10 +593,12 @@ Error:
 //
 //  CassoLinkCapture::IsStandardTrack
 //
-//  Whether every sector of a 13 or 16-sector track is in the stream. A weak
-//  stretch or a read that doesn't align isn't counted against it: with all
-//  the sectors of the tracks on both sides read, nothing separate fits
-//  between them.
+//  Whether every sector of a 13 or 16-sector track has its address field
+//  for the track in the stream. A weak stretch, a read that doesn't align
+//  or a data field that doesn't decode isn't counted against it: with every
+//  address field of the tracks on both sides intact, nothing was written
+//  between them. The Witness has 28 tracks whose data fields don't decode
+//  as DOS 3.3's do, and reading between them doubled its capture's time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -504,11 +609,15 @@ bool CassoLinkCapture::IsStandardTrack (const Position & position)
     bool    thirteen  = false;
     int     addressed = 0;
     bool    hasStream = MakeStream (position, stream, unstable);
-    int     sectors   = hasStream ? CountSectors (stream.bytes, position.position / 4, thirteen, addressed) : 0;
 
 
 
-    return hasStream && sectors == (thirteen ? 13 : 16);
+    if (hasStream)
+    {
+        CountSectors (stream.bytes, position.position / 4, thirteen, addressed);
+    }
+
+    return hasStream && addressed == (thirteen ? 13 : 16);
 }
 
 
@@ -889,6 +998,35 @@ void CassoLinkCapture::PlaceTracks (const std::vector<Position> & positions, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkCapture::MergeReads
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkCapture::MergeReads (std::vector<Position> & ioPositions, const std::vector<Position> & earlier)
+{
+    for (const Position & before : earlier)
+    {
+        auto  found = std::find_if (ioPositions.begin(), ioPositions.end(), [&before] (const Position & each) { return each.position == before.position; });
+
+        if (found == ioPositions.end())
+        {
+            ioPositions.push_back (before);
+            continue;
+        }
+
+        found->reads.insert (found->reads.end(), before.reads.begin(), before.reads.end());
+        found->delays.insert (found->delays.end(), before.delays.begin(), before.delays.end());
+    }
+
+    std::sort (ioPositions.begin(), ioPositions.end(), [] (const Position & a, const Position & b) { return a.position < b.position; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkCapture::BuildWoz
 //
 //  Each whole track's stream, then each other position's: a separate one when it
@@ -915,6 +1053,7 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
     outResult.unstable.clear();
     outResult.weak.clear();
     outResult.streams.clear();
+    outResult.replaced.clear();
 
     for (const Position & position : positions)
     {
@@ -941,6 +1080,18 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
             continue;
         }
 
+        //  A read that doesn't align isn't reported for a track whose every
+        //  sector decodes: the checksums vouch for the stream, and a track of
+        //  empty sectors, each like the next, has little to align a read by.
+        if (unstable)
+        {
+            bool  thirteen  = false;
+            int   addressed = 0;
+            int   sectors   = CountSectors (stream.bytes, position.position / 4, thirteen, addressed);
+
+            unstable = sectors != (thirteen ? 13 : 16);
+        }
+
         if (unstable)
         {
             outResult.unstable.push_back (position.position);
@@ -949,6 +1100,11 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
         if (hasWeak)
         {
             outResult.weak.push_back (position.position);
+        }
+
+        for (int sector : stream.replaced)
+        {
+            outResult.replaced.push_back ({ position.position, sector });
         }
 
         streams.emplace (position.position, std::move (stream));
@@ -1025,7 +1181,7 @@ HRESULT CassoLinkCapture::BuildWoz (const std::vector<Position> & positions, int
     CHR (hr);
 
     edits.meta.push_back ({ "image_date", imageDate });
-    edits.meta.push_back ({ "notes", std::format ("Raw capture by Casso Explorer from drive {} over CassoLink", drive) });
+    edits.meta.push_back ({ "notes", DescribeResult (outResult, drive) });
 
     hr = WozLoader::ApplyEdits (outResult.woz, edits);
     CHR (hr);

@@ -109,11 +109,11 @@ public:
         list.ClickRow (5, true,  false);
         list.SetOnSelectionChanged ([&changes] (int) { changes++; });
 
-        list.OnMouse (MakeMouse (DxuiMouseEventKind::Down, list, 5));
+        list.AsControl().OnMouse (MakeMouse (DxuiMouseEventKind::Down, list, 5));
 
         Assert::IsTrue (list.GetSelectedRows() == Rows ({ 2, 5 }), L"a drag starting here takes both rows");
 
-        list.OnMouse (MakeMouse (DxuiMouseEventKind::Up, list, 5));
+        list.AsControl().OnMouse (MakeMouse (DxuiMouseEventKind::Up, list, 5));
 
         Assert::IsTrue (list.GetSelectedRows() == Rows ({ 5 }), L"a click without a drag selects only its row");
         Assert::AreEqual (1, changes, L"and the release raises the selection change");

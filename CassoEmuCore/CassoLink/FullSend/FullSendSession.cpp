@@ -24,15 +24,15 @@
 
 std::vector<std::string> FullSendScreen::GetRows() const
 {
-    std::string               shown = prefix.empty() ? std::string ("NONE") : "\"" + prefix + "\"";
-    std::string               flag  = "VERIFY: OFF";
+    std::string               shown = prefix.empty() ? std::string ("none") : "\"" + prefix + "\"";
+    std::string               flag  = "Verify: off";
     std::vector<std::string>  rows;
 
 
 
     if (verify)
     {
-        flag = "VERIFY: ON";
+        flag = "Verify: on";
 
         for (char & ch : flag)
         {
@@ -40,16 +40,16 @@ std::vector<std::string> FullSendScreen::GetRows() const
         }
     }
 
-    rows = { "FULL SEND    " + flag + "  PREFIX: " + shown, std::format ("SENT {}   DUP {}   BAD {}", sent, duplicates, bad), std::string (40, '-') };
+    rows = { "Full Send    " + flag + "  Prefix: " + shown, std::format ("Sent {}   Dup {}   Bad {}", sent, duplicates, bad), std::string (40, '-') };
 
     if (recovered != 0)
     {
-        rows[1] += std::format ("   FIXED {}", recovered);
+        rows[1] += std::format ("   Fixed {}", recovered);
     }
 
     if (prot != 0)
     {
-        rows[1] += std::format ("   PROT {}", prot);
+        rows[1] += std::format ("   Prot {}", prot);
     }
 
     for (size_t i = 0; i < drives.size(); i++)
@@ -59,18 +59,20 @@ std::vector<std::string> FullSendScreen::GetRows() const
         switch (drives[i])
         {
             case FullSendDriveState::Off:      row.clear();                 break;
-            case FullSendDriveState::Idle:     row += "IDLE";               break;
-            case FullSendDriveState::Checking: row += "CHECKING";           break;
-            case FullSendDriveState::Sending:  row += (verify ? "VERIFYING " : "SENDING ") + names[i]; break;
-            case FullSendDriveState::Empty:    row += "EMPTY OR NO RECOGNIZED SECTORS";   break;
+            case FullSendDriveState::Idle:     row += "Idle";               break;
+            case FullSendDriveState::Checking: row += "Checking";           break;
+            case FullSendDriveState::Sending:  row += (verify ? "Verifying " : "Sending ") + names[i]; break;
+            case FullSendDriveState::Empty:    row += "Unformatted, or no disk";   break;
+            case FullSendDriveState::Blank:    row += names[i] + ", blank"; break;
             case FullSendDriveState::Repeat:    row += GetDuplicateText (names[i], "?"); break;
-            case FullSendDriveState::Sent:     row += "SENT " + names[i];   break;
-            case FullSendDriveState::Protected: row += "PROTECTED, CAPTURED RAW " + names[i]; break;
-            case FullSendDriveState::Capturing: row += "PROTECTED, CAPTURING RAW " + names[i]; break;
-            case FullSendDriveState::Changed:  row += "CHANGED WHILE IT WAS READ"; break;
+            case FullSendDriveState::Sent:     row += "Sent " + names[i];   break;
+            case FullSendDriveState::Protected: row += "Protected, captured raw " + names[i]; break;
+            case FullSendDriveState::Capturing: row += "Protected, capturing raw " + names[i]; break;
+            case FullSendDriveState::Validating: row += "Validating image on PC, please wait"; break;
+            case FullSendDriveState::Changed:  row += "Changed while it was read"; break;
             case FullSendDriveState::OnDeck:
-                row += "ON DECK--";
-                row += quip == 0 ? "INSERT A DISK TO SEND NEXT" : GetQuipText (quip);
+                row += "On deck--";
+                row += quip == 0 ? "Insert a disk to send next" : GetQuipText (quip);
                 break;
         }
 
@@ -123,7 +125,7 @@ std::string & FullSendScreen::MakeTrackRuler (std::string & ioMap)
 std::string FullSendScreen::GetDuplicateText (const std::string & file, const char * mark)
 {
     static constexpr size_t  s_kWidth = 40 - 4;
-    std::string              text     = "DUPE OF " + file;
+    std::string              text     = "Dupe of " + file;
     size_t                   room     = s_kWidth - strlen (mark);
 
 
@@ -150,22 +152,22 @@ const char * FullSendScreen::GetQuipText (Byte quip)
 {
     static constexpr std::array<const char *, kQuipCount>  s_kQuips =
     {
-        "IS THAT ALL YOU'VE GOT?",
-        "ANOTHER!",
-        "I CAN HAZ DISK?",
-        "THANK YOU SIR, ANOTHER?",
-        "MORE! MOOORE!!!",
-        "FEED ME, SEYMOUR!",
-        "INSERT COIN... ER, DISK",
-        "THIS DRIVE IS HUNGRY",
-        "NEXT VICTIM, PLEASE",
-        "PLEASE SIR, SOME MORE",
-        "BIGGER STACK NEEDED",
-        "NEED INPUT!",
-        "ME WANT DISK! NOM NOM NOM",
-        "HIT ME AGAIN, DEALER",
-        "ONE DISK IS NEVER ENOUGH",
-        "JUST ONE MORE, YOU SAID",
+        "Is that all you've got?",
+        "Another!",
+        "I can haz disk?",
+        "Thank you sir, another?",
+        "More! Mooore!!!",
+        "Feed me, Seymour!",
+        "Insert coin... er, disk",
+        "This drive is hungry",
+        "Next victim, please",
+        "Please sir, some more",
+        "Bigger stack needed",
+        "Need input!",
+        "Me want disk! Nom nom nom",
+        "Hit me again, dealer",
+        "One disk is never enough",
+        "Just one more, you said",
     };
 
 
@@ -347,16 +349,16 @@ HRESULT FullSendSession::AwaitBegin()
 
     while (key != FullSendKey::Space)
     {
-        lines = { "V: VERIFY READS EACH TRACK THREE TIMES.", "SLOWER, BUT CATCHES BAD READS.", GetPrefixLine(), "" };
+        lines = { "V: Verify reads each track three times.", "Slower, but catches bad reads.", GetPrefixLine(), "" };
 
         if (!m_link.IsBootstrapped())
         {
-            lines.push_back ("REMOVE THE CASSOLINK DISK");
+            lines.push_back ("Remove the CassoLink disk");
         }
 
-        lines.push_back ("INSERT DISKS TO BE SENT INTO THE DRIVES");
+        lines.push_back ("Insert disks to be sent into the drives");
         lines.push_back ("");
-        lines.push_back ("PRESS <SPACE> TO BEGIN");
+        lines.push_back ("Press <Space> to begin");
 
         m_screen.verify = m_link.IsVerifying();
         m_screen.prefix = m_prefix;
@@ -413,7 +415,7 @@ HRESULT FullSendSession::EditPrefix()
 
     for (;;)
     {
-        hr = m_link.WaitForAnyKey ({ "TYPE A PREFIX FOR THE IMAGES' NAMES.", "PREFIX: " + text + "_", "", "RETURN: USE IT    ESC: CANCEL", "<- OR DELETE: ERASE A LETTER" }, code);
+        hr = m_link.WaitForAnyKey ({ "Type a prefix for the images' names.", "Prefix: " + text + "_", "", "Return: use it    Esc: cancel", "<- or Delete: erase a letter" }, code);
         CHR (hr);
 
         if (code == CassoLinkCodec::kKeyReturn)
@@ -458,7 +460,7 @@ Error:
 
 std::string FullSendSession::GetPrefixLine() const
 {
-    return "P: FILE NAME PREFIX: " + (m_prefix.empty() ? std::string ("NONE") : m_prefix);
+    return "P: File name prefix: " + (m_prefix.empty() ? std::string ("none") : m_prefix);
 }
 
 
@@ -531,11 +533,14 @@ HRESULT FullSendSession::Pause()
     int                       chosen = 0;
     CheckedDisk               disk;
     std::vector<std::string>  lines;
+    std::string               retry;
 
 
 
     for (;;)
     {
+        ApplyBoots();
+
         m_state         = State::Paused;
         m_status.SetActivity (FullSendActivity::WaitingForDisk);
         m_screen.quip   = PickQuip();
@@ -569,6 +574,10 @@ HRESULT FullSendSession::Pause()
             continue;
         }
 
+        m_unbooted.clear();
+        retry = m_retryPrint;
+        m_retryPrint.clear();
+
         if (key == FullSendKey::Space)
         {
             for (int drive : order)
@@ -579,6 +588,16 @@ HRESULT FullSendSession::Pause()
                 if (disk.check == DiskCheck::New)
                 {
                     hr = SendDisk (drive, disk, false);
+                    CHR (hr);
+                    BAIL_OUT_IF (true, S_OK);
+                }
+
+                //  The disk whose image did not boot, left in its drive, is
+                //  read again, once: a raw capture with the reads of the one
+                //  before it, and a sector image with verified reads.
+                if (disk.check == DiskCheck::Repeat && !retry.empty() && disk.fingerprint == retry)
+                {
+                    hr = SendAgain (drive, disk);
                     CHR (hr);
                     BAIL_OUT_IF (true, S_OK);
                 }
@@ -615,6 +634,52 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendSession::SendAgain
+//
+//  A disk whose image did not boot, sent as a new image beside the first. A
+//  raw capture is built from its reads and the first capture's. A sector
+//  image is read with verification on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::SendAgain (int drive, const CheckedDisk & disk)
+{
+    HRESULT  hr        = S_OK;
+    bool     wasVerify = m_link.IsVerifying();
+
+
+
+    m_retried.insert (disk.fingerprint);
+    m_repeats[(size_t) drive - 1] = false;
+    m_deeper                      = true;
+
+    Report (std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive));
+
+    if (!wasVerify)
+    {
+        m_link.ToggleVerify();
+    }
+
+    hr = SendDisk (drive, disk, true);
+
+    if (!wasVerify && m_link.IsVerifying())
+    {
+        m_link.ToggleVerify();
+    }
+
+    m_deeper = false;
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendSession::GetPauseLines
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -628,11 +693,17 @@ std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 
 
 
     //  The notes, what to do, and a blank row before the quip.
+    lines.insert (lines.end(), m_unbooted.begin(), m_unbooted.end());
+
     for (int d : { 1, 2 })
     {
         if (repeats[(size_t) d - 1] && m_swapped[(size_t) d - 1])
         {
-            lines.push_back (std::format ("D{} CHANGED WHILE IT WAS READ.", d));
+            lines.push_back (std::format ("D{} changed while it was read.", d));
+        }
+        else if (repeats[(size_t) d - 1] && m_blank[(size_t) d - 1])
+        {
+            lines.push_back (std::format ("D{} is blank, so it wasn't sent.", d));
         }
         else if (repeats[(size_t) d - 1])
         {
@@ -642,21 +713,21 @@ std::vector<std::string> FullSendSession::GetPauseLines (const std::array<bool, 
 
     if (!sent.empty())
     {
-        lines.push_back (sent.size() == 2 ? std::string ("D1 AND D2 MAY ALREADY HAVE BEEN SENT.") : std::format ("D{} MAY ALREADY HAVE BEEN SENT.", sent[0]));
-        lines.push_back ("SEE CASSO EXPLORER'S ACTIVITY LOG.");
+        lines.push_back (sent.size() == 2 ? std::string ("D1 and D2 may already have been sent.") : std::format ("D{} may already have been sent.", sent[0]));
+        lines.push_back ("See Casso Explorer's activity log.");
     }
 
     if (repeats[0] && repeats[1])
     {
-        lines.insert (lines.end(), { "", "PUT IN A NEW DISK AND PRESS SPACE,", "OR PRESS 1 OR 2 TO SEND D1 OR D2 ANYWAY.", "" });
+        lines.insert (lines.end(), { "", "Put in a new disk and press Space,", "or press 1 or 2 to send D1 or D2 anyway.", "" });
     }
     else if (repeats[0] || repeats[1])
     {
-        lines.insert (lines.end(), { "", "PUT IN A NEW DISK AND PRESS SPACE,", std::format ("OR PRESS {} TO SEND D{} ANYWAY.", drive, drive), "" });
+        lines.insert (lines.end(), { "", "Put in a new disk and press Space,", std::format ("or press {} to send D{} anyway.", drive, drive), "" });
     }
     else
     {
-        lines = { "PUT IN A NEW DISK AND PRESS SPACE.", "" };
+        lines.insert (lines.end(), { "Put in a new disk and press Space.", "" });
     }
 
     return lines;
@@ -811,12 +882,29 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
         folderLock.unlock();
     }
 
+    m_blank[(size_t) drive - 1] = false;
+
+    if (outDisk.check == DiskCheck::New)
+    {
+        hr = CheckBlank (drive, outDisk);
+        CHR (hr);
+    }
+
     SetDriveState (drive, outDisk.check == DiskCheck::None   ? FullSendDriveState::Empty
                         : swapped                            ? FullSendDriveState::Changed
                         : outDisk.check == DiskCheck::Repeat ? FullSendDriveState::Repeat
+                        : outDisk.check == DiskCheck::Blank  ? FullSendDriveState::Blank
                                                              : FullSendDriveState::Idle);
 
-    m_status.ClearDisk (drive, outDisk.check == DiskCheck::None ? FullSendDiskState::Empty : outDisk.check == DiskCheck::Repeat ? FullSendDiskState::Duplicate : FullSendDiskState::None);
+    m_status.ClearDisk (drive, outDisk.check == DiskCheck::None   ? FullSendDiskState::Empty
+                             : outDisk.check == DiskCheck::Repeat ? FullSendDiskState::Duplicate
+                             : outDisk.check == DiskCheck::Blank  ? FullSendDiskState::Blank
+                                                                  : FullSendDiskState::None);
+
+    if (outDisk.check == DiskCheck::Blank)
+    {
+        m_status.SetTitle (drive, "Blank disk", outDisk.system);
+    }
 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
@@ -873,6 +961,69 @@ HRESULT FullSendSession::ReadFingerprint (int drive, CheckedDisk & outDisk, bool
 
     hr = FullSendDisk::ComputeFingerprint (outDisk.image, outDisk.fingerprint);
     CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendSession::CheckBlank
+//
+//  A new disk that is formatted and has no files isn't sent: its drive's
+//  number on the Apple sends it, as it sends a repeat. A DOS 3.3 disk whose
+//  one file is a short BASIC program has that program's track read first, as
+//  a program with no lines is what INIT writes after NEW. A blank is counted
+//  once while it stays in its drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::CheckBlank (int drive, CheckedDisk & ioDisk)
+{
+    HRESULT      hr      = S_OK;
+    int          track   = FullSendDisk::FindLoneProgramTrack (ioDisk.image);
+    bool         hasDisk = true;
+    bool         whole   = false;
+    std::string  system;
+
+
+
+    if (track >= 0 && !ioDisk.IsReadWhole (track))
+    {
+        hr = m_link.ReadTrack (drive, track, ioDisk.image, hasDisk, whole);
+        CHR (hr);
+
+        if (hasDisk && whole)
+        {
+            ioDisk.wholeTracks.push_back (track);
+        }
+    }
+
+    if (hasDisk && FullSendDisk::IsBlank (ioDisk.image, ioDisk.wholeTracks, system))
+    {
+        ioDisk.check  = DiskCheck::Blank;
+        ioDisk.system = system;
+
+        m_blank[(size_t) drive - 1]        = true;
+        m_repeats[(size_t) drive - 1]      = true;
+        m_screen.names[(size_t) drive - 1] = system;
+
+        if (m_blankDisk[(size_t) drive - 1] != ioDisk.fingerprint)
+        {
+            m_blankDisk[(size_t) drive - 1] = ioDisk.fingerprint;
+            m_status.AddBlank();
+        }
+
+        Report (std::format ("The disk in drive {} is formatted for {} but is blank, so it wasn't sent. Press {} on the Apple to send it anyway.", drive, system, drive));
+    }
+    else
+    {
+        m_blankDisk[(size_t) drive - 1].clear();
+    }
 
 Error:
     return hr;
@@ -977,6 +1128,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     m_status.SetActivity (FullSendActivity::Sending, drive);
     m_status.BeginDisk (drive, m_link.IsVerifying(), m_link.IsVerifying() ? std::span<const int>() : std::span<const int> (checked.wholeTracks));
     m_status.SetTitle (drive, title, FullSendDisk::GetSystemName (checked.image));
+    m_status.AddLine (std::format ("Sending the disk in drive {}", drive));
 
     //  A drive's first time on deck has the instruction, and later ones a line.
     if (m_link.HasDrive (other))
@@ -1093,7 +1245,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
         row.status      = FullSendManifest::kStatusDuplicate;
         row.duplicateOf = earlier->file;
         m_screen.tone   = FullSendTone::Duplicate;
-        m_screen.names[(size_t) drive - 1] = GetScreenName (sequence, FullSendDisk::GetCatalogTitle (image)) + ", DUPE OF " + earlier->file;
+        m_screen.names[(size_t) drive - 1] = GetScreenName (sequence, FullSendDisk::GetCatalogTitle (image)) + ", dupe of " + earlier->file;
         m_screen.sent++;
         m_screen.duplicates++;
     }
@@ -1102,12 +1254,13 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
         row.status    = unreadable.empty() ? FullSendManifest::kStatusSent : FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size());
         isProtected   = row.status == FullSendManifest::kStatusProtected;
         row.status    = raw.empty() ? row.status : FullSendManifest::kStatusRawCapture;
+        row.marks     = raw.empty() ? std::string() : m_rawMarks;
         m_screen.tone = unreadable.empty() ? FullSendTone::Done : isProtected ? FullSendTone::Protected : FullSendTone::BadSectors;
         m_screen.prot += isProtected ? 1 : 0;
 
-        if (isProtected)
+        if (isProtected && raw.empty())
         {
-            Report (std::format ("{} is likely copy-protected, so its image {} is a raw capture.", title, row.file));
+            Report (std::format ("{} is likely copy-protected, and its image {} has the sectors that could be read.", title, row.file));
         }
 
         row.duplicateOf = (match != nullptr) ? match->file : std::string();
@@ -1120,7 +1273,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
     Report (earlier != nullptr          ? std::format ("Disk {:04} is {}, a duplicate of {}", sequence, row.file, row.duplicateOf)
                  : !row.duplicateOf.empty()    ? std::format ("Disk {:04} is {}, sent again though it matches {}", sequence, row.file, row.duplicateOf)
-                 : !raw.empty()                ? std::format ("Disk {:04} is {}, a raw capture", sequence, row.file)
+                 : !raw.empty()                ? std::format ("Disk {:04} is {}, a raw capture of a disk that is likely copy-protected", sequence, row.file)
                                                : std::format ("Disk {:04} is {}, with {} unreadable sectors", sequence, row.file, row.unreadable));
 
     m_manifest.Add (row);
@@ -1131,6 +1284,37 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     CHRF (hr, m_fileFailed = true);
 
     folderLock.unlock();
+
+    //  The image is booted on the PC while its disk is in the drive, so an
+    //  image that did not boot is on the Apple at the pause that follows.
+    if (earlier == nullptr && m_link.NoteImage (GetPath (row.file)))
+    {
+        FullSendTone  tone   = m_screen.tone;
+        bool          failed = false;
+
+        m_screen.tone = FullSendTone::None;
+        SetDriveState (drive, FullSendDriveState::Validating);
+        m_status.SetActivity (FullSendActivity::Validating, drive);
+
+        hr = m_link.ShowScreen (m_screen);
+        CHR (hr);
+
+        m_latestBoot.clear();
+
+        hr = m_link.AwaitBoot (row.file);
+        CHR (hr);
+
+        ApplyBoots();
+
+        //  Where the Apple sounds the results, the failure's tone is for an
+        //  image that did not boot or has unreadable sectors, and the
+        //  success's for any other.
+        failed = m_latestBoot == FullSendManifest::kBootDidNotBoot || (raw.empty() && !unreadable.empty());
+
+        m_screen.tone = !m_link.HasBootTones() || m_latestBoot.empty() ? tone
+                      : failed                                         ? FullSendTone::DidNotBoot
+                                                                       : FullSendTone::Booted;
+    }
 
     //  A raw capture has every track, so its row has no map of bad sectors.
     if (raw.empty() && (!unreadable.empty() || !report.marks.empty()))
@@ -1223,7 +1407,7 @@ HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
 
-    hr = m_link.CaptureRaw (drive, outRaw);
+    hr = m_link.CaptureRaw (drive, m_deeper, outRaw, m_rawReads, m_rawMarks);
     CHR (hr);
 
     SetDriveState (drive, FullSendDriveState::Sending);
@@ -1248,7 +1432,8 @@ Error:
 //  session or the user is already at the title, the next number in parentheses
 //  is added. The list of unreadable sectors goes beside the image, as for
 //  Read disk to image. A raw capture is written as the image, a WOZ, with
-//  no list, as it has every sector the disk has.
+//  no list, as it has every sector the disk has; its reads, when the link
+//  returned them, go beside it with kReadsSuffix added.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1281,6 +1466,14 @@ HRESULT FullSendSession::WriteImage (const std::string & title, const std::vecto
 
     hr = DurableCommit::Commit (m_fileIo, GetPath (outFile), bytes, m_commitTag++, CommitMode::CreateNew, progress);
     CHR (hr);
+
+    if (!raw.empty() && !m_rawReads.empty())
+    {
+        hr = DurableCommit::Commit (m_fileIo, GetPath (outFile + kReadsSuffix), m_rawReads, m_commitTag++, CommitMode::Replace, progress);
+        CHR (hr);
+
+        m_rawReads.clear();
+    }
 
     if (raw.empty() && (!unreadable.empty() || !marks.empty()))
     {
@@ -1469,6 +1662,54 @@ const FullSendRow * FullSendSession::FindWithImage (const std::function<bool (co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendSession::ApplyBoots
+//
+//  Each boot result that arrived since the last call is set in the manifest
+//  in memory, for a write of it before the next reload. The thread that
+//  booted the image writes the result to the manifest's file. An image that did not boot is listed
+//  on the Apple at the next pause, by its number, with the offer to read
+//  its disk again the first time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendSession::ApplyBoots()
+{
+    for (const std::pair<std::string, std::string> & boot : m_status.TakeBoots())
+    {
+        const std::vector<FullSendRow>  & rows  = m_manifest.GetRows();
+        auto                              found = std::find_if (rows.begin(), rows.end(), [&boot] (const FullSendRow & row) { return _stricmp (row.file.c_str(), boot.first.c_str()) == 0; });
+
+        m_manifest.SetBoot (boot.first, boot.second);
+        m_latestBoot = boot.second;
+
+        if (boot.second == FullSendManifest::kBootDidNotBoot)
+        {
+            std::string  image   = found != rows.end() ? std::format ("{:04}", found->sequence) : boot.first.substr (0, boot.first.find_last_of ('.'));
+            bool         isAgain = found != rows.end() && m_retried.contains (found->fingerprint);
+
+            //  A disk is read again once. The image of one read again that
+            //  did not boot either is as good as this session makes it.
+            if (isAgain || found == rows.end())
+            {
+                m_unbooted.push_back (image + (isAgain ? " still does not boot." : " did not boot."));
+            }
+            else
+            {
+                m_retryPrint = found->fingerprint;
+
+                m_unbooted.push_back (std::format ("{} did not boot. Capture it again", image));
+                m_unbooted.push_back ("or put in a new disk, then press Space.");
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendSession::WriteManifest
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1479,6 +1720,8 @@ HRESULT FullSendSession::WriteManifest()
     CommitPlan::Progress  progress;
 
 
+
+    ApplyBoots();
 
     hr = DurableCommit::Commit (m_fileIo, GetPath (FullSendManifest::kFileName), m_manifest.Format(), m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);

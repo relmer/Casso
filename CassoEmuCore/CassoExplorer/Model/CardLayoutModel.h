@@ -37,8 +37,13 @@ public:
     enum class Segment { Universal, NeedsSetup, Unused, Unavailable, Fat32 };
 
     //  The adapter the card is for. Saved in the preferences by its value, so
-    //  new values go at the end.
-    enum class Adapter { Unsure, Cffa1ProDos, Cffa1Gsos, Cffa12EightDrive, Cffa2Enhanced, Cffa2Original, Cffa3000, A2Pico, Count };
+    //  new values go at the end. 0 was "I'm not sure" once.
+    enum class Adapter { First = 1, Cffa1ProDos = First, Cffa1Gsos, Cffa12EightDrive, Cffa2Enhanced, Cffa2Original, Cffa3000, A2Pico, Count };
+
+    //  The adapter selected when none was saved.
+    static constexpr Adapter  kDefaultAdapter = Adapter::Cffa3000;
+
+    static bool  IsAdapter (int value) { return value >= (int) Adapter::First && value < (int) Adapter::Count; }
     enum class Support { Works, Step, Fails, Unknown };
 
     struct Row
@@ -85,7 +90,7 @@ public:
     std::wstring  DescribeSpace    (int position) const;
     void          GetRows          (int position, std::vector<Row> & outRows) const;
 
-    //  The rows for one adapter; every row for Adapter::Unsure.
+    //  The rows for one adapter.
     void          GetRows          (int position, Adapter adapter, std::vector<Row> & outRows) const;
 
 private:

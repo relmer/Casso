@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/IVolume.h"
+#include "Devices/Disk/BlockBuffer.h"
 #include "Devices/Disk/ChainWalkGuard.h"
 
 class ProDosVolume;
@@ -26,31 +27,31 @@ class ProDosVolumeWriter
 public:
     explicit ProDosVolumeWriter (const ProDosVolume & volume);
 
-    HRESULT  CreateDirectory (const FilePath & path, vector<Byte> & outBuffer) const;
+    HRESULT  CreateDirectory (const FilePath & path, BlockBuffer  & outBuffer) const;
 
     HRESULT  Write     (const FilePath     & path,
                         const FilePayload  & payload,
-                        vector<Byte>       & outBuffer) const;
+                        BlockBuffer        & outBuffer) const;
 
-    HRESULT  SetStartupProgram    (const FilePath & path, vector<Byte> & outBuffer) const;
+    HRESULT  SetStartupProgram    (const FilePath & path, BlockBuffer  & outBuffer) const;
 
     HRESULT  Rename    (const FilePath     & from,
                         const std::string  & to,
-                        vector<Byte>       & outBuffer) const;
+                        BlockBuffer        & outBuffer) const;
 
     HRESULT  SetAttributes (const FilePath        & path,
                             const FileAttributes  & attributes,
-                            vector<Byte>          & outBuffer) const;
+                            BlockBuffer           & outBuffer) const;
 
 private:
     friend class ProDosVolume;
     friend class ProDosVolumeRemover;
 
-    static void  WriteByteAt (vector<Byte> & buffer, int block, size_t offset, Byte value);
-    static void  WriteWordAt (vector<Byte> & buffer, int block, size_t offset, Word value);
+    static void  WriteByteAt (BlockBuffer  & buffer, int block, size_t offset, Byte value);
+    static void  WriteWordAt (BlockBuffer  & buffer, int block, size_t offset, Word value);
 
     //  Volume bitmap: one bit per block, MSB of byte 0 is block 0, SET is free.
-    static void  SetFreeInBitmap (vector<Byte> & buffer, uint32_t block, bool isFree);
+    static void  SetFreeInBitmap (BlockBuffer  & buffer, uint32_t block, bool isFree);
 
     //  Fifteen characters, a letter first, then letters digits and periods --
     //  ProDOS's own rule. THIS VALIDATES ONLY NAMES BEING CREATED; reading
@@ -70,7 +71,7 @@ private:
 
     //  One pointer in an index block: low byte in the first half, high byte in
     //  the second.
-    static void  WriteIndexPointer (vector<Byte> & buffer, int indexBlock, size_t slot, Word target);
+    static void  WriteIndexPointer (BlockBuffer  & buffer, int indexBlock, size_t slot, Word target);
 
     //  A directory record is reusable exactly when its storage-type nibble is
     //  zero. Unlike the DOS 3.3 catalog there is no decorative-entry practice
@@ -85,7 +86,7 @@ private:
                              size_t                         count,
                              vector<uint32_t>             & outBlocks) const;
 
-    static void  ZeroBlocks (vector<Byte> & buffer, const vector<uint32_t> & blocks);
+    static void  ZeroBlocks (BlockBuffer  & buffer, const vector<uint32_t> & blocks);
 
     //  Lays down a file whose name the directory does not already hold, over
     //  the buffer this volume was constructed with. Replacement stages the
@@ -97,7 +98,7 @@ private:
                               Byte                  fileType,
                               Word                  auxType,
                               const vector<Byte>  & bytes,
-                              vector<Byte>        & outBuffer) const;
+                              BlockBuffer         & outBuffer) const;
 
     //  A file with a resource fork and Finder information, as an extended file.
     HRESULT  AddExtendedFile (int                   dirKeyBlock,
@@ -106,21 +107,21 @@ private:
                               Byte                  fileType,
                               Word                  auxType,
                               const FilePayload   & payload,
-                              vector<Byte>        & outBuffer) const;
+                              BlockBuffer         & outBuffer) const;
 
-    static void    WriteMiniEntry    (vector<Byte> & buffer, int keyBlock, size_t at, Byte storage, const vector<uint32_t> & forkBlocks, uint32_t eof);
+    static void    WriteMiniEntry    (BlockBuffer  & buffer, int keyBlock, size_t at, Byte storage, const vector<uint32_t> & forkBlocks, uint32_t eof);
     static size_t  GetDataBlockCount (size_t bytes);
 
     //  Lays the allocated blocks out in the order the allocator handed them
     //  over: master index first when there is one, then each index block
     //  followed by the data blocks it describes. Fails when the list does not
     //  match the shape, rather than walking off the end of it.
-    static HRESULT  PlaceFile (vector<Byte>            & buffer,
+    static HRESULT  PlaceFile (BlockBuffer             & buffer,
                                const vector<uint32_t>  & blocks,
                                size_t                    dataBlockCount,
                                const vector<Byte>      & bytes);
 
-    static void  WriteDirectoryEntry (vector<Byte>       & buffer,
+    static void  WriteDirectoryEntry (BlockBuffer        & buffer,
                                       int                  dirBlock,
                                       size_t               entryOffset,
                                       const std::string  & name,
@@ -135,20 +136,20 @@ private:
 
     //  The payload's access byte and dates written over the new record of
     //  `name` in the directory, when the payload has them.
-    static void  StampEntry (vector<Byte> & buffer, int dirKeyBlock, const std::string & name, const FilePayload & payload);
+    static void  StampEntry (BlockBuffer  & buffer, int dirKeyBlock, const std::string & name, const FilePayload & payload);
 
     //  The tally of active entries in one directory's header. Every directory
     //  keeps its own, at the same offset in its key block.
-    static void  AdjustFileCount (vector<Byte> & buffer, int dirKeyBlock, int delta);
+    static void  AdjustFileCount (BlockBuffer  & buffer, int dirKeyBlock, int delta);
 
     //  Links an already-allocated block onto the end of a directory's chain,
     //  and for a subdirectory grows the record its parent holds, whose blocks
     //  and length describe the directory itself.
-    static void  LinkDirectoryBlock (vector<Byte> & buffer, int dirKeyBlock, uint32_t newBlock);
+    static void  LinkDirectoryBlock (BlockBuffer  & buffer, int dirKeyBlock, uint32_t newBlock);
 
     //  The first record of a new subdirectory's key block: its own name, the
     //  marker ProDOS checks for, and the way back to the record above it.
-    static void  WriteSubdirectoryHeader (vector<Byte>       & buffer,
+    static void  WriteSubdirectoryHeader (BlockBuffer        & buffer,
                                           int                  keyBlock,
                                           const std::string  & name,
                                           int                  parentBlock,

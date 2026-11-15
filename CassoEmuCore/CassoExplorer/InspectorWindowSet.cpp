@@ -3,12 +3,10 @@
 #include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/ExplorerInspectorHost.h"
 #include "CassoExplorer/ExplorerBlockInspectorWindow.h"
-#include "CassoExplorer/ExplorerBlockInspectorWindow.h"
 #include "CassoExplorer/ExplorerInspectorWindow.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
-#include "Core/TextEncoding.h"
-#include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Seams/Win32IntentChannel.h"
 
 
@@ -225,7 +223,12 @@ HRESULT InspectorWindowSet::Open (HINSTANCE hInstance, HWND anchor, const std::w
     hr = entry->window->ShowDisk();
     CHR (hr);
 
-    WatchFolder (entry->folder);
+    //  A partition of a card in a reader is in no folder Windows watches.
+    if (!PhysicalCards::IsOnCard (path))
+    {
+        WatchFolder (entry->folder);
+    }
+
     m_entries.push_back (std::move (entry));
     StartTimer();
 
@@ -613,7 +616,10 @@ void InspectorWindowSet::Release()
     {
         if (entry->isClosed)
         {
-            UnwatchFolder (entry->folder);
+            if (!PhysicalCards::IsOnCard (entry->host->GetPath()))
+            {
+                UnwatchFolder (entry->folder);
+            }
         }
     }
 

@@ -16,6 +16,10 @@
 
 .PARAMETER Disk
     The floppy image to boot.
+.PARAMETER Drive
+    MAME's name for the drive the floppy goes in: flop1 for the first 5.25"
+    drive, flop3 for the first 3.5" drive of a //c Plus or a IIgs. Defaults
+    to flop1.
 .PARAMETER HardDisk
     A hard disk image (.hdv, .2mg, .hd or .chd) on the card in slot 7.
 .PARAMETER Card
@@ -46,6 +50,7 @@
 param (
     [Parameter (Mandatory)] [string] $Machine,
     [string] $Disk     = '',
+    [string] $Drive    = 'flop1',
     [string] $HardDisk = '',
     [string] $Card     = 'scsi',
     [Parameter (Mandatory)] [string] $Out,
@@ -69,7 +74,7 @@ if (-not $Disk -and -not $HardDisk) {
 $media = @()
 
 if ($Disk) {
-    $media += @('-flop1', (Resolve-Path -LiteralPath $Disk).Path)
+    $media += @("-$Drive", (Resolve-Path -LiteralPath $Disk).Path)
 }
 
 if ($HardDisk) {
@@ -102,8 +107,8 @@ end)
 "@ | Set-Content -LiteralPath $lua
 
 #  An empty slot 4 leaves out the //e's Mockingboard, whose speech ROM is
-#  often missing.
-$slots = if ($Machine -like 'apple2*') { @('-sl4', '') } else { @() }
+#  often missing. A //c has no slots.
+$slots = if ($Machine -like 'apple2*' -and $Machine -notlike 'apple2c*') { @('-sl4', '') } else { @() }
 
 Push-Location (Split-Path -Parent $Mame)
 

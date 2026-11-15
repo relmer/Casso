@@ -94,6 +94,24 @@ public:
     }
 
 
+    //  VisiCalc's 80-column version saves each column's width as a command
+    //  at the column's first cell, after the cell's label. CiderPress II's
+    //  sheets on the 1984 VisiCalc disk have it.
+    TEST_METHOD (Decode_ACommandAtACellIsntItsContents)
+    {
+        std::vector<Byte>  bytes = ToApple (">B1:\"  WK1\n>A1:\" ITEM\n>A1:/GCC5\n>B1:/GCC5\n");
+        DecodedFile        file;
+        std::wstring       error;
+
+
+
+        AssertSucceeded (VisiCalcSheet::Decode (bytes, FileFacts(), DecodeOptions(), file, error));
+
+        Assert::IsTrue (file.grid.rows[0][1].find (L"ITEM") != std::wstring::npos, file.grid.rows[0][1].c_str());
+        Assert::IsTrue (file.grid.rows[0][2].find (L"WK1")  != std::wstring::npos, file.grid.rows[0][2].c_str());
+    }
+
+
     TEST_METHOD (Draw_PadsToTheColumnByTheFormat)
     {
         VisiCalcSheet::Sheet  sheet;

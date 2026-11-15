@@ -56,6 +56,7 @@ public:
     void                              Hide                   ();
     void                              FillPreview            ();
     void                              TakeThumbnail          ();
+    void                              HandlePicturesReady    ();
     void                              SetPinned              (bool pinned);
     static bool                       IsKnownPreview         (const PreviewContent & preview);
     void                              PaintBackground        (IDxuiPainter & painter, const IDxuiTheme & theme) const;
@@ -83,6 +84,7 @@ public:
     PreviewPictureView              & GetPicture             ()            { return m_picture; }
     PreviewShellView                & GetShell               ()            { return m_shell; }
     PreviewFindBar                  & GetFind                ()            { return m_find; }
+    PreviewDiskThumbnail            & GetThumbnail           ()            { return m_thumbnail; }
 
     //  The preview over the whole tab, below the tab strip, and its steps to
     //  the previous and next file.
@@ -100,7 +102,6 @@ public:
     int   GetShownZoom           () const;
 
     bool                            HandleMessageMouse    (const DxuiMouseEvent & ev);
-    bool                            HandleMouse           (const DxuiMouseEvent & ev);
     bool                            HandleShortcutKey     (const DxuiKeyEvent & ev);
     bool                            HandleTabKey          (const DxuiKeyEvent & ev) { return m_hex.HandleTabKey (ev); }
     void                            HandleFocusEntered    (bool forward)            { m_hex.HandleFocusEntered (forward); }

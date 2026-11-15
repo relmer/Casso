@@ -25,6 +25,7 @@ enum class FullSendActivity : Byte
     Capturing,
     WaitingForDisk,
     WaitingForApple,
+    Validating,         // the image just written is being booted on the PC
     EditingPrefix,
     Ended,
 };
@@ -56,6 +57,7 @@ enum class FullSendDiskState : Byte
     Sent,
     Duplicate,
     Empty,
+    Blank,
 };
 
 
@@ -127,6 +129,7 @@ struct FullSendTotals
     int       sent        = 0;
     int       duplicates  = 0;
     int       rawCaptures = 0;
+    int       blanks      = 0;      // formatted disks with no files, which weren't sent
     int       badSectors  = 0;      // disks with an unreadable or unreliable sector
     double    elapsed     = 0.0;
     double    average     = 0.0;    // seconds a disk, over the disks sent; 0 with none
@@ -218,7 +221,23 @@ public:
     //  A drive with no disk, or a disk left unsent.
     void  ClearDisk      (int drive, FullSendDiskState state);
 
+    //  A blank disk, counted in the totals.
+    void  AddBlank       ();
+
     void  AddLine        (const std::string & text);
+
+    //  An image's boot result, as BootProbe::GetVerdictName has it, from the
+    //  thread that booted it: set in the image's row of the disks done.
+    //  TakeBoots returns each result since the last call, by file, for the
+    //  session's manifest. renamedTo is the file's name now, when its boot
+    //  renamed it.
+    void  SetBoot        (const std::string & file, const std::string & boot, const std::string & renamedTo = std::string());
+
+    std::vector<std::pair<std::string, std::string>>  TakeBoots ();
+
+    //  Whether a boot result has arrived for the file, under the name it
+    //  was written with.
+    bool  HasBoot        (const std::string & file) const;
 
     FullSendSnapshot  GetSnapshot () const;
 
@@ -235,17 +254,19 @@ private:
     static int            CountRead     (const FullSendDriveStatus & drive);
     void                  AddTimedLine  (const std::string & text);
 
-    mutable std::mutex     m_lock;
-    SecondsFn              m_seconds;
-    TimeFn                 m_time;
-    FullSendSnapshot       m_snapshot;
-    FullSendActivity       m_resume      = FullSendActivity::None;   // the activity a wait for the Apple interrupted
-    int                    m_resumeDrive = 0;
-    double                 m_began       = 0.0;
-    double                 m_waitBegan   = 0.0;
-    double                 m_ended       = -1.0;
-    double                 m_sentSeconds = 0.0;                      // over every disk sent
-    std::vector<Sample>    m_samples;                                // the sector images sent
-    std::array<int, 2>     m_baseCount   = { 0, 0 };                 // the tracks each drive's disk began with
-    std::array<double, 2>  m_lastMark    = { 0.0, 0.0 };             // when each drive's latest track or read was marked
+    mutable std::mutex                                m_lock;
+    SecondsFn                                         m_seconds;
+    TimeFn                                            m_time;
+    FullSendSnapshot                                  m_snapshot;
+    FullSendActivity                                  m_resume      = FullSendActivity::None;   // the activity a wait for the Apple interrupted
+    int                                               m_resumeDrive = 0;
+    double                                            m_began       = 0.0;
+    double                                            m_waitBegan   = 0.0;
+    double                                            m_ended       = -1.0;
+    double                                            m_sentSeconds = 0.0;   // over every disk sent
+    std::vector<Sample>                               m_samples;   // the sector images sent
+    std::vector<std::pair<std::string, std::string>>  m_boots;   // each boot result the session hasn't taken
+    std::set<std::string>                             m_booted;  // each file with a boot result
+    std::array<int, 2>                                m_baseCount   = { 0, 0 };   // the tracks each drive's disk began with
+    std::array<double, 2>                             m_lastMark    = { 0.0, 0.0 };   // when each drive's latest track or read was marked
 };

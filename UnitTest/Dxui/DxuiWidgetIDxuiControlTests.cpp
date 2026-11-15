@@ -292,13 +292,13 @@ public:
         down.kind        = DxuiMouseEventKind::Down;
         down.button      = DxuiMouseButton::Left;
         down.positionDip = POINT { bar.barX + 2, (int) bar.thumbTop + 2 };
-        list.OnMouse (down);
+        list.AsControl().OnMouse (down);
         Assert::IsTrue (list.IsInteracting());
 
         move.kind        = DxuiMouseEventKind::Move;
         move.button      = DxuiMouseButton::None;
         move.positionDip = POINT { bar.barX + 2, (int) bar.thumbTop + 40 };
-        list.OnMouse (move);
+        list.AsControl().OnMouse (move);
         Assert::IsFalse (list.IsInteracting());
     }
 };

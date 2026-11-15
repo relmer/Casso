@@ -79,6 +79,17 @@ public:
     //  is checked again on the next call.
     void  ResolveMoves ();
 
+    //  Files copied, pasted or dropped into a folder, which Windows may be
+    //  writing after the call that copied them returns. Each on an A2Pico
+    //  card is listed as an arrival, for a while.
+    void  ExpectArrivals (const std::vector<std::wstring> & targets);
+
+    //  The arrivals that are written and are images ReplaceWithPo converts.
+    //  Those, and each arrival written in any other form, are removed from
+    //  the list. One that Windows is writing is checked again on the next
+    //  call.
+    void  TakeArrived    (std::vector<std::wstring> & outConvertible);
+
     //  A file deleted in Casso Explorer: each drive with it is emptied.
     void  NoteDelete (const std::wstring & path);
 
@@ -94,6 +105,10 @@ public:
 
     //  The image's ProDOS volume written as a .po of its name beside it.
     ActionsTypes::Outcome  ConvertToPo (const std::wstring & path, std::wstring & outPath);
+
+    //  ConvertToPo, and then the image removed, so the .po is there in its
+    //  place. A drive with the image is set to the .po.
+    ActionsTypes::Outcome  ReplaceWithPo (const std::wstring & path, std::wstring & outPath);
 
     //  The settings written to the card's A2retroNET.txt.
     ActionsTypes::Outcome  Save   (const std::wstring & root, const A2retroNetConfig & config);
@@ -169,4 +184,5 @@ private:
 
     CassoExplorerActions        & m_actions;
     std::vector<ExpectedMove>     m_expected;
+    std::vector<ExpectedMove>     m_arrivals;   // `to` is the file; `from` is empty
 };

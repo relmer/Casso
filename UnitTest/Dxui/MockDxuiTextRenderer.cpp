@@ -251,6 +251,40 @@ int MockDxuiTextRenderer::CountWrappedLines (const std::wstring & text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MeasureStringWeighted
+//
+//  With a bold glyph width set, text measured bold is that wide a
+//  character; otherwise as MeasureString.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockDxuiTextRenderer::MeasureStringWeighted (
+    const wchar_t * text,
+    float           fontSizeDip,
+    const wchar_t * fontFamily,
+    DxuiFontWeight  weight,
+    float         & outWidthDip,
+    float         & outHeightDip)
+{
+    HRESULT  hr   = MeasureString (text, fontSizeDip, fontFamily, outWidthDip, outHeightDip);
+    bool     bold = ((int) weight & 0xFFFF) >= (int) DxuiFontWeight::Bold;
+
+
+
+    if (SUCCEEDED (hr) && bold && m_boldGlyphWidthDip > 0.0f && text != nullptr)
+    {
+        outWidthDip = (float) wcslen (text) * m_boldGlyphWidthDip;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MeasureStringWrapped
 //
 //  A model, not a layout, but a model that BREAKS AT WORDS the way a real

@@ -870,7 +870,116 @@ void ActionsA2retroNet::ExpectMoves (const std::vector<std::wstring> & sources, 
         {
             m_expected.push_back (ExpectedMove { source, target, untilMs });
         }
+
+        if (toCard)
+        {
+            m_arrivals.push_back (ExpectedMove { std::wstring(), target, untilMs });
+        }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::ExpectArrivals
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ActionsA2retroNet::ExpectArrivals (const std::vector<std::wstring> & targets)
+{
+    ULONGLONG  untilMs = GetTickCount64() + kExpectedMoveMs;
+
+
+
+    for (const std::wstring & target : targets)
+    {
+        if (IsCard (std::filesystem::path (target).root_path().wstring()))
+        {
+            m_arrivals.push_back (ExpectedMove { std::wstring(), target, untilMs });
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::TakeArrived
+//
+//  A file Windows has open for its copy is a whole file by its size, with
+//  only its first part written, so it is left until Windows closes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ActionsA2retroNet::TakeArrived (std::vector<std::wstring> & outConvertible)
+{
+    IDiskFileIo  & io  = m_actions.m_browser.GetOperations().GetFileIo();
+    ULONGLONG      now = GetTickCount64();
+
+
+
+    outConvertible.clear();
+
+    std::erase_if (m_arrivals, [this, &io, &outConvertible, now] (const ExpectedMove & arrival)
+    {
+        Layout  layout;
+        bool    isThere  = m_actions.m_fs.Exists (arrival.to);
+        bool    isHeld   = isThere && io.IsHeldByAnotherProcess (TextEncoding::WideToNarrow (arrival.to));
+        bool    hasPo    = m_actions.m_fs.Exists (std::filesystem::path (arrival.to).replace_extension (L".po").wstring());
+        bool    isListed = std::find (outConvertible.begin(), outConvertible.end(), arrival.to) != outConvertible.end();
+
+        if (!isThere || isHeld)
+        {
+            return now >= arrival.untilMs;
+        }
+
+        if (!hasPo && !isListed && TryGetConvertibleLayout (arrival.to, layout))
+        {
+            outConvertible.push_back (arrival.to);
+        }
+
+        return true;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsA2retroNet::ReplaceWithPo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsA2retroNet::ReplaceWithPo (const std::wstring & path, std::wstring & outPath)
+{
+    ActionsTypes::Outcome  outcome = ConvertToPo (path, outPath);
+    HRESULT                hr      = S_OK;
+
+
+
+    if (!outcome.Succeeded())
+    {
+        return outcome;
+    }
+
+    hr = m_actions.m_browser.GetOperations().GetFileIo().Remove (TextEncoding::WideToNarrow (path));
+
+    if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, std::format (L"{} could not be removed.", CassoExplorerActions::GetLeafName (path)));
+        return outcome;
+    }
+
+    NoteMove (path, outPath);
+
+    return outcome;
 }
 
 

@@ -33,6 +33,7 @@ class ExplorerListPane
 {
 public:
     explicit ExplorerListPane (ExplorerContext & context);
+    ~ExplorerListPane ();
 
     static constexpr const wchar_t *  kNoSearchMatches = L"No items match your search.";
 
@@ -119,10 +120,9 @@ public:
 
     void  HandleShellListed           (const std::wstring & key);
     void  HandleIconsLoaded           ();
+    void  HandlePicturesReady         (WPARAM wParam);
     void  HandleContentDetailsArrived ();
-    bool  HandleCapturedMouse         (const DxuiMouseEvent & ev);
-    bool  HandleMouse                 (const DxuiMouseEvent & ev);
-    void  ClearHoverOutside           (const DxuiMouseEvent & ev);
+    bool  HandleMessageMouse          (const DxuiMouseEvent & ev);
     bool  HandleCharKey               (const DxuiKeyEvent & ev);
     bool  HandleShortcutKey           (const DxuiKeyEvent & ev);
     bool  HandleKey                   (const DxuiKeyEvent & ev) { return m_list->OnKey (ev); }
@@ -139,6 +139,10 @@ private:
         POINT  start   = {};
     };
 
+    bool  HandleListMouse  (const DxuiMouseEvent & ev);
+    bool  HandleRightPress (const DxuiMouseEvent & ev);
+    void  PressRight       (POINT local, POINT point);
+
 
     ExplorerContext            & m_context;
     DxuiListView               * m_list            = nullptr;
@@ -146,6 +150,7 @@ private:
     bool                         m_listMessageTop  = false;   // a search's message, at the list's top
     RECT                         m_paneRect        = {};
     Win32ShellIcons              m_listIcons;
+    HWND                         m_picturesHwnd    = nullptr; // the window the disk pictures post to
     Win32ContentDetails          m_contentDetails;
     Win32PropertyColumns         m_propertyValues;
     ULONGLONG                    m_lastRearrangeMs = 0;

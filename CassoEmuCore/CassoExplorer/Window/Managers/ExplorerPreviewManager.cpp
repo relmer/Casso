@@ -57,6 +57,8 @@ void ExplorerPreviewManager::Create()
     ExplorerTextStyles::Apply (*m_message, ExplorerTextStyles::kPaneMessage);
     m_message->SetAlign    (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
 
+    m_context.window.SetMouseHandler (m_message, [this] (const DxuiMouseEvent & ev) { return HandleMessageMouse (ev); });
+
     m_summary = m_context.window.CreateChild<DxuiTextView>();
     ExplorerTextStyles::Apply (*m_summary, ExplorerTextStyles::kPreviewText);
     m_summary->SetProportional (true);
@@ -82,6 +84,10 @@ void ExplorerPreviewManager::Create()
 void ExplorerPreviewManager::CreateToolbar()
 {
     m_toolbar = m_context.window.CreateChild<DxuiToolbar>();
+
+    m_context.window.SetMouseHandler     (m_toolbar, [this] (const DxuiMouseEvent & ev) { return m_context.toolbars.HandleBarMouse (*m_toolbar, ev); });
+    m_context.window.SetCaptureCondition (m_toolbar, [this]() { return m_toolbar->IsMenuOpen(); });
+
     m_toolbar->SetFlatStyle    (true);
     m_toolbar->SetTextRenderer (m_context.window.GetTextRenderer());
     m_toolbar->SetPopupHost    (m_context.window.GetPopupHost());
@@ -149,8 +155,10 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
     //  A disk image's small platter and chips, under the toolbar (FR-072).
     if (m_thumbnail.IsShown())
     {
-        m_thumbnail.Layout (RECT { content.left, content.top, content.right, content.top + m_thumbnail.GetHeightPx() });
-        content.top += m_thumbnail.GetHeightPx();
+        int  height = m_thumbnail.GetHeightPx (static_cast<int> (content.right - content.left));
+
+        m_thumbnail.Layout (RECT { content.left, content.top, content.right, content.top + height });
+        content.top += height;
     }
     else
     {
@@ -247,6 +255,7 @@ void ExplorerPreviewManager::FillPreview()
     bool                    sets     = preview.charset != Charset::Default;
     bool                    sheet    = preview.sheetForm != SheetForm::None;
     bool                    details  = visible && woz && preview.kind == PreviewContent::Kind::Catalog && !preview.details.empty();
+    bool                    warned   = visible && hex && !preview.warning.empty();
     bool                    hadThem  = m_summary->IsVisible();
     int                     mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
                                      : hex      ? CassoExplorerCommands::kPreviewBarHex
@@ -293,10 +302,13 @@ void ExplorerPreviewManager::FillPreview()
 
     //  A WOZ image's details above its catalog, which moves the catalog down.
     //  An image with no file system has its details in place of a catalog.
-    m_summary->SetRows    (details ? PreviewText::BuildDetailRows (preview.details) : std::vector<DxuiTextView::Row>());
-    m_summary->SetVisible (details);
+    //  A file whose format's decoder failed has the reason above its bytes.
+    m_summary->SetRows    (details ? PreviewText::BuildDetailRows (preview.details)
+                         : warned  ? PreviewText::BuildWarningRows (preview.warning)
+                                   : std::vector<DxuiTextView::Row>());
+    m_summary->SetVisible (details || warned);
 
-    if (details || hadThem)
+    if (details || warned || hadThem)
     {
         m_context.layout.RecomputeLayout();
     }
@@ -357,6 +369,28 @@ void ExplorerPreviewManager::FillPreview()
     }
 
     m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::HandlePicturesReady
+//
+//  A disk image was booted: the selected image's picture is read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::HandlePicturesReady()
+{
+    if (m_thumbnail.IsShown())
+    {
+        m_thumbnail.RefreshScreen();
+        m_context.layout.RecomputeLayout();
+        m_context.window.Invalidate();
+    }
 }
 
 
@@ -624,28 +658,24 @@ uint32_t ExplorerPreviewManager::GetBackground (const IDxuiTheme & theme)
 //
 //  ExplorerPreviewManager::HandleMessageMouse
 //
-//  A preview's message selects with the mouse, as text does, and has the
-//  text's menu. The window routes events to the message ahead of its other
-//  panes.
+//  The message's mouse handler. A preview's message selects with the mouse,
+//  as text does, and has the text's menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExplorerPreviewManager::HandleMessageMouse (const DxuiMouseEvent & ev)
 {
-    POINT  point = ev.positionDip;
+    POINT  point   = ev.positionDip;
+    bool   handled = false;
 
 
-
-    if (!m_message->IsVisible() || (!m_message->IsInteracting() && !ExplorerLayout::Contains (m_message->GetBounds(), point)))
-    {
-        return false;
-    }
 
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right)
     {
         std::vector<DxuiPopupMenuItem>  items;
 
         m_context.input.SetFocusPane (ExplorerPane::Preview);
+        m_context.input.ReleasePressed();
         m_context.menus.GetMenuCommands().clear();
         m_context.menus.AddMenuCommand (items, L"&Copy",       [this]() { m_message->Copy(); });
         m_context.menus.AddMenuCommand (items, L"Select &all", [this]() { m_message->SelectAll(); m_context.window.Invalidate(); });
@@ -658,54 +688,14 @@ bool ExplorerPreviewManager::HandleMessageMouse (const DxuiMouseEvent & ev)
         m_context.input.SetFocusPane (ExplorerPane::Preview);
     }
 
-    if (!m_message->OnMouse (ev))
-    {
-        return false;
-    }
+    handled = m_message->OnMouse (ev);
 
-    m_context.window.Invalidate();
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerPreviewManager::HandleMouse
-//
-//  Events go to a view mid-drag until the button comes up, wherever the
-//  pointer is, and otherwise to the view under the pointer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerPreviewManager::HandleMouse (const DxuiMouseEvent & ev)
-{
-    //  A click on the small platter opens the inspector (FR-072).
-    if (m_thumbnail.IsOverPlatter (ev.positionDip))
-    {
-        if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left)
-        {
-            m_context.commandManager.InspectDiskImages ({ m_thumbnail.GetPath() });
-        }
-
-        return true;
-    }
-
-    if (m_listing.IsArchive() && m_listing.GetArchive().HandleMouse (ev, ev.positionDip))
+    if (handled)
     {
         m_context.window.Invalidate();
-        return true;
     }
 
-    return m_listing.HandleCapturedMouse (ev)
-        || m_hex.HandleCapturedMouse     (ev)
-        || m_picture.HandleMouse         (ev)
-        || m_text.HandleCapturedMouse    (ev)
-        || m_hex.HandleMouse             (ev)
-        || m_text.HandleMouse            (ev)
-        || m_listing.HandleMouse         (ev);
+    return handled;
 }
 
 

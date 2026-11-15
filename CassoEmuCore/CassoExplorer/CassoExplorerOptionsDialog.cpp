@@ -56,17 +56,19 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration)
+void CassoExplorerGeneralPage::Init (DxuiLabel & previewNote, DxuiCheckbox & autoPreview, DxuiCheckbox & enterExpands, DxuiCheckbox & registration, DxuiCheckbox & autoThumbnails)
 {
     m_previewNote  = &previewNote;
     m_autoPreview  = &autoPreview;
     m_enterExpands = &enterExpands;
     m_register     = &registration;
+    m_thumbnails   = &autoThumbnails;
 
     Adopt (previewNote);
     Adopt (autoPreview);
     Adopt (enterExpands);
     Adopt (registration);
+    Adopt (autoThumbnails);
 }
 
 
@@ -88,6 +90,8 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     int  enterEnd     = enterTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
     int  registerTop  = enterEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
     int  registerEnd  = registerTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  thumbsTop    = registerEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
+    int  thumbsEnd    = thumbsTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
 
 
 
@@ -97,8 +101,9 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     m_previewNote->Layout (RECT { boundsDip.left + scaler.ToPx (kNoteIndentDip), noteTop, boundsDip.right, noteBottom }, scaler);
     m_enterExpands->Layout (RECT { boundsDip.left, enterTop, boundsDip.right, enterEnd }, scaler);
     m_register->Layout    (RECT { boundsDip.left, registerTop, boundsDip.right, registerEnd }, scaler);
+    m_thumbnails->Layout  (RECT { boundsDip.left, thumbsTop, boundsDip.right, thumbsEnd }, scaler);
 
-    SetContentHeightPx (registerEnd - boundsDip.top);
+    SetContentHeightPx (thumbsEnd - boundsDip.top);
 }
 
 
@@ -113,7 +118,7 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
 
 bool CassoExplorerGeneralPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev);
+    return m_autoPreview->OnMouse (ev) || m_enterExpands->OnMouse (ev) || m_register->OnMouse (ev) || m_thumbnails->OnMouse (ev);
 }
 
 
@@ -196,7 +201,7 @@ bool CassoExplorerHostNamesPage::OnMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel)
+void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & soundsLabel, DxuiSegmentedControl & sounds, DxuiLabel & formatLabel, DxuiRadioGroup & format, DxuiLabel & esotericaLabel)
 {
     m_folderLabel    = &folderLabel;
     m_formatLabel    = &formatLabel;
@@ -204,6 +209,8 @@ void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel,
     m_note           = &note;
     m_folder         = &folder;
     m_browse         = &browse;
+    m_soundsLabel    = &soundsLabel;
+    m_sounds         = &sounds;
     m_format         = &format;
 
     Adopt (note);
@@ -211,6 +218,8 @@ void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel,
     Adopt (formatLabel);
     Adopt (folder);
     Adopt (browse);
+    Adopt (soundsLabel);
+    Adopt (sounds);
     Adopt (format);
     Adopt (esotericaLabel);
 }
@@ -234,7 +243,11 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     int                           folderTop      = folderLabelTop + labelH;
     int                           folderEnd      = folderTop + scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
     int                           browseX        = boundsDip.right - scaler.ToPx (kBrowseWidthDip);
-    int                           formatLabelTop = folderEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
+    int                           soundsLabelTop = folderEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
+    int                           soundsTop      = soundsLabelTop + labelH;
+    int                           soundsEnd      = soundsTop + scaler.ToPx (kSoundsHeightDip);
+    int                           soundsRight    = std::min ((int) boundsDip.right, (int) boundsDip.left + scaler.ToPx (kSoundsWidthDip));
+    int                           formatLabelTop = soundsEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
     int                           formatTop      = formatLabelTop + labelH;
     int                           minOptionH     = scaler.ToPx (kOptionLabelHeightDip + kOptionDescHeightDip);
     int                           optionGap      = scaler.ToPx (kOptionGapDip);
@@ -273,6 +286,8 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     m_folder->Layout (RECT { boundsDip.left, folderTop, browseX - scaler.ToPx (ExplorerMetrics::kStackGapDip), folderEnd }, scaler);
     m_browse->SetDpi (scaler.GetDpi());
     m_browse->Layout (RECT { browseX, folderTop, boundsDip.right, folderEnd });
+    m_soundsLabel->Layout (RECT { boundsDip.left, soundsLabelTop, boundsDip.right, soundsTop }, scaler);
+    m_sounds->Layout (RECT { boundsDip.left, soundsTop, soundsRight, soundsEnd }, scaler);
     m_format->Layout (RECT { boundsDip.left, formatTop, boundsDip.right, top }, scaler);
     m_esotericaLabel->Layout (RECT { boundsDip.left, esotericaTop, boundsDip.right, esotericaEnd }, scaler);
 
@@ -291,7 +306,7 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
 
 bool CassoExplorerFullSendPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_browse->OnMouse (ev) || m_format->OnMouse (ev);
+    return m_browse->OnMouse (ev) || m_sounds->OnMouse (ev) || m_format->OnMouse (ev);
 }
 
 
@@ -505,7 +520,11 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_enterExpands.SetChecked (m_choices.enterExpands);
 
     m_general = CreatePage<CassoExplorerGeneralPage> (L"General");
-    m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register);
+    m_autoThumbnails.SetLabel   (L"Automatically create thumbnails for disk images by booting them headlessly and capturing the screen");
+    m_autoThumbnails.SetChecked (m_choices.autoThumbnails);
+
+
+    m_general->Init (m_previewNote, m_autoPreview, m_enterExpands, m_register, m_autoThumbnails);
 
     m_hostNames = CreatePage<CassoExplorerHostNamesPage> (L"Host file names");
     m_hostNames->Init (m_namingNote, m_naming);
@@ -513,7 +532,7 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     WireFullSend();
 
     m_fullSend = CreatePage<CassoExplorerFullSendPage> (L"Full Send");
-    m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendFormatLabel, m_fullSendFormat, m_fullSendEsotericaLabel);
+    m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendSoundsLabel, m_fullSendSounds, m_fullSendFormatLabel, m_fullSendFormat, m_fullSendEsotericaLabel);
 
     WireVerify();
 
@@ -580,6 +599,13 @@ void CassoExplorerOptionsDialog::WireFullSend()
     ExplorerTextStyles::Apply (m_fullSendEsotericaLabel, ExplorerTextStyles::kFormLabel);
 
     m_fullSendFolder.SetText (m_choices.fullSendFolder);
+
+    m_fullSendSoundsLabel.SetText (L"Play a sound when a capture succeeds, and another when it fails, on");
+    ExplorerTextStyles::Apply (m_fullSendSoundsLabel, ExplorerTextStyles::kFormLabel);
+
+    m_fullSendSounds.SetAnimationsEnabled (false);
+    m_fullSendSounds.SetSegments ({ L"The PC", L"The Apple", L"Both", L"Neither" });
+    m_fullSendSounds.SetSelected (m_choices.bootSoundPlace);
 
     m_fullSendBrowse.SetLabel   (L"Browse...");
     m_fullSendBrowse.SetOnClick ([this] ()
@@ -849,7 +875,9 @@ HRESULT CassoExplorerOptionsDialog::OnOk()
     m_choices.registered  = m_register.IsChecked();
     m_choices.autoPreview  = m_autoPreview.IsChecked();
     m_choices.enterExpands = m_enterExpands.IsChecked();
+    m_choices.autoThumbnails = m_autoThumbnails.IsChecked();
     m_choices.fullSendExtension = s_kFullSendFormats[(size_t) m_fullSendFormat.GetSelected()].extension;
+    m_choices.bootSoundPlace    = m_fullSendSounds.GetSelected();
     m_choices.verifyReads       = m_verifyRows[0].toggle.IsChecked();
     m_choices.verifyWrites      = m_verifyRows[1].toggle.IsChecked();
     m_choices.autoVerify        = m_verifyRows[2].toggle.IsChecked();

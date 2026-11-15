@@ -64,7 +64,9 @@ public:
     //  reads each file when the target asks, while it still holds the
     //  selection it began with; a paste can come long after the selection
     //  moved, so every file is read before the clipboard is set. A file that
-    //  could not be read has its name and why in outFailure.
+    //  could not be read has its name and why in outFailure. A file that fails
+    //  to convert is left out of a copy and the rest are copied, and
+    //  outFailure has each reason on a line though it succeeded.
     //
     //  A cut offers the files to be moved, and `onMovePasted` is called
     //  once a target reports that it pasted them, when the originals are the
@@ -85,6 +87,11 @@ public:
 
     //  A FILEGROUPDESCRIPTORW holding one descriptor per entry.
     static std::vector<uint8_t>  MakeFileGroupDescriptor (const std::vector<DragPayload::Descriptor> & descriptors);
+
+    //  The files, and a FILEGROUPDESCRIPTORW's descriptors, without those at
+    //  the skipped positions.
+    static void                  DropSkipped            (std::vector<std::vector<uint8_t>> & ioFiles, const std::vector<bool> & skipped);
+    static std::vector<uint8_t>  DropSkippedDescriptors (const std::vector<uint8_t> & group, const std::vector<bool> & skipped);
 
     //  A DROPFILES block with its double-terminated wide path list.
     static std::vector<uint8_t>  MakeHDrop (const std::vector<std::wstring> & paths);

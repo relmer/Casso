@@ -65,10 +65,10 @@ public:
         ev.positionDip = POINT { x, y };
 
         ev.kind = DxuiMouseEventKind::Down;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         ev.kind = DxuiMouseEventKind::Up;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
     }
 
 

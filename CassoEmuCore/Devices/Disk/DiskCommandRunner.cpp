@@ -13,6 +13,9 @@
 #include "Machines/Apple2/Common/NativeListing.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/ProDosTypeNames.h"
+#include "Devices/Disk/BlockBuffer.h"
+#include "Devices/Disk/Partitions/CardVolumeEdit.h"
 #include "DiskImageStore.h"
 #include "Core/AppleSingleCodec.h"
 #include "Devices/Disk/Archives/ArchiveVolume.h"
@@ -32,6 +35,7 @@
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
+#include "CassoExplorer/Model/HostAppleFile.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "FileTypes/FileFormatTable.h"
 #include "IntegerBasicDetokenizer.h"
@@ -40,6 +44,8 @@
 #include "Devices/Disk/BlockVolumeOpener.h"
 #include "Devices/Disk/DiskCollectionCommands.h"
 #include "Devices/Disk/DiskInspectCommand.h"
+#include "Devices/Disk/DiskThumbnailCommand.h"
+#include "DiskCheck/ThumbnailStore.h"
 #include "Machines/Apple2/Common/HfsWriter.h"
 #include "Machines/Apple2/Common/ProDosStartup.h"
 
@@ -357,7 +363,7 @@ std::string DiskCommandRunner::FormatDos33Entry (const FileEntry & entry)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry)
+std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry, size_t nameWidth)
 {
     char         detail[96] = {};
     std::string  text;
@@ -366,7 +372,7 @@ std::string DiskCommandRunner::FormatProDosEntry (const FileEntry & entry)
 
     text = std::string (entry.isLocked ? "*" : " ") + entry.name;
 
-    while (text.size() < 18)
+    while (text.size() < nameWidth + 1)
     {
         text += " ";
     }
@@ -594,6 +600,7 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
     std::string                    directory;
     char                           summary[128] = {};
     bool                           isFlat       = false;
+    size_t                         nameWidth    = kNameWidth;
     std::string                    note;
 
 
@@ -643,7 +650,15 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
         hr = ResolveVolumePath (options, opened.kind, opened.sectors, options.disk.path, directory, result);
         CHR (hr);
 
-        hr = AppendDirectoryRows (*volume, opened.kind, directory, options.disk.recurse, result);
+        if (options.disk.recurse)
+        {
+            hr = MeasureNameWidth (*volume, directory, nameWidth);
+        }
+
+        if (SUCCEEDED (hr))
+        {
+            hr = AppendDirectoryRows (*volume, opened.kind, directory, options.disk.recurse, nameWidth, result);
+        }
 
         CHRF (hr, result.FailAction (options.disk.imagePath, "list " + options.disk.path,
                               ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
@@ -820,6 +835,7 @@ HRESULT DiskCommandRunner::AppendDirectoryRows (
     VolumeKind           kind,
     const std::string  & directory,
     bool                 recurse,
+    size_t               nameWidth,
     DiskCommandResult  & result)
 {
     HRESULT        hr        = S_OK;
@@ -846,7 +862,7 @@ HRESULT DiskCommandRunner::AppendDirectoryRows (
             shown.name = directory + "/" + entry.name;
         }
 
-        result.output += (kind == VolumeKind::Dos33) ? FormatDos33Entry (shown) : FormatProDosEntry (shown);
+        result.output += (kind == VolumeKind::Dos33) ? FormatDos33Entry (shown) : FormatProDosEntry (shown, nameWidth);
 
         //  A name that several entries share cannot select one of them, so
         //  each such entry is listed with its index. A unique name has none.
@@ -867,9 +883,47 @@ HRESULT DiskCommandRunner::AppendDirectoryRows (
 
             if (entry.isDirectory)
             {
-                hr = AppendDirectoryRows (volume, kind, below, true, result);
+                hr = AppendDirectoryRows (volume, kind, below, true, nameWidth, result);
                 CHR (hr);
             }
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::MeasureNameWidth
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::MeasureNameWidth (const IVolume & volume, const std::string & directory, size_t & inOutWidth)
+{
+    HRESULT        hr = S_OK;
+    VolumeListing  listing;
+
+
+
+    hr = volume.EnumerateDirectory (FilePath::Parse (directory), listing);
+    CHR (hr);
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        std::string  shown = directory.empty() ? entry.name : directory + "/" + entry.name;
+
+        //  The two spaces after a 15-character ProDOS name in a flat listing.
+        inOutWidth = std::max (inOutWidth, shown.size() + 2);
+
+        if (entry.isDirectory)
+        {
+            hr = MeasureNameWidth (volume, shown, inOutWidth);
+            CHR (hr);
         }
     }
 
@@ -896,28 +950,40 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
 {
     HRESULT                        hr       = S_OK;
     bool                           named    = !options.disk.path.empty();
-    bool                           isProDos = false;
+    bool                           hasDirs  = false;
     bool                           madeAny  = false;
     size_t                         i        = 0;
     DiskImageSession::OpenedImage  opened;
     FilePath                       path;
     std::string                    typed;
     vector<Byte>                   staged;
+    VolumeKind                     kind     = VolumeKind::Unknown;
+    CardVolumeEdit                 card;
+    BlockBuffer                    cardStaged;
+    bool                           isCard   = false;
 
 
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<path>", result));
 
-    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
-    CHR (hr);
+    //  A ProDOS or HFS volume on a card partition is changed by the block.
+    isCard = card.TryOpen (m_fileIo, options.disk.imagePath);
 
-    isProDos = opened.kind == VolumeKind::ProDos;
+    if (!isCard)
+    {
+        hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+        CHR (hr);
+    }
 
-    CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+    kind = isCard ? card.GetKind() : opened.kind;
+
+    hasDirs = HasDirectories (kind);
+
+    CBRFEx (hasDirs, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
             result.FailAction (options.disk.imagePath, "create " + options.disk.path,
-                               std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (opened.kind))));
+                               std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (kind))));
 
-    hr = ResolveVolumePath (options, opened.kind, opened.sectors, options.disk.path, typed, result);
+    hr = ResolveVolumePath (options, kind, isCard ? card.GetImage() : BlockImage (opened.sectors), options.disk.path, typed, result);
     CHR (hr);
 
     path   = FilePath::Parse (typed);
@@ -925,13 +991,15 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
 
     for (i = 1; i <= path.GetDepth(); i++)
     {
-        ProDosVolume   step (staged);
-        VolumeListing  listing;
-        std::string    prefix;
-        vector<Byte>   next;
-        HRESULT        probe   = S_OK;
-        size_t         j       = 0;
-        bool           there   = false;
+        std::unique_ptr<IVolume>       over    = !isCard ? VolumeImage::CreateVolume (kind, staged) : madeAny ? card.OpenEdited (cardStaged) : nullptr;
+        const IVolume                & step    = over != nullptr ? *over : card.GetVolume();
+        VolumeListing                  listing;
+        std::string                    prefix;
+        vector<Byte>                   next;
+        BlockBuffer                    cardNext;
+        HRESULT                        probe   = S_OK;
+        size_t                         j       = 0;
+        bool                           there   = false;
 
         for (j = 0; j < i; j++)
         {
@@ -946,23 +1014,42 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
             continue;
         }
 
-        hr = step.CreateDirectory (FilePath::Parse (prefix), next);
+        hr = isCard ? step.CreateDirectory (FilePath::Parse (prefix), cardNext) : step.CreateDirectory (FilePath::Parse (prefix), next);
 
         CHRF (hr, result.FailAction (options.disk.imagePath, "create " + prefix,
-                              ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
+                              ApplyPrefix (DescribeVolumeRefusal (hr, kind))));
 
-        staged  = next;
-        madeAny = true;
+        staged     = next;
+        cardStaged = cardNext;
+        madeAny    = true;
     }
 
     CBRFEx (madeAny, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS),
             result.FailAction (options.disk.imagePath, "create " + options.disk.path, "it is already on this volume"));
 
-    hr = m_session.SaveAndCommit (opened, staged, result);
+    hr = isCard ? CommitCard (options.disk.imagePath, card, cardStaged, result) : m_session.SaveAndCommit (opened, staged, result);
     CHR (hr);
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::HasDirectories
+//
+//  The file systems mkdir and rmdir change: ProDOS and HFS. The others
+//  have no directories, or are read-only.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskCommandRunner::HasDirectories (VolumeKind kind)
+{
+    return kind == VolumeKind::ProDos || kind == VolumeKind::Hfs;
 }
 
 
@@ -988,7 +1075,7 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
 {
     HRESULT                        hr          = S_OK;
     bool                           named       = !options.disk.path.empty();
-    bool                           isProDos    = false;
+    bool                           hasDirs     = false;
     bool                           holdsThings = false;
     bool                           permitted   = false;
     bool                           confirmed   = false;
@@ -1000,33 +1087,48 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
     std::string                    typed;
     std::string                    declined;
     char                           note[128]   = {};
+    bool                           isCard      = false;
+    VolumeKind                     kind        = VolumeKind::Unknown;
+    CardVolumeEdit                 card;
+    BlockBuffer                    cardEdited;
 
 
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<path>", result));
 
-    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
-    CHR (hr);
+    //  A ProDOS or HFS volume on a card partition is changed by the block.
+    isCard = card.TryOpen (m_fileIo, options.disk.imagePath);
 
-    isProDos = opened.kind == VolumeKind::ProDos;
+    if (!isCard)
+    {
+        hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+        CHR (hr);
+    }
 
-    CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
+    kind = isCard ? card.GetKind() : opened.kind;
+
+    hasDirs = HasDirectories (kind);
+
+    CBRFEx (hasDirs, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
             result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
-                               std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (opened.kind))));
+                               std::format ("this volume is {}, which has no directories", VolumeImage::GetSystemName (kind))));
 
-    hr = ResolveVolumePath (options, opened.kind, opened.sectors, options.disk.path, typed, result);
+    hr = ResolveVolumePath (options, kind, isCard ? card.GetImage() : BlockImage (opened.sectors), options.disk.path, typed, result);
     CHR (hr);
 
     path = FilePath::Parse (typed);
 
+    if (isCard)
     {
-        ProDosVolume  volume (opened.sectors);
-
-        hr = volume.BuildRemovalPlan (path, plan);
+        hr = card.GetVolume().BuildRemovalPlan (path, plan);
+    }
+    else
+    {
+        hr = VolumeImage::CreateVolume (kind, opened.sectors)->BuildRemovalPlan (path, plan);
     }
 
     CHRF (hr, result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
-                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
+                          ApplyPrefix (DescribeVolumeRefusal (hr, kind))));
 
     holdsThings = plan.entries.size() > 1;
     permitted   = !holdsThings || options.disk.recurse;
@@ -1062,16 +1164,19 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
     CBRFEx (confirmed, HRESULT_FROM_WIN32 (ERROR_CANCELLED),
             result.Fail (options.disk.imagePath, options.disk.path, ApplyPrefix (declined)));
 
+    if (isCard)
     {
-        ProDosVolume  volume (opened.sectors);
-
-        hr = volume.RemoveDirectory (path, options.disk.force, edited, outcome);
+        hr = card.GetVolume().RemoveDirectory (path, options.disk.force, cardEdited, outcome);
+    }
+    else
+    {
+        hr = VolumeImage::CreateVolume (kind, opened.sectors)->RemoveDirectory (path, options.disk.force, edited, outcome);
     }
 
     CHRF (hr, result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
-                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
+                          ApplyPrefix (DescribeVolumeRefusal (hr, kind))));
 
-    hr = m_session.SaveAndCommit (opened, edited, result);
+    hr = isCard ? CommitCard (options.disk.imagePath, card, cardEdited, result) : m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
 
     for (const std::string & warning : outcome.warnings)
@@ -1202,7 +1307,83 @@ HRESULT DiskCommandRunner::ApplyEncoding (
             break;
     }
 
+    //  Text and a listing for the PC end each line with Windows' CR LF, as
+    //  every conversion of Casso Explorer's does.
+    if (SUCCEEDED (hr) && options.disk.encoding != CommandLineOptions::DiskOptions::Encoding::Verbatim)
+    {
+        ToWindowsLineEndings (payload.bytes);
+    }
+
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ToWindowsLineEndings
+//
+//  Each line feed with no carriage return before it gets one. A CR LF is
+//  left as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::ToWindowsLineEndings (std::vector<Byte> & inOutBytes)
+{
+    std::vector<Byte>  converted;
+
+
+
+    converted.reserve (inOutBytes.size() + inOutBytes.size() / 16);
+
+    for (size_t i = 0; i < inOutBytes.size(); i++)
+    {
+        if (inOutBytes[i] == '\n' && (i == 0 || inOutBytes[i - 1] != '\r'))
+        {
+            converted.push_back ('\r');
+        }
+
+        converted.push_back (inOutBytes[i]);
+    }
+
+    inOutBytes = std::move (converted);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ApplyOutputEncoding
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::ApplyOutputEncoding (CommandLineOptions & inOutOptions)
+{
+    size_t          lastSeparator = inOutOptions.disk.hostFile.find_last_of ("/\\");
+    std::string     leaf          = (lastSeparator == std::string::npos) ? inOutOptions.disk.hostFile
+                                                                         : inOutOptions.disk.hostFile.substr (lastSeparator + 1);
+    ParsedHostName  parsed;
+
+
+
+    if (inOutOptions.disk.encoding != CommandLineOptions::DiskOptions::Encoding::Verbatim || leaf.empty()
+        || !HostFileNaming::Parse (TextEncoding::NarrowToWide (leaf), parsed))
+    {
+        return;
+    }
+
+    if (parsed.converted == ParsedHostName::ConvertedKind::ApplesoftListing || parsed.converted == ParsedHostName::ConvertedKind::IntegerListing)
+    {
+        inOutOptions.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
+    }
+    else if (parsed.converted == ParsedHostName::ConvertedKind::Text)
+    {
+        inOutOptions.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Text;
+    }
 }
 
 
@@ -1313,10 +1494,13 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     char                           note[128] = {};
     std::unique_ptr<IBlockStore>   store;
     std::unique_ptr<IVolume>       blockVolume;
+    CommandLineOptions             effective = options;
 
 
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<name>", result));
+
+    ApplyOutputEncoding (effective);
 
     //  A large ProDOS or HFS volume is read by the block, so a file is copied out
     //  without reading the volume whole. --index applies to DOS 3.3 only.
@@ -1347,10 +1531,10 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     CHRF (hr, result.FailAction (options.disk.imagePath, "read " + name,
                           ApplyPrefix (DescribeVolumeRefusal (hr, kind))));
 
-    hr = ApplyEncoding (options, payload, result);
+    hr = ApplyEncoding (effective, payload, result);
     CHR (hr);
 
-    hr = ApplyHostFileConversion (options, kind, name, payload, result);
+    hr = ApplyHostFileConversion (effective, kind, name, payload, result);
     CHR (hr);
 
     result.resourceFork    = payload.resourceFork;
@@ -1503,6 +1687,53 @@ std::string DiskCommandRunner::GetAppleDoublePath (const std::string & hostFile)
 
 
     return (path.parent_path() / ("._" + path.filename().string())).string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskCommandRunner::ReadAppleDouble
+//
+//  Nothing is read from a missing or unreadable `._NAME`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::ReadAppleDouble (const CommandLineOptions & options, FilePayload & inOutPayload)
+{
+    HRESULT          hr       = S_OK;
+    vector<Byte>     bytes;
+    AppleSingleFile  single;
+    std::string      error;
+    bool             isDouble = false;
+    bool             typed    = !options.disk.typeName.empty() || options.disk.hasLoadAddress;
+
+
+
+    hr = m_fileIo.ReadAllBytes (GetAppleDoublePath (options.disk.hostFile), bytes);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
+
+    isDouble = AppleSingleCodec::IsAppleDouble (bytes);
+    BAIL_OUT_IF (!isDouble, S_OK);
+
+    hr = AppleSingleCodec::Decode (bytes, single, error);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
+
+    if (single.hasProDosInfo && !typed)
+    {
+        inOutPayload.type       = (Byte) single.fileType;
+        inOutPayload.auxType    = (Word) single.auxType;
+        inOutPayload.hasAuxType = true;
+    }
+
+    inOutPayload.resourceFork    = single.resourceFork;
+    inOutPayload.finderInfo      = single.finderInfo;
+    inOutPayload.hasResourceFork = single.hasResourceFork;
+
+Error:
+    return;
 }
 
 
@@ -1846,7 +2077,7 @@ HRESULT DiskCommandRunner::ResolveFileType (
         else if (form == "A" || form == "BAS") { outType = ProDosVolume::kTypeBasic; }
         else if (form == "I" || form == "INT") { outType = kProDosIntegerType; }
         else if (form == "S" || form == "SYS") { outType = ProDosVolume::kTypeSystem; }
-        else                                           { recognized = false; }
+        else                                   { recognized = ProDosTypeNames::TryParse (form, outType); }
     }
 
     if (!recognized)
@@ -1854,7 +2085,7 @@ HRESULT DiskCommandRunner::ResolveFileType (
         result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Ltype ", options.flagPrefix) + options.disk.typeName
                             + " means nothing on this volume: "
                             + (isDos ? "DOS 3.3 takes T, I, A, B or R"
-                                     : "ProDOS takes TXT, BIN, BAS, INT or SYS")
+                                     : "ProDOS takes a type's abbreviation, such as TXT, BIN, BAS, INT or SYS, or its number, such as $C0")
                             + "\n";
 
         result.exitStatus   = DiskCommandResult::kNoOutput;
@@ -2152,9 +2383,10 @@ Error:
 //
 //  Read a host name in one of the forms Casso Explorer writes on Copy or a
 //  drag: `NAME.Applesoft BASIC.txt`, `NAME#062000`, `NAME.Binary.$2000.bin`
-//  and the rest. With no --as, the entry takes NAME, and a listing's form
-//  selects its conversion when the command line selects none. Any other host
-//  name is left as it is: `PROG.BIN` goes in as PROG.BIN.
+//  and the rest. With no --as, the entry takes NAME. With or without it,
+//  the conversion of a listing's form applies when the command line has no
+//  conversion switch.
+//  Any other host name is left as it is: `PROG.BIN` goes in as PROG.BIN.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2168,7 +2400,7 @@ bool DiskCommandRunner::ApplyHostFileName (CommandLineOptions & inOutOptions, Pa
 
 
 
-    if (!inOutOptions.disk.path.empty() || !HostFileNaming::Parse (TextEncoding::NarrowToWide (leaf), outParsed) || outParsed.catalogName.empty())
+    if (!HostFileNaming::Parse (TextEncoding::NarrowToWide (leaf), outParsed) || outParsed.catalogName.empty())
     {
         return false;
     }
@@ -2180,7 +2412,10 @@ bool DiskCommandRunner::ApplyHostFileName (CommandLineOptions & inOutOptions, Pa
         return false;
     }
 
-    inOutOptions.disk.path = outParsed.catalogName;
+    if (inOutOptions.disk.path.empty())
+    {
+        inOutOptions.disk.path = outParsed.catalogName;
+    }
 
     if (unconverted && outParsed.converted == ParsedHostName::ConvertedKind::ApplesoftListing)
     {
@@ -2246,6 +2481,31 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::CommitCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskCommandRunner::CommitCard (const std::string & imagePath, CardVolumeEdit & card, const BlockBuffer & edited, DiskCommandResult & result)
+{
+    std::string  refusal;
+    HRESULT      hr      = card.Commit (edited, refusal);
+
+
+
+    if (FAILED (hr))
+    {
+        DiskImageSession::RefuseCommit (imagePath, refusal, result);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::RunPut
 //
 //  Placing a file from the host on the disk: read it, convert it if asked, let the
@@ -2275,6 +2535,12 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     vector<Byte>                   edited;
     std::wstring                   importError;
     bool                           imported  = false;
+    bool                           isCard    = false;
+    VolumeKind                     kind      = VolumeKind::Unknown;
+    CardVolumeEdit                 card;
+    BlockBuffer                    cardEdited;
+    FileStamp                      hostStamp;
+    HRESULT                        hrStamp   = S_OK;
 
 
 
@@ -2283,10 +2549,18 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     hostForm = ApplyHostFileName (effective, parsed);
     diskName = GetOnDiskName (effective);
 
-    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
-    CHR (hr);
+    //  A ProDOS or HFS volume on a card partition is changed by the block.
+    isCard = card.TryOpen (m_fileIo, options.disk.imagePath);
 
-    hr = ApplyUser (options, opened.kind, diskName, result);
+    if (!isCard)
+    {
+        hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+        CHR (hr);
+    }
+
+    kind = isCard ? card.GetKind() : opened.kind;
+
+    hr = ApplyUser (options, kind, diskName, result);
     CHR (hr);
 
     hr = m_fileIo.ReadAllBytes (options.disk.hostFile, hostBytes);
@@ -2299,21 +2573,21 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     imported = hostForm && parsed.converted == ParsedHostName::ConvertedKind::Format
             && options.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim
             && options.disk.typeName.empty() && !options.disk.hasLoadAddress
-            && HostFileNaming::CanImport (parsed.format, opened.kind);
+            && HostFileNaming::CanImport (parsed.format, kind);
 
     if (imported)
     {
         if (options.disk.path.empty())
         {
-            diskName = HostFileNaming::MakeImportName (diskName, parsed.format, opened.kind);
+            diskName = HostFileNaming::MakeImportName (diskName, parsed.format, kind);
         }
 
-        hr = FileFormatTable::Import (parsed.format, opened.kind, hostBytes, payload, importError);
+        hr = FileFormatTable::Import (parsed.format, kind, hostBytes, payload, importError);
         CHRF (hr, result.FailAction (options.disk.imagePath, "write " + diskName, TextEncoding::WideToNarrow (importError)));
     }
     else
     {
-        hr = BuildPutPayload (effective, opened.kind, hostBytes, payload, result);
+        hr = BuildPutPayload (effective, kind, hostBytes, payload, result);
         CHR (hr);
     }
 
@@ -2322,22 +2596,40 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
     if (hostForm && parsed.hasType && effective.disk.typeName.empty() && !effective.disk.hasLoadAddress
         && effective.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim)
     {
-        hr = ApplyHostFileType (parsed, opened.kind, payload);
+        hr = ApplyHostFileType (parsed, kind, payload);
         CHRF (hr, result.FailAction (options.disk.imagePath, "write " + diskName, "it has a ProDOS type that DOS 3.3 has no file type for"));
+    }
+
+    ReadAppleDouble (options, payload);
+
+    //  A file with no Apple dates is dated when it was last written on the PC.
+    if (!payload.hasDates)
+    {
+        hrStamp = m_fileIo.Stat (options.disk.hostFile, hostStamp);
+
+        if (SUCCEEDED (hrStamp))
+        {
+            HostAppleFile::SetHostDates (hostStamp.modifiedUnix, payload);
+        }
     }
 
     path = FilePath::Parse (diskName);
 
+    if (isCard)
     {
-        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
+        hr = card.GetVolume().Write (path, payload, cardEdited);
+    }
+    else
+    {
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (kind, opened.sectors);
 
         hr = volume->Write (path, payload, edited);
     }
 
     CHRF (hr, result.FailAction (options.disk.imagePath, "write " + diskName,
-                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
+                          ApplyPrefix (DescribeVolumeRefusal (hr, kind))));
 
-    hr = m_session.SaveAndCommit (opened, edited, result);
+    hr = isCard ? CommitCard (options.disk.imagePath, card, cardEdited, result) : m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
 
 Error:
@@ -2373,29 +2665,44 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
     std::string                    name;
     DeleteOutcome                  outcome;
     vector<Byte>                   edited;
+    bool                           isCard  = false;
+    VolumeKind                     kind    = VolumeKind::Unknown;
+    CardVolumeEdit                 card;
+    BlockBuffer                    cardEdited;
 
 
 
     CBRFEx (named, E_INVALIDARG, ReportMissingParameter ("<name>", result));
 
-    hr = m_session.OpenImage (options.disk.imagePath, opened, result);
-    CHR (hr);
+    //  A ProDOS or HFS volume on a card partition is changed by the block.
+    isCard = card.TryOpen (m_fileIo, options.disk.imagePath);
 
-    hr = ResolveEntryPath (options, opened.kind, opened.sectors, path, name, result);
-    CHR (hr);
-
+    if (!isCard)
     {
-        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (opened.kind, opened.sectors);
+        hr = m_session.OpenImage (options.disk.imagePath, opened, result);
+        CHR (hr);
+    }
 
+    kind = isCard ? card.GetKind() : opened.kind;
 
+    hr = ResolveEntryPath (options, kind, isCard ? card.GetImage() : BlockImage (opened.sectors), path, name, result);
+    CHR (hr);
+
+    if (isCard)
+    {
+        hr = card.GetVolume().Delete (path, cardEdited, outcome);
+    }
+    else
+    {
+        std::unique_ptr<IVolume>  volume = VolumeImage::CreateVolume (kind, opened.sectors);
 
         hr = volume->Delete (path, edited, outcome);
     }
 
     CHRF (hr, result.FailAction (options.disk.imagePath, "delete " + name,
-                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
+                          ApplyPrefix (DescribeVolumeRefusal (hr, kind))));
 
-    hr = m_session.SaveAndCommit (opened, edited, result);
+    hr = isCard ? CommitCard (options.disk.imagePath, card, cardEdited, result) : m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
 
     for (const std::string & warning : outcome.warnings)
@@ -2805,6 +3112,28 @@ bool DiskCommandRunner::IsRunnableAsDos33Greeting (const VolumeListing  & listin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::RunThumbnail
+//
+//  Through the thumbnail store in the folder set, or the one under the
+//  user's local application data with none set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskCommandRunner::RunThumbnail (const CommandLineOptions & options, DiskCommandResult & result)
+{
+    ThumbnailStore  store (m_thumbnailFolder.empty() ? ThumbnailStore::GetDefaultFolder() : m_thumbnailFolder);
+
+
+
+    DiskThumbnailCommand::Run (options, store, result);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::Run
 //
 //  A command this build does not implement reports failure rather than doing
@@ -2880,6 +3209,10 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
 
         case CommandLineOptions::DiskOptions::Command::Inspect:
             DiskInspectCommand::Run (m_fileIo, options.disk.imagePath, result);
+            break;
+
+        case CommandLineOptions::DiskOptions::Command::Thumbnail:
+            RunThumbnail (options, result);
             break;
 
         case CommandLineOptions::DiskOptions::Command::Get:

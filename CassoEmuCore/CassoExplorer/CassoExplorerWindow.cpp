@@ -97,7 +97,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     params.minSizeDip               = { kMinWindowWidthDip, 400 };
     params.resizable                = true;
     params.insetContentBelowCaption = true;
-    params.classNameOverride        = CassoExplorerShell::kWindowClass;
+    params.classNameOverride        = CassoExplorerShell::GetWindowClass();
     params.appIconBig               = LoadIconW (instance, MAKEINTRESOURCEW (IDI_CASSO_EXPLORER));
     params.appIconSmall             = params.appIconBig;
     params.micaBackdrop             = true;
@@ -1062,6 +1062,89 @@ CassoLinkManager & CassoExplorerWindow::GetCassoLinkManager()
 LPCWSTR CassoExplorerWindow::GetCursorForPoint (POINT clientPx) const
 {
     return m_parts->input.GetCursorForPoint (clientPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnLButtonUp
+//
+//  DxuiWindow releases the mouse, and it is captured again while the right
+//  button is down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult CassoExplorerWindow::OnLButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    if ((wParam & MK_RBUTTON) != 0)
+    {
+        SetCapture (GetHwnd());
+    }
+
+    return DxuiWindow::OnLButtonUp (wParam, lParam);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnRButtonDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult CassoExplorerWindow::OnRButtonDown (WPARAM wParam, LPARAM lParam)
+{
+    SetCapture (GetHwnd());
+
+    return DxuiWindow::OnRButtonDown (wParam, lParam);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnRButtonUp
+//
+//  The mouse is released before the release is routed, as DxuiWindow does
+//  for the left button, so a menu or a dialog it opens has the mouse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult CassoExplorerWindow::OnRButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    if ((wParam & MK_LBUTTON) == 0 && GetCapture() == GetHwnd())
+    {
+        ReleaseCapture();
+    }
+
+    return DxuiWindow::OnRButtonUp (wParam, lParam);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnCaptureChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult CassoExplorerWindow::OnCaptureChanged (HWND newCapture)
+{
+    if (newCapture != nullptr && newCapture != GetHwnd())
+    {
+        m_parts->input.ReleasePressed();
+    }
+
+    return DxuiMessageResult::NotHandled;
 }
 
 
