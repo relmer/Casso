@@ -50,6 +50,6 @@ Window checks run on a test copy of the emulator: `CASSO_PROFILE_DIR` set to a s
 
 ## Merge gate (2026-11-15)
 
-- Merged `origin/048-smartport-drives` at `929c28d32`. `scripts\CheckStyle.ps1 -Mode Tree`: OK.
-- `scripts\RunMergeGate.ps1`: passed. Unit suite: 9,915 of 9,915 in Debug and 9,914 of 9,914 in Release. Scenario suite: 245 of 245 in Debug and under ASan. x64 and ARM64 build in Debug and Release.
+- Merged `origin/048-smartport-drives` at `929c28d32`, then at `cf67245e0`. `scripts\CheckStyle.ps1 -Mode Tree`: OK.
+- `scripts\RunMergeGate.ps1`: passed. At `a0cbe9109`: unit suite 9,917 of 9,917 in Debug and 9,916 of 9,916 in Release, scenario suite 250 of 250 in Debug and under ASan. One earlier run failed `AShimAtTheBootstrapSpeed_IsReadWithinASlice`, a serial timing test from master, which passed alone three times and in the next full run. x64 and ARM64 build in Debug and Release.
 - Code analysis failed the first runs on code from 048: C6011 in `CommandLineParserBasic.cpp`, C6387 in `Win32VolumeFormat.cpp` and C28020 in `NuLzw.cpp`, each fixed with a check, and C6262 in five test files, fixed by moving each test's rigs, rings and desk scene to the heap.
