@@ -65,6 +65,10 @@ Drops: drag each image over each drive from File Explorer and from a picker. The
 
 Settings: on the Hardware page, select a port for each storage card and browse. The picker is modal over Settings, lists what that port's drive accepts, and writes the path into the field.
 
+Save form: choose "Save disk as" in the emulator. The picker has a file name box with the suggested name, lists the folder's images, adds the extension to a name typed without one, and prompts before replacing a file. "New folder" works and no other file-changing command is offered.
+
+Casso Explorer's "Write image to..." and "Create image from..." are available only with a connected Apple, and these runs must not open a connection. They are exercised through the `ExplorerWindowParts` harness with a fake connection, and on a real connection only by the owner.
+
 Casso Explorer as a file manager (a test copy, with no saved serial session): the Form factor and Formatted size columns fill in an ordinary folder, and the Casso node lists images by most recent use.
 
 Captures of the picker for each drive kind, in a light and a dark theme, go to the owner for the gestalt check before the branch is reported done.

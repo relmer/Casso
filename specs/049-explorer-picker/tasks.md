@@ -19,6 +19,7 @@
 - Read `.github/copilot-instructions.md` first. EHM in every function with a failable call, declarations at the top, column alignment, five blank lines between top-level constructs, no anonymous namespaces, no angle-bracket includes outside `Pch.h`.
 - New files: add to `CassoEmuCore.vcxproj` / `UnitTest.vcxproj` and their filters, and run `scripts\CheckStyle.ps1 -Mode Staged` before the commit.
 - Insert a new function ahead of the next function's `////` banner, never between a banner and its signature.
+- Functions stay short, per the constitution's function size rule; a `.cpp` that approaches the size limit gets a component class, not a longer file.
 - Commits: subject only, `type(scope): Imperative ...`, checked with `~/.claude/scripts/Check-Prose.ps1 -Commit`, no AI attribution. Push after each checkpoint.
 - Never start the owner's Casso Explorer and never open a serial port. Window checks follow quickstart.md's hard rules.
 - Touch 048's drive bar and desk files only at the call sites listed here.
@@ -31,7 +32,7 @@
 - [ ] T002 Create the folder `CassoEmuCore/CassoExplorer/Picker/` and its filter entries in `CassoEmuCore/CassoEmuCore.vcxproj.filters`
 - [ ] T003 [P] Verify (research.md R1): read `CassoEmuCore/Machines/Apple2/Common/WozLoader.cpp` `Describe` and record in `specs/049-explorer-picker/research.md` whether it returns the INFO disk type and side count from a 512-byte buffer; if it does not, add a task note that T010 factors the INFO read into a function both call
 - [ ] T004 [P] Verify (research.md R1): list every extension accepted by `DiskImageStore::IsMountableImageExtension`, `BlockImageFile`, `BlockDeviceMedia` and `TapeImageLoader::IsTapeFileExtension` and record the list in `specs/049-explorer-picker/research.md`
-- [ ] T005 [P] Verify (research.md R2): read `CassoEmuCore/Devices/Floppy35/UniDisk35Drive.cpp` and its wiring and record in `specs/049-explorer-picker/research.md` whether the UniDisk 3.5 mounts 400K images and 3.5-inch WOZ images
+- [ ] T005 [P] Verify (research.md R2): read `CassoEmuCore/Devices/Floppy35/UniDisk35Drive.cpp` and its wiring and record in `specs/049-explorer-picker/research.md` whether the UniDisk 3.5 mounts 400K images and 3.5-inch WOZ images, and the maximum block count each of the HD20SC and the ProFile mounts; if a finding contradicts FR-011 or FR-012, update spec.md before T013
 - [ ] T006 [P] Verify (research.md R7): read `CatalogModel::GetColumnId`, `TryGetColumn` and `GetDefaultOrder` in `CassoEmuCore/CassoExplorer/Model/CatalogModel.cpp` and record in `specs/049-explorer-picker/research.md` whether every stored column id has the same value after columns are appended after `Sha256`
 - [ ] T007 [P] Verify (research.md R9): find every reader of `GetRecentMedia`, `DiskMru` and the `recentDisks` / `recentDiskLoadedAt` preferences and record each in `specs/049-explorer-picker/research.md` with whether it displays the list, prunes it or seeds folders from it
 
@@ -68,11 +69,11 @@
 
 ### Tests
 
-- [ ] T017 [P] [US3] Write `UnitTest/EmuTests/DropRuleTests.cpp`: `EmulatorShell::TryGetReceivingDrive` for tags 0 and 1, the tape tag, a desk extra at `ShellDeskScene::kExtraDropTagBase`, a drive bar entry at `kBarDropTagBase`, and a tag with no drive; `OnFileDropped` with an 800K image on tag 0 mounts nothing and ejects nothing; with a 140K image on tag 0 it mounts; a tape on a disk tag does nothing
+- [ ] T017 [P] [US3] Write `UnitTest/EmuTests/DropRuleTests.cpp`: `EmulatorShell::TryGetReceivingDrive` for tags 0 and 1, the tape tag, a desk extra at `ShellDeskScene::kExtraDropTagBase`, a drive bar entry at `kBarDropTagBase`, and a tag with no drive; `OnFileDropped` with an 800K image on tag 0 mounts nothing and ejects nothing; with a 140K image on tag 0 it mounts; a tape on a disk tag does nothing; a drop with no drive under it mounts in the existing target drive only when the rule accepts the image there (FR-018)
 
 ### Implementation
 
-- [ ] T018 [US3] Add `DriveAddress` (slot, drive, `isRecorder`, equality, conversion from `DeskDrive`) in `CassoEmuCore/Shell/Components/ShellDrivePickers.h` (the class itself is added in Phase 8)
+- [ ] T018 [US3] Add `DriveAddress` (slot, drive, `isRecorder`, equality, conversion from `DeskDrive`) in `CassoEmuCore/Shell/Components/ShellDrivePickers.h` (the class itself is added in Phase 7)
 - [ ] T019 [US3] Add `EmulatorShell::TryGetReceivingDrive (int dropTag, ReceivingDrive & outDrive, DriveAddress & outAddress)` in `CassoEmuCore/Shell/EmulatorShell.h` and `CassoEmuCore/Shell/EmulatorShellStorage.cpp`, covering the tag ranges that `OnFileDropped` branches on today
 - [ ] T020 [US3] Rewrite `EmulatorShell::OnFileDropped` in `CassoEmuCore/Shell/EmulatorShellStorage.cpp` to classify the path, resolve the tag through `TryGetReceivingDrive`, return without a mount when `DriveImageRule::Accepts` is false, and mount by `DriveAddress` otherwise
 - [ ] T021 [US3] Pass an `OverFn` through `SetDataHandlers` in `ShellWindow::InstallDragDropTarget` (`CassoEmuCore/Shell/Components/ShellWindow.cpp`): one file only, classification cached per drag by path, `DROPEFFECT_COPY` when the rule accepts and `DROPEFFECT_NONE` otherwise, including several files and a file that is not an image (FR-019)
@@ -98,7 +99,7 @@
 
 - [ ] T026 [US2] Append `FormFactor`, `FormattedSize` and `LastUsed` after `Sha256` in `CatalogModel::Column`, add `imageClass`, `lastUsedUnix`, `isStockDisk` and `stockDownloaded` to `CatalogRow`, and extend `GetColumnId`, `TryGetColumn`, `GetDefaultOrder`, `IsHiddenUntilChosen`, `Sort` and `IsBefore` in `CassoEmuCore/CassoExplorer/Model/CatalogModel.h` and `.cpp` per data-model.md
 - [ ] T027 [US2] Classify host files while a listing is built: call `ImageClassifier::Classify` through an `ImageClassCache` on the loader's thread in `CassoEmuCore/CassoExplorer/Browser/BrowserLoader.cpp` (or where `FromHostEntry` is called for a folder) and pass the class to `FromHostEntry`
-- [ ] T028 [US2] Add the column headings "Form factor", "Formatted size" and "Last used", their cell text and alignment in `CassoEmuCore/CassoExplorer/Browser/BrowserCells.cpp` and the header menu's list
+- [ ] T028 [US2] Add the column headings "Form factor", "Formatted size" and "Last used", their cell text and alignment in `CassoEmuCore/CassoExplorer/Browser/BrowserCells.cpp` and the header menu's list, and include the two columns' text where the file manager's search and column filtering read cell text (FR-038), with a case in `UnitTest/CassoExplorer/PickerColumnTests.cpp` that a search for "800K" finds an 800K image
 - [ ] T029 [US2] Add `ImageVolumeFacts` (file system and volume name per image, a cache keyed like `ImageClassCache`, a worker modeled on `DiskThumbnailWorker` that reads the volume's directory header only) in `CassoEmuCore/CassoExplorer/Model/ImageVolumeFacts.h` and `.cpp`
 - [ ] T030 [US2] Make `FileSystem` and `VolumeName` available in folder listings: change `CatalogModel::IsCollectionColumn` so they are no longer collection-only, fill them from `ImageVolumeFacts` as results arrive, and repaint only the rows that changed, in `CassoEmuCore/CassoExplorer/Model/CatalogModel.cpp` and the list pane
 - [ ] T031 [US2] Stub the classification call in T027 to return `NotAnImage`, confirm T024 fails, restore and confirm it passes
@@ -160,9 +161,9 @@
 - [ ] T052 [US4] Add `PickerPrefs` (per `viewKey`: columns, order, widths, sort and placement; the last folder too for a request with no receiving drive) in `CassoEmuCore/CassoExplorer/Picker/PickerPrefs.h` and `.cpp`, stored in a picker file selected by the mechanism T041 found
 - [ ] T053 [US4] Add `ExplorerPickerHost` in `CassoEmuCore/CassoExplorer/Picker/ExplorerPickerHost.h` and `.cpp` per contracts/picker-mode.md: builds the browser, actions, watcher and context for one picker, a window class different from `CassoExplorerShell::kWindowClass`, and `ICassoExplorerHost` methods that do nothing except `CloseWindow`, `GetWindowFor` and `ForEachWindow`
 - [ ] T054 [US4] Guard each dereference in T043's list, in the component that has it, so a window with null services runs
-- [ ] T055 [US4] Add `ExplorerPickerMode` in `CassoEmuCore/CassoExplorer/Window/Managers/ExplorerPickerMode.h` and `.cpp` (mode state, active filter, confirm, cancel, the start location and first-use view of contracts/picker-mode.md) and wire it into `ExplorerWindowParts` and `CassoExplorerWindow`: Enter and double-click on a file confirm, on a folder open it; a disk image or archive row is a file in picker mode; Esc and the close box cancel
+- [ ] T055 [US4] Add `ExplorerPickerMode` in `CassoEmuCore/CassoExplorer/Window/Managers/ExplorerPickerMode.h` and `.cpp` (mode state, active filter, confirm, cancel, the start location and first-use view of contracts/picker-mode.md) and wire it into `ExplorerWindowParts` and `CassoExplorerWindow`: Enter and double-click on a file confirm, on a folder open it; a disk image or archive row is a file in picker mode; the preview pane previews the selected image (FR-029); Esc and the close box cancel
 - [ ] T056 [US4] Add `ExplorerPickerBar` in `CassoEmuCore/CassoExplorer/Window/Panes/ExplorerPickerBar.h` and `.cpp` (header with drive label and `GetAcceptedText`, filter choice when there are several entries, "Create new disk..." or "New blank tape" when `onCreateNew` is set, Insert or Open, Cancel), and lay the window out in picker mode without the menu bar and the file-changing toolbar groups in `CassoEmuCore/CassoExplorer/Window/Managers/ExplorerLayout.cpp`
-- [ ] T057 [US4] Report in the status bar how many files are listed and how many the scope left out, in `CassoEmuCore/CassoExplorer/Window/Panes/ExplorerStatusBar.cpp`
+- [ ] T057 [US4] Report in the status bar how many files are listed and how many the scope left out, and on an empty Casso node that no recent folders exist, in `CassoEmuCore/CassoExplorer/Window/Panes/ExplorerStatusBar.cpp`
 - [ ] T058 [US4] Limit `CassoExplorerDragOut` in picker mode to the plain file path format, in `CassoEmuCore/CassoExplorer/CassoExplorerDragOut.cpp`
 - [ ] T059 [US4] Stub `PickerScope::Passes` to return true and the command gate to allow everything, confirm T045 and T046 fail, restore and confirm they pass
 
@@ -178,17 +179,18 @@
 
 ### Tests
 
-- [ ] T060 [P] [US1] Write `UnitTest/EmuTests/DrivePickersTests.cpp` with a fake picker runner: `Open` twice for one address creates one picker and fronts it; `Open` for a second address creates a second and the first's address is the same; confirm mounts in the picker's drive and closes it; a second `Open` for a drive after its picker closed starts on the Casso node; after a failed mount the picker is open and the failure is reported; `Close` and `CloseAll` mount nothing; a machine switch calls `CloseAll`; the request for each `DeskDriveModel` has the `ReceivingDrive` from `GetReceivingKind` and, for a hard disk, the drive's capacity
+- [ ] T060 [P] [US1] Write `UnitTest/EmuTests/DrivePickersTests.cpp` with a fake picker runner: `Open` twice for one address creates one picker and fronts it; `Open` for a second address creates a second and the first's address is the same; confirm mounts in the picker's drive, adds the image to the recent list and its folder to the Casso node's folders, and closes it; a No to the inspector confirmation mounts nothing and the picker is open; a second `Open` for a drive after its picker closed starts on the Casso node; after a failed mount the picker is open and the failure is reported; `Close` and `CloseAll` mount nothing; a machine switch calls `CloseAll`; the request for each `DeskDriveModel` has the `ReceivingDrive` from `GetReceivingKind` and, for a hard disk, the drive's capacity
 
 ### Implementation
 
 - [ ] T061 [US1] Add `ShellDrivePickers` in `CassoEmuCore/Shell/Components/ShellDrivePickers.h` and `.cpp` per contracts/picker-request.md: one picker per `DriveAddress` through `ExplorerPickerHost`, owned by the emulator window, request built from the drive (title "Insert disk - <drive label>", filters for the drive's images plus "All files", `receivingDrive`, `viewKey` per drive kind, recent entries)
-- [ ] T062 [US1] Confirm path in `ShellDrivePickers`: `ConfirmInspectorDiscard` for a Disk II drive, mount through `ShellDisks::Mount` or `ShellTapeDeck::InsertTape`, add to the recent list, close the picker; a failed mount is reported in the picker, which stays open
+- [ ] T062 [US1] Confirm path in `ShellDrivePickers`: `ConfirmInspectorDiscard` for a Disk II drive, mount through `ShellDisks::Mount` or `ShellTapeDeck::InsertTape`, add to the recent list and to the Casso node's folders through the same calls the old dialog's mount made (FR-049), close the picker; a No to the inspector confirmation returns to the picker (FR-042); a failed mount is reported in the picker, which stays open
 - [ ] T063 [US1] Door callbacks (FR-054): on open start the door-open transition, after a confirm the mount closes it, on any other close run the rule in `ShellDisks::BrowseForDisk` today (a mounted drive closes back, an empty drive rests open); move that logic from `CassoEmuCore/Shell/Components/ShellDisks.cpp` into callbacks `ShellDrivePickers` calls
 - [ ] T064 [US1] Call `ShellDrivePickers::CloseAll` on a machine switch and on the emulator window's close, and `Close (address)` when a drive is removed, from the places in `CassoEmuCore/Shell/` that rebuild the machine and its drives
 - [ ] T065 [US1] Replace the callers: `ShellDisks::BrowseForDisk` (clicks in `EmulatorWindowInput.cpp`, `IDM_DISK_INSERT1` / `IDM_DISK_INSERT2` in `WindowCommandManager.cpp`), the drive bar in `ShellChromeDriveBar.cpp`, `ShellDeskScene::BrowseExtraDrive`, the insert item of `EmulatorShell::ShowDriveContextMenu` in `EmulatorShellStorage.cpp`, and the tape deck's insert in `ShellTapeDeck.cpp`, each with `ShellDrivePickers::Open` for its drive
-- [ ] T066 [US1] Stub `ShellDrivePickers::Open` to always create a picker, confirm T060 fails, restore and confirm it passes
-- [ ] T067 [US1] Window checks 1 to 8 of quickstart.md for each drive kind present on a //e with a Disk II, an Apple 3.5 Drive, a UniDisk 3.5, an HD20SC and a ProFile, and on a //c Plus, using a test copy and posted input; capture each picker; confirm no `CassoExplorer.exe` was started and `CassoExplorerPrefs.json` and the session file have the timestamps read at the start of the run; record in `specs/049-explorer-picker/validation.md`
+- [ ] T066 [US1] Mark rows whose image is inserted in a drive of the running machine with "In slot N drive N" (FR-064): `PickerRequest` gets the mounted paths and their drive labels from `ShellDrivePickers`, refreshed on mount and eject, with a case in `UnitTest/EmuTests/DrivePickersTests.cpp`
+- [ ] T067 [US1] Stub `ShellDrivePickers::Open` to always create a picker, confirm T060 fails, restore and confirm it passes
+- [ ] T068 [US1] Window checks 1 to 8 of quickstart.md for each drive kind present on a //e with a Disk II, an Apple 3.5 Drive, a UniDisk 3.5, an HD20SC and a ProFile, and on a //c Plus, using a test copy and posted input; capture each picker; confirm no `CassoExplorer.exe` was started and `CassoExplorerPrefs.json` and the session file have the timestamps read at the start of the run; record in `specs/049-explorer-picker/validation.md`
 
 **Checkpoint**: merge `origin/048-smartport-drives`, build, run `-Filter DrivePickers`; commit and push.
 
@@ -200,11 +202,11 @@
 
 **Independent Test**: Create a new disk and pick a stock disk from the picker; each is inserted.
 
-- [ ] T068 [US5] Verify (research.md R8): read the stock disk catalog, its download and its consent prompt behind `AssetBootstrap::PromptInsertDiskMru`, and `CreateBlankDiskForDrive` and `ShellTapeDeck::CreateBlankTape`, and record their entry points in `specs/049-explorer-picker/research.md`
-- [ ] T069 [P] [US5] Extend `UnitTest/EmuTests/DrivePickersTests.cpp`: `onCreateNew` is set for floppy drives, hard disks and the recorder; the stock rows of a request are only those `DriveImageRule::Accepts` passes for the drive, and a request with none has no "Stock disks" node; confirming a stock row that is not downloaded runs the download step before the mount, and after a declined consent nothing is mounted and the picker is open
-- [ ] T070 [US5] Set `onCreateNew` in `ShellDrivePickers` to the existing create flow limited to the drive's kinds of disk (`CreateBlankDiskForDrive`), and to `CreateBlankTape` for the recorder; the result is mounted through the confirm path of T062
-- [ ] T071 [US5] Fill `PickerRequest::stockDisks` from the catalog T068 found, filtered by the drive rule; add a "Stock disks" child of the Casso node in `CassoEmuCore/CassoExplorer/Model/TreeModel.cpp` when the request has stock disks, listed through a new `StockDisksListing` in `CassoEmuCore/CassoExplorer/Model/StockDisksListing.h` and `.cpp`, with `UnitTest/CassoExplorer/StockDisksListingTests.cpp`; confirming one that is not downloaded runs the existing consent and download, then the confirm path
-- [ ] T072 [US5] Window check: create a new disk from a Disk II picker and from an Apple 3.5 Drive picker, a blank tape from the recorder's picker, and pick a stock disk; record in `specs/049-explorer-picker/validation.md`
+- [ ] T069 [US5] Verify (research.md R8): read the stock disk catalog, its download and its consent prompt behind `AssetBootstrap::PromptInsertDiskMru`, and `CreateBlankDiskForDrive` and `ShellTapeDeck::CreateBlankTape`, and record their entry points in `specs/049-explorer-picker/research.md`
+- [ ] T070 [P] [US5] Extend `UnitTest/EmuTests/DrivePickersTests.cpp`: `onCreateNew` is set for floppy drives, hard disks and the recorder; the stock rows of a request are only those `DriveImageRule::Accepts` passes for the drive, and a request with none has no "Stock disks" node; confirming a stock row that is not downloaded runs the download step before the mount, and after a declined consent nothing is mounted and the picker is open
+- [ ] T071 [US5] Set `onCreateNew` in `ShellDrivePickers` to the existing create flow limited to the drive's kinds of disk (`CreateBlankDiskForDrive`), and to `CreateBlankTape` for the recorder; the result is mounted through the confirm path of T062
+- [ ] T072 [US5] Fill `PickerRequest::stockDisks` from the catalog T069 found, filtered by the drive rule; add a "Stock disks" child of the Casso node in `CassoEmuCore/CassoExplorer/Model/TreeModel.cpp` when the request has stock disks, listed through a new `StockDisksListing` in `CassoEmuCore/CassoExplorer/Model/StockDisksListing.h` and `.cpp`, with `UnitTest/CassoExplorer/StockDisksListingTests.cpp` and a "Not downloaded" mark on rows not yet on disk; confirming one that is not downloaded runs the existing consent and download, then the confirm path
+- [ ] T073 [US5] Window check: create a new disk from a Disk II picker and from an Apple 3.5 Drive picker, a blank tape from the recorder's picker, and pick a stock disk; record in `specs/049-explorer-picker/validation.md`
 
 **Checkpoint**: commit and push.
 
@@ -214,31 +216,31 @@
 
 **Goal**: A caller that waits for a path gets the picker through `IHostDialogs::PickFileToOpen` or `PickFileToSave`, in the emulator and in Casso Explorer.
 
-- [ ] T073 [P] [US4] Write `UnitTest/Casso/CassoHostDialogsTests.cpp` with a fake inner `IHostDialogs` and a fake picker runner: `PickFileToOpen` with `content == Images` goes to the picker and returns its path or cancel; with `content == Any` it goes to the inner dialogs; `PickFolder` always goes to the inner dialogs; a picker that cannot be created is a failure and the inner dialogs are not called; empty `filters` become one "All files" entry
-- [ ] T074 [US4] Add `FileDialogContent`, `FileDialogSpec::content` and `FileDialogSpec::receivingDrive` in `CassoEmuCore/Seams/IHostDialogs.h`
-- [ ] T075 [US4] Add `CassoHostDialogs` in `CassoEmuCore/Seams/CassoHostDialogs.h` and `.cpp`: a decorator over `Win32HostDialogs` that runs a `ModalPath` picker through `ExplorerPickerHost` with the mechanism T042 found, and make it the emulator's `IHostDialogs` where `EmulatorShell` constructs `m_hostDialogs`
-- [ ] T076 [US4] In the Hardware page's browse callback in `CassoEmuCore/Ui/Settings/SettingsSheet.cpp`, set `content = Images` and `receivingDrive` from the selected port's drive model through `DeskDrivePlan::GetReceivingKind`, with the port's capacity for a hard disk; pass the selected port's model from `CassoEmuCore/Ui/Settings/HardwarePage.cpp`
-- [ ] T077 [US4] Set `content = Images` at the other image open requests in the emulator found by `rg -n "PickFileToOpen" CassoEmuCore/Shell CassoEmuCore/Ui` (the disk compare dialog and any remaining image request), leaving serial, printer and screenshot requests as they are
-- [ ] T078 [US4] Stub `CassoHostDialogs::PickFileToOpen` to always call the inner dialogs, confirm T073 fails, restore and confirm it passes
-- [ ] T079 [US4] Window check per quickstart.md "Settings": browse from the Hardware page for a 3.5-inch port and a hard disk port; the picker is modal over Settings and the path is written into the field; record in `specs/049-explorer-picker/validation.md`
+- [ ] T074 [P] [US4] Write `UnitTest/Casso/CassoHostDialogsTests.cpp` with a fake inner `IHostDialogs` and a fake picker runner: `PickFileToOpen` with `content == Images` goes to the picker and returns its path or cancel; with `content == Any` it goes to the inner dialogs; `PickFolder` always goes to the inner dialogs; a picker that cannot be created is a failure and the inner dialogs are not called; empty `filters` become one "All files" entry
+- [ ] T075 [US4] Add `FileDialogContent`, `FileDialogSpec::content` and `FileDialogSpec::receivingDrive` in `CassoEmuCore/Seams/IHostDialogs.h`
+- [ ] T076 [US4] Add `CassoHostDialogs` in `CassoEmuCore/Seams/CassoHostDialogs.h` and `.cpp`: a decorator over `Win32HostDialogs` that runs a `ModalOpen` picker through `ExplorerPickerHost` with the mechanism T042 found, and make it the emulator's `IHostDialogs` where `EmulatorShell` constructs `m_hostDialogs`
+- [ ] T077 [US4] In the Hardware page's browse callback in `CassoEmuCore/Ui/Settings/SettingsSheet.cpp`, set `content = Images` and `receivingDrive` from the selected port's drive model through `DeskDrivePlan::GetReceivingKind`, with the port's capacity for a hard disk; pass the selected port's model from `CassoEmuCore/Ui/Settings/HardwarePage.cpp`
+- [ ] T078 [US4] Set `content = Images` at the other image open requests in the emulator found by `rg -n "PickFileToOpen" CassoEmuCore/Shell CassoEmuCore/Ui` (the disk compare dialog and any remaining image request), leaving serial, printer and screenshot requests as they are
+- [ ] T079 [US4] Stub `CassoHostDialogs::PickFileToOpen` to always call the inner dialogs, confirm T074 fails, restore and confirm it passes
+- [ ] T080 [US4] Window check per quickstart.md "Settings": browse from the Hardware page for a 3.5-inch port and a hard disk port; the picker is modal over Settings and the path is written into the field; record in `specs/049-explorer-picker/validation.md`
 
-- [ ] T080 [US4] Verify (research.md R6a): record in `specs/049-explorer-picker/research.md` which object a Casso Explorer window's `ExplorerContext::dialogs` refers to and where it is constructed; whether a connected Apple drive's form factor is available in `CassoLinkManager::WriteImageToDisk`; and what `ExplorerCommandManager::ReplacePartition` and the request near `ExplorerCommandManager.cpp:1375` are for
-- [ ] T081 [P] [US4] Write `UnitTest/CassoExplorer/PickerSaveFormTests.cpp` over the picker mode's model: the name box starts with `defaultFileName`; selecting a file row copies its name; Save is unavailable for an empty or invalid name and on the Casso node; a name without an extension gets `defaultExtension`, or the active filter's first extension when none was passed; with `askToReplace` true an existing path gets a prompt and No returns to the picker; with it false the path returns without a prompt; "New folder" is allowed in the save form and in no other form; the start folder order is `initialFolder`, the saved folder, the create folder
-- [ ] T082 [US4] Extend `UnitTest/Casso/CassoHostDialogsTests.cpp`: `PickFileToSave` with `content == Images` goes to the picker's save form and returns its path or cancel; with `content == Any` it goes to the inner dialogs
-- [ ] T083 [US4] Add `PickerForm::ModalSave` and the fields `defaultFileName`, `defaultExtension` and `askToReplace` to `CassoEmuCore/CassoExplorer/Picker/PickerRequest.h`; add the file name box and the Save button to `ExplorerPickerBar`, and the save rules (FR-057 to FR-061) to `ExplorerPickerMode`, with "New folder" on the allowlist for this form only in `CassoEmuCore/CassoExplorer/CassoExplorerCommands.cpp`
-- [ ] T084 [US4] Route `PickFileToSave` with `content == Images` to the save form in `CassoEmuCore/Seams/CassoHostDialogs.cpp`
-- [ ] T085 [US4] Make `CassoHostDialogs` the `IHostDialogs` of Casso Explorer's windows at the place T080 found, with an `ExplorerPickerHost` that is separate from `CassoExplorerShell`'s windows and session
-- [ ] T086 [US4] In `CassoEmuCore/CassoExplorer/Window/Managers/CassoLinkManager.cpp`, set `content = Images` on "Write image to..." (with `receivingDrive` for the connected drive), "Create image from...", "Capture raw disk from..." and "Save CassoLink disk image"; set it on any image request T080 found in `ExplorerCommandManager.cpp`; the `*.bin` and cassette bootstrap `*.wav` requests are not changed
-- [ ] T087 [US4] Set `content = Images` on the emulator's "Save disk as" request in `CassoEmuCore/Shell/Components/ShellDisks.cpp` and the new tape request in `CassoEmuCore/Shell/Components/ShellTapeDeck.cpp`
-- [ ] T088 [US4] Window check with a test copy of Casso Explorer that has no saved serial session and no connection opened by the run: the save form from the emulator's "Save disk as", and, if a connection-free route to "Write image to..." exists in a test harness (`ExplorerWindowParts`), the open form with a 5.25-inch receiving drive; record in `specs/049-explorer-picker/validation.md` what was and was not exercised on a real connection
+- [ ] T081 [US4] Verify (research.md R6a): record in `specs/049-explorer-picker/research.md` which object a Casso Explorer window's `ExplorerContext::dialogs` refers to and where it is constructed; whether a connected Apple drive's form factor is available in `CassoLinkManager::WriteImageToDisk`; and what `ExplorerCommandManager::ReplacePartition` and the request near `ExplorerCommandManager.cpp:1375` are for
+- [ ] T082 [P] [US4] Write `UnitTest/CassoExplorer/PickerSaveFormTests.cpp` over the picker mode's model: the name box starts with `defaultFileName`; selecting a file row copies its name; Save is unavailable for an empty or invalid name and on the Casso node; a name without an extension gets `defaultExtension`, or the active filter's first extension when none was passed; with `askToReplace` true an existing path gets a prompt and No returns to the picker; with it false the path returns without a prompt; "New folder" is allowed in the save form and in no other form; with a receiving drive the save form lists only images the drive accepts (FR-060); the start folder order is `initialFolder`, the saved folder, the create folder
+- [ ] T083 [US4] Extend `UnitTest/Casso/CassoHostDialogsTests.cpp`: `PickFileToSave` with `content == Images` goes to the picker's save form and returns its path or cancel; with `content == Any` it goes to the inner dialogs
+- [ ] T084 [US4] Add `PickerForm::ModalSave` and the fields `defaultFileName`, `defaultExtension` and `askToReplace` to `CassoEmuCore/CassoExplorer/Picker/PickerRequest.h`; add the file name box and the Save button to `ExplorerPickerBar`, and the save rules (FR-057 to FR-061) to `ExplorerPickerMode`, with "New folder" on the allowlist for this form only in `CassoEmuCore/CassoExplorer/CassoExplorerCommands.cpp`
+- [ ] T085 [US4] Route `PickFileToSave` with `content == Images` to the save form in `CassoEmuCore/Seams/CassoHostDialogs.cpp`
+- [ ] T086 [US4] Make `CassoHostDialogs` the `IHostDialogs` of Casso Explorer's windows at the place T081 found, with an `ExplorerPickerHost` that is separate from `CassoExplorerShell`'s windows and session
+- [ ] T087 [US4] In `CassoEmuCore/CassoExplorer/Window/Managers/CassoLinkManager.cpp`, set `content = Images` on "Write image to..." (with `receivingDrive` for the connected drive), "Create image from...", "Capture raw disk from..." and "Save CassoLink disk image"; set it on any image request T081 found in `ExplorerCommandManager.cpp`; the `*.bin` and cassette bootstrap `*.wav` requests are not changed
+- [ ] T088 [US4] Set `content = Images` on the emulator's "Save disk as" request in `CassoEmuCore/Shell/Components/ShellDisks.cpp` and the new tape request in `CassoEmuCore/Shell/Components/ShellTapeDeck.cpp`
+- [ ] T089 [US4] Window check with a test copy of Casso Explorer that has no saved serial session and no connection opened by the run: the save form from the emulator's "Save disk as", and, if a connection-free route to "Write image to..." exists in a test harness (`ExplorerWindowParts`), the open form with a 5.25-inch receiving drive; record in `specs/049-explorer-picker/validation.md` what was and was not exercised on a real connection
 **Checkpoint**: commit and push.
 
 ---
 
 ## Phase 10: Removal of the old dialog (FR-040, FR-041, SC-005)
 
-- [ ] T089 Remove `WindowCommandManager::PromptInsertDiskMru`, `PromptInsertTapeMru` and `PromptForDiskImage` from `CassoEmuCore/Shell/WindowCommandManager.h` and `.cpp`, `ShellDeskScene::BrowseFloppy35` from `CassoEmuCore/Shell/Components/ShellDeskScene.h` and `.cpp`, the dialog call and the modal keep-alive in `ShellDisks::BrowseForDisk`, and the themed dialog behind `AssetBootstrap::PromptInsertDiskMru` with its tests; the stock disk catalog, the create flow and the recent list are not removed
-- [ ] T090 Confirm with `rg -n "PromptInsertDiskMru|PromptInsertTapeMru|PromptForDiskImage|BrowseFloppy35|MakeDiskPickerKind" -g "*.cpp" -g "*.h"` that nothing references the removed code, and that every remaining `PickFileToOpen` in `CassoEmuCore/Shell` and `CassoEmuCore/Ui` is either `content = Images` or not an image request; record the two listings' totals in `specs/049-explorer-picker/validation.md`
+- [ ] T090 Remove `WindowCommandManager::PromptInsertDiskMru`, `PromptInsertTapeMru` and `PromptForDiskImage` from `CassoEmuCore/Shell/WindowCommandManager.h` and `.cpp`, `ShellDeskScene::BrowseFloppy35` from `CassoEmuCore/Shell/Components/ShellDeskScene.h` and `.cpp`, the dialog call and the modal keep-alive in `ShellDisks::BrowseForDisk`, and the themed dialog behind `AssetBootstrap::PromptInsertDiskMru` with its tests; the stock disk catalog, the create flow and the recent list are not removed
+- [ ] T091 Confirm with `rg -n "PromptInsertDiskMru|PromptInsertTapeMru|PromptForDiskImage|BrowseFloppy35|MakeDiskPickerKind" -g "*.cpp" -g "*.h"` that nothing references the removed code, and that every remaining `PickFileToOpen` in `CassoEmuCore/Shell` and `CassoEmuCore/Ui` is either `content = Images` or not an image request; record the two listings' totals in `specs/049-explorer-picker/validation.md`
 
 **Checkpoint**: full unit suite; commit and push.
 
@@ -246,13 +248,13 @@
 
 ## Phase 11: Polish & Cross-Cutting Concerns
 
-- [ ] T091 [P] Write `ScenarioTests/ImageClassifierScenarioTests.cpp`: for every fixture under `UnitTest/Fixtures/CiderPress/` and `Disks/` that the emulator mounts, the classification's form factor and size equal what the mount reports; a fixture that cannot be read fails the test; assert a non-zero count compared (SC-008)
-- [ ] T092 Run `scripts\RunTests.ps1 -Build` and `scripts\RunTests.ps1 -Build -Scenario` and record both results in `specs/049-explorer-picker/validation.md`
-- [ ] T093 Captures of the picker for each drive kind in a light and a dark theme, sent to the owner for the gestalt check; apply the owner's layout changes
-- [ ] T094 Window check of Casso Explorer as a file manager with a test copy that has no saved serial session: the two columns in an ordinary folder and the Casso node's list; restore only the preferences the run changed
-- [ ] T095 Draft the `CHANGELOG.md` entries under `[Unreleased]` (one terse line each: the picker, the columns, the Casso node's list, the drop cursor) and the `README.md` changes, and get the owner's approval of the text before pushing them
-- [ ] T096 Update `docs/` pages about inserting a disk or the insert disk dialog, found by `rg -il "insert disk" docs README.md`
-- [ ] T097 Merge `origin/048-smartport-drives`, run `scripts\CheckStyle.ps1 -Mode Tree`, then `scripts\RunMergeGate.ps1`; record the results in `specs/049-explorer-picker/validation.md`; push; merge to another branch only on the owner's instruction
+- [ ] T092 [P] Write `ScenarioTests/ImageClassifierScenarioTests.cpp`: for every fixture under `UnitTest/Fixtures/CiderPress/` and `Disks/` that the emulator mounts, the classification's form factor and size equal what the mount reports; a fixture that cannot be read fails the test; assert a non-zero count compared (SC-008)
+- [ ] T093 Run `scripts\RunTests.ps1 -Build` and `scripts\RunTests.ps1 -Build -Scenario` and record both results in `specs/049-explorer-picker/validation.md`
+- [ ] T094 Captures of the picker for each drive kind in a light and a dark theme, sent to the owner for the gestalt check; apply the owner's layout changes
+- [ ] T095 Window check of Casso Explorer as a file manager with a test copy that has no saved serial session: the two columns in an ordinary folder and the Casso node's list; restore only the preferences the run changed
+- [ ] T096 Draft the `CHANGELOG.md` entries under `[Unreleased]` (one terse line each: the picker and its save form, the columns, the Casso node's list, the drop cursor, the recent list's size) and the `README.md` changes, and get the owner's approval of the text before pushing them
+- [ ] T097 Update `docs/` pages about inserting a disk or the insert disk dialog, found by `rg -il "insert disk" docs README.md`
+- [ ] T098 Merge `origin/048-smartport-drives`, run `scripts\CheckStyle.ps1 -Mode Tree`, then `scripts\RunMergeGate.ps1`; record the results in `specs/049-explorer-picker/validation.md`; push; merge to another branch only on the owner's instruction
 
 ---
 
@@ -268,7 +270,7 @@
 - **Phase 6 (US4, picker core)**: Phases 2, 4 and 5.
 - **Phase 7 (US1, drive pickers)**: Phases 3 (`DriveAddress`, `TryGetReceivingDrive`) and 6.
 - **Phase 8 (US5, new and stock disks)**: Phase 7.
-- **Phase 9 (US4, modal form)**: Phase 6; independent of Phases 7 and 8.
+- **Phase 9 (US4, modal forms)**: Phase 6. T088 edits `ShellDisks.cpp` and `ShellTapeDeck.cpp`, which Phase 7 also edits, so it follows Phase 7.
 - **Phase 10 (Removal)**: Phases 7, 8 and 9.
 - **Phase 11 (Polish)**: Phase 10.
 
@@ -291,7 +293,7 @@
 - T003 to T007 read different files.
 - T008 and T009; T024 and T025; T033 and T034; T044 to T047; T048 and T049.
 - Phase 3 and Phase 4 touch different files and can proceed in either order once Phase 2 is done.
-- Phase 9 can proceed beside Phases 7 and 8 once Phase 6 is done.
+- Phase 9, except T088, can proceed beside Phases 7 and 8 once Phase 6 is done.
 
 This project's standing rule is one session working serially in this checkout unless the owner requests more, so the parallel markers indicate independence, not a staffing plan.
 

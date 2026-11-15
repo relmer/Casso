@@ -151,7 +151,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - A 2IMG image in nibble or DOS sector order is a 5.25-inch image and is not a block image for the hard disks.
 - A file with an image extension that is truncated, zero bytes long, or has a damaged header has no classification. It is listed in the file manager with empty columns and is absent from every drive's picker.
 - An image that is locked by another program or unreadable is treated the same way and does not stop the listing.
-- An image already inserted in another drive of the running machine is listed and marked as in use; picking it follows the rule the emulator has today for mounting one image twice.
+- An image already inserted in a drive of the running machine is listed with an "In drive" mark that states the drive (FR-064); picking it follows the rule the emulator has today for mounting one image twice.
 - A folder on a slow or disconnected network share does not freeze the picker; classification of its files can be abandoned on navigation to another folder.
 - A tape has no formatted size. Its size column is empty.
 - No image has been inserted yet, so the Casso node has no folders: the list is empty apart from the "Stock disks" node, and the status bar states that no recent folders exist. The user browses from This PC.
@@ -192,7 +192,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 
 - **FR-016**: While an image is dragged over the emulator, the cursor over each drive and the recorder MUST be the copy cursor when the rule accepts the image there and the no-drop cursor when it does not.
 - **FR-017**: A drop on a drive that does not accept the image MUST do nothing: no mount attempt, no eject of the current disk, no error dialog.
-- **FR-018**: A drop that lands on no drive follows the emulator's existing behavior for that case, limited to the drives that accept the image.
+- **FR-018**: A drop that lands on no drive follows the emulator's existing behavior for that case, limited to the drives that accept the image: if the existing target drive does not accept the image, nothing is mounted.
 - **FR-019**: A drag of several files or of a file that is not an image MUST display the no-drop cursor over every drive.
 
 #### The picker contract
@@ -203,7 +203,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - **FR-023**: With a receiving drive, the picker MUST list folders and the files that both match the active entry's masks and are accepted by that drive under the drive rule.
 - **FR-024**: Masks MUST match by file name, case-insensitively, with `*` and `?` wildcards and `;` between masks, as the Windows dialogs do. `*.*` matches every file.
 - **FR-025**: When there are several filter entries, the picker MUST offer them as a choice, with the first active by default; when there is one, no choice is offered.
-- **FR-026**: The picker has two forms. Opened for a drive of the running machine, it is a window of the emulator that is not modal: the emulator stays usable while it is open, and a confirm inserts the image in the drive. Opened by a caller that waits for a path, such as the Hardware page of Settings, it is modal to the caller's window and returns the path. Both forms confirm on the button, Enter or a double-click on a file, and cancel on the button, Esc or the close box.
+- **FR-026**: The picker has three forms. Opened for a drive of the running machine, it is a window of the emulator that is not modal: the emulator stays usable while it is open, and a confirm inserts the image in the drive. Opened by a caller that waits for a path to open, such as the Hardware page of Settings or Casso Explorer's "Write image to...", it is modal to the caller's window and returns the path. Opened by a caller that waits for a path to save to, it is the modal save form (FR-056 to FR-061). Both forms confirm on the button, Enter or a double-click on a file, and cancel on the button, Esc or the close box.
 - **FR-050**: A picker opened for a drive MUST stay associated with that drive until it is closed. A click on another drive MUST NOT change the drive of an open picker; it opens a picker for the other drive, so several pickers can be open, one per drive.
 - **FR-051**: Opening the picker for a drive whose picker is already open MUST bring that picker to the front instead of opening a second one.
 - **FR-052**: After a confirm that inserts the image, a picker opened for a drive MUST close. There is no stay-open option. A confirm whose mount fails reports the failure and the picker stays open.
@@ -215,10 +215,10 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 #### Picker mode in Casso Explorer
 
 - **FR-029**: In picker mode, Casso Explorer MUST offer navigation (folder tree or breadcrumb, back, forward, up, typing a path), sorting, column choice, search within the listing, and the preview of the selected image.
-- **FR-030**: In picker mode, no command that changes files, images or settings outside the picker MUST be reachable: no copy, move, delete, rename, new folder, format, transfer, serial link or image editing. A row can be dragged from the picker onto a drive of the emulator, where the drive rule applies as for any drop; a drag to any other target is not offered.
+- **FR-030**: In picker mode, no command that changes files, images or settings outside the picker MUST be reachable: no copy, move, delete, rename, new folder, format, transfer, serial link or image editing. The exceptions are the picker's commands themselves: "Create new disk..." and "New blank tape" (FR-046, FR-047), and "New folder" in the save form only (FR-060). A row can be dragged from the picker onto a drive of the emulator, where the drive rule applies as for any drop; a drag to any other target is not offered.
 - **FR-031**: Picker mode MUST NOT restore Casso Explorer's saved session, MUST NOT open a serial port or a network connection, and MUST NOT write to the saved session on close.
 - **FR-032**: Picker mode MUST save, per kind of request, the view (columns, sort, window size) between uses, separately from the file manager's saved state. A picker opened for a drive does not save its location. A picker with no receiving drive also saves its last folder.
-- **FR-033**: A picker opened for a drive MUST use, the first time, a details view with file name, form factor, formatted size, file system and volume name columns, sorted by name, at a density suited to several hundred rows.
+- **FR-033**: A picker opened for a drive MUST use, the first time, a details view with file name, form factor, formatted size, file system, volume name, last used and folder columns, sorted by last used with the newest first, at the row height of the file manager's details view, so a window of the default size has at least 20 rows.
 - **FR-034**: A picker opened for a drive MUST state the receiving drive in its title or header, for example "Insert disk - Apple 3.5 Drive, slot 5 drive 1", and MUST state what is being listed, for example "400K and 800K images".
 - **FR-035**: The picker MUST start in the caller's starting folder. Without one, a picker opened for a drive starts on the Casso node's list (FR-043) every time, and any other picker starts in the last folder used for that kind of request, or the emulator's disk folder the first time.
 
@@ -233,7 +233,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 
 - **FR-040**: The insert disk dialog MUST be removed, and every place that opened it MUST open the picker for its drive: a click on a Disk II, the Disk menu's insert commands, the drive bar, and the keyboard shortcuts.
 - **FR-041**: The Windows file pickers for 3.5-inch images (the drive bar, the desk drives and the drive context menu), for hard disk images in Settings, and for tapes MUST be replaced by the picker for the corresponding drive kind.
-- **FR-042**: The drive door animation and the confirmation before replacing a disk with unsaved inspector edits MUST work around the picker the way they work around the dialog today.
+- **FR-042**: The confirmation before replacing a disk that has unsaved inspector edits MUST appear when the user confirms an image in the picker, before the mount; a No returns to the picker and the disk is not replaced. The door is covered by FR-054.
 
 #### The Casso node's list, new disks and stock disks
 
@@ -245,6 +245,8 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - **FR-047**: In a picker opened for the recorder, a "New blank tape" command MUST create a blank tape and return it as the pick.
 - **FR-048**: In a picker opened for a drive, a "Stock disks" node under the Casso node MUST list the stock system disks that the drive accepts, whether downloaded or not, with a column or mark for the ones not downloaded. Picking one that is not downloaded MUST download it with the consent step the old dialog had, then return it as the pick. The node is absent when no stock disk fits the drive, and stock disks are not rows of the Casso node's list.
 - **FR-049**: An insert through the picker MUST update the recent list and the Casso node's folders exactly as an insert through the old dialog did.
+
+- **FR-064**: In a picker opened from the emulator, a row whose image is inserted in a drive of the running machine MUST be marked with that drive, for example "In slot 6 drive 1".
 
 #### The save form
 
@@ -273,8 +275,8 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - **SC-001**: For every pairing of drive kind and image kind, the picker's listing, the drop cursor, the drop result and the mount result are the same.
 - **SC-002**: Opened for a drive, the picker lists zero images that the drive then fails to mount for form factor or size.
 - **SC-003**: A folder of 500 images on a local drive is listed in under one second and has both columns filled in under two seconds on first visit, and in under half a second on a return visit.
-- **SC-004**: A user can go from a click on a drive to an inserted image in three actions when the image is in the last-used folder: click the drive, click the image, confirm.
-- **SC-005**: No insert disk dialog and no Windows file picker for a disk or tape image remains reachable in the emulator.
+- **SC-004**: A user can go from a click on a drive to an inserted image in three actions when the image is in the Casso node's list: click the drive, click the image, confirm.
+- **SC-005**: No insert disk dialog and no Windows file dialog for opening or saving a disk or tape image remains reachable in the emulator or in Casso Explorer.
 - **SC-006**: Opening and closing the picker any number of times does not open a serial port, does not restore a saved session and does not change the file manager's saved session.
 - **SC-007**: In picker mode, zero file-changing or connection commands are reachable by any input route.
 - **SC-008**: Every image in the test collection that the emulator can mount is classified, and every classification matches what the mount reports for that image.
@@ -286,7 +288,7 @@ Casso Explorer's tree already has a Casso node. Its children are the folders Cas
 - The picker lists folders and files. It does not browse into an image or an archive to pick something inside, although the preview of the selected image is available.
 - An "All files" filter entry passed by a caller for a drive-scoped request widens the masks only. The drive rule applies regardless.
 - Hidden files, natural sort order and locale formatting follow the file manager's existing behavior.
-- The picker runs inside the emulator's process as a window of the emulator, unless the plan finds a reason against it. It is not the user's running Casso Explorer and has no access to that window or its session. FR-031 applies either way.
+- A picker opened from the emulator runs inside the emulator's process as a window of the emulator. It is not the user's running Casso Explorer and has no access to that window or its session. A picker opened from a Casso Explorer window runs in that process (FR-063). FR-031 applies to both.
 - This work is cut from `048-smartport-drives` and merges 048 again before it lands, so 048's drive kinds and Casso Explorer from 033 are both present.
 - The hard disk limit in FR-012 covers the HD20SC and the ProFile only. Other block devices, such as CFFA and A2Pico cards, are not drive kinds on the desk or the drive bar and accept 140K and 800K block images; the drive rule does not apply to them.
 - 048 makes the mount-side check for FR-012 in its hard disk wiring. This work merges it and does not duplicate it.

@@ -6,7 +6,7 @@
 
 ## Summary
 
-Replace the insert disk dialog and the Windows file pickers for disk and tape images with Casso Explorer in a picker mode. The work has five parts: an image classifier that reads a file's extension, length and first 512 bytes; a drive rule used by the picker, by drops and by tests of the mount code; a picker window that is a `CassoExplorerWindow` hosted in the emulator's process with no session and no links; new columns and a Casso node that lists images by most recent use; and the removal of the old dialog.
+Replace the insert disk dialog and the Windows file pickers for disk and tape images with Casso Explorer in a picker mode. The work is: an image classifier that reads a file's extension, length and first 512 bytes; a drive rule used by the picker, by drops and by tests of the mount code; a picker window that is a `CassoExplorerWindow` hosted in the emulator's process with no session and no links; new columns and a Casso node that lists images by most recent use; a save form and the same picker for Casso Explorer's image requests; and the removal of the old dialog.
 
 Design decisions and their reasons are in [research.md](research.md). Types are in [data-model.md](data-model.md). The interfaces other code calls are in [contracts/](contracts/).
 

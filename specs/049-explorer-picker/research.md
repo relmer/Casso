@@ -93,7 +93,7 @@ A test builds an `ExplorerPickerHost` over a fake file system and asserts that t
 
 **Decision**:
 - **Drive picker, not modal** (FR-026, FR-050 to FR-054). A new shell component, `ShellDrivePickers`, has one entry per receiving drive (slot and drive, or the recorder). `Open (drive)` fronts the drive's picker when one exists, else creates one owned by the emulator window. A confirm calls a callback that mounts through `ShellDisks::Mount` or `ShellTapeDeck::InsertTape`, then closes the picker. A machine switch, a drive's removal and the emulator window's close call `CloseAll` or `Close (drive)`.
-- **Path picker, modal** (the Hardware page of Settings). `CassoHostDialogs`, a decorator over `Win32HostDialogs`, implements `IHostDialogs::PickFileToOpen`: when the `FileDialogSpec` is for images, it runs a picker window modally over `owner` and returns the path; every other request, and `PickFileToSave` and `PickFolder`, pass through to `Win32HostDialogs`.
+- **Path picker, modal** (the Hardware page of Settings). `CassoHostDialogs`, a decorator over `Win32HostDialogs`, implements `IHostDialogs::PickFileToOpen`: when the `FileDialogSpec` is for images, it runs a picker window modally over `owner` and returns the path; every other open request, and `PickFolder`, pass through to `Win32HostDialogs`. Save requests are in R6a.
 
 **`FileDialogSpec` additions**: `content` (`Any` or `Images`, default `Any`) and `receivingDrive` (an optional `ReceivingDrive`). An image caller sets `content`, which is a one-line change per caller. Inferring "image" from the masks is not used: a caller with `*.*` would be routed by accident.
 
