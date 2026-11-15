@@ -135,9 +135,8 @@ void StorageCardWiring::WireAppleScsiCard (const SlotConfig & slot, AppleScsiCar
 //
 //  RejectFloppyImage
 //
-//  A 140K, 400K, 800K or 1.44 MB image is a floppy disk, whatever its
-//  container, and an HD20SC or a ProFile doesn't mount one: a floppy drive
-//  mounts it. Any other size the drive fits mounts, since real SCSI
+//  A 140K, 400K or 800K image is a floppy disk, whatever its container, and
+//  an HD20SC or a ProFile doesn't mount one: a floppy drive mounts it. Any other size the drive fits mounts, since real SCSI
 //  cards take a disk of any capacity and people make images of every size. The CFFA and A2Pico cards host floppy images legitimately, so
 //  this is checked here and not in BlockDeviceMedia.
 //

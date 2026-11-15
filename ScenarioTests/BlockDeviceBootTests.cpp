@@ -186,23 +186,23 @@ public:
 
 
     //  AN IMAGE OF ANY OTHER SIZE MOUNTS ON A HARD DISK: a 64-block volume
-    //  and one a block past a 1.44 MB floppy are hard disk images.
+    //  and a 1.44 MB one, which no drive Casso models mounts as a floppy.
     TEST_METHOD (HardDisks_MountAnImageOfAnyOtherSize)
     {
         FakeDiskFileIo           io;
-        std::vector<Byte>        tiny     (64   * BlockDeviceMedia::kBlockBytes, 0);
-        std::vector<Byte>        pastHigh (2881 * BlockDeviceMedia::kBlockBytes, 0);
-        std::vector<PortConfig>  ports    = MakeScsiPorts (6, "C:\\disks\\tiny.po");
+        std::vector<Byte>        tiny        (64   * BlockDeviceMedia::kBlockBytes, 0);
+        std::vector<Byte>        highDensity (2880 * BlockDeviceMedia::kBlockBytes, 0);
+        std::vector<PortConfig>  ports       = MakeScsiPorts (6, "C:\\disks\\tiny.po");
 
 
 
         io.files["C:\\disks\\tiny.po"]  = tiny;
         io.stamps["C:\\disks\\tiny.po"] = FileStamp { tiny.size(), 1 };
-        io.files["C:\\disks\\past.po"]  = pastHigh;
-        io.stamps["C:\\disks\\past.po"] = FileStamp { pastHigh.size(), 1 };
+        io.files["C:\\disks\\1440k.po"]  = highDensity;
+        io.stamps["C:\\disks\\1440k.po"] = FileStamp { highDensity.size(), 1 };
 
         ports[5].device = kpszHd20scDevice;
-        ports[5].image  = "C:\\disks\\past.po";
+        ports[5].image  = "C:\\disks\\1440k.po";
 
         TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 7, kpszAppleScsiCardDevice, ports } }, io);
 

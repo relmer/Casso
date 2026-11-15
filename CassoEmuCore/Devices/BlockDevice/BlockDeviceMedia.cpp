@@ -52,14 +52,13 @@ BlockDeviceMedia::~BlockDeviceMedia()
 
 bool BlockDeviceMedia::IsFloppyBlockCount (uint32_t blockCount)
 {
-    constexpr uint32_t  kBlocks140K  = 280;
-    constexpr uint32_t  kBlocks400K  = 800;
-    constexpr uint32_t  kBlocks800K  = 1600;
-    constexpr uint32_t  kBlocks1440K = 2880;
+    constexpr uint32_t  kBlocks140K = 280;
+    constexpr uint32_t  kBlocks400K = 800;
+    constexpr uint32_t  kBlocks800K = 1600;
 
 
 
-    return blockCount == kBlocks140K || blockCount == kBlocks400K || blockCount == kBlocks800K || blockCount == kBlocks1440K;
+    return blockCount == kBlocks140K || blockCount == kBlocks400K || blockCount == kBlocks800K;
 }
 
 

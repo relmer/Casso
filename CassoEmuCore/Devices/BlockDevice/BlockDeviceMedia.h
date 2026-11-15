@@ -69,9 +69,11 @@ public:
 
     static bool  IsPathAttached (const std::string & path);
 
-    //  Whether a block count is a floppy disk's: 280 blocks (140K), 800
-    //  (400K), 1,600 (800K) or 2,880 (1.44 MB). A hard disk doesn't mount a
-    //  floppy image; any other size it fits, it mounts.
+    //  Whether a block count is the size of a floppy disk a Casso drive
+    //  mounts: 280 blocks (140K), 800 (400K) or 1,600 (800K). A hard disk
+    //  doesn't mount a floppy image; any other size it fits, it mounts. 1.44 MB
+    //  (2,880 blocks) isn't one: no drive Casso models mounts a 1.44 MB disk,
+    //  so such an image mounts on a hard disk until one does.
     static bool  IsFloppyBlockCount (uint32_t blockCount);
 
 private:
