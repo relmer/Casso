@@ -99,9 +99,9 @@ void PascalMapReader::Read (const SectorSource & source, FileMap & outMap)
     {
         outMap.isCatalogComplete = false;
         outMap.unreadableCell    = badBlock;
-        writer.AddFinding (FindingKind::FileChainBroken, badBlock, L"The directory cannot be read past " + writer.DescribeCell (badBlock) + L", " +
-                                                                   FileMapWriter::DescribeReason (writer.GetResult (badBlock) == SectorResult::Missing
-                                                                                                  ? ChainReason::MissingSector : ChainReason::BadSector));
+        writer.AddFinding (FindingKind::FileChainBroken, badBlock, L"Expected a readable directory, but found " +
+                                                                   writer.DescribeLink (writer.GetResult (badBlock) == SectorResult::Missing ? ChainReason::MissingSector
+                                                                                                                                              : ChainReason::BadSector, badBlock));
     }
 
     total             = GetWord (&directory[s_kTotalBlocks]);
@@ -132,14 +132,13 @@ void PascalMapReader::Read (const SectorSource & source, FileMap & outMap)
 
         if (first < previous)
         {
-            writer.AddFinding (FindingKind::PascalEntryOutOfOrder, first, outMap.files[index].path + L" starts at " + writer.DescribeCell (first) +
-                                                                          L", before the entry ahead of it ends");
+            writer.AddFinding (FindingKind::PascalEntryOutOfOrder, first, std::format (L"{}: expected a first block of at least {}, but found {}", outMap.files[index].path, previous, first));
         }
 
         if (next <= first || next > total)
         {
-            writer.AddFinding (FindingKind::PascalEntryOutOfRange, first, std::format (L"{} runs from block {} to block {}, which does not fit in the volume of {} blocks",
-                                                                                       outMap.files[index].path, first, next, total));
+            writer.AddFinding (FindingKind::PascalEntryOutOfRange, first, std::format (L"{}: expected blocks within the volume's {} blocks, but found first block {} and next block {}",
+                                                                                       outMap.files[index].path, total, first, next));
             continue;
         }
 
@@ -153,7 +152,7 @@ void PascalMapReader::Read (const SectorSource & source, FileMap & outMap)
 
     if (entries != GetWord (&directory[s_kFileCount]))
     {
-        writer.AddFinding (FindingKind::PascalFileCountDiffers, kFirstDirectoryBlock, std::format (L"The directory gives {} files but has {} entries",
+        writer.AddFinding (FindingKind::PascalFileCountDiffers, kFirstDirectoryBlock, std::format (L"Expected a directory file count of {1}, but found {0}",
                                                                                                    GetWord (&directory[s_kFileCount]), entries));
         writer.AddCount ({ kFirstDirectoryBlock, s_kFileCount, GetWord (&directory[s_kFileCount]), entries, L"the directory's file count" });
     }

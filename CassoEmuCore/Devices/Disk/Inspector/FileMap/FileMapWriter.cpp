@@ -329,7 +329,7 @@ void FileMapWriter::Finalize()
 
     if (m_map.usesUnchecked)
     {
-        AddFinding (FindingKind::FileMapUnchecked, -1, L"The file map was built from sectors whose checksums were not checked");
+        AddFinding (FindingKind::FileMapUnchecked, -1, std::format (L"Expected every sector of the file map read with checksums checked, but found {} read without", CountUnchecked()));
     }
 }
 
@@ -363,12 +363,12 @@ void FileMapWriter::SettleCell (int cell)
         }
 
         out.role = SectorRole::CrossLinked;
-        AddFinding (FindingKind::FileCrossLinked, cell, DescribeCell (cell) + L" is used by " + names);
+        AddFinding (FindingKind::FileCrossLinked, cell, L"Expected " + DescribeCell (cell) + L" in one file, but found it in " + names);
     }
     else if (out.owners.size() == 1 && m_hasBitmap && !isUsed)
     {
         out.role = SectorRole::OwnedMarkedFree;
-        AddFinding (FindingKind::FileOwnedMarkedFree, cell, DescribeCell (cell) + L" belongs to " + m_map.files[out.owners[0]].path + L" but the bitmap marks it free");
+        AddFinding (FindingKind::FileOwnedMarkedFree, cell, L"Expected " + DescribeCell (cell) + L" of " + m_map.files[out.owners[0]].path + L" marked used in the bitmap, but found it free");
     }
     else if (out.owners.size() == 1)
     {
@@ -381,7 +381,7 @@ void FileMapWriter::SettleCell (int cell)
     else if (isUsed)
     {
         out.role = SectorRole::AllocatedUnowned;
-        AddFinding (FindingKind::FileAllocatedUnowned, cell, DescribeCell (cell) + L" is marked used but no file uses it");
+        AddFinding (FindingKind::FileAllocatedUnowned, cell, L"Expected " + DescribeCell (cell) + L" marked free in the bitmap, since it isn't in any file, but found it used");
     }
 
     m_map.usesUnchecked = m_map.usesUnchecked || (out.result == SectorResult::NotChecked && out.role != SectorRole::Free);
@@ -425,13 +425,12 @@ void FileMapWriter::SettleFiles()
         if (!file.isDeleted && file.chainReason != ChainReason::None)
         {
             file.states |= MappedFile::kChainBroken;
-            AddFinding (FindingKind::FileChainBroken, file.chainCell, file.path + L": its chain stops at " + DescribeCell (file.chainCell) + L", " + DescribeReason (file.chainReason),
-                        (file.chainReason == ChainReason::BadSector || file.chainReason == ChainReason::MissingSector) ? FindingWeight::Suspect : FindingWeight::Damage);
+            AddFinding (FindingKind::FileChainBroken, file.chainCell, file.path + L": expected a chain that ends, but found " + DescribeLink (file.chainReason, file.chainCell));
         }
 
         if (!file.isDeleted && (file.states & MappedFile::kTouchesBadSectors) != 0)
         {
-            AddFinding (FindingKind::FileTouchesBadSectors, -1, file.path + L" uses bad or missing sectors");
+            AddFinding (FindingKind::FileTouchesBadSectors, -1, std::format (L"{}: expected readable sectors, but found {} bad or missing", file.path, CountBad (file)));
         }
     }
 }
@@ -679,11 +678,13 @@ int FileMapWriter::GetPhysical (int cell) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FileMapWriter::DescribeReason
+//  FileMapWriter::DescribeLink
+//
+//  What a chain found where it stopped, after "but found".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring FileMapWriter::DescribeReason (ChainReason reason)
+std::wstring FileMapWriter::DescribeLink (ChainReason reason, int cell) const
 {
     std::wstring  text;
 
@@ -691,15 +692,51 @@ std::wstring FileMapWriter::DescribeReason (ChainReason reason)
 
     switch (reason)
     {
-        case ChainReason::Loop:          text = L"which it has already passed";       break;
-        case ChainReason::OutsideVolume: text = L"which is outside the volume";       break;
-        case ChainReason::BadSector:     text = L"which is bad";                      break;
-        case ChainReason::MissingSector: text = L"which is missing";                  break;
-        case ChainReason::TooLong:       text = L"longer than the volume";            break;
-        default:                                                                      break;
+        case ChainReason::Loop:          text = L"a link back to " + DescribeCell (cell);                          break;
+        case ChainReason::OutsideVolume: text = L"a link outside the volume";                                     break;
+        case ChainReason::BadSector:     text = L"a link to " + DescribeCell (cell) + L", which has a bad checksum"; break;
+        case ChainReason::MissingSector: text = L"a link to " + DescribeCell (cell) + L", which is missing";        break;
+        case ChainReason::TooLong:       text = L"more links than the volume has room for";                       break;
+        default:                                                                                                   break;
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapWriter::CountUnchecked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FileMapWriter::CountUnchecked() const
+{
+    return static_cast<int> (std::count_if (m_map.cells.begin(), m_map.cells.end(), [] (const MapCell & cell)
+    {
+        return cell.result == SectorResult::NotChecked && cell.role != SectorRole::Free;
+    }));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapWriter::CountBad
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FileMapWriter::CountBad (const MappedFile & file) const
+{
+    return static_cast<int> (std::count_if (file.sectors.begin(), file.sectors.end(), [this] (const FilePlace & place)
+    {
+        return place.cell >= 0 && (m_map.cells[place.cell].result == SectorResult::Bad || m_map.cells[place.cell].result == SectorResult::Missing);
+    }));
 }
 
 
@@ -736,6 +773,9 @@ FindingWeight FileMapWriter::GetWeight (FindingKind kind)
         case FindingKind::Dos33HeaderLost:
         case FindingKind::FileRepeatedByte:
         case FindingKind::ImageAlmostBlank:
+        case FindingKind::CpmExtentMissing:
+        case FindingKind::CpmRecordsPastBlocks:
+        case FindingKind::CpmBlockInDirectory:
             weight = FindingWeight::Damage;
             break;
 

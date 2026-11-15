@@ -244,7 +244,7 @@ void Dos33MapReader::Read (const SectorSource & source, FileMap & outMap)
         {
             outMap.isCatalogComplete = false;
             outMap.unreadableCell    = cell;
-            writer.AddFinding (FindingKind::FileChainBroken, cell, L"The catalog stops at " + writer.DescribeCell (cell) + L", " + FileMapWriter::DescribeReason (reason));
+            writer.AddFinding (FindingKind::FileChainBroken, cell, L"Expected a catalog chain that ends, but found " + writer.DescribeLink (reason, cell));
             break;
         }
 

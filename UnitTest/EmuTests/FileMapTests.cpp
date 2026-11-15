@@ -371,6 +371,39 @@ public:
 
 
 
+    TEST_METHOD (CpmExtentsAndBlocksAreChecked)
+    {
+        vector<Byte>  missing   = Images::MakeCpm();
+        vector<Byte>  records   = Images::MakeCpm();
+        vector<Byte>  directory = Images::MakeCpm();
+        vector<Byte>  past      = Images::MakeCpm();
+        FileMap       map;
+
+
+
+        //  PIP.COM's second extent numbered 2, so extent 1 is missing.
+        Images::GetCpmSector (missing, 3, 0)[1 * 32 + 12] = 2;
+        map = MapOf (missing, false);
+        AssertOnce (map, FindingKind::CpmExtentMissing, false);
+        Assert::IsTrue (map.verdict == FileSystemVerdict::Bad);
+
+        //  NOTES.TXT's 16 records fill two blocks, and the entry has one.
+        Images::GetCpmSector (records, 3, 0)[3 * 32 + 15] = 0x10;
+        AssertOnce (MapOf (records, false), FindingKind::CpmRecordsPastBlocks, true);
+
+        //  NOTES.TXT's block is the directory's second.
+        Images::GetCpmSector (directory, 3, 0)[3 * 32 + 16] = 1;
+        AssertOnce (MapOf (directory, false), FindingKind::CpmBlockInDirectory, true);
+
+        //  NOTES.TXT's 8 records fill one block, and it has a second: a note.
+        Images::GetCpmSector (past, 3, 0)[3 * 32 + 17] = 30;
+        map = MapOf (past, false);
+        AssertOnce (map, FindingKind::CpmBlocksPastRecords, true);
+        Assert::IsTrue (map.verdict == FileSystemVerdict::Ok);
+    }
+
+
+
     TEST_METHOD (TheTabSaysWhereEachSectorSitsInItsFile)
     {
         FileMap           map  = MapOf (Images::MakeDos33(), false);

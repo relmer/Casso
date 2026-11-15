@@ -59,7 +59,7 @@ public:
     std::wstring   DescribeCell (int cell) const;
     int            GetPhysical  (int cell) const;
 
-    static std::wstring   DescribeReason (ChainReason reason);
+    std::wstring          DescribeLink   (ChainReason reason, int cell) const;
     static FindingWeight  GetWeight      (FindingKind kind);
 
 private:
@@ -67,6 +67,9 @@ private:
     void  SettleFiles        ();
     void  CheckRepeatedBytes ();
     void  CheckAlmostBlank   ();
+
+    int   CountUnchecked () const;
+    int   CountBad       (const MappedFile & file) const;
 
     static bool  IsOneByte (const vector<Byte> & bytes, size_t count);
 

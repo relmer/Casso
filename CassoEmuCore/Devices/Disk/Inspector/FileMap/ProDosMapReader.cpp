@@ -169,8 +169,7 @@ void ProDosMapReader::ReadDirectory (Walk & walk, int keyBlock, const std::wstri
             }
             else
             {
-                walk.writer.AddFinding (FindingKind::FileChainBroken, at, L"The volume directory stops at " + walk.writer.DescribeCell (at) + L", " +
-                                                                          FileMapWriter::DescribeReason (reason));
+                walk.writer.AddFinding (FindingKind::FileChainBroken, at, L"Expected a volume directory chain that ends, but found " + walk.writer.DescribeLink (reason, at));
             }
 
             isRead = false;

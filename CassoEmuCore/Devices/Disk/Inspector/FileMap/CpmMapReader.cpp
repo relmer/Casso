@@ -22,6 +22,8 @@ static constexpr int   s_kReadOnly      = 9;
 static constexpr int   s_kSystemTracks  = 3;
 static constexpr int   s_kFoundEntries  = 4;
 static constexpr Byte  s_kHighBit       = 0x80;
+static constexpr int   s_kDirectoryBlock = 1;
+static constexpr int   s_kFirstFileBlock = 2;
 
 
 
@@ -133,7 +135,7 @@ void CpmMapReader::Read (const SectorSource & source, FileMap & outMap)
     {
         outMap.isCatalogComplete = false;
         outMap.unreadableCell    = kDirectoryTrack * SectorSource::kSectors + badSector;
-        writer.AddFinding (FindingKind::FileChainBroken, outMap.unreadableCell, L"The directory cannot be read at " + writer.DescribeCell (outMap.unreadableCell));
+        writer.AddFinding (FindingKind::FileChainBroken, outMap.unreadableCell, L"Expected a readable directory, but found " + writer.DescribeLink (ChainReason::BadSector, outMap.unreadableCell));
     }
 
     //  The entries: invalid ones reported, the system entry of user 31 left
@@ -153,7 +155,7 @@ void CpmMapReader::Read (const SectorSource & source, FileMap & outMap)
         else if (!IsValid (bytes, isInUse))
         {
             writer.AddFinding (FindingKind::CpmInvalidEntry, kDirectoryTrack * SectorSource::kSectors + e / 8,
-                               std::format (L"Directory entry {} is not a valid CP/M entry", e));
+                               std::format (L"Directory entry {}: expected a valid CP/M entry, but found {}", e, DescribeInvalid (bytes)));
         }
         else if (entry.user == s_kUserMax && std::any_of (entry.blocks.begin(), entry.blocks.end(), [] (Byte b) { return b >= kVolumeBlocks; }))
         {
@@ -165,7 +167,7 @@ void CpmMapReader::Read (const SectorSource & source, FileMap & outMap)
 
             if (!seen.insert (key).second)
             {
-                writer.AddFinding (FindingKind::CpmDuplicateEntry, -1, std::format (L"{}:{} has two entries for extent {}", entry.user, entry.name, entry.extent));
+                writer.AddFinding (FindingKind::CpmDuplicateEntry, -1, std::format (L"{}:{}: expected one entry for extent {}, but found more than one", entry.user, entry.name, entry.extent));
             }
 
             entries.push_back (entry);
@@ -173,6 +175,7 @@ void CpmMapReader::Read (const SectorSource & source, FileMap & outMap)
     }
 
     std::stable_sort (entries.begin(), entries.end(), [] (const Entry & a, const Entry & b) { return a.extent < b.extent; });
+    CheckEntries (writer, entries);
 
     for (bool isDeleted : { false, true })
     {
@@ -294,6 +297,123 @@ bool CpmMapReader::IsValid (const Byte * entry, bool & outIsInUse)
     outIsInUse = isValid;
 
     return isValid;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmMapReader::CheckEntries
+//
+//  Each file's extents from 0 up with none missing; in each extent, a block
+//  for its last record, no block in the directory, and no block past its
+//  record count, which is a note. A random-access file has holes, so only
+//  the last record's block is required.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpmMapReader::CheckEntries (FileMapWriter & writer, const vector<Entry> & entries)
+{
+    std::map<std::wstring, std::set<int>>  extents;
+    std::wstring                           path;
+    int                                    slots = 0;
+    int                                    past  = 0;
+    int                                    cell  = 0;
+    int                                    i     = 0;
+
+
+
+    for (const Entry & entry : entries)
+    {
+        path  = std::format (L"{}:{}", entry.user, entry.name);
+        slots = (entry.records + s_kRecordsPerBlk - 1) / s_kRecordsPerBlk;
+        cell  = kDirectoryTrack * SectorSource::kSectors + entry.index / (SectorSource::kBytes / kEntrySize);
+        past  = 0;
+
+        extents[path].insert (entry.extent);
+
+        if (slots > 0 && slots <= s_kBlocks && entry.blocks[slots - 1] == 0)
+        {
+            writer.AddFinding (FindingKind::CpmRecordsPastBlocks, cell, std::format (L"{}: expected a block for the last of {} records in extent {}, but found none",
+                                                                                     path, entry.records, entry.extent));
+        }
+
+        for (i = 0; i < s_kBlocks; i++)
+        {
+            if (entry.blocks[i] == s_kDirectoryBlock)
+            {
+                writer.AddFinding (FindingKind::CpmBlockInDirectory, cell, std::format (L"{}: expected blocks {} to {}, but found directory block {}",
+                                                                                        path, s_kFirstFileBlock, kVolumeBlocks - 1, s_kDirectoryBlock));
+            }
+
+            past += (i >= slots && entry.blocks[i] != 0) ? 1 : 0;
+        }
+
+        if (past > 0)
+        {
+            writer.AddFinding (FindingKind::CpmBlocksPastRecords, cell, std::format (L"{}: expected {} blocks for the {} records of extent {}, but found {}",
+                                                                                     path, slots, entry.records, entry.extent, slots + past));
+        }
+    }
+
+    for (const auto & [name, found] : extents)
+    {
+        for (i = 0; i <= *found.rbegin(); i++)
+        {
+            if (!found.contains (i))
+            {
+                writer.AddFinding (FindingKind::CpmExtentMissing, -1, std::format (L"{}: expected extent {}, but found none", name, i));
+                break;
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CpmMapReader::DescribeInvalid
+//
+//  The first part of an entry IsValid fails, after "but found".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CpmMapReader::DescribeInvalid (const Byte * entry)
+{
+    std::wstring  text;
+    int           i    = 0;
+
+
+
+    if (entry[0] > s_kUserMax)
+    {
+        text = std::format (L"user {}", entry[0]);
+    }
+    else if (entry[s_kExtent] > s_kExtentMax || entry[s_kS2] != 0)
+    {
+        text = std::format (L"extent {}", entry[s_kExtent] + 32 * entry[s_kS2]);
+    }
+    else if (entry[s_kRecordCount] > s_kRecordsMax)
+    {
+        text = std::format (L"a record count of {}", entry[s_kRecordCount]);
+    }
+
+    for (i = 0; text.empty() && i < s_kNameLength + s_kTypeLength; i++)
+    {
+        text = ((entry[s_kName + i] & ~s_kHighBit) < 0x20) ? std::wstring (L"a control character in the name") : text;
+    }
+
+    for (i = 0; text.empty() && i < s_kBlocks; i++)
+    {
+        text = (entry[s_kBlocks + i] >= kVolumeBlocks) ? std::format (L"block {}, past the volume's {} blocks", entry[s_kBlocks + i], kVolumeBlocks) : text;
+    }
+
+    return text;
 }
 
 

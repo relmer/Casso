@@ -97,6 +97,10 @@ enum class FindingKind
     ProDosFileCountDiffers,
     FileRepeatedByte,
     ImageAlmostBlank,
+    CpmExtentMissing,
+    CpmRecordsPastBlocks,
+    CpmBlockInDirectory,
+    CpmBlocksPastRecords,
 };
 
 
