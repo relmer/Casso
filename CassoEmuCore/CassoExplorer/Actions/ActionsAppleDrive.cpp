@@ -1133,7 +1133,7 @@ ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::wstring & i
 ////////////////////////////////////////////////////////////////////////////////
 
 ActionsTypes::Outcome ActionsAppleDrive::ReadDiskToImage (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify,
-                                                                    ActionsTypes::UnreadableFn onUnreadable, std::function<void ()> onRead)
+                                                                    ActionsTypes::UnreadableFn onUnreadable, std::function<void()> onRead)
 {
     ActionsTypes::Outcome    outcome;
     CassoLinkConnections   * links   = m_actions.m_browser.GetLinks();
