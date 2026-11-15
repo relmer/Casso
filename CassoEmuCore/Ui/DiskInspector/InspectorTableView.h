@@ -33,8 +33,16 @@ public:
     //  The last column stretches, or with a trailing width, the one before it
     //  stretches and the last is that wide.
     void  SetColumns  (const vector<std::wstring> & titles, int trailingDip = 0);
-    void  SetRows     (vector<TableRow> rows);
-    void  SetCaption  (const std::wstring & caption) { m_caption = caption; }
+
+    //  Each column as wide as its width, or fitted to its cells for 0, and
+    //  the stretch column taking the rest.
+    void  SetColumns  (const vector<std::wstring> & titles, const vector<int> & widthsDip, size_t stretch);
+
+    //  A column whose cells the view draws, as an icon, in place of their
+    //  text; Copy includes the text. None by default.
+    void  SetIconColumn (int column) { m_iconColumn = column; }
+    void  SetRows       (vector<TableRow> rows);
+    void  SetCaption    (const std::wstring & caption) { m_caption = caption; }
 
     //  Rows with a title and no value head a group: a click collapses or
     //  expands the rows under them, and those rows are indented.
@@ -82,4 +90,5 @@ protected:
     std::set<std::wstring>  m_collapsed;
     std::wstring            m_toggle;
     bool                    m_isSelecting = false;
+    int                     m_iconColumn  = -1;
 };

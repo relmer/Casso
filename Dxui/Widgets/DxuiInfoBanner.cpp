@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiInfoBanner.h"
+#include "Widgets/DxuiSeverityBadge.h"
 #include "Widgets/DxuiWarningBadge.h"
 #include "Core/DxuiUnicodeSymbols.h"
 
@@ -578,13 +579,7 @@ void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     }
     else if (m_severity == Severity::Error)
     {
-        // A disc in the error color with an exclamation mark cut out of it in
-        // the panel's color, proportioned off the radius as the info badge is.
-        float  stem = iconBox * s_kBadgeStrokeEm * 1.4f;
-
-        painter.FillCircle (iconCx, iconCy, iconR, theme.ErrorForeground());
-        painter.FillRect   (iconCx - stem * 0.5f, iconCy - iconR * 0.55f, stem, iconR * 0.7f, theme.Background());
-        painter.FillCircle (iconCx, iconCy + iconR * 0.42f, stem * 0.6f, theme.Background());
+        DxuiSeverityBadge::Draw (painter, DxuiSeverity::Error, iconCx - iconR, iconCy - iconR, iconBox, theme);
     }
     else
     {
@@ -778,7 +773,7 @@ bool DxuiInfoBanner::IsStacked (float widthPx, const DxuiDpiScaler & scaler) con
 
 
 
-    return m_stackBelowDip > 0.0f && !m_actions.empty() && besideW < scaler.ToPxf (m_stackBelowDip);
+    return !m_actions.empty() && (m_isActionsBelow || (m_stackBelowDip > 0.0f && besideW < scaler.ToPxf (m_stackBelowDip)));
 }
 
 

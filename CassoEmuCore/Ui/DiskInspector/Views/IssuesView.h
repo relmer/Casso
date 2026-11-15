@@ -13,9 +13,11 @@
 //
 //  IssuesView
 //
-//  Every finding on the disk (FR-048), in quarter-track and cell order until
-//  a column header sorts it, under a row of category toggles that each give
-//  their count and filter the list (FR-049). Selecting a finding goes to it.
+//  Every finding on the disk (FR-048), most severe first, under a row of
+//  category toggles that filter the list (FR-049); each toggle has its
+//  category's count. A row has the severity's icon, the finding's whole
+//  text wrapped to its column, the category, track, sector and cell, and
+//  the Repair button. Selecting a finding goes to it.
 //
 //  A finding a change of the repair plan sets right has a Repair button at
 //  the end of its row, which opens Repair's confirmation with those changes
@@ -29,9 +31,13 @@ class IssuesView : public InspectorTableView
 public:
     using RepairFn = std::function<void (const std::set<std::wstring> & chosen)>;
 
-    static constexpr int  kFilterDip       = 28;
-    static constexpr int  kRepairColumnDip = 76;
-    static constexpr int  kRepairAllDip    = 150;
+    static constexpr int     kFilterDip         = 28;
+    static constexpr int     kRepairColumnDip   = 76;
+    static constexpr int     kRepairAllDip      = 150;
+    static constexpr int     kSeverityColumnDip = 72;
+    static constexpr int     kSeverityIconDip   = 14;
+    static constexpr int     kLineDip           = 22;      // a row's first line, where its icon and button are
+    static constexpr size_t  kFindingColumn     = 1;
 
     explicit IssuesView (InspectorViewContext & context);
 
@@ -54,6 +60,7 @@ public:
     //  Where a row's Repair button is, empty for a row without one or out of
     //  view, and where "Repair disk image..." is; for a test.
     RECT  GetRepairRect    (int row) const;
+    RECT  GetSeverityRect  (int row) const;
     RECT  GetRepairAllRect () const;
 
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;

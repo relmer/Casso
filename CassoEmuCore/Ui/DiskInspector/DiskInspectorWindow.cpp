@@ -1649,6 +1649,10 @@ LPCWSTR DiskInspectorWindow::GetCursorForPoint (POINT clientPx) const
     {
         cursor = IDC_SIZEALL;
     }
+    else if (m_statusBand->IsOverLink (clientPx))
+    {
+        cursor = IDC_HAND;
+    }
 
     return cursor;
 }

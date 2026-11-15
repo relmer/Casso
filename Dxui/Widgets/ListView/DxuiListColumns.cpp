@@ -933,6 +933,14 @@ bool DxuiListColumns::GetCellTextRectPx (int row, size_t column, RECT & outRect)
     outRect.right  = colXPx[column] + colOff + colWPx[column];
     outRect.bottom = outRect.top + rowH;
 
+    //  Wrapped rows are as tall as their text, so a row starts below the
+    //  heights of the rows above it in view.
+    if (m_list.m_rows.IsWrapped())
+    {
+        outRect.top    = headerH + hdrGap + m_list.m_rows.GetRowsHeightPx (m_list.m_topRow, row) - m_list.m_scrollbars.GetRowShiftPx();
+        outRect.bottom = outRect.top + m_list.m_rows.GetRowHeightPx (row);
+    }
+
     return true;
 }
 

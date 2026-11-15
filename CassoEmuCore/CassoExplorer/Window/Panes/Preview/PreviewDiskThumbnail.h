@@ -30,8 +30,13 @@ public:
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override { (void) ev; return false; }
 
+    //  The pointer is on the platter, which a click opens in the inspector:
+    //  a ring in the accent is drawn around it.
+    void  SetHot  (bool isHot) { m_isHot = isHot; }
+
 private:
     const DxuiTheme * const  & m_theme;
+    bool                       m_isHot = false;
 };
 
 
@@ -96,6 +101,9 @@ public:
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    //  Over the bar, where it overlaps the window's resize edge, the pointer drags the bar, not the edge.
+    bool  IsOverScrollbar (POINT pointPx) const override { return IsVisible() && m_bar.HitTest (pointPx.x, pointPx.y); }
 
     void  SetRange    (int rangePx, int pagePx, int posPx);
     int   GetPos      () const { return m_bar.GetScrollPos(); }
@@ -162,7 +170,6 @@ public:
     static constexpr int  kGapDip     = 8;
     static constexpr int  kScreenDip  = 240;     // the screen's picture, three quarters as tall
     static constexpr int  kRepairDip  = 140;     // Repair disk image, in the infobar
-    static constexpr int  kStackDip   = 160;     // the narrowest the infobar's text is beside Repair disk image
 
     explicit PreviewDiskThumbnail (ExplorerContext & context);
 
@@ -176,9 +183,13 @@ public:
     void  Hide          ();
 
     //  Laid out in the area, as tall as GetHeightPx, with its top scrolled
-    //  away by scrollPx and clipped there and at bottomPx, the pane's bottom.
-    //  Returns the bottom of the visible part.
-    int   Layout        (const RECT & area, int scrollPx, int bottomPx);
+    //  away by scrollPx and clipped there, at bottomPx, the pane's bottom,
+    //  and at rightPx, the pane's right edge when it's narrower than the
+    //  area. Returns the bottom of the visible part.
+    int   Layout        (const RECT & area, int scrollPx, int bottomPx, int rightPx);
+
+    //  Whether the point is on Inspect disk image, under the platter.
+    bool  IsOverInspect (POINT pointPx) const;
 
     bool                  IsShown       () const { return !m_path.empty() && m_state != State::Failed; }
     bool                  IsReady       () const { return m_state == State::Ready; }
@@ -221,6 +232,7 @@ public:
 
 private:
     bool  HandleHeaderMouse  (const DxuiMouseEvent & ev);
+    int   GetInspectWidthPx  () const;
     bool  HandlePlatterMouse (const DxuiMouseEvent & ev);
     bool  HandleScreenMouse  (const DxuiMouseEvent & ev);
 
@@ -250,6 +262,7 @@ private:
     ThumbnailScreen                       * m_screen         = nullptr;
     DxuiLabel                             * m_bootLine       = nullptr;   // the boot result, under the picture
     DxuiInfoBanner                        * m_verdict        = nullptr;
+    DxuiButton                            * m_inspect        = nullptr;   // Inspect disk image, under the platter
     ThumbnailScrollbar                    * m_scrollbar      = nullptr;   // a window child after the views, so it's offered the mouse first
     bool                                    m_isVerdictShown = false;
     bool                                    m_isBad          = false;

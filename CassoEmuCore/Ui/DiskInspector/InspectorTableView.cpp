@@ -106,6 +106,38 @@ void InspectorTableView::SetColumns (const vector<std::wstring> & titles, int tr
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorTableView::SetColumns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTableView::SetColumns (const vector<std::wstring> & titles, const vector<int> & widthsDip, size_t stretch)
+{
+    vector<DxuiListView::Column>  columns;
+
+
+
+    m_titles = titles;
+
+    for (size_t c = 0; c < titles.size(); c++)
+    {
+        DxuiListView::Column  column;
+
+        column.title    = titles[c];
+        column.elide    = (c == stretch) ? DxuiElide::None : DxuiElide::Tail;
+        column.widthDip = (c < widthsDip.size()) ? widthsDip[c] : 0;
+        column.stretch  = c == stretch;
+        columns.push_back (column);
+    }
+
+    m_list.SetColumns (std::move (columns));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorTableView::SetRows
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,7 +197,7 @@ void InspectorTableView::ShowRows()
         {
             DxuiListView::Cell  cell;
 
-            cell.text     = text;
+            cell.text     = (static_cast<int> (line.size()) == m_iconColumn) ? std::wstring() : text;
             cell.isStrong  = m_isGrouped && IsGroupRow (row);
             cell.isHeading = cell.isStrong && &text == &row.cells[0];
             cell.isOpen    = cell.isHeading && !m_collapsed.contains (row.cells[0].substr (s_kHeadingIndent.size()));

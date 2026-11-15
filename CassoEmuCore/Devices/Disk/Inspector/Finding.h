@@ -113,6 +113,19 @@ enum class FindingKind
 };
 
 
+//  How serious a finding is for the reader, least first: an error for a
+//  sector or record that can't be read and for file-system damage, a warning
+//  for anything unusual on a track or in the image file, and information for
+//  the rest, possible file-system inconsistencies and signs of copy
+//  protection among them.
+enum class FindingSeverity
+{
+    Info,
+    Warning,
+    Error,
+};
+
+
 //  How much a file-system finding weighs in the verdict: damage makes the
 //  volume Bad, a suspect finding makes it Suspect, and a note doesn't
 //  change it.

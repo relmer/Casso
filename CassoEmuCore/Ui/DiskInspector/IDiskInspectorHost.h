@@ -49,8 +49,10 @@ public:
     virtual std::wstring  TakeHostNote   ()                            { return {}; }
 
     //  UI thread: Repair wrote a copy of the window's image there, which
-    //  Casso Explorer selects.
+    //  Casso Explorer opens in the window and selects. Whether the host opens
+    //  the copy, so the confirmation offers it.
     virtual void  OnRepairedCopyWritten (const std::wstring & path) { (void) path; }
+    virtual bool  CanOpenRepairedCopy   () const                     { return false; }
 };
 
 

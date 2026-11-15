@@ -76,6 +76,19 @@ struct InspectorViewContext
     const IDxuiControl        * selectionSource   = nullptr;
     std::function<void ()>    onSelectionChanged;
 
+    //  The selection made from an error finding: its quarter track, sector
+    //  and nibbles, until another selection replaces it.
+    int                         errorQuarterTrack = -1;
+    int                         errorSector       = -1;
+    int                         errorFirstNibble  = -1;
+    int                         errorNibbleCount  = 0;
+
+    bool  IsErrorSelected () const
+    {
+        return model != nullptr && errorQuarterTrack >= 0 && model->GetQuarterTrack() == errorQuarterTrack && model->GetSectorIndex() == errorSector &&
+               model->GetFirstNibble() == errorFirstNibble && model->GetNibbleCount() == errorNibbleCount;
+    }
+
     const TrackAnalysis *  GetTrack () const { return (model != nullptr && hasDisk) ? model->GetTrack() : nullptr; }
 };
 

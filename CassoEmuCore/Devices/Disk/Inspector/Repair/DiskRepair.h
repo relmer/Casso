@@ -52,11 +52,14 @@ struct RepairFix
 };
 
 
+//  A change: its key, what it does, the findings it sets right, and the
+//  problem they are, in one line.
 struct RepairChange
 {
     std::wstring       key;
     std::wstring       text;
     vector<RepairFix>  fixes;
+    std::wstring       problem;
 };
 
 
@@ -143,7 +146,7 @@ private:
     static void   PlanCounts       (Work & work, const FileMap & map);
     static void   CheckChains      (Work & work, const FileMap & map);
     static void   AddBitmapChanges (Work & work, const FileMap & map, const BitmapTally & tally, LPCWSTR unit, LPCWSTR structure);
-    static void   AddChange        (Work & work, std::wstring key, std::wstring text, vector<RepairFix> fixes);
+    static void   AddChange        (Work & work, const FileMap & map, std::wstring key, std::wstring text, vector<RepairFix> fixes, const std::wstring & summary = std::wstring());
     static void   CollectSectors   (Work & work);
 
     static bool   BuildMap         (const Work & work, std::unique_ptr<SectorSource> & outSource, FileMap & outMap);

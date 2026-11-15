@@ -295,7 +295,7 @@ public:
         Assert::IsTrue   (plan.before == FileSystemVerdict::Suspect);
         Assert::IsTrue   (intro.starts_with (RepairDialog::FormatIntro (L"Game.dsk")));
         Assert::IsTrue   (intro.find (L"can be normal") != std::wstring::npos, intro.c_str());
-        Assert::AreEqual (5, RepairDialog::GetIntroLines (plan));
+        Assert::AreEqual (6, RepairDialog::GetIntroLines (plan));
     }
 
 
@@ -310,9 +310,15 @@ public:
         Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, analysis);
         dialog.Configure (nullptr, L"Game.dsk", analysis, {});
 
-        Assert::AreEqual (std::wstring (L"Writes a repaired copy of Game.dsk in the same folder, with the changes checked below. Game.dsk isn't changed."),
+        Assert::AreEqual (std::wstring (L"Repairing an image writes a repaired copy of Game.dsk in the same folder. Game.dsk isn't changed. "
+                                        L"Select the repairs below to apply to the repaired image."),
                           RepairDialog::FormatIntro (L"Game.dsk"));
         Assert::AreEqual (static_cast<size_t> (2), dialog.GetFullPlan().changes.size());
+
+        //  Each change has the problem it sets right, and its repair under it.
+        Assert::AreEqual (std::wstring (L"Track 18, sector $E is used by HELLO but marked free"), dialog.GetFullPlan().changes[0].problem);
+        Assert::AreEqual (std::wstring (L"Repair: Mark 1 sector of HELLO as used in the bitmap"), RepairDialog::FormatRepair (dialog.GetFullPlan().changes[0]));
+        Assert::IsFalse  (dialog.GetFullPlan().changes[1].problem.empty());
         Assert::IsTrue   (dialog.GetChosen() == DiskRepair::GetKeys (dialog.GetFullPlan()), L"none chosen checks every change");
 
         dialog.SetChosen (L"unowned", false);
@@ -324,7 +330,7 @@ public:
         Assert::IsFalse  (dialog.GetPlan().canRepair);
         Assert::AreEqual (std::wstring (L"No changes are selected."), RepairDialog::FormatStatus (dialog.GetPlan()));
 
-        Assert::AreEqual (2, RepairDialog::GetIntroLines (dialog.GetFullPlan()), L"a Bad volume has no caution");
+        Assert::AreEqual (3, RepairDialog::GetIntroLines (dialog.GetFullPlan()), L"a Bad volume has no caution");
 
         for (UINT dpi : { 96u, 144u })
         {
@@ -333,21 +339,24 @@ public:
             DxuiLabel                              intro;
             DxuiLabel                              status;
             vector<std::unique_ptr<DxuiCheckbox>>  checks;
+            vector<std::unique_ptr<DxuiLabel>>     repairs;
             RECT                                   bounds = {};
 
             for (const RepairChange & change : dialog.GetFullPlan().changes)
             {
-                checks.push_back (std::make_unique<DxuiCheckbox> (change.text));
+                checks.push_back  (std::make_unique<DxuiCheckbox> (change.problem));
+                repairs.push_back (std::make_unique<DxuiLabel> (RepairDialog::FormatRepair (change)));
             }
 
             scaler.SetDpi (dpi);
-            bounds = { 0, 0, scaler.ToPx (RepairDialog::kWidthDip), scaler.ToPx (RepairDialogBody::GetHeightDip (checks.size(), 2)) };
-            body.Init   (intro, checks, status, 2);
+            bounds = { 0, 0, scaler.ToPx (RepairDialog::kWidthDip), scaler.ToPx (RepairDialogBody::GetHeightDip (checks.size(), 3)) };
+            body.Init   (intro, checks, repairs, status, 3);
             body.Layout (bounds, scaler);
 
             Assert::IsTrue (intro.GetBounds().bottom <= checks.front()->GetBounds().top, std::format (L"the intro, then the changes, at {} dpi", dpi).c_str());
-            Assert::IsTrue (checks.front()->GetBounds().bottom <= checks.back()->GetBounds().top, L"a row for each change");
-            Assert::IsTrue (checks.back()->GetBounds().bottom <= status.GetBounds().top && status.GetBounds().bottom <= bounds.bottom, L"and the status under them");
+            Assert::IsTrue (checks.front()->GetBounds().bottom <= repairs.front()->GetBounds().top, L"the repair under its problem");
+            Assert::IsTrue (repairs.front()->GetBounds().bottom < checks.back()->GetBounds().top, L"a gap before the next change");
+            Assert::IsTrue (repairs.back()->GetBounds().bottom <= status.GetBounds().top && status.GetBounds().bottom <= bounds.bottom, L"and the status under them");
         }
     }
 };

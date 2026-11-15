@@ -3676,6 +3676,22 @@ release (Delivery). The first release MUST NOT depend on them.
   before the catalog, and the catalog back to its top before the thumbnail,
   and one scrollbar down the pane's right edge, from the thumbnail's top,
   MUST scroll both.
+- **FR-182**: Each finding MUST have a severity: an error for file-system
+  damage, a sector whose checksum fails or that is missing, and an image
+  record that is damaged or doesn't match its checksum; information for
+  signs of copy protection and file-system findings that aren't damage;
+  and a warning for the rest. The Issues tab MUST list the severity as an
+  icon (red for an error, yellow for a warning, blue for information), then
+  the finding's whole text wrapped to its column, then the category, track,
+  sector and cell, and the Repair button last, most severe first. The
+  Issues tab's label MUST have the count of findings in the most severe
+  one's color, and a new disk with findings MUST open on the Issues tab. A
+  selection made from an error finding MUST be outlined on the platter in
+  marching red and white dashes. Each repair change in the confirmation
+  MUST have the problem it sets right as its label, with the repair on the line under
+  it, and after the copy is written a dialog MUST list the fixes applied
+  and, on OK, open the copy in an inspector window opened from Casso
+  Explorer.
 - **FR-181**: The inspector's Issues tab MUST have a Repair button on each
   finding a repair change sets right, which opens Repair's confirmation
   with those changes checked, and Repair disk image above the list, which

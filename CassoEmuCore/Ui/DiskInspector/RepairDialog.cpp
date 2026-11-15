@@ -15,18 +15,29 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RepairDialogBody::Init (DxuiLabel & intro, vector<std::unique_ptr<DxuiCheckbox>> & checks, DxuiLabel & status, int introLines)
+void RepairDialogBody::Init (
+    DxuiLabel                              & intro,
+    vector<std::unique_ptr<DxuiCheckbox>>  & checks,
+    vector<std::unique_ptr<DxuiLabel>>     & repairs,
+    DxuiLabel                              & status,
+    int                                      introLines)
 {
-    m_intro  = &intro;
-    m_checks = &checks;
-    m_status = &status;
-    m_lines  = introLines;
+    m_intro   = &intro;
+    m_checks  = &checks;
+    m_repairs = &repairs;
+    m_status  = &status;
+    m_lines   = introLines;
 
     Adopt (intro);
 
     for (std::unique_ptr<DxuiCheckbox> & check : checks)
     {
         Adopt (*check);
+    }
+
+    for (std::unique_ptr<DxuiLabel> & repair : repairs)
+    {
+        Adopt (*repair);
     }
 
     Adopt (status);
@@ -40,19 +51,21 @@ void RepairDialogBody::Init (DxuiLabel & intro, vector<std::unique_ptr<DxuiCheck
 //
 //  RepairDialogBody::Layout
 //
-//  The intro on its lines, a row for each change under it, and the status
-//  line at the bottom.
+//  The intro on its lines, then each change's check box and its repair's
+//  line under it, a gap after each, and the status line at the bottom.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void RepairDialogBody::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    int  pad   = scaler.ToPx (kPadDip);
-    int  line  = scaler.ToPx (kLineDip);
-    int  check = scaler.ToPx (kCheckDip);
-    int  x     = boundsPx.left + pad;
-    int  right = boundsPx.right - pad;
-    int  y     = boundsPx.top + pad;
+    int  pad    = scaler.ToPx (kPadDip);
+    int  line   = scaler.ToPx (kLineDip);
+    int  check  = scaler.ToPx (kCheckDip);
+    int  indent = scaler.ToPx (kIndentDip);
+    int  gap    = scaler.ToPx (kGapDip);
+    int  x      = boundsPx.left + pad;
+    int  right  = boundsPx.right - pad;
+    int  y      = boundsPx.top + pad;
 
 
 
@@ -61,10 +74,18 @@ void RepairDialogBody::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
     m_intro->Layout (RECT { x, y, right, y + m_lines * line }, scaler);
     y += m_lines * line;
 
-    for (std::unique_ptr<DxuiCheckbox> & box : *m_checks)
+    for (size_t i = 0; i < m_checks->size(); i++)
     {
-        box->Layout (RECT { x, y, right, y + check }, scaler);
+        (*m_checks)[i]->Layout (RECT { x, y, right, y + check }, scaler);
         y += check;
+
+        if (i < m_repairs->size())
+        {
+            (*m_repairs)[i]->Layout (RECT { x + indent, y, right, y + line }, scaler);
+            y += line;
+        }
+
+        y += gap;
     }
 
     m_status->Layout (RECT { x, boundsPx.bottom - pad - 2 * line, right, boundsPx.bottom - pad }, scaler);
@@ -106,7 +127,7 @@ bool RepairDialogBody::OnMouse (const DxuiMouseEvent & ev)
 
 int RepairDialogBody::GetHeightDip (size_t changes, int introLines)
 {
-    return 2 * kPadDip + (introLines + 2) * kLineDip + static_cast<int> (changes) * kCheckDip;
+    return 2 * kPadDip + (introLines + 2) * kLineDip + static_cast<int> (changes) * (kCheckDip + kLineDip + kGapDip);
 }
 
 
@@ -183,7 +204,8 @@ SIZE RepairDialog::GetSizeDip (const RepairPlan & plan)
 
 std::wstring RepairDialog::FormatIntro (const std::wstring & fileName)
 {
-    return L"Writes a repaired copy of " + fileName + L" in the same folder, with the changes checked below. " + fileName + L" isn't changed.";
+    return L"Repairing an image writes a repaired copy of " + fileName + L" in the same folder. " + fileName + L" isn't changed. "
+           L"Select the repairs below to apply to the repaired image.";
 }
 
 
@@ -219,14 +241,29 @@ std::wstring RepairDialog::FormatIntro (const std::wstring & fileName, const Rep
 //
 //  RepairDialog::GetIntroLines
 //
-//  Two lines for the intro, and three more for the caution and the blank
+//  Three lines for the intro, and three more for the caution and the blank
 //  line before it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int RepairDialog::GetIntroLines (const RepairPlan & plan)
 {
-    return (plan.before == FileSystemVerdict::Suspect) ? 5 : 2;
+    return (plan.before == FileSystemVerdict::Suspect) ? 6 : 3;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RepairDialog::FormatRepair
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring RepairDialog::FormatRepair (const RepairChange & change)
+{
+    return L"Repair: " + change.text;
 }
 
 
@@ -252,6 +289,9 @@ std::wstring RepairDialog::FormatStatus (const RepairPlan & plan)
 //
 //  RepairDialog::OnCreate
 //
+//  Each change's check box has the problem it sets right, and the line
+//  under it the repair.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void RepairDialog::OnCreate()
@@ -267,18 +307,21 @@ void RepairDialog::OnCreate()
     m_status.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     m_checks.clear();
+    m_repairs.clear();
 
     for (const RepairChange & change : m_fullPlan.changes)
     {
-        auto          box = std::make_unique<DxuiCheckbox> (change.text, m_chosen.contains (change.key));
-        std::wstring  key = change.key;
+        auto          box    = std::make_unique<DxuiCheckbox> (change.problem.empty() ? change.text : change.problem, m_chosen.contains (change.key));
+        auto          repair = std::make_unique<DxuiLabel> (FormatRepair (change), DxuiTextRole::Muted, DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+        std::wstring  key    = change.key;
 
         box->SetOnChange ([this, key] (bool isChecked) { SetChosen (key, isChecked); });
-        m_checks.push_back (std::move (box));
+        m_checks.push_back  (std::move (box));
+        m_repairs.push_back (std::move (repair));
     }
 
     body = CreateDialogContent<RepairDialogBody>();
-    body->Init (m_intro, m_checks, m_status, GetIntroLines (m_fullPlan));
+    body->Init (m_intro, m_checks, m_repairs, m_status, GetIntroLines (m_fullPlan));
 
     m_repair = AddDialogButton (L"Repair", IDOK);
     AddDialogButton (L"Cancel", IDCANCEL);
@@ -332,6 +375,7 @@ HRESULT RepairDialog::Run (
     const std::string             & imagePath,
     const std::set<std::wstring>  & chosen,
     std::string                   & outCopyPath,
+    RepairPlan                    & outPlan,
     std::wstring                  & outNote)
 {
     HRESULT                   hr       = S_OK;
@@ -345,6 +389,7 @@ HRESULT RepairDialog::Run (
 
 
     outCopyPath.clear();
+    outPlan = RepairPlan();
 
     hr = RepairCopy::AnalyzeFile (io, imagePath, analysis, reason);
     CHRF (hr, outNote = L"Repair isn't available. " + reason);
@@ -376,6 +421,7 @@ HRESULT RepairDialog::Run (
     hr = RepairCopy::Write (io, imagePath, "", dialog.GetPlan(), outCopyPath, reason);
     CHRF (hr, outNote = L"Repair failed: " + reason);
 
+    outPlan = dialog.GetPlan();
     outNote = L"Repaired copy written: " + fs::path (TextEncoding::Utf8ToWide (outCopyPath)).filename().wstring();
 
 Error:

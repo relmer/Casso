@@ -162,7 +162,10 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
 
     if (m_thumbnail.IsShown())
     {
-        int  height = m_thumbnail.GetHeightPx (static_cast<int> (content.right - content.left));
+        //  The thumbnail is laid out no narrower than the pane's least width,
+        //  and clipped at the pane's edge when the window forces it narrower.
+        int  thumbW = (std::max) (static_cast<int> (content.right - content.left), scaler.ToPx (ExplorerLayout::kMinPreviewWidthDip));
+        int  height = m_thumbnail.GetHeightPx (thumbW);
         int  need   = 0;
 
         for (const PreviewView * view : m_views)
@@ -174,8 +177,8 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         m_headerMax    = (std::min) (m_headerRange, height);
         m_headerScroll = std::clamp (m_headerScroll, 0, m_headerMax);
         m_headerPage   = static_cast<int> (content.bottom - content.top);
-        content.top    = m_thumbnail.Layout (RECT { content.left, content.top, content.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip), content.top + height },
-                                             m_headerScroll, content.bottom);
+        content.top    = m_thumbnail.Layout (RECT { content.left, content.top, content.left + thumbW - scaler.ToPx (ThumbnailScrollbar::kWidthDip), content.top + height },
+                                             m_headerScroll, content.bottom, content.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip));
 
         m_thumbnail.GetScrollbar().Layout     (RECT { m_rect.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip), m_headerTop, m_rect.right, m_rect.bottom }, scaler);
         m_thumbnail.GetScrollbar().SetVisible (m_headerRange > 0);
@@ -1064,6 +1067,12 @@ LPCWSTR ExplorerPreviewManager::GetCursorForPoint (POINT clientPx) const
     if (cursor == nullptr && m_message->IsVisible())
     {
         cursor = m_message->GetCursorForPoint (clientPx);
+    }
+
+    //  The small platter and Inspect disk image open the inspector.
+    if (cursor == nullptr && (m_thumbnail.IsOverPlatter (clientPx) || m_thumbnail.IsOverInspect (clientPx)))
+    {
+        cursor = IDC_HAND;
     }
 
     return cursor;

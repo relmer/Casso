@@ -154,6 +154,13 @@ void ViewTables::SelectFromRow (const TableRow & row)
             m_session.model.SelectNibbles (row.quarterTrack, track->fields[row.field].firstNibble, track->fields[row.field].nibbleCount);
         }
 
+        //  A selection from an error finding is drawn in the error color
+        //  until another selection replaces it.
+        m_session.context.errorQuarterTrack = (row.severity == static_cast<int> (FindingSeverity::Error)) ? m_session.model.GetQuarterTrack() : -1;
+        m_session.context.errorSector       = m_session.model.GetSectorIndex();
+        m_session.context.errorFirstNibble  = m_session.model.GetFirstNibble();
+        m_session.context.errorNibbleCount  = m_session.model.GetNibbleCount();
+
         m_host.OnSelection();
     }
 }

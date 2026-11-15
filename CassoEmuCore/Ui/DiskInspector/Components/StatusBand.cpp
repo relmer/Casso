@@ -354,12 +354,18 @@ void StatusBand::PaintLead (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
             case LeadKind::Chip:
             case LeadKind::BadChip:
-                painter.FillRoundedRect    (item.x, y, item.w, chipH, chipH / 2, theme.ButtonIdle());
+            {
+                //  A linked chip is in the accent unless it's bad, and lit like a
+                //  button while the pointer is on it.
+                uint32_t  ink = (item.kind == LeadKind::BadChip) ? bad : (item.isLinked ? theme.Accent() : theme.Foreground());
+
+                painter.FillRoundedRect    (item.x, y, item.w, chipH, chipH / 2, (item.isLinked && m_isLinkHot) ? theme.ButtonHover() : theme.ButtonIdle());
                 painter.OutlineRoundedRect (item.x, y, item.w, chipH, chipH / 2, m_scaler.ToPxf (1.0f),
-                                            item.kind == LeadKind::BadChip ? bad : theme.ButtonBorder());
-                text.DrawString (item.text.c_str(), item.x, y, item.w, chipH, item.kind == LeadKind::BadChip ? bad : theme.Foreground(), textPx,
+                                            (item.kind == LeadKind::BadChip || item.isLinked) ? ink : theme.ButtonBorder());
+                text.DrawString (item.text.c_str(), item.x, y, item.w, chipH, ink, textPx,
                                  DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
                 break;
+            }
 
             case LeadKind::Analyzing:
                 text.DrawString (item.text.c_str(), item.x, y, item.w + 1.0f, chipH, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace,
@@ -440,11 +446,14 @@ void StatusBand::PaintHelp (IDxuiTextRenderer & text, const IDxuiTheme & theme) 
 bool StatusBand::OnMouse (const DxuiMouseEvent & ev)
 {
     bool             isDown  = ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left;
+    bool             isHot   = ev.kind != DxuiMouseEventKind::Leave && GetLinkedChipAt (ev.positionDip) != nullptr;
     bool             isHelp  = isDown && PtInRect (&m_helpPx, ev.positionDip);
     const LeadItem * chip    = isDown ? GetLinkedChipAt (ev.positionDip) : nullptr;
     const Finding  * finding = (chip != nullptr) ? FileSystemCheck::GetVerdictFinding (m_session.analysis) : nullptr;
 
 
+
+    m_isLinkHot = isHot;
 
     if (isHelp)
     {
@@ -515,7 +524,7 @@ std::wstring StatusBand::GetTip (POINT pointPx, RECT & outAnchorPx) const
     else if (chip != nullptr)
     {
         tip         = L"Go to this issue on the Issues tab";
-        outAnchorPx = RECT { static_cast<LONG> (chip->x), m_chipsPx.top, static_cast<LONG> (chip->x + chip->w), m_chipsPx.bottom };
+        outAnchorPx = RECT { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
     }
 
     return tip;

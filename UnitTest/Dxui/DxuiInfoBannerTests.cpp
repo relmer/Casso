@@ -726,6 +726,22 @@ namespace DxuiInfoBannerTests
         }
 
 
+        //  With the actions set below, they are under the text at any width.
+        TEST_METHOD (ActionsBelow_AreUnderTheTextAtAnyWidth)
+        {
+            DxuiDpiScaler   scaler = Scaler96();
+            DxuiInfoBanner  banner (L"Possible inconsistencies found.");
+
+
+
+            banner.SetActions      ({ L"Inspect disk image" });
+            banner.SetActionsBelow (true);
+
+            Assert::IsTrue (banner.IsStacked (1200.0f, scaler));
+            Assert::IsTrue (banner.IsStacked (300.0f, scaler));
+        }
+
+
         //  Wide, the action is beside the text and as wide as set; narrow, it is
         //  on a row under the text, and the banner is taller by that row.
         TEST_METHOD (Stacked_ActionMovesUnderTheTextWhenNarrow)

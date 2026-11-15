@@ -80,8 +80,9 @@ void FilesView::Create()
     m_mapNext->SetOnClick     ([this] () { StepFileSector (1); });
     m_filePicker->SetOnClick  ([this] () { OpenFilePicker (!m_isPickerOpen); });
     m_mapCopy->SetOnClick     ([this] () { CopyFileMap(); });
-    m_mapVerdict->SetOnClick  ([this] () { ShowVerdictFinding(); });
-    m_mapVerdict->SetVariant  (DxuiButton::Variant::Link);}
+    m_mapVerdict->SetOnClick          ([this] () { ShowVerdictFinding(); });
+    m_mapVerdict->SetVariant          (DxuiButton::Variant::Link);
+    m_mapVerdict->SetUnderlineOnHover (true);}
 
 
 
@@ -123,7 +124,7 @@ std::wstring FilesView::GetTip (POINT pointPx, RECT & outAnchorPx) const
     if (tip.empty() && m_mapVerdict->IsVisible() && IsVerdictLinked() && PtInRect (&verdict, pointPx))
     {
         tip         = L"Go to this issue on the Issues tab";
-        outAnchorPx = verdict;
+        outAnchorPx = RECT { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
     }
 
     return tip;
@@ -576,7 +577,8 @@ void FilesView::RefreshFileList()
         m_fileList->SetColumns (FileMapText::GetFileColumns (*map));
         m_fileList->SetRows    (FileMapText::BuildFileRows (*map, m_mapDeleted->IsChecked(), m_mapBadOnly->IsChecked(), m_fileSortColumn, m_fileSortDescending));
         m_fileList->SetCaption (map->isCatalogComplete ? L"" : L"The catalog is incomplete: " + FileMapText::FormatCell (*map, map->unreadableCell) + L" could not be read");
-        m_mapVerdict->SetLabel (L"File system: " + FileSystemCheck::FormatVerdict (map->verdict));
+        m_mapVerdict->SetLabel     (L"File system: " + FileSystemCheck::FormatVerdict (map->verdict));
+        m_mapVerdict->SetLinkColor (map->verdict == FileSystemVerdict::Bad ? m_session.context.palette.colors.sectorBad : 0);
     }
     else
     {

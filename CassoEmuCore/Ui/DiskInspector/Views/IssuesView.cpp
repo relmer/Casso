@@ -23,7 +23,8 @@ static constexpr LPCWSTR  s_kpszRepairAll = L"Repair disk image...";
 //
 //  IssuesView::IssuesView
 //
-//  The finding columns and an untitled one at the end for the Repair
+//  The finding columns, the severity as an icon and the finding wrapped to
+//  its column's width, and an untitled one at the end for the Repair
 //  buttons.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,13 +33,18 @@ IssuesView::IssuesView (InspectorViewContext & context) :
     InspectorTableView (context)
 {
     vector<std::wstring>  columns = InspectorTables::GetFindingColumns();
+    vector<int>           widths  (columns.size() + 1, 0);
 
 
 
     columns.push_back (L"");
+    widths.front() = kSeverityColumnDip;
+    widths.back()  = kRepairColumnDip;
 
-    SetColumns (columns, kRepairColumnDip);
-    SetOnSort  ([this] (int column) { OnSort (column); });
+    SetColumns    (columns, widths, kFindingColumn);
+    SetIconColumn (0);
+    SetWrapsText  (true);
+    SetOnSort     ([this] (int column) { OnSort (column); });
 }
 
 
@@ -170,7 +176,7 @@ RECT IssuesView::GetRepairRect (int row) const
         return RECT {};
     }
 
-    cell = RECT { list.left + cell.left, list.top + cell.top + pad, list.left + cell.right - pad, list.top + cell.bottom - pad };
+    cell = RECT { list.left + cell.left, list.top + cell.top + pad, list.left + cell.right - pad, list.top + (std::min) (cell.bottom, cell.top + m_scaler.ToPx (kLineDip)) - pad };
 
     if (cell.top < list.top + m_list.GetHeaderHeightPx() || cell.bottom > list.bottom || cell.right <= cell.left)
     {
@@ -178,6 +184,46 @@ RECT IssuesView::GetRepairRect (int row) const
     }
 
     return cell;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IssuesView::GetSeverityRect
+//
+//  The severity icon of a row in view, on its first line, centered in its
+//  column; empty out of view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT IssuesView::GetSeverityRect (int row) const
+{
+    RECT  cell = {};
+    RECT  list = m_list.GetBounds();
+    int   size = m_scaler.ToPx (kSeverityIconDip);
+    int   line = m_scaler.ToPx (kLineDip);
+    int   left = 0;
+    int   top  = 0;
+
+
+
+    if (row < 0 || row >= static_cast<int> (m_rows.size()) || !m_list.GetCellTextRectPx (row, 0, cell))
+    {
+        return RECT {};
+    }
+
+    left = list.left + (cell.left + cell.right - size) / 2;
+    top  = list.top + cell.top + (line - size) / 2;
+
+    if (top < list.top + m_list.GetHeaderHeightPx() || top + size > list.bottom)
+    {
+        return RECT {};
+    }
+
+    return RECT { left, top, left + size, top + size };
 }
 
 
@@ -232,6 +278,14 @@ void IssuesView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
     for (int row = m_list.GetTopRow(); row < static_cast<int> (m_rows.size()); row++)
     {
+        rect = GetSeverityRect (row);
+
+        if (rect.right > rect.left && m_rows[row].severity >= 0)
+        {
+            DxuiSeverityBadge::Draw (painter, static_cast<DxuiSeverity> (m_rows[row].severity), static_cast<float> (rect.left), static_cast<float> (rect.top),
+                                     static_cast<float> (rect.right - rect.left), theme);
+        }
+
         rect = GetRepairRect (row);
 
         if (rect.right > rect.left)

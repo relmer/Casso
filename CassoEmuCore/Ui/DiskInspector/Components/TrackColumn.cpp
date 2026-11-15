@@ -5,6 +5,7 @@
 #include "Ui/DiskInspector/Components/InspectorMetrics.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/InspectorTables.h"
+#include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Ui/DiskInspector/SectorRowView.h"
 #include "Ui/DiskInspector/TrackHeaderView.h"
 
@@ -16,6 +17,7 @@ static constexpr int     s_kSectorRowDip = 32;
 static constexpr int     s_kSelectorDip  = 26;
 static constexpr int     s_kMinSegmentDip = 64;
 static constexpr int     s_kSegmentPadDip = 24;
+static constexpr int     s_kBadgeRoomDip  = 30;     // the count badge and its gap after Issues
 
 //  Every view in FR-160's order; the Fields table is the Nibbles view's
 //  section headers (FR-042).
@@ -180,6 +182,8 @@ int TrackColumn::GetSelectedIndex() const
 
 void TrackColumn::Choose (int index)
 {
+    m_isOpening = false;
+
     if (index >= 0 && index < static_cast<int> (m_shown.size()))
     {
         const View &  view = m_shown[static_cast<size_t> (index)];
@@ -212,6 +216,31 @@ void TrackColumn::OnAnalysisChanged()
 
 
     m_hasIssues = m_session.context.hasDisk && std::any_of (counts.begin(), counts.end(), [] (int count) { return count > 0; });
+    m_issues    = m_session.context.hasDisk ? static_cast<int> (m_session.analysis.findings.size()) : 0;
+    m_severity  = DxuiSeverity::Info;
+
+    for (const Finding & finding : m_session.analysis.findings)
+    {
+        m_severity = (std::max) (m_severity, static_cast<DxuiSeverity> (FindingFormatter::GetSeverity (finding)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackColumn::OnDiskStarted
+//
+//  A new disk opens on Issues once its analysis finds any, unless a view is
+//  chosen first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackColumn::OnDiskStarted (const DiskChange & change)
+{
+    m_isOpening = change.hasDisk && change.isNewDisk;
 }
 
 
@@ -259,6 +288,26 @@ void TrackColumn::Update()
     if (GetSelectedIndex() < 0 && m_session.context.hasDisk)
     {
         m_host.ShowTrackTab (kTabSectorData);
+    }
+
+    //  A new disk with issues opens on them; the wait ends with its analysis.
+    if (m_isOpening && m_hasIssues)
+    {
+        m_isOpening = false;
+        m_host.ShowDiskTab (kTabFindings);
+    }
+    else if (m_isOpening && m_session.pendingRequest == 0 && !m_session.scheduler->HasPending())
+    {
+        m_isOpening = false;
+    }
+
+    //  Issues has the count of findings in the most severe one's color.
+    for (size_t v = 0; v < m_shown.size(); v++)
+    {
+        if (m_shown[v].isDisk && m_shown[v].tab == kTabFindings)
+        {
+            m_views->SetBadge (static_cast<int> (v), m_issues > 0 ? std::to_wstring (m_issues) : std::wstring(), m_severity);
+        }
     }
 
     m_views->SetVisible  (m_session.context.hasDisk);
@@ -337,7 +386,8 @@ int TrackColumn::Layout (const RECT & area, const DxuiDpiScaler & scaler)
 
     for (const View & view : m_shown)
     {
-        segment = std::max (segment, scaler.ToPx (static_cast<int> (std::ceil (wcslen (view.label) * InspectorMetrics::kCharWidthDip)) + s_kSegmentPadDip));
+        segment = std::max (segment, scaler.ToPx (static_cast<int> (std::ceil (wcslen (view.label) * InspectorMetrics::kCharWidthDip)) + s_kSegmentPadDip +
+                                                  ((view.isDisk && view.tab == kTabFindings) ? s_kBadgeRoomDip : 0)));
     }
 
     segment = std::min (segment, width / count);

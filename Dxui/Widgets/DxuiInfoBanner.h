@@ -119,6 +119,10 @@ public:
     //  a banner in a pane the user can make narrow. With zero, the default,
     //  they are beside the text at any width.
     void  SetStackBelowDip (float textDip) { m_stackBelowDip = textDip; }
+
+    //  The actions always on a row under the text, at the trailing edge, so
+    //  the text runs the banner's whole width. Off by default.
+    void  SetActionsBelow  (bool isBelow) { m_isActionsBelow = isBelow; }
     bool  IsStacked        (float widthPx, const DxuiDpiScaler & scaler) const;
 
     //  A close box at the trailing edge, an X as on a tab, for a notice the
@@ -266,6 +270,7 @@ private:
     //  See SetActionWidthDip and SetStackBelowDip.
     float           m_actionWidthDip = s_kActionWidthDip;
     float           m_stackBelowDip  = 0.0f;
+    bool            m_isActionsBelow = false;
 
     //  See SetActions and SetDismissible.
     std::vector<std::unique_ptr<DxuiButton>>  m_actions;

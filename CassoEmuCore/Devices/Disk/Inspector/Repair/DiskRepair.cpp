@@ -376,14 +376,14 @@ void DiskRepair::PlanHeader (Work & work, const FileMap & map)
     if (map.isHeaderLost && !IsSkipped (work, L"header"))
     {
         Dos33MapReader::MakeStandardHeader (static_cast<Byte> (work.volume), vtoc);
-        AddChange (work, L"header", L"Set the VTOC header to DOS 3.3's standard values", { { FindingKind::Dos33HeaderLost } });
+        AddChange (work, map, L"header", L"Set the VTOC header to DOS 3.3's standard values", { { FindingKind::Dos33HeaderLost } });
     }
     else if (!map.isHeaderLost && !IsSkipped (work, L"next") &&
              (vtoc[Dos33MapReader::kNextTrack] >= s_kTracks || (vtoc[Dos33MapReader::kDirection] != s_kUp && vtoc[Dos33MapReader::kDirection] != s_kDown)))
     {
         vtoc[Dos33MapReader::kNextTrack] = static_cast<Byte> (Dos33MapReader::kVtocTrack);
         vtoc[Dos33MapReader::kDirection] = s_kUp;
-        AddChange (work, L"next", L"Set the VTOC's next track to allocate to track 17, allocating upward", { { FindingKind::Dos33NextTrackOffDisk } });
+        AddChange (work, map, L"next", L"Set the VTOC's next track to allocate to track 17, allocating upward", { { FindingKind::Dos33NextTrackOffDisk } });
     }
 }
 
@@ -486,13 +486,13 @@ void DiskRepair::PlanRelink (Work & work, const FileMap & map)
         {
             at[s_kCatalogTrack]  = static_cast<Byte> (Dos33MapReader::kVtocTrack);
             at[s_kCatalogSector] = static_cast<Byte> (next);
-            AddChange (work, key, std::format (L"Link catalog sector ${:X} to sector ${:X}", path[i], next), fixes);
+            AddChange (work, map, key, std::format (L"Link catalog sector ${:X} to sector ${:X}", path[i], next), fixes, L"The catalog ends before a sector that has files");
         }
         else if (next < 0 && (at[s_kCatalogTrack] != 0 || at[s_kCatalogSector] != 0))
         {
             at[s_kCatalogTrack]  = 0;
             at[s_kCatalogSector] = 0;
-            AddChange (work, key, std::format (L"End the catalog at sector ${:X}", path[i]), fixes);
+            AddChange (work, map, key, std::format (L"End the catalog at sector ${:X}", path[i]), fixes, L"The catalog chain doesn't end");
         }
     }
 }
@@ -667,7 +667,7 @@ void DiskRepair::PlanProDos (Work & work, const FileMap & map)
 
     if (work.plan.reason.empty() && pastEnd > 0)
     {
-        AddChange (work, L"pastend", std::format (L"Mark {} blocks past the end of the volume as used in the bitmap", pastEnd), { { FindingKind::ProDosBitmapPastEnd } });
+        AddChange (work, map, L"pastend", std::format (L"Mark {} blocks past the end of the volume as used in the bitmap", pastEnd), { { FindingKind::ProDosBitmapPastEnd } });
     }
 }
 
@@ -721,7 +721,7 @@ void DiskRepair::PlanCounts (Work & work, const FileMap & map)
             *high = static_cast<Byte> (count.actual >> s_kBitsPerByte);
         }
 
-        AddChange (work, key, std::format (L"Set {} to {}", count.what, count.actual), { { count.kind, -1, count.finding } });
+        AddChange (work, map, key, std::format (L"Set {} to {}", count.what, count.actual), { { count.kind, -1, count.finding } });
     }
 }
 
@@ -774,19 +774,22 @@ void DiskRepair::AddBitmapChanges (Work & work, const FileMap & map, const Bitma
     {
         if (tally.markedUsed[f] > 0)
         {
-            AddChange (work, L"used:" + map.files[f].path,
-                       std::format (L"Mark {} {}{} of {} as used in the bitmap", tally.markedUsed[f], unit, plural (tally.markedUsed[f]), map.files[f].path), tally.usedFixes[f]);
+            AddChange (work, map, L"used:" + map.files[f].path,
+                       std::format (L"Mark {} {}{} of {} as used in the bitmap", tally.markedUsed[f], unit, plural (tally.markedUsed[f]), map.files[f].path), tally.usedFixes[f],
+                       std::format (L"{} {}s used by {} are marked free", tally.markedUsed[f], unit, map.files[f].path));
         }
     }
 
     if (tally.structures > 0)
     {
-        AddChange (work, L"structures", std::format (L"Mark {} {} {}{} as used in the bitmap", tally.structures, structure, unit, plural (tally.structures)), tally.structureFixes);
+        AddChange (work, map, L"structures", std::format (L"Mark {} {} {}{} as used in the bitmap", tally.structures, structure, unit, plural (tally.structures)), tally.structureFixes,
+                   std::format (L"{} {} {}{} {} marked free", tally.structures, structure, unit, plural (tally.structures), (tally.structures == 1) ? L"is" : L"are"));
     }
 
     if (tally.unowned > 0)
     {
-        AddChange (work, L"unowned", std::format (L"Mark {} {}{} not in any file as free in the bitmap", tally.unowned, unit, plural (tally.unowned)), tally.unownedFixes);
+        AddChange (work, map, L"unowned", std::format (L"Mark {} {}{} not in any file as free in the bitmap", tally.unowned, unit, plural (tally.unowned)), tally.unownedFixes,
+                   std::format (L"{} {}s not in any file are marked used", tally.unowned, unit));
     }
 }
 
@@ -798,11 +801,31 @@ void DiskRepair::AddBitmapChanges (Work & work, const FileMap & map, const Bitma
 //
 //  DiskRepair::AddChange
 //
+//  The problem is the text of the finding the change sets right when there
+//  is one, and the summary for several or none.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskRepair::AddChange (Work & work, std::wstring key, std::wstring text, vector<RepairFix> fixes)
+void DiskRepair::AddChange (Work & work, const FileMap & map, std::wstring key, std::wstring text, vector<RepairFix> fixes, const std::wstring & summary)
 {
-    work.plan.changes.push_back ({ std::move (key), std::move (text), std::move (fixes) });
+    RepairChange      change  { std::move (key), std::move (text), std::move (fixes) };
+    const Finding   * matched = nullptr;
+    int               count   = 0;
+
+
+
+    for (const Finding & finding : map.findings)
+    {
+        if (IsFixing (change, finding))
+        {
+            matched = (matched == nullptr) ? &finding : matched;
+            count++;
+        }
+    }
+
+    change.problem = (count == 1 || (count > 1 && summary.empty())) ? TextEncoding::Utf8ToWide (matched->detail) : summary;
+
+    work.plan.changes.push_back (std::move (change));
 }
 
 

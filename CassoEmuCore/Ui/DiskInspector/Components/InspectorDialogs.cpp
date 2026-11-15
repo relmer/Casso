@@ -4,6 +4,7 @@
 #include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Core/TextEncoding.h"
+#include "Core/UnicodeSymbols.h"
 #include "Ui/DiskInspector/DecodeSettingsDialog.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DurableCommit.h"
@@ -89,33 +90,49 @@ Error:
 //
 //  The confirmation from the image file as saved, with the chosen changes
 //  checked, and the copy written beside the image. The status band has the
-//  copy's name or the reason it wasn't written. The host's
-//  OnRepairedCopyWritten is called with the copy, and Casso Explorer opens
-//  the copy in the window in the image's place.
+//  copy's name or the reason it wasn't written. A second dialog lists the
+//  fixes applied; on its OK, the host's OnRepairedCopyWritten is called with
+//  the copy, and Casso Explorer opens the copy in the window in the image's
+//  place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void InspectorDialogs::OpenRepair (const std::set<std::wstring> & chosen)
 {
-    HRESULT          hr      = S_OK;
-    Win32DiskFileIo  fileIo;
-    std::string      path    = (m_session.analysis.copy != nullptr) ? m_session.analysis.copy->fileName : std::string();
-    std::string      written;
-    std::wstring     note;
-    bool             hasPath = !path.empty();
+    HRESULT               hr      = S_OK;
+    Win32DiskFileIo       fileIo;
+    std::string           path    = (m_session.analysis.copy != nullptr) ? m_session.analysis.copy->fileName : std::string();
+    std::string           written;
+    std::wstring          note;
+    RepairPlan            applied;
+    vector<std::wstring>  lines   = { L"Applied these fixes:" };
+    bool                  hasPath = !path.empty();
+    bool                  canOpen = m_session.host != nullptr && m_session.host->CanOpenRepairedCopy();
 
 
 
     CBRA (hasPath);
 
-    hr = RepairDialog::Run (m_host.GetOwnerHwnd(), m_session.theme, fileIo, path, chosen, written, note);
+    hr = RepairDialog::Run (m_host.GetOwnerHwnd(), m_session.theme, fileIo, path, chosen, written, applied, note);
 
     if (!note.empty())
     {
         m_host.SetStatusNote (note);
     }
 
-    if (SUCCEEDED (hr) && !written.empty() && m_session.host != nullptr)
+    BAIL_OUT_IF (FAILED (hr) || written.empty(), hr);
+
+    //  What the copy has, and the copy opened in the window on OK where the
+    //  host opens it.
+    for (const RepairChange & change : applied.changes)
+    {
+        lines.push_back (std::wstring (s_kpszBullet) + L" " + change.text);
+    }
+
+    lines.push_back (canOpen ? std::wstring (L"Press OK to load the repaired disk image into Disk Inspector.")
+                             : L"The repaired copy is " + fs::path (TextEncoding::Utf8ToWide (written)).filename().wstring() + L".");
+
+    if (Confirm (L"Repair disk image", lines, L"OK") && canOpen)
     {
         m_session.host->OnRepairedCopyWritten (TextEncoding::Utf8ToWide (written));
     }
