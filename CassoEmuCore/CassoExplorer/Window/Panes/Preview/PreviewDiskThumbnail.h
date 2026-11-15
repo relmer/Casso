@@ -12,6 +12,7 @@ struct ExplorerContext;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ThumbnailPlatterView
@@ -32,6 +33,7 @@ public:
 private:
     const DxuiTheme * const  & m_theme;
 };
+
 
 
 
@@ -132,6 +134,7 @@ public:
 private:
     std::shared_ptr<const DxuiIconImage>  m_picture;
 };
+
 
 
 
