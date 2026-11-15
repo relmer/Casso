@@ -410,7 +410,7 @@ public:
         rig.host->SetQuiet (false);
         rig.Read (1, kTrack, AllSectors(), CassoLinkHost::kErrorNotFound);
 
-        Assert::AreEqual (std::string ("ERROR: NO SECTOR D1, T17, S3"), rig.Row (kRowError), L"and one for the same read unmarked");
+        Assert::AreEqual (std::string ("Error: No sector D1, T17, S3"), rig.Row (kRowError), L"and one for the same read unmarked");
     }
 
 

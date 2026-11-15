@@ -117,11 +117,11 @@ public:
         AssertSucceeded (rig.host->ReadSectors (1, kCatalogTrack, sector, data, status));
         AssertSucceeded (rig.host->ServeOne (kReadyTimeoutMs));
 
-        AssertRow (rig, kRowStatus, "CASSOLINK: CONNECTED",  L"the status");
-        AssertRow (rig, kRowPort,   "SERIAL PORT 2, 115200", L"the link's speed");
+        AssertRow (rig, kRowStatus, "CassoLink: Connected",  L"the status");
+        AssertRow (rig, kRowPort,   "Serial port 2, 115200", L"the link's speed");
         AssertRow (rig, kRowLabel,  "",                      L"no label after the request");
         AssertRow (rig, kRowError,  "",                      L"no error");
-        AssertRow (rig, kRowDrive1, "D1: IDLE",              L"drive 1");
+        AssertRow (rig, kRowDrive1, "D1: Idle",              L"drive 1");
     }
 
 
@@ -142,8 +142,8 @@ public:
         AssertSucceeded (rig.host->WriteSectors (1, 9, sector, data, status));
         Assert::AreEqual<int> (CassoLinkHost::kErrorWriteProtected, status.error);
 
-        AssertRow (rig, kRowError, "ERROR: WRITE-PROTECTED DISK IN D1", L"the error row");
-        AssertRow (rig, kRowError, "ERROR: WRITE-PROTECTED DISK IN D1", L"the error row, a moment later");
+        AssertRow (rig, kRowError, "Error: Write-protected disk in D1", L"the error row");
+        AssertRow (rig, kRowError, "Error: Write-protected disk in D1", L"the error row, a moment later");
     }
 
 
@@ -160,7 +160,7 @@ public:
         AssertSucceeded (rig.host->SendLog (12, 30, "PC CONNECTED"));
         AssertSucceeded (rig.host->SendLog (12, 34, "OK  COPIED FROMPC TO D1"));
 
-        AssertRow (rig, kRowHistoryTitle, "HISTORY:",                      L"the heading");
+        AssertRow (rig, kRowHistoryTitle, "History:",                      L"the heading");
         AssertRow (rig, kRowHistory1,     "12:34 OK  COPIED FROMPC TO D1", L"the newest line");
         AssertRow (rig, kRowHistory2,     "12:30 PC CONNECTED",            L"the line before it");
     }
@@ -173,9 +173,9 @@ public:
     {
         struct Cell { Word at; char c; const wchar_t * what; };
 
-        static constexpr Cell  kCells[] = { { 0x0400, 'A', L"column 1 of CASSOLINK" },
-                                            { 0x0401, 'S', L"column 3" },
-                                            { 0x0406, 'N', L"column 13, in CONNECTED" },
+        static constexpr Cell  kCells[] = { { 0x0400, 'a', L"column 1 of CassoLink" },
+                                            { 0x0401, 's', L"column 3" },
+                                            { 0x0406, 'n', L"column 13, in Connected" },
                                             { 0x0426, '2', L"column 77, in the connection at the right edge" },
                                             { 0x0427, '0', L"column 79, the speed's last digit" } };
 

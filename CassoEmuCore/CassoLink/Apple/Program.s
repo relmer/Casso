@@ -1461,7 +1461,11 @@ readyend:
 ; on an enhanced //e's bytes.
 readid: lda $FBB3
         sta readyrom
-        lda $FBC0
+        cmp #$06                ; a //e, //c or IIgs has lowercase
+        bne ridcaps
+        lda #$80
+        sta lcase
+ridcaps: lda $FBC0
         sta readyrom+1
         lda $FBBF
         sta readyrom+2
@@ -3434,7 +3438,7 @@ dsdone: jsr fschrome
         jsr showaddr
         jmp showstatus
 
-titletxt: .text "CASSOLINK"
+titletxt: .text "CassoLink"
         .byte 0
 
 ; 40 or 80 columns. wide has its high bit set for 80, whose odd columns are in
@@ -3443,6 +3447,7 @@ PAGE2OFF = $C054
 PAGE2ON  = $C055
 wide:     .byte 0
 rowwidth: .byte 40
+lcase:    .byte 0               ; bit 7 set on a machine with lowercase: a //e, //c or IIgs
 
 ; col40: 40 columns, as the shim and BASIC expect.
 col40:  sta $C00C
@@ -3519,10 +3524,21 @@ ptdone: ldy tmp
 
 ; putch: A into the field at Y, and Y on, in inverse left of barcells, so that
 ; text over a bar inverts where the bar has passed. Nothing is drawn at a Y of 40 or
-; more, so a text from a row's start is never drawn on the row below it.
+; more, so a text from a row's start is never drawn on the row below it. A
+; lowercase letter is drawn as a capital in inverse, which the primary
+; characters have no lowercase for, and on a ][ or ][ plus.
 putch:  cpy rowwidth
         bcs pcnext
+        cmp #$61
+        bcc pcbar
+        cmp #$7B
+        bcs pcbar
         cpy barcells
+        bcc pccaps
+        bit lcase
+        bmi pcbar
+pccaps: and #$DF
+pcbar:  cpy barcells
         bcs pcnorm
         and #$3F
         bcc pcput
@@ -3686,7 +3702,7 @@ scfound: lda speeds+1,x
         endif
 
         ifdef W5100
-conntext: .text "UTHERNET II, SLOT "
+conntext: .text "Uthernet II, slot "
         .byte 0
 
 ; putword: wnum in decimal, without leading zeros, into the field from Y.
@@ -3724,13 +3740,13 @@ pwtablo: .byte <1, <10, <100, <1000, <10000
 pwtabhi: .byte >1, >10, >100, >1000, >10000
         else
 conntext: .byte 0
-connssc: .text "SSC, SLOT "
+connssc: .text "SSC, slot "
         .byte 0
-connsscm: .text "WI-FI, SLOT "
+connsscm: .text "Wi-Fi, slot "
         .byte 0
-connport: .text "SERIAL PORT "
+connport: .text "Serial port "
         .byte 0
-connportm: .text "WI-FI, PORT "
+connportm: .text "Wi-Fi, port "
         .byte 0
 conncomma: .text ", "
         .byte 0
@@ -3825,7 +3841,7 @@ pcend:  .byte 0                  ; the top row's column where the PC's blanks en
 sacount: .byte 0                ; showaddr: the address's bytes drawn
 salen:  .byte 0                 ; and in 80 columns, its length
         else
-addrlabel: .text "DIALED"
+addrlabel: .text "Dialed"
         .byte $3A, 0
         endif
 
@@ -3842,7 +3858,7 @@ s2400:   .text "2400"
          .byte 0
 s1200:   .text "1200"
          .byte 0
-sother:  .text "OTHER"
+sother:  .text "Other"
          .byte 0
 ; The 6551's rate bits and their text; the last entry matches any other.
 ; After the text, as the assembler sizes a forward < or > in .byte wrongly.
@@ -4098,9 +4114,9 @@ stsector: .byte $2C
 
 optext: .word oidle, oread, owrite, oformat
 
-oidle:   .text "IDLE"
+oidle:   .text "Idle"
          .byte 0
-onodisk: .text "EMPTY OR NO RECOGNIZED SECTORS"
+onodisk: .text "Empty or no recognized sectors"
          .byte 0
 oread:   .text "READING"
          .byte 0
@@ -4266,11 +4282,11 @@ nopc:   lda pcflag
         jsr fsleave
 npdraw: jmp showpc
 
-pcwait: .text "WAITING"
+pcwait: .text "Waiting"
         .byte 0
-pcconn: .text "CONNECTED"
+pcconn: .text "Connected"
         .byte 0
-pcnone: .text "NO REPLY "
+pcnone: .text "No reply "
         .byte 0
 
 ; showerr: the last operation's error, as ERROR: WRITE-PROTECTED DISK IN D2 or
@@ -4331,27 +4347,27 @@ senotwp: cmp #ERRNOTFND          ; a sector that cannot be read or verified:
 sedone: rts
 ; The error codes are $10 apart, so the code shifted right three times is
 ; the index of its text's address; the first entry is for any other code.
-ertext:  .text "ERROR"
+ertext:  .text "Error"
          .byte $3A, $20, 0
 
 errtext: .word eother, eprotect, enotfnd, edata, everify, elink, edrive, echanged
 errtextend:
 
-eother:   .text "FAILED"
+eother:   .text "Failed"
           .byte 0
-eprotect: .text "WRITE-PROTECTED DISK IN D"
+eprotect: .text "Write-protected disk in D"
           .byte 0
-enotfnd:  .text "NO SECTOR"
+enotfnd:  .text "No sector"
           .byte 0
-edata:    .text "BAD DATA"
+edata:    .text "Bad data"
           .byte 0
-everify:  .text "VERIFY FAILED"
+everify:  .text "Verify failed"
           .byte 0
-elink:    .text "LINK DATA DAMAGED"
+elink:    .text "Link data damaged"
           .byte 0
-edrive:   .text "NO SUCH DRIVE"
+edrive:   .text "No such drive"
           .byte 0
-echanged: .text "DISK CHANGED"
+echanged: .text "Disk changed"
           .byte 0
 
 ; dolabel: the host's text for the user's operation across the label row,
@@ -4688,19 +4704,19 @@ fckeys80: bit wide
         tay
 fckeys: jmp puttext
 
-histtxt: .text "HISTORY"
+histtxt: .text "History"
         .byte $3A, 0
 keystxt: .text "F"
         .byte $3A
-        .text " FULL SEND   PRESS ESC TO EXIT"
+        .text " Full Send   Press Esc to exit"
         .byte 0
 fskeystxt: .text "V"
         .byte $3A
-        .text " VERIFY  P"
+        .text " Verify  P"
         .byte $3A
-        .text " PREFIX  Q"
+        .text " Prefix  Q"
         .byte $3A
-        .text " CASSOLINK"
+        .text " CassoLink"
         .byte 0
 
 ; fsrow: scr at the history row of index X, and the row cleared. Y is 0.
@@ -5896,22 +5912,22 @@ pidone: ldx #0
         ldy tmp
         rts
 
-kmaptxt: .text "BLOCKS"
+kmaptxt: .text "Blocks"
         .byte $3A, 0
 ; The legend, a high bit for inverse, and in 80 columns with its cells doubled.
 klegend: .byte $A0
-        .text " DONE  # TO GO  . FREE  "
+        .text " done  # to go  . free  "
         .byte KCREAD-$40
-        .text " READ  "
+        .text " read  "
         .byte KCWRITE-$40
-        .text " WRITE"
+        .text " write"
         .byte 0
 klegend80: .byte $A0, $A0
-        .text " DONE   ## TO GO   .. FREE   "
+        .text " done   ## to go   .. free   "
         .byte KCREAD-$40, KCREAD-$40
-        .text " READ   "
+        .text " read   "
         .byte KCWRITE-$40, KCWRITE-$40
-        .text " WRITE"
+        .text " write"
         .byte 0
 
 kcrc:    .byte 0, 0             ; the host's CRC of the directory

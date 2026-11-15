@@ -137,7 +137,7 @@ public:
         AssertRowStarts (rig, 4, "SERIAL PORT 2, 115200");
 
         rig.Link();
-        AssertRowStarts (rig, 0, "CASSOLINK");
+        AssertRowStarts (rig, 0, "CassoLink");
     }
 
 
@@ -201,7 +201,7 @@ public:
         AssertSucceeded (rig.pcEnd->Write (reinterpret_cast<const Byte *> ("CONNECT\r\n"), 9));
 
         rig.Link();
-        AssertRowStarts (rig, 1, "WI-FI, PORT 2, 115200");
-        AssertRowStarts (rig, 2, "DIALED:     CASSO.LOCAL:6400");
+        AssertRowStarts (rig, 1, "Wi-Fi, port 2, 115200");
+        AssertRowStarts (rig, 2, "Dialed:     CASSO.LOCAL:6400");
     }
 };
