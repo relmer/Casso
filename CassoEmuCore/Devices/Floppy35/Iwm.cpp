@@ -174,6 +174,7 @@ void Iwm::AdvanceTo (uint64_t nowNs)
     {
         m_motorOffPending = false;
         m_enabled         = false;
+        UpdateEnables();
     }
 
     if (drive == nullptr || !m_enabled)
@@ -243,6 +244,7 @@ void Iwm::Reset()
     m_paramIndex      = 0;
 
     UpdatePhases();
+    UpdateEnables();
 }
 
 
@@ -281,11 +283,14 @@ void Iwm::SetSwitch (int sw, bool on, uint64_t nowNs)
         {
             m_enabled = false;
         }
+
+        UpdateEnables();
     }
     else if (sw == s_kSwitchSelect)
     {
         m_driveSelect = on ? 1 : 0;
         UpdatePhases();
+        UpdateEnables();
     }
     else if (sw == s_kSwitchQ6)
     {
@@ -450,5 +455,34 @@ void Iwm::UpdatePhases()
     if (drive != nullptr)
     {
         drive->SetPhases (m_phases[0], m_phases[1], m_phases[2], m_phases[3]);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateEnables
+//
+//  The drive that isn't selected is disabled first, so a drive attached as
+//  both of the IWM's drives ends with the selected drive's enable.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Iwm::UpdateEnables()
+{
+    for (size_t index = 0; index < m_drives.size(); index++)
+    {
+        if (m_drives[index] != nullptr && (int) index != m_driveSelect)
+        {
+            m_drives[index]->SetEnabled (false);
+        }
+    }
+
+    if (GetSelected() != nullptr)
+    {
+        GetSelected()->SetEnabled (m_enabled);
     }
 }

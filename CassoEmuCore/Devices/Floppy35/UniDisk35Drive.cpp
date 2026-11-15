@@ -172,6 +172,7 @@ void UniDisk35Drive::Reset()
 {
     m_reg0 = 0;
     m_reg1 = kReg1Reset;
+    m_mechanism.SetEnabled (false);
     m_iwm.Reset();
     m_input.Clear();
     m_output.Clear();
@@ -625,6 +626,10 @@ void UniDisk35Drive::WriteGateArray (Word address, Byte value)
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+
+    //  The mechanism is enabled while drive 1 is selected. The firmware
+    //  deselects it after a timeout, which stops the motor.
+    m_mechanism.SetEnabled ((m_reg1 & kDrive1) != 0);
 }
 
 

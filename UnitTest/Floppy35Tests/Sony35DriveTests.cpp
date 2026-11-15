@@ -208,6 +208,45 @@ public:
     }
 
 
+    //  A SECOND AFTER THE DRIVE IS DISABLED its motor stops and the motor-on
+    //  latch clears, so the controller turns it on again the next time it
+    //  enables the drive. A drive enabled again within the second goes on
+    //  turning.
+    TEST_METHOD (Motor_StopsASecondAfterTheDriveIsDisabled)
+    {
+        FakeDiskFileIo  io;
+        Sony35Drive     drive (0);
+        EventLog        log;
+
+
+
+        Insert (io, drive, Gcr35Track::kBlocksTwoSides);
+        drive.SetFloppy35EventSink (&log);
+        drive.SetEnabled (true);
+
+        Command (drive, kCmdMotorOn);
+        Assert::IsTrue (drive.IsMotorOn());
+
+        drive.SetEnabled (false);
+        drive.Advance (kSecondNs / 2);
+        drive.SetEnabled (true);
+        drive.Advance (kSecondNs);
+        Assert::IsTrue (drive.IsMotorOn(), L"enabled again within the second, the motor turns");
+
+        drive.SetEnabled (false);
+        drive.Advance (kSecondNs / 2);
+        Assert::IsTrue (drive.IsMotorOn(), L"half a second after the drive is disabled, the motor turns");
+        Command (drive, kCmdMotorOff);
+        Assert::IsTrue (drive.IsMotorOn(), L"a disabled drive doesn't take the motor-off command");
+
+        drive.Advance (kSecondNs / 2);
+
+        Assert::IsFalse (drive.IsMotorOn(), L"a second after, the motor stops");
+        Assert::IsTrue (Sense (drive, kRegMotor), L"the latch reads off");
+        Assert::IsTrue (log.ops == std::vector<Floppy35Op> { Floppy35Op::MotorOn, Floppy35Op::MotorOff });
+    }
+
+
     TEST_METHOD (Step_MovesInAndOut)
     {
         Sony35Drive  drive (0);

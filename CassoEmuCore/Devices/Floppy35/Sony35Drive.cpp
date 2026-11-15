@@ -267,7 +267,7 @@ Error:
 
 void Sony35Drive::SetPhases (bool ca0, bool ca1, bool ca2, bool lstrb)
 {
-    bool  strobe = lstrb && !m_lstrb;
+    bool  strobe = lstrb && !m_lstrb && m_enabled;
 
 
 
@@ -280,6 +280,30 @@ void Sony35Drive::SetPhases (bool ca0, bool ca1, bool ca2, bool lstrb)
     {
         RunCommand (GetRegister());
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Sony35Drive::SetEnabled (bool isEnabled)
+{
+    if (isEnabled)
+    {
+        m_offLeftNs = 0;
+    }
+    else if (m_enabled && m_motorOn)
+    {
+        m_offLeftNs = kMotorOffNs;
+    }
+
+    m_enabled = isEnabled;
 }
 
 
@@ -370,6 +394,16 @@ void Sony35Drive::Advance (uint64_t elapsedNs)
 {
     m_stepLeftNs = (m_stepLeftNs > elapsedNs) ? m_stepLeftNs - elapsedNs : 0;
     m_spinLeftNs = (m_spinLeftNs > elapsedNs) ? m_spinLeftNs - elapsedNs : 0;
+
+    if (m_offLeftNs > 0)
+    {
+        m_offLeftNs = (m_offLeftNs > elapsedNs) ? m_offLeftNs - elapsedNs : 0;
+
+        if (m_offLeftNs == 0)
+        {
+            RunCommand (s_kCmdMotorOff);
+        }
+    }
 
     if (m_ejectLeftNs > 0)
     {

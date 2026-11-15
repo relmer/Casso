@@ -15,6 +15,9 @@
 //  time the cell ends on the IWM's clock. A mechanism ignores it; a bus
 //  between two IWMs lines their cells up with it.
 //
+//  SetEnabled is the drive's enable line: on while the IWM's enable is on
+//  and the drive is selected.
+//
 //  GetQuietUntil returns the time up to which every cell that ends reads 0
 //  and reading it changes nothing in the drive, so the IWM can pass over
 //  those cells without reading them. It returns kQuietForever when that is
@@ -37,4 +40,5 @@ public:
     virtual uint32_t  GetCellNs  () const = 0;
 
     virtual uint64_t  GetQuietUntil () const { return 0; }
+    virtual void      SetEnabled    (bool isEnabled) { (void) isEnabled; }
 };

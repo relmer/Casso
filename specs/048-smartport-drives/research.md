@@ -416,6 +416,22 @@ rule to verify above is right: Apple 3.5 Drives, then SmartPort drives, then
 5.25-inch drives. ROM 05 numbers the Apple 3.5
 Drives 2 and 3, after the internal drive.
 
+**Checked** (2026-11-15, the three firmwares): none of them stops a 3.5-inch
+drive's motor with a command except before an eject. ROM 05 sends the
+motor-off command only in its eject routine at $E89C; it disables the drive
+after each access, reads the motor register at $EA2D when it enables the
+drive again, and sends motor-on when the motor is off. The 3.5 controller
+card's firmware disables the drive after each access, and its timer routine
+at $D8DD enables each drive only to check it for a disk. The UniDisk 3.5's
+firmware deselects its mechanism at $E9EA after a timeout. So a drive stops
+its motor some time after it is disabled. MAME's Sony drive takes the motor
+only from commands, and its motors don't stop. The delay isn't from a
+source: Casso stops the motor and clears the motor-on latch a second after
+the drive is disabled, the IWM's turn-off delay for a 5.25-inch drive.
+Stopping the motor as soon as the drive is disabled made the 3.5 controller
+card's boot 5.68 s, where MAME's is 3.97 s, from a spin-up at each access; with
+the second's delay it is 3.72 s.
+
 ## R13. Drive sounds
 
 **Checked**: OpenEmulator's samples, the source of the Disk II sounds, cover
