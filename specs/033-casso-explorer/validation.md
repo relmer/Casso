@@ -1039,7 +1039,7 @@ thumbnail cache is the user's, so nothing was cleared there.
 | `CassoCli disk thumbnail <image> <picture>` | the picture in the icon view and the preview pane, marked as set by the user |
 | `--out`, `--remove` with none set, no action, a file that isn't a picture | the PNG written, and each error as on the help page |
 | A picture set from the command line while the folder is in view | the icon redrawn with no refresh, after the cache watcher below |
-| Remove thumbnail on a disk image's menu | the item there for a picture the user set; the picture made by booting drawn again |
+| Remove thumbnail on a disk image's menu | the item there for an image with a thumbnail; a picture the user set removed and the picture made by booting drawn again; a second Remove removes that one |
 | Casso's "Save screenshot as disk 1's thumbnail" with a disk mounted | the screen, Arcticfox's title, as the image's thumbnail; byte-identical copies of the image have it too |
 | A folder of eight images with no thumbnails | "Capturing thumbnails: 8" in the status bar, gone once all eight were booted |
 | Options, General page | "Automatically create thumbnails for disk images by booting them headlessly and capturing the screen", checked; the Clear thumbnails button removed (owner) |

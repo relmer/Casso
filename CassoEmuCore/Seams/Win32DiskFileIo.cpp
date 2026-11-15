@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Seams/Win32DiskFileIo.h"
+#include "Core/TextEncoding.h"
 #include "DiskCheck/ThumbnailStore.h"
 
 #pragma comment(lib, "cldapi.lib")
@@ -942,3 +943,32 @@ void Win32DiskFileIo::AbortProcessNow (const wchar_t * stage)
 }
 
 #endif
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::SetReadOnly
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::SetReadOnly (const std::string & path, bool readOnly)
+{
+    HRESULT       hr    = S_OK;
+    std::wstring  wide  = TextEncoding::NarrowToWide (path);
+    DWORD         attrs = GetFileAttributesW (wide.c_str());
+    BOOL          isSet = FALSE;
+
+
+
+    CWR (attrs != INVALID_FILE_ATTRIBUTES);
+
+    isSet = SetFileAttributesW (wide.c_str(), readOnly ? (attrs | FILE_ATTRIBUTE_READONLY) : (attrs & ~(DWORD) FILE_ATTRIBUTE_READONLY));
+    CWR (isSet);
+
+Error:
+    return hr;
+}
+

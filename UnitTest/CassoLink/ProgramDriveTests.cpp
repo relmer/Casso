@@ -193,6 +193,37 @@ public:
 
 
 
+    //  A read's Status has the disk's write-protect, as the program senses it
+    //  when the read begins, and the host has it for each drive.
+    TEST_METHOD (AReadsStatus_HasTheDisksWriteProtect)
+    {
+        std::vector<Byte>  disk     = Dos33();
+        ProgramRig         rig (disk, disk);
+        const Byte         sector[] = { 0 };
+        std::vector<Byte>  data;
+        CassoLinkStatus    status;
+
+
+
+        rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 1)->SetImageWriteProtected (true);
+
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+
+        AssertSucceeded (rig.host->ReadSectors (1, 0, sector, data, status));
+        Assert::IsFalse (status.writeProtected, L"drive 1's disk has its notch");
+        Assert::AreEqual<int> (1, status.drive);
+
+        AssertSucceeded (rig.host->ReadSectors (2, 0, sector, data, status));
+        Assert::IsTrue (status.writeProtected, L"drive 2's doesn't");
+        Assert::AreEqual<int> (2, status.drive, L"the flag isn't part of the drive's number");
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, L"a read of a write-protected disk isn't an error");
+
+        Assert::IsFalse (rig.host->IsWriteProtected (1));
+        Assert::IsTrue  (rig.host->IsWriteProtected (2));
+    }
+
+
+
     //  A disk never formatted, a nibble image of sync bytes alone with no
     //  address fields: tracks written with Write track, as a whole-disk write
     //  sends a new DOS 3.3 disk, read back as written.

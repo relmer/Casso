@@ -238,6 +238,7 @@ OPDISK   = 5                    ; a Full Send's pause, on the status row alone
 OPCAPT   = 6                    ; a raw capture: the bar has the quarter track
 
 QUIETDRIVE = $80                ; the drive's bit for a check the PC reports itself
+STATWP     = $40                ; Status's drive bit for a write-protected disk
 
 ; Errors.
 ERRNONE    = $00
@@ -1013,6 +1014,7 @@ nddone: rts
 
 nodisk: .byte 0, 0
 quiet:  .byte 0                 ; nonzero for a check the PC reports itself
+wpbit:  .byte 0                 ; STATWP when begin found the disk write-protected
 
 ; Read CRCs: the requested sectors read as for Read sectors, and each one's CRC
 ; sent with a flag for whether it was read. A sector not read isn't an error here,
@@ -1386,6 +1388,7 @@ bgarmed:
         sta index
         sta idles
         sta misses
+        sta wpbit
         lda PKTBUF
         and #QUIETDRIVE
         sta quiet
@@ -1418,6 +1421,11 @@ drvok:  ldx drive               ; the drive's FAILED, cleared by its next operat
         sta barfail-1,x
         jsr motoron
         jsr seek
+        jsr wpsense             ; the disk's write-protect, for the Status
+        lda #0
+        bcc bgwp
+        lda #STATWP
+bgwp:   sta wpbit
         clc
         rts
 
@@ -1555,6 +1563,7 @@ ssloop: lda stathdr,x
         lda op
         jsr putpe
         lda drive
+        ora wpbit
         jsr putpe
         lda track
         jsr putpe
@@ -2575,17 +2584,22 @@ stepdone: lda #25
         rts
 
 ; protected: the carry is set, with err, when the disk is write-protected.
-protected: ldx diskx
-        lda Q6H,x
-        lda Q7L,x
-        asl a
-        lda Q6L,x
+protected: jsr wpsense
         bcc wpok
         lda #ERRPROTECT
         sta err
         sec
         rts
 wpok:   clc
+        rts
+
+; wpsense: C is set when the disk is write-protected, and err isn't
+; changed. Q7 stays low, so the drive is never in write mode.
+wpsense: ldx diskx
+        lda Q6H,x
+        lda Q7L,x
+        asl a
+        lda Q6L,x
         rts
 
 ; findsector: the address field of `sector` on `track`. The carry is set,

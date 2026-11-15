@@ -3639,6 +3639,13 @@ as they arrive.
   does, and a disk row's menu MUST have Repair disk image when the inspector
   can repair it. A raw capture with no standard file system has the verdict
   "No standard file system", which isn't a failure.
+- **FR-291**: A disk that is write-protected when Full Send reads it MUST
+  have a write-protected image: a WOZ with its INFO chunk's write-protect
+  flag set, and a sector image with the file's read-only attribute, which
+  Casso mounts as write-protected. The manifest's `writeProtected` column
+  MUST have it too, as the attribute doesn't survive a zip or a checkout.
+  A title that tests for a copy by writing to its disk, as Wizardry I's boot
+  disk does, runs only from a write-protected image (owner, 2026-11-14).
 - **FR-288**: When an image is first to be booted and the ROMs of the enhanced //e
   or the ][+ aren't installed, Casso Explorer MUST offer them in the dialog
   Casso has for a machine's missing ROMs, once in a run of the program,
@@ -3677,9 +3684,11 @@ as they arrive.
   MUST be stored as every other thumbnail is, in the cache and in the
   image file's stream, marked as set by the user, with no other file
   written.
-- **FR-285**: Casso Explorer MUST have Remove thumbnail on a disk image's
-  menu, which removes a thumbnail the user set and restores the one made
-  by booting.
+- **FR-285**: Casso Explorer MUST have Remove thumbnail on the menu of a
+  disk image with a thumbnail. It removes a thumbnail the user set and
+  restores the one made by booting; with none set, it removes the one made
+  by booting, as `disk removethumbnail` does, since automatic thumbnails
+  can be turned off (owner, 2026-11-14).
 - **FR-286**: Deleting an image in Casso Explorer MUST remove its
   thumbnail. The cache has no command to clear it: its pictures are small,
   and the user can delete its folder (owner, 2026-11-14).

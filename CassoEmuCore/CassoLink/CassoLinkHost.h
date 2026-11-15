@@ -85,11 +85,12 @@ struct CassoLinkClient
 
 struct CassoLinkStatus
 {
-    Byte  operation = 0;
-    Byte  drive     = 0;
-    Byte  track     = 0;
-    Byte  done      = 0;
-    Byte  error     = 0;
+    Byte  operation      = 0;
+    Byte  drive          = 0;
+    Byte  track          = 0;
+    Byte  done           = 0;
+    Byte  error          = 0;
+    bool  writeProtected = false;   // the drive's disk, as the program sensed it at the operation's start
 };
 
 //  A capture read's times: from its request to its first packet, which is
@@ -207,6 +208,10 @@ public:
     //  made.
     bool             HasAdtProClient () const { return m_adtProServer.m_adtProClient; }
     CassoLinkClient  GetClient       () const { return m_client; }
+
+    //  Whether the disk in a drive, 1 or 2, was write-protected at the start
+    //  of the latest operation on it; false before one.
+    bool             IsWriteProtected (Byte drive) const { return drive >= 1 && drive <= 2 && m_writeProtected[drive - 1]; }
 
     //  A character of text for the Apple's screen: ? for one outside
     //  printable ASCII, and a capital for inverse text or an Apple with no
@@ -486,6 +491,7 @@ private:
     Byte                            m_progressStart   = 0;
     Byte                            m_progressEnd     = 0;
     std::function<void (bool)>      m_waitObserver;
+    std::array<bool, 2>             m_writeProtected  = { false, false };
     DWORD                           m_waitNoticeMs    = kWaitNoticeMs;
     bool                            m_quiet           = false;
     TraceFn                         m_trace;

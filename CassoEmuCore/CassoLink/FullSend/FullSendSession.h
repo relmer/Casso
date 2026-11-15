@@ -173,6 +173,9 @@ public:
     //  Whether the Apple sounds a tone for an image's boot result.
     virtual bool     HasBootTones   () { return false; }
 
+    //  Whether the disk in a drive was write-protected when it was last read.
+    virtual bool     IsWriteProtected (int drive) { UNREFERENCED_PARAMETER (drive); return false; }
+
     //  A line for the activity log.
     virtual void     Report     (const std::string & text) = 0;
 };
@@ -284,7 +287,7 @@ private:
     HRESULT  ReadStableTrack  (int drive, int track, CheckedDisk & ioDisk, bool & outHasDisk, bool & outStable);
     HRESULT  SendDisk         (int drive, const CheckedDisk & checked, bool anyway);
     HRESULT  CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw);
-    HRESULT  WriteImage       (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile);
+    HRESULT  WriteImage       (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, bool writeProtected, std::string & outFile);
     void     ApplyBoots       ();
     HRESULT  SendAgain        (int drive, const CheckedDisk & disk);
     HRESULT  WriteManifest    ();

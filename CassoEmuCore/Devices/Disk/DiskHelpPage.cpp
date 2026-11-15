@@ -332,8 +332,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "Set a disk image's thumbnail from a picture",
         "CassoCli disk setthumbnail <image> <picture>",
         nullptr,
-        "<picture>, a PNG, JPEG, BMP, GIF, or TIFF file, becomes the thumbnail Casso Explorer draws for <image>, in place of"
-        " the one it captured by booting the image.",
+        "<picture>, a PNG, JPEG, BMP, GIF, or TIFF file to use as the custom thumbnail Casso Explorer draws for <image>."
+        " Replaces the thumbnail automatically captured by Casso Explorer.",
         "CassoCli disk setthumbnail Archon.woz title.png"
     },
 
@@ -343,8 +343,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "Save a disk image's thumbnail as a PNG",
         "CassoCli disk getthumbnail <image> <file>",
         nullptr,
-        "Saves the thumbnail Casso Explorer draws for <image> to <file> as a PNG: the one set with setthumbnail, or the one"
-        " captured by booting the image.",
+        "Saves the disk image's thumbnail to <file> as a PNG.",
         "CassoCli disk getthumbnail Archon.woz archon.png"
     },
 
@@ -354,8 +353,8 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "Remove a disk image's thumbnail",
         "CassoCli disk removethumbnail <image>",
         nullptr,
-        "Removes the thumbnail set with setthumbnail, so Casso Explorer draws the one it captured by booting the image. With"
-        " none set, removes the captured one, and Casso Explorer boots the image for a new one the next time it is in view.",
+        "Removes the disk image's custom thumbnail, or the automatically captured thumbnail if no custom thumbnail is"
+        " set.",
         "CassoCli disk removethumbnail Archon.woz"
     },};
 

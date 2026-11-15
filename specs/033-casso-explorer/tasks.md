@@ -2109,6 +2109,7 @@ rename, move and copy an image and find its thumbnail on each.
 - [ ] T744 [US43] Add the verdict after the status in the Full Send window's list, and with the boot result in the activity list with its first finding of damage, and count Bad as a failed capture for the failure sound on the PC and the Apple (FR-290)
 - [ ] T745 [US43] Add Repair disk image to a disk row's menu in the Full Send window, through the inspector's repair (040, T757), when the image can be repaired (FR-290)
 - [ ] T746 [US43] Test (SC-076): a session that saves a disk with planted bookkeeping damage has Bad in the manifest and the window and sounds the failure, and its repaired copy is OK; a copy-protected raw capture that boots has "No standard file system" and sounds success
+- [X] T747 [US43] Make the image of a write-protected disk write-protected (FR-291) Done 2026-11-14: the program senses the disk's write-protect when an operation begins and sets bit 6 of Status's drive byte (version 92); the host has it for each drive (`CassoLinkHost::IsWriteProtected`); Full Send sets a WOZ's INFO flag or a sector image's read-only attribute, and the manifest's `writeProtected` column. Tests: `ProgramDriveTests::AReadsStatus_HasTheDisksWriteProtect` on an emulated //c, `FullSendTests::Session_AWriteProtectedDisk_HasAWriteProtectedImage`, `FullSendManifestRenameTests::ARowsWriteProtect_IsWrittenAndReadBack`. Not yet run on the real //c
 
 ### Proof
 
