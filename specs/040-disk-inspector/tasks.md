@@ -525,3 +525,29 @@ Commit after each phase (constitution, Commit Discipline), with
 - [X] T745 Scale whole-ring heat by count on a log scale
 - [X] T746 Draw chevrons on grouped list headings
 - [X] T747 Patch strip percentages and fix the Flux cell rules at the view's edge
+
+
+## Phase 22: File-system verdict and repair (Story 18)
+
+Goal: a verdict for each DOS 3.3, ProDOS and Apple Pascal volume, the checks
+for it, and Repair, which writes a repaired copy of the volume's
+bookkeeping beside the image (FR-166 to FR-178, SC-045). Owner decision of
+2026-11-14: the inspector ships with repair. Full Send uses the verdict (033,
+FR-290, T743 to T746 there).
+
+Independent test: planted damage on made-up images, each repaired copy
+compared byte for byte with the image before the damage.
+
+- [ ] T748 [US18] Test images with planted bookkeeping damage, made in code: a DOS 3.3 disk with a bitmap that disagrees both ways, a catalog that loops, a zeroed VTOC header, a next-track hint off the disk, a file whose catalog count differs, a cross-link and a chain off the disk; a ProDOS disk with a bitmap and a file count that disagree; an Apple Pascal disk with a file count that disagrees; and an image of each before the damage, in `UnitTest/Inspector/RepairFixtures.h/.cpp`
+- [ ] T749 [US18] The verdict (FR-166): `FileSystemVerdict` (OK, Suspect, Bad, None) in the disk analysis from the file-system findings, each finding marked as damage or a note; drawn with the File map and in the summary, and returned by `CassoCli disk test`
+- [ ] T750 [US18] DOS 3.3 VTOC header checks (FR-167): bytes a sector, pairs a list, the next-track hint, the release and volume numbers and the bytes after each bitmap word
+- [ ] T751 [US18] Catalog entry checks (FR-168): filenames with mixed high bits, types DOS 3.3 doesn't have and counts larger than the disk, and the non-standard catalog when at least two entries and over 15% fail
+- [ ] T752 [US18] Sector counts with one either way, zero not compared and modulo 256 over 255 sectors (FR-169); a BASIC or binary file's stored length and a list's file-relative sector number as notes (FR-170); a file of one repeated byte and an almost blank image as damage
+- [ ] T753 [US18] `DiskRepair` in `CassoEmuCore/Devices/Disk/Inspector/Repair/`: from a disk analysis, the list of changes to make and whether the volume can be repaired, with the reason when it can't (FR-171, FR-176); pure, with no I/O
+- [ ] T754 [US18] DOS 3.3 repairs: the catalog relinked from sector $F down (FR-173), the VTOC header set to DOS's values and the next-track hint to track 17 moving up (FR-174), the catalog counts (FR-175), then the bitmap from the files, with "Don't free sectors that no file uses" (FR-172)
+- [ ] T755 [US18] ProDOS repairs: the volume bitmap from the directory tree and each directory's file count; Apple Pascal: the directory's file count (FR-172, FR-175)
+- [ ] T756 [US18] The copy (FR-171): " (repaired)" before the extension and a number when that name exists, in the image's format through `VolumeImage::Save`; the image isn't written
+- [ ] T757 [US18] Repair in the inspector window: a command beside the verdict, a confirmation with a line for each change and "Don't free sectors that no file uses", and the copy selected in Casso Explorer once written (FR-177); window-part tests at 100% and 150%
+- [ ] T758 [US18] `CassoCli disk repair <image> [<copy>] [--no-free-unowned] [--list]` with its help page and option rows (FR-178)
+- [ ] T759 [US18] Scenario test (SC-045): every planted kind repaired to the image before the damage, and 30 disks from the test collection, standard and copy-protected, with no protected disk Bad and no undamaged standard disk other than OK
+

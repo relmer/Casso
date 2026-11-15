@@ -3629,6 +3629,15 @@ as they arrive.
   reads differ in length, or a sector taken from another read MUST have
   that with its boot result, in the manifest, the Full Send window and the
   preview pane, as a boot reads only the sectors a title starts from.
+- **FR-290**: Each image a Full Send saves, a sector image or the sectors a
+  raw capture decodes to, MUST have the disk inspector's file-system check
+  (040, FR-166): its verdict in the manifest's `fscheck` column, after the
+  status in the Full Send window's list, and with the image's boot result in
+  the activity list, with its first finding of damage. A Bad verdict
+  MUST count as a failed capture for the failure sound, as a boot that failed
+  does, and a disk row's menu MUST have Repair disk image when the inspector
+  can repair it. A raw capture with no standard file system has the verdict
+  "No standard file system", which isn't a failure.
 - **FR-288**: When an image is first to be booted and the ROMs of the enhanced //e
   or the ][+ aren't installed, Casso Explorer MUST offer them in the dialog
   Casso has for a machine's missing ROMs, once in a run of the program,
@@ -4276,6 +4285,11 @@ as they arrive.
   thumbnail within 30 seconds.
 - **SC-075**: An image renamed, moved and copied on an NTFS volume has its
   thumbnail in all three places with no boot.
+- **SC-076**: A Full Send of a disk with planted bookkeeping damage has
+  the verdict Bad in the manifest and the window, sounds the failure, and
+  its row's Repair disk image writes a copy with the verdict OK; a Full Send
+  of a copy-protected disk has "No standard file system" and sounds success
+  when it boots.
 
 ## Assumptions
 
