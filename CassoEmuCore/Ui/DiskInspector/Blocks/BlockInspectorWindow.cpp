@@ -115,7 +115,7 @@ void BlockInspectorWindow::BuildCommands()
     };
 
     //  File
-    c.saveEditedCopy            = make (L"Save leftover data as &file...", L"", [this] () { SaveRun(); });
+    c.saveEditedCopy            = make (L"Save &data from free blocks as a file...", L"", [this] () { SaveRun(); });
     c.saveEditedCopy->isEnabled = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_model.FindLeftoverRun (m_model.GetBlock()) != nullptr; };
     c.close                     = make (L"&Close", L"Alt+F4", [this] () { OnWindowClose(); });
 
@@ -145,7 +145,7 @@ void BlockInspectorWindow::BuildCommands()
     c.overlays.push_back (make (L"&Files", L"", [this] () { m_panel->SetFilesOn (!m_panel->IsFilesOn()); }));
     c.overlays.back()->isChecked = [this] () { return m_panel->IsFilesOn(); };
     c.overlays.back()->isEnabled = isOpen;
-    c.overlays.push_back (make (L"&Leftover data", L"", [this] () { m_panel->SetLeftoversOn (!m_panel->IsLeftoversOn()); }));
+    c.overlays.push_back (make (L"&Data in free blocks", L"", [this] () { m_panel->SetLeftoversOn (!m_panel->IsLeftoversOn()); }));
     c.overlays.back()->isChecked = [this] () { return m_panel->IsLeftoversOn(); };
     c.overlays.back()->isEnabled = isOpen;
     c.overlays.push_back (make (L"D&ifferences", L"", [this] () { m_panel->SetDiffsOn (!m_panel->IsDiffsOn()); }));
@@ -348,6 +348,7 @@ void BlockInspectorWindow::RenderIfChanged()
     }
 
     m_panel->UpdateBusy();
+    DxuiPanel::Tick ((int64_t) GetTickCount64());
     m_menus.Tick ((int64_t) GetTickCount64());
     m_status.Tick (GetHwnd());
 
@@ -1026,7 +1027,7 @@ void BlockInspectorWindow::CompareWithFile (const std::wstring & path)
 //
 //  BlockInspectorWindow::SaveRun
 //
-//  The run of free blocks with leftover data the current block is in, saved
+//  The run of free blocks with text or code the current block is in, saved
 //  as a file the user picks.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1048,7 +1049,7 @@ void BlockInspectorWindow::SaveRun()
 
     BAIL_OUT_IF (found == nullptr, S_OK);
 
-    spec.title            = L"Save leftover data";
+    spec.title            = L"Save data from free blocks";
     spec.defaultExtension = isText ? L"txt" : L"bin";
     spec.defaultFileName  = L"Blocks " + std::to_wstring (run.first) + L" to " + std::to_wstring (run.first + run.count - 1) + (isText ? L".txt" : L".bin");
     spec.initialFolder    = fs::path (m_path).parent_path();
@@ -1058,7 +1059,7 @@ void BlockInspectorWindow::SaveRun()
     CHRF (hr, ShowMessage (L"The save dialog can't be shown."));
     BAIL_OUT_IF (!isPicked, S_OK);
 
-    m_panel->QueueJob ({ L"Saving the leftover data", false,
+    m_panel->QueueJob ({ L"Saving the data from free blocks", false,
                          [result, fileIo, model, run, target = TextEncoding::WideToUtf8 (path.wstring())] (BlockJobProgress & progress)
                          {
                              vector<Byte>  bytes;
@@ -1068,7 +1069,7 @@ void BlockInspectorWindow::SaveRun()
 
                              if (FAILED (result->hr))
                              {
-                                 result->message = L"The leftover blocks can't be read.";
+                                 result->message = L"The free blocks can't be read.";
                                  return;
                              }
 

@@ -28,11 +28,12 @@ class IDiskFileIo;
 //  callback is called when the window closes.
 //
 //  Every read and write of the image runs on m_worker's thread: opening it,
-//  each block, Find leftover data, comparing, applying edits, reading it
-//  again and saving leftover data. Each job's completion runs on the next
-//  frame, which the window set drives. The progress of a long job is drawn
-//  in the panel. Closing cancels a job that can be canceled. While a job
-//  that can't be is running, the window doesn't close.
+//  each block, the search for data in free blocks, comparing, applying
+//  edits, reading it again and saving data from free blocks. Each job's
+//  completion runs on the next frame of the window set's timer. The
+//  progress of a long job is drawn in the panel. Closing cancels a job that
+//  can be canceled. While a job that can't be is running, the window
+//  doesn't close.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

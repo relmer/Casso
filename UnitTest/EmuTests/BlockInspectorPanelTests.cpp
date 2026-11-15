@@ -223,6 +223,7 @@ public:
         Assert::IsTrue (HasText (text, L"Block 2"));
         Assert::IsTrue (HasText (text, L"Volume header"));
 
+        panel.ShowView (BlockInspectorPanel::kViewBlocks);
         panel.SelectBlock (300);
         panel.GetHexView()->GoToOffset (4);
 
@@ -275,6 +276,40 @@ public:
         text.Reset();
         panel.Paint (painter, text, theme);
         Assert::IsTrue  (HasText (text, L"Block 2"));
+    }
+
+
+    TEST_METHOD (Panel_PointingAtTheGridReportsTheCellAndTheWheelZoomsIt)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+        DxuiMouseEvent        ev;
+        std::wstring          hint;
+        RECT                  map   = {};
+
+
+
+        OpenModel (io, model);
+
+        panel.Init      (&model, nullptr, &theme, nullptr, &text);
+        panel.SetOnHint ([&] (const std::wstring & value) { hint = value; });
+        panel.Layout    (RECT { 0, 0, 1180, 700 }, scaler);
+
+        map            = panel.GetMap().GetBounds();
+        ev.kind        = DxuiMouseEventKind::Move;
+        ev.positionDip = { (map.left + map.right) / 2, (map.top + map.bottom) / 2 };
+        panel.OnMouse (ev);
+
+        Assert::IsTrue (hint.find (L"Block") == 0, hint.c_str());
+
+        ev.kind       = DxuiMouseEventKind::Wheel;
+        ev.wheelDelta = WHEEL_DELTA;
+        Assert::IsTrue (panel.OnMouse (ev));
+        Assert::IsFalse (panel.GetMap().IsAtFit(), L"the wheel over the grid zooms it");
     }
 
 

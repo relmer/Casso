@@ -8,7 +8,7 @@
 
 
 
-static constexpr int  s_kMarkRows = 2;     // the rows for a block that differs and for leftover data
+static constexpr int  s_kMarkRows = 2;     // the rows for a block that differs and for data in a free block
 
 
 
@@ -120,5 +120,5 @@ void BlockLegendView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
     }
 
     line (theme.ErrorForeground(), L"Differs from the other image", true);
-    line (theme.Accent(), L"Leftover data in a free block", true);
+    line (theme.Accent(), L"Text or code in a free block", true);
 }

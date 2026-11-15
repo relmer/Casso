@@ -635,4 +635,13 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme,
 
         painter.OutlineRect (left + at.x - outline * 0.5f, top + at.y - outline * 0.5f, size + outline, size + outline, outline, theme.Accent());
     }
+
+    //  The cell under the pointer is outlined, as the ring under the pointer
+    //  is on the platter.
+    if (m_isZoomable && m_hoverCell >= 0 && (uint32_t) m_hoverCell < m_grid.GetCellCount())
+    {
+        at = m_grid.GetCellOrigin ((uint32_t) m_hoverCell);
+
+        painter.OutlineRect (left + at.x - outline * 0.5f, top + at.y - outline * 0.5f, size + outline, size + outline, outline * 0.5f, theme.Foreground());
+    }
 }

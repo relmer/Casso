@@ -225,6 +225,13 @@ void BlockFieldsView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
                           DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    if (m_fields.empty() && !m_emptyText.empty())
+    {
+        hr = text.DrawString (m_emptyText.c_str(), left, y + row, width, row, theme.ForegroundMuted(), font, s_kpszFont,
+                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     for (i = 0; i < shown && m_top + i < (int) m_fields.size(); i++)
     {
         const BlockField &  field = m_fields[m_top + i];

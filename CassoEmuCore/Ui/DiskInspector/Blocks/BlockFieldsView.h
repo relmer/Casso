@@ -35,6 +35,9 @@ public:
     void  SetOnHover   (FieldFn fn) { m_onHover  = std::move (fn); }
     void  SetHeading   (const std::wstring & heading) { m_heading = heading; }
 
+    //  The line under the heading when there are no fields.
+    void  SetEmptyText (const std::wstring & text) { m_emptyText = text; }
+
     const vector<BlockField> &  GetFields () const { return m_fields; }
 
     //  The text of a field's row after its offset.
@@ -56,6 +59,7 @@ private:
 
     vector<BlockField>  m_fields;
     std::wstring        m_heading;
+    std::wstring        m_emptyText;
     DxuiDpiScaler       m_scaler;
     FieldFn             m_onFollow;
     FieldFn             m_onHover;

@@ -24,6 +24,8 @@ static constexpr int      s_kInsetDip       = 4;
 static constexpr LPCWSTR  s_kpszGlyphLegend = L"\xE790";
 static constexpr LPCWSTR  s_kpszGlyphMinus  = L"\xE738";
 static constexpr LPCWSTR  s_kpszGlyphPlus   = L"\xE710";
+static constexpr LPCWSTR  s_kpszGlyphPrev   = L"\xE76B";
+static constexpr LPCWSTR  s_kpszGlyphNext   = L"\xE76C";
 static constexpr uint32_t s_kChangedColor   = 0xFFE0A030;
 static constexpr uint32_t s_kDiffersColor   = 0xFFF06060;
 static constexpr uint32_t s_kFieldColor     = 0xFF60B0F0;
@@ -108,7 +110,7 @@ void BlockInspectorPanel::InitCorners()
     m_zoomGroup    = CreateChild<FloatingGroup>();
     m_legendButton = m_legendGroup->CreateChild<DxuiIconButton>();
     m_filesChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Files");
-    m_leftChip     = m_chipsGroup->CreateChild<OverlayChip> (L"Leftover data");
+    m_leftChip     = m_chipsGroup->CreateChild<OverlayChip> (L"Data in free blocks");
     m_diffsChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Differences");
     m_zoomOut      = m_zoomGroup->CreateChild<DxuiIconButton>();
     m_zoomIn       = m_zoomGroup->CreateChild<DxuiIconButton>();
@@ -149,6 +151,8 @@ void BlockInspectorPanel::InitCorners()
 void BlockInspectorPanel::InitRightColumn()
 {
     m_views    = CreateChild<DxuiSegmentedControl>();
+    m_previous = CreateChild<DxuiIconButton>();
+    m_next     = CreateChild<DxuiIconButton>();
     m_copy     = CreateChild<DxuiButton> (L"Copy block");
     m_editNote = CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     m_discard  = CreateChild<DxuiButton> (L"Discard edits");
@@ -158,9 +162,16 @@ void BlockInspectorPanel::InitRightColumn()
     m_fields   = CreateChild<BlockFieldsView>();
     m_files    = CreateChild<BlockFilesView>();
 
-    m_views->SetSegments ({ L"Blocks", L"Files", L"Header" });
-    m_views->SetSelected (kViewBlocks);
+    m_views->SetSegments ({ L"Files", L"Blocks" });
+    m_views->SetSelected (kViewFiles);
     m_views->SetOnChange ([this] (int index) { ShowView (static_cast<View> (index)); });
+
+    m_previous->SetGlyph          (s_kpszGlyphPrev);
+    m_previous->SetAccessibleName (L"Previous block");
+    m_previous->SetOnClick        ([this] () { Step (-1); });
+    m_next->SetGlyph              (s_kpszGlyphNext);
+    m_next->SetAccessibleName     (L"Next block");
+    m_next->SetOnClick            ([this] () { Step (1); });
 
     m_copy->SetOnClick    ([this] () { if (m_onCopy) { m_onCopy(); } });
     m_discard->SetOnClick ([this] () { if (m_onDiscard) { m_onDiscard(); } });
@@ -223,8 +234,9 @@ void BlockInspectorPanel::InitRightColumn()
             return;
         }
 
+        //  The file's blocks are highlighted on the grid. The tab doesn't
+        //  switch to Blocks, so another file can be picked.
         m_isFilesOn = true;
-        ShowView (kViewBlocks);
         SelectBlock (row.first);
     });
 }
@@ -484,8 +496,8 @@ bool BlockInspectorPanel::IsLeftoversOn() const
 //
 //  BlockInspectorPanel::SetLeftoversOn
 //
-//  Turning the overlay on finds the leftover data in the free blocks, as a
-//  long job with progress and Cancel.
+//  Turning the overlay on finds the free blocks with text or code in them,
+//  such as a deleted file's, as a long job with progress and Cancel.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -507,7 +519,7 @@ void BlockInspectorPanel::SetLeftoversOn (bool isOn)
         return;
     }
 
-    QueueJob ({ L"Finding leftover data", true,
+    QueueJob ({ L"Finding data in free blocks", true,
                 [model] (BlockJobProgress & progress) { model->FindLeftovers (&progress); },
                 [this] () { Refresh(); } });
 }
@@ -759,7 +771,16 @@ void BlockInspectorPanel::Present()
     BuildFieldLine();
     FillFiles();
 
-    m_views->SetSegmentEnabled (kViewHeader, HasHeader());
+    //  The Header tab is offered only for an image with a container header.
+    if (HasHeader() != m_hasHeader)
+    {
+        m_hasHeader = HasHeader();
+        m_views->SetSegments (m_hasHeader ? vector<std::wstring> { L"Files", L"Blocks", L"Header" } : vector<std::wstring> { L"Files", L"Blocks" });
+        m_views->SetSelected (m_view);
+    }
+
+    m_previous->SetEnabled (m_model->GetBlock() > 0);
+    m_next->SetEnabled     (m_model->GetBlock() + 1 < m_model->GetBlockCount());
     m_filesChip->SetOn   (m_isFilesOn);
     m_leftChip->SetOn    (m_model->HasLeftovers());
     m_diffsChip->SetOn   (m_isDiffsOn);
@@ -778,6 +799,50 @@ void BlockInspectorPanel::Present()
     if (m_onChanged)
     {
         m_onChanged();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::BuildCapsules
+//
+//  Free or Used, then the block's role for a block in use, drawn red for a
+//  damaged role, then each file the block is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::BuildCapsules()
+{
+    uint32_t      block  = m_model->GetBlock();
+    SectorRole    role   = m_model->GetRole (block);
+    LPCWSTR       label  = m_model->GetMapLabel (block);
+    bool          isFree = role == SectorRole::Free && label == nullptr;
+    bool          isBad  = role == SectorRole::AllocatedUnowned || role == SectorRole::OwnedMarkedFree || role == SectorRole::CrossLinked;
+    std::wstring  owners = m_model->GetOwners (block);
+    size_t        start  = 0;
+    size_t        end    = 0;
+
+
+
+    m_capsules.clear();
+    m_capsules.push_back ({ isFree ? L"Free" : L"Used", false });
+
+    if (!isFree)
+    {
+        m_capsules.push_back ({ label != nullptr ? label : BlockMapGrid::GetRoleName (role), isBad });
+    }
+
+    while (start < owners.size())
+    {
+        end = owners.find (L'\n', start);
+        end = end == std::wstring::npos ? owners.size() : end;
+
+        m_capsules.push_back ({ owners.substr (start, end - start), false });
+        start = end + 1;
     }
 }
 
@@ -808,13 +873,14 @@ void BlockInspectorPanel::ShowBytes()
 
 
     m_title = L"Block " + std::to_wstring (block);
-    m_role  = m_model->GetMapLabel (block) != nullptr ? m_model->GetMapLabel (block) : BlockMapGrid::GetRoleName (m_model->GetRole (block));
+    BuildCapsules();
 
     if (header)
     {
         m_source.SetBytes (m_model->GetFile().GetHeader());
         fields = m_model->GetHeaderFields();
-        m_fields->SetHeading (L"Container header");
+        m_fields->SetHeading   (L"Fields in the container header");
+        m_fields->SetEmptyText (L"There are no fields in the container header.");
     }
     else
     {
@@ -823,7 +889,8 @@ void BlockInspectorPanel::ShowBytes()
 
         m_source.SetBytes (bytes);
         m_model->GetFields (block, bytes, fields);
-        m_fields->SetHeading (L"Fields");
+        m_fields->SetHeading   (L"Fields in block " + std::to_wstring (block));
+        m_fields->SetEmptyText (L"There are no fields in this block.");
 
         for (i = 0; i < bytes.size(); i++)
         {
@@ -920,9 +987,9 @@ void BlockInspectorPanel::MarkField (const BlockField * field)
 //
 //  BlockInspectorPanel::BuildFieldLine
 //
-//  The block's files, and on the field line its Disk Copy tag bytes, the
-//  file highlighted, whether it differs from the other image, and the
-//  leftover data it is in.
+//  The field line: the block's Disk Copy tag bytes, whether the block
+//  differs from the other image, and the run of free blocks with text or
+//  code it is in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -937,12 +1004,9 @@ void BlockInspectorPanel::BuildFieldLine()
     vector<std::wstring>        parts;
     wchar_t                     hex[4] = {};
     std::wstring                tagText;
+    std::wstring                kind;
 
 
-
-    m_owners = m_model->GetOwners (block);
-    std::replace (m_owners.begin(), m_owners.end(), L'\n', L',');
-    m_owners = m_owners.empty() ? std::wstring (L"No file uses this block") : m_owners;
 
     if (m_model->TryGetTags (block, tags))
     {
@@ -955,11 +1019,6 @@ void BlockInspectorPanel::BuildFieldLine()
         parts.push_back (L"Tag bytes:" + tagText);
     }
 
-    if (m_model->HasHighlight())
-    {
-        parts.push_back (L"Highlighted: " + m_model->GetHighlightedPath());
-    }
-
     if (m_model->IsComparing())
     {
         parts.push_back ((m_model->IsDifferent (block) ? L"Differs from " : L"Same as ") + other
@@ -968,12 +1027,15 @@ void BlockInspectorPanel::BuildFieldLine()
 
     if (run != nullptr)
     {
-        parts.push_back (L"Leftover " + std::wstring (BlockLeftovers::GetKindName (run->kind)) + L" in free blocks "
-                         + std::to_wstring (run->first) + L" to " + std::to_wstring (run->first + run->count - 1));
+        kind = BlockLeftovers::GetKindName (run->kind);
+        kind = kind.empty() ? kind : (wchar_t) towupper (kind[0]) + kind.substr (1);
+
+        parts.push_back (kind + L" in free blocks " + std::to_wstring (run->first) + L" to " + std::to_wstring (run->first + run->count - 1));
     }
     else if (m_model->HasLeftovers())
     {
-        parts.push_back (runs == 0 ? std::wstring (L"No leftover data in the free blocks") : runs == 1 ? std::wstring (L"1 run of leftover data") : std::format (L"{} runs of leftover data", runs));
+        parts.push_back (runs == 0 ? std::wstring (L"No free blocks with text or code") : runs == 1 ? std::wstring (L"1 run of free blocks with text or code")
+                                                                                                 : std::format (L"{} runs of free blocks with text or code", runs));
     }
 
     m_fieldLine.clear();
@@ -992,7 +1054,9 @@ void BlockInspectorPanel::BuildFieldLine()
 //
 //  BlockInspectorPanel::FillFiles
 //
-//  The files of the current block's volume, in the map's order.
+//  The files and directories of the current block's volume, in the map's
+//  order. A row is a directory when its first block is a directory's. The
+//  highlighted file's row is selected.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1003,6 +1067,8 @@ void BlockInspectorPanel::FillFiles()
     const BlockMap             * map   = m_model->FindMap (block, inner);
     vector<BlockFilesView::Row>  rows;
     vector<uint32_t>             used;
+    uint32_t                     first = 0;
+    SectorRole                   role  = SectorRole::Free;
     int                          i     = 0;
 
 
@@ -1013,11 +1079,15 @@ void BlockInspectorPanel::FillFiles()
 
         if (!used.empty())
         {
-            rows.push_back ({ map->files[i], (uint32_t) used.size(), block - inner + used[0] });
+            first = block - inner + used[0];
+            role  = m_model->GetRole (first);
+
+            rows.push_back ({ map->files[i], role == SectorRole::CatalogOrDirectory || role == SectorRole::Subdirectory, (uint32_t) used.size(), first });
         }
     }
 
-    m_files->SetRows (std::move (rows));
+    m_files->SetRows     (std::move (rows));
+    m_files->SetSelected (m_model->HasHighlight() ? m_model->GetHighlightedPath() : std::wstring());
 }
 
 
@@ -1114,9 +1184,9 @@ std::wstring BlockInspectorPanel::GetSelectionLine() const
 
 void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    int   pad      = scaler.ToPx (kPadDip);
+    int   pad      = scaler.ToPx ((int) kPadDip);
     int   toolbar  = m_tools != nullptr ? scaler.ToPx (m_tools->GetBandDp()) : 0;
-    int   splitter = scaler.ToPx (kSplitterDip);
+    int   splitter = scaler.ToPx ((int) kSplitterDip);
     int   top      = boundsPx.top + toolbar;
     int   tools    = 0;
     int   splitX   = 0;
@@ -1219,10 +1289,10 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
 
 void BlockInspectorPanel::LayoutRight (const RECT & column, const DxuiDpiScaler & scaler)
 {
-    int   pad     = scaler.ToPx (kPadDip);
-    int   row     = scaler.ToPx (kRowDip);
-    int   line    = scaler.ToPx (kLineDip);
-    int   button  = scaler.ToPx (kButtonDip);
+    int   pad     = scaler.ToPx ((int) kPadDip);
+    int   row     = scaler.ToPx ((int) kRowDip);
+    int   line    = scaler.ToPx ((int) kLineDip);
+    int   button  = scaler.ToPx ((int) kButtonDip);
     int   y       = column.top;
     bool  isRow   = m_isLongJob || m_hasEdits;
     bool  isFiles = m_view == kViewFiles;
@@ -1230,14 +1300,13 @@ void BlockInspectorPanel::LayoutRight (const RECT & column, const DxuiDpiScaler 
 
 
 
-    m_titleRect  = { column.left, y, column.right - button - pad, y + row };
+    m_previous->Layout ({ column.left, y, column.left + row, y + row }, scaler);
+    m_next->Layout     ({ column.left + row, y, column.left + 2 * row, y + row }, scaler);
+    m_titleRect = { column.left + 2 * row + pad, y, column.right - button - pad, y + row };
     m_copy->Layout ({ column.right - button, y, column.right, y + row }, scaler);
-    y += row;
+    y += row + pad;
 
-    m_ownersRect = { column.left, y, column.right, y + line };
-    y += line + pad;
-
-    m_views->Layout ({ column.left, y, column.left + scaler.ToPx (kViewsDip), y + row }, scaler);
+    m_views->Layout ({ column.left, y, column.left + scaler.ToPx ((int) kViewsDip), y + row }, scaler);
     y += row + pad;
 
     m_fieldRect = { column.left, y, column.right, y + line };
@@ -1283,7 +1352,7 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                       m_isSplitting ? theme.Accent() : theme.Divider());
 
     DxuiPanel::Paint (painter, text, theme);
-    PaintHeader (text, theme);
+    PaintHeader (painter, text, theme);
 
     if (m_isLongJob)
     {
@@ -1299,18 +1368,31 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 //
 //  BlockInspectorPanel::PaintHeader
 //
-//  "Block 2" with its role beside it, as the track header has the track,
-//  then the files and the field line.
+//  "Block 2" and its capsules after it, in the status band's chip style:
+//  Free or Used, the role, and the files. Capsules that don't fit are left
+//  out. Then the field line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorPanel::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & theme)
+void BlockInspectorPanel::PaintHeader (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    constexpr float     kChipPadDip    = 8.0f;
+    constexpr float     kChipHeightDip = 20.0f;
+    constexpr uint32_t  kBadColor      = 0xFFE03C3C;
+
+
+
     float    font   = m_scaler.ToPxf (kFontDip);
     float    title  = m_scaler.ToPxf (kTitleDip);
+    float    chipH  = m_scaler.ToPxf (kChipHeightDip);
+    float    chipP  = m_scaler.ToPxf (kChipPadDip);
+    float    gap    = m_scaler.ToPxf (kPadDip);
+    float    top    = (float) m_titleRect.top;
+    float    height = (float) (m_titleRect.bottom - m_titleRect.top);
+    float    chipY  = top + (height - chipH) / 2.0f;
+    float    x      = (float) m_titleRect.left;
     float    w      = 0.0f;
     float    h      = 0.0f;
-    float    gap    = m_scaler.ToPxf (kPadDip);
     HRESULT  hr     = S_OK;
 
 
@@ -1322,19 +1404,31 @@ void BlockInspectorPanel::PaintHeader (IDxuiTextRenderer & text, const IDxuiThem
 
     text.MeasureString (m_title.c_str(), title, DxuiTheme::kBodyFace, w, h);
 
-    hr = text.DrawString (m_title.c_str(), (float) m_titleRect.left, (float) m_titleRect.top, w + 1.0f, (float) (m_titleRect.bottom - m_titleRect.top),
-                          theme.Foreground(), title, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+    hr = text.DrawString (m_title.c_str(), x, top, w + 1.0f, height, theme.Foreground(), title, DxuiTheme::kBodyFace,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawString (m_role.c_str(), m_titleRect.left + w + gap, (float) m_titleRect.top, std::max (0.0f, m_titleRect.right - m_titleRect.left - w - gap),
-                          (float) (m_titleRect.bottom - m_titleRect.top), theme.Foreground(), font, DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
-                          DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    x += w + gap;
 
-    hr = text.DrawString (m_owners.c_str(), (float) m_ownersRect.left, (float) m_ownersRect.top, (float) (m_ownersRect.right - m_ownersRect.left),
-                          (float) (m_ownersRect.bottom - m_ownersRect.top), theme.ForegroundMuted(), font, DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
-                          DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    for (const Capsule & capsule : m_capsules)
+    {
+        text.MeasureString (capsule.text.c_str(), font, DxuiTheme::kBodyFace, w, h);
+        w += 2 * chipP;
+
+        if (x + w > m_titleRect.right)
+        {
+            break;
+        }
+
+        painter.FillRoundedRect    (x, chipY, w, chipH, chipH / 2, theme.ButtonIdle());
+        painter.OutlineRoundedRect (x, chipY, w, chipH, chipH / 2, m_scaler.ToPxf (1.0f), capsule.isBad ? kBadColor : theme.ButtonBorder());
+
+        hr = text.DrawString (capsule.text.c_str(), x, chipY, w, chipH, capsule.isBad ? kBadColor : theme.Foreground(), font, DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        x += w + gap / 2;
+    }
 
     hr = text.DrawString (m_fieldLine.c_str(), (float) m_fieldRect.left, (float) m_fieldRect.top, (float) (m_fieldRect.right - m_fieldRect.left),
                           (float) (m_fieldRect.bottom - m_fieldRect.top), theme.Foreground(), font, DxuiTheme::kBodyFace, DxuiTextHAlign::Left,
@@ -1403,6 +1497,7 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 {
     RECT  cancel = m_cancel->GetBounds();
     RECT  hex    = m_hex->GetBounds();
+    RECT  map    = m_map->GetBounds();
     RECT  bounds = GetBounds();
 
 
@@ -1440,6 +1535,13 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Down && m_onPressed && m_hex->IsVisible() && PtInRect (&hex, ev.positionDip))
     {
         m_onPressed (m_hex);
+    }
+
+    //  The wheel over the grid zooms it, as the wheel over the platter does,
+    //  whichever control has the keyboard.
+    if (ev.kind == DxuiMouseEventKind::Wheel && !ev.ctrl && PtInRect (&map, ev.positionDip))
+    {
+        return m_map->OnMouse (ev);
     }
 
     return DxuiPanel::OnMouse (ev);

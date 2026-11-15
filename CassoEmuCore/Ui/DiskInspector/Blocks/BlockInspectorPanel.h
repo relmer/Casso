@@ -28,16 +28,20 @@ struct InspectorCommands;
 //  Block mode's content between the menu bar and the status band, laid out
 //  as the track inspector's is. Across the top, the toolbar row with Go to
 //  at its right end. On the left, the grid of blocks with the platter's
-//  corner groups: the legend at the top left, the overlays (Files, Leftover
-//  data, and Differences while comparing) at the bottom left, and zoom - and
-//  + at the bottom right. Past the splitter, on the right: the block's
-//  number and role, its files, the view tabs (Blocks, Files, and Header for
-//  2IMG and Disk Copy 4.2 images), the field line, Copy block, a row with
-//  the pending edits or a long job's progress, the hex view, and the
-//  block's fields.
+//  corner groups: the legend at the top left, the overlays (Files, Data in
+//  free blocks, and Differences while comparing) at the bottom left, and
+//  zoom - and + at the bottom right; the cell under the pointer is outlined.
+//  Past the splitter, on the right: the block's number with the previous
+//  and next block buttons and its capsules (Free or Used, its role, its
+//  files), the view tabs (Files, Blocks, and Header for 2IMG and Disk Copy
+//  4.2 images), the field line, Copy block, a row with the pending edits or
+//  a long job's progress, then the Files list or the block's hex view and
+//  fields. The Files view opens first; a click on a file highlights its
+//  blocks on the grid and selects its first block.
 //
 //  The model's reads run as jobs on the window's BlockInspectorWorker: a
-//  block is loaded before it is drawn, and Find leftover data runs there.
+//  block is loaded before it is drawn, and the search for data in free
+//  blocks runs there.
 //  While a job is queued or running, input to the panel is ignored and the
 //  model isn't read.
 //
@@ -63,8 +67,8 @@ public:
     //  The view tabs.
     enum View
     {
-        kViewBlocks,
         kViewFiles,
+        kViewBlocks,
         kViewHeader,
     };
 
@@ -148,6 +152,14 @@ public:
 private:
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 
+    //  A capsule beside the block's number: Free or Used, the block's role,
+    //  or a file the block is in. A damaged role's capsule is drawn red.
+    struct Capsule
+    {
+        std::wstring  text;
+        bool          isBad = false;
+    };
+
     void  InitCorners       ();
     void  InitRightColumn   ();
     bool  OnType            (uint64_t offset, bool isHexColumn, bool isHighNibble, wchar_t ch);
@@ -159,9 +171,10 @@ private:
     void  Present           ();
     void  LayoutGrid        (const RECT & column, const DxuiDpiScaler & scaler);
     void  LayoutRight       (const RECT & column, const DxuiDpiScaler & scaler);
-    void  PaintHeader       (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  PaintHeader       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintProgress     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  ApplyHighlight    ();
+    void  BuildCapsules     ();
 
     BlockInspectorModel   * m_model        = nullptr;
     BlockInspectorWorker  * m_worker       = nullptr;
@@ -181,6 +194,8 @@ private:
     DxuiIconButton        * m_zoomIn       = nullptr;
     DxuiSegmentedControl  * m_views        = nullptr;
     DxuiButton            * m_copy         = nullptr;
+    DxuiIconButton        * m_previous     = nullptr;
+    DxuiIconButton        * m_next         = nullptr;
     DxuiLabel             * m_editNote     = nullptr;
     DxuiButton            * m_discard      = nullptr;
     DxuiButton            * m_apply        = nullptr;
@@ -198,8 +213,7 @@ private:
     ActionFn                m_onCopy;
     HintFn                  m_onHint;
     std::wstring            m_title;
-    std::wstring            m_role;
-    std::wstring            m_owners;
+    vector<Capsule>         m_capsules;
     std::wstring            m_fieldLine;
     std::wstring            m_jobLabel;
     uint64_t                m_jobDone      = 0;
@@ -209,12 +223,12 @@ private:
     bool                    m_isDiffsOn    = true;
     bool                    m_isSplitting  = false;
     bool                    m_hasEdits     = false;
-    View                    m_view         = kViewBlocks;
+    View                    m_view         = kViewFiles;
+    bool                    m_hasHeader    = false;
     int64_t                 m_shownBlock   = -1;
     float                   m_split        = 0.5f;
     RECT                    m_splitterPx   = {};
     RECT                    m_titleRect    = {};
-    RECT                    m_ownersRect   = {};
     RECT                    m_fieldRect    = {};
     RECT                    m_rowRect      = {};
 };
