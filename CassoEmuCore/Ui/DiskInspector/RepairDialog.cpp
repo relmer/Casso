@@ -15,11 +15,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RepairDialogBody::Init (DxuiLabel & intro, vector<std::unique_ptr<DxuiCheckbox>> & checks, DxuiLabel & status)
+void RepairDialogBody::Init (DxuiLabel & intro, vector<std::unique_ptr<DxuiCheckbox>> & checks, DxuiLabel & status, int introLines)
 {
     m_intro  = &intro;
     m_checks = &checks;
     m_status = &status;
+    m_lines  = introLines;
 
     Adopt (intro);
 
@@ -39,7 +40,7 @@ void RepairDialogBody::Init (DxuiLabel & intro, vector<std::unique_ptr<DxuiCheck
 //
 //  RepairDialogBody::Layout
 //
-//  The intro on two lines, a row for each change under it, and the status
+//  The intro on its lines, a row for each change under it, and the status
 //  line at the bottom.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,8 +58,8 @@ void RepairDialogBody::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
 
     SetBounds (boundsPx);
 
-    m_intro->Layout (RECT { x, y, right, y + 2 * line }, scaler);
-    y += 2 * line;
+    m_intro->Layout (RECT { x, y, right, y + m_lines * line }, scaler);
+    y += m_lines * line;
 
     for (std::unique_ptr<DxuiCheckbox> & box : *m_checks)
     {
@@ -103,9 +104,9 @@ bool RepairDialogBody::OnMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int RepairDialogBody::GetHeightDip (size_t changes)
+int RepairDialogBody::GetHeightDip (size_t changes, int introLines)
 {
-    return 2 * kPadDip + 4 * kLineDip + static_cast<int> (changes) * kCheckDip;
+    return 2 * kPadDip + (introLines + 2) * kLineDip + static_cast<int> (changes) * kCheckDip;
 }
 
 
@@ -167,7 +168,7 @@ void RepairDialog::SetChosen (const std::wstring & key, bool isChosen)
 
 SIZE RepairDialog::GetSizeDip (const RepairPlan & plan)
 {
-    return SIZE { kWidthDip, kChromeDip + RepairDialogBody::GetHeightDip (plan.changes.size()) };
+    return SIZE { kWidthDip, kChromeDip + RepairDialogBody::GetHeightDip (plan.changes.size(), GetIntroLines (plan)) };
 }
 
 
@@ -183,6 +184,49 @@ SIZE RepairDialog::GetSizeDip (const RepairPlan & plan)
 std::wstring RepairDialog::FormatIntro (const std::wstring & fileName)
 {
     return L"Writes a repaired copy of " + fileName + L" in the same folder, with the changes checked below. " + fileName + L" isn't changed.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RepairDialog::FormatIntro
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring RepairDialog::FormatIntro (const std::wstring & fileName, const RepairPlan & plan)
+{
+    std::wstring  intro = FormatIntro (fileName);
+
+
+
+    if (plan.before == FileSystemVerdict::Suspect)
+    {
+        intro += L"\n\nThese findings can be normal on a disk made by another DOS or by a program that uses the VTOC or catalog differently. "
+                 L"Repair a disk like this only when it doesn't work.";
+    }
+
+    return intro;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RepairDialog::GetIntroLines
+//
+//  Two lines for the intro, and three more for the caution and the blank
+//  line before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int RepairDialog::GetIntroLines (const RepairPlan & plan)
+{
+    return (plan.before == FileSystemVerdict::Suspect) ? 5 : 2;
 }
 
 
@@ -218,7 +262,7 @@ void RepairDialog::OnCreate()
 
     m_intro.SetTextRole   (DxuiTextRole::Body);
     m_intro.SetTextAlign  (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
-    m_intro.SetText       (FormatIntro (m_fileName));
+    m_intro.SetText       (FormatIntro (m_fileName, m_fullPlan));
     m_status.SetTextRole  (DxuiTextRole::Error);
     m_status.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
@@ -234,7 +278,7 @@ void RepairDialog::OnCreate()
     }
 
     body = CreateDialogContent<RepairDialogBody>();
-    body->Init (m_intro, m_checks, m_status);
+    body->Init (m_intro, m_checks, m_status, GetIntroLines (m_fullPlan));
 
     m_repair = AddDialogButton (L"Repair", IDOK);
     AddDialogButton (L"Cancel", IDCANCEL);

@@ -40,6 +40,13 @@ public:
     virtual int   GetContentHeightPx   () const                { return 0; }
     virtual bool  IsAtTop              () const                { return true; }
 
+    //  How far the view is scrolled, in pixels, set to the nearest row or
+    //  line; and its vertical bar hidden while the pane's bar scrolls the
+    //  thumbnail and the view as one.
+    virtual int   GetScrollPx          () const                { return 0; }
+    virtual void  SetScrollPx          (int)                   {}
+    virtual void  SetScrollbarHidden   (bool)                  {}
+
 protected:
     ExplorerPreviewManager  & m_manager;
     ExplorerContext         & m_context;

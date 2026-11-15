@@ -262,6 +262,26 @@ public:
 
 
 
+    TEST_METHOD (ASuspectVolumesConfirmationCautionsThatItsFindingsCanBeNormal)
+    {
+        DiskAnalysis  analysis;
+        RepairPlan    plan;
+        std::wstring  intro;
+
+
+
+        Images::Analyze (RepairFixtures::MakeDos33NextTrackOff().damaged, false, analysis);
+        plan  = DiskRepair::Plan (analysis, {});
+        intro = RepairDialog::FormatIntro (L"Game.dsk", plan);
+
+        Assert::IsTrue   (plan.before == FileSystemVerdict::Suspect);
+        Assert::IsTrue   (intro.starts_with (RepairDialog::FormatIntro (L"Game.dsk")));
+        Assert::IsTrue   (intro.find (L"can be normal") != std::wstring::npos, intro.c_str());
+        Assert::AreEqual (5, RepairDialog::GetIntroLines (plan));
+    }
+
+
+
     TEST_METHOD (TheConfirmationHasACheckBoxForEachChange_At100And150Percent)
     {
         DiskAnalysis  analysis;
@@ -286,6 +306,8 @@ public:
         Assert::IsFalse  (dialog.GetPlan().canRepair);
         Assert::AreEqual (std::wstring (L"No changes are selected."), RepairDialog::FormatStatus (dialog.GetPlan()));
 
+        Assert::AreEqual (2, RepairDialog::GetIntroLines (dialog.GetFullPlan()), L"a Bad volume has no caution");
+
         for (UINT dpi : { 96u, 144u })
         {
             DxuiDpiScaler                          scaler;
@@ -301,8 +323,8 @@ public:
             }
 
             scaler.SetDpi (dpi);
-            bounds = { 0, 0, scaler.ToPx (RepairDialog::kWidthDip), scaler.ToPx (RepairDialogBody::GetHeightDip (checks.size())) };
-            body.Init   (intro, checks, status);
+            bounds = { 0, 0, scaler.ToPx (RepairDialog::kWidthDip), scaler.ToPx (RepairDialogBody::GetHeightDip (checks.size(), 2)) };
+            body.Init   (intro, checks, status, 2);
             body.Layout (bounds, scaler);
 
             Assert::IsTrue (intro.GetBounds().bottom <= checks.front()->GetBounds().top, std::format (L"the intro, then the changes, at {} dpi", dpi).c_str());

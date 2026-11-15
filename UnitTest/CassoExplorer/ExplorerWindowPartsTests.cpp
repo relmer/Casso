@@ -1556,19 +1556,21 @@ public:
 
     //  The preview of a disk image has its file-system verdict at the top, at
     //  100% and at 150%: Bad as an error infobar with its first finding of
-    //  damage, Suspect as a warning infobar with its first suspect finding,
-    //  each with Repair disk image inside it, and nothing for OK. The analysis
-    //  reads the file from the disk, so each image is in a folder of the
-    //  test's in the temporary folder as well.
+    //  damage and Repair disk image, Suspect as an info infobar with its
+    //  first suspect finding and Inspect disk image, and nothing for OK. The
+    //  analysis reads the file from the disk, so each image is in a folder of
+    //  the test's in the temporary folder as well.
     TEST_METHOD (Preview_HasTheFileSystemVerdictAboveTheThumbnail_At100And150Percent)
     {
-        struct Case { const wchar_t * name; vector<Byte> bytes; const wchar_t * text; DxuiInfoBanner::Severity severity; };
+        struct Case { const wchar_t * name; vector<Byte> bytes; const wchar_t * text; DxuiInfoBanner::Severity severity; const wchar_t * action; };
 
         const Case  cases[] =
         {
-            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"File system damaged.\nTrack 18, sector $E is used by HELLO but marked free.", DxuiInfoBanner::Severity::Error   },
-            { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"File system suspect.\nThe VTOC's next track to allocate, track 40, is off the disk.", DxuiInfoBanner::Severity::Warning },
-            { L"ok.dsk",      RepairFixtures::MakeDos33(),                     L"", DxuiInfoBanner::Severity::Info },
+            { L"bad.dsk",     RepairFixtures::MakeDos33Bitmap().damaged,       L"File system damaged.\nTrack 18, sector $E is used by HELLO but marked free.",
+              DxuiInfoBanner::Severity::Error, L"Repair disk image" },
+            { L"suspect.dsk", RepairFixtures::MakeDos33NextTrackOff().damaged, L"Possible inconsistencies found.\nThe VTOC's next track to allocate, track 40, is off the disk.",
+              DxuiInfoBanner::Severity::Info,  L"Inspect disk image" },
+            { L"ok.dsk",      RepairFixtures::MakeDos33(),                     L"", DxuiInfoBanner::Severity::Info, L"" },
         };
 
 
@@ -1621,13 +1623,14 @@ public:
                 if (isShown)
                 {
                     Assert::IsTrue (thumbnail.GetVerdict().GetSeverity() == c.severity, c.name);
-                    Assert::IsNotNull (thumbnail.GetRepairButton(), L"both volumes can be repaired");
+                    Assert::IsNotNull (thumbnail.GetActionButton());
+                    Assert::AreEqual  (std::wstring (c.action), thumbnail.GetActionButton()->GetAccessibleName(), c.name);
 
-                    repair = thumbnail.GetRepairButton()->GetBounds();
+                    repair = thumbnail.GetActionButton()->GetBounds();
 
                     Assert::IsTrue (banner.left >= pane.left && banner.right <= pane.right && banner.bottom <= pane.top, L"the infobar is inside the pane, above the catalog");
                     Assert::IsTrue (repair.left > banner.left && repair.right <= banner.right && repair.top >= banner.top && repair.bottom <= banner.bottom,
-                                    L"and Repair disk image is inside the infobar");
+                                    L"and its action is inside the infobar");
                     Assert::AreEqual ((long) rig.scaler.ToPx (PreviewDiskThumbnail::kRepairDip), repair.right - repair.left,
                                       L"at its width");
                 }
@@ -1657,6 +1660,7 @@ public:
             RECT                   start   = {};
             RECT                   banner  = {};
             RECT                   moved   = {};
+            RECT                   bar     = {};
             DxuiMouseEvent         wheel;
 
             rig.scaler.SetDpi (dpi);
@@ -1715,6 +1719,18 @@ public:
 
             Assert::AreEqual (start.top, rig.parts->preview.GetContentRect().top, L"the wheel brings it back");
             Assert::AreEqual (banner.top, rig.parts->preview.GetThumbnail().GetVerdict().GetBounds().top);
+
+            //  One bar down the pane's right edge, from the thumbnail's top,
+            //  governs both.
+            bar = rig.parts->preview.GetThumbnail().GetScrollbar().GetBounds();
+            Assert::IsTrue  (rig.parts->preview.GetThumbnail().GetScrollbar().IsVisible(), L"the pane has its bar");
+            Assert::IsTrue  (bar.right == rig.parts->preview.GetRect().right && bar.top < banner.top && bar.bottom == rig.parts->preview.GetRect().bottom, L"down the pane's right edge");
+            Assert::AreEqual (0, rig.parts->preview.GetThumbnail().GetScrollbar().GetPos());
+
+            rig.parts->preview.ScrollTo (rig.scaler.ToPx (40));
+            rig.parts->preview.SyncScrollbar();
+            Assert::IsTrue   (rig.parts->preview.GetThumbnail().GetVerdict().GetBounds().top < banner.top, L"the bar scrolls the thumbnail");
+            Assert::AreEqual (rig.scaler.ToPx (40), rig.parts->preview.GetThumbnail().GetScrollbar().GetPos());
 
             std::filesystem::remove_all (folder);
         }

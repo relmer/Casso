@@ -3642,7 +3642,11 @@ release (Delivery). The first release MUST NOT depend on them.
   the volume can have, each with a check box (for example "Mark 3 sectors of
   HELLO as used in the bitmap"), and write one copy with the checked
   changes; Repair is unavailable, with the reason, while the checked
-  changes can't be made. After it writes, the copy MUST be selected in
+  changes can't be made. For a volume that is only Suspect, the
+  confirmation MUST have a caution that its findings can be normal on a disk made by
+  another DOS or by a program that uses the VTOC or catalog differently,
+  and that such a disk is best repaired only when it doesn't work. After
+  it writes, the copy MUST be selected in
   Casso Explorer, and an inspector window opened from Casso Explorer MUST
   have the copy open in the image's place with the same selection.
 - **FR-180**: The checks MUST also report a file that uses a volume's
@@ -3661,13 +3665,17 @@ release (Delivery). The first release MUST NOT depend on them.
   a known one.
 - **FR-179**: Casso Explorer's preview pane MUST have a disk image's
   file-system verdict with the inspector's other details: Bad as an error
-  infobar at the top of the pane, with the first finding of damage; Suspect
-  as a warning infobar with its first suspect finding; each with Repair disk
-  image when the volume can be repaired, under the text in a narrow pane;
+  infobar at the top of the pane, with the first finding of damage and
+  Repair disk image when the volume can be repaired;
+  Suspect as an info infobar, "Possible inconsistencies found.", with its
+  first suspect finding and Inspect disk image, since a suspect finding can
+  be normal for the disk; the action under the text in a narrow pane;
   and nothing more for OK or for a disk with no standard file system. The
   infobar's text MUST wrap within it at any width. The thumbnail and the
   catalog under it MUST scroll as one: the wheel scrolls the thumbnail away
-  before the catalog, and the catalog back to its top before the thumbnail.
+  before the catalog, and the catalog back to its top before the thumbnail,
+  and one scrollbar down the pane's right edge, from the thumbnail's top,
+  MUST scroll both.
 - **FR-181**: The inspector's Issues tab MUST have a Repair button on each
   finding a repair change sets right, which opens Repair's confirmation
   with those changes checked, and Repair disk image above the list, which

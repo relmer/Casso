@@ -66,6 +66,9 @@ void ExplorerPreviewManager::Create()
 
     m_find.Create();
     m_thumbnail.Create();
+
+    m_thumbnail.GetScrollbar().SetOnScroll ([this] (int posPx) { ScrollTo (posPx); });
+    m_thumbnail.GetScrollbar().SetOnSync   ([this] () { SyncScrollbar(); });
 }
 
 
@@ -167,15 +170,30 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
             need = (std::max) (need, view->GetContentHeightPx());
         }
 
-        m_headerMax    = std::clamp (height + need - static_cast<int> (content.bottom - content.top), 0, height);
+        m_headerRange  = (std::max) (0, height + need - static_cast<int> (content.bottom - content.top));
+        m_headerMax    = (std::min) (m_headerRange, height);
         m_headerScroll = std::clamp (m_headerScroll, 0, m_headerMax);
-        content.top    = m_thumbnail.Layout (RECT { content.left, content.top, content.right, content.top + height }, m_headerScroll, content.bottom);
+        m_headerPage   = static_cast<int> (content.bottom - content.top);
+        content.top    = m_thumbnail.Layout (RECT { content.left, content.top, content.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip), content.top + height },
+                                             m_headerScroll, content.bottom);
+
+        m_thumbnail.GetScrollbar().Layout     (RECT { m_rect.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip), m_headerTop, m_rect.right, m_rect.bottom }, scaler);
+        m_thumbnail.GetScrollbar().SetVisible (m_headerRange > 0);
+        SyncScrollbar();
     }
     else
     {
+        m_headerRange  = 0;
         m_headerMax    = 0;
         m_headerScroll = 0;
         m_thumbnail.Hide();
+    }
+
+    //  The views' bars are hidden while the pane's bar scrolls the thumbnail
+    //  and the view as one.
+    for (PreviewView * view : m_views)
+    {
+        view->SetScrollbarHidden (m_thumbnail.IsShown());
     }
 
     //  A WOZ image's details, between the toolbar and the catalog, as tall as
@@ -828,6 +846,8 @@ bool ExplorerPreviewManager::UpdateScrollbarHover (POINT at)
         changed = view->UpdateScrollbarHover (at) || changed;
     }
 
+    changed = m_thumbnail.GetScrollbar().SetHover (at) || changed;
+
     return changed;
 }
 
@@ -852,6 +872,8 @@ bool ExplorerPreviewManager::TickScrollbars (int64_t nowMs)
         moved = view->TickScrollbars (nowMs) || moved;
     }
 
+    moved = m_thumbnail.GetScrollbar().TickBar (nowMs) || moved;
+
     return moved;
 }
 
@@ -868,6 +890,65 @@ bool ExplorerPreviewManager::TickScrollbars (int64_t nowMs)
 bool ExplorerPreviewManager::IsOverPane (POINT point) const
 {
     return m_shown && ExplorerLayout::Contains (m_rect, point);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::SyncScrollbar
+//
+//  The pane's bar at the thumbnail's scroll plus the view's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::SyncScrollbar()
+{
+    int  viewPx = 0;
+
+
+
+    for (const PreviewView * view : m_views)
+    {
+        viewPx = (std::max) (viewPx, view->GetScrollPx());
+    }
+
+    m_thumbnail.GetScrollbar().SetRange (m_headerRange, m_headerPage, m_headerScroll + viewPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::ScrollTo
+//
+//  A position of the pane's bar: the thumbnail scrolled away as far as it
+//  goes, then the view by the rest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::ScrollTo (int posPx)
+{
+    int  header = std::clamp (posPx, 0, m_headerMax);
+
+
+
+    for (PreviewView * view : m_views)
+    {
+        view->SetScrollPx ((std::max) (0, posPx - header));
+    }
+
+    if (header != m_headerScroll)
+    {
+        m_headerScroll = header;
+        Layout (m_rect);
+    }
+
+    m_context.window.Invalidate();
 }
 
 

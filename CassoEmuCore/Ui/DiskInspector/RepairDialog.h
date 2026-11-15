@@ -27,17 +27,18 @@ public:
     static constexpr int  kLineDip  = 22;
     static constexpr int  kCheckDip = 28;
 
-    void  Init    (DxuiLabel & intro, vector<std::unique_ptr<DxuiCheckbox>> & checks, DxuiLabel & status);
+    void  Init    (DxuiLabel & intro, vector<std::unique_ptr<DxuiCheckbox>> & checks, DxuiLabel & status, int introLines);
     void  Layout  (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    //  The body's height for a count of changes.
-    static int  GetHeightDip (size_t changes);
+    //  The body's height for a count of changes and of the intro's lines.
+    static int  GetHeightDip (size_t changes, int introLines);
 
 private:
     DxuiLabel                                * m_intro  = nullptr;
     vector<std::unique_ptr<DxuiCheckbox>>    * m_checks = nullptr;
     DxuiLabel                                * m_status = nullptr;
+    int                                        m_lines  = 2;
 };
 
 
@@ -78,10 +79,13 @@ public:
     //  The dialog's size for the plan's changes.
     static SIZE  GetSizeDip (const RepairPlan & plan);
 
-    //  The intro, and the line under the changes: the reason the plan can't
-    //  be made, or nothing.
-    static std::wstring  FormatIntro  (const std::wstring & fileName);
-    static std::wstring  FormatStatus (const RepairPlan & plan);
+    //  The intro, with a caution after it for a volume that is only Suspect,
+    //  whose findings can be normal for the disk; the intro's lines; and the
+    //  line under the changes: the reason the plan can't be made, or nothing.
+    static std::wstring  FormatIntro    (const std::wstring & fileName);
+    static std::wstring  FormatIntro    (const std::wstring & fileName, const RepairPlan & plan);
+    static int           GetIntroLines  (const RepairPlan & plan);
+    static std::wstring  FormatStatus   (const RepairPlan & plan);
 
     //  The image file analyzed as saved, the confirmation with the chosen
     //  changes checked, and the copy written beside the image. S_OK with the

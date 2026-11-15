@@ -72,6 +72,49 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ThumbnailScrollbar
+//
+//  The preview pane's one vertical bar while a disk image's thumbnail is
+//  above the view, in pixels of the thumbnail and the view together. The
+//  pane sets its range and reads its position; the sync function, called as
+//  the bar is drawn, sets the position from where the view has scrolled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ThumbnailScrollbar : public IDxuiControl
+{
+public:
+    using ScrollFn = std::function<void (int posPx)>;
+    using SyncFn   = std::function<void ()>;
+
+    static constexpr int  kWidthDip = 10;
+
+    ThumbnailScrollbar();
+
+    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    void  SetRange    (int rangePx, int pagePx, int posPx);
+    int   GetPos      () const { return m_bar.GetScrollPos(); }
+    void  SetOnScroll (ScrollFn scroll) { m_onScroll = std::move (scroll); }
+    void  SetOnSync   (SyncFn sync)     { m_onSync = std::move (sync); }
+    bool  SetHover    (POINT pointPx)   { return m_bar.SetHover (IsVisible() && m_bar.HitTest (pointPx.x, pointPx.y), pointPx); }
+    bool  TickBar     (int64_t nowMs)   { return m_bar.Tick (nowMs); }
+
+private:
+    DxuiScrollbar  m_bar;
+    DxuiDpiScaler  m_scaler;
+    ScrollFn       m_onScroll;
+    SyncFn         m_onSync;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ThumbnailScreen
 //
 //  The picture of a disk image's screen once booted.
@@ -146,20 +189,26 @@ public:
     RECT                  GetScreenRect () const { return HasScreen() ? m_screen->GetBounds() : RECT {}; }
     const std::wstring  & GetResultLine () const { return m_bootLine->GetText(); }
 
-    //  The verdict's infobar above the thumbnail and Repair disk image in
-    //  it, null when the volume can't be repaired; for a test.
+    //  The verdict's infobar above the thumbnail and its action, Repair
+    //  disk image or Inspect disk image; for a test.
     const DxuiInfoBanner  & GetVerdict      () const { return *m_verdict; }
-    DxuiButton            * GetRepairButton () const { return m_verdict->GetAction (0); }
+    ThumbnailScrollbar    & GetScrollbar    () const { return *m_scrollbar; }
+    DxuiButton            * GetActionButton () const { return m_verdict->GetAction (0); }
 
     //  A disk image's file-system verdict above its thumbnail: Bad as an
-    //  error infobar with its first finding of damage, Suspect as a warning
-    //  infobar with its first suspect finding, each on the line under the
-    //  verdict, and nothing for OK or a disk with no standard file system.
+    //  error infobar with its first finding of damage and Repair disk image
+    //  when it can be repaired, Suspect as an info infobar with its first
+    //  suspect finding and Inspect disk image, since a suspect finding can be
+    //  normal for the disk; each finding on the line under the verdict, and
+    //  nothing for OK or a disk with no standard file system.
     static std::wstring  FormatVerdict (FileSystemVerdict verdict, const std::wstring & finding);
 
     //  The repaired copy written beside the image and selected, after the
     //  confirmation.
     void  RepairImage ();
+
+    //  The infobar's action: Repair disk image or Inspect disk image.
+    void  RunVerdictAction ();
 
 private:
     bool  HandleHeaderMouse  (const DxuiMouseEvent & ev);
@@ -192,7 +241,9 @@ private:
     ThumbnailScreen                       * m_screen         = nullptr;
     DxuiLabel                             * m_bootLine       = nullptr;   // the boot result, under the picture
     DxuiInfoBanner                        * m_verdict        = nullptr;
+    ThumbnailScrollbar                    * m_scrollbar      = nullptr;   // a window child after the views, so it's offered the mouse first
     bool                                    m_isVerdictShown = false;
+    bool                                    m_isBad          = false;
     std::shared_ptr<const DxuiIconImage>    m_picture;
     std::wstring                            m_path;
     State                                   m_state          = State::Analyzing;

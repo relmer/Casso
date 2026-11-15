@@ -12,6 +12,7 @@
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "CassoExplorer/Window/Panes/Preview/PreviewListingView.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 #include "Devices/Disk/Inspector/Repair/RepairCopy.h"
@@ -130,9 +131,9 @@ void ThumbnailChips::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 //
 //  PreviewDiskThumbnail::FormatVerdict
 //
-//  "File system damaged." or "File system suspect.", and the finding as a
-//  sentence on the next line; nothing for OK or a disk with no standard
-//  file system.
+//  "File system damaged." or "Possible inconsistencies found.", and the
+//  finding as a sentence on the next line; nothing for OK or a disk with no
+//  standard file system.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,10 +160,139 @@ std::wstring PreviewDiskThumbnail::FormatVerdict (FileSystemVerdict verdict, con
     }
     else if (verdict == FileSystemVerdict::Suspect)
     {
-        text = L"File system suspect." + (sentence.empty() ? std::wstring() : L"\n" + sentence);
+        text = L"Possible inconsistencies found." + (sentence.empty() ? std::wstring() : L"\n" + sentence);
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailScrollbar::ThumbnailScrollbar
+//
+//  A move of the bar is passed on as its position.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ThumbnailScrollbar::ThumbnailScrollbar()
+{
+    m_bar.SetOnScroll ([this] (int, int pos)
+    {
+        if (m_onScroll)
+        {
+            m_onScroll (pos);
+        }
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailScrollbar::Layout
+//
+//  The bar fills the bounds; an arrow click moves it a catalog row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ThumbnailScrollbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    int  width = scaler.ToPx (kWidthDip);
+
+
+
+    SetBounds (boundsDip);
+    m_scaler = scaler;
+
+    m_bar.Configure (DxuiScrollbar::Orientation::Vertical, width, width, scaler.ToPx (PreviewListingView::kRowHeightDip));
+    m_bar.SetTrack  (boundsDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailScrollbar::Paint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ThumbnailScrollbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    (void) text;
+
+    if (m_onSync)
+    {
+        m_onSync();
+    }
+
+    m_bar.Paint (painter, theme.ForegroundMuted());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailScrollbar::OnMouse
+//
+//  A press on the bar, a drag of its thumb and the release.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ThumbnailScrollbar::OnMouse (const DxuiMouseEvent & ev)
+{
+    bool  isHandled = false;
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && m_bar.HitTest (ev.positionDip.x, ev.positionDip.y))
+    {
+        isHandled = m_bar.OnMouseDown (ev.positionDip.x, ev.positionDip.y);
+    }
+    else if (ev.kind == DxuiMouseEventKind::Move && m_bar.IsDragging())
+    {
+        isHandled = m_bar.OnMouseMove (ev.positionDip.x, ev.positionDip.y);
+    }
+    else if (ev.kind == DxuiMouseEventKind::Up && m_bar.IsDragging())
+    {
+        isHandled = m_bar.OnMouseUp();
+    }
+
+    return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailScrollbar::SetRange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ThumbnailScrollbar::SetRange (int rangePx, int pagePx, int posPx)
+{
+    DxuiScrollInfo  info;
+
+
+
+    info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    info.nMin  = 0;
+    info.nMax  = (std::max) (0, rangePx + pagePx - 1);
+    info.nPage = static_cast<UINT> ((std::max) (1, pagePx));
+    info.nPos  = std::clamp (posPx, 0, (std::max) (0, rangePx));
+
+    m_bar.SetScrollInfo (info);
 }
 
 
@@ -225,7 +355,8 @@ PreviewDiskThumbnail::PreviewDiskThumbnail (ExplorerContext & context) :
 
 void PreviewDiskThumbnail::Create()
 {
-    m_header   = m_context.window.CreateChild<DxuiScrollPanel>();
+    m_header    = m_context.window.CreateChild<DxuiScrollPanel>();
+    m_scrollbar = m_context.window.CreateChild<ThumbnailScrollbar>();
     m_platter  = m_header->CreateChild<ThumbnailPlatterView> (m_view, m_context.theme);
     m_chips    = m_header->CreateChild<ThumbnailChips> (m_view.palette);
     m_screen   = m_header->CreateChild<ThumbnailScreen>();
@@ -235,7 +366,7 @@ void PreviewDiskThumbnail::Create()
     m_header->SetScrollbarShown  (false);
     m_verdict->SetActionWidthDip (static_cast<float> (kRepairDip));
     m_verdict->SetStackBelowDip  (static_cast<float> (kStackDip));
-    m_verdict->SetOnAction       ([this] (size_t) { RepairImage(); });
+    m_verdict->SetOnAction       ([this] (size_t) { RunVerdictAction(); });
 
     m_context.window.SetMouseHandler (m_header, [this] (const DxuiMouseEvent & ev) { return HandleHeaderMouse (ev); });
 
@@ -401,8 +532,10 @@ void PreviewDiskThumbnail::ApplyResult()
     m_isVerdictShown = !text.empty();
 
     m_verdict->SetText     (text);
-    m_verdict->SetSeverity ((m_result.analysis->verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Warning);
-    m_verdict->SetActions  (m_result.canRepair ? vector<std::wstring> { L"Repair disk image" } : vector<std::wstring>());
+    m_isBad          = m_result.analysis->verdict == FileSystemVerdict::Bad;
+
+    m_verdict->SetSeverity (m_isBad ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info);
+    m_verdict->SetActions  ((m_isBad && m_result.canRepair) ? vector<std::wstring> { L"Repair disk image" } : vector<std::wstring> { L"Inspect disk image" });
 }
 
 
@@ -568,6 +701,7 @@ int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx)
 void PreviewDiskThumbnail::Hide()
 {
     m_header->SetVisible  (false);
+    m_scrollbar->SetVisible (false);
     m_platter->SetVisible (false);
     m_chips->SetVisible   (false);
     m_screen->SetVisible  (false);
@@ -735,6 +869,31 @@ void PreviewDiskThumbnail::RepairImage()
     }
 
     m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::RunVerdictAction
+//
+//  Repair for a Bad volume that can be repaired; the inspector, where the
+//  findings are, for any other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::RunVerdictAction()
+{
+    if (m_isBad && m_result.canRepair)
+    {
+        RepairImage();
+    }
+    else
+    {
+        m_context.commandManager.InspectDiskImages ({ m_path });
+    }
 }
 
 

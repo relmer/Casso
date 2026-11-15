@@ -70,6 +70,12 @@ public:
     //  up, the view scrolls to its top before the thumbnail comes back, so
     //  the two scroll as one. True when the thumbnail took it.
     bool                              HandleWheel            (const DxuiMouseEvent & ev);
+
+    //  The pane's one bar while a disk image has a thumbnail: its
+    //  position read from the thumbnail and the view, and a position of it
+    //  applied to them.
+    void                              SyncScrollbar          ();
+    void                              ScrollTo               (int posPx);
     LPCWSTR                           GetCursorForPoint      (POINT clientPx) const;
     std::vector<DxuiPopupMenuItem>    GetScrollbarMenu       (const DxuiMouseEvent & ev) const;
     IDxuiControl                    * GetFocusedControl      () const;
@@ -134,6 +140,8 @@ private:
     RECT                            m_content       = {};   // below the toolbar
     int                             m_headerTop     = 0;    // the thumbnail's top, under the toolbar
     int                             m_headerMax     = 0;    // how far the thumbnail scrolls away: no further than the view overflows
+    int                             m_headerRange   = 0;    // how far the pane's bar scrolls the thumbnail and the view together
+    int                             m_headerPage    = 0;    // the height they are seen through
     int                             m_headerScroll  = 0;    // how far it is scrolled away
     int                             m_pictureZoom   = 100;
     PreviewContent::Kind            m_lastKind      = PreviewContent::Kind::Text;
