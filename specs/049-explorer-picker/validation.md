@@ -53,3 +53,14 @@ Window checks run on a test copy of the emulator: `CASSO_PROFILE_DIR` set to a s
 - Merged `origin/048-smartport-drives` at `929c28d32`, then at `cf67245e0`. `scripts\CheckStyle.ps1 -Mode Tree`: OK.
 - `scripts\RunMergeGate.ps1`: passed. At `a0cbe9109`: unit suite 9,917 of 9,917 in Debug and 9,916 of 9,916 in Release, scenario suite 250 of 250 in Debug and under ASan. One earlier run failed `AShimAtTheBootstrapSpeed_IsReadWithinASlice`, a serial timing test from master, which passed alone three times and in the next full run. x64 and ARM64 build in Debug and Release.
 - Code analysis failed the first runs on code from 048: C6011 in `CommandLineParserBasic.cpp`, C6387 in `Win32VolumeFormat.cpp` and C28020 in `NuLzw.cpp`, each fixed with a check, and C6262 in five test files, fixed by moving each test's rigs, rings and desk scene to the heap.
+
+## On screen (2026-11-15)
+
+Test copies of Casso at `3a8b17f67`, each with `CASSO_PROFILE_DIR` set to a scratch profile and the title "Explorer Picker Test":
+
+- Startup form with an empty Casso list: it opened on Stock disks. Picking the ProDOS Users Disk and Start downloaded it into the profile's Disks folder and booted it.
+- Startup form with images in the Casso list: it opened on the Casso list. "Start without a disk" started Casso with drive 1 empty.
+- //c Plus: no startup form, since the machine has no Disk II controller. The built-in 3.5-inch drive's picker listed the two 800K images and hid seven, and Insert closed it.
+- Insert tape: the picker was empty, with nine images hidden. New blank tape opened the modal Save as form in Documents\Casso Disks, and Cancel returned to the tape picker.
+- Not run: Casso Explorer's image requests. A test copy from this build uses the window class `CassoExplorerTestCopyWindow`, and another session's test copy with that class was running, so a launch would go to that copy.
+- Found: on a //c Plus the 3.5-inch drive's motor sound runs from launch with no disk inserted (code from 048, reported to that branch). The Size column of a stock disk that isn't downloaded yet reads "0 bytes".
