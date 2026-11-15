@@ -298,6 +298,36 @@ void ExplorerPreviewOutput::Copy (ExplorerContext & context)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPreviewOutput::CopyPicture
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewOutput::CopyPicture (ExplorerContext & context, const DxuiIconImage & picture)
+{
+    HRESULT         hr      = S_OK;
+    PreviewContent  preview;
+
+
+
+    preview.kind   = PreviewContent::Kind::Picture;
+    preview.width  = picture.width;
+    preview.height = picture.height;
+    preview.bgra   = picture.bgraPremul;
+
+    hr = SetClipboard (context.window.GetHwnd(), std::wstring(), {}, preview);
+
+    if (FAILED (hr))
+    {
+        context.window.ShowMessage (L"The preview could not be copied.", MB_ICONERROR);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPreviewOutput::SetClipboard
 //
 //  Text, RTF when there is some, and a picture as a 32-bit DIB and a PNG.
