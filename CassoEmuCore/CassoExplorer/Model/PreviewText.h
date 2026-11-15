@@ -70,9 +70,20 @@ public:
     //  colors as an instruction.
     static bool  IsUndocumentedMnemonic (const std::wstring & word);
 
+    //  A BASIC listing's rows. A line with no line number continues the line
+    //  above it, and has an empty number cell and no address.
+    static void                            AddListingRows    (const std::vector<std::wstring>  & lines,
+                                                              const std::vector<Word>          & addresses,
+                                                              const SourceSyntax::Colors       & colors,
+                                                              std::vector<DxuiTextView::Row>   & ioRows);
+
     //  A BASIC listing's coloring: a row's address and line number cells, and
-    //  its statements' keywords, variables, strings, numbers and REM.
-    static void                            AddBasicSpans     (DxuiTextView::Row & ioRow, const SourceSyntax::Colors & colors);
+    //  its statements' keywords, variables, strings, numbers and REM. `ioOpen`
+    //  indicates the REM or string a row ends inside, so the row that
+    //  continues it starts in that color.
+    static void                            AddBasicSpans     (DxuiTextView::Row                   & ioRow,
+                                                              const SourceSyntax::Colors          & colors,
+                                                              std::optional<SourceSyntax::Token>  & ioOpen);
     static std::vector<SourceSyntax::Run>  GetBasicRuns      (const std::wstring & statements);
     static size_t                          MatchBasicKeyword (const std::wstring & text, size_t at);
 };

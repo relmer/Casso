@@ -383,6 +383,47 @@ public:
 
 
 
+    //  TANK COMBAT's line 140 is a REM whose text is two line feeds, BEGIN GAME
+    //  and two more, so LIST on the Apple prints blank lines around it. The
+    //  preview has those lines, and an address only on each numbered line.
+    TEST_METHOD (Listing_ALineFeedInARem_IsABlankLine_AndHasNoAddress)
+    {
+        PreviewContent                  content;
+        FilePayload                     payload;
+        FileEntry                       entry;
+        MemoryBus                       bus;
+        std::vector<DxuiTextView::Row>  rows;
+        std::vector<std::wstring>       expected = { L"140  REM", L"", L"BEGIN GAME", L"", L"", L"150  HOME" };
+
+        payload.bytes =
+        {
+            0x15, 0x08, 0x8C, 0x00, 0xB2, 0x0A, 0x0A,
+            'B',  'E',  'G',  'I',  'N',  ' ',  'G',  'A',  'M',  'E',
+            0x0A, 0x0A, 0x00,
+            0x1B, 0x08, 0x96, 0x00, 0x97, 0x00,
+            0x00, 0x00,
+        };
+
+        entry.name = "TANK COMBAT";
+        entry.type = Dos33Volume::kTypeApplesoft;
+
+        AssertSucceeded (PreviewDecoder::Render (entry, VolumeKind::Dos33, payload, PreviewDecoder::HexForm::Auto, bus, content));
+
+        Assert::IsTrue (content.kind == Kind::Listing, content.message.c_str());
+        Assert::IsTrue (content.lines == expected, L"the line feeds are line breaks");
+
+        rows = PreviewText::BuildTextRows (content, true);
+
+        Assert::AreEqual (expected.size(), rows.size());
+        Assert::IsTrue   (rows[0].cells == std::vector<std::wstring> ({ L"$0801", L"140", L"REM" }));
+        Assert::IsTrue   (rows[2].cells == std::vector<std::wstring> ({ L"",      L"",    L"BEGIN GAME" }),
+            L"a continuation has no address or number, and its text is in the statements column");
+        Assert::IsTrue   (rows[5].cells == std::vector<std::wstring> ({ L"$0815", L"150", L"HOME" }),
+            L"and the next numbered line has the next line's address");
+    }
+
+
+
     TEST_METHOD (Hex_ABinaryOfDataOpensAsBytes_AndOfCodeAsADisassembly)
     {
         PreviewContent  content;

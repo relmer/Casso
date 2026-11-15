@@ -60,6 +60,32 @@ public:
 
 
 
+    //  TANK COMBAT's line 140, a REM whose text is two line feeds, BEGIN GAME
+    //  and two more, converts to its listing and back to the same bytes.
+    TEST_METHOD (Convert_AProgramWithLineFeedsInARem_TokenizesBackToTheSameBytes)
+    {
+        FilePayload   program;
+        FilePayload   listing;
+        FilePayload   again;
+        std::wstring  error;
+
+        program.bytes =
+        {
+            0x15, 0x08, 0x8C, 0x00, 0xB2, 0x0A, 0x0A,
+            'B',  'E',  'G',  'I',  'N',  ' ',  'G',  'A',  'M',  'E',
+            0x0A, 0x0A, 0x00,
+            0x1B, 0x08, 0x96, 0x00, 0x97, 0x00,
+            0x00, 0x00,
+        };
+        program.type = BasicConversion::kDos33Applesoft;
+
+        AssertSucceeded (BasicConversion::Convert (program, VolumeKind::Dos33, BasicConversion::Kind::ToListing, listing, error));
+        AssertSucceeded (BasicConversion::Convert (listing, VolumeKind::Dos33, BasicConversion::Kind::ToApplesoft, again, error));
+        Assert::IsTrue   (again.bytes == program.bytes, L"the same program after the round trip");
+    }
+
+
+
     TEST_METHOD (Convert_ReportsTextThatIsNotAListing)
     {
         FilePayload   text;

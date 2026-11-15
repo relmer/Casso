@@ -258,14 +258,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
 
     if (!addresses.empty())
     {
-        for (size_t i = 0; i < preview.lines.size(); i++)
-        {
-            DxuiTextView::Row  row { SplitLineNumber (preview.lines[i]) };
-
-            row.cells.insert (row.cells.begin(), (i < addresses.size()) ? std::format (L"${:04X}", addresses[i]) : std::wstring());
-            AddBasicSpans (row, colors);
-            rows.push_back (std::move (row));
-        }
+        AddListingRows (preview.lines, addresses, colors, rows);
     }
     else if (preview.kind == PreviewContent::Kind::Document)
     {
@@ -332,17 +325,15 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
             rows.push_back (std::move (row));
         }
     }
+    else if (preview.kind == PreviewContent::Kind::Listing)
+    {
+        AddListingRows (preview.lines, addresses, colors, rows);
+    }
     else
     {
         for (const std::wstring & line : preview.lines)
         {
-            rows.push_back (DxuiTextView::Row { (preview.kind == PreviewContent::Kind::Listing) ? SplitLineNumber (line)
-                                                                                               : std::vector<std::wstring> { line } });
-
-            if (preview.kind == PreviewContent::Kind::Listing)
-            {
-                AddBasicSpans (rows.back(), colors);
-            }
+            rows.push_back (DxuiTextView::Row { { line } });
 
             if (preview.assembler)
             {
@@ -406,17 +397,83 @@ std::vector<DxuiTextView::Row> PreviewText::BuildWarningRows (const std::wstring
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewText::AddListingRows
+//
+//  An Applesoft line feed inside a REM, a DATA payload or a string is listed as
+//  a line break, so the host lines after it have no line number. Each one is
+//  set under the statements of the line it continues, and the address column
+//  advances only on a numbered line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewText::AddListingRows (
+    const std::vector<std::wstring>     &  lines,
+    const std::vector<Word>             &  addresses,
+    const SourceSyntax::Colors          &  colors,
+    std::vector<DxuiTextView::Row>      &  ioRows)
+{
+    size_t                              numbered = 0;
+    std::optional<SourceSyntax::Token>  open;
+
+
+
+    for (const std::wstring & line : lines)
+    {
+        DxuiTextView::Row  row       { SplitLineNumber (line) };
+        size_t             first     = line.find_first_not_of (L' ');
+        bool               continued = first == std::wstring::npos || !iswdigit (line[first]);
+
+        if (continued)
+        {
+            row.cells.insert (row.cells.begin(), std::wstring());
+        }
+        else
+        {
+            open.reset();
+        }
+
+        if (!addresses.empty())
+        {
+            row.cells.insert (row.cells.begin(), (!continued && numbered < addresses.size()) ? std::format (L"${:04X}", addresses[numbered]) : std::wstring());
+        }
+
+        if (!continued)
+        {
+            numbered++;
+        }
+
+        AddBasicSpans (row, colors, open);
+        ioRows.push_back (std::move (row));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewText::AddBasicSpans
 //
 //  A listing row's cells are its load address, when the address column is
 //  on, its line number and its statements. The address and the number are in the muted color, and the
 //  statements are colored as GetBasicRuns reads them.
 //
+//  A row that continues a REM is a comment throughout, and one that continues
+//  a string is a string through its closing quote.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void PreviewText::AddBasicSpans (DxuiTextView::Row & ioRow, const SourceSyntax::Colors & colors)
+void PreviewText::AddBasicSpans (
+    DxuiTextView::Row                   &  ioRow,
+    const SourceSyntax::Colors          &  colors,
+    std::optional<SourceSyntax::Token>  &  ioOpen)
 {
-    int  last = (int) ioRow.cells.size() - 1;
+    int                             last  = (int) ioRow.cells.size() - 1;
+    std::wstring                    text  = (last < 0) ? std::wstring() : ioRow.cells.back();
+    size_t                          from  = 0;
+    size_t                          close = std::wstring::npos;
+    std::vector<SourceSyntax::Run>  runs;
 
 
 
@@ -430,9 +487,45 @@ void PreviewText::AddBasicSpans (DxuiTextView::Row & ioRow, const SourceSyntax::
         ioRow.spans.push_back ({ cell, 0, (int) ioRow.cells[(size_t) cell].size(), colors.address });
     }
 
-    for (const SourceSyntax::Run & run : GetBasicRuns (ioRow.cells[(size_t) last]))
+    if (ioOpen == SourceSyntax::Token::Comment)
     {
-        ioRow.spans.push_back ({ last, run.start, run.length, colors.Get (run.token) });
+        ioRow.spans.push_back ({ last, 0, (int) text.size(), colors.Get (SourceSyntax::Token::Comment) });
+        return;
+    }
+
+    if (ioOpen == SourceSyntax::Token::String)
+    {
+        close = text.find (L'"');
+        from  = (close == std::wstring::npos) ? text.size() : close + 1;
+
+        ioRow.spans.push_back ({ last, 0, (int) from, colors.Get (SourceSyntax::Token::String) });
+
+        if (close == std::wstring::npos)
+        {
+            return;
+        }
+    }
+
+    ioOpen.reset();
+    runs = GetBasicRuns (text.substr (from));
+
+    for (const SourceSyntax::Run & run : runs)
+    {
+        ioRow.spans.push_back ({ last, (int) from + run.start, run.length, colors.Get (run.token) });
+    }
+
+    if (runs.empty() || (size_t) (runs.back().start + runs.back().length) + from != text.size())
+    {
+        return;
+    }
+
+    if (runs.back().token == SourceSyntax::Token::Comment)
+    {
+        ioOpen = SourceSyntax::Token::Comment;
+    }
+    else if (runs.back().token == SourceSyntax::Token::String && (runs.back().length == 1 || text.back() != L'"'))
+    {
+        ioOpen = SourceSyntax::Token::String;
     }
 }
 
