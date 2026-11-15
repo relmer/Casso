@@ -406,6 +406,7 @@
     <ClCompile Include="EmuTests\FluxSectorAccessTests.cpp" />
     <ClCompile Include="EmuTests\DamagedDiskMountTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
+    <ClCompile Include="EmuTests\BootDriveRuleTests.cpp" />
     <ClCompile Include="EmuTests\DropRuleTests.cpp" />
     <ClCompile Include="EmuTests\DrivePickersTests.cpp" />
     <ClCompile Include="EmuTests\ImageIdentityTests.cpp" />

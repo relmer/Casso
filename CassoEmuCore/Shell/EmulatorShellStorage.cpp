@@ -429,12 +429,9 @@ HRESULT EmulatorShell::EditSavedMachine (const std::function<HRESULT (SettingsPa
                                                 PathResolver::GetWorkingDirectory()),
                                                 configRelPath);
     JsonValue           defaultJson;
-    JsonValue           mergedJson;
-    JsonValue           savedJson;
     JsonParseError      parseErr;
     std::ifstream       configFile;
     std::stringstream   ss;
-    SettingsPanelState  state;
 
 
 
@@ -448,18 +445,7 @@ HRESULT EmulatorShell::EditSavedMachine (const std::function<HRESULT (SettingsPa
     hr = JsonParser::Parse (ss.str(), defaultJson, parseErr);
     CHRA (hr);
 
-    hr = m_settings->GetConfigStore()->Load (machineNameNarrow, defaultJson, m_settings->GetFileSystem(), mergedJson);
-    CHR (hr);
-
-    hr = state.LoadFromMachine (machineNameNarrow, defaultJson, mergedJson);
-    CHR (hr);
-
-    hr = edit (state);
-    CHR (hr);
-
-    savedJson = state.BuildCurrentJson();
-
-    hr = m_settings->GetConfigStore()->SaveDelta (machineNameNarrow, savedJson, defaultJson, m_settings->GetFileSystem());
+    hr = SettingsPanelState::EditSaved (*m_settings->GetConfigStore(), m_settings->GetFileSystem(), machineNameNarrow, defaultJson, edit);
     CHR (hr);
 
 Error:

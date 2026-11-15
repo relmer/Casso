@@ -10,6 +10,7 @@
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
+#include "Config/UserConfigStore.h"
 #include "Machines/MachineDefinitions.h"
 
 
@@ -916,5 +917,74 @@ HRESULT SettingsPanelState::Apply (
     outCurrentJson = SettingsJson::BuildJson (m_mergedJson, m_current.hardware, m_current.prefs,
                                 m_current.machinePorts);
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMachinePortImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetMachinePortImage (const std::string & name, const std::string & path)
+{
+    HRESULT  hr = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
+
+
+
+    for (SettingsMachinePort & port : m_current.machinePorts)
+    {
+        if (port.name != name)
+        {
+            continue;
+        }
+
+        std::erase_if (port.otherKeys, [] (const std::pair<std::string, JsonValue> & key) { return key.first == kpszPortImageKey; });
+        port.otherKeys.emplace_back (kpszPortImageKey, JsonValue (path));
+        hr = S_OK;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditSaved
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::EditSaved (UserConfigStore & store, IFileSystem & fs, const std::string & machineName, const JsonValue & defaultJson,
+                                       const std::function<HRESULT (SettingsPanelState & state)> & edit)
+{
+    HRESULT             hr = S_OK;
+    JsonValue           mergedJson;
+    JsonValue           savedJson;
+    SettingsPanelState  state;
+
+
+
+    hr = store.Load (machineName, defaultJson, fs, mergedJson);
+    CHR (hr);
+
+    hr = state.LoadFromMachine (machineName, defaultJson, mergedJson);
+    CHR (hr);
+
+    hr = edit (state);
+    CHR (hr);
+
+    savedJson = state.BuildCurrentJson();
+
+    hr = store.SaveDelta (machineName, savedJson, defaultJson, fs);
+    CHR (hr);
+
+Error:
     return hr;
 }

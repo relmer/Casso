@@ -19,7 +19,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PickerRequest StartupDiskPicker::MakeRequest (const std::wstring & machineName, std::vector<StockDiskRow> stockDisks, std::vector<StockDiskRow> demoDisks)
+PickerRequest StartupDiskPicker::MakeRequest (const std::wstring & machineName, const ReceivingDrive & drive, const std::wstring & driveLabel,
+                                              std::vector<StockDiskRow> stockDisks, std::vector<StockDiskRow> demoDisks)
 {
     PickerRequest  request;
 
@@ -27,8 +28,8 @@ PickerRequest StartupDiskPicker::MakeRequest (const std::wstring & machineName, 
 
     request.form           = PickerForm::ModalOpen;
     request.title          = std::format (L"Choose a boot disk - {}", machineName);
-    request.receivingDrive = ReceivingDrive { ReceivingDriveKind::Floppy525, 0 };
-    request.driveLabel     = L"Drive 1";
+    request.receivingDrive = drive;
+    request.driveLabel     = driveLabel;
     request.viewKey        = kViewKey;
     request.filters        = { { L"Disk images", ImageClassifier::GetDiskMask() }, { L"All files", L"*.*" } };
     request.stockDisks     = std::move (stockDisks);
@@ -161,22 +162,21 @@ bool StartupDiskPicker::FetchStockDisk (const std::wstring & path, std::wstring 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT StartupDiskPicker::Run (HINSTANCE instance, HWND owner, const std::wstring & machineName, const std::string & activeTheme,
-                                std::wstring & outDiskPath, bool & outIsClosed)
+HRESULT StartupDiskPicker::Run (HINSTANCE instance, HWND owner, const std::wstring & machineName, const ReceivingDrive & drive, const std::wstring & driveLabel,
+                                const std::string & activeTheme, std::wstring & outDiskPath, bool & outIsClosed)
 {
     HRESULT             hr       = S_OK;
     HRESULT             hrOle    = OleInitialize (nullptr);
     Win32FileSystem     fs;
     Win32DiskFileIo     fileIo;
     ExplorerPickerHost  host (fs, fileIo, AssetBootstrap::GetAssetBaseDirectory().wstring());
-    ReceivingDrive      drive    { ReceivingDriveKind::Floppy525, 0 };
 
 
 
     outDiskPath.clear();
     outIsClosed = false;
 
-    host.Prepare (MakeRequest (machineName, GetStockDisks (drive), GetDemoDisks (fileIo, drive)), CassoExplorerPrefs::MapCassoTheme (activeTheme), owner, false);
+    host.Prepare (MakeRequest (machineName, drive, driveLabel, GetStockDisks (drive), GetDemoDisks (fileIo, drive)), CassoExplorerPrefs::MapCassoTheme (activeTheme), owner, false);
 
     hr = host.RunModal (instance);
     CHR (hr);

@@ -482,7 +482,7 @@ public:
     {
         auto               empty   = std::make_unique<Rig>();
         auto               listed  = std::make_unique<Rig>();
-        PickerRequest      request = StartupDiskPicker::MakeRequest (L"Apple //e", { { L"ProDOS Users Disk", L"C:\\Stock\\ProDOS Users Disk.dsk", false } }, {});
+        PickerRequest      request = StartupDiskPicker::MakeRequest (L"Apple //e", ReceivingDrive { ReceivingDriveKind::Floppy525, 0 }, L"Drive 1", { { L"ProDOS Users Disk", L"C:\\Stock\\ProDOS Users Disk.dsk", false } }, {});
         PickerRequest      copy    = request;
         BrowserModel::Tab  tab;
 
@@ -510,7 +510,7 @@ public:
     {
         auto           rig     = std::make_unique<Rig>();
         auto           closing = std::make_unique<Rig>();
-        PickerRequest  request = StartupDiskPicker::MakeRequest (L"Apple //e", { { L"ProDOS Users Disk", L"C:\\Stock\\ProDOS Users Disk.dsk", false } },
+        PickerRequest  request = StartupDiskPicker::MakeRequest (L"Apple //e", ReceivingDrive { ReceivingDriveKind::Floppy525, 0 }, L"Drive 1", { { L"ProDOS Users Disk", L"C:\\Stock\\ProDOS Users Disk.dsk", false } },
                                                                   { { L"casso-rocks", L"C:\\Demos\\casso-rocks.dsk", true } });
         PickerRequest  copy    = request;
         PickerOutcome  outcome;

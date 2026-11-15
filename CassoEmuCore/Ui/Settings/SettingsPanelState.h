@@ -10,6 +10,9 @@
 #include "Machines/Apple2/Common/SscSwitches.h"
 #include "Ui/Settings/SettingsConnectors.h"
 
+class IFileSystem;
+class UserConfigStore;
+
 
 
 
@@ -315,6 +318,11 @@ public:
     // changes are reverted on OK.
     void    RefreshMergedJson (const JsonValue & mergedJson);
 
+    // Loads the machine's saved settings over its default document, applies
+    // `edit` and saves them, through the same document Settings writes.
+    static HRESULT  EditSaved (UserConfigStore & store, IFileSystem & fs, const std::string & machineName, const JsonValue & defaultJson,
+                               const std::function<HRESULT (SettingsPanelState & state)> & edit);
+
     // The machine document as it would be saved now, for a caller that
     // changes a setting without a sheet -- the Storage menu's second drive.
     void       SetTapeRecorderConnected (bool connected) { m_current.prefs.tapeRecorderConnected = connected; }
@@ -417,6 +425,11 @@ public:
     HRESULT                      SetPortImage     (size_t index, size_t port, const std::string & path) { return SlotCards::SetPortImage (m_current.hardware, index, port, path); }
     HRESULT                      AddChainDrive    (size_t index, std::wstring & outError) { return SlotCards::AddChainDrive (m_current.hardware, index, outError); }
     HRESULT                      RemoveChainDrive (size_t index, size_t port) { return SlotCards::RemoveChainDrive (m_current.hardware, index, port); }
+
+    // An image on a port of the machine rather than of a card, such as the
+    // //c Plus's internal 3.5-inch drive. Not found when the machine has no
+    // such port.
+    HRESULT  SetMachinePortImage (const std::string & name, const std::string & path);
 
     // The Uthernet II. The machine's slot list places it and the Machine tab
     // turns it on; turned on with no MAC address, it gets a random locally
