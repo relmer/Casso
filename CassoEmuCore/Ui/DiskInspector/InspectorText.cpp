@@ -105,7 +105,20 @@ vector<SummaryChip> InspectorText::BuildChips (const DiskSummary & summary)
 vector<SummaryChip> InspectorText::BuildChips (const DiskSummary & summary, FileSystemVerdict verdict)
 {
     vector<SummaryChip>  chips = BuildChips (summary);
-    std::wstring         text  = (verdict == FileSystemVerdict::None) ? FileSystemCheck::FormatVerdict (verdict) : L"File system: " + FileSystemCheck::FormatVerdict (verdict);
+    std::wstring         text  = L"File system: " + FileSystemCheck::FormatVerdict (verdict);
+
+
+
+    //  The chip is short: no file system as it is, and possible
+    //  inconsistencies as the one word.
+    if (verdict == FileSystemVerdict::None)
+    {
+        text = FileSystemCheck::FormatVerdict (verdict);
+    }
+    else if (verdict == FileSystemVerdict::Suspect)
+    {
+        text = L"Inconsistencies";
+    }
 
 
 

@@ -165,6 +165,12 @@ public:
         result           = Run (io, Command::Test);
         Assert::IsTrue   (Contains (result.output, "Game.dsk: file system: Bad, HELLO: expected a catalog sector count of 4, but found 9\n"), Widen (result.output).c_str());
         Assert::AreEqual (DiskCommandResult::kWithComplaints, result.exitStatus);
+
+        io.files[kImage] = RepairFixtures::MakeDos33NextTrackOff().damaged;
+        result           = Run (io, Command::Test);
+        Assert::IsTrue   (Contains (result.output, "Game.dsk: file system: Possible inconsistencies, The VTOC's next track to allocate, track 40, is off the disk\n"),
+                          Widen (result.output).c_str());
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, L"possible inconsistencies aren't complaints");
     }
 
 

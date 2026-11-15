@@ -23,10 +23,10 @@ std::wstring FileSystemCheck::FormatVerdict (FileSystemVerdict verdict)
 
     switch (verdict)
     {
-        case FileSystemVerdict::Ok:      text = L"OK";                      break;
-        case FileSystemVerdict::Suspect: text = L"Suspect";                 break;
-        case FileSystemVerdict::Bad:     text = L"Bad";                     break;
-        case FileSystemVerdict::None:    text = L"No standard file system"; break;
+        case FileSystemVerdict::Ok:      text = L"OK";                       break;
+        case FileSystemVerdict::Suspect: text = L"Possible inconsistencies"; break;
+        case FileSystemVerdict::Bad:     text = L"Bad";                      break;
+        case FileSystemVerdict::None:    text = L"No standard file system";  break;
     }
 
     return text;

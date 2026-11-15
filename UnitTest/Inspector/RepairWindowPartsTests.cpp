@@ -127,6 +127,20 @@ public:
 
 
 
+    TEST_METHOD (ASuspectVerdictIsALinkToPossibleInconsistencies)
+    {
+        Map  map;
+
+
+
+        Open (map, RepairFixtures::MakeDos33NextTrackOff().damaged, 96);
+
+        Assert::AreEqual (std::wstring (L"File system: Possible inconsistencies"), map.files.GetVerdictLink().GetAccessibleName());
+        Assert::IsTrue   (map.files.GetVerdictLink().IsVisible() && map.files.GetVerdictLink().IsEnabled());
+    }
+
+
+
     TEST_METHOD (AnOkVerdictIsntALink)
     {
         Map  map;
@@ -156,6 +170,10 @@ public:
         Assert::IsTrue   (chips[1].kind == SummaryChipKind::FileSystem);
         Assert::AreEqual (std::wstring (L"File system: Bad"), chips[1].text);
         Assert::IsTrue   (chips[1].isBad);
+
+        chips = InspectorText::BuildChips (summary, FileSystemVerdict::Suspect);
+        Assert::AreEqual (std::wstring (L"Inconsistencies"), chips[1].text);
+        Assert::IsFalse  (chips[1].isBad);
 
         chips = InspectorText::BuildChips (summary, FileSystemVerdict::None);
         Assert::AreEqual (std::wstring (L"No standard file system"), chips[1].text);
