@@ -29,7 +29,7 @@ Window checks run on a test copy of the emulator: `CASSO_PROFILE_DIR` set to a s
 
 ## Not checked on screen
 
-- The New disk image dialog from "Create new disk...", "New blank tape", a stock disk's download, the modal open and save forms (Settings' Hardware page, the recorder's new tape, Casso Explorer's "Write image to..." and its other image requests), and a 3.5-inch drive's picker. Each opens a modal window, and a modal window opened from a posted message took the foreground from the owner's work in two of the runs above. These paths are covered by unit tests over the window's parts (`ExplorerPickerWindowTests`, `DrivePickersTests`, `CassoHostDialogsTests`, `PickerSaveFormTests`) and are not yet checked in the running app.
+- The New disk image dialog from "Create new disk...", "New blank tape", a stock disk's download, the modal open and save forms (Settings' Hardware page, the recorder's new tape, Casso Explorer's "Write image to..." and its other image requests), and a 3.5-inch drive's picker. Each opens a modal window. In three of the runs above a picker took the foreground from the owner's work (twice when the test copy's launch had activated it, once after posted clicks), so no modal window was opened from a posted message. These paths are covered by unit tests over the window's parts (`ExplorerPickerWindowTests`, `DrivePickersTests`, `CassoHostDialogsTests`, `PickerSaveFormTests`) and are not yet checked in the running app.
 - The no-drop cursor during a real drag. An OLE drag cannot be posted. `DropRuleTests` covers which tags accept which images.
 - Casso Explorer's image requests. A test copy of Casso Explorer was not launched.
 - Listing time for a Casso node with 500 images.
