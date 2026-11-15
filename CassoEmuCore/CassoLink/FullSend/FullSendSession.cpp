@@ -1408,9 +1408,9 @@ HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & 
     BAIL_OUT_IF (!outLikely || !m_protection.captureRaw, S_OK);
 
     reason = readSign                                         ? std::format ("Unreadable sectors were found on the disk in drive {} during the normal transfer", drive)
-           : m_protection.unrecognized && signs.isUnrecognized ? std::format ("The disk in drive {} has no file system Casso recognizes", drive)
+           : m_protection.unrecognized && signs.isUnrecognized ? std::format ("The disk in drive {} has no recognized file system", drive)
            : m_protection.diskCode && signs.hasDiskCode        ? std::format ("{} on the disk in drive {} accesses the disk drive directly", signs.diskCodeFile, drive)
-                                                                : std::format ("The disk in drive {} has boot code of no standard loader", drive);
+                                                                : std::format ("The disk in drive {} doesn't have a recognized boot loader", drive);
 
     Report (reason + ", so it appears to be copy-protected. Restarting the capture using raw mode.");
 
