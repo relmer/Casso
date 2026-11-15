@@ -633,13 +633,49 @@ std::shared_ptr<LinkOperation> CassoLinkSession::Queue (LinkOperationKind kind, 
     {
         std::lock_guard<std::mutex>  lock (m_connector.m_lock);
 
-        operation->id = m_connector.m_nextId++;
-        m_connector.m_queue.push_back (operation);
+        operation->id        = m_connector.m_nextId++;
+        operation->isBlocked = kind != LinkOperationKind::FullSend && m_running && m_running->kind == LinkOperationKind::FullSend;
+
+        if (!operation->isBlocked)
+        {
+            m_connector.m_queue.push_back (operation);
+        }
     }
 
-    m_connector.m_wake.notify_all();
+    //  A Full Send has the drives until it ends, so nothing else waits behind
+    //  it.
+    if (operation->isBlocked)
+    {
+        operation->result  = HRESULT_FROM_WIN32 (ERROR_BUSY);
+        operation->message = kFullSendBusy;
+        operation->state   = LinkOperationState::Failed;
+        m_sink.OnDone (operation);
+    }
+    else
+    {
+        m_connector.m_wake.notify_all();
+    }
 
     return operation;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::IsFullSendRunning
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkSession::IsFullSendRunning() const
+{
+    std::lock_guard<std::mutex>  lock (m_connector.m_lock);
+
+
+
+    return m_running && m_running->kind == LinkOperationKind::FullSend;
 }
 
 
@@ -1242,9 +1278,25 @@ HRESULT CassoLinkSession::Revalidate (int drive)
 
 
 
-    BAIL_OUT_IF (disk.GetKind() == VolumeKind::Unknown, S_OK);
+    if (disk.GetKind() == VolumeKind::Unknown)
+    {
+        //  A disk with no recognized file system has the sectors it was
+        //  probed with: the VTOC and the volume directory's key block read
+        //  again find a disk put in its place, such as a DOS 3.3 disk where
+        //  the CassoLink disk was.
+        for (size_t mark : { (size_t) Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack,
+                             ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, 0) / LinkedDisk::kSectorSize,
+                             ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, LinkedDisk::kSectorSize) / LinkedDisk::kSectorSize })
+        {
+            if (disk.IsPresent (mark))
+            {
+                marks.push_back (mark);
+            }
+        }
 
-    if (disk.GetKind() == VolumeKind::Dos33)
+        BAIL_OUT_IF (marks.empty(), S_OK);
+    }
+    else if (disk.GetKind() == VolumeKind::Dos33)
     {
         marks.push_back ((size_t) Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack);
     }

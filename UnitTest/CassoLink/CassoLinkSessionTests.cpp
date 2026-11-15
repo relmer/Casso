@@ -686,6 +686,33 @@ public:
 
 
 
+    //  A disk with no recognized file system, as the CassoLink disk is, then
+    //  a ProDOS disk put in its place: the next listing is the ProDOS disk's,
+    //  not the first disk's error again.
+    TEST_METHOD (AnUnrecognizedDisk_ThenAnotherInItsPlace_ListsTheOther)
+    {
+        Rig  rig;
+
+        rig.apple.drives[1] = std::vector<Byte> (NibblizationLayer::kImageByteSize, 0x5A);
+        rig.Start();
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), rig.Finish (rig.session->Enumerate (2, FilePath()))->result);
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            rig.apple.drives[1] = BuildProDos();
+        }
+
+        auto  changed = rig.Finish (rig.session->Enumerate (2, FilePath()));
+
+        AssertSucceeded (changed->result);
+        Assert::IsTrue (changed->volumeKind == VolumeKind::ProDos);
+    }
+
+
+
+
     TEST_METHOD (AWriteProtectedDisk_FailsTheWrite)
     {
         Rig  rig;
@@ -1349,6 +1376,42 @@ public:
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
         Assert::AreEqual (1, rig.apple.cancels.load());
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready), L"the link goes on");
+    }
+
+
+
+
+    //  A Full Send has the drives until it ends: a listing queued during
+    //  its pause fails at once, and the Full Send goes on.
+    TEST_METHOD (FullSend_AnOperationQueuedDuringIt_FailsAtOnce)
+    {
+        Rig  rig;
+
+        rig.apple.drives[1].clear();
+        rig.Start();
+
+        auto  send = rig.session->FullSend ("C:\\Box", "", "");
+
+        for (int tries = 0; tries < 2000 && rig.apple.keyWaits == 0; tries++)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+        }
+
+        Assert::IsTrue (rig.session->IsFullSendRunning());
+
+        auto  list = rig.session->Enumerate (1, FilePath());
+
+        Assert::IsTrue (list->state == LinkOperationState::Failed, L"failed at once, not queued");
+        Assert::IsTrue (list->isBlocked);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BUSY), list->result);
+        Assert::AreEqual (std::string (CassoLinkSession::kFullSendBusy), list->message);
+        Assert::IsTrue (send->state == LinkOperationState::Running, L"the Full Send goes on");
+
+        rig.session->Cancel();
+        rig.Finish (send);
+
+        Assert::IsFalse (rig.session->IsFullSendRunning());
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
     }
 
 
