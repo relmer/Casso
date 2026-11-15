@@ -59,6 +59,11 @@ public:
     //  empty with none.
     static std::wstring  DescribeThumbnails (size_t queued);
 
+    //  A picker's count field: the count, then how many files the picker's
+    //  scope left out. An empty Casso node's list has a line on where to
+    //  browse from instead.
+    static std::wstring  DescribePickerCount (const std::wstring & count, size_t listed, size_t scopedOut, bool isForDrive, bool isCassoList);
+
 private:
     bool  HandleZoomClick     (const DxuiMouseEvent & ev);
     bool  HandleSummaryClick  (const DxuiMouseEvent & ev);

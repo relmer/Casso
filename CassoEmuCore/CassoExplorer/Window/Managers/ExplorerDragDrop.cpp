@@ -1538,6 +1538,21 @@ void ExplorerDragDrop::BeginDragOut()
 
     m_context.listPane.ReleasePress();
 
+    //  A picker's drag is a copy of files on the disk, as an image dragged to
+    //  one of the emulator's drives is. Nothing is moved, and no entry of an
+    //  image is dragged out.
+    if (m_context.IsPicker())
+    {
+        if (m_context.browser.TryGetSelectedShellIds (shellIds))
+        {
+            hr = m_context.shellVerbs.DragItems (shellIds, DROPEFFECT_COPY, icon.get());
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        m_context.window.Invalidate();
+        return;
+    }
+
     //  Casso's own icon goes with a drag of disk images and of files with no
     //  file of their own, which the shell has no image for.
     for (int row : m_context.browser.GetSelectedRows())

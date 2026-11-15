@@ -204,6 +204,10 @@ struct CassoExplorerPrefs
     HRESULT  Load (const std::wstring & baseDir, IFileSystem & fs);
     HRESULT  Save (const std::wstring & baseDir, IFileSystem & fs) const;
 
+    //  The same for a file at a path. An absent file is the defaults.
+    HRESULT  LoadFile (const std::wstring & path, IFileSystem & fs);
+    HRESULT  SaveFile (const std::wstring & path, IFileSystem & fs) const;
+
     JsonValue  ToJson   () const;
     HRESULT    FromJson (const JsonValue & root);
 

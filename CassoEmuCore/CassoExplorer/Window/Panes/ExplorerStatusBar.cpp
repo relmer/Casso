@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "Seams/IDiskPictures.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
@@ -163,6 +164,7 @@ void ExplorerStatusBar::Fill()
 {
     const CassoExplorerBrowser::Status &  status = m_context.browser.GetStatus();
     std::wstring                          detail = status.detail;
+    std::wstring                          count  = status.selection;
 
 
 
@@ -181,13 +183,47 @@ void ExplorerStatusBar::Fill()
         m_context.cassoLinkManager.MarkJobsShown();
     }
 
-    m_status->SetText (kStatusCount,    status.selection);
+    if (m_context.IsPicker())
+    {
+        count = DescribePickerCount (status.selection, m_context.browser.GetRows().size(), m_context.browser.GetScopedOutCount(), m_context.app.picker->IsForDrive(),
+                                     m_context.browser.GetLocation() == Location::MakeRoot (TreeModel::kCassoRootId));
+    }
+
+    m_status->SetText (kStatusCount,    count);
     m_status->SetText (kStatusSelected, status.selected);
     m_status->SetText (kStatusThumbnails, DescribeThumbnails (m_context.app.pictures != nullptr ? m_context.app.pictures->GetQueued() : 0));
     m_status->SetText (kStatusFree,     status.freeSpace);
     m_status->SetText (kStatusDetail,   detail);
     m_status->SetText (kStatusZoom,     std::format (L"{}%", m_context.preview.GetShownZoom()));
     m_status->SetText (kStatusFill,     m_context.cassoLinkManager.GetLatestActivity());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerStatusBar::DescribePickerCount
+//
+//  A picker's count with how many files its scope left out, so a short list
+//  is not taken for a nearly empty folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ExplorerStatusBar::DescribePickerCount (const std::wstring & count, size_t listed, size_t scopedOut, bool isForDrive, bool isCassoList)
+{
+    if (isCassoList && listed == 0 && scopedOut == 0)
+    {
+        return L"No recent folders. Browse from This PC.";
+    }
+
+    if (scopedOut == 0)
+    {
+        return count;
+    }
+
+    return std::format (L"{}, {} more {}", count, scopedOut, isForDrive ? L"not for this drive" : L"not matching the filter");
 }
 
 

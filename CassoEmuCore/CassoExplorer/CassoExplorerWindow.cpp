@@ -9,6 +9,7 @@
 #include "Core/TextEncoding.h"
 #include "resource.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
+#include "CassoExplorer/Picker/ExplorerPickerHost.h"
 #include "CassoExplorer/Model/IFolderWatcher.h"
 #include "CassoExplorer/Model/FolderWatch.h"
 #include "Core/AppTimerIds.h"
@@ -108,6 +109,15 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     //  after the last, so a page slides at one steady speed from its first
     //  frame rather than crawling until the queue fills.
     params.paceFrames               = true;
+
+    //  A picker has a class no Casso Explorer launch is forwarded to, and it
+    //  stays over the window that opened it.
+    if (m_context.picker != nullptr)
+    {
+        params.classNameOverride = ExplorerPickerHost::kWindowClass;
+        params.ownerHwnd         = m_context.request.owner;
+        params.initialSizeDip    = { ExplorerPickerHost::kDefaultWidthDip, ExplorerPickerHost::kDefaultHeightDip };
+    }
 
     hr = DxuiWindow::Create (params);
     CHR (hr);

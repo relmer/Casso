@@ -1774,4 +1774,29 @@ public:
         Assert::AreEqual ((size_t) 1, rig.browser.GetRows().size());
         Assert::AreEqual (std::wstring (L"dos33.dsk"), rig.browser.GetRows()[0].name);
     }
-};
+
+    //  The count field has how many files the scope left out, and an empty
+    //  Casso node's list has where to browse from.
+    TEST_METHOD (Picker_StatusCountsTheFilesItsScopeLeftOut)
+    {
+        Rig            rig;
+        PickerRequest  request;
+
+
+
+        Assert::AreEqual (std::wstring (L"3 items"),                              ExplorerStatusBar::DescribePickerCount (L"3 items", 3, 0, true, false));
+        Assert::AreEqual (std::wstring (L"3 items, 12 more not for this drive"),  ExplorerStatusBar::DescribePickerCount (L"3 items", 3, 12, true, false));
+        Assert::AreEqual (std::wstring (L"3 items, 2 more not matching the filter"), ExplorerStatusBar::DescribePickerCount (L"3 items", 3, 2, false, false));
+        Assert::AreEqual (std::wstring (L"No recent folders. Browse from This PC."), ExplorerStatusBar::DescribePickerCount (L"0 items", 0, 0, true, true));
+        Assert::AreEqual (std::wstring (L"0 items, 4 more not for this drive"),   ExplorerStatusBar::DescribePickerCount (L"0 items", 0, 4, true, true));
+
+        request.filters = { { L"ProDOS images", L"*.po" } };
+
+        rig.Seed ("CassoExplorer/dos33.dsk", L"C:\\Disks\\dos33.dsk");
+        rig.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        rig.app.picker = &request;
+        rig.Open();
+        rig.browser.NavigateToAddress (L"C:\\Disks");
+
+        Assert::AreEqual ((size_t) 1, rig.browser.GetScopedOutCount());
+    }};

@@ -512,6 +512,7 @@
     <ClCompile Include="CassoExplorer\CassoImagesListingTests.cpp" />
     <ClCompile Include="CassoExplorer\ImageVolumeFactsTests.cpp" />
     <ClCompile Include="CassoExplorer\FileMaskSetTests.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerPickerHostTests.cpp" />
     <ClCompile Include="CassoExplorer\PickerScopeTests.cpp" />
     <ClCompile Include="CassoExplorer\ApplesoftVariablesTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewDecoderTests.cpp" />
