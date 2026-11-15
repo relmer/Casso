@@ -46,6 +46,27 @@ BlockDeviceMedia::~BlockDeviceMedia()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsNibbleImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockDeviceMedia::IsNibbleImage (const std::string & path)
+{
+    std::string  ext = std::filesystem::path (path).extension().string();
+
+
+
+    std::transform (ext.begin(), ext.end(), ext.begin(), [] (char c) { return (char) std::tolower ((unsigned char) c); });
+
+    return ext == ".nib" || ext == ".nb2";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsFloppyBlockCount
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,7 +93,10 @@ bool BlockDeviceMedia::IsFloppyBlockCount (uint32_t blockCount)
 //  Opens the image and checks it before claiming the path: a DOS-order 2IMG
 //  file, an image larger than the drive, an empty image, a DiskCopy 4.2
 //  image whose data checksum does not match, and a path attached to another
-//  drive all fail, and nothing is written to the file.
+//  drive all fail, and nothing is written to the file. So do a nibble image,
+//  which is a 5.25-inch disk's raw track data and not blocks, and a raw image
+//  that isn't a whole number of blocks, which is damaged: read as blocks, its
+//  last partial block was dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,6 +116,8 @@ HRESULT BlockDeviceMedia::Attach (
     bool                             isClaimed       = false;
     bool                             isSumValid      = true;
     bool                             isWoz           = false;
+    bool                             isNibble        = IsNibbleImage (path);
+    FileStamp                        stamp;
     std::vector<Byte>                head       (kSignatureBytes, 0);
     std::vector<Byte>                bytes;
     std::vector<Byte>                wozBlocks;
@@ -130,8 +156,19 @@ HRESULT BlockDeviceMedia::Attach (
         BAIL_OUT_IF (true, S_OK);
     }
 
+    CBRF (!isNibble, outError = L"The image is a nibble image of a 5.25-inch disk, not a block image.");
+
     hr = BlockImageFile::Open (fileIo, path, file, outError);
     CHR (hr);
+
+    if (file->GetKind() == BlockContainerKind::Raw)
+    {
+        hr = fileIo.Stat (path, stamp);
+        CHR (hr);
+
+        CBRF (stamp.sizeBytes % kBlockBytes == 0,
+              outError = std::format (L"The image is {} bytes, which isn't a whole number of 512-byte blocks, so it's damaged.", stamp.sizeBytes));
+    }
 
     blockCount = file->GetBlockCount();
 
