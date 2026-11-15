@@ -360,6 +360,41 @@ public:
     }
 
 
+    //  A 5.25-INCH DRIVE AT THE END OF THE //C'S CHAIN, behind an empty UniDisk
+    //  3.5, is drive 2 of port 6: DOS 3.3, booted from the built-in drive,
+    //  saves a program to it and catalogs it there.
+    TEST_METHOD (Apple2c_FloppyBehindAUniDiskIsDriveTwo)
+    {
+        FakeDiskFileIo             io;
+        std::vector<PortConfig>    diskPort (1);
+        std::vector<std::string>   rows;
+
+
+
+        diskPort[0].name = "disk";
+        diskPort[0].chain.resize (2);
+        diskPort[0].chain[0].device = kpszUniDisk35Device;
+        diskPort[0].chain[1].device = kpszDiskIicDevice;
+
+        TestMachine  machine ("Apple2c", diskPort, io);
+
+        Assert::IsTrue (machine.GetBlockMediaProblems().empty());
+        Assert::AreEqual ((size_t) 1, machine.GetRefs().apple2cSmartPort->GetPort().GetDriveCount(), L"the UniDisk is on the chain");
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "second.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
+
+        GuestSession::BootToPrompt (machine, GuestSession::RequireDos33Master());
+
+        rows = GuestSession::TypeAndCollect (machine, "10 PRINT \"TWO\"");
+        rows = GuestSession::TypeAndCollect (machine, "SAVE DRIVETWO,D2");
+
+        Assert::IsFalse (GuestSession::AnyRowContains (rows, "ERROR"), L"DOS saves to drive 2 without an error");
+
+        rows = GuestSession::TypeAndCollect (machine, "CATALOG,D2");
+
+        Assert::IsTrue (GuestSession::AnyRowContains (rows, "DRIVETWO"), L"drive 2's catalog lists the program");
+    }
+
+
     //  THE //C PLUS BOOTS AN 800K DISK IN ITS INTERNAL APPLE 3.5 DRIVE through
     //  ROM 05, the IWM driving the drive through the MIG at the accelerator's
     //  4 MHz.

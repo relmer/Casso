@@ -4,6 +4,7 @@
 #include "GuestSession.h"
 #include "KeystrokeInjector.h"
 #include "TestMachine.h"
+#include "Woz35Builder.h"
 #include "Core/TextEncoding.h"
 #include "Devices/BlockDevice/AppleScsiCard.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
@@ -23,7 +24,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  `CassoCli disk create --bootable`, booted on the same cards, and the same
 //  BASIC loop timed on a //c and a //c Plus. The images are not in the tree,
 //  so the tests run only with CASSO_MAME_COMPARE set to their folder; each
-//  logs the screen at the end of its boot and its times.
+//  logs the screen at the end of its boot and its times. CassoCli doesn't
+//  write an 800K WOZ image, so the 3.5 controller card's test writes
+//  800k.woz into the folder from 800k.po, for MAME to boot the same file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,6 +147,41 @@ public:
     }
 
 
+    //  800k.woz in `folder`, the WOZ 2 3.5-inch image of 800k.po's blocks,
+    //  unless it is there.
+    static void WriteWozImage (const std::filesystem::path & folder)
+    {
+        std::filesystem::path  woz = folder / "800k.woz";
+        std::vector<Byte>      blocks;
+        std::vector<Byte>      image;
+
+
+
+        if (std::filesystem::exists (woz))
+        {
+            return;
+        }
+
+        {
+            std::ifstream  in (folder / "800k.po", std::ios::binary);
+
+
+
+            blocks.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        image = Woz35Builder::Build (blocks);
+
+        {
+            std::ofstream  out (woz, std::ios::binary);
+
+
+
+            out.write (reinterpret_cast<const char *> (image.data()), (std::streamsize) image.size());
+        }
+    }
+
+
     TEST_METHOD (ScsiCard_BootsEachImage)
     {
         std::filesystem::path  folder;
@@ -184,7 +222,9 @@ public:
             return;
         }
 
-        for (const char * name : { "800k.po", "800k.dc42" })
+        WriteWozImage (folder);
+
+        for (const char * name : { "800k.po", "800k.dc42", "800k.woz" })
         {
             FakeDiskFileIo           io;
             std::vector<PortConfig>  ports (2);
