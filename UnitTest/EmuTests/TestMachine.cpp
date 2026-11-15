@@ -83,8 +83,7 @@ TestMachine::TestMachine (
     const std::string             & machineId,
     Slots                           slots,
     const std::vector<BlockCard>  & cards,
-    IDiskFileIo                   & fileIo,
-    uint32_t                        minHardDiskBlocks)
+    IDiskFileIo                   & fileIo)
     : m_builder (*this, m_nothingListening)
 {
     FixtureProvider  fixtures;
@@ -93,7 +92,6 @@ TestMachine::TestMachine (
 
 
     SetBlockMediaFileIo (&fileIo);
-    SetMinHardDiskBlocks (minHardDiskBlocks);
     m_hasOwnBlockFiles = true;
 
     Construct (machineId, slots, [&] (MachineConfig & config, MachineBuildServices &)

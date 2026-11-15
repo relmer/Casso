@@ -130,13 +130,10 @@ public:
     //  The machine with each card in its slot, replacing what the slot had,
     //  and every image read and written through `fileIo`, so a test can run
     //  a card over in-memory images.
-    //  `minHardDiskBlocks` is the smallest image a hard disk mounts, lowered
-    //  by a test that runs one over a small image.
     TestMachine (const std::string             & machineId,
                  Slots                           slots,
                  const std::vector<BlockCard>  & cards,
-                 IDiskFileIo                   & fileIo,
-                 uint32_t                        minHardDiskBlocks = BlockDeviceCatalog::kMinHardDiskBlocks);
+                 IDiskFileIo                   & fileIo);
 
     //  The machine with each of `ports` in place of its port of the same
     //  name, each chain drive's ROM resolved out of the fixtures and each

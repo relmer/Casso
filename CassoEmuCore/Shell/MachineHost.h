@@ -8,7 +8,6 @@
 #include "Core/InterruptController.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
-#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/IDiskImage.h"
 #include "Devices/IAciaEndpoint.h"
@@ -331,11 +330,6 @@ public:
     void                 SetStockImageFolder (const std::string & folder) { m_stockImageFolder = folder; }
     const std::string &  GetStockImageFolder () const noexcept            { return m_stockImageFolder; }
 
-    //  The smallest image a hard disk mounts, in blocks. A test lowers it to
-    //  run a hard disk over a small image.
-    void      SetMinHardDiskBlocks (uint32_t blocks) { m_minHardDiskBlocks = blocks; }
-    uint32_t  GetMinHardDiskBlocks () const noexcept { return m_minHardDiskBlocks; }
-
     void  SetCurrentMachineName (const std::wstring & name) { m_currentMachineName = name; }
     void  SetAssetBaseDir       (const std::wstring & dir)  { m_assetBaseDir = dir; }
 
@@ -427,7 +421,6 @@ private:
     WriteProtectProbe                 m_blockProbe;
     std::vector<std::wstring>         m_blockMediaProblems;
     std::string                       m_stockImageFolder;
-    uint32_t                          m_minHardDiskBlocks  = BlockDeviceCatalog::kMinHardDiskBlocks;
 
     std::wstring  m_currentMachineName;
     std::wstring  m_assetBaseDir;

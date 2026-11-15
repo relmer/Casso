@@ -40,9 +40,9 @@ public:
 private:
     void  AddChainDrives (const PortConfig & port, SmartPortHost & host);
 
-    //  Detaches an image smaller than `minBlocks` from a hard disk. Returns
-    //  true when it was, with the reason in `outError`.
-    static bool  RejectSmallImage (BlockDeviceMedia & media, uint32_t minBlocks, std::wstring & outError);
+    //  Detaches a floppy-size image from a hard disk. Returns true when it
+    //  was one, with the reason in `outError`.
+    static bool  RejectFloppyImage (BlockDeviceMedia & media, std::wstring & outError);
 
     MachineBuilder        & m_builder;
     MachineHost           & m_host;
