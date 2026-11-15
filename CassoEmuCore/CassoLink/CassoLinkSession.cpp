@@ -770,9 +770,14 @@ void CassoLinkSession::Run (std::stop_token stop)
         operation->result   = hr;
         operation->progress = 100;
 
+        //  A Full Send ended on the Apple, with Q, isn't a failure: its message
+        //  has the disks sent.
         if (operation->kind != LinkOperationKind::Enumerate && operation->kind != LinkOperationKind::CheckLinkDisk)
         {
+            bool  isEnded = operation->kind == LinkOperationKind::FullSend && hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED) && !operation->message.empty();
+
             m_sink.OnFinished (*operation, SUCCEEDED (hr) ? std::format ("{}: done", DescribeOperation (*operation))
+                                         : isEnded        ? operation->message
                                                           : std::format ("{}: failed (error 0x{:08X}){}{}", DescribeOperation (*operation), (uint32_t) hr,
                                                                          operation->message.empty() ? "" : ": ", operation->message));
         }
