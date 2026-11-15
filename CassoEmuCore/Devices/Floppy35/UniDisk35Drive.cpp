@@ -85,7 +85,7 @@ HRESULT UniDisk35Drive::SetFirmware (std::vector<Byte> firmware)
 
     if (IsIdleLoopInRom())
     {
-        m_cpu.SetIdleLoop (kIdleLoop, [this] (uint64_t cyclesLeft) { return SkipIdleLoop (cyclesLeft); });
+        m_cpu.SetIdleLoop (kIdleLoop, kIdlePassCycles, [this] (uint64_t cyclesLeft) { return SkipIdleLoop (cyclesLeft); });
     }
 
 Error:
@@ -208,7 +208,7 @@ void UniDisk35Drive::Connect (SmartPortBus * bus, size_t position)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UniDisk35Drive::CatchUp (uint64_t nowNs)
+void UniDisk35Drive::CatchUp (uint64_t nowNs, CatchUpKind kind)
 {
     uint64_t  target  = nowNs / kNsPerCycle;
     uint64_t  current = m_cpu.GetCycles();
@@ -231,13 +231,14 @@ void UniDisk35Drive::CatchUp (uint64_t nowNs)
         m_cpu.SkipTo (target - kMaxCatchUp);
     }
 
-    m_cpu.RunUntil (target);
+    m_cpu.RunUntil (target, kind);
 
     //  The IWM's shift register moves between the CPU's accesses too, so
     //  its bits up to the host's time are on the bus before the host reads
     //  them. The CPU's last access is before the host's time, so the IWM's
-    //  clock never runs ahead of the host's writes.
-    m_iwm.AdvanceTo (nowNs);
+    //  clock never runs ahead of the host's writes. A CPU in its idle loop
+    //  short of the host's time takes the IWM only to the CPU's time.
+    m_iwm.AdvanceTo (std::min (nowNs, GetNowNs()));
 }
 
 
@@ -252,9 +253,10 @@ void UniDisk35Drive::CatchUp (uint64_t nowNs)
 //  zero, a pass writes the gate array's register 1, reads the button
 //  latches and reads the IWM's status, the same 109 cycles each time. A
 //  pass of 109 cycles since the last one at $EC08 indicates the CPU is in
-//  that loop. The latches and the bus change only between catch-ups, and
-//  with the mechanism idle its registers don't change with time, so every
-//  pass up to the target is the same.
+//  that loop, as does a CPU left at $EC08 by the last skip. The latches and
+//  the bus change only between catch-ups, and with the mechanism idle its
+//  registers don't change with time, so every pass up to the target is the
+//  same.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -264,7 +266,7 @@ uint64_t UniDisk35Drive::SkipIdleLoop (uint64_t cyclesLeft)
     constexpr Word  kCounterHigh = 0x6B;
     constexpr Byte  kLatchBits   = 0x0C;
     uint64_t        now          = m_cpu.GetCycles();
-    bool            inLoop       = now - m_idleAt == kIdlePassCycles;
+    bool            inLoop       = now - m_idleAt == kIdlePassCycles || now == m_idleAt;
     uint64_t        skipped      = 0;
 
 

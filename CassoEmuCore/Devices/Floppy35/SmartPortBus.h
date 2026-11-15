@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/Floppy35/DeviceCpu.h"
 #include "Devices/Floppy35/IDiskDriveBus.h"
 
 class SmartPortBus;
@@ -59,7 +60,7 @@ public:
     virtual ~ISmartPortDevice() = default;
 
     virtual void       Connect      (SmartPortBus * bus, size_t position) = 0;
-    virtual void       CatchUp      (uint64_t nowNs) = 0;
+    virtual void       CatchUp      (uint64_t nowNs, CatchUpKind kind) = 0;
     virtual void       SetBusReset  (bool isReset) = 0;
 
     //  Whether the device's outputs, /ACK and its data, are on the bus.
@@ -102,7 +103,7 @@ public:
     void  AddDevice (ISmartPortDevice * device);
 
     //  Runs each device up to the host's time `nowNs`.
-    void  CatchUp (uint64_t nowNs);
+    void  CatchUp (uint64_t nowNs, CatchUpKind kind = CatchUpKind::Access);
 
     size_t  GetDeviceCount () const { return m_devices.size(); }
 

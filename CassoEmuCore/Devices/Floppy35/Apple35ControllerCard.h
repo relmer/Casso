@@ -69,7 +69,7 @@ public:
     void  SetHostClock (const uint64_t * cycles, uint32_t clockHz);
 
     //  Runs the card's CPU up to the Apple's clock.
-    void  CatchUp ();
+    void  CatchUp (CatchUpKind kind = CatchUpKind::Access);
 
     Apple35CardMemory  & GetCardMemory () { return m_memory; }
     DeviceCpu          & GetCardCpu    () { return m_cpu; }
@@ -105,6 +105,7 @@ private:
     const uint64_t     * m_hostCycles = nullptr;
     uint32_t             m_hostHz     = 0;
     uint64_t             m_hostSynced = 0;
+    uint64_t             m_cardTarget = 0;
     Byte                 m_bank       = 0;
     bool                 m_selected   = false;
 };

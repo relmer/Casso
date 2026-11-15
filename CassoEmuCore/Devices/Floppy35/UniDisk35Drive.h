@@ -71,7 +71,7 @@ public:
 
     // ISmartPortDevice
     void       Connect      (SmartPortBus * bus, size_t position) override;
-    void       CatchUp      (uint64_t nowNs) override;
+    void       CatchUp      (uint64_t nowNs, CatchUpKind kind) override;
     void       SetBusReset  (bool isReset) override;
     bool       IsDrivingBus () const override { return (m_reg0 & kEnBus) != 0; }
     bool       GetAck       () const override;

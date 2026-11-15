@@ -972,22 +972,22 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
     //  firmware's timers run while the guest doesn't access them.
     for (LironCard * lironCard : m_refs.lironCards)
     {
-        lironCard->CatchUp();
+        lironCard->CatchUp (CatchUpKind::BetweenFrames);
     }
 
     for (Apple35ControllerCard * apple35Card : m_refs.apple35Cards)
     {
-        apple35Card->CatchUp();
+        apple35Card->CatchUp (CatchUpKind::BetweenFrames);
     }
 
     if (m_refs.apple2cSmartPort != nullptr)
     {
-        m_refs.apple2cSmartPort->GetPort().CatchUp();
+        m_refs.apple2cSmartPort->GetPort().CatchUp (CatchUpKind::BetweenFrames);
     }
 
     if (m_refs.apple2cPlusDiskPort != nullptr)
     {
-        m_refs.apple2cPlusDiskPort->GetPort().CatchUp();
+        m_refs.apple2cPlusDiskPort->GetPort().CatchUp (CatchUpKind::BetweenFrames);
     }
 
     return (spent);

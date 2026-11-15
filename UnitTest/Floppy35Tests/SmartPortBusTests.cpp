@@ -21,7 +21,7 @@ class FakeSmartPortDevice : public ISmartPortDevice
 {
 public:
     void       Connect      (SmartPortBus * bus, size_t index) override { position = index; (void) bus; }
-    void       CatchUp      (uint64_t nowNs) override { caughtUpTo = nowNs; }
+    void       CatchUp      (uint64_t nowNs, CatchUpKind) override { caughtUpTo = nowNs; }
     void       SetBusReset  (bool isReset) override { resets.push_back (isReset); }
     bool       IsDrivingBus() const override { return driving; }
     bool       GetAck() const override { return ack; }

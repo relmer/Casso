@@ -66,7 +66,7 @@ public:
 
     //  Runs the drives up to the Apple's time, so their firmware's timers run
     //  while the Apple doesn't access the card.
-    void  CatchUp () { m_port.CatchUp(); }
+    void  CatchUp (CatchUpKind kind = CatchUpKind::Access) { m_port.CatchUp (kind); }
 
     size_t            GetDriveCount () const { return m_port.GetDriveCount(); }
     UniDisk35Drive  & GetDrive      (size_t index) { return m_port.GetDrive (index); }
