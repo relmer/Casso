@@ -672,6 +672,7 @@ bool ShellTapeDeck::CreateBlankTape()
 
 
 
+    spec.title            = L"New blank tape";
     spec.filters          = { { L"WAV recordings", L"*.wav" } };
     spec.content          = FileDialogContent::Images;
     spec.defaultExtension = L"wav";
