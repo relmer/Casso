@@ -203,6 +203,7 @@ private:
     void  UpdateEngineWriteMode ();
     Byte  HandleReadDispatch    ();
     void  CatchUpToCpu          ();
+    void  AdvanceEngine         (uint32_t cycles);
 
     // Offers the idle callback a turn, at most once per emulated frame.
     void   PumpIdleCallback (uint32_t cpuCycles);
@@ -250,6 +251,16 @@ private:
     bool                 m_iwmMode      = false;
     IDiskPortHook      * m_portHook     = nullptr;
     Byte                 m_iwmModeReg   = 0;
+
+    // The IWM's write buffer passes its byte to the shift register a byte
+    // time after the CPU loads it, which sets the HANDSHAKE register's bit 7.
+    // With no byte loaded, the shift register runs dry a byte time later,
+    // an underrun, which clears bit 6.
+    static constexpr uint32_t  kIwmByteCycles    = static_cast<uint32_t> (Disk2NibbleEngine::kCyclesPerBit) * 8;
+    static constexpr Byte      kIwmBufferReady   = 0x80;
+    static constexpr Byte      kIwmNoUnderrun    = 0x40;
+    static constexpr Byte      kIwmHandshakeOnes = 0x3F;
+    uint32_t                   m_cyclesSinceLoad = UINT32_MAX;
 
     DiskImage            m_disks[kDriveCount];
     DiskImage *          m_activeDisk[kDriveCount] = { nullptr, nullptr };

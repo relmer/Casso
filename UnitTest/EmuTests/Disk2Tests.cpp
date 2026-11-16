@@ -338,6 +338,37 @@ public:
     }
 
 
+    //  In write mode the IWM's HANDSHAKE register, read with Q6 low, has bit 7
+    //  clear while the CPU's byte waits in the write buffer and set a byte
+    //  time later. Bit 6 is set until the shift register runs dry a byte time
+    //  after that with no byte loaded. The //c ROM's SmartPort probe polls
+    //  both at power-on with drive 2 selected.
+    TEST_METHOD (IwmHandshakeReportsTheWriteBufferReadyThenAnUnderrun)
+    {
+        unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+
+
+
+        disk->SetIwmMode (true);
+        disk->Read (s_kDrive2);
+        disk->Read (s_kMotorOn);
+        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+
+        disk->Read  (s_kQ6On);
+        disk->Write (s_kQ7On, 0xFF);
+
+        Assert::AreEqual<Byte> (0x7F, disk->Read (s_kQ6Off), L"just after the load: buffer full, no underrun");
+
+        disk->Tick (Disk2NibbleEngine::kCyclesPerBit * s_kBitsPerNibble);
+
+        Assert::AreEqual<Byte> (0xFF, disk->Read (s_kQ6Off), L"a byte time later: buffer ready");
+
+        disk->Tick (Disk2NibbleEngine::kCyclesPerBit * s_kBitsPerNibble);
+
+        Assert::AreEqual<Byte> (0xBF, disk->Read (s_kQ6Off), L"another byte time with no load: an underrun");
+    }
+
+
     static void FillTrackWithOnes (DiskImage & image)
     {
         size_t  i = 0;
