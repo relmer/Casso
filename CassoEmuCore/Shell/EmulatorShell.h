@@ -417,13 +417,19 @@ private:
     void    ChangeHardDiskImage       (const DeskDrive & drive, const std::wstring & path);
     void    BrowseHardDisk            (const DeskDrive & drive);
 
-    // Plugs a drive of `device` into the disk port's chain, or unplugs the
-    // `nth` one, once the user picks Restart in the prompt: the machine is
-    // rebuilt with the new chain. The rows add the Disk menu's plug-in
-    // commands to a drive's menu and, for a drive on the chain (`nth` not
-    // negative), the command that unplugs it.
+    // Plugs a drive of `device` into the disk port's chain, unplugs the
+    // `nth` one or swaps it for the other size, once the user picks Restart
+    // in the prompt: the machine is rebuilt with the new chain. The rows add
+    // to a drive's menu, for a drive on the chain (`nth` not negative), the
+    // commands that unplug and swap it, then the Disk menu's plug-in commands,
+    // which are hidden while the port has no room for their kind.
     void    ChangePortDrive           (PortDriveChange change, const std::string & device, size_t nth);
     void    AddPortDriveRows          (const std::string & device, int nth, std::vector<DxuiPopupMenuItem> & items);
+
+    // A copy of a Disk menu command with the label a drive's menu uses,
+    // where the drive's name heads the menu: "Insert disk..." for "Insert
+    // drive 1...".
+    static std::shared_ptr<const DxuiCommand>  MakeRelabeled (const std::shared_ptr<const DxuiCommand> & command, const wchar_t * label);
 
     // A drive's (0 or 1) or the recorder's (kStorageMenuRecorder) right-click
     // menu, at a client point.

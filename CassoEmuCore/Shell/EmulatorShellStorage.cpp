@@ -373,8 +373,6 @@ void EmulatorShell::AddPortDriveRows (const std::string & device, int nth, std::
 
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());
-    items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (IDM_STORAGE_ATTACH_APPLE35)));
-    items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (IDM_STORAGE_ATTACH_FLOPPY)));
 
     if (nth >= 0)
     {
@@ -395,11 +393,42 @@ void EmulatorShell::AddPortDriveRows (const std::string & device, int nth, std::
 
             swap->label     = (device == kpszApple35DriveDevice) ? L"S&wap for a 5.25-inch drive" : L"S&wap for a 3.5-inch drive";
             swap->dispatch  = [this, device, nth] () { ChangePortDrive (PortDriveChange::Swap, device, (size_t) nth); };
-            swap->isEnabled = [this, device] () { return m_disks->CanSwapPortDrive (device); };
+            swap->isVisible = [this, device] () { return m_disks->CanSwapPortDrive (device); };
 
             items.push_back (DxuiPopupMenuItem::ForCommand (swap));
         }
     }
+
+    items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (IDM_STORAGE_ATTACH_APPLE35)));
+    items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (IDM_STORAGE_ATTACH_FLOPPY)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::MakeRelabeled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiCommand> EmulatorShell::MakeRelabeled (const std::shared_ptr<const DxuiCommand> & command, const wchar_t * label)
+{
+    std::shared_ptr<DxuiCommand>  copy;
+
+
+
+    if (command == nullptr)
+    {
+        return command;
+    }
+
+    copy            = std::make_shared<DxuiCommand> (*command);
+    copy->label     = label;
+    copy->labelText = nullptr;
+
+    return copy;
 }
 
 
@@ -511,8 +540,9 @@ Error:
 //  then the Storage menu's commands for that device. Drive 1 has no such
 //  switch; the machine's first drive is always present.
 //
-//  The rows are the Storage menu's own commands, so their text, enabled
-//  state and check marks match the menu's exactly.
+//  The rows are the Storage menu's commands, so their enabled state and
+//  check marks match the menu's. The disk's rows are worded for a menu the
+//  drive's name heads, as a 3.5-inch drive's is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -560,33 +590,43 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
         ids = { IDM_STORAGE_RECORDER, 0, IDM_TAPE_INSERT, IDM_TAPE_PLAY, IDM_TAPE_STOP, IDM_TAPE_REWIND,
                 IDM_TAPE_FASTFORWARD, IDM_TAPE_EJECT };
     }
-    else if (device == 0)
-    {
-        // Drive 1 is always there, so its menu is where a detached drive 2 or
-        // recorder is attached again: neither is on screen to be clicked.
-        bool  drive2Away   = m_disks->IsSecondDriveOffered() && !m_disks->ShouldShowExternalDrive();
-        bool  recorderAway = m_tapeDeck->MachineHasCassettePort() && !m_tapeDeck->IsTapeRecorderShown();
-
-        ids = { IDM_DISK_INSERT1, IDM_DISK_EJECT1, IDM_DISK_WP1, IDM_DISK_SALVAGE1, IDM_DISK_INSPECT1, IDM_DISK_THUMBNAIL1 };
-
-        if (drive2Away || recorderAway)
-        {
-            ids.push_back (0);
-        }
-
-        if (drive2Away)
-        {
-            ids.push_back (IDM_STORAGE_DRIVE2);
-        }
-
-        if (recorderAway)
-        {
-            ids.push_back (IDM_STORAGE_RECORDER);
-        }
-    }
     else
     {
-        ids = { IDM_STORAGE_DRIVE2, 0, IDM_DISK_INSERT2, IDM_DISK_EJECT2, IDM_DISK_WP2, IDM_DISK_SALVAGE2, IDM_DISK_INSPECT2, IDM_DISK_THUMBNAIL2 };
+        // Headed and worded as a 3.5-inch drive's menu is: the drive's name,
+        // then the disk's commands.
+        bool  isFirst = (device == 0);
+
+        items.push_back (DxuiPopupMenuItem::ForHeader (ShellDeskScene::GetDriveTitle (m_scene->GetDiskIiDrive (device))));
+
+        if (!isFirst)
+        {
+            items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (IDM_STORAGE_DRIVE2)));
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_INSERT1    : IDM_DISK_INSERT2),    L"&Insert disk...")));
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_EJECT1     : IDM_DISK_EJECT2),     L"&Eject disk")));
+        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (isFirst ? IDM_DISK_WP1      : IDM_DISK_WP2)));
+        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (isFirst ? IDM_DISK_SALVAGE1 : IDM_DISK_SALVAGE2)));
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_INSPECT1   : IDM_DISK_INSPECT2),   L"Inspect &disk...")));
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_THUMBNAIL1 : IDM_DISK_THUMBNAIL2), L"Save screenshot as the disk's thu&mbnail")));
+
+        // Drive 1 is always there, so its menu is where a detached drive 2 or
+        // recorder is attached again: neither is on screen to be clicked.
+        if (isFirst && m_disks->IsSecondDriveOffered() && !m_disks->ShouldShowExternalDrive())
+        {
+            ids = { 0, IDM_STORAGE_DRIVE2 };
+        }
+
+        if (isFirst && m_tapeDeck->MachineHasCassettePort() && !m_tapeDeck->IsTapeRecorderShown())
+        {
+            if (ids.empty())
+            {
+                ids.push_back (0);
+            }
+
+            ids.push_back (IDM_STORAGE_RECORDER);
+        }
     }
 
     for (int id : ids)

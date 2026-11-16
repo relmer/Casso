@@ -666,8 +666,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_THUMBNAIL1: return !m_disks->GetMountedImagePath (0).empty();
             case IDM_DISK_THUMBNAIL2: return m_disks->ShouldShowExternalDrive() && !m_disks->GetMountedImagePath (1).empty();
             case IDM_STORAGE_DRIVE2:   return m_disks->IsSecondDriveOffered();
-            case IDM_STORAGE_ATTACH_APPLE35: return m_disks->CanPlugInPortDrive (kpszApple35DriveDevice);
-            case IDM_STORAGE_ATTACH_FLOPPY:  return m_disks->CanPlugInPortDrive (kpszDiskIicDevice);
             case IDM_STORAGE_RECORDER: return m_tapeDeck->MachineHasCassettePort();
             case IDM_DISK_INSERT2:     return m_disks->ShouldShowExternalDrive();
             case IDM_DISK_EJECT2:      return m_disks->ShouldShowExternalDrive();
@@ -691,13 +689,14 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
         switch (commandId)
         {
-            case IDM_VIEW_FLOPPY_PAIR_BESIDE: visible = m_scene->IsFloppyPairBesideOffered(); break;
+            case IDM_VIEW_FLOPPY_PAIR_BESIDE: visible = m_scene->IsFloppyPairBesideOffered();                                                  break;
 
             // The //c Plus's port drives are plugged in from the plug-in rows.
-            case IDM_STORAGE_DRIVE2:          visible = !m_disks->IsPortChainOffered();       break;
-            case IDM_STORAGE_ATTACH_APPLE35:  visible = m_disks->IsPortChainOffered();        break;
-            case IDM_STORAGE_ATTACH_FLOPPY:   visible = m_disks->IsPortChainOffered();        break;
-            default:                                                                          break;
+            // Each row is visible only while the port has room for its kind.
+            case IDM_STORAGE_DRIVE2:          visible = !m_disks->IsPortChainOffered();                                                        break;
+            case IDM_STORAGE_ATTACH_APPLE35:  visible = m_disks->IsPortChainOffered() && m_disks->CanPlugInPortDrive (kpszApple35DriveDevice); break;
+            case IDM_STORAGE_ATTACH_FLOPPY:   visible = m_disks->IsPortChainOffered() && m_disks->CanPlugInPortDrive (kpszDiskIicDevice);      break;
+            default:                                                                                                                           break;
         }
 
         return visible;
