@@ -1814,7 +1814,7 @@ void ShellDisks::EjectFloppy35 (int slot, int drive)
 HRESULT ShellDisks::AttachHardDisk (int slot, int drive, const std::string & path)
 {
     std::wstring                          error;
-    HRESULT                               hr      = m_shell.m_machine.AttachHardDisk (slot, drive, path, error);
+    HRESULT                               hr     = m_shell.m_machine.AttachHardDisk (slot, drive, path, error);
     std::unique_ptr<HardDiskImageChange>  change;
 
 
@@ -1825,12 +1825,13 @@ HRESULT ShellDisks::AttachHardDisk (int slot, int drive, const std::string & pat
     }
     else if (m_shell.m_hwnd != nullptr)
     {
-        //  The UI thread takes the change once the message is posted.
+        // The message handler deletes the change once it is saved, so the
+        // change is released only when the post succeeds.
         change = std::make_unique<HardDiskImageChange> (HardDiskImageChange { slot, drive, path });
 
         if (PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellHardDiskImage, 0, reinterpret_cast<LPARAM> (change.get())))
         {
-            change.release();
+            (void) change.release();
         }
     }
 

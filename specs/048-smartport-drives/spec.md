@@ -119,6 +119,10 @@ the interaction, sound and event log the Disk II already has.
   runs on. When the image fails the machine build's checks, the drive has
   its image from before, a notice has the reason, and the machine runs on.
   The new image is saved with the machine, as the Machine tab saves it.
+- Q: Are the synthesized motor, step and eject sounds played for the
+  3.5-inch drives? A: No. They didn't sound like a Sony drive, so the 3.5-inch
+  drives are silent until recordings of a real drive replace them. The hard
+  disks have their seek ticks.
 
 ## User Scenarios & Testing *(mandatory)*
 

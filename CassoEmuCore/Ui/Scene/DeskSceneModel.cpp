@@ -2467,8 +2467,10 @@ void DeskSceneModel::StampDriveLabel (std::vector<Dxui3DRenderer::Vertex> & out,
 //  DeskSceneModel::BuildDiskInSlot
 //
 //  A 3.5-inch disk is 90 mm wide and 3.3 mm thick, and in the drive its back
-//  edge is a little behind the front of the case. The box is centered in
-//  the slot, and lit.
+//  edge is a couple of millimeters behind the front of the case, which is
+//  the model's frontmost point (not the front anchor, which a 3.5-inch
+//  drive's model sets 6 mm into the case). The box is centered in the slot,
+//  and lit, a shade lighter than the back of the slot behind it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2477,8 +2479,8 @@ void DeskSceneModel::BuildDiskInSlot (std::vector<Dxui3DRenderer::Vertex> & out)
     constexpr float  kDiskWidthMm = 90.0f;
     constexpr float  kDiskThickMm = 3.3f;
     constexpr float  kClearMm     = 0.4f;
-    constexpr float  kRecessMm    = 2.0f;
-    constexpr float  kDiskRgb[3]  = { 0.150f, 0.155f, 0.180f };
+    constexpr float  kRecessMm    = 3.0f;
+    constexpr float  kDiskRgb[3]  = { 0.240f, 0.250f, 0.290f };
     float            midX         = (m_slotBox[0] + m_slotBox[3]) * 0.5f;
     float            midZ         = (m_slotBox[2] + m_slotBox[5]) * 0.5f;
     float            halfW        = 0.0f;
@@ -2500,7 +2502,7 @@ void DeskSceneModel::BuildDiskInSlot (std::vector<Dxui3DRenderer::Vertex> & out)
 
     lo[0] = midX - halfW;
     hi[0] = midX + halfW;
-    lo[1] = std::min (m_frontPlaneY + kRecessMm, m_slotBox[1] - kClearMm);
+    lo[1] = std::min (m_boundsMin[1] + kRecessMm, m_slotBox[1] - kClearMm);
     hi[1] = m_slotBox[1];
     lo[2] = midZ - halfH;
     hi[2] = midZ + halfH;

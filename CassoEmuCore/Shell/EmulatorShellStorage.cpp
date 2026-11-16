@@ -426,9 +426,13 @@ void EmulatorShell::ChangeHardDiskImage (const DeskDrive & drive, const std::wst
 
 void EmulatorShell::ChangeHardDiskImage (int slot, int drive, const std::wstring & driveTitle, const std::wstring & path)
 {
-    int  choice = ShowModalDialog (MakeHardDiskChangeDialog (driveTitle, fs::path (path).filename().wstring()));
+    int  choice = 0;
 
 
+
+    m_chrome->HideTooltips();
+
+    choice = ShowModalDialog (MakeHardDiskChangeDialog (driveTitle, fs::path (path).filename().wstring()));
 
     if (choice == kHardDiskChangeRestart)
     {

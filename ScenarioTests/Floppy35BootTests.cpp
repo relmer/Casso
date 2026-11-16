@@ -412,6 +412,27 @@ public:
     }
 
 
+    //  A //C PLUS POWER CYCLED AGAIN after running a while starts at once. The
+    //  power cycle zeroes the Apple's cycle count, and the disk port's clock,
+    //  which follows that count, advances from the time it had reached.
+    TEST_METHOD (Apple2cPlus_SecondPowerCycleStartsAtOnce)
+    {
+        constexpr uint64_t  kRanFirst = 20'000'000;
+        constexpr uint64_t  kStartCap = 3'000'000;
+
+        TestMachine  machine ("Apple2cPlus");
+
+
+
+        machine.PowerCycle();
+        Assert::IsTrue (RunUntilScreenShows (machine, "Apple", kStartCap), L"the banner is on the screen after the first power-on");
+
+        machine.RunCycles (kRanFirst);
+        machine.PowerCycle();
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "Apple", kStartCap), L"and as soon after the second");
+    }
+
     //  THE //C PLUS BOOTS AN 800K DISK IN ITS INTERNAL APPLE 3.5 DRIVE through
     //  ROM 05, the IWM driving the drive through the MIG at the accelerator's
     //  4 MHz.

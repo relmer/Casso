@@ -5,6 +5,7 @@
 #include "CassoExplorer/Picker/ExplorerPickerHost.h"
 #include "CassoExplorer/Picker/StartupDiskPicker.h"
 #include "Core/TextEncoding.h"
+#include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellSettings.h"
@@ -238,6 +239,8 @@ void ShellDrivePickers::OpenForDeskDrive (const DeskDrive & drive)
     {
         return;
     }
+
+    m_shell.m_chrome->HideTooltips();
 
     m_pickers.Open (picked);
 }

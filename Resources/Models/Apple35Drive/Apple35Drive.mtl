@@ -53,14 +53,9 @@ Ka 0 0 0
 Kd 0 0.615686 0.862745
 d 1
 
-newmtl back_plate
+newmtl db19_flange
 Ka 0 0 0 
-Kd 0.835 0.815 0.76
-d 1
-
-newmtl db19_opening
-Ka 0 0 0 
-Kd 0.07 0.07 0.075
+Kd 0.7 0.7 0.7
 d 1
 
 newmtl db19_shell
@@ -70,12 +65,22 @@ d 1
 
 newmtl db19_insert
 Ka 0 0 0 
-Kd 0.15 0.15 0.155
+Kd 0.18 0.18 0.19
 d 1
 
-newmtl back_mark
+newmtl db19_back
 Ka 0 0 0 
-Kd 0.835 0.815 0.76
+Kd 0.07 0.07 0.075
+d 1
+
+newmtl db19_post_22
+Ka 0 0 0 
+Kd 0.7 0.7 0.7
+d 1
+
+newmtl db19_post_59
+Ka 0 0 0 
+Kd 0.7 0.7 0.7
 d 1
 
 newmtl lock_loop

@@ -151,16 +151,28 @@ void SmartPortHost::SetFloppy35EventSink (IFloppy35EventSink * sink)
 //  GetNowNs
 //
 //  The Apple's time in nanoseconds, never moving back across a reset of the
-//  Apple's cycle count.
+//  Apple's cycle count. A power cycle zeroes the count, so a count below the
+//  last one seen starts a new epoch at the last time returned. Measured from
+//  the old epoch, the time wouldn't advance until the count was back where
+//  it was.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 uint64_t SmartPortHost::GetNowNs()
 {
     uint64_t  cycles  = (m_hostCycles != nullptr) ? *m_hostCycles : 0;
-    uint64_t  elapsed = (cycles > m_epochCycles) ? cycles - m_epochCycles : 0;
+    uint64_t  elapsed = 0;
 
 
+
+    if (cycles < m_lastCycles || cycles < m_epochCycles)
+    {
+        m_epochCycles = cycles;
+        m_epochNs     = m_lastNs;
+    }
+
+    m_lastCycles = cycles;
+    elapsed      = cycles - m_epochCycles;
 
     if (m_hostHz != 0)
     {

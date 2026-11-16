@@ -1983,6 +1983,24 @@ void ShellChrome::ShowNotice (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HideTooltips
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::HideTooltips()
+{
+    m_toolbarTooltip.HideImmediate();
+    m_switchBarTooltip.HideImmediate();
+    m_driveTooltip.HideImmediate();
+    m_captionTooltip.HideImmediate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PostNotice
 //
 //  Hand a notice to the window from any thread. The notice is Dxui and Dxui

@@ -468,6 +468,7 @@ public:
         }
 
         Assert::IsTrue (front > model.FrontPlaneY(), L"behind the case's front");
+        Assert::IsTrue (front < slot[1] - 3.0f, L"far enough in front of the back of the slot to be seen");
     }
 
     //
