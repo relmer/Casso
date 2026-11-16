@@ -246,7 +246,10 @@ private:
     };
 
     void  ApplyResult        ();
-    bool  HasScreen          () const { return m_picture != nullptr && m_state == State::Ready; }
+    //  The picture comes from the thumbnail store, not the analysis, so it is
+    //  drawn while the analysis runs and the pane isn't laid out again when
+    //  the analysis finishes.
+    bool  HasScreen          () const { return m_picture != nullptr && (m_state == State::Ready || m_state == State::Analyzing); }
     bool  IsBeside           (int widthPx) const;
     bool  HasVerdict         () const { return m_state == State::Ready && m_isVerdictShown; }
     int   GetVerdictHeightPx (int widthPx) const;

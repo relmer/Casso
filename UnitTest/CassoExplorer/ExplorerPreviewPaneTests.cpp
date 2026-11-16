@@ -77,6 +77,81 @@ public:
     }
 
 
+    //  From one disk image with a picture to the next, the picture and its
+    //  result line are drawn while the next image is analyzed, so the catalog
+    //  stays put through the analysis and after it.
+    TEST_METHOD (Preview_TheScreenIsDrawnWhileTheNextImageIsAnalyzed_At100And150Percent)
+    {
+        for (UINT dpi : { 96u, 144u })
+        {
+            Rig                    rig;
+            FakeDiskPictures       pictures;
+            ThumbnailRecord        record;
+            std::filesystem::path  folder = std::filesystem::temp_directory_path() / std::format (L"CassoPreviewScreenNext{}_{}", ::GetCurrentProcessId(), dpi);
+            LONG                   top    = 0;
+
+
+
+            record.verdict      = "booted";
+            record.machine      = "Apple2eEnhanced";
+            pictures.resultLine = DiskImagePictures::DescribeRecord (record, false);
+
+            rig.app.pictures = &pictures;
+            rig.scaler.SetDpi (dpi);
+            rig.prefs.previewVisible = true;
+            std::filesystem::create_directories (folder);
+
+            for (const wchar_t * name : { L"a.dsk", L"b.dsk" })
+            {
+                std::filesystem::path  image = folder / name;
+
+                rig.Seed ("CassoExplorer/dos33.dsk", image.c_str());
+                AssertSucceeded (DiskImageStore::WriteFileAtomically (image.string(), rig.io.files[image.string()]));
+            }
+
+            rig.Open();
+            rig.parts->layout.SetClient (RECT { 0, 0, rig.scaler.ToPx (1280), rig.scaler.ToPx (900) });
+            Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+            rig.parts->listPane.FillList();
+
+            auto  select = [&rig] (const wchar_t * name)
+            {
+                Assert::IsTrue (rig.parts->listPane.SelectRowNamed (name));
+                rig.parts->preview.FillPreview();
+                rig.parts->layout.RecomputeLayout();
+            };
+
+            auto  read = [&rig]()
+            {
+                Assert::IsTrue (Rig::WaitFor (rig, [&rig]()
+                {
+                    rig.parts->layout.RecomputeLayout();
+
+                    return rig.parts->preview.GetThumbnail().IsReady();
+                }));
+
+                rig.parts->layout.RecomputeLayout();
+            };
+
+            select (L"a.dsk");
+            read();
+            Assert::IsTrue (rig.parts->preview.GetThumbnail().IsScreenShown(), L"a's picture");
+            top = rig.parts->preview.GetContentRect().top;
+
+            select (L"b.dsk");
+            Assert::IsFalse  (rig.parts->preview.GetThumbnail().IsReady(), L"b is being analyzed");
+            Assert::IsTrue   (rig.parts->preview.GetThumbnail().IsScreenShown(), L"b's picture is drawn while it is analyzed");
+            Assert::AreEqual (pictures.resultLine, rig.parts->preview.GetThumbnail().GetResultLine());
+            Assert::AreEqual (top, rig.parts->preview.GetContentRect().top, std::format (L"the catalog stays put while b is analyzed at {} dpi", dpi).c_str());
+
+            read();
+            Assert::AreEqual (top, rig.parts->preview.GetContentRect().top, std::format (L"and when b's analysis finishes at {} dpi", dpi).c_str());
+
+            std::filesystem::remove_all (folder);
+        }
+    }
+
+
     //  The preview of a disk image has its file-system verdict at the top, at
     //  100% and at 150%: Bad as an error infobar with its first finding of
     //  damage and Repair disk image, Suspect as an info infobar with its
