@@ -251,6 +251,7 @@ vector<std::wstring> BlockLevels::GetCardColumns()
 vector<BlockPartitionRow> BlockLevels::BuildCard (const BlockInspectorModel & model)
 {
     vector<BlockPartitionRow>  rows;
+    std::set<SectorRole>       kinds;
     int                        number = 0;
     size_t                     used   = 0;
     size_t                     damage = 0;
@@ -266,14 +267,21 @@ vector<BlockPartitionRow> BlockLevels::BuildCard (const BlockInspectorModel & mo
 
         const BlockMap  & map = model.GetVolumeMap (band.volume);
 
-        used   = 0;
-        damage = map.isCatalogComplete ? 0 : 1;
+        used = 0;
+        kinds.clear();
 
         for (const BlockMapEntry & entry : map.blocks)
         {
-            used   += entry.role != SectorRole::Free ? 1 : 0;
-            damage += (entry.role == SectorRole::AllocatedUnowned || entry.role == SectorRole::OwnedMarkedFree || entry.role == SectorRole::CrossLinked) ? 1 : 0;
+            used += entry.role != SectorRole::Free ? 1 : 0;
+
+            if (entry.role == SectorRole::AllocatedUnowned || entry.role == SectorRole::OwnedMarkedFree || entry.role == SectorRole::CrossLinked)
+            {
+                kinds.insert (entry.role);
+            }
         }
+
+        //  A kind of damage is one problem, however many blocks it is in.
+        damage = kinds.size() + (map.isCatalogComplete ? 0 : 1);
 
         number++;
 

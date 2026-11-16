@@ -62,7 +62,7 @@ void BlockLevelHost::Init (BlockInspectorModel * model, const IDxuiTheme * theme
 
     for (const std::wstring & title : BlockLevels::GetCardColumns())
     {
-        columns.push_back ({ title, columns.size() == 2 ? 0 : 110, columns.size() == 2 });
+        columns.push_back ({ title, columns.size() == 2 ? 180 : 100 });
     }
 
     m_card->SetTheme              (theme);
