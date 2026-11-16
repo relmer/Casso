@@ -620,12 +620,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
             int                           hoverExtra = -1;
             int                           hoverDisk  = -1;
             bool                          isOnDesk   = DeskSceneActive() && !AreDrivesOnStrip();
+            float                         extraT     = 0.0f;
 
 
 
-            for (int i = 0; isOnDesk && i < comp.extraCount && i < m_scene->m_deskScene.GetExtraCount() && hoverExtra < 0; i++)
+            if (isOnDesk)
             {
-                hoverExtra = PtInRect (&comp.extraRectPx[i], pointer) ? i : -1;
+                hoverExtra = m_scene->GetExtraAt (pointer.x, pointer.y, extraT);
             }
 
             for (int i = 0; isOnDesk && hoverExtra < 0 && i < comp.driveCount && i < 2 && m_scene->AreDiskIiStacked() && hoverDisk < 0; i++)
@@ -1539,7 +1540,8 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     {
         SceneHitResult  hit    = m_scene->DeskSceneHit (x, y);
         bool            onDoor = hit.target == SceneHitResult::Target::Drive
-                                 && hit.region == DriveWidgetRegion::Eject;
+                                 && hit.region == DriveWidgetRegion::Eject
+                                 && m_scene->GetExtraUnder (hit, x, y) < 0;
 
         if (!onDoor && hit.target != SceneHitResult::Target::BezelTilt)
         {
@@ -1785,6 +1787,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                                   m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
                                   PtInRect (&m_scene->m_stripRectPx, pt);
         SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
+        int             extra    = inStrip ? -1 : m_scene->GetExtraUnder (sceneHit, x, y);
+
+        // A 3.5-inch drive or hard disk in front of the Disk II takes the
+        // click, below.
+        if (extra >= 0)
+        {
+            sceneHit = SceneHitResult {};
+        }
 
         // ONLY THE DOOR ACTS. The body region stays for hover -- the
         // tooltip that names the disk -- but a click there does nothing:
@@ -1839,22 +1849,12 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         }
 
         // A 3.5-inch drive or hard disk on the desk picks an image for itself.
-        else if (!inStrip)
+        else if (extra >= 0 && !driveTook &&
+                 (ShellDeskScene::IsFloppy35 (m_scene->m_deskScene.GetExtraDrive (extra)) ||
+                  ShellDeskScene::IsHardDisk (m_scene->m_deskScene.GetExtraDrive (extra))))
         {
-            const DeskSceneComposition  & comp = m_scene->m_deskScene.Composition();
-
-
-
-            for (int i = 0; i < comp.extraCount && i < m_scene->m_deskScene.GetExtraCount() && !driveTook; i++)
-            {
-                const DeskDrive  & extra = m_scene->m_deskScene.GetExtraDrive (i);
-
-                if ((ShellDeskScene::IsFloppy35 (extra) || ShellDeskScene::IsHardDisk (extra)) && PtInRect (&comp.extraRectPx[i], pt))
-                {
-                    m_scene->BrowseExtraDrive (i);
-                    driveTook = true;
-                }
-            }
+            m_scene->BrowseExtraDrive (extra);
+            driveTook = true;
         }
 
         m_scene->m_stripBrowseOpen = false;
@@ -2095,25 +2095,24 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
 
     if (DeskSceneActive())
     {
-        bool                          inStrip  = AreDrivesOnStrip() &&
-                                                 m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
-                                                 PtInRect (&m_scene->m_stripRectPx, pt);
-        SceneHitResult                sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
-        const DeskSceneComposition  & comp     = m_scene->m_deskScene.Composition();
+        bool            inStrip  = AreDrivesOnStrip() &&
+                                   m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
+                                   PtInRect (&m_scene->m_stripRectPx, pt);
+        SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
+        int             extra    = inStrip ? -1 : m_scene->GetExtraUnder (sceneHit, x, y);
 
 
+
+        // A 3.5-inch drive or hard disk in front of the Disk II takes the
+        // click, as a left click does.
+        if (extra >= 0)
+        {
+            return kStorageMenuDeskExtra + extra;
+        }
 
         if (sceneHit.target == SceneHitResult::Target::Drive)
         {
             return sceneHit.driveIndex;
-        }
-
-        for (int i = 0; i < comp.extraCount && i < m_scene->m_deskScene.GetExtraCount(); i++)
-        {
-            if (PtInRect (&comp.extraRectPx[i], pt))
-            {
-                return kStorageMenuDeskExtra + i;
-            }
         }
 
         // The recorder has its own hit test, which checks whether it is on

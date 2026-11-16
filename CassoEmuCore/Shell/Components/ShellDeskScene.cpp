@@ -567,6 +567,85 @@ SceneHitResult ShellDeskScene::DeskSceneHit (int xPx, int yPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDeskScene::GetExtraAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDeskScene::GetExtraAt (int xPx, int yPx, float & outDistance) const
+{
+    const DeskSceneComposition  & comp  = m_deskScene.Composition();
+    int                           front = -1;
+
+
+
+    outDistance = FLT_MAX;
+
+    for (int i = 0; i < comp.extraCount && i < m_deskScene.GetExtraCount(); i++)
+    {
+        float  boundsMin[3] = {};
+        float  boundsMax[3] = {};
+        float  distance     = 0.0f;
+
+        if (comp.IsExtraShown (i) && m_deskScene.GetExtraModelBounds (i, boundsMin, boundsMax) &&
+            DeskSceneHitTester::TryGetRayEntry (comp, comp.extraWorld[i], boundsMin, boundsMax, (float) xPx, (float) yPx, distance) &&
+            distance < outDistance)
+        {
+            outDistance = distance;
+            front       = i;
+        }
+    }
+
+    return front;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetExtraUnder
+//
+//  The Disk II hit test covers only the Disk IIs and the monitor, and its
+//  door target extends past the case, so a click on a drive stacked on top
+//  went to the drive below. The drive whose body is nearer along the ray is
+//  returned; a ray that misses the Disk II's body and enters only its padded
+//  door target is given to any extra drive it enters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDeskScene::GetExtraUnder (const SceneHitResult & hit, int xPx, int yPx) const
+{
+    const DeskSceneComposition  & comp        = m_deskScene.Composition();
+    float                         driveMin[3] = {};
+    float                         driveMax[3] = {};
+    float                         extraT      = FLT_MAX;
+    float                         driveT      = FLT_MAX;
+    int                           extra       = GetExtraAt (xPx, yPx, extraT);
+
+
+
+    if (extra >= 0 && hit.target == SceneHitResult::Target::Drive && hit.driveIndex >= 0 && hit.driveIndex < comp.driveCount)
+    {
+        m_deskScene.DriveModel().BoundsMin (driveMin);
+        m_deskScene.DriveModel().BoundsMax (driveMax);
+
+        if (DeskSceneHitTester::TryGetRayEntry (comp, comp.driveWorld[hit.driveIndex], driveMin, driveMax, (float) xPx, (float) yPx, driveT) &&
+            driveT < extraT)
+        {
+            extra = -1;
+        }
+    }
+
+    return extra;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDeskScene::BuildDriveDoorBoxes
 //
 //  THE DOOR IS THE ONE PART OF A DRIVE THAT MOVES, so its click target is
@@ -2466,15 +2545,7 @@ std::wstring ShellDeskScene::GetHoverLabelText() const
     }
     else if (m_hoverDiskIi >= 0 && m_hoverDiskIi < 2)
     {
-        DeskDrive  drive = { m_deskSceneMachineIsC ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII, 6, m_hoverDiskIi };
-
-        for (const DeskDrive & planned : m_plannedDrives)
-        {
-            if (planned.slot == 6 && planned.drive == m_hoverDiskIi)
-            {
-                drive = planned;
-            }
-        }
+        DeskDrive  drive = GetDiskIiDrive (m_hoverDiskIi);
 
         path     = m_shell.m_machine.GetDiskStore().GetSourcePath (6, m_hoverDiskIi);
         isLocked = !path.empty() && m_shell.m_disks->GetDriveWidgetState()[(size_t) m_hoverDiskIi].writeProtect.Any();
@@ -3916,6 +3987,33 @@ std::wstring ShellDeskScene::GetDriveTitle (const DeskDrive & drive)
     }
 
     return title;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetDiskIiDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DeskDrive ShellDeskScene::GetDiskIiDrive (int drive) const
+{
+    DeskDrive  out = { m_deskSceneMachineIsC ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII, 6, drive };
+
+
+
+    for (const DeskDrive & planned : m_plannedDrives)
+    {
+        if (planned.slot == 6 && planned.drive == drive)
+        {
+            out = planned;
+        }
+    }
+
+    return out;
 }
 
 

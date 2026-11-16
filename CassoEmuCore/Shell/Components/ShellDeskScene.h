@@ -111,8 +111,10 @@ public:
     static constexpr int  kBarDropTagBase     = 64;
     static constexpr int  kBarDropClassStride = 16;
 
-    // A drive's name, as its right-click menu is headed.
-    static std::wstring  GetDriveTitle (const DeskDrive & drive);
+    // A drive's name, as its right-click menu is headed, and Disk II drive
+    // `drive` (0 or 1) as the desk plans it.
+    static std::wstring  GetDriveTitle  (const DeskDrive & drive);
+    DeskDrive            GetDiskIiDrive (int drive) const;
 
     // The overlays drawn over the scene, which the chrome hides and lays out
     // with the rest of what sits over the picture, and the user's framing.
@@ -184,6 +186,14 @@ public:
     // Resolves against the fullscreen strip's drives-and-recorder
     // composition (glass excluded -- its monitor placement is meaningless).
     SceneHitResult  StripHit     (int xPx, int yPx) const;
+
+    // The 3.5-inch drive or hard disk under a client point, as an index
+    // among the desk's extra drives, or -1 for none: the nearest one the
+    // pointer's ray enters, since stacked drives' screen rects overlap.
+    // GetExtraUnder returns -1 when the body of the Disk II that `hit`
+    // landed on is nearer.
+    int             GetExtraAt    (int xPx, int yPx, float & outDistance) const;
+    int             GetExtraUnder (const SceneHitResult & hit, int xPx, int yPx) const;
 
     // Whichever of those two holds the recorder the pointer can reach: the
     // strip while it is up in fullscreen, the desk otherwise.
