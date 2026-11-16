@@ -83,6 +83,16 @@ struct InspectorViewContext
     int                         errorFirstNibble  = -1;
     int                         errorNibbleCount  = 0;
 
+    //  No selection from an error finding: after another disk is opened or
+    //  the disk is analyzed again from the start, its findings are new.
+    void  ClearErrorSelection ()
+    {
+        errorQuarterTrack = -1;
+        errorSector       = -1;
+        errorFirstNibble  = -1;
+        errorNibbleCount  = 0;
+    }
+
     bool  IsErrorSelected () const
     {
         return model != nullptr && errorQuarterTrack >= 0 && model->GetQuarterTrack() == errorQuarterTrack && model->GetSectorIndex() == errorSector &&

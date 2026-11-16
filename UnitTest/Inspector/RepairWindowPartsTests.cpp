@@ -2,6 +2,7 @@
 
 #include "Devices/Disk/Inspector/Repair/DiskRepair.h"
 #include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
+#include "Ui/DiskInspector/Components/HostLink.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Ui/DiskInspector/RepairDialog.h"
@@ -432,5 +433,27 @@ public:
             Assert::IsTrue   (longFix.GetBounds().bottom < wrapped.GetLabel (fixes.size() + 1).GetBounds().top, L"the bottom line under it");
             Assert::IsTrue   (wrapped.GetLabel (fixes.size() + 1).GetBounds().bottom <= height, L"inside the measured height");
         }
+    }
+
+
+
+    TEST_METHOD (OpeningADiskClearsTheSelectionFromAnErrorFinding)
+    {
+        InspectorSession   session;
+        FakeInspectorHost  host;
+        HostLink           link { session, host };
+
+
+
+        session.context.errorQuarterTrack = 72;
+        session.context.errorSector       = 14;
+        session.context.errorFirstNibble  = 300;
+        session.context.errorNibbleCount  = 400;
+
+        link.StartDisk (nullptr, L"");
+
+        Assert::AreEqual (-1, session.context.errorQuarterTrack, L"a repaired copy opened in the image's place isn't drawn in the error color");
+        Assert::AreEqual (-1, session.context.errorSector);
+        Assert::IsFalse  (session.context.IsErrorSelected());
     }
 };

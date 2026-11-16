@@ -34,10 +34,11 @@ enum class DxuiSeverity
 //  DxuiSeverityBadge
 //
 //  The mark for a severity, drawn from primitives: an error as a disc in the
-//  theme's error color with an exclamation cut out of it, a warning as
+//  theme's error color with an exclamation in it, a warning as
 //  DxuiWarningBadge's triangle, and information as a ring with an "i" in the
 //  theme's accent. A count badge is a disc, or a pill for more digits, in
-//  the severity's color with the count in it.
+//  the severity's color with the count in it. The exclamation and the count
+//  are in the same ink, black or white by contrast with the fill.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,6 +58,11 @@ public:
 
     //  The severity's color: the error color, the warning accent, or the accent.
     static uint32_t  GetColor (DxuiSeverity severity, const IDxuiTheme & theme, uint32_t errorArgb = 0);
+
+    //  The ink on the severity's color, for the exclamation and the count:
+    //  the warning mark's color on the warning accent, and otherwise black or
+    //  white, whichever contrasts more with the color.
+    static uint32_t  GetInk   (DxuiSeverity severity, const IDxuiTheme & theme, uint32_t errorArgb = 0);
 
 private:
     static constexpr float  s_kStrokeEm = 0.085f;   // the ring's and the "i"'s pen, as a fraction of the box

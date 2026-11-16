@@ -242,4 +242,25 @@ public:
         Assert::AreEqual (0xFF123456u, palette.GetKindColor (PlatterKind::DataField));
         Assert::AreEqual (DiskInspectorColors::MakeLight().sync, palette.GetKindColor (PlatterKind::Sync));
     }
+
+
+
+    TEST_METHOD (AnErrorsMarkAndCountReachFourAndAHalfToOne)
+    {
+        DxuiTheme  theme = DxuiTheme::Dark();
+
+
+
+        for (const NamedPalette & p : MakeAll())
+        {
+            uint32_t  bad = p.palette.colors.sectorBad;
+            uint32_t  ink = DxuiSeverityBadge::GetInk (DxuiSeverity::Error, theme, bad);
+
+            Assert::IsTrue (DxuiColor::ComputeContrastRatio (ink, bad) >= kTextContrast,
+                            std::format (L"{}: {:.2f} to 1", p.name, DxuiColor::ComputeContrastRatio (ink, bad)).c_str());
+        }
+
+        Assert::AreEqual (0xFF000000u, DxuiSeverityBadge::GetInk (DxuiSeverity::Error, theme, DiskInspectorColors::MakeDark().sectorBad),  L"black on the dark theme's light red");
+        Assert::AreEqual (0xFFFFFFFFu, DxuiSeverityBadge::GetInk (DxuiSeverity::Error, theme, DiskInspectorColors::MakeLight().sectorBad), L"white on the light theme's dark red");
+    }
 };

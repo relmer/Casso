@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Widgets/DxuiSeverityBadge.h"
+#include "Theme/DxuiColor.h"
 #include "Theme/DxuiTheme.h"
 #include "Widgets/DxuiWarningBadge.h"
 
@@ -37,8 +38,8 @@ void DxuiSeverityBadge::Draw (IDxuiPainter & painter, DxuiSeverity severity, flo
             float  stem = stroke * 1.4f;
 
             painter.FillCircle (cx, cy, r, GetColor (DxuiSeverity::Error, theme, errorArgb));
-            painter.FillRect   (cx - stem * 0.5f, cy - r * 0.55f, stem, r * 0.7f, theme.Background());
-            painter.FillCircle (cx, cy + r * 0.42f, stem * 0.6f, theme.Background());
+            painter.FillRect   (cx - stem * 0.5f, cy - r * 0.55f, stem, r * 0.7f, GetInk (DxuiSeverity::Error, theme, errorArgb));
+            painter.FillCircle (cx, cy + r * 0.42f, stem * 0.6f, GetInk (DxuiSeverity::Error, theme, errorArgb));
             break;
         }
 
@@ -98,8 +99,7 @@ float DxuiSeverityBadge::GetCountWidth (IDxuiTextRenderer & text, const std::wst
 //
 //  DxuiSeverityBadge::DrawCount
 //
-//  The count in white on the error color and the accent, and in the warning
-//  mark's dark color on the warning accent, so it reads on each.
+//  The count in GetInk's ink, so it reads on each color.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,12 +114,8 @@ void DxuiSeverityBadge::DrawCount (
     const IDxuiTheme   & theme,
     uint32_t             errorArgb)
 {
-    static constexpr uint32_t  kWhite = 0xFFFFFFFFu;
-
-
-
     float     width = GetCountWidth (text, count, height);
-    uint32_t  ink   = (severity == DxuiSeverity::Warning) ? theme.WarningMark() : kWhite;
+    uint32_t  ink   = GetInk (severity, theme, errorArgb);
     HRESULT   hr    = S_OK;
 
 
@@ -155,4 +151,22 @@ uint32_t DxuiSeverityBadge::GetColor (DxuiSeverity severity, const IDxuiTheme & 
     }
 
     return color;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiSeverityBadge::GetInk
+//
+//  The error color differs by theme, light on a dark theme and dark on a
+//  light one, so no one ink has a contrast of 4.5:1 with all of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t DxuiSeverityBadge::GetInk (DxuiSeverity severity, const IDxuiTheme & theme, uint32_t errorArgb)
+{
+    return (severity == DxuiSeverity::Warning) ? theme.WarningMark() : DxuiColor::GetContrastingInk (GetColor (severity, theme, errorArgb));
 }
