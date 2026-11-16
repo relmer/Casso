@@ -620,7 +620,7 @@ HRESULT CassoLinkHost::MeasureTrackOnce (Byte drive, Byte track, TrackMeasure & 
 {
     constexpr size_t  kMeasureBytes = 5;
     HRESULT           hr            = S_OK;
-    const Byte        request[]     = { GetRequestDrive (drive), track };
+    const Byte        request[]     = { GetRequestDrive (drive), track, m_progressStart, m_progressEnd };
     CassoLinkPacket   packet;
     bool              valid         = false;
 
