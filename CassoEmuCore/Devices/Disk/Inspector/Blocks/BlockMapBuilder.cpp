@@ -101,6 +101,8 @@ void BlockMapBuilder::Build (const BlockImage & image, BlockMap & outMap)
     {
         SettleWithoutReport (outMap);
     }
+
+    outMap.CompleteEntries();
 }
 
 

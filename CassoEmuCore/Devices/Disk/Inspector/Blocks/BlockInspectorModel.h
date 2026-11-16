@@ -75,9 +75,13 @@ public:
     HRESULT  Open (std::unique_ptr<BlockImageFile> file);
 
     bool              IsOpen        () const { return m_file != nullptr; }
-    BlockImageFile  & GetFile       () { return *m_file; }
-    uint32_t          GetBlockCount () const;
-    uint32_t          GetBlock      () const { return m_block; }
+
+    //  Counts each time the volumes' maps are read, as when an image opens
+    //  or edits are applied; zero before an image opens.
+    uint32_t          GetMapGeneration () const { return m_generation; }
+    BlockImageFile  & GetFile          () { return *m_file; }
+    uint32_t          GetBlockCount    () const;
+    uint32_t          GetBlock         () const { return m_block; }
 
     //  A block's bytes, its Disk Copy tag bytes and, while comparing, the
     //  other image's block, read and cached. IsLoaded is true once they are.
@@ -120,14 +124,30 @@ public:
     //  to. False when no field there links anywhere.
     bool  TryFollowLink (int offset);
 
-    //  The file whose blocks are highlighted: the first file of a block.
+    //  The blocks highlighted on the grid: the first file of a block, a set
+    //  of files of a volume, such as a directory and the files under it, or
+    //  a set of the image's blocks, such as a structure's. The path is the
+    //  first file's.
     bool          HighlightFileAt    (uint32_t block);
-    void          ClearHighlight     () { m_highlightVolume = -1; m_highlightFile = -1; }
+    void          HighlightFiles     (int volume, const vector<int> & files);
+    void          HighlightBlocks    (const vector<uint32_t> & blocks);
+    void          ClearHighlight     ();
     bool          IsHighlighted      (uint32_t block) const;
-    bool          HasHighlight       () const { return m_highlightFile >= 0; }
+    bool          HasHighlight       () const { return m_highlightFile >= 0 || !m_highlightBlocks.empty(); }
     std::wstring  GetHighlightedPath () const;
 
     const vector<BlockBand> &  GetBands () const { return m_bands; }
+
+    //  The volumes of blocks: a partition's, or the image's when it has no
+    //  partitions. Each has its first block in the image, its count of
+    //  blocks and its map. FindVolume is -1 for a block in no volume of
+    //  blocks.
+    int               GetVolumeCount () const           { return (int) m_volumes.size(); }
+    uint32_t          GetVolumeFirst (int volume) const { return m_volumes[volume]->first; }
+    uint32_t          GetVolumeSize  (int volume) const { return m_volumes[volume]->count; }
+    bool              IsSectorVolume (int volume) const { return m_volumes[volume]->isSectors; }
+    const BlockMap  & GetVolumeMap   (int volume) const { return m_volumes[volume]->map; }
+    int               FindVolume     (uint32_t block) const;
 
     //  The map of the volume a block is in, with the block's number in it.
     const BlockMap *  FindMap (uint32_t block, uint32_t & outInner) const;
@@ -190,7 +210,6 @@ private:
     void     AddSectorVolume    (const Partition & partition);
     void     AddPartitionMap    ();
     void     AddPartitions      ();
-    int      FindVolume         (uint32_t block) const;
     void     FindPlaces         (uint32_t block, vector<Place> & outPlaces) const;
     uint32_t GetUnitBlock       (const Volume & volume, uint32_t unit) const;
     void     AnnotateSector     (const Place & place, const Block & bytes, vector<BlockField> & ioFields) const;
@@ -204,8 +223,11 @@ private:
     BlockHistory                     m_history;
     BlockEditBuffer                  m_edits;
     uint32_t                         m_block           = 0;
+    uint32_t                         m_generation      = 0;
     int                              m_highlightVolume = -1;
     int                              m_highlightFile   = -1;
+    vector<bool>                     m_highlightFiles;
+    vector<bool>                     m_highlightBlocks;
     uint32_t                         m_mapBlocks       = 0;
     std::unique_ptr<BlockImageFile>  m_other;
     vector<bool>                     m_differs;

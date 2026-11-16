@@ -39,6 +39,64 @@ vector<uint32_t> BlockMap::GetBlocksOf (int file) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockMap::GetBlocksOfEach
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<vector<uint32_t>> BlockMap::GetBlocksOfEach() const
+{
+    vector<vector<uint32_t>>  found (files.size());
+    uint32_t                  block = 0;
+
+
+
+    for (block = 0; block < GetBlockCount(); block++)
+    {
+        for (int owner : blocks[block].owners)
+        {
+            if (owner >= 0 && (size_t) owner < found.size())
+            {
+                found[owner].push_back (block);
+            }
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMap::CompleteEntries
+//
+//  A file the walk read no entry for gets an entry whose name is the
+//  path's last part.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMap::CompleteEntries()
+{
+    size_t  i = entries.size();
+
+
+
+    entries.resize (files.size());
+
+    for (; i < files.size(); i++)
+    {
+        entries[i].name = files[i].substr (files[i].find_last_of (L'/') + 1);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockMap::DescribeOwners
 //
 ////////////////////////////////////////////////////////////////////////////////

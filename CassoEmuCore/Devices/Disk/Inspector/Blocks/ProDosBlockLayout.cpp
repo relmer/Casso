@@ -228,7 +228,7 @@ void ProDosBlockLayout::WalkDirectory (
 
             if ((at[0] >> kStorageShift) != 0)
             {
-                WalkEntry (walker, at, prefix, depth);
+                WalkEntry (walker, at, block, prefix, owner, depth);
             }
         }
 
@@ -245,27 +245,48 @@ void ProDosBlockLayout::WalkDirectory (
 //
 //  ProDosBlockLayout::WalkEntry
 //
+//  The entry's fields go in the map's entries, with `owner`, the
+//  directory it is in, and `block`, the directory block it is in.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ProDosBlockLayout::WalkEntry (
     Walker              & walker,
     const Byte          * entry,
+    uint32_t              block,
     const std::wstring  & prefix,
+    int                   owner,
     int                   depth)
 {
     constexpr int  kStorageShift = 4;
+    constexpr int  kByteShift    = 8;
 
 
 
-    Byte          storage = (Byte) (entry[0] >> kStorageShift);
-    uint32_t      key     = GetWord (&entry[kOffKeyPointer]);
-    std::wstring  path    = prefix + ReadName (entry);
-    int           file    = (int) walker.map.files.size();
-    Block         bytes   = {};
+    Byte            storage = (Byte) (entry[0] >> kStorageShift);
+    uint32_t        key     = GetWord (&entry[kOffKeyPointer]);
+    std::wstring    path    = prefix + ReadName (entry);
+    int             file    = (int) walker.map.files.size();
+    Block           bytes   = {};
+    BlockFileEntry  record;
 
 
+
+    record.name        = ReadName (entry);
+    record.parent      = owner;
+    record.isDirectory = storage == kSubdirectory;
+    record.storage     = storage;
+    record.type        = entry[kOffFileType];
+    record.aux         = GetWord (&entry[kOffAuxType]);
+    record.eof         = GetWord (&entry[kOffEof]) | ((uint32_t) entry[kOffEof + 2] << (2 * kByteShift));
+    record.keyBlock    = key;
+    record.entryBlock  = block;
+    record.blocksUsed  = GetWord (&entry[kOffBlocksUsed]);
+    record.date        = (Word) GetWord (&entry[kOffModified]);
+    record.time        = (Word) GetWord (&entry[kOffModified + 2]);
 
     walker.map.files.push_back (path);
+    walker.map.entries.push_back (record);
 
     if (storage == kSubdirectory)
     {

@@ -3,9 +3,9 @@
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/Blocks/BlockFieldsView.h"
-#include "Ui/DiskInspector/Blocks/BlockFilesView.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
+#include "Ui/DiskInspector/Blocks/BlockLevelHost.h"
 #include "Ui/DiskInspector/Blocks/BlockLegendView.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
@@ -62,9 +62,6 @@ BlockInspectorPanel::~BlockInspectorPanel() = default;
 void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorker * worker, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text,
                                 const InspectorCommands * commands)
 {
-    (void) theme;
-    (void) hwnd;
-
     m_model  = model;
     m_worker = worker;
     m_text   = text;
@@ -89,7 +86,7 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
     });
 
     InitCorners();
-    InitRightColumn();
+    InitRightColumn (theme, hwnd);
 
     m_hex->SetOwnerWindow (hwnd);
     Refresh();
@@ -148,9 +145,9 @@ void BlockInspectorPanel::InitCorners()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorPanel::InitRightColumn()
+void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
 {
-    m_views    = CreateChild<DxuiSegmentedControl>();
+    m_levels   = CreateChild<BlockLevelHost>();
     m_previous = CreateChild<DxuiIconButton>();
     m_next     = CreateChild<DxuiIconButton>();
     m_copy     = CreateChild<DxuiButton> (L"Copy block");
@@ -160,11 +157,10 @@ void BlockInspectorPanel::InitRightColumn()
     m_cancel   = CreateChild<DxuiButton> (L"Cancel");
     m_hex      = CreateChild<BlockHexView>();
     m_fields   = CreateChild<BlockFieldsView>();
-    m_files    = CreateChild<BlockFilesView>();
 
-    m_views->SetSegments ({ L"Files", L"Blocks" });
-    m_views->SetSelected (kViewFiles);
-    m_views->SetOnChange ([this] (int index) { ShowView (static_cast<View> (index)); });
+    m_levels->Init         (m_model, theme, hwnd, m_text);
+    m_levels->SetOnBlock   ([this] (uint32_t block) { SelectBlock (block); });
+    m_levels->SetOnChanged ([this] () { OnLevelChanged(); });
 
     m_previous->SetGlyph          (s_kpszGlyphPrev);
     m_previous->SetAccessibleName (L"Previous block");
@@ -182,7 +178,6 @@ void BlockInspectorPanel::InitRightColumn()
     m_discard->SetVisible  (false);
     m_apply->SetVisible    (false);
     m_cancel->SetVisible   (false);
-    m_files->SetVisible    (false);
 
     m_hex->SetBytesPerRow  (kBytesPerRow);
     m_hex->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
@@ -190,8 +185,9 @@ void BlockInspectorPanel::InitRightColumn()
     m_hex->SetOnNavigate   ([this] (const DxuiKeyEvent & ev) { return OnNavigateKey (ev); });
     m_hex->SetOnClick      ([this] (uint64_t offset)
     {
-        if (!IsBusy() && m_view == kViewBlocks && m_model->IsLoaded (m_model->GetBlock()) && m_model->TryFollowLink ((int) offset))
+        if (!IsBusy() && IsBlockLevel() && m_model->IsLoaded (m_model->GetBlock()) && m_model->TryFollowLink ((int) offset))
         {
+            m_isRecording = true;
             Refresh();
         }
     });
@@ -221,23 +217,10 @@ void BlockInspectorPanel::InitRightColumn()
 
     m_fields->SetOnFollow ([this] (const BlockField * field)
     {
-        if (field != nullptr && field->link != BlockField::kNoLink && m_view == kViewBlocks && !IsBusy())
+        if (field != nullptr && field->link != BlockField::kNoLink && IsBlockLevel() && !IsBusy())
         {
             SelectBlock ((uint32_t) field->link);
         }
-    });
-
-    m_files->SetOnSelect ([this] (const BlockFilesView::Row & row)
-    {
-        if (IsBusy())
-        {
-            return;
-        }
-
-        //  The file's blocks are highlighted on the grid. The tab doesn't
-        //  switch to Blocks, so another file can be picked.
-        m_isFilesOn = true;
-        SelectBlock (row.first);
     });
 }
 
@@ -313,6 +296,7 @@ void BlockInspectorPanel::SelectBlock (uint32_t block)
         return;
     }
 
+    m_isRecording = true;
     m_model->SelectBlock (block);
     Refresh();
 }
@@ -334,6 +318,7 @@ void BlockInspectorPanel::Step (int64_t delta)
         return;
     }
 
+    m_isStepping = true;
     m_model->StepBlock (delta);
     Refresh();
 }
@@ -355,8 +340,10 @@ void BlockInspectorPanel::GoBack()
         return;
     }
 
-    m_model->GoBack();
-    Refresh();
+    if (m_levels->GoBack())
+    {
+        OnLevelChanged();
+    }
 }
 
 
@@ -376,8 +363,10 @@ void BlockInspectorPanel::GoForward()
         return;
     }
 
-    m_model->GoForward();
-    Refresh();
+    if (m_levels->GoForward())
+    {
+        OnLevelChanged();
+    }
 }
 
 
@@ -438,7 +427,7 @@ bool BlockInspectorPanel::OnType (uint64_t offset, bool isHexColumn, bool isHigh
 
 
 
-    if (m_view != kViewBlocks || IsBusy() || !m_model->IsOpen() || !m_model->IsLoaded (m_model->GetBlock()))
+    if (!IsBlockLevel() || IsBusy() || !m_model->IsOpen() || !m_model->IsLoaded (m_model->GetBlock()))
     {
         return false;
     }
@@ -501,13 +490,13 @@ void BlockInspectorPanel::SetDiffsOn (bool isOn)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::HasHeader
+//  BlockInspectorPanel::IsBlockLevel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BlockInspectorPanel::HasHeader() const
+bool BlockInspectorPanel::IsBlockLevel() const
 {
-    return m_model != nullptr && m_model->IsOpen() && !m_model->GetFile().GetHeader().empty();
+    return m_levels->GetLevel() == BlockLevelHost::Level::Block;
 }
 
 
@@ -516,21 +505,20 @@ bool BlockInspectorPanel::HasHeader() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::ShowView
+//  BlockInspectorPanel::OnLevelChanged
+//
+//  The levels went to another location: at the Block level, its block is
+//  selected and drawn once loaded; at any other, the grid is drawn with
+//  the level's highlight.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorPanel::ShowView (View view)
+void BlockInspectorPanel::OnLevelChanged()
 {
-    if (IsBusy() || (view == kViewHeader && !HasHeader()))
+    if (IsBlockLevel() && m_model->GetBlock() != m_levels->GetHere().block)
     {
-        m_views->SetSelected (m_view);
-        return;
+        m_model->SelectBlock (m_levels->GetHere().block);
     }
-
-    m_view       = view;
-    m_shownBlock = -1;
-    m_views->SetSelected (view);
 
     if (m_scaler.GetDpi() != 0)
     {
@@ -661,7 +649,7 @@ void BlockInspectorPanel::UpdateBusy()
     m_map->SetFrozen     (IsBusy());
     m_cancel->SetVisible (m_isLongJob && canCancel);
 
-    for (IDxuiControl * control : { (IDxuiControl *) m_views, (IDxuiControl *) m_copy, (IDxuiControl *) m_discard, (IDxuiControl *) m_apply,
+    for (IDxuiControl * control : { (IDxuiControl *) m_levels, (IDxuiControl *) m_copy, (IDxuiControl *) m_discard, (IDxuiControl *) m_apply,
                                     (IDxuiControl *) m_filesChip, (IDxuiControl *) m_diffsChip })
     {
         control->SetEnabled (!m_isLongJob);
@@ -690,6 +678,11 @@ void BlockInspectorPanel::UpdateBusy()
 
 void BlockInspectorPanel::ApplyHighlight()
 {
+    if (!IsBlockLevel())
+    {
+        return;
+    }
+
     if (m_isFilesOn)
     {
         (void) m_model->HighlightFileAt (m_model->GetBlock());
@@ -720,18 +713,26 @@ void BlockInspectorPanel::Present()
 
 
 
+    //  The levels follow an image that opened or maps read again, then a
+    //  block selected on the grid or by a link goes in the Back history.
+    m_levels->Sync();
+
+    if (m_isRecording)
+    {
+        m_levels->ShowBlock (m_model->GetBlock());
+    }
+    else if (m_isStepping)
+    {
+        m_levels->ReplaceBlock (m_model->GetBlock());
+    }
+
+    isRelayout    = isRelayout || m_isRecording || m_isStepping || (int) m_levels->GetLevel() != m_laidOutLevel;
+    m_isRecording = false;
+    m_isStepping  = false;
+
     ApplyHighlight();
     ShowBytes();
     BuildFieldLine();
-    FillFiles();
-
-    //  The Header tab is offered only for an image with a container header.
-    if (HasHeader() != m_hasHeader)
-    {
-        m_hasHeader = HasHeader();
-        m_views->SetSegments (m_hasHeader ? vector<std::wstring> { L"Files", L"Blocks", L"Header" } : vector<std::wstring> { L"Files", L"Blocks" });
-        m_views->SetSelected (m_view);
-    }
 
     m_previous->SetEnabled (m_model->GetBlock() > 0);
     m_next->SetEnabled     (m_model->GetBlock() + 1 < m_model->GetBlockCount());
@@ -818,8 +819,7 @@ void BlockInspectorPanel::ShowBytes()
     BlockInspectorModel::Block  other  = {};
     vector<BlockField>          fields;
     uint32_t                    block  = m_model->GetBlock();
-    bool                        header = m_view == kViewHeader;
-    int64_t                     shown  = header ? -2 : (int64_t) block;
+    int64_t                     shown  = (int64_t) block;
     HRESULT                     hr     = S_OK;
     size_t                      i      = 0;
 
@@ -828,42 +828,32 @@ void BlockInspectorPanel::ShowBytes()
     m_title = L"Block " + NumberFormat::FormatInteger (block);
     BuildCapsules();
 
-    if (header)
-    {
-        m_source.SetBytes (m_model->GetFile().GetHeader());
-        fields = m_model->GetHeaderFields();
-        m_fields->SetHeading   (L"Fields in the container header");
-        m_fields->SetEmptyText (L"There are no fields in the container header.");
-    }
-    else
-    {
-        hr = m_model->ReadBlock (block, bytes);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+    hr = m_model->ReadBlock (block, bytes);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
-        m_source.SetBytes (bytes);
-        m_model->GetFields (block, bytes, fields);
-        m_fields->SetHeading   (L"Fields in block " + NumberFormat::FormatInteger (block));
-        m_fields->SetEmptyText (L"There are no fields in this block.");
+    m_source.SetBytes (bytes);
+    m_model->GetFields (block, bytes, fields);
+    m_fields->SetHeading   (L"Fields in block " + NumberFormat::FormatInteger (block));
+    m_fields->SetEmptyText (L"There are no fields in this block.");
+
+    for (i = 0; i < bytes.size(); i++)
+    {
+        if (m_model->GetEdits().IsChanged (block, (int) i))
+        {
+            m_source.SetMark (i, BlockHexSource::kMarkChanged);
+        }
+    }
+
+    if (m_model->IsDifferent (block))
+    {
+        hr = m_model->ReadOtherBlock (block, other);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         for (i = 0; i < bytes.size(); i++)
         {
-            if (m_model->GetEdits().IsChanged (block, (int) i))
+            if (bytes[i] != other[i])
             {
-                m_source.SetMark (i, BlockHexSource::kMarkChanged);
-            }
-        }
-
-        if (m_model->IsDifferent (block))
-        {
-            hr = m_model->ReadOtherBlock (block, other);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-
-            for (i = 0; i < bytes.size(); i++)
-            {
-                if (bytes[i] != other[i])
-                {
-                    m_source.SetMark (i, BlockHexSource::kMarkDiffers);
-                }
+                m_source.SetMark (i, BlockHexSource::kMarkDiffers);
             }
         }
     }
@@ -988,50 +978,6 @@ void BlockInspectorPanel::BuildFieldLine()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::FillFiles
-//
-//  The files and directories of the current block's volume, in the map's
-//  order. A row is a directory when its first block is a directory's. The
-//  highlighted file's row is selected.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::FillFiles()
-{
-    uint32_t                     inner = 0;
-    uint32_t                     block = m_model->GetBlock();
-    const BlockMap             * map   = m_model->FindMap (block, inner);
-    vector<BlockFilesView::Row>  rows;
-    vector<uint32_t>             used;
-    uint32_t                     first = 0;
-    SectorRole                   role  = SectorRole::Free;
-    int                          i     = 0;
-
-
-
-    for (i = 0; map != nullptr && i < (int) map->files.size(); i++)
-    {
-        used = map->GetBlocksOf (i);
-
-        if (!used.empty())
-        {
-            first = block - inner + used[0];
-            role  = m_model->GetRole (first);
-
-            rows.push_back ({ map->files[i], role == SectorRole::CatalogOrDirectory || role == SectorRole::Subdirectory, (uint32_t) used.size(), first });
-        }
-    }
-
-    m_files->SetRows     (std::move (rows));
-    m_files->SetSelected (m_model->HasHighlight() ? m_model->GetHighlightedPath() : std::wstring());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BlockInspectorPanel::BuildBlockText
 //
 //  Sixteen bytes a line: the offset, the bytes in hex, and their text.
@@ -1102,7 +1048,30 @@ std::wstring BlockInspectorPanel::BuildBlockText() const
 
 std::wstring BlockInspectorPanel::GetSelectionLine() const
 {
-    return m_model != nullptr && m_model->IsOpen() ? L"Selected: block " + NumberFormat::FormatInteger (m_model->GetBlock()) : std::wstring();
+    const BlockLevelHost::Location  & here = m_levels->GetHere();
+
+
+
+    if (m_model == nullptr || !m_model->IsOpen())
+    {
+        return std::wstring();
+    }
+
+    switch (here.level)
+    {
+        case BlockLevelHost::Level::Block:
+            return L"Selected: block " + NumberFormat::FormatInteger (m_model->GetBlock());
+
+        case BlockLevelHost::Level::Files:
+        case BlockLevelHost::Level::File:
+            return here.entry >= 0 ? L"Selected: " + m_model->GetVolumeMap (here.volume).files[here.entry] : std::wstring();
+
+        case BlockLevelHost::Level::Volume:
+            return here.volume >= 0 ? L"Selected: " + m_model->GetVolumeMap (here.volume).volumeName : std::wstring();
+
+        default:
+            return std::wstring();
+    }
 }
 
 
@@ -1231,10 +1200,46 @@ void BlockInspectorPanel::LayoutRight (const RECT & column, const DxuiDpiScaler 
     int   button  = scaler.ToPx ((int) kButtonDip);
     int   y       = column.top;
     bool  isRow   = m_isLongJob || m_hasEdits;
-    bool  isFiles = m_view == kViewFiles;
+    bool  isBlock = IsBlockLevel();
+    int   crumb   = m_levels->GetCrumbHeightPx (scaler);
     int   hexEnd  = 0;
 
 
+
+    m_laidOutLevel = (int) m_levels->GetLevel();
+
+    //  At a level other than Block, the level fills the column, with the
+    //  edit or progress row at its foot.
+    if (!isBlock)
+    {
+        m_rowRect = isRow ? RECT { column.left, column.bottom - row, column.right, column.bottom } : RECT { column.left, column.bottom, column.right, column.bottom };
+        y         = m_rowRect.top;
+
+        m_levels->Layout ({ column.left, column.top, column.right, isRow ? m_rowRect.top - pad : column.bottom }, scaler);
+    }
+    else
+    {
+        m_levels->Layout ({ column.left, column.top, column.right, column.top + crumb }, scaler);
+        y += crumb + pad;
+    }
+
+    for (IDxuiControl * control : { (IDxuiControl *) m_previous, (IDxuiControl *) m_next, (IDxuiControl *) m_copy, (IDxuiControl *) m_hex, (IDxuiControl *) m_fields })
+    {
+        control->SetVisible (isBlock);
+    }
+
+    m_editNote->SetVisible (m_hasEdits && !m_isLongJob);
+    m_discard->SetVisible  (m_hasEdits && !m_isLongJob);
+    m_apply->SetVisible    (m_hasEdits && !m_isLongJob);
+
+    if (!isBlock)
+    {
+        m_editNote->Layout ({ column.left, y, column.right - 2 * button - 2 * pad, y + row }, scaler);
+        m_discard->Layout  ({ column.right - 2 * button - pad, y, column.right - button - pad, y + row }, scaler);
+        m_apply->Layout    ({ column.right - button, y, column.right, y + row }, scaler);
+        m_cancel->Layout   ({ column.right - button, y, column.right, y + row }, scaler);
+        return;
+    }
 
     m_previous->Layout ({ column.left, y, column.left + row, y + row }, scaler);
     m_next->Layout     ({ column.left + row, y, column.left + 2 * row, y + row }, scaler);
@@ -1242,17 +1247,10 @@ void BlockInspectorPanel::LayoutRight (const RECT & column, const DxuiDpiScaler 
     m_copy->Layout ({ column.right - button, y, column.right, y + row }, scaler);
     y += row + pad;
 
-    m_views->Layout ({ column.left, y, column.left + scaler.ToPx ((int) kViewsDip), y + row }, scaler);
-    y += row + pad;
-
     m_fieldRect = { column.left, y, column.right, y + line };
     y += line + pad;
 
     m_rowRect = isRow ? RECT { column.left, y, column.right, y + row } : RECT { column.left, y, column.right, y };
-
-    m_editNote->SetVisible (m_hasEdits && !m_isLongJob);
-    m_discard->SetVisible  (m_hasEdits && !m_isLongJob);
-    m_apply->SetVisible    (m_hasEdits && !m_isLongJob);
 
     m_editNote->Layout ({ column.left, y, column.right - 2 * button - 2 * pad, y + row }, scaler);
     m_discard->Layout  ({ column.right - 2 * button - pad, y, column.right - button - pad, y + row }, scaler);
@@ -1262,14 +1260,8 @@ void BlockInspectorPanel::LayoutRight (const RECT & column, const DxuiDpiScaler 
 
     hexEnd = y + (int) ((column.bottom - y) * kHexShare);
 
-    m_hex->SetVisible    (!isFiles);
-    m_fields->SetVisible (!isFiles);
-    m_files->SetVisible  (isFiles);
-    m_copy->SetVisible   (!isFiles);
-
     m_hex->Layout    ({ column.left, y, column.right, hexEnd }, scaler);
     m_fields->Layout ({ column.left, hexEnd + pad, column.right, column.bottom }, scaler);
-    m_files->Layout  ({ column.left, y, column.right, column.bottom }, scaler);
 }
 
 
@@ -1288,7 +1280,11 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                       m_isSplitting ? theme.Accent() : theme.Divider());
 
     DxuiPanel::Paint (painter, text, theme);
-    PaintHeader (painter, text, theme);
+
+    if (IsBlockLevel())
+    {
+        PaintHeader (painter, text, theme);
+    }
 
     if (m_isLongJob)
     {

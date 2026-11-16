@@ -225,7 +225,6 @@ public:
         Assert::IsTrue (HasText (text, L"Block 2"));
         Assert::IsTrue (HasText (text, L"Volume header"));
 
-        panel.ShowView (BlockInspectorPanel::kViewBlocks);
         panel.SelectBlock (300);
         panel.GetHexView()->GoToOffset (4);
 

@@ -221,6 +221,7 @@ HRESULT BlockInspectorModel::BuildVolumes()
     m_volumes.clear();
     m_bands.clear();
     m_mapBlocks = 0;
+    m_generation++;
 
     AddPartitionMap();
 
@@ -1007,13 +1008,92 @@ bool BlockInspectorModel::HighlightFileAt (uint32_t block)
 
         if (!owners.empty())
         {
-            m_highlightVolume = place.volume;
-            m_highlightFile   = owners[0];
+            HighlightFiles (place.volume, { owners[0] });
             return true;
         }
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::HighlightFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorModel::HighlightFiles (int volume, const vector<int> & files)
+{
+    ClearHighlight();
+
+    if (volume < 0 || volume >= (int) m_volumes.size() || files.empty())
+    {
+        return;
+    }
+
+    m_highlightVolume = volume;
+    m_highlightFile   = files[0];
+    m_highlightFiles.assign (m_volumes[volume]->map.files.size(), false);
+
+    for (int file : files)
+    {
+        if (file >= 0 && (size_t) file < m_highlightFiles.size())
+        {
+            m_highlightFiles[file] = true;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::HighlightBlocks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorModel::HighlightBlocks (const vector<uint32_t> & blocks)
+{
+    ClearHighlight();
+
+    if (blocks.empty())
+    {
+        return;
+    }
+
+    m_highlightBlocks.assign (GetBlockCount(), false);
+
+    for (uint32_t block : blocks)
+    {
+        if (block < m_highlightBlocks.size())
+        {
+            m_highlightBlocks[block] = true;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::ClearHighlight
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorModel::ClearHighlight()
+{
+    m_highlightVolume = -1;
+    m_highlightFile   = -1;
+    m_highlightFiles.clear();
+    m_highlightBlocks.clear();
 }
 
 
@@ -1032,6 +1112,11 @@ bool BlockInspectorModel::IsHighlighted (uint32_t block) const
 
 
 
+    if (!m_highlightBlocks.empty())
+    {
+        return block < m_highlightBlocks.size() && m_highlightBlocks[block];
+    }
+
     if (m_highlightFile < 0)
     {
         return false;
@@ -1043,9 +1128,17 @@ bool BlockInspectorModel::IsHighlighted (uint32_t block) const
     {
         const vector<int> &  owners = m_volumes[place.volume]->map.blocks[place.unit].owners;
 
-        if (place.volume == m_highlightVolume && std::find (owners.begin(), owners.end(), m_highlightFile) != owners.end())
+        if (place.volume != m_highlightVolume)
         {
-            return true;
+            continue;
+        }
+
+        for (int owner : owners)
+        {
+            if (owner >= 0 && (size_t) owner < m_highlightFiles.size() && m_highlightFiles[owner])
+            {
+                return true;
+            }
         }
     }
 

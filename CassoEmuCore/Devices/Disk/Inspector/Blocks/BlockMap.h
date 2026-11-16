@@ -81,6 +81,40 @@ struct BlockMapEntry
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockFileEntry
+//
+//  A file's or a directory's catalog entry, at the index its path has in
+//  BlockMap::files: its name, the directory it is in (that directory's
+//  index, or -1 for the volume directory), the block its entry is in, and
+//  the entry's fields. A field a file system doesn't have is zero, and
+//  `date` and `time` are in ProDOS's form.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct BlockFileEntry
+{
+    static constexpr uint32_t  kNoBlock = UINT32_MAX;
+
+    std::wstring  name;
+    int           parent      = -1;
+    bool          isDirectory = false;
+    Byte          storage     = 0;
+    Byte          type        = 0;
+    uint32_t      aux         = 0;
+    uint32_t      eof         = 0;
+    uint32_t      keyBlock    = kNoBlock;
+    uint32_t      entryBlock  = kNoBlock;
+    uint32_t      blocksUsed  = 0;
+    Word          date        = 0;
+    Word          time        = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockMap
 //
 //  Every block of a volume, the paths of the files that use them, and for
@@ -98,6 +132,7 @@ struct BlockMap
     std::wstring           volumeName;
     vector<BlockMapEntry>  blocks;
     vector<std::wstring>   files;
+    vector<BlockFileEntry> entries;
     bool                   hasFreeMap          = false;
     bool                   isCatalogComplete   = true;
     uint32_t               allocationStart     = 0;
@@ -109,6 +144,13 @@ struct BlockMap
 
     //  Every block a file uses, ascending.
     vector<uint32_t>  GetBlocksOf (int file) const;
+
+    //  The same for every file at once, in one pass over the blocks.
+    vector<vector<uint32_t>>  GetBlocksOfEach () const;
+
+    //  An entry for each file, its name from its path where the walk read
+    //  no entry, so `entries` and `files` are the same length.
+    void  CompleteEntries ();
 
     //  The paths of the files that use a block, one a line, or empty.
     std::wstring      DescribeOwners (uint32_t block) const;

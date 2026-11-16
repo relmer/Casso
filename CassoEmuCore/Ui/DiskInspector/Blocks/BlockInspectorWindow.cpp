@@ -7,6 +7,7 @@
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorWindow.h"
+#include "Ui/DiskInspector/Blocks/BlockLevelHost.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
 #include "Ui/DiskInspector/InspectorText.h"
@@ -149,14 +150,18 @@ void BlockInspectorWindow::BuildCommands()
     c.overlays.back()->isChecked = [this] () { return m_panel->IsDiffsOn(); };
     c.overlays.back()->isEnabled = [this] () { return m_model.IsOpen() && m_model.IsComparing(); };
 
-    for (const auto & [label, view] : { std::pair<LPCWSTR, BlockInspectorPanel::View> (L"&Blocks", BlockInspectorPanel::kViewBlocks),
-                                        std::pair<LPCWSTR, BlockInspectorPanel::View> (L"Fi&les",  BlockInspectorPanel::kViewFiles),
-                                        std::pair<LPCWSTR, BlockInspectorPanel::View> (L"&Header", BlockInspectorPanel::kViewHeader) })
+    for (const auto & [label, level] : { std::pair<LPCWSTR, BlockLevelHost::Level> (L"&Card",   BlockLevelHost::Level::Card),
+                                         std::pair<LPCWSTR, BlockLevelHost::Level> (L"&Volume", BlockLevelHost::Level::Volume),
+                                         std::pair<LPCWSTR, BlockLevelHost::Level> (L"Fi&les",  BlockLevelHost::Level::Files),
+                                         std::pair<LPCWSTR, BlockLevelHost::Level> (L"&Block",  BlockLevelHost::Level::Block) })
     {
-        c.views.push_back (make (label, L"", [this, view] () { m_panel->ShowView (view); }));
+        c.views.push_back (make (label, L"", [this, level] () { ShowLevel (level); }));
         c.views.back()->radio     = true;
-        c.views.back()->isChecked = [this, view] () { return m_panel->GetView() == view; };
-        c.views.back()->isEnabled = [this, view] () { return m_model.IsOpen() && (view != BlockInspectorPanel::kViewHeader || m_panel->HasHeader()); };
+        c.views.back()->isChecked = [this, level] () { return m_panel->GetLevels().GetLevel() == level; };
+        c.views.back()->isEnabled = [this, level] ()
+        {
+            return m_model.IsOpen() && !m_worker.IsBusy() && (level == BlockLevelHost::Level::Card ? m_panel->GetLevels().HasCard() : level == BlockLevelHost::Level::Block || m_model.GetVolumeCount() > 0);
+        };
     }
 
     c.legend            = make (L"Le&gend", L"", [this] () { m_panel->ToggleLegend(); });
@@ -164,9 +169,9 @@ void BlockInspectorWindow::BuildCommands()
 
     //  Go
     c.back                          = make (L"&Back", L"Alt+Left", [this] () { m_panel->GoBack(); });
-    c.back->isEnabled               = [this] () { return m_model.IsOpen() && m_model.CanGoBack(); };
+    c.back->isEnabled               = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_panel->GetLevels().CanGoBack(); };
     c.forward                       = make (L"&Forward", L"Alt+Right", [this] () { m_panel->GoForward(); });
-    c.forward->isEnabled            = [this] () { return m_model.IsOpen() && m_model.CanGoForward(); };
+    c.forward->isEnabled            = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_panel->GetLevels().CanGoForward(); };
     c.goTo                          = make (L"&Go to block...", L"Ctrl+G", [this] () { GoToBlock(); });
     c.goTo->isEnabled               = isOpen;
     c.goTo->shortLabel              = L"Go to";
@@ -675,6 +680,35 @@ void BlockInspectorWindow::CopyBlock()
     {
         (void) m_clipboard.SetText (GetHwnd(), text);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::ShowLevel
+//
+//  The View menu's levels: Volume and Files of the volume the current
+//  location or block is in, and Block at the current block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::ShowLevel (BlockLevelHost::Level level)
+{
+    BlockLevelHost  & levels = m_panel->GetLevels();
+    int               volume = levels.GetHere().volume >= 0 ? levels.GetHere().volume : std::max (0, m_model.FindVolume (m_model.GetBlock()));
+
+
+
+    if (level == BlockLevelHost::Level::Block)
+    {
+        m_panel->SelectBlock (m_model.GetBlock());
+        return;
+    }
+
+    levels.GoTo ({ level, level == BlockLevelHost::Level::Card ? -1 : volume, -1 });
 }
 
 

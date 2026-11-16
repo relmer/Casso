@@ -6,9 +6,9 @@
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
 
 class BlockFieldsView;
-class BlockFilesView;
 class BlockHexView;
 class BlockInspectorModel;
+class BlockLevelHost;
 class BlockLegendView;
 class BlockMapView;
 class FloatingGroup;
@@ -30,17 +30,16 @@ struct InspectorCommands;
 //  corner groups: the legend at the top left, the overlays (Files, and
 //  Differences while comparing) at the bottom left, and
 //  zoom - and + at the bottom right; the cell under the pointer is outlined.
-//  Past the splitter, on the right: the block's number with the previous
-//  and next block buttons and its capsules (Free or Used, its role, its
-//  files), the view tabs (Files, Blocks, and Header for 2IMG and Disk Copy
-//  4.2 images), the field line, Copy block, a row with the pending edits or
-//  a long job's progress, then the Files list or the block's hex view and
-//  fields. The Files view opens first; a click on a file highlights its
-//  blocks on the grid and selects its first block.
+//  Past the splitter, on the right: BlockLevelHost's breadcrumb and levels,
+//  Card, Volume, Files and File, and at the Block level under the
+//  breadcrumb, the block's number with the previous and next block buttons
+//  and its capsules (Free or Used, its role, its files), the field line,
+//  Copy block, a row with the pending edits or a long job's progress, and
+//  the block's hex view over its fields. A click on a block on the grid, or
+//  on an item stored in blocks at another level, goes to the Block level.
 //
 //  The model's reads run as jobs on the window's BlockInspectorWorker: a
-//  block is loaded before it is drawn, and the search for data in free
-//  blocks runs there.
+//  block is loaded before it is drawn.
 //  While a job is queued or running, input to the panel is ignored and the
 //  model isn't read.
 //
@@ -60,16 +59,7 @@ public:
     static constexpr float  kHexShare    = 0.60f;
     static constexpr float  kBarDip      = 240.0f;
     static constexpr float  kButtonDip   = 110.0f;
-    static constexpr float  kViewsDip    = 260.0f;
     static constexpr int    kBytesPerRow = 16;
-
-    //  The view tabs.
-    enum View
-    {
-        kViewFiles,
-        kViewBlocks,
-        kViewHeader,
-    };
 
     using PressedFn = std::function<void (IDxuiControl * child)>;
     using ChangedFn = std::function<void ()>;
@@ -123,15 +113,15 @@ public:
     void  SetFilesOn     (bool isOn);
     void  SetDiffsOn     (bool isOn);
 
-    //  The view tabs.
-    void  ShowView  (View view);
-    View  GetView   () const { return m_view; }
-    bool  HasHeader () const;
+    //  The levels, Card, Volume, Files, File and Block.
+    BlockLevelHost  & GetLevels () const { return *m_levels; }
 
     //  The current block as a hex dump with its text, for Copy block.
     std::wstring  BuildBlockText () const;
 
-    //  "Selected: block 2", or empty with no image open.
+    //  "Selected: block 2" at the Block level, the path of the file or the
+    //  directory at the Files and File levels, the volume's name at the
+    //  Volume level, or empty.
     std::wstring  GetSelectionLine () const;
 
     void  ToggleLegend ();
@@ -156,13 +146,14 @@ private:
     };
 
     void  InitCorners       ();
-    void  InitRightColumn   ();
+    void  InitRightColumn   (const IDxuiTheme * theme, HWND hwnd);
+    bool  IsBlockLevel      () const;
+    void  OnLevelChanged    ();
     bool  OnType            (uint64_t offset, bool isHexColumn, bool isHighNibble, wchar_t ch);
     bool  OnNavigateKey     (const DxuiKeyEvent & ev);
     void  MarkField         (const BlockField * field);
     void  ShowBytes         ();
     void  BuildFieldLine    ();
-    void  FillFiles         ();
     void  Present           ();
     void  LayoutGrid        (const RECT & column, const DxuiDpiScaler & scaler);
     void  LayoutRight       (const RECT & column, const DxuiDpiScaler & scaler);
@@ -186,7 +177,7 @@ private:
     OverlayChip           * m_diffsChip    = nullptr;
     DxuiIconButton        * m_zoomOut      = nullptr;
     DxuiIconButton        * m_zoomIn       = nullptr;
-    DxuiSegmentedControl  * m_views        = nullptr;
+    BlockLevelHost        * m_levels       = nullptr;
     DxuiButton            * m_copy         = nullptr;
     DxuiIconButton        * m_previous     = nullptr;
     DxuiIconButton        * m_next         = nullptr;
@@ -196,7 +187,6 @@ private:
     DxuiButton            * m_cancel       = nullptr;
     BlockHexView          * m_hex          = nullptr;
     BlockFieldsView       * m_fields       = nullptr;
-    BlockFilesView        * m_files        = nullptr;
     BlockHexSource          m_source;
     PressedFn               m_onPressed;
     ChangedFn               m_onChanged;
@@ -216,8 +206,9 @@ private:
     bool                    m_isDiffsOn    = true;
     bool                    m_isSplitting  = false;
     bool                    m_hasEdits     = false;
-    View                    m_view         = kViewFiles;
-    bool                    m_hasHeader    = false;
+    bool                    m_isRecording  = false;   // the next block drawn goes in the Back history
+    bool                    m_isStepping   = false;   // the next block drawn replaces the current location
+    int                     m_laidOutLevel = -1;      // the level the right column was last laid out for
     int64_t                 m_shownBlock   = -1;
     float                   m_split        = 0.5f;
     RECT                    m_splitterPx   = {};
