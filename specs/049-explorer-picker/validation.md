@@ -98,3 +98,14 @@ Found:
 - The 3.5-inch picker draws a tree row's arrow below the bottom of the tree.
 - On the Hardware page, a click on a drive's name does not select the drive, so Choose image stays unavailable. Only a click on the empty part of the row selects it.
 - On a //c Plus, Insert disk for drive 1 opens the external 5.25-inch drive's picker.
+
+## The fixes for those findings (2026-11-16)
+
+| Finding | Result |
+|---|---|
+| Two clicks on a stock disk | Not a defect. The test posted WM_LBUTTONDBLCLK, which a Dxui window never receives without CS_DBLCLKS. A real double-click inserted ProDOS 1.0.1 and closed the picker |
+| The stray comma | Fixed in `346c9273d`. The status bar reads "140 KB", and nothing for a stock disk not yet downloaded |
+| The //c Plus's "In drive" mark | Fixed in `fafe6b9f6`. 3.5-inch drives and hard disks are marked too: the built-in drive's image reads "In slot 5 drive 1" |
+| The arrow below the tree | Fixed in `5fe94bfa3`. The tree clips its arrows and check boxes to the visible rows |
+| A click on a drive's name | Fixed in `1579abe33`. It selects the drive, and Choose image becomes available |
+| Insert disk for drive 1 on a //c Plus | Fixed. On a //c Plus, the drive 1 commands act on the built-in 3.5-inch drive, and the drive 2 commands on the first 5.25-inch drive on the disk port. A test copy opened "Built-in 3.5 - S5,D1" for Insert drive 1. With no 5.25-inch drive attached, Insert drive 2 opened nothing. With one attached, it opened "Drive 1 - Disk IIc" |
