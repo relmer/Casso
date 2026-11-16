@@ -10,9 +10,11 @@ class BlockFieldsView;
 class BlockHexView;
 class BlockInspectorModel;
 class BlockMapView;
+class EditBar;
 class FloatingGroup;
 class OverlayChip;
 struct BlockField;
+struct EditBarState;
 struct InspectorCommands;
 
 
@@ -86,8 +88,6 @@ public:
     void  SetOnChildPressed (PressedFn fn) { m_onPressed = std::move (fn); }
     void  SetOnChanged      (ChangedFn fn) { m_onChanged = std::move (fn); }
     void  SetOnJobQueued    (ActionFn fn)  { m_onQueued  = std::move (fn); }
-    void  SetOnApply        (ActionFn fn)  { m_onApply   = std::move (fn); }
-    void  SetOnDiscard      (ActionFn fn)  { m_onDiscard = std::move (fn); }
     void  SetOnCopy         (ActionFn fn)  { m_onCopy    = std::move (fn); }
     void  SetOnHint         (HintFn fn)    { m_onHint    = std::move (fn); }
 
@@ -116,9 +116,17 @@ public:
     void  SelectBlock (uint32_t block);
     void  OpenBlock   (uint32_t block);
     void  GoToBlock   (uint32_t block);
-    void  Step        (int64_t delta);
-    void  GoBack      ();
-    void  GoForward   ();
+
+    //  Editing, as Edit block turns on and off: typing in the hex view
+    //  changes the block only while it is on. The edit bar's state is the
+    //  window's.
+    void       SetEditing   (bool isEditing);
+    bool       IsEditing    () const { return m_isEditing; }
+    void       SetEditState (const EditBarState & state);
+    EditBar  & GetEditBar   () const { return *m_editBar; }
+    void       Step         (int64_t delta);
+    void       GoBack       ();
+    void       GoForward    ();
 
     //  The overlays, as the corner chips and the View menu turn them.
     bool  IsFilesOn      () const { return m_isFilesOn; }
@@ -207,9 +215,7 @@ private:
     DxuiButton            * m_copy            = nullptr;
     DxuiIconButton        * m_previous        = nullptr;
     DxuiIconButton        * m_next            = nullptr;
-    DxuiLabel             * m_editNote        = nullptr;
-    DxuiButton            * m_discard         = nullptr;
-    DxuiButton            * m_apply           = nullptr;
+    EditBar               * m_editBar         = nullptr;
     DxuiButton            * m_cancel          = nullptr;
     BlockHexView          * m_hex             = nullptr;
     BlockFieldsView       * m_fields          = nullptr;
@@ -217,8 +223,7 @@ private:
     PressedFn               m_onPressed;
     ChangedFn               m_onChanged;
     ActionFn                m_onQueued;
-    ActionFn                m_onApply;
-    ActionFn                m_onDiscard;
+
     ActionFn                m_onCopy;
     HintFn                  m_onHint;
     std::wstring            m_title;
@@ -237,7 +242,7 @@ private:
     const IDxuiTheme      * m_theme           = nullptr;
     bool                    m_isHexSplitting  = false;
     bool                    m_isMapSelecting  = false;   // a click on the map is selecting its row, so the map stays where it is
-    bool                    m_hasEdits        = false;
+    bool                    m_isEditing       = false;
     bool                    m_isRecording     = false;   // the next block drawn goes in the Back history
     bool                    m_isStepping      = false;   // the next block drawn replaces the current location
     int                     m_laidOutLevel    = -1;   // the level the right column was last laid out for

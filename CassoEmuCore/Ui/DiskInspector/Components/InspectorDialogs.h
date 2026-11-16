@@ -41,6 +41,9 @@ public:
     //  true for the action.
     bool  Confirm (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action);
 
+    //  The same question for any owner window, as block mode's.
+    static bool  ShowConfirm (HWND owner, const IDxuiTheme * theme, const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action);
+
 private:
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;

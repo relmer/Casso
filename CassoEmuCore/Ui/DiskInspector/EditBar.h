@@ -32,6 +32,7 @@ struct EditBarState
     bool          isWaiting        = false;
     bool          isMachinePaused  = false;
     bool          canUseB          = false;
+    bool          hasChecksum      = true;    // false for an image with no checksums, as one of blocks
 };
 
 
@@ -75,12 +76,16 @@ public:
 
     void  SetState (const EditBarState & state);
 
+    //  What an edit is made on, "sector" at first: the "Discard" button's
+    //  label, the count and the tips.
+    void  SetUnit  (const std::wstring & unit, const std::wstring & unitPlural);
+
     //  The tooltip for the control under a point, with why it is unavailable
     //  when it is; empty when no control is there.
     std::wstring  GetTip (POINT pointPx, RECT & outAnchorPx) const;
 
     //  "3 bytes in 1 sector changed", or empty with no changes.
-    static std::wstring  FormatCount (int bytes, int sectors);
+    static std::wstring  FormatCount (int bytes, int units, LPCWSTR unit = L"sector", LPCWSTR unitPlural = L"sectors");
 
     //  The controls' rows, then the note's rows when it does not fit beside
     //  them.
@@ -123,4 +128,6 @@ private:
     DxuiDpiScaler   m_layoutScaler;
     bool            m_hasLayout     = false;
     std::wstring    m_applyBlocked;
+    std::wstring    m_unit          = L"sector";
+    std::wstring    m_units         = L"sectors";
 };

@@ -25,9 +25,12 @@ class IDiskFileIo;
 //  The disk inspector in block mode, for an image file of blocks, laid out
 //  as the track inspector is: the menu bar, the BlockInspectorPanel, and the
 //  status band with the volume's chips, the selection and the window's zoom.
-//  Edits are applied to the file in place from the Edit menu or the edit
-//  row. Closing with edits pending prompts to discard them, and the closed
-//  callback is called when the window closes.
+//  Editing matches the track inspector's: Edit block turns typing on, the
+//  edit bar has the pending edits and the actions on them, the user
+//  confirms each apply and each undo and redo of an applied edit, and a *
+//  before the file's name in the title marks pending edits. With edits
+//  pending, the user confirms discarding them before the window closes.
+//  The closed callback is called when the window closes.
 //
 //  Every read and write of the image runs on m_worker's thread: opening it,
 //  each block, comparing, applying edits and reading it again. Each job's
@@ -96,10 +99,20 @@ private:
         std::wstring  message;
     };
 
+    using WriteFn = std::function<HRESULT (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)>;
+
     void                                  BuildCommands  ();
     static bool                           RunCommand     (const InspectorCommands::Command & command);
     void                                  QueueOpen      ();
     void                                  Apply          ();
+    void                                  UndoApplied    ();
+    void                                  RedoApplied    ();
+    void                                  QueueWrite     (const std::wstring & label, const std::wstring & done, WriteFn write);
+    void                                  SaveEditedCopy ();
+    void                                  InitEditBar    ();
+    void                                  UpdateEditing  ();
+    void                                  UpdateTitle    ();
+    bool                                  HandleEditKey  (const DxuiKeyEvent & ev);
     void                                  Discard        ();
     void                                  CopyBlock      ();
     void                                  GoToBlock      ();
@@ -127,6 +140,9 @@ private:
     std::wstring              m_path;
     std::wstring              m_displayName;
     std::wstring              m_hint;
+    std::wstring              m_editNote;                // the edit bar's note: the last apply's result, or why it failed
+    std::wstring              m_titleNote;               // after the name in the title, as the image compared with
+    std::wstring              m_title;
     DxuiTooltip               m_tooltip;
     Win32ShellIcons           m_icons;
     std::wstring              m_tooltipText;

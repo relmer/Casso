@@ -7,8 +7,11 @@
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorWindow.h"
+#include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
+#include "Ui/DiskInspector/Components/InspectorDialogs.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
+#include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Core/NumberFormat.h"
@@ -19,6 +22,8 @@
 
 static constexpr LPCWSTR  s_kpszGlyphGoTo = L"\xE8AD";
 static constexpr LPCWSTR  s_kpszGlyphCopy = L"\xE8C8";
+static constexpr LPCWSTR  s_kpszGlyphEdit = L"\xE70F";
+static constexpr size_t   s_kListedBlocks = 12;   // the blocks listed in the Apply question; more are counted
 static constexpr LPCWSTR  s_kpszClassName = L"CassoBlockInspector";
 
 
@@ -122,16 +127,20 @@ void BlockInspectorWindow::BuildCommands()
     c.close = make (L"&Close", L"Alt+F4", [this] () { OnWindowClose(); });
 
     //  Edit
-    c.undoApplied                = make (L"&Undo", L"Ctrl+Z", [this] () { if (m_model.Undo()) { m_panel->Refresh(); } });
-    c.undoApplied->isEnabled     = hasEdits;
-    c.redoApplied                = make (L"&Redo", L"Ctrl+Y", [this] () { if (m_model.Redo()) { m_panel->Refresh(); } });
-    c.redoApplied->isEnabled     = isOpen;
+    c.undoApplied                = make (L"&Undo applied edit", L"Ctrl+Z", [this] () { UndoApplied(); });
+    c.undoApplied->isEnabled     = [this, isOpen] () { return isOpen() && m_model.CanUndoApplied(); };
+    c.redoApplied                = make (L"&Redo applied edit", L"Ctrl+Y", [this] () { RedoApplied(); });
+    c.redoApplied->isEnabled     = [this, isOpen] () { return isOpen() && m_model.CanRedoApplied(); };
     c.copySector                 = make (L"Copy &block", L"Ctrl+Shift+C", [this] () { CopyBlock(); });
     c.copySector->isEnabled      = isOpen;
     c.copySector->glyph          = s_kpszGlyphCopy;
     c.copySector->tip            = L"Copy the whole block as a hex dump (Ctrl+Shift+C)";
     c.copySector->isGlyphInMenus = true;
-    c.applyEdits                 = make (L"A&pply edits", L"", [this] () { Apply(); });
+    c.editSector                 = make (L"&Edit block", L"F2", [this] () { m_panel->SetEditing (!m_panel->IsEditing()); });
+    c.editSector->isEnabled      = isOpen;
+    c.editSector->isChecked      = [this] () { return m_panel != nullptr && m_panel->IsEditing(); };
+    c.editSector->glyph          = s_kpszGlyphEdit;
+    c.applyEdits                 = make (L"A&pply edits...", L"", [this] () { Apply(); });
     c.applyEdits->isEnabled      = hasEdits;
     c.discardEdits               = make (L"&Discard edits", L"", [this] () { Discard(); });
     c.discardEdits->isEnabled    = hasEdits;
@@ -207,7 +216,8 @@ void BlockInspectorWindow::BuildCommands()
     c.endComparison            = make (L"&End comparison", L"", [this] ()
     {
         m_model.EndComparison();
-        SetTitle (L"Disk inspector - " + GetFileName());
+        m_titleNote.clear();
+        UpdateTitle();
         m_panel->Refresh();
     });
     c.endComparison->isEnabled = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_model.IsComparing(); };
@@ -270,8 +280,7 @@ void BlockInspectorWindow::OnCreate()
     m_panel->SetOnChildPressed ([this] (IDxuiControl * child) { FocusControl (child); });
     m_panel->SetOnChanged      ([this] () { m_isDirty = true; });
     m_panel->SetOnJobQueued    ([this] () { m_isDirty = true; });
-    m_panel->SetOnApply        ([this] () { Apply(); });
-    m_panel->SetOnDiscard      ([this] () { Discard(); });
+    InitEditBar();
     m_panel->SetOnCopy         ([this] () { CopyBlock(); });
     m_panel->SetOnHint         ([this] (const std::wstring & hint) { m_hint = hint; m_status.SetHint (hint); m_isDirty = true; });
 
@@ -355,6 +364,7 @@ void BlockInspectorWindow::RenderIfChanged()
     }
 
     m_panel->UpdateBusy();
+    UpdateEditing();
     DxuiPanel::Tick ((int64_t) GetTickCount64());
     m_menus.Tick ((int64_t) GetTickCount64());
     m_status.Tick (GetHwnd());
@@ -648,6 +658,18 @@ bool BlockInspectorWindow::OnKey (const DxuiKeyEvent & ev)
         return DxuiPanel::OnKey (ev);
     }
 
+    //  While editing, the hex view takes Ctrl+Z and Ctrl+Y for the pending
+    //  edits, and Escape stops editing, as the Sector data tab does.
+    if (m_panel->IsEditing() && GetFocusManager().GetFocusedControl() == (IDxuiControl *) m_panel->GetHexView() && HandleEditKey (ev))
+    {
+        return true;
+    }
+
+    if (!ev.ctrl && !ev.alt && ev.vk == VK_F2)
+    {
+        return RunCommand (m_commands.editSector);
+    }
+
     if (ev.ctrl && !ev.alt)
     {
         switch (ev.vk)
@@ -698,31 +720,338 @@ LPCWSTR BlockInspectorWindow::GetCursorForPoint (POINT clientPx) const
 //
 //  BlockInspectorWindow::Apply
 //
+//  Nothing changes until the user confirms the list of changed blocks, as
+//  in the track inspector.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorWindow::Apply()
+{
+    vector<uint32_t>      changed = m_model.IsOpen() ? m_model.GetEdits().GetChangedBlocks() : vector<uint32_t>();
+    vector<std::wstring>  lines;
+    std::wstring          count;
+    std::wstring          owner;
+
+
+
+    if (m_worker.IsBusy() || changed.empty())
+    {
+        return;
+    }
+
+    count = EditBar::FormatCount (m_model.GetEdits().CountChangedBytes(), (int) changed.size(), L"block", L"blocks");
+    lines.push_back (L"Apply " + count.substr (0, count.size() - std::wstring (L" changed").size()) + L" and save " + GetFileName() + L"?");
+
+    for (size_t i = 0; i < changed.size() && i < s_kListedBlocks; i++)
+    {
+        owner = m_model.GetOwners (changed[i]);
+        owner = owner.empty() ? std::wstring (BlockMapGrid::GetRoleName (m_model.GetRole (changed[i]))) : owner.substr (0, owner.find (L'\n'));
+        lines.push_back (L"Block " + NumberFormat::FormatInteger (changed[i]) + L", " + owner);
+    }
+
+    if (changed.size() > s_kListedBlocks)
+    {
+        lines.push_back (L"And " + InspectorText::FormatCount ((int) (changed.size() - s_kListedBlocks), L"more block", L"more blocks"));
+    }
+
+    if (InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Apply edits", lines, L"Apply"))
+    {
+        QueueWrite (L"Writing the edits", L"Applied", [] (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)
+                    { return model.ApplyEdits (outError, &progress); });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::UndoApplied
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::UndoApplied()
+{
+    if (m_worker.IsBusy() || !m_model.CanUndoApplied())
+    {
+        return;
+    }
+
+    if (InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Undo applied edit", { L"Put back the blocks the last apply changed, and save " + GetFileName() + L"?" }, L"Undo"))
+    {
+        QueueWrite (L"Undoing the applied edit", L"Undone", [] (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)
+                    { return model.UndoApplied (outError, &progress); });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::RedoApplied
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::RedoApplied()
+{
+    if (m_worker.IsBusy() || !m_model.CanRedoApplied())
+    {
+        return;
+    }
+
+    if (InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Redo applied edit", { L"Apply the undone edit again, and save " + GetFileName() + L"?" }, L"Redo"))
+    {
+        QueueWrite (L"Redoing the applied edit", L"Redone", [] (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)
+                    { return model.RedoApplied (outError, &progress); });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::QueueWrite
+//
+//  An apply, undo or redo on the worker's thread. Its result goes in the
+//  edit bar's note, as "Applied and saved to" the file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::QueueWrite (const std::wstring & label, const std::wstring & done, WriteFn write)
 {
     auto                   result = std::make_shared<JobResult>();
     BlockInspectorModel  * model  = &m_model;
 
 
 
-    if (m_worker.IsBusy() || !m_model.IsOpen() || m_model.GetEdits().IsEmpty())
-    {
-        return;
-    }
+    m_editNote.clear();
+    m_panel->SetEditing (false);
 
-    m_panel->QueueJob ({ L"Writing the edits", false,
-                         [result, model] (BlockJobProgress & progress) { result->hr = model->ApplyEdits (result->message, &progress); },
-                         [this, result] ()
+    m_panel->QueueJob ({ label, false,
+                         [result, model, write] (BlockJobProgress & progress) { result->hr = write (*model, result->message, progress); },
+                         [this, result, done] ()
                          {
-                             if (FAILED (result->hr))
-                             {
-                                 ShowMessage (result->message.empty() ? L"The edits weren't written." : result->message);
-                             }
-
+                             m_editNote = SUCCEEDED (result->hr) ? done + L" and saved to " + GetFileName()
+                                                                 : (result->message.empty() ? L"The edits weren't written." : result->message);
                              m_panel->Refresh();
                          } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::SaveEditedCopy
+//
+//  The image with the pending edits saved to a new file the user chooses,
+//  never the image's file. The pending edits stay pending, and the image's
+//  file is left as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::SaveEditedCopy()
+{
+    auto                   result    = std::make_shared<JobResult>();
+    BlockInspectorModel  * model     = &m_model;
+    IDiskFileIo          * fileIo    = m_fileIo;
+    fs::path               image     = m_path;
+    std::wstring           extension = image.has_extension() ? image.extension().wstring().substr (1) : std::wstring (L"po");
+    FileDialogSpec         spec;
+    fs::path               target;
+    bool                   isPicked  = false;
+    bool                   isTaken   = true;
+    std::error_code        error;
+    HRESULT                hr        = S_OK;
+
+
+
+    BAIL_OUT_IF (m_worker.IsBusy() || !m_model.IsOpen() || m_model.GetEdits().IsEmpty(), S_OK);
+
+    spec.filters          = { { L"Disk images", L"*." + extension } };
+    spec.defaultExtension = extension;
+    spec.defaultFileName  = image.stem().wstring() + L" edited." + extension;
+    spec.initialFolder    = image.parent_path();
+
+    //  The Save dialog opens again until the file isn't the image's.
+    while (isTaken)
+    {
+        hr = m_dialogs.PickFileToSave (GetHwnd(), spec, target, isPicked);
+        CHR (hr);
+        BAIL_OUT_IF (!isPicked, S_OK);
+
+        isTaken = fs::equivalent (target, image, error) || _wcsicmp (fs::absolute (target, error).wstring().c_str(), fs::absolute (image, error).wstring().c_str()) == 0;
+
+        if (isTaken)
+        {
+            ShowMessage (L"That file is the image this window opened. Choose another file for the copy.");
+        }
+    }
+
+    m_editNote = L"Preparing the copy...";
+
+    m_panel->QueueJob ({ L"Saving the edited copy", false,
+                         [result, model, fileIo, image, target] (BlockJobProgress & progress)
+                         {
+                             (void) progress;
+
+                             if (!CopyFileW (image.c_str(), target.c_str(), FALSE))
+                             {
+                                 result->hr = HRESULT_FROM_WIN32 (GetLastError());
+                                 return;
+                             }
+
+                             result->hr = model->WriteEditsTo (*fileIo, TextEncoding::WideToUtf8 (target.wstring()), result->message);
+                         },
+                         [this, result, target] ()
+                         {
+                             m_editNote = SUCCEEDED (result->hr) ? L"Saved a copy with the pending edits to " + target.filename().wstring()
+                                                                 : L"Not saved: the copy could not be written to " + target.filename().wstring();
+                             m_panel->Refresh();
+                         } });
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::InitEditBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::InitEditBar()
+{
+    EditBar  & bar = m_panel->GetEditBar();
+
+
+
+    bar.SetOnEdit          ([this] () { m_panel->SetEditing (false); });
+    bar.SetOnDiscardSector ([this] () { if (!m_worker.IsBusy()) { m_model.DiscardBlock (m_model.GetBlock()); m_panel->Refresh(); } });
+    bar.SetOnDiscard       ([this] () { Discard(); });
+    bar.SetOnApply         ([this] () { Apply(); });
+    bar.SetOnSaveCopy      ([this] () { SaveEditedCopy(); });
+    bar.SetOnUndoApplied   ([this] () { UndoApplied(); });
+    bar.SetOnRedoApplied   ([this] () { RedoApplied(); });
+    bar.SetOnUseB          ([this] () { if (!m_worker.IsBusy() && m_model.UseOtherBlock (m_model.GetBlock())) { m_panel->Refresh(); } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::UpdateEditing
+//
+//  The edit bar and the title from the pending edits, once a frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::UpdateEditing()
+{
+    bool          isOpen = m_model.IsOpen() && !m_worker.IsBusy();
+    EditBarState  state;
+
+
+
+    state.canEdit        = isOpen;
+    state.isEditing      = m_panel->IsEditing();
+    state.hasSectorEdit  = isOpen && m_model.GetEdits().HasChanges (m_model.GetBlock());
+    state.hasChecksum    = false;
+    state.bytes          = m_model.IsOpen() ? m_model.GetEdits().CountChangedBytes() : 0;
+    state.sectors        = m_model.IsOpen() ? (int) m_model.GetEdits().GetChangedBlocks().size() : 0;
+    state.canApply       = isOpen;
+    state.canUndoApplied = isOpen && m_model.CanUndoApplied();
+    state.canRedoApplied = isOpen && m_model.CanRedoApplied();
+    state.canUseB        = isOpen && m_model.IsComparing() && m_model.IsDifferent (m_model.GetBlock());
+    state.note           = m_editNote;
+
+    m_panel->SetEditState (state);
+    UpdateTitle();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::UpdateTitle
+//
+//  "Disk inspector - " and the file's name, with a * before the name while
+//  edits are pending, then a note such as the image it is compared with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::UpdateTitle()
+{
+    bool          hasEdits = m_model.IsOpen() && !m_model.GetEdits().IsEmpty();
+    std::wstring  title    = L"Disk inspector - " + std::wstring (hasEdits ? L"*" : L"") + GetFileName() + m_titleNote;
+
+
+
+    if (title != m_title)
+    {
+        m_title = title;
+        SetTitle (title);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::HandleEditKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorWindow::HandleEditKey (const DxuiKeyEvent & ev)
+{
+    bool  isHandled = true;
+
+
+
+    if (ev.ctrl && !ev.alt && ev.vk == 'Z')
+    {
+        m_editNote.clear();
+
+        if (m_model.Undo())
+        {
+            m_panel->Refresh();
+        }
+    }
+    else if (ev.ctrl && !ev.alt && ev.vk == 'Y')
+    {
+        m_editNote.clear();
+
+        if (m_model.Redo())
+        {
+            m_panel->Refresh();
+        }
+    }
+    else if (!ev.ctrl && !ev.alt && ev.vk == VK_ESCAPE)
+    {
+        m_panel->SetEditing (false);
+    }
+    else
+    {
+        isHandled = false;
+    }
+
+    return isHandled;
 }
 
 
@@ -855,7 +1184,7 @@ void BlockInspectorWindow::StepDifference (bool isForward)
 bool BlockInspectorWindow::ConfirmClose()
 {
     int           bytes     = 0;
-    int           answer    = IDYES;
+    bool          isClosing = true;
     std::wstring  label;
     bool          canCancel = false;
     uint64_t      done      = 0;
@@ -873,14 +1202,16 @@ bool BlockInspectorWindow::ConfirmClose()
 
     bytes = m_model.IsOpen() ? m_model.GetEdits().CountChangedBytes() : 0;
 
+    //  The same question as the track inspector's.
     if (bytes > 0)
     {
-        answer = DxuiMessageBox (GetHwnd(), m_theme,
-                                 (NumberFormat::FormatInteger (bytes) + (bytes == 1 ? L" changed byte isn't" : L" changed bytes aren't") + L" written. Close and discard the edits?").c_str(),
-                                 L"Disk inspector", MB_YESNO | MB_ICONWARNING, { L"Discard edits", L"Keep editing" }, 0);
+        isClosing = InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Pending edits",
+                                                   { EditBar::FormatCount (bytes, (int) m_model.GetEdits().GetChangedBlocks().size(), L"block", L"blocks") + L" and not applied.",
+                                                     L"Closing the disk inspector discards these edits." },
+                                                   L"Discard edits");
     }
 
-    return answer == IDYES;
+    return isClosing;
 }
 
 
@@ -1011,7 +1342,8 @@ void BlockInspectorWindow::Reload()
                          {
                              if (*outcome == Outcome::EditsPending)
                              {
-                                 SetTitle (L"Disk inspector - " + GetFileName() + L" (the file changed; apply or discard to read it again)");
+                                 m_titleNote = L" (the file changed; apply or discard to read it again)";
+                                 UpdateTitle();
                              }
                              else if (*outcome == Outcome::Gone)
                              {
@@ -1034,7 +1366,8 @@ void BlockInspectorWindow::Reload()
 
 void BlockInspectorWindow::NoteFileGone()
 {
-    SetTitle (L"Disk inspector - " + GetFileName() + L" (the file can't be read)");
+    m_titleNote = L" (the file can't be read)";
+    UpdateTitle();
 }
 
 
@@ -1128,7 +1461,8 @@ void BlockInspectorWindow::CompareWithFile (const std::wstring & path)
                              }
                              else if (SUCCEEDED (result->hr))
                              {
-                                 SetTitle (L"Disk inspector - " + GetFileName() + L" compared with " + name);
+                                 m_titleNote = L" compared with " + name;
+                                 UpdateTitle();
                              }
 
                              m_panel->Refresh();

@@ -89,12 +89,12 @@ void EditBar::SetState (const EditBarState & state)
     //  on, a click on this button ends it.
     m_edit->SetVisible (state.isEditing);
 
-    m_checksum->SetVisible (state.hasSectorEdit);
+    m_checksum->SetVisible (state.hasSectorEdit && state.hasChecksum);
     m_checksum->SetChecked (state.isChecksumOn);
     m_checksum->SetEnabled (!state.isChecksumLocked);
 
     m_applyBlocked = state.applyBlocked;
-    m_count->SetText (FormatCount (state.bytes, state.sectors));
+    m_count->SetText (FormatCount (state.bytes, state.sectors, m_unit.c_str(), m_units.c_str()));
     m_note->SetText  (state.note);
 
     m_discardSector->SetVisible (state.hasSectorEdit);
@@ -139,18 +139,18 @@ std::wstring EditBar::GetTip (POINT pointPx, RECT & outAnchorPx) const
 
     const ControlTip  tips[] =
     {
-        { m_edit,          L"Stop editing the sector's bytes (Escape)",                                     L"" },
+        { m_edit,          L"Stop editing the " + m_unit + L"'s bytes (Escape)",                                 L"" },
         { m_checksum,      L"Write a new data checksum for the sector's new bytes",
                            L"A sector image (.dsk, .do or .po) stores only sector data, so its checksum is always recomputed" },
-        { m_discardSector, L"Drop the selected sector's pending edits",                                   L"" },
+        { m_discardSector, L"Drop the selected " + m_unit + L"'s pending edits",                               L"" },
         { m_discard,       L"Drop every pending edit (Ctrl+Z brings them back)",                            L"" },
         { m_apply,         L"Write the pending edits to the disk and save it",                              m_applyBlocked },
         { m_saveCopy,      L"Save the disk with the pending edits to a new file",                           L"" },
-        { m_undoApplied,   L"Put back the sectors the last apply changed, and save",                        L"" },
+        { m_undoApplied,   L"Put back the " + m_units + L" the last apply changed, and save",                    L"" },
         { m_redoApplied,   L"Apply the last undone edit again, and save",                                   L"" },
         { m_pauseApply,    L"Let the machine run to the next moment the head is clear of the edited fields, and apply there", L"" },
         { m_cancelApply,   L"Stop waiting; the edits stay pending",                                         L"" },
-        { m_useB,          L"Put B's bytes for the paired sector into this sector as a pending edit",       L"" },
+        { m_useB,          L"Put B's bytes for the paired " + m_unit + L" into this " + m_unit + L" as a pending edit", L"" },
     };
 
     std::wstring  tip;
@@ -182,10 +182,27 @@ std::wstring EditBar::GetTip (POINT pointPx, RECT & outAnchorPx) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring EditBar::FormatCount (int bytes, int sectors)
+std::wstring EditBar::FormatCount (int bytes, int units, LPCWSTR unit, LPCWSTR unitPlural)
 {
-    return (sectors > 0) ? InspectorText::FormatCount (bytes, L"byte", L"bytes") + L" in " + InspectorText::FormatCount (sectors, L"sector", L"sectors") + L" changed"
-                         : std::wstring();
+    return (units > 0) ? InspectorText::FormatCount (bytes, L"byte", L"bytes") + L" in " + InspectorText::FormatCount (units, unit, unitPlural) + L" changed"
+                       : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditBar::SetUnit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EditBar::SetUnit (const std::wstring & unit, const std::wstring & unitPlural)
+{
+    m_unit  = unit;
+    m_units = unitPlural;
+    m_discardSector->SetLabel (L"Discard " + unit);
 }
 
 

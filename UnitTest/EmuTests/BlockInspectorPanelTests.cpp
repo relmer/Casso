@@ -483,14 +483,20 @@ public:
         panel.SelectBlock (300);
         panel.GetHexView()->GoToOffset (4);
 
-        Assert::IsTrue (panel.GetHexView()->OnChar (L'C'));
-        Assert::IsTrue (panel.GetHexView()->OnChar (L'3'));
+        Assert::IsFalse (panel.GetHexView()->OnChar (L'C'), L"typing doesn't edit until Edit block");
+        Assert::IsTrue  (model.GetEdits().IsEmpty());
+
+        panel.SetEditing (true);
+
+        //  As a window delivers a keystroke: the key-down, then the character.
+        for (wchar_t ch : { L'C', L'3' })
+        {
+            (void) panel.GetHexView()->OnKey (DxuiKeyEvent { DxuiKeyEventKind::Down, (WPARAM) ch });
+            Assert::IsTrue (panel.GetHexView()->OnKey (DxuiKeyEvent { DxuiKeyEventKind::Char, (WPARAM) ch }));
+        }
+
         Assert::IsTrue (model.GetEdits().IsChanged (300, 4));
-
-        text.Reset();
-        panel.Paint (painter, text, theme);
-
-        Assert::IsTrue (HasText (text, L"1 byte changed, not written"));
+        Assert::AreEqual (1, model.GetEdits().CountChangedBytes(), L"both digits went into one byte");
     }
 
 

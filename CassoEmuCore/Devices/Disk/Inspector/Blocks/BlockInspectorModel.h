@@ -159,14 +159,30 @@ public:
     //  Typing into the current block.
     bool                     TypeHexDigit  (int offset, bool isHighNibble, wchar_t digit);
     bool                     TypeCharacter (int offset, wchar_t ch);
-    bool                     Undo          ()           { return m_edits.Undo(); }
-    bool                     Redo          ()           { return m_edits.Redo(); }
-    void                     DiscardEdits  ()   { m_edits.DiscardAll(); }
-    const BlockEditBuffer  & GetEdits      () const { return m_edits; }
+    bool                     Undo          ()                 { return m_edits.Undo(); }
+    bool                     Redo          ()                 { return m_edits.Redo(); }
+    void                     DiscardEdits  ()                 { m_edits.DiscardAll(); }
+    void                     DiscardBlock  (uint32_t block)   { m_edits.DiscardBlock (block); }
+    const BlockEditBuffer  & GetEdits      () const           { return m_edits; }
+
+    //  The other image's bytes for a block, as a pending edit. False when
+    //  not comparing or when the block has those bytes.
+    bool  UseOtherBlock (uint32_t block);
 
     //  Writes each changed block and reads the map again. Fails, writing
-    //  nothing, when the file changed since it was opened.
-    HRESULT  ApplyEdits (std::wstring & outError, BlockJobProgress * progress = nullptr);
+    //  nothing, when the file changed since it was opened. UndoApplied puts
+    //  back the blocks the last apply changed, and RedoApplied applies the
+    //  last undone edit again; each fails when the file's blocks changed
+    //  since.
+    HRESULT  ApplyEdits     (std::wstring & outError, BlockJobProgress * progress = nullptr);
+    HRESULT  UndoApplied    (std::wstring & outError, BlockJobProgress * progress = nullptr);
+    HRESULT  RedoApplied    (std::wstring & outError, BlockJobProgress * progress = nullptr);
+    bool     CanUndoApplied () const { return m_appliedAt > 0; }
+    bool     CanRedoApplied () const { return m_appliedAt < m_applied.size(); }
+
+    //  The pending edits written into a copy of the image that the caller
+    //  made at `path`.
+    HRESULT  WriteEditsTo (IDiskFileIo & fileIo, const std::string & path, std::wstring & outError);
 
     //  Another image compared block by block with this one: each block
     //  whose bytes differ, a block past either image's end differing when it
@@ -209,6 +225,15 @@ private:
         int       half   = -1;
     };
 
+    //  One apply's blocks as they were before it and as it wrote them.
+    struct AppliedEdit
+    {
+        std::map<uint32_t, Block>  before;
+        std::map<uint32_t, Block>  after;
+    };
+
+    HRESULT  WriteBlocks        (const std::map<uint32_t, Block> & blocks, std::wstring & outError, BlockJobProgress * progress);
+    HRESULT  IsStoredAs         (const std::map<uint32_t, Block> & blocks, bool & outIsSame);
     HRESULT  BuildVolumes       ();
     void     AddVolume          (uint32_t first, uint32_t count, const std::wstring & label);
     void     AddSectorVolume    (const Partition & partition);
@@ -226,6 +251,8 @@ private:
     vector<BlockBand>                m_bands;
     BlockHistory                     m_history;
     BlockEditBuffer                  m_edits;
+    vector<AppliedEdit>              m_applied;
+    size_t                           m_appliedAt       = 0;
     uint32_t                         m_block           = 0;
     uint32_t                         m_generation      = 0;
     int                              m_highlightVolume = -1;

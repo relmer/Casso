@@ -42,7 +42,9 @@ HRESULT BlockInspectorModel::Open (std::unique_ptr<BlockImageFile> file)
     m_file = std::move (file);
 
     m_history.Clear();
-    m_edits.DiscardAll();
+    m_edits     = BlockEditBuffer();
+    m_applied.clear();
+    m_appliedAt = 0;
     ClearHighlight();
     ClearCache();
 
@@ -1244,31 +1246,248 @@ bool BlockInspectorModel::TypeCharacter (int offset, wchar_t ch)
 //
 //  BlockInspectorModel::ApplyEdits
 //
-//  The cache is cleared after the write, as a card's partition or a Disk
-//  Copy image can differ from the blocks written once committed.
+//  The changed blocks are written, and the blocks before and after go in
+//  the history for Undo applied edit. A new apply clears the applied edits
+//  that were undone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT BlockInspectorModel::ApplyEdits (std::wstring & outError, BlockJobProgress * progress)
 {
-    HRESULT           hr        = S_OK;
-    vector<uint32_t>  changed   = m_edits.GetChangedBlocks();
-    bool              isCurrent = false;
-    bool              isChanged = !changed.empty();
-    Block             bytes     = {};
+    HRESULT           hr      = S_OK;
+    vector<uint32_t>  changed = m_edits.GetChangedBlocks();
+    AppliedEdit       applied;
+    Block             bytes   = {};
 
 
 
-    BAIL_OUT_IF (!isChanged, S_OK);
-
-    isCurrent = m_file->IsFileUnchanged();
-    CBRF (isCurrent, outError = L"The file changed after it was opened, so the edits weren't written. Reload it to edit it.");
+    BAIL_OUT_IF (changed.empty(), S_OK);
 
     for (uint32_t block : changed)
+    {
+        hr = ReadStoredBlock (block, bytes);
+        CHRF (hr, outError = L"A changed block can't be read.");
+        applied.before[block] = bytes;
+
+        hr = ReadBlock (block, bytes);
+        CHRF (hr, outError = L"A changed block can't be read.");
+        applied.after[block] = bytes;
+    }
+
+    hr = WriteBlocks (applied.after, outError, progress);
+    CHR (hr);
+
+    m_applied.resize (m_appliedAt);
+    m_applied.push_back (std::move (applied));
+    m_appliedAt = m_applied.size();
+    m_edits     = BlockEditBuffer();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::UndoApplied
+//
+//  The last applied edit's blocks put back as they were before it, when
+//  the file has the blocks the apply wrote.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockInspectorModel::UndoApplied (std::wstring & outError, BlockJobProgress * progress)
+{
+    HRESULT  hr        = S_OK;
+    bool     isCurrent = false;
+
+
+
+    BAIL_OUT_IF (m_appliedAt == 0, S_OK);
+
+    hr = IsStoredAs (m_applied[m_appliedAt - 1].after, isCurrent);
+    CHRF (hr, outError = L"A changed block can't be read.");
+    CBRF (isCurrent, outError = L"The blocks changed after the edit was applied, so it can't be undone.");
+
+    hr = WriteBlocks (m_applied[m_appliedAt - 1].before, outError, progress);
+    CHR (hr);
+
+    m_appliedAt--;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::RedoApplied
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockInspectorModel::RedoApplied (std::wstring & outError, BlockJobProgress * progress)
+{
+    HRESULT  hr        = S_OK;
+    bool     isCurrent = false;
+
+
+
+    BAIL_OUT_IF (m_appliedAt >= m_applied.size(), S_OK);
+
+    hr = IsStoredAs (m_applied[m_appliedAt].before, isCurrent);
+    CHRF (hr, outError = L"A changed block can't be read.");
+    CBRF (isCurrent, outError = L"The blocks changed after the edit was undone, so it can't be applied again.");
+
+    hr = WriteBlocks (m_applied[m_appliedAt].after, outError, progress);
+    CHR (hr);
+
+    m_appliedAt++;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::IsStoredAs
+//
+//  Whether the file has each of the blocks as given.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockInspectorModel::IsStoredAs (const std::map<uint32_t, Block> & blocks, bool & outIsSame)
+{
+    HRESULT  hr    = S_OK;
+    Block    bytes = {};
+
+
+
+    outIsSame = true;
+
+    for (const auto & [block, expected] : blocks)
+    {
+        hr = ReadStoredBlock (block, bytes);
+        CHR (hr);
+
+        outIsSame = outIsSame && bytes == expected;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::UseOtherBlock
+//
+//  The other image's bytes for a block, as a pending edit of the block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorModel::UseOtherBlock (uint32_t block)
+{
+    Block    base  = {};
+    Block    other = {};
+    HRESULT  hr    = S_OK;
+    bool     isSet = false;
+
+
+
+    BAIL_OUT_IF (!IsComparing() || block >= GetBlockCount(), S_OK);
+
+    hr = ReadStoredBlock (block, base);
+    CHR (hr);
+
+    hr = ReadOtherBlock (block, other);
+    CHR (hr);
+
+    isSet = m_edits.SetBlock (block, base, other);
+
+Error:
+    return isSet;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::WriteEditsTo
+//
+//  The pending edits written into a copy of the image at `path`, which
+//  the caller made. The image this model opened is left as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockInspectorModel::WriteEditsTo (IDiskFileIo & fileIo, const std::string & path, std::wstring & outError)
+{
+    HRESULT                          hr    = S_OK;
+    std::unique_ptr<BlockImageFile>  copy;
+    Block                            bytes = {};
+    std::wstring                     error;
+
+
+
+    hr = BlockImageFile::Open (fileIo, path, copy, error);
+    CHRF (hr, outError = error.empty() ? L"The copy can't be opened." : error);
+
+    for (uint32_t block : m_edits.GetChangedBlocks())
     {
         hr = ReadBlock (block, bytes);
         CHRF (hr, outError = L"A changed block can't be read.");
 
+        hr = copy->GetStore().WriteBlocks (block, bytes);
+        CHRF (hr, outError = L"The copy can't be written.");
+    }
+
+    hr = copy->Commit();
+    CHRF (hr, outError = L"The copy can't be written.");
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::WriteBlocks
+//
+//  The blocks written to the file, which must be as it was when opened or
+//  last written, and the maps read again. The cache is cleared after the
+//  write, as a card's partition or a Disk Copy image can differ from the
+//  blocks written once committed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockInspectorModel::WriteBlocks (const std::map<uint32_t, Block> & blocks, std::wstring & outError, BlockJobProgress * progress)
+{
+    HRESULT  hr        = S_OK;
+    bool     isCurrent = m_file->IsFileUnchanged();
+
+
+
+    CBRF (isCurrent, outError = L"The file changed after it was opened, so the edits weren't written. Reload it to edit it.");
+
+    for (const auto & [block, bytes] : blocks)
+    {
         hr = m_file->GetStore().WriteBlocks (block, bytes);
         CHRF (hr, outError = L"A changed block can't be written.");
     }
@@ -1276,7 +1495,6 @@ HRESULT BlockInspectorModel::ApplyEdits (std::wstring & outError, BlockJobProgre
     hr = m_file->Commit();
     CHRF (hr, outError = L"The file can't be written.");
 
-    m_edits.DiscardAll();
     ClearHighlight();
     ClearCache();
 

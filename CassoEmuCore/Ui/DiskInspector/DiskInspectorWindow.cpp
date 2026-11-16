@@ -919,7 +919,8 @@ bool DiskInspectorWindow::RunCommand (const InspectorCommands::Command & command
 //  DiskInspectorWindow::UpdateTitle
 //
 //  "Disk inspector - " and the file's name, with a lock before it while the
-//  disk is write-protected (FR-007, FR-065).
+//  disk is write-protected (FR-007, FR-065), and a * just before the name
+//  while edits are pending.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -933,6 +934,7 @@ void DiskInspectorWindow::UpdateTitle()
     {
         title += L" - ";
         title += m_session.IsWriteProtected() ? std::wstring (s_kpszLock) + L" " : std::wstring();
+        title += m_session.edits.IsEmpty() ? L"" : L"*";
         title += m_session.GetFileName();
     }
 

@@ -295,12 +295,27 @@ Error:
 //
 //  InspectorDialogs::Confirm
 //
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorDialogs::Confirm (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action)
+{
+    return ShowConfirm (m_host.GetOwnerHwnd(), m_session.theme, title, lines, action);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorDialogs::ShowConfirm
+//
 //  A modal question with the lines given and a button for the action and
 //  one for Cancel; true for the action.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool InspectorDialogs::Confirm (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action)
+bool InspectorDialogs::ShowConfirm (HWND owner, const IDxuiTheme * theme, const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action)
 {
     static constexpr int  kWidthDip  = 560;
     static constexpr int  kChromeDip = 108;
@@ -330,7 +345,7 @@ bool InspectorDialogs::Confirm (const std::wstring & title, const vector<std::ws
 
     params.title                    = title;
     params.hInstance                = GetModuleHandle (nullptr);
-    params.ownerHwnd                = m_host.GetOwnerHwnd();
+    params.ownerHwnd                = owner;
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
@@ -339,7 +354,7 @@ bool InspectorDialogs::Confirm (const std::wstring & title, const vector<std::ws
     hr = dialog.Create (params);
     CHRA (hr);
 
-    dialog.SetTheme (m_session.theme);
+    dialog.SetTheme (theme);
     result = dialog.TranslateResult (dialog.ShowModalDialog (dialog.GetDefaultCommandId()));
 
 Error:

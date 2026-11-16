@@ -232,6 +232,119 @@ public:
     }
 
 
+    TEST_METHOD (UndoApplied_PutsTheBlocksBackAndRedoWritesThemAgain)
+    {
+        FakeDiskFileIo       io;
+        BlockInspectorModel  model;
+        std::wstring         error;
+        constexpr size_t     kAt      = 300 * kBlockBytes + 100;
+        Byte                 original = 0;
+
+
+
+        Seed (io, "vol.po", MakeProDos());
+        OpenModel (io, "vol.po", model);
+
+        original = io.files["vol.po"][kAt];
+
+        model.SelectBlock (300);
+        Assert::IsTrue  (model.TypeHexDigit (100, true, L'A'));
+        Assert::IsTrue  (model.TypeHexDigit (100, false, L'5'));
+        Assert::IsFalse (model.CanUndoApplied());
+
+        AssertSucceeded (model.ApplyEdits (error));
+        Assert::IsTrue  (model.CanUndoApplied());
+        Assert::IsFalse (model.GetEdits().CanUndo(), L"the applied typing isn't pending any more");
+
+        AssertSucceeded (model.UndoApplied (error));
+        Assert::AreEqual (original, io.files["vol.po"][kAt]);
+        Assert::IsFalse  (model.CanUndoApplied());
+        Assert::IsTrue   (model.CanRedoApplied());
+
+        AssertSucceeded (model.RedoApplied (error));
+        Assert::AreEqual ((Byte) 0xA5, io.files["vol.po"][kAt]);
+        Assert::IsFalse  (model.CanRedoApplied());
+    }
+
+
+    TEST_METHOD (UndoApplied_WritesNothingWhenTheFileChangedSince)
+    {
+        FakeDiskFileIo       io;
+        BlockInspectorModel  model;
+        std::wstring         error;
+        constexpr size_t     kAt     = 300 * kBlockBytes;
+        Byte                 applied = 0;
+
+
+
+        Seed (io, "vol.po", MakeProDos());
+        OpenModel (io, "vol.po", model);
+
+        model.SelectBlock (300);
+        Assert::IsTrue (model.TypeCharacter (0, L'Q'));
+        AssertSucceeded (model.ApplyEdits (error));
+
+        applied                  = io.files["vol.po"][kAt];
+        io.mutateStampOnNextStat = true;
+
+        AssertFailed (model.UndoApplied (error));
+        Assert::IsFalse  (error.empty());
+        Assert::AreEqual (applied, io.files["vol.po"][kAt]);
+        Assert::IsTrue   (model.CanUndoApplied());
+    }
+
+
+    TEST_METHOD (WriteEditsTo_ChangesOnlyTheCopy)
+    {
+        FakeDiskFileIo       io;
+        BlockInspectorModel  model;
+        std::wstring         error;
+        constexpr size_t     kAt = 300 * kBlockBytes + 8;
+
+
+
+        Seed (io, "vol.po", MakeProDos());
+        Seed (io, "copy.po", MakeProDos());
+        OpenModel (io, "vol.po", model);
+
+        model.SelectBlock (300);
+        Assert::IsTrue (model.TypeHexDigit (8, true, L'7'));
+
+        AssertSucceeded (model.WriteEditsTo (io, "copy.po", error));
+        Assert::AreEqual ((Byte) 0x70, (Byte) (io.files["copy.po"][kAt] & 0xF0));
+        Assert::AreNotEqual (io.files["copy.po"][kAt], io.files["vol.po"][kAt]);
+        Assert::IsFalse (model.GetEdits().IsEmpty(), L"the edits stay pending");
+    }
+
+
+    TEST_METHOD (UseOtherBlock_MakesTheOtherImagesBytesAPendingEdit)
+    {
+        FakeDiskFileIo                   io;
+        BlockInspectorModel              model;
+        vector<Byte>                     volume = MakeProDos();
+        vector<Byte>                     other  = volume;
+        std::unique_ptr<BlockImageFile>  file;
+        std::wstring                     error;
+
+
+
+        other[500 * kBlockBytes + 7] ^= 0xFF;
+
+        Seed (io, "a.po", volume);
+        Seed (io, "b.po", other);
+        OpenModel (io, "a.po", model);
+
+        Assert::IsFalse (model.UseOtherBlock (500), L"not comparing");
+
+        AssertSucceeded (BlockImageFile::Open (io, "b.po", file, error));
+        AssertSucceeded (model.CompareWith (std::move (file)));
+
+        Assert::IsTrue   (model.UseOtherBlock (500));
+        Assert::IsTrue   (model.GetEdits().IsChanged (500, 7));
+        Assert::AreEqual (1, model.GetEdits().CountChangedBytes());
+    }
+
+
     TEST_METHOD (TwoImg_HeaderIsAnnotatedAndBlocksAreThePayloads)
     {
         FakeDiskFileIo       io;

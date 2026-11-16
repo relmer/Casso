@@ -66,14 +66,25 @@ bool BlockHexView::OnChar (wchar_t ch)
 //
 //  BlockHexView::OnKey
 //
+//  A window passes typed characters here, as Char events. A key that
+//  doesn't type a character, such as an arrow, starts the next byte at its
+//  high nibble again. The key-down of a typed digit doesn't change the
+//  nibble.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BlockHexView::OnKey (const DxuiKeyEvent & ev)
 {
     bool  isNavigation = ev.kind == DxuiKeyEventKind::Down
                       && (ev.vk == VK_PRIOR || ev.vk == VK_NEXT || (ev.alt && (ev.vk == VK_LEFT || ev.vk == VK_RIGHT)));
+    bool  isTyping     = ev.kind == DxuiKeyEventKind::Down && !ev.ctrl && !ev.alt && MapVirtualKeyW ((UINT) ev.vk, MAPVK_VK_TO_CHAR) != 0;
 
 
+
+    if (ev.kind == DxuiKeyEventKind::Char)
+    {
+        return !ev.ctrl && !ev.alt && ev.vk >= 0x20 && OnChar ((wchar_t) ev.vk);
+    }
 
     if (isNavigation && m_onNavigate && m_onNavigate (ev))
     {
@@ -81,7 +92,7 @@ bool BlockHexView::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    if (ev.kind == DxuiKeyEventKind::Down)
+    if (ev.kind == DxuiKeyEventKind::Down && !isTyping)
     {
         m_isLowNibble = false;
     }

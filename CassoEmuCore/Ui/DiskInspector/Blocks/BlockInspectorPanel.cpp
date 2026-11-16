@@ -8,6 +8,7 @@
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
+#include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/FloatingGroup.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/OverlayChip.h"
@@ -142,9 +143,7 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
     m_previous = CreateChild<DxuiIconButton>();
     m_next     = CreateChild<DxuiIconButton>();
     m_copy     = CreateChild<DxuiButton> (L"Copy block");
-    m_editNote = CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Left, DxuiTextVAlign::Center);
-    m_discard  = CreateChild<DxuiButton> (L"Discard edits");
-    m_apply    = CreateChild<DxuiButton> (L"Apply edits");
+    m_editBar  = CreateChild<EditBar>();
     m_cancel   = CreateChild<DxuiButton> (L"Cancel");
     m_hex      = CreateChild<BlockHexView>();
     m_fields   = CreateChild<BlockFieldsView>();
@@ -189,15 +188,11 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
     m_next->SetAccessibleName     (L"Next block");
     m_next->SetOnClick            ([this] () { Step (1); });
 
-    m_copy->SetOnClick    ([this] () { if (m_onCopy) { m_onCopy(); } });
-    m_discard->SetOnClick ([this] () { if (m_onDiscard) { m_onDiscard(); } });
-    m_apply->SetOnClick   ([this] () { if (m_onApply) { m_onApply(); } });
-    m_cancel->SetOnClick  ([this] () { if (m_worker != nullptr) { m_worker->Cancel(); } });
+    m_copy->SetOnClick   ([this] () { if (m_onCopy) { m_onCopy(); } });
+    m_cancel->SetOnClick ([this] () { if (m_worker != nullptr) { m_worker->Cancel(); } });
+    m_editBar->SetUnit   (L"block", L"blocks");
 
-    m_editNote->SetVisible (false);
-    m_discard->SetVisible  (false);
-    m_apply->SetVisible    (false);
-    m_cancel->SetVisible   (false);
+    m_cancel->SetVisible (false);
 
     m_hex->SetBytesPerRow  (kBytesPerRow);
     m_hex->SetTextEncoding (DxuiHexView::TextEncoding::AppleHighBit);
@@ -357,6 +352,57 @@ void BlockInspectorPanel::OpenBlock (uint32_t block)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockInspectorPanel::SetEditing
+//
+//  Starting to edit moves the keys to the hex view, as Edit sector does for
+//  a sector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::SetEditing (bool isEditing)
+{
+    m_isEditing = isEditing && m_model->IsOpen();
+
+    if (m_isEditing && m_onPressed)
+    {
+        m_onPressed (m_hex);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::SetEditState
+//
+//  The edit bar's controls, and the layout again when the bar's height
+//  changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::SetEditState (const EditBarState & state)
+{
+    int  width  = m_rowRect.right - m_rowRect.left;
+    int  before = width > 0 ? m_editBar->GetHeightPx (width, m_scaler) : 0;
+
+
+
+    m_editBar->SetState (state);
+
+    if (width > 0 && m_scaler.GetDpi() != 0 && !m_isLongJob && m_editBar->GetHeightPx (width, m_scaler) != before)
+    {
+        Layout (GetBounds(), m_scaler);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockInspectorPanel::Step
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -466,6 +512,7 @@ bool BlockInspectorPanel::OnNavigateKey (const DxuiKeyEvent & ev)
 //
 //  BlockInspectorPanel::OnType
 //
+//  Typing changes the block only while editing, as Edit block turns on.
 //  The header isn't edited here, and a block is edited only once it is
 //  loaded, so typing reads the block from memory.
 //
@@ -477,7 +524,7 @@ bool BlockInspectorPanel::OnType (uint64_t offset, bool isHexColumn, bool isHigh
 
 
 
-    if (IsBusy() || !m_model->IsOpen() || !m_model->IsLoaded (m_model->GetBlock()))
+    if (!m_isEditing || IsBusy() || !m_model->IsOpen() || !m_model->IsLoaded (m_model->GetBlock()))
     {
         return false;
     }
@@ -743,7 +790,7 @@ void BlockInspectorPanel::UpdateBusy()
     m_map->SetFrozen     (IsBusy());
     m_cancel->SetVisible (m_isLongJob && canCancel);
 
-    for (IDxuiControl * control : { (IDxuiControl *) &m_nav.GetList(), (IDxuiControl *) &m_nav.GetTree(), (IDxuiControl *) m_copy, (IDxuiControl *) m_discard, (IDxuiControl *) m_apply,
+    for (IDxuiControl * control : { (IDxuiControl *) &m_nav.GetList(), (IDxuiControl *) &m_nav.GetTree(), (IDxuiControl *) m_copy, (IDxuiControl *) m_editBar,
                                     (IDxuiControl *) m_filesChip, (IDxuiControl *) m_diffsChip })
     {
         control->SetEnabled (!m_isLongJob);
@@ -802,8 +849,7 @@ void BlockInspectorPanel::ApplyHighlight()
 void BlockInspectorPanel::Present()
 {
     bool  isComparing = m_model->IsComparing();
-    bool  hasEdits    = !m_model->GetEdits().IsEmpty();
-    bool  isRelayout  = hasEdits != m_hasEdits || isComparing != m_diffsChip->IsVisible();
+    bool  isRelayout  = isComparing != m_diffsChip->IsVisible();
 
 
 
@@ -833,9 +879,6 @@ void BlockInspectorPanel::Present()
     m_filesChip->SetOn   (m_isFilesOn);
     m_diffsChip->SetOn   (m_isDiffsOn);
     m_diffsChip->SetVisible (isComparing);
-    m_editNote->SetText  (NumberFormat::FormatInteger (m_model->GetEdits().CountChangedBytes()) + (m_model->GetEdits().CountChangedBytes() == 1 ? L" byte changed, not written" : L" bytes changed, not written"));
-
-    m_hasEdits = hasEdits;
 
     if (isRelayout && m_scaler.GetDpi() != 0)
     {
@@ -1278,9 +1321,9 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
 //  BlockInspectorPanel::LayoutMiddle
 //
 //  The list at the top, then a splitter, then the current block: its title
-//  row with Copy block at its right end, the field line, the edit or
-//  progress row when there is one, then the hex view beside the fields,
-//  with a splitter between them.
+//  row with Copy block at its right end, the field line, the edit bar or
+//  a long job's progress row, then the hex view beside the fields, with a
+//  splitter between them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1294,7 +1337,8 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
     int   listEnd  = column.top + (int) ((column.bottom - column.top) * m_listShare);
     int   y        = 0;
     int   hexEnd   = 0;
-    bool  isRow    = m_isLongJob || m_hasEdits;
+    int   barH     = m_isLongJob ? row : m_editBar->GetHeightPx ((int) (column.right - column.left), scaler);
+    bool  isRow    = barH > 0;
 
 
 
@@ -1311,9 +1355,7 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
         control->SetVisible (true);
     }
 
-    m_editNote->SetVisible (m_hasEdits && !m_isLongJob);
-    m_discard->SetVisible  (m_hasEdits && !m_isLongJob);
-    m_apply->SetVisible    (m_hasEdits && !m_isLongJob);
+    m_editBar->SetVisible (!m_isLongJob && barH > 0);
 
     m_previous->Layout ({ column.left, y, column.left + row, y + row }, scaler);
     m_next->Layout     ({ column.left + row, y, column.left + 2 * row, y + row }, scaler);
@@ -1324,12 +1366,10 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
     m_fieldRect = { column.left, y, column.right, y + line };
     y += line + pad;
 
-    m_rowRect = isRow ? RECT { column.left, y, column.right, y + row } : RECT { column.left, y, column.right, y };
+    m_rowRect = { column.left, y, column.right, y + barH };
 
-    m_editNote->Layout ({ column.left, y, column.right - 2 * button - 2 * pad, y + row }, scaler);
-    m_discard->Layout  ({ column.right - 2 * button - pad, y, column.right - button - pad, y + row }, scaler);
-    m_apply->Layout    ({ column.right - button, y, column.right, y + row }, scaler);
-    m_cancel->Layout   ({ column.right - button, y, column.right, y + row }, scaler);
+    m_editBar->Layout ({ column.left, y, column.right, y + barH }, scaler);
+    m_cancel->Layout  ({ column.right - button, y, column.right, y + row }, scaler);
     y = m_rowRect.bottom + (isRow ? pad : 0);
 
     m_hexShare = std::clamp (m_hexShare, kMinHex, kMaxHex);
