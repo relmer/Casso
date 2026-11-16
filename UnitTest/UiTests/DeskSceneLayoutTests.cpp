@@ -4,6 +4,7 @@
 #include "CrtPostProcess.h"
 #include "Render/CurvedDisplayMath.h"
 #include "Render/SceneCamera.h"
+#include "Ui/Scene/DeskDrivePlan.h"
 #include "Ui/Scene/DeskSceneLayout.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -392,6 +393,237 @@ public:
         Assert::IsTrue   (comp.driveWorld[0][13] >= 50.0f - 0.01f, L"drive 1 stands on the UniDisk");
         Assert::IsTrue   (comp.extraRectPx[0].right <= comp.driveRectPx[0].left, L"the left stack is left of the right one");
     }
+
+    //  A model's bounds, as the baked model in Resources/Models has them. The
+    //  feet are below z = 0.
+    static void AddExtraModel (DeskSceneMetrics & metrics, DeskDriveModel model, DeskDriveSpot spot, int level)
+    {
+        DeskExtraMetrics  & extra = metrics.extras[metrics.extraCount++];
+        float               lo[3] = { 0.0f, -0.9f, -3.0f };
+        float               hi[3] = { 120.65f, 218.55f, 46.99f };
+
+
+
+        if (model == DeskDriveModel::HardDisk20SC)
+        {
+            lo[1] = -0.3f;
+            hi[0] = 245.0f;  hi[1] = 296.0f;  hi[2] = 76.0f;
+        }
+        else if (model == DeskDriveModel::ProFile)
+        {
+            lo[1] = -0.85f;
+            hi[0] = 438.91f;  hi[1] = 227.27f;  hi[2] = 111.51f;
+        }
+
+        extra.model = model;
+        extra.spot  = spot;
+        extra.level = level;
+        memcpy (extra.min, lo, sizeof (lo));
+        memcpy (extra.max, hi, sizeof (hi));
+    }
+
+
+    //  The world box of a model box placed by `world`.
+    static void GetWorldBox (const float world[16], const float modelMin[3], const float modelMax[3], float outMin[3], float outMax[3])
+    {
+        for (int axis = 0; axis < 3; axis++)
+        {
+            outMin[axis] =  FLT_MAX;
+            outMax[axis] = -FLT_MAX;
+        }
+
+        for (int corner = 0; corner < 8; corner++)
+        {
+            float  modelPt[3] = { (corner & 1) ? modelMax[0] : modelMin[0],
+                                  (corner & 2) ? modelMax[1] : modelMin[1],
+                                  (corner & 4) ? modelMax[2] : modelMin[2] };
+            float  worldPt[3] = {};
+
+            Assert::IsTrue (SceneCamera::TransformPoint (world, modelPt, worldPt));
+
+            for (int axis = 0; axis < 3; axis++)
+            {
+                outMin[axis] = std::min (outMin[axis], worldPt[axis]);
+                outMax[axis] = std::max (outMax[axis], worldPt[axis]);
+            }
+        }
+    }
+
+
+    //  The drives as DeskDrivePlan places them, composed as the shell
+    //  composes them: the Disk II pair is the scene's drives, and every other
+    //  drive on the desk is an extra. Every placed box is clear of every
+    //  other, and every drive on the desk is placed.
+    static void AssertPlacedWithoutOverlap (const std::vector<DeskDrive> & drives,
+                                            DeskClassPlace                 floppies,
+                                            DeskClassPlace                 hardDisks,
+                                            bool                           beside)
+    {
+        constexpr float  kTouchMm = 0.5f;
+
+        DeskSceneMetrics                   metrics    = MakeMetrics();
+        RECT                               vp         = { 0, 0, 1600, 900 };
+        DeskSceneComposition               comp;
+        std::vector<DeskDrivePlacement>    plan       = DeskDrivePlan::Place (drives, floppies, hardDisks, metrics.monitorMax[0] - metrics.monitorMin[0], beside);
+        int                                driveCount = 0;
+        int                                onDesk     = 0;
+        std::vector<std::array<float, 6>>  boxes;
+        std::wstring                       what       = std::format (L"{} drives, floppies {}, hard disks {}, beside {}", drives.size(), (int) floppies, (int) hardDisks, beside);
+
+
+
+        for (const DeskDrivePlacement & placed : plan)
+        {
+            if (placed.spot == DeskDriveSpot::DriveBar)
+            {
+                continue;
+            }
+
+            onDesk++;
+
+            if (DeskDrivePlan::IsDiskII (placed.drive.model))
+            {
+                driveCount++;
+                metrics.driveSpot = placed.spot;
+
+                if (placed.drive.drive >= 0 && placed.drive.drive < 2)
+                {
+                    metrics.driveLevel[placed.drive.drive] = placed.level;
+                }
+            }
+            else
+            {
+                AddExtraModel (metrics, placed.drive.model, placed.spot, placed.level);
+            }
+        }
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, driveCount, metrics, comp));
+        Assert::AreEqual (onDesk, comp.driveCount + comp.extraCount, (L"every drive on the desk is placed: " + what).c_str());
+
+        {
+            std::array<float, 6>  box = {};
+
+            GetWorldBox (comp.monitorWorld, metrics.monitorMin, metrics.monitorMax, &box[0], &box[3]);
+            boxes.push_back (box);
+
+            for (int i = 0; i < comp.driveCount; i++)
+            {
+                GetWorldBox (comp.driveWorld[i], metrics.driveMin, metrics.driveMax, &box[0], &box[3]);
+                boxes.push_back (box);
+            }
+
+            for (int i = 0; i < comp.extraCount; i++)
+            {
+                GetWorldBox (comp.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max, &box[0], &box[3]);
+                boxes.push_back (box);
+            }
+        }
+
+        for (size_t a = 0; a < boxes.size(); a++)
+        {
+            for (size_t b = a + 1; b < boxes.size(); b++)
+            {
+                bool  overlaps = true;
+
+                for (int axis = 0; axis < 3; axis++)
+                {
+                    overlaps = overlaps && boxes[a][axis] < boxes[b][axis + 3] - kTouchMm && boxes[b][axis] < boxes[a][axis + 3] - kTouchMm;
+                }
+
+                Assert::IsFalse (overlaps, std::format (L"boxes {} ({:.1f} {:.1f} {:.1f} - {:.1f} {:.1f} {:.1f}) and {} ({:.1f} {:.1f} {:.1f} - {:.1f} {:.1f} {:.1f}) overlap: {}",
+                                                        a, boxes[a][0], boxes[a][1], boxes[a][2], boxes[a][3], boxes[a][4], boxes[a][5],
+                                                        b, boxes[b][0], boxes[b][1], boxes[b][2], boxes[b][3], boxes[b][4], boxes[b][5], what).c_str());
+            }
+        }
+    }
+
+
+    //  EVERY CONFIGURATION THE MACHINE TAB ALLOWS is placed without overlap:
+    //  a //e's Disk II drives with a SCSI card's hard disks, a ProFile, a
+    //  UniDisk 3.5 chain and a 3.5 controller card's drives; a //c's drives
+    //  with a UniDisk chain; and a //c Plus's built-in drive with its chain.
+    //  Each with every class place, and the floppy pair beside the monitor
+    //  or under it.
+    TEST_METHOD (EveryConfiguration_PlacesTheDrivesWithoutOverlap)
+    {
+        constexpr DeskClassPlace  kPlaces[] = { DeskClassPlace::Auto, DeskClassPlace::Desk, DeskClassPlace::Bar };
+
+        std::vector<std::vector<DeskDrive>>  configs;
+
+
+
+        for (int diskIi = 0; diskIi <= 2; diskIi++)
+        {
+            for (int scsi : { 0, 1, 2, 3, 7 })
+            {
+                for (int proFile = 0; proFile <= 1; proFile++)
+                {
+                    for (int uniDisk : { 0, 1, 2, 4 })
+                    {
+                        for (int apple35 = 0; apple35 <= 2; apple35++)
+                        {
+                            std::vector<DeskDrive>  drives;
+
+                            for (int i = 0; i < diskIi;  i++) { drives.push_back ({ DeskDriveModel::DiskII,       6, i }); }
+                            for (int i = 0; i < scsi;    i++) { drives.push_back ({ DeskDriveModel::HardDisk20SC, 7, i }); }
+                            for (int i = 0; i < proFile; i++) { drives.push_back ({ DeskDriveModel::ProFile,      4, i }); }
+                            for (int i = 0; i < uniDisk; i++) { drives.push_back ({ DeskDriveModel::UniDisk35,    5, i }); }
+                            for (int i = 0; i < apple35; i++) { drives.push_back ({ DeskDriveModel::Apple35Drive, 2, i }); }
+
+                            configs.push_back (drives);
+                        }
+                    }
+                }
+            }
+        }
+
+        for (int uniDisk = 0; uniDisk <= 3; uniDisk++)
+        {
+            for (int external = 0; external <= 1; external++)
+            {
+                std::vector<DeskDrive>  drives = { { DeskDriveModel::Disk2c, 0, 0, true } };
+
+                for (int i = 0; i < uniDisk; i++) { drives.push_back ({ DeskDriveModel::UniDisk35, 0, i + 1 }); }
+
+                if (external != 0)
+                {
+                    drives.push_back ({ DeskDriveModel::Disk2c, 0, 1 });
+                }
+
+                configs.push_back (drives);
+            }
+        }
+
+        for (int apple35 = 0; apple35 <= 2; apple35++)
+        {
+            for (int uniDisk = 0; uniDisk <= 2; uniDisk++)
+            {
+                for (int floppy = 0; floppy <= 1; floppy++)
+                {
+                    std::vector<DeskDrive>  drives = { { DeskDriveModel::Apple35Plus, 0, 0, true } };
+
+                    for (int i = 0; i < apple35; i++) { drives.push_back ({ DeskDriveModel::Apple35Drive, 0, i + 1 }); }
+                    for (int i = 0; i < uniDisk; i++) { drives.push_back ({ DeskDriveModel::UniDisk35,    0, apple35 + i + 1 }); }
+                    for (int i = 0; i < floppy;  i++) { drives.push_back ({ DeskDriveModel::Disk2c,       0, apple35 + uniDisk + 1 }); }
+
+                    configs.push_back (drives);
+                }
+            }
+        }
+
+        for (const std::vector<DeskDrive> & drives : configs)
+        {
+            for (DeskClassPlace floppies : kPlaces)
+            {
+                for (DeskClassPlace hardDisks : kPlaces)
+                {
+                    AssertPlacedWithoutOverlap (drives, floppies, hardDisks, false);
+                    AssertPlacedWithoutOverlap (drives, floppies, hardDisks, true);
+                }
+            }
+        }
+    }
+
 
     TEST_METHOD (Empty_Viewport_Reports_S_FALSE)
     {

@@ -41,6 +41,7 @@ class WindowCommandManager;
 struct DialogDefinition;
 struct MachineConfig;
 class SettingsSheet;
+class SettingsPanelState;
 class JsonValue;
 class DriveWidget;
 class ShellAudio;
@@ -240,6 +241,13 @@ public:
     // The screen as it is now, as the thumbnail of the drive's image, marked
     // as set by the user.
     void SetDiskThumbnail (int drive);
+
+    // The confirmation that changing a hard disk's image restarts the
+    // machine: its text and buttons. Restart returns kHardDiskChangeRestart
+    // and Cancel 0.
+    static constexpr int  kHardDiskChangeRestart = 1;
+
+    static DialogDefinition  MakeHardDiskChangeDialog (const std::wstring & driveTitle, const std::wstring & fileName);
 private:
 
     //  The shell the EHM notification sink forwards to. One per process; set
@@ -393,23 +401,26 @@ private:
     void    SetTapeRecorderConnected  (bool connected);
     void    SaveStorageDevices        ();
     HRESULT EditSavedMachine          (const std::function<HRESULT (class SettingsPanelState & state)> & edit);
+    void    SaveHardDiskImage         (int slot, int drive, const std::string & path);
+    void    SaveMachineSettings       (const std::function<void (SettingsPanelState &)> & edit);
 
     //  Inserts an image in a drive: mounted in a floppy drive, loaded in
-    //  the recorder, or, for a hard disk, staged in the machine's saved
-    //  settings for its next restart, with an infobar.
+    //  the recorder, or, for a hard disk, attached after a confirmed restart.
     bool    InsertInDrive             (const DriveAddress & address, ReceivingDriveKind kind, const std::wstring & label, const std::wstring & path);
-    bool    StageHardDiskImage        (int slot, int port, const std::wstring & path);
 
     //  A hard disk's capacity in blocks, from the drive on the card's port;
     //  0 for a port without one.
     uint32_t  GetHardDiskBlocks       (int slot, int port) const;
 
-    //  Restarts the machine from its saved settings, as a hardware change
-    //  in Settings does.
-    void    RestartMachineFromSettings ();
-
     //  A modal picker over owner, for a caller that waits for a path.
     HRESULT RunModalPicker            (HWND owner, PickerRequest request, PickerOutcome & outOutcome);
+
+    // A hard disk's new image, dropped on the drive or chosen in its picker.
+    // Changing it restarts the machine, so the change is confirmed first. On
+    // Cancel the drive has its image from before, and the machine runs on.
+    void    ChangeHardDiskImage       (const DeskDrive & drive, const std::wstring & path);
+    void    ChangeHardDiskImage       (int slot, int drive, const std::wstring & driveTitle, const std::wstring & path);
+    void    BrowseHardDisk            (const DeskDrive & drive);
 
     // A drive's (0 or 1) or the recorder's (kStorageMenuRecorder) right-click
     // menu, at a client point.

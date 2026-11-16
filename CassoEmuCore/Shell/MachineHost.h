@@ -325,6 +325,12 @@ public:
     HRESULT              InsertFloppy35 (int slot, int drive, const std::string & path, std::wstring & outError);
     HRESULT              EjectFloppy35  (int slot, int drive);
 
+    //  A hard disk's image, by its card's slot and the drive's SCSI ID (0 for
+    //  a ProFile), with the machine build's checks. When an image fails them,
+    //  the drive has its image from before. The machine's configuration
+    //  takes the new image. Runs on the CPU thread.
+    HRESULT              AttachHardDisk (int slot, int drive, const std::string & path, std::wstring & outError);
+
     //  Where the stock hard disk image is made and found; empty leaves an
     //  HD20SC that lists "stock" without an image.
     void                 SetStockImageFolder (const std::string & folder) { m_stockImageFolder = folder; }

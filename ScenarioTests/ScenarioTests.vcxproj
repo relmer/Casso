@@ -231,6 +231,7 @@
     <ClCompile Include="BlockDeviceBootTests.cpp" />
     <ClCompile Include="Floppy35BootTests.cpp" />
     <ClCompile Include="Apple2cPlusTests.cpp" />
+    <ClCompile Include="DeskModelAssetTests.cpp" />
     <ClCompile Include="MameComparisonTests.cpp" />
   </ItemGroup>
   <ItemGroup>

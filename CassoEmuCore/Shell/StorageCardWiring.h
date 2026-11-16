@@ -37,12 +37,12 @@ public:
     void  WireMig               ();
     void  WireDeviceAudio       ();
 
-private:
-    void  AddChainDrives (const PortConfig & port, SmartPortHost & host);
-
     //  Detaches a floppy-size image from a hard disk. Returns true when it
     //  was one, with the reason in `outError`.
     static bool  RejectFloppyImage (BlockDeviceMedia & media, std::wstring & outError);
+
+private:
+    void  AddChainDrives (const PortConfig & port, SmartPortHost & host);
 
     MachineBuilder        & m_builder;
     MachineHost           & m_host;

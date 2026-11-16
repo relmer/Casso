@@ -1000,6 +1000,10 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
         center             = ComputeViewportRect (widthPx, heightPx);
         viewportRect       = center;
 
+        // No drive is in the scene. The composition is emptied, so the drop
+        // targets are the drive bar's slots and not the desk theme's drives
+        // from before a theme switch.
+        m_shell.m_scene->GetScene().SetComposition (DeskSceneComposition {});
         m_shell.m_scene->LayoutSceneCompass();
     }
 

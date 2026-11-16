@@ -1095,20 +1095,11 @@ void ShellDisks::InstallChangeReporting()
     //  a dialog -- the strip routes nothing back, which is why a lost-file
     //  prompt sent here had two buttons that did nothing. Dismissing it and
     //  its countdown running out are the same thing.
-    //  The staged-image notice is the exception: its one button restarts the
-    //  machine.
     m_changeBanner.SetOnAction ([this] (size_t index)
     {
-        bool  isRestart = m_isStagedBanner;
-
         UNREFERENCED_PARAMETER (index);
 
         HideChangeBanner();
-
-        if (isRestart)
-        {
-            m_shell.RestartMachineFromSettings();
-        }
     });
 
     m_changeBanner.SetOnDismiss ([this] ()
@@ -1161,8 +1152,6 @@ void ShellDisks::ShowChangeBanner (const ChangeNotice & notice)
         }
     }
 
-    m_isStagedBanner = false;
-
     m_changeBanner.SetText        (notice.prompt.message);
     m_changeBanner.SetActions     (labels);
     m_changeBanner.SetDismissible (dismissible);
@@ -1185,71 +1174,6 @@ void ShellDisks::ShowChangeBanner (const ChangeNotice & notice)
     m_shell.m_chrome->ReflowChromeForChangeBand();
 
     return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDisks::ShowStagedImageBanner
-//
-//  A hard disk's image is attached when the machine is built, so the image
-//  just staged is not in the drive yet. The strip stays until it is closed
-//  or the machine restarts.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDisks::ShowStagedImageBanner (const std::wstring & driveLabel)
-{
-    m_isStagedBanner = true;
-
-    m_changeBanner.SetText        (MakeStagedImageText (driveLabel));
-    m_changeBanner.SetActions     ({ L"Restart now" });
-    m_changeBanner.SetDismissible (true);
-
-    m_changeBannerHideAtMs = 0;
-    m_changeBannerTickMs   = ChangeBannerNowMs();
-
-    m_changeBanner.SetVisible (true);
-    m_shell.m_chrome->ReflowChromeForChangeBand();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDisks::HideStagedImageBanner
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDisks::HideStagedImageBanner()
-{
-    if (m_isStagedBanner && m_changeBanner.IsVisible())
-    {
-        HideChangeBanner();
-    }
-
-    m_isStagedBanner = false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDisks::MakeStagedImageText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ShellDisks::MakeStagedImageText (const std::wstring & driveLabel)
-{
-    return driveLabel.empty() ? std::wstring (L"The new hard disk image takes effect at the next restart.")
-                              : std::format (L"{}: the new image takes effect at the next restart.", driveLabel);
 }
 
 
@@ -1871,4 +1795,43 @@ void ShellDisks::EjectFloppy35 (int slot, int drive)
 
 
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachHardDisk
+//
+//  CPU thread. An image that doesn't attach is reported in a notice, and the
+//  drive has its image from before. An attached one is posted to the UI
+//  thread to be saved with the machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellDisks::AttachHardDisk (int slot, int drive, const std::string & path)
+{
+    std::wstring           error;
+    HRESULT                hr      = m_shell.m_machine.AttachHardDisk (slot, drive, path, error);
+    HardDiskImageChange  * change  = nullptr;
+
+
+
+    if (FAILED (hr))
+    {
+        m_shell.m_chrome->PostNotice (error.empty() ? std::wstring (L"The hard disk image could not be attached.") : error);
+    }
+    else if (m_shell.m_hwnd != nullptr)
+    {
+        change = new (std::nothrow) HardDiskImageChange { slot, drive, path };
+
+        if (change != nullptr && !PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellHardDiskImage, 0, reinterpret_cast<LPARAM> (change)))
+        {
+            delete change;
+        }
+    }
+
+    return hr;
 }

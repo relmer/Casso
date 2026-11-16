@@ -207,6 +207,16 @@ public:
     // empty (lo above hi) on a model without one.
     const float *                                 CassetteTitleBox () const { return m_cassetteTitleBox.data(); }
 
+    // A 3.5-inch drive's slot, from the back of the slot, lo xyz then hi
+    // xyz; empty (lo above hi) on a model without one.
+    const float *                                 SlotBox () const { return m_slotBox.data(); }
+    bool                                          HasSlot () const { return m_slotBox[3] >= m_slotBox[0]; }
+
+    // The back edge of a disk in the slot, as the scene draws it while the
+    // drive has a disk in: dark plastic, recessed behind the case's front.
+    // Empty on a model without a slot.
+    void                                          BuildDiskInSlot (std::vector<Dxui3DRenderer::Vertex> & out) const;
+
     // Polished chrome (the recorder's handle), with its normals smoothed and
     // flagged for the shader to draw as a mirror.
     const std::vector<Dxui3DRenderer::Vertex> &   ChromeVerts   () const { return m_chrome; }
@@ -435,6 +445,7 @@ public:
     static constexpr const char *  s_kpszSpindlePrefix  = "spindle_";       // spindle_0, spindle_1
     static constexpr const char *  s_kpszHubPrefix      = "cassette_hub_";  // cassette_hub_0, cassette_hub_1
     static constexpr const char *  s_kpszCassetteTitleAnchor = "cassette_title_anchor";
+    static constexpr const char *  s_kpszSlotBack       = "slot_back";      // a 3.5-inch drive's slot
     static constexpr const char *  s_kpszBrandAnchor = "brand_anchor";
     static constexpr const char *  s_kpszFrontAnchor = "front_anchor";
 
@@ -658,6 +669,7 @@ private:
     std::array<std::vector<Dxui3DRenderer::Vertex>, kRecorderReelCount> m_hubs;
     std::array<std::array<float, 6>, kRecorderReelCount>                m_spindleBoxes     = {};
     std::array<float, 6>                                                m_cassetteTitleBox = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    std::array<float, 6>                                                m_slotBox          = { FLT_MAX, FLT_MAX, FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX };
     std::vector<Dxui3DRenderer::Vertex>                                 m_tiltable;
     std::vector<DeskTiltGrip>                                           m_tiltGrips;
     float                                                               m_tiltPivotY       = 0.0f;

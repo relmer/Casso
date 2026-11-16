@@ -151,6 +151,7 @@
 // Collapse the drives off the bottom edge until the pointer comes near it.
 #define IDM_FLOPPY35_INSERT         40496
 #define IDM_FLOPPY35_EJECT          40497
+#define IDM_HARDDISK_ATTACH         40494
 #define IDM_VIEW_FLOPPIES_ON_DESK   40498
 #define IDM_VIEW_HARD_DISKS_ON_DESK 40499
 #define IDM_VIEW_FLOPPY_PAIR_BESIDE 40495

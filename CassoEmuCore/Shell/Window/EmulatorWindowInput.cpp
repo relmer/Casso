@@ -1767,8 +1767,9 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     BAIL_OUT_IF (wasSuppressed, S_OK);
 
-    // The drive bar under the desk scene, whose drives are not scene objects.
-    driveTook = DeskSceneActive() && m_chrome->HandleDriveBarClick (POINT { x, y });
+    // The drive bar under the desk scene or a compact theme's picture, whose
+    // drives are not scene objects.
+    driveTook = m_scene->AreDrivesOnBar() && m_chrome->HandleDriveBarClick (POINT { x, y });
 
     BAIL_OUT_IF (driveTook, S_OK);
 
@@ -1831,7 +1832,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
             driveTook = true;
         }
 
-        // A 3.5-inch drive on the desk picks a disk for itself.
+        // A 3.5-inch drive or hard disk on the desk picks an image for itself.
         else if (!inStrip)
         {
             const DeskSceneComposition  & comp = m_scene->m_deskScene.Composition();

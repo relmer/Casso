@@ -9,7 +9,13 @@
 #include "CassoLink/RunningCassoRegistry.h"
 
 #include "Core/Prng.h"
+#include "Devices/BlockDevice/AppleScsiCard.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Devices/BlockDevice/BlockDeviceMedia.h"
 #include "Devices/BlockDevice/IBlockDeviceEventSink.h"
+#include "Devices/BlockDevice/ProFileCard.h"
+#include "Devices/BlockDevice/ScsiHardDisk.h"
+#include "Shell/StorageCardWiring.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Shell/DiskManager.h"
@@ -1399,6 +1405,90 @@ HRESULT MachineHost::EjectFloppy35 (int slot, int drive)
 
     hr = target->Eject();
     CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::AttachHardDisk
+//
+//  The image before is attached again when the new one fails, so a failed
+//  change is no change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::AttachHardDisk (int slot, int drive, const std::string & path, std::wstring & outError)
+{
+    HRESULT                  hr         = S_OK;
+    HRESULT                  hrPrevious = S_OK;
+    BlockDeviceMedia       * media      = nullptr;
+    PortConfig             * port       = nullptr;
+    const BlockDriveSpec   * spec       = nullptr;
+    uint32_t                 maxBlocks  = 0;
+    std::string              previous;
+    std::wstring             ignored;
+
+
+
+    for (AppleScsiCard * card : m_refs.scsiCards)
+    {
+        if (card->GetSlot() == slot && drive >= 0 && drive < AppleScsiCard::kTargets)
+        {
+            media = &card->GetTarget (drive).GetMedia();
+        }
+    }
+
+    for (ProFileCard * card : m_refs.proFileCards)
+    {
+        if (card->GetDrive().GetSlot() == slot && drive == 0)
+        {
+            media     = &card->GetDrive().GetMedia();
+            maxBlocks = card->GetDrive().GetCapacity();
+        }
+    }
+
+    for (SlotConfig & entry : m_config->slots)
+    {
+        if (entry.slot == slot && drive >= 0 && (size_t) drive < entry.ports.size())
+        {
+            port = &entry.ports[(size_t) drive];
+        }
+    }
+
+    CBREx (media != nullptr && port != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    if (maxBlocks == 0)
+    {
+        spec = BlockDeviceCatalog::FindDrive (port->device);
+        CBREx (spec != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+        maxBlocks = spec->maxBlocks;
+    }
+
+    previous = media->GetPath();
+
+    hr = media->Attach (GetBlockMediaFileIo(), path, maxBlocks, ProbeBlockMedia (path), outError);
+
+    if (SUCCEEDED (hr) && StorageCardWiring::RejectFloppyImage (*media, outError))
+    {
+        hr = HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
+    }
+
+    if (FAILED (hr) && !previous.empty())
+    {
+        hrPrevious = media->Attach (GetBlockMediaFileIo(), previous, maxBlocks, ProbeBlockMedia (previous), ignored);
+        IGNORE_RETURN_VALUE (hrPrevious, S_OK);
+    }
+
+    CHR (hr);
+
+    port->image = path;
 
 Error:
     return hr;

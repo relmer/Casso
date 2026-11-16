@@ -563,6 +563,7 @@
     <ClCompile Include="EmuTests\ProDosModifiedDateTests.cpp" />
     <ClCompile Include="EmuTests\FrameClockTests.cpp" />
     <ClCompile Include="EmuTests\OpenAppleResetTests.cpp" />
+    <ClCompile Include="EmuTests\AcceleratorTableTests.cpp" />
     <ClCompile Include="EmuTests\CpuCommandDispatcherTests.cpp" />
     <ClCompile Include="EmuTests\GuestSession.cpp" />
     <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
@@ -896,6 +897,8 @@
     <ClCompile Include="BlockDeviceTests\BlockDeviceAttachmentsTests.cpp" />
     <ClCompile Include="BlockDeviceTests\StockHardDiskImageTests.cpp" />
     <ClCompile Include="BlockDeviceTests\ProFileTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\HardDiskAttachTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Floppy35AttachTests.cpp" />
     <ClCompile Include="Floppy35Tests\Gcr35TrackTests.cpp" />
     <ClCompile Include="Floppy35Tests\Sony35DriveTests.cpp" />
     <ClCompile Include="Floppy35Tests\IwmTests.cpp" />

@@ -54,6 +54,7 @@ public:
     ProFileDrive (int slot, uint32_t capacityBlocks) : m_slot (slot), m_capacity (capacityBlocks) {}
 
     uint32_t  GetCapacity () const { return m_capacity; }
+    int       GetSlot     () const { return m_slot; }
 
     // IBlockDeviceEventSource
     void  SetBlockDeviceEventSink (IBlockDeviceEventSink * sink) override { m_sink = sink; }

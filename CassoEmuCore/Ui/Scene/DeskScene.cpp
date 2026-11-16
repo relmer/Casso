@@ -220,11 +220,13 @@ void DeskScene::BuildDerivedGeometry()
     for (int kind = 0; kind < kModelKinds; kind++)
     {
         m_extraShadowVerts[(size_t) kind].clear();
+        m_extraDiskVerts[(size_t) kind].clear();
 
         if (m_hasExtraModel[(size_t) kind])
         {
             BuildContactShadow (m_extraModels[(size_t) kind], kShadowMarginSideMm, kShadowMarginDepthMm,
                                 m_extraShadowVerts[(size_t) kind]);
+            m_extraModels[(size_t) kind].BuildDiskInSlot (m_extraDiskVerts[(size_t) kind]);
         }
     }
 
@@ -1852,6 +1854,13 @@ HRESULT DeskScene::DrawExtras (const DeskSceneComposition & comp, const D3D11_VI
                                     m_geometryRev, mvp, false, viewport, true);
         CHRA (hr);
 
+        if (extra.hasDisk && !m_extraDiskVerts[kind].empty())
+        {
+            hr = m_renderer.DrawStatic (m_extraDiskMesh[kind], m_extraDiskVerts[kind].data(), m_extraDiskVerts[kind].size(),
+                                        m_geometryRev, mvp, false, viewport, true);
+            CHRA (hr);
+        }
+
         if (!extra.labelVerts.empty())
         {
             hr = m_renderer.DrawStatic (m_extraLabelMesh[(size_t) i], extra.labelVerts.data(), extra.labelVerts.size(),
@@ -1895,6 +1904,7 @@ HRESULT DeskScene::LoadExtraModel (DeskDriveModel model, std::span<const uint8_t
 
     m_extraShadowVerts[kind].clear();
     BuildContactShadow (m_extraModels[kind], kShadowMarginSideMm, kShadowMarginDepthMm, m_extraShadowVerts[kind]);
+    m_extraModels[kind].BuildDiskInSlot (m_extraDiskVerts[kind]);
 
     m_lampsDirty = true;
     TouchGeometry();
@@ -1969,7 +1979,7 @@ void DeskScene::SetDrivePlan (const std::vector<DeskDrivePlacement> & plan)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DeskScene::SetExtraVisuals (int index, bool lampOn, const std::wstring & label)
+void DeskScene::SetExtraVisuals (int index, bool lampOn, bool hasDisk, const std::wstring & label)
 {
     ExtraDrive  * extra = (index >= 0 && index < (int) m_extras.size()) ? &m_extras[(size_t) index] : nullptr;
 
@@ -1980,9 +1990,10 @@ void DeskScene::SetExtraVisuals (int index, bool lampOn, const std::wstring & la
         return;
     }
 
-    if (lampOn != extra->lampOn)
+    if (lampOn != extra->lampOn || hasDisk != extra->hasDisk)
     {
-        extra->lampOn = lampOn;
+        extra->lampOn  = lampOn;
+        extra->hasDisk = hasDisk;
         InvalidatePlate();
     }
 

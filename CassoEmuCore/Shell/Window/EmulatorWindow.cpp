@@ -770,7 +770,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
         (void) vr;                                        // dock side-effect: bands arranged
 
-        if (DeskSceneActive() && m_scene->AreDrivesOnBar())
+        // The drive bar is in the desk theme's band, and in a compact theme's
+        // when the machine has drives other than its Disk II drives.
+        if (m_scene->AreDrivesOnBar())
         {
             m_chrome->LayoutDriveBar (bottomInsetPx, clientW, clientH, dpi);
             m_scene->SyncSceneDriveChrome();
@@ -1574,7 +1576,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
             // The drive bar rides the slide over the picture, as the desk's
             // drives do.
-            if (DeskSceneActive() && m_scene->AreDrivesOnBar())
+            if (m_scene->AreDrivesOnBar())
             {
                 m_chrome->LayoutDriveBar (0, static_cast<int> (width), renderH, dpi);
                 m_scene->SyncSceneDriveChrome();
@@ -1606,10 +1608,11 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
             (void) vr;                                        // dock side-effect: bands arranged
 
-            if (DeskSceneActive() && m_scene->AreDrivesOnBar())
+            if (m_scene->AreDrivesOnBar())
             {
                 // Drives are on the drive bar, so the bar is laid out in the
-                // band under the scene, or on the slide when auto-hidden.
+                // band under the scene or the compact theme's picture, or on
+                // the slide when auto-hidden.
                 m_chrome->LayoutDriveBar (bottomInsetPx, static_cast<int> (width), renderH, dpi);
             }
             else if (DeskSceneActive())
@@ -1665,7 +1668,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
             m_chrome->LayoutSwitchBar (dpi);
 
-            if (DeskSceneActive())
+            if (DeskSceneActive() || m_scene->AreDrivesOnBar())
             {
                 m_scene->SyncSceneDriveChrome();
             }
@@ -2048,6 +2051,21 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
+    // A hard disk's new image attached on the CPU thread, saved with the
+    // machine here.
+    if (msg == (UINT) AppMessage::ShellHardDiskImage)
+    {
+        ShellDisks::HardDiskImageChange *  change = reinterpret_cast<ShellDisks::HardDiskImageChange *> (lParam);
+
+        if (change != nullptr)
+        {
+            SaveHardDiskImage (change->slot, change->drive, change->path);
+            delete change;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
     // Game-port input submitted off the UI thread (the controller thread, or a
     // machine rebuild) waits here to be written: the device setters report
     // host input to their input event sink, which is UI-thread only.
@@ -2143,7 +2161,6 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         // The switched machine's drives are not the ones the open pickers
         // were opened for.
         m_drivePickers->CloseAll();
-        m_disks->HideStagedImageBanner();
 
         m_window->UpdateWindowTitle();
         m_chrome->ReflowChromeForMachineChange();

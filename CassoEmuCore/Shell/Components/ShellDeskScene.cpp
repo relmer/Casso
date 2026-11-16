@@ -412,6 +412,14 @@ void ShellDeskScene::ApplyChromeThemeByName (const std::string & themeName)
 
 
     m_shell.m_chrome->GetTheme() = CassoTheme::MakeByName (themeName, !m_deskSceneFailed);
+
+    // A compact theme plans the drives for its drive band, so the plan
+    // follows the theme, before the chrome is laid out for it.
+    if (m_deskSceneReady)
+    {
+        PlanDrives();
+    }
+
     m_shell.m_chrome->ApplyThemeToChrome (m_shell.m_chrome->GetTheme());
 
     if (needsDeskScene && m_deskSceneFailed)
@@ -1428,7 +1436,7 @@ void ShellDeskScene::SyncSceneDriveChrome()
         }
     }
 
-    // The drive bar's 3.5-inch drives that are showing.
+    // The drive bar's 3.5-inch drives and hard disks that are showing.
     if (m_shell.m_chrome->GetDriveBarFan().IsVisible())
     {
         const DriveBarFan  & fan = m_shell.m_chrome->GetDriveBarFan().GetFan();
@@ -3312,10 +3320,13 @@ void ShellDeskScene::UpdateSceneOrbit (int x, int y)
 
 void ShellDeskScene::PlanDrives()
 {
-    const GlobalUserPrefs  & prefs   = m_shell.m_settings->GetPrefs();
-    float                    lo[3]   = {};
-    float                    hi[3]   = {};
-    float                    monitor = 0.0f;
+    const GlobalUserPrefs   & prefs     = m_shell.m_settings->GetPrefs();
+    float                     lo[3]     = {};
+    float                     hi[3]     = {};
+    float                     monitor   = 0.0f;
+    std::vector<DeskDrive>    drives;
+    DeskClassPlace            floppies  = DeskDrivePlan::ParsePlace (prefs.deskFloppies);
+    DeskClassPlace            hardDisks = DeskDrivePlan::ParsePlace (prefs.deskHardDisks);
 
 
 
@@ -3324,12 +3335,15 @@ void ShellDeskScene::PlanDrives()
     monitor = hi[0] - lo[0];
 
     m_plannedDiskIiCount = CountDiskIiDrives();
+    drives               = DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), m_plannedDiskIiCount, m_shell.m_disks->HasDiskIicDrives());
 
-    m_drivePlan = DeskDrivePlan::Place (DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), m_plannedDiskIiCount, m_shell.m_disks->HasDiskIicDrives()),
-                                        DeskDrivePlan::ParsePlace (prefs.deskFloppies),
-                                        DeskDrivePlan::ParsePlace (prefs.deskHardDisks),
-                                        monitor,
-                                        prefs.deskFloppyPairBeside);
+    // A compact theme's drive band has the Disk II widgets or the drive bar.
+    if (m_shell.m_chrome->GetTheme().compactDrives)
+    {
+        DeskDrivePlan::GetCompactPlaces (drives, floppies, hardDisks);
+    }
+
+    m_drivePlan = DeskDrivePlan::Place (drives, floppies, hardDisks, monitor, prefs.deskFloppyPairBeside);
 
     for (const DeskDrivePlacement & placed : m_drivePlan)
     {
@@ -3492,16 +3506,31 @@ bool ShellDeskScene::IsFloppy35 (const DeskDrive & drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDeskScene::IsHardDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsHardDisk (const DeskDrive & drive)
+{
+    return DeskDrivePlan::GetClass (drive.model) == DeskDriveClass::HardDisk;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDeskScene::TakesImage
 //
-//  A 3.5-inch drive, which mounts the image, or a hard disk, for which the
-//  image is staged.
+//  A 3.5-inch drive, which mounts the image, or a hard disk, which attaches
+//  it after a confirmed restart.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ShellDeskScene::TakesImage (const DeskDrive & drive)
 {
-    return IsFloppy35 (drive) || drive.model == DeskDriveModel::HardDisk20SC || drive.model == DeskDriveModel::ProFile;
+    return IsFloppy35 (drive) || IsHardDisk (drive);
 }
 
 
@@ -3555,6 +3584,32 @@ bool ShellDeskScene::IsDriveBusy (const DeskDrive & drive, uint64_t now, uint64_
     }
 
     return busy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::HasDiskIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::HasDiskIn (const DeskDrive & drive) const
+{
+    Sony35Drive  * sony     = nullptr;
+    bool           hasDisk  = false;
+
+
+
+    if (drive.model == DeskDriveModel::UniDisk35 || drive.model == DeskDriveModel::Apple35Drive || drive.model == DeskDriveModel::Apple35Plus)
+    {
+        sony    = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+        hasDisk = sony != nullptr && sony->HasDisk();
+    }
+
+    return hasDisk;
 }
 
 
@@ -3908,7 +3963,11 @@ bool ShellDeskScene::AreDrivesOnBar() const
 
 void ShellDeskScene::BrowseExtraDrive (int index)
 {
-    if (index >= 0 && index < m_deskScene.GetExtraCount())
+    if (index >= 0 && index < m_deskScene.GetExtraCount() && IsHardDisk (m_deskScene.GetExtraDrive (index)))
+    {
+        m_shell.BrowseHardDisk (m_deskScene.GetExtraDrive (index));
+    }
+    else if (index >= 0 && index < m_deskScene.GetExtraCount())
     {
         BrowseDeskDrive (m_deskScene.GetExtraDrive (index));
     }
@@ -3948,10 +4007,17 @@ void ShellDeskScene::InsertInExtraDrive (int index, const std::wstring & path)
 
 
 
-    BAIL_OUT_IF (index < 0 || index >= m_deskScene.GetExtraCount() || !IsFloppy35 (m_deskScene.GetExtraDrive (index)), S_OK);
+    BAIL_OUT_IF (index < 0 || index >= m_deskScene.GetExtraCount(), S_OK);
 
-    hr = m_shell.m_disks->Mount (m_deskScene.GetExtraDrive (index).slot, m_deskScene.GetExtraDrive (index).drive, path);
-    CHR (hr);
+    if (IsHardDisk (m_deskScene.GetExtraDrive (index)))
+    {
+        m_shell.ChangeHardDiskImage (m_deskScene.GetExtraDrive (index), path);
+    }
+    else if (IsFloppy35 (m_deskScene.GetExtraDrive (index)))
+    {
+        hr = m_shell.m_disks->Mount (m_deskScene.GetExtraDrive (index).slot, m_deskScene.GetExtraDrive (index).drive, path);
+        CHR (hr);
+    }
 
 Error:
     return;

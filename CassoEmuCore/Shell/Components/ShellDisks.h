@@ -91,6 +91,16 @@ public:
     void     ResolvePendingChange    (int slot, int drive, int action, const std::string & savePath) override;
     void     InsertFloppy35          (int slot, int drive, const std::string & path) override;
     void     EjectFloppy35           (int slot, int drive) override;
+    HRESULT  AttachHardDisk          (int slot, int drive, const std::string & path) override;
+
+    // A hard disk's new image, posted from the CPU thread to the UI thread
+    // as AppMessage::ShellHardDiskImage, which saves it with the machine.
+    struct HardDiskImageChange
+    {
+        int          slot  = 0;
+        int          drive = 0;
+        std::string  path;
+    };
 
     // IDriveCommandSink
     // UI-thread entry points the drive widgets call into when the user
@@ -221,13 +231,6 @@ public:
     void  ShowChangeBanner (const ChangeNotice & notice);
     void  AskAboutChange   (const ChangeNotice & notice);
 
-    // The same strip, for an image staged for a hard disk: the drive, when
-    // the image takes effect, and a button that restarts the machine. A
-    // restart of the machine closes it.
-    void                 ShowStagedImageBanner (const std::wstring & driveLabel);
-    void                 HideStagedImageBanner ();
-    static std::wstring  MakeStagedImageText   (const std::wstring & driveLabel);
-
     // Non-modal notice over the running machine: a disk changed outside Casso.
     //
     // IT DOES NOT CLEAR ITSELF, and that is the design rather than an
@@ -314,7 +317,6 @@ private:
     //  what was left when it arrived.
     int64_t                            m_changeBannerHideAtMs = 0;
     int64_t                            m_changeBannerTickMs   = 0;
-    bool                               m_isStagedBanner       = false;   // the strip is the staged-image notice, whose button restarts the machine
 
     std::unique_ptr<DiskManager>       m_diskManager;
 

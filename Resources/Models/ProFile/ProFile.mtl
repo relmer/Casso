@@ -280,12 +280,12 @@ d 1
 
 newmtl model_text
 Ka 0 0 0 
-Kd 0.12 0.12 0.13
+Kd 0.08 0.08 0.085
 d 1
 
 newmtl maker_text
 Ka 0 0 0 
-Kd 0.12 0.12 0.13
+Kd 0.08 0.08 0.085
 d 1
 
 newmtl db25_shell
@@ -305,7 +305,7 @@ d 1
 
 newmtl voltage_text
 Ka 0 0 0 
-Kd 0.12 0.12 0.13
+Kd 0.08 0.08 0.085
 d 1
 
 newmtl caution_label
@@ -320,27 +320,27 @@ d 1
 
 newmtl caution_line0
 Ka 0 0 0 
-Kd 0.12 0.12 0.13
+Kd 0.08 0.08 0.085
 d 1
 
 newmtl caution_line1
 Ka 0 0 0 
-Kd 0.12 0.12 0.13
+Kd 0.08 0.08 0.085
 d 1
 
 newmtl caution_line2
 Ka 0 0 0 
-Kd 0.12 0.12 0.13
+Kd 0.08 0.08 0.085
 d 1
 
 newmtl caution_line3
 Ka 0 0 0 
-Kd 0.12 0.12 0.13
+Kd 0.08 0.08 0.085
 d 1
 
 newmtl caution_line4
 Ka 0 0 0 
-Kd 0.12 0.12 0.13
+Kd 0.08 0.08 0.085
 d 1
 
 newmtl caution_text

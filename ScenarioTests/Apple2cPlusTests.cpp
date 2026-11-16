@@ -2,7 +2,9 @@
 
 #include "GuestSession.h"
 #include "TestMachine.h"
+#include "Devices/IInputEventSink.h"
 #include "Machines/Apple2/Apple2cPlus/Apple2cPlusAccelerator.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -15,7 +17,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  Apple2cPlusTests
 //
 //  The //c Plus's accelerator in a whole machine: the same delay loop takes
-//  about a quarter of the //c's machine cycles.
+//  about a quarter of the //c's machine cycles, and ROM 05 reads Open Apple
+//  within Apple2eKeyboard::kResetHoldCycles of a Ctrl-Open-Apple-Reset.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,4 +75,74 @@ public:
 
         Assert::IsTrue (ratio > 3.8 && ratio < 4.0, std::format (L"//c {} cycles, //c Plus {} cycles", apple2c, apple2cPlus).c_str());
     }
+
+
+    //  After a reset the shell starts with Open Apple down, the key reads as
+    //  down for Apple2eKeyboard::kResetHoldCycles CPU cycles, and the //c
+    //  Plus's cycles pass four times as fast. ROM 05 reads the key within
+    //  that window.
+    TEST_METHOD (OpenAppleReset_ReadsTheKeyWhileTheHoldIsOn)
+    {
+        constexpr uint64_t  kPowerOn = 30'000'000;
+        constexpr uint32_t  kTick    = 1'000;
+
+        TestMachine        machine ("Apple2cPlus");
+        ButtonReads        sink;
+        MachineObservers   observers;
+        Apple2eKeyboard  * keyboard = machine.GetRefs().iieKeyboard;
+        uint64_t           resetAt  = 0;
+
+
+
+        sink.machine    = &machine;
+        observers.input = &sink;
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+        machine.RunCycles (kPowerOn);
+        machine.AttachObservers (observers);
+
+        resetAt = machine.GetCpu()->GetTotalCycles();
+        keyboard->HoldAppleKeysThroughReset (true, false);
+        machine.SoftReset();
+
+        for (uint32_t ran = 0; ran < Apple2eKeyboard::kResetHoldCycles && sink.readAt.empty(); ran += kTick)
+        {
+            machine.RunCycles (kTick);
+            keyboard->TickResetHold (kTick);
+        }
+
+        Assert::IsFalse (sink.readAt.empty(), L"ROM 05 reads $C061 within kResetHoldCycles");
+        Assert::IsTrue (sink.readAt[0] - resetAt < Apple2eKeyboard::kResetHoldCycles);
+        Assert::AreEqual<int> (0x80, sink.values[0] & 0x80, L"and reads Open Apple down");
+    }
+
+
+private:
+
+    //  A sink that notes the cycle and value of each read of Open Apple.
+    class ButtonReads : public IInputEventSink
+    {
+    public:
+        MachineHost *          machine = nullptr;
+        std::vector<uint64_t>  readAt;
+        std::vector<Byte>      values;
+
+        void OnKbdDataRead    (Word, Byte, bool) override {}
+        void OnKbdStrobe      (Word, Byte, bool) override {}
+        void OnPaddleTrigger  (Word) override {}
+        void OnPaddleRead     (Word, Byte) override {}
+        void OnHostAutoRepeat (Byte) override {}
+        void OnHostKeyDown    (Byte) override {}
+        void OnHostKeyUp      (Byte) override {}
+
+        void OnButtonRead (Word address, Byte value) override
+        {
+            if (address == 0xC061)
+            {
+                readAt.push_back (machine->GetCpu()->GetTotalCycles());
+                values.push_back (value);
+            }
+        }
+    };
 };
