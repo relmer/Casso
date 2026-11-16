@@ -1866,7 +1866,7 @@ void FullSendSession::End (HRESULT hr)
 
     totals    = m_status.GetSnapshot().totals;
     times     = std::format ("{} active, {} idle", FullSendStatus::FormatClock (totals.elapsed), FullSendStatus::FormatClock (totals.idle));
-    times    += totals.sent != 0 ? std::format (", {} a disk", FullSendStatus::FormatClock (totals.average)) : std::string();
+    times    += totals.sent != 0 ? std::format (", average {} per disk", FullSendStatus::FormatClock (totals.average)) : std::string();
     m_message = std::format ("Full Send ended with {} sent, {} duplicates and {} with bad sectors. {}. {}", m_screen.sent, m_screen.duplicates, m_screen.bad, times, why);
 }
 

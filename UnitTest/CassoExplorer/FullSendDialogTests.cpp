@@ -177,7 +177,7 @@ public:
         totals.rawCaptures = 1;
         totals.average     = 26.0;
         totals.bytes       = 2 * 143360;
-        Assert::AreEqual (std::wstring (L"2 sent, 1 duplicate, 0 blank, 1 raw capture, 0 with bad sectors    1:05 active, 0:00 idle, 0:26 a disk, 0.3 MB"), FullSendPanel::DescribeTotals (totals));
+        Assert::AreEqual (std::wstring (L"2 sent, 1 duplicate, 0 blank, 1 raw capture, 0 with bad sectors    1:05 active, 0:00 idle, average 0:26 per disk, 0.3 MB"), FullSendPanel::DescribeTotals (totals));
     }
 
 

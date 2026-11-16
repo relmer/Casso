@@ -537,7 +537,7 @@ std::wstring FullSendPanel::DescribeTotals (const FullSendTotals & totals)
 
     if (totals.sent != 0)
     {
-        text += std::format (L", {} a disk, {:.1f} MB", FormatSeconds (totals.average), (double) totals.bytes / (1024.0 * 1024.0));
+        text += std::format (L", average {} per disk, {:.1f} MB", FormatSeconds (totals.average), (double) totals.bytes / (1024.0 * 1024.0));
     }
 
     return text;
