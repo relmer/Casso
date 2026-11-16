@@ -381,6 +381,40 @@ public:
     }
 
 
+    //  WITH REAL TIMING, THE PROFILE ISN'T READY AT POWER-ON, so the slot scan
+    //  passes over it to BASIC. PR#5 boots it once the 5 MB drive's 60
+    //  seconds have passed.
+    TEST_METHOD (ProFile_RealTimingBootsWhenReady)
+    {
+        constexpr uint64_t       kReadyCycles = 62'000'000ULL;
+        FakeDiskFileIo           io;
+        std::vector<Byte>        image        = ToHardDiskImage (GuestSession::RequireProDosUsersDisk());
+        std::vector<PortConfig>  ports (1);
+
+
+
+        io.files[kHardDiskPath]  = image;
+        io.stamps[kHardDiskPath] = FileStamp { image.size(), 1 };
+
+        ports[0].device     = kpszProFile5Device;
+        ports[0].image      = kHardDiskPath;
+        ports[0].realTiming = true;
+
+        TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszProFileCardDevice, ports } }, io);
+
+        Assert::IsTrue (machine.GetRefs().proFileCards[0]->GetDrive().IsRealTiming());
+
+        Boot (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "]", kBootCap), L"the scan passes over the drive that isn't ready");
+
+        machine.RunCycles (kReadyCycles);
+        KeystrokeInjector::InjectLine (machine, "PR#5");
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots once the drive is ready");
+    }
+
+
     //  THE PROFILE CARD BOOTS ON THE ][+ AND THE UNENHANCED //E with PR#5,
     //  their ROMs looking for the Disk II's signature at power-on.
     TEST_METHOD (ProFile_BootsOnEachHostMachine)

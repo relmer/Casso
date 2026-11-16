@@ -197,6 +197,7 @@ void StorageCardWiring::WireProFileCard (const SlotConfig & slot, ProFileCard & 
     }
 
     card.SetDrive (std::make_unique<ProFileDrive> (slot.slot, drive->maxBlocks));
+    card.GetDrive().SetRealTiming (!slot.ports.empty() && slot.ports[0].realTiming, m_host.GetConfig().clockSpeed, 0);
 
     if (device == kpszProFile10Device && std::filesystem::path (romPath).filename() == kpsz5MbRom)
     {

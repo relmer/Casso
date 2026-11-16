@@ -485,10 +485,14 @@ average seek and rotational latency per access. Sounds are audible in both
 modes. **To verify**: the spin-up and seek times of the HD20SC and the ProFile,
 from their service manuals.
 
-**Update** (2026-11-16): not checked against a service manual. The HD20SC
-uses a 10 s spin-up and a 65 ms average seek plus half a turn at 3,600 RPM
-(`ScsiHardDisk`). The Machine tab has a real timing checkbox for a ProFile
-too, and `ProFileDrive` doesn't read it yet (task T114).
+**Update** (2026-11-16): the HD20SC's times aren't checked against a
+service manual. It uses a 10 s spin-up and a 65 ms average seek plus half a
+turn at 3,600 RPM (`ScsiHardDisk`). The ProFile's are Apple's specifications
+(https://apple3.org/Documents/Technotes/1128.html): ready to operate 60 s
+after power-on for the 5 MB drive and 120 s for the 10 MB drive, average
+seeks of 180 ms and 85 ms, 3,600 RPM (`ProFileDrive`). A ProFile that isn't
+ready at power-on is passed over by the slot scan, and `PR#n` boots it once
+it is.
 
 ## R16. Desk scene
 

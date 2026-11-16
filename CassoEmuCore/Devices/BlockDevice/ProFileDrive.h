@@ -64,7 +64,7 @@ public:
     void  WriteData      (Byte value);
     Byte  ReadData       ();
 
-    bool  IsBusy         () const { return m_busy; }
+    bool  IsBusy         () const { return m_busy && GetNow() >= m_readyCycle; }
     bool  IsPresent      () const { return true; }
     void  Reset          ();
 
@@ -73,6 +73,14 @@ public:
 
     void      SetClock             (const uint64_t * clock) { m_clock = clock; }
     uint64_t  GetLastActivityCycle () const { return m_lastActivity.load (std::memory_order_relaxed); }
+
+    // With real timing, BSY is asserted for a handshake only once the drive
+    // is ready to operate after power-on, and the state after a read or write
+    // command is offered after an average seek and half a turn. Apple's
+    // specifications: 60 s and 180 ms for the 5 MB drive, 120 s and 85 ms for
+    // the 10 MB drive, at 3,600 RPM.
+    void      SetRealTiming        (bool isOn, uint32_t cpuClockHz, uint64_t powerOnCycle);
+    bool      IsRealTiming         () const { return m_realTiming; }
 
 private:
     enum class Phase : Byte
@@ -85,6 +93,7 @@ private:
 
     void      RunCommand   ();
     void      FinishWrite  ();
+    uint64_t  GetSeekDelay () const;
     void      BuildIdBlock (std::vector<Byte> & outBlock) const;
     void      Emit         (BlockDeviceOp op, uint32_t block, Byte result);
     uint64_t  GetNow       () const { return m_clock != nullptr ? *m_clock : 0; }
@@ -102,5 +111,8 @@ private:
     uint32_t                 m_block        = 0;
     std::vector<Byte>        m_buffer;
     size_t                   m_index        = 0;
+    bool                     m_realTiming   = false;
+    uint32_t                 m_clockHz      = 0;
+    uint64_t                 m_readyCycle   = 0;
     std::atomic<uint64_t>    m_lastActivity { 0 };
 };

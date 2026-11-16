@@ -74,7 +74,7 @@ The rules in this section are checked against both card ROMs (research R6).
 |---|---|---|
 | `model` | `ProFile5MB`, `ProFile10MB` | 9,728 or 19,456 blocks. |
 | `media` | `BlockDeviceMedia` | 512-byte blocks; the 20 tag bytes are zeros on read and discarded on write. |
-| `realTiming` | bool | Off by default. `ProFileDrive` doesn't read it yet (task T114). |
+| `realTiming` | bool | Off by default. On: BSY waits for the drive to be ready after power-on, and a read or write waits for a seek (research R15). |
 
 Handshake states: `Idle -> CommandWait ($01) -> CommandReceive (6 bytes) ->
 ReadyForData ($02 or $03) -> Transfer (532 bytes) -> Status ($04, 4 bytes) ->
