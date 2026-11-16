@@ -180,6 +180,30 @@ std::vector<DeskDrivePlacement> DeskDrivePlan::Place (const std::vector<DeskDriv
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskDrivePlan::HasDiskIiPairUnderMonitor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskDrivePlan::HasDiskIiPairUnderMonitor (const std::vector<DeskDrivePlacement> & plan)
+{
+    int  count = 0;
+
+
+
+    for (const DeskDrivePlacement & placed : plan)
+    {
+        count += (placed.spot == DeskDriveSpot::UnderMonitor && IsDiskII (placed.drive.model)) ? 1 : 0;
+    }
+
+    return count == 2;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsDiskII
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -296,7 +320,7 @@ std::vector<DeskDrive> DeskDrivePlan::Collect (const MachineConfig & config, int
     // 3.5-inch drive, so both of its 5.25-inch drives are on the port.
     for (int i = 0; i < diskIiCount; i++)
     {
-        out.push_back ({ isC ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII, 6, i, isC && i == 0 && !hasInner35 });
+        out.push_back ({ isC ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII, 6, i, isC && i == 0 && !hasInner35, hasInner35 });
     }
 
     if (hasInner35)

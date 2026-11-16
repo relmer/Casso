@@ -613,30 +613,30 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         }
 
         // A 3.5-inch drive or hard disk on the desk, or a Disk II in a stack,
-        // has no name strip, so its case's tip has its name, its size and its
-        // image.
-        if (tip.empty() && DeskSceneActive() && !AreDrivesOnStrip())
+        // has no name strip, so the drive under the pointer has its image's
+        // name on its front.
         {
-            const DeskSceneComposition  & comp = m_scene->m_deskScene.Composition();
+            const DeskSceneComposition  & comp       = m_scene->m_deskScene.Composition();
+            int                           hoverExtra = -1;
+            int                           hoverDisk  = -1;
+            bool                          isOnDesk   = DeskSceneActive() && !AreDrivesOnStrip();
+            float                         extraT     = 0.0f;
 
 
 
-            for (int i = 0; i < comp.driveCount && i < 2 && m_scene->AreDiskIiStacked() && tip.empty(); i++)
+            if (isOnDesk)
             {
-                if (PtInRect (&comp.driveRectPx[i], pointer))
-                {
-                    anchor = comp.driveRectPx[i];
-                    tip    = m_scene->GetDiskIiTip (i);
-                }
+                hoverExtra = m_scene->GetExtraAt (pointer.x, pointer.y, extraT);
             }
 
-            for (int i = 0; i < comp.extraCount && i < m_scene->m_deskScene.GetExtraCount() && tip.empty(); i++)
+            for (int i = 0; isOnDesk && hoverExtra < 0 && i < comp.driveCount && i < 2 && m_scene->AreDiskIiStacked() && hoverDisk < 0; i++)
             {
-                if (PtInRect (&comp.extraRectPx[i], pointer))
-                {
-                    anchor = comp.extraRectPx[i];
-                    tip    = m_scene->GetExtraDriveTip (i);
-                }
+                hoverDisk = PtInRect (&comp.driveRectPx[i], pointer) ? i : -1;
+            }
+
+            if (m_scene->SetHoverDrive (hoverExtra, hoverDisk))
+            {
+                m_renderer->m_d3dRenderer.MarkRedrawNeeded();
             }
         }
 
@@ -704,6 +704,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
     // and the desk's scrolling name returns to its start.
     m_tapeDeck->GetWidget().UpdateHover (INT_MIN / 2, INT_MIN / 2);
     m_scene->m_recorderHoverKey = -1;
+    m_scene->SetHoverDrive (-1, -1);
 
     if (m_scene->UpdateSceneLabelHover (INT_MIN / 2, INT_MIN / 2, nowMs))
     {
@@ -1539,7 +1540,8 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     {
         SceneHitResult  hit    = m_scene->DeskSceneHit (x, y);
         bool            onDoor = hit.target == SceneHitResult::Target::Drive
-                                 && hit.region == DriveWidgetRegion::Eject;
+                                 && hit.region == DriveWidgetRegion::Eject
+                                 && m_scene->GetExtraUnder (hit, x, y) < 0;
 
         if (!onDoor && hit.target != SceneHitResult::Target::BezelTilt)
         {
@@ -1785,6 +1787,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                                   m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
                                   PtInRect (&m_scene->m_stripRectPx, pt);
         SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
+        int             extra    = inStrip ? -1 : m_scene->GetExtraUnder (sceneHit, x, y);
+
+        // A 3.5-inch drive or hard disk in front of the Disk II takes the
+        // click, below.
+        if (extra >= 0)
+        {
+            sceneHit = SceneHitResult {};
+        }
 
         // ONLY THE DOOR ACTS. The body region stays for hover -- the
         // tooltip that names the disk -- but a click there does nothing:
@@ -1833,20 +1843,12 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         }
 
         // A 3.5-inch drive or hard disk on the desk picks an image for itself.
-        else if (!inStrip)
+        else if (extra >= 0 && !driveTook &&
+                 (ShellDeskScene::IsFloppy35 (m_scene->m_deskScene.GetExtraDrive (extra)) ||
+                  ShellDeskScene::IsHardDisk (m_scene->m_deskScene.GetExtraDrive (extra))))
         {
-            const DeskSceneComposition  & comp = m_scene->m_deskScene.Composition();
-
-
-
-            for (int i = 0; i < comp.extraCount && i < m_scene->m_deskScene.GetExtraCount() && !driveTook; i++)
-            {
-                if (ShellDeskScene::TakesImage (m_scene->m_deskScene.GetExtraDrive (i)) && PtInRect (&comp.extraRectPx[i], pt))
-                {
-                    m_scene->BrowseExtraDrive (i);
-                    driveTook = true;
-                }
-            }
+            m_scene->BrowseExtraDrive (extra);
+            driveTook = true;
         }
 
         m_scene->m_stripBrowseOpen = false;
@@ -2060,44 +2062,44 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
 int EmulatorShell::StorageDeviceAt (int x, int y) const
 {
-    POINT  pt = { x, y };
+    POINT                 pt    = { x, y };
+    const DriveBarFan   & fan   = m_chrome->m_driveBarFan.GetFan();
+    int                   c     = -1;
+    int                   entry = -1;
 
 
+
+    // The drive bar first, in every theme: it is drawn over the scene and
+    // the flat drive widgets.
+    if (m_chrome->m_driveBarFan.IsVisible() && fan.HitTest (pt, c, entry))
+    {
+        const DeskDrive  & drive = fan.GetDrive (c, entry);
+
+        return (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
+               ? drive.drive
+               : kStorageMenuBar + c * ShellDeskScene::kBarDropClassStride + entry;
+    }
 
     if (DeskSceneActive())
     {
-        bool                          inStrip  = AreDrivesOnStrip() &&
-                                                 m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
-                                                 PtInRect (&m_scene->m_stripRectPx, pt);
-        SceneHitResult                sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
-        const DriveBarFan           & fan      = m_chrome->m_driveBarFan.GetFan();
-        const DeskSceneComposition  & comp     = m_scene->m_deskScene.Composition();
-        int                           c        = -1;
-        int                           entry    = -1;
+        bool            inStrip  = AreDrivesOnStrip() &&
+                                   m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
+                                   PtInRect (&m_scene->m_stripRectPx, pt);
+        SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
+        int             extra    = inStrip ? -1 : m_scene->GetExtraUnder (sceneHit, x, y);
 
 
 
-        // The drive bar first: it is drawn over the scene.
-        if (m_chrome->m_driveBarFan.IsVisible() && fan.HitTest (pt, c, entry))
+        // A 3.5-inch drive or hard disk in front of the Disk II takes the
+        // click, as a left click does.
+        if (extra >= 0)
         {
-            const DeskDrive  & drive = fan.GetDrive (c, entry);
-
-            return (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
-                   ? drive.drive
-                   : kStorageMenuBar + c * ShellDeskScene::kBarDropClassStride + entry;
+            return kStorageMenuDeskExtra + extra;
         }
 
         if (sceneHit.target == SceneHitResult::Target::Drive)
         {
             return sceneHit.driveIndex;
-        }
-
-        for (int i = 0; i < comp.extraCount && i < m_scene->m_deskScene.GetExtraCount(); i++)
-        {
-            if (PtInRect (&comp.extraRectPx[i], pt))
-            {
-                return kStorageMenuDeskExtra + i;
-            }
         }
 
         // The recorder has its own hit test, which checks whether it is on

@@ -78,6 +78,17 @@ public:
                                      const float *                      recorderKeyBoxes  = nullptr,
                                      size_t                             recorderKeyCount  = 0);
 
+    // How far along the ray through a screen point, in world units, the ray
+    // enters a box in a device's model frame. Of two devices, the one with
+    // the smaller distance is in front. False when the ray misses the box.
+    static bool  TryGetRayEntry (const DeskSceneComposition & comp,
+                                 const float                  world[16],
+                                 const float                  boxMin[3],
+                                 const float                  boxMax[3],
+                                 float                        screenX,
+                                 float                        screenY,
+                                 float                      & outDistance);
+
 private:
     // Slab test; reports the entry distance so drives can compete on
     // nearest-hit.

@@ -4,6 +4,7 @@
 #include "CassoExplorer/ExplorerInspectorHost.h"
 #include "CassoExplorer/ExplorerBlockInspectorWindow.h"
 #include "CassoExplorer/ExplorerInspectorWindow.h"
+#include "CassoExplorer/ICassoExplorerHost.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
@@ -205,6 +206,7 @@ HRESULT InspectorWindowSet::Open (HINSTANCE hInstance, HWND anchor, const std::w
 
     entry->intents = m_seams.makeIntents (entry->window->GetHwnd());
     entry->host->SetIntents (entry->intents.get());
+    entry->host->SetOnRepaired ([this, raw = entry.get()] (const std::wstring & copy) { ShowRepairedCopy (*raw, copy); });
 
     entry->host->SetOnClosed ([this, raw = entry.get()] ()
     {
@@ -634,13 +636,24 @@ void InspectorWindowSet::Release()
 //
 //  InspectorWindowSet::StartTimer
 //
+//  Windows times a timer to its clock's tick, 15.6 ms by default, so a 16 ms
+//  timer waits for the second tick and frames come every 31 ms, unevenly. The
+//  clock runs at 1 ms while the timer runs, so a frame comes every 16 ms and
+//  the windows' animations are smooth.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InspectorWindowSet::StartTimer()
 {
+    MMRESULT  result = TIMERR_NOERROR;
+
+
+
     if (m_timer == 0)
     {
-        m_timer = SetTimer (nullptr, 0, kFrameMs, &OnTimer);
+        result         = timeBeginPeriod (kClockMs);
+        m_isClockFast  = result == TIMERR_NOERROR;
+        m_timer        = SetTimer (nullptr, 0, kFrameMs, &OnTimer);
 
         if (m_timer != 0)
         {
@@ -671,5 +684,37 @@ void InspectorWindowSet::StopTimer()
         IGNORE_RETURN_VALUE (isKilled, TRUE);
         s_timers.erase (m_timer);
         m_timer = 0;
+    }
+
+    if (m_isClockFast)
+    {
+        timeEndPeriod (kClockMs);
+        m_isClockFast = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorWindowSet::ShowRepairedCopy
+//
+//  The window reads the copy, which is beside the image in the same folder,
+//  and the copy is selected in Casso Explorer's first window; nothing is
+//  selected with no explorer, as in a test.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorWindowSet::ShowRepairedCopy (Entry & entry, const std::wstring & path)
+{
+    entry.key = MakeKey (path);
+    entry.host->Retarget (path);
+    entry.window->ReloadDisk();
+
+    if (m_seams.explorer != nullptr)
+    {
+        m_seams.explorer->SelectInFolder (path);
     }
 }

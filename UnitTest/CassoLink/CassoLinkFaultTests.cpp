@@ -410,7 +410,7 @@ public:
         rig.host->SetQuiet (false);
         rig.Read (1, kTrack, AllSectors(), CassoLinkHost::kErrorNotFound);
 
-        Assert::AreEqual (std::string ("ERROR: NO SECTOR D1, T17, S3"), rig.Row (kRowError), L"and one for the same read unmarked");
+        Assert::AreEqual (std::string ("Error: No sector D1, T17, S3"), rig.Row (kRowError), L"and one for the same read unmarked");
     }
 
 
@@ -549,15 +549,15 @@ public:
 
         rig.Connect();
         rig.AssertTrackMatches (rig.Read (1, kTrack, AllSectors()));
-        Assert::IsTrue (rig.Screen().find ("FAILED") == std::string::npos);
+        Assert::IsTrue (rig.Screen().find ("Failed") == std::string::npos);
 
         Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->SendLog (12, 34, "ERR READING D1"); }));
-        Assert::IsTrue (rig.Screen().find ("FAILED") != std::string::npos, TextEncoding::NarrowToWide (rig.Screen()).c_str());
+        Assert::IsTrue (rig.Screen().find ("Failed") != std::string::npos, TextEncoding::NarrowToWide (rig.Screen()).c_str());
 
         Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->SendLog (12, 35, "OK READING D2"); }));
-        Assert::IsTrue (rig.Screen().find ("FAILED") != std::string::npos, L"an OK line doesn't clear it");
+        Assert::IsTrue (rig.Screen().find ("Failed") != std::string::npos, L"an OK line doesn't clear it");
 
         rig.AssertTrackMatches (rig.Read (1, kTrack, AllSectors()));
-        Assert::IsTrue (rig.Screen().find ("FAILED") == std::string::npos, L"the drive's next operation clears it");
+        Assert::IsTrue (rig.Screen().find ("Failed") == std::string::npos, L"the drive's next operation clears it");
     }
 };

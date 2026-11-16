@@ -135,8 +135,9 @@ void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
                                       int                 reachPx,
                                       float               opacity)
 {
-    const wchar_t *  useFace = (face != nullptr) ? face : DxuiTheme::GetUiFace();
-    HRESULT          hr      = S_OK;
+    const wchar_t *  useFace   = (face != nullptr) ? face : DxuiTheme::GetUiFace();
+    HRESULT          hr        = S_OK;
+    HRESULT          hrCapture = E_NOTIMPL;
 
 
 
@@ -165,6 +166,27 @@ void DxuiShadowedText::PaintShadowed (IDxuiTextRenderer & renderer,
     // off for the rings, the glyph's outline takes the brush like any other
     // and the ink pass on top still draws it in color.
     renderer.PushMonochromeGlyphs();
+
+    // A renderer with effects draws the halo as one blurred shadow, which is
+    // smooth at any scale, including a label scaled up on a drive's face in
+    // the desk scene, where the rings appear as streaks. The rings below are
+    // for a renderer without effects.
+    if (reachPx > 0)
+    {
+        hrCapture = renderer.BeginShadowCapture();
+    }
+
+    if (SUCCEEDED (hrCapture))
+    {
+        hr = renderer.DrawString (text, x, y, width, height, 0xFF000000, fontPx, useFace,
+                                  hAlign, vAlign, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        hr = renderer.EndShadowCapture ((float) reachPx * kShadowSpreadOfReach, (float) reachPx * kShadowBlurOfReach, opacity);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        reachPx = 0;
+    }
 
     for (int r = reachPx; r > 0; r--)
     {

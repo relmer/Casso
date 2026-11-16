@@ -49,6 +49,20 @@ public:
 
 
     //
+    //  Black or white, whichever has the higher contrast ratio with `fill`.
+    //  The contrast with one of the two is always at least 4.5:1, WCAG's
+    //  minimum for text.
+    //
+    static uint32_t GetContrastingInk (uint32_t fill)
+    {
+        constexpr uint32_t  s_kBlack = 0xFF000000u;
+        constexpr uint32_t  s_kWhite = 0xFFFFFFFFu;
+
+        return (ComputeContrastRatio (fill, s_kWhite) >= ComputeContrastRatio (fill, s_kBlack)) ? s_kWhite : s_kBlack;
+    }
+
+
+    //
     //  Darkens `accent` in fixed steps until it clears `minRatio` against
     //  white, so a bright accent stays legible behind white labels / thumbs.
     //

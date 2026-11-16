@@ -124,6 +124,27 @@ the interaction, sound and event log the Disk II already has.
   drives are silent until recordings of a real drive replace them. The hard
   disks have their seek ticks.
 
+### Session 2026-11-16
+
+- Q: Where are external drives plugged into the //c Plus's disk port? A: In
+  the Storage menu, which has "Plug in a 3.5-inch drive" and "Plug in a
+  5.25-inch drive" on the //c Plus, each disabled at two drives of its kind,
+  in place of the //c's "Attach external drive". The same rows are on each
+  drive's right-click menu, and a drive on the port has "Unplug drive" there
+  (for the 5.25-inch drives, the last one). A confirmation states that the
+  change restarts the machine, as for a hard disk image change. On Restart
+  the chain is saved with the machine and the machine is rebuilt with it.
+- Q: How many drives does the //c Plus's port take, and can one be changed
+  for the other size? A: Two in all, so both rows are disabled once two
+  drives are plugged in. A drive with "Unplug drive" also has "Swap for a
+  5.25-inch drive" or "Swap for a 3.5-inch drive", which removes it and
+  plugs in one of the other size, behind the same confirmation. The
+  5.25-inch drives are labeled with their slot and drive, "Disk IIc - S6,D1",
+  since the firmware numbers them in slot 6 behind the built-in drive in
+  slot 5.
+- Q: What happens to the window when the theme changes between a 2D and a
+  3D theme? A: The view is reset, as Ctrl+0 does.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Boot a hard disk on the Apple II SCSI Card (Priority: P1)

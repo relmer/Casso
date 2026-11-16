@@ -852,6 +852,12 @@ bool ShellRenderer::TryPresentUiFrame()
                 labelsMoved = true;
             }
 
+            if ((m_shell.m_scene->m_hoverExtra >= 0 || m_shell.m_scene->m_hoverDiskIi >= 0) &&
+                m_shell.m_scene->m_sceneDiskLabelPeriod[(size_t) ShellDeskScene::s_kSceneHoverCell] > 0.0f)
+            {
+                labelsMoved = true;
+            }
+
             if (labelsMoved)
             {
                 m_shell.m_scene->SyncSceneDriveLabels();
@@ -865,8 +871,11 @@ bool ShellRenderer::TryPresentUiFrame()
     // band the hook will render. The flat themes ride the same FSM with the
     // 2D widgets laid into the band, so fullscreen hides the drives the same
     // way everywhere and brings them back the same way too.
+    // The desk slide also raises the 3.5-inch drives, so a desk with only
+    // those has drives to reveal too.
     bool  stripHasDrives = m_shell.DeskSceneActive()
-                         ? m_shell.m_scene->DeskSceneDriveCount() > 0 || m_shell.m_scene->AreDrivesOnBar()
+                         ? m_shell.m_scene->DeskSceneDriveCount() > 0 || m_shell.m_scene->AreDrivesOnBar() ||
+                           (m_shell.IsDeskSlideActive() && m_shell.m_scene->HasDockedExtra())
                          : ((m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller()) ||
                            m_shell.m_scene->AreDrivesOnBar();
 
@@ -956,6 +965,12 @@ bool ShellRenderer::TryPresentUiFrame()
             {
                 m_shell.m_chrome->ComposeDeskSlide (progress);
                 m_shell.m_chrome->SlideDriveBar (progress);
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
+
+            // The dock magnifies under the pointer once it is up.
+            if (m_shell.m_chrome->UpdateDockHover (cursor, PtInRect (&client, cursor) && PtInRect (&engageRect, cursor), stripNowMs))
+            {
                 m_d3dRenderer.MarkRedrawNeeded();
             }
         }

@@ -184,6 +184,26 @@ public:
     }
 
 
+    //  A hidden row is removed when the menu opens, and so is the separator
+    //  that would then be at the top.
+    TEST_METHOD (HiddenRow_IsLeftOutWithItsSeparator)
+    {
+        Fixture               f;
+        DxuiPopupMenu         menu;
+        MockDxuiTextRenderer  text;
+        RECT                  r = {};
+
+
+
+        f.alpha->isVisible = [] () { return false; };
+
+        menu.ShowAt (0, 0, f.FlatList(), text, MakeHost (800, 600));
+        r = menu.GetRect();
+
+        Assert::AreEqual ((LONG) (2 * RowPx (menu)), r.bottom - r.top);
+    }
+
+
     TEST_METHOD (Width_IsLabelColumnPlusAcceleratorColumn)
     {
         Fixture               f;

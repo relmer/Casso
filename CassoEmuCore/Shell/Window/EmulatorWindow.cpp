@@ -10,6 +10,7 @@
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellDrivePickers.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Shell/Components/ShellSerialCard.h"
 #include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/DiskManager.h"
@@ -685,6 +686,27 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_VIEW_DRIVE_STRIP: return AreDrivesAutoHidden();
             default:           return true;
         }
+    });
+
+    m_chrome->m_mainMenu.SetVisibleQuery ([this] (WORD commandId) -> bool
+    {
+        bool  visible = true;
+
+
+
+        switch (commandId)
+        {
+            case IDM_VIEW_FLOPPY_PAIR_BESIDE: visible = m_scene->IsFloppyPairBesideOffered();                                                  break;
+
+            // The //c Plus's port drives are plugged in from the plug-in rows.
+            // Each row is visible only while the port has room for its kind.
+            case IDM_STORAGE_DRIVE2:          visible = !m_disks->IsPortChainOffered();                                                        break;
+            case IDM_STORAGE_ATTACH_APPLE35:  visible = m_disks->IsPortChainOffered() && m_disks->CanPlugInPortDrive (kpszApple35DriveDevice); break;
+            case IDM_STORAGE_ATTACH_FLOPPY:   visible = m_disks->IsPortChainOffered() && m_disks->CanPlugInPortDrive (kpszDiskIicDevice);      break;
+            default:                                                                                                                           break;
+        }
+
+        return visible;
     });
 
     m_chrome->m_mainMenu.SetLabelQuery ([this] (WORD commandId) -> std::wstring

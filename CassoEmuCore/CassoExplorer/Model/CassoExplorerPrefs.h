@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkSettings.h"
+#include "CassoLink/FullSend/FullSendProtection.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "CassoExplorer/Model/FolderViews.h"
 #include "CassoExplorer/Model/Location.h"
@@ -59,6 +60,7 @@ struct CassoExplorerPrefs
     //  Open in viewer setting would.
     bool                   enterExpandsPreview = false;
     bool                   autoThumbnails      = true;     // a disk image in view with no thumbnail is booted for one
+    bool                   rawCopyMenu         = true;     // a drag into File Explorer offers Copy here without conversion (raw bytes)
 
     std::string            hostNaming      = kNamingDescriptive;
 
@@ -67,6 +69,9 @@ struct CassoExplorerPrefs
     //  .po on ProDOS and .dsk otherwise.
     std::wstring           fullSendFolder;
     std::string            fullSendExtension;
+
+    //  The Full Send options' Copy-protected disks section.
+    FullSendProtectionChoices  fullSendProtection;
 
     //  When each CassoLink receiving folder was last listed, in file time ticks.
     //  Files newer than this are counted on its tree row.

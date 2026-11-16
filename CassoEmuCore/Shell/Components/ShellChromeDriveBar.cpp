@@ -31,19 +31,20 @@
 
 void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, UINT dpi)
 {
-    std::array<DriveWidget, 2>  & widgets   = m_shell.m_disks->GetDriveChrome();
-    DriveBarFan                 & fan       = m_driveBarFan.GetFan();
+    std::array<DriveWidget, 2>  & widgets     = m_shell.m_disks->GetDriveChrome();
+    DriveBarFan                 & fan         = m_driveBarFan.GetFan();
     DxuiDpiScaler                 scaler;
-    RECT                          probe     = {};
-    SIZE                          slot      = {};
-    int                           gap       = MulDiv (s_kCompactDriveWidgetGapDp, (int) dpi, s_kBaseDpi);
-    int                           bottomGap = MulDiv (s_kLabelBottomGapDp,        (int) dpi, s_kBaseDpi);
-    int                           gapY      = MulDiv (4, (int) dpi, s_kBaseDpi);
-    int                           pad       = MulDiv (6, (int) dpi, s_kBaseDpi);
-    int                           arrow     = MulDiv (14, (int) dpi, s_kBaseDpi);
-    bool                          sliding   = m_shell.AreDrivesAutoHidden();
-    int                           originX   = 0;
-    int                           rowTop    = 0;
+    RECT                          probe       = {};
+    SIZE                          slot        = {};
+    int                           gap         = MulDiv (s_kCompactDriveWidgetGapDp, (int) dpi, s_kBaseDpi);
+    int                           bottomGap   = MulDiv (s_kLabelBottomGapDp,        (int) dpi, s_kBaseDpi);
+    int                           gapY        = MulDiv (4, (int) dpi, s_kBaseDpi);
+    int                           pad         = MulDiv (6, (int) dpi, s_kBaseDpi);
+    int                           arrow       = MulDiv (14, (int) dpi, s_kBaseDpi);
+    bool                          sliding     = m_shell.AreDrivesAutoHidden();
+    int                           originX     = 0;
+    int                           rowTop      = 0;
+    int                           stripBottom = (m_driveStripAreaPx.bottom > m_driveStripAreaPx.top) ? (int) m_driveStripAreaPx.bottom : clientH;
 
 
 
@@ -72,14 +73,16 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
         fan.SetFanProgress (1.0f);
 
         // The band has no height under auto-hide, so the row is placed from
-        // the window's bottom edge.
-        rowTop = clientH - (int) slot.cy - bottomGap
+        // the bottom of the strip's area: above the //c's switch strip in a
+        // window, which is drawn over anything under it, and the window's
+        // bottom edge in fullscreen.
+        rowTop = stripBottom - (int) slot.cy - bottomGap
                + (int) lroundf ((1.0f - m_driveBarSlideProgress) * (float) (fan.GetExpandedHeight() + pad + bottomGap));
         fan.Layout (originX, rowTop, slot, gap, gapY, pad, arrow);
     }
 
     m_driveBarFan.SetDpi     (dpi);
-    m_driveBarFan.SetBounds  (RECT { 0, 0, clientW, clientH });
+    m_driveBarFan.SetBounds  (RECT { 0, 0, clientW, sliding ? stripBottom : clientH });
     m_driveBarFan.SetVisible (fan.GetClassCount() > 0 && (!sliding || m_driveBarSlideProgress > 0.0f));
 
     PlaceDriveBarWidgets();
@@ -115,14 +118,16 @@ void ShellChrome::SlideDriveBar (float progress)
 //
 //  ShellChrome::IsPointOnDriveBar
 //
-//  In a class's box.
+//  In a class's box, and inside the bar's bounds, which end above the
+//  //c's switch strip while the bar slides.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ShellChrome::IsPointOnDriveBar (POINT pt) const
 {
-    const DriveBarFan  & fan = m_driveBarFan.GetFan();
-    bool                 on  = false;
+    const DriveBarFan  & fan    = m_driveBarFan.GetFan();
+    RECT                 bounds = m_driveBarFan.GetBounds();
+    bool                 on     = false;
 
 
 
@@ -130,7 +135,7 @@ bool ShellChrome::IsPointOnDriveBar (POINT pt) const
     {
         RECT  panel = fan.GetPanelRect (c);
 
-        on = on || PtInRect (&panel, pt) != FALSE;
+        on = on || (PtInRect (&panel, pt) != FALSE && PtInRect (&bounds, pt) != FALSE);
     }
 
     return on;
@@ -175,7 +180,7 @@ void ShellChrome::SetDiskIiBarCaptions (bool onBar)
 
     for (int w = 0; w < (int) widgets.size(); w++)
     {
-        DeskDrive  drive = { model, 6, w, m_shell.m_disks->MachineHasBuiltInDrive() && w == 0 };
+        DeskDrive  drive = { model, 6, w, m_shell.m_disks->MachineHasBuiltInDrive() && w == 0, m_shell.m_disks->IsPortChainOffered() };
 
         if (onBar)
         {

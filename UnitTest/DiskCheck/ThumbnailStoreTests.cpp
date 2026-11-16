@@ -307,4 +307,45 @@ public:
         AssertSucceeded (store.Find (rig.image, found, read, isUserSet));
         Assert::IsTrue (found.empty());
     }
+
+    //  A read-only image, made so that no emulator writes to the disk, has
+    //  its streams written and is read-only again, with its last write time
+    //  as it was. A Find after that changes nothing in its folder, as a change
+    //  would load a folder that Casso Explorer has open again, and Find would
+    //  run again.
+    TEST_METHOD (AReadOnlyImage_HasItsStreamsWritten_AndStaysReadOnly)
+    {
+        Rig                rig;
+        ThumbnailStore     store (rig.root / L"cache");
+        std::vector<Byte>  png       = { 0x89, 'P', 'N', 'G', 5 };
+        std::vector<Byte>  found;
+        ThumbnailRecord    read;
+        bool               isUserSet = false;
+        HANDLE             changes   = INVALID_HANDLE_VALUE;
+        DWORD              waited    = 0;
+        DWORD              attrs     = 0;
+        auto               before    = std::filesystem::last_write_time (rig.image);
+
+
+
+        ::SetFileAttributesW (rig.image.c_str(), FILE_ATTRIBUTE_READONLY);
+
+        AssertSucceeded (store.Store (rig.image, png, ThumbnailRecord()));
+
+        attrs = ::GetFileAttributesW (rig.image.c_str());
+        Assert::IsTrue ((attrs & FILE_ATTRIBUTE_READONLY) != 0, L"Read-only again");
+        Assert::IsTrue (std::filesystem::last_write_time (rig.image) == before, L"The last write time is as it was");
+        Assert::IsTrue (Rig::Read (rig.GetStream (rig.image)) == png, L"The stream has the thumbnail");
+
+        changes = ::FindFirstChangeNotificationW (rig.image.parent_path().c_str(), FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE);
+        Assert::IsTrue (changes != INVALID_HANDLE_VALUE);
+
+        AssertSucceeded (store.Find (rig.image, found, read, isUserSet));
+        waited = ::WaitForSingleObject (changes, 250);
+        ::FindCloseChangeNotification (changes);
+        ::SetFileAttributesW (rig.image.c_str(), FILE_ATTRIBUTE_NORMAL);
+
+        Assert::IsTrue (found == png);
+        Assert::AreEqual<DWORD> (WAIT_TIMEOUT, waited, L"Nothing in the folder changed");
+    }
 };

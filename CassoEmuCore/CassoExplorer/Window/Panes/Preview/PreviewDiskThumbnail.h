@@ -30,8 +30,13 @@ public:
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override { (void) ev; return false; }
 
+    //  The pointer is on the platter, which a click opens in the inspector:
+    //  a ring in the accent is drawn around it.
+    void  SetHot  (bool isHot) { m_isHot = isHot; }
+
 private:
     const DxuiTheme * const  & m_theme;
+    bool                       m_isHot = false;
 };
 
 
@@ -66,6 +71,52 @@ private:
     DxuiDpiScaler                 m_scaler;
     vector<SummaryChip>           m_chips;
     std::wstring                  m_line;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailScrollbar
+//
+//  The preview pane's one vertical bar while a disk image's thumbnail is
+//  above the view, in pixels of the thumbnail and the view together. The
+//  pane sets its range and reads its position; the sync function, called as
+//  the bar is drawn, sets the position from where the view has scrolled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ThumbnailScrollbar : public IDxuiControl
+{
+public:
+    using ScrollFn = std::function<void (int posPx)>;
+    using SyncFn   = std::function<void ()>;
+
+    static constexpr int  kWidthDip = 10;
+
+    ThumbnailScrollbar();
+
+    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
+
+    //  Over the bar, where it overlaps the window's resize edge, the pointer drags the bar, not the edge.
+    bool  IsOverScrollbar (POINT pointPx) const override { return IsVisible() && m_bar.HitTest (pointPx.x, pointPx.y); }
+
+    void  SetRange    (int rangePx, int pagePx, int posPx);
+    int   GetPos      () const { return m_bar.GetScrollPos(); }
+    void  SetOnScroll (ScrollFn scroll) { m_onScroll = std::move (scroll); }
+    void  SetOnSync   (SyncFn sync)     { m_onSync = std::move (sync); }
+    bool  SetHover    (POINT pointPx)   { return m_bar.SetHover (IsVisible() && m_bar.HitTest (pointPx.x, pointPx.y), pointPx); }
+    bool  TickBar     (int64_t nowMs)   { return m_bar.Tick (nowMs); }
+
+private:
+    DxuiScrollbar  m_bar;
+    DxuiDpiScaler  m_scaler;
+    ScrollFn       m_onScroll;
+    SyncFn         m_onSync;
 };
 
 
@@ -115,9 +166,11 @@ private:
 class PreviewDiskThumbnail
 {
 public:
-    static constexpr int  kPlatterDip = 180;
-    static constexpr int  kGapDip     = 8;
-    static constexpr int  kScreenDip  = 240;     // the screen's picture, three quarters as tall
+    static constexpr int  kPlatterDip     = 180;
+    static constexpr int  kGapDip         = 8;
+    static constexpr int  kScreenDip      = 240;   // the screen's picture, three quarters as tall
+    static constexpr int  kInspectWideDip = 90;   // Inspect..., before its text is measured
+    static constexpr int  kInspectHighDip = 28;
 
     explicit PreviewDiskThumbnail (ExplorerContext & context);
 
@@ -125,13 +178,23 @@ public:
     void  SetPath    (const std::wstring & path);
     void  TakeResult ();
 
+    //  The image in the pane, renamed from one path to the other.
+    void  MovePath   (const std::wstring & from, const std::wstring & to);
+
     //  The picture of the image's screen and its result, read again: a
     //  picture that was missing has been made.
     void  RefreshScreen ();
-    void  Layout        (const RECT & area);
     void  Hide          ();
 
+    //  Laid out in the area, as tall as GetHeightPx, with its top scrolled
+    //  away by scrollPx and clipped there, at bottomPx, the pane's bottom,
+    //  and at rightPx, the pane's right edge when it's narrower than the
+    //  area. Returns the bottom of the visible part.
+    int   Layout        (const RECT & area, int scrollPx, int bottomPx, int rightPx);
+
+
     bool                  IsShown       () const { return !m_path.empty() && m_state != State::Failed; }
+    bool                  IsReady       () const { return m_state == State::Ready; }
     int                   GetHeightPx   (int widthPx) const;
     bool                  IsOverPlatter (POINT pointPx) const;
     const std::wstring  & GetPath       () const { return m_path; }
@@ -142,8 +205,37 @@ public:
     RECT                  GetScreenRect () const { return HasScreen() ? m_screen->GetBounds() : RECT {}; }
     const std::wstring  & GetResultLine () const { return m_bootLine->GetText(); }
 
+    //  The verdict's infobar above the thumbnail, the pane's bar, and
+    //  Inspect... at the platter's bottom right; for a test.
+    const DxuiInfoBanner  & GetVerdict       () const { return *m_verdict; }
+    ThumbnailScrollbar    & GetScrollbar     () const { return *m_scrollbar; }
+    const DxuiButton      & GetInspectButton () const { return *m_inspect; }
+    RECT                    GetPlatterRect   () const { return m_platter->GetBounds(); }
+
+    //  A disk image's file-system verdict above its thumbnail: Bad as an
+    //  error infobar with its first finding of damage, Suspect as an info
+    //  infobar with its first suspect finding, since a suspect finding can be
+    //  normal for the disk; each finding on the line under the verdict, and a
+    //  pointer to Inspect..., where the findings and Repair are; nothing for
+    //  OK or a disk with no standard file system.
+    static std::wstring  FormatVerdict (FileSystemVerdict verdict, const std::wstring & finding);
+
+    //  The file system the analysis found and its verdict, as "DOS 3.3,
+    //  damaged", for the preview's details of an image that doesn't mount,
+    //  as one with a lost VTOC header; empty before the analysis or for an
+    //  image with no standard file system.
+    std::wstring  GetFileSystemText () const;
+
+    //  The repaired copy written beside the image and selected, after the
+    //  confirmation.
+
+
 private:
+    bool  HandleHeaderMouse  (const DxuiMouseEvent & ev);
+    int   GetInspectWidthPx  () const;
+    bool  IsInspectBeside    (int widthPx) const;
     bool  HandlePlatterMouse (const DxuiMouseEvent & ev);
+    bool  HandleScreenMouse  (const DxuiMouseEvent & ev);
 
     enum class State
     {
@@ -153,20 +245,33 @@ private:
         Failed,
     };
 
-    void  ApplyResult ();
-    bool  HasScreen   () const { return m_picture != nullptr && m_state == State::Ready; }
-    bool  IsBeside    (int widthPx) const;
+    void  ApplyResult        ();
+    //  The picture comes from the thumbnail store, not the analysis, so it is
+    //  drawn while the analysis runs and the pane isn't laid out again when
+    //  the analysis finishes.
+    bool  HasScreen          () const { return m_picture != nullptr && (m_state == State::Ready || m_state == State::Analyzing); }
+    bool  IsBeside           (int widthPx) const;
+    bool  HasVerdict         () const { return m_state == State::Ready && m_isVerdictShown; }
+    int   GetVerdictHeightPx (int widthPx) const;
+    void  PlaceVerdict       (const RECT & area, int top, int height);
 
     ExplorerContext                       & m_context;
     InspectorViewContext                    m_view;
     InspectorViewModel                      m_model;
     DiskThumbnailWorker                     m_worker;
     DiskThumbnailResult                     m_result;
-    ThumbnailPlatterView                  * m_platter  = nullptr;
-    ThumbnailChips                        * m_chips    = nullptr;
-    ThumbnailScreen                       * m_screen   = nullptr;
-    DxuiLabel                             * m_bootLine = nullptr;   // the boot result, under the picture
+    DxuiScrollPanel                       * m_header            = nullptr;   // the controls below, clipped where the pane scrolls them away
+    ThumbnailPlatterView                  * m_platter           = nullptr;
+    ThumbnailChips                        * m_chips             = nullptr;
+    ThumbnailScreen                       * m_screen            = nullptr;
+    DxuiLabel                             * m_bootLine          = nullptr;   // the boot result, under the picture
+    DxuiInfoBanner                        * m_verdict           = nullptr;
+    DxuiButton                            * m_inspect           = nullptr;   // Inspect..., at the platter area's bottom right
+    ThumbnailScrollbar                    * m_scrollbar         = nullptr;   // a window child after the views, so it's offered the mouse first
+    bool                                    m_isVerdictShown    = false;
+    bool                                    m_isVerdictReserved = false;     // the last image's infobar space is reserved while the next is read
+
     std::shared_ptr<const DxuiIconImage>    m_picture;
     std::wstring                            m_path;
-    State                                   m_state    = State::Analyzing;
+    State                                   m_state          = State::Analyzing;
 };

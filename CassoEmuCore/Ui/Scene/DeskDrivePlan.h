@@ -72,6 +72,12 @@ struct DeskDrive
 
     //  The //c's drive 1, soldered in.
     bool            builtIn = false;
+
+    //  A 5.25-inch drive on the //c Plus's disk port, behind its built-in
+    //  3.5-inch drive.
+    bool            onPort  = false;
+
+    bool  operator== (const DeskDrive & other) const = default;
 };
 
 
@@ -139,6 +145,9 @@ public:
                                                    DeskClassPlace                 hardDisks,
                                                    float                          monitorWidthMm,
                                                    bool                           floppyPairBeside = false);
+
+    //  Whether `plan` has two Disk II drives under the monitor.
+    static bool  HasDiskIiPairUnderMonitor (const std::vector<DeskDrivePlacement> & plan);
 
     //  The classes' places in the compact themes, whose drive band has the
     //  Disk II widgets or the drive bar: both classes on the bar when the

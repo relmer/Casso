@@ -16,6 +16,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
@@ -111,7 +112,7 @@ void ExplorerLayout::ConfigureWidgets()
     if (m_context.app.links != nullptr)
     {
         m_context.app.links->SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerCassoLink);
-        m_context.cassoLinkManager.ApplyFullSendPrefs();
+        m_context.fullSendWindows.ApplyFullSendPrefs();
         m_context.cassoLinkManager.ApplyVerifyPrefs();
         m_context.app.links->SetLinks (m_context.prefs.links);
         m_context.browser.SetLinks (m_context.app.links);
@@ -194,6 +195,7 @@ void ExplorerLayout::RecomputeLayout()
     RECT            right       = {};
     RECT            sashRect    = {};
     int             rightDip    = 0;
+    int             edgePx      = 0;
     bool            preview     = m_context.preview.IsShown();
     bool            expanded    = m_context.preview.IsExpanded();
     PaneWidths      panes;
@@ -224,7 +226,14 @@ void ExplorerLayout::RecomputeLayout()
 
     body = m_bodyBand.GetBounds();
 
-    if (body.bottom <= body.top)
+    //  The panes stop short of the right edge's resize band, and of the
+    //  bottom's under an expanded preview, so a scrollbar beside the band is
+    //  clear of it.
+    edgePx       = m_context.window.GetPopupHost() != nullptr ? m_context.window.GetPopupHost()->GetResizeBorderPx() : 0;
+    body.right  -= edgePx;
+    body.bottom -= body.bottom >= m_client.bottom ? edgePx : 0;
+
+    if (body.bottom <= body.top || body.right <= body.left)
     {
         return;
     }

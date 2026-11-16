@@ -15,11 +15,22 @@
 
 const wchar_t * ExplorerWindowFinder::GetWindowClass()
 {
-    static const std::wstring  s_kClass = MakeWindowClass();
+    static constexpr DWORD  kFolderChars = 32768;
 
 
 
-    return s_kClass.c_str();
+    static const std::wstring  windowClass = [] ()
+    {
+        std::wstring  folder (kFolderChars, L'\0');
+        DWORD         length = GetEnvironmentVariableW (PathResolver::kpszProfileVariable, folder.data(), kFolderChars);
+
+        folder.resize (length < kFolderChars ? length : 0);
+        return MakeWindowClass (folder);
+    } ();
+
+
+
+    return windowClass.c_str();
 }
 
 
@@ -30,30 +41,35 @@ const wchar_t * ExplorerWindowFinder::GetWindowClass()
 //
 //  ExplorerWindowFinder::MakeWindowClass
 //
-//  A test copy's class ends in a hash of its profile folder, so two test
-//  copies with different profile folders open separate apps.
+//  kTestCopyClass and the folder's 32-bit FNV-1a hash in hex, taken over its
+//  path in lowercase so that C:\Temp and c:\temp give the same class;
+//  kWindowClass for no folder.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ExplorerWindowFinder::MakeWindowClass()
+std::wstring ExplorerWindowFinder::MakeWindowClass (const std::wstring & profileFolder)
 {
-    wchar_t       folder[MAX_PATH] = {};
-    DWORD         length           = 0;
-    std::wstring  path;
+    static constexpr uint32_t  kOffsetBasis = 2166136261u;
+    static constexpr uint32_t  kPrime       = 16777619u;
 
 
 
-    if (!PathResolver::IsProfileFolderSet())
+    uint32_t      hash        = kOffsetBasis;
+    std::wstring  windowClass = kWindowClass;
+
+
+
+    for (wchar_t ch : profileFolder)
     {
-        return kWindowClass;
+        hash = (hash ^ static_cast<uint32_t> (towlower (ch))) * kPrime;
     }
 
-    length = GetEnvironmentVariableW (PathResolver::kpszProfileVariable, folder, ARRAYSIZE (folder));
-    path.assign (folder, (length < ARRAYSIZE (folder)) ? length : 0);
+    if (!profileFolder.empty())
+    {
+        windowClass = std::format (L"{}_{:08X}", kTestCopyClass, hash);
+    }
 
-    std::transform (path.begin(), path.end(), path.begin(), [] (wchar_t c) { return (wchar_t) towlower (c); });
-
-    return std::format (L"{}.{:08X}", kTestCopyClass, (uint32_t) std::hash<std::wstring>() (path));
+    return windowClass;
 }
 
 

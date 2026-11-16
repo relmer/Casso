@@ -52,7 +52,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FullSendManifestFile::NoteBoot (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, const std::string & boot, std::string & outStatus)
+HRESULT FullSendManifestFile::NoteBoot (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, const std::string & boot, FullSendRow & outRow)
 {
     HRESULT           hr      = S_OK;
     std::string       path    = folder + "\\" + FullSendManifest::kFileName;
@@ -63,7 +63,7 @@ HRESULT FullSendManifestFile::NoteBoot (IDiskFileIo & fileIo, const std::string 
 
 
 
-    outStatus.clear();
+    outRow = FullSendRow();
 
     hr = Read (fileIo, path, manifest, exists);
     CHR (hr);
@@ -71,7 +71,7 @@ HRESULT FullSendManifestFile::NoteBoot (IDiskFileIo & fileIo, const std::string 
 
     for (const FullSendRow & row : manifest.GetRows())
     {
-        outStatus = _stricmp (row.file.c_str(), name.c_str()) == 0 ? row.status : outStatus;
+        outRow = _stricmp (row.file.c_str(), name.c_str()) == 0 ? row : outRow;
     }
 
     changed = manifest.SetBoot (name, boot);

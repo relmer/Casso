@@ -7,6 +7,7 @@
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
@@ -115,12 +116,12 @@ bool ExplorerStatusBar::HandleZoomClick (const DxuiMouseEvent & ev)
 bool ExplorerStatusBar::HandleSummaryClick (const DxuiMouseEvent & ev)
 {
     if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left
-        || !ExplorerLayout::Contains (m_status->GetFieldRect (kStatusDetail), ev.positionDip) || !m_context.cassoLinkManager.IsFullSendRunning())
+        || !ExplorerLayout::Contains (m_status->GetFieldRect (kStatusDetail), ev.positionDip) || !m_context.fullSendWindows.IsFullSendRunning())
     {
         return false;
     }
 
-    m_context.cassoLinkManager.ShowFullSendWindow (true);
+    m_context.fullSendWindows.ShowFullSendWindow (true);
 
     return true;
 }

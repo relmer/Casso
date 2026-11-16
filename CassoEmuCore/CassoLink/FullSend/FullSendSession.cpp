@@ -11,6 +11,7 @@
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 
 
 
@@ -69,6 +70,7 @@ std::vector<std::string> FullSendScreen::GetRows() const
             case FullSendDriveState::Protected: row += "Protected, captured raw " + names[i]; break;
             case FullSendDriveState::Capturing: row += "Protected, capturing raw " + names[i]; break;
             case FullSendDriveState::Validating: row += "Validating image on PC, please wait"; break;
+            case FullSendDriveState::ProtectedSent: row += "Protected, sent " + names[i]; break;
             case FullSendDriveState::Changed:  row += "Changed while it was read"; break;
             case FullSendDriveState::OnDeck:
                 row += "On deck--";
@@ -214,6 +216,10 @@ HRESULT FullSendSession::Run()
 
 
     m_status.Begin();
+
+    //  A WOZ is built to each track's measured layout, so a title that times
+    //  the turn from track to track runs from it.
+    m_link.SetMeasuring (m_extension == kRawExtension);
 
     hr = LoadManifest();
     CHR (hr);
@@ -637,37 +643,51 @@ Error:
 //  FullSendSession::SendAgain
 //
 //  A disk whose image did not boot, sent as a new image beside the first. A
-//  raw capture is built from its reads and the first capture's. A sector
-//  image is read with verification on.
+//  raw capture is built from its reads and the first capture's. A likely
+//  copy-protected disk saved as its sectors, or one whose damage is unclear,
+//  is captured raw, because protected sectors read the same each time. A
+//  damaged disk is read with verification on, for sectors that read
+//  differently each time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT FullSendSession::SendAgain (int drive, const CheckedDisk & disk)
 {
-    HRESULT  hr        = S_OK;
-    bool     wasVerify = m_link.IsVerifying();
+    HRESULT              hr            = S_OK;
+    bool                 wasVerify     = m_link.IsVerifying();
+    const FullSendRow  * first         = FindWithImage ([&] (const FullSendRow & row) { return row.fingerprint == disk.fingerprint; });
+    bool                 protectedCopy = false;
+    bool                 unclearCopy   = false;
+    bool                 verify        = false;
 
 
 
     m_retried.insert (disk.fingerprint);
     m_repeats[(size_t) drive - 1] = false;
     m_deeper                      = true;
+    protectedCopy                 = first != nullptr && first->status == FullSendManifest::kStatusProtected;
+    unclearCopy                   = first != nullptr && first->status == FullSendManifest::kStatusUnclear;
+    m_rawAgain                    = protectedCopy || unclearCopy;
+    verify                        = !m_rawAgain && !wasVerify;
 
-    Report (std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive));
+    Report (protectedCopy ? std::format ("The image captured from the disk in drive {} did not boot; the disk is likely copy-protected. Capturing the disk again in raw mode.", drive)
+          : unclearCopy   ? std::format ("The image captured from the disk in drive {} did not boot, and its unreadable sectors may be copy protection. Capturing the disk again in raw mode.", drive)
+                          : std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive));
 
-    if (!wasVerify)
+    if (verify)
     {
         m_link.ToggleVerify();
     }
 
     hr = SendDisk (drive, disk, true);
 
-    if (!wasVerify && m_link.IsVerifying())
+    if (verify && m_link.IsVerifying())
     {
         m_link.ToggleVerify();
     }
 
-    m_deeper = false;
+    m_deeper   = false;
+    m_rawAgain = false;
     CHR (hr);
 
 Error:
@@ -905,6 +925,10 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
     {
         m_status.SetTitle (drive, "Blank disk", outDisk.system);
     }
+    else if (outDisk.check == DiskCheck::Repeat && !swapped)
+    {
+        m_status.SetTitle (drive, m_screen.names[(size_t) drive - 1], outDisk.system);
+    }
 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);
@@ -1103,6 +1127,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     std::vector<std::pair<int, int>>    unreadable;
     FullSendReadReport                  report;
     bool                                isProtected      = false;
+    bool                                isLikely         = false;
     std::string                         imageFingerprint;
     std::string                         afterFingerprint;
     std::string                         hash;
@@ -1114,6 +1139,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     bool                                whole            = false;
     bool                                same             = false;
     int                                 afterTrack       = 0;
+    std::string                         took;
     std::unique_lock<std::mutex>        folderLock       = std::unique_lock<std::mutex> (GetFolderLock (m_folder), std::defer_lock);
 
 
@@ -1195,8 +1221,14 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     }
 
     //  The capture comes before the folder's lock, as it takes minutes.
-    hr = CaptureProtected (drive, image, unreadable, report, raw);
+    hr = CaptureProtected (drive, image, unreadable, report, raw, isLikely);
     CHR (hr);
+
+    if (raw.empty())
+    {
+        hr = CheckVolume (drive, image, report);
+        CHR (hr);
+    }
 
     //  The disk is numbered, written and listed under the folder's lock, from
     //  the manifest as it is now: another Apple may have sent to this folder
@@ -1234,7 +1266,9 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
 
     title = FullSendDisk::MakeImageTitle (sequence, FullSendDisk::GetCatalogTitle (image), m_prefix);
 
-    hr = WriteImage (title, image, earlier == nullptr ? raw : std::vector<Byte>(), unreadable, report.marks, row.file);
+    row.writeProtected = m_link.IsWriteProtected (drive);
+
+    hr = WriteImage (title, image, earlier == nullptr ? raw : std::vector<Byte>(), unreadable, report, row.writeProtected, row.file);
     CHRF (hr, m_fileFailed = true);
 
     //  The disk just sent isn't a duplicate while it stays in its drive.
@@ -1251,11 +1285,11 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     }
     else
     {
-        row.status    = unreadable.empty() ? FullSendManifest::kStatusSent : FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size());
+        row.status    = isLikely ? FullSendManifest::kStatusProtected : unreadable.empty() ? FullSendManifest::kStatusSent : FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size());
         isProtected   = row.status == FullSendManifest::kStatusProtected;
         row.status    = raw.empty() ? row.status : FullSendManifest::kStatusRawCapture;
         row.marks     = raw.empty() ? std::string() : m_rawMarks;
-        m_screen.tone = unreadable.empty() ? FullSendTone::Done : isProtected ? FullSendTone::Protected : FullSendTone::BadSectors;
+        m_screen.tone = isProtected ? FullSendTone::Protected : unreadable.empty() ? FullSendTone::Done : FullSendTone::BadSectors;
         m_screen.prot += isProtected ? 1 : 0;
 
         if (isProtected && raw.empty())
@@ -1271,14 +1305,17 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
         m_screen.recovered += (row.recovered != 0 || row.unreliable != 0) ? 1 : 0;
     }
 
-    Report (earlier != nullptr          ? std::format ("Disk {:04} is {}, a duplicate of {}", sequence, row.file, row.duplicateOf)
-                 : !row.duplicateOf.empty()    ? std::format ("Disk {:04} is {}, sent again though it matches {}", sequence, row.file, row.duplicateOf)
-                 : !raw.empty()                ? std::format ("Disk {:04} is {}, a raw capture of a disk that is likely copy-protected", sequence, row.file)
-                                               : std::format ("Disk {:04} is {}, with {} unreadable sectors", sequence, row.file, row.unreadable));
-
-    m_manifest.Add (row);
     m_status.SetTitle (drive, title, FullSendDisk::GetSystemName (image));
     m_status.EndDisk (drive, row, earlier != nullptr ? 0 : raw.empty() ? image.size() : raw.size());
+
+    took = FullSendStatus::FormatClock (m_status.GetSnapshot().disks.front().seconds);
+
+    Report (earlier != nullptr          ? std::format ("Disk {:04} is {}, a duplicate of {}. Took {}.", sequence, row.file, row.duplicateOf, took)
+                 : !row.duplicateOf.empty()    ? std::format ("Disk {:04} is {}, sent again though it matches {}. Took {}.", sequence, row.file, row.duplicateOf, took)
+                 : !raw.empty()                ? std::format ("Disk {:04} is {}, a raw capture of a disk that is likely copy-protected. Took {}.", sequence, row.file, took)
+                                               : std::format ("Disk {:04} is {}, with {} unreadable sectors. Took {}.", sequence, row.file, row.unreadable, took));
+
+    m_manifest.Add (row);
 
     hr = WriteManifest();
     CHRF (hr, m_fileFailed = true);
@@ -1337,7 +1374,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     }
 
     m_lastSent = true;
-    SetDriveState (drive, isProtected ? FullSendDriveState::Protected : FullSendDriveState::Sent);
+    SetDriveState (drive, !raw.empty() ? FullSendDriveState::Protected : isProtected ? FullSendDriveState::ProtectedSent : FullSendDriveState::Sent);
 
     hr = m_link.ShowScreen (m_screen);
     m_screen.tone = FullSendTone::None;
@@ -1355,18 +1392,14 @@ Error:
 //
 //  FullSendSession::GetScreenName
 //
-//  The sequence number with no leading zeros and the disk's name, with no
-//  prefix, as the prefix is on every disk and the row is short.
+//  The image's number and the disk's name, with no prefix, as the prefix is
+//  on every disk and the row is short.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string FullSendSession::GetScreenName (int sequence, const std::string & catalogTitle)
 {
-    std::string  title = FullSendDisk::MakeImageTitle (sequence, catalogTitle, std::string());
-
-
-
-    return title.substr (title.find_first_not_of ('0'));
+    return FullSendDisk::MakeImageTitle (sequence, catalogTitle, std::string());
 }
 
 
@@ -1377,28 +1410,43 @@ std::string FullSendSession::GetScreenName (int sequence, const std::string & ca
 //
 //  FullSendSession::CaptureProtected
 //
-//  A disk assessed from its read as likely copy-protected, captured raw into
-//  outRaw, as its sector image is unlikely to run; outRaw is empty
-//  otherwise. A damaged disk with no file system Casso recognizes is
-//  assessed alike, and a raw capture of it has more than its sector image.
-//  The capture draws on the Apple's screen, so the session's screen is drawn
-//  again after it.
+//  A disk with a condition of the Copy-protected disks section is
+//  likely copy-protected, in outLikely, and captured raw into outRaw when the
+//  section's choice is to capture it, as its sector image is unlikely to run;
+//  outRaw is empty otherwise. Unreadable sectors are a sign when the disk
+//  is assessed as protected: a damaged disk with no file system Casso
+//  recognizes is assessed alike, and a raw capture of it has more than its
+//  sector image. The capture draws on the Apple's screen, so the session's
+//  screen is drawn again after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw)
+HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw, bool & outLikely)
 {
-    HRESULT  hr      = S_OK;
-    bool     capture = !unreadable.empty();
+    HRESULT          hr       = S_OK;
+    ProtectionSigns  signs    = FullSendProtection::Find (image);
+    bool             readSign = m_protection.readErrors && !unreadable.empty()
+                             && std::string (FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size())) == FullSendManifest::kStatusProtected;
+    std::string      reason;
 
 
 
     outRaw.clear();
 
-    capture = capture && std::string (FullSendDisk::AssessDamage (image, report.emptyTracks, (int) unreadable.size())) == FullSendManifest::kStatusProtected;
-    BAIL_OUT_IF (!capture, S_OK);
+    outLikely = readSign || m_protection.IsMet (signs);
+    BAIL_OUT_IF (!m_rawAgain && (!outLikely || !m_protection.captureRaw), S_OK);
 
-    Report (std::format ("Unreadable sectors were found on the disk in drive {} during the normal transfer, so it appears to be copy-protected. Restarting the capture using raw mode.", drive));
+    //  A disk read again in raw mode whose damage is unclear has the reason
+    //  in SendAgain's line.
+    if (outLikely)
+    {
+        reason = readSign                                         ? std::format ("Unreadable sectors were found on the disk in drive {} during the normal transfer", drive)
+               : m_protection.unrecognized && signs.isUnrecognized ? std::format ("The disk in drive {} has no recognized file system", drive)
+               : m_protection.diskCode && signs.hasDiskCode        ? std::format ("{} on the disk in drive {} accesses the disk drive directly", signs.diskCodeFile, drive)
+                                                                    : std::format ("The disk in drive {} doesn't have a recognized boot loader", drive);
+
+        Report (reason + ", so it appears to be copy-protected. Restarting the capture using raw mode.");
+    }
 
     SetDriveState (drive, FullSendDriveState::Capturing);
     m_status.SetActivity (FullSendActivity::Capturing, drive);
@@ -1426,6 +1474,49 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendSession::CheckVolume
+//
+//  A sector image has no place for the address fields' volume, so a disk
+//  whose track 0 has a volume other than the one its sector image is
+//  nibblized with is measured on every track and saved as a WOZ built to
+//  the layouts, whatever image type is chosen. A disk measured during its
+//  read, or whose track 0 can't be measured, is left as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FullSendSession::CheckVolume (int drive, const std::vector<Byte> & image, FullSendReadReport & ioReport)
+{
+    HRESULT                   hr          = S_OK;
+    std::vector<TrackLayout>  layouts;
+    Byte                      imageVolume = NibblizationLayer::GetImageVolume (image);
+    bool                      differs     = false;
+
+
+
+    BAIL_OUT_IF (!m_protection.volumeWoz || !ioReport.layouts.empty(), S_OK);
+
+    hr = m_link.MeasureLayouts (drive, 1, layouts);
+    CHR (hr);
+
+    differs = !layouts.empty() && layouts[0].nibbles != 0 && layouts[0].volume != imageVolume;
+    BAIL_OUT_IF (!differs, S_OK);
+
+    Report (std::format ("The disk in drive {} doesn't use volume {}, so it can't be saved as a {} image. Preserving its volume {} by saving it as a WOZ image instead.",
+                         drive, imageVolume, FullSendDisk::GetImageExtension (image, m_extension), layouts[0].volume));
+
+    hr = m_link.MeasureLayouts (drive, NibblizationLayer::kTrackCount, ioReport.layouts);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendSession::WriteImage
 //
 //  CreateNew, so an existing file is never overwritten. When a file from another
@@ -1433,22 +1524,30 @@ Error:
 //  is added. The list of unreadable sectors goes beside the image, as for
 //  Read disk to image. A raw capture is written as the image, a WOZ, with
 //  no list, as it has every sector the disk has; its reads, when the link
-//  returned them, go beside it with kReadsSuffix added.
+//  returned them, go beside it with kReadsSuffix added. A disk whose tracks
+//  the link measured is saved as a WOZ built to their layouts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FullSendSession::WriteImage (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const std::vector<SectorMark> & marks, std::string & outFile)
+HRESULT FullSendSession::WriteImage (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, bool writeProtected, std::string & outFile)
 {
-    HRESULT               hr        = S_OK;
-    std::string           extension = raw.empty() ? FullSendDisk::GetImageExtension (image, m_extension) : std::string (kRawExtension);
-    std::string           text;
-    std::vector<Byte>     bytes     = raw;
-    DiskFormat            format    = DiskFormat::Dsk;
-    CommitPlan::Progress  progress;
+    HRESULT                          hr        = S_OK;
+    bool                             isWoz     = !raw.empty() || !report.layouts.empty();
+    std::string                      extension = isWoz ? std::string (kRawExtension) : FullSendDisk::GetImageExtension (image, m_extension);
+    std::string                      text;
+    std::vector<Byte>                bytes     = raw;
+    DiskFormat                       format    = DiskFormat::Dsk;
+    CommitPlan::Progress             progress;
+    const std::vector<SectorMark>  & marks     = report.marks;
 
 
 
-    if (raw.empty())
+    if (raw.empty() && !report.layouts.empty())
+    {
+        hr = TrackLayoutWriter::BuildWoz (image, report.layouts, bytes);
+        CHR (hr);
+    }
+    else if (raw.empty())
     {
         hr = DiskImageStore::GetSourceFormatByExtension (extension, format);
         CHR (hr);
@@ -1464,8 +1563,23 @@ HRESULT FullSendSession::WriteImage (const std::string & title, const std::vecto
         outFile = std::format ("{} ({}){}", title, copy, extension);
     }
 
+    //  A write-protected disk's image is write-protected: a WOZ by its INFO
+    //  chunk, and a sector image by the file's read-only attribute. A title
+    //  that writes to its disk to test for a copy runs only from such an image.
+    if (writeProtected && extension == kRawExtension)
+    {
+        hr = WozLoader::SetWriteProtectFlag (bytes, true);
+        CHR (hr);
+    }
+
     hr = DurableCommit::Commit (m_fileIo, GetPath (outFile), bytes, m_commitTag++, CommitMode::CreateNew, progress);
     CHR (hr);
+
+    if (writeProtected && extension != kRawExtension)
+    {
+        hr = m_fileIo.SetReadOnly (GetPath (outFile), true);
+        CHR (hr);
+    }
 
     if (!raw.empty() && !m_rawReads.empty())
     {
@@ -1742,7 +1856,10 @@ Error:
 
 void FullSendSession::End (HRESULT hr)
 {
-    std::string  why;
+    std::string     why;
+    std::string     model = m_link.GetModelName();
+    std::string     times;
+    FullSendTotals  totals;
 
 
 
@@ -1758,16 +1875,19 @@ void FullSendSession::End (HRESULT hr)
 
     switch (m_endReason)
     {
-        case EndReason::Quit:          why = "Q was pressed on the Apple.";                                                                                            break;
-        case EndReason::Canceled:        why = "It was canceled.";                                                                                                            break;
+        case EndReason::Quit:            why = std::format ("Full Send exited on the {}.", model.empty() ? std::string ("Apple") : model);                                    break;
+        case EndReason::Canceled:        why = "Full Send session exited from PC.";                                                                                           break;
         case EndReason::ManifestDamaged: why = std::format ("{} could not be read, so no disk was read. Repair or move it, then start again.", FullSendManifest::kFileName); break;
         case EndReason::FileFailed:      why = "A file could not be written to the folder.";                                                                                  break;
         default:                         why = "The link failed.";                                                                                                            break;
     }
 
-    m_message = std::format ("Full Send ended with {} sent, {} duplicates and {} with bad sectors. {}", m_screen.sent, m_screen.duplicates, m_screen.bad, why);
-
     m_status.End (why);
+
+    totals    = m_status.GetSnapshot().totals;
+    times     = std::format ("{} active, {} idle", FullSendStatus::FormatClock (totals.elapsed), FullSendStatus::FormatClock (totals.idle));
+    times    += totals.sent != 0 ? std::format (", average {} per disk", FullSendStatus::FormatClock (totals.average)) : std::string();
+    m_message = std::format ("Full Send ended with {} sent, {} duplicates and {} with bad sectors. {}. {}", m_screen.sent, m_screen.duplicates, m_screen.bad, times, why);
 }
 
 

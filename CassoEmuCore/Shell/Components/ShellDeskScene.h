@@ -62,6 +62,11 @@ public:
     void                                     ToggleClassOnDesk      (DeskDriveClass driveClass);
     void                                     ToggleFloppyPairBeside ();
 
+    // The option to move the floppies beside the monitor is in the menus
+    // while two Disk II drives are under it and the drives are not
+    // auto-hidden, and while it is on, so it can be turned off.
+    bool                                     IsFloppyPairBesideOffered () const;
+
     // The Disk II drives the machine has, on the desk or not.
     int   CountDiskIiDrives () const;
 
@@ -93,15 +98,10 @@ public:
     uint32_t     GetDriveCapacityBlocks (const DeskDrive & drive) const;
     bool         IsDriveWriteProtected  (const DeskDrive & drive) const;
 
-    // A 3.5-inch drive's or hard disk's tip on the desk, for the drive at
-    // `extraIndex` among the desk's extra drives.
-    std::wstring GetExtraDriveTip       (int extraIndex) const;
-
     // Whether the Disk II drives are in a stack on the desk, where a drive
-    // has no room under it for a label: each drive's label text is in its tip
-    // instead, as the other desk drives' is.
+    // has no room under it for a label, so its name is on its front on
+    // hover instead, as the other desk drives' is.
     bool         AreDiskIiStacked       () const;
-    std::wstring GetDiskIiTip           (int drive) const;
 
     void         InsertInExtraDrive (int index, const std::wstring & path);
 
@@ -112,8 +112,10 @@ public:
     static constexpr int  kBarDropTagBase     = 64;
     static constexpr int  kBarDropClassStride = 16;
 
-    // A drive's name, as its right-click menu is headed.
-    static std::wstring  GetDriveTitle (const DeskDrive & drive);
+    // A drive's name, as its right-click menu is headed, and Disk II drive
+    // `drive` (0 or 1) as the desk plans it.
+    static std::wstring  GetDriveTitle  (const DeskDrive & drive);
+    DeskDrive            GetDiskIiDrive (int drive) const;
 
     // The overlays drawn over the scene, which the chrome hides and lays out
     // with the rest of what sits over the picture, and the user's framing.
@@ -186,6 +188,14 @@ public:
     // composition (glass excluded -- its monitor placement is meaningless).
     SceneHitResult  StripHit     (int xPx, int yPx) const;
 
+    // The 3.5-inch drive or hard disk under a client point, as an index
+    // among the desk's extra drives, or -1 for none: the nearest one the
+    // pointer's ray enters, since stacked drives' screen rects overlap.
+    // GetExtraUnder returns -1 when the body of the Disk II that `hit`
+    // landed on is nearer.
+    int             GetExtraAt    (int xPx, int yPx, float & outDistance) const;
+    int             GetExtraUnder (const SceneHitResult & hit, int xPx, int yPx) const;
+
     // Whichever of those two holds the recorder the pointer can reach: the
     // strip while it is up in fullscreen, the desk otherwise.
     SceneHitResult  RecorderHit  (int xPx, int yPx) const;
@@ -195,10 +205,14 @@ public:
     int     DeskSceneDriveCount  () const;
 
     // The drive count and metrics the desk is framed with. With the drives
-    // auto-hidden, the framing is the monitor alone: no drives and no
-    // recorder.
+    // auto-hidden, the framing is the monitor and the hard disks: the floppy
+    // drives and the recorder are in the dock.
     int               GetDeskCompositionDriveCount () const;
     DeskSceneMetrics  GetDeskCompositionMetrics    () const;
+
+    // Whether the desk has a floppy drive besides the Disk II pair, which
+    // auto-hide docks.
+    bool              HasDockedExtra               () const;
 
     // Whether a strip label extends below the strip's area, where it would be
     // drawn over the //c switch strip mid-slide. Always false off the strip.
@@ -268,13 +282,20 @@ public:
     // Re-hangs the mounted-image basename strip under each projected drive.
     // The desk's baked labels: the two drives' names, the recorder's tape
     // name, its counter, the name of the key under the pointer, the title on
-    // the cassette, and the two drives' info icons.
-    static constexpr size_t  s_kSceneLabelCount    = 8;
+    // the cassette, the name of the drive under the pointer, and the two
+    // drives' info icons, which are last.
+    static constexpr size_t  s_kSceneLabelCount    = 9;
     static constexpr int     s_kSceneTapeNameCell  = 2;
     static constexpr int     s_kSceneCounterCell   = 3;
     static constexpr int     s_kSceneKeyCell       = DeskScene::kTipLabel;
     static constexpr int     s_kSceneCassetteCell  = 5;   // the title written on the cassette itself
-    static constexpr int     kSceneInfoIconCell    = 6;   // drive 0's info icon; drive 1's is the next cell
+    static constexpr int     s_kSceneHoverCell     = 6;   // on the face of the drive under the pointer
+    static constexpr int     kSceneInfoIconCell    = 7;   // drive 0's info icon; drive 1's is the next cell
+
+    // The drive under the pointer whose name is on its face: a desk extra
+    // drive, or a Disk II in a stack, which have no name strip. A change
+    // syncs the labels again.
+    bool  SetHoverDrive (int extraIndex, int diskIi);
 
     // Where a baked label's quad sits relative to its anchor, when it is not
     // the whole cell centered under it: a drive name sharing its strip with
@@ -327,9 +348,11 @@ public:
     bool   GetRecorderLabelAnchor (const DeskSceneComposition & comp, int key, float anchor[3]);
     void    SyncStripTapeLabels    (const DeskSceneComposition & comp, bool onStrip,
                                     const std::array<std::wstring, s_kSceneLabelCount> & names);
-    void  SetStripLabelMarquee     (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc);
-    int   GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp);
-    bool  TryMakeCassetteTitleQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3]);
+    void         SetStripLabelMarquee     (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc);
+    int          GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp);
+    bool         TryMakeCassetteTitleQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3]);
+    bool         TryMakeHoverLabelQuad    (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3]);
+    std::wstring GetHoverLabelText        () const;
 
     // Splits a drive's name strip between the name and the info icon after
     // it, with the 2D widget's rule: centered together when the name fits,
@@ -464,6 +487,8 @@ private:
     bool                             m_deskSceneMachineIsC = false;
     std::vector<DeskDrivePlacement>  m_drivePlan;
     int                              m_plannedDiskIiCount  = -1;
+    std::vector<DeskDrive>           m_plannedDrives;
+    bool                             m_floppyPairMovable   = false;
     int                              m_deskSceneDebug      = 0;   // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
 
     // Fullscreen drive overlay strip (FR-015): the pure FSM plus this
@@ -532,6 +557,13 @@ private:
     std::array<float, s_kSceneLabelCount>  m_sceneDiskLabelPeriod = {};
     int                                    m_sceneLabelHover      = -1;
     int64_t                                m_sceneLabelHoverMs    = 0;
+
+    // The drive under the pointer whose name is on its face (SetHoverDrive),
+    // -1 for none, when its name began to scroll, and the label's fade.
+    int                                    m_hoverExtra           = -1;
+    int                                    m_hoverDiskIi          = -1;
+    int64_t                                m_hoverLabelMs         = 0;
+    float                                  m_hoverLabelAlpha      = 0.0f;
 
     // When each of the desk recorder's keys was last clicked, for its dip.
     std::array<int64_t, 6>    m_recorderKeyDipMs      = {};

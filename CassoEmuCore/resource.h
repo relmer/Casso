@@ -159,6 +159,11 @@
 // Taken from a separate block: open branches use the 40089-40499 range.
 #define IDM_VIEW_AUTOHIDE_DRIVES    40500
 
+// Attach an Apple 3.5 Drive or a 5.25-inch drive to the //c Plus's disk port.
+// The chain is rebuilt, so the machine restarts.
+#define IDM_STORAGE_ATTACH_APPLE35  40501
+#define IDM_STORAGE_ATTACH_FLOPPY   40502
+
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_CHECK_UPDATES      40041
 #define IDM_HELP_ABOUT              40042

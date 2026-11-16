@@ -138,6 +138,16 @@ struct DeskSceneMetrics
 //  by a quarter of the viewport whatever the window size or DPI, and a window
 //  resize cannot slide the scene out from under the user.
 //
+struct DeskDockHover
+{
+    float  pointerPx = -1.0f;   // the pointer's client x, or negative for none
+    float  strength  = 0.0f;    // 0 at rest, 1 fully magnified
+};
+
+
+//
+//  The user's framing of the desk.
+//
 struct DeskSceneView
 {
     float  zoom = 1.0f;    // 1 == the fitted composition
@@ -206,6 +216,20 @@ struct DeskSceneComposition
     int    extraCount                      = 0;
     float  extraWorld[kMaxDeskExtras][16]  = {};
     RECT   extraRectPx[kMaxDeskExtras]     = {};
+
+    // Per extra drive under auto-hide: nonzero when it is in the dock rather
+    // than in its desk spot, and nonzero when it is not drawn because the
+    // dock is down. Ints for the same memcmp reason.
+    int    extraDocked[kMaxDeskExtras]     = {};
+    int    extraHidden[kMaxDeskExtras]     = {};
+
+    // The scale at which a docked device in front of the monitor looks its
+    // true size beside it, and the lowest view tangent of the dock and its
+    // labels that is in the frame.
+    float  dockFullScale                   = 0.0f;
+    float  dockFloorTan                    = 0.0f;
+
+    bool  IsExtraShown (int i) const { return i >= 0 && i < extraCount && extraHidden[i] == 0; }
 };
 
 
@@ -226,8 +250,13 @@ public:
                              int                      reservedGapPx = 0,
                              const DeskSceneView    & view = DeskSceneView {});
 
-    // Auto-hide on the desk: the camera and framing of the monitor alone,
-    // with the drives and the recorder in front of it at true scale. At a
+    // Whether an extra drive goes in the auto-hide dock: the floppies do,
+    // and the hard disks are in their desk spots instead.
+    static bool     IsDockedExtra  (const DeskExtraMetrics & extra);
+
+    // Auto-hide on the desk: the camera and framing of the monitor and the
+    // hard disks on the desk, with the floppy drives and the recorder in a
+    // dock in front of the monitor. At a
     // `slideProgress` of 0 they are omitted, and in between they rise from
     // just below the frame. At 1 they are on the desk, or raised off it just
     // far enough for their fronts and `slideClearPx` of labels under them to
@@ -239,7 +268,8 @@ public:
                                     float                    slideProgress,
                                     int                      slideClearPx,
                                     DeskSceneComposition   & out,
-                                    const DeskSceneView    & view = DeskSceneView {});
+                                    const DeskSceneView    & view = DeskSceneView {},
+                                    const DeskDockHover    & dock = DeskDockHover {});
 
     // The screen y of the highest point of the sliding devices' front faces,
     // ignoring the bodies behind them. False when there are no devices.
@@ -276,7 +306,8 @@ public:
                                       DeskSceneComposition   & out,
                                       int                      driveCount    = 0,
                                       float                    slideProgress = kNoSlide,
-                                      int                      slideClearPx  = 0);
+                                      int                      slideClearPx  = 0,
+                                      const DeskDockHover    & dock          = DeskDockHover {});
 
     // The fullscreen drive overlay strip: the drive row alone, full model
     // scale, its own contained camera over the strip's viewport band --
@@ -375,6 +406,12 @@ public:
     // In a window the fitted row is shrunk to half its size, so the drives
     // cover less of the monitor when they rise.
     static constexpr float  kWindowedSlideScale    = 0.5f;
+
+    // The dock magnifies the device under the pointer to this share of its
+    // true size, and its neighbors less, out to this many average device
+    // widths.
+    static constexpr float  kDockMostOfFullSize    = 0.75f;
+    static constexpr float  kDockReachWidths       = 2.0f;
     static constexpr float  kNoSlide               = -1.0f;
     static constexpr float  kContainMargin         = 1.005f;
 
@@ -454,6 +491,40 @@ public:
                                            float                        outCorners[4][3],
                                            int                          offsetXPx = 0);
 
+    // The eye point of a view-projection matrix: the one point it sends to
+    // clip x = y = w = 0. False for a matrix with none.
+    static bool     TryGetEyePoint        (const float viewProj[16], float outEye[3]);
+
+    // A drive's hover label, lying in a plane parallel to the drive's front,
+    // kFaceLabelStandoffMm in front of the model's frontmost point: centered
+    // across the face, kFaceLabelWidthFrac of its width, its center
+    // kFaceLabelHeightFrac of the way up, with `aspect` (width over height).
+    // The corners are world space, top-left, top-right, bottom-left,
+    // bottom-right as the front is seen; `outNormal` is the face's outward
+    // normal in world space. The label turns with the drive.
+    static constexpr float  kFaceLabelStandoffMm = 0.6f;
+    static constexpr float  kFaceLabelWidthFrac  = 0.8f;
+    static constexpr float  kFaceLabelHeightFrac = 0.28f;
+
+    static bool     TryMakeFaceLabelQuad  (const float  world[16],
+                                           const float  modelMin[3],
+                                           const float  modelMax[3],
+                                           float        aspect,
+                                           float        outCorners[4][3],
+                                           float        outNormal[3]);
+
+    // How squarely a face is seen: the cosine between its outward normal and
+    // the direction from `center` to the eye. Negative from behind.
+    static float    GetFacing             (const float viewProj[16], const float center[3], const float normal[3]);
+
+    // A face label's opacity for its facing: none from behind or edge-on,
+    // where a label on the face has no thickness, and full from
+    // kFaceLabelFullFacing on.
+    static constexpr float  kFaceLabelZeroFacing = 0.15f;
+    static constexpr float  kFaceLabelFullFacing = 0.40f;
+
+    static float    GetFaceLabelAlpha     (float facing);
+
 private:
     static void     SolveStandoff (const float             sceneMin[3],
                                    const float             sceneMax[3],
@@ -501,7 +572,8 @@ private:
                                      float                    deviceMax[3],
                                      float                    sceneMin[3],
                                      float                    sceneMax[3],
-                                     DeskSceneComposition   & out);
+                                     DeskSceneComposition   & out,
+                                     bool                     hardDisksOnly = false);
 
     static void     ProjectModelBox (const float    world[16],
                                      const float    boxMin[3],
@@ -521,7 +593,8 @@ private:
                                       DeskSceneComposition   & out,
                                       const DeskSceneView    & view          = DeskSceneView {},
                                       float                    slideProgress = kNoSlide,
-                                      int                      slideClearPx  = 0);
+                                      int                      slideClearPx  = 0,
+                                      const DeskDockHover    & dock          = DeskDockHover {});
 
     // The tangent range along `axis` (0 is x, 1 is y) a model box, raised by
     // `offsetMm`, covers in a view, widened into [ioLo, ioHi].
@@ -561,6 +634,16 @@ private:
                                       int                          slideClearPx,
                                       float                        centerXMm,
                                       float                        extraScale);
+
+    // Grows the docked devices near the pointer, as a macOS dock does, and
+    // spreads the row to make room. `tanHalfX` and `viewportPx` map the
+    // pointer into the view.
+    static void     MagnifyDock      (DeskSceneComposition       & out,
+                                      const DeskSceneMetrics     & metrics,
+                                      int                          driveCount,
+                                      const DeskDockHover        & dock,
+                                      float                        tanHalfX,
+                                      const RECT                 & viewportPx);
 
     // The drives' and recorder's screen rects and the drives' label anchors.
     static void     ProjectDeviceRects (DeskSceneComposition     & out,

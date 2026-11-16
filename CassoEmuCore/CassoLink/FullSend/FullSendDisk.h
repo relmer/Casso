@@ -34,8 +34,13 @@ public:
     static HRESULT  ComputeHash        (std::span<const Byte> image, std::string & outHex);
 
     //  The volume's name on ProDOS or Apple Pascal, the first program's on
-    //  DOS 3.3; empty when the catalog has neither.
+    //  DOS 3.3 unless it is HELLO; empty when the catalog has neither.
     static std::string  GetCatalogTitle (const std::vector<Byte> & image);
+
+    //  On DOS 3.3, the first program that isn't HELLO, less a version at its
+    //  end such as .2, as WIZFIX from WIZFIX.2: a title for a disk whose
+    //  catalog and boot screen have no title. Empty with no such program.
+    static std::string  GetProgramTitle (const std::vector<Byte> & image);
 
     //  Whether a disk's tracks 0 and 17 have no file system Casso recognizes, so
     //  that its fingerprint adds CP/M's directory track. A CP/M data disk can
@@ -84,6 +89,8 @@ public:
     static std::string  GetImageExtension (const std::vector<Byte> & image, const std::string & chosen);
 
 private:
+    static constexpr const char *  s_kStartupProgram = "HELLO";
+
     static bool         TryGetPascalVolume (const std::vector<Byte> & image, std::string & outName);
     static std::string  ToHex              (const std::vector<Byte> & digest);
     static int          FindDosEntries     (const std::vector<Byte> & image, Byte & outListTrack, Byte & outListSector, Byte & outType, int & outSectors);

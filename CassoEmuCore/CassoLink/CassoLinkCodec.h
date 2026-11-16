@@ -90,6 +90,10 @@ public:
     static constexpr Byte  kFormatTrack   = 0xC8;
     static constexpr Byte  kWriteTrack    = 0xDB;
     static constexpr Byte  kStatus        = 0xD4;
+
+    //  The bit of Status's drive byte that marks a write-protected disk.
+    static constexpr Byte  kStatusWriteProtected = 0x40;
+
     static constexpr Byte  kCancel        = 0xD1;
     static constexpr Byte  kLabel         = 0xDC;
     static constexpr Byte  kLog           = 0xDD;
@@ -112,6 +116,12 @@ public:
     static constexpr Byte  kReadCrcs      = 0xE4;
     static constexpr Byte  kSectorCrcs    = 0xE5;
     static constexpr Byte  kFault         = 0xE6;     // a Debug build's program alone
+
+    //  Measure track, drive and track, and Track measure in reply: the nibbles
+    //  from the step to sector 0's address field and the nibbles in a turn,
+    //  each low byte first, and the field's volume.
+    static constexpr Byte  kMeasureTrack  = 0xEC;
+    static constexpr Byte  kTrackMeasure  = 0xED;
     static constexpr Byte  kKeySpace      = 0xA0;
     static constexpr Byte  kKeyQuit       = 0xD1;
     static constexpr Byte  kKeyNone       = 0x00;
@@ -171,6 +181,65 @@ public:
 
     static constexpr size_t  kPageSize   = 256;
     static constexpr size_t  kSectorSize = 256;
+
+    //  Every packet's command, ADTPro's and Casso's, each once, so no two
+    //  have the same byte: CassoLinkCodecTests checks it. LinkProgram puts
+    //  each one with an assembler name ahead of the Apple sources it
+    //  assembles, and the sources don't define any. Acknowledge is
+    //  ADTPro's, and Casso's program sends it too.
+    struct Command
+    {
+        Byte          value;
+        const char *  symbol;      // the Apple sources' name, or nullptr for ADTPro's alone
+    };
+
+    static constexpr Command  kCommands[] =
+    {
+        { kCd,            nullptr       },
+        { kDirectory,     nullptr       },
+        { kGet,           nullptr       },
+        { kPut,           nullptr       },
+        { kBatch,         nullptr       },
+        { kNibble,        nullptr       },
+        { kMultiple,      nullptr       },
+        { kSize,          nullptr       },
+        { kImageData,     nullptr       },
+        { kSummary,       nullptr       },
+        { kHome,          nullptr       },
+        { kSendFile,      nullptr       },
+        { kVirtualDrive,  nullptr       },
+        { kAcknowledge,   "CMDACK"      },
+        { kReady,         "CMDREADY"    },
+        { kIdle,          "CMDIDLE"     },
+        { kSectorData,    "CMDDATA"     },
+        { kSectorNibbles, "CMDNIBS"     },
+        { kLoadProgram,   "CMDLOAD"     },
+        { kSetSpeed,      "CMDSPEED"    },
+        { kReadSectors,   "CMDREAD"     },
+        { kWriteSectors,  "CMDWRITE"    },
+        { kFormatTrack,   "CMDFORMAT"   },
+        { kWriteTrack,    "CMDWTRACK"   },
+        { kStatus,        "CMDSTATUS"   },
+        { kCancel,        "CMDCANCEL"   },
+        { kLabel,         "CMDLABEL"    },
+        { kLog,           "CMDLOG"      },
+        { kTimeDrive,     "CMDTIME"     },
+        { kExit,          "CMDEXIT"     },
+        { kSectorBlank,   "CMDBLANK"    },
+        { kSessionScreen, "CMDSCREEN"   },
+        { kWaitForKey,    "CMDKEY"      },
+        { kSetColumns,    "CMDCOLS"     },
+        { kReadCrcs,      "CMDREADCRC"  },
+        { kSectorCrcs,    "CMDCRCS"     },
+        { kFault,         "CMDFAULT"    },
+        { kKrunch,        "CMDKRUNCH"   },
+        { kKrunchProgress, "CMDKPROG"   },
+        { kLoadModule,    "CMDMODULE"   },
+        { kCapture,       "CMDCAPTURE"  },
+        { kCaptureData,   "CMDCAPDATA"  },
+        { kMeasureTrack,  "CMDMEASURE"  },
+        { kTrackMeasure,  "CMDMEASURED" },
+    };
 
     static HRESULT   Encode            (Byte command, std::span<const Byte> payload, std::vector<Byte> & out);
     static HRESULT   EncodeImageData   (Word startBlock, std::span<const Byte> data, std::vector<Byte> & out);

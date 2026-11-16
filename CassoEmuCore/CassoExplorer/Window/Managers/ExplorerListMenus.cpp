@@ -847,14 +847,15 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
         }
 
-        //  Remove thumbnail restores the thumbnail made by booting.
-        if (selectedPaths.size() == 1 && m_context.app.pictures != nullptr && m_context.app.pictures->IsUserSet (selectedPaths[0]))
+        //  Remove thumbnail removes the thumbnail the user set, or with none
+        //  set, the one made by booting.
+        if (selectedPaths.size() == 1 && m_context.app.pictures != nullptr && m_context.app.pictures->HasThumbnail (selectedPaths[0]))
         {
             std::wstring  path = selectedPaths[0];
 
             m_context.menus.AddMenuCommand (items, L"Remove thum&bnail", [this, path]()
             {
-                HRESULT  removed = m_context.app.pictures->RemoveUserSet (path);
+                HRESULT  removed = m_context.app.pictures->RemoveThumbnail (path);
 
                 IGNORE_RETURN_VALUE (removed, S_OK);
             });

@@ -224,7 +224,8 @@ bool ShellDrivePickers::Insert (const PickerDrive & drive, const std::wstring & 
 //  ShellDrivePickers::OpenForDiskII
 //
 //  The drive as the desk labels it: a //c's or //c Plus's drive is a Disk
-//  IIc, and the //c's drive 1 is built in.
+//  IIc, the //c's drive 1 is built in, and the //c Plus's are on its disk
+//  port.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -238,6 +239,7 @@ void ShellDrivePickers::OpenForDiskII (int drive)
     deskDrive.slot    = DriveDropRule::kDiskIiSlot;
     deskDrive.drive   = drive;
     deskDrive.builtIn = m_shell.m_disks->MachineHasBuiltInDrive() && drive == 0;
+    deskDrive.onPort  = m_shell.m_disks->HasDiskIicDrives() && !m_shell.m_disks->MachineHasBuiltInDrive();
 
     OpenForDeskDrive (deskDrive);
 }

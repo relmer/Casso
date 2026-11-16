@@ -39,4 +39,7 @@ public:
                                      const std::wstring & imageName,
                                      bool                 isHardDisk,
                                      bool                 isWriteProtected);
+
+private:
+    static std::wstring  GetDisk2cTitle (const DeskDrive & drive);
 };

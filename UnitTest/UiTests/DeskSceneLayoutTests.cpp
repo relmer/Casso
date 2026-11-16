@@ -269,6 +269,156 @@ public:
         Assert::IsTrue (full.driveWorld[0][0] < 1.0f, L"nearer the eye than the monitor, the drives are scaled to look its size");
     }
 
+    //  THE DOCK MAGNIFIES UNDER THE POINTER: the drive under it grows, a drive
+    //  far from it does not, the row spreads so nothing overlaps, and every
+    //  back stays clear of the monitor.
+    TEST_METHOD (Dock_Magnifies_Under_The_Pointer)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        RECT                  vp            = { 0, 0, 1120, 768 };
+        DeskSceneComposition  rest;
+        DeskSceneComposition  grown;
+        DeskDockHover         hover;
+        float                 lo[3]         = {};
+        float                 hi[3]         = {};
+        float                 prevRight     = -FLT_MAX;
+        float                 monitorFrontZ = -metrics.monitorMin[1];
+
+
+
+        for (int i = 0; i < 4; i++)
+        {
+            AddExtraModel (metrics, DeskDriveModel::Apple35Drive, DeskDriveSpot::RightStack, i);
+        }
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f, kSlideClearPx, rest));
+
+        hover.pointerPx = (float) (rest.driveRectPx[0].left + rest.driveRectPx[0].right) * 0.5f;
+        hover.strength  = 1.0f;
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f, kSlideClearPx, grown, DeskSceneView {}, hover));
+
+        float  most = grown.dockFullScale * DeskSceneLayout::kDockMostOfFullSize;
+
+        Assert::IsTrue (most > rest.driveWorld[0][0], L"the most is bigger than the dock's rest size");
+        Assert::IsTrue (grown.driveWorld[0][0] > most * 0.97f && grown.driveWorld[0][0] <= most + 1e-4f,
+                        L"the drive under the pointer grows to the most and no more");
+        Assert::IsTrue (grown.driveRectPx[0].bottom <= vp.bottom - kSlideClearPx + 1, L"the grown drive and its label are in the frame");
+        Assert::IsTrue (std::abs (grown.extraWorld[3][0] - rest.extraWorld[3][0]) < 1e-4f, L"a drive far from the pointer does not");
+        Assert::IsTrue (grown.driveRectPx[0].left <= (LONG) hover.pointerPx && (LONG) hover.pointerPx <= grown.driveRectPx[0].right,
+                        L"the grown drive is still under the pointer");
+
+        for (int i = -2; i < 4; i++)
+        {
+            const float  * world = (i < 0) ? grown.driveWorld[i + 2] : grown.extraWorld[i];
+            const float  * mlo   = (i < 0) ? metrics.driveMin : metrics.extras[i].min;
+            const float  * mhi   = (i < 0) ? metrics.driveMax : metrics.extras[i].max;
+
+            GetWorldBox (world, mlo, mhi, lo, hi);
+            Assert::IsTrue (lo[0] >= prevRight - 0.01f, L"the grown row does not overlap");
+            Assert::IsTrue (lo[2] >= monitorFrontZ + DeskSceneLayout::kSlideMonitorGapMm - 0.01f, L"every back is clear of the monitor");
+            prevRight = hi[0];
+        }
+    }
+
+    //  A DOCK WITH ONE DRIVE GROWS IT IN PLACE: to the most, centered
+    //  where it was, wherever on it the pointer is.
+    TEST_METHOD (Dock_With_One_Drive_Grows_In_Place)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1120, 768 };
+        DeskSceneComposition  rest;
+        DeskSceneComposition  grown;
+        DeskDockHover         hover;
+        float                 lo[3]   = {};
+        float                 hi[3]   = {};
+        float                 restCx  = 0.0f;
+
+
+
+        metrics.hasRecorder = false;
+        AddExtraModel (metrics, DeskDriveModel::Apple35Plus, DeskDriveSpot::RightStack, 0);
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 0, metrics, 1.0f, kSlideClearPx, rest));
+
+        hover.pointerPx = (float) rest.extraRectPx[0].left + 2.0f;
+        hover.strength  = 1.0f;
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 0, metrics, 1.0f, kSlideClearPx, grown, DeskSceneView {}, hover));
+
+        GetWorldBox (rest.extraWorld[0], metrics.extras[0].min, metrics.extras[0].max, lo, hi);
+        restCx = (lo[0] + hi[0]) * 0.5f;
+        GetWorldBox (grown.extraWorld[0], metrics.extras[0].min, metrics.extras[0].max, lo, hi);
+
+        Assert::IsTrue (std::abs (grown.extraWorld[0][0] - grown.dockFullScale * DeskSceneLayout::kDockMostOfFullSize) < 1e-4f,
+                        L"the drive grows to the most");
+        Assert::IsTrue (grown.extraRectPx[0].bottom <= vp.bottom - kSlideClearPx + 1, L"the grown drive and its label are in the frame");
+        Assert::IsTrue (std::abs ((lo[0] + hi[0]) * 0.5f - restCx) < 0.01f, L"the drive does not move sideways");
+    }
+
+    //  A HARD DISK STAYS ON THE DESK UNDER AUTO-HIDE: only the floppy drives
+    //  and the recorder are in the dock, and the hard disk is drawn whether
+    //  the dock is up or down.
+    TEST_METHOD (Sliding_Keeps_The_Hard_Disk_On_The_Desk)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1120, 768 };
+        DeskSceneComposition  hidden;
+        DeskSceneComposition  full;
+
+
+
+        AddExtraModel (metrics, DeskDriveModel::ProFile,      DeskDriveSpot::LeftStack,  0);
+        AddExtraModel (metrics, DeskDriveModel::Apple35Drive, DeskDriveSpot::RightStack, 0);
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.0f, kSlideClearPx, hidden));
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f, kSlideClearPx, full));
+
+        Assert::IsTrue  (hidden.IsExtraShown (0), L"the hard disk is on the desk with the dock down");
+        Assert::IsFalse (hidden.IsExtraShown (1), L"the docked drive is not drawn with the dock down");
+        Assert::AreEqual (0, full.extraDocked[0]);
+        Assert::AreEqual (1, full.extraDocked[1]);
+        Assert::IsTrue  (memcmp (hidden.extraWorld[0], full.extraWorld[0], sizeof (full.extraWorld[0])) == 0,
+                         L"the hard disk does not move with the dock");
+        Assert::IsTrue  (full.extraRectPx[0].right <= full.monitorRectPx.left + 1, L"the hard disk is in its stack left of the monitor");
+    }
+
+    //  A DESK WITH NO DISK II SLIDES ITS OTHER DRIVES: a //c Plus has only
+    //  3.5-inch drives, and they rise in front of the monitor like a pair.
+    TEST_METHOD (Sliding_Raises_The_Extra_Drives_Without_A_Disk_II)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        RECT                  vp            = { 0, 0, 1120, 768 };
+        DeskSceneComposition  hidden;
+        DeskSceneComposition  full;
+        float                 lo[3]         = {};
+        float                 hi[3]         = {};
+        float                 left          = 0.0f;
+        float                 monitorFrontZ = -metrics.monitorMin[1];
+
+
+
+        AddExtraModel (metrics, DeskDriveModel::Apple35Drive, DeskDriveSpot::RightStack, 0);
+        AddExtraModel (metrics, DeskDriveModel::Apple35Drive, DeskDriveSpot::RightStack, 1);
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 0, metrics, 0.0f, kSlideClearPx, hidden));
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 0, metrics, 1.0f, kSlideClearPx, full));
+
+        Assert::IsFalse (hidden.IsExtraShown (0) || hidden.IsExtraShown (1), L"hidden, the drives are not drawn");
+        Assert::IsTrue  (full.IsExtraShown (0) && full.IsExtraShown (1));
+        Assert::IsTrue  (full.extraRectPx[0].bottom == full.extraRectPx[1].bottom ||
+                         std::abs (full.extraRectPx[0].bottom - full.extraRectPx[1].bottom) <= 2, L"the dock is one row, not a stack");
+        Assert::IsTrue (full.extraRectPx[0].top < vp.bottom, L"fully up, the drives are in the frame");
+        Assert::IsTrue (full.extraRectPx[0].bottom <= vp.bottom - kSlideClearPx + 1, L"their fronts are inside the frame");
+
+        GetWorldBox (full.extraWorld[0], metrics.extras[0].min, metrics.extras[0].max, lo, hi);
+        Assert::IsTrue (lo[2] >= monitorFrontZ + DeskSceneLayout::kSlideMonitorGapMm - 0.01f,
+                        L"the drives are wholly in front of the monitor");
+        left = lo[0];
+        GetWorldBox (full.extraWorld[1], metrics.extras[1].min, metrics.extras[1].max, lo, hi);
+        Assert::IsTrue (std::abs ((left + hi[0]) * 0.5f) < 1.0f, L"the row is centered under the monitor");
+    }
+
     TEST_METHOD (Sliding_Row_Fits_Within_The_Frame)
     {
         DeskSceneMetrics      metrics     = MakeMetrics();
@@ -622,6 +772,80 @@ public:
                 }
             }
         }
+    }
+
+
+    //  THE EYE IS AT THE CAMERA: in front of the desk, a seated
+    //  viewer's distance from the monitor.
+    TEST_METHOD (Eye_IsInFrontOfTheDesk)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1600, 900 };
+        DeskSceneComposition  comp;
+        float                 eye[3]  = {};
+
+
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
+
+        Assert::IsTrue (DeskSceneLayout::TryGetEyePoint (comp.viewProj, eye));
+        Assert::IsTrue (eye[2] > DeskSceneLayout::kViewingDistanceMm * 0.5f,
+                        std::format (L"the eye is in front of the desk, at z {}", eye[2]).c_str());
+        Assert::IsTrue (std::fabs (eye[0]) < 1.0f, L"and on its centerline");
+    }
+
+
+    //  A DRIVE'S HOVER LABEL LIES ON ITS FRONT, parallel to it and just in
+    //  front of it, across the middle of the face, and faces the viewer.
+    TEST_METHOD (FaceLabel_LiesOnTheDrivesFront)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        RECT                  vp            = { 0, 0, 1600, 900 };
+        DeskSceneComposition  comp;
+        float                 corners[4][3] = {};
+        float                 normal[3]     = {};
+        float                 frontPt[3]    = {};
+        float                 front[3]      = {};
+        float                 center[3]     = {};
+
+
+
+        AddExtraModel (metrics, DeskDriveModel::UniDisk35, DeskDriveSpot::RightStack, 0);
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 0, metrics, comp));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeFaceLabelQuad (comp.extraWorld[0], metrics.extras[0].min, metrics.extras[0].max, 6.0f, corners, normal));
+
+        frontPt[0] = (metrics.extras[0].min[0] + metrics.extras[0].max[0]) * 0.5f;
+        frontPt[1] = metrics.extras[0].min[1];
+        frontPt[2] = (metrics.extras[0].min[2] + metrics.extras[0].max[2]) * 0.5f;
+        Assert::IsTrue (SceneCamera::TransformPoint (comp.extraWorld[0], frontPt, front));
+
+        for (int c = 0; c < 4; c++)
+        {
+            float  ahead = (corners[c][0] - front[0]) * normal[0] + (corners[c][1] - front[1]) * normal[1] + (corners[c][2] - front[2]) * normal[2];
+
+            Assert::IsTrue (ahead > 0.0f && ahead < 2.0f, std::format (L"corner {} is {} mm in front of the face", c, ahead).c_str());
+
+            for (int axis = 0; axis < 3; axis++)
+            {
+                center[axis] += corners[c][axis] * 0.25f;
+            }
+        }
+
+        Assert::IsTrue (corners[1][0] > corners[0][0], L"left to right as the face is seen");
+        Assert::IsTrue (corners[0][1] > corners[2][1], L"top above bottom");
+        Assert::IsTrue (DeskSceneLayout::GetFacing (comp.viewProj, center, normal) > 0.8f, L"seen nearly square on");
+    }
+
+
+    //  THE LABEL FADES OUT AS THE FACE TURNS AWAY and is gone from behind,
+    //  where it has no thickness.
+    TEST_METHOD (FaceLabel_FadesEdgeOnAndHidesFromBehind)
+    {
+        Assert::AreEqual (0.0f, DeskSceneLayout::GetFaceLabelAlpha (-0.5f), L"from behind");
+        Assert::AreEqual (0.0f, DeskSceneLayout::GetFaceLabelAlpha (0.05f), L"edge-on");
+        Assert::AreEqual (1.0f, DeskSceneLayout::GetFaceLabelAlpha (1.0f),  L"square on");
+        Assert::IsTrue   (DeskSceneLayout::GetFaceLabelAlpha (0.25f) > 0.0f && DeskSceneLayout::GetFaceLabelAlpha (0.25f) < 1.0f, L"turning away");
     }
 
 

@@ -24,9 +24,11 @@
 class FindingFormatter
 {
 public:
-    static std::wstring  Format             (const Finding & finding);
-    static std::wstring  FormatCategory     (FindingCategory category);
-    static std::wstring  FormatDamageReason (DamageReason reason);
+    static std::wstring     Format             (const Finding & finding);
+    static std::wstring     FormatCategory     (FindingCategory category);
+    static FindingSeverity  GetSeverity        (const Finding & finding);
+    static std::wstring     FormatSeverity     (FindingSeverity severity);
+    static std::wstring     FormatDamageReason (DamageReason reason);
 
 private:
     static std::wstring  FormatFieldFinding (const Finding & finding);

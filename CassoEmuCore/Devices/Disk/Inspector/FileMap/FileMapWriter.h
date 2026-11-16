@@ -35,15 +35,23 @@ public:
     void  SetMarkedUsed (vector<bool> markedUsed);
     void  BreakChain    (int file, ChainReason reason, int cell);
     void  AddFinding    (FindingKind kind, int cell, const std::wstring & text);
+    void  AddFinding    (FindingKind kind, int cell, const std::wstring & text, FindingWeight weight);
+    void  AddCount      (const RecordedCount & count);
 
-    //  A whole chain whose sector count differs from the one its catalog or
-    //  directory entry records (FR-093).
-    void  CheckCount    (int file, const std::wstring & source, LPCWSTR unit);
+    //  A whole chain whose count differs from the one at an offset in the
+    //  cell with the file's entry: damage, which Repair sets right.
+    void  CheckCount    (int file, int cell, int offset, LPCWSTR what);
     void  Finalize      ();
+
+    //  A cell's bytes: 256 for a sector, 512 for a block; false when any of
+    //  it can't be read.
+    bool  ReadCell      (int cell, vector<Byte> & outBytes) const;
 
     //  One step of a chain onto a cell: false, with the reason, when the
     //  chain must stop there.
     bool  Step (int cell, std::set<int> & visited, ChainReason & outReason) const;
+
+    const MappedFile &  GetFile (int file) const { return m_map.files[file]; }
 
     bool           IsOwned      (int cell) const { return cell >= 0 && cell < static_cast<int> (m_map.cells.size()) && !m_map.cells[cell].owners.empty(); }
     SectorResult   GetResult    (int cell) const { return m_map.cells[cell].result; }
@@ -51,11 +59,27 @@ public:
     std::wstring   DescribeCell (int cell) const;
     int            GetPhysical  (int cell) const;
 
-    static std::wstring  DescribeReason (ChainReason reason);
+    std::wstring          DescribeChain      (ChainReason reason, int cell) const;
+    std::wstring          DescribeUnreadable (int cell) const;
+
+    static std::wstring   Capitalize     (std::wstring text);
+
+    //  Whether a cell is the volume's bookkeeping, which no file may use,
+    //  and what it is.
+    bool                  IsStructure       (int cell) const;
+    std::wstring          DescribeStructure (int cell) const;
+    static FindingWeight  GetWeight         (FindingKind kind);
 
 private:
-    void  SettleCell  (int cell);
-    void  SettleFiles ();
+    void  SettleCell         (int cell);
+    void  SettleFiles        ();
+    void  CheckRepeatedBytes ();
+    void  CheckAlmostBlank   ();
+
+    int   CountUnchecked () const;
+    int   CountBad       (const MappedFile & file) const;
+
+    static bool  IsOneByte (const vector<Byte> & bytes, size_t count);
 
     const SectorSource &  m_source;
     FileMap &             m_map;

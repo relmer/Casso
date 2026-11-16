@@ -88,6 +88,12 @@ public:
     bool  IsServingAdtPro () const { return m_connector.m_adtPro; }
     Byte  GetDriveMap     () const { return m_connector.m_driveMap; }
 
+    //  Whether a Full Send is running. Any other operation queued meanwhile
+    //  fails at once, with kFullSendBusy, and has isBlocked set.
+    bool  IsFullSendRunning () const;
+
+    static constexpr const char *  kFullSendBusy = "Full Send is using the drives. Try again when you're finished.";
+
     //  The Apple's model, as its program reported it on connecting; empty
     //  before then.
     std::wstring  GetModelName () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_modelName; }
@@ -168,6 +174,11 @@ public:
     //  `finished`, the past tense for the history line of one that succeeded.
     static std::string  DescribeOperation (const LinkOperation & operation, const std::optional<VolumeListing> & listing = std::nullopt, bool finished = false);
 
+    //  Text for one of the program's lines of `limit` characters: a longer
+    //  one has the operation's file name or path cut short, ending in "...",
+    //  so the drive after it is drawn; with no name in it, the end is cut.
+    static std::string  FitToApple        (const LinkOperation & operation, const std::string & text, size_t limit);
+
     //  A drive as the label has it: D2, and the disk's volume, as
     //  D2 (/GAMES) or D2 (VOL 254), once its catalog is read; the label has 38 characters.
     static std::string  DescribeDrive     (int drive, const std::optional<VolumeListing> & listing);
@@ -212,6 +223,7 @@ private:
     std::array<std::optional<VolumeListing>, 2>    m_listings;
     std::array<std::atomic<VolumeKind>, 2>         m_chosenKinds = {};
     std::atomic<bool>                              m_stopping    { false };   // Stop closed the line
+    std::atomic<bool>                              m_canceled    { false };   // Cancel was called for the running operation
     std::shared_ptr<LinkOperation>                 m_running;
     const ListenGate                             * m_gate        = nullptr;
 

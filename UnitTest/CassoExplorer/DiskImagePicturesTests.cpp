@@ -197,14 +197,19 @@ public:
             AssertSucceeded (store.SetByUser (image, byUser));
             AssertSucceeded (store.Store (other, booted, ThumbnailRecord()));
 
-            Assert::IsTrue  (pictures.IsUserSet (image.wstring()));
-            Assert::IsFalse (pictures.IsUserSet (other.wstring()));
+            Assert::IsTrue  (pictures.HasThumbnail (image.wstring()));
+            Assert::IsTrue  (pictures.HasThumbnail (other.wstring()));
             Assert::AreEqual (1, pictures.CountUserSet());
 
-            AssertSucceeded (pictures.RemoveUserSet (image.wstring()));
-            Assert::IsFalse (pictures.IsUserSet (image.wstring()));
+            AssertSucceeded (pictures.RemoveThumbnail (image.wstring()));
             AssertSucceeded (store.Find (image, found, record, isUserSet));
+            Assert::IsFalse (isUserSet);
             Assert::IsTrue  (found == booted, L"The booted one again");
+
+            AssertSucceeded (pictures.RemoveThumbnail (image.wstring()));
+            Assert::IsFalse (pictures.HasThumbnail (image.wstring()), L"With none set, the booted one is removed");
+
+            AssertSucceeded (store.Store (image, booted, ThumbnailRecord()));
 
             AssertSucceeded (store.SetByUser (image, byUser));
             AssertSucceeded (pictures.Clear (false));

@@ -113,11 +113,13 @@ public:
     };
 
     using ProgressFn = std::function<void (const Progress & progress)>;
+    using StopFn     = std::function<bool()>;
 
     //  Every position from 0 to the last whole track's, `lastTrack` for a
-    //  shorter capture.
+    //  shorter capture. `stop` is called before each read, and a true from it
+    //  ends the capture with ERROR_CANCELLED.
     static HRESULT  Capture  (CassoLinkHost & host, Byte drive, std::span<const Byte> module, const std::string & imageDate,
-                              const ProgressFn & progress, Result & outResult, int lastTrack = kTracks - 1);
+                              const ProgressFn & progress, Result & outResult, int lastTrack = kTracks - 1, const StopFn & stop = StopFn());
 
     static HRESULT  BuildWoz (const std::vector<Position> & positions, int lastPosition, const std::string & imageDate, Byte drive, Result & outResult);
 
@@ -188,6 +190,8 @@ private:
         int                      pass           = 1;
         int                      percent        = 0;
         bool                     writeProtected = false;
+        StopFn                   stop;
+        int                      position       = 0;     // the position last read
     };
 
     static HRESULT              ReadOnce       (Run & run, int position, Byte delay, int read, int reads, Byte syncPosition, std::span<const Byte> marker, std::vector<Byte> & outBytes, bool & outMissed);
@@ -311,6 +315,7 @@ private:
     static constexpr size_t  s_kMarkerBytes  = 11;
     static constexpr int     s_kReadAttempts = 3;
     static constexpr DWORD   s_kBusyPollMs   = 200;     // Analyze's wait for a Ready, between checks that the work is done
+    static constexpr DWORD   s_kSlowMs       = 5000;    // an analysis, or the wait after it, this long is logged
 
     //  The cycles from a marker's last byte to the first byte of a read of
     //  the same track that waited on it, with no step, as measured on Casso's

@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
@@ -1373,7 +1374,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
 
         if (image)
         {
-            m_context.cassoLinkManager.StartImageWrite (location, source.hostPaths[0]);
+            m_context.linkDrives.StartImageWrite (location, source.hostPaths[0]);
             return;
         }
 
@@ -1520,7 +1521,7 @@ void ExplorerDragDrop::BeginDragOut()
     bool                                     moved    = false;
     HostFileNaming::Style                    style    = m_context.commandManager.GetNamingStyle();
     auto                                     log      = std::make_shared<CassoExplorerDragOut::RenderLog>();
-    std::vector<DxuiDragDropSource::Format>  formats  = CassoExplorerDragOut::BuildFormats (m_context.browser, style, log);
+    std::vector<DxuiDragDropSource::Format>  formats  = CassoExplorerDragOut::BuildFormats (m_context.browser, style, log, false, m_context.prefs.rawCopyMenu);
     POINT                                    start    = {};
     std::vector<FileEntry>                   entries;
     std::vector<std::string>                 paths;
@@ -1533,6 +1534,7 @@ void ExplorerDragDrop::BeginDragOut()
     Location                                 drive;
     std::shared_ptr<const DxuiIconImage>     icon     = GetRowDragImage();
     bool                                     images   = !m_context.browser.GetSelectedRows().empty();
+    std::wstring                             rawFolder;
 
 
 
@@ -1564,7 +1566,7 @@ void ExplorerDragDrop::BeginDragOut()
 
     //  Dragging a linked machine's drive drags its whole disk, as dragging its
     //  node in the tree does.
-    if (m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive))
+    if (m_context.linkDrives.TryGetSelectedLinkDrive (drive))
     {
         BeginDiskDrag (drive.path);
         return;
@@ -1609,8 +1611,27 @@ void ExplorerDragDrop::BeginDragOut()
     IGNORE_RETURN_VALUE (got, TRUE);
 
     hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY | DROPEFFECT_MOVE, start, effect, &logical,
-                                    (images || inImage || m_context.browser.IsAppleDriveLocation()) ? icon.get() : nullptr);
+                                    (images || inImage || m_context.browser.IsAppleDriveLocation()) ? icon.get() : nullptr,
+                                    [&rawFolder] (const DxuiDragDropSource & source)
+                                    {
+                                        std::vector<uint8_t>  stored;
+
+                                        if (source.GetStoredBytes (RawCopyDropHandler::kFolderFormat, stored))
+                                        {
+                                            rawFolder = RawCopyDropHandler::GetFolder (stored);
+                                        }
+                                    });
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    //  Copy here without conversion (raw bytes) on File Explorer's right-drag menu: File
+    //  Explorer copied nothing, and the selection is copied raw to its folder
+    //  as Get does.
+    if (!rawFolder.empty())
+    {
+        m_context.commandManager.ReportOutcome (m_context.actions.GetSelected (rawFolder, style, m_context.prompts.MakeCollisionPrompt(), true), L"Copy");
+        m_context.window.Invalidate();
+        return;
+    }
 
     //  File Explorer reports a move of files it read from the drag's streams
     //  in the logical effect, and the drag itself returns DROPEFFECT_NONE.

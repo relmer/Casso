@@ -1,12 +1,16 @@
 #pragma once
 
 #include "Pch.h"
+
 #include "../EhmTestHelper.h"
 #include "../CaptureTests/FakeHostDialogs.h"
 #include "../CassoLink/FakeApple.h"
 #include "../CassoLink/InMemoryCassoLinkFolder.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "../EmuTests/FixtureProvider.h"
+#include "../Inspector/RepairFixtures.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "FakeDiskPictures.h"
 #include "FakeExplorerWindow.h"
@@ -26,6 +30,7 @@
 #include "Core/AppTimerIds.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 
@@ -37,8 +42,7 @@
 //
 //  ExplorerWindowPartsRig
 //
-//  The Casso Explorer window's parts over an in-memory host, a fake window
-//  and recording services, for tests of the window without a window.
+//  The Casso Explorer window's parts over an in-memory host, with no window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -150,5 +154,28 @@ struct ExplorerWindowPartsRig
         parts->Configure();
         parts->layout.SetClient (RECT { 0, 0, 1280, 800 });
         parts->layout.RecomputeLayout();
+    }
+
+    //  Polls `isDone`, with the window's message for loaded icons before each
+    //  poll, for up to kWaitMs: the icons are loaded on other threads.
+    static bool  WaitFor (ExplorerWindowPartsRig & rig, const std::function<bool()> & isDone)
+    {
+        static constexpr int  kWaitMs  = 5000;
+        static constexpr int  kPollMs  = 10;
+        auto                  deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (kWaitMs);
+        bool                  done     = isDone();
+
+
+
+        while (!done && std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (kPollMs));
+
+            rig.parts->HandleAppMessage ((UINT) AppMessage::ExplorerIconsLoaded, 0, 0);
+            rig.parts->preview.GetThumbnail().TakeResult();
+            done = isDone();
+        }
+
+        return done;
     }
 };

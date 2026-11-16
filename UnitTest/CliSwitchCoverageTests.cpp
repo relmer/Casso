@@ -448,9 +448,12 @@ namespace CliSwitchCoverageTests
             { "disk", "yes", { "CassoCli", "disk", "rmdir", "d.po", "GAMES", "--recurse", "--yes" },
               [] (const CommandLineOptions & o) { return o.disk.yes; },
               "--yes answers the confirmation in advance" },
-            { "disk", "remove", { "CassoCli", "disk", "thumbnail", "d.po", "--remove" },
-              [] (const CommandLineOptions & o) { return o.disk.remove; },
-              "--remove removes the thumbnail the user set" },
+            { "disk", "no-free-unowned", { "CassoCli", "disk", "repair", "d.dsk", "--no-free-unowned" },
+              [] (const CommandLineOptions & o) { return o.disk.noFreeUnowned; },
+              "--no-free-unowned keeps sectors not in any file marked as used in the copy" },
+            { "disk", "list", { "CassoCli", "disk", "repair", "d.dsk", "fixed.dsk", "--list" },
+              [] (const CommandLineOptions & o) { return o.disk.listOnly && o.disk.hostFile == "fixed.dsk"; },
+              "--list reports the changes without writing the copy" },
         };
     }
 

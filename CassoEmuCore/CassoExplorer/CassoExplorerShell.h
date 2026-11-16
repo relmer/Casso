@@ -169,19 +169,13 @@ public:
     //  passes its build identity, which follows a [Debug] tag as in Casso's.
     static std::wstring  ComposeTitle (const std::wstring & titlePrefix, const std::wstring & buildInfo);
 
-    //  The host's drive roots, such as C:\, in drive-letter order.
-    static std::vector<std::wstring>  GetDriveRoots();
 
-    //  The name a folder's desktop.ini gives it, such as "Camera Roll", or
-    //  empty for none.
-    static std::wstring  GetLocalizedFolderName (const std::wstring & path);
 
     bool                 ConfirmCardWrite       (const PhysicalDrive & drive);
     bool                 ConfirmElevation       (const PhysicalDrive & drive);
     static void CALLBACK EndCardConfirmation    (HWND, UINT, UINT_PTR id, DWORD);
 
     static inline PhysicalCards * s_confirmedCards = nullptr;
-    static std::wstring  GetPlainFolderName     (const std::wstring & path);
 
     //  EHM hooks for a process with no dialog host of its own.
     static void  NotifyUser      (const wchar_t * message);
@@ -204,6 +198,7 @@ public:
     void                   InspectDiskImages   (HWND hwnd, const std::vector<std::wstring> & paths, const DxuiTheme & theme) override;
     void                   CompareDiskImages   (HWND hwnd, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme) override;
     void                   SetInspectorTheme   (const DxuiTheme & theme) override;
+    void                   SelectInFolder      (const std::wstring & path) override;
     void                   OfferBootRoms       (HWND hwnd, const DxuiTheme * theme) override;
 
     static constexpr const wchar_t *  kAppName       = L"Casso Explorer";

@@ -18,8 +18,8 @@ class InspectorTableView;
 //  FilesView
 //
 //  The file map of the volume: the step buttons, the file picker and its
-//  list, the volume tabs, "Copy map", and the grid of the volume's sectors
-//  (FR-088 to FR-095, FR-157).
+//  list, the volume tabs, the file-system verdict, "Copy map",
+//  and the grid of the volume's sectors (FR-088 to FR-095, FR-157).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +50,11 @@ public:
 
     InspectorTableView & GetFileList () const { return *m_fileList; }
 
+    //  The verdict beside the map, a link to its finding on the Issues tab
+    //  when the volume is Bad or Suspect, for a test.
+    DxuiButton       & GetVerdictLink   () const { return *m_mapVerdict; }
+    const DxuiButton & GetCopyButton    () const { return *m_mapCopy; }
+
 private:
     void  OpenFilePicker     (bool isOpen);
     void  MeasureLabels      (IDxuiTextRenderer & text);
@@ -59,6 +64,8 @@ private:
     void  SelectMapCell      (int cell);
     void  StepFileSector     (int step);
     int   GetSelectedMapCell () const;
+    bool  IsVerdictLinked    () const;
+    void  ShowVerdictFinding ();
 
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;
@@ -71,6 +78,7 @@ private:
     DxuiButton               * m_mapPrev            = nullptr;
     DxuiButton               * m_mapNext            = nullptr;
     DxuiButton               * m_mapCopy            = nullptr;
+    DxuiButton               * m_mapVerdict         = nullptr;
     DxuiLabel                * m_mapStepLabel       = nullptr;
     DxuiButton               * m_filePicker         = nullptr;
     bool                       m_isPickerOpen       = true;

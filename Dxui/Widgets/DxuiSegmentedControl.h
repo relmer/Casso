@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Widgets/DxuiSeverityBadge.h"
 
 
 
@@ -35,6 +36,11 @@ public:
     // Replaces the segments, all enabled, and selects the first, with no
     // slide.
     void  SetSegments (std::vector<std::wstring> labels);
+
+    // A count badge after a segment's label, in a severity's color, the label
+    // and the badge centered together; an empty count removes it. An error
+    // color other than 0 takes the theme's place. Cleared by SetSegments.
+    void  SetBadge (int index, const std::wstring & count, DxuiSeverity severity, uint32_t errorArgb = 0);
 
     // SetSelected selects a disabled segment too.
     void  SetSegmentEnabled (int index, bool isEnabled);
@@ -82,9 +88,17 @@ private:
     void   StartSlide      ();
     float  GetSegmentWidth () const;
     int    FindEnabled     (int from, int step) const;
+    void   PaintBadgedLabel (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int index, float left, float top, float width, float height,
+                             uint32_t color, float fontPx);
+
+    static constexpr float  s_kBadgeDip    = 16.0f;
+    static constexpr float  s_kBadgeGapDip = 6.0f;
 
     std::vector<std::wstring>  m_labels;
     std::vector<bool>          m_isSegmentEnabled;
+    std::vector<std::wstring>  m_badges;
+    std::vector<DxuiSeverity>  m_badgeSeverities;
+    uint32_t                   m_badgeErrorArgb    = 0;
     ChangeFn                   m_change;
     int                        m_selected          = -1;
     int                        m_hover             = -1;

@@ -15,6 +15,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/ExplorerThemes.h"
@@ -539,7 +540,7 @@ void ExplorerToolbars::UpdateCommandBar()
     {
         extra = Extra::Results;
     }
-    else if (m_context.browser.IsAppleDriveLocation() || m_context.cassoLinkManager.IsOnLinkedMachine())
+    else if (m_context.browser.IsAppleDriveLocation() || m_context.linkDrives.IsOnLinkedMachine())
     {
         extra = Extra::AppleDrive;
     }

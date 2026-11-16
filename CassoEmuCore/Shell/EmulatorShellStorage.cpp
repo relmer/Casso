@@ -19,7 +19,6 @@
 #include "Shell/Layout/DriveLabel.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Ui/Settings/SlotCards.h"
-#include "Core/TextEncoding.h"
 #include "Shell/TapeManager.h"
 #include "Core/JsonParser.h"
 #include "Core/PathResolver.h"
@@ -448,6 +447,201 @@ void EmulatorShell::ChangeHardDiskImage (int slot, int drive, const std::wstring
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::MakePortDriveDialog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DialogDefinition EmulatorShell::MakePortDriveDialog (PortDriveChange change, const std::string & device)
+{
+    DialogDefinition  def;
+    std::wstring      action;
+
+
+
+    switch (change)
+    {
+        case PortDriveChange::PlugIn:
+            def.title = L"Plug in a drive";
+            action    = std::format (L"Plugging in {}", GetPortDriveText (device));
+            break;
+
+        case PortDriveChange::Unplug:
+            def.title = L"Unplug a drive";
+            action    = std::format (L"Unplugging {}", GetPortDriveText (device));
+            break;
+
+        case PortDriveChange::Swap:
+            def.title = L"Swap a drive";
+            action    = std::format (L"Swapping {} for {}", GetPortDriveText (device), GetPortDriveText (ShellDisks::GetSwapDevice (device)));
+            break;
+    }
+
+    def.icon  = DialogIcon::Warning;
+    def.body.push_back (DialogTextRun { action + L" restarts the machine now.", false, std::wstring() });
+    def.body.push_back (DialogTextRun { L"Anything the running program hasn't saved is lost.", false, std::wstring() });
+    def.buttons.push_back (DialogButton { L"Restart", kHardDiskChangeRestart, true,  false, false });
+    def.buttons.push_back (DialogButton { L"Cancel",  0,                      false, true,  false });
+
+    return def;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetPortDriveText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * EmulatorShell::GetPortDriveText (const std::string & device)
+{
+    const wchar_t  * text = L"a UniDisk 3.5";
+
+
+
+    if (device == kpszApple35DriveDevice)
+    {
+        text = L"a 3.5-inch drive";
+    }
+    else if (device == kpszDiskIicDevice)
+    {
+        text = L"a 5.25-inch drive";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ChangePortDrive
+//
+//  The chain is saved with the machine, and the machine is rebuilt from it
+//  on the CPU thread, as the Settings sheet's machine switch does. A swap
+//  removes the drive and plugs in one of the other size, which goes where
+//  the firmware looks for its kind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ChangePortDrive (PortDriveChange change, const std::string & device, size_t nth)
+{
+    int  choice = 0;
+
+
+
+    m_chrome->HideTooltips();
+
+    choice = ShowModalDialog (MakePortDriveDialog (change, device));
+
+    if (choice == kHardDiskChangeRestart)
+    {
+        SaveMachineSettings ([&device, change, nth] (SettingsPanelState & state)
+        {
+            if (change != PortDriveChange::PlugIn)
+            {
+                state.RemoveDiskPortDrive (device, nth);
+            }
+
+            if (change == PortDriveChange::PlugIn)
+            {
+                state.AddDiskPortDrive (device);
+            }
+            else if (change == PortDriveChange::Swap)
+            {
+                state.AddDiskPortDrive (ShellDisks::GetSwapDevice (device));
+            }
+        });
+
+        PostCommand (IDM_FILE_OPEN, GetCurrentMachineNameNarrow());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::AddPortDriveRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::AddPortDriveRows (const std::string & device, int nth, std::vector<DxuiPopupMenuItem> & items)
+{
+    const EmulatorCommands  & commands = m_chrome->m_mainMenu.GetCommands();
+
+
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    if (nth >= 0)
+    {
+        auto  unplug = std::make_shared<DxuiCommand>();
+
+
+
+        unplug->label    = L"&Unplug drive";
+        unplug->dispatch = [this, device, nth] () { ChangePortDrive (PortDriveChange::Unplug, device, (size_t) nth); };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (unplug));
+
+        if (!ShellDisks::GetSwapDevice (device).empty())
+        {
+            auto  swap = std::make_shared<DxuiCommand>();
+
+
+
+            swap->label     = (device == kpszApple35DriveDevice) ? L"S&wap for a 5.25-inch drive" : L"S&wap for a 3.5-inch drive";
+            swap->dispatch  = [this, device, nth] () { ChangePortDrive (PortDriveChange::Swap, device, (size_t) nth); };
+            swap->isVisible = [this, device] () { return m_disks->CanSwapPortDrive (device); };
+
+            items.push_back (DxuiPopupMenuItem::ForCommand (swap));
+        }
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (IDM_STORAGE_ATTACH_APPLE35)));
+    items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (IDM_STORAGE_ATTACH_FLOPPY)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::MakeRelabeled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiCommand> EmulatorShell::MakeRelabeled (const std::shared_ptr<const DxuiCommand> & command, const wchar_t * label)
+{
+    std::shared_ptr<DxuiCommand>  copy;
+
+
+
+    if (command == nullptr)
+    {
+        return command;
+    }
+
+    copy            = std::make_shared<DxuiCommand> (*command);
+    copy->label     = label;
+    copy->labelText = nullptr;
+
+    return copy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::BrowseHardDisk
 //
 //  The drive's picker, whose pick is confirmed and attached as a drop is.
@@ -548,8 +742,9 @@ Error:
 //  then the Storage menu's commands for that device. Drive 1 has no such
 //  switch; the machine's first drive is always present.
 //
-//  The rows are the Storage menu's own commands, so their text, enabled
-//  state and check marks match the menu's exactly.
+//  The rows are the Storage menu's commands, so their enabled state and
+//  check marks match the menu's. The disk's rows are worded for a menu the
+//  drive's name heads, as a 3.5-inch drive's is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -598,7 +793,7 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
     {
         if (device != 0)
         {
-            ShowDriveContextMenu (DeskDrive { DeskDriveModel::Disk2c, BootDriveRule::kDiskIiSlot, device }, x, y);
+            ShowDriveContextMenu (DeskDrive { DeskDriveModel::Disk2c, BootDriveRule::kDiskIiSlot, device, false, true }, x, y);
             return;
         }
 
@@ -609,33 +804,61 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
         ids = { IDM_STORAGE_RECORDER, 0, IDM_TAPE_INSERT, IDM_TAPE_PLAY, IDM_TAPE_STOP, IDM_TAPE_REWIND,
                 IDM_TAPE_FASTFORWARD, IDM_TAPE_EJECT };
     }
-    else if (device == 0)
+    else
     {
+        // Headed and worded as a 3.5-inch drive's menu is: the drive's name,
+        // then the disk's commands.
+        bool  isFirst = (device == 0);
+
+        items.push_back (DxuiPopupMenuItem::ForHeader (ShellDeskScene::GetDriveTitle (m_scene->GetDiskIiDrive (device))));
+
+        if (!isFirst)
+        {
+            items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (IDM_STORAGE_DRIVE2)));
+            items.push_back (DxuiPopupMenuItem::ForSeparator());
+        }
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_INSERT1    : IDM_DISK_INSERT2),    L"&Insert disk...")));
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_EJECT1     : IDM_DISK_EJECT2),     L"&Eject disk")));
+        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (isFirst ? IDM_DISK_WP1      : IDM_DISK_WP2)));
+        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (isFirst ? IDM_DISK_SALVAGE1 : IDM_DISK_SALVAGE2)));
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_INSPECT1   : IDM_DISK_INSPECT2),   L"Inspect &disk...")));
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_THUMBNAIL1 : IDM_DISK_THUMBNAIL2), L"Save screenshot as the disk's thu&mbnail")));
+
         // Drive 1 is always there, so its menu is where a detached drive 2 or
         // recorder is attached again: neither is on screen to be clicked.
-        bool  drive2Away   = m_disks->IsSecondDriveOffered() && !m_disks->ShouldShowExternalDrive();
-        bool  recorderAway = m_tapeDeck->MachineHasCassettePort() && !m_tapeDeck->IsTapeRecorderShown();
-
-        ids = { IDM_DISK_INSERT1, IDM_DISK_EJECT1, IDM_DISK_WP1, IDM_DISK_SALVAGE1, IDM_DISK_INSPECT1, IDM_DISK_THUMBNAIL1 };
-
-        if (drive2Away || recorderAway)
+        if (isFirst && m_disks->IsSecondDriveOffered() && !m_disks->ShouldShowExternalDrive())
         {
-            ids.push_back (0);
+            ids = { 0, IDM_STORAGE_DRIVE2 };
         }
 
-        if (drive2Away)
+        if (isFirst && m_tapeDeck->MachineHasCassettePort() && !m_tapeDeck->IsTapeRecorderShown())
         {
-            ids.push_back (IDM_STORAGE_DRIVE2);
-        }
+            if (ids.empty())
+            {
+                ids.push_back (0);
+            }
 
-        if (recorderAway)
-        {
             ids.push_back (IDM_STORAGE_RECORDER);
         }
     }
-    else
+
+    for (int id : ids)
     {
-        ids = { IDM_STORAGE_DRIVE2, 0, IDM_DISK_INSERT2, IDM_DISK_EJECT2, IDM_DISK_WP2, IDM_DISK_SALVAGE2, IDM_DISK_INSPECT2, IDM_DISK_THUMBNAIL2 };
+        items.push_back (id == 0 ? DxuiPopupMenuItem::ForSeparator() : DxuiPopupMenuItem::ForCommand (commands.Find (id)));
+    }
+
+    ids.clear();
+
+    // On the //c Plus the 5.25-inch drives are on the disk port's chain. Only
+    // the last one is unplugged, since a disk is saved by its drive's number.
+    if (m_disks->IsPortChainOffered() && (device == 0 || device == 1))
+    {
+        int  floppies = m_disks->CountPortDrives (kpszDiskIicDevice);
+
+
+
+        AddPortDriveRows (kpszDiskIicDevice, (device >= 0 && device == floppies - 1) ? device : -1, items);
     }
 
     // Every device's menu ends with the auto-hide switch, since the drives and
@@ -724,6 +947,35 @@ void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
         change->dispatch = [this, drive] () { BrowseHardDisk (drive); };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (change));
+    }
+
+    // On the //c Plus, the drives behind the built-in one are on the disk
+    // port's chain, the built-in drive taking the first desk index.
+    if (drive.slot == 0 && m_disks->IsPortChainOffered())
+    {
+        std::string  device;
+        int          nth    = -1;
+
+
+
+        if (drive.model == DeskDriveModel::Apple35Drive)
+        {
+            device = kpszApple35DriveDevice;
+        }
+        else if (drive.model == DeskDriveModel::UniDisk35)
+        {
+            device = kpszUniDisk35Device;
+        }
+
+        for (const PortConfig & port : m_machine.GetConfig().ports)
+        {
+            for (size_t i = 0; !device.empty() && i < port.chain.size() && (int) i < drive.drive; i++)
+            {
+                nth += (port.chain[i].device == device) ? 1 : 0;
+            }
+        }
+
+        AddPortDriveRows (device, nth, items);
     }
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());

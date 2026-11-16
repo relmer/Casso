@@ -40,6 +40,8 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_DISK_INSPECT1,            MainMenuId::Disk,    L"Inspect &disk 1...",     nullptr          },
     { IDM_DISK_THUMBNAIL1,          MainMenuId::Disk,    L"Save screenshot as disk 1's thu&mbnail", nullptr },
     { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
+    { IDM_STORAGE_ATTACH_APPLE35,   MainMenuId::Disk,    L"Pl&ug in a 3.5-inch drive", nullptr       },
+    { IDM_STORAGE_ATTACH_FLOPPY,    MainMenuId::Disk,    L"Plu&g in a 5.25-inch drive", nullptr      },
     { IDM_STORAGE_DRIVE2,           MainMenuId::Disk,    L"Attac&h drive 2",        nullptr          },
     { IDM_DISK_INSERT2,             MainMenuId::Disk,    L"I&nsert drive 2...",     L"Ctrl+2"        },
     { IDM_DISK_EJECT2,              MainMenuId::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
@@ -193,6 +195,11 @@ EmulatorCommands::EmulatorCommands()
         cmd->isEnabled = [this, commandId] () -> bool
         {
             return m_isEnabled ? m_isEnabled (commandId) : true;
+        };
+
+        cmd->isVisible = [this, commandId] () -> bool
+        {
+            return m_isVisible ? m_isVisible (commandId) : true;
         };
 
         cmd->labelText = [this, commandId, staticLabel] () -> std::wstring

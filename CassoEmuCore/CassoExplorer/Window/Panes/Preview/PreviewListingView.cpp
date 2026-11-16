@@ -173,6 +173,70 @@ bool PreviewListingView::TickScrollbars (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewListingView::GetContentHeightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewListingView::GetContentHeightPx() const
+{
+    return m_list->IsVisible() ? m_list->GetHeaderHeightPx() + m_list->GetRowCount() * m_context.scaler.ToPx (kRowHeightDip) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::IsAtTop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewListingView::IsAtTop() const
+{
+    return !m_list->IsVisible() || m_list->GetTopRow() == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::GetScrollPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewListingView::GetScrollPx() const
+{
+    return m_list->GetTopRow() * m_context.scaler.ToPx (kRowHeightDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::SetScrollPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewListingView::SetScrollPx (int scrollPx)
+{
+    int  rowPx = (std::max) (1, m_context.scaler.ToPx (kRowHeightDip));
+
+
+
+    m_list->ScrollByRows ((scrollPx + rowPx / 2) / rowPx - m_list->GetTopRow());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewListingView::Fill
 //
 //  A catalog of any volume but DOS 3.3 or ProDOS arrives as rows under
@@ -948,7 +1012,10 @@ LPCWSTR PreviewListingView::GetCursorForPoint (POINT clientPx) const
 
     cursor = m_list->AsControl().GetCursorForPoint (clientPx);
 
-    return (cursor != nullptr || m_list->IsOverScrollbar (local)) ? cursor : (arrow ? IDC_ARROW : IDC_IBEAM);
+    return cursor != nullptr               ? cursor
+         : m_list->IsOverScrollbar (local) ? IDC_ARROW
+         : arrow                           ? IDC_ARROW
+                                           : IDC_IBEAM;
 }
 
 

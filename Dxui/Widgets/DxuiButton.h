@@ -17,11 +17,11 @@ public:
     explicit DxuiButton  (const std::wstring & label) { m_focusable = true; SetLabel (label); }
     ~DxuiButton() override = default;
 
-    void  Layout            (const RECT & rect) { SetBounds (rect); }
-    void  SetLabel          (const std::wstring & label);
-    wchar_t  GetAccelerator () const { return m_accelerator; }
-    void  SetOnClick      (ClickFn click) { m_click = std::move (click); }
-    bool  HasClickHandler () const { return (bool) m_click; }
+    void     Layout          (const RECT & rect) { SetBounds (rect); }
+    void     SetLabel        (const std::wstring & label);
+    wchar_t  GetAccelerator  () const { return m_accelerator; }
+    void     SetOnClick      (ClickFn click) { m_click = std::move (click); }
+    bool     HasClickHandler () const { return (bool) m_click; }
 
     // Win32 command id (IDOK / IDCANCEL / IDYES / ...). A modal DxuiWindow
     // discovers its buttons by id: the default (Enter) button, the IDCANCEL
@@ -40,6 +40,13 @@ public:
     // non-theme color -- every fill/text derives from IDxuiTheme.
     enum class Variant { Default, Primary, Danger, Link };
     void  SetVariant  (Variant variant) { m_variant = variant; }
+
+    // A Link's text color in place of the theme's accent, such as the error
+    // color for a link to a problem; 0 for the accent. And an underline under
+    // a Link's text while the pointer is on it, for a link that must read as
+    // one. Neither by default.
+    void  SetLinkColor        (uint32_t argb)   { m_linkColor = argb; }
+    void  SetUnderlineOnHover (bool isUnderlined) { m_isUnderlinedOnHover = isUnderlined; }
 
     // How the label is trimmed when it does not fit the button's box. Off by
     // default: most buttons are sized to their label, and a caller that has
@@ -76,16 +83,18 @@ public:
 
 private:
     std::wstring   m_label;
-    wchar_t        m_accelerator = 0;
+    wchar_t        m_accelerator         = 0;
     ClickFn        m_click;
-    bool           m_hover       = false;
-    bool           m_pressed     = false;
-    bool           m_focused     = false;
-    bool           m_enabled     = true;
-    bool           m_visible     = true;
+    bool           m_hover               = false;
+    bool           m_pressed             = false;
+    bool           m_focused             = false;
+    bool           m_enabled             = true;
+    bool           m_visible             = true;
     DxuiDpiScaler  m_scaler;
-    Variant        m_variant     = Variant::Default;
-    DxuiElide      m_elide       = DxuiElide::None;
-    bool           m_emphasis    = false;
-    int            m_commandId   = 0;
+    Variant        m_variant             = Variant::Default;
+    uint32_t       m_linkColor           = 0;
+    bool           m_isUnderlinedOnHover = false;
+    DxuiElide      m_elide               = DxuiElide::None;
+    bool           m_emphasis            = false;
+    int            m_commandId           = 0;
 };

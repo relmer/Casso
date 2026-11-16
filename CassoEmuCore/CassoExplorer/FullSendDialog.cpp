@@ -533,11 +533,11 @@ std::wstring FullSendPanel::DescribeTotals (const FullSendTotals & totals)
 
 
 
-    text += std::format (L"    {} elapsed", FormatSeconds (totals.elapsed));
+    text += std::format (L"    {} active, {} idle", FormatSeconds (totals.elapsed), FormatSeconds (totals.idle));
 
     if (totals.sent != 0)
     {
-        text += std::format (L", {} a disk, {:.1f} MB", FormatSeconds (totals.average), (double) totals.bytes / (1024.0 * 1024.0));
+        text += std::format (L", average {} per disk, {:.1f} MB", FormatSeconds (totals.average), (double) totals.bytes / (1024.0 * 1024.0));
     }
 
     return text;
@@ -935,6 +935,7 @@ float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme &
     int                        used   = 0;
     std::vector<std::wstring>  lines  (count);
     std::vector<int>           rows   (count, 1);
+    float                      textH  = lineH;
 
 
 
@@ -956,6 +957,7 @@ float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme &
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         rows[i] = (measured > width - time) ? 2 : 1;
+        textH   = (height > 0.0f) ? std::min (height, lineH) : textH;
 
         if (used + rows[i] > kActivityRows)
         {
@@ -966,17 +968,24 @@ float FullSendPanel::PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme &
         first = i;
     }
 
+    //  A wrapped line's text begins where a single line's does, centered in
+    //  the first row, and its block is one row and one more line of text
+    //  tall, so the space below it matches the space below a single line.
     for (size_t i = first; i < count; i++)
     {
-        HRESULT  hr = S_OK;
+        HRESULT  hr     = S_OK;
+        float    inset  = (lineH - textH) * 0.5f;
+        float    blockH = rows[i] == 1 ? lineH : lineH + textH;
 
         DrawLine (text, TextEncoding::NarrowToWide (m_view.snapshot.lines[i].time), left, top, time, theme.ForegroundMuted());
 
-        hr = text.DrawString (lines[i].c_str(), left + time, top, width - time, lineH * rows[i], theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
-                              DxuiTextHAlign::Left, rows[i] == 1 ? DxuiTextVAlign::Center : DxuiTextVAlign::Top, DxuiFontWeight::Normal, rows[i] > 1);
+        hr = rows[i] == 1 ? text.DrawString (lines[i].c_str(), left + time, top, width - time, lineH, theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
+                                             DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false)
+                          : text.DrawString (lines[i].c_str(), left + time, top + inset, width - time, blockH - inset, theme.Foreground(), m_scaler.ToPxf (kFontDip), s_kpszFont,
+                                             DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, true);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        top += lineH * rows[i];
+        top += blockH;
     }
 
     return top;
@@ -1013,6 +1022,24 @@ void FullSendDialog::Configure (const IDxuiTheme * theme, SnapshotFn snapshot, A
 bool FullSendDialog::IsRunning (const FullSendSnapshot & snapshot)
 {
     return snapshot.activity != FullSendActivity::None && snapshot.activity != FullSendActivity::Ended;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendDialog::IsReadingDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendDialog::IsReadingDisk (const FullSendSnapshot & snapshot)
+{
+    return std::any_of (snapshot.drives.begin(), snapshot.drives.end(), [] (const FullSendDriveStatus & drive)
+    {
+        return drive.state == FullSendDiskState::Checking || drive.state == FullSendDiskState::Sending || drive.state == FullSendDiskState::Capturing;
+    });
 }
 
 

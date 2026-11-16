@@ -45,10 +45,11 @@ public:
     //  booted included.
     virtual size_t  GetQueued () = 0;
 
-    //  Whether the image's thumbnail is one the user set, and its removal,
-    //  after which the thumbnail made by booting is drawn.
-    virtual bool     IsUserSet     (const std::wstring & path) = 0;
-    virtual HRESULT  RemoveUserSet (const std::wstring & path) = 0;
+    //  Whether the image has a thumbnail, and its removal: the one the user
+    //  set, after which the thumbnail made by booting is drawn, or with none
+    //  set, the one made by booting.
+    virtual bool     HasThumbnail    (const std::wstring & path) = 0;
+    virtual HRESULT  RemoveThumbnail (const std::wstring & path) = 0;
 
     //  The keys of the thumbnails of files to be deleted, and the removal of
     //  those thumbnails once the files are gone.

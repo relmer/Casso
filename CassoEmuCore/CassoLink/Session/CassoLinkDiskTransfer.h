@@ -2,10 +2,10 @@
 
 #include "Pch.h"
 
+#include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
 
-class CassoLinkHost;
 class CassoLinkSession;
 struct CassoLinkStatus;
 
@@ -19,7 +19,7 @@ struct CassoLinkStatus;
 //
 //  Whole disks over the link: a disk read into an image track by track,
 //  the unreadable sectors' list beside it, an image written back, and the
-//  drive timed before a format.
+//  drive timed before a format or for a WOZ built to the disk's layout.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +66,12 @@ public:
     HRESULT  ReadVerifiedTrack  (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable, std::vector<SectorMark> & marks);
     HRESULT  TimeDriveForFormat (int drive, Byte & outGap);
 
+    //  A turn's bits on the drive, for a WOZ built to its disk's layout, and
+    //  a track's measure appended to ioMeasures: zeros for a track with no
+    //  sector 0.
+    HRESULT  TimeDriveForLayout (int drive, int & outBitsPerTurn);
+    HRESULT  MeasureTrack       (int drive, int track, std::vector<CassoLinkHost::TrackMeasure> & ioMeasures);
+
     static std::string  FormatCaptureTimes (const CassoLinkCapture::Result & result);
     static std::string  FormatPosition     (int position);
     static std::string  FormatDuration     (double seconds);
@@ -75,6 +81,8 @@ public:
 
 private:
     friend class CassoLinkSession;
+
+    bool  IsTimed () const;
 
     CassoLinkSession  & m_session;
 

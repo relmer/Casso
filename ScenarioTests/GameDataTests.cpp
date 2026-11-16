@@ -207,6 +207,164 @@ public:
     }
 
 
+    //  Types `text` into Wizardry a key at a time, with time for the game to
+    //  read each key.
+    static void TypeToWizardry (MachineHost & machine, const std::string & text)
+    {
+        constexpr uint64_t  kPerKey = 600'000ULL;
+
+        for (char c : text)
+        {
+            AssertSucceeded (KeystrokeInjector::InjectKey (machine, (Byte) c));
+            machine.RunCycles (kPerKey);
+        }
+    }
+
+
+    //  The number after `label` on a row of the screen, as Wizardry's
+    //  character sheet has them ("GOLD          180", "HITS   9/  9"), or -1.
+    //  `second` takes the number after the slash.
+    static int64_t FindScreenNumber (const std::vector<std::string> & rows, const std::string & label, bool second = false)
+    {
+        std::regex   pattern (label + (second ? " +[0-9]+/ *([0-9]+)" : " +([0-9]+)"));
+        std::smatch  match;
+        int64_t      value = -1;
+
+
+
+        for (const std::string & row : rows)
+        {
+            if (value < 0 && std::regex_search (row, match, pattern))
+            {
+                value = std::stoll (match[1].str());
+            }
+        }
+
+        return value;
+    }
+
+
+    //  Wizardry I run in Casso: booted from its write-protected boot disk,
+    //  which its startup code requires, with a character created in the
+    //  Training Grounds and saved to the scenario disk. The decoded
+    //  SCENARIO.DATA has the character as the game's sheet draws it: its
+    //  name, level, race, class and alignment, status, hit points, gold and
+    //  experience. The bonus points are rolled, so each one goes to the first
+    //  score that takes it, which makes the character a fighter, and the sheet
+    //  is read back rather than assumed.
+    TEST_METHOD (WizardryI_ACharacterMadeInTheGame_DecodesAsItsSheet)
+    {
+        constexpr uint64_t  kCap = 200'000'000ULL;
+
+        TestMachine                machine  ("Apple2Plus");
+        std::vector<Byte>          boot     = GuestSession::FindTestDisk ("wizardry1-boot.dsk");
+        std::vector<Byte>          scenario = GuestSession::FindTestDisk ("wizardry1-scenario.dsk");
+        std::vector<std::string>   sheet;
+        std::vector<Byte>          saved;
+        SectorDecodeReport         report;
+        DecodedFile                file;
+        int64_t                    level    = 0;
+
+
+
+        if (boot.empty() || scenario.empty())
+        {
+            Logger::WriteMessage ("SKIPPED: wizardry1-boot.dsk and wizardry1-scenario.dsk are not in the test disks folder\n");
+            return;
+        }
+
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "wizardry1-boot.dsk", DiskFormat::Dsk, boot));
+        machine.GetDiskStore().GetImage (6, 0)->SetUserWriteProtected (true);
+        machine.PowerCycle();
+
+        //  The title, then the scenario disk in drive 1 for the game.
+        machine.RunCycles (60'000'000ULL);
+        TypeToWizardry (machine, " ");
+        Assert::IsTrue (RunUntilScreenShows (machine, "S)TART GAME", kCap), L"the menu after the title");
+
+        TypeToWizardry (machine, "S");
+        Assert::IsTrue (RunUntilScreenShows (machine, "SCENARIO MASTER IN DRV 1", kCap));
+
+        machine.GetDiskStore().Eject (6, 0);
+        machine.RunCycles (2'000'000ULL);
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "wizardry1-scenario.dsk", DiskFormat::Dsk, scenario));
+        TypeToWizardry (machine, "\r");
+        Assert::IsTrue (RunUntilScreenShows (machine, "MASTER/DUPLICATE IN DRV 1", kCap));
+
+        TypeToWizardry (machine, "\r");
+        Assert::IsTrue (RunUntilScreenShows (machine, "YOU MAY GO TO:", kCap), L"the castle");
+
+        //  The Training Grounds, by the edge of town.
+        TypeToWizardry (machine, "E");
+        Assert::IsTrue (RunUntilScreenShows (machine, "T)RAINING GROUNDS", kCap));
+        TypeToWizardry (machine, "T");
+        Assert::IsTrue (RunUntilScreenShows (machine, "NAME >", kCap));
+
+        TypeToWizardry (machine, "CASSO\r");
+        Assert::IsTrue (RunUntilScreenShows (machine, "CREATE IT", kCap));
+        TypeToWizardry (machine, "Y");
+        Assert::IsTrue (RunUntilScreenShows (machine, "ENTER A PASSWORD", kCap));
+        TypeToWizardry (machine, "\r");
+        Assert::IsTrue (RunUntilScreenShows (machine, "AGAIN", kCap));
+        TypeToWizardry (machine, "\r");
+        Assert::IsTrue (RunUntilScreenShows (machine, "CHOOSE A RACE", kCap));
+        TypeToWizardry (machine, "A");
+        Assert::IsTrue (RunUntilScreenShows (machine, "CHOOSE AN ALIGNMENT", kCap));
+        TypeToWizardry (machine, "A");
+        Assert::IsTrue (RunUntilScreenShows (machine, "ENTER [+,-]", kCap));
+
+        for (int score = 0; score < 6; score++)
+        {
+            TypeToWizardry (machine, std::string (10, '+') + "\r");
+        }
+
+        TypeToWizardry (machine, "\x1B");
+        Assert::IsTrue (RunUntilScreenShows (machine, "CHOOSE A CLASS", kCap));
+        TypeToWizardry (machine, "A");
+        Assert::IsTrue (RunUntilScreenShows (machine, "KEEP THIS CHARACTER", kCap));
+        TypeToWizardry (machine, "Y");
+        Assert::IsTrue (RunUntilScreenShows (machine, "NAME >", kCap), L"the Training Grounds again, with the character made");
+
+        //  The character's sheet, as the game draws it.
+        TypeToWizardry (machine, "CASSO\r");
+        Assert::IsTrue (RunUntilScreenShows (machine, "PASSWORD >", kCap));
+        TypeToWizardry (machine, "\r");
+        Assert::IsTrue (RunUntilScreenShows (machine, "I)NSPECT", kCap));
+        TypeToWizardry (machine, "I");
+        Assert::IsTrue (RunUntilScreenShows (machine, "STATUS OK", kCap));
+
+        GuestSession::CollectRows (machine, sheet);
+        Assert::IsTrue (GuestSession::AnyRowContains (sheet, "CASSO HUMAN G-FIGHTER"));
+
+        level = FindScreenNumber (sheet, "LEVEL");
+        Assert::IsTrue (level == 1 && FindScreenNumber (sheet, "GOLD") >= 0 && FindScreenNumber (sheet, "HITS") > 0, L"the sheet has its numbers");
+
+        //  Out of the game by the edge of town, which is when the game writes the
+        //  roster to the scenario disk.
+        TypeToWizardry (machine, "L");
+        Assert::IsTrue (RunUntilScreenShows (machine, "PRESS [RET] TO LEAVE", kCap));
+        TypeToWizardry (machine, "\r");
+        Assert::IsTrue (RunUntilScreenShows (machine, "NAME >", kCap));
+        TypeToWizardry (machine, "\r");
+        Assert::IsTrue (RunUntilScreenShows (machine, "YOU MAY GO TO", kCap));
+        TypeToWizardry (machine, "E");
+        Assert::IsTrue (RunUntilScreenShows (machine, "L)EAVE THE", kCap));
+        TypeToWizardry (machine, "L");
+        machine.RunCycles (60'000'000ULL);
+
+        //  The scenario disk as the game left it, decoded.
+        saved = GuestSession::DecodeThroughTheDrive (*machine.GetDiskStore().GetImage (6, 0), report);
+        file  = DecodeScenario (saved, "wizardry1-scenario.dsk");
+
+        Assert::IsTrue (HasLineStarting (file, L"Saved game: 1 character"));
+        Assert::IsTrue (HasLineStarting (file, std::format (L"CASSO   Level {} Human Fighter, Good", level)));
+        Assert::IsTrue (HasLineStarting (file, std::format (L"Status: OK   Hit points: {}/{}   Gold: {}   Experience: {}",
+                                                            FindScreenNumber (sheet, "HITS"), FindScreenNumber (sheet, "HITS", true),
+                                                            WizardryScenario::GroupDigits ((uint64_t) FindScreenNumber (sheet, "GOLD")),
+                                                            WizardryScenario::GroupDigits ((uint64_t) FindScreenNumber (sheet, "EXP")))));
+    }
+
+
     //  The story found and decoded, with the objects of the room the game
     //  opens in.
     TEST_METHOD (ZorkI_DecodesAsTheGameRuns)

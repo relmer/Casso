@@ -66,11 +66,11 @@ private:
     static constexpr int      kBarHeightPx       = 5;
     static constexpr int      kBottomPadPx       = 8;
     static constexpr int      kCaptionGapXPx     = 6;
-    static constexpr int      kCaptionHeightPx   = 14;
+    static constexpr int      kCaptionHeightPx   = 15;
     static constexpr int      kPanelRadiusPx     = 4;
     static constexpr int      kArrowHalfPx       = 4;
-    static constexpr float    kNameFontDip       = 11.0f;
-    static constexpr float    kCaptionFontDip    = 9.0f;
+    static constexpr float    kNameFontDip       = 12.0f;
+    static constexpr float    kCaptionFontDip    = 10.5f;
     static constexpr float    kIdleRailAlpha     = 0.14f;
     static constexpr size_t   kMaxNameChars      = 22;
 

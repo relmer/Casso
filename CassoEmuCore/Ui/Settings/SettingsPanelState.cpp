@@ -629,6 +629,228 @@ void SettingsPanelState::SetMouseConnected (bool connected)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetChainRank
+//
+//  The order of a chain's kinds of drive: Apple 3.5 Drives, then UniDisks,
+//  then 5.25-inch drives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SettingsPanelState::GetChainRank (const std::string & device)
+{
+    int  rank = 1;
+
+
+
+    if (device == kpszApple35DriveDevice)
+    {
+        rank = 0;
+    }
+    else if (device == kpszDiskIicDevice)
+    {
+        rank = 2;
+    }
+
+    return rank;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetChainDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string SettingsPanelState::GetChainDevice (const JsonValue & entry)
+{
+    std::string  device;
+    HRESULT      hr     = S_OK;
+
+
+
+    if (entry.GetType() == JsonType::Object)
+    {
+        hr = entry.GetString (kpszPortDeviceKey, device);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    return device;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditDiskPortChain
+//
+//  Applies `edit` to a copy of the disk port's chain and writes the copy
+//  back. An empty chain is removed from the port.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::EditDiskPortChain (const std::function<void (std::vector<JsonValue> &)> & edit)
+{
+    for (SettingsMachinePort & port : m_current.machinePorts)
+    {
+        std::vector<JsonValue>  chain;
+        size_t                  key   = port.otherKeys.size();
+
+
+
+        if (port.name != kpszDiskPortName)
+        {
+            continue;
+        }
+
+        for (size_t i = 0; i < port.otherKeys.size(); i++)
+        {
+            const JsonValue  & value = port.otherKeys[i].second;
+
+
+
+            if (port.otherKeys[i].first == kpszChainKey && value.GetType() == JsonType::Array)
+            {
+                key = i;
+
+                for (size_t j = 0; j < value.GetArraySize(); j++)
+                {
+                    chain.push_back (SettingsJson::CloneJson (value.GetArrayElement (j)));
+                }
+            }
+        }
+
+        edit (chain);
+
+        if (key < port.otherKeys.size() && chain.empty())
+        {
+            port.otherKeys.erase (port.otherKeys.begin() + (ptrdiff_t) key);
+        }
+        else if (key < port.otherKeys.size())
+        {
+            port.otherKeys[key].second = JsonValue (std::move (chain));
+        }
+        else if (!chain.empty())
+        {
+            port.otherKeys.emplace_back (kpszChainKey, JsonValue (std::move (chain)));
+        }
+
+        break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDiskPortChain
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> SettingsPanelState::GetDiskPortChain() const
+{
+    std::vector<std::string>  devices;
+
+
+
+    for (const SettingsMachinePort & port : m_current.machinePorts)
+    {
+        for (const auto & [key, value] : port.otherKeys)
+        {
+            if (port.name != kpszDiskPortName || key != kpszChainKey || value.GetType() != JsonType::Array)
+            {
+                continue;
+            }
+
+            for (size_t i = 0; i < value.GetArraySize(); i++)
+            {
+                devices.push_back (GetChainDevice (value.GetArrayElement (i)));
+            }
+        }
+    }
+
+    return devices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddDiskPortDrive
+//
+//  The drive goes after the last drive of its kind or of a kind ahead of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::AddDiskPortDrive (const std::string & device)
+{
+    EditDiskPortChain ([&device] (std::vector<JsonValue> & chain)
+    {
+        std::vector<std::pair<std::string, JsonValue>>  entry;
+        size_t                                          at    = 0;
+
+
+
+        while (at < chain.size() && GetChainRank (GetChainDevice (chain[at])) <= GetChainRank (device))
+        {
+            at++;
+        }
+
+        entry.emplace_back (kpszPortDeviceKey, JsonValue (device));
+        chain.insert (chain.begin() + (ptrdiff_t) at, JsonValue (std::move (entry)));
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RemoveDiskPortDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::RemoveDiskPortDrive (const std::string & device, size_t nth)
+{
+    EditDiskPortChain ([&device, nth] (std::vector<JsonValue> & chain)
+    {
+        size_t  seen = 0;
+
+
+
+        for (size_t i = 0; i < chain.size(); i++)
+        {
+            if (GetChainDevice (chain[i]) != device)
+            {
+                continue;
+            }
+
+            if (seen == nth)
+            {
+                chain.erase (chain.begin() + (ptrdiff_t) i);
+                break;
+            }
+
+            seen++;
+        }
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetPortRealTiming
 //
 ////////////////////////////////////////////////////////////////////////////////

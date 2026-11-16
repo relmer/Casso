@@ -389,6 +389,14 @@ public:
     void  SetSecondDriveAttached (bool attached);
     void  SetMouseConnected      (bool connected);
 
+    // The drives on the back-panel disk port's chain, each one's device in
+    // chain order. A drive added goes where the firmware looks for its kind:
+    // Apple 3.5 Drives first, UniDisks next, 5.25-inch drives last. `nth`
+    // counts the drives of that device, from 0.
+    std::vector<std::string>  GetDiskPortChain    () const;
+    void                      AddDiskPortDrive    (const std::string & device);
+    void                      RemoveDiskPortDrive (const std::string & device, size_t nth);
+
     // What a //c serial port, 1 or 2, connects to, where the ImageWriter II is
     // attached, the Super Serial Card and the Uthernet II: see
     // SettingsConnectors.
@@ -472,6 +480,7 @@ private:
     static constexpr const char *  kpszSw2Key        = "sw2";
     static constexpr const char *  kpszSw1BeforeKey  = "sw1BeforePrinter";
     static constexpr const char *  kpszDiskPortName = "disk";
+    static constexpr const char *  kpszChainKey     = "chain";
     static constexpr const char *  kpszSerialPortNames[] = { "serial1", "serial2" };
     static constexpr const char *  kpszDiskIicDrive = "disk-iic-drive";
     static constexpr const char *  kpszDiskIiDevice = "disk-ii";
@@ -481,6 +490,11 @@ private:
 
     friend class SettingsJson;
     friend class SettingsConnectors;
+
+    static int          GetChainRank   (const std::string & device);
+    static std::string  GetChainDevice (const JsonValue & entry);
+
+    void  EditDiskPortChain (const std::function<void (std::vector<JsonValue> &)> & edit);
 
     std::string          m_machineName;
     SettingsMachineInfo  m_machineInfo;
