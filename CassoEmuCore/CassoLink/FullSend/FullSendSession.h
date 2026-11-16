@@ -149,6 +149,16 @@ public:
     //  disk's layout.
     virtual void     SetMeasuring (bool measuring) { UNREFERENCED_PARAMETER (measuring); }
 
+    //  The layouts of a drive's first `tracks` tracks, measured apart from a
+    //  read; empty from a link that doesn't measure.
+    virtual HRESULT  MeasureLayouts (int drive, int tracks, std::vector<TrackLayout> & outLayouts)
+    {
+        UNREFERENCED_PARAMETER (drive);
+        UNREFERENCED_PARAMETER (tracks);
+        outLayouts.clear();
+        return S_OK;
+    }
+
     //  No drive turns until a key arrives. The lines are drawn on the Apple until
     //  then.
     virtual HRESULT  WaitForKey (const std::vector<std::string> & lines, FullSendKey & outKey) = 0;
@@ -301,6 +311,7 @@ private:
     HRESULT  ReadStableTrack  (int drive, int track, CheckedDisk & ioDisk, bool & outHasDisk, bool & outStable);
     HRESULT  SendDisk         (int drive, const CheckedDisk & checked, bool anyway);
     HRESULT  CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw, bool & outLikely);
+    HRESULT  CheckVolume      (int drive, const std::vector<Byte> & image, FullSendReadReport & ioReport);
     HRESULT  WriteImage       (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, bool writeProtected, std::string & outFile);
     void     ApplyBoots       ();
     HRESULT  SendAgain        (int drive, const CheckedDisk & disk);

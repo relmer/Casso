@@ -331,6 +331,44 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkFullSend::MeasureLayouts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkFullSend::MeasureLayouts (int drive, int tracks, std::vector<TrackLayout> & outLayouts)
+{
+    HRESULT                                   hr          = S_OK;
+    std::vector<CassoLinkHost::TrackMeasure>  measures;
+    int                                       bitsPerTurn = 0;
+
+
+
+    outLayouts.clear();
+
+    hr = m_session.m_diskTransfer.TimeDriveForLayout (drive, bitsPerTurn);
+    CHR (hr);
+
+    for (int track = 0; track < tracks; track++)
+    {
+        hr = CheckStop();
+        CHR (hr);
+
+        hr = m_session.m_diskTransfer.MeasureTrack (drive, track, measures);
+        CHR (hr);
+    }
+
+    outLayouts = TrackMeasures::ToLayouts (measures, bitsPerTurn);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkFullSend::ReadTrackOnce
 //
 //  One request for the track, with no retries. Sectors not read are left

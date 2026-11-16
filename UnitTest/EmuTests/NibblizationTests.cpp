@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/TrackWritability.h"
@@ -388,6 +389,21 @@ public:
 
         Assert::IsTrue (viaSer == viaDirect);
         Assert::IsTrue (viaSer == raw);
+    }
+
+    //  A DOS 3.3 disk's image is nibblized with its VTOC's volume, and any
+    //  other disk's with 254.
+    TEST_METHOD (ImageVolume_IsTheVtocsOnADos33Disk_And254OnAnyOther)
+    {
+        vector<Byte>  dos (NibblizationLayer::kImageByteSize, 0);
+        vector<Byte>  prodos (NibblizationLayer::kImageByteSize, 0);
+
+        AssertSucceeded (Dos33Skeleton::Write (dos, 7));
+        AssertSucceeded (ProDosSkeleton::Write (prodos, "DATA"));
+
+        Assert::AreEqual ((Byte) 7, NibblizationLayer::GetImageVolume (dos));
+        Assert::AreEqual (NibblizationLayer::kDefaultVolume, NibblizationLayer::GetImageVolume (prodos));
+        Assert::AreEqual (NibblizationLayer::kDefaultVolume, NibblizationLayer::GetImageVolume (vector<Byte> (100, 0)), L"A short image");
     }
 
     TEST_METHOD (DskReformatRewrite_serializesToNewContentNotStale)
