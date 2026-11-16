@@ -55,6 +55,11 @@ public:
             Assert::AreEqual (S_OK, model.Load (DeskDeviceKind::HardDisk20SC, mesh), (name + L" loads").c_str());
             Assert::IsFalse (model.Lamps().empty(), (name + L" has its lamp").c_str());
             Assert::AreEqual (asset.hasSlot, model.HasSlot(), (name + L" has a slot only if it takes a disk").c_str());
+
+            if (asset.hasSlot)
+            {
+                AssertDiskShowsInSlot (model, name);
+            }
         }
     }
 
@@ -115,6 +120,33 @@ public:
 
 
 private:
+
+    //  The disk in the slot is a couple of millimeters behind the case's
+    //  front, with most of the slot's depth between it and the back of the
+    //  slot, so it reads against the dark back.
+    static void AssertDiskShowsInSlot (const DeskSceneModel & model, const std::wstring & name)
+    {
+        std::vector<Dxui3DRenderer::Vertex>  disk;
+        float                                lo[3] = {};
+        float                                front = FLT_MAX;
+
+
+
+        model.BuildDiskInSlot (disk);
+        model.BoundsMin (lo);
+
+        Assert::IsFalse (disk.empty(), (name + L" draws a disk in its slot").c_str());
+
+        for (const Dxui3DRenderer::Vertex & v : disk)
+        {
+            front = std::min (front, v.y);
+        }
+
+        Assert::IsTrue (front > lo[1] && front < lo[1] + 4.0f,
+                        std::format (L"{}: the disk's front is {:.1f} mm behind the case's front", name, front - lo[1]).c_str());
+        Assert::IsTrue (front < model.SlotBox()[1] - 3.0f, (name + L": the disk is well in front of the back of the slot").c_str());
+    }
+
 
     static std::string ModelPath (const std::string & name)
     {
