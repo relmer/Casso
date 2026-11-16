@@ -3,7 +3,6 @@
 #include "StorageCardWiring.h"
 
 #include "Audio/DriveAudioMixer.h"
-#include "Audio/Floppy35AudioSource.h"
 #include "Audio/HardDiskAudioSource.h"
 #include "Core/MachineConfig.h"
 #include "Devices/BlockDevice/AppleScsiCard.h"
@@ -629,19 +628,9 @@ void StorageCardWiring::WireDeviceAudio()
         door  = *m_services.driveDoorVolume;
     }
 
-    for (IFloppy35EventSource * source : refs.floppy35Sources)
-    {
-        auto  audio = std::make_unique<Floppy35AudioSource>();
-
-
-
-        audio->SetSampleRate (rate);
-        audio->SetVolumes (motor, head, door);
-        source->SetFloppy35EventSink (audio.get());
-        m_services.driveAudioMixer->RegisterSource (audio.get());
-        m_services.deviceAudioSources->push_back (std::move (audio));
-    }
-
+    // The 3.5-inch drives are silent: Floppy35AudioSource's synthesized
+    // motor, steps and eject didn't sound like a Sony drive, and they wait
+    // for recordings of one.
     for (AppleScsiCard * card : refs.scsiCards)
     {
         auto  audio = std::make_unique<HardDiskAudioSource> (kHd20scTick);
