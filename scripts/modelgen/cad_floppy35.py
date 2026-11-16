@@ -53,6 +53,8 @@ the drive-lamp color and `front_anchor` the front plane the scene lines
 devices up on.
 """
 
+import math
+
 import cadquery as cq
 from cadkit import KD, Model
 
@@ -134,16 +136,17 @@ def back_parts(m, case_rgb):
           METAL)
 
     db_cx, db_cz       = 40.4, 13.4
-    db_top, db_bottom  = 30.0, 25.0
+    db_top             = 30.0
     db_h               = 7.7
     db_out             = 3.4
 
     # The shell and the insert are offsets of one core trapezoid, so the
     # shell's rim is the same width all round the insert and its corners are
     # concentric with the insert's.
-    insert_r, shell_wall = 0.6, 0.7
+    insert_r, shell_wall = 1.4, 0.7
     core_top            = db_top - 2.0 * (insert_r + shell_wall)
-    core_bottom         = db_bottom - 2.0 * (insert_r + shell_wall)
+    # The sides taper 10 degrees from vertical, as a D connector's do.
+    core_bottom         = core_top - 2.0 * (db_h - 2.0 * (insert_r + shell_wall)) * math.tan (math.radians (10.0))
     core_h              = db_h - 2.0 * (insert_r + shell_wall)
 
     def d_shape(offset, y0, y1):
