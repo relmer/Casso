@@ -1736,6 +1736,81 @@ int ShellDisks::GetPortDriveLimit (const std::string & device) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDisks::CanPlugInPortDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDisks::CanPlugInPortDrive (const std::string & device) const
+{
+    constexpr int  s_kcPortDrivesMax = 2;
+    int            total             = 0;
+
+
+
+    for (const PortConfig & port : m_shell.m_machine.GetConfig().ports)
+    {
+        total += (int) port.chain.size();
+    }
+
+    return total < s_kcPortDrivesMax && CountPortDrives (device) < GetPortDriveLimit (device);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::CanSwapPortDrive
+//
+//  A 3.5-inch drive swaps for a 5.25-inch drive and the reverse, while the
+//  chain has room for one more of the other kind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDisks::CanSwapPortDrive (const std::string & device) const
+{
+    std::string  other = GetSwapDevice (device);
+
+
+
+    return !other.empty() && CountPortDrives (other) < GetPortDriveLimit (other);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::GetSwapDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ShellDisks::GetSwapDevice (const std::string & device)
+{
+    std::string  other;
+
+
+
+    if (device == kpszApple35DriveDevice)
+    {
+        other = kpszDiskIicDevice;
+    }
+    else if (device == kpszDiskIicDevice)
+    {
+        other = kpszApple35DriveDevice;
+    }
+
+    return other;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDisks::ComposeDriveInfoTooltip
 //
 //  Every presentation's info icon shows the same words, all from the drive's

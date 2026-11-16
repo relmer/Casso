@@ -60,6 +60,16 @@ struct MonitorSpec;
 enum class AppleSpecialKey;
 
 
+// A change to the //c Plus's disk port chain: a drive plugged in, unplugged,
+// or swapped for the other size.
+enum class PortDriveChange
+{
+    PlugIn,
+    Unplug,
+    Swap,
+};
+
+
 
 
 
@@ -243,7 +253,8 @@ public:
     static constexpr int  kHardDiskChangeRestart = 1;
 
     static DialogDefinition  MakeHardDiskChangeDialog (const std::wstring & driveTitle, const std::wstring & fileName);
-    static DialogDefinition  MakePortDriveDialog      (const std::string & device, bool plugIn);
+    static DialogDefinition  MakePortDriveDialog      (PortDriveChange change, const std::string & device);
+    static const wchar_t   * GetPortDriveText         (const std::string & device);
 private:
 
     //  The shell the EHM notification sink forwards to. One per process; set
@@ -411,7 +422,7 @@ private:
     // rebuilt with the new chain. The rows add the Disk menu's plug-in
     // commands to a drive's menu and, for a drive on the chain (`nth` not
     // negative), the command that unplugs it.
-    void    ChangePortDrive           (const std::string & device, bool plugIn, size_t nth);
+    void    ChangePortDrive           (PortDriveChange change, const std::string & device, size_t nth);
     void    AddPortDriveRows          (const std::string & device, int nth, std::vector<DxuiPopupMenuItem> & items);
 
     // A drive's (0 or 1) or the recorder's (kStorageMenuRecorder) right-click

@@ -246,25 +246,33 @@ void EmulatorShell::ChangeHardDiskImage (const DeskDrive & drive, const std::wst
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DialogDefinition EmulatorShell::MakePortDriveDialog (const std::string & device, bool plugIn)
+DialogDefinition EmulatorShell::MakePortDriveDialog (PortDriveChange change, const std::string & device)
 {
     DialogDefinition  def;
-    const wchar_t  *  kind = L"a UniDisk 3.5";
+    std::wstring      action;
 
 
 
-    if (device == kpszApple35DriveDevice)
+    switch (change)
     {
-        kind = L"a 3.5-inch drive";
-    }
-    else if (device == kpszDiskIicDevice)
-    {
-        kind = L"a 5.25-inch drive";
+        case PortDriveChange::PlugIn:
+            def.title = L"Plug in a drive";
+            action    = std::format (L"Plugging in {}", GetPortDriveText (device));
+            break;
+
+        case PortDriveChange::Unplug:
+            def.title = L"Unplug a drive";
+            action    = std::format (L"Unplugging {}", GetPortDriveText (device));
+            break;
+
+        case PortDriveChange::Swap:
+            def.title = L"Swap a drive";
+            action    = std::format (L"Swapping {} for {}", GetPortDriveText (device), GetPortDriveText (ShellDisks::GetSwapDevice (device)));
+            break;
     }
 
-    def.title = plugIn ? L"Plug in a drive" : L"Unplug a drive";
     def.icon  = DialogIcon::Warning;
-    def.body.push_back (DialogTextRun { std::format (L"{} {} restarts the machine now.", plugIn ? L"Plugging in" : L"Unplugging", kind), false, std::wstring() });
+    def.body.push_back (DialogTextRun { action + L" restarts the machine now.", false, std::wstring() });
     def.body.push_back (DialogTextRun { L"Anything the running program hasn't saved is lost.", false, std::wstring() });
     def.buttons.push_back (DialogButton { L"Restart", kHardDiskChangeRestart, true,  false, false });
     def.buttons.push_back (DialogButton { L"Cancel",  0,                      false, true,  false });
@@ -278,14 +286,44 @@ DialogDefinition EmulatorShell::MakePortDriveDialog (const std::string & device,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::ChangePortDrive
-//
-//  The chain is saved with the machine, and the machine is rebuilt from it
-//  on the CPU thread, as the Settings sheet's machine switch does.
+//  EmulatorShell::GetPortDriveText
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ChangePortDrive (const std::string & device, bool plugIn, size_t nth)
+const wchar_t * EmulatorShell::GetPortDriveText (const std::string & device)
+{
+    const wchar_t  * text = L"a UniDisk 3.5";
+
+
+
+    if (device == kpszApple35DriveDevice)
+    {
+        text = L"a 3.5-inch drive";
+    }
+    else if (device == kpszDiskIicDevice)
+    {
+        text = L"a 5.25-inch drive";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ChangePortDrive
+//
+//  The chain is saved with the machine, and the machine is rebuilt from it
+//  on the CPU thread, as the Settings sheet's machine switch does. A swap
+//  removes the drive and plugs in one of the other size, which goes where
+//  the firmware looks for its kind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ChangePortDrive (PortDriveChange change, const std::string & device, size_t nth)
 {
     int  choice = 0;
 
@@ -293,19 +331,24 @@ void EmulatorShell::ChangePortDrive (const std::string & device, bool plugIn, si
 
     m_chrome->HideTooltips();
 
-    choice = ShowModalDialog (MakePortDriveDialog (device, plugIn));
+    choice = ShowModalDialog (MakePortDriveDialog (change, device));
 
     if (choice == kHardDiskChangeRestart)
     {
-        SaveMachineSettings ([&device, plugIn, nth] (SettingsPanelState & state)
+        SaveMachineSettings ([&device, change, nth] (SettingsPanelState & state)
         {
-            if (plugIn)
+            if (change != PortDriveChange::PlugIn)
+            {
+                state.RemoveDiskPortDrive (device, nth);
+            }
+
+            if (change == PortDriveChange::PlugIn)
             {
                 state.AddDiskPortDrive (device);
             }
-            else
+            else if (change == PortDriveChange::Swap)
             {
-                state.RemoveDiskPortDrive (device, nth);
+                state.AddDiskPortDrive (ShellDisks::GetSwapDevice (device));
             }
         });
 
@@ -340,9 +383,22 @@ void EmulatorShell::AddPortDriveRows (const std::string & device, int nth, std::
 
 
         unplug->label    = L"&Unplug drive";
-        unplug->dispatch = [this, device, nth] () { ChangePortDrive (device, false, (size_t) nth); };
+        unplug->dispatch = [this, device, nth] () { ChangePortDrive (PortDriveChange::Unplug, device, (size_t) nth); };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (unplug));
+
+        if (!ShellDisks::GetSwapDevice (device).empty())
+        {
+            auto  swap = std::make_shared<DxuiCommand>();
+
+
+
+            swap->label     = (device == kpszApple35DriveDevice) ? L"S&wap for a 5.25-inch drive" : L"S&wap for a 3.5-inch drive";
+            swap->dispatch  = [this, device, nth] () { ChangePortDrive (PortDriveChange::Swap, device, (size_t) nth); };
+            swap->isEnabled = [this, device] () { return m_disks->CanSwapPortDrive (device); };
+
+            items.push_back (DxuiPopupMenuItem::ForCommand (swap));
+        }
     }
 }
 

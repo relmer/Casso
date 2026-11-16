@@ -158,10 +158,18 @@ public:
 
     // The //c Plus's disk port, whose drives are attached from the Disk menu:
     // whether the machine offers that, how many drives of `device` are on
-    // the port's chain, and how many it takes.
+    // the port's chain, and how many it takes. The port takes two drives in
+    // all, so a drive of `device` fits while the chain has fewer than two
+    // and fewer than the limit of its kind.
     bool  IsPortChainOffered () const;
     int   CountPortDrives    (const std::string & device) const;
     int   GetPortDriveLimit  (const std::string & device) const;
+    bool  CanPlugInPortDrive (const std::string & device) const;
+    bool  CanSwapPortDrive   (const std::string & device) const;
+
+    // The kind a drive of `device` swaps for: a 3.5-inch drive for a
+    // 5.25-inch drive and the reverse. Empty for any other device.
+    static std::string  GetSwapDevice (const std::string & device);
 
     // The info icon's tooltip for a drive: what its WOZ image declares about
     // the machine, and what conflicts with the one running. Empty when nothing

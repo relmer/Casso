@@ -1672,8 +1672,8 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_STORAGE_DRIVE2:   m_shell.SetSecondDriveConnected  (!m_shell.m_disks->ShouldShowExternalDrive()); break;
         case IDM_STORAGE_RECORDER: m_shell.SetTapeRecorderConnected (!m_shell.m_tapeDeck->IsRecorderConnected());  break;
 
-        case IDM_STORAGE_ATTACH_APPLE35: m_shell.ChangePortDrive (kpszApple35DriveDevice, true, 0); break;
-        case IDM_STORAGE_ATTACH_FLOPPY:  m_shell.ChangePortDrive (kpszDiskIicDevice,      true, 0); break;
+        case IDM_STORAGE_ATTACH_APPLE35: m_shell.ChangePortDrive (PortDriveChange::PlugIn, kpszApple35DriveDevice, 0); break;
+        case IDM_STORAGE_ATTACH_FLOPPY:  m_shell.ChangePortDrive (PortDriveChange::PlugIn, kpszDiskIicDevice,      0); break;
     }
 }
 
