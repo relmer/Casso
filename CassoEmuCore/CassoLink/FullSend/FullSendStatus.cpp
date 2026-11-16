@@ -26,7 +26,7 @@ FullSendStatus::FullSendStatus (SecondsFn seconds, TimeFn time) :
 //
 //  FullSendStatus::FormatClock
 //
-//  As the Full Send window formats its times.
+//  The Full Send window's format for its times.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

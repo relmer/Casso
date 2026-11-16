@@ -340,8 +340,8 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
         hr = FullSendManifestFile::NoteBoot (*fileIo, folder, name, record.verdict, row);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        //  As the Apple's tone has it: an image with unreadable sectors is a
-        //  failed capture, even when it boots.
+        //  An image with unreadable sectors is a failed capture, even when it
+        //  boots. The Apple's tone has the same rule.
         result.isComplete = row.unreadable == 0;
 
         //  An image saved as a number is renamed with the user's earlier name

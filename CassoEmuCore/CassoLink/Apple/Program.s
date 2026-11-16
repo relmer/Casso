@@ -21,7 +21,7 @@
 ;   Time drive      drive, track, revolutions: $A5 the moment each pass of
 ;                   sector 0's address field after the first is read, so the
 ;                   PC times the drive's revolution
-;   Measure track   drive, track and the percentages, as for a read: Track
+;   Measure track   drive, track and the read's percentages: Track
 ;                   measure with the nibbles read from the step from the track
 ;                   before to sector 0's address field, the nibbles in a turn,
 ;                   and the field's volume
@@ -661,7 +661,7 @@ domeasure: jsr modoff           ; the disk buffers, and the module on them
         lda PKTBUF+1
         sta mtrack
         lda PKTBUF+3            ; the percentages, after the sector count begin takes,
-        sta PKTBUF+4            ; so the bar is drawn as for the track's read
+        sta PKTBUF+4            ; so the bar is drawn with the read's share
         lda PKTBUF+2
         sta PKTBUF+3
         lda #0
@@ -4844,7 +4844,7 @@ fsleave: lda fssaved
 flnosave: lda #0
         sta fssaved
         sta fsmode
-        sta op                  ; no bar after the session, as a capture's
+        sta op                  ; no bar after the session from its last read
         sta barpct
         sta barpct+1
         sta sbyte

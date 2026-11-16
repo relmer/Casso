@@ -193,7 +193,7 @@ public:
 
     FullSendStatus (SecondsFn seconds, TimeFn time);
 
-    //  A time as the activity log has it: 7:17, or 1:02:05 past an hour.
+    //  A time for the activity log: 7:17, or 1:02:05 past an hour.
     static std::string  FormatClock (double seconds);
 
     //  A session's start clears the one before it.

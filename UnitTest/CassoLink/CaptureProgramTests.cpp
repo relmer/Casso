@@ -70,7 +70,7 @@ public:
     };
 
     //  A track's bytes in one revolution. The bits are taken twice round, so
-    //  the second revolution's bytes start in step, as a drive's would.
+    //  the second revolution's bytes are framed in step.
     static std::vector<TrackByte>  GetTrackBytes (const std::vector<uint8_t> & bits)
     {
         std::vector<TrackByte>  bytes;
