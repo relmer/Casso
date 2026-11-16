@@ -2469,8 +2469,9 @@ void DeskSceneModel::StampDriveLabel (std::vector<Dxui3DRenderer::Vertex> & out,
 //  A 3.5-inch disk is 90 mm wide and 3.3 mm thick, and in the drive its back
 //  edge is a couple of millimeters behind the front of the case, which is
 //  the model's frontmost point (not the front anchor, which a 3.5-inch
-//  drive's model sets 6 mm into the case). The box is centered in the slot,
-//  and lit, a shade lighter than the back of the slot behind it.
+//  drive's model sets 6 mm into the case). The box is centered in the slot
+//  and lit. It is a mid gray, because in the recess a dark gray lights to
+//  the black of the empty slot behind it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2480,7 +2481,7 @@ void DeskSceneModel::BuildDiskInSlot (std::vector<Dxui3DRenderer::Vertex> & out)
     constexpr float  kDiskThickMm = 3.3f;
     constexpr float  kClearMm     = 0.4f;
     constexpr float  kRecessMm    = 3.0f;
-    constexpr float  kDiskRgb[3]  = { 0.240f, 0.250f, 0.290f };
+    constexpr float  kDiskRgb[3]  = { 0.440f, 0.450f, 0.480f };
     float            midX         = (m_slotBox[0] + m_slotBox[3]) * 0.5f;
     float            midZ         = (m_slotBox[2] + m_slotBox[5]) * 0.5f;
     float            halfW        = 0.0f;
