@@ -210,6 +210,62 @@ public:
     }
 
 
+    TEST_METHOD (Listing_DirectoryHasItsOwnBlocksBeforeItsFiles)
+    {
+        FakeDiskFileIo       io;
+        BlockInspectorModel  model;
+        BlockBrowser         browser (&model);
+        BlockListing         listing;
+        int                  games = 0;
+
+
+
+        OpenModel (io, model);
+        games   = FindEntry (model.GetVolumeMap (0), L"GAMES");
+        listing = browser.BuildListing ({ BlockPlace::Kind::Directory, 0, games });
+
+        Assert::AreEqual (std::wstring (L"Directory blocks"), listing.groups[0].title);
+        Assert::IsTrue   (listing.groups[0].rows[0].kind == BlockListRow::Kind::Blocks, L"a row that opens the block");
+        Assert::AreEqual (model.GetVolumeMap (0).entries[games].keyBlock, listing.groups[0].rows[0].first);
+        Assert::AreEqual (std::wstring (L"Files"), listing.groups.back().title);
+    }
+
+
+    TEST_METHOD (Path_FormatsAndFindsPlacesAndListsDirectories)
+    {
+        FakeDiskFileIo       io;
+        BlockInspectorModel  model;
+        BlockBrowser         browser (&model);
+        BlockPlace           place;
+        int                  hello = 0;
+
+
+
+        OpenModel (io, model);
+        hello = FindEntry (model.GetVolumeMap (0), L"GAMES/HELLO");
+
+        Assert::AreEqual (std::wstring (L"/BLOCKS/GAMES/HELLO"), browser.FormatPath ({ BlockPlace::Kind::File, 0, hello }));
+
+        Assert::IsTrue (browser.FindPath (L"/blocks/games/hello", L"vol.po", place));
+        Assert::IsTrue (place.kind == BlockPlace::Kind::File && place.entry == hello);
+
+        Assert::IsTrue (browser.FindPath (L"GAMES", L"vol.po", place));
+        Assert::IsTrue (place.kind == BlockPlace::Kind::Directory);
+
+        Assert::IsTrue   (browser.FindPath (L"/BLOCKS/Block 1,234", L"vol.po", place));
+        Assert::IsTrue   (place.kind == BlockPlace::Kind::Block);
+        Assert::AreEqual (1234u, place.block);
+
+        Assert::IsTrue   (browser.FindPath (L"7", L"vol.po", place));
+        Assert::AreEqual (7u, place.block);
+
+        Assert::IsFalse (browser.FindPath (L"/BLOCKS/NOPE", L"vol.po", place));
+
+        Assert::AreEqual ((size_t) 1, browser.GetChildPlaces ({ BlockPlace::Kind::Volume, 0 }).size(), L"the volume's one directory");
+        Assert::AreEqual (std::wstring (L"GAMES"), browser.GetChildPlaces ({ BlockPlace::Kind::Volume, 0 })[0].first);
+    }
+
+
     TEST_METHOD (Search_FindsAnEntryInAnyDirectory)
     {
         FakeDiskFileIo        io;
@@ -238,6 +294,7 @@ public:
         DxuiDpiScaler         scaler;
         MockDxuiTextRenderer  text;
         int                   hello = 0;
+        int                   row   = 0;
 
 
 
@@ -253,9 +310,10 @@ public:
         Assert::IsTrue (nav.GetPlace().kind == BlockPlace::Kind::Volume);
 
         nav.GoTo ({ BlockPlace::Kind::Directory, 0, FindEntry (model.GetVolumeMap (0), L"GAMES") });
-        Assert::AreEqual (0, FindRowNamed (nav.GetListing(), L"HELLO"));
+        row = FindRowNamed (nav.GetListing(), L"HELLO");
+        Assert::IsTrue (row > 0, L"the directory's blocks come before its files");
 
-        nav.GetList().SetSelectedRow (0);
+        nav.GetList().SetSelectedRow (row);
         nav.GoTo ({ BlockPlace::Kind::File, 0, hello });
         Assert::IsTrue (model.IsHighlighted (model.GetVolumeMap (0).entries[hello].keyBlock), L"the file's blocks are highlighted");
 

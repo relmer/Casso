@@ -14,10 +14,11 @@
 //
 //  Where block mode's map draws each block: the blocks in rows from the top
 //  left, in a fixed number of columns, and a zoom draws the same rows
-//  larger, so the blocks under the pointer stay under it. Where a block
-//  alone would be smaller than kMinCellPx, a square of blocks is one cell,
-//  the same squares at every zoom until a block alone is large enough, so
-//  each zoom draws every cell larger than the last.
+//  larger, so the blocks under the pointer stay under it, and every block
+//  larger than the last zoom drew it. A block is a cell; only where a block
+//  would be smaller than a pixel is a square of blocks one cell. Cells are
+//  drawn apart by kGapPx once they are kGapFromPx across, and touch below
+//  that, so a step of the zoom never draws a cell smaller.
 //  A cell of several blocks takes the color of its most notable role:
 //  damage first, then the volume's structures, then files' data, then free
 //  space. Pure.
@@ -29,17 +30,19 @@ class BlockMapGrid
 public:
     static constexpr int  kMinCellPx = 6;
     static constexpr int  kGapPx     = 1;
+    static constexpr int  kGapFromPx = 6;
 
     BlockMapGrid () = default;
 
     //  The whole volume fitted to an area, and the same rows of blocks with
     //  each block `blockPx` across, as a zoom draws them.
     BlockMapGrid (uint32_t blockCount, int widthPx, int heightPx);
-    BlockMapGrid (uint32_t blockCount, int blockColumns, double blockPx, uint32_t fitGroup);
+    BlockMapGrid (uint32_t blockCount, int blockColumns, double blockPx);
 
     int       GetColumns       () const { return m_columns; }
     int       GetRows          () const { return m_rows; }
-    int       GetCellPx        () const { return std::max (1, (int) std::floor (m_pitch) - kGapPx); }
+    int       GetCellPx        () const { return std::max (1, (int) std::floor (m_pitch) - GetGapPx()); }
+    int       GetGapPx         () const { return m_pitch >= kGapFromPx ? kGapPx : 0; }
     double    GetPitch         () const { return m_pitch; }
     uint32_t  GetGroup         () const { return m_group; }
     uint32_t  GetBlocksPerCell () const { return m_group * m_group; }

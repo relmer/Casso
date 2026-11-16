@@ -263,7 +263,8 @@ void BlockInspectorWindow::OnCreate()
 
     m_icons.SetDpi    (GetDpiForWindow (GetHwnd()));
     m_icons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), USER_DEFAULT_SCREEN_DPI));
-    m_panel->GetNavigator().SetIcons (&m_icons);
+    m_panel->GetNavigator().SetIcons     (&m_icons);
+    m_panel->GetNavigator().SetPopupHost (GetPopupHost());
 
     m_panel->SetOnChildPressed ([this] (IDxuiControl * child) { FocusControl (child); });
     m_panel->SetOnChanged      ([this] () { m_isDirty = true; });

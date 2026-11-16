@@ -135,13 +135,25 @@ public:
     static bool          ParseId (const std::wstring & id, BlockPlace & outPlace);
 
     //  The list for a place: a card's partitions; a volume's structures,
-    //  findings, directories and files; a directory's directories and
-    //  files; a file's index blocks and runs of data; or with `query`, each
-    //  entry of the volume or the card whose name has it, without case.
+    //  findings, directories and files; a directory's blocks, then its
+    //  directories and files; a file's index blocks and runs of data; or
+    //  with `query`, each entry of the volume or the card whose name has it,
+    //  without case.
     BlockListing  BuildListing (const BlockPlace & place, const std::wstring & query = std::wstring()) const;
 
     //  The breadcrumb's segments for a place, and where each goes.
     vector<std::wstring>  BuildCrumbs (const BlockPlace & place, const std::wstring & cardLabel, vector<BlockPlace> & outTargets) const;
+
+    //  The address bar's path for a place, as "/VOLUME/DIR/FILE", with
+    //  "/Block 1,234" after it for a block, and the place a typed path
+    //  leads to, matched without case. A path may start at the volume or at
+    //  the card, and may be a block's number alone.
+    std::wstring  FormatPath (const BlockPlace & place) const;
+    bool          FindPath   (const std::wstring & path, const std::wstring & cardLabel, BlockPlace & outPlace) const;
+
+    //  What an address bar separator's menu lists: a card's volumes, or a
+    //  volume's or a directory's directories, with their places.
+    vector<std::pair<std::wstring, BlockPlace>>  GetChildPlaces (const BlockPlace & place) const;
 
     //  The row of a listing that covers a block, as an index in the order
     //  of its groups, or -1.

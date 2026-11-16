@@ -89,7 +89,7 @@ void BlockMapView::Refresh()
     BuildStops();
 
     fit    = BlockMapGrid (count, (int) (grid.right - grid.left), (int) (grid.bottom - grid.top));
-    m_grid = m_zoom <= 1.0 ? fit : BlockMapGrid (count, fit.GetBlockColumns(), fit.GetBlockPx() * m_zoom, fit.GetGroup());
+    m_grid = m_zoom <= 1.0 ? fit : BlockMapGrid (count, fit.GetBlockColumns(), fit.GetBlockPx() * m_zoom);
 
     ClampPan();
 
@@ -791,9 +791,14 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & text,
     float                 w       = 0.0f;
     float                 h       = 0.0f;
     RECT                  box     = {};
+    RECT                  run     = {};
+    uint32_t              runArgb = 0;
+    bool                  isRun   = false;
 
 
 
+    //  Cells that touch are filled a run of one color at a time, so the
+    //  whole of a large volume is a few thousand rectangles.
     for (cell = 0; cell < m_grid.GetCellCount(); cell++)
     {
         at = m_grid.GetCellRect (cell);
@@ -808,18 +813,48 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & text,
         }
 
         color = GetCellColor (palette, cell);
-        painter.FillRect (x, y, w, h, color);
 
-        if (m_differs[cell])
+        if (isRun && color == runArgb && at.top == run.top && at.left == run.right + m_grid.GetGapPx() && m_grid.GetGapPx() == 0)
         {
-            painter.FillRect (x + w - corner, y, corner, corner, theme.ErrorForeground());
+            run.right = at.right;
+            continue;
         }
 
-        if (m_isZoomable && (int64_t) cell == m_hoverCell)
+        if (isRun)
         {
-            painter.FillRect    (x, y, w, h, InspectorMarquee::GetHoverFill());
-            painter.OutlineRect (x, y, w, h, 1.0f, InspectorMarquee::GetHoverLine());
+            painter.FillRect (left + run.left, top + run.top, (float) (run.right - run.left), (float) (run.bottom - run.top), runArgb);
         }
+
+        run     = at;
+        runArgb = color;
+        isRun   = true;
+    }
+
+    if (isRun)
+    {
+        painter.FillRect (left + run.left, top + run.top, (float) (run.right - run.left), (float) (run.bottom - run.top), runArgb);
+    }
+
+    for (cell = 0; m_isDiffsShown && cell < m_grid.GetCellCount(); cell++)
+    {
+        at = m_grid.GetCellRect (cell);
+
+        if (m_differs[cell] && m_grid.HasBlocks (cell))
+        {
+            painter.FillRect (left + at.right - corner, top + at.top, corner, corner, theme.ErrorForeground());
+        }
+    }
+
+    if (m_isZoomable && m_hoverCell >= 0 && (uint64_t) m_hoverCell < m_grid.GetCellCount())
+    {
+        at = m_grid.GetCellRect ((uint32_t) m_hoverCell);
+        x  = left + at.left;
+        y  = top + at.top;
+        w  = (float) (at.right - at.left);
+        h  = (float) (at.bottom - at.top);
+
+        painter.FillRect    (x, y, w, h, InspectorMarquee::GetHoverFill());
+        painter.OutlineRect (x, y, w, h, 1.0f, InspectorMarquee::GetHoverLine());
     }
 
     PaintLabels (text, palette, grid, left, top);

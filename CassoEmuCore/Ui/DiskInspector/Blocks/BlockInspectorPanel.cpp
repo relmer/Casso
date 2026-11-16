@@ -1504,7 +1504,6 @@ void BlockInspectorPanel::PaintProgress (IDxuiPainter & painter, IDxuiTextRender
 bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 {
     RECT  cancel = m_cancel->GetBounds();
-    RECT  hex    = m_hex->GetBounds();
     RECT  map    = m_map->GetBounds();
     RECT  bounds = GetBounds();
 
@@ -1570,9 +1569,22 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (ev.kind == DxuiMouseEventKind::Down && m_onPressed && m_hex->IsVisible() && PtInRect (&hex, ev.positionDip))
+    //  A press moves the keyboard focus to the control under it, so the
+    //  address bar, the search box, the tree, the list and the hex view
+    //  each get keys once clicked, until a click elsewhere.
+    if (ev.kind == DxuiMouseEventKind::Down && m_onPressed)
     {
-        m_onPressed (m_hex);
+        for (IDxuiControl * child : { (IDxuiControl *) m_hex, (IDxuiControl *) &m_nav.GetCrumbs(), (IDxuiControl *) &m_nav.GetSearch(),
+                                      (IDxuiControl *) &m_nav.GetTree(), (IDxuiControl *) &m_nav.GetList() })
+        {
+            RECT  r = child->GetBounds();
+
+            if (child->IsVisible() && PtInRect (&r, ev.positionDip))
+            {
+                m_onPressed (child);
+                break;
+            }
+        }
     }
 
     //  The wheel over the grid zooms it, as the wheel over the platter does,

@@ -46,6 +46,8 @@ void BlockNavigator::Create (DxuiPanel & host, BlockInspectorModel * model, cons
 
         GoTo (m_targets[index]);
     });
+    m_crumbs->SetOnSubmit    ([this] (const std::wstring & text) { SubmitPath (text); });
+    m_crumbs->SetOnSeparator ([this] (int index, const RECT & anchor) { ShowChildMenu (index, anchor); });
 
     m_search->SetTheme       (theme);
     m_search->SetHwnd        (hwnd);
@@ -257,6 +259,7 @@ void BlockNavigator::Show()
 
 
     m_crumbs->SetSegments (m_browser.BuildCrumbs (place, GetCardLabel(), m_targets));
+    m_crumbs->SetPath     (m_browser.FormatPath (place));
     SelectTreeNode();
 
     if (place.kind == BlockPlace::Kind::Block)
@@ -713,4 +716,100 @@ std::shared_ptr<const DxuiIconImage> BlockNavigator::GetRowIcon (const BlockList
         case BlockListRow::Kind::File:      return m_icons->GetForKind (row.cells.size() > (size_t) BlockBrowser::kType ? BrowserCells::GetAppleTypeIconKind (row.cells[(size_t) BlockBrowser::kType]) : IShellIcons::Kind::File);
         default:                            return m_icons->GetForKind (IShellIcons::Kind::File);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockNavigator::SubmitPath
+//
+//  A path typed in the address bar opens its place, or for a block, the
+//  block. For a path that matches nothing, the field stays open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockNavigator::SubmitPath (const std::wstring & text)
+{
+    BlockPlace  place;
+
+
+
+    if (!m_browser.FindPath (text, GetCardLabel(), place))
+    {
+        MessageBeep (MB_ICONWARNING);
+        return;
+    }
+
+    m_crumbs->EndEdit();
+
+    if (place.kind == BlockPlace::Kind::Block)
+    {
+        if (m_onOpenBlock)
+        {
+            m_onOpenBlock (place.block);
+        }
+
+        return;
+    }
+
+    GoTo (place);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockNavigator::ShowChildMenu
+//
+//  The places inside a segment's place, hung from the separator after it,
+//  as Casso Explorer's address bar lists a folder's folders.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockNavigator::ShowChildMenu (int index, const RECT & anchor)
+{
+    vector<DxuiPopupMenuItem>  items;
+
+
+
+    if (m_popupHost == nullptr || index < 0 || index >= (int) m_targets.size())
+    {
+        return;
+    }
+
+    m_menuCommands.clear();
+
+    for (const auto & [label, place] : m_browser.GetChildPlaces (m_targets[index]))
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+        BlockPlace                    target  = place;
+        std::wstring                  escaped;
+
+        for (wchar_t ch : label)
+        {
+            escaped += ch == L'&' ? L"&&" : std::wstring (1, ch);
+        }
+
+        command->label    = escaped;
+        command->dispatch = [this, target] () { GoTo (target); };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (command));
+        m_menuCommands.push_back (std::move (command));
+    }
+
+    if (items.empty())
+    {
+        return;
+    }
+
+    m_crumbs->SetOpenSeparator (index);
+    DxuiContextMenu::ShowUnder (*m_popupHost, anchor, std::move (items), [this] (bool)
+    {
+        m_crumbs->SetOpenSeparator (-1);
+    });
 }

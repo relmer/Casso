@@ -13,17 +13,13 @@
 //  The whole volume fitted to an area: the blocks in rows as wide for their
 //  height as the area is, each block as large as the area allows, and
 //  squares of blocks joined into a cell where a block alone would be less
-//  than kMinCellPx.
+//  than a pixel.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 BlockMapGrid::BlockMapGrid (uint32_t blockCount, int widthPx, int heightPx) :
     m_blockCount (blockCount)
 {
-    constexpr int  kMinPitch = kMinCellPx + kGapPx;
-
-
-
     double    blockPx = 0.0;
     uint32_t  group   = 1;
 
@@ -44,7 +40,7 @@ BlockMapGrid::BlockMapGrid (uint32_t blockCount, int widthPx, int heightPx) :
         blockPx = std::min ((double) widthPx  / ((m_blockColumns + group - 1) / group * group),
                             (double) heightPx / ((m_blockRows    + group - 1) / group * group));
 
-        if (std::floor (group * blockPx) >= kMinPitch)
+        if (group * blockPx >= 1.0)
         {
             break;
         }
@@ -61,20 +57,16 @@ BlockMapGrid::BlockMapGrid (uint32_t blockCount, int widthPx, int heightPx) :
 //
 //  BlockMapGrid::BlockMapGrid
 //
-//  The same layout of blocks at another size, as a zoom draws it: the
-//  fit's squares of blocks until a block alone is at least kMinCellPx, and
-//  a block a cell from then on.
+//  The same layout of blocks at another size, as a zoom draws it: a block
+//  a cell, or where a block is less than a pixel, the least square of
+//  blocks that is a pixel.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BlockMapGrid::BlockMapGrid (uint32_t blockCount, int blockColumns, double blockPx, uint32_t fitGroup) :
+BlockMapGrid::BlockMapGrid (uint32_t blockCount, int blockColumns, double blockPx) :
     m_blockCount   (blockCount),
     m_blockColumns (std::max (1, blockColumns))
 {
-    constexpr int  kMinPitch = kMinCellPx + kGapPx;
-
-
-
     if (blockCount == 0 || blockPx <= 0.0)
     {
         return;
@@ -82,7 +74,7 @@ BlockMapGrid::BlockMapGrid (uint32_t blockCount, int blockColumns, double blockP
 
     m_blockRows = (int) ((blockCount + (uint32_t) m_blockColumns - 1) / (uint32_t) m_blockColumns);
 
-    Arrange (blockPx, blockPx >= kMinPitch ? 1 : std::max<uint32_t> (1, fitGroup));
+    Arrange (blockPx, (uint32_t) std::max (1.0, std::ceil (1.0 / blockPx)));
 }
 
 
@@ -254,8 +246,8 @@ RECT BlockMapGrid::GetCellRect (uint32_t cell) const
         return {};
     }
 
-    right  = (LONG) std::floor ((cell % (uint32_t) m_columns + 1) * m_pitch) - kGapPx;
-    bottom = (LONG) std::floor ((cell / (uint32_t) m_columns + 1) * m_pitch) - kGapPx;
+    right  = (LONG) std::floor ((cell % (uint32_t) m_columns + 1) * m_pitch) - GetGapPx();
+    bottom = (LONG) std::floor ((cell / (uint32_t) m_columns + 1) * m_pitch) - GetGapPx();
 
     return { at.x, at.y, std::max (at.x + 1, right), std::max (at.y + 1, bottom) };
 }

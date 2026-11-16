@@ -38,6 +38,10 @@ public:
     //  rows have no icons.
     void  SetIcons (IShellIcons * icons) { m_icons = icons; }
 
+    //  The host for the address bar's menus; with none, a click on a
+    //  separator does nothing.
+    void  SetPopupHost (DxuiHwndSource * host) { m_popupHost = host; }
+
     //  The place changed, and a block is to be opened, for the panel.
     void  SetOnPlace     (ChangedFn fn) { m_onPlace     = std::move (fn); }
     void  SetOnOpenBlock (BlockFn fn)   { m_onOpenBlock = std::move (fn); }
@@ -82,25 +86,29 @@ private:
     void          OnRowActivated (int row);
     std::wstring  GetCardLabel   () const;
     void          SetTreeIcons   (vector<DxuiTreeNode> & nodes);
+    void          SubmitPath     (const std::wstring & text);
+    void          ShowChildMenu  (int index, const RECT & anchor);
 
     std::shared_ptr<const DxuiIconImage>  GetRowIcon (const BlockListRow & row);
 
-    BlockInspectorModel  * m_model        = nullptr;
-    IShellIcons          * m_icons        = nullptr;
-    BlockBrowser           m_browser;
-    BlockListing           m_listing;
-    DxuiAddressBar       * m_crumbs       = nullptr;
-    DxuiSearchBox        * m_search       = nullptr;
-    DxuiTreeView         * m_tree         = nullptr;
-    DxuiListView         * m_list         = nullptr;
-    ChangedFn              m_onPlace;
-    BlockFn                m_onOpenBlock;
-    ChangedFn              m_onHighlight;
-    vector<BlockPlace>     m_targets;
-    std::wstring           m_query;
-    uint32_t               m_generation   = 0;
-    int                    m_selected     = -1;
-    int                    m_sortColumn   = 0;
-    bool                   m_isDescending = false;
-    bool                   m_isFilling    = false;
+    BlockInspectorModel                   * m_model        = nullptr;
+    IShellIcons                           * m_icons        = nullptr;
+    DxuiHwndSource                        * m_popupHost    = nullptr;
+    vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
+    BlockBrowser                            m_browser;
+    BlockListing                            m_listing;
+    DxuiAddressBar                        * m_crumbs       = nullptr;
+    DxuiSearchBox                         * m_search       = nullptr;
+    DxuiTreeView                          * m_tree         = nullptr;
+    DxuiListView                          * m_list         = nullptr;
+    ChangedFn                               m_onPlace;
+    BlockFn                                 m_onOpenBlock;
+    ChangedFn                               m_onHighlight;
+    vector<BlockPlace>                      m_targets;
+    std::wstring                            m_query;
+    uint32_t                                m_generation   = 0;
+    int                                     m_selected     = -1;
+    int                                     m_sortColumn   = 0;
+    bool                                    m_isDescending = false;
+    bool                                    m_isFilling    = false;
 };

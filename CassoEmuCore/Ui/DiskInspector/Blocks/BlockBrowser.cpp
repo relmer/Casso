@@ -462,9 +462,10 @@ BlockListing BlockBrowser::BuildListing (const BlockPlace & place, const std::ws
             break;
 
         case BlockPlace::Kind::Directory:
-            if (isVolume)
+            if (isVolume && place.entry >= 0 && (size_t) place.entry < m_model->GetVolumeMap (place.volume).entries.size())
             {
                 SetEntryColumns (listing);
+                AddFileRows  (listing, place.volume, place.entry);
                 AddEntryRows (listing, place.volume, place.entry);
             }
 
@@ -1216,4 +1217,220 @@ LPCWSTR BlockBrowser::GetStructureName (BlockStructure structure, uint32_t tree)
     }
 
     return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockBrowser::FormatPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlockBrowser::FormatPath (const BlockPlace & place) const
+{
+    vector<BlockPlace>    targets;
+    vector<std::wstring>  segments = BuildCrumbs (place, std::wstring(), targets);
+    std::wstring          path;
+    size_t                i        = 0;
+
+
+
+    for (i = 0; i < segments.size(); i++)
+    {
+        if (targets[i].kind != BlockPlace::Kind::Card)
+        {
+            path += L"/" + segments[i];
+        }
+    }
+
+    return path.empty() ? L"/" : path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockBrowser::FindPath
+//
+//  Each part of the path is the next place down: the card, a volume,
+//  then a directory or a file in the place before it. A last part of
+//  "Block 1,234", or a path of a number alone, is that block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockBrowser::FindPath (const std::wstring & path, const std::wstring & cardLabel, BlockPlace & outPlace) const
+{
+    vector<std::wstring>  parts;
+    std::wstring          part;
+    BlockPlace            place;
+    bool                  isFound = false;
+    size_t                i       = 0;
+
+
+
+    auto  isSame = [] (const std::wstring & a, const std::wstring & b)
+    {
+        return CompareStringOrdinal (a.c_str(), (int) a.size(), b.c_str(), (int) b.size(), TRUE) == CSTR_EQUAL;
+    };
+
+    auto  readBlock = [] (const std::wstring & text, uint32_t & outBlock)
+    {
+        std::wstring  digits;
+        size_t        start = text.size() > 6 && CompareStringOrdinal (text.c_str(), 6, L"Block ", 6, TRUE) == CSTR_EQUAL ? 6 : 0;
+
+        for (size_t at = start; at < text.size(); at++)
+        {
+            if (iswdigit (text[at]))
+            {
+                digits += text[at];
+            }
+            else if (text[at] != L',' && text[at] != L'.' && text[at] != L' ' && text[at] != 0x00A0)
+            {
+                return false;
+            }
+        }
+
+        outBlock = digits.empty() || digits.size() > 9 ? 0 : (uint32_t) std::stoul (digits);
+        return !digits.empty() && digits.size() <= 9;
+    };
+
+    if (m_model == nullptr || !m_model->IsOpen())
+    {
+        return false;
+    }
+
+    for (wchar_t ch : path)
+    {
+        if (ch == L'/' || ch == L'\\')
+        {
+            parts.push_back (part);
+            part.clear();
+        }
+        else
+        {
+            part += ch;
+        }
+    }
+
+    parts.push_back (part);
+    std::erase_if (parts, [] (const std::wstring & text) { return text.empty(); });
+
+    place = HasCard() ? BlockPlace { BlockPlace::Kind::Card } : BlockPlace { BlockPlace::Kind::Volume, 0 };
+
+    //  The card's name, or for an image of one volume, its name, may lead.
+    if (!parts.empty() && (HasCard() ? isSame (parts[0], cardLabel) : m_model->GetVolumeCount() > 0 && isSame (parts[0], GetVolumeName (0))))
+    {
+        parts.erase (parts.begin());
+    }
+
+    for (i = 0; i < parts.size(); i++)
+    {
+        uint32_t  block = 0;
+
+        isFound = false;
+
+        for (const auto & [label, child] : GetChildPlaces (place))
+        {
+            if (!isFound && isSame (label, parts[i]))
+            {
+                place   = child;
+                isFound = true;
+            }
+        }
+
+        //  A file is a place too, though no menu lists it.
+        if (!isFound && (place.kind == BlockPlace::Kind::Volume || place.kind == BlockPlace::Kind::Directory))
+        {
+            const BlockMap  & map    = m_model->GetVolumeMap (place.volume);
+            int               parent = place.kind == BlockPlace::Kind::Volume ? -1 : place.entry;
+
+            for (size_t entry = 0; entry < map.entries.size() && !isFound; entry++)
+            {
+                if (map.entries[entry].parent == parent && isSame (map.entries[entry].name, parts[i]))
+                {
+                    place   = { map.entries[entry].isDirectory ? BlockPlace::Kind::Directory : BlockPlace::Kind::File, place.volume, (int) entry };
+                    isFound = true;
+                }
+            }
+        }
+
+        //  A last part that doesn't match a place is a block's number.
+        if (!isFound && i + 1 == parts.size() && readBlock (parts[i], block) && block < m_model->GetBlockCount())
+        {
+            place   = MakeBlockPlace (block);
+            isFound = true;
+        }
+
+        //  The volume alone may come first, with no card before it.
+        if (!isFound && i == 0 && place.kind == BlockPlace::Kind::Card)
+        {
+            for (int volume : GetVolumes())
+            {
+                if (!isFound && isSame (GetVolumeName (volume), parts[i]))
+                {
+                    place   = { BlockPlace::Kind::Volume, volume };
+                    isFound = true;
+                }
+            }
+        }
+
+        if (!isFound)
+        {
+            return false;
+        }
+    }
+
+    outPlace = place;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockBrowser::GetChildPlaces
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<std::pair<std::wstring, BlockPlace>> BlockBrowser::GetChildPlaces (const BlockPlace & place) const
+{
+    vector<std::pair<std::wstring, BlockPlace>>  children;
+
+
+
+    if (m_model == nullptr || !m_model->IsOpen())
+    {
+        return children;
+    }
+
+    if (place.kind == BlockPlace::Kind::Card)
+    {
+        for (int volume : GetVolumes())
+        {
+            children.push_back ({ GetVolumeName (volume), { BlockPlace::Kind::Volume, volume } });
+        }
+    }
+    else if ((place.kind == BlockPlace::Kind::Volume || place.kind == BlockPlace::Kind::Directory) && place.volume >= 0 && place.volume < m_model->GetVolumeCount())
+    {
+        const BlockMap  & map    = m_model->GetVolumeMap (place.volume);
+        int               parent = place.kind == BlockPlace::Kind::Volume ? -1 : place.entry;
+
+        for (size_t entry = 0; entry < map.entries.size(); entry++)
+        {
+            if (map.entries[entry].parent == parent && map.entries[entry].isDirectory)
+            {
+                children.push_back ({ map.entries[entry].name, { BlockPlace::Kind::Directory, place.volume, (int) entry } });
+            }
+        }
+    }
+
+    return children;
 }

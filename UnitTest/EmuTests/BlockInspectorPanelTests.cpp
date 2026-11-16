@@ -87,6 +87,7 @@ public:
     {
         BlockMapGrid  floppy   (280, 400, 400);
         BlockMapGrid  hardDisk (65535, 300, 300);
+        BlockMapGrid  huge     (2'100'000, 300, 300);
         POINT         at       = floppy.GetCellOrigin (17);
 
 
@@ -95,9 +96,12 @@ public:
         Assert::IsTrue (floppy.GetCellPx() > BlockMapGrid::kMinCellPx);
         Assert::IsTrue ((uint64_t) floppy.GetColumns() * floppy.GetRows() >= 280);
 
-        Assert::IsTrue (hardDisk.GetBlocksPerCell() > 1);
-        Assert::IsTrue (hardDisk.GetRows() * (hardDisk.GetCellPx() + BlockMapGrid::kGapPx) <= 300 + BlockMapGrid::kGapPx);
+        Assert::AreEqual ((uint32_t) 1, hardDisk.GetBlocksPerCell(), L"a block a cell while a block is at least a pixel");
+        Assert::AreEqual (0, hardDisk.GetGapPx(), L"cells this small touch");
+        Assert::IsTrue   (hardDisk.GetRows() * hardDisk.GetPitch() <= 300.0);
         Assert::AreEqual (65534u, hardDisk.GetLastBlock (hardDisk.GetCellCount() - 1));
+        Assert::IsTrue   (huge.GetBlocksPerCell() > 1, L"blocks less than a pixel are joined");
+        Assert::IsTrue   (huge.GetPitch() >= 1.0);
 
         Assert::AreEqual ((int64_t) 17, floppy.FindCellAt (at.x + 1, at.y + 1));
         Assert::AreEqual ((int64_t) -1, floppy.FindCellAt (-1, 0));
@@ -146,31 +150,28 @@ public:
     }
 
 
-    TEST_METHOD (Grid_EachZoomDrawsEveryBlockLargerThanTheLast)
+    TEST_METHOD (Grid_EachZoomDrawsEveryCellLargerThanTheLast)
     {
-        BlockMapGrid  fit      (65535, 300, 300);
-        double        before   = 0.0;
-        bool          isSplit  = false;
-        double        zoom     = 1.0;
+        BlockMapGrid  fit    (65535, 300, 300);
+        double        before = 0.0;
+        double        zoom   = 1.0;
+        bool          isGap  = false;
 
 
-
-        Assert::IsTrue (fit.GetGroup() > 1);
 
         for (zoom = 1.0; zoom < 40.0; zoom *= 1.25)
         {
-            BlockMapGrid  grid (65535, fit.GetBlockColumns(), fit.GetBlockPx() * zoom, fit.GetGroup());
-            double        size = grid.GetPitch() / grid.GetGroup();
+            BlockMapGrid  grid (65535, fit.GetBlockColumns(), fit.GetBlockPx() * zoom);
+            double        size = grid.GetPitch() - grid.GetGapPx();
 
-            Assert::IsTrue (size > before, std::format (L"a block at zoom {} is {} px, after {} px", zoom, size, before).c_str());
-            Assert::IsTrue (grid.GetGroup() == fit.GetGroup() || grid.GetGroup() == 1);
-            Assert::IsTrue (!isSplit || grid.GetGroup() == 1, L"once split into single blocks, the cells stay single blocks");
+            Assert::AreEqual ((uint32_t) 1, grid.GetGroup());
+            Assert::IsTrue   (size > before, std::format (L"a cell at zoom {} is {} px, after {} px", zoom, size, before).c_str());
 
-            isSplit = grid.GetGroup() == 1;
-            before  = size;
+            isGap  = isGap || grid.GetGapPx() > 0;
+            before = size;
         }
 
-        Assert::IsTrue (isSplit);
+        Assert::IsTrue (isGap, L"the cells are drawn apart once they are large enough");
     }
 
 
@@ -226,7 +227,7 @@ public:
     TEST_METHOD (Grid_EveryGapIsOnePixelAndEachPixelIsInTheCellDrawnThere)
     {
         BlockMapGrid  fit  (65535, 437, 311);
-        BlockMapGrid  zoom (65535, fit.GetBlockColumns(), fit.GetBlockPx() * 3.7, fit.GetGroup());
+        BlockMapGrid  zoom (65535, fit.GetBlockColumns(), fit.GetBlockPx() * 5.0);
 
 
 
@@ -240,7 +241,7 @@ public:
                 RECT  a = grid->GetCellRect ((uint32_t) c);
                 RECT  b = grid->GetCellRect ((uint32_t) c + 1);
 
-                Assert::AreEqual ((LONG) BlockMapGrid::kGapPx, b.left - a.right, std::format (L"the gap after column {}", c).c_str());
+                Assert::AreEqual ((LONG) grid->GetGapPx(), b.left - a.right, std::format (L"the gap after column {}", c).c_str());
             }
 
             for (x = 0; x < grid->GetColumns() * (int) grid->GetPitch() - 2; x++)
@@ -515,6 +516,85 @@ public:
         ev.kind = DxuiMouseEventKind::Leave;
         panel.OnMouse (ev);
         Assert::IsFalse (panel.IsLegendShown());
+    }
+
+
+    TEST_METHOD (Panel_ADoubleClickOnTheMapOpensTheBlock)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+        DxuiMouseEvent        ev;
+        RECT                  map    = {};
+        int                   click  = 0;
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+
+        map            = panel.GetMap().GetBounds();
+        ev.button      = DxuiMouseButton::Left;
+        ev.positionDip = { (map.left + map.right) / 2, (map.top + map.bottom) / 2 };
+
+        for (click = 0; click < 2; click++)
+        {
+            ev.kind = DxuiMouseEventKind::Down;
+            panel.OnMouse (ev);
+            ev.kind = DxuiMouseEventKind::Up;
+            panel.OnMouse (ev);
+        }
+
+        Assert::IsTrue (panel.GetNavigator().IsBlockPlace(), L"the block's hex view is open");
+    }
+
+
+    TEST_METHOD (Panel_ADragOnTheZoomedMapPansIt)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+        DxuiMouseEvent        ev;
+        RECT                  map    = {};
+        POINT                 center = {};
+        std::wstring          before;
+        std::wstring          after;
+        RECT                  anchor = {};
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+
+        map    = panel.GetMap().GetBounds();
+        center = { (map.left + map.right) / 2, (map.top + map.bottom) / 2 };
+        panel.GetMap().StepZoomAt (8, center);
+        Assert::IsTrue (panel.GetMap().GetTooltip (center, before, anchor));
+
+        ev.button      = DxuiMouseButton::Left;
+        ev.kind        = DxuiMouseEventKind::Down;
+        ev.positionDip = center;
+        panel.OnMouse (ev);
+
+        ev.kind        = DxuiMouseEventKind::Move;
+        ev.positionDip = { center.x - 150, center.y - 150 };
+        panel.OnMouse (ev);
+
+        ev.kind = DxuiMouseEventKind::Up;
+        panel.OnMouse (ev);
+
+        Assert::IsTrue     (panel.GetMap().GetTooltip (center, after, anchor));
+        Assert::AreNotEqual (before, after, L"a drag moves other blocks under the point");
     }
 
 
