@@ -208,6 +208,7 @@ void EditBar::SetUnit (const std::wstring & unit, const std::wstring & unitPlura
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EditBar::Layout
