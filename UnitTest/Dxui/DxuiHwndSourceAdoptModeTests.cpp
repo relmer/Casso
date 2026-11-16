@@ -218,6 +218,38 @@ public:
 
 
     //
+    //  GetSystemMenu returns null for a window created without the system
+    //  menu style, so the window is created with it and the menu is taken
+    //  before the style is dropped. It's a menu after the style is gone, with
+    //  Close on it.
+    //
+
+    TEST_METHOD (DropSystemMenuStyle_ReturnsTheMenuTakenBeforeTheStyleIsGone)
+    {
+        HWND   hwnd    = CreateWindowExW (0, L"STATIC", L"", WS_OVERLAPPEDWINDOW, 0, 0, 800, 600, nullptr, nullptr, nullptr, nullptr);
+        HWND   without = CreateWindowExW (0, L"STATIC", L"", WS_OVERLAPPEDWINDOW & ~WS_SYSMENU, 0, 0, 800, 600, nullptr, nullptr, nullptr, nullptr);
+        HMENU  menu    = nullptr;
+
+
+
+        Assert::IsNotNull (hwnd);
+        Assert::IsNotNull (without);
+        Assert::IsNull    (GetSystemMenu (without, FALSE), L"null for a window created without the style");
+
+        menu = DxuiHwndSource::DropSystemMenuStyle (hwnd);
+
+        Assert::IsNotNull   (menu, L"the menu");
+        Assert::IsTrue      ((GetWindowLongPtrW (hwnd, GWL_STYLE) & WS_SYSMENU) == 0, L"the style is gone");
+        Assert::IsTrue      (IsMenu (menu) != FALSE, L"the menu taken first is a menu");
+        Assert::AreNotEqual (-1, (int) GetMenuState (menu, SC_CLOSE, MF_BYCOMMAND), L"with Close on it");
+
+        DestroyWindow (without);
+        DestroyWindow (hwnd);
+    }
+
+
+
+    //
     //  A maximized window's client area is inset from the top by the same
     //  frame Windows insets it by at the sides, so the caption is on the
     //  screen. A restored window's client area starts at the window's top.

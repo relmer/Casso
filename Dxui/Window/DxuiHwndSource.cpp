@@ -482,15 +482,6 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
         style &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
     }
 
-    //  Over a backdrop the caption is see-through, and Windows draws its
-    //  caption buttons under it for a window with a system menu. The host
-    //  draws the buttons, so the style is dropped and the host opens the
-    //  system menu (IsSystemMenuDropped).
-    if (IsSystemMenuDropped())
-    {
-        style &= ~WS_SYSMENU;
-    }
-
     // Composited (per-pixel alpha) windows must be pure WS_POPUP. DWM draws an
     // opaque frame-background fill BEHIND the DirectComposition visual tree of
     // any framed window -- dark gray in dark mode, and WS_THICKFRAME alone is
@@ -618,6 +609,18 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
                               this);
     CWRA (m_hwnd);
     m_ownsHwnd = true;
+
+    //  Over a backdrop the caption is see-through, and Windows draws its
+    //  caption buttons under it for a window with the system menu style. The
+    //  host draws the buttons, so the style is dropped before the window
+    //  appears. GetSystemMenu returns null for a window created without the
+    //  style, so the window is created with it, the menu is taken first, and
+    //  the host opens it.
+    if (IsSystemMenuDropped())
+    {
+        m_systemMenu = DropSystemMenuStyle (m_hwnd);
+        CWRA (m_systemMenu);
+    }
 
     // The NOACTIVATE bit exists only to keep CreateWindowEx from activating
     // the newborn window (stealing focus mid-keystroke); strip it now so the
@@ -4919,7 +4922,7 @@ DxuiHitTestKind DxuiHwndSource::ClassifyResizeEdge (POINT clientDip,
 HRESULT DxuiHwndSource::ShowSystemMenu (POINT ptScreen)
 {
     HRESULT  hr        = S_OK;
-    HMENU    menu      = GetSystemMenu (m_hwnd, FALSE);
+    HMENU    menu      = GetWindowSystemMenu();
     bool     isMax     = ::IsZoomed (m_hwnd) != FALSE;
     bool     isSizable = (GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_THICKFRAME) != 0;
     UINT     command   = 0;
@@ -4962,6 +4965,49 @@ Error:
 bool DxuiHwndSource::IsSystemMenuDropped() const
 {
     return m_params.borderless && m_params.drawOverBackdrop && !m_params.composited;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::GetWindowSystemMenu
+//
+//  The window's system menu: the one taken when the style was dropped, or
+//  the one GetSystemMenu returns for the window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HMENU DxuiHwndSource::GetWindowSystemMenu() const
+{
+    return m_systemMenu != nullptr ? m_systemMenu : GetSystemMenu (m_hwnd, FALSE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::DropSystemMenuStyle
+//
+//  Removes the system menu style from a window and returns its system menu,
+//  taken while the window has the style; null when the window has no menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HMENU DxuiHwndSource::DropSystemMenuStyle (HWND hwnd)
+{
+    HMENU  menu = GetSystemMenu (hwnd, FALSE);
+
+
+
+    SetWindowLongPtrW (hwnd, GWL_STYLE, GetWindowLongPtrW (hwnd, GWL_STYLE) & ~(LONG_PTR) WS_SYSMENU);
+    (void) SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+
+    return menu;
 }
 
 

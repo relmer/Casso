@@ -700,6 +700,8 @@ public:
     HRESULT         ShowSystemMenu      (POINT ptScreen);
     bool            IsSystemMenuDropped () const;
     POINT           GetSystemMenuPoint  () const;
+    HMENU           GetWindowSystemMenu () const;
+    static HMENU    DropSystemMenuStyle (HWND hwnd);
 
     //
     //  Whether an NC mouse message may be claimed by a caption system
@@ -884,6 +886,7 @@ private:
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;
     std::unique_ptr<DxuiPopupMenu>    m_contextMenu;
+    HMENU                             m_systemMenu         = nullptr;   // taken before the system menu style is dropped
 
     bool  m_ownsHwnd                = false;
     bool  m_ownsPaintPump           = false;
