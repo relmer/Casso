@@ -273,9 +273,12 @@ public:
 
         tv.Paint (painter, text, theme);
 
-        Assert::IsTrue (tv.OnLButtonDown (50, 5));
-        Assert::IsTrue (tv.OnLButtonUp   (50, 5));
-        Assert::IsTrue (tv.GetNodeAt (0)->checked, L"a Required row stays on");
+        tv.HighlightRow (1);
+
+        Assert::IsTrue   (tv.OnLButtonDown (50, 5));
+        Assert::IsTrue   (tv.OnLButtonUp   (50, 5));
+        Assert::IsTrue   (tv.GetNodeAt (0)->checked, L"a Required row stays on");
+        Assert::AreEqual (0, tv.GetHighlight(), L"a click on a Required row's label selects the row");
     }
 
     TEST_METHOD (Click_OnRequiredCheckbox_NoToggle)

@@ -303,7 +303,8 @@ bool DxuiTreeView::HitTestTwisty (int x, int y, int flatRow) const
 //  The checkbox and its label toggle the row, as a standalone checkbox and
 //  its label do. The label's extent comes from the row's last paint; before
 //  any paint only the checkbox counts. Past the end of the label a click
-//  selects the row and toggles nothing.
+//  selects the row and toggles nothing, and so does a click on a row whose
+//  checkbox can't change, such as a required drive's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -330,7 +331,7 @@ bool DxuiTreeView::HitTestToggle (int x, int y, int flatRow) const
             right = (std::max) (right, (std::min) ((int) m_boundsDip.left + (int) m_labelSpans[(size_t) flatRow].y - m_leftPx, (int) m_boundsDip.right));
         }
 
-        isHit = x >= checkboxX && x < right;
+        isHit = x >= checkboxX && x < right && IsInteractive (flatRow);
     }
 
     return isHit;
