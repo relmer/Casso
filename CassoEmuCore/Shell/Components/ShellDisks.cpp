@@ -649,6 +649,8 @@ void ShellDisks::BrowseForDisk (int drive, const RECT * anchorClientPx)
         return;
     }
 
+    m_shell.m_chrome->HideTooltips();
+
     pSt = &m_driveWidgetState[drive];
 
     // The time base MUST match DiskManager::GetNowMs (steady_clock ms):

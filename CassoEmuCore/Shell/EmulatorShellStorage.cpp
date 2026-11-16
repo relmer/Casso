@@ -221,9 +221,13 @@ DialogDefinition EmulatorShell::MakeHardDiskChangeDialog (const std::wstring & d
 
 void EmulatorShell::ChangeHardDiskImage (const DeskDrive & drive, const std::wstring & path)
 {
-    int  choice = ShowModalDialog (MakeHardDiskChangeDialog (ShellDeskScene::GetDriveTitle (drive), fs::path (path).filename().wstring()));
+    int  choice = 0;
 
 
+
+    m_chrome->HideTooltips();
+
+    choice = ShowModalDialog (MakeHardDiskChangeDialog (ShellDeskScene::GetDriveTitle (drive), fs::path (path).filename().wstring()));
 
     if (choice == kHardDiskChangeRestart)
     {
@@ -251,6 +255,8 @@ void EmulatorShell::BrowseHardDisk (const DeskDrive & drive)
 
 
     spec.filters = { { L"Hard disk image", L"*.po;*.hdv;*.2mg;*.2img" }, { L"All files", L"*.*" } };
+
+    m_chrome->HideTooltips();
 
     hr = m_hostDialogs.PickFileToOpen (m_hwnd, spec, chosen, picked);
     CHR (hr);

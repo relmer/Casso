@@ -3977,6 +3977,8 @@ void ShellDeskScene::BrowseFloppy35 (const DeskDrive & drive)
 
     spec.filters = { { L"3.5-inch disk image", L"*.po;*.2mg;*.2img;*.dc;*.dc42;*.image;*.dsk;*.woz" }, { L"All files", L"*.*" } };
 
+    m_shell.m_chrome->HideTooltips();
+
     hr = m_shell.m_hostDialogs.PickFileToOpen (m_shell.m_hwnd, spec, chosen, picked);
     CHR (hr);
     BAIL_OUT_IF (!picked, S_OK);

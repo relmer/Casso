@@ -181,6 +181,10 @@ public:
     void  PostNotice   (const std::wstring & text);
     void  SyncNotice   ();
 
+    //  Takes down every tip, before a modal such as a file dialog opens over
+    //  the window: a tip is a topmost popup and would be drawn over it.
+    void  HideTooltips ();
+
     // The lowest edge of whatever chrome is docked (or, in fullscreen,
     // revealed) at the top of the client, which is where an overlay that
     // wants to sit over the picture without covering the chrome begins.
