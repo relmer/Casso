@@ -927,6 +927,11 @@ leftover data". Found and left as is: the status line has "Boot blocks" for
 the partitioned disk's block 0, where its annotation is the Apple Partition
 Map's driver descriptor.
 
+The search for text and code in free blocks (Find leftover data) and its
+Save as file were removed on 2026-11-15, at the owner's request, with T674's
+and T678's part for them. FR-255 is comparison only, and a free block is
+drawn as free.
+
 The "Boot blocks" status line was fixed on 2026-11-13: block 0 and the map's
 blocks read "Driver descriptor" and "Partition map".
 

@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include "Core/NumberFormat.h"
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 
@@ -60,10 +59,10 @@ public:
 
     TEST_METHOD (AnglesTimesAndPercentsAreDecimal)
     {
-        Assert::AreEqual (NumberFormat::FormatFixed (90, 0, true) + s_kpszDegree,           InspectorFormat::FormatDegrees (0.25));
-        Assert::AreEqual (NumberFormat::FormatFixed (4, 2, true) + s_kpszMicro + L"s",      InspectorFormat::FormatMicroseconds (32));
-        Assert::AreEqual (L"+" + NumberFormat::FormatFixed (4.8, 1, true) + L"%",          InspectorFormat::FormatPercent (0.048));
-        Assert::AreEqual (NumberFormat::FormatFixed (-5.0, 1, true) + L"%",                 InspectorFormat::FormatPercent (-0.05));
+        Assert::AreEqual (std::wstring (L"90") + s_kpszDegree,         InspectorFormat::FormatDegrees (0.25));
+        Assert::AreEqual (std::wstring (L"4.00") + s_kpszMicro + L"s", InspectorFormat::FormatMicroseconds (32));
+        Assert::AreEqual (std::wstring (L"+4.8%"),                     InspectorFormat::FormatPercent (0.048));
+        Assert::AreEqual (std::wstring (L"-5.0%"),                     InspectorFormat::FormatPercent (-0.05));
     }
 
 

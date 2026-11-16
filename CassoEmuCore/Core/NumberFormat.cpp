@@ -7,7 +7,9 @@
 
 
 static constexpr int  s_kMaxLocale = 16;
-static constexpr int  s_kMaxText   = 96;
+
+static NumberSettings     s_fixedSettings;
+static std::atomic<bool>  s_isFixed = false;
 
 
 
@@ -21,7 +23,22 @@ static constexpr int  s_kMaxText   = 96;
 
 std::wstring NumberFormat::FormatInteger (int64_t value)
 {
-    return FormatDigits (std::to_wstring (value), 0, true);
+    return FormatInteger (value, GetSettings());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NumberFormat::FormatInteger
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring NumberFormat::FormatInteger (int64_t value, const NumberSettings & settings)
+{
+    return FormatDigits (std::to_wstring (value), true, settings);
 }
 
 
@@ -36,11 +53,28 @@ std::wstring NumberFormat::FormatInteger (int64_t value)
 
 std::wstring NumberFormat::FormatFixed (double value, int decimals, bool isGrouped)
 {
-    int  places = std::max (0, decimals);
+    return FormatFixed (value, decimals, isGrouped, GetSettings());
+}
 
 
 
-    return FormatDigits (std::format (L"{:.{}f}", value, places), places, isGrouped);
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NumberFormat::FormatFixed
+//
+//  A value that isn't finite is written as std::format writes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring NumberFormat::FormatFixed (double value, int decimals, bool isGrouped, const NumberSettings & settings)
+{
+    std::wstring  invariant = std::format (L"{:.{}f}", value, std::max (0, decimals));
+
+
+
+    return std::isfinite (value) ? FormatDigits (invariant, isGrouped, settings) : invariant;
 }
 
 
@@ -55,12 +89,7 @@ std::wstring NumberFormat::FormatFixed (double value, int decimals, bool isGroup
 
 std::wstring NumberFormat::GetThousandsSeparator()
 {
-    wchar_t  thousands[s_kMaxLocale] = {};
-    int      got                     = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_STHOUSAND, thousands, s_kMaxLocale);
-
-
-
-    return got > 1 ? std::wstring (thousands) : std::wstring (L",");
+    return GetSettings().thousands;
 }
 
 
@@ -91,47 +120,33 @@ std::wstring NumberFormat::RemoveThousandsSeparators (std::wstring_view text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NumberFormat::FormatDigits
-//
-//  `invariant` is "-1234.5" form. GetNumberFormatEx writes it with the
-//  user's separators and negative sign, grouped by the user's grouping or
-//  not at all.
+//  NumberFormat::ReadUserSettings
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring NumberFormat::FormatDigits (const std::wstring & invariant, int decimals, bool isGrouped)
+NumberSettings NumberFormat::ReadUserSettings()
 {
-    wchar_t     thousands[s_kMaxLocale] = {};
-    wchar_t     decimal[s_kMaxLocale]   = {};
-    wchar_t     grouping[s_kMaxLocale]  = {};
-    wchar_t     formatted[s_kMaxText]   = {};
-    DWORD       negative                = 1;
-    DWORD       leading                 = 1;
-    NUMBERFMTW  format                  = {};
-    int         gotThousands            = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_STHOUSAND, thousands, s_kMaxLocale);
-    int         gotDecimal              = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_SDECIMAL,  decimal,   s_kMaxLocale);
-    int         gotGrouping             = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_SGROUPING, grouping,  s_kMaxLocale);
-    int         gotNegative             = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_INEGNUMBER | LOCALE_RETURN_NUMBER, (LPWSTR) &negative, sizeof (negative) / sizeof (wchar_t));
-    int         gotLeading              = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_ILZERO | LOCALE_RETURN_NUMBER,     (LPWSTR) &leading,  sizeof (leading) / sizeof (wchar_t));
-    int         written                 = 0;
+    NumberSettings  settings;
+    wchar_t         thousands[s_kMaxLocale] = {};
+    wchar_t         decimal[s_kMaxLocale]   = {};
+    wchar_t         grouping[s_kMaxLocale]  = {};
+    DWORD           negative                = 1;
+    DWORD           leading                 = 1;
+    int             gotThousands            = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_STHOUSAND, thousands, s_kMaxLocale);
+    int             gotDecimal              = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_SDECIMAL,  decimal,   s_kMaxLocale);
+    int             gotGrouping             = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_SGROUPING, grouping,  s_kMaxLocale);
+    int             gotNegative             = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_INEGNUMBER | LOCALE_RETURN_NUMBER, (LPWSTR) &negative, sizeof (negative) / sizeof (wchar_t));
+    int             gotLeading              = GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, LOCALE_ILZERO | LOCALE_RETURN_NUMBER,     (LPWSTR) &leading,  sizeof (leading) / sizeof (wchar_t));
 
 
 
-    if (gotThousands == 0 || gotDecimal == 0 || gotGrouping == 0 || gotNegative == 0 || gotLeading == 0)
-    {
-        return isGrouped ? GroupByThree (invariant) : invariant;
-    }
+    settings.thousands     = gotThousands != 0 ? std::wstring (thousands) : settings.thousands;
+    settings.decimal       = gotDecimal > 1 ? std::wstring (decimal) : settings.decimal;
+    settings.grouping      = gotGrouping != 0 ? ParseGrouping (grouping) : settings.grouping;
+    settings.negativeOrder = gotNegative != 0 ? (UINT) negative : settings.negativeOrder;
+    settings.leadingZero   = gotLeading != 0 ? leading != 0 : settings.leadingZero;
 
-    format.NumDigits     = (UINT) decimals;
-    format.LeadingZero   = leading;
-    format.Grouping      = isGrouped ? ParseGrouping (grouping) : 0;
-    format.lpDecimalSep  = decimal;
-    format.lpThousandSep = thousands;
-    format.NegativeOrder = negative;
-
-    written = GetNumberFormatEx (LOCALE_NAME_USER_DEFAULT, 0, invariant.c_str(), &format, formatted, s_kMaxText);
-
-    return written != 0 ? std::wstring (formatted) : (isGrouped ? GroupByThree (invariant) : invariant);
+    return settings;
 }
 
 
@@ -140,37 +155,123 @@ std::wstring NumberFormat::FormatDigits (const std::wstring & invariant, int dec
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NumberFormat::GroupByThree
-//
-//  The fallback: a comma before each group of three whole digits.
+//  NumberFormat::SetSettings
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring NumberFormat::GroupByThree (const std::wstring & invariant)
+void NumberFormat::SetSettings (const NumberSettings * settings)
 {
-    static constexpr size_t  kGroup = 3;
-
-
-
-    size_t        start = (!invariant.empty() && invariant[0] == L'-') ? 1 : 0;
-    size_t        point = invariant.find (L'.');
-    size_t        end   = point == std::wstring::npos ? invariant.size() : point;
-    std::wstring  text  = invariant.substr (0, start);
-    size_t        i     = 0;
-
-
-
-    for (i = start; i < end; i++)
+    if (settings != nullptr)
     {
-        if (i > start && (end - i) % kGroup == 0)
-        {
-            text += L',';
-        }
-
-        text += invariant[i];
+        s_fixedSettings = *settings;
     }
 
-    return text + invariant.substr (end);
+    s_isFixed = settings != nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NumberFormat::GetSettings
+//
+////////////////////////////////////////////////////////////////////////////////
+
+NumberSettings NumberFormat::GetSettings()
+{
+    return s_isFixed ? s_fixedSettings : ReadUserSettings();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NumberFormat::FormatDigits
+//
+//  `invariant` is in "-1234.5" form. The whole digits are grouped, the
+//  decimal separator replaces the period, a zero before it is dropped where
+//  the settings have no leading zero, and the sign is placed in the
+//  settings' negative order. Zero is never negative.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring NumberFormat::FormatDigits (const std::wstring & invariant, bool isGrouped, const NumberSettings & settings)
+{
+    bool          isNegative = !invariant.empty() && invariant[0] == L'-';
+    std::wstring  digits     = isNegative ? invariant.substr (1) : invariant;
+    size_t        point      = digits.find (L'.');
+    std::wstring  whole      = digits.substr (0, point);
+    std::wstring  fraction   = point == std::wstring::npos ? std::wstring() : digits.substr (point + 1);
+    std::wstring  body;
+
+
+
+    isNegative = isNegative && digits.find_first_not_of (L"0.") != std::wstring::npos;
+
+    if (whole == L"0" && !fraction.empty() && !settings.leadingZero)
+    {
+        whole.clear();
+    }
+
+    body = (isGrouped ? GroupWhole (whole, settings.grouping, settings.thousands) : whole) + (fraction.empty() ? std::wstring() : settings.decimal + fraction);
+
+    if (!isNegative)
+    {
+        return body;
+    }
+
+    switch (settings.negativeOrder)
+    {
+        case 0:  return L"(" + body + L")";
+        case 2:  return L"- " + body;
+        case 3:  return body + L"-";
+        case 4:  return body + L" -";
+        default: return L"-" + body;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NumberFormat::GroupWhole
+//
+//  `grouping`'s digits are group sizes from the right, the last repeated;
+//  a last 0 ends the grouping, so the digits past it are one group.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring NumberFormat::GroupWhole (const std::wstring & whole, UINT grouping, const std::wstring & separator)
+{
+    std::wstring  sizes = std::to_wstring (grouping);
+    std::wstring  text;
+    size_t        end   = whole.size();
+    size_t        index = 0;
+    size_t        size  = 0;
+
+
+
+    while (grouping != 0 && end > 0)
+    {
+        size = (size_t) (sizes[std::min (index, sizes.size() - 1)] - L'0');
+
+        if (size == 0 || size >= end)
+        {
+            break;
+        }
+
+        text  = separator + whole.substr (end - size, size) + text;
+        end  -= size;
+        index++;
+    }
+
+    return whole.substr (0, end) + text;
 }
 
 

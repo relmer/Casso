@@ -11,8 +11,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  NumberFormatTests
 //
-//  Numbers written with the user's regional settings. Each comparison is
-//  built from the settings read here, for any region.
+//  Numbers written with fixed regional settings: English (United States),
+//  German (Germany), Hindi (India) and a negative order in parentheses. The
+//  test module fixes English (United States) for every other test.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,50 +21,65 @@ TEST_CLASS (NumberFormatTests)
 {
 public:
 
-    static std::wstring  ReadSetting (LCTYPE type)
+    static NumberSettings  MakeGerman()
     {
-        wchar_t  value[16] = {};
+        NumberSettings  settings;
 
 
 
-        (void) GetLocaleInfoEx (LOCALE_NAME_USER_DEFAULT, type, value, (int) std::size (value));
+        settings.thousands = L".";
+        settings.decimal   = L",";
 
-        return value;
+        return settings;
     }
 
 
-    TEST_METHOD (IntegersAreGroupedWithTheRegionalSeparator)
+    TEST_METHOD (IntegersAreGroupedBySettings)
     {
-        std::wstring  separator = ReadSetting (LOCALE_STHOUSAND);
+        NumberSettings  english;
+        NumberSettings  german = MakeGerman();
+        NumberSettings  hindi;
+        NumberSettings  once;
 
 
 
-        Assert::AreEqual (std::wstring (L"999"), NumberFormat::FormatInteger (999));
-        Assert::AreEqual (separator, NumberFormat::GetThousandsSeparator());
+        hindi.grouping = 32;
+        once.grouping  = 30;
 
-        if (ReadSetting (LOCALE_SGROUPING) == L"3;0")
-        {
-            Assert::AreEqual (L"51" + separator + L"007",                     NumberFormat::FormatInteger (51007));
-            Assert::AreEqual (L"1" + separator + L"000" + separator + L"000", NumberFormat::FormatInteger (1000000));
-        }
+        Assert::AreEqual (std::wstring (L"999"),         NumberFormat::FormatInteger (999, english));
+        Assert::AreEqual (std::wstring (L"51,007"),      NumberFormat::FormatInteger (51007, english));
+        Assert::AreEqual (std::wstring (L"1,000,000"),   NumberFormat::FormatInteger (1000000, english));
+        Assert::AreEqual (std::wstring (L"47.790"),      NumberFormat::FormatInteger (47790, german));
+        Assert::AreEqual (std::wstring (L"1,23,45,678"), NumberFormat::FormatInteger (12345678, hindi));
+        Assert::AreEqual (std::wstring (L"12345,678"),   NumberFormat::FormatInteger (12345678, once));
+        Assert::AreEqual (std::wstring (L"-1,234"),      NumberFormat::FormatInteger (-1234, english));
     }
 
 
-    TEST_METHOD (FixedValuesUseTheRegionalDecimalSeparator)
+    TEST_METHOD (FixedValuesUseTheDecimalSeparatorAndNegativeOrder)
     {
-        std::wstring  decimal = ReadSetting (LOCALE_SDECIMAL);
-        std::wstring  plain   = NumberFormat::FormatFixed (1234.5, 2, false);
+        NumberSettings  english;
+        NumberSettings  german = MakeGerman();
+        NumberSettings  bare;
+        NumberSettings  parens;
 
 
 
-        Assert::AreEqual (L"1234" + decimal + L"50", plain);
-        Assert::IsTrue   (NumberFormat::FormatFixed (-2.0, 1, true).find (L"2" + decimal + L"0") != std::wstring::npos);
+        bare.leadingZero     = false;
+        parens.negativeOrder = 0;
+
+        Assert::AreEqual (std::wstring (L"1234.50"),  NumberFormat::FormatFixed (1234.5, 2, false, english));
+        Assert::AreEqual (std::wstring (L"1,234.50"), NumberFormat::FormatFixed (1234.5, 2, true,  english));
+        Assert::AreEqual (std::wstring (L"1.234,50"), NumberFormat::FormatFixed (1234.5, 2, true,  german));
+        Assert::AreEqual (std::wstring (L".5"),       NumberFormat::FormatFixed (0.5, 1, false, bare));
+        Assert::AreEqual (std::wstring (L"(2.0)"),    NumberFormat::FormatFixed (-2.0, 1, false, parens));
+        Assert::AreEqual (std::wstring (L"0.0"),      NumberFormat::FormatFixed (-0.01, 1, false, english), L"zero isn't negative");
     }
 
 
-    TEST_METHOD (SeparatorsAreRemovedForParsing)
+    TEST_METHOD (TheModuleFixesEnglishAndSeparatorsAreRemovedForParsing)
     {
-        Assert::AreEqual (std::wstring (L"1234567"), NumberFormat::RemoveThousandsSeparators (NumberFormat::FormatInteger (1234567)));
-        Assert::AreEqual (std::wstring (L"1234567"), NumberFormat::RemoveThousandsSeparators (L"1,234,567"));
+        Assert::AreEqual (std::wstring (L"1,234,567"), NumberFormat::FormatInteger (1234567));
+        Assert::AreEqual (std::wstring (L"1234567"),   NumberFormat::RemoveThousandsSeparators (L"1,234,567"));
     }
 };
