@@ -34,7 +34,7 @@ static constexpr FullSendFormat  s_kFullSendFormats[] =
       L"A beige Camry on cruise control. Always arrives, and nobody remembers the trip.",                                                                       ""     },
     { L".dsk: DOS-order sectors, the type every emulator opens",
       L"A '94 Civic with 400,000 miles on it. Every mechanic on Earth has parts for it.",                                                                       ".dsk" },
-    { L".woz: WOZ 2 bit stream, as Applesauce and current emulators use",
+    { L".woz: A faithful copy of the physical layout of the original disk's tracks and sectors",
       L"A Cybertruck loaded with metadata in the frunk and room for flux data in the bed. No FSD.",                                                             ".woz" },
     { L".do: The same bytes as .dsk, with an extension that settles the sector-order debate",
       L"That same Civic, with aftermarket faux Acura badges. Same engine, better standing at the car show.",                                                    ".do"  },
@@ -207,27 +207,27 @@ bool CassoExplorerHostNamesPage::OnMouse (const DxuiMouseEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & soundsLabel, DxuiSegmentedControl & sounds, DxuiLabel & formatLabel, DxuiComboBox & format, DxuiLabel & formatNote)
+void CassoExplorerFullSendPage::Init (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & soundsLabel, DxuiSegmentedControl & sounds, FormatParts & format)
 {
     m_folderLabel = &folderLabel;
-    m_formatLabel = &formatLabel;
     m_note        = &note;
     m_folder      = &folder;
     m_browse      = &browse;
     m_soundsLabel = &soundsLabel;
     m_sounds      = &sounds;
     m_format      = &format;
-    m_formatNote  = &formatNote;
 
     Adopt (note);
     Adopt (folderLabel);
-    Adopt (formatLabel);
     Adopt (folder);
     Adopt (browse);
     Adopt (soundsLabel);
     Adopt (sounds);
-    Adopt (format);
-    Adopt (formatNote);
+    Adopt (format.label);
+    Adopt (format.list);
+    Adopt (format.note);
+    Adopt (format.volume);
+    Adopt (format.volumeNote);
 }
 
 
@@ -246,6 +246,7 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     int  noteEnd        = boundsDip.top + CassoExplorerVerifyPage::GetNoteHeightPx (*m_note, width, scaler, kNoteHeightDip);
     int  labelH         = scaler.ToPx (kLabelHeightDip);
     int  fieldH         = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
+    int  indent         = scaler.ToPx (CassoExplorerGeneralPage::kNoteIndentDip);
     int  folderLabelTop = noteEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
     int  folderTop      = folderLabelTop + labelH;
     int  folderEnd      = folderTop + fieldH;
@@ -258,25 +259,31 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
     int  formatTop      = formatLabelTop + labelH;
     int  formatEnd      = formatTop + fieldH;
     int  formatNoteTop  = formatEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
-    int  formatNoteEnd  = formatNoteTop + CassoExplorerVerifyPage::GetNoteHeightPx (*m_formatNote, width, scaler, kOptionDescHeightDip * 2);
+    int  formatNoteEnd  = formatNoteTop + CassoExplorerVerifyPage::GetNoteHeightPx (m_format->note, width, scaler, kOptionDescHeightDip * 2);
+    int  volumeTop      = formatNoteEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip * 2);
+    int  volumeEnd      = volumeTop + fieldH;
+    int  volumeNoteTop  = volumeEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
+    int  volumeNoteEnd  = volumeNoteTop + CassoExplorerVerifyPage::GetNoteHeightPx (m_format->volumeNote, width - indent, scaler, 0);
 
 
 
     SetBounds (boundsDip);
 
-    m_note->Layout        (RECT { boundsDip.left, boundsDip.top, boundsDip.right, noteEnd }, scaler);
-    m_folderLabel->Layout (RECT { boundsDip.left, folderLabelTop, boundsDip.right, folderTop }, scaler);
-    m_folder->Layout      (RECT { boundsDip.left, folderTop, browseX - scaler.ToPx (ExplorerMetrics::kStackGapDip), folderEnd }, scaler);
-    m_browse->SetDpi      (scaler.GetDpi());
-    m_browse->Layout      (RECT { browseX, folderTop, boundsDip.right, folderEnd });
-    m_soundsLabel->Layout (RECT { boundsDip.left, soundsLabelTop, boundsDip.right, soundsTop }, scaler);
-    m_sounds->Layout      (RECT { boundsDip.left, soundsTop, soundsRight, soundsEnd }, scaler);
-    m_formatLabel->Layout (RECT { boundsDip.left, formatLabelTop, boundsDip.right, formatTop }, scaler);
-    m_format->SetDpi      (scaler.GetDpi());
-    m_format->Layout      (RECT { boundsDip.left, formatTop, boundsDip.right, formatEnd }, scaler);
-    m_formatNote->Layout  (RECT { boundsDip.left, formatNoteTop, boundsDip.right, formatNoteEnd }, scaler);
+    m_note->Layout               (RECT { boundsDip.left, boundsDip.top, boundsDip.right, noteEnd }, scaler);
+    m_folderLabel->Layout        (RECT { boundsDip.left, folderLabelTop, boundsDip.right, folderTop }, scaler);
+    m_folder->Layout             (RECT { boundsDip.left, folderTop, browseX - scaler.ToPx (ExplorerMetrics::kStackGapDip), folderEnd }, scaler);
+    m_browse->SetDpi             (scaler.GetDpi());
+    m_browse->Layout             (RECT { browseX, folderTop, boundsDip.right, folderEnd });
+    m_soundsLabel->Layout        (RECT { boundsDip.left, soundsLabelTop, boundsDip.right, soundsTop }, scaler);
+    m_sounds->Layout             (RECT { boundsDip.left, soundsTop, soundsRight, soundsEnd }, scaler);
+    m_format->label.Layout       (RECT { boundsDip.left, formatLabelTop, boundsDip.right, formatTop }, scaler);
+    m_format->list.SetDpi        (scaler.GetDpi());
+    m_format->list.Layout        (RECT { boundsDip.left, formatTop, boundsDip.right, formatEnd }, scaler);
+    m_format->note.Layout        (RECT { boundsDip.left, formatNoteTop, boundsDip.right, formatNoteEnd }, scaler);
+    m_format->volume.Layout      (RECT { boundsDip.left, volumeTop, boundsDip.right, volumeEnd }, scaler);
+    m_format->volumeNote.Layout  (RECT { boundsDip.left + indent, volumeNoteTop, boundsDip.right, volumeNoteEnd }, scaler);
 
-    SetContentHeightPx (formatNoteEnd - boundsDip.top);
+    SetContentHeightPx (volumeNoteEnd - boundsDip.top);
 }
 
 
@@ -291,7 +298,7 @@ void CassoExplorerFullSendPage::Layout (const RECT & boundsDip, const DxuiDpiSca
 
 bool CassoExplorerFullSendPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    return m_format->OnMouse (ev) || m_browse->OnMouse (ev) || m_sounds->OnMouse (ev);
+    return m_format->list.OnMouse (ev) || m_browse->OnMouse (ev) || m_sounds->OnMouse (ev) || m_format->volume.OnMouse (ev);
 }
 
 
@@ -308,8 +315,6 @@ void CassoExplorerProtectionPage::Init (Parts & parts)
 {
     m_parts = &parts;
 
-    Adopt (parts.volume);
-    Adopt (parts.volumeNote);
     Adopt (parts.head);
     Adopt (parts.note);
 
@@ -338,12 +343,7 @@ void CassoExplorerProtectionPage::Layout (const RECT & boundsDip, const DxuiDpiS
     int                           labelH   = scaler.ToPx (kLabelHeightDip);
     int                           fieldH   = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
     int                           optionH  = scaler.ToPx (kOptionLabelHeightDip + kOptionGapDip);
-    int                           indent   = scaler.ToPx (CassoExplorerGeneralPage::kNoteIndentDip);
-    int                           volEnd   = boundsDip.top + fieldH;
-    int                           volNote  = volEnd + scaler.ToPx (ExplorerMetrics::kStackGapDip);
-    int                           volBelow = volNote + CassoExplorerVerifyPage::GetNoteHeightPx (m_parts->volumeNote, width - indent, scaler, 0);
-    int                           headTop  = volBelow + scaler.ToPx (ExplorerMetrics::kStackGapDip * 4);
-    int                           noteTop  = headTop + labelH;
+    int                           noteTop  = boundsDip.top + labelH;
     int                           noteEnd  = noteTop + CassoExplorerVerifyPage::GetNoteHeightPx (m_parts->note, width, scaler, kNoteHeightDip);
     int                           at       = noteEnd;
     std::vector<DxuiRadioOption>  options  = m_parts->action.GetOptions();
@@ -354,10 +354,8 @@ void CassoExplorerProtectionPage::Layout (const RECT & boundsDip, const DxuiDpiS
 
     SetBounds (boundsDip);
 
-    m_parts->volume.Layout     (RECT { boundsDip.left, boundsDip.top, boundsDip.right, volEnd }, scaler);
-    m_parts->volumeNote.Layout (RECT { boundsDip.left + indent, volNote, boundsDip.right, volBelow }, scaler);
-    m_parts->head.Layout       (RECT { boundsDip.left, headTop, boundsDip.right, noteTop }, scaler);
-    m_parts->note.Layout       (RECT { boundsDip.left, noteTop, boundsDip.right, noteEnd }, scaler);
+    m_parts->head.Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, noteTop }, scaler);
+    m_parts->note.Layout (RECT { boundsDip.left, noteTop, boundsDip.right, noteEnd }, scaler);
 
     for (DxuiCheckbox & condition : m_parts->conditions)
     {
@@ -395,7 +393,7 @@ void CassoExplorerProtectionPage::Layout (const RECT & boundsDip, const DxuiDpiS
 
 bool CassoExplorerProtectionPage::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool  handled = m_parts->volume.OnMouse (ev);
+    bool  handled = false;
 
 
 
@@ -633,8 +631,8 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     WireFullSend();
 
     m_fullSend = CreatePage<CassoExplorerFullSendPage> (L"Full Send");
-    m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendSoundsLabel, m_fullSendSounds, m_fullSendFormatLabel, m_fullSendFormat, m_fullSendFormatNote);
-    m_fullSendFormat.SetPopupHost (GetPopupHost());
+    m_fullSend->Init (m_fullSendNote, m_fullSendFolderLabel, m_fullSendFolder, m_fullSendBrowse, m_fullSendSoundsLabel, m_fullSendSounds, m_fullSendFormat);
+    m_fullSendFormat.list.SetPopupHost (GetPopupHost());
 
     WireProtection();
 
@@ -672,6 +670,8 @@ void CassoExplorerOptionsDialog::WireFullSend()
 {
     std::vector<std::wstring>  rows;
     std::vector<bool>          enabled;
+    std::vector<bool>          headings;
+    std::vector<std::wstring>  cars;
     int                        selected = 0;
 
 
@@ -682,22 +682,38 @@ void CassoExplorerOptionsDialog::WireFullSend()
         {
             rows.push_back (L"Esoterica, for the disk image format enthusiast");
             enabled.push_back (false);
+            headings.push_back (true);
+            cars.push_back (std::wstring());
         }
 
         rows.push_back (s_kFullSendFormats[i].label);
         enabled.push_back (true);
+        headings.push_back (false);
+        cars.push_back (s_kFullSendFormats[i].car);
 
         selected = m_choices.fullSendExtension == s_kFullSendFormats[i].extension ? (int) i : selected;
     }
 
-    m_fullSendFormat.SetItems        (rows);
-    m_fullSendFormat.SetItemsEnabled (enabled);
-    m_fullSendFormat.SetSelected     (GetFormatRow (selected));
-    m_fullSendFormat.SetSelect       ([this] (int row) { m_fullSendFormatNote.SetText (s_kFullSendFormats[(size_t) GetFormatIndex (row)].car); });
+    m_fullSendFormat.list.SetItems            (rows);
+    m_fullSendFormat.list.SetItemsEnabled     (enabled);
+    m_fullSendFormat.list.SetItemHeadings     (headings);
+    m_fullSendFormat.list.SetItemDescriptions (cars);
+    m_fullSendFormat.list.SetSelected         (GetFormatRow (selected));
+    m_fullSendFormat.list.SetSelect           ([this] (int row) { m_fullSendFormat.note.SetText (s_kFullSendFormats[(size_t) GetFormatIndex (row)].car); });
 
-    m_fullSendFormatNote.SetText (s_kFullSendFormats[(size_t) selected].car);
-    ExplorerTextStyles::Apply (m_fullSendFormatNote, ExplorerTextStyles::kFormNote);
-    m_fullSendFormatNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    m_fullSendFormat.note.SetText (s_kFullSendFormats[(size_t) selected].car);
+    ExplorerTextStyles::Apply (m_fullSendFormat.note, ExplorerTextStyles::kFormNote);
+    m_fullSendFormat.note.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+
+    m_fullSendFormat.volume.SetLabel (L"Save as a WOZ image when the selected image type can't store the disk's volume number");
+    m_fullSendFormat.volume.SetSingleLineLabel (true);
+    m_fullSendFormat.volume.SetChecked (m_choices.fullSendProtection.volumeWoz);
+
+    m_fullSendFormat.volumeNote.SetText (L"A .dsk, .do or .po image can't store a disk's volume number. For a DOS 3.3 disk, Casso uses the volume number in its catalog, "
+                                         L"and 254 for any other disk. With this setting on, a disk with any other volume number is saved as a WOZ image so that it "
+                                         L"can include the actual volume number, overriding the otherwise selected image type.");
+    ExplorerTextStyles::Apply (m_fullSendFormat.volumeNote, ExplorerTextStyles::kFormNote);
+    m_fullSendFormat.volumeNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     m_fullSendNote.SetText      (L"Full Send quickly archives a stack of floppies. Just keep feeding the drives on the Apple after each disk is completed "
                                  L"and find your disk images in the Full Send folder. Full Send detects duplicates, and can detect and image many "
@@ -709,12 +725,12 @@ void CassoExplorerOptionsDialog::WireFullSend()
     m_fullSendFolderLabel.SetText (L"Save images to");
     ExplorerTextStyles::Apply (m_fullSendFolderLabel, ExplorerTextStyles::kFormLabel);
 
-    m_fullSendFormatLabel.SetText (L"Image type");
-    ExplorerTextStyles::Apply (m_fullSendFormatLabel, ExplorerTextStyles::kFormLabel);
+    m_fullSendFormat.label.SetText (L"Image type");
+    ExplorerTextStyles::Apply (m_fullSendFormat.label, ExplorerTextStyles::kFormLabel);
 
     m_fullSendFolder.SetText (m_choices.fullSendFolder);
 
-    m_fullSendSoundsLabel.SetText (L"Play a sound when a capture succeeds, and another when it fails, on");
+    m_fullSendSoundsLabel.SetText (L"Play capture success or failure sounds on");
     ExplorerTextStyles::Apply (m_fullSendSoundsLabel, ExplorerTextStyles::kFormLabel);
 
     m_fullSendSounds.SetAnimationsEnabled (false);
@@ -786,22 +802,13 @@ void CassoExplorerOptionsDialog::WireProtection()
 
 
 
-    m_fullSendProtection.volume.SetLabel (L"Preserve a non-default volume number by capturing as a WOZ image");
-    m_fullSendProtection.volume.SetSingleLineLabel (true);
-    m_fullSendProtection.volume.SetChecked (choices.volumeWoz);
-
-    m_fullSendProtection.volumeNote.SetText (L"A .dsk, .do or .po image can't store a disk's volume number. Casso treats any such image as volume 254, matching DOS 3.3's default. "
-                                             L"With this setting on, a disk with any other volume number is saved as a WOZ image so that it can include the actual volume number, "
-                                             L"overriding the otherwise selected image type.");
-    ExplorerTextStyles::Apply (m_fullSendProtection.volumeNote, ExplorerTextStyles::kFormNote);
-    m_fullSendProtection.volumeNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     m_fullSendProtection.head.SetText (L"Copy-protected disks");
     ExplorerTextStyles::Apply (m_fullSendProtection.head, ExplorerTextStyles::kFormLabel);
 
     m_fullSendProtection.note.SetText (L"Copy protection often depends on details of the disk that a sector copy can't record, so a copy-protected disk has to be "
-                                       L"captured raw. A raw capture is always saved as a WOZ image, even when another image type is selected above, and it takes "
-                                       L"longer than a sector copy.");
+                                       L"captured raw. A raw capture is always saved as a WOZ image, even when another image type is selected on the Full Send tab, "
+                                       L"and it takes longer than a sector copy.");
     ExplorerTextStyles::Apply (m_fullSendProtection.note, ExplorerTextStyles::kFormNote);
     m_fullSendProtection.note.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
@@ -1079,7 +1086,7 @@ HRESULT CassoExplorerOptionsDialog::OnOk()
     m_choices.autoPreview  = m_autoPreview.IsChecked();
     m_choices.enterExpands = m_enterExpands.IsChecked();
     m_choices.autoThumbnails = m_autoThumbnails.IsChecked();
-    m_choices.fullSendExtension = s_kFullSendFormats[(size_t) GetFormatIndex (m_fullSendFormat.GetSelectedIndex())].extension;
+    m_choices.fullSendExtension = s_kFullSendFormats[(size_t) GetFormatIndex (m_fullSendFormat.list.GetSelectedIndex())].extension;
     m_choices.bootSoundPlace    = m_fullSendSounds.GetSelected();
     m_choices.verifyReads       = m_verifyRows[0].toggle.IsChecked();
     m_choices.verifyWrites      = m_verifyRows[1].toggle.IsChecked();
@@ -1089,7 +1096,7 @@ HRESULT CassoExplorerOptionsDialog::OnOk()
     m_choices.fullSendProtection.diskCode     = m_fullSendProtection.conditions[2].IsChecked();
     m_choices.fullSendProtection.otherBoot    = m_fullSendProtection.conditions[3].IsChecked();
     m_choices.fullSendProtection.captureRaw   = m_fullSendProtection.action.GetSelected() == 0;
-    m_choices.fullSendProtection.volumeWoz    = m_fullSendProtection.volume.IsChecked();
+    m_choices.fullSendProtection.volumeWoz    = m_fullSendFormat.volume.IsChecked();
     m_choices.hostNaming = m_naming.GetSelected();
     m_confirmed          = true;
 

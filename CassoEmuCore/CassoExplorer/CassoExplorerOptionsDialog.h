@@ -84,19 +84,30 @@ private:
 //
 //  CassoExplorerFullSendPage
 //
-//  A Full Send's folder, with its Browse button, and its image type, in a
-//  list with the selected type's description below it. A Full Send starts
-//  from the Apple's keyboard, so these are set here ahead of time; the file
-//  name prefix is typed on the Apple.
+//  A Full Send's folder, with its Browse button, its image type, in a list
+//  with the selected type's description below it, and the checkbox for a
+//  disk whose volume the image type can't store, with its note. A Full Send
+//  starts from the Apple's keyboard, so these are set here ahead of time; the
+//  file name prefix is typed on the Apple.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class CassoExplorerFullSendPage : public DxuiPropertyPage
 {
 public:
+    //  The format list, its description, and the volume checkbox and note.
+    struct FormatParts
+    {
+        DxuiLabel     label;
+        DxuiComboBox  list;
+        DxuiLabel     note;
+        DxuiCheckbox  volume;
+        DxuiLabel     volumeNote;
+    };
+
     explicit CassoExplorerFullSendPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
 
-    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & soundsLabel, DxuiSegmentedControl & sounds, DxuiLabel & formatLabel, DxuiComboBox & format, DxuiLabel & formatNote);
+    void  Init    (DxuiLabel & note, DxuiLabel & folderLabel, DxuiLabel & folder, DxuiButton & browse, DxuiLabel & soundsLabel, DxuiSegmentedControl & sounds, FormatParts & format);
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
@@ -111,13 +122,11 @@ public:
 private:
     DxuiLabel             * m_note        = nullptr;
     DxuiLabel             * m_folderLabel = nullptr;
-    DxuiLabel             * m_formatLabel = nullptr;
     DxuiLabel             * m_folder      = nullptr;
     DxuiButton            * m_browse      = nullptr;
     DxuiLabel             * m_soundsLabel = nullptr;
     DxuiSegmentedControl  * m_sounds      = nullptr;
-    DxuiComboBox          * m_format      = nullptr;
-    DxuiLabel             * m_formatNote  = nullptr;
+    FormatParts           * m_format      = nullptr;
 };
 
 
@@ -128,8 +137,7 @@ private:
 //
 //  CassoExplorerProtectionPage
 //
-//  The checkbox for a disk with a nonstandard volume and its note, then the
-//  Copy-protected disks section: a heading, a note, a checkbox for each
+//  The Copy-protected disks section: a heading, a note, a checkbox for each
 //  condition, and the choice for a disk with any of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,8 +147,6 @@ class CassoExplorerProtectionPage : public DxuiPropertyPage
 public:
     struct Parts
     {
-        DxuiCheckbox                 volume;
-        DxuiLabel                    volumeNote;
         DxuiLabel                    head;
         DxuiLabel                    note;
         std::array<DxuiCheckbox, 4>  conditions;
@@ -269,7 +275,7 @@ public:
         bool          verifyWrites = false;
         bool          autoVerify   = true;
 
-        //  The Copy protection page.
+        //  The Copy protection page, and the Full Send page's volume checkbox.
         FullSendProtectionChoices  fullSendProtection;
 
 
@@ -347,13 +353,11 @@ private:
     DxuiCheckbox                                   m_rawCopyMenu;
     DxuiLabel                                      m_fullSendNote;
     DxuiLabel                                      m_fullSendFolderLabel;
-    DxuiLabel                                      m_fullSendFormatLabel;
-    DxuiLabel                                      m_fullSendFormatNote;
     DxuiLabel                                      m_fullSendFolder;
     DxuiButton                                     m_fullSendBrowse;
     DxuiLabel                                      m_fullSendSoundsLabel;
     DxuiSegmentedControl                           m_fullSendSounds;
-    DxuiComboBox                                   m_fullSendFormat;
+    CassoExplorerFullSendPage::FormatParts         m_fullSendFormat;
     CassoExplorerFullSendPage                    * m_fullSend            = nullptr;
     CassoExplorerProtectionPage::Parts             m_fullSendProtection;
     CassoExplorerProtectionPage                  * m_protectionPage      = nullptr;

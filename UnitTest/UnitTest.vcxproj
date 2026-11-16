@@ -770,6 +770,7 @@
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiComboBoxFitTests.cpp" />
     <ClCompile Include="Dxui\DxuiComboBoxItemEnabledTests.cpp" />
+    <ClCompile Include="Dxui\DxuiComboBoxRichRowsTests.cpp" />
     <ClCompile Include="Dxui\DxuiComboBoxScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiPanelTests.cpp" />
