@@ -1664,7 +1664,7 @@ int ShellDisks::GetMenuIndex (int diskIiDrive) const
 
 
 
-    for (int menuDrive = 0; menuDrive < 2 && index < 0; menuDrive++)
+    for (int menuDrive = 0; menuDrive < 3 && index < 0; menuDrive++)
     {
         index = (GetMenuDrive (menuDrive).diskIiDrive == diskIiDrive) ? menuDrive : -1;
     }

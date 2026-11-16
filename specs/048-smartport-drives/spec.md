@@ -149,6 +149,13 @@ the interaction, sound and event log the Disk II already has.
   slot 5.
 - Q: What happens to the window when the theme changes between a 2D and a
   3D theme? A: The view is reset, as Ctrl+0 does.
+- Q: Which Storage menu rows act on the //c Plus's second 5.25-inch drive?
+  A: A third set of rows, drive 3 with Ctrl+3. The drive 1 rows are the
+  built-in 3.5-inch drive's insert and eject, and the drive 2 rows act on
+  the first 5.25-inch drive. The drive 3 rows
+  are visible only while that drive is plugged in. Rows that don't apply are
+  left out rather than disabled: the Disk II rows of a built-in 3.5-inch
+  drive, and the cassette rows on a machine without a cassette port.
 
 ## User Scenarios & Testing *(mandatory)*
 

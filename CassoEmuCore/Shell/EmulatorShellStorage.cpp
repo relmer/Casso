@@ -861,12 +861,19 @@ void EmulatorShell::ShowFloppyContextMenu (const DeskDrive & drive, int x, int y
 
     if (menu >= 0)
     {
-        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_INSERT1    : IDM_DISK_INSERT2),    L"&Insert disk...")));
-        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_EJECT1     : IDM_DISK_EJECT2),     L"&Eject disk")));
-        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (isFirst ? IDM_DISK_WP1      : IDM_DISK_WP2)));
-        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (isFirst ? IDM_DISK_SALVAGE1 : IDM_DISK_SALVAGE2)));
-        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_INSPECT1   : IDM_DISK_INSPECT2),   L"Inspect &disk...")));
-        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_THUMBNAIL1 : IDM_DISK_THUMBNAIL2), L"Save screenshot as the disk's thu&mbnail")));
+        static constexpr int  s_kInsert[]    = { IDM_DISK_INSERT1,    IDM_DISK_INSERT2,    IDM_DISK_INSERT3    };
+        static constexpr int  s_kEject[]     = { IDM_DISK_EJECT1,     IDM_DISK_EJECT2,     IDM_DISK_EJECT3     };
+        static constexpr int  s_kWp[]        = { IDM_DISK_WP1,        IDM_DISK_WP2,        IDM_DISK_WP3        };
+        static constexpr int  s_kSalvage[]   = { IDM_DISK_SALVAGE1,   IDM_DISK_SALVAGE2,   IDM_DISK_SALVAGE3   };
+        static constexpr int  s_kInspect[]   = { IDM_DISK_INSPECT1,   IDM_DISK_INSPECT2,   IDM_DISK_INSPECT3   };
+        static constexpr int  s_kThumbnail[] = { IDM_DISK_THUMBNAIL1, IDM_DISK_THUMBNAIL2, IDM_DISK_THUMBNAIL3 };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (s_kInsert[menu]),    L"&Insert disk...")));
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (s_kEject[menu]),     L"&Eject disk")));
+        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (s_kWp[menu])));
+        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (s_kSalvage[menu])));
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (s_kInspect[menu]),   L"Inspect &disk...")));
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (s_kThumbnail[menu]), L"Save screenshot as the disk's thu&mbnail")));
     }
     else
     {
