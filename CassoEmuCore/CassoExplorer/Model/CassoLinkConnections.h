@@ -7,6 +7,7 @@
 #include "CassoLink/LinkAnnouncement.h"
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/RunningCassoRegistry.h"
+#include "CassoExplorer/Model/CassoLinkFullSendOptions.h"
 #include "CassoExplorer/Model/CassoLinkLogFile.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Net/FirewallMonitor.h"
@@ -18,8 +19,6 @@ class ICassoLinkFolder;
 class IByteStreamFactory;
 class IDiskFileIo;
 class ILinkAnnouncements;
-
-struct NetworkAdapter;
 
 
 
@@ -46,28 +45,8 @@ public:
     CassoLinkConnections (IByteStreamFactory & factory, ICassoLinkFolder & folder, IDiskFileIo & fileIo);
     ~CassoLinkConnections ();
 
-    //  Where a Full Send started from an Apple writes: the folder, made by
-    //  makeFolder when the session starts, and the extension with its period,
-    //  empty for .po on ProDOS and .dsk otherwise.
-    using MakeFolderFn = std::function<HRESULT (const std::string & folder)>;
-
-    void  SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder);
-
-    //  The Copy-protected disks section's choices for each Full Send.
-    void  SetFullSendProtection (const FullSendProtectionChoices & choices);
-
-    //  Whether a Full Send saves a raw capture's reads beside its image.
-    void  SetFullSendReads  (bool on);
-
-    //  Whether the Apple sounds a tone for an image's boot result.
-    void  SetAppleBootSounds (bool on) { m_appleBootSounds = on; }
-
-    //  Called for each disk image a connection writes, a Full Send's or a
-    //  raw capture's, on the connection's thread: the connection, the
-    //  image's path and the model of the Apple.
-    using ImageFn = std::function<void (const std::string & link, const std::string & path, const std::string & model)>;
-
-    void  SetImageHandler   (ImageFn handler);
+    //  The options every connection's Full Send starts with.
+    CassoLinkFullSendOptions  & GetFullSendOptions () { return m_fullSendOptions; }
 
     //  An image's boot result, from any thread: set in its row of the
     //  connection's Full Send, with a line in that session's activity list
@@ -255,13 +234,6 @@ public:
     HRESULT  WaitForFile (const std::string & name, int drive, const std::string & path, DWORD timeoutMs, const std::function<void (DWORD)> & pause,
                           FilePayload & outPayload);
 
-    //  The text for an operation that failed.
-    static std::wstring  DescribeFailure (const LinkOperation & operation);
-
-    //  The status bar's text for the pending operations: the first one's
-    //  progress, and how many follow it. Empty for none.
-    static std::wstring  DescribeJobs (const std::vector<std::shared_ptr<LinkOperation>> & jobs);
-
     //  Drops what was read from a drive, so it is read again; each listing as
     //  last read is listed until the new one arrives, with TryGetListing's
     //  outKept set. RemoveListed takes an entry deleted from the drive out
@@ -275,42 +247,6 @@ public:
 
     //  Whether anything arrived since the last call.
     bool  TakeChanged ();
-
-    //  The text under a link's root in place of its drives.
-    static std::wstring  DescribeState (LinkState state, const CassoLinkSettings & settings, const std::wstring & pcName);
-
-    //  A speed with its thousands separated, as 115,200.
-    static std::wstring  FormatBaud    (DWORD baud);
-
-    //  Whether a link's name already says its address's port, as a name
-    //  made from the settings does, so a sentence need not repeat it.
-    static bool  NamesItsPort (const std::wstring & name, const std::wstring & address);
-
-    //  The command a Wi-Fi modem dials for a link: ATDT, this PC's name with
-    //  .local, and the link's TCP port.
-    static std::wstring  DescribeDial  (const std::wstring & pcName, const CassoLinkSettings & settings);
-
-    //  The dial command itself, as the shim on a boot disk sends it to the
-    //  modem; empty for any transport but the Wi-Fi modem.
-    static std::string   MakeDialCommand (const std::wstring & pcName, const CassoLinkSettings & settings);
-
-    //  What is written into the shim on a link's boot disk: the link's speed,
-    //  slot and dial command, or for an Uthernet II, the W5100 build, with the
-    //  network for the link's address and the PC's adapters.
-    static LinkShimOptions  MakeShimOptions (const std::wstring & pcName, const CassoLinkSettings & settings);
-
-    //  An Uthernet II's network for a link's address: the address and port;
-    //  the mask and gateway of the PC's adapter on its subnet, or
-    //  255.255.255.0 and the subnet's .1; and a locally administered MAC
-    //  address ending in the address's last byte. Fails for a host that is
-    //  not an IPv4 address.
-    static HRESULT  MakeNetworkConfig (const CassoLinkSettings & settings, const std::vector<NetworkAdapter> & adapters, LinkNetworkConfig & outConfig);
-
-    //  The slot the Uthernet II ships in, which a W5100 shim is built for.
-    static constexpr int  kUthernetSlot = 3;
-
-    //  This PC's DNS host name.
-    static std::wstring  GetPcName ();
 
     //  The PC's COM ports, for the connection dialog.
     HRESULT  ListComPorts (std::vector<std::wstring> & outPorts);
@@ -326,11 +262,11 @@ private:
         void                       OnStateChanged        (LinkState state) override;
         void                       OnProgress            (const std::shared_ptr<LinkOperation> & operation) override;
         void                       OnDone                (const std::shared_ptr<LinkOperation> & operation) override;
-        bool                       TryGetFullSendTarget  (std::string & outFolder, std::string & outExtension) override;
-        bool                       HasFullSendReadsOn    () override;
-        FullSendProtectionChoices  GetFullSendProtection () override;
-        bool                       HasAppleBootSounds    () override { return m_owner.m_appleBootSounds; }
-        bool                       OnImageWritten        (const std::string & path, const std::string & model) override;
+        bool                       TryGetFullSendTarget  (std::string & outFolder, std::string & outExtension) override { return m_owner.m_fullSendOptions.TryGetTarget (outFolder, outExtension); }
+        bool                       HasFullSendReadsOn    () override                                                 { return m_owner.m_fullSendOptions.IsSavingReads(); }
+        FullSendProtectionChoices  GetFullSendProtection () override                                                 { return m_owner.m_fullSendOptions.GetProtection(); }
+        bool                       HasAppleBootSounds    () override                                                 { return m_owner.m_fullSendOptions.HasAppleBootSounds(); }
+        bool                       OnImageWritten        (const std::string & path, const std::string & model) override { return m_owner.m_fullSendOptions.NoteImage (m_name, path, model); }
         void                       OnOperationQueued     (const std::shared_ptr<LinkOperation> & operation) override;
         void                       OnActivity            (const std::string & text) override;
         void                       OnTrace               (bool sent, const std::string & text) override;
@@ -404,16 +340,10 @@ private:
         Completion                      completion;
     };
 
-    std::string                m_fullSendFolder;
-    std::string                m_fullSendExtension;
-    FullSendProtectionChoices  m_fullSendProtection;
-    bool                       m_fullSendReads      = false;
-    std::atomic<bool>          m_appleBootSounds    { false };
+    CassoLinkFullSendOptions   m_fullSendOptions;
     bool                       m_verifyReads        = false;
     bool                       m_verifyWrites       = false;
     bool                       m_autoVerify         = true;
-    MakeFolderFn               m_makeFullSendFolder;
-    ImageFn                    m_imageHandler;
     std::vector<Job>           m_jobs;
     std::deque<Activity>       m_activity;
     CassoLinkLogFile           m_logFile;

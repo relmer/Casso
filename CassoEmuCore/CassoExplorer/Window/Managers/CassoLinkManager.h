@@ -2,13 +2,11 @@
 
 #include "Pch.h"
 
-#include "CassoExplorer/FullSendDialog.h"
 #include "CassoExplorer/Model/Location.h"
 
 class FirewallMonitor;
 struct CassoLinkSettings;
 class ILinkAnnouncements;
-class KrunchMapDialog;
 struct ExplorerContext;
 struct LinkTreeEntry;
 
@@ -21,9 +19,8 @@ struct LinkTreeEntry;
 //  CassoLinkManager
 //
 //  The CassoLink connections in the window: adding, editing and removing
-//  them, bootstrapping an Apple, the firewall's remedies, a linked Apple's
-//  drives and their whole-disk reads and writes, the list's link buttons
-//  and the status bar's activity log.
+//  them, bootstrapping an Apple, the firewall's remedies, the list's link
+//  buttons and the status bar's activity log.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,22 +37,7 @@ public:
     static constexpr int  kActivityShownMinutes = 15;
     static constexpr int  kFaultTextMax         = 400;
 
-    //  The whole-disk read and write pickers' own history.
-    static constexpr GUID  s_kLinkDiskPickerGuid = { 0x71d2ac7c, 0x3b03, 0x4c2c, { 0xac, 0xae, 0x2d, 0xa5, 0x0c, 0x9d, 0x7f, 0x8b } };
-
     void          RefreshCassoLinkViews   ();
-    void          ReadDiskToImage         (const Location & drive = Location(), bool forceVerify = false);
-    void          CaptureRawDisk          (const Location & drive, const std::wstring & suggested = std::wstring());
-    void          StartImageWrite         (const Location & drive, const std::wstring & imagePath, bool forceVerify = false);
-    bool          TryGetSelectedLinkDrive (Location & outDrive) const;
-    bool          TryGetTargetDrive       (const Location & drive, Location & outDrive, std::wstring & outLink, int & outNumber) const;
-    bool          IsOnLinkedMachine       () const;
-    void          OpenSelectedLinkDrive   ();
-    void          WriteImageToDisk        (const Location & drive = Location(), bool forceVerify = false);
-    void          SaveLinkToDisk          (const Location & drive = Location());
-    void          FormatAppleDisk         (const Location & location);
-    void          KrunchAppleDisk         (const Location & location);
-    void          SaveLinkDiskImage       (const std::string & name);
     void          EditConnection          (const std::string & name);
     void          RemoveConnection        (const std::string & name);
     void          Disconnect              (const std::string & name);
@@ -83,13 +65,10 @@ public:
     bool          IsWifiModemConnection   (const std::string & name) const;
     void          ReleaseIdleConnections  ();
     void          ApplyConnections        ();
-    void          ApplyFullSendPrefs      ();
     void          ApplyVerifyPrefs        ();
     void          HandleTransferTimer     ();
     void          HandleCassetteTimer     ();
     void          NoteListFilled          ();
-
-    static std::wstring  GetDefaultFullSendFolder ();
 
     void          CreateListActions       ();
     void          LayoutListActions       ();
@@ -108,35 +87,13 @@ public:
     uint32_t     GetAnnouncedChanges    () const { return m_announcedChanges; }
 
     void  HandleConnectionChanged ();
-
-    //  The Full Send window of each connection with a session in progress,
-    //  opened or brought to the front; with none, the window of the
-    //  connection whose session ended, or the folder's. Without activation
-    //  the keyboard focus is where it was.
-    void  ShowFullSendWindow      (bool activate);
-
-    //  Whether a Full Send session is in progress on a connection, and the
-    //  folder a Full Send writes to.
-    bool          IsFullSendRunning    ();
-    std::wstring  GetFullSendFolder    () const;
-    void          HandleRunningChanged ();
+    void  HandleRunningChanged    ();
 
 private:
-    void  UpdateUnseenFiles    ();
-    void  OpenFullSendOnStart  ();
-    bool  FillFullSendView     (FullSendPanel::View & ioView);
-    bool  FillConnectionView   (const std::wstring & connection, FullSendPanel::View & ioView);
-    void  ShowConnectionWindow (const std::wstring & connection, bool activate);
-    void  EndFullSend          (const std::wstring & connection);
-    bool  FillFromManifest     (FullSendPanel::View & ioView);
-    void  RunFullSendDisk      (const std::string & file, FullSendDialog::DiskAction action);
-    void  UpdateTransferTimer  ();
-    void  OfferRawCapture      (const Location & drive, const std::filesystem::path & image);
-
-    std::vector<FullSendPanel::View>  GetRunningViews ();
+    void  UpdateUnseenFiles   ();
+    void  UpdateTransferTimer ();
 
     static constexpr UINT  kTransferFrameMs = 150;
-    static constexpr int   kCascadeDip      = 40;     // between two Full Send windows open at once
     static constexpr int   kPulseFrames     = 8;
 
     //  The cassette audio is sent again while no Ready from the shim has
@@ -165,12 +122,4 @@ private:
     std::vector<Byte>        m_cassetteWav;
     std::string              m_cassetteLink;
     int                      m_cassettePlays = 0;
-
-    //  The last krunch's window, which stays open after the krunch ends.
-    std::unique_ptr<KrunchMapDialog>  m_krunchMap;
-
-    //  The Full Send window of each connection, by its name, and the folder's
-    //  under an empty name.
-    std::map<std::wstring, std::unique_ptr<FullSendDialog>>  m_fullSendWindows;
-    bool                                                     m_fullSendFilled = false;   // the folder's window has its manifest
 };

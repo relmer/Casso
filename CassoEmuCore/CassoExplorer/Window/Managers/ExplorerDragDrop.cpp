@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
@@ -1349,7 +1350,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
 
         if (image)
         {
-            m_context.cassoLinkManager.StartImageWrite (location, source.hostPaths[0]);
+            m_context.linkDrives.StartImageWrite (location, source.hostPaths[0]);
             return;
         }
 
@@ -1526,7 +1527,7 @@ void ExplorerDragDrop::BeginDragOut()
 
     //  Dragging a linked machine's drive drags its whole disk, as dragging its
     //  node in the tree does.
-    if (m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive))
+    if (m_context.linkDrives.TryGetSelectedLinkDrive (drive))
     {
         BeginDiskDrag (drive.path);
         return;

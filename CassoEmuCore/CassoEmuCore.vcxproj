@@ -261,6 +261,7 @@
     <ClCompile Include="Seams\Win32ByteStreamFactory.cpp" />
     <ClCompile Include="Devices\SerialPortDevice.cpp" />
     <ClCompile Include="Devices\SerialTrafficLog.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkClient.cpp" />
     <ClCompile Include="CassoLink\CassoLinkCodec.cpp" />
     <ClCompile Include="CassoLink\CassoLinkFolder.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHost.cpp" />
@@ -431,7 +432,9 @@
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerFolderSync.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerInput.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerLayout.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkDriveManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkManager.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\FullSendWindowManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerListPane.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerListColumns.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerListBars.cpp" />
@@ -515,6 +518,9 @@
     <ClCompile Include="CassoExplorer\Model\TreeModel.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeModelImages.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnections.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CassoLinkConnectionText.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CassoLinkFullSendOptions.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CassoLinkShimBuilder.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkLogFile.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VolumeImage.cpp" />
     <ClCompile Include="Devices\Disk\CommitPlan.cpp" />
@@ -1500,7 +1506,9 @@
     <ClInclude Include="CassoExplorer\Window\ExplorerTextStyles.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerWindowParts.h" />
     <ClInclude Include="CassoExplorer\Window\IExplorerWindow.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\CassoLinkDriveManager.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\CassoLinkManager.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\FullSendWindowManager.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerListPane.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerListColumns.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerListBars.h" />
@@ -1595,6 +1603,9 @@
     <ClInclude Include="CassoExplorer\Model\ApplesoftVariables.h" />
     <ClInclude Include="CassoExplorer\Model\TreeModel.h" />
     <ClInclude Include="CassoExplorer\Model\CassoLinkConnections.h" />
+    <ClInclude Include="CassoExplorer\Model\CassoLinkConnectionText.h" />
+    <ClInclude Include="CassoExplorer\Model\CassoLinkFullSendOptions.h" />
+    <ClInclude Include="CassoExplorer\Model\CassoLinkShimBuilder.h" />
     <ClInclude Include="CassoExplorer\Model\CassoLinkLogFile.h" />
     <ClInclude Include="Devices\Disk\IDiskFileIo.h" />
     <ClInclude Include="Machines\Apple2\Common\VolumeImage.h" />
@@ -1779,6 +1790,7 @@
     <ClInclude Include="Seams\Win32ByteStreamFactory.h" />
     <ClInclude Include="Devices\SerialPortDevice.h" />
     <ClInclude Include="Devices\SerialTrafficLog.h" />
+    <ClInclude Include="CassoLink\CassoLinkClient.h" />
     <ClInclude Include="CassoLink\CassoLinkCodec.h" />
     <ClInclude Include="CassoLink\CassoLinkFolder.h" />
     <ClInclude Include="CassoLink\CassoLinkHost.h" />

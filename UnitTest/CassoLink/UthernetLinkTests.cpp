@@ -2,6 +2,7 @@
 
 #include "../EhmTestHelper.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "CassoExplorer/Model/CassoLinkShimBuilder.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/CassoLinkSettings.h"
 #include "CassoLink/LinkProgram.h"
@@ -144,7 +145,7 @@ public:
         std::array<Byte, 4>          gateway  = { 192, 168, 1, 1 };
         std::array<Byte, 6>          mac      = { 0x02, 'C', 'A', 'S', 'S', 50 };
 
-        AssertSucceeded (CassoLinkConnections::MakeNetworkConfig (MakeLink ("192.168.1.50:6400"), adapters, network));
+        AssertSucceeded (CassoLinkShimBuilder::MakeNetworkConfig (MakeLink ("192.168.1.50:6400"), adapters, network));
 
         Assert::IsTrue (network.address == address);
         Assert::IsTrue (network.mask    == mask);
@@ -162,7 +163,7 @@ public:
         std::array<Byte, 4>          mask     = { 255, 255, 255, 0 };
         std::array<Byte, 4>          gateway  = { 172, 16, 5, 1 };
 
-        AssertSucceeded (CassoLinkConnections::MakeNetworkConfig (MakeLink ("172.16.5.9:6502"), adapters, network));
+        AssertSucceeded (CassoLinkShimBuilder::MakeNetworkConfig (MakeLink ("172.16.5.9:6502"), adapters, network));
 
         Assert::IsTrue (network.mask    == mask);
         Assert::IsTrue (network.gateway == gateway);
@@ -174,9 +175,9 @@ public:
     TEST_METHOD (AHostName_OrABadPort_IsNotANetwork)
     {
         LinkNetworkConfig  network;
-        HRESULT            hostName = CassoLinkConnections::MakeNetworkConfig (MakeLink ("apple.local:6502"), {}, network);
-        HRESULT            tooHigh  = CassoLinkConnections::MakeNetworkConfig (MakeLink ("10.0.0.2:70000"), {}, network);
-        HRESULT            worded   = CassoLinkConnections::MakeNetworkConfig (MakeLink ("10.0.0.2:port"), {}, network);
+        HRESULT            hostName = CassoLinkShimBuilder::MakeNetworkConfig (MakeLink ("apple.local:6502"), {}, network);
+        HRESULT            tooHigh  = CassoLinkShimBuilder::MakeNetworkConfig (MakeLink ("10.0.0.2:70000"), {}, network);
+        HRESULT            worded   = CassoLinkShimBuilder::MakeNetworkConfig (MakeLink ("10.0.0.2:port"), {}, network);
 
         Assert::IsTrue (FAILED (hostName), L"the chip takes an address, not a name");
         Assert::IsTrue (FAILED (tooHigh),  L"a port above 65535");
@@ -194,7 +195,7 @@ public:
         settings.address   = "0.0.0.0:6400";
         settings.baud      = 19200;
 
-        options = CassoLinkConnections::MakeShimOptions (L"CASSO", settings);
+        options = CassoLinkShimBuilder::MakeShimOptions (L"CASSO", settings);
 
         Assert::IsTrue (options.chip == LinkChip::Acia);
         Assert::AreEqual ((DWORD) 19200, options.baud);

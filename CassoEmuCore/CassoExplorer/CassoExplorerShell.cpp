@@ -108,7 +108,7 @@ CassoExplorerShell::~CassoExplorerShell()
     //  worker's thread calls into m_links, so the windows go, then the worker.
     m_windows.clear();
 
-    m_links.SetImageHandler (nullptr);
+    m_links.GetFullSendOptions().SetImageHandler (nullptr);
     m_bootWorker.reset();
 
     if (m_oleInitialized)
@@ -185,7 +185,7 @@ void CassoExplorerShell::StartBootWorker()
         }
     });
 
-    m_links.SetImageHandler ([this] (const std::string & link, const std::string & path, const std::string & model)
+    m_links.GetFullSendOptions().SetImageHandler ([this] (const std::string & link, const std::string & path, const std::string & model)
     {
         m_bootWorker->Queue (TextEncoding::NarrowToWide (path), model, link);
     });
@@ -1147,7 +1147,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
 
     //  For finding why a raw capture's image doesn't boot: the reads can be
     //  made into the image again (RealReads_BuildAWoz).
-    m_links.SetFullSendReads (m_options.saveReads);
+    m_links.GetFullSendOptions().SetSavingReads (m_options.saveReads);
     context.running     = &m_running;
     context.announced   = &m_announcements;
     context.firewall    = &m_firewall;

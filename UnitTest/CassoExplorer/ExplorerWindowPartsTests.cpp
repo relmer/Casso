@@ -757,7 +757,7 @@ public:
         dialogs        = static_cast<FakeHostDialogs *> (rig.parts->services.dialogs.get());
         dialogs->picks = false;
 
-        rig.parts->cassoLinkManager.ReadDiskToImage (drive);
+        rig.parts->linkDrives.ReadDiskToImage (drive);
 
         Assert::AreEqual (1, dialogs->saves);
         Assert::IsTrue   (dialogs->lastSpec.title.starts_with (L"Create image from"));
@@ -782,7 +782,7 @@ public:
         dialogs        = static_cast<FakeHostDialogs *> (rig.parts->services.dialogs.get());
         dialogs->picks = false;
 
-        rig.parts->cassoLinkManager.WriteImageToDisk (drive);
+        rig.parts->linkDrives.WriteImageToDisk (drive);
 
         Assert::AreEqual (1, dialogs->opens);
         Assert::IsTrue   (dialogs->lastSpec.title.starts_with (L"Write image to"));

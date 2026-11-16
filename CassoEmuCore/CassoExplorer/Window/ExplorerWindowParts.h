@@ -5,6 +5,7 @@
 #include "CassoExplorer/CassoExplorerCommands.h"
 #include "CassoExplorer/Model/FolderOptions.h"
 #include "CassoExplorer/Window/ExplorerContext.h"
+#include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
@@ -25,6 +26,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerThemes.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
+#include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
@@ -100,6 +102,8 @@ struct ExplorerWindowParts
     ExplorerListPane                        listPane         { context };
     ExplorerFolderSync                      folderSync       { context };
     CassoLinkManager                        cassoLinkManager { context };
+    CassoLinkDriveManager                   linkDrives       { context };
+    FullSendWindowManager                   fullSendWindows  { context };
     ExplorerDragDrop                        dragDrop         { context };
     ExplorerTabManager                      tabManager       { context };
     ExplorerPreviewManager                  preview          { context };

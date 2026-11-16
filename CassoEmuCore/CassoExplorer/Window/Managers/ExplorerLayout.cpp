@@ -14,6 +14,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
@@ -109,7 +110,7 @@ void ExplorerLayout::ConfigureWidgets()
     if (m_context.app.links != nullptr)
     {
         m_context.app.links->SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerCassoLink);
-        m_context.cassoLinkManager.ApplyFullSendPrefs();
+        m_context.fullSendWindows.ApplyFullSendPrefs();
         m_context.cassoLinkManager.ApplyVerifyPrefs();
         m_context.app.links->SetLinks (m_context.prefs.links);
         m_context.browser.SetLinks (m_context.app.links);

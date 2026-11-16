@@ -22,6 +22,7 @@
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
@@ -915,9 +916,9 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
     }
 
     //  The Full Send folder's row under CassoLink opens the Full Send window.
-    if (hasLocation && TreeModel::StripLinkCopy (id).starts_with (TreeModel::kAdtProId) && _wcsicmp (location.path.c_str(), m_context.cassoLinkManager.GetFullSendFolder().c_str()) == 0)
+    if (hasLocation && TreeModel::StripLinkCopy (id).starts_with (TreeModel::kAdtProId) && _wcsicmp (location.path.c_str(), m_context.fullSendWindows.GetFullSendFolder().c_str()) == 0)
     {
-        m_context.menus.AddMenuCommand (items, L"Full Send &status", [this]() { m_context.cassoLinkManager.ShowFullSendWindow (true); });
+        m_context.menus.AddMenuCommand (items, L"Full Send &status", [this]() { m_context.fullSendWindows.ShowFullSendWindow (true); });
     }
 
     //  A storage card is erased and given an Apple layout. It doesn't have a

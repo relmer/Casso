@@ -6,7 +6,6 @@
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "AssetBootstrap.h"
 #include "CassoExplorer/CassoExplorerRawDialog.h"
-#include "Machines/Apple2/Common/StockBootDisks.h"
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
 #include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
@@ -15,7 +14,6 @@
 #include "Config/FileAssociations.h"
 #include "Seams/Win32UserClasses.h"
 #include "Update/Win32InstallEnvironment.h"
-#include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
 #include "Core/AppTimerIds.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
@@ -39,6 +37,8 @@
 #include "Seams/IHostDialogs.h"
 #include "Seams/Win32HostDialogs.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
+#include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerThemes.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
@@ -479,8 +479,8 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kCompareDiskImages: return m_context.actions.CanCompare();
         case CassoExplorerCommands::kInitializeCard:    return m_context.app.cards != nullptr;
         case CassoExplorerCommands::kReadDiskToImage:
-        case CassoExplorerCommands::kWriteImageToDisk:  return m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive);
-        case CassoExplorerCommands::kCancelLinkOperation: return (m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive)) && m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
+        case CassoExplorerCommands::kWriteImageToDisk:  return m_context.browser.IsAppleDriveOpen() || m_context.linkDrives.TryGetSelectedLinkDrive (drive);
+        case CassoExplorerCommands::kCancelLinkOperation: return (m_context.browser.IsAppleDriveOpen() || m_context.linkDrives.TryGetSelectedLinkDrive (drive)) && m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
         case CassoExplorerCommands::kDeleteItems:       return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Delete);
         case CassoExplorerCommands::kCloseSearch:
         case CassoExplorerCommands::kSearchOptions:     return true;
@@ -698,8 +698,8 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kInspectDiskImage:  RunVerb (CassoExplorerActions::Verb::InspectDiskImage);  break;
         case CassoExplorerCommands::kCompareDiskImages: RunVerb (CassoExplorerActions::Verb::CompareDiskImages); break;
         case CassoExplorerCommands::kInitializeCard:    m_context.opener.InitializeShownCard();                   break;
-        case CassoExplorerCommands::kReadDiskToImage:     m_context.cassoLinkManager.ReadDiskToImage();                   break;
-        case CassoExplorerCommands::kWriteImageToDisk:    m_context.cassoLinkManager.WriteImageToDisk();                  break;
+        case CassoExplorerCommands::kReadDiskToImage:     m_context.linkDrives.ReadDiskToImage();                         break;
+        case CassoExplorerCommands::kWriteImageToDisk:    m_context.linkDrives.WriteImageToDisk();                        break;
         case CassoExplorerCommands::kCancelLinkOperation: m_context.actions.CancelLinkOperation();     break;
         case CassoExplorerCommands::kDeleteItems:  RunVerb (CassoExplorerActions::Verb::Delete); break;
         case CassoExplorerCommands::kCloseSearch:     m_context.addressBar.CloseSearch(); break;
@@ -870,7 +870,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kGroup8: m_context.preview.GetHex().SetGrouping (8); break;
 
         case CassoExplorerCommands::kOptions:           ShowOptions(); break;
-        case CassoExplorerCommands::kFullSendStatus:    m_context.cassoLinkManager.ShowFullSendWindow (true); break;
+        case CassoExplorerCommands::kFullSendStatus:    m_context.fullSendWindows.ShowFullSendWindow (true); break;
 
         case CassoExplorerCommands::kBack:    refill = m_context.browser.GoBack();    break;
         case CassoExplorerCommands::kForward: refill = m_context.browser.GoForward(); break;
@@ -1038,7 +1038,7 @@ void ExplorerCommandManager::ShowOptions()
     choices.autoPreview  = m_context.prefs.autoPreview;
     choices.enterExpands = m_context.prefs.enterExpandsPreview;
     choices.autoThumbnails = m_context.prefs.autoThumbnails;
-    choices.fullSendFolder    = m_context.prefs.fullSendFolder.empty() ? CassoLinkManager::GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
+    choices.fullSendFolder    = m_context.prefs.fullSendFolder.empty() ? FullSendWindowManager::GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
     choices.fullSendExtension = m_context.prefs.fullSendExtension;
     choices.bootSoundPlace    = m_context.prefs.bootSoundPlace;
     choices.verifyReads       = m_context.prefs.verifyReads;
@@ -1091,14 +1091,14 @@ void ExplorerCommandManager::ShowOptions()
     m_context.prefs.enterExpandsPreview = choices.enterExpands;
     m_context.prefs.autoThumbnails      = choices.autoThumbnails;
     m_context.prefs.rawCopyMenu         = choices.rawCopyMenu;
-    m_context.prefs.fullSendFolder    = choices.fullSendFolder == CassoLinkManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
+    m_context.prefs.fullSendFolder    = choices.fullSendFolder == FullSendWindowManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
     m_context.prefs.fullSendExtension = choices.fullSendExtension;
     m_context.prefs.bootSoundPlace    = choices.bootSoundPlace;
     m_context.prefs.verifyReads       = choices.verifyReads;
     m_context.prefs.verifyWrites      = choices.verifyWrites;
     m_context.prefs.autoVerify        = choices.autoVerify;
     m_context.prefs.fullSendProtection = choices.fullSendProtection;
-    m_context.cassoLinkManager.ApplyFullSendPrefs();
+    m_context.fullSendWindows.ApplyFullSendPrefs();
     m_context.cassoLinkManager.ApplyVerifyPrefs();
 
 
@@ -1288,7 +1288,7 @@ std::wstring ExplorerCommandManager::GetCommandLabel (int id) const
     {
         title = m_context.actions.DescribeAppleDrive();
     }
-    else if (m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive))
+    else if (m_context.linkDrives.TryGetSelectedLinkDrive (drive))
     {
         title = m_context.browser.GetTreeModel().GetLinkDriveTitle (drive.path);
     }
