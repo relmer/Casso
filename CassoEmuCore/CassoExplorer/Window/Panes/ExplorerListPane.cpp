@@ -858,6 +858,11 @@ void ExplorerListPane::RefreshTip()
                 return;
             }
         }
+        else if (row0.isStockDisk && !row0.stockNote.empty())
+        {
+            //  A stock disk's tip has the models it boots on.
+            details = row0.stockNote;
+        }
         else if (!row0.isDirectory || m_context.browser.GetLocation().kind == Location::Kind::RecycleBin)
         {
             details = L"Type: " + row0.typeText;

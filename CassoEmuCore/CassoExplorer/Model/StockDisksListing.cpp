@@ -25,6 +25,7 @@ void StockDisksListing::Build (const std::vector<StockDiskRow> & disks, std::vec
         row.isDiskImage               = true;
         row.isStockDisk               = true;
         row.stockDownloaded           = disk.isDownloaded;
+        row.stockNote                 = disk.note;
         row.sizeBytes                 = disk.isDownloaded ? kDiskBytes : 0;
         row.imageClass                = disk.imageClass;
 

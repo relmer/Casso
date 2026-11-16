@@ -127,6 +127,7 @@ struct CatalogRow
     int64_t       lastUsedUnix    = 0;
     bool          isStockDisk     = false;
     bool          stockDownloaded = false;
+    std::wstring  stockNote;
 
     //  In a picker opened from the emulator: the drive of the running machine
     //  the image is inserted in, such as "slot 6 drive 1", or empty.

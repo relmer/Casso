@@ -81,6 +81,11 @@ public:
     //  What a message or prompt calls it.
     static const wchar_t *  GetLabel (Which disk);
 
+    //  What a disk picker lists it as, with its version, and the Apple II
+    //  models it boots on, for the row's tooltip.
+    static const wchar_t *  GetDisplayName   (Which disk);
+    static const wchar_t *  GetCompatibility (Which disk);
+
     //  Where that master sits in the cache, whether or not it is there yet.
     //
     //  NARROW, because that is what IDiskFileIo takes and what the command

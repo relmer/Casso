@@ -26,7 +26,7 @@ public:
 
     TEST_METHOD (EachStockDiskIsARow_WithItsPathAndWhetherItIsDownloaded)
     {
-        std::vector<StockDiskRow>  disks = { { L"DOS 3.3 System Master", L"C:\\Stock\\DOS 3.3 System Master.dsk", true },
+        std::vector<StockDiskRow>  disks = { { L"DOS 3.3 System Master", L"C:\\Stock\\DOS 3.3 System Master.dsk", true, L"Boots on every Apple II." },
                                              { L"ProDOS Users Disk",     L"C:\\Stock\\ProDOS Users Disk.dsk",     false } };
         std::vector<CatalogRow>    rows;
 
@@ -42,6 +42,7 @@ public:
         Assert::IsTrue  (rows[1].isStockDisk);
         Assert::IsFalse (rows[1].stockDownloaded);
         Assert::IsFalse (rows[0].isDirectory);
+        Assert::AreEqual (std::wstring (L"Boots on every Apple II."), rows[0].stockNote, L"the tooltip's text");
     }
 
 
@@ -91,8 +92,8 @@ public:
 
 
 
-    //  The stock disks are the DOS 3.3 System Master, Apple's ProDOS Users
-    //  Disk and ProDOS 2.4.3, all 140K, so a 3.5-inch drive's list is empty.
+    //  The stock disks are the DOS 3.3 System Master, Apple's ProDOS 1.0.1
+    //  Users Disk and ProDOS 2.4.3, all 140K, so a 3.5-inch drive's list is empty.
     TEST_METHOD (StockDisks_AreTheMastersAndProDos243_ForA525Drive)
     {
         std::vector<StockDiskRow>  floppy  = StartupDiskPicker::GetStockDisks (ReceivingDrive { ReceivingDriveKind::Floppy525, 0 });
@@ -101,9 +102,10 @@ public:
 
 
         Assert::AreEqual ((size_t) 3, floppy.size());
-        Assert::AreEqual (std::wstring (L"DOS 3.3 System Master"), floppy[0].label);
-        Assert::AreEqual (std::wstring (L"ProDOS Users Disk"),     floppy[1].label);
-        Assert::AreEqual (std::wstring (L"ProDOS 2.4.3"),          floppy[2].label);
+        Assert::AreEqual (std::wstring (L"DOS 3.3 System Master"),   floppy[0].label);
+        Assert::AreEqual (std::wstring (L"ProDOS 1.0.1 Users Disk"), floppy[1].label);
+        Assert::AreEqual (std::wstring (L"ProDOS 2.4.3"),            floppy[2].label);
+        Assert::IsTrue   (floppy[1].note.find (L"64K") != std::wstring::npos, L"ProDOS needs 64K");
         Assert::IsTrue   (floppy[2].path.ends_with (L"ProDOS 2.4.3.po"));
         Assert::IsTrue   (apple35.empty());
     }

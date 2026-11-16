@@ -72,7 +72,7 @@ std::vector<StockDiskRow> StartupDiskPicker::GetStockDisks (const ReceivingDrive
         {
             std::filesystem::path  path = AssetBootstrap::GetStockBootDiskPath (disk);
 
-            rows.push_back (StockDiskRow { path.stem().wstring(), path.wstring(), AssetBootstrap::IsStockBootDiskCached (disk), master });
+            rows.push_back (StockDiskRow { StockBootDisks::GetDisplayName (disk), path.wstring(), AssetBootstrap::IsStockBootDiskCached (disk), StockBootDisks::GetCompatibility (disk), master });
         }
     }
 
@@ -106,7 +106,7 @@ std::vector<StockDiskRow> StartupDiskPicker::GetDemoDisks (IDiskFileIo & fileIo,
 
         if (DriveImageRule::Accepts (drive, image))
         {
-            rows.push_back (StockDiskRow { entry.path.stem().wstring(), entry.path.wstring(), true, image });
+            rows.push_back (StockDiskRow { entry.path.stem().wstring(), entry.path.wstring(), true, std::wstring(), image });
         }
     }
 

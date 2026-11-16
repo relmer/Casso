@@ -23,6 +23,9 @@ struct StockDiskRow
     std::wstring  path;
     bool          isDownloaded = false;
 
+    //  The Apple II models the disk boots on, for its tooltip.
+    std::wstring  note;
+
     //  A bundled disk's class, read from its file; unclassified for a
     //  stock disk, which is a 140K 5.25-inch disk.
     ImageClass    imageClass;

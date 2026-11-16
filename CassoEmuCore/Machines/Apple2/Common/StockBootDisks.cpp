@@ -67,6 +67,61 @@ const wchar_t * StockBootDisks::GetLabel (Which disk)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StockBootDisks::GetDisplayName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * StockBootDisks::GetDisplayName (Which disk)
+{
+    switch (disk)
+    {
+        case Which::Dos33Master:      return L"DOS 3.3 System Master";
+        case Which::ProDosUsersDisk:  return L"ProDOS 1.0.1 Users Disk";
+        case Which::ProDos243Disk:    return L"ProDOS 2.4.3";
+        case Which::PascalBootDisk:   return L"Apple Pascal 1.3";
+        case Which::CpamBootDisk:     return L"CP/AM 5.1";
+        case Which::SoftCardBootDisk: return L"CP/M 2.23";
+        case Which::SosSystemDisk:    return L"Apple /// System Utilities";
+    }
+
+    return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StockBootDisks::GetCompatibility
+//
+//  Both ProDOS disks require 64K, which a ][ or ][+ has only with a language
+//  card; on a 48K ][+ they stop with a message.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * StockBootDisks::GetCompatibility (Which disk)
+{
+    switch (disk)
+    {
+        case Which::Dos33Master:      return L"Boots on every Apple II.";
+        case Which::ProDosUsersDisk:  return L"Requires 64K: a //e or //c, or a ][ or ][+ with a language card.";
+        case Which::ProDos243Disk:    return L"Boots on every Apple II with 64K, which a ][ or ][+ has with a language card.";
+        case Which::PascalBootDisk:
+        case Which::CpamBootDisk:
+        case Which::SoftCardBootDisk:
+        case Which::SosSystemDisk:    return L"";
+    }
+
+    return L"";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  StockBootDisks::TryGetStockDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
