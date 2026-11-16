@@ -42,11 +42,11 @@ EditBar::EditBar()
     m_note          = CreateChild<DxuiLabel>    (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left);
     m_discardSector = CreateChild<DxuiButton>   (L"Discard sector");
     m_discard       = CreateChild<DxuiButton>   (L"Discard");
-    m_apply         = CreateChild<DxuiButton>   (L"Apply...");
-    m_saveCopy      = CreateChild<DxuiButton>   (L"Save edited copy...");
-    m_undoApplied   = CreateChild<DxuiButton>   (L"Undo applied edit");
-    m_redoApplied   = CreateChild<DxuiButton>   (L"Redo applied edit");
-    m_pauseApply    = CreateChild<DxuiButton>   (L"Pause and apply");
+    m_apply         = CreateChild<DxuiButton>   (L"Save...");
+    m_saveCopy      = CreateChild<DxuiButton>   (L"Save as...");
+    m_undoApplied   = CreateChild<DxuiButton>   (L"Undo save");
+    m_redoApplied   = CreateChild<DxuiButton>   (L"Redo save");
+    m_pauseApply    = CreateChild<DxuiButton>   (L"Pause and save");
     m_cancelApply   = CreateChild<DxuiButton>   (L"Cancel");
     m_useB          = CreateChild<DxuiButton>   (L"Use B's bytes");
 
@@ -98,7 +98,7 @@ void EditBar::SetState (const EditBarState & state)
     m_note->SetText  (state.note);
 
     m_discardSector->SetVisible (state.hasSectorEdit);
-    //  While an apply waits, only the ways to end the wait are offered, so
+    //  While a save waits, only the ways to end the wait are offered, so
     //  the pending edits cannot change under it (FR-103).
     m_discard->SetVisible       (hasEdits && !state.isWaiting);
     m_apply->SetVisible         (hasEdits && !state.isWaiting);
@@ -107,7 +107,7 @@ void EditBar::SetState (const EditBarState & state)
     m_undoApplied->SetVisible   (state.canUndoApplied && !state.isWaiting);
     m_redoApplied->SetVisible   (state.canRedoApplied && !state.isWaiting);
     m_pauseApply->SetVisible    (state.isWaiting);
-    m_pauseApply->SetLabel      (state.isMachinePaused ? L"Run to a safe point and apply" : L"Pause and apply");
+    m_pauseApply->SetLabel      (state.isMachinePaused ? L"Run to a safe point and save" : L"Pause and save");
     m_cancelApply->SetVisible   (state.isWaiting);
     m_useB->SetVisible          (state.canUseB && !state.isWaiting);
 
@@ -144,11 +144,11 @@ std::wstring EditBar::GetTip (POINT pointPx, RECT & outAnchorPx) const
                            L"A sector image (.dsk, .do or .po) stores only sector data, so its checksum is always recomputed" },
         { m_discardSector, L"Drop the selected " + m_unit + L"'s pending edits",                               L"" },
         { m_discard,       L"Drop every pending edit (Ctrl+Z brings them back)",                            L"" },
-        { m_apply,         m_isSaveWords ? L"Save the pending edits (Ctrl+S)" : L"Write the pending edits to the disk and save it", m_applyBlocked },
+        { m_apply,         L"Save the pending edits (Ctrl+S)", m_applyBlocked },
         { m_saveCopy,      L"Save the disk with the pending edits to a new file",                           L"" },
-        { m_undoApplied,   L"Put back the " + m_units + L" the last " + (m_isSaveWords ? L"save" : L"apply") + L" changed, and save", L"" },
-        { m_redoApplied,   m_isSaveWords ? L"Save the last undone edit again" : L"Apply the last undone edit again, and save", L"" },
-        { m_pauseApply,    L"Let the machine run to the next moment the head is clear of the edited fields, and apply there", L"" },
+        { m_undoApplied,   L"Put back the " + m_units + L" the last save changed, and save", L"" },
+        { m_redoApplied,   L"Save the last undone edit again", L"" },
+        { m_pauseApply,    L"Let the machine run to the next moment the head is clear of the edited fields, and save there", L"" },
         { m_cancelApply,   L"Stop waiting; the edits stay pending",                                         L"" },
         { m_useB,          L"Put B's bytes for the paired " + m_unit + L" into this " + m_unit + L" as a pending edit", L"" },
     };
@@ -204,26 +204,6 @@ void EditBar::SetUnit (const std::wstring & unit, const std::wstring & unitPlura
     m_units = unitPlural;
     m_discardSector->SetLabel (L"Discard " + unit);
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EditBar::UseSaveWords
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EditBar::UseSaveWords()
-{
-    m_isSaveWords = true;
-    m_apply->SetLabel       (L"Save...");
-    m_saveCopy->SetLabel    (L"Save as...");
-    m_undoApplied->SetLabel (L"Undo save");
-    m_redoApplied->SetLabel (L"Redo save");
-}
-
 
 
 

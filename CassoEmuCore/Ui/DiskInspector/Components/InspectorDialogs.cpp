@@ -95,7 +95,7 @@ void InspectorDialogs::ApplySettings (const DecodeSettings & settings)
     //  Edits on sectors that no longer decode under the new settings are
     //  discarded after the analysis (FR-108).
     if (m_session.context.hasDisk && m_session.analysis.copy != nullptr && (m_session.edits.IsEmpty() ||
-        m_host.Confirm (L"Decode settings", { L"Pending edits on sectors that no longer decode as editable under the new settings are discarded." }, L"Change settings")))
+        m_host.Confirm (L"Decode settings", { L"Unsaved changes on sectors that no longer decode as editable under the new settings are discarded." }, L"Change settings")))
     {
         m_session.analysis.settings = settings;
         m_session.scheduler->Restart (m_session.analysis.copy, settings);

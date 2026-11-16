@@ -24,7 +24,6 @@
 static constexpr LPCWSTR  s_kpszGlyphGoTo = L"\xE8AD";
 static constexpr LPCWSTR  s_kpszGlyphCopy = L"\xE8C8";
 static constexpr LPCWSTR  s_kpszGlyphEdit = L"\xE70F";
-static constexpr size_t   s_kListedBlocks = 12;   // the blocks listed in the Save question; more are counted
 static constexpr LPCWSTR  s_kpszClassName = L"CassoBlockInspector";
 
 
@@ -458,8 +457,9 @@ void BlockInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 //
 //  BlockInspectorWindow::BuildLead
 //
-//  The status band's left end: the comparison's result while comparing, the
-//  volume's chips, "Opening" while the file opens, and the selection.
+//  The status band's left end: the count of unsaved blocks, the
+//  comparison's result while comparing, the volume's chips, "Opening" while
+//  the file opens, and the selection.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -468,7 +468,8 @@ vector<InspectorStatusBar::LeadItem> BlockInspectorWindow::BuildLead() const
     using LeadKind = InspectorStatusBar::LeadKind;
 
     vector<InspectorStatusBar::LeadItem>  items;
-    size_t                                differ = 0;
+    size_t                                differ  = 0;
+    size_t                                unsaved = 0;
 
 
 
@@ -476,6 +477,13 @@ vector<InspectorStatusBar::LeadItem> BlockInspectorWindow::BuildLead() const
     {
         items.push_back ({ L"Opening", LeadKind::Note });
         return items;
+    }
+
+    unsaved = m_model.GetEdits().GetChangedBlocks().size();
+
+    if (unsaved > 0)
+    {
+        items.push_back ({ InspectorText::FormatCount ((int) unsaved, L"unsaved block", L"unsaved blocks"), LeadKind::Result });
     }
 
     if (m_worker.IsBusy())
@@ -724,40 +732,14 @@ LPCWSTR BlockInspectorWindow::GetCursorForPoint (POINT clientPx) const
 //
 //  BlockInspectorWindow::Save
 //
-//  Nothing changes until the user confirms the list of changed blocks.
+//  The unsaved changes are counted in the status bar and marked in the
+//  title, so a save writes them without a question.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorWindow::Save()
 {
-    vector<uint32_t>      changed = m_model.IsOpen() ? m_model.GetEdits().GetChangedBlocks() : vector<uint32_t>();
-    vector<std::wstring>  lines;
-    std::wstring          count;
-    std::wstring          owner;
-
-
-
-    if (m_worker.IsBusy() || changed.empty())
-    {
-        return;
-    }
-
-    count = EditBar::FormatCount (m_model.GetEdits().CountChangedBytes(), (int) changed.size(), L"block", L"blocks");
-    lines.push_back (L"Save " + count.substr (0, count.size() - std::wstring (L" changed").size()) + L" to " + GetFileName() + L"?");
-
-    for (size_t i = 0; i < changed.size() && i < s_kListedBlocks; i++)
-    {
-        owner = m_model.GetOwners (changed[i]);
-        owner = owner.empty() ? std::wstring (BlockMapGrid::GetRoleName (m_model.GetRole (changed[i]))) : owner.substr (0, owner.find (L'\n'));
-        lines.push_back (L"Block " + NumberFormat::FormatInteger (changed[i]) + L", " + owner);
-    }
-
-    if (changed.size() > s_kListedBlocks)
-    {
-        lines.push_back (L"And " + InspectorText::FormatCount ((int) (changed.size() - s_kListedBlocks), L"more block", L"more blocks"));
-    }
-
-    if (InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Save", lines, L"Save"))
+    if (!m_worker.IsBusy() && m_model.IsOpen() && !m_model.GetEdits().IsEmpty())
     {
         QueueSave();
     }
@@ -963,7 +945,6 @@ void BlockInspectorWindow::InitEditBar()
 
 
 
-    bar.UseSaveWords();
     bar.SetOnEdit          ([this] () { m_panel->SetEditing (false); });
     bar.SetOnDiscardSector ([this] () { if (!m_worker.IsBusy()) { m_model.DiscardBlock (m_model.GetBlock()); m_panel->Refresh(); } });
     bar.SetOnDiscard       ([this] () { Discard(); });
@@ -1404,7 +1385,7 @@ void BlockInspectorWindow::Reload()
                          {
                              if (*outcome == Outcome::EditsPending)
                              {
-                                 m_titleNote = L" (the file changed; apply or discard to read it again)";
+                                 m_titleNote = L" (the file changed; save or discard to read it again)";
                                  UpdateTitle();
                              }
                              else if (*outcome == Outcome::Gone)

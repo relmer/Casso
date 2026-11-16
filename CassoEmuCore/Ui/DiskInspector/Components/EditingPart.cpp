@@ -211,7 +211,7 @@ void EditingPart::OnDiskStarted (const DiskChange & change)
     }
     else if (isNewDisk && !isReload && !m_session.edits.IsEmpty())
     {
-        m_session.editNote = L"Pending edits were discarded: the disk in the drive changed";
+        m_session.editNote = L"Unsaved changes were discarded: the disk in the drive changed";
     }
 
     if (change.hasDisk && isNewDisk && !isReload)
@@ -263,7 +263,7 @@ void EditingPart::OnEjected()
 {
     if (!m_session.edits.IsEmpty())
     {
-        m_session.editNote = L"Pending edits were discarded: the disk was ejected";
+        m_session.editNote = L"Unsaved changes were discarded: the disk was ejected";
         m_host.SetStatusNote (m_session.editNote);
     }
 
@@ -513,7 +513,7 @@ void EditingPart::UpdateEditBar()
 //
 //  EditingPart::GetApplyBlock
 //
-//  Why "Apply", "Undo applied edit" and "Redo applied edit" cannot change
+//  Why "Save", "Undo save" and "Redo save" cannot change
 //  the disk now, with every write-protect cause listed, or empty
 //  (FR-102). In a host with no drives, the disk is the window's file, and
 //  the causes are the file's as it was read.
@@ -569,9 +569,10 @@ bool EditingPart::IsHistoryCurrent (const vector<RecordWriteCount> & counts) con
 //
 //  EditingPart::ApplyEdits
 //
-//  Nothing changes until the user confirms the list of changes (FR-100).
-//  The edits then go to the emulation thread, which applies them at once
-//  when the drive is not turning, or waits for it to stop (FR-103).
+//  "Save..." writes at once, unless a warning applies to an edit: then the
+//  user confirms the warnings first (FR-100). The edits go to the
+//  emulation thread, which saves them at once when the drive is not
+//  turning, or waits for it to stop (FR-103).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -580,6 +581,7 @@ void EditingPart::ApplyEdits()
     InspectorRequest       request;
     vector<std::wstring>   lines;
     std::wstring           records;
+    std::wstring           warnings;
     EditController::Counts counts  = m_session.edits.GetCounts();
     bool                   isWoz1  = m_session.analysis.copy != nullptr && m_session.analysis.copy->format == DiskFormat::Woz && m_session.analysis.copy->woz.info.version < 2;
     bool                   isNib   = m_session.analysis.copy != nullptr && m_session.analysis.copy->format == DiskFormat::Nib;
@@ -596,8 +598,8 @@ void EditingPart::ApplyEdits()
 
     BAIL_OUT_IF (request.writes.empty(), S_OK);
 
-    lines.push_back (L"Apply " + EditBar::FormatCount (counts.bytes, counts.sectors).substr (0, EditBar::FormatCount (counts.bytes, counts.sectors).size() - std::wstring (L" changed").size())
-                     + L" and save " + m_session.GetFileName() + L"?");
+    lines.push_back (L"Save " + EditBar::FormatCount (counts.bytes, counts.sectors).substr (0, EditBar::FormatCount (counts.bytes, counts.sectors).size() - std::wstring (L" changed").size())
+                     + L" to " + m_session.GetFileName() + L"?");
 
     for (const PendingEdit & edit : m_session.edits.GetEdits())
     {
@@ -617,11 +619,15 @@ void EditingPart::ApplyEdits()
             }
         }
 
-        records = L"Sector " + InspectorFormat::FormatSector (edit.sectorNumber) + L", read at track " + InspectorFormat::FormatQuarterTrackList (readers);
-        records += edit.isOutOfDate ? L": changed since editing began, so only the bytes you changed are written" : L"";
-        records += m_session.analysis.entries[readers.empty() ? 0 : readers.front()].isFromFluxMap ? L"; only the flux record changes, and the bit record is left as it was" : L"";
-        records += (isNib && m_session.writtenSlots.contains (edit.slot)) ? L"; the guest also wrote this track, so Casso rebuilds it when saving" : L"";
-        lines.push_back (records);
+        warnings  = edit.isOutOfDate ? L": changed since editing began, so only the bytes you changed are written" : L"";
+        warnings += m_session.analysis.entries[readers.empty() ? 0 : readers.front()].isFromFluxMap ? L"; only the flux record changes, and the bit record is left as it was" : L"";
+        warnings += (isNib && m_session.writtenSlots.contains (edit.slot)) ? L"; the guest also wrote this track, so Casso rebuilds it when saving" : L"";
+
+        if (!warnings.empty())
+        {
+            records = L"Sector " + InspectorFormat::FormatSector (edit.sectorNumber) + L", read at track " + InspectorFormat::FormatQuarterTrackList (readers);
+            lines.push_back (records + warnings);
+        }
 
         request.expectedCounts.push_back ({ edit.slot, track->guestWriteCount });
 
@@ -645,7 +651,7 @@ void EditingPart::ApplyEdits()
         lines.push_back (L"DOS or ProDOS may have one of these sectors in memory and write its own copy back over the edit.");
     }
 
-    if (m_host.Confirm (L"Apply edits", lines, L"Apply"))
+    if (lines.size() == 1 || m_host.Confirm (L"Save", lines, L"Save"))
     {
         PostApply (request);
     }
@@ -669,7 +675,7 @@ void EditingPart::PostApply (const InspectorRequest & request)
     m_lastApply        = request;
     m_applyRequest     = m_session.host->PostInspectorRequest (request);
     m_isApplyWaiting   = false;
-    m_session.editNote = L"Applying...";
+    m_session.editNote = L"Saving...";
 }
 
 
@@ -680,7 +686,7 @@ void EditingPart::PostApply (const InspectorRequest & request)
 //
 //  EditingPart::PauseApply
 //
-//  The waiting apply again, made at the next safe point with the machine
+//  The waiting save again, made at the next safe point with the machine
 //  running on, or for a paused machine with it paused again afterward.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -751,7 +757,7 @@ void EditingPart::UndoApplied()
     request.restore        = m_history[m_historyAt - 1].before;
     request.expectedCounts = m_history[m_historyAt - 1].countsAfter;
 
-    if (m_host.Confirm (L"Undo applied edit", { L"Put back the sectors the last apply changed, and save " + m_session.GetFileName() + L"?" }, L"Undo"))
+    if (m_host.Confirm (L"Undo save", { L"Put back the sectors the last save changed, and save " + m_session.GetFileName() + L"?" }, L"Undo"))
     {
         PostApply (request);
     }
@@ -786,7 +792,7 @@ void EditingPart::RedoApplied()
     request.restore        = m_history[m_historyAt].after;
     request.expectedCounts = m_history[m_historyAt].countsUndone;
 
-    if (m_host.Confirm (L"Redo applied edit", { L"Apply the undone edit again, and save " + m_session.GetFileName() + L"?" }, L"Redo"))
+    if (m_host.Confirm (L"Redo save", { L"Save the undone edit to " + m_session.GetFileName() + L" again?" }, L"Redo"))
     {
         PostApply (request);
     }
@@ -822,8 +828,8 @@ void EditingPart::TakeApplyReply (const InspectorReply & reply)
     switch (reply.applyOutcome)
     {
         case ApplyOutcome::Waiting:   m_session.editNote = m_isApplyPaused ? L"The machine is paused with the head over an edited field" : L"Waiting for the drive to stop"; break;
-        case ApplyOutcome::Cancelled: m_session.editNote = L"Apply canceled; the edits are still pending";                                                               break;
-        case ApplyOutcome::WaitEnded: m_session.editNote = L"The guest wrote to a track these edits change. Check the edits and apply again.";                           break;
+        case ApplyOutcome::Cancelled: m_session.editNote = L"Save canceled. The edits are pending.";                                                               break;
+        case ApplyOutcome::WaitEnded: m_session.editNote = L"The guest wrote to a track these edits change. Check the edits and save again.";                           break;
         case ApplyOutcome::NotApplied: m_session.editNote = reply.reason;                                                                                               break;
         default:                       break;
     }
@@ -864,7 +870,7 @@ void EditingPart::TakeApplyReply (const InspectorReply & reply)
 
         m_session.editNote = (reply.applyOutcome == ApplyOutcome::AppliedToPreservedCopy)
                          ? L"Saved to a preserved copy, since the file changed outside Casso: " + std::filesystem::path (TextEncoding::Utf8ToWide (reply.savedPath)).filename().wstring()
-                         : std::wstring ((reply.applyKind == ApplyKind::Undo) ? L"Undone" : (reply.applyKind == ApplyKind::Redo) ? L"Redone" : L"Applied") + L" and saved to "
+                         : std::wstring ((reply.applyKind == ApplyKind::Undo) ? L"Undone and saved to " : (reply.applyKind == ApplyKind::Redo) ? L"Redone and saved to " : L"Saved to ")
                            + std::filesystem::path (TextEncoding::Utf8ToWide (reply.savedPath)).filename().wstring();
 
         tracks.mediaId = reply.mediaId;
@@ -949,7 +955,7 @@ void EditingPart::UseBBytes()
 //
 //  EditingPart::SaveEditedCopy
 //
-//  "Save edited copy..." (FR-101): the emulation thread builds the copy's
+//  "Save as..." (FR-101): the emulation thread builds the copy's
 //  bytes from the drive's disk and the pending edits, and the reply opens
 //  the Save dialog.
 //
@@ -1011,7 +1017,7 @@ void EditingPart::TakeSaveCopyReply (const InspectorReply & reply)
 
     if (isDamaged)
     {
-        BAIL_OUT_IF (!m_host.Confirm (L"Save edited copy", { L"This image is damaged. The copy gets a new checksum, and each damaged track record is saved as Casso read it.",
+        BAIL_OUT_IF (!m_host.Confirm (L"Save as", { L"This image is damaged. The copy gets a new checksum, and each damaged track record is saved as Casso read it.",
                                                          L"Save the copy?" }, L"Save"), S_OK);
     }
 
@@ -1038,7 +1044,7 @@ void EditingPart::TakeSaveCopyReply (const InspectorReply & reply)
 
         if (isTaken)
         {
-            (void) DxuiMessageBox (m_host.GetOwnerHwnd(), m_session.theme, L"That file is a disk in a drive. Choose another file for the copy.", L"Save edited copy", MB_OK | MB_ICONWARNING);
+            (void) DxuiMessageBox (m_host.GetOwnerHwnd(), m_session.theme, L"That file is a disk in a drive. Choose another file for the copy.", L"Save as", MB_OK | MB_ICONWARNING);
         }
     }
 
@@ -1091,14 +1097,14 @@ bool EditingPart::ConfirmDiscardEdits (const std::wstring & action)
 
     if (!isGoingOn)
     {
-        isGoingOn = m_host.Confirm (L"Pending edits", { EditBar::FormatCount (counts.bytes, counts.sectors) + L" and not applied.",
-                                                     action + L" discards these edits." }, L"Discard edits");
+        isGoingOn = m_host.Confirm (L"Unsaved changes", { L"There are unsaved changes to " + InspectorText::FormatCount (counts.sectors, L"sector", L"sectors") + L".",
+                                                       action + L" discards them." }, L"Discard");
     }
 
     if (isGoingOn && counts.sectors > 0)
     {
         m_session.edits      = EditController();
-        m_session.editNote   = action + L" discarded the pending edits.";
+        m_session.editNote   = action + L" discarded the unsaved changes.";
         m_host.SetStatusNote (m_session.editNote);
         m_sectorsView.SetEditing (false);
     }

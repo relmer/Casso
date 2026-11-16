@@ -34,7 +34,6 @@ struct InspectorCommands
     Command  copyMap;
     Command  selectAll;
     Command  editSector;
-    Command  applyEdits;
     Command  discardEdits;
     Command  find;
     Command  findNext;

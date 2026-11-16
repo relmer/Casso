@@ -128,7 +128,7 @@ float SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & the
     //  With a pending edit, the data checksum result once applied (FR-098).
     if (int edit = GetEdit(); edit >= 0)
     {
-        items.push_back (HeaderItem::MakeResult (L"Checksum after apply", EditController::IsChecksumGoodAfter (m_context.edits->GetEdit (edit), track) ? L"Good" : L"Bad"));
+        items.push_back (HeaderItem::MakeResult (L"Checksum after save", EditController::IsChecksumGoodAfter (m_context.edits->GetEdit (edit), track) ? L"Good" : L"Bad"));
     }
 
     //  On a whole track of a mapped volume, the sector's role and owners.

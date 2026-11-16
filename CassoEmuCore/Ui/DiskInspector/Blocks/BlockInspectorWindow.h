@@ -25,15 +25,16 @@ class IDiskFileIo;
 //  The disk inspector in block mode, for an image file of blocks, laid out
 //  as the track inspector is: the menu bar, the BlockInspectorPanel, and the
 //  status band with the volume's chips, the selection and the window's zoom.
-//  Editing matches the track inspector's: Edit block turns typing on, the
-//  edit bar has the pending edits and the actions on them, the user
-//  confirms each apply and each undo and redo of an applied edit, and a *
-//  before the file's name in the title marks pending edits. With edits
-//  pending, the user confirms discarding them before the window closes.
+//  Editing matches the track inspector's: Edit block turns typing on, and
+//  the edit bar has the unsaved changes and the actions on them. Save
+//  writes at once; the user confirms each undo and redo of a save. A *
+//  before the file's name in the title and a count in the status band mark
+//  unsaved changes. Closing with unsaved changes offers Save, Discard and
+//  Cancel.
 //  The closed callback is called when the window closes.
 //
 //  Every read and write of the image runs on m_worker's thread: opening it,
-//  each block, comparing, applying edits and reading it again. Each job's
+//  each block, comparing, saving edits and reading it again. Each job's
 //  completion runs on the next frame of the window set's timer. The
 //  progress of a long job is drawn in the panel. Closing cancels a job that
 //  can be canceled. While a job that can't be is running, the window

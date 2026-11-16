@@ -1310,7 +1310,7 @@ HRESULT BlockInspectorModel::UndoApplied (std::wstring & outError, BlockJobProgr
 
     hr = IsStoredAs (m_applied[m_appliedAt - 1].after, isCurrent);
     CHRF (hr, outError = L"A changed block can't be read.");
-    CBRF (isCurrent, outError = L"The blocks changed after the edit was applied, so it can't be undone.");
+    CBRF (isCurrent, outError = L"The blocks changed after the save, so it can't be undone.");
 
     hr = WriteBlocks (m_applied[m_appliedAt - 1].before, outError, progress);
     CHR (hr);
@@ -1342,7 +1342,7 @@ HRESULT BlockInspectorModel::RedoApplied (std::wstring & outError, BlockJobProgr
 
     hr = IsStoredAs (m_applied[m_appliedAt].before, isCurrent);
     CHRF (hr, outError = L"A changed block can't be read.");
-    CBRF (isCurrent, outError = L"The blocks changed after the edit was undone, so it can't be applied again.");
+    CBRF (isCurrent, outError = L"The blocks changed after the save was undone, so it can't be redone.");
 
     hr = WriteBlocks (m_applied[m_appliedAt].after, outError, progress);
     CHR (hr);

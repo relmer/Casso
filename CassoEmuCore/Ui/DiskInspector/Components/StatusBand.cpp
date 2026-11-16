@@ -83,9 +83,10 @@ void StatusBand::PaintUnder (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 //
 //  StatusBand::BuildLead
 //
-//  The band's left end in order: the comparison's result while comparing
-//  (FR-121), the summary chips (FR-018), a chip for custom decode settings,
-//  "Analyzing" while analysis is pending, and the selection.
+//  The band's left end in order: the count of unsaved sectors, the
+//  comparison's result while comparing (FR-121), the summary chips
+//  (FR-018), a chip for custom decode settings, "Analyzing" while analysis
+//  is pending, and the selection.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,8 +96,14 @@ vector<InspectorStatusBar::LeadItem> StatusBand::BuildLead() const
 
     vector<InspectorStatusBar::LeadItem>  items;
     std::wstring                          selection = GetSelectionLine();
+    int                                   unsaved   = m_session.edits.GetCounts().sectors;
 
 
+
+    if (unsaved > 0)
+    {
+        items.push_back ({ InspectorText::FormatCount (unsaved, L"unsaved sector", L"unsaved sectors"), LeadKind::Result });
+    }
 
     if (m_session.context.hasDisk)
     {

@@ -720,14 +720,16 @@ void DiskInspectorWindow::BuildCommands()
     c.exportFile                = make (L"&Export...", L"", [this] () { m_dialogs->OpenExport(); });
     c.exportFile->isEnabled     = hasDisk;
     c.exportFile->glyph         = kpszGlyphExport;
-    c.saveEditedCopy            = make (L"Save edited &copy...", L"", [this] () { m_editing->SaveEditedCopy(); });
+    c.save                      = make (L"&Save...", L"Ctrl+S", [this] () { m_editing->ApplyEdits(); });
+    c.save->isEnabled           = [this] () { return m_editing->GetState().canApply && m_session.edits.GetCounts().sectors > 0; };
+    c.saveEditedCopy            = make (L"Save &as...", L"", [this] () { m_editing->SaveEditedCopy(); });
     c.saveEditedCopy->isEnabled = [this] () { return m_session.edits.GetCounts().sectors > 0; };
     c.close                     = make (L"&Close", L"Alt+F4", [this] () { OnWindowClose(); });
 
     //  Edit
-    c.undoApplied               = make (L"&Undo applied edit", L"Ctrl+Z", [this] () { m_editing->UndoApplied(); });
+    c.undoApplied               = make (L"&Undo save", L"Ctrl+Z", [this] () { m_editing->UndoApplied(); });
     c.undoApplied->isEnabled    = [this] () { return m_editing->GetState().canUndoApplied; };
-    c.redoApplied               = make (L"&Redo applied edit", L"Ctrl+Y", [this] () { m_editing->RedoApplied(); });
+    c.redoApplied               = make (L"&Redo save", L"Ctrl+Y", [this] () { m_editing->RedoApplied(); });
     c.redoApplied->isEnabled    = [this] () { return m_editing->GetState().canRedoApplied; };
     c.copy                      = make (L"&Copy", L"Ctrl+C", [this] () { m_selection->Copy(); });
     c.copy->isEnabled           = hasDisk;
@@ -744,8 +746,6 @@ void DiskInspectorWindow::BuildCommands()
     c.editSector->isEnabled     = [this] () { return m_editing->GetState().canEdit; };
     c.editSector->isChecked     = [this] () { return m_editing->GetState().isEditing; };
     c.editSector->glyph         = kpszGlyphEdit;
-    c.applyEdits                = make (L"A&pply edits...", L"", [this] () { m_editing->ApplyEdits(); });
-    c.applyEdits->isEnabled     = [this] () { return m_editing->GetState().canApply && m_session.edits.GetCounts().sectors > 0; };
     c.discardEdits              = make (L"&Discard edits", L"", [this] () { m_session.edits.DiscardAll(); });
     c.discardEdits->isEnabled   = [this] () { return m_session.edits.GetCounts().sectors > 0; };
     c.find                      = make (L"&Find...", L"Ctrl+F", [this] () { m_session.isFindOpen ? m_findPart->CloseFindBar() : m_findPart->OpenFindBar(); });
@@ -1470,10 +1470,14 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
         //  Ctrl+1 and Ctrl+2 choose the drive (FR-061).
         isHandled = RunCommand (m_commands.drives[ev.vk - '1']);
     }
+    else if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'S')
+    {
+        isHandled = RunCommand (m_commands.save);
+    }
     else if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && !ev.shift && (ev.vk == 'Z' || ev.vk == 'Y'))
     {
-        //  Outside editing, Ctrl+Z and Ctrl+Y undo and redo the last applied
-        //  edit (FR-107, FR-158).
+        //  Outside editing, Ctrl+Z and Ctrl+Y undo and redo the last save
+        //  (FR-107, FR-158).
         isHandled = RunCommand (ev.vk == 'Z' ? m_commands.undoApplied : m_commands.redoApplied);
     }
     else if (ev.kind == DxuiKeyEventKind::Down && ev.alt && !ev.ctrl && !ev.shift && (ev.vk == VK_LEFT || ev.vk == VK_RIGHT))

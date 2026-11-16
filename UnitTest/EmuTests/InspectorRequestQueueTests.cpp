@@ -283,7 +283,7 @@ public:
         reply = DrainOne (queue, source);
 
         Assert::IsTrue (reply.applyOutcome == ApplyOutcome::NotApplied);
-        Assert::IsTrue (reply.reason.starts_with (L"Not applied: the file could not be saved"), reply.reason.c_str());
+        Assert::IsTrue (reply.reason.starts_with (L"Not saved: the file could not be written"), reply.reason.c_str());
         Assert::IsTrue (TrackCopy::MakeFromImage (source.image, before->slot)->bits == before->bits, L"the drive has the record as it was");
     }
 
@@ -564,7 +564,7 @@ public:
         queue.Post (MakeApply (source.image, ApplyMode::WaitForStop));
         reply = DrainOne (queue, source);
 
-        Assert::AreEqual (std::wstring (L"Not applied: the file could not be saved. Access is denied."), reply.reason);
+        Assert::AreEqual (std::wstring (L"Not saved: the file could not be written. Access is denied."), reply.reason);
         Assert::IsTrue   (reply.after.empty(), L"no record is reported as applied");
         Assert::IsTrue   (reply.countsAfter.empty());
         Assert::IsTrue   (reply.savedPath.empty());
@@ -593,7 +593,7 @@ public:
         reply = DrainOne (queue, source);
 
         Assert::IsTrue   (reply.applyOutcome == ApplyOutcome::NotApplied);
-        Assert::IsTrue   (reply.reason.starts_with (L"Not applied: "), reply.reason.c_str());
+        Assert::IsTrue   (reply.reason.starts_with (L"Not saved: "), reply.reason.c_str());
         Assert::IsFalse  (reply.writeErrors.empty());
         Assert::AreEqual (0, source.saves);
         Assert::IsTrue   (TrackCopy::MakeFromImage (source.image, before->slot)->bits == before->bits, L"the record is as it was");

@@ -234,8 +234,8 @@ vector<TableRow> InspectorTables::BuildFindings (const DiskAnalysis & analysis, 
 //
 //  FormatEdited
 //
-//  The Tracks tab's Edited column: the record's sectors with pending edits,
-//  and "applied" once an apply changed the record, apart from the marks for
+//  The Tracks tab's Edited column: the record's sectors with unsaved changes,
+//  and "saved" once a save changed the record, apart from the marks for
 //  guest writes (FR-097, FR-109).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -248,8 +248,8 @@ static std::wstring FormatEdited (int slot, const EditController * edits, const 
 
 
 
-    text = (pending > 0) ? InspectorText::FormatCount (pending, L"sector", L"sectors") + L" pending" : std::wstring();
-    text = isApplied ? (text.empty() ? std::wstring (L"Applied") : text + L", applied") : text;
+    text = (pending > 0) ? InspectorText::FormatCount (pending, L"unsaved sector", L"unsaved sectors") : std::wstring();
+    text = isApplied ? (text.empty() ? std::wstring (L"Saved") : text + L", saved") : text;
 
     return text;
 }

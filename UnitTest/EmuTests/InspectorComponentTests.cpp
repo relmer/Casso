@@ -268,21 +268,21 @@ public:
         bar.SetState (state);
         rows = bar.GetRowCount (widthPx, scaler);
 
-        state.note = L"Not applied: the file could not be saved. mist.dsk is write-protected. Clear its read-only attribute. Nothing was written.";
+        state.note = L"Not saved: the file could not be written. mist.dsk is write-protected. Clear its read-only attribute. Nothing was written.";
         bar.SetState (state);
         bar.Layout ({ 0, 0, widthPx, bar.GetHeightPx (widthPx, scaler) }, scaler);
 
         Assert::IsTrue   (bar.GetRowCount (widthPx, scaler) > rows, L"the note is placed below the controls");
         Assert::AreEqual (bar.GetRowCount (widthPx, scaler) * rowPx, bar.GetHeightPx (widthPx, scaler));
 
-        state.note = L"Applying...";
+        state.note = L"Saving...";
         bar.SetState (state);
         Assert::AreEqual (rows, bar.GetRowCount (widthPx, scaler), L"a short note fits beside the controls");
     }
 
 
 
-    TEST_METHOD (SaveWordsAndNoSaveAsOnACard)
+    TEST_METHOD (SaveAndNoSaveAsOnACard)
     {
         EditBar        bar;
         EditBarState   state;
@@ -310,13 +310,12 @@ public:
             return tips;
         };
 
-        bar.UseSaveWords();
         state.bytes    = 1;
         state.sectors  = 1;
         state.canApply = true;
         bar.SetState (state);
 
-        Assert::IsTrue (collectTips().contains (L"Save the pending edits (Ctrl+S)"), L"the apply button saves");
+        Assert::IsTrue (collectTips().contains (L"Save the pending edits (Ctrl+S)"), L"the button saves");
         Assert::IsTrue (collectTips().contains (L"Save the disk with the pending edits to a new file"), L"Save as is offered for an image");
 
         state.canSaveCopy = false;

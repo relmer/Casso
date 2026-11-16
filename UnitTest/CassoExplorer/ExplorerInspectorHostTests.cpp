@@ -189,7 +189,7 @@ public:
         reply = rig.Apply();
 
         Assert::IsTrue   (reply.applyOutcome == ApplyOutcome::NotApplied);
-        Assert::IsTrue   (reply.reason.starts_with (L"Not applied: the file could not be saved"), reply.reason.c_str());
+        Assert::IsTrue   (reply.reason.starts_with (L"Not saved: the file could not be written"), reply.reason.c_str());
         Assert::IsTrue   (reply.reason.find (L"changed since it was read") != std::wstring::npos, reply.reason.c_str());
         Assert::AreEqual (static_cast<size_t> (0), rig.CountChanged (isA5));
         Assert::AreEqual (0, rig.fileIo.writeCount);

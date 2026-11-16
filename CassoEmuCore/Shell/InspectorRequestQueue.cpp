@@ -394,8 +394,8 @@ bool InspectorRequestQueue::TryApply (uint64_t id, const InspectorRequest & requ
         if (FAILED (hr))
         {
             outReply.writeErrors = errors;
-            outReply.reason      = errors.empty() ? std::wstring (L"Not applied: the sectors could not be written")
-                                                  : L"Not applied: " + TextEncoding::Utf8ToWide (SectorFieldWriter::Describe (errors.front()));
+            outReply.reason      = errors.empty() ? std::wstring (L"Not saved: the sectors could not be written")
+                                                  : L"Not saved: " + TextEncoding::Utf8ToWide (SectorFieldWriter::Describe (errors.front()));
         }
         else
         {
@@ -408,7 +408,7 @@ bool InspectorRequestQueue::TryApply (uint64_t id, const InspectorRequest & requ
                     RestoreRecord (*image, *copy);
                 }
 
-                outReply.reason = L"Not applied: the file could not be saved. " + save.reason;
+                outReply.reason = L"Not saved: the file could not be written. " + save.reason;
             }
             else
             {

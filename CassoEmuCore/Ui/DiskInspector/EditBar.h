@@ -46,10 +46,10 @@ struct EditBarState
 //
 //  The row of editing controls above the Sector data tab's bytes: "Edit
 //  sector", "Recompute the checksum" for the selected sector, the count of
-//  bytes and sectors changed, "Discard sector", "Discard", "Apply...",
-//  "Save edited copy...", "Undo applied edit" and "Redo applied edit". The
-//  note between them has why the sector cannot be edited, why "Apply..." is
-//  unavailable, or the result of the last apply.
+//  bytes and sectors changed, "Discard sector", "Discard", "Save...",
+//  "Save as...", "Undo save" and "Redo save". The note between them has why
+//  the sector cannot be edited, why "Save..." is unavailable, or the result
+//  of the last save.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,11 +80,6 @@ public:
     //  What an edit is made on, "sector" at first: the "Discard" button's
     //  label, the count and the tips.
     void  SetUnit  (const std::wstring & unit, const std::wstring & unitPlural);
-
-    //  "Save...", "Save as...", "Undo save" and "Redo save" in place of the
-    //  words for applying edits to a disk in a drive.
-    void  UseSaveWords ();
-
     //  The tooltip for the control under a point, with why it is unavailable
     //  when it is; empty when no control is there.
     std::wstring  GetTip (POINT pointPx, RECT & outAnchorPx) const;
@@ -135,5 +130,4 @@ private:
     std::wstring    m_applyBlocked;
     std::wstring    m_unit          = L"sector";
     std::wstring    m_units         = L"sectors";
-    bool            m_isSaveWords   = false;
 };

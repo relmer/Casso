@@ -111,7 +111,6 @@ vector<DxuiMenuBarItem> InspectorMenuBar::BuildItems (const InspectorCommands & 
     add (c.selectAll);
     separator();
     add (c.editSector);
-    add (c.applyEdits);
     add (c.discardEdits);
     separator();
     add (c.find);
