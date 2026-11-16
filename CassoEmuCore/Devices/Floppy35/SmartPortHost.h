@@ -67,4 +67,5 @@ private:
     uint64_t                                      m_epochCycles = 0;
     uint64_t                                      m_epochNs     = 0;
     uint64_t                                      m_lastNs      = 0;
+    uint64_t                                      m_lastCycles  = 0;
 };
