@@ -9,8 +9,10 @@
 #include "Shell/EmulatorShell.h"
 #include "Ui/Settings/SettingsPanelState.h"
 #include "Ui/Settings/SettingsJson.h"
+#include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Settings/SettingsSheet.h"
 #include "Ui/ThemeManager.h"
+#include "resource.h"
 #include "Core/AppTimerIds.h"
 
 
@@ -278,6 +280,15 @@ HRESULT ShellSettings::ApplyAndPersistTheme (const std::string & themeName)
     // S_FALSE, so CHR treated it as success and this function went on to
     // persist a theme name that never activated.
     CHR (hrActivate);
+
+    // A change between a 2D and a 3D theme resets the view, as Ctrl+0 does:
+    // a window sized for one rarely suits the other. Compared with the saved
+    // theme, not the live one, which a hover in the theme list previews.
+    if (CassoTheme::MakeByName (m_globalPrefs.activeTheme).compactDrives != CassoTheme::MakeByName (resolved).compactDrives &&
+        m_shell.m_hwnd != nullptr)
+    {
+        PostMessage (m_shell.m_hwnd, WM_COMMAND, IDM_VIEW_RESET_SIZE, 0);
+    }
 
     m_globalPrefs.activeTheme = resolved;
     if (m_userConfigStore != nullptr)
