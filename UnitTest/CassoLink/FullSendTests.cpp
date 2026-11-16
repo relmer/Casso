@@ -49,6 +49,7 @@ public:
         std::array<bool, 2>                    present             = { true, true };
         std::deque<FullSendKey>                keys;
         std::vector<int>                       diskReads;   // the drive of each whole-disk read, in order
+        std::vector<bool>                      readsVerified;   // whether verification was on for each whole-disk read
         std::vector<int>                       trackDrives;   // the drive of each track read
         std::vector<FullSendScreen>            screens;
         std::vector<std::string>               reports;
@@ -144,6 +145,7 @@ public:
             int  read = (int) diskReads.size() + 1;
 
             diskReads.push_back (drive);
+            readsVerified.push_back (verifying);
             Advance (readSeconds);
 
             if (failDiskRead != S_OK)
@@ -720,6 +722,52 @@ public:
         Assert::AreEqual ((size_t) 2, session->GetManifest().GetRows().size());
     }
 
+    //  A likely copy-protected disk saved as its sectors, with raw capture
+    //  off, is captured raw when its image doesn't boot and Space reads it
+    //  again; verification stays off.
+    TEST_METHOD (Session_SpaceOnAProtectedSectorCopyThatDidNotBoot_CapturesItRaw)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]          = Other (1);
+        rig.link.badDisk            = rig.link.drives[0];
+        rig.link.badSectors         = { { 5, 0 }, { 6, 0 } };
+        rig.link.reportEmpty        = 3;
+        rig.link.present[1]         = false;
+        rig.link.onAwait            = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
+        rig.link.keys               = { FullSendKey::Space };
+        rig.protection.captureRaw   = false;
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (rig.link.captures == std::vector<int> { 1 }, L"Only the second read is captured");
+        Assert::IsTrue (rig.link.readsVerified == std::vector<bool> ({ false, false }), L"Neither read is verified");
+        Assert::AreEqual (std::string (FullSendManifest::kStatusProtected),  session->GetManifest().GetRows()[0].status);
+        Assert::AreEqual (std::string (FullSendManifest::kStatusRawCapture), session->GetManifest().GetRows()[1].status);
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001.dsk") && rig.io.files.contains ("C:\\Box\\0002.woz"));
+        Assert::IsFalse (rig.link.verifying);
+    }
+
+    //  A DOS 3.3 disk with a bad sector is damaged, not protected: Space reads
+    //  it again with verification, and isn't a raw capture.
+    TEST_METHOD (Session_SpaceOnADamagedDiskThatDidNotBoot_ReadsItAgainVerified)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Dos ("GAME");
+        rig.link.badDisk    = rig.link.drives[0];
+        rig.link.badSectors = { { 20, 3 } };
+        rig.link.present[1] = false;
+        rig.link.onAwait    = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
+        rig.link.keys       = { FullSendKey::Space };
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (rig.link.captures.empty(), L"Not captured raw");
+        Assert::IsTrue (rig.link.readsVerified == std::vector<bool> ({ false, true }), L"The second read is verified");
+        Assert::AreEqual ((size_t) 2, session->GetManifest().GetRows().size());
+        Assert::IsFalse (rig.link.verifying, L"Verification is off again after it");
+    }
     //  A write-protected disk's image is write-protected: a sector image by
     //  its read-only attribute, and its manifest row has the flag.
     TEST_METHOD (Session_AWriteProtectedDisk_HasAWriteProtectedImage)

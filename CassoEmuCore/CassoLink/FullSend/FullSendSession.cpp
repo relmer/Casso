@@ -643,37 +643,45 @@ Error:
 //  FullSendSession::SendAgain
 //
 //  A disk whose image did not boot, sent as a new image beside the first. A
-//  raw capture is built from its reads and the first capture's. A sector
-//  image is read with verification on.
+//  raw capture is built from its reads and the first capture's. A likely
+//  copy-protected disk saved as its sectors is captured raw, because its
+//  sectors read the same each time. Any other sector image is read with
+//  verification on, for a disk whose sectors read differently each time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT FullSendSession::SendAgain (int drive, const CheckedDisk & disk)
 {
-    HRESULT  hr        = S_OK;
-    bool     wasVerify = m_link.IsVerifying();
+    HRESULT              hr        = S_OK;
+    bool                 wasVerify = m_link.IsVerifying();
+    const FullSendRow  * first     = FindWithImage ([&] (const FullSendRow & row) { return row.fingerprint == disk.fingerprint; });
+    bool                 verify    = false;
 
 
 
     m_retried.insert (disk.fingerprint);
     m_repeats[(size_t) drive - 1] = false;
     m_deeper                      = true;
+    m_rawAgain                    = first != nullptr && first->status == FullSendManifest::kStatusProtected;
+    verify                        = !m_rawAgain && !wasVerify;
 
-    Report (std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive));
+    Report (m_rawAgain ? std::format ("The image captured from the disk in drive {} did not boot, and the disk is likely copy-protected. Capturing the disk again in raw mode.", drive)
+                       : std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive));
 
-    if (!wasVerify)
+    if (verify)
     {
         m_link.ToggleVerify();
     }
 
     hr = SendDisk (drive, disk, true);
 
-    if (!wasVerify && m_link.IsVerifying())
+    if (verify && m_link.IsVerifying())
     {
         m_link.ToggleVerify();
     }
 
-    m_deeper = false;
+    m_deeper   = false;
+    m_rawAgain = false;
     CHR (hr);
 
 Error:
@@ -1420,7 +1428,7 @@ HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & 
     outRaw.clear();
 
     outLikely = readSign || m_protection.IsMet (signs);
-    BAIL_OUT_IF (!outLikely || !m_protection.captureRaw, S_OK);
+    BAIL_OUT_IF (!outLikely || !(m_protection.captureRaw || m_rawAgain), S_OK);
 
     reason = readSign                                         ? std::format ("Unreadable sectors were found on the disk in drive {} during the normal transfer", drive)
            : m_protection.unrecognized && signs.isUnrecognized ? std::format ("The disk in drive {} has no recognized file system", drive)
