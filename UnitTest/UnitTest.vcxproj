@@ -497,6 +497,7 @@
     <ClCompile Include="CassoExplorer\PreviewSaveChoicesTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewStepsTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewViewChoicesTests.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerPreviewPaneTests.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerWindowPartsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommandsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerActionsTests.cpp" />
@@ -548,6 +549,7 @@
     <ClInclude Include="CassoExplorer\FakeExplorerWindow.h" />
     <ClInclude Include="CassoExplorer\FakeRecycleBin.h" />
     <ClInclude Include="CassoExplorer\RecordingExplorerServices.h" />
+    <ClInclude Include="CassoExplorer\ExplorerWindowPartsRig.h" />
     <ClInclude Include="CassoExplorer\FakeFolderWatcher.h" />
     <ClInclude Include="CassoExplorer\FakeDiskPictures.h" />
     <ClCompile Include="CassoExplorer\CassoTargetingTests.cpp" />
