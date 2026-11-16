@@ -6,6 +6,7 @@
 #include "CassoExplorer/Picker/StartupDiskPicker.h"
 #include "Core/TextEncoding.h"
 #include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellSettings.h"
@@ -154,16 +155,37 @@ DrivePickers::Hooks ShellDrivePickers::MakeHooks()
     };
 
     //  The disks in the machine's drives, for the picker's "In slot 6
-    //  drive 1" mark. The store's paths are UTF-8.
+    //  drive 1" mark: the Disk II drives', then the 3.5-inch drives' and
+    //  hard disks' on the desk. The paths are UTF-8.
     hooks.getMounted = [this] ()
     {
         std::map<std::wstring, std::wstring>  mounted;
+        auto                                  add = [&mounted] (const std::string & path, const std::wstring & where)
+        {
+            std::u8string  u8 (reinterpret_cast<const char8_t *> (path.data()), path.size());
+
+            mounted[std::filesystem::path (u8).wstring()] = where;
+        };
 
         for (const DiskImageStore::MountedSource & source : m_shell.m_machine.GetDiskStore().GetMountedSourcePaths())
         {
-            std::u8string  u8 (reinterpret_cast<const char8_t *> (source.path.data()), source.path.size());
+            add (source.path, std::format (L"slot {} drive {}", source.slot, source.drive + 1));
+        }
 
-            mounted[std::filesystem::path (u8).wstring()] = std::format (L"slot {} drive {}", source.slot, source.drive + 1);
+        //  An HD20SC is addressed by its SCSI ID.
+        if (m_shell.m_scene)
+        {
+            for (const DeskDrivePlacement & placement : m_shell.m_scene->GetDrivePlan())
+            {
+                const DeskDrive  & drive = placement.drive;
+                std::string        path  = ShellDeskScene::TakesImage (drive) ? m_shell.m_scene->GetDriveImagePath (drive) : std::string();
+
+                if (!path.empty())
+                {
+                    add (path, (drive.model == DeskDriveModel::HardDisk20SC) ? std::format (L"slot {} ID {}", DriveLabel::GetSlot (drive), drive.drive)
+                                                                             : std::format (L"slot {} drive {}", DriveLabel::GetSlot (drive), drive.drive + 1));
+                }
+            }
         }
 
         return mounted;
