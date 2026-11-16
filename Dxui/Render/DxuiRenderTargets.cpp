@@ -4,6 +4,9 @@
 #include "Render/DxuiSvgPath.h"
 #include "DxuiTextRenderer.h"
 
+// CLSID_D2D1Morphology and CLSID_D2D1Shadow are exported by dxguid.lib.
+#pragma comment (lib, "dxguid.lib")
+
 
 
 
