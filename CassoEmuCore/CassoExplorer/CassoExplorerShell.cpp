@@ -657,7 +657,45 @@ CassoExplorerWindowRequest CassoExplorerShell::PlanForwardedLaunch (const CassoE
 
 const wchar_t * CassoExplorerShell::GetWindowClass()
 {
-    return PathResolver::IsProfileFolderSet() ? kTestCopyClass : kWindowClass;
+    static const std::wstring  s_kClass = MakeWindowClass();
+
+
+
+    return s_kClass.c_str();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::MakeWindowClass
+//
+//  A test copy's class ends in a hash of its profile folder, so two test
+//  copies with different profile folders open separate apps.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerShell::MakeWindowClass()
+{
+    wchar_t       folder[MAX_PATH] = {};
+    DWORD         length           = 0;
+    std::wstring  path;
+
+
+
+    if (!PathResolver::IsProfileFolderSet())
+    {
+        return kWindowClass;
+    }
+
+    length = GetEnvironmentVariableW (PathResolver::kpszProfileVariable, folder, ARRAYSIZE (folder));
+    path.assign (folder, (length < ARRAYSIZE (folder)) ? length : 0);
+
+    std::transform (path.begin(), path.end(), path.begin(), [] (wchar_t c) { return (wchar_t) towlower (c); });
+
+    return std::format (L"{}.{:08X}", kTestCopyClass, (uint32_t) std::hash<std::wstring>() (path));
 }
 
 
