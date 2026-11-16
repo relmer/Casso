@@ -10,6 +10,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Model/TreeModel.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
@@ -1532,7 +1533,27 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
     m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Tree, anchor, adtPro       ? TreeModel::StripLinkCopy (node->id).substr (wcslen (TreeModel::kAdtProId)).c_str()
                                         : problem      ? m_treeTipText.c_str()
                                         : node->dimmed ? kMissingNodeTip
-                                        : !fullPath.empty() ? fullPath.c_str() : kCassoNodeTip);
+                                        : !fullPath.empty() ? fullPath.c_str() : GetCassoNodeTip (m_context.app.picker));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::GetCassoNodeTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ExplorerTreePane::GetCassoNodeTip (const PickerRequest * picker)
+{
+    if (picker == nullptr || !picker->IsForDrive())
+    {
+        return kCassoNodeTip;
+    }
+
+    return (picker->receivingDrive->kind == ReceivingDriveKind::Recorder) ? kCassoNodeTapeTip : kCassoNodeDiskTip;
 }
 
 
