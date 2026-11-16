@@ -415,6 +415,7 @@ public:
     bool                         IsSlotFilled     (int slot) const { return SlotCards::FindSlot (m_current.hardware, slot) >= 0; }
     HRESULT                      SetSlotCard      (int slot, const std::string & device, std::wstring & outError) { return SlotCards::SetCard (m_current.hardware, m_machineName, slot, device, outError); }
     HRESULT                      SetPortImage     (size_t index, size_t port, const std::string & path) { return SlotCards::SetPortImage (m_current.hardware, index, port, path); }
+    HRESULT                      SetSlotPortImage (int slot, size_t port, const std::string & path);
     HRESULT                      AddChainDrive    (size_t index, std::wstring & outError) { return SlotCards::AddChainDrive (m_current.hardware, index, outError); }
     HRESULT                      RemoveChainDrive (size_t index, size_t port) { return SlotCards::RemoveChainDrive (m_current.hardware, index, port); }
 

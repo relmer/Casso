@@ -100,6 +100,10 @@ public:
     //  FindFloppy35).
     virtual void     InsertFloppy35           (int slot, int drive, const std::string & path) = 0;
     virtual void     EjectFloppy35            (int slot, int drive)                            = 0;
+
+    //  A hard disk's image, by its card's slot and the drive's SCSI ID (0 for
+    //  a ProFile) (MachineHost::AttachHardDisk).
+    virtual HRESULT  AttachHardDisk           (int slot, int drive, const std::string & path) = 0;
 };
 
 

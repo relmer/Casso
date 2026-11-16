@@ -108,6 +108,18 @@ the interaction, sound and event log the Disk II already has.
   lists each drive. ROM 05 boots port 6 drive 1 when the built-in drive has no disk. A
   3.5-inch drive doesn't mount a 140K image.
 
+### Session 2026-11-15
+
+- Q: What happens when a hard disk's image is changed while the machine runs
+  (dropped on the drive, or chosen from its click or right-click menu)? A:
+  A confirmation states that the change restarts the machine now. On
+  Restart the image is attached and the machine restarts, as a power cycle
+  does, since the guest registered the drive and read its volume when it
+  booted. On Cancel the drive has its image from before, and the machine
+  runs on. When the image fails the machine build's checks, the drive has
+  its image from before, a notice has the reason, and the machine runs on.
+  The new image is saved with the machine, as the Machine tab saves it.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Boot a hard disk on the Apple II SCSI Card (Priority: P1)

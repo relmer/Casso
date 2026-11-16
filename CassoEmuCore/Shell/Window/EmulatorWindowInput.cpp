@@ -1838,7 +1838,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
             driveTook = true;
         }
 
-        // A 3.5-inch drive on the desk picks a disk for itself.
+        // A 3.5-inch drive or hard disk on the desk picks an image for itself.
         else if (!inStrip)
         {
             const DeskSceneComposition  & comp = m_scene->m_deskScene.Composition();
@@ -1847,7 +1847,9 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
             for (int i = 0; i < comp.extraCount && i < m_scene->m_deskScene.GetExtraCount() && !driveTook; i++)
             {
-                if (ShellDeskScene::IsFloppy35 (m_scene->m_deskScene.GetExtraDrive (i)) && PtInRect (&comp.extraRectPx[i], pt))
+                const DeskDrive  & extra = m_scene->m_deskScene.GetExtraDrive (i);
+
+                if ((ShellDeskScene::IsFloppy35 (extra) || ShellDeskScene::IsHardDisk (extra)) && PtInRect (&comp.extraRectPx[i], pt))
                 {
                     m_scene->BrowseExtraDrive (i);
                     driveTook = true;

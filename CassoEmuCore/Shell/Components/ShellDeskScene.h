@@ -76,10 +76,11 @@ public:
     // disk, so it returns false.
     bool  HasDiskIn   (const DeskDrive & drive) const;
 
-    // A 3.5-inch drive on the desk, by its index among the desk's extra
-    // drives: a click opens the file dialog and inserts the chosen image, as
-    // a dropped image is.
+    // A 3.5-inch drive or hard disk on the desk, by its index among the
+    // desk's extra drives: a click opens the file dialog and inserts or
+    // attaches the chosen image, as a dropped image is.
     static bool  IsFloppy35         (const DeskDrive & drive);
+    static bool  IsHardDisk         (const DeskDrive & drive);
     void         BrowseExtraDrive   (int index);
     void         BrowseFloppy35     (const DeskDrive & drive);
 

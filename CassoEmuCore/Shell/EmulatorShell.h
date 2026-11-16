@@ -36,6 +36,7 @@ class WindowCommandManager;
 struct DialogDefinition;
 struct MachineConfig;
 class SettingsSheet;
+class SettingsPanelState;
 class JsonValue;
 class DriveWidget;
 class ShellAudio;
@@ -234,6 +235,13 @@ public:
     // The screen as it is now, as the thumbnail of the drive's image, marked
     // as set by the user.
     void SetDiskThumbnail (int drive);
+
+    // The confirmation that changing a hard disk's image restarts the
+    // machine: its text and buttons. Restart returns kHardDiskChangeRestart
+    // and Cancel 0.
+    static constexpr int  kHardDiskChangeRestart = 1;
+
+    static DialogDefinition  MakeHardDiskChangeDialog (const std::wstring & driveTitle, const std::wstring & fileName);
 private:
 
     //  The shell the EHM notification sink forwards to. One per process; set
@@ -386,6 +394,15 @@ private:
     void    SetSecondDriveConnected   (bool connected);
     void    SetTapeRecorderConnected  (bool connected);
     void    SaveStorageDevices        ();
+    void    SaveHardDiskImage         (int slot, int drive, const std::string & path);
+    void    SaveMachineSettings       (const std::function<void (SettingsPanelState &)> & edit);
+
+    // A hard disk's new image, dropped on the drive or chosen from its file
+    // dialog. Changing it restarts the machine, so the change is confirmed
+    // first. On Cancel the drive has its image from before, and the machine
+    // runs on.
+    void    ChangeHardDiskImage       (const DeskDrive & drive, const std::wstring & path);
+    void    BrowseHardDisk            (const DeskDrive & drive);
 
     // A drive's (0 or 1) or the recorder's (kStorageMenuRecorder) right-click
     // menu, at a client point.

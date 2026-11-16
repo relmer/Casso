@@ -91,6 +91,16 @@ public:
     void     ResolvePendingChange    (int slot, int drive, int action, const std::string & savePath) override;
     void     InsertFloppy35          (int slot, int drive, const std::string & path) override;
     void     EjectFloppy35           (int slot, int drive) override;
+    HRESULT  AttachHardDisk          (int slot, int drive, const std::string & path) override;
+
+    // A hard disk's new image, posted from the CPU thread to the UI thread
+    // as AppMessage::ShellHardDiskImage, which saves it with the machine.
+    struct HardDiskImageChange
+    {
+        int          slot  = 0;
+        int          drive = 0;
+        std::string  path;
+    };
 
     // IDriveCommandSink
     // UI-thread entry points the drive widgets call into when the user

@@ -252,6 +252,31 @@ public:
     }
 
 
+    //  ONCE A HARD DISK'S NEW IMAGE IS ATTACHED, the machine restarts, as a
+    //  power cycle restarts it. When the image doesn't attach, the machine
+    //  runs on.
+    TEST_METHOD (HardDiskAttachRestartsTheMachine)
+    {
+        Notebook  attached;
+        Notebook  failed;
+
+
+
+        Dispatch (IDM_HARDDISK_ATTACH, "7 2 C:\\My Disks\\big disk.hdv", attached);
+
+        Assert::AreEqual ((size_t) 3, attached.calls.size());
+        Assert::AreEqual (std::string ("AttachHardDisk 7 2 C:\\My Disks\\big disk.hdv"), attached.calls[0]);
+        Assert::AreEqual (std::string ("PowerCycle"),   attached.calls[1]);
+        Assert::AreEqual (std::string ("RemountDisks"), attached.calls[2]);
+
+        failed.attachResult = HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        Dispatch (IDM_HARDDISK_ATTACH, "7 2 C:\\gone.hdv", failed);
+        Dispatch (IDM_HARDDISK_ATTACH, "junk", failed);
+
+        Assert::AreEqual ((size_t) 1, failed.calls.size(), L"no restart, and garbage is dropped");
+    }
+
+
     TEST_METHOD (AChangeResolutionThatDoesNotParseAsksForNothing)
     {
         Notebook  target;
@@ -432,6 +457,14 @@ private:
         void     EjectFloppy35 (int slot, int drive) override
         {
             calls.push_back (std::format ("EjectFloppy35 {} {}", slot, drive));
+        }
+
+        HRESULT  attachResult = S_OK;
+
+        HRESULT  AttachHardDisk (int slot, int drive, const std::string & path) override
+        {
+            calls.push_back (std::format ("AttachHardDisk {} {} {}", slot, drive, path));
+            return attachResult;
         }
 
         void     SetDriveAudioEnabled (bool enabled) override

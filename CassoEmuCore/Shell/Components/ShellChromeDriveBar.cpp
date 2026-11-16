@@ -315,8 +315,8 @@ bool ShellChrome::UpdateDriveBarHover (POINT pt)
 //  ShellChrome::HandleDriveBarClick
 //
 //  A Disk II ejects and browses, as its widget does elsewhere; a 3.5-inch
-//  drive browses. A click on a hard disk, or in a box between drives, is
-//  taken and does nothing.
+//  drive or a hard disk browses. A click in a box between drives is taken
+//  and does nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -347,6 +347,10 @@ bool ShellChrome::HandleDriveBarClick (POINT pt)
         else if (ShellDeskScene::IsFloppy35 (drive))
         {
             m_shell.m_scene->BrowseFloppy35 (drive);
+        }
+        else if (ShellDeskScene::IsHardDisk (drive))
+        {
+            m_shell.BrowseHardDisk (drive);
         }
 
         took = true;

@@ -79,6 +79,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
             DispatchFloppy35 (cmd, targets.disks);
             break;
 
+        case IDM_HARDDISK_ATTACH:
+            DispatchHardDiskAttach (cmd, targets);
+            break;
+
         case IDM_DISK_EJECT1:
         case IDM_DISK_EJECT2:
             targets.disks.EjectDisk ((cmd.id == IDM_DISK_EJECT1) ? 0 : 1);
@@ -454,4 +458,40 @@ void CpuCommandDispatcher::DispatchFloppy35 (const EmulatorCommand & cmd, ICpuDi
     {
         disks.EjectFloppy35 (slot, drive);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchHardDiskAttach
+//
+//  The payload is "slot drive path". The guest registered the drive and read
+//  its volume when it booted, so an attached image restarts the machine, as
+//  a power cycle does. When the image doesn't attach, the machine runs on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchHardDiskAttach (const EmulatorCommand & cmd, const CpuCommandTargets & targets)
+{
+    HRESULT  hr       = S_OK;
+    int      slot     = 0;
+    int      drive    = 0;
+    int      consumed = 0;
+    int      fields   = sscanf_s (cmd.payload.c_str(), "%d %d %n", &slot, &drive, &consumed);
+
+
+
+    BAIL_OUT_IF (fields != 2, S_OK);
+
+    hr = targets.disks.AttachHardDisk (slot, drive, cmd.payload.substr ((size_t) consumed));
+    BAIL_OUT_IF (FAILED (hr), S_OK);
+
+    targets.machine.PowerCycle();
+    targets.disks.RemountDisks();
+
+Error:
+    return;
 }

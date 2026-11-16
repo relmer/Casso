@@ -13,6 +13,9 @@
 #include "Shell/TapeManager.h"
 #include "Core/JsonParser.h"
 #include "Core/PathResolver.h"
+#include "Core/TextEncoding.h"
+#include "Seams/IHostDialogs.h"
+#include "Ui/Dialogs/DialogDefinition.h"
 #include "Ui/Settings/SettingsPanelState.h"
 #include "resource.h"
 
@@ -51,6 +54,10 @@ void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
         if (entry < fan.GetEntryCount (c) && ShellDeskScene::IsFloppy35 (fan.GetDrive (c, entry)))
         {
             m_disks->Mount (fan.GetDrive (c, entry).slot, fan.GetDrive (c, entry).drive, path);
+        }
+        else if (entry < fan.GetEntryCount (c) && ShellDeskScene::IsHardDisk (fan.GetDrive (c, entry)))
+        {
+            ChangeHardDiskImage (fan.GetDrive (c, entry), path);
         }
     }
     else if (tag >= ShellDeskScene::kExtraDropTagBase)
@@ -130,9 +137,141 @@ void EmulatorShell::SetTapeRecorderConnected (bool connected)
 //  EmulatorShell::SaveStorageDevices
 //
 //  Writes which storage devices are connected into the machine's saved
-//  settings, through the same document Settings writes: the second drive in
-//  the machine's own port or its Disk ][ card's, and the recorder in
-//  $cassoUiPrefs.
+//  settings: the second drive in the machine's port or its Disk ][ card's,
+//  and the recorder in $cassoUiPrefs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SaveStorageDevices()
+{
+    SaveMachineSettings ([this] (SettingsPanelState & state)
+    {
+        if (m_disks->IsSecondDriveOffered())
+        {
+            state.SetSecondDriveAttached (m_disks->ShouldShowExternalDrive());
+        }
+
+        state.SetTapeRecorderConnected (m_tapeDeck->IsRecorderConnected());
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SaveHardDiskImage
+//
+//  Writes a hard disk's new image into the machine's saved settings, where
+//  the Machine tab has it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SaveHardDiskImage (int slot, int drive, const std::string & path)
+{
+    SaveMachineSettings ([slot, drive, &path] (SettingsPanelState & state)
+    {
+        HRESULT  hr = state.SetSlotPortImage (slot, (size_t) drive, path);
+
+
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::MakeHardDiskChangeDialog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DialogDefinition EmulatorShell::MakeHardDiskChangeDialog (const std::wstring & driveTitle, const std::wstring & fileName)
+{
+    DialogDefinition  def;
+
+
+
+    def.title = L"Change hard disk image";
+    def.icon  = DialogIcon::Warning;
+    def.body.push_back (DialogTextRun { std::format (L"Changing the image in {} to {} restarts the machine now.", driveTitle, fileName), false, std::wstring() });
+    def.body.push_back (DialogTextRun { L"Anything the running program hasn't saved is lost.", false, std::wstring() });
+    def.buttons.push_back (DialogButton { L"Restart", kHardDiskChangeRestart, true,  false, false });
+    def.buttons.push_back (DialogButton { L"Cancel",  0,                      false, true,  false });
+
+    return def;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ChangeHardDiskImage
+//
+//  UI thread. On Restart the image is attached on the CPU thread, which
+//  restarts the machine once it is attached; on Cancel nothing changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ChangeHardDiskImage (const DeskDrive & drive, const std::wstring & path)
+{
+    int  choice = ShowModalDialog (MakeHardDiskChangeDialog (ShellDeskScene::GetDriveTitle (drive), fs::path (path).filename().wstring()));
+
+
+
+    if (choice == kHardDiskChangeRestart)
+    {
+        PostCommand (IDM_HARDDISK_ATTACH, std::format ("{} {} {}", drive.slot, drive.drive, TextEncoding::WideToUtf8 (path)));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::BrowseHardDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::BrowseHardDisk (const DeskDrive & drive)
+{
+    HRESULT         hr     = S_OK;
+    FileDialogSpec  spec;
+    fs::path        chosen;
+    bool            picked = false;
+
+
+
+    spec.filters = { { L"Hard disk image", L"*.po;*.hdv;*.2mg;*.2img" }, { L"All files", L"*.*" } };
+
+    hr = m_hostDialogs.PickFileToOpen (m_hwnd, spec, chosen, picked);
+    CHR (hr);
+    BAIL_OUT_IF (!picked, S_OK);
+
+    ChangeHardDiskImage (drive, chosen.wstring());
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SaveMachineSettings
+//
+//  Applies `edit` to the machine's saved settings, through the same document
+//  Settings writes.
 //
 //  Read fresh from disk each time, so a Settings sheet open alongside is not
 //  overwritten by a stale copy -- and Settings re-reads the drive state on OK
@@ -140,7 +279,7 @@ void EmulatorShell::SetTapeRecorderConnected (bool connected)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SaveStorageDevices()
+void EmulatorShell::SaveMachineSettings (const std::function<void (SettingsPanelState &)> & edit)
 {
     HRESULT             hr                = S_OK;
     std::string         machineNameNarrow = GetCurrentMachineNameNarrow();
@@ -176,12 +315,7 @@ void EmulatorShell::SaveStorageDevices()
     hr = state.LoadFromMachine (machineNameNarrow, defaultJson, mergedJson);
     CHR (hr);
 
-    if (m_disks->IsSecondDriveOffered())
-    {
-        state.SetSecondDriveAttached (m_disks->ShouldShowExternalDrive());
-    }
-
-    state.SetTapeRecorderConnected (m_tapeDeck->IsRecorderConnected());
+    edit (state);
 
     savedJson = state.BuildCurrentJson();
 
@@ -307,8 +441,8 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
 //  EmulatorShell::ShowDriveContextMenu
 //
 //  A 3.5-inch drive's or hard disk's menu: the drive's name, then for a
-//  3.5-inch drive its insert and eject, then the switches every storage
-//  menu ends with. A hard disk's image is set in Settings.
+//  3.5-inch drive its insert and eject, and for a hard disk its image
+//  change, then the switches every storage menu ends with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -341,6 +475,17 @@ void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
 
         items.push_back (DxuiPopupMenuItem::ForCommand (insert));
         items.push_back (DxuiPopupMenuItem::ForCommand (eject));
+    }
+    else if (ShellDeskScene::IsHardDisk (drive))
+    {
+        auto  change = std::make_shared<DxuiCommand>();
+
+
+
+        change->label    = L"&Change image...";
+        change->dispatch = [this, drive] () { BrowseHardDisk (drive); };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (change));
     }
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());

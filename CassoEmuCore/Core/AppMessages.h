@@ -29,6 +29,7 @@ enum class AppMessage : UINT
     ShellControllerPick    = WM_APP + 0x2A,
     ShellUpdateResult      = WM_APP + 0x2B,
     ShellIntentReply       = WM_APP + 0x2C,
+    ShellHardDiskImage     = WM_APP + 0x2D,   // a hard disk's new image, from the CPU thread to the UI thread to be saved
 
     ExplorerReply          = WM_APP + 0x31,
     ExplorerFolderChanged  = WM_APP + 0x32,

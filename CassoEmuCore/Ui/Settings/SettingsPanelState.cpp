@@ -665,6 +665,34 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetSlotPortImage
+//
+//  The image on `port` of the card in `slot`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetSlotPortImage (int slot, size_t port, const std::string & path)
+{
+    HRESULT  hr    = S_OK;
+    int      index = SlotCards::FindSlot (m_current.hardware, slot);
+
+
+
+    CBREx (index >= 0, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    hr = SetPortImage ((size_t) index, port, path);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetHardwareEnabled
 //
 ////////////////////////////////////////////////////////////////////////////////

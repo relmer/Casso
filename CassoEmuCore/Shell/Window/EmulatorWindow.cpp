@@ -2038,6 +2038,21 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
+    // A hard disk's new image attached on the CPU thread, saved with the
+    // machine here.
+    if (msg == (UINT) AppMessage::ShellHardDiskImage)
+    {
+        ShellDisks::HardDiskImageChange *  change = reinterpret_cast<ShellDisks::HardDiskImageChange *> (lParam);
+
+        if (change != nullptr)
+        {
+            SaveHardDiskImage (change->slot, change->drive, change->path);
+            delete change;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
     // Game-port input submitted off the UI thread (the controller thread, or a
     // machine rebuild) waits here to be written: the device setters report
     // host input to their input event sink, which is UI-thread only.

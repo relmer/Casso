@@ -1429,13 +1429,13 @@ void ShellDeskScene::SyncSceneDriveChrome()
 
     for (int i = 0; i < comp.extraCount && i < m_deskScene.GetExtraCount(); i++)
     {
-        if (IsFloppy35 (m_deskScene.GetExtraDrive (i)) && !IsRectEmpty (&comp.extraRectPx[i]))
+        if ((IsFloppy35 (m_deskScene.GetExtraDrive (i)) || IsHardDisk (m_deskScene.GetExtraDrive (i))) && !IsRectEmpty (&comp.extraRectPx[i]))
         {
             m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { comp.extraRectPx[i], DxuiHitSlot::Custom, kExtraDropTagBase + i });
         }
     }
 
-    // The drive bar's 3.5-inch drives that are showing.
+    // The drive bar's 3.5-inch drives and hard disks that are showing.
     if (m_shell.m_chrome->GetDriveBarFan().IsVisible())
     {
         const DriveBarFan  & fan = m_shell.m_chrome->GetDriveBarFan().GetFan();
@@ -1446,7 +1446,7 @@ void ShellDeskScene::SyncSceneDriveChrome()
         {
             for (int i = 0; i < fan.GetEntryCount (c); i++)
             {
-                if (fan.IsSlotShown (c, i) && IsFloppy35 (fan.GetDrive (c, i)))
+                if (fan.IsSlotShown (c, i) && (IsFloppy35 (fan.GetDrive (c, i)) || IsHardDisk (fan.GetDrive (c, i))))
                 {
                     m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { fan.GetSlotRect (c, i), DxuiHitSlot::Custom,
                                                                              kBarDropTagBase + c * kBarDropClassStride + i });
@@ -3505,6 +3505,21 @@ bool ShellDeskScene::IsFloppy35 (const DeskDrive & drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDeskScene::IsHardDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsHardDisk (const DeskDrive & drive)
+{
+    return DeskDrivePlan::GetClass (drive.model) == DeskDriveClass::HardDisk;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDeskScene::IsDriveBusy
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3929,7 +3944,11 @@ bool ShellDeskScene::AreDrivesOnBar() const
 
 void ShellDeskScene::BrowseExtraDrive (int index)
 {
-    if (index >= 0 && index < m_deskScene.GetExtraCount())
+    if (index >= 0 && index < m_deskScene.GetExtraCount() && IsHardDisk (m_deskScene.GetExtraDrive (index)))
+    {
+        m_shell.BrowseHardDisk (m_deskScene.GetExtraDrive (index));
+    }
+    else if (index >= 0 && index < m_deskScene.GetExtraCount())
     {
         BrowseFloppy35 (m_deskScene.GetExtraDrive (index));
     }
@@ -3985,10 +4004,17 @@ void ShellDeskScene::InsertInExtraDrive (int index, const std::wstring & path)
 
 
 
-    BAIL_OUT_IF (index < 0 || index >= m_deskScene.GetExtraCount() || !IsFloppy35 (m_deskScene.GetExtraDrive (index)), S_OK);
+    BAIL_OUT_IF (index < 0 || index >= m_deskScene.GetExtraCount(), S_OK);
 
-    hr = m_shell.m_disks->Mount (m_deskScene.GetExtraDrive (index).slot, m_deskScene.GetExtraDrive (index).drive, path);
-    CHR (hr);
+    if (IsHardDisk (m_deskScene.GetExtraDrive (index)))
+    {
+        m_shell.ChangeHardDiskImage (m_deskScene.GetExtraDrive (index), path);
+    }
+    else if (IsFloppy35 (m_deskScene.GetExtraDrive (index)))
+    {
+        hr = m_shell.m_disks->Mount (m_deskScene.GetExtraDrive (index).slot, m_deskScene.GetExtraDrive (index).drive, path);
+        CHR (hr);
+    }
 
 Error:
     return;
