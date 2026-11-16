@@ -1307,6 +1307,8 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
 //  The list at the top, then a splitter, then the current block: its title
 //  row with Copy block at its right end, the field line, the edit or
 //  progress row when there is one, then the hex view beside the fields.
+//  The hex view is as wide as its columns once it has measured them, and
+//  the fields have the rest, at least kMinFieldsDip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1358,7 +1360,10 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
     m_cancel->Layout   ({ column.right - button, y, column.right, y + row }, scaler);
     y = m_rowRect.bottom + (isRow ? pad : 0);
 
-    hexEnd = column.left + (int) ((column.right - column.left) * kHexShare);
+    m_hexContentPx = m_hex->GetContentWidthPx();
+    hexEnd         = m_hexContentPx > 0 ? (int) column.left + m_hexContentPx + scaler.ToPx ((int) kHexScrollDip) + pad
+                                        : (int) column.left + (int) ((column.right - column.left) * kHexShare);
+    hexEnd         = std::max ((int) column.left + (int) (column.right - column.left) / 3, std::min (hexEnd, (int) column.right - scaler.ToPx ((int) kMinFieldsDip)));
 
     m_hex->Layout    ({ column.left, y, hexEnd, std::max (y, (int) column.bottom) }, scaler);
     m_fields->Layout ({ hexEnd + pad, y, column.right, std::max (y, (int) column.bottom) }, scaler);
@@ -1385,6 +1390,18 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     DxuiPanel::Paint (painter, text, theme);
     PaintHeader (painter, text, theme);
+
+    //  The hex view measures its text as it paints, so the column is laid
+    //  out again once its width is known.
+    if (m_hex->GetContentWidthPx() != m_hexContentPx && m_scaler.GetDpi() != 0)
+    {
+        Layout (GetBounds(), m_scaler);
+
+        if (m_onChanged)
+        {
+            m_onChanged();
+        }
+    }
 
     if (m_isLongJob)
     {

@@ -47,25 +47,27 @@ struct InspectorCommands;
 class BlockInspectorPanel : public DxuiPanel
 {
 public:
-    static constexpr float  kPadDip      = 8.0f;
-    static constexpr float  kRowDip      = 28.0f;
-    static constexpr float  kLineDip     = 20.0f;
-    static constexpr float  kTitleDip    = 16.0f;
-    static constexpr float  kFontDip     = 12.0f;
-    static constexpr float  kSplitterDip = 6.0f;
-    static constexpr float  kMinSplit    = 0.45f;   // the map's left edge, a share of the width
-    static constexpr float  kMaxSplit    = 0.85f;
-    static constexpr float  kTreeShare   = 0.18f;   // the tree's share of the width at first
-    static constexpr float  kMinTree     = 0.08f;
-    static constexpr float  kMaxTree     = 0.35f;
-    static constexpr float  kSearchDip   = 220.0f;
-    static constexpr float  kHexShare    = 0.60f;   // the hex view's share of the width beside the fields
-    static constexpr float  kListShare   = 0.45f;   // the list's share of the middle column's height at first
-    static constexpr float  kMinList     = 0.15f;
-    static constexpr float  kMaxList     = 0.80f;
-    static constexpr float  kBarDip      = 240.0f;
-    static constexpr float  kButtonDip   = 110.0f;
-    static constexpr int    kBytesPerRow = 16;
+    static constexpr float  kPadDip       = 8.0f;
+    static constexpr float  kRowDip       = 28.0f;
+    static constexpr float  kLineDip      = 20.0f;
+    static constexpr float  kTitleDip     = 16.0f;
+    static constexpr float  kFontDip      = 12.0f;
+    static constexpr float  kSplitterDip  = 6.0f;
+    static constexpr float  kMinSplit     = 0.45f;   // the map's left edge, a share of the width
+    static constexpr float  kMaxSplit     = 0.85f;
+    static constexpr float  kTreeShare    = 0.18f;   // the tree's share of the width at first
+    static constexpr float  kMinTree      = 0.08f;
+    static constexpr float  kMaxTree      = 0.35f;
+    static constexpr float  kSearchDip    = 220.0f;
+    static constexpr float  kHexShare     = 0.60f;   // the hex view's share of the width beside the fields, until it is measured
+    static constexpr float  kMinFieldsDip = 200.0f;
+    static constexpr float  kHexScrollDip = 12.0f;   // room for the hex view's vertical scroll bar
+    static constexpr float  kListShare    = 0.45f;   // the list's share of the middle column's height at first
+    static constexpr float  kMinList      = 0.15f;
+    static constexpr float  kMaxList      = 0.80f;
+    static constexpr float  kBarDip       = 240.0f;
+    static constexpr float  kButtonDip    = 110.0f;
+    static constexpr int    kBytesPerRow  = 16;
 
     using PressedFn = std::function<void (IDxuiControl * child)>;
     using ChangedFn = std::function<void ()>;
@@ -229,6 +231,7 @@ private:
     bool                    m_isStepping      = false;   // the next block drawn replaces the current location
     int                     m_laidOutLevel    = -1;   // the level the right column was last laid out for
     int64_t                 m_shownBlock      = -1;
+    int                     m_hexContentPx    = 0;   // the hex view's width for all its columns when the column was laid out
     float                   m_split           = 0.62f;
     float                   m_treeShare       = kTreeShare;
     float                   m_listShare       = kListShare;
