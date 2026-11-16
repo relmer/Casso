@@ -3,6 +3,7 @@
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
+#include "Shell/DiskPortChainRule.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Layout/DriveLabel.h"
@@ -180,7 +181,7 @@ void ShellChrome::SetDiskIiBarCaptions (bool onBar)
 
     for (int w = 0; w < (int) widgets.size(); w++)
     {
-        DeskDrive  drive = { model, 6, w, m_shell.m_disks->MachineHasBuiltInDrive() && w == 0, m_shell.m_disks->IsPortChainOffered() };
+        DeskDrive  drive = { model, 6, w, m_shell.m_disks->MachineHasBuiltInDrive() && w == 0, DiskPortChainRule::IsOffered (m_shell.m_machine.GetConfig()) };
 
         if (onBar)
         {

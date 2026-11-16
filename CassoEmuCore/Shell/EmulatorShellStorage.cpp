@@ -15,6 +15,7 @@
 #include "Devices/Disk/ImageClassifier.h"
 #include "Shell/BootDriveRule.h"
 #include "Shell/DiskMenuRule.h"
+#include "Shell/DiskPortChainRule.h"
 #include "Shell/DriveDropRule.h"
 #include "Shell/Layout/DriveLabel.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
@@ -472,7 +473,7 @@ DialogDefinition EmulatorShell::MakePortDriveDialog (PortDriveChange change, con
 
         case PortDriveChange::Swap:
             def.title = L"Swap a drive";
-            action    = std::format (L"Swapping {} for {}", GetPortDriveText (device), GetPortDriveText (ShellDisks::GetSwapDevice (device)));
+            action    = std::format (L"Swapping {} for {}", GetPortDriveText (device), GetPortDriveText (DiskPortChainRule::GetSwapDevice (device)));
             break;
     }
 
@@ -553,7 +554,7 @@ void EmulatorShell::ChangePortDrive (PortDriveChange change, const std::string &
             }
             else if (change == PortDriveChange::Swap)
             {
-                state.AddDiskPortDrive (ShellDisks::GetSwapDevice (device));
+                state.AddDiskPortDrive (DiskPortChainRule::GetSwapDevice (device));
             }
         });
 
@@ -590,7 +591,7 @@ void EmulatorShell::AddPortDriveRows (const std::string & device, int nth, std::
 
         items.push_back (DxuiPopupMenuItem::ForCommand (unplug));
 
-        if (!ShellDisks::GetSwapDevice (device).empty())
+        if (!DiskPortChainRule::GetSwapDevice (device).empty())
         {
             auto  swap = std::make_shared<DxuiCommand>();
 
@@ -598,7 +599,7 @@ void EmulatorShell::AddPortDriveRows (const std::string & device, int nth, std::
 
             swap->label     = (device == kpszApple35DriveDevice) ? L"S&wap for a 5.25-inch drive" : L"S&wap for a 3.5-inch drive";
             swap->dispatch  = [this, device, nth] () { ChangePortDrive (PortDriveChange::Swap, device, (size_t) nth); };
-            swap->isVisible = [this, device] () { return m_disks->CanSwapPortDrive (device); };
+            swap->isVisible = [this, device] () { return DiskPortChainRule::CanSwap (m_machine.GetConfig(), device); };
 
             items.push_back (DxuiPopupMenuItem::ForCommand (swap));
         }
@@ -852,9 +853,9 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
 
     // On the //c Plus the 5.25-inch drives are on the disk port's chain. Only
     // the last one is unplugged, since a disk is saved by its drive's number.
-    if (m_disks->IsPortChainOffered() && (device == 0 || device == 1))
+    if (DiskPortChainRule::IsOffered (m_machine.GetConfig()) && (device == 0 || device == 1))
     {
-        int  floppies = m_disks->CountPortDrives (kpszDiskIicDevice);
+        int  floppies = DiskPortChainRule::CountDrives (m_machine.GetConfig(), kpszDiskIicDevice);
 
 
 
@@ -951,7 +952,7 @@ void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
 
     // On the //c Plus, the drives behind the built-in one are on the disk
     // port's chain, the built-in drive taking the first desk index.
-    if (drive.slot == 0 && m_disks->IsPortChainOffered())
+    if (drive.slot == 0 && DiskPortChainRule::IsOffered (m_machine.GetConfig()))
     {
         std::string  device;
         int          nth    = -1;

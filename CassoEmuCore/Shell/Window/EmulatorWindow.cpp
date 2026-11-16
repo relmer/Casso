@@ -11,6 +11,7 @@
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellDrivePickers.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Shell/DiskPortChainRule.h"
 #include "Shell/Components/ShellSerialCard.h"
 #include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/DiskManager.h"
@@ -690,20 +691,22 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     m_chrome->m_mainMenu.SetVisibleQuery ([this] (WORD commandId) -> bool
     {
-        bool  visible = true;
+        const MachineConfig  & config    = m_machine.GetConfig();
+        bool                   visible   = true;
+        bool                   portChain = DiskPortChainRule::IsOffered (config);
 
 
 
         switch (commandId)
         {
-            case IDM_VIEW_FLOPPY_PAIR_BESIDE: visible = m_scene->IsFloppyPairBesideOffered();                                                  break;
+            case IDM_VIEW_FLOPPY_PAIR_BESIDE: visible = m_scene->IsFloppyPairBesideOffered();                                       break;
 
             // The //c Plus's port drives are plugged in from the plug-in rows.
             // Each row is visible only while the port has room for its kind.
-            case IDM_STORAGE_DRIVE2:          visible = !m_disks->IsPortChainOffered();                                                        break;
-            case IDM_STORAGE_ATTACH_APPLE35:  visible = m_disks->IsPortChainOffered() && m_disks->CanPlugInPortDrive (kpszApple35DriveDevice); break;
-            case IDM_STORAGE_ATTACH_FLOPPY:   visible = m_disks->IsPortChainOffered() && m_disks->CanPlugInPortDrive (kpszDiskIicDevice);      break;
-            default:                                                                                                                           break;
+            case IDM_STORAGE_DRIVE2:          visible = !portChain;                                                                 break;
+            case IDM_STORAGE_ATTACH_APPLE35:  visible = portChain && DiskPortChainRule::CanPlugIn (config, kpszApple35DriveDevice); break;
+            case IDM_STORAGE_ATTACH_FLOPPY:   visible = portChain && DiskPortChainRule::CanPlugIn (config, kpszDiskIicDevice);      break;
+            default:                                                                                                                break;
         }
 
         return visible;
