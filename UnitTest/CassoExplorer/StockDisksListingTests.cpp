@@ -103,7 +103,7 @@ public:
 
         Assert::AreEqual ((size_t) 3, floppy.size());
         Assert::AreEqual (std::wstring (L"DOS 3.3 System Master"),   floppy[0].label);
-        Assert::AreEqual (std::wstring (L"ProDOS 1.0.1 Users Disk"), floppy[1].label);
+        Assert::AreEqual (std::wstring (L"ProDOS 1.0.1 User's Disk"), floppy[1].label);
         Assert::AreEqual (std::wstring (L"ProDOS 2.4.3"),            floppy[2].label);
         Assert::IsTrue   (floppy[1].note.find (L"64K") != std::wstring::npos, L"ProDOS needs 64K");
         Assert::IsTrue   (floppy[2].path.ends_with (L"ProDOS 2.4.3.po"));

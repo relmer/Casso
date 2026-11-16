@@ -76,7 +76,7 @@ const wchar_t * StockBootDisks::GetDisplayName (Which disk)
     switch (disk)
     {
         case Which::Dos33Master:      return L"DOS 3.3 System Master";
-        case Which::ProDosUsersDisk:  return L"ProDOS 1.0.1 Users Disk";
+        case Which::ProDosUsersDisk:  return L"ProDOS 1.0.1 User's Disk";
         case Which::ProDos243Disk:    return L"ProDOS 2.4.3";
         case Which::PascalBootDisk:   return L"Apple Pascal 1.3";
         case Which::CpamBootDisk:     return L"CP/AM 5.1";
