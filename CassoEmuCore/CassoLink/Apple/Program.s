@@ -21,9 +21,10 @@
 ;   Time drive      drive, track, revolutions: $A5 the moment each pass of
 ;                   sector 0's address field after the first is read, so the
 ;                   PC times the drive's revolution
-;   Measure track   drive, track: Track measure with the nibbles read from
-;                   the step from the track before to sector 0's address field,
-;                   the nibbles in a turn, and the field's volume
+;   Measure track   drive, track and the percentages, as for a read: Track
+;                   measure with the nibbles read from the step from the track
+;                   before to sector 0's address field, the nibbles in a turn,
+;                   and the field's volume
 ;   Cancel          during an operation: it stops, and Ready follows
 ;   Label           the user's operation, as text: drawn, and Ready again
 ;   Log             the PC's hour and minute, then text: a history line,
@@ -659,10 +660,12 @@ tmdone: jmp opdone
 domeasure: jsr modoff           ; the disk buffers, and the module on them
         lda PKTBUF+1
         sta mtrack
+        lda PKTBUF+3            ; the percentages, after the sector count begin takes,
+        sta PKTBUF+4            ; so the bar is drawn as for the track's read
+        lda PKTBUF+2
+        sta PKTBUF+3
         lda #0
         sta PKTBUF+2            ; no sector count for begin
-        sta PKTBUF+3            ; and no percentages after it
-        sta PKTBUF+4
         sta mfirst
         sta mfirst+1
         lda mtrack
@@ -712,6 +715,11 @@ msagain: lda #9                 ; the field's nibbles read so far
 msnone: lda #ERRNOTFND
         sta err
 msdone: jmp opdone
+
+; msfind's loop has few cycles to spare for each nibble, so none of its
+; branches may cross a page, which costs a cycle more; it starts at a page
+; boundary.
+        .align 256
 
 ; msfind: the nibbles read counted in mcnt until sector 0's address field on
 ; `track` is read through its sector number, with the field's volume in mvol.

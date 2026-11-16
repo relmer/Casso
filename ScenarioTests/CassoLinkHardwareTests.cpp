@@ -961,9 +961,81 @@ public:
         AssertSucceeded (WozLoader::Load (captureBytes, captured));
         AssertSucceeded (VolumeImage::Load (ReadBytes (sectorImage), "boot.po", sectors, report));
 
-        ProgramRig  rig (std::vector<Byte> (NibblizationLayer::kImageByteSize, 0));
+        measures = Measure (captureBytes);
 
-        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, captureBytes));
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (sectors, TrackMeasures::ToLayouts (measures, (int) captured.GetTrackBitCount (0)), built));
+
+        Assert::IsTrue (PassesBoot (built, kBootCycles), L"The WOZ built to the measures");
+    }
+
+    //  As TheMeasuresOfAWizardryDisk_BuildAWozThatPassesItsCheck, read on a
+    //  drive 2% slow. The emulated drive turns as fast as its WOZ's tracks
+    //  allow, so the slow drive's measures are made from the emulated ones:
+    //  the step's cycles cover less of a slow turn, so the nibbles counted
+    //  after it cover that much more, and the turn's nibbles are the disk's.
+    //  The layouts have the disk's track lengths, and the WOZ built to them
+    //  passes the check.
+    TEST_METHOD (TheMeasuresOfAWizardryDiskOnASlowDrive_BuildAWozThatPassesItsCheck)
+    {
+        static constexpr uint64_t                 kBootCycles = 60'000'000;
+        static constexpr double                   kSlow       = 1.02;
+        std::string                               capture     = GetSetting ("CASSO_WIZARDRY_WOZ", "");
+        std::string                               sectorImage = GetSetting ("CASSO_WIZARDRY_PO", "");
+        std::vector<Byte>                         captureBytes;
+        std::vector<Byte>                         sectors;
+        std::vector<Byte>                         built;
+        std::vector<CassoLinkHost::TrackMeasure>  measures;
+        std::vector<TrackLayout>                  layouts;
+        SectorDecodeReport                        report;
+        DiskImage                                 captured;
+        double                                    fastBits    = 0.0;
+        double                                    slowBits    = 0.0;
+
+
+
+        if (capture.empty() || sectorImage.empty())
+        {
+            Logger::WriteMessage ("CASSO_WIZARDRY_WOZ and CASSO_WIZARDRY_PO aren't both set; no disk to measure.\n");
+            return;
+        }
+
+        captureBytes = ReadBytes (capture);
+
+        AssertSucceeded (WozLoader::Load (captureBytes, captured));
+        AssertSucceeded (VolumeImage::Load (ReadBytes (sectorImage), "boot.po", sectors, report));
+
+        measures = Measure (captureBytes);
+        fastBits = (double) captured.GetTrackBitCount (captured.ResolveQuarterTrack (0));
+        slowBits = fastBits * kSlow;
+
+        for (size_t track = 1; track < measures.size(); track++)
+        {
+            double  more = (double) TrackMeasures::kStepBits * measures[track].turn * (1.0 / fastBits - 1.0 / slowBits);
+
+            measures[track].fromStep = (Word) (measures[track].fromStep + llround (more));
+        }
+
+        layouts = TrackMeasures::ToLayouts (measures, (int) llround (slowBits));
+
+        for (const TrackLayout & layout : layouts)
+        {
+            Assert::AreNotEqual (0, layout.nibbles, L"Every track has a layout");
+        }
+
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (sectors, layouts, built));
+
+        Assert::IsTrue (PassesBoot (built, kBootCycles), L"The WOZ built to the slow drive's measures");
+    }
+
+    //  Measure track on each track of a WOZ mounted on an emulated //c.
+    static std::vector<CassoLinkHost::TrackMeasure>  Measure (const std::vector<Byte> & woz)
+    {
+        std::vector<CassoLinkHost::TrackMeasure>  measures;
+        ProgramRig                                rig (std::vector<Byte> (NibblizationLayer::kImageByteSize, 0));
+
+
+
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, woz));
 
         for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
         {
@@ -974,9 +1046,7 @@ public:
             measures.push_back (measure);
         }
 
-        AssertSucceeded (TrackLayoutWriter::BuildWoz (sectors, TrackMeasures::ToLayouts (measures, (int) captured.GetTrackBitCount (0)), built));
-
-        Assert::IsTrue (PassesBoot (built, kBootCycles), L"The WOZ built to the measures");
+        return measures;
     }
 
     //  Whether a //c booted from the WOZ for `cycles` is outside the ROM's BRK

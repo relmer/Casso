@@ -262,8 +262,12 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
         hr = CheckStop();
         CHR (hr);
 
+        //  The measure has the track's share of the bar, as its read does, so
+        //  the Apple draws the bar the same for both.
         if (m_measuring)
         {
+            m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
+
             hr = m_session.m_diskTransfer.MeasureTrack (drive, track, measures);
             CHR (hr);
         }
