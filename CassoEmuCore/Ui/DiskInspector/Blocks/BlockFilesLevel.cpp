@@ -58,6 +58,8 @@ void BlockFilesLevel::Init (const IDxuiTheme * theme, HWND hwnd)
 
     m_list->SetTheme              (theme);
     m_list->SetShowHeader         (true);
+    m_list->SetActivateOnDoubleClick (true);
+    m_list->SetAlwaysShowSelection (true);
     m_list->SetOwnerWindow        (hwnd);
     m_list->SetColumns            (std::move (columns));
     m_list->SetSortIndicator      (m_sortColumn, m_isDescending);

@@ -67,6 +67,8 @@ void BlockLevelHost::Init (BlockInspectorModel * model, const IDxuiTheme * theme
 
     m_card->SetTheme              (theme);
     m_card->SetShowHeader         (true);
+    m_card->SetActivateOnDoubleClick (true);
+    m_card->SetAlwaysShowSelection (true);
     m_card->SetOwnerWindow        (hwnd);
     m_card->SetColumns            (std::move (columns));
     m_card->SetOnSelectionChanged ([this] (int row)

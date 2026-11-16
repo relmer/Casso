@@ -4,6 +4,7 @@
 
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
+#include "Ui/DiskInspector/DiskInspectorPalette.h"
 #include "Ui/DiskInspector/ZoomStops.h"
 
 
@@ -52,8 +53,8 @@ public:
     //  Whether a block that differs from the other image has its mark.
     void  SetDiffsShown (bool isShown) { m_isDiffsShown = isShown; }
 
-    //  The zoom, from 1 for the whole volume up to its last stop, with one
-    //  block a cell at several times the least cell. StepZoom steps about
+    //  The zoom, from 1 for the whole volume, in even steps up to a cell of
+    //  kMostCellDip with one block in it. StepZoom steps about
     //  the map's center, StepZoomAt about a point, and Fit returns to the
     //  whole volume.
     void    StepZoom   (int steps);
@@ -67,7 +68,18 @@ public:
     void  Refresh ();
 
     //  What pointing at a cell reports.
-    std::wstring  DescribeCell (uint32_t cell) const;
+    std::wstring  DescribeCell   (uint32_t cell) const;
+    std::wstring  DescribeBlocks (uint32_t cell) const;
+
+    //  The tooltip at a point, as the disk inspector's File map grid has it:
+    //  the blocks, their role, and the files that use them, with the cell's
+    //  color beside the role.
+    bool  GetTooltip         (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const;
+    bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const;
+
+    //  Whether the map is animated: the marquee around the highlighted
+    //  blocks marches, and the current block shimmers.
+    bool  IsAnimating () const;
 
     void  Layout  (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -84,21 +96,28 @@ private:
 
     static constexpr double  kZoomRatio    = 1.25;
     static constexpr double  kMinStepRatio = 1.05;
-    static constexpr double  kOneBlockMore = 4.0;    // the last stop, past the first zoom with one block a cell
+    static constexpr float   kMostCellDip  = 48.0f;  // a cell at the last stop
+    static constexpr float   kNumberDip    = 26.0f;  // the least cell a block's number is drawn in
 
-    RECT     GetGridRect () const;
-    void     PaintBands  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void     PaintCells  (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & grid) const;
-    void     BuildStops  ();
-    void     ZoomAbout   (double zoom, POINT anchorPx);
-    void     ClampPan    ();
-    int64_t  FindCellAt  (POINT pointPx) const;
+    RECT      GetGridRect     () const;
+    void      PaintBands      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void      PaintCells      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & grid) const;
+    void      PaintMarquee    (IDxuiPainter & painter, const DiskInspectorPalette & palette, const RECT & grid) const;
+    uint32_t  GetCellColor    (const DiskInspectorPalette & palette, uint32_t cell) const;
+    uint32_t  GetNumberInFile (uint32_t block) const;
+    void      BuildStops      ();
+    void      ZoomAbout       (double zoom, POINT anchorPx);
+    void      ClampPan        ();
+    int64_t   FindCellAt      (POINT pointPx) const;
 
     BlockInspectorModel  * m_model        = nullptr;
     DxuiDpiScaler          m_scaler;
     BlockMapGrid           m_grid;
     vector<SectorRole>     m_roles;
     vector<bool>           m_highlighted;
+    vector<uint32_t>       m_numbers;                // a highlighted block's number in its file, from 1, or 0
+    bool                   m_hasHighlight = false;
+    bool                   m_isDark       = true;   // the theme's surface the last time the map was drawn
     vector<bool>           m_differs;
     SelectFn               m_onSelect;
     HoverFn                m_onHover;

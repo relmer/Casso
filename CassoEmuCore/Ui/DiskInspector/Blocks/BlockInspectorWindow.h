@@ -103,6 +103,7 @@ private:
     void                                  CopyBlock      ();
     void                                  GoToBlock      ();
     void                                  ShowLevel      (BlockLevelHost::Level level);
+    void                                  UpdateTooltip  (POINT pointPx);
     void                                  StepDifference (bool isForward);
     void                                  SetZoom        (double zoom);
     vector<InspectorStatusBar::LeadItem>  BuildLead      () const;
@@ -125,6 +126,8 @@ private:
     std::wstring              m_path;
     std::wstring              m_displayName;
     std::wstring              m_hint;
+    DxuiTooltip               m_tooltip;
+    std::wstring              m_tooltipText;
     const IDxuiTheme        * m_theme           = nullptr;
     std::function<void ()>    m_onClosed;
     double                    m_zoom            = 1.0;

@@ -146,6 +146,52 @@ public:
     }
 
 
+    TEST_METHOD (MapView_ZoomStepsEvenlyToALargeCellAndTipsAsTheFileMapGrid)
+    {
+        FakeDiskFileIo             io;
+        BlockInspectorModel        model;
+        BlockMapView               view;
+        DxuiDpiScaler              scaler;
+        std::wstring               tip;
+        RECT                       anchor = {};
+        vector<DxuiTooltipSwatch>  swatches;
+        BlockMapGrid               grid (k800KBlocks, 400, 400);
+        POINT                      at     = grid.GetCellOrigin (2);
+        int                        steps  = 0;
+
+
+
+        OpenModel (io, model);
+
+        view.SetModel    (&model);
+        view.SetZoomable (true);
+        view.Layout      (RECT { 0, 0, 400, 400 }, scaler);
+        view.Refresh();
+
+        Assert::IsTrue (view.GetTooltip ({ at.x + 1, at.y + 1 }, tip, anchor));
+        Assert::AreEqual (std::wstring (L"Block 2\nVolume header"), tip);
+        Assert::IsTrue   (view.GetTooltipSwatches ({ at.x + 1, at.y + 1 }, swatches));
+        Assert::AreEqual (1, swatches[0].line);
+
+        //  After a zoom about block 2, block 2 is under the point.
+        view.StepZoomAt (3, { at.x + 1, at.y + 1 });
+        Assert::IsTrue (view.GetTooltip ({ at.x + 1, at.y + 1 }, tip, anchor));
+        Assert::AreEqual (std::wstring (L"Block 2\nVolume header"), tip);
+        view.Fit();
+
+        while (!view.IsAtMost() && steps < 100)
+        {
+            double  before = view.GetZoom();
+
+            view.StepZoom (1);
+            Assert::IsTrue (view.GetZoom() / before < 1.3, L"each step zooms by about the same ratio");
+            steps++;
+        }
+
+        Assert::IsTrue (steps >= 5, std::format (L"{} steps", steps).c_str());
+    }
+
+
     TEST_METHOD (FieldsView_AClickOnALinkedFieldFollowsIt)
     {
         DxuiDpiScaler       scaler;

@@ -12,11 +12,13 @@
 //
 //  BlockMapGrid
 //
-//  Where block mode's map draws each block: cells in rows from the top left,
-//  as many columns as fit the width at kMinCellPx, and as many blocks to a
-//  cell as it takes for every block to fit the height. A cell of several
-//  blocks takes the color of its most notable role: damage first, then the
-//  volume's structures, then files' data, then free space. Pure.
+//  Where block mode's map draws each block: the blocks in rows from the top
+//  left, in a fixed number of columns, and a zoom draws the same rows
+//  larger, so the blocks under the pointer stay under it. Where a block
+//  alone would be smaller than kMinCellPx, a square of blocks is one cell.
+//  A cell of several blocks takes the color of its most notable role:
+//  damage first, then the volume's structures, then files' data, then free
+//  space. Pure.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,17 +29,25 @@ public:
     static constexpr int  kGapPx     = 1;
 
     BlockMapGrid () = default;
+
+    //  The whole volume fitted to an area, and the same rows of blocks with
+    //  each block `blockPx` across, as a zoom draws them.
     BlockMapGrid (uint32_t blockCount, int widthPx, int heightPx);
+    BlockMapGrid (uint32_t blockCount, int blockColumns, double blockPx);
 
     int       GetColumns       () const { return m_columns; }
     int       GetRows          () const { return m_rows; }
-    int       GetCellPx        () const { return m_cellPx; }
-    uint32_t  GetBlocksPerCell () const { return m_blocksPerCell; }
+    int       GetCellPx        () const { return m_pitch - kGapPx; }
+    uint32_t  GetBlocksPerCell () const { return m_group * m_group; }
     uint32_t  GetCellCount     () const { return m_cells; }
+    int       GetBlockColumns  () const { return m_blockColumns; }
+    double    GetBlockPx       () const { return m_blockPx; }
 
-    uint32_t  GetCellOf     (uint32_t block) const { return m_blocksPerCell == 0 ? 0 : block / m_blocksPerCell; }
-    uint32_t  GetFirstBlock (uint32_t cell)  const { return cell * m_blocksPerCell; }
-    uint32_t  GetLastBlock  (uint32_t cell)  const { return std::min (GetFirstBlock (cell) + m_blocksPerCell, m_blockCount) - 1; }
+    uint32_t  GetCellOf     (uint32_t block) const;
+    uint32_t  GetFirstBlock (uint32_t cell) const;
+    uint32_t  GetLastBlock  (uint32_t cell) const;
+    uint32_t  CountBlocks   (uint32_t cell) const;
+    bool      HasBlocks     (uint32_t cell) const { return GetFirstBlock (cell) < m_blockCount; }
 
     //  A cell's top left, from the grid's.
     POINT     GetCellOrigin (uint32_t cell) const;
@@ -50,10 +60,15 @@ public:
     static LPCWSTR     GetRoleName (SectorRole role);
 
 private:
-    uint32_t  m_blockCount    = 0;
-    int       m_columns       = 0;
-    int       m_rows          = 0;
-    int       m_cellPx        = 0;
-    uint32_t  m_blocksPerCell = 1;
-    uint32_t  m_cells         = 0;
+    void  Arrange (double blockPx, uint32_t group);
+
+    uint32_t  m_blockCount   = 0;
+    int       m_blockColumns = 1;
+    int       m_blockRows    = 0;
+    double    m_blockPx      = 0.0;
+    uint32_t  m_group        = 1;      // the blocks across a cell, and down it
+    int       m_pitch        = kMinCellPx + kGapPx;
+    int       m_columns      = 0;
+    int       m_rows         = 0;
+    uint32_t  m_cells        = 0;
 };

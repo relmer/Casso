@@ -4,6 +4,7 @@
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Core/NumberFormat.h"
 
 
@@ -62,19 +63,21 @@ RECT BlockMapView::GetGridRect() const
 //
 //  BlockMapView::Refresh
 //
-//  The grid is laid out over the view's area times the zoom, so a zoomed
-//  grid has larger cells, down to one block a cell.
+//  The grid is the volume fitted to the view, its blocks drawn the zoom
+//  times larger, so a zoomed grid has the same rows with larger cells, down
+//  to one block a cell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockMapView::Refresh()
 {
-    bool        isOpen = m_model != nullptr && m_model->IsOpen();
-    uint32_t    count  = isOpen ? m_model->GetBlockCount() : 0;
-    uint32_t    block  = 0;
-    uint32_t    cell   = 0;
-    SectorRole  role   = SectorRole::Free;
-    RECT        grid   = {};
+    bool          isOpen = m_model != nullptr && m_model->IsOpen();
+    uint32_t      count  = isOpen ? m_model->GetBlockCount() : 0;
+    uint32_t      block  = 0;
+    uint32_t      cell   = 0;
+    SectorRole    role   = SectorRole::Free;
+    RECT          grid   = {};
+    BlockMapGrid  fit;
 
 
 
@@ -85,13 +88,16 @@ void BlockMapView::Refresh()
 
     BuildStops();
 
-    m_grid = BlockMapGrid (count, (int) ((grid.right - grid.left) * m_zoom), (int) ((grid.bottom - grid.top) * m_zoom));
+    fit    = BlockMapGrid (count, (int) (grid.right - grid.left), (int) (grid.bottom - grid.top));
+    m_grid = m_zoom <= 1.0 ? fit : BlockMapGrid (count, fit.GetBlockColumns(), fit.GetBlockPx() * m_zoom);
 
     ClampPan();
 
     m_roles.assign (m_grid.GetCellCount(), SectorRole::Free);
     m_highlighted.assign (m_grid.GetCellCount(), false);
+    m_numbers.assign (m_grid.GetCellCount(), 0);
     m_differs.assign (m_grid.GetCellCount(), false);
+    m_hasHighlight = false;
 
     for (block = 0; block < count && m_grid.GetCellCount() != 0; block++)
     {
@@ -103,6 +109,8 @@ void BlockMapView::Refresh()
         if (m_model->HasHighlight() && m_model->IsHighlighted (block))
         {
             m_highlighted[cell] = true;
+            m_hasHighlight      = true;
+            m_numbers[cell]     = m_grid.GetBlocksPerCell() == 1 ? GetNumberInFile (block) : 0;
         }
 
         if (m_isDiffsShown && m_model->IsDifferent (block))
@@ -120,22 +128,18 @@ void BlockMapView::Refresh()
 //
 //  BlockMapView::BuildStops
 //
-//  Even steps up to the first zoom with one block a cell, then a last stop
-//  that makes those cells kOneBlockMore times larger.
+//  Even steps from the whole volume up to the zoom at which a cell of one
+//  block is kMostCellDip across.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockMapView::BuildStops()
 {
-    constexpr double  kSearchRatio = 1.05;
-    constexpr double  kMostSearch  = 4096.0;
-
-
-
-    RECT    grid  = GetGridRect();
-    int     w     = (int) (grid.right - grid.left);
-    int     h     = (int) (grid.bottom - grid.top);
-    double  one   = 1.0;
+    RECT          grid = GetGridRect();
+    int           w    = (int) (grid.right - grid.left);
+    int           h    = (int) (grid.bottom - grid.top);
+    double        most = 1.0;
+    BlockMapGrid  fit;
 
 
 
@@ -154,12 +158,9 @@ void BlockMapView::BuildStops()
         return;
     }
 
-    while (one < kMostSearch && BlockMapGrid (m_blockCount, (int) (w * one), (int) (h * one)).GetBlocksPerCell() > 1)
-    {
-        one *= kSearchRatio;
-    }
-
-    m_stops = ZoomStops::Build (1.0, kZoomRatio, { one, one * kOneBlockMore }, kMinStepRatio);
+    fit     = BlockMapGrid (m_blockCount, w, h);
+    most    = fit.GetBlockPx() <= 0.0 ? 1.0 : std::max (1.0, (m_scaler.ToPxf (kMostCellDip) + BlockMapGrid::kGapPx) / fit.GetBlockPx());
+    m_stops = ZoomStops::Build (1.0, kZoomRatio, { most }, kMinStepRatio);
 }
 
 
@@ -311,6 +312,33 @@ int64_t BlockMapView::FindCellAt (POINT pointPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockMapView::DescribeBlocks
+//
+//  "Block 24" for a cell of one block, or "16 blocks, 1,024 to 1,795" for
+//  a square of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlockMapView::DescribeBlocks (uint32_t cell) const
+{
+    uint32_t  count = m_grid.CountBlocks (cell);
+
+
+
+    if (count <= 1)
+    {
+        return L"Block " + NumberFormat::FormatInteger (m_grid.GetFirstBlock (cell));
+    }
+
+    return NumberFormat::FormatInteger (count) + L" blocks, " + NumberFormat::FormatInteger (m_grid.GetFirstBlock (cell)) + L" to " + NumberFormat::FormatInteger (m_grid.GetLastBlock (cell));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockMapView::DescribeCell
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -329,8 +357,7 @@ std::wstring BlockMapView::DescribeCell (uint32_t cell) const
         return text;
     }
 
-    text   = first == last ? L"Block " + NumberFormat::FormatInteger (first) : L"Blocks " + NumberFormat::FormatInteger (first) + L" to " + NumberFormat::FormatInteger (last);
-    text  += L": ";
+    text   = DescribeBlocks (cell) + L": ";
     text  += first == last && m_model->GetMapLabel (first) != nullptr ? m_model->GetMapLabel (first) : BlockMapGrid::GetRoleName (m_roles[cell]);
     owners = m_model->GetOwners (first);
 
@@ -508,10 +535,12 @@ void BlockMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         return;
     }
 
+    m_isDark = DiskInspectorPalette::IsDarkSurface (theme.Background());
+
     PaintBands (painter, text, theme);
 
     painter.PushClipRect ((float) grid.left, (float) grid.top, (float) (grid.right - grid.left), (float) (grid.bottom - grid.top));
-    PaintCells (painter, theme, grid);
+    PaintCells (painter, text, theme, grid);
     painter.PopClipRect();
 }
 
@@ -571,25 +600,32 @@ void BlockMapView::PaintBands (IDxuiPainter & painter, IDxuiTextRenderer & text,
 //
 //  BlockMapView::PaintCells
 //
-//  Only the cells in view are drawn. The highlighted file's cells are drawn
-//  in the theme's foreground with the role's color inset, and the current
-//  block's cell is outlined last.
+//  As the disk inspector's File map grid draws its cells: only those in
+//  view; while blocks are highlighted, every other cell dimmed and a
+//  marching marquee around the highlighted ones, each with its number in
+//  its file where the cell has room; the cell under the pointer lit faintly
+//  and outlined; and the current block lit by the shimmer and outlined in
+//  the focus ring.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockMapView::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & grid) const
+void BlockMapView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & grid) const
 {
     DiskInspectorPalette  palette = DiskInspectorPalette::MakeFallback (DiskInspectorPalette::IsDarkSurface (theme.Background()));
     float                 size    = (float) m_grid.GetCellPx();
-    float                 inset   = std::max (1.0f, std::floor (size / 4.0f));
     float                 corner  = std::max (2.0f, std::floor (size / 2.0f));
     float                 outline = m_scaler.ToPxf (kOutlineDip);
     float                 left    = (float) (grid.left - m_panX);
     float                 top     = (float) (grid.top - m_panY);
+    bool                  isRoom  = size >= m_scaler.ToPxf (kNumberDip);
+    float                 textPx  = std::min (m_scaler.ToPxf (kFontDip), size / 2.5f);
     uint32_t              cell    = 0;
+    uint32_t              color   = 0;
     POINT                 at      = {};
     float                 x       = 0.0f;
     float                 y       = 0.0f;
+    RECT                  box     = {};
+    HRESULT               hr      = S_OK;
 
 
 
@@ -599,40 +635,271 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme,
         x  = left + at.x;
         y  = top + at.y;
 
-        if (x + size < grid.left || x > grid.right || y + size < grid.top || y > grid.bottom)
+        if (x + size < grid.left || x > grid.right || y + size < grid.top || y > grid.bottom || !m_grid.HasBlocks (cell))
         {
             continue;
         }
 
-        if (m_highlighted[cell])
-        {
-            painter.FillRect (x, y, size, size, theme.Foreground());
-            painter.FillRect (x + inset, y + inset, size - inset * 2, size - inset * 2, palette.GetRoleColor (static_cast<MapRole> (m_roles[cell])));
-        }
-        else
-        {
-            painter.FillRect (x, y, size, size, palette.GetRoleColor (static_cast<MapRole> (m_roles[cell])));
-        }
+        color = GetCellColor (palette, cell);
+        painter.FillRect (x, y, size, size, color);
 
         if (m_differs[cell])
         {
             painter.FillRect (x + size - corner, y, corner, corner, theme.ErrorForeground());
         }
+
+        //  A highlighted block's number in its file, or with no highlight,
+        //  each block's number, once the cell has room.
+        if (isRoom && m_grid.GetBlocksPerCell() == 1 && (!m_hasHighlight || m_numbers[cell] > 0))
+        {
+            hr = text.DrawString ((m_hasHighlight ? std::to_wstring (m_numbers[cell]) : NumberFormat::FormatInteger (m_grid.GetFirstBlock (cell))).c_str(), x, y, size, size,
+                                  m_hasHighlight ? theme.Foreground() : (DiskInspectorPalette::GetTextColorOn (color) & 0x00FFFFFFu) | 0xB0000000u, textPx,
+                                  m_hasHighlight ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center,
+                                  m_hasHighlight ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        if (m_isZoomable && (int64_t) cell == m_hoverCell)
+        {
+            painter.FillRect    (x, y, size, size, InspectorMarquee::GetHoverFill());
+            painter.OutlineRect (x, y, size, size, 1.0f, InspectorMarquee::GetHoverLine());
+        }
+    }
+
+    if (m_hasHighlight)
+    {
+        PaintMarquee (painter, palette, grid);
     }
 
     if (m_isOutlined && m_grid.GetCellCount() != 0)
     {
-        at = m_grid.GetCellOrigin (m_grid.GetCellOf (m_current));
+        at  = m_grid.GetCellOrigin (m_grid.GetCellOf (m_current));
+        x   = left + at.x;
+        y   = top + at.y;
+        box = { (LONG) std::max (x, (float) grid.left), (LONG) std::max (y, (float) grid.top), (LONG) std::min (x + size, (float) grid.right), (LONG) std::min (y + size, (float) grid.bottom) };
 
-        painter.OutlineRect (left + at.x - outline * 0.5f, top + at.y - outline * 0.5f, size + outline, size + outline, outline, theme.Accent());
-    }
-
-    //  The cell under the pointer is outlined, as the ring under the pointer
-    //  is on the platter.
-    if (m_isZoomable && m_hoverCell >= 0 && (uint32_t) m_hoverCell < m_grid.GetCellCount())
-    {
-        at = m_grid.GetCellOrigin ((uint32_t) m_hoverCell);
-
-        painter.OutlineRect (left + at.x - outline * 0.5f, top + at.y - outline * 0.5f, size + outline, size + outline, outline * 0.5f, theme.Foreground());
+        InspectorMarquee::PaintShimmer (painter, x, y, size, size, InspectorMarquee::GetClockMs(), box);
+        painter.OutlineRect (x - 1.0f, y - 1.0f, size + 2.0f, size + 2.0f, outline, theme.FocusRing());
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::PaintMarquee
+//
+//  The File map grid's marching marquee around the highlighted cells: an
+//  edge of a highlighted cell is drawn where its neighbor isn't
+//  highlighted, clockwise around the cells, the dashes counted from the
+//  grid's origin so that edges in a line join up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMapView::PaintMarquee (IDxuiPainter & painter, const DiskInspectorPalette & palette, const RECT & grid) const
+{
+    InspectorMarquee  marquee (palette, m_scaler.ToPxf (InspectorMarquee::kDashDip), InspectorMarquee::kThicknessPx, (int64_t) GetTickCount64());
+    int               columns = m_grid.GetColumns();
+    int               rows    = m_grid.GetRows();
+    float             pitch   = (float) (m_grid.GetCellPx() + BlockMapGrid::kGapPx);
+    float             left    = (float) (grid.left - m_panX);
+    float             top     = (float) (grid.top - m_panY);
+    float             x0      = 0.0f;
+    float             y0      = 0.0f;
+    float             x1      = 0.0f;
+    float             y1      = 0.0f;
+    int               r       = 0;
+    int               c       = 0;
+
+
+
+    auto  isMarked = [&] (int row, int column)
+    {
+        int64_t  cell = (int64_t) row * columns + column;
+
+        return row >= 0 && row < rows && column >= 0 && column < columns && cell < (int64_t) m_highlighted.size() && m_highlighted[(size_t) cell];
+    };
+
+    marquee.SetCullRect (grid);
+
+    for (r = 0; r < rows; r++)
+    {
+        for (c = 0; c < columns; c++)
+        {
+            if (!isMarked (r, c))
+            {
+                continue;
+            }
+
+            //  On pixel centers, so each one-pixel line covers one pixel.
+            x0 = std::floor (left + c * pitch) + 0.5f;
+            y0 = std::floor (top + r * pitch) + 0.5f;
+            x1 = std::floor (left + (c + 1) * pitch) - 0.5f;
+            y1 = std::floor (top + (r + 1) * pitch) - 0.5f;
+
+            if (!isMarked (r - 1, c))
+            {
+                marquee.DrawLine (painter, x0, y0, x1, y0, x0);
+            }
+
+            if (!isMarked (r, c + 1))
+            {
+                marquee.DrawLine (painter, x1, y0, x1, y1, y0);
+            }
+
+            if (!isMarked (r + 1, c))
+            {
+                marquee.DrawLine (painter, x1, y1, x0, y1, -x1);
+            }
+
+            if (!isMarked (r, c - 1))
+            {
+                marquee.DrawLine (painter, x0, y1, x0, y0, -y1);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::GetCellColor
+//
+//  The cell's role color, dimmed while other blocks are highlighted, so the
+//  highlighted ones are the brightest on the map.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t BlockMapView::GetCellColor (const DiskInspectorPalette & palette, uint32_t cell) const
+{
+    uint32_t  color = palette.GetRoleColor (static_cast<MapRole> (m_roles[cell]));
+
+
+
+    return m_hasHighlight && !m_highlighted[cell] ? InspectorMarquee::Dim (palette, color) : color;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::IsAnimating
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockMapView::IsAnimating() const
+{
+    return IsVisible() && m_model != nullptr && m_model->IsOpen() && (m_hasHighlight || m_isOutlined);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::GetTooltip
+//
+//  The blocks, their role, and "Used by" with the files, a line each, as
+//  the File map grid's tip has them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockMapView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
+{
+    int64_t       cell   = FindCellAt (pointPx);
+    uint32_t      first  = 0;
+    uint32_t      last   = 0;
+    std::wstring  owners;
+
+
+
+    if (cell < 0 || m_model == nullptr || (size_t) cell >= m_roles.size())
+    {
+        return false;
+    }
+
+    first   = m_grid.GetFirstBlock ((uint32_t) cell);
+    last    = m_grid.GetLastBlock ((uint32_t) cell);
+    owners  = m_model->GetOwners (first);
+    outText = DescribeBlocks ((uint32_t) cell) + L"\n" + (first == last && m_model->GetMapLabel (first) != nullptr ? m_model->GetMapLabel (first) : BlockMapGrid::GetRoleName (m_roles[(size_t) cell]));
+
+    if (!owners.empty())
+    {
+        std::replace (owners.begin(), owners.end(), L'\n', L',');
+        outText += L"\nUsed by " + owners;
+    }
+
+    outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::GetTooltipSwatches
+//
+//  The cell's color, as drawn, beside the line with its role.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockMapView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const
+{
+    int64_t  cell = FindCellAt (pointPx);
+
+
+
+    if (cell < 0 || (size_t) cell >= m_roles.size())
+    {
+        return false;
+    }
+
+    outSwatches = { { 1, GetCellColor (DiskInspectorPalette::MakeFallback (m_isDark), (uint32_t) cell) } };
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::GetNumberInFile
+//
+//  A block of a file's data's number in the file, from 1, or 0 for any
+//  other block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t BlockMapView::GetNumberInFile (uint32_t block) const
+{
+    uint32_t          inner = 0;
+    const BlockMap  * map   = m_model->FindMap (block, inner);
+
+
+
+    if (map == nullptr || inner >= map->GetBlockCount() || map->blocks[inner].structure != BlockStructure::FileData)
+    {
+        return 0;
+    }
+
+    return map->blocks[inner].node + 1;
+}
+
+
+
+
+
+

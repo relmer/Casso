@@ -80,6 +80,7 @@ HRESULT BlockInspectorWindow::Open (
     CHRAF (hr, outError = L"The disk inspector's window can't be created.");
 
     SetTheme (theme);
+    m_tooltip.SetTheme (*theme);
     Show (true);
     QueueOpen();
 
@@ -258,6 +259,7 @@ bool BlockInspectorWindow::RunCommand (const InspectorCommands::Command & comman
 void BlockInspectorWindow::OnCreate()
 {
     m_menus.Create  (*this, GetPopupHost(), GetTextRenderer(), m_commands);
+    m_tooltip.SetPopupHost (GetPopupHost());
     m_status.Create (*this, [this] (double zoom) { SetZoom (zoom); }, false);
 
     m_panel = CreateChild<BlockInspectorPanel>();
@@ -353,8 +355,11 @@ void BlockInspectorWindow::RenderIfChanged()
     DxuiPanel::Tick ((int64_t) GetTickCount64());
     m_menus.Tick ((int64_t) GetTickCount64());
     m_status.Tick (GetHwnd());
+    m_tooltip.Tick ((int64_t) GetTickCount64());
 
-    if (m_isDirty || m_panel->IsLongJob())
+    //  The map's marquee marches and its current block shimmers, as the
+    //  disk inspector's do, so the map is drawn each frame while they're on it.
+    if (m_isDirty || m_panel->IsLongJob() || m_panel->GetMap().IsAnimating())
     {
         m_isDirty = false;
         Invalidate();
@@ -385,6 +390,8 @@ void BlockInspectorWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & 
     zoomed.SetDpi (static_cast<UINT> (std::lround (scaler.GetDpi() * m_zoom)));
 
     SetBounds (boundsPx);
+    m_tooltip.SetDpi          (scaler.GetDpi());
+    m_tooltip.SetViewportSize (boundsPx.right - boundsPx.left, boundsPx.bottom - boundsPx.top);
     m_menus.Layout  ({ boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + menus }, boundsPx, scaler);
     m_status.Layout ({ boundsPx.left, boundsPx.bottom - status, boundsPx.right, boundsPx.bottom }, scaler);
 
@@ -519,7 +526,57 @@ bool BlockInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
     m_isDirty = true;
 
+    if (ev.kind == DxuiMouseEventKind::Move)
+    {
+        UpdateTooltip (ev.positionDip);
+    }
+    else if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel || ev.kind == DxuiMouseEventKind::Leave)
+    {
+        m_tooltip.RequestHide ((int64_t) GetTickCount64());
+        m_tooltipText.clear();
+    }
+
     return DxuiPanel::OnMouse (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::UpdateTooltip
+//
+//  Over the block map, the map's tip appears at once and follows the
+//  pointer, as the File map grid's does in the disk inspector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::UpdateTooltip (POINT pointPx)
+{
+    std::wstring               tip;
+    RECT                       anchor = {};
+    vector<DxuiTooltipSwatch>  swatches;
+    int64_t                    now    = (int64_t) GetTickCount64();
+
+
+
+    if (!m_worker.IsBusy() && m_panel->GetMap().GetTooltip (pointPx, tip, anchor))
+    {
+        (void) m_panel->GetMap().GetTooltipSwatches (pointPx, swatches);
+    }
+
+    if (tip.empty())
+    {
+        m_tooltip.RequestHide (now);
+    }
+    else
+    {
+        m_tooltip.SetSwatches    (swatches);
+        m_tooltip.RequestShowNow (anchor, tip, now);
+    }
+
+    m_tooltipText = tip;
 }
 
 
@@ -968,6 +1025,7 @@ void BlockInspectorWindow::ChangeTheme (const IDxuiTheme * theme)
     m_theme = theme;
 
     SetTheme (theme);
+    m_tooltip.SetTheme (*theme);
     Invalidate();
 }
 
