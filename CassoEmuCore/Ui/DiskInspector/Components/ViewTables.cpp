@@ -8,6 +8,7 @@
 #include "Ui/DiskInspector/Views/FilesView.h"
 #include "Ui/DiskInspector/Views/IssuesView.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Devices/Disk/Inspector/Repair/DiskRepair.h"
 
 
 
@@ -67,6 +68,9 @@ void ViewTables::RefreshTables()
         m_session.views.tracks->SetCaption (m_session.context.hasDisk && InspectorTables::IsAlignmentNoteShown (m_session.analysis)
                                      ? L"This image's INFO says its tracks were not imaged in sync, so their alignment to one another was not kept"
                                      : L"");
+        m_session.repairPlan = m_session.context.hasDisk ? DiskRepair::Plan (m_session.analysis, {}) : RepairPlan();
+        m_session.views.issues->SetRepairPlan (&m_session.repairPlan);
+        m_session.isLayoutStale = true;
         m_session.views.issues->Refresh();
 
         vector<TableRow>  imageRows = m_session.context.hasDisk ? InspectorTables::BuildImage (m_session.analysis.image, m_session.context.drive != nullptr ? m_session.analysis.copy.get() : nullptr,
@@ -150,6 +154,13 @@ void ViewTables::SelectFromRow (const TableRow & row)
         {
             m_session.model.SelectNibbles (row.quarterTrack, track->fields[row.field].firstNibble, track->fields[row.field].nibbleCount);
         }
+
+        //  A selection from an error finding is drawn in the error color
+        //  until another selection replaces it.
+        m_session.context.errorQuarterTrack = (row.severity == static_cast<int> (FindingSeverity::Error)) ? m_session.model.GetQuarterTrack() : -1;
+        m_session.context.errorSector       = m_session.model.GetSectorIndex();
+        m_session.context.errorFirstNibble  = m_session.model.GetFirstNibble();
+        m_session.context.errorNibbleCount  = m_session.model.GetNibbleCount();
 
         m_host.OnSelection();
     }

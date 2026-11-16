@@ -40,6 +40,7 @@ class PlatterCorners;
 class StatusBand;
 class StripControls;
 class InspectorDialogs;
+class InspectorTooltips;
 class SelectionPart;
 class ScreenNotes;
 class WalkthroughPart;
@@ -97,6 +98,11 @@ public:
 
     //  The walkthrough from its first step (FR-153).
     void     OpenWalkthrough () override;
+
+    //  Repair's confirmation with the chosen changes checked, or every
+    //  change for none, then the repaired copy written.
+    void     OpenRepair  (const std::set<std::wstring> & chosen) override;
+    void     ShowFinding (int finding) override;
 
     //  After an Explorer window's file changes on disk, ReloadDisk requests a
     //  new copy. For a file that is gone, NoteFileGone adds a note and the
@@ -164,9 +170,7 @@ private:
     void          LayoutContent      (const RECT & boundsPx, const DxuiDpiScaler & scaler);
     static bool   IsZoomKey          (WPARAM vk);
     int           StepRecording      (int quarterTrack, int step) const;
-    std::wstring  GetButtonTip       (POINT pointPx, RECT & outAnchorPx) const;
     void          ShowDiskTab        (int tab) override;
-    void          UpdateTooltip      (POINT pointPx);
     static bool   IsInside           (const RECT & rect, POINT pointPx);
 
     InspectorSession                   m_session;
@@ -186,6 +190,7 @@ private:
     std::unique_ptr<SelectionPart>     m_selection;
     std::unique_ptr<ScreenNotes>       m_notes;
     std::unique_ptr<WalkthroughPart>   m_walkthrough;
+    std::unique_ptr<InspectorTooltips> m_tooltips;
     vector<IInspectorComponent *>      m_components;
     InspectorCommands                  m_commands;
     std::wstring                       m_title;
@@ -194,7 +199,6 @@ private:
     bool                               m_isSplitting      = false;
     double                             m_splitFraction    = 0.5;
     RECT                               m_splitterPx       = {};
-    std::wstring                       m_tooltipText;
 
     DxuiButton            * m_copySector        = nullptr;
     int                     m_flownQuarterTrack = -1;

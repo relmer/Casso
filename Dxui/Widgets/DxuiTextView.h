@@ -122,8 +122,14 @@ public:
     //  color goes from the background toward the theme's foreground (1 is
     //  the full foreground).
     void   SetZoom         (float zoom);
-    float  GetZoom         () const               { return m_zoom; }
-    void   SetTextStrength (float strength)       { m_textStrength = strength; }
+
+    //  The vertical bar neither drawn nor hit-tested, for a host that scrolls
+    //  the view with another bar; its strip stays reserved. Off by
+    //  default.
+    void   SetVerticalScrollbarHidden (bool hidden)  { m_vertBarHidden = hidden; }
+    int    GetLineHeightPx            () const       { return m_cellHeightPx; }
+    float  GetZoom                    () const               { return m_zoom; }
+    void   SetTextStrength            (float strength)       { m_textStrength = strength; }
 
     int   GetLineCount () const { return (int) m_lines.size(); }
     int   GetLineCap   () const;
@@ -203,7 +209,7 @@ private:
     int           GetTextColumns         (bool scrollbar) const;
     int           GetContentColumns      () const;
     float         GetTextLeft            () const;
-    bool          IsOverVertScrollbar    (POINT pt) const { return IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y); }
+    bool          IsOverVertScrollbar    (POINT pt) const { return IsScrollbarVisible() && !m_vertBarHidden && m_vertScroll.HitTest (pt.x, pt.y); }
     bool          IsOverHorzScrollbar    (POINT pt) const { return m_horzVisible && m_horzScroll.HitTest (pt.x, pt.y); }
     int           GetCellStart           (const Row & row, int cell) const;
     int           GetCellBase            (const Row & row, int cell) const;
@@ -281,5 +287,6 @@ private:
     ContextMenuFn      m_onContextMenu;
     DxuiDpiScaler      m_scaler;
     DxuiScrollbar      m_vertScroll;
+    bool               m_vertBarHidden = false;
     DxuiScrollbar      m_horzScroll;
 };

@@ -21,6 +21,8 @@ static constexpr int  s_kFileNameMax   = 15;
 static constexpr int  s_kMinBlocks     = 6;
 static constexpr int  s_kBadKind       = 1;
 static constexpr int  s_kBlockBytes    = 512;
+static constexpr int  s_kNameFirst     = 0x21;
+static constexpr int  s_kNameLast      = 0x7E;
 
 
 
@@ -99,9 +101,7 @@ void PascalMapReader::Read (const SectorSource & source, FileMap & outMap)
     {
         outMap.isCatalogComplete = false;
         outMap.unreadableCell    = badBlock;
-        writer.AddFinding (FindingKind::FileChainBroken, badBlock, L"The directory cannot be read past " + writer.DescribeCell (badBlock) + L", " +
-                                                                   FileMapWriter::DescribeReason (writer.GetResult (badBlock) == SectorResult::Missing
-                                                                                                  ? ChainReason::MissingSector : ChainReason::BadSector));
+        writer.AddFinding (FindingKind::FileChainBroken, badBlock, L"The directory can't be read: " + writer.DescribeUnreadable (badBlock));
     }
 
     total             = GetWord (&directory[s_kTotalBlocks]);
@@ -130,16 +130,17 @@ void PascalMapReader::Read (const SectorSource & source, FileMap & outMap)
         file.recordedSize = (next > first) ? static_cast<uint64_t> (next - first - 1) * s_kBlockBytes + GetWord (entry + s_kLastBytes) : 0;
         index             = writer.AddFile (std::move (file));
 
+        CheckEntry (writer, entry, outMap.files[index].path, kind, first);
+
         if (first < previous)
         {
-            writer.AddFinding (FindingKind::PascalEntryOutOfOrder, first, outMap.files[index].path + L" starts at " + writer.DescribeCell (first) +
-                                                                          L", before the entry ahead of it ends");
+            writer.AddFinding (FindingKind::PascalEntryOutOfOrder, first, std::format (L"{} starts at block {}, inside the file before it, which ends at block {}", outMap.files[index].path, first, previous - 1));
         }
 
         if (next <= first || next > total)
         {
-            writer.AddFinding (FindingKind::PascalEntryOutOfRange, first, std::format (L"{} runs from block {} to block {}, which does not fit in the volume of {} blocks",
-                                                                                       outMap.files[index].path, first, next, total));
+            writer.AddFinding (FindingKind::PascalEntryOutOfRange, first, std::format (L"{}: blocks {} to {} don't fit in the {}-block volume",
+                                                                                       outMap.files[index].path, first, next - 1, total));
             continue;
         }
 
@@ -153,11 +154,71 @@ void PascalMapReader::Read (const SectorSource & source, FileMap & outMap)
 
     if (entries != GetWord (&directory[s_kFileCount]))
     {
-        writer.AddFinding (FindingKind::PascalFileCountDiffers, kFirstDirectoryBlock, std::format (L"The directory gives {} files but has {} entries",
+        writer.AddFinding (FindingKind::PascalFileCountDiffers, kFirstDirectoryBlock, std::format (L"Expected a directory file count of {1}, but found {0}",
                                                                                                    GetWord (&directory[s_kFileCount]), entries));
+        writer.AddCount ({ kFirstDirectoryBlock, s_kFileCount, GetWord (&directory[s_kFileCount]), entries, L"the directory's file count" });
     }
 
     writer.Finalize();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PascalMapReader::CheckEntry
+//
+//  A last block's byte count of 1 to 512, and a name the Filer accepts:
+//  printable, with no space, $, =, ?, comma or colon. A .BAD file's count
+//  isn't checked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PascalMapReader::CheckEntry (FileMapWriter & writer, const Byte * entry, const std::wstring & path, int kind, int first)
+{
+    int  lastBytes = GetWord (entry + s_kLastBytes);
+
+
+
+    if (kind != s_kBadKind && (lastBytes < 1 || lastBytes > s_kBlockBytes))
+    {
+        writer.AddFinding (FindingKind::PascalLastBytesInvalid, first, std::format (L"{}: the last block's byte count {} is outside 1 to 512", path, lastBytes));
+    }
+
+    if (!IsValidName (entry + s_kName, entry[s_kNameLength]))
+    {
+        writer.AddFinding (FindingKind::PascalNameInvalid, first, path + L": the file name isn't a valid Apple Pascal name");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PascalMapReader::IsValidName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PascalMapReader::IsValidName (const Byte * name, int length)
+{
+    static constexpr std::wstring_view  kNotAllowed = L"$=?,:";
+
+
+
+    bool  isValid = true;
+
+
+
+    for (int i = 0; isValid && i < length; i++)
+    {
+        isValid = name[i] >= s_kNameFirst && name[i] <= s_kNameLast && kNotAllowed.find (static_cast<wchar_t> (name[i])) == std::wstring_view::npos;
+    }
+
+    return isValid;
 }
 
 

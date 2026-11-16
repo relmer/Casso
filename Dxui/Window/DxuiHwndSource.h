@@ -417,6 +417,11 @@ public:
     void  SetCaptionIcon     (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
     int   GetCaptionHeightPx () const;
 
+    //  The width in pixels of the resize band along each edge of the client
+    //  area. Lay a scrollbar out past it. 0 for a window that isn't resizable
+    //  or is maximized.
+    int   GetResizeBorderPx  () const;
+
     // Hides the host-owned caption strip outright (fullscreen
     // presentations): it stops painting, reserves no height, and routes no
     // NC mouse. No-op on a window without a host caption; the consumer's
@@ -691,8 +696,12 @@ public:
     //  unit tests can assert the final NC return without instantiating
     //  the full WndProc dispatch.
     //
-    static LRESULT  KindToHt       (DxuiHitTestKind kind);
-    HRESULT         ShowSystemMenu (POINT ptScreen);
+    static LRESULT  KindToHt            (DxuiHitTestKind kind);
+    HRESULT         ShowSystemMenu      (POINT ptScreen);
+    bool            IsSystemMenuDropped () const;
+    POINT           GetSystemMenuPoint  () const;
+    HMENU           GetWindowSystemMenu () const;
+    static HMENU    DropSystemMenuStyle (HWND hwnd);
 
     //
     //  Whether an NC mouse message may be claimed by a caption system
@@ -781,6 +790,7 @@ private:
     bool  IsClaimed             (DxuiMessageResult clientResult, RepaintOnClaim repaint);
 
     LRESULT      HandleNcCalcSize            (WPARAM wp, LPARAM lp);
+    int          GetMaximizedFramePx         () const;
     LRESULT      HandleNcHitTest             (LPARAM lp);
     LRESULT      HandleNcMouse               (UINT msg, WPARAM wp, LPARAM lp);
     void         UpdateCaptionTip            (UINT msg, WPARAM wp, LPARAM lp);
@@ -801,6 +811,8 @@ private:
     bool         RouteCaptionNcMouse         (UINT msg, WPARAM wp, LPARAM lp);
 
     DxuiHitTestKind    ClassifyHitInternal          (POINT clientDip, RECT clientBoundsDip) const;
+    bool               HasResizeBand                () const;
+    int                GetResizeBorderDip           () const;
     IDxuiControl     * FindNcSystemControlAt        (POINT clientDip) const;
     void               NotifySystemButtonsMaximized (bool maximized);
     void               InitializePooledPopup        (DxuiPopupHost * popup);
@@ -808,6 +820,10 @@ private:
     static DxuiHitTestKind  ClassifyResizeEdge (POINT clientDip,
                                                 RECT  clientBoundsDip,
                                                 int   resizeBorderPx);
+
+    //  The point's distance in DIPs from the edge a straight resize edge
+    //  kind is for, or -1 for a corner or no edge.
+    static int  GetEdgeDistance (DxuiHitTestKind kind, POINT clientDip, RECT clientBoundsDip);
 
     static void            NotifySystemButtonsMaximizedInTree (IDxuiControl * control, bool maximized);
     static IDxuiControl *  FindNcSystemControlInTree          (IDxuiControl * control, POINT clientDip);
@@ -870,6 +886,7 @@ private:
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;
     std::unique_ptr<DxuiPopupMenu>    m_contextMenu;
+    HMENU                             m_systemMenu         = nullptr;   // taken before the system menu style is dropped
 
     bool  m_ownsHwnd                = false;
     bool  m_ownsPaintPump           = false;

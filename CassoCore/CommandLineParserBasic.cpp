@@ -115,6 +115,14 @@ void CommandLineParser::ParseBasicOptions (
         problem = "Error: required parameter <command> missing\n";
     }
 
+    if (command == nullptr)
+    {
+        Refusal (options) << problem;
+
+        options.parseVerdict = CommandLineOptions::ParseVerdict::Refused;
+        return;
+    }
+
     for ( ; i < argc && problem.empty(); i++)
     {
         std::string  arg      = GetCanonicalLongFlag (argv[i], std::span<const char * const> (s_kpszBasicOptions));

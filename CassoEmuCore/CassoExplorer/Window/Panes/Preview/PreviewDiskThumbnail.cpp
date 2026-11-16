@@ -9,6 +9,13 @@
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
 #include "Core/AppMessages.h"
+#include "Core/TextEncoding.h"
+#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
+#include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "CassoExplorer/Window/Panes/Preview/PreviewListingView.h"
+#include "Devices/Disk/Inspector/FindingFormatter.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
+
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 
@@ -20,6 +27,7 @@ static constexpr float     s_kChipPadDip  = 8.0f;
 static constexpr float     s_kChipGapDip  = 6.0f;
 static constexpr float     s_kChipHighDip = 22.0f;
 static constexpr float     s_kChipTextDip = 12.0f;
+static constexpr float     s_kHotRingDip  = 2.0f;
 static constexpr LPCWSTR   s_kpszWaiting  = L"Analyzing";
 static constexpr LPCWSTR   s_kpszNote35   = L"Casso does not analyze 3.5\" disks";
 
@@ -47,7 +55,9 @@ ThumbnailPlatterView::ThumbnailPlatterView (InspectorViewContext & context, cons
 //
 //  ThumbnailPlatterView::Paint
 //
-//  The palette follows a theme change in Explorer (FR-078).
+//  The palette follows a theme change in Explorer (FR-078). While the
+//  pointer is on it, a ring in the accent is drawn around it, since a click
+//  opens it in the inspector.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,6 +69,16 @@ void ThumbnailPlatterView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
     }
 
     PlatterView::Paint (painter, text, theme);
+
+    if (m_isHot)
+    {
+        RECT     bounds = GetBounds();
+        float    stroke = m_scaler.ToPxf (s_kHotRingDip);
+        float    radius = static_cast<float> ((std::min) (bounds.right - bounds.left, bounds.bottom - bounds.top)) / 2.0f - stroke;
+        HRESULT  hr     = text.DrawEllipse ((bounds.left + bounds.right) / 2.0f, (bounds.top + bounds.bottom) / 2.0f, radius, radius, stroke, theme.Accent());
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }
 
 
@@ -112,6 +132,183 @@ void ThumbnailChips::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                          DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         x += w + 2 * pad + gap;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::FormatVerdict
+//
+//  "File system damaged." or "Possible inconsistencies found.", the finding
+//  as a sentence on the next line, and after a blank line, the pointer to
+//  Inspect...; nothing for OK or a disk with no standard file system.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PreviewDiskThumbnail::FormatVerdict (FileSystemVerdict verdict, const std::wstring & finding)
+{
+    std::wstring  text;
+    std::wstring  sentence = finding;
+
+
+
+    if (!sentence.empty())
+    {
+        sentence[0] = static_cast<wchar_t> (towupper (sentence[0]));
+    }
+
+    if (!sentence.empty() && !sentence.ends_with (L'.'))
+    {
+        sentence += L".";
+    }
+
+    if (verdict == FileSystemVerdict::Bad)
+    {
+        text = L"File system damaged." + (sentence.empty() ? std::wstring() : L"\n" + sentence);
+    }
+    else if (verdict == FileSystemVerdict::Suspect)
+    {
+        text = L"Possible inconsistencies found." + (sentence.empty() ? std::wstring() : L"\n" + sentence);
+    }
+
+    if (!text.empty())
+    {
+        text += L"\n\nInspect for more details.";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailScrollbar::ThumbnailScrollbar
+//
+//  A move of the bar is passed on as its position.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ThumbnailScrollbar::ThumbnailScrollbar()
+{
+    m_bar.SetOnScroll ([this] (int, int pos)
+    {
+        if (m_onScroll)
+        {
+            m_onScroll (pos);
+        }
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailScrollbar::Layout
+//
+//  The bar fills the bounds; an arrow click moves it a catalog row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ThumbnailScrollbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    int  width = scaler.ToPx (kWidthDip);
+
+
+
+    SetBounds (boundsDip);
+    m_scaler = scaler;
+
+    m_bar.Configure (DxuiScrollbar::Orientation::Vertical, width, width, scaler.ToPx (PreviewListingView::kRowHeightDip));
+    m_bar.SetTrack  (boundsDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailScrollbar::Paint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ThumbnailScrollbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    (void) text;
+
+    if (m_onSync)
+    {
+        m_onSync();
+    }
+
+    m_bar.Paint (painter, theme.ForegroundMuted());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailScrollbar::OnMouse
+//
+//  A press on the bar, a drag of its thumb and the release.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ThumbnailScrollbar::OnMouse (const DxuiMouseEvent & ev)
+{
+    bool  isHandled = false;
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && m_bar.HitTest (ev.positionDip.x, ev.positionDip.y))
+    {
+        isHandled = m_bar.OnMouseDown (ev.positionDip.x, ev.positionDip.y);
+    }
+    else if (ev.kind == DxuiMouseEventKind::Move && m_bar.IsDragging())
+    {
+        isHandled = m_bar.OnMouseMove (ev.positionDip.x, ev.positionDip.y);
+    }
+    else if (ev.kind == DxuiMouseEventKind::Up && m_bar.IsDragging())
+    {
+        isHandled = m_bar.OnMouseUp();
+    }
+
+    return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailScrollbar::SetRange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ThumbnailScrollbar::SetRange (int rangePx, int pagePx, int posPx)
+{
+    DxuiScrollInfo  info;
+
+
+
+    info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    info.nMin  = 0;
+    info.nMax  = (std::max) (0, rangePx + pagePx - 1);
+    info.nPage = static_cast<UINT> ((std::max) (1, pagePx));
+    info.nPos  = std::clamp (posPx, 0, (std::max) (0, rangePx));
+
+    m_bar.SetScrollInfo (info);
 }
 
 
@@ -174,19 +371,22 @@ PreviewDiskThumbnail::PreviewDiskThumbnail (ExplorerContext & context) :
 
 void PreviewDiskThumbnail::Create()
 {
-    m_platter = m_context.window.CreateChild<ThumbnailPlatterView> (m_view, m_context.theme);
-    m_chips   = m_context.window.CreateChild<ThumbnailChips> (m_view.palette);
-    m_screen  = m_context.window.CreateChild<ThumbnailScreen>();
-    m_bootLine = m_context.window.CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    m_header    = m_context.window.CreateChild<DxuiScrollPanel>();
+    m_scrollbar = m_context.window.CreateChild<ThumbnailScrollbar>();
+    m_platter  = m_header->CreateChild<ThumbnailPlatterView> (m_view, m_context.theme);
+    m_chips    = m_header->CreateChild<ThumbnailChips> (m_view.palette);
+    m_screen   = m_header->CreateChild<ThumbnailScreen>();
+    m_bootLine = m_header->CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    m_verdict  = m_header->CreateChild<DxuiInfoBanner>();
+    m_inspect  = m_header->CreateChild<DxuiButton> (L"Inspect...");
 
-    m_context.window.SetMouseHandler (m_platter, [this] (const DxuiMouseEvent & ev) { return HandlePlatterMouse (ev); });
-    m_context.window.SetMouseHandler (m_screen,  [this] (const DxuiMouseEvent & ev) { return HandleScreenMouse (ev); });
+    m_header->SetScrollbarShown (false);
+    m_inspect->SetOnClick       ([this] () { m_context.commandManager.InspectDiskImages ({ m_path }); });
+
+    m_context.window.SetMouseHandler (m_header, [this] (const DxuiMouseEvent & ev) { return HandleHeaderMouse (ev); });
 
     m_platter->SetSelectionShown (false);
-    m_platter->SetVisible (false);
-    m_chips->SetVisible   (false);
-    m_screen->SetVisible  (false);
-    m_bootLine->SetVisible  (false);
+    Hide();
 }
 
 
@@ -200,6 +400,11 @@ void PreviewDiskThumbnail::Create()
 //  Another file starts over with "Analyzing"; an empty path is no
 //  thumbnail.
 //
+//  The infobar's space stays, empty, while the next image is read after one
+//  that had an infobar, so the catalog under it doesn't jump down when the
+//  next one's infobar arrives. Its text stays in the hidden infobar to
+//  measure the space.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void PreviewDiskThumbnail::SetPath (const std::wstring & path)
@@ -209,11 +414,14 @@ void PreviewDiskThumbnail::SetPath (const std::wstring & path)
         return;
     }
 
+    m_isVerdictReserved = !path.empty() && (HasVerdict() || m_isVerdictReserved);
+
     m_path         = path;
     m_state        = State::Analyzing;
     m_result       = DiskThumbnailResult();
     m_view.hasDisk = false;
     m_view.analysis = nullptr;
+    m_isVerdictShown = false;
     m_chips->SetLine (s_kpszWaiting);
 
     if (path.empty())
@@ -293,11 +501,15 @@ void PreviewDiskThumbnail::TakeResult()
 
 void PreviewDiskThumbnail::ApplyResult()
 {
-    const DiskCopy  * copy = (m_result.analysis != nullptr) ? m_result.analysis->copy.get() : nullptr;
-    int               qt   = 0;
-    int               slot = 0;
+    const DiskCopy  * copy    = (m_result.analysis != nullptr) ? m_result.analysis->copy.get() : nullptr;
+    const Finding   * finding = nullptr;
+    int               qt      = 0;
+    int               slot    = 0;
+    std::wstring      text;
 
 
+
+    m_isVerdictReserved = false;
 
     if (!m_result.isOpened || copy == nullptr)
     {
@@ -338,6 +550,13 @@ void PreviewDiskThumbnail::ApplyResult()
 
     m_chips->SetChips (m_result.chips);
     m_platter->SetVisible (m_chips->IsVisible());
+
+    finding          = FileSystemCheck::GetVerdictFinding (*m_result.analysis);
+    text             = FormatVerdict (m_result.analysis->verdict, finding != nullptr ? FindingFormatter::Format (*finding) : std::wstring());
+    m_isVerdictShown = !text.empty();
+
+    m_verdict->SetText     (text);
+    m_verdict->SetSeverity ((m_result.analysis->verdict == FileSystemVerdict::Bad) ? DxuiInfoBanner::Severity::Error : DxuiInfoBanner::Severity::Info);
 }
 
 
@@ -399,7 +618,13 @@ int PreviewDiskThumbnail::GetHeightPx (int widthPx) const
         height += 2 * rows + gap + (IsBeside (widthPx) ? 0 : scaler.ToPx (kScreenDip) * 3 / 4 + gap);
     }
 
-    return height;
+    //  Inspect...'s row under the platter, where there's no room beside it.
+    if (!IsInspectBeside (widthPx))
+    {
+        height += scaler.ToPx (kInspectHighDip) + gap;
+    }
+
+    return height + GetVerdictHeightPx (widthPx);
 }
 
 
@@ -416,7 +641,7 @@ int PreviewDiskThumbnail::GetHeightPx (int widthPx) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PreviewDiskThumbnail::Layout (const RECT & area)
+int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx, int rightPx)
 {
     const DxuiDpiScaler  & scaler    = m_context.scaler;
     int                    platter   = scaler.ToPx (kPlatterDip);
@@ -431,43 +656,78 @@ void PreviewDiskThumbnail::Layout (const RECT & area)
     int                    left      = area.left + (std::max) (0, (width - group) / 2);
     int                    top       = area.top + gap;
     int                    chipsTop  = area.top + gap;
+    int                    shown     = 0;
+    int                    inspectW  = GetInspectWidthPx();
+    int                    inspectH  = scaler.ToPx (kInspectHighDip);
 
 
 
     if (!IsShown())
     {
         Hide();
-        return;
+        return area.top;
+    }
+
+    if (HasVerdict() || m_isVerdictReserved)
+    {
+        PlaceVerdict (area, top, GetVerdictHeightPx (width) - gap);
+        top     += GetVerdictHeightPx (width);
+        chipsTop = top;
     }
 
     if (hasScreen && isBeside)
     {
-        m_screen->Layout (RECT { left, top + (platter - screenH) / 2, left + screenW, top + (platter - screenH) / 2 + screenH }, scaler);
+        m_header->PlaceChild (*m_screen, RECT { left, top + (platter - screenH) / 2, left + screenW, top + (platter - screenH) / 2 + screenH });
         left += screenW + gap;
     }
     else if (hasScreen)
     {
-        m_screen->Layout (RECT { area.left + (width - screenW) / 2, top, area.left + (width - screenW) / 2 + screenW, top + screenH }, scaler);
+        m_header->PlaceChild (*m_screen, RECT { area.left + (width - screenW) / 2, top, area.left + (width - screenW) / 2 + screenW, top + screenH });
         top += screenH + gap;
     }
 
     if (m_state != State::Note35)
     {
-        m_platter->Layout (RECT { left, top, left + platter, top + platter }, scaler);
+        m_header->PlaceChild (*m_platter, RECT { left, top, left + platter, top + platter });
         chipsTop = top + platter + gap;
+
+        //  Inspect... at the platter area's bottom right, or under the
+        //  platter at the right where it would overlap it.
+        if (IsInspectBeside (width))
+        {
+            m_header->PlaceChild (*m_inspect, RECT { area.right - gap - inspectW, top + platter - inspectH, area.right - gap, top + platter });
+        }
+        else
+        {
+            m_header->PlaceChild (*m_inspect, RECT { area.right - gap - inspectW, chipsTop, area.right - gap, chipsTop + inspectH });
+            chipsTop += inspectH + gap;
+        }
     }
 
     if (hasScreen)
     {
-        m_bootLine->Layout (RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows }, scaler);
+        m_header->PlaceChild (*m_bootLine, RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows });
         chipsTop += 2 * rows + gap;
     }
 
-    m_chips->Layout (RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows }, scaler);
+    m_header->PlaceChild (*m_chips, RECT { area.left + gap, chipsTop, area.right - gap, chipsTop + 2 * rows });
+
+    m_header->SetVisible  (true);
     m_chips->SetVisible   (true);
     m_platter->SetVisible (m_state == State::Ready);
+    m_inspect->SetVisible (m_state == State::Ready);
     m_screen->SetVisible  (hasScreen);
     m_bootLine->SetVisible  (hasScreen);
+    m_verdict->SetVisible (HasVerdict());
+
+    //  Laid out whole to measure it, then in the part not scrolled away.
+    m_header->Layout (area, scaler);
+    shown = std::clamp ((std::min) (static_cast<int> (area.bottom - area.top), m_header->GetContentHeightPx()) - scrollPx, 0, (std::max) (0, bottomPx - static_cast<int> (area.top)));
+
+    m_header->Layout         (RECT { area.left, area.top, (std::min) (static_cast<int> (area.right), rightPx), area.top + shown }, scaler);
+    m_header->SetScrollPosPx (scrollPx);
+
+    return area.top + shown;
 }
 
 
@@ -482,10 +742,14 @@ void PreviewDiskThumbnail::Layout (const RECT & area)
 
 void PreviewDiskThumbnail::Hide()
 {
+    m_header->SetVisible  (false);
+    m_inspect->SetVisible (false);
+    m_scrollbar->SetVisible (false);
     m_platter->SetVisible (false);
     m_chips->SetVisible   (false);
     m_screen->SetVisible  (false);
     m_bootLine->SetVisible  (false);
+    m_verdict->SetVisible   (false);
 }
 
 
@@ -513,6 +777,93 @@ bool PreviewDiskThumbnail::IsOverPlatter (POINT pointPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewDiskThumbnail::HandleHeaderMouse
+//
+//  The platter's and the picture's clicks, then the infobar's action. The
+//  wheel is the pane's, so the header doesn't scroll by itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::HandleHeaderMouse (const DxuiMouseEvent & ev)
+{
+    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
+    {
+        m_platter->SetHot (ev.kind == DxuiMouseEventKind::Move && IsOverPlatter (ev.positionDip));
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Wheel)
+    {
+        return true;
+    }
+
+    return HandlePlatterMouse (ev) || HandleScreenMouse (ev) || m_header->OnMouse (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::GetInspectWidthPx
+//
+//  Inspect...'s text, measured where the window has a text renderer, and a
+//  button's padding either side.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewDiskThumbnail::GetInspectWidthPx() const
+{
+    static constexpr float  kFontDip = 13.0f;
+    static constexpr int    kRoomDip = 32;
+
+
+
+    IDxuiTextRenderer  * text  = m_context.window.GetTextRenderer();
+    float                width = 0.0f;
+    float                high  = 0.0f;
+
+
+
+    if (text != nullptr)
+    {
+        text->MeasureString (L"Inspect...", m_context.scaler.ToPxf (kFontDip), DxuiTheme::GetUiFace(), width, high);
+    }
+
+    return (width > 0.0f) ? static_cast<int> (std::ceil (width)) + m_context.scaler.ToPx (kRoomDip) : m_context.scaler.ToPx (kInspectWideDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::IsInspectBeside
+//
+//  Whether Inspect... fits at the platter area's right without overlapping
+//  the platter, which is centered, or with the screen's picture beside it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewDiskThumbnail::IsInspectBeside (int widthPx) const
+{
+    const DxuiDpiScaler  & scaler  = m_context.scaler;
+    int                    gap     = scaler.ToPx (kGapDip);
+    int                    platter = scaler.ToPx (kPlatterDip);
+    int                    group   = platter + ((HasScreen() && IsBeside (widthPx)) ? scaler.ToPx (kScreenDip) + gap : 0);
+
+
+
+    return (widthPx - group) / 2 >= GetInspectWidthPx() + 2 * gap;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewDiskThumbnail::HandlePlatterMouse
 //
 //  A click on the small platter opens the inspector.
@@ -532,6 +883,103 @@ bool PreviewDiskThumbnail::HandlePlatterMouse (const DxuiMouseEvent & ev)
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::GetVerdictHeightPx
+//
+//  The infobar as tall as its text wrapped to the pane's width, measured
+//  where the window has a text renderer, and a gap; nothing for none. The
+//  last image's, hidden, while its space is reserved for the next image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewDiskThumbnail::GetVerdictHeightPx (int widthPx) const
+{
+    const DxuiDpiScaler  & scaler = m_context.scaler;
+    IDxuiTextRenderer    * text   = m_context.window.GetTextRenderer();
+    int                    gap    = scaler.ToPx (kGapDip);
+    float                  width  = static_cast<float> ((std::max) (0, widthPx - 2 * gap));
+    float                  height = 0.0f;
+
+
+
+    if (!HasVerdict() && !m_isVerdictReserved)
+    {
+        return 0;
+    }
+
+    height = (text != nullptr) ? m_verdict->GetMeasuredHeightPx (*text, width, scaler) : m_verdict->GetPreferredHeightPx (width, scaler);
+
+    return static_cast<int> (std::ceil (height)) + gap;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::PlaceVerdict
+//
+//  The infobar across the area's top.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::PlaceVerdict (const RECT & area, int top, int height)
+{
+    int  gap = m_context.scaler.ToPx (kGapDip);
+
+
+
+    m_header->PlaceChild (*m_verdict, RECT { area.left + gap, top, area.right - gap, top + height });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDiskThumbnail::GetFileSystemText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PreviewDiskThumbnail::GetFileSystemText() const
+{
+    std::wstring  text;
+
+
+
+    if (m_state != State::Ready || m_result.analysis == nullptr || m_result.analysis->verdict == FileSystemVerdict::None || m_result.analysis->fileMaps.size() != 1)
+    {
+        return text;
+    }
+
+    switch (m_result.analysis->fileMaps[0].fileSystem)
+    {
+        case MapFileSystem::Dos33:  text = L"DOS 3.3";      break;
+        case MapFileSystem::ProDos: text = L"ProDOS";       break;
+        case MapFileSystem::Pascal: text = L"Apple Pascal"; break;
+        case MapFileSystem::Cpm:    text = L"CP/M";         break;
+        default:                                            break;
+    }
+
+    if (!text.empty() && m_result.analysis->verdict == FileSystemVerdict::Bad)
+    {
+        text += L", damaged";
+    }
+    else if (!text.empty() && m_result.analysis->verdict == FileSystemVerdict::Suspect)
+    {
+        text += L", possible inconsistencies";
+    }
+
+    return text;
 }
 
 

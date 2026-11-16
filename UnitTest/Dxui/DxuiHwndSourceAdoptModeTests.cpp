@@ -152,6 +152,148 @@ public:
 
 
     //
+    //  The last pixel of a window's right and bottom edges resizes at 125%,
+    //  where its DIP coordinate rounded to the nearest is the client's edge.
+    //
+
+    TEST_METHOD (HandleMessage_NcHitTest_TheLastPixelResizesAt125Percent)
+    {
+        std::unique_ptr<DxuiHwndSource>  host;
+        HWND                             hwnd      = CreateWindowExW (0, L"STATIC", L"", WS_POPUP, 0, 0, 1518, 1078, nullptr, nullptr, nullptr, nullptr);
+        HRESULT                          hr        = S_OK;
+        LRESULT                          outResult = 0;
+        POINT                            right     = { 1517, 500 };
+        POINT                            bottom    = { 500, 1077 };
+
+
+
+        Assert::IsNotNull (hwnd);
+
+        hr = DxuiHwndSource::CreateInAdoptMode (hwnd, MakeAdoptParams(), host);
+        Assert::AreEqual (S_OK, hr);
+
+        host->SetDpiForTest (120);
+
+        ClientToScreen (hwnd, &right);
+        ClientToScreen (hwnd, &bottom);
+
+        (void) host->HandleMessage (WM_NCHITTEST, 0, MAKELPARAM (right.x, right.y), outResult);
+        Assert::AreEqual ((LRESULT) HTRIGHT, outResult);
+
+        (void) host->HandleMessage (WM_NCHITTEST, 0, MAKELPARAM (bottom.x, bottom.y), outResult);
+        Assert::AreEqual ((LRESULT) HTBOTTOM, outResult);
+
+        host.reset();
+        DestroyWindow (hwnd);
+    }
+
+
+
+    //
+    //  A borderless window drawn over a backdrop is created without the
+    //  system menu style, so Windows doesn't draw caption buttons under its
+    //  see-through caption, and the host opens the system menu. A window
+    //  drawn opaque, or a composited one, is created with the style.
+    //
+
+    TEST_METHOD (IsSystemMenuDropped_OnlyForABorderlessWindowOverABackdrop)
+    {
+        struct Case { bool overBackdrop; bool composited; bool borderless; bool dropped; };
+
+        for (const Case & c : { Case { true, false, true, true }, Case { false, false, true, false }, Case { true, true, true, false }, Case { true, false, false, false } })
+        {
+            std::unique_ptr<DxuiHwndSource>  host;
+            DxuiHwndSource::CreateParams     cp = MakeAdoptParams();
+
+            cp.drawOverBackdrop = c.overBackdrop;
+            cp.composited       = c.composited;
+            cp.borderless       = c.borderless;
+
+            Assert::AreEqual (S_OK, DxuiHwndSource::CreateInAdoptMode (nullptr, cp, host));
+            Assert::AreEqual (c.dropped, host->IsSystemMenuDropped(),
+                              std::format (L"over a backdrop {}, composited {}, borderless {}", c.overBackdrop, c.composited, c.borderless).c_str());
+        }
+    }
+
+
+
+    //
+    //  GetSystemMenu returns null for a window created without the system
+    //  menu style, so the window is created with it and the menu is taken
+    //  before the style is dropped. It's a menu after the style is gone, with
+    //  Close on it.
+    //
+
+    TEST_METHOD (DropSystemMenuStyle_ReturnsTheMenuTakenBeforeTheStyleIsGone)
+    {
+        HWND   hwnd    = CreateWindowExW (0, L"STATIC", L"", WS_OVERLAPPEDWINDOW, 0, 0, 800, 600, nullptr, nullptr, nullptr, nullptr);
+        HWND   without = CreateWindowExW (0, L"STATIC", L"", WS_OVERLAPPEDWINDOW & ~WS_SYSMENU, 0, 0, 800, 600, nullptr, nullptr, nullptr, nullptr);
+        HMENU  menu    = nullptr;
+
+
+
+        Assert::IsNotNull (hwnd);
+        Assert::IsNotNull (without);
+        Assert::IsNull    (GetSystemMenu (without, FALSE), L"null for a window created without the style");
+
+        menu = DxuiHwndSource::DropSystemMenuStyle (hwnd);
+
+        Assert::IsNotNull   (menu, L"the menu");
+        Assert::IsTrue      ((GetWindowLongPtrW (hwnd, GWL_STYLE) & WS_SYSMENU) == 0, L"the style is gone");
+        Assert::IsTrue      (IsMenu (menu) != FALSE, L"the menu taken first is a menu");
+        Assert::AreNotEqual (-1, (int) GetMenuState (menu, SC_CLOSE, MF_BYCOMMAND), L"with Close on it");
+
+        DestroyWindow (without);
+        DestroyWindow (hwnd);
+    }
+
+
+
+    //
+    //  A maximized window's client area is inset from the top by the same
+    //  frame Windows insets it by at the sides, so the caption is on the
+    //  screen. A restored window's client area starts at the window's top.
+    //
+
+    TEST_METHOD (HandleMessage_NcCalcSize_AMaximizedWindowsTopIsInsetLikeItsSides)
+    {
+        for (bool maximized : { false, true })
+        {
+            std::unique_ptr<DxuiHwndSource>  host;
+            HWND                             hwnd   = CreateWindowExW (0, L"STATIC", L"", WS_OVERLAPPEDWINDOW, 0, 0, 800, 600, nullptr, nullptr, nullptr, nullptr);
+            NCCALCSIZE_PARAMS                params = {};
+            WINDOWPOS                        pos    = {};
+            LRESULT                          result = 0;
+            RECT                             window = { 100, 50, 900, 650 };
+
+            Assert::IsNotNull (hwnd);
+
+            if (maximized)
+            {
+                SetWindowLongPtrW (hwnd, GWL_STYLE, GetWindowLongPtrW (hwnd, GWL_STYLE) | WS_MAXIMIZE);
+            }
+
+            Assert::AreEqual (S_OK, DxuiHwndSource::CreateInAdoptMode (hwnd, MakeAdoptParams(), host));
+
+            params.rgrc[0] = window;
+            params.rgrc[1] = window;
+            params.rgrc[2] = window;
+            params.lppos   = &pos;
+
+            (void) host->HandleMessage (WM_NCCALCSIZE, TRUE, reinterpret_cast<LPARAM> (&params), result);
+
+            Assert::AreEqual (maximized ? params.rgrc[0].left - window.left : 0L, params.rgrc[0].top - window.top,
+                              maximized ? L"maximized: inset at the top as at the left" : L"restored: the client starts at the window's top");
+            Assert::IsTrue   (!maximized || params.rgrc[0].top > window.top, L"a maximized window's frame is inset");
+
+            host.reset();
+            DestroyWindow (hwnd);
+        }
+    }
+
+
+
+    //
     //  WM_DPICHANGED propagates DPI to the host's scaler. Adopt mode
     //  does NOT claim the message (returns false) so the caller's
     //  WndProc keeps doing its own SetWindowPos + subclass DPI hooks.

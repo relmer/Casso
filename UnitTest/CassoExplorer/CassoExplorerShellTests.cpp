@@ -342,6 +342,18 @@ public:
     }
 
 
+    TEST_METHOD (MakeWindowClass_DiffersPerProfileFolder)
+    {
+        std::wstring  first  = CassoExplorerShell::MakeWindowClass (LR"(C:\Temp\ProfileA)");
+        std::wstring  second = CassoExplorerShell::MakeWindowClass (LR"(C:\Temp\ProfileB)");
+
+        Assert::AreEqual (std::wstring (CassoExplorerShell::kWindowClass), CassoExplorerShell::MakeWindowClass (L""));
+        Assert::IsTrue (first.starts_with (CassoExplorerShell::kTestCopyClass));
+        Assert::AreNotEqual (first, second);
+        Assert::AreEqual (first, CassoExplorerShell::MakeWindowClass (LR"(c:\temp\profilea)"));
+    }
+
+
     static double  ContrastRatio (uint32_t a, uint32_t b)
     {
         double  la = RelativeLuminance (a);

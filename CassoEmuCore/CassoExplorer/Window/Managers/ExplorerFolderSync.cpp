@@ -13,6 +13,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "Core/AppMessages.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/Model/HostFolderNames.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
@@ -298,7 +299,7 @@ void ExplorerFolderSync::CheckDrives()
 
     m_driveMask = mask;
 
-    m_context.browser.GetTreeModel().SetDrives (CassoExplorerShell::GetDriveRoots());
+    m_context.browser.GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
     m_context.browser.GetTreeModel().Invalidate (TreeModel::kThisPcRootId);
     m_context.treePane.ReloadChildren (TreeModel::kThisPcRootId);
     ReloadKnownFolders();

@@ -22,11 +22,12 @@ static constexpr LPCWSTR  s_kpszChanged = L", changed since the file was read";
 
 enum FindingColumn
 {
+    kFindingSeverity,
+    kFindingText,
     kFindingCategory,
     kFindingTrack,
     kFindingSector,
     kFindingCell,
-    kFindingText,
 };
 
 
@@ -41,7 +42,7 @@ enum FindingColumn
 
 vector<std::wstring> InspectorTables::GetFindingColumns()
 {
-    return { L"Category", L"Track", L"Sector", L"Cell", L"Finding" };
+    return { L"Severity", L"Finding", L"Category", L"Track", L"Sector", L"Cell" };
 }
 
 
@@ -180,8 +181,9 @@ vector<TableRow> InspectorTables::BuildSearchHits (const vector<SearchHit> & hit
 //
 //  InspectorTables::BuildFindings
 //
-//  In the disk's own order, quarter track then cell, unless a column sorts
-//  them; a finding whose category is not in the mask is left out.
+//  The most severe first and in the disk's order, quarter track then cell,
+//  within each severity, unless another column sorts them; a finding whose
+//  category is not in the mask is left out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,16 +207,27 @@ vector<TableRow> InspectorTables::BuildFindings (const DiskAnalysis & analysis, 
         row.quarterTrack = f.quarterTrack;
         row.field        = f.field;
         row.finding      = static_cast<int> (i);
-        row.cells        = { FindingFormatter::FormatCategory (f.category),
+        row.severity     = static_cast<int> (FindingFormatter::GetSeverity (f));
+        row.cells        = { FindingFormatter::FormatSeverity (FindingFormatter::GetSeverity (f)),
+                             FindingFormatter::Format (f),
+                             FindingFormatter::FormatCategory (f.category),
                              f.quarterTrack >= 0 ? InspectorFormat::FormatQuarterTrack (f.quarterTrack) : std::wstring (s_kpszNone),
                              f.sector >= 0       ? InspectorFormat::FormatSector (f.sector)             : std::wstring (s_kpszNone),
-                             f.hasCell           ? InspectorFormat::FormatCount (f.cell)                 : std::wstring (s_kpszNone),
-                             FindingFormatter::Format (f) };
+                             f.hasCell           ? InspectorFormat::FormatCount (f.cell)                 : std::wstring (s_kpszNone) };
 
         rows.push_back (std::move (row));
     }
 
-    if (sortColumn >= 0 && sortColumn <= kFindingText)
+    //  The most severe first, in disk order within each severity, and by
+    //  severity when that column sorts; another column sorts by its text.
+    if (sortColumn <= kFindingSeverity)
+    {
+        std::stable_sort (rows.begin(), rows.end(), [isDescending] (const TableRow & a, const TableRow & b)
+        {
+            return isDescending ? a.severity < b.severity : a.severity > b.severity;
+        });
+    }
+    else if (sortColumn <= kFindingCell)
     {
         std::stable_sort (rows.begin(), rows.end(), [sortColumn, isDescending] (const TableRow & a, const TableRow & b)
         {

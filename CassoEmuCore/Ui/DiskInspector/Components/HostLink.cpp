@@ -177,6 +177,10 @@ void HostLink::StartDisk (std::shared_ptr<const DiskCopy> copy, const std::wstri
 
     m_host.NotifyDiskStarting (change);
 
+    //  The finding an error selection was made from goes with the analysis,
+    //  so a repaired copy opened in its place isn't drawn in the error color.
+    m_session.context.ClearErrorSelection();
+
     m_session.context.hasDisk = (copy != nullptr);
     m_session.openError       = reason;
     m_session.changedSlots.clear();

@@ -188,6 +188,7 @@ void ExplorerLayout::RecomputeLayout()
     RECT            right       = {};
     RECT            sashRect    = {};
     int             rightDip    = 0;
+    int             edgePx      = 0;
     bool            preview     = m_context.preview.IsShown();
     bool            expanded    = m_context.preview.IsExpanded();
     PaneWidths      panes;
@@ -216,7 +217,14 @@ void ExplorerLayout::RecomputeLayout()
 
     body = m_bodyBand.GetBounds();
 
-    if (body.bottom <= body.top)
+    //  The panes stop short of the right edge's resize band, and of the
+    //  bottom's under an expanded preview, so a scrollbar beside the band is
+    //  clear of it.
+    edgePx       = m_context.window.GetPopupHost() != nullptr ? m_context.window.GetPopupHost()->GetResizeBorderPx() : 0;
+    body.right  -= edgePx;
+    body.bottom -= body.bottom >= m_client.bottom ? edgePx : 0;
+
+    if (body.bottom <= body.top || body.right <= body.left)
     {
         return;
     }
