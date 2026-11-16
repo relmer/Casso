@@ -3414,8 +3414,11 @@ LRESULT DxuiHwndSource::HandleNcHitTest (LPARAM lp)
 
     // Convert client-pixel point to client-DIP before running the
     // classifier — controls store bounds in DIPs.
-    ptClient.x = MulDiv (ptClient.x, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
-    ptClient.y = MulDiv (ptClient.y, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+    //
+    // The point rounds down, not to the nearest DIP. Rounded, the last pixel
+    // at 125% landed on the client's right edge, past the resize band.
+    ptClient.x = ptClient.x * (int) s_kDefaultDpi / (int) m_scaler.GetDpi();
+    ptClient.y = ptClient.y * (int) s_kDefaultDpi / (int) m_scaler.GetDpi();
     rcClient.right  = MulDiv (rcClient.right,  (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
     rcClient.bottom = MulDiv (rcClient.bottom, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
 
@@ -4214,6 +4217,53 @@ int DxuiHwndSource::GetCaptionHeightPx() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetResizeBorderPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetResizeBorderPx() const
+{
+    return HasResizeBand() ? MulDiv (GetResizeBorderDip(), (int) m_scaler.GetDpi(), (int) s_kDefaultDpi) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasResizeBand
+//
+//  A maximized window can't be resized, so its edges are content.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::HasResizeBand() const
+{
+    return m_params.resizable && (m_hwnd == nullptr || ::IsZoomed (m_hwnd) == FALSE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetResizeBorderDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetResizeBorderDip() const
+{
+    return (std::max) ((int) m_params.resizeBorderDip, s_kMinResizeBorderPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RenderCaption
 //
 //  Adopt-mode paint hook: the consumer calls this from its own paint
@@ -4613,25 +4663,20 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
     //  client pixels; only the resize bands and the caption here are measured
     //  in DIPs. Content controls are asked in pixels, which match DIPs only at
     //  96 DPI.
-    borderPx = (int) m_params.resizeBorderDip;
-
-    if (borderPx < s_kMinResizeBorderPx)
-    {
-        borderPx = s_kMinResizeBorderPx;
-    }
+    borderPx = GetResizeBorderDip();
 
     // Resize edges win outright.
-    if (m_params.resizable)
+    if (HasResizeBand())
     {
         kind    = ClassifyResizeEdge (clientDip, clientBoundsDip, borderPx);
         claimed = kind != DxuiHitTestKind::None;
         result  = claimed ? kind : result;
     }
 
-    //  A point over a scrollbar at the window's edge goes to the scrollbar in
-    //  the inner half of a straight resize edge's band, which would otherwise
-    //  cover most of the bar. The outer half and the corners resize, so the
-    //  edge can be grabbed beside a bar that runs the window's height.
+    //  Lay scrollbars out past the band (GetResizeBorderPx). Where a bar is
+    //  inside the band anyway, a point over it goes to the bar in the inner
+    //  half of a straight resize edge's band. The outer half and the corners
+    //  resize, so the edge can be grabbed beside the bar.
     if (claimed && GetEdgeDistance (kind, clientDip, clientBoundsDip) >= borderPx / 2)
     {
         n =(GetRootPanel() != nullptr) ? GetRootPanel()->GetChildCount() : 0;

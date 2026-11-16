@@ -417,6 +417,11 @@ public:
     void  SetCaptionIcon     (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
     int   GetCaptionHeightPx () const;
 
+    //  The width in pixels of the resize band along each edge of the client
+    //  area. Lay a scrollbar out past it. 0 for a window that isn't resizable
+    //  or is maximized.
+    int   GetResizeBorderPx  () const;
+
     // Hides the host-owned caption strip outright (fullscreen
     // presentations): it stops painting, reserves no height, and routes no
     // NC mouse. No-op on a window without a host caption; the consumer's
@@ -801,6 +806,8 @@ private:
     bool         RouteCaptionNcMouse         (UINT msg, WPARAM wp, LPARAM lp);
 
     DxuiHitTestKind    ClassifyHitInternal          (POINT clientDip, RECT clientBoundsDip) const;
+    bool               HasResizeBand                () const;
+    int                GetResizeBorderDip           () const;
     IDxuiControl     * FindNcSystemControlAt        (POINT clientDip) const;
     void               NotifySystemButtonsMaximized (bool maximized);
     void               InitializePooledPopup        (DxuiPopupHost * popup);

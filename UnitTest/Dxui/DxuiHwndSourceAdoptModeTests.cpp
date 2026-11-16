@@ -152,6 +152,44 @@ public:
 
 
     //
+    //  The last pixel of a window's right and bottom edges resizes at 125%,
+    //  where its DIP coordinate rounded to the nearest is the client's edge.
+    //
+
+    TEST_METHOD (HandleMessage_NcHitTest_TheLastPixelResizesAt125Percent)
+    {
+        std::unique_ptr<DxuiHwndSource>  host;
+        HWND                             hwnd      = CreateWindowExW (0, L"STATIC", L"", WS_POPUP, 0, 0, 1518, 1078, nullptr, nullptr, nullptr, nullptr);
+        HRESULT                          hr        = S_OK;
+        LRESULT                          outResult = 0;
+        POINT                            right     = { 1517, 500 };
+        POINT                            bottom    = { 500, 1077 };
+
+
+
+        Assert::IsNotNull (hwnd);
+
+        hr = DxuiHwndSource::CreateInAdoptMode (hwnd, MakeAdoptParams(), host);
+        Assert::AreEqual (S_OK, hr);
+
+        host->SetDpiForTest (120);
+
+        ClientToScreen (hwnd, &right);
+        ClientToScreen (hwnd, &bottom);
+
+        (void) host->HandleMessage (WM_NCHITTEST, 0, MAKELPARAM (right.x, right.y), outResult);
+        Assert::AreEqual ((LRESULT) HTRIGHT, outResult);
+
+        (void) host->HandleMessage (WM_NCHITTEST, 0, MAKELPARAM (bottom.x, bottom.y), outResult);
+        Assert::AreEqual ((LRESULT) HTBOTTOM, outResult);
+
+        host.reset();
+        DestroyWindow (hwnd);
+    }
+
+
+
+    //
     //  WM_DPICHANGED propagates DPI to the host's scaler. Adopt mode
     //  does NOT claim the message (returns false) so the caller's
     //  WndProc keeps doing its own SetWindowPos + subclass DPI hooks.

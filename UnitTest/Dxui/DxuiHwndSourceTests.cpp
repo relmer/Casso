@@ -357,6 +357,22 @@ public:
 
 
 
+    TEST_METHOD (ResizeBorderPx_IsTheBandsWidthAtTheWindowsScale)
+    {
+        for (std::pair<UINT, int> scale : { std::pair { 96u, 6 }, { 144u, 9 } })
+        {
+            std::unique_ptr<DxuiHwndSource>  host = std::make_unique<DxuiHwndSource> (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
+                                                                                      s_kResizeBorderDip,
+                                                                                      std::make_unique<DxuiPanel>());
+
+            host->SetDpiForTest (scale.first);
+
+            Assert::AreEqual (scale.second, host->GetResizeBorderPx());
+        }
+    }
+
+
+
     //  A drag region in the content, 100-200 by 100-150 in pixels, at 120 DPI.
     std::unique_ptr<DxuiHwndSource>  BuildContentDragRegionHost()
     {
