@@ -2075,9 +2075,23 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
 int EmulatorShell::StorageDeviceAt (int x, int y) const
 {
-    POINT  pt = { x, y };
+    POINT                 pt    = { x, y };
+    const DriveBarFan   & fan   = m_chrome->m_driveBarFan.GetFan();
+    int                   c     = -1;
+    int                   entry = -1;
 
 
+
+    // The drive bar first, in every theme: it is drawn over the scene and
+    // the flat drive widgets.
+    if (m_chrome->m_driveBarFan.IsVisible() && fan.HitTest (pt, c, entry))
+    {
+        const DeskDrive  & drive = fan.GetDrive (c, entry);
+
+        return (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
+               ? drive.drive
+               : kStorageMenuBar + c * ShellDeskScene::kBarDropClassStride + entry;
+    }
 
     if (DeskSceneActive())
     {
@@ -2085,22 +2099,9 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
                                                  m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
                                                  PtInRect (&m_scene->m_stripRectPx, pt);
         SceneHitResult                sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
-        const DriveBarFan           & fan      = m_chrome->m_driveBarFan.GetFan();
         const DeskSceneComposition  & comp     = m_scene->m_deskScene.Composition();
-        int                           c        = -1;
-        int                           entry    = -1;
 
 
-
-        // The drive bar first: it is drawn over the scene.
-        if (m_chrome->m_driveBarFan.IsVisible() && fan.HitTest (pt, c, entry))
-        {
-            const DeskDrive  & drive = fan.GetDrive (c, entry);
-
-            return (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
-                   ? drive.drive
-                   : kStorageMenuBar + c * ShellDeskScene::kBarDropClassStride + entry;
-        }
 
         if (sceneHit.target == SceneHitResult::Target::Drive)
         {
