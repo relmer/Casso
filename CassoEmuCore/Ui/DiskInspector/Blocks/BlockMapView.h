@@ -119,6 +119,7 @@ private:
     static constexpr float   kLabelPadDip  = 4.0f;
 
     RECT             GetGridRect    () const;
+    bool             IsDiffersShown (int64_t cell) const;
     void             PaintBands     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void             PaintCells     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & grid) const;
     void             PaintMarquee   (IDxuiPainter & painter, const DiskInspectorPalette & palette, const RECT & grid) const;
@@ -163,6 +164,7 @@ private:
     bool                        m_isFlying         = false;
     bool                        m_isTwoLegs        = false;
     bool                        m_isDark           = true;   // the theme's surface the last time the map was drawn
+    uint32_t                    m_differsArgb      = 0xFFF06060;   // the theme's error color the last time the map was drawn
     vector<bool>                m_differs;
     SelectFn                    m_onSelect;
     SelectFn                    m_onOpen;

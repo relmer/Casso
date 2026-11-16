@@ -253,14 +253,8 @@ public:
         Assert::IsTrue (browser.FindPath (L"GAMES", L"vol.po", place));
         Assert::IsTrue (place.kind == BlockPlace::Kind::Directory);
 
-        Assert::IsTrue   (browser.FindPath (L"/BLOCKS/Block 1,234", L"vol.po", place));
-        Assert::IsTrue   (place.kind == BlockPlace::Kind::Block);
-        Assert::AreEqual (1234u, place.block);
-
-        Assert::IsTrue   (browser.FindPath (L"7", L"vol.po", place));
-        Assert::AreEqual (7u, place.block);
-
         Assert::IsFalse (browser.FindPath (L"/BLOCKS/NOPE", L"vol.po", place));
+        Assert::IsFalse (browser.FindPath (L"7", L"vol.po", place), L"a block's number is for Go to");
 
         Assert::AreEqual ((size_t) 1, browser.GetChildPlaces ({ BlockPlace::Kind::Volume, 0 }).size(), L"the volume's one directory");
         Assert::AreEqual (std::wstring (L"GAMES"), browser.GetChildPlaces ({ BlockPlace::Kind::Volume, 0 })[0].first);
@@ -439,5 +433,33 @@ public:
 
         nav.SelectForBlock (2);
         Assert::AreEqual (std::wstring (L"Selected: Volume directory, Blocks 2 to 5"), nav.GetSelectionLine());
+    }
+
+
+    TEST_METHOD (Panel_GoToBlockSelectsTheFileThatUsesTheBlock)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+        int                   hello = 0;
+        uint32_t              key   = 0;
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1400, 800 }, scaler);
+
+        hello = FindEntry (model.GetVolumeMap (0), L"GAMES/HELLO");
+        key   = model.GetVolumeMap (0).entries[hello].keyBlock;
+
+        panel.GoToBlock (key);
+        Assert::AreEqual (key, model.GetBlock());
+        Assert::AreEqual (std::wstring (L"Selected: GAMES/HELLO"), panel.GetNavigator().GetSelectionLine());
+        Assert::AreEqual (std::wstring (L"/BLOCKS/GAMES"), panel.GetNavigator().GetBrowser().FormatPath (panel.GetNavigator().GetPlace()), L"the address bar is the file's directory");
     }
 };

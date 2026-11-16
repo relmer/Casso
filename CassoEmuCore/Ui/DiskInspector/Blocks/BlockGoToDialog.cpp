@@ -129,6 +129,7 @@ void BlockGoToDialog::OnCreate()
     m_input.SetTextRenderer (GetTextRenderer());
     m_input.SetMaxLength    (s_kMaxChars);
     m_input.SetText         (NumberFormat::FormatInteger (m_current));
+    m_input.SelectAll       ();
     m_input.SetOnChange     ([this] (const std::wstring &) { Validate(); });
 
     m_body = CreateDialogContent<Body> (m_label, m_input, m_error);

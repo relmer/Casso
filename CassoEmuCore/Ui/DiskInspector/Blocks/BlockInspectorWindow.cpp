@@ -813,7 +813,7 @@ void BlockInspectorWindow::GoToBlock()
 
     if (BlockGoToDialog::Choose (GetHwnd(), m_theme, m_model.GetBlockCount(), m_model.GetBlock(), block))
     {
-        m_panel->SelectBlock (block);
+        m_panel->GoToBlock (block);
     }
 }
 

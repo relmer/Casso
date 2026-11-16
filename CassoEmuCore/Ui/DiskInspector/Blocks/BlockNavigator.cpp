@@ -783,8 +783,9 @@ std::shared_ptr<const DxuiIconImage> BlockNavigator::GetRowIcon (const BlockList
 //
 //  BlockNavigator::SubmitPath
 //
-//  A path typed in the address bar opens its place, or for a block, the
-//  block. For a path that matches nothing, the field stays open.
+//  A path typed in the address bar opens its place. The current place's
+//  path, a block's included, ends the edit with no change. For a path
+//  that matches nothing, the field stays open.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -794,6 +795,12 @@ void BlockNavigator::SubmitPath (const std::wstring & text)
 
 
 
+    if (text == m_browser.FormatPath (GetPlace()))
+    {
+        m_crumbs->EndEdit();
+        return;
+    }
+
     if (!m_browser.FindPath (text, GetCardLabel(), place))
     {
         MessageBeep (MB_ICONWARNING);
@@ -801,17 +808,6 @@ void BlockNavigator::SubmitPath (const std::wstring & text)
     }
 
     m_crumbs->EndEdit();
-
-    if (place.kind == BlockPlace::Kind::Block)
-    {
-        if (m_onOpenBlock)
-        {
-            m_onOpenBlock (place.block);
-        }
-
-        return;
-    }
-
     GoTo (place);
 }
 
@@ -1022,9 +1018,8 @@ void BlockNavigator::ShowAddressMenu (int x, int y, std::function<void()> focus)
 
     m_menuCommands.clear();
 
-    AddMenuCommand (items, L"&Copy Address",         [this, address] () { DxuiClipboard::SetText (m_hwnd, address); });
-    AddMenuCommand (items, L"Copy Address as &Text", [this, address] () { DxuiClipboard::SetText (m_hwnd, address); });
-    AddMenuCommand (items, L"&Edit Address",         [this, focus] ()
+    AddMenuCommand (items, L"&Copy Address", [this, address] () { DxuiClipboard::SetText (m_hwnd, address); });
+    AddMenuCommand (items, L"&Edit Address", [this, focus] ()
     {
         if (focus)
         {

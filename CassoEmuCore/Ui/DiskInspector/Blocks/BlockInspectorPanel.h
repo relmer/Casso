@@ -9,7 +9,6 @@
 class BlockFieldsView;
 class BlockHexView;
 class BlockInspectorModel;
-class BlockLegendView;
 class BlockMapView;
 class FloatingGroup;
 class OverlayChip;
@@ -32,8 +31,8 @@ struct InspectorCommands;
 //  previous and next block buttons and its capsules, the field line, Copy
 //  block, a row with the pending edits or a long job's progress, and the
 //  block's hex view over its fields; and the map of the whole volume, with
-//  the platter's corner groups: the legend at the top left, the overlays at
-//  the bottom left, and zoom - and + at the bottom right. Splitters part
+//  the platter's corner groups: the overlays at the bottom left, and zoom -
+//  and + at the bottom right. Splitters part
 //  the three. A click on the map selects the row that covers the block,
 //  and a double-click opens the block.
 //
@@ -116,6 +115,7 @@ public:
     //  the keyboard focus to the hex view.
     void  SelectBlock (uint32_t block);
     void  OpenBlock   (uint32_t block);
+    void  GoToBlock   (uint32_t block);
     void  Step        (int64_t delta);
     void  GoBack      ();
     void  GoForward   ();
@@ -146,10 +146,8 @@ public:
     //  its color marks. False where there is no byte.
     bool  GetHexTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx, vector<DxuiTooltipSwatch> & outSwatches) const;
 
-    BlockMapView    & GetMap          () const { return *m_map; }
-    BlockHexView    * GetHexView      () const { return m_hex; }
-    DxuiIconButton  & GetLegendButton () const { return *m_legendButton; }
-    bool              IsLegendShown   () const;
+    BlockMapView  & GetMap     () const { return *m_map; }
+    BlockHexView  * GetHexView () const { return m_hex; }
 
     void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -157,10 +155,6 @@ public:
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 private:
-    //  The legend is visible while the pointer is over its button or over
-    //  the legend, as a tooltip is.
-    void  TrackLegendHover (POINT pointPx);
-
     //  A cut-off field row under the pointer, drawn whole over the row.
     void  UpdateFieldTip (const DxuiMouseEvent & ev);
 
@@ -203,11 +197,8 @@ private:
     DxuiDpiScaler           m_scaler;
     DxuiToolbar           * m_tools           = nullptr;
     BlockMapView          * m_map             = nullptr;
-    FloatingGroup         * m_legendGroup     = nullptr;
     FloatingGroup         * m_chipsGroup      = nullptr;
     FloatingGroup         * m_zoomGroup       = nullptr;
-    DxuiIconButton        * m_legendButton    = nullptr;
-    BlockLegendView       * m_legend          = nullptr;
     OverlayChip           * m_filesChip       = nullptr;
     OverlayChip           * m_diffsChip       = nullptr;
     DxuiIconButton        * m_zoomOut         = nullptr;

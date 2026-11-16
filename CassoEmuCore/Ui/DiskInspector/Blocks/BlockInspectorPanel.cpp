@@ -5,7 +5,6 @@
 #include "Ui/DiskInspector/Blocks/BlockFieldsView.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
-#include "Ui/DiskInspector/Blocks/BlockLegendView.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
@@ -23,7 +22,6 @@ static constexpr int      s_kGroupPadDip    = 4;
 static constexpr int      s_kGroupGapDip    = 6;
 static constexpr int      s_kIconDip        = 28;
 static constexpr int      s_kInsetDip       = 4;
-static constexpr LPCWSTR  s_kpszGlyphLegend = L"\xE790";
 static constexpr LPCWSTR  s_kpszGlyphMinus  = L"\xE738";
 static constexpr LPCWSTR  s_kpszGlyphPlus   = L"\xE710";
 static constexpr LPCWSTR  s_kpszGlyphPrev   = L"\xE76B";
@@ -106,22 +104,14 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
 
 void BlockInspectorPanel::InitCorners()
 {
-    m_legendGroup  = CreateChild<FloatingGroup>();
-    m_chipsGroup   = CreateChild<FloatingGroup>();
-    m_zoomGroup    = CreateChild<FloatingGroup>();
-    m_legendButton = m_legendGroup->CreateChild<DxuiIconButton>();
-    m_filesChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Files");
-    m_diffsChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Differences");
-    m_zoomOut      = m_zoomGroup->CreateChild<DxuiIconButton>();
-    m_zoomIn       = m_zoomGroup->CreateChild<DxuiIconButton>();
-    m_legend       = CreateChild<BlockLegendView>();
+    m_chipsGroup = CreateChild<FloatingGroup>();
+    m_zoomGroup  = CreateChild<FloatingGroup>();
+    m_filesChip  = m_chipsGroup->CreateChild<OverlayChip> (L"Files");
+    m_diffsChip  = m_chipsGroup->CreateChild<OverlayChip> (L"Differences");
+    m_zoomOut    = m_zoomGroup->CreateChild<DxuiIconButton>();
+    m_zoomIn     = m_zoomGroup->CreateChild<DxuiIconButton>();
 
-    m_legend->SetVisible    (false);
     m_diffsChip->SetVisible (false);
-
-    m_legendButton->SetGlyph          (s_kpszGlyphLegend);
-    m_legendButton->SetRound          (true);
-    m_legendButton->SetAccessibleName (L"Legend");
 
     m_filesChip->SetOnChange ([this] (bool isOn) { SetFilesOn (isOn); });
     m_map->SetFilesColored   (m_isFilesOn);
@@ -629,49 +619,27 @@ void BlockInspectorPanel::OnMapSelect (uint32_t block)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::IsLegendShown
+//  BlockInspectorPanel::GoToBlock
+//
+//  Go to block: the block becomes the current one, and the list and the
+//  address bar move to the file or structure that uses it, as for a click
+//  on the map.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BlockInspectorPanel::IsLegendShown() const
+void BlockInspectorPanel::GoToBlock (uint32_t block)
 {
-    return m_legend->IsVisible();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::TrackLegendHover
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::TrackLegendHover (POINT pointPx)
-{
-    RECT  button = m_legendButton->GetBounds();
-    RECT  legend = m_legend->GetBounds();
-    bool  isOver = false;
-
-
-
-    //  The gap between the button and the legend counts as the legend, so
-    //  the pointer can move from one to the other.
-    legend.top = std::min (legend.top, button.top);
-    isOver     = m_legendGroup->IsVisible() && (PtInRect (&button, pointPx) || (m_legend->IsVisible() && PtInRect (&legend, pointPx)));
-
-    if (isOver == m_legend->IsVisible())
+    if (IsBusy() || !m_model->IsOpen() || block >= m_model->GetBlockCount())
     {
         return;
     }
 
-    m_legend->SetVisible (isOver);
+    m_isMapSelecting = true;
+    m_nav.SelectForBlock (block);
+    m_isMapSelecting = false;
 
-    if (m_onChanged)
-    {
-        m_onChanged();
-    }
+    m_model->SelectBlock (block);
+    Refresh();
 }
 
 
@@ -865,7 +833,6 @@ void BlockInspectorPanel::Present()
     m_filesChip->SetOn   (m_isFilesOn);
     m_diffsChip->SetOn   (m_isDiffsOn);
     m_diffsChip->SetVisible (isComparing);
-    m_legend->SetComparing  (isComparing ? fs::path (m_model->GetOther()->GetPath()).filename().wstring() : std::wstring());
     m_editNote->SetText  (NumberFormat::FormatInteger (m_model->GetEdits().CountChangedBytes()) + (m_model->GetEdits().CountChangedBytes() == 1 ? L" byte changed, not written" : L" bytes changed, not written"));
 
     m_hasEdits = hasEdits;
@@ -1255,9 +1222,8 @@ void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 //
 //  BlockInspectorPanel::LayoutGrid
 //
-//  The grid fills its column between a band at the top, for the legend, and
-//  a band at the bottom, for the overlays and the zoom, so the groups don't
-//  cover blocks.
+//  The grid fills its column above a band at the bottom, for the overlays
+//  and the zoom, so the groups don't cover blocks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1270,14 +1236,12 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
     int                  icon   = scaler.ToPx (s_kIconDip);
     int                  band   = group + 2 * inset;
     int                  left   = column.left + inset;
-    int                  top    = column.top + inset;
     int                  right  = column.right - inset;
     int                  bottom = column.bottom - inset;
     int                  zoomW  = 3 * pad + 2 * icon;
     int                  chipsW = 2 * pad;
     int                  x      = 0;
     int                  w      = 0;
-    SIZE                 legend = m_legend->GetSizePx (scaler);
     IDxuiTextRenderer  * text   = m_text;
 
 
@@ -1287,11 +1251,7 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
         chipsW += (chip->IsVisible() && text != nullptr) ? chip->GetWidthPx (*text, scaler) + gap : 0;
     }
 
-    m_map->Layout ({ column.left, column.top + band, column.right, column.bottom - band }, scaler);
-
-    m_legendGroup->Layout  ({ left, top, left + group, top + group }, scaler);
-    m_legendButton->Layout ({ left + pad, top + pad, left + group - pad, top + group - pad }, scaler);
-    m_legend->Layout       ({ left, top + group + inset, left + legend.cx, top + group + inset + legend.cy }, scaler);
+    m_map->Layout ({ column.left, column.top + inset, column.right, column.bottom - band }, scaler);
 
     m_chipsGroup->Layout ({ left, bottom - group, left + chipsW, bottom }, scaler);
     x = left + pad;
@@ -1751,11 +1711,6 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
     if (IsBusy())
     {
         return m_cancel->IsVisible() && PtInRect (&cancel, ev.positionDip) ? DxuiPanel::OnMouse (ev) : true;
-    }
-
-    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
-    {
-        TrackLegendHover (ev.kind == DxuiMouseEventKind::Leave ? POINT { SHRT_MIN, SHRT_MIN } : ev.positionDip);
     }
 
     UpdateFieldTip (ev);

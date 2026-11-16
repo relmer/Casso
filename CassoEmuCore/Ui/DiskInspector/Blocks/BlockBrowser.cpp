@@ -1258,8 +1258,7 @@ std::wstring BlockBrowser::FormatPath (const BlockPlace & place) const
 //  BlockBrowser::FindPath
 //
 //  Each part of the path is the next place down: the card, a volume,
-//  then a directory or a file in the place before it. A last part of
-//  "Block 1,234", or a path of a number alone, is that block.
+//  then a directory or a file in the place before it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1276,27 +1275,6 @@ bool BlockBrowser::FindPath (const std::wstring & path, const std::wstring & car
     auto  isSame = [] (const std::wstring & a, const std::wstring & b)
     {
         return CompareStringOrdinal (a.c_str(), (int) a.size(), b.c_str(), (int) b.size(), TRUE) == CSTR_EQUAL;
-    };
-
-    auto  readBlock = [] (const std::wstring & text, uint32_t & outBlock)
-    {
-        std::wstring  digits;
-        size_t        start = text.size() > 6 && CompareStringOrdinal (text.c_str(), 6, L"Block ", 6, TRUE) == CSTR_EQUAL ? 6 : 0;
-
-        for (size_t at = start; at < text.size(); at++)
-        {
-            if (iswdigit (text[at]))
-            {
-                digits += text[at];
-            }
-            else if (text[at] != L',' && text[at] != L'.' && text[at] != L' ' && text[at] != 0x00A0)
-            {
-                return false;
-            }
-        }
-
-        outBlock = digits.empty() || digits.size() > 9 ? 0 : (uint32_t) std::stoul (digits);
-        return !digits.empty() && digits.size() <= 9;
     };
 
     if (m_model == nullptr || !m_model->IsOpen())
@@ -1330,8 +1308,6 @@ bool BlockBrowser::FindPath (const std::wstring & path, const std::wstring & car
 
     for (i = 0; i < parts.size(); i++)
     {
-        uint32_t  block = 0;
-
         isFound = false;
 
         for (const auto & [label, child] : GetChildPlaces (place))
@@ -1357,13 +1333,6 @@ bool BlockBrowser::FindPath (const std::wstring & path, const std::wstring & car
                     isFound = true;
                 }
             }
-        }
-
-        //  A last part that doesn't match a place is a block's number.
-        if (!isFound && i + 1 == parts.size() && readBlock (parts[i], block) && block < m_model->GetBlockCount())
-        {
-            place   = MakeBlockPlace (block);
-            isFound = true;
         }
 
         //  The volume alone may come first, with no card before it.

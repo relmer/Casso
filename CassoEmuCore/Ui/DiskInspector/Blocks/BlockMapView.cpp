@@ -848,7 +848,8 @@ void BlockMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         return;
     }
 
-    m_isDark = DiskInspectorPalette::IsDarkSurface (theme.Background());
+    m_isDark      = DiskInspectorPalette::IsDarkSurface (theme.Background());
+    m_differsArgb = theme.ErrorForeground();
 
     PaintBands (painter, text, theme);
 
@@ -1420,6 +1421,11 @@ bool BlockMapView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & out
         outText += L"\nUsed by " + owners;
     }
 
+    if (IsDiffersShown (cell))
+    {
+        outText += L"\nDiffers from " + fs::path (m_model->GetOther()->GetPath()).filename().wstring();
+    }
+
     outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
 
     return true;
@@ -1433,13 +1439,17 @@ bool BlockMapView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & out
 //
 //  BlockMapView::GetTooltipSwatches
 //
-//  The cell's color, as drawn, beside the line with its role.
+//  The cell's color, as drawn, beside the line with its role, and for a
+//  cell that differs from the other image, the mark's color beside the
+//  last line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BlockMapView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const
 {
-    int64_t  cell = FindCellAt (pointPx);
+    int64_t       cell   = FindCellAt (pointPx);
+    std::wstring  text;
+    RECT          anchor = {};
 
 
 
@@ -1450,7 +1460,31 @@ bool BlockMapView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> 
 
     outSwatches = { { 1, GetCellColor (DiskInspectorPalette::MakeFallback (m_isDark), (uint32_t) cell) } };
 
+    if (IsDiffersShown (cell) && GetTooltip (pointPx, text, anchor))
+    {
+        outSwatches.push_back ({ (int) std::count (text.begin(), text.end(), L'\n'), m_differsArgb });
+    }
+
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::IsDiffersShown
+//
+//  Whether a cell has the mark for a block that differs from the other
+//  image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockMapView::IsDiffersShown (int64_t cell) const
+{
+    return m_isDiffsShown && m_model != nullptr && m_model->IsComparing() && m_model->GetOther() != nullptr &&
+           cell >= 0 && (size_t) cell < m_differs.size() && m_differs[(size_t) cell];
 }
 
 

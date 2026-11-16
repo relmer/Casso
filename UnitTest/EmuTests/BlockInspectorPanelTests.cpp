@@ -535,41 +535,6 @@ public:
     }
 
 
-    TEST_METHOD (Panel_TheLegendShowsWhileThePointerIsOverItsButtonOrIt)
-    {
-        FakeDiskFileIo        io;
-        BlockInspectorModel   model;
-        BlockInspectorPanel   panel;
-        DxuiDarkTheme         theme;
-        DxuiDpiScaler         scaler;
-        MockDxuiTextRenderer  text;
-        DxuiMouseEvent        ev;
-        RECT                  button = {};
-
-
-
-        OpenModel (io, model);
-
-        panel.Init   (&model, nullptr, &theme, nullptr, &text);
-        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
-
-        button         = panel.GetLegendButton().GetBounds();
-        ev.kind        = DxuiMouseEventKind::Move;
-        ev.positionDip = { (button.left + button.right) / 2, (button.top + button.bottom) / 2 };
-        panel.OnMouse (ev);
-        Assert::IsTrue (panel.IsLegendShown());
-
-        //  Down from the button onto the legend, it stays.
-        ev.positionDip = { (button.left + button.right) / 2, button.bottom + scaler.ToPx (20) };
-        panel.OnMouse (ev);
-        Assert::IsTrue (panel.IsLegendShown());
-
-        ev.kind = DxuiMouseEventKind::Leave;
-        panel.OnMouse (ev);
-        Assert::IsFalse (panel.IsLegendShown());
-    }
-
-
     TEST_METHOD (Panel_TheWheelScrollsTheHexViewUnderThePointer)
     {
         FakeDiskFileIo        io;
