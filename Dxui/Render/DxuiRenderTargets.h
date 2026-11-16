@@ -35,6 +35,9 @@ public:
 
     void  ReleaseOffscreen () { m_offscreen.Reset(); m_offscreenW = 0; m_offscreenH = 0; }
 
+    HRESULT  BeginShadowCapture ();
+    HRESULT  EndShadowCapture   (float spreadDip, float blurDip, float opacity);
+
 private:
     DxuiTextRenderer  & m_renderer;
 
@@ -56,4 +59,12 @@ private:
     ComPtr<ID2D1Image>                m_savedTarget;
     UINT                              m_textureW = 0;
     UINT                              m_textureH = 0;
+
+    // A shadow's command list, drawn into through a second context on the
+    // renderer's device while the renderer's context is set aside, so the
+    // main context's target and clips are not touched. The second context
+    // is created once; the list is a fresh one per shadow.
+    ComPtr<ID2D1DeviceContext>        m_shadowContext;
+    ComPtr<ID2D1DeviceContext>        m_shadowSavedContext;
+    ComPtr<ID2D1CommandList>          m_shadowList;
 };
