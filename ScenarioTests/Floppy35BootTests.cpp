@@ -17,6 +17,7 @@
 #include "Devices/Floppy35/Gcr35Track.h"
 #include "Devices/Floppy35/LironCard.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/StockDisk800K.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -460,6 +461,56 @@ public:
         GuestSession::StartFromPowerOn (machine);
 
         Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"ProDOS boots from the internal drive");
+    }
+
+
+    //  THE 800K STOCK DISK BOOTS in the //c Plus's internal drive and in an
+    //  Apple 3.5 Drive on the //e's card. It is a 1,600-block volume built
+    //  from a 140K ProDOS disk, here the User's Disk.
+    TEST_METHOD (StockDisk800K_Boots)
+    {
+        std::vector<Byte>  proDosOrder = Make800K (GuestSession::RequireProDosUsersDisk());
+        std::vector<Byte>  image;
+
+
+
+        proDosOrder.resize (kBlocks140K * 2 * kSector);
+
+        AssertSucceeded (StockDisk800K::Build (proDosOrder, image));
+
+        {
+            FakeDiskFileIo           io;
+            std::vector<PortConfig>  ports;
+            std::vector<PortConfig>  internal (1);
+
+
+
+            Attach (io, image, ports);
+            internal[0].name   = "internal";
+            internal[0].device = kpszApple35DriveDevice;
+            internal[0].image  = kDiskPath;
+
+            TestMachine  machine ("Apple2cPlus", internal, io);
+
+            machine.PowerCycle();
+            GuestSession::StartFromPowerOn (machine);
+            Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"the stock disk boots in the //c Plus's internal drive");
+        }
+
+        {
+            FakeDiskFileIo           io;
+            std::vector<PortConfig>  ports;
+
+
+
+            Attach (io, image, ports);
+
+            TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszApple35CardDevice, ports } }, io);
+
+            machine.PowerCycle();
+            GuestSession::StartFromPowerOn (machine);
+            Assert::IsTrue (RunUntilScreenShows (machine, "PRODOS 1.0", kBootCap), L"the stock disk boots from the //e's 3.5 controller card");
+        }
     }
 
 

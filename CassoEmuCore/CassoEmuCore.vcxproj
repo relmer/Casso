@@ -915,6 +915,7 @@
     <ClCompile Include="Machines\Apple2\Common\WozLoader.cpp" />
     <ClCompile Include="Machines\Apple2\Common\BlankDiskBuilder.cpp" />
     <ClCompile Include="Machines\Apple2\Common\StockBootDisks.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\StockDisk800K.cpp" />
     <ClCompile Include="Capture\CaptureOutcome.cpp" />
     <ClCompile Include="Capture\CapturedImage.cpp" />
     <ClCompile Include="Capture\ScreenshotMode.cpp" />
@@ -1737,6 +1738,7 @@
     <ClInclude Include="Machines\Apple2\Common\WozMetadata.h" />
     <ClInclude Include="Machines\Apple2\Common\BlankDiskBuilder.h" />
     <ClInclude Include="Machines\Apple2\Common\StockBootDisks.h" />
+    <ClInclude Include="Machines\Apple2\Common\StockDisk800K.h" />
     <ClInclude Include="Capture\CaptureOutcome.h" />
     <ClInclude Include="Capture\CapturedImage.h" />
     <ClInclude Include="Capture\ScreenshotMode.h" />

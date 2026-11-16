@@ -326,6 +326,7 @@
     <ClCompile Include="EmuTests\BlockMapTests.cpp" />
     <ClCompile Include="EmuTests\BlankDiskBuilderTests.cpp" />
     <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />
+    <ClCompile Include="EmuTests\StockDisk800KTests.cpp" />
     <ClCompile Include="EmuTests\LargeVolumeTests.cpp" />
     <ClCompile Include="EmuTests\HfsBTreeEditorTests.cpp" />
     <ClCompile Include="EmuTests\HfsVolumeTests.cpp" />

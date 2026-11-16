@@ -26,8 +26,8 @@ struct StockDiskRow
     //  The Apple II models the disk boots on, for its tooltip.
     std::wstring  note;
 
-    //  A bundled disk's class, read from its file; unclassified for a
-    //  stock disk, which is a 140K 5.25-inch disk.
+    //  The disk's class: read from a bundled disk's file, set for the 800K
+    //  stock disk, and unclassified for a 140K 5.25-inch stock disk.
     ImageClass    imageClass;
 };
 
@@ -40,9 +40,10 @@ struct StockDiskRow
 //  StockDisksListing
 //
 //  The "Stock disks" node's list: one row for each stock system disk, by
-//  its label, with the path its image has once downloaded. A stock disk is
-//  a 140K 5.25-inch disk, and its row has that class before its file is on
-//  the disk. A bundled disk's row has the class read from its file.
+//  its label, with the path its image has once downloaded. A stock disk
+//  without a class is a 140K 5.25-inch disk, and its row has that class
+//  before its file is on the disk. A bundled disk's row has the class read
+//  from its file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

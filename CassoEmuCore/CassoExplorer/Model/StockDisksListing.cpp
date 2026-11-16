@@ -26,7 +26,6 @@ void StockDisksListing::Build (const std::vector<StockDiskRow> & disks, std::vec
         row.isStockDisk               = true;
         row.stockDownloaded           = disk.isDownloaded;
         row.stockNote                 = disk.note;
-        row.sizeBytes                 = disk.isDownloaded ? kDiskBytes : 0;
         row.imageClass                = disk.imageClass;
 
         if (!row.imageClass.IsClassified())
@@ -37,6 +36,8 @@ void StockDisksListing::Build (const std::vector<StockDiskRow> & disks, std::vec
             row.imageClass.formattedBytes = kDiskBytes;
             row.imageClass.blockCount     = kDiskBlocks;
         }
+
+        row.sizeBytes = disk.isDownloaded ? row.imageClass.formattedBytes : 0;
 
         outRows.push_back (std::move (row));
     }

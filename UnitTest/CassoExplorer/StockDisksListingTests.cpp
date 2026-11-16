@@ -92,12 +92,12 @@ public:
 
 
 
-    //  The stock disks are the DOS 3.3 System Master, Apple's ProDOS 1.0.1
-    //  Users Disk and ProDOS 2.4.3, all 140K, so a 3.5-inch drive's list is empty.
+    //  The 140K stock disks are the DOS 3.3 System Master, Apple's ProDOS
+    //  1.0.1 User's Disk and ProDOS 2.4.3. The 800K disk is not listed for a
+    //  5.25-inch drive.
     TEST_METHOD (StockDisks_AreTheMastersAndProDos243_ForA525Drive)
     {
-        std::vector<StockDiskRow>  floppy  = StartupDiskPicker::GetStockDisks (ReceivingDrive { ReceivingDriveKind::Floppy525, 0 });
-        std::vector<StockDiskRow>  apple35 = StartupDiskPicker::GetStockDisks (ReceivingDrive { ReceivingDriveKind::Apple35, 0 });
+        std::vector<StockDiskRow>  floppy = StartupDiskPicker::GetStockDisks (ReceivingDrive { ReceivingDriveKind::Floppy525, 0 });
 
 
 
@@ -107,7 +107,6 @@ public:
         Assert::AreEqual (std::wstring (L"ProDOS 2.4.3"),            floppy[2].label);
         Assert::IsTrue   (floppy[1].note.find (L"64K") != std::wstring::npos, L"ProDOS needs 64K");
         Assert::IsTrue   (floppy[2].path.ends_with (L"ProDOS 2.4.3.po"));
-        Assert::IsTrue   (apple35.empty());
     }
 
 

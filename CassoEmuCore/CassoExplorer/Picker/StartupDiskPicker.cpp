@@ -6,6 +6,7 @@
 #include "CassoExplorer/Picker/StartupDiskPicker.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/ImageClassifier.h"
+#include "Machines/Apple2/Common/StockDisk800K.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Config/Win32FileSystem.h"
 
@@ -49,7 +50,8 @@ PickerRequest StartupDiskPicker::MakeRequest (const std::wstring & machineName, 
 //
 //  StartupDiskPicker::GetStockDisks
 //
-//  The DOS 3.3 and ProDOS masters, which are 140K 5.25-inch disks.
+//  The DOS 3.3 and ProDOS masters, which are 140K 5.25-inch disks, and the
+//  800K ProDOS disk built from ProDOS 2.4.3.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,6 +59,8 @@ std::vector<StockDiskRow> StartupDiskPicker::GetStockDisks (const ReceivingDrive
 {
     std::vector<StockDiskRow>  rows;
     ImageClass                 master;
+    ImageClass                 disk800K;
+    std::error_code            ec;
 
 
 
@@ -65,6 +69,12 @@ std::vector<StockDiskRow> StartupDiskPicker::GetStockDisks (const ReceivingDrive
     master.layout         = ImageLayout::Sector;
     master.formattedBytes = StockDisksListing::kDiskBytes;
     master.blockCount     = StockDisksListing::kDiskBlocks;
+
+    disk800K.status         = ImageStatus::Classified;
+    disk800K.formFactor     = ImageFormFactor::Floppy35;
+    disk800K.layout         = ImageLayout::Raw;
+    disk800K.formattedBytes = StockDisk800K::kBytes;
+    disk800K.blockCount     = StockDisk800K::kBlocks;
 
     if (DriveImageRule::Accepts (drive, master))
     {
@@ -76,7 +86,31 @@ std::vector<StockDiskRow> StartupDiskPicker::GetStockDisks (const ReceivingDrive
         }
     }
 
+    if (DriveImageRule::Accepts (drive, disk800K))
+    {
+        std::filesystem::path  path = GetStockDisk800KPath();
+
+        rows.push_back (StockDiskRow { StockDisk800K::kpszDisplayName, path.wstring(), std::filesystem::exists (path, ec), StockDisk800K::kpszCompatibility, disk800K });
+    }
+
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartupDiskPicker::GetStockDisk800KPath
+//
+//  Beside the downloaded stock disks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::filesystem::path StartupDiskPicker::GetStockDisk800KPath()
+{
+    return AssetBootstrap::GetStockBootDiskPath (AssetBootstrap::StockBootDisk::ProDos243Disk).parent_path() / StockDisk800K::kpszFileName;
 }
 
 
@@ -133,6 +167,11 @@ bool StartupDiskPicker::FetchStockDisk (const std::wstring & path, std::wstring 
 
     outError.clear();
 
+    if (_wcsicmp (GetStockDisk800KPath().c_str(), path.c_str()) == 0)
+    {
+        return MakeStockDisk800K (outError);
+    }
+
     for (AssetBootstrap::StockBootDisk disk : { AssetBootstrap::StockBootDisk::Dos33Master, AssetBootstrap::StockBootDisk::ProDosUsersDisk, AssetBootstrap::StockBootDisk::ProDos243Disk })
     {
         if (_wcsicmp (AssetBootstrap::GetStockBootDiskPath (disk).c_str(), path.c_str()) == 0)
@@ -146,6 +185,48 @@ bool StartupDiskPicker::FetchStockDisk (const std::wstring & path, std::wstring 
         outError = TextEncoding::Utf8ToWide (error);
     }
 
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartupDiskPicker::MakeStockDisk800K
+//
+//  Downloads ProDOS 2.4.3 when it is not on the disk yet, then builds the
+//  800K disk from it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool StartupDiskPicker::MakeStockDisk800K (std::wstring & outError)
+{
+    HRESULT          hr      = S_OK;
+    Win32DiskFileIo  fileIo;
+    std::wstring     fetched;
+    std::string      error;
+    vector<Byte>     source;
+    vector<Byte>     volume;
+
+
+
+    outError.clear();
+
+    hr = AssetBootstrap::EnsureStockBootDisk (AssetBootstrap::StockBootDisk::ProDos243Disk, fetched, error);
+    CHRF (hr, outError = TextEncoding::Utf8ToWide (error));
+
+    hr = fileIo.ReadAllBytes (TextEncoding::WideToUtf8 (fetched), source);
+    CHRF (hr, outError = L"ProDOS 2.4.3 can't be read.");
+
+    hr = StockDisk800K::Build (source, volume);
+    CHRF (hr, outError = L"The 800K disk can't be built from ProDOS 2.4.3.");
+
+    hr = fileIo.WriteAllBytes (TextEncoding::WideToUtf8 (GetStockDisk800KPath().wstring()), volume);
+    CHRF (hr, outError = L"The 800K disk can't be saved.");
+
+Error:
     return SUCCEEDED (hr);
 }
 
