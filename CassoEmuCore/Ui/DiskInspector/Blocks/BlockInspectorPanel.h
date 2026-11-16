@@ -4,11 +4,11 @@
 
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorWorker.h"
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
+#include "Ui/DiskInspector/Blocks/BlockNavigator.h"
 
 class BlockFieldsView;
 class BlockHexView;
 class BlockInspectorModel;
-class BlockLevelHost;
 class BlockLegendView;
 class BlockMapView;
 class FloatingGroup;
@@ -25,18 +25,17 @@ struct InspectorCommands;
 //  BlockInspectorPanel
 //
 //  Block mode's content between the menu bar and the status band, laid out
-//  as the track inspector's is. Across the top, the toolbar row with Go to
-//  at its right end. On the left, the grid of blocks with the platter's
-//  corner groups: the legend at the top left, the overlays (Files, and
-//  Differences while comparing) at the bottom left, and
-//  zoom - and + at the bottom right; the cell under the pointer is outlined.
-//  Past the splitter, on the right: BlockLevelHost's breadcrumb and levels,
-//  Card, Volume, Files and File, and at the Block level under the
-//  breadcrumb, the block's number with the previous and next block buttons
-//  and its capsules (Free or Used, its role, its files), the field line,
-//  Copy block, a row with the pending edits or a long job's progress, and
-//  the block's hex view over its fields. A click on a block on the grid, or
-//  on an item stored in blocks at another level, goes to the Block level.
+//  as Casso Explorer's window is. Across the top, the address bar, the
+//  search box and Go to. Under them, BlockNavigator's tree of the card, its
+//  partitions and each volume's directories; the grouped list of what is
+//  selected in the tree, or for a block, the block's number with the
+//  previous and next block buttons and its capsules, the field line, Copy
+//  block, a row with the pending edits or a long job's progress, and the
+//  block's hex view over its fields; and the map of the whole volume, with
+//  the platter's corner groups: the legend at the top left, the overlays at
+//  the bottom left, and zoom - and + at the bottom right. Splitters part
+//  the three. A click on the map selects the row that covers the block,
+//  and a double-click opens the block.
 //
 //  The model's reads run as jobs on the window's BlockInspectorWorker: a
 //  block is loaded before it is drawn.
@@ -54,8 +53,12 @@ public:
     static constexpr float  kTitleDip    = 16.0f;
     static constexpr float  kFontDip     = 12.0f;
     static constexpr float  kSplitterDip = 6.0f;
-    static constexpr float  kMinSplit    = 0.3f;
-    static constexpr float  kMaxSplit    = 0.7f;
+    static constexpr float  kMinSplit    = 0.45f;   // the map's left edge, a share of the width
+    static constexpr float  kMaxSplit    = 0.85f;
+    static constexpr float  kTreeShare   = 0.18f;   // the tree's share of the width at first
+    static constexpr float  kMinTree     = 0.08f;
+    static constexpr float  kMaxTree     = 0.35f;
+    static constexpr float  kSearchDip   = 220.0f;
     static constexpr float  kHexShare    = 0.60f;
     static constexpr float  kBarDip      = 240.0f;
     static constexpr float  kButtonDip   = 110.0f;
@@ -114,7 +117,8 @@ public:
     void  SetDiffsOn     (bool isOn);
 
     //  The levels, Card, Volume, Files, File and Block.
-    BlockLevelHost  & GetLevels () const { return *m_levels; }
+    BlockNavigator        & GetNavigator ()       { return m_nav; }
+    const BlockNavigator  & GetNavigator () const { return m_nav; }
 
     //  The current block as a hex dump with its text, for Copy block.
     std::wstring  BuildBlockText () const;
@@ -149,6 +153,7 @@ private:
     void  InitRightColumn   (const IDxuiTheme * theme, HWND hwnd);
     bool  IsBlockLevel      () const;
     void  OnLevelChanged    ();
+    void  OnMapSelect       (uint32_t block);
     bool  OnType            (uint64_t offset, bool isHexColumn, bool isHighNibble, wchar_t ch);
     bool  OnNavigateKey     (const DxuiKeyEvent & ev);
     void  MarkField         (const BlockField * field);
@@ -156,37 +161,37 @@ private:
     void  BuildFieldLine    ();
     void  Present           ();
     void  LayoutGrid        (const RECT & column, const DxuiDpiScaler & scaler);
-    void  LayoutRight       (const RECT & column, const DxuiDpiScaler & scaler);
+    void  LayoutMiddle      (const RECT & column, const DxuiDpiScaler & scaler);
     void  PaintHeader       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintProgress     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  ApplyHighlight    ();
     void  BuildCapsules     ();
 
-    BlockInspectorModel   * m_model        = nullptr;
-    BlockInspectorWorker  * m_worker       = nullptr;
-    IDxuiTextRenderer     * m_text         = nullptr;
+    BlockInspectorModel   * m_model           = nullptr;
+    BlockInspectorWorker  * m_worker          = nullptr;
+    IDxuiTextRenderer     * m_text            = nullptr;
     DxuiDpiScaler           m_scaler;
-    DxuiToolbar           * m_tools        = nullptr;
-    BlockMapView          * m_map          = nullptr;
-    FloatingGroup         * m_legendGroup  = nullptr;
-    FloatingGroup         * m_chipsGroup   = nullptr;
-    FloatingGroup         * m_zoomGroup    = nullptr;
-    DxuiIconButton        * m_legendButton = nullptr;
-    BlockLegendView       * m_legend       = nullptr;
-    OverlayChip           * m_filesChip    = nullptr;
-    OverlayChip           * m_diffsChip    = nullptr;
-    DxuiIconButton        * m_zoomOut      = nullptr;
-    DxuiIconButton        * m_zoomIn       = nullptr;
-    BlockLevelHost        * m_levels       = nullptr;
-    DxuiButton            * m_copy         = nullptr;
-    DxuiIconButton        * m_previous     = nullptr;
-    DxuiIconButton        * m_next         = nullptr;
-    DxuiLabel             * m_editNote     = nullptr;
-    DxuiButton            * m_discard      = nullptr;
-    DxuiButton            * m_apply        = nullptr;
-    DxuiButton            * m_cancel       = nullptr;
-    BlockHexView          * m_hex          = nullptr;
-    BlockFieldsView       * m_fields       = nullptr;
+    DxuiToolbar           * m_tools           = nullptr;
+    BlockMapView          * m_map             = nullptr;
+    FloatingGroup         * m_legendGroup     = nullptr;
+    FloatingGroup         * m_chipsGroup      = nullptr;
+    FloatingGroup         * m_zoomGroup       = nullptr;
+    DxuiIconButton        * m_legendButton    = nullptr;
+    BlockLegendView       * m_legend          = nullptr;
+    OverlayChip           * m_filesChip       = nullptr;
+    OverlayChip           * m_diffsChip       = nullptr;
+    DxuiIconButton        * m_zoomOut         = nullptr;
+    DxuiIconButton        * m_zoomIn          = nullptr;
+    BlockNavigator          m_nav;
+    DxuiButton            * m_copy            = nullptr;
+    DxuiIconButton        * m_previous        = nullptr;
+    DxuiIconButton        * m_next            = nullptr;
+    DxuiLabel             * m_editNote        = nullptr;
+    DxuiButton            * m_discard         = nullptr;
+    DxuiButton            * m_apply           = nullptr;
+    DxuiButton            * m_cancel          = nullptr;
+    BlockHexView          * m_hex             = nullptr;
+    BlockFieldsView       * m_fields          = nullptr;
     BlockHexSource          m_source;
     PressedFn               m_onPressed;
     ChangedFn               m_onChanged;
@@ -199,20 +204,23 @@ private:
     vector<Capsule>         m_capsules;
     std::wstring            m_fieldLine;
     std::wstring            m_jobLabel;
-    uint64_t                m_jobDone      = 0;
-    uint64_t                m_jobTotal     = 0;
-    bool                    m_isLongJob    = false;
-    bool                    m_isFilesOn    = false;
-    bool                    m_isDiffsOn    = true;
-    bool                    m_isSplitting  = false;
-    bool                    m_hasEdits     = false;
-    bool                    m_isRecording  = false;   // the next block drawn goes in the Back history
-    bool                    m_isStepping   = false;   // the next block drawn replaces the current location
-    int                     m_laidOutLevel = -1;      // the level the right column was last laid out for
-    int64_t                 m_shownBlock   = -1;
-    float                   m_split        = 0.5f;
-    RECT                    m_splitterPx   = {};
-    RECT                    m_titleRect    = {};
-    RECT                    m_fieldRect    = {};
-    RECT                    m_rowRect      = {};
+    uint64_t                m_jobDone         = 0;
+    uint64_t                m_jobTotal        = 0;
+    bool                    m_isLongJob       = false;
+    bool                    m_isFilesOn       = false;
+    bool                    m_isDiffsOn       = true;
+    bool                    m_isSplitting     = false;
+    bool                    m_isTreeSplitting = false;
+    bool                    m_hasEdits        = false;
+    bool                    m_isRecording     = false;   // the next block drawn goes in the Back history
+    bool                    m_isStepping      = false;   // the next block drawn replaces the current location
+    int                     m_laidOutLevel    = -1;   // the level the right column was last laid out for
+    int64_t                 m_shownBlock      = -1;
+    float                   m_split           = 0.62f;
+    float                   m_treeShare       = kTreeShare;
+    RECT                    m_splitterPx      = {};
+    RECT                    m_treeSplitterPx  = {};
+    RECT                    m_titleRect       = {};
+    RECT                    m_fieldRect       = {};
+    RECT                    m_rowRect         = {};
 };

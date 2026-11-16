@@ -40,6 +40,9 @@ public:
     void  SetOnSelect (SelectFn fn) { m_onSelect = std::move (fn); }
     void  SetOnHover  (HoverFn fn)  { m_onHover  = std::move (fn); }
 
+    //  A double-click on a cell, with the cell's first block.
+    void  SetOnOpen   (SelectFn fn) { m_onOpen   = std::move (fn); }
+
     //  Whether the current block's cell is outlined.
     void  SetOutlined (bool isOutlined) { m_isOutlined = isOutlined; }
 
@@ -120,6 +123,7 @@ private:
     bool                   m_isDark       = true;   // the theme's surface the last time the map was drawn
     vector<bool>           m_differs;
     SelectFn               m_onSelect;
+    SelectFn               m_onOpen;
     HoverFn                m_onHover;
     int64_t                m_hoverCell    = -1;
     bool                   m_isOutlined   = true;

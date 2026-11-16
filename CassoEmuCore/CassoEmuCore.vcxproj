@@ -1087,11 +1087,8 @@
     <ClCompile Include="Ui\Dialogs\DownloadContentPanel.cpp" />
     <ClCompile Include="Ui\Dialogs\DownloadDialog.cpp" />
     <ClCompile Include="Ui\Dialogs\StartupDownloadDialog.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockBrowser.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockFieldsView.cpp" />
-    <ClCompile Include="Ui\DiskInspector\Blocks\BlockFilesLevel.cpp" />
-    <ClCompile Include="Ui\DiskInspector\Blocks\BlockLevelHost.cpp" />
-    <ClCompile Include="Ui\DiskInspector\Blocks\BlockLevels.cpp" />
-    <ClCompile Include="Ui\DiskInspector\Blocks\BlockSectionsView.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockGoToDialog.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockLegendView.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockHexSource.cpp" />
@@ -1100,6 +1097,7 @@
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockInspectorWindow.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockMapGrid.cpp" />
     <ClCompile Include="Ui\DiskInspector\Blocks\BlockMapView.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Blocks\BlockNavigator.cpp" />
     <ClCompile Include="Ui\DiskInspector\AnalysisScheduler.cpp" />
     <ClCompile Include="Ui\DiskInspector\CompareDialog.cpp" />
     <ClCompile Include="Ui\DiskInspector\ComparisonSession.cpp" />
@@ -1993,11 +1991,8 @@
     <ClInclude Include="Ui\Settings\ScreenshotsPage.h" />
     <ClInclude Include="Ui\Settings\ThemePage.h" />
     <ClInclude Include="Ui\UiShell.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockBrowser.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockFieldsView.h" />
-    <ClInclude Include="Ui\DiskInspector\Blocks\BlockFilesLevel.h" />
-    <ClInclude Include="Ui\DiskInspector\Blocks\BlockLevelHost.h" />
-    <ClInclude Include="Ui\DiskInspector\Blocks\BlockLevels.h" />
-    <ClInclude Include="Ui\DiskInspector\Blocks\BlockSectionsView.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockGoToDialog.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockLegendView.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockHexSource.h" />
@@ -2006,6 +2001,7 @@
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockInspectorWindow.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockMapGrid.h" />
     <ClInclude Include="Ui\DiskInspector\Blocks\BlockMapView.h" />
+    <ClInclude Include="Ui\DiskInspector\Blocks\BlockNavigator.h" />
     <ClInclude Include="Ui\DiskInspector\AnalysisScheduler.h" />
     <ClInclude Include="Ui\DiskInspector\CompareDialog.h" />
     <ClInclude Include="Ui\DiskInspector\ComparisonSession.h" />

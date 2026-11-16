@@ -7,7 +7,6 @@
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorWindow.h"
-#include "Ui/DiskInspector/Blocks/BlockLevelHost.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
 #include "Ui/DiskInspector/InspectorText.h"
@@ -151,17 +150,16 @@ void BlockInspectorWindow::BuildCommands()
     c.overlays.back()->isChecked = [this] () { return m_panel->IsDiffsOn(); };
     c.overlays.back()->isEnabled = [this] () { return m_model.IsOpen() && m_model.IsComparing(); };
 
-    for (const auto & [label, level] : { std::pair<LPCWSTR, BlockLevelHost::Level> (L"&Card",   BlockLevelHost::Level::Card),
-                                         std::pair<LPCWSTR, BlockLevelHost::Level> (L"&Volume", BlockLevelHost::Level::Volume),
-                                         std::pair<LPCWSTR, BlockLevelHost::Level> (L"Fi&les",  BlockLevelHost::Level::Files),
-                                         std::pair<LPCWSTR, BlockLevelHost::Level> (L"&Block",  BlockLevelHost::Level::Block) })
+    for (const auto & [label, kind] : { std::pair<LPCWSTR, BlockPlace::Kind> (L"&Card",   BlockPlace::Kind::Card),
+                                        std::pair<LPCWSTR, BlockPlace::Kind> (L"&Volume", BlockPlace::Kind::Volume),
+                                        std::pair<LPCWSTR, BlockPlace::Kind> (L"&Block",  BlockPlace::Kind::Block) })
     {
-        c.views.push_back (make (label, L"", [this, level] () { ShowLevel (level); }));
+        c.views.push_back (make (label, L"", [this, kind] () { ShowLevel (kind); }));
         c.views.back()->radio     = true;
-        c.views.back()->isChecked = [this, level] () { return m_panel->GetLevels().GetLevel() == level; };
-        c.views.back()->isEnabled = [this, level] ()
+        c.views.back()->isChecked = [this, kind] () { return m_panel->GetNavigator().GetPlace().kind == kind; };
+        c.views.back()->isEnabled = [this, kind] ()
         {
-            return m_model.IsOpen() && !m_worker.IsBusy() && (level == BlockLevelHost::Level::Card ? m_panel->GetLevels().HasCard() : level == BlockLevelHost::Level::Block || m_model.GetVolumeCount() > 0);
+            return m_model.IsOpen() && !m_worker.IsBusy() && (kind == BlockPlace::Kind::Card ? m_panel->GetNavigator().GetBrowser().HasCard() : kind == BlockPlace::Kind::Block || m_model.GetVolumeCount() > 0);
         };
     }
 
@@ -170,9 +168,9 @@ void BlockInspectorWindow::BuildCommands()
 
     //  Go
     c.back                          = make (L"&Back", L"Alt+Left", [this] () { m_panel->GoBack(); });
-    c.back->isEnabled               = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_panel->GetLevels().CanGoBack(); };
+    c.back->isEnabled               = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_panel->GetNavigator().GetBrowser().CanGoBack(); };
     c.forward                       = make (L"&Forward", L"Alt+Right", [this] () { m_panel->GoForward(); });
-    c.forward->isEnabled            = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_panel->GetLevels().CanGoForward(); };
+    c.forward->isEnabled            = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_panel->GetNavigator().GetBrowser().CanGoForward(); };
     c.goTo                          = make (L"&Go to block...", L"Ctrl+G", [this] () { GoToBlock(); });
     c.goTo->isEnabled               = isOpen;
     c.goTo->shortLabel              = L"Go to";
@@ -747,25 +745,25 @@ void BlockInspectorWindow::CopyBlock()
 //
 //  BlockInspectorWindow::ShowLevel
 //
-//  The View menu's levels: Volume and Files of the volume the current
-//  location or block is in, and Block at the current block.
+//  The View menu's places: the card, the volume of the current place or
+//  block, and the current block.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorWindow::ShowLevel (BlockLevelHost::Level level)
+void BlockInspectorWindow::ShowLevel (BlockPlace::Kind kind)
 {
-    BlockLevelHost  & levels = m_panel->GetLevels();
-    int               volume = levels.GetHere().volume >= 0 ? levels.GetHere().volume : std::max (0, m_model.FindVolume (m_model.GetBlock()));
+    BlockNavigator  & navigator = m_panel->GetNavigator();
+    int               volume    = navigator.GetPlace().volume >= 0 ? navigator.GetPlace().volume : std::max (0, m_model.FindVolume (m_model.GetBlock()));
 
 
 
-    if (level == BlockLevelHost::Level::Block)
+    if (kind == BlockPlace::Kind::Block)
     {
         m_panel->SelectBlock (m_model.GetBlock());
         return;
     }
 
-    levels.GoTo ({ level, level == BlockLevelHost::Level::Card ? -1 : volume, -1 });
+    navigator.GoTo ({ kind, kind == BlockPlace::Kind::Card ? -1 : volume, -1 });
 }
 
 

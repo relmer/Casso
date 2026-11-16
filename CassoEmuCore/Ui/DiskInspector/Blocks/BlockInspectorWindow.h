@@ -5,7 +5,7 @@
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
-#include "Ui/DiskInspector/Blocks/BlockLevelHost.h"
+#include "Ui/DiskInspector/Blocks/BlockBrowser.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
 #include "Ui/DiskInspector/Components/InspectorMenuBar.h"
 #include "Ui/DiskInspector/Components/InspectorStatusBar.h"
@@ -102,7 +102,7 @@ private:
     void                                  Discard        ();
     void                                  CopyBlock      ();
     void                                  GoToBlock      ();
-    void                                  ShowLevel      (BlockLevelHost::Level level);
+    void                                  ShowLevel      (BlockPlace::Kind kind);
     void                                  UpdateTooltip  (POINT pointPx);
     void                                  StepDifference (bool isForward);
     void                                  SetZoom        (double zoom);

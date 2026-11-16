@@ -495,8 +495,18 @@ bool BlockMapView::OnMouse (const DxuiMouseEvent & ev)
         }
         else if (now - m_lastClickMs <= (int64_t) GetDoubleClickTime())
         {
+            //  A double-click on a block opens it; off the blocks, it fits the
+            //  whole volume.
             m_lastClickMs = 0;
-            Fit();
+
+            if (cell >= 0 && m_onOpen)
+            {
+                m_onOpen (m_grid.GetFirstBlock ((uint32_t) cell));
+            }
+            else
+            {
+                Fit();
+            }
         }
         else
         {

@@ -5,7 +5,6 @@
 #include "Ui/DiskInspector/Blocks/BlockFieldsView.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
-#include "Ui/DiskInspector/Blocks/BlockLevelHost.h"
 #include "Ui/DiskInspector/Blocks/BlockLegendView.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
@@ -76,7 +75,8 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
     m_map = CreateChild<BlockMapView>();
     m_map->SetModel    (model);
     m_map->SetZoomable (true);
-    m_map->SetOnSelect ([this] (uint32_t block) { SelectBlock (block); });
+    m_map->SetOnSelect ([this] (uint32_t block) { OnMapSelect (block); });
+    m_map->SetOnOpen   ([this] (uint32_t block) { SelectBlock (block); });
     m_map->SetOnHover  ([this] (const std::wstring & value)
     {
         if (m_onHint)
@@ -147,7 +147,6 @@ void BlockInspectorPanel::InitCorners()
 
 void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
 {
-    m_levels   = CreateChild<BlockLevelHost>();
     m_previous = CreateChild<DxuiIconButton>();
     m_next     = CreateChild<DxuiIconButton>();
     m_copy     = CreateChild<DxuiButton> (L"Copy block");
@@ -158,9 +157,18 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
     m_hex      = CreateChild<BlockHexView>();
     m_fields   = CreateChild<BlockFieldsView>();
 
-    m_levels->Init         (m_model, theme, hwnd, m_text);
-    m_levels->SetOnBlock   ([this] (uint32_t block) { SelectBlock (block); });
-    m_levels->SetOnChanged ([this] () { OnLevelChanged(); });
+    m_nav.Create         (*this, m_model, theme, hwnd, m_text);
+    m_nav.SetOnPlace     ([this] () { OnLevelChanged(); });
+    m_nav.SetOnOpenBlock ([this] (uint32_t block) { SelectBlock (block); });
+    m_nav.SetOnHighlight ([this] ()
+    {
+        m_map->Refresh();
+
+        if (m_onChanged)
+        {
+            m_onChanged();
+        }
+    });
 
     m_previous->SetGlyph          (s_kpszGlyphPrev);
     m_previous->SetAccessibleName (L"Previous block");
@@ -340,7 +348,7 @@ void BlockInspectorPanel::GoBack()
         return;
     }
 
-    if (m_levels->GoBack())
+    if (m_nav.GoBack())
     {
         OnLevelChanged();
     }
@@ -363,7 +371,7 @@ void BlockInspectorPanel::GoForward()
         return;
     }
 
-    if (m_levels->GoForward())
+    if (m_nav.GoForward())
     {
         OnLevelChanged();
     }
@@ -496,7 +504,7 @@ void BlockInspectorPanel::SetDiffsOn (bool isOn)
 
 bool BlockInspectorPanel::IsBlockLevel() const
 {
-    return m_levels->GetLevel() == BlockLevelHost::Level::Block;
+    return m_nav.IsBlockPlace();
 }
 
 
@@ -515,9 +523,9 @@ bool BlockInspectorPanel::IsBlockLevel() const
 
 void BlockInspectorPanel::OnLevelChanged()
 {
-    if (IsBlockLevel() && m_model->GetBlock() != m_levels->GetHere().block)
+    if (IsBlockLevel() && m_model->GetBlock() != m_nav.GetPlace().block)
     {
-        m_model->SelectBlock (m_levels->GetHere().block);
+        m_model->SelectBlock (m_nav.GetPlace().block);
     }
 
     if (m_scaler.GetDpi() != 0)
@@ -525,6 +533,38 @@ void BlockInspectorPanel::OnLevelChanged()
         Layout (GetBounds(), m_scaler);
     }
 
+    Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::OnMapSelect
+//
+//  A click on the map: at a block, the clicked block opens in its place;
+//  anywhere else, the row that covers the block is selected, and the block
+//  becomes the current one, marked on the map.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::OnMapSelect (uint32_t block)
+{
+    if (IsBusy() || !m_model->IsOpen())
+    {
+        return;
+    }
+
+    if (IsBlockLevel())
+    {
+        SelectBlock (block);
+        return;
+    }
+
+    m_nav.SelectForBlock (block);
+    m_model->ReplaceBlock (block);
     Refresh();
 }
 
@@ -649,7 +689,7 @@ void BlockInspectorPanel::UpdateBusy()
     m_map->SetFrozen     (IsBusy());
     m_cancel->SetVisible (m_isLongJob && canCancel);
 
-    for (IDxuiControl * control : { (IDxuiControl *) m_levels, (IDxuiControl *) m_copy, (IDxuiControl *) m_discard, (IDxuiControl *) m_apply,
+    for (IDxuiControl * control : { (IDxuiControl *) &m_nav.GetList(), (IDxuiControl *) &m_nav.GetTree(), (IDxuiControl *) m_copy, (IDxuiControl *) m_discard, (IDxuiControl *) m_apply,
                                     (IDxuiControl *) m_filesChip, (IDxuiControl *) m_diffsChip })
     {
         control->SetEnabled (!m_isLongJob);
@@ -715,18 +755,18 @@ void BlockInspectorPanel::Present()
 
     //  The levels follow an image that opened or maps read again, then a
     //  block selected on the grid or by a link goes in the Back history.
-    m_levels->Sync();
+    m_nav.Sync();
 
     if (m_isRecording)
     {
-        m_levels->ShowBlock (m_model->GetBlock());
+        m_nav.ShowBlock (m_model->GetBlock());
     }
     else if (m_isStepping)
     {
-        m_levels->ReplaceBlock (m_model->GetBlock());
+        m_nav.ReplaceBlock (m_model->GetBlock());
     }
 
-    isRelayout    = isRelayout || m_isRecording || m_isStepping || (int) m_levels->GetLevel() != m_laidOutLevel;
+    isRelayout    = isRelayout || m_isRecording || m_isStepping || (int) m_nav.GetPlace().kind != m_laidOutLevel;
     m_isRecording = false;
     m_isStepping  = false;
 
@@ -1048,30 +1088,7 @@ std::wstring BlockInspectorPanel::BuildBlockText() const
 
 std::wstring BlockInspectorPanel::GetSelectionLine() const
 {
-    const BlockLevelHost::Location  & here = m_levels->GetHere();
-
-
-
-    if (m_model == nullptr || !m_model->IsOpen())
-    {
-        return std::wstring();
-    }
-
-    switch (here.level)
-    {
-        case BlockLevelHost::Level::Block:
-            return L"Selected: block " + NumberFormat::FormatInteger (m_model->GetBlock());
-
-        case BlockLevelHost::Level::Files:
-        case BlockLevelHost::Level::File:
-            return here.entry >= 0 ? L"Selected: " + m_model->GetVolumeMap (here.volume).files[here.entry] : std::wstring();
-
-        case BlockLevelHost::Level::Volume:
-            return here.volume >= 0 ? L"Selected: " + m_model->GetVolumeMap (here.volume).volumeName : std::wstring();
-
-        default:
-            return std::wstring();
-    }
+    return m_nav.GetSelectionLine();
 }
 
 
@@ -1082,19 +1099,24 @@ std::wstring BlockInspectorPanel::GetSelectionLine() const
 //
 //  BlockInspectorPanel::Layout
 //
-//  The toolbar row across the top; under it the grid's column, the
-//  splitter, and the right column, as in the track inspector.
+//  The address bar, the search box and Go to across the top; under them
+//  the tree, a splitter, the list or the block, a splitter, and the map.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
     int   pad      = scaler.ToPx ((int) kPadDip);
-    int   toolbar  = m_tools != nullptr ? scaler.ToPx (m_tools->GetBandDp()) : 0;
+    int   row      = scaler.ToPx ((int) kRowDip);
+    int   toolbar  = std::max (m_tools != nullptr ? scaler.ToPx (m_tools->GetBandDp()) : 0, row + pad);
     int   splitter = scaler.ToPx ((int) kSplitterDip);
+    int   search   = scaler.ToPx ((int) kSearchDip);
     int   top      = boundsPx.top + toolbar;
+    int   width    = (int) (boundsPx.right - boundsPx.left);
     int   tools    = 0;
-    int   splitX   = 0;
+    int   treeX    = 0;
+    int   mapX     = 0;
+    int   barTop   = boundsPx.top + (toolbar - row) / 2;
 
 
 
@@ -1103,17 +1125,28 @@ void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
 
     if (m_tools != nullptr)
     {
-        (void) m_tools->PlanForWidth (std::max (0, (int) (boundsPx.right - boundsPx.left) - 2 * pad), scaler);
+        (void) m_tools->PlanForWidth (std::max (0, width - 2 * pad), scaler);
         tools = m_tools->GetPlannedWidthPx();
         m_tools->Layout ({ boundsPx.right - pad - tools, boundsPx.top, boundsPx.right - pad, top }, scaler);
     }
 
-    m_split      = std::clamp (m_split, kMinSplit, kMaxSplit);
-    splitX       = boundsPx.left + (int) ((boundsPx.right - boundsPx.left) * m_split);
-    m_splitterPx = { splitX, top, splitX + splitter, boundsPx.bottom };
+    m_nav.GetCrumbs().Layout ({ boundsPx.left + pad, barTop, boundsPx.right - 2 * pad - tools - search - pad, barTop + row }, scaler);
+    m_nav.GetSearch().SetDpi (scaler.GetDpi());
+    m_nav.GetSearch().Layout ({ boundsPx.right - 2 * pad - tools - search, barTop, boundsPx.right - 2 * pad - tools, barTop + row }, scaler);
 
-    LayoutGrid  ({ boundsPx.left + pad, top + pad, splitX - pad, boundsPx.bottom - pad }, scaler);
-    LayoutRight ({ m_splitterPx.right + pad, top + pad, boundsPx.right - pad, boundsPx.bottom - pad }, scaler);
+    m_treeShare      = std::clamp (m_treeShare, kMinTree, kMaxTree);
+    m_split          = std::clamp (m_split, std::max (kMinSplit, m_treeShare + kMinTree * 2), kMaxSplit);
+    treeX            = boundsPx.left + (int) (width * m_treeShare);
+    mapX             = boundsPx.left + (int) (width * m_split);
+    m_treeSplitterPx = { treeX, top, treeX + splitter, boundsPx.bottom };
+    m_splitterPx     = { mapX, top, mapX + splitter, boundsPx.bottom };
+
+    m_nav.GetTree().SetDpi (scaler.GetDpi());
+    m_nav.GetTree().Layout ({ boundsPx.left + pad, top + pad, treeX, boundsPx.bottom - pad }, scaler);
+    m_nav.GetList().SetDpi (scaler.GetDpi());
+
+    LayoutMiddle ({ m_treeSplitterPx.right + pad, top + pad, mapX - pad, boundsPx.bottom - pad }, scaler);
+    LayoutGrid   ({ m_splitterPx.right + pad, top + pad, boundsPx.right - pad, boundsPx.bottom - pad }, scaler);
 }
 
 
@@ -1184,7 +1217,7 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::LayoutRight
+//  BlockInspectorPanel::LayoutMiddle
 //
 //  From the top: the title row with Copy block at its right end, the files
 //  line, the view tabs, the field line, the edit or progress row when there
@@ -1192,7 +1225,7 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorPanel::LayoutRight (const RECT & column, const DxuiDpiScaler & scaler)
+void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler & scaler)
 {
     int   pad     = scaler.ToPx ((int) kPadDip);
     int   row     = scaler.ToPx ((int) kRowDip);
@@ -1201,26 +1234,22 @@ void BlockInspectorPanel::LayoutRight (const RECT & column, const DxuiDpiScaler 
     int   y       = column.top;
     bool  isRow   = m_isLongJob || m_hasEdits;
     bool  isBlock = IsBlockLevel();
-    int   crumb   = m_levels->GetCrumbHeightPx (scaler);
     int   hexEnd  = 0;
 
 
 
-    m_laidOutLevel = (int) m_levels->GetLevel();
+    m_laidOutLevel = (int) m_nav.GetPlace().kind;
 
-    //  At a level other than Block, the level fills the column, with the
+    //  At a place other than a block, the list fills the column, with the
     //  edit or progress row at its foot.
+    m_nav.GetList().SetVisible (!isBlock);
+
     if (!isBlock)
     {
         m_rowRect = isRow ? RECT { column.left, column.bottom - row, column.right, column.bottom } : RECT { column.left, column.bottom, column.right, column.bottom };
         y         = m_rowRect.top;
 
-        m_levels->Layout ({ column.left, column.top, column.right, isRow ? m_rowRect.top - pad : column.bottom }, scaler);
-    }
-    else
-    {
-        m_levels->Layout ({ column.left, column.top, column.right, column.top + crumb }, scaler);
-        y += crumb + pad;
+        m_nav.GetList().Layout ({ column.left, column.top, column.right, isRow ? m_rowRect.top - pad : column.bottom }, scaler);
     }
 
     for (IDxuiControl * control : { (IDxuiControl *) m_previous, (IDxuiControl *) m_next, (IDxuiControl *) m_copy, (IDxuiControl *) m_hex, (IDxuiControl *) m_fields })
@@ -1278,6 +1307,8 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 {
     painter.FillRect ((float) m_splitterPx.left, (float) m_splitterPx.top, (float) (m_splitterPx.right - m_splitterPx.left), (float) (m_splitterPx.bottom - m_splitterPx.top),
                       m_isSplitting ? theme.Accent() : theme.Divider());
+    painter.FillRect ((float) m_treeSplitterPx.left, (float) m_treeSplitterPx.top, (float) (m_treeSplitterPx.right - m_treeSplitterPx.left),
+                      (float) (m_treeSplitterPx.bottom - m_treeSplitterPx.top), m_isTreeSplitting ? theme.Accent() : theme.Divider());
 
     DxuiPanel::Paint (painter, text, theme);
 
@@ -1440,6 +1471,31 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
         return m_cancel->IsVisible() && PtInRect (&cancel, ev.positionDip) ? DxuiPanel::OnMouse (ev) : true;
     }
 
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_treeSplitterPx, ev.positionDip))
+    {
+        m_isTreeSplitting = true;
+        return true;
+    }
+
+    if (m_isTreeSplitting && ev.kind == DxuiMouseEventKind::Move && bounds.right > bounds.left)
+    {
+        m_treeShare = std::clamp ((float) (ev.positionDip.x - bounds.left) / (float) (bounds.right - bounds.left), kMinTree, kMaxTree);
+        Layout (bounds, m_scaler);
+
+        if (m_onChanged)
+        {
+            m_onChanged();
+        }
+
+        return true;
+    }
+
+    if (m_isTreeSplitting && ev.kind == DxuiMouseEventKind::Up)
+    {
+        m_isTreeSplitting = false;
+        return true;
+    }
+
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_splitterPx, ev.positionDip))
     {
         m_isSplitting = true;
@@ -1492,5 +1548,9 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 
 LPCWSTR BlockInspectorPanel::GetCursorForPoint (POINT clientPx) const
 {
-    return PtInRect (&m_splitterPx, clientPx) || m_isSplitting ? IDC_SIZEWE : DxuiPanel::GetCursorForPoint (clientPx);
+    bool  isSplitter = PtInRect (&m_splitterPx, clientPx) || PtInRect (&m_treeSplitterPx, clientPx) || m_isSplitting || m_isTreeSplitting;
+
+
+
+    return isSplitter ? IDC_SIZEWE : DxuiPanel::GetCursorForPoint (clientPx);
 }
