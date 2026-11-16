@@ -1067,3 +1067,22 @@ reported "did not boot" on the ][ plus once on 2026-11-14 at 10:55 and boots
 on the enhanced //e in every run since, ten of ten in
 `ImagesInAFolder_AreCheckedAsCassoExplorerChecksThem`; the cause wasn't found.
 
+## Boot check over the captures of 2026-11-13 (T730, SC-072)
+
+`ImagesInAFolder_AreProbed` booted each image saved from the owner's //c on
+2026-11-13, on an emulated //c in a Debug build, with `CASSO_PROBE_IMAGES` set
+to their folder. Each image took 4 to 10 seconds.
+
+| Image | Result |
+|---|---|
+| Wizardry I | booted |
+| Archon | booted |
+| Arcticfox | booted |
+| The Witness | booted |
+| One-on-One, the images that boot | booted |
+| One-on-One, the second bad capture | did not boot |
+
+Casso Explorer boots each image a Full Send saves on the machines of FR-275 in
+order: the model it was captured from, then the enhanced //e, then the ][ plus.
+`BootCheckTests::TheMachines_BeginWithTheModelCapturedFrom` tests the order, and
+the Wizardry I images of 2026-11-15 were checked that way after their Full Send.

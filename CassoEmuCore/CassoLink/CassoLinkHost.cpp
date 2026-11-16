@@ -137,16 +137,20 @@ void CassoLinkHost::Consume (size_t count)
 //  CassoLinkHost::ReadPacket
 //
 //  ERROR_TIMEOUT when the packet is not whole within the timeout, and
-//  ERROR_INVALID_DATA for a damaged packet, whose bytes are dropped.
+//  ERROR_INVALID_DATA for a damaged packet, whose bytes are dropped. The
+//  timeout is for the whole packet, so bytes that arrive slowly and never
+//  make one end the wait on time; they stay for the next read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkHost::ReadPacket (DWORD timeoutMs, CassoLinkPacket & outPacket)
 {
-    HRESULT  hr       = S_OK;
-    size_t   consumed = 0;
-    bool     complete = false;
-    bool     filled   = false;
+    HRESULT    hr       = S_OK;
+    size_t     consumed = 0;
+    bool       complete = false;
+    bool       filled   = false;
+    ULONGLONG  deadline = GetTickCount64() + timeoutMs;
+    ULONGLONG  now      = 0;
 
 
 
@@ -164,7 +168,9 @@ HRESULT CassoLinkHost::ReadPacket (DWORD timeoutMs, CassoLinkPacket & outPacket)
 
         BAIL_OUT_IF (complete, S_OK);
 
-        hr = Fill (m_adtProServer.m_buffer.size() + 1, timeoutMs, filled);
+        now = GetTickCount64();
+
+        hr = Fill (m_adtProServer.m_buffer.size() + 1, now < deadline ? (DWORD) (deadline - now) : 0, filled);
         CHR (hr);
         CBREx (filled, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
     }
