@@ -1010,7 +1010,20 @@ JsonValue UserConfigStore::MergeHardwareArray (
             const JsonValue * userPorts    = nullptr;
             const JsonValue * userSwitches = nullptr;
             const JsonValue * userNetwork  = nullptr;
+            std::string       userDevice;
+            std::string       defDevice;
             userMatched[(size_t) userIdx] = true;
+
+            // The user's own card in a slot a later default fills is theirs:
+            // a default that gains a card in that slot does not replace it.
+            if (slotArray &&
+                TryGetStringField (userEntry, "device", userDevice) &&
+                TryGetStringField (defEntry,  "device", defDevice)  &&
+                userDevice != defDevice)
+            {
+                merged.emplace_back (userEntry);
+                continue;
+            }
 
             // Only a slot entry has connectors, switches or network settings,
             // and only the user's own values may override the default's. For

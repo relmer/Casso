@@ -234,6 +234,49 @@ public:
     }
 
 
+    //  A 3.5-inch drive's insert has its slot, drive and a path with
+    //  spaces; an eject has the slot and drive.
+    TEST_METHOD (Floppy35InsertAndEjectReachTheDisks)
+    {
+        Notebook  target;
+
+
+
+        Dispatch (IDM_FLOPPY35_INSERT, "5 1 C:\\My Disks\\800k disk.po", target);
+        Dispatch (IDM_FLOPPY35_EJECT,  "0 0", target);
+        Dispatch (IDM_FLOPPY35_EJECT,  "junk", target);
+
+        Assert::AreEqual ((size_t) 2, target.calls.size());
+        Assert::AreEqual (std::string ("InsertFloppy35 5 1 C:\\My Disks\\800k disk.po"), target.calls[0]);
+        Assert::AreEqual (std::string ("EjectFloppy35 0 0"), target.calls[1]);
+    }
+
+
+    //  ONCE A HARD DISK'S NEW IMAGE IS ATTACHED, the machine restarts, as a
+    //  power cycle restarts it. When the image doesn't attach, the machine
+    //  runs on.
+    TEST_METHOD (HardDiskAttachRestartsTheMachine)
+    {
+        Notebook  attached;
+        Notebook  failed;
+
+
+
+        Dispatch (IDM_HARDDISK_ATTACH, "7 2 C:\\My Disks\\big disk.hdv", attached);
+
+        Assert::AreEqual ((size_t) 3, attached.calls.size());
+        Assert::AreEqual (std::string ("AttachHardDisk 7 2 C:\\My Disks\\big disk.hdv"), attached.calls[0]);
+        Assert::AreEqual (std::string ("PowerCycle"),   attached.calls[1]);
+        Assert::AreEqual (std::string ("RemountDisks"), attached.calls[2]);
+
+        failed.attachResult = HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        Dispatch (IDM_HARDDISK_ATTACH, "7 2 C:\\gone.hdv", failed);
+        Dispatch (IDM_HARDDISK_ATTACH, "junk", failed);
+
+        Assert::AreEqual ((size_t) 1, failed.calls.size(), L"no restart, and garbage is dropped");
+    }
+
+
     TEST_METHOD (AChangeResolutionThatDoesNotParseAsksForNothing)
     {
         Notebook  target;
@@ -404,6 +447,24 @@ private:
         void     ResolvePendingChange (int slot, int drive, int action, const std::string & savePath) override
         {
             calls.push_back (std::format ("ResolvePendingChange {} {} {} {}", slot, drive, action, savePath));
+        }
+
+        void     InsertFloppy35 (int slot, int drive, const std::string & path) override
+        {
+            calls.push_back (std::format ("InsertFloppy35 {} {} {}", slot, drive, path));
+        }
+
+        void     EjectFloppy35 (int slot, int drive) override
+        {
+            calls.push_back (std::format ("EjectFloppy35 {} {}", slot, drive));
+        }
+
+        HRESULT  attachResult = S_OK;
+
+        HRESULT  AttachHardDisk (int slot, int drive, const std::string & path) override
+        {
+            calls.push_back (std::format ("AttachHardDisk {} {} {}", slot, drive, path));
+            return attachResult;
         }
 
         void     SetDriveAudioEnabled (bool enabled) override

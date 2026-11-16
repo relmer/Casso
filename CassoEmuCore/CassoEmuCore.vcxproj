@@ -1043,6 +1043,7 @@
     <ClCompile Include="Ui\ThemeManager.cpp" />
     <ClCompile Include="Ui\Chrome\CassoBranding.cpp" />
     <ClCompile Include="Ui\Chrome\DriveWidget.cpp" />
+    <ClCompile Include="Ui\Chrome\DriveBarFanControl.cpp" />
     <ClCompile Include="Ui\Chrome\EmulatorCommands.cpp" />
     <ClCompile Include="Ui\Chrome\PrinterStatusLed.cpp" />
     <ClCompile Include="Ui\Chrome\VolumeFlyout.cpp" />
@@ -1204,6 +1205,7 @@
     <ClCompile Include="Shell\Window\EmulatorWindow.cpp" />
     <ClCompile Include="Shell\Window\EmulatorWindowInput.cpp" />
     <ClCompile Include="Shell\Components\ShellChrome.cpp" />
+    <ClCompile Include="Shell\Components\ShellChromeDriveBar.cpp" />
     <ClCompile Include="Shell\Components\ShellRenderer.cpp" />
     <ClCompile Include="Shell\Components\ShellWindow.cpp" />
     <ClCompile Include="Ui\Chrome\ChromeBand.cpp" />
@@ -1237,6 +1239,8 @@
     <ClCompile Include="Shell\Input\ShellKeyRouting.cpp" />
     <ClCompile Include="Shell\Input\CapsLockTracker.cpp" />
     <ClCompile Include="Shell\Layout\DriveRowLayout.cpp" />
+    <ClCompile Include="Shell\Layout\DriveBarFan.cpp" />
+    <ClCompile Include="Shell\Layout\DriveLabel.cpp" />
     <ClCompile Include="Shell\Layout\ChromeBandLayout.cpp" />
     <ClCompile Include="Seams\Win32HostSocket.cpp" />
     <ClCompile Include="Seams\Win32HostNetwork.cpp" />
@@ -1259,6 +1263,35 @@
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
       <DisableSpecificWarnings>4244;4456;4457;4701;4702;4706;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
+    <ClCompile Include="Devices\BlockDevice\BlockDeviceCatalog.cpp" />
+    <ClCompile Include="Devices\BlockDevice\BlockDeviceMedia.cpp" />
+    <ClCompile Include="Devices\BlockDevice\ScsiBus.cpp" />
+    <ClCompile Include="Devices\BlockDevice\Ncr5380.cpp" />
+    <ClCompile Include="Devices\BlockDevice\ScsiHardDisk.cpp" />
+    <ClCompile Include="Devices\BlockDevice\AppleScsiCard.cpp" />
+    <ClCompile Include="Devices\BlockDevice\BlockDeviceAttachments.cpp" />
+    <ClCompile Include="Devices\BlockDevice\StockHardDiskImage.cpp" />
+    <ClCompile Include="Devices\BlockDevice\ProFileDrive.cpp" />
+    <ClCompile Include="Devices\BlockDevice\ProFileCard.cpp" />
+    <ClCompile Include="Devices\Floppy35\Gcr35Track.cpp" />
+    <ClCompile Include="Devices\Floppy35\Sony35Drive.cpp" />
+    <ClCompile Include="Devices\Floppy35\Iwm.cpp" />
+    <ClCompile Include="Devices\Floppy35\DeviceCpu.cpp" />
+    <ClCompile Include="Devices\Floppy35\Apple35CardMemory.cpp" />
+    <ClCompile Include="Devices\Floppy35\Apple35ControllerCard.cpp" />
+    <ClCompile Include="Devices\Floppy35\SmartPortBus.cpp" />
+    <ClCompile Include="Devices\Floppy35\UniDisk35Drive.cpp" />
+    <ClCompile Include="Devices\Floppy35\LironCard.cpp" />
+    <ClCompile Include="Devices\Floppy35\SmartPortHost.cpp" />
+    <ClCompile Include="Devices\Floppy35\Apple2cSmartPort.cpp" />
+    <ClCompile Include="Devices\Floppy35\Apple2cPlusDiskPort.cpp" />
+    <ClCompile Include="Machines\Apple2\Apple2cPlus\MigChip.cpp" />
+    <ClCompile Include="Machines\Apple2\Apple2cPlus\Apple2cPlusAccelerator.cpp" />
+    <ClCompile Include="Audio\Floppy35AudioSource.cpp" />
+    <ClCompile Include="Audio\HardDiskAudioSource.cpp" />
+    <ClCompile Include="Ui\Settings\SlotCards.cpp" />
+    <ClCompile Include="Shell\StorageCardWiring.cpp" />
+    <ClCompile Include="Ui\Scene\DeskDrivePlan.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />
@@ -1971,6 +2004,7 @@
     <ClInclude Include="Ui\Chrome\CassoTheme.h" />
     <ClInclude Include="Ui\Chrome\CassoBranding.h" />
     <ClInclude Include="Ui\Chrome\DriveWidget.h" />
+    <ClInclude Include="Ui\Chrome\DriveBarFanControl.h" />
     <ClInclude Include="Ui\Chrome\EmulatorCommands.h" />
     <ClInclude Include="Ui\Chrome\PrinterStatusLed.h" />
     <ClInclude Include="Ui\Chrome\VolumeFlyout.h" />
@@ -2161,6 +2195,9 @@
     <ClInclude Include="Shell\Input\ShellKeyRouting.h" />
     <ClInclude Include="Shell\Input\CapsLockTracker.h" />
     <ClInclude Include="Shell\Layout\DriveRowLayout.h" />
+    <ClInclude Include="Shell\Layout\DriveBarFan.h" />
+    <ClInclude Include="Shell\Layout\DriveLabel.h" />
+    <ClInclude Include="Shell\Layout\DriveLamp.h" />
     <ClInclude Include="Shell\Layout\ChromeBandLayout.h" />
     <ClInclude Include="Seams\IHostFirewall.h" />
     <ClInclude Include="Seams\IHostNetwork.h" />
@@ -2186,6 +2223,47 @@
     <ClInclude Include="Devices\Network\W5100SocketBridge.h" />
     <ClInclude Include="Machines\Apple2\Common\UthernetCard.h" />
     <ClInclude Include="Ui\Settings\NetworkPage.h" />
+    <ClInclude Include="Devices\BlockDevice\BlockDeviceCatalog.h" />
+    <ClInclude Include="Core\SpscEventRing.h" />
+    <ClInclude Include="Devices\BlockDevice\BlockDeviceEvent.h" />
+    <ClInclude Include="Devices\BlockDevice\IBlockDeviceEventSink.h" />
+    <ClInclude Include="Devices\BlockDevice\BlockDeviceEventRing.h" />
+    <ClInclude Include="Devices\Floppy35\Floppy35Event.h" />
+    <ClInclude Include="Devices\Floppy35\IFloppy35EventSink.h" />
+    <ClInclude Include="Devices\Floppy35\Floppy35EventRing.h" />
+    <ClInclude Include="Devices\BlockDevice\BlockDeviceMedia.h" />
+    <ClInclude Include="Devices\BlockDevice\IScsiTarget.h" />
+    <ClInclude Include="Devices\BlockDevice\ScsiBus.h" />
+    <ClInclude Include="Devices\BlockDevice\Ncr5380.h" />
+    <ClInclude Include="Devices\BlockDevice\ScsiHardDisk.h" />
+    <ClInclude Include="Devices\BlockDevice\AppleScsiCard.h" />
+    <ClInclude Include="Devices\BlockDevice\BlockDeviceAttachments.h" />
+    <ClInclude Include="Devices\BlockDevice\StockHardDiskImage.h" />
+    <ClInclude Include="Ui\Scene\DeskSceneHardDiskLabels.h" />
+    <ClInclude Include="Devices\BlockDevice\ProFileDrive.h" />
+    <ClInclude Include="Devices\BlockDevice\ProFileCard.h" />
+    <ClInclude Include="Devices\Floppy35\Gcr35Track.h" />
+    <ClInclude Include="Devices\Floppy35\Sony35Drive.h" />
+    <ClInclude Include="Devices\Floppy35\IDiskDriveBus.h" />
+    <ClInclude Include="Devices\Floppy35\Iwm.h" />
+    <ClInclude Include="Devices\Floppy35\DeviceCpu.h" />
+    <ClInclude Include="Devices\Floppy35\Apple35CardMemory.h" />
+    <ClInclude Include="Devices\Floppy35\Apple35ControllerCard.h" />
+    <ClInclude Include="Devices\Floppy35\SmartPortBus.h" />
+    <ClInclude Include="Devices\Floppy35\UniDisk35Drive.h" />
+    <ClInclude Include="Devices\Floppy35\LironCard.h" />
+    <ClInclude Include="Devices\Floppy35\SmartPortHost.h" />
+    <ClInclude Include="Devices\Floppy35\Apple2cSmartPort.h" />
+    <ClInclude Include="Machines\Apple2\Common\IDiskPortHook.h" />
+    <ClInclude Include="Devices\Floppy35\Apple2cPlusDiskPort.h" />
+    <ClInclude Include="Machines\Apple2\Apple2cPlus\Apple2cPlus.h" />
+    <ClInclude Include="Machines\Apple2\Apple2cPlus\MigChip.h" />
+    <ClInclude Include="Machines\Apple2\Apple2cPlus\Apple2cPlusAccelerator.h" />
+    <ClInclude Include="Audio\Floppy35AudioSource.h" />
+    <ClInclude Include="Audio\HardDiskAudioSource.h" />
+    <ClInclude Include="Ui\Settings\SlotCards.h" />
+    <ClInclude Include="Shell\StorageCardWiring.h" />
+    <ClInclude Include="Ui\Scene\DeskDrivePlan.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="CassoLink\Apple\Program.s" />

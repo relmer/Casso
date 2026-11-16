@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Core/MemoryBus.h"
+#include "Devices/BlockDevice/BlockDeviceEventRing.h"
+#include "Devices/Floppy35/Floppy35EventRing.h"
 #include "Devices/IInputEventSink.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/IDisk2EventSink.h"
@@ -163,6 +165,53 @@ public:
 
         Assert::AreEqual (2, panel.GetKeyDowns(),
             L"and re-attaching puts the same panel back on the new machine");
+    }
+
+
+    //  Stands in for a block device and a 3.5-inch mechanism, and records the
+    //  sinks it is pointed at.
+    class RecordingSource : public IBlockDeviceEventSource, public IFloppy35EventSource
+    {
+    public:
+        void SetBlockDeviceEventSink (IBlockDeviceEventSink * sink) override { blockSink = sink; }
+        void SetFloppy35EventSink    (IFloppy35EventSink    * sink) override { floppySink = sink; }
+
+        IBlockDeviceEventSink  * blockSink  = nullptr;
+        IFloppy35EventSink     * floppySink = nullptr;
+    };
+
+
+    //  EVERY BLOCK DEVICE AND 3.5-INCH MECHANISM IS POINTED AT THE OBSERVERS'
+    //  SINKS, and detaching points them at none.
+    TEST_METHOD (BlockAndFloppySourcesGetTheObserversSinks)
+    {
+        MachineHost           host;
+        RecordingSource       first;
+        RecordingSource       second;
+        BlockDeviceEventRing  blockRing;
+        Floppy35EventRing     floppyRing;
+        MachineObservers      observers;
+
+
+
+        host.GetRefs().blockDeviceSources = { &first, &second };
+        host.GetRefs().floppy35Sources    = { &second };
+
+        observers.blockDevice = &blockRing;
+        observers.floppy35    = &floppyRing;
+        host.AttachObservers (observers);
+
+        Assert::IsTrue (first.blockSink   == &blockRing);
+        Assert::IsTrue (second.blockSink  == &blockRing);
+        Assert::IsTrue (second.floppySink == &floppyRing);
+        Assert::IsTrue (first.floppySink  == nullptr, L"a source not in the floppy list is left alone");
+
+        host.AttachObservers ({});
+
+        Assert::IsTrue (first.blockSink   == nullptr);
+        Assert::IsTrue (second.floppySink == nullptr);
+
+        host.GetRefs() = {};
     }
 
 

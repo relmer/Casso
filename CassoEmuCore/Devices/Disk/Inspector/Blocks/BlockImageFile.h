@@ -86,6 +86,10 @@ public:
     //  or last committed.
     bool     IsFileUnchanged ();
 
+    //  Whether a Disk Copy 4.2 image's stored data checksum matches its data;
+    //  true for any other container.
+    HRESULT  IsDataChecksumValid (bool & outValid);
+
     static uint32_t  ReadLittleLong (std::span<const Byte> bytes, size_t at);
     static uint32_t  ReadBigLong    (std::span<const Byte> bytes, size_t at);
 

@@ -3,6 +3,7 @@
 #include "../../CassoEmuCore/Pch.h"
 
 #include "Core/MachineConfig.h"
+#include "FakeDiskFileIo.h"
 #include "Core/Prng.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
@@ -84,6 +85,10 @@ public:
     //  nothing left to say.
     explicit TestMachine (const std::string & machineId, Slots slots = Slots::AsShipped);
 
+    //  The devices go first, while the in-memory file system their images
+    //  are written through still exists.
+    ~TestMachine();
+
     //  As above, with the loaded config passed to `configure` before the build,
     //  for a test that turns on a card the shipped config lists as off.
     TestMachine (const std::string                         & machineId,
@@ -113,17 +118,48 @@ public:
 
     //  The builder that built this machine, for the accessors the shell reads
     //  through it.
-    MachineBuilder  &  GetBuilder() noexcept { return m_builder; }
+    //  A SmartPort or hard disk card for a slot, by its device id, with what
+    //  is attached to its ports. Its firmware resolves out of the fixtures.
+    struct BlockCard
+    {
+        int                      slot = 0;
+        std::string              device;
+        std::vector<PortConfig>  ports;
+    };
+
+    //  The machine with each card in its slot, replacing what the slot had,
+    //  and every image read and written through `fileIo`, so a test can run
+    //  a card over in-memory images.
+    TestMachine (const std::string             & machineId,
+                 Slots                           slots,
+                 const std::vector<BlockCard>  & cards,
+                 IDiskFileIo                   & fileIo);
+
+    //  The machine with each of `ports` in place of its port of the same
+    //  name, each chain drive's ROM resolved out of the fixtures and each
+    //  image read and written through `fileIo`.
+    TestMachine (const std::string              & machineId,
+                 const std::vector<PortConfig>  & ports,
+                 IDiskFileIo                    & fileIo);
+
+        MachineBuilder  &  GetBuilder() noexcept { return m_builder; }
 
 private:
 
-    static void  LoadConfig (const std::string & machineId, MachineConfig & outConfig);
-    void         BuildFrom  (const std::string & machineId, const MachineConfig & config);
+    static void                               LoadConfig          (const std::string & machineId, MachineConfig & outConfig);
+    static MachineConfigLoader::FileResolver  MakeFixtureResolver ();
+    void                                      BuildFrom           (const std::string & machineId, const MachineConfig & config);
 
     static MachineBuildServices  MakeServices (const std::string & machineId, const Customize & customize);
 
     void  Construct (const std::string & machineId, Slots slots, const Customize & customize);
 
+    //  The stock hard disk image and any block device image are made and read
+    //  here unless a test passes its own file system.
+    static constexpr const char *  kpszStockFolder = "C:\\Casso\\Disks";
+
     MachineBuildServices  m_nothingListening;
     MachineBuilder        m_builder;
+    FakeDiskFileIo        m_blockFiles;
+    bool                  m_hasOwnBlockFiles = false;
 };

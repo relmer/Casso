@@ -6,6 +6,18 @@
 
 
 class Acia6551;
+class Apple35ControllerCard;
+class LironCard;
+class Disk2Controller;
+class IDriveAudioSource;
+class Apple2cPlusDiskPort;
+class SmartPortHost;
+struct PortConfig;
+class AppleScsiCard;
+class ProFileCard;
+class IExpansionRomCard;
+class MemoryDevice;
+class SlotRomPage;
 class DriveAudioMixer;
 class IHostNetwork;
 class Disk2AudioSource;
@@ -52,6 +64,7 @@ struct SlotConfig;
 struct MachineBuildServices
 {
     std::vector<std::unique_ptr<Disk2AudioSource>>  *  diskAudioSources       = nullptr;
+    std::vector<std::unique_ptr<IDriveAudioSource>> *  deviceAudioSources     = nullptr;   // the 3.5-inch drives' and hard disks'
     DriveAudioMixer                                 *  driveAudioMixer        = nullptr;
     DriveAudioMixer                                 *  mockingboardAudioMixer = nullptr;
     PrinterAudioSource                              *  printerAudio           = nullptr;
@@ -156,11 +169,15 @@ public:
 
     void     SelectVideoMode      ();
 
+    //  Puts a card's $Cn00 page and its share of the $C800-$CFFF expansion
+    //  space on the machine.
+    void     AddExpansionRomCard  (int slot, IExpansionRomCard & card, SlotRomPage & slotPage);
+
 private:
 
-    void     WireParallelPrinter  (const SlotConfig & slot, PrinterCard & card);
-    void     WireSuperSerialCard  (const SlotConfig & slot, SuperSerialCard & card);
-    void     AttachSerialEndpoint (const SlotConfig & slot, SuperSerialCard & card);
+    void  WireParallelPrinter   (const SlotConfig & slot, PrinterCard & card);
+    void  WireSuperSerialCard   (const SlotConfig & slot, SuperSerialCard & card);
+    void  AttachSerialEndpoint  (const SlotConfig & slot, SuperSerialCard & card);
 
     MachineHost          &  m_host;
     MachineBuildServices    m_services;

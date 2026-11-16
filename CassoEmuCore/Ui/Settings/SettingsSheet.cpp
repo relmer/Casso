@@ -643,6 +643,32 @@ HRESULT SettingsSheet::OpenModeless (
     // reported, and both are synced to it.
     m_printingPage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
     m_hardwarePage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
+    m_hardwarePage->SetOnBrowseImage ([this] (std::string & inOutPath) -> bool
+    {
+        FileDialogSpec  spec;
+        fs::path        picked;
+        bool            isPicked = false;
+        HRESULT         hr       = S_OK;
+
+
+
+        spec.filters = { { L"Disk images", L"*.po;*.hdv;*.2mg;*.2img;*.dsk;*.dc;*.dc42;*.image;*.woz" }, { L"All files", L"*.*" } };
+
+        if (!inOutPath.empty())
+        {
+            spec.initialFolder   = fs::path (TextEncoding::Utf8ToWide (inOutPath)).parent_path();
+            spec.defaultFileName = fs::path (TextEncoding::Utf8ToWide (inOutPath)).filename().wstring();
+        }
+
+        hr = m_emuShell->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, picked, isPicked);
+
+        if (SUCCEEDED (hr) && isPicked)
+        {
+            inOutPath = TextEncoding::WideToUtf8 (picked.wstring());
+        }
+
+        return SUCCEEDED (hr) && isPicked;
+    });
 
     // Serial card page: the staged slot entry, the firmware's status in the
     // running machine's config, the shell's download, and the file pickers.
@@ -1239,7 +1265,7 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
 
     // The machine can change under a staged pick, and the desk wears what the
     // machine wore.
-    if (m_emuShell != nullptr && m_emuShell->GetDisks().MachineHasBuiltInDrive() != m_previewSceneIsC)
+    if (m_emuShell != nullptr && m_emuShell->GetDisks().HasDiskIicDrives() != m_previewSceneIsC)
     {
         hr = LoadPreviewSceneModels();
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1314,7 +1340,7 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
 HRESULT SettingsSheet::LoadPreviewSceneModels()
 {
     HRESULT  hr  = S_OK;
-    bool     isC = (m_emuShell != nullptr) && m_emuShell->GetDisks().MachineHasBuiltInDrive();
+    bool     isC = (m_emuShell != nullptr) && m_emuShell->GetDisks().HasDiskIicDrives();
 
 
 

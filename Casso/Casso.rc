@@ -26,6 +26,7 @@ IDR_MACHINE_APPLE2      RCDATA "..\\Resources\\Machines\\Apple2\\Apple2.json"
 IDR_MACHINE_APPLE2PLUS  RCDATA "..\\Resources\\Machines\\Apple2Plus\\Apple2Plus.json"
 IDR_MACHINE_APPLE2E     RCDATA "..\\Resources\\Machines\\Apple2e\\Apple2e.json"
 IDR_MACHINE_APPLE2C     RCDATA "..\\Resources\\Machines\\Apple2c\\Apple2c.json"
+IDR_MACHINE_APPLE2C_PLUS RCDATA "..\\Resources\\Machines\\Apple2cPlus\\Apple2cPlus.json"
 IDR_MACHINE_APPLE2E_ENHANCED RCDATA "..\\Resources\\Machines\\Apple2eEnhanced\\Apple2eEnhanced.json"
 
 // Embedded built-in theme files (extracted on first run by
@@ -57,6 +58,11 @@ IDR_MODEL_MONITOR2_MESH            RCDATA "Monitor2.dmesh"
 IDR_MODEL_DISK2C_MESH              RCDATA "Disk2c.dmesh"
 IDR_MODEL_DUODISK_MESH             RCDATA "DuoDisk.dmesh"
 IDR_MODEL_CASSETTE_RECORDER_MESH   RCDATA "CassetteRecorder.dmesh"
+IDR_MODEL_HARDDISK20SC_MESH        RCDATA "HardDisk20SC.dmesh"
+IDR_MODEL_PROFILE_MESH             RCDATA "ProFile.dmesh"
+IDR_MODEL_UNIDISK35_MESH           RCDATA "UniDisk35.dmesh"
+IDR_MODEL_APPLE35_MESH             RCDATA "Apple35Drive.dmesh"
+IDR_MODEL_APPLE35PLUS_MESH         RCDATA "Apple35Plus.dmesh"
 
 // Embedded ImageWriter II mechanical sound set (extracted to the asset base by
 // EnsureImageWriterSounds; decoded by PrinterAudioSource). CC BY 4.0 -- see
@@ -85,6 +91,7 @@ IDR_HLSL_SETTINGS_COMPOSE    RCDATA "Shaders\\Settings\\settings_compose.hlsl"
 IDR_ACCELERATOR ACCELERATORS
 BEGIN
     "R",            IDM_MACHINE_RESET,      VIRTKEY, CONTROL, SHIFT
+    "R",            IDM_MACHINE_RESET,      VIRTKEY, CONTROL, SHIFT, ALT
     "P",            IDM_MACHINE_POWERCYCLE, VIRTKEY, CONTROL, SHIFT
     VK_PAUSE,       IDM_MACHINE_PAUSE,      VIRTKEY
     VK_F11,         IDM_MACHINE_STEP,       VIRTKEY

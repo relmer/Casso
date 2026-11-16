@@ -3,6 +3,7 @@
 #include "Ui/Settings/SettingsPanelState.h"
 #include "Ui/Settings/SettingsJson.h"
 #include "Ui/Settings/HardwarePage.h"
+#include "SettingsRecordingSink.h"
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
@@ -44,101 +45,7 @@ public:
     static constexpr uint32_t  s_kFixtureClockSpeedHz    = 1023000;
     static constexpr size_t    s_kFixtureDevices         = 4;
 
-    class RecordingSink : public ISettingsApplySink
-    {
-    public:
-        SettingsSpeedMode         lastSpeed                  = SettingsSpeedMode::Authentic;
-        SettingsColorMode         lastColor                  = SettingsColorMode::Color;
-        bool                      lastFloppySound            = true;
-        bool                      lastFastTapeLoading        = true;
-        float                     lastTapeVolume             = 1.0f;
-        bool                      lastTapeAutoStop           = true;
-        bool                      lastTapeIdleStop           = true;
-        bool                      lastTapeEightBit           = false;
-        std::string               lastMechanism;
-        bool                      lastWriteProtect[2]        = { false, false };
-        float                     lastDriveMotor             = -1.0f;
-        float                     lastDriveHead              = -1.0f;
-        float                     lastDriveDoor              = -1.0f;
-        float                     lastDriveOnePan            = 0.0f;
-        float                     lastDriveTwoPan            = 0.0f;
-        bool                      lastExternalDriveConnected = false;
-        bool                      lastMouseConnected         = true;
-        int                       queuedResetCount           = 0;
-        std::vector<std::string>  serialConnects;
-        std::string               lastSerialSw1;
-        std::string               lastSerialSw2;
-        int                       applyCount                 = 0;
-        NetworkCardSettings       lastNetworkCard;
-        int                       networkCardCount           = 0;
-
-        void ApplySpeedMode    (SettingsSpeedMode mode) override   { lastSpeed = mode; ++applyCount; }
-        void ApplyColorMode    (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
-        void ApplyFloppySound  (bool enabled) override             { lastFloppySound = enabled; ++applyCount; }
-        void ApplyFastTapeLoading (bool enabled) override          { lastFastTapeLoading = enabled; }
-        void ApplyTapeVolume   (float gain) override               { lastTapeVolume = gain; }
-        void ApplyTapeAutoStop (bool enabled) override             { lastTapeAutoStop = enabled; }
-        void ApplyTapeIdleStop (bool enabled) override             { lastTapeIdleStop = enabled; }
-        void ApplyTapeEightBit (bool enabled) override             { lastTapeEightBit = enabled; }
-        void ApplyMechanism    (const std::string & m) override    { lastMechanism = m; ++applyCount; }
-        void ApplyDriveVolumes (float motor, float head, float door) override
-        {
-            lastDriveMotor = motor;
-            lastDriveHead  = head;
-            lastDriveDoor  = door;
-            ++applyCount;
-        }
-
-        void ApplyDrivePan     (float driveOnePan, float driveTwoPan) override
-        {
-            lastDriveOnePan = driveOnePan;
-            lastDriveTwoPan = driveTwoPan;
-            ++applyCount;
-        }
-
-        void ApplyWriteProtect (int drive, bool wp) override
-        {
-            if (drive >= 0 && drive < 2) lastWriteProtect[drive] = wp;
-            ++applyCount;
-        }
-
-        void ApplyExternalDriveConnected (bool connected) override
-        {
-            lastExternalDriveConnected = connected;
-            ++applyCount;
-        }
-
-        void ApplyMouseConnected (bool connected) override
-        {
-            lastMouseConnected = connected;
-            ++applyCount;
-        }
-
-        void ApplySerialPortDevice (int port, const std::string & device, const std::string & path) override
-        {
-            serialConnects.push_back (path.empty() ? std::format ("{} {}", port, device) : std::format ("{} {} {}", port, device, path));
-        }
-
-        void ApplyParallelPrinter (int slot, bool attached) override
-        {
-            serialConnects.push_back (std::format ("parallel {} {}", slot, attached ? "on" : "off"));
-        }
-
-        void ApplySerialCardSwitches (const std::string & sw1, const std::string & sw2) override
-        {
-            lastSerialSw1 = sw1;
-            lastSerialSw2 = sw2;
-            ++applyCount;
-        }
-
-        void ApplyNetworkCard (const NetworkCardSettings & settings) override
-        {
-            lastNetworkCard = settings;
-            ++networkCardCount;
-        }
-
-        void QueueMachineReset() override { ++queuedResetCount; }
-    };
+    using RecordingSink = SettingsRecordingSink;
 
 
     JsonValue ParseOrFail (const std::string & text)
@@ -230,6 +137,25 @@ public:
             "colorMode": "color"
         }
     })JSON";
+
+
+    //  A machine whose accelerator runs the CPU faster than the machine has
+    //  the CPU's clock beside the machine's; another machine has 0.
+    TEST_METHOD (Load_CpuClockSpeedFromTiming)
+    {
+        SettingsPanelState  st;
+        JsonValue           fast  = ParseOrFail (R"JSON({ "name": "Fast", "timing": { "clockSpeed": 1020484, "cpuClockSpeed": 4000000 } })JSON");
+        JsonValue           plain = ParseOrFail (kFixtureJson);
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("Fast", fast, fast));
+        Assert::AreEqual (4000000u, st.GetMachineInfo().cpuClockSpeed);
+        Assert::AreEqual (1020484u, st.GetMachineInfo().clockSpeed);
+
+        AssertSucceeded (st.LoadFromMachine ("TestMachine", plain, plain));
+        Assert::AreEqual (0u, st.GetMachineInfo().cpuClockSpeed);
+    }
 
 
     TEST_METHOD (Load_Defaults_NotDirty_NoResetRequired)
@@ -1575,6 +1501,86 @@ public:
         AssertSucceeded (hr);
         Assert::IsTrue (st.HasDiskIIController(),
             L"Re-enabling the disk-ii slot must restore the controller.");
+    }
+
+
+    //  A HARD DISK'S IMAGE AND REAL TIMING SWITCH, AND A //C DISK PORT'S CHAIN,
+    //  SURVIVE A SAVE of an unrelated change.
+    TEST_METHOD (BuildJson_KeepsDriveImagesAndChains)
+    {
+        SettingsPanelState   st;
+        RecordingSink        sink;
+        JsonValue            outJson;
+        std::string          text;
+        JsonWriter::Options  opts;
+        JsonValue            v;
+        const char         * j = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "internalDevices": [ { "type": "keyboard" } ],
+            "slots": [ { "slot": 7, "device": "apple-scsi-card",
+                         "ports": [ "", { "device": "hd20sc", "image": "C:/a.hdv", "realTiming": true },
+                                    { "device": "hd20sc", "image": "stock" } ] } ],
+            "ports": [ { "name": "disk", "device": "", "chain": [ { "device": "unidisk35", "image": "u.po" } ] } ]
+        })JSON";
+
+
+
+        v = ParseOrFail (j);
+        st.LoadFromMachine ("X", v, v);
+
+        st.SetSpeedMode (SettingsSpeedMode::Double);
+        st.Apply (sink, outJson);
+
+        opts.fPretty = false;
+        JsonWriter::Write (outJson, opts, text);
+
+        Assert::IsTrue (text.find ("\"image\":\"C:/a.hdv\"") != std::string::npos);
+        Assert::IsTrue (text.find ("\"realTiming\":true")    != std::string::npos);
+        Assert::IsTrue (text.find ("\"image\":\"stock\"")    != std::string::npos);
+        Assert::IsTrue (text.find ("\"chain\"")              != std::string::npos);
+        Assert::IsTrue (text.find ("\"image\":\"u.po\"")     != std::string::npos);
+    }
+
+
+    //  THE REAL TIMING SWITCH IS SAVED WITH ITS DRIVE, and a port without a
+    //  hard disk has no switch.
+    TEST_METHOD (SetPortRealTiming_IsSavedWithTheDrive)
+    {
+        SettingsPanelState   st;
+        RecordingSink        sink;
+        JsonValue            outJson;
+        std::string          text;
+        JsonWriter::Options  opts;
+        JsonValue            v;
+        const char         * j = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "internalDevices": [ { "type": "keyboard" } ],
+            "slots": [ { "slot": 7, "device": "apple-scsi-card", "ports": [ "", "", "hd20sc" ] } ]
+        })JSON";
+        size_t               scsi = 0;
+        HRESULT              hr   = S_OK;
+
+
+
+        v = ParseOrFail (j);
+        st.LoadFromMachine ("X", v, v);
+
+        for (size_t i = 0; i < st.GetHardware().size(); i++)
+        {
+            scsi = (st.GetHardware()[i].type == "apple-scsi-card") ? i : scsi;
+        }
+
+        hr = st.SetPortRealTiming (scsi, 0, true);
+        Assert::IsTrue  (FAILED (hr), L"no drive on ID 0");
+        AssertSucceeded (st.SetPortRealTiming (scsi, 2, true));
+        st.Apply (sink, outJson);
+
+        opts.fPretty = false;
+        JsonWriter::Write (outJson, opts, text);
+
+        Assert::IsTrue (text.find ("{\"device\":\"hd20sc\",\"realTiming\":true}") != std::string::npos);
     }
 
 

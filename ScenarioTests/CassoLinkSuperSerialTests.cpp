@@ -71,6 +71,9 @@ public:
     //  Apple's, and the switches for IN# and Ctrl-A commands.
     static void  ConfigureCard (MachineConfig & config, bool firmware)
     {
+        // The //e's default card in slot 5 is taken out for this one.
+        std::erase_if (config.slots, [] (const SlotConfig & slot) { return slot.slot == kSlot && slot.device != kpszSuperSerialCardDevice; });
+
         for (SlotConfig & slot : config.slots)
         {
             if (slot.device == kpszSuperSerialCardDevice)

@@ -89,6 +89,18 @@ public:
     void     EjectDisk               (int drive) override;
     HRESULT  ToggleImageWriteProtect (int drive) override;
     void     ResolvePendingChange    (int slot, int drive, int action, const std::string & savePath) override;
+    void     InsertFloppy35          (int slot, int drive, const std::string & path) override;
+    void     EjectFloppy35           (int slot, int drive) override;
+    HRESULT  AttachHardDisk          (int slot, int drive, const std::string & path) override;
+
+    // A hard disk's new image, posted from the CPU thread to the UI thread
+    // as AppMessage::ShellHardDiskImage, which saves it with the machine.
+    struct HardDiskImageChange
+    {
+        int          slot  = 0;
+        int          drive = 0;
+        std::string  path;
+    };
 
     // IDriveCommandSink
     // UI-thread entry points the drive widgets call into when the user
@@ -142,6 +154,22 @@ public:
     // Whether the machine's drive is soldered in rather than plugged into a
     // card, which decides the drive the desk scene draws.
     bool  MachineHasBuiltInDrive () const;
+    bool  HasDiskIicDrives       () const;
+
+    // The //c Plus's disk port, whose drives are attached from the Disk menu:
+    // whether the machine offers that, how many drives of `device` are on
+    // the port's chain, and how many it takes. The port takes two drives in
+    // all, so a drive of `device` fits while the chain has fewer than two
+    // and fewer than the limit of its kind.
+    bool  IsPortChainOffered () const;
+    int   CountPortDrives    (const std::string & device) const;
+    int   GetPortDriveLimit  (const std::string & device) const;
+    bool  CanPlugInPortDrive (const std::string & device) const;
+    bool  CanSwapPortDrive   (const std::string & device) const;
+
+    // The kind a drive of `device` swaps for: a 3.5-inch drive for a
+    // 5.25-inch drive and the reverse. Empty for any other device.
+    static std::string  GetSwapDevice (const std::string & device);
 
     // The info icon's tooltip for a drive: what its WOZ image declares about
     // the machine, and what conflicts with the one running. Empty when nothing

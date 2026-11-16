@@ -167,9 +167,13 @@ struct DeviceConfig
 //
 struct PortConfig
 {
-    string  name;      // "disk", "serial1", "joystick"; empty for numbered ports
-    string  device;    // what is attached; empty for an unoccupied port
-    string  path;      // a host file, for the serial file attachments
+    string              name;                 // "disk", "serial1", "joystick"; empty for numbered ports
+    string              device;               // what is attached; empty for an unoccupied port
+    string              path;                 // a host file, for the serial file attachments
+    string              image;                // a disk image for a block device or 3.5-inch drive; "stock" for the stock hard disk
+    bool                realTiming = false;   // a hard disk's spin-up and seek delays
+    string              firmwarePath;         // a drive's own controller ROM, resolved by the loader; empty when missing
+    vector<PortConfig>  chain;                // a //c disk port's SmartPort chain, in order
 };
 
 
@@ -267,6 +271,9 @@ struct SlotConfig
     // The Uthernet II's settings, from the slot entry's `network` object;
     // defaults for any other device.
     NetworkCardSettings  network;
+    // Why a card or a drive the entry lists was not installed; empty when
+    // everything was.
+    string              deviceProblem;
 };
 
 
@@ -448,6 +455,10 @@ struct MachineConfig
     }
 
 
+    // The 5.25-inch drives at the end of the machine's disk port chains.
+    int  CountDiskPortFloppies () const;
+
+
     // Every byte of RAM the machine has, in K: its regions, plus a language
     // card's 16K for each bank -- main, and aux on a machine that has one.
     // ROM is not counted.
@@ -568,6 +579,39 @@ public:
     using FileResolver = function<fs::path (const vector<fs::path> &,
                                             const fs::path &)>;
 
+    // A SmartPort or hard disk card's ROM, its host machine and its drives.
+    // A card the machine cannot host is removed from the slot, and a drive
+    // the card does not accept from its port, with the reason in the slot's
+    // `deviceProblem`. Never fails the load.
+    static void    ResolveBlockCard (const string           & machineId,
+                                     const vector<fs::path> & searchPaths,
+                                     const FileResolver     & resolver,
+                                     SlotConfig             & slot);
+
+    // The ROM of a drive with a separate controller, such as the UniDisk
+    // 3.5, into the port's `firmwarePath`, or the reason it is missing into
+    // `problem`.
+    static void    ResolveDriveFirmware (const vector<fs::path> & searchPaths,
+                                         const FileResolver     & resolver,
+                                         PortConfig             & port,
+                                         string                 & problem);
+
+    // The SmartPort drives a port's chain takes, as the //c's firmware and
+    // ProDOS 8 mount them.
+    static constexpr size_t  kMaxChainDrives = 4;
+
+    // Each machine port's chain: its order and length checked, and its
+    // drives' ROMs resolved. ERROR_INVALID_DATA, with `outError`, for a chain
+    // the port can't take. `maxFloppies` is the machine's
+    // MachineDefinition::diskPortFloppyCount, and `maxApple35` its
+    // MachineDefinition::diskPortApple35Count.
+    static HRESULT  ResolveDiskPortChains (const vector<fs::path> & searchPaths,
+                                           const FileResolver     & resolver,
+                                           vector<PortConfig>     & ports,
+                                           string                 & outError,
+                                           size_t                   maxFloppies = 1,
+                                           size_t                   maxApple35  = 0);
+
     // `machineName` selects the per-machine ROM subdir
     // (Machines/<machineName>/<file>) used to resolve systemRom and
     // characterRom files. Slot ROMs whose device is "disk-ii" resolve
@@ -677,6 +721,10 @@ private:
     static void    ResolveSlotFirmware (const vector<fs::path> & searchPaths,
                                         const FileResolver     & resolver,
                                         SlotConfig             & slot);
+
+
+    static void    ParsePort           (const JsonValue & entry, PortConfig & outPort);
+    static void    ParsePortArray      (const JsonValue & portsArray, vector<PortConfig> & outPorts);
 
     // Reads a slot's optional `switches` object into its text fields.
     static void    ParseSwitches      (const JsonValue & owner, SlotConfig & slot);

@@ -22,6 +22,9 @@
 static constexpr Word  s_kScreenBlockMask     = 0x7F;
 static constexpr Word  s_kFirstScreenHoleByte = 0x78;
 
+// The soft switch page, the only one the I/O observer watches.
+static constexpr Word  s_kIoPage              = 0xC0;
+
 
 
 
@@ -91,6 +94,10 @@ Byte MemoryBus::ReadByte (Word address)
     if (page != nullptr)
     {
         value = page[address & 0xFF];
+    }
+    else if (m_ioObserver != nullptr && (address >> 8) == s_kIoPage && m_ioObserver->OnIoAccess (address, false, 0, value))
+    {
+        m_floatingBusValue = value;
     }
     else
     {
@@ -180,6 +187,19 @@ void MemoryBus::WriteByte (Word address, Byte value)
         }
 
         // No page mapping -- fall through to device-based write (e.g., for ROM areas)
+    }
+
+    if (m_ioObserver != nullptr && (address >> 8) == s_kIoPage)
+    {
+        Byte  ignored = 0;
+
+
+
+        if (m_ioObserver->OnIoAccess (address, true, value, ignored))
+        {
+            m_floatingBusValue = value;
+            return;
+        }
     }
 
     device = FindDevice (address);

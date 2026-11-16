@@ -561,6 +561,7 @@
     <ClCompile Include="EmuTests\ProDosModifiedDateTests.cpp" />
     <ClCompile Include="EmuTests\FrameClockTests.cpp" />
     <ClCompile Include="EmuTests\OpenAppleResetTests.cpp" />
+    <ClCompile Include="EmuTests\AcceleratorTableTests.cpp" />
     <ClCompile Include="EmuTests\CpuCommandDispatcherTests.cpp" />
     <ClCompile Include="EmuTests\GuestSession.cpp" />
     <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
@@ -717,6 +718,7 @@
     <ClCompile Include="UiTests\MainMenuDropdownTests.cpp" />
     <ClCompile Include="UiTests\AutoMountTests.cpp" />
     <ClCompile Include="UiTests\SettingsPanelStateTests.cpp" />
+    <ClCompile Include="UiTests\DiskPortChainEditTests.cpp" />
     <ClCompile Include="UiTests\SerialCardNoticeTests.cpp" />
     <ClCompile Include="UiTests\CommandLineHelpLayoutTests.cpp" />
     <ClCompile Include="UiTests\CommandLineHelpPanelTests.cpp" />
@@ -856,6 +858,8 @@
     <ClCompile Include="EmuTests\ShellKeyRoutingTests.cpp" />
     <ClCompile Include="EmuTests\ShellKeyWiringTests.cpp" />
     <ClCompile Include="EmuTests\DriveRowLayoutTests.cpp" />
+    <ClCompile Include="EmuTests\DriveBarFanTests.cpp" />
+    <ClCompile Include="EmuTests\DriveLabelTests.cpp" />
     <ClCompile Include="NetworkTests\FakeHostSocket.cpp" />
     <ClCompile Include="NetworkTests\FirewallCheckTests.cpp" />
     <ClCompile Include="NetworkTests\FirewallMonitorTests.cpp" />
@@ -881,6 +885,28 @@
     <ClCompile Include="NetworkTests\MacAddressTests.cpp" />
     <ClCompile Include="NetworkTests\NetworkCardSettingsTests.cpp" />
     <ClCompile Include="UiTests\NetworkPageTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\BlockDeviceEventRingTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\BlockDeviceMediaTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\Ncr5380Tests.cpp" />
+    <ClCompile Include="BlockDeviceTests\ScsiHardDiskTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\AppleScsiCardTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\BlockDeviceAttachmentsTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\StockHardDiskImageTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\ProFileTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\HardDiskAttachTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Floppy35AttachTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Gcr35TrackTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Sony35DriveTests.cpp" />
+    <ClCompile Include="Floppy35Tests\IwmTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Apple35ControllerCardTests.cpp" />
+    <ClCompile Include="Floppy35Tests\SmartPortBusTests.cpp" />
+    <ClCompile Include="Floppy35Tests\DiskPortChainTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\DefaultCardsTests.cpp" />
+    <ClCompile Include="EmuTests\Apple2cPlusDeviceTests.cpp" />
+    <ClCompile Include="Audio\DeviceAudioSourceTests.cpp" />
+    <ClCompile Include="UiTests\SlotCardsTests.cpp" />
+    <ClCompile Include="EmuTests\IdleDevicePerformanceTests.cpp" />
+    <ClCompile Include="UiTests\DeskDrivePlanTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
@@ -941,6 +967,8 @@
     <ClInclude Include="NetworkTests\UthernetRig.h" />
     <ClInclude Include="NetworkTests\DhcpTestPackets.h" />
     <ClInclude Include="NetworkTests\RecordingPacketSink.h" />
+    <ClInclude Include="UiTests\SettingsRecordingSink.h" />
+    <ClInclude Include="EmuTests\Woz35Builder.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ehm\Ehm.vcxproj">

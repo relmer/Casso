@@ -5,6 +5,7 @@
 #include "Core/MemoryBus.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Shell/MachineHost.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/Win32ImageWatcher.h"
@@ -699,7 +700,12 @@ HRESULT DiskManager::Mount (int slot, int drive, const std::wstring & path)
 
 
 
-    CBRAEx (slot == 6, E_INVALIDARG);
+    // Any other slot is a 3.5-inch drive's, inserted on the CPU thread.
+    if (slot != 6)
+    {
+        m_cpuManager.PostCommand (IDM_FLOPPY35_INSERT, std::format ("{} {} {}", slot, drive, TextEncoding::WideToUtf8 (path)));
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     CBRAEx (drive == 0 || drive == 1, E_INVALIDARG);
 
@@ -751,6 +757,10 @@ void DiskManager::Eject (int slot, int drive)
     {
         if      (drive == 0) { command = IDM_DISK_EJECT1; }
         else if (drive == 1) { command = IDM_DISK_EJECT2; }
+    }
+    else
+    {
+        m_cpuManager.PostCommand (IDM_FLOPPY35_EJECT, std::format ("{} {}", slot, drive));
     }
 
     if (command != 0 && m_confirmDiscard && !m_confirmDiscard (drive, L"Ejecting the disk"))

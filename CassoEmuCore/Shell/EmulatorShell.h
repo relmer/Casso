@@ -21,19 +21,23 @@
 #include "Shell/CpuManager.h"
 #include "Shell/ShellInspectorHost.h"
 #include "Shell/MachineHost.h"
+#include "CommandLineOptions.h"
 #include "Ui/UiShell.h"
 #include "Ui/UiCommandTypes.h"
 
 
 
 class ClipboardManager;
+struct DeskDrive;
 class DxuiHwndSource;
 class MachineBuilder;
 class MachineManager;
 class WindowCommandManager;
 struct DialogDefinition;
+struct DxuiPopupMenuItem;
 struct MachineConfig;
 class SettingsSheet;
+class SettingsPanelState;
 class JsonValue;
 class DriveWidget;
 class ShellAudio;
@@ -54,6 +58,16 @@ struct MonitorSpec;
 // Defined in Devices/AppleKeyboard.h. Forward-declared so the shell's
 // key classifiers can name it without dragging the device header in.
 enum class AppleSpecialKey;
+
+
+// A change to the //c Plus's disk port chain: a drive plugged in, unplugged,
+// or swapped for the other size.
+enum class PortDriveChange
+{
+    PlugIn,
+    Unplug,
+    Swap,
+};
 
 
 
@@ -204,6 +218,10 @@ public:
     // not refresh the caption itself.
     void  SetWindowTitlePrefix (const wstring & prefix);
 
+    //  The --hd and --smartport images, applied to the first machine built.
+    void  SetRunBlockAttachments (const std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment> & hd,
+                                  const std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment> & smartPort);
+
     // The preferences and the Settings dialog: the global preferences, the
     // config store, the theme catalog and the Settings sheet.
     ShellSettings &  GetSettings();
@@ -228,6 +246,15 @@ public:
     // The screen as it is now, as the thumbnail of the drive's image, marked
     // as set by the user.
     void SetDiskThumbnail (int drive);
+
+    // The confirmation that changing a hard disk's image restarts the
+    // machine: its text and buttons. Restart returns kHardDiskChangeRestart
+    // and Cancel 0.
+    static constexpr int  kHardDiskChangeRestart = 1;
+
+    static DialogDefinition  MakeHardDiskChangeDialog (const std::wstring & driveTitle, const std::wstring & fileName);
+    static DialogDefinition  MakePortDriveDialog      (PortDriveChange change, const std::string & device);
+    static const wchar_t   * GetPortDriveText         (const std::string & device);
 private:
 
     //  The shell the EHM notification sink forwards to. One per process; set
@@ -359,6 +386,8 @@ private:
 
     HRESULT BuildMachineDevices             (const MachineConfig & config);
     void    QueueUthernetNotices            ();
+    void    QueueNotice                     (std::wstring text);
+    void    QueueBlockMediaNotices          ();
     HRESULT InitializeUiShell               ();
     HRESULT WireUiShellChromeAndThemes      ();
     void    RestoreColorTextPref            ();
@@ -378,11 +407,40 @@ private:
     void    SetSecondDriveConnected   (bool connected);
     void    SetTapeRecorderConnected  (bool connected);
     void    SaveStorageDevices        ();
+    void    SaveHardDiskImage         (int slot, int drive, const std::string & path);
+    void    SaveMachineSettings       (const std::function<void (SettingsPanelState &)> & edit);
+
+    // A hard disk's new image, dropped on the drive or chosen from its file
+    // dialog. Changing it restarts the machine, so the change is confirmed
+    // first. On Cancel the drive has its image from before, and the machine
+    // runs on.
+    void    ChangeHardDiskImage       (const DeskDrive & drive, const std::wstring & path);
+    void    BrowseHardDisk            (const DeskDrive & drive);
+
+    // Plugs a drive of `device` into the disk port's chain, unplugs the
+    // `nth` one or swaps it for the other size, once the user picks Restart
+    // in the prompt: the machine is rebuilt with the new chain. The rows add
+    // to a drive's menu, for a drive on the chain (`nth` not negative), the
+    // commands that unplug and swap it, then the Disk menu's plug-in commands,
+    // which are hidden while the port has no room for their kind.
+    void    ChangePortDrive           (PortDriveChange change, const std::string & device, size_t nth);
+    void    AddPortDriveRows          (const std::string & device, int nth, std::vector<DxuiPopupMenuItem> & items);
+
+    // A copy of a Disk menu command with the label a drive's menu uses,
+    // where the drive's name heads the menu: "Insert disk..." for "Insert
+    // drive 1...".
+    static std::shared_ptr<const DxuiCommand>  MakeRelabeled (const std::shared_ptr<const DxuiCommand> & command, const wchar_t * label);
 
     // A drive's (0 or 1) or the recorder's (kStorageMenuRecorder) right-click
     // menu, at a client point.
-    static constexpr int  kStorageMenuRecorder = 2;
+    // A 3.5-inch drive or hard disk on the desk is kStorageMenuDeskExtra plus
+    // its index; one on the drive bar is kStorageMenuBar plus its class times
+    // ShellDeskScene::kBarDropClassStride plus its place in the class.
+    static constexpr int  kStorageMenuRecorder  = 2;
+    static constexpr int  kStorageMenuDeskExtra = 32;
+    static constexpr int  kStorageMenuBar       = 64;
     void    ShowStorageContextMenu    (int device, int x, int y);
+    void    ShowDriveContextMenu      (const DeskDrive & drive, int x, int y);
     int     StorageDeviceAt           (int x, int y) const;
 
     // Bounds-changed callback wired onto m_viewport. Stores the new
@@ -771,7 +829,9 @@ private:
     ListenGate              m_listenGate;   // the firewall's verdicts, for the Uthernet II's CPU-thread listens
 
     //  Notices raised before the window exists, displayed once it does.
-    std::vector<std::wstring>  m_pendingNotices;
+    std::vector<std::wstring>                                          m_pendingNotices;
+    std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment>  m_runHdAttachments;
+    std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment>  m_runSmartPortAttachments;
 
     //  The emulated machine: bus, CPU, devices, video modes, and the
     //  configuration and identity that say which machine this is. Everything

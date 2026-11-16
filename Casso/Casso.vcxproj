@@ -239,6 +239,11 @@
     <BakedMesh Include="Disk2c" />
     <BakedMesh Include="DuoDisk" />
     <BakedMesh Include="CassetteRecorder" />
+    <BakedMesh Include="HardDisk20SC" />
+    <BakedMesh Include="ProFile" />
+    <BakedMesh Include="UniDisk35" />
+    <BakedMesh Include="Apple35Drive" />
+    <BakedMesh Include="Apple35Plus" />
     <BakedMesh Include="ImageWriterII" />
   </ItemGroup>
   <PropertyGroup>

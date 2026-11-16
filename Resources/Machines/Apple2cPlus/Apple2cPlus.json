@@ -1,0 +1,41 @@
+// DO NOT EDIT. This file is a Casso embedded default and will be
+// overwritten on launch when an out-of-date stamp is detected.
+// To customize, copy it to Machines/<Name>/<Name>.json (any name
+// other than the embedded defaults) and edit that copy.
+{
+    "$cassoMachineVersion": 1,
+
+    // The monitor the //c Plus shipped with. Its phosphor color is the
+    // monitor's, in MonitorCatalog.
+    "monitor": "AppleMonitorIIc",
+
+    "name": "Apple //c Plus",
+    "releaseYear": 1988,
+    "timing": {
+        "videoStandard": "ntsc",
+        "clockSpeed": 1020484,
+        // The accelerator runs the CPU at 4 MHz against the 1 MHz machine.
+        "cpuClockSpeed": 4000000,
+        "cyclesPerScanline": 65
+    },
+    "systemRom": {
+        "address": "0xC000",
+        "file": "Apple2cPlus.rom",
+        "romBankSize": "0x4000",
+        "romBankSelect": "0xC028"
+    },
+    "characterRom": {
+        "file": "Apple2cPlus_Video.rom"
+    },
+    // The //c Plus has no slots. Its expansion is a row of connectors on the
+    // back panel, each listed with its connector label. An empty `device` is a
+    // connector with nothing on it. The internal Apple 3.5 Drive is listed
+    // as the `internal` port so a disk can be attached to it.
+    "ports": [
+        { "name": "internal", "device": "apple35-drive" },
+        { "name": "disk",     "device": "" },
+        { "name": "serial1",  "device": "" },
+        { "name": "serial2",  "device": "" },
+        { "name": "joystick", "device": "" }
+    ]
+}

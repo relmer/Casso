@@ -149,6 +149,9 @@ public:
     void     PushMonochromeGlyphs () override { m_monochromeGlyphs = true;  }
     void     PopMonochromeGlyphs  () override { m_monochromeGlyphs = false; }
 
+    HRESULT  BeginShadowCapture () override                                             { return m_targets.BeginShadowCapture(); }
+    HRESULT  EndShadowCapture   (float spreadDip, float blurDip, float opacity) override { return m_targets.EndShadowCapture (spreadDip, blurDip, opacity); }
+
     HRESULT  FillEllipse      (float cxDip, float cyDip, float radiusXDip, float radiusYDip, uint32_t argbColor) override;
     HRESULT  FillVectorIcon   (const DxuiVectorIcon & icon, float xDip, float yDip, float sizeDip, uint32_t foreground, uint32_t accent) override { return m_icons.FillVectorIcon (icon, xDip, yDip, sizeDip, foreground, accent); }
     HRESULT  DrawEllipse      (float cxDip, float cyDip, float radiusXDip, float radiusYDip, float thicknessDip, uint32_t argbColor) override;

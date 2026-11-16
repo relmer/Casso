@@ -40,6 +40,8 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_DISK_INSPECT1,            MainMenuId::Disk,    L"Inspect &disk 1...",     nullptr          },
     { IDM_DISK_THUMBNAIL1,          MainMenuId::Disk,    L"Save screenshot as disk 1's thu&mbnail", nullptr },
     { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
+    { IDM_STORAGE_ATTACH_APPLE35,   MainMenuId::Disk,    L"Pl&ug in a 3.5-inch drive", nullptr       },
+    { IDM_STORAGE_ATTACH_FLOPPY,    MainMenuId::Disk,    L"Plu&g in a 5.25-inch drive", nullptr      },
     { IDM_STORAGE_DRIVE2,           MainMenuId::Disk,    L"Attac&h drive 2",        nullptr          },
     { IDM_DISK_INSERT2,             MainMenuId::Disk,    L"I&nsert drive 2...",     L"Ctrl+2"        },
     { IDM_DISK_EJECT2,              MainMenuId::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
@@ -59,6 +61,9 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_DISK_OPEN_CASSO_EXPLORER, MainMenuId::Disk,    L"Browse disks in Casso &Explorer...", nullptr },
     { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Full screen",           L"Alt+Enter"     },
     { IDM_VIEW_AUTOHIDE_DRIVES,     MainMenuId::View,    L"&Auto-hide drives",      nullptr,          true   },
+    { IDM_VIEW_FLOPPIES_ON_DESK,    MainMenuId::View,    L"F&loppy drives on the desk", nullptr,      true   },
+    { IDM_VIEW_HARD_DISKS_ON_DESK,  MainMenuId::View,    L"&Hard disks on the desk", nullptr,         true   },
+    { IDM_VIEW_FLOPPY_PAIR_BESIDE,  MainMenuId::View,    L"&Two floppies beside the monitor", nullptr, true  },
     { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip",           L"F8"            },
     { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset view",            L"Ctrl+0"        },
     { IDM_VIEW_FRAME_RATE,          MainMenuId::View,    L"Frame &rate",            nullptr,          true   },
@@ -190,6 +195,11 @@ EmulatorCommands::EmulatorCommands()
         cmd->isEnabled = [this, commandId] () -> bool
         {
             return m_isEnabled ? m_isEnabled (commandId) : true;
+        };
+
+        cmd->isVisible = [this, commandId] () -> bool
+        {
+            return m_isVisible ? m_isVisible (commandId) : true;
         };
 
         cmd->labelText = [this, commandId, staticLabel] () -> std::wstring

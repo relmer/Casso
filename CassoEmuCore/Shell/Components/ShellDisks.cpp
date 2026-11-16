@@ -36,6 +36,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/MachineDefinitions.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
@@ -648,6 +649,8 @@ void ShellDisks::BrowseForDisk (int drive, const RECT * anchorClientPx)
     {
         return;
     }
+
+    m_shell.m_chrome->HideTooltips();
 
     pSt = &m_driveWidgetState[drive];
 
@@ -1549,7 +1552,7 @@ bool ShellDisks::IsSecondDriveOffered() const
 
     if (config.systemRom.romBankSize != 0)
     {
-        return true;
+        return MachineHasBuiltInDrive();
     }
 
     for (const SlotConfig & slot : config.slots)
@@ -1592,6 +1595,12 @@ bool ShellDisks::ShouldShowExternalDrive() const
 
 
 
+    // The //c Plus's two 5.25-inch drives are both on the disk port's chain.
+    if (externalIsOptional && !MachineHasBuiltInDrive())
+    {
+        return m_shell.m_machine.GetConfig().CountDiskPortFloppies() >= kDiskIiPortCount;
+    }
+
     if (externalIsOptional)
     {
         return m_externalDriveConnected;
@@ -1620,6 +1629,180 @@ bool ShellDisks::MachineHasBuiltInDrive() const
 
 
     return (definition != nullptr && definition->hasBuiltInDrive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::HasDiskIicDrives
+//
+//  Whether the machine's 5.25-inch drives are the //c family's, on a disk
+//  port, rather than Disk II drives on a card: the //c and the //c Plus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDisks::HasDiskIicDrives() const
+{
+    const MachineDefinition *  definition = MachineDefinitions::Find (m_shell.m_machine.GetConfig().machineId);
+
+
+
+    return (definition != nullptr && definition->diskPortFloppyCount > 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::IsPortChainOffered
+//
+//  The machines whose disk port takes Apple 3.5 Drives: the //c Plus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDisks::IsPortChainOffered() const
+{
+    const MachineDefinition *  definition = MachineDefinitions::Find (m_shell.m_machine.GetConfig().machineId);
+
+
+
+    return (definition != nullptr && definition->diskPortApple35Count > 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::CountPortDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDisks::CountPortDrives (const std::string & device) const
+{
+    int  count = 0;
+
+
+
+    for (const PortConfig & port : m_shell.m_machine.GetConfig().ports)
+    {
+        for (const PortConfig & entry : port.chain)
+        {
+            count += (entry.device == device) ? 1 : 0;
+        }
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::GetPortDriveLimit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDisks::GetPortDriveLimit (const std::string & device) const
+{
+    const MachineDefinition *  definition = MachineDefinitions::Find (m_shell.m_machine.GetConfig().machineId);
+    int                        limit      = 0;
+
+
+
+    if (definition != nullptr && device == kpszApple35DriveDevice)
+    {
+        limit = definition->diskPortApple35Count;
+    }
+    else if (definition != nullptr && device == kpszDiskIicDevice)
+    {
+        limit = definition->diskPortFloppyCount;
+    }
+
+    return limit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::CanPlugInPortDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDisks::CanPlugInPortDrive (const std::string & device) const
+{
+    constexpr int  s_kcPortDrivesMax = 2;
+    int            total             = 0;
+
+
+
+    for (const PortConfig & port : m_shell.m_machine.GetConfig().ports)
+    {
+        total += (int) port.chain.size();
+    }
+
+    return total < s_kcPortDrivesMax && CountPortDrives (device) < GetPortDriveLimit (device);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::CanSwapPortDrive
+//
+//  A 3.5-inch drive swaps for a 5.25-inch drive and the reverse, while the
+//  chain has room for one more of the other kind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDisks::CanSwapPortDrive (const std::string & device) const
+{
+    std::string  other = GetSwapDevice (device);
+
+
+
+    return !other.empty() && CountPortDrives (other) < GetPortDriveLimit (other);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::GetSwapDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ShellDisks::GetSwapDevice (const std::string & device)
+{
+    std::string  other;
+
+
+
+    if (device == kpszApple35DriveDevice)
+    {
+        other = kpszDiskIicDevice;
+    }
+    else if (device == kpszDiskIicDevice)
+    {
+        other = kpszApple35DriveDevice;
+    }
+
+    return other;
 }
 
 
@@ -1722,4 +1905,90 @@ HRESULT ShellDisks::ToggleImageWriteProtect (int drive)
 void ShellDisks::ResolvePendingChange (int slot, int drive, int action, const std::string & savePath)
 {
     m_shell.m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InsertFloppy35
+//
+//  CPU thread. A disk that doesn't go in is reported in a notice, and the
+//  drive stays empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::InsertFloppy35 (int slot, int drive, const std::string & path)
+{
+    std::wstring  error;
+    HRESULT       hr = m_shell.m_machine.InsertFloppy35 (slot, drive, path, error);
+
+
+
+    if (FAILED (hr))
+    {
+        m_shell.m_chrome->PostNotice (error.empty() ? std::wstring (L"The disk could not be inserted.") : error);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EjectFloppy35
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::EjectFloppy35 (int slot, int drive)
+{
+    HRESULT  hr = m_shell.m_machine.EjectFloppy35 (slot, drive);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachHardDisk
+//
+//  CPU thread. An image that doesn't attach is reported in a notice, and the
+//  drive has its image from before. An attached one is posted to the UI
+//  thread to be saved with the machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellDisks::AttachHardDisk (int slot, int drive, const std::string & path)
+{
+    std::wstring                          error;
+    HRESULT                               hr     = m_shell.m_machine.AttachHardDisk (slot, drive, path, error);
+    std::unique_ptr<HardDiskImageChange>  change;
+
+
+
+    if (FAILED (hr))
+    {
+        m_shell.m_chrome->PostNotice (error.empty() ? std::wstring (L"The hard disk image could not be attached.") : error);
+    }
+    else if (m_shell.m_hwnd != nullptr)
+    {
+        // The message handler deletes the change once it is saved, so the
+        // change is released only when the post succeeds.
+        change = std::make_unique<HardDiskImageChange> (HardDiskImageChange { slot, drive, path });
+
+        if (PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellHardDiskImage, 0, reinterpret_cast<LPARAM> (change.get())))
+        {
+            (void) change.release();
+        }
+    }
+
+    return hr;
 }
