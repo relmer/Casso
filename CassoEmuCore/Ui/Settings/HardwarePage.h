@@ -70,9 +70,9 @@ public:
     void                               SetComPorts (std::vector<std::wstring> ports) { m_comPorts = std::move (ports); }
     const std::vector<std::wstring>  & GetComPorts () const { return m_comPorts; }
 
-    // Opens a file dialog for a drive's image, starting at `inOutPath`;
-    // returns false when the dialog is canceled.
-    using BrowseImageFn = std::function<bool (std::string & inOutPath)>;
+    // Opens a file dialog for the image of the drive `device` on a port,
+    // starting at `inOutPath`; returns false when the dialog is canceled.
+    using BrowseImageFn = std::function<bool (const std::string & device, std::string & inOutPath)>;
     void  SetOnBrowseImage (BrowseImageFn fn) { m_onBrowseImage = std::move (fn); }
 
     // The storage controls above the tree, on a machine with slots: a slot,

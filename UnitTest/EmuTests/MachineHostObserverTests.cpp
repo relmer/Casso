@@ -188,8 +188,8 @@ public:
         MachineHost           host;
         RecordingSource       first;
         RecordingSource       second;
-        BlockDeviceEventRing  blockRing;
-        Floppy35EventRing     floppyRing;
+        auto                  blockRing  = std::make_unique<BlockDeviceEventRing>();
+        auto                  floppyRing = std::make_unique<Floppy35EventRing>();
         MachineObservers      observers;
 
 
@@ -197,13 +197,13 @@ public:
         host.GetRefs().blockDeviceSources = { &first, &second };
         host.GetRefs().floppy35Sources    = { &second };
 
-        observers.blockDevice = &blockRing;
-        observers.floppy35    = &floppyRing;
+        observers.blockDevice = blockRing.get();
+        observers.floppy35    = floppyRing.get();
         host.AttachObservers (observers);
 
-        Assert::IsTrue (first.blockSink   == &blockRing);
-        Assert::IsTrue (second.blockSink  == &blockRing);
-        Assert::IsTrue (second.floppySink == &floppyRing);
+        Assert::IsTrue (first.blockSink   == blockRing.get());
+        Assert::IsTrue (second.blockSink  == blockRing.get());
+        Assert::IsTrue (second.floppySink == floppyRing.get());
         Assert::IsTrue (first.floppySink  == nullptr, L"a source not in the floppy list is left alone");
 
         host.AttachObservers ({});

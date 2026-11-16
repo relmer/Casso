@@ -401,9 +401,13 @@ private:
                     version = (version == 0 && Load (stop, line, packet.payload.at (0))) ? LinkProgram::kProgramVersion : 0;
                     break;
 
+                //  The new speed is set before the acknowledgment is sent. The
+                //  host opens the port again as soon as it reads the
+                //  acknowledgment, and a port opened before the flag is set
+                //  is silent at the new speed.
                 case CassoLinkCodec::kSetSpeed:
-                    SendPacket (line, CassoLinkCodec::kAcknowledge, { CassoLinkCodec::kAck, 0, 0 });
                     speedSet = true;
+                    SendPacket (line, CassoLinkCodec::kAcknowledge, { CassoLinkCodec::kAck, 0, 0 });
                     break;
 
                 case CassoLinkCodec::kReadSectors:

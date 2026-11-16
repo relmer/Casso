@@ -1805,13 +1805,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         {
             m_disks->Eject (6, sceneHit.driveIndex);
 
-            // A browse opened from the strip pins it (the FSM must not
-            // auto-hide under the dialog).
-            m_scene->m_stripBrowseOpen = inStrip || IsDeskSlideActive();
-            m_disks->BrowseForDisk (sceneHit.driveIndex,
-                                    inStrip ? &m_scene->m_stripComp.driveRectPx[sceneHit.driveIndex]
-                                            : &m_scene->m_deskScene.Composition().driveRectPx[sceneHit.driveIndex]);
-            m_scene->m_stripBrowseOpen = false;
+            m_disks->BrowseForDisk (sceneHit.driveIndex);
 
             driveTook = true;
         }
@@ -1880,14 +1874,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                     m_disks->Eject (6, drive.GetDrive());
                 }
 
-                // When the widget is on the overlay strip (fullscreen or
-                // auto-hide), a browse opened from it pins the strip, so the
-                // FSM doesn't hide it under the dialog.
-                RECT  driveRect = drive.GetOuterRect();
-
-                m_scene->m_stripBrowseOpen = AreDrivesOnStrip();
-                m_disks->BrowseForDisk (drive.GetDrive(), &driveRect);
-                m_scene->m_stripBrowseOpen = false;
+                m_disks->BrowseForDisk (drive.GetDrive());
 
                 driveTook = true;
                 break;

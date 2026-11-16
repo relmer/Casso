@@ -3,6 +3,7 @@
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/EmulatorShellInternal.h"
+#include "Shell/DiskPortChainRule.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Layout/DriveLabel.h"
@@ -180,7 +181,7 @@ void ShellChrome::SetDiskIiBarCaptions (bool onBar)
 
     for (int w = 0; w < (int) widgets.size(); w++)
     {
-        DeskDrive  drive = { model, 6, w, m_shell.m_disks->MachineHasBuiltInDrive() && w == 0, m_shell.m_disks->IsPortChainOffered() };
+        DeskDrive  drive = { model, 6, w, m_shell.m_disks->MachineHasBuiltInDrive() && w == 0, DiskPortChainRule::IsOffered (m_shell.m_machine.GetConfig()) };
 
         if (onBar)
         {
@@ -342,20 +343,15 @@ bool ShellChrome::HandleDriveBarClick (POINT pt)
     if (fan.HitTest (pt, c, entry))
     {
         const DeskDrive  & drive = fan.GetDrive (c, entry);
-        RECT               slot  = fan.GetSlotRect (c, entry);
 
         if (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
         {
             m_shell.m_disks->Eject (6, drive.drive);
-            m_shell.m_disks->BrowseForDisk (drive.drive, &slot);
+            m_shell.m_disks->BrowseForDisk (drive.drive);
         }
-        else if (ShellDeskScene::IsFloppy35 (drive))
+        else if (ShellDeskScene::TakesImage (drive))
         {
-            m_shell.m_scene->BrowseFloppy35 (drive);
-        }
-        else if (ShellDeskScene::IsHardDisk (drive))
-        {
-            m_shell.BrowseHardDisk (drive);
+            m_shell.m_scene->BrowseDeskDrive (drive);
         }
 
         took = true;

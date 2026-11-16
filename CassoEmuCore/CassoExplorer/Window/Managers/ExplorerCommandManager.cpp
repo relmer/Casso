@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/Managers/ExplorerCollectionTools.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
@@ -410,6 +411,12 @@ bool ExplorerCommandManager::IsEnabled (int id) const
 
 
 
+    //  A picker has only the commands on its list.
+    if (IsBlockedInPicker (id))
+    {
+        return false;
+    }
+
     //  A standard command row is enabled when the focused control reports it
     //  available, and grayed when no control handles it.
     if (standard != DxuiStandardCommand::None)
@@ -598,10 +605,17 @@ void ExplorerCommandManager::Dispatch (int id)
 {
     HRESULT  hr     = S_OK;
     bool     refill = false;
-    bool     routed = DxuiCommandRouter::Invoke (m_context.input.GetFocusedControl(),
-                                                  CassoExplorerCommands::GetStandardCommand (id));
+    bool     routed = false;
 
 
+
+    //  A picker has only the commands on its list, whatever sent this one.
+    if (IsBlockedInPicker (id))
+    {
+        return;
+    }
+
+    routed = DxuiCommandRouter::Invoke (m_context.input.GetFocusedControl(), CassoExplorerCommands::GetStandardCommand (id));
 
     //  A standard command belongs to whatever has focus, so it is routed
     //  rather than decided here.
@@ -972,30 +986,6 @@ void ExplorerCommandManager::ChooseCharset (Charset charset)
 {
     m_context.browser.SetPreviewCharset (charset);
     m_context.preview.FillPreview();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerCommandManager::CreateDisk
-//
-//  Create an empty disk in the listed folder, whatever is selected, as File
-//  Explorer's New does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerCommandManager::CreateDisk (const CassoExplorerNewDiskDialog::Outcome & newDisk)
-{
-    CassoExplorerActions::Outcome  outcome = m_context.actions.CreateImage (m_context.browser.GetLocation().path, newDisk.fileName, newDisk.request);
-
-
-
-    ReportOutcome (outcome, L"New disk");
-    m_context.folderSync.RefreshAfterHostChange();
-    m_context.listPane.SelectRowNamed (newDisk.fileName);
 }
 
 

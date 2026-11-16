@@ -1071,8 +1071,35 @@ Error:
 
 HRESULT CassoExplorerPrefs::Load (const std::wstring & baseDir, IFileSystem & fs)
 {
+    HRESULT       hr      = S_OK;
+    std::wstring  path    = GetFilePath (baseDir);
+    bool          present = fs.Exists (path);
+
+
+
+    hr = LoadFile (path, fs);
+
+    if (!present)
+    {
+        theme = ReadCassoTheme (baseDir, fs);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::LoadFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerPrefs::LoadFile (const std::wstring & path, IFileSystem & fs)
+{
     HRESULT         hr      = S_OK;
-    std::wstring    path    = GetFilePath (baseDir);
     bool            present = fs.Exists (path);
     std::string     content;
     JsonValue       root;
@@ -1082,12 +1109,7 @@ HRESULT CassoExplorerPrefs::Load (const std::wstring & baseDir, IFileSystem & fs
 
     *this = CassoExplorerPrefs();
 
-    if (!present)
-    {
-        theme = ReadCassoTheme (baseDir, fs);
-
-        return S_OK;
-    }
+    BAIL_OUT_IF (!present, S_OK);
 
     hr = fs.ReadAllText (path, content);
     CHR (hr);
@@ -1114,6 +1136,21 @@ Error:
 
 HRESULT CassoExplorerPrefs::Save (const std::wstring & baseDir, IFileSystem & fs) const
 {
+    return SaveFile (GetFilePath (baseDir), fs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::SaveFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerPrefs::SaveFile (const std::wstring & path, IFileSystem & fs) const
+{
     HRESULT              hr = S_OK;
     std::string          text;
     JsonWriter::Options  options;
@@ -1123,7 +1160,7 @@ HRESULT CassoExplorerPrefs::Save (const std::wstring & baseDir, IFileSystem & fs
     hr = JsonWriter::Write (ToJson(), options, text);
     CHR (hr);
 
-    hr = fs.WriteAllText (GetFilePath (baseDir), text);
+    hr = fs.WriteAllText (path, text);
     CHR (hr);
 
 Error:

@@ -706,6 +706,7 @@ public:
 
         Assert::AreEqual (1, dialogs->opens);
         Assert::IsTrue   (dialogs->lastSpec.title.starts_with (L"Write image to"));
+        Assert::IsTrue   (dialogs->lastSpec.receivingDrive == ReceivingDrive { ReceivingDriveKind::Floppy525, 0 }, L"the picker lists the images a 5.25-inch drive can use");
         Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), rig.browser.GetLocation().path);
     }
 

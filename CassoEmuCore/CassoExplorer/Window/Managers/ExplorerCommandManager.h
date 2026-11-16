@@ -50,12 +50,14 @@ public:
     void                   ReplacePartition           ();
     void                   Dispatch                   (int id);
     bool                   IsEnabled                  (int id) const;
+    bool                   IsBlockedInPicker          (int id) const;
     bool                   IsChecked                  (int id) const;
 
     //  The count of list columns with a Sort by command: the fixed ones and
     //  the shell properties added, up to the ids set aside for them.
     int                        GetSortColumnCount         () const;
     void                       CreateDisk                 (const CassoExplorerNewDiskDialog::Outcome & newDisk);
+    bool                       CreateDiskForPicker        (std::wstring & outPath);
     void                       ShowOptions                ();
     bool                       IsToolbarEntryAvailable    (int index) const;
     bool                       IsCommandBarEntryAvailable (int index) const;

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Config/UserConfigStore.h"
 #include "Shell/Components/ShellSettings.h"
@@ -10,7 +11,15 @@
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Devices/Tape/TapeImageLoader.h"
+#include "Devices/Disk/DriveImageRule.h"
+#include "Devices/Disk/ImageClassifier.h"
+#include "Shell/BootDriveRule.h"
+#include "Shell/DiskMenuRule.h"
+#include "Shell/DiskPortChainRule.h"
+#include "Shell/DriveDropRule.h"
+#include "Shell/Layout/DriveLabel.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Ui/Settings/SlotCards.h"
 #include "Shell/TapeManager.h"
 #include "Core/JsonParser.h"
 #include "Core/PathResolver.h"
@@ -29,46 +38,220 @@
 //  EmulatorShell::OnFileDropped
 //
 //  A file dropped on a drive mounts there and one dropped on the recorder is
-//  inserted into it, but only the kind each takes: a tape dropped on a drive,
-//  or a disk on the recorder, is ignored rather than mounted somewhere it
-//  cannot be read.
+//  inserted into it, when DriveImageRule passes the image for that drive.
+//  Any other drop does nothing: no mount, no eject and no message, since the
+//  cursor over that drive was the no-drop cursor.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::OnFileDropped (int tag, const std::wstring & path)
 {
-    if (tag == ShellTapeDeck::kTapeDropTag)
-    {
-        if (TapeImageLoader::IsTapeFileExtension (path))
-        {
-            m_tapeDeck->InsertTape (path);
-        }
-    }
-    else if (tag >= ShellDeskScene::kBarDropTagBase)
-    {
-        const DriveBarFan  & fan   = m_chrome->m_driveBarFan.GetFan();
-        int                  c     = (tag - ShellDeskScene::kBarDropTagBase) / ShellDeskScene::kBarDropClassStride;
-        int                  entry = (tag - ShellDeskScene::kBarDropTagBase) % ShellDeskScene::kBarDropClassStride;
+    ReceivingDrive  drive;
+    DriveAddress    address;
+    ImageClass      image    = ImageClassifier::Classify (m_machine.GetBlockMediaFileIo(), TextEncoding::WideToUtf8 (path));
+    bool            hasDrive = TryGetDropDrive (tag, drive, address);
+    bool            accepted = hasDrive && DriveImageRule::Accepts (drive, image);
 
 
 
-        if (entry < fan.GetEntryCount (c) && ShellDeskScene::IsFloppy35 (fan.GetDrive (c, entry)))
-        {
-            m_disks->Mount (fan.GetDrive (c, entry).slot, fan.GetDrive (c, entry).drive, path);
-        }
-        else if (entry < fan.GetEntryCount (c) && ShellDeskScene::IsHardDisk (fan.GetDrive (c, entry)))
-        {
-            ChangeHardDiskImage (fan.GetDrive (c, entry), path);
-        }
-    }
-    else if (tag >= ShellDeskScene::kExtraDropTagBase)
+    if (accepted)
     {
-        m_scene->InsertInExtraDrive (tag - ShellDeskScene::kExtraDropTagBase, path);
+        InsertInDrive (address, drive.kind, GetDropDriveLabel (tag), path);
     }
-    else if (IsSupportedDiskImageExtension (path))
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetDropDriveLabel
+//
+//  The drive under a drop tag, as the staged-image infobar states it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorShell::GetDropDriveLabel (int tag)
+{
+    const DriveBarFan  & fan       = m_chrome->m_driveBarFan.GetFan();
+    int                  index     = 0;
+    int                  barClass  = 0;
+    int                  entry     = 0;
+    bool                 isExtra   = DriveDropRule::TryGetExtraIndex (tag, index);
+    bool                 isBar     = DriveDropRule::TryGetBarEntry (tag, barClass, entry);
+
+
+
+    if (isExtra && index < m_scene->m_deskScene.GetExtraCount())
     {
-        m_disks->Mount (6, tag, path);
+        return DriveLabel::GetTitle (m_scene->m_deskScene.GetExtraDrive (index), true);
     }
+
+    if (isBar && barClass < fan.GetClassCount() && entry < fan.GetEntryCount (barClass))
+    {
+        return DriveLabel::GetTitle (fan.GetDrive (barClass, entry), true);
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::InsertInDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::InsertInDrive (const DriveAddress & address, ReceivingDriveKind kind, const std::wstring & label, const std::wstring & path)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (address.isRecorder)
+    {
+        m_tapeDeck->InsertTape (path);
+        return true;
+    }
+
+    //  A hard disk's image takes a restart, which is confirmed first.
+    if (kind == ReceivingDriveKind::HardDisk)
+    {
+        ChangeHardDiskImage (address.slot, address.drive, label, path);
+        return true;
+    }
+
+    hr = m_disks->Mount (address.slot, address.drive, path);
+
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RunModalPicker
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::RunModalPicker (HWND owner, PickerRequest request, PickerOutcome & outOutcome)
+{
+    return m_drivePickers->RunModal (owner, std::move (request), outOutcome);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::GetHardDiskBlocks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t EmulatorShell::GetHardDiskBlocks (int slot, int port) const
+{
+    for (const SlotConfig & config : m_machine.GetConfig().slots)
+    {
+        if (config.slot == slot && config.enabled && port >= 0 && (size_t) port < config.ports.size())
+        {
+            const BlockDriveSpec *  drive = BlockDeviceCatalog::FindDrive (config.ports[(size_t) port].device);
+
+            return (drive != nullptr) ? drive->maxBlocks : 0;
+        }
+    }
+
+    return 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::TryGetDropDrive
+//
+//  The drive under a drop tag: a Disk II drive, the recorder, or a drive on
+//  the desk or the drive bar that takes a disk while the machine runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::TryGetDropDrive (int tag, ReceivingDrive & outDrive, DriveAddress & outAddress)
+{
+    const DriveBarFan  & fan       = m_chrome->m_driveBarFan.GetFan();
+    int                  index     = 0;
+    int                  barClass  = 0;
+    int                  entry     = 0;
+    bool                 isExtra   = DriveDropRule::TryGetExtraIndex (tag, index);
+    bool                 isBar     = DriveDropRule::TryGetBarEntry (tag, barClass, entry);
+    const DeskDrive    * deskDrive = nullptr;
+
+
+
+    outDrive   = ReceivingDrive();
+    outAddress = DriveAddress();
+
+    if (DriveDropRule::IsRecorderTag (tag))
+    {
+        outDrive.kind         = ReceivingDriveKind::Recorder;
+        outAddress.isRecorder = true;
+        return true;
+    }
+
+    if (DriveDropRule::IsDiskIiTag (tag))
+    {
+        outDrive.kind    = ReceivingDriveKind::Floppy525;
+        outAddress.slot  = DriveDropRule::kDiskIiSlot;
+        outAddress.drive = tag;
+        return true;
+    }
+
+    if (isExtra && index < m_scene->m_deskScene.GetExtraCount())
+    {
+        deskDrive = &m_scene->m_deskScene.GetExtraDrive (index);
+    }
+    else if (isBar && barClass < fan.GetClassCount() && entry < fan.GetEntryCount (barClass))
+    {
+        deskDrive = &fan.GetDrive (barClass, entry);
+    }
+
+    if (deskDrive == nullptr)
+    {
+        return false;
+    }
+
+    outAddress.slot  = deskDrive->slot;
+    outAddress.drive = deskDrive->drive;
+
+    return DriveDropRule::TryGetReceivingDrive (deskDrive->model, GetHardDiskBlocks (deskDrive->slot, deskDrive->drive), outDrive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::IsDropAccepted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsDropAccepted (int tag, const ImageClass & image)
+{
+    ReceivingDrive  drive;
+    DriveAddress    address;
+    bool            hasDrive = TryGetDropDrive (tag, drive, address);
+
+
+
+    return hasDrive && DriveImageRule::Accepts (drive, image);
 }
 
 
@@ -121,6 +304,11 @@ void EmulatorShell::SetTapeRecorderConnected (bool connected)
     if (!connected && m_tapeDeck->GetManager() != nullptr)
     {
         m_tapeDeck->GetManager()->Eject();
+    }
+
+    if (!connected)
+    {
+        m_drivePickers->Close (DriveAddress { 0, 0, true });
     }
 
     m_tapeDeck->SetRecorderConnected (connected);
@@ -222,17 +410,35 @@ DialogDefinition EmulatorShell::MakeHardDiskChangeDialog (const std::wstring & d
 
 void EmulatorShell::ChangeHardDiskImage (const DeskDrive & drive, const std::wstring & path)
 {
+    ChangeHardDiskImage (drive.slot, drive.drive, ShellDeskScene::GetDriveTitle (drive), path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ChangeHardDiskImage
+//
+//  As above, for a drive given by its address and title, as a drive's picker
+//  has it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ChangeHardDiskImage (int slot, int drive, const std::wstring & driveTitle, const std::wstring & path)
+{
     int  choice = 0;
 
 
 
     m_chrome->HideTooltips();
 
-    choice = ShowModalDialog (MakeHardDiskChangeDialog (ShellDeskScene::GetDriveTitle (drive), fs::path (path).filename().wstring()));
+    choice = ShowModalDialog (MakeHardDiskChangeDialog (driveTitle, fs::path (path).filename().wstring()));
 
     if (choice == kHardDiskChangeRestart)
     {
-        PostCommand (IDM_HARDDISK_ATTACH, std::format ("{} {} {}", drive.slot, drive.drive, TextEncoding::WideToUtf8 (path)));
+        PostCommand (IDM_HARDDISK_ATTACH, std::format ("{} {} {}", slot, drive, TextEncoding::WideToUtf8 (path)));
     }
 }
 
@@ -267,7 +473,7 @@ DialogDefinition EmulatorShell::MakePortDriveDialog (PortDriveChange change, con
 
         case PortDriveChange::Swap:
             def.title = L"Swap a drive";
-            action    = std::format (L"Swapping {} for {}", GetPortDriveText (device), GetPortDriveText (ShellDisks::GetSwapDevice (device)));
+            action    = std::format (L"Swapping {} for {}", GetPortDriveText (device), GetPortDriveText (DiskPortChainRule::GetSwapDevice (device)));
             break;
     }
 
@@ -348,7 +554,7 @@ void EmulatorShell::ChangePortDrive (PortDriveChange change, const std::string &
             }
             else if (change == PortDriveChange::Swap)
             {
-                state.AddDiskPortDrive (ShellDisks::GetSwapDevice (device));
+                state.AddDiskPortDrive (DiskPortChainRule::GetSwapDevice (device));
             }
         });
 
@@ -385,7 +591,7 @@ void EmulatorShell::AddPortDriveRows (const std::string & device, int nth, std::
 
         items.push_back (DxuiPopupMenuItem::ForCommand (unplug));
 
-        if (!ShellDisks::GetSwapDevice (device).empty())
+        if (!DiskPortChainRule::GetSwapDevice (device).empty())
         {
             auto  swap = std::make_shared<DxuiCommand>();
 
@@ -393,7 +599,7 @@ void EmulatorShell::AddPortDriveRows (const std::string & device, int nth, std::
 
             swap->label     = (device == kpszApple35DriveDevice) ? L"S&wap for a 5.25-inch drive" : L"S&wap for a 3.5-inch drive";
             swap->dispatch  = [this, device, nth] () { ChangePortDrive (PortDriveChange::Swap, device, (size_t) nth); };
-            swap->isVisible = [this, device] () { return m_disks->CanSwapPortDrive (device); };
+            swap->isVisible = [this, device] () { return DiskPortChainRule::CanSwap (m_machine.GetConfig(), device); };
 
             items.push_back (DxuiPopupMenuItem::ForCommand (swap));
         }
@@ -439,29 +645,13 @@ std::shared_ptr<const DxuiCommand> EmulatorShell::MakeRelabeled (const std::shar
 //
 //  EmulatorShell::BrowseHardDisk
 //
+//  The drive's picker, whose pick is confirmed and attached as a drop is.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::BrowseHardDisk (const DeskDrive & drive)
 {
-    HRESULT         hr     = S_OK;
-    FileDialogSpec  spec;
-    fs::path        chosen;
-    bool            picked = false;
-
-
-
-    spec.filters = { { L"Hard disk image", L"*.po;*.hdv;*.2mg;*.2img" }, { L"All files", L"*.*" } };
-
-    m_chrome->HideTooltips();
-
-    hr = m_hostDialogs.PickFileToOpen (m_hwnd, spec, chosen, picked);
-    CHR (hr);
-    BAIL_OUT_IF (!picked, S_OK);
-
-    ChangeHardDiskImage (drive, chosen.wstring());
-
-Error:
-    return;
+    m_drivePickers->OpenForDeskDrive (drive);
 }
 
 
@@ -483,6 +673,32 @@ Error:
 
 void EmulatorShell::SaveMachineSettings (const std::function<void (SettingsPanelState &)> & edit)
 {
+    HRESULT  hr = EditSavedMachine ([&edit] (SettingsPanelState & state)
+    {
+        edit (state);
+        return S_OK;
+    });
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::EditSavedMachine
+//
+//  Reads the running machine's saved settings, applies `edit`, and writes
+//  them back, through the same document Settings writes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::EditSavedMachine (const std::function<HRESULT (SettingsPanelState & state)> & edit)
+{
     HRESULT             hr                = S_OK;
     std::string         machineNameNarrow = GetCurrentMachineNameNarrow();
     std::wstring        configRelPath     = std::wstring (L"Machines\\") + m_machine.GetCurrentMachineName() +
@@ -492,40 +708,27 @@ void EmulatorShell::SaveMachineSettings (const std::function<void (SettingsPanel
                                                 PathResolver::GetWorkingDirectory()),
                                                 configRelPath);
     JsonValue           defaultJson;
-    JsonValue           mergedJson;
-    JsonValue           savedJson;
     JsonParseError      parseErr;
     std::ifstream       configFile;
     std::stringstream   ss;
-    SettingsPanelState  state;
 
 
 
-    BAIL_OUT_IF (m_settings->GetConfigStore() == nullptr || configPath.empty(), S_OK);
+    BAIL_OUT_IF (m_settings->GetConfigStore() == nullptr || configPath.empty(), HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
     configFile.open (configPath);
-    BAIL_OUT_IF (!configFile.good(), S_OK);
+    BAIL_OUT_IF (!configFile.good(), HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
     ss << configFile.rdbuf();
 
     hr = JsonParser::Parse (ss.str(), defaultJson, parseErr);
     CHRA (hr);
 
-    hr = m_settings->GetConfigStore()->Load (machineNameNarrow, defaultJson, m_settings->GetFileSystem(), mergedJson);
-    CHR (hr);
-
-    hr = state.LoadFromMachine (machineNameNarrow, defaultJson, mergedJson);
-    CHR (hr);
-
-    edit (state);
-
-    savedJson = state.BuildCurrentJson();
-
-    hr = m_settings->GetConfigStore()->SaveDelta (machineNameNarrow, savedJson, defaultJson, m_settings->GetFileSystem());
+    hr = SettingsPanelState::EditSaved (*m_settings->GetConfigStore(), m_settings->GetFileSystem(), machineNameNarrow, defaultJson, edit);
     CHR (hr);
 
 Error:
-    return;
+    return hr;
 }
 
 
@@ -585,7 +788,19 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
         return;
     }
 
-    if (device == kStorageMenuRecorder)
+    // A //c Plus's drive 2 commands act on its first 5.25-inch drive, and its
+    // second has only insert and eject.
+    if (device != kStorageMenuRecorder && DiskMenuRule::HasBuiltIn35Drive (m_machine.GetConfig()))
+    {
+        if (device != 0)
+        {
+            ShowDriveContextMenu (DeskDrive { DeskDriveModel::Disk2c, BootDriveRule::kDiskIiSlot, device, false, true }, x, y);
+            return;
+        }
+
+        ids = { IDM_DISK_INSERT2, IDM_DISK_EJECT2, IDM_DISK_WP2, IDM_DISK_SALVAGE2, IDM_DISK_INSPECT2, IDM_DISK_THUMBNAIL2 };
+    }
+    else if (device == kStorageMenuRecorder)
     {
         ids = { IDM_STORAGE_RECORDER, 0, IDM_TAPE_INSERT, IDM_TAPE_PLAY, IDM_TAPE_STOP, IDM_TAPE_REWIND,
                 IDM_TAPE_FASTFORWARD, IDM_TAPE_EJECT };
@@ -638,9 +853,9 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
 
     // On the //c Plus the 5.25-inch drives are on the disk port's chain. Only
     // the last one is unplugged, since a disk is saved by its drive's number.
-    if (m_disks->IsPortChainOffered() && (device == 0 || device == 1))
+    if (DiskPortChainRule::IsOffered (m_machine.GetConfig()) && (device == 0 || device == 1))
     {
-        int  floppies = m_disks->CountPortDrives (kpszDiskIicDevice);
+        int  floppies = DiskPortChainRule::CountDrives (m_machine.GetConfig(), kpszDiskIicDevice);
 
 
 
@@ -671,8 +886,8 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
 //
 //  EmulatorShell::ShowDriveContextMenu
 //
-//  A 3.5-inch drive's or hard disk's menu: the drive's name, then for a
-//  3.5-inch drive its insert and eject, and for a hard disk its image
+//  A floppy drive's or hard disk's menu: the drive's name, then for a
+//  floppy drive its insert and eject, and for a hard disk its image
 //  change, then the switches every storage menu ends with.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -691,7 +906,7 @@ void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
 
     items.push_back (DxuiPopupMenuItem::ForHeader (ShellDeskScene::GetDriveTitle (drive)));
 
-    if (ShellDeskScene::IsFloppy35 (drive))
+    if (drive.model == DeskDriveModel::Disk2c)
     {
         auto  insert = std::make_shared<DxuiCommand>();
         auto  eject  = std::make_shared<DxuiCommand>();
@@ -699,7 +914,23 @@ void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
 
 
         insert->label     = L"&Insert disk...";
-        insert->dispatch  = [this, drive] () { m_scene->BrowseFloppy35 (drive); };
+        insert->dispatch  = [this, drive] () { m_disks->BrowseForDisk (drive.drive); };
+        eject->label      = L"&Eject disk";
+        eject->dispatch   = [this, drive] () { m_disks->Eject (drive.slot, drive.drive); };
+        eject->isEnabled  = [this, drive] () { return !m_disks->GetMountedImagePath (drive.drive).empty(); };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (insert));
+        items.push_back (DxuiPopupMenuItem::ForCommand (eject));
+    }
+    else if (ShellDeskScene::IsFloppy35 (drive))
+    {
+        auto  insert = std::make_shared<DxuiCommand>();
+        auto  eject  = std::make_shared<DxuiCommand>();
+
+
+
+        insert->label     = L"&Insert disk...";
+        insert->dispatch  = [this, drive] () { m_scene->BrowseDeskDrive (drive); };
         eject->label      = L"&Eject disk";
         eject->dispatch   = [this, drive] () { m_disks->Eject (drive.slot, drive.drive); };
         eject->isEnabled  = [this, drive] () { return !m_scene->GetDriveImagePath (drive).empty(); };
@@ -721,7 +952,7 @@ void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
 
     // On the //c Plus, the drives behind the built-in one are on the disk
     // port's chain, the built-in drive taking the first desk index.
-    if (drive.slot == 0 && m_disks->IsPortChainOffered())
+    if (drive.slot == 0 && DiskPortChainRule::IsOffered (m_machine.GetConfig()))
     {
         std::string  device;
         int          nth    = -1;

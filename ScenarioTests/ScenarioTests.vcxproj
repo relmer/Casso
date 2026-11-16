@@ -169,6 +169,7 @@
     </ClCompile>
     <ClCompile Include="BasicCorpusFixtureTests.cpp" />
     <ClCompile Include="BlockCountTests.cpp" />
+    <ClCompile Include="ImageClassifierScenarioTests.cpp" />
     <ClCompile Include="BlockModeTests.cpp" />
     <ClCompile Include="GutenbergTests.cpp" />
     <ClCompile Include="TapeRecordingTests.cpp" />
@@ -232,6 +233,7 @@
     <ClCompile Include="..\UnitTest\NetworkTests\W5100Driver.cpp" />
     <ClCompile Include="BlockDeviceBootTests.cpp" />
     <ClCompile Include="Floppy35BootTests.cpp" />
+    <ClCompile Include="PickerTimingTests.cpp" />
     <ClCompile Include="Apple2cPlusTests.cpp" />
     <ClCompile Include="DeskModelAssetTests.cpp" />
     <ClCompile Include="MameComparisonTests.cpp" />

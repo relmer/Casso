@@ -146,6 +146,7 @@
     <ClCompile Include="Audio\TapeAudioSource.cpp" />
     <ClCompile Include="Devices\Tape\TapeTurboGovernor.cpp" />
     <ClCompile Include="Shell\EmulatorShellStorage.cpp" />
+    <ClCompile Include="Shell\Components\ShellDrivePickers.cpp" />
     <ClCompile Include="Shell\Components\ShellTapeDeck.cpp" />
     <ClCompile Include="Ui\Chrome\TapeDeckWidget.cpp" />
     <ClCompile Include="Shell\TapeManager.cpp" />
@@ -324,6 +325,9 @@
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockEditBuffer.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockHistory.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockImageFile.cpp" />
+    <ClCompile Include="Devices\Disk\ImageClassifier.cpp" />
+    <ClCompile Include="Devices\Disk\ImageClassCache.cpp" />
+    <ClCompile Include="Devices\Disk\DriveImageRule.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockInspectorModel.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockLeftovers.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockFieldList.cpp" />
@@ -422,6 +426,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerWindow.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerAddressBar.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerCommandManager.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\ExplorerCommandManagerDisks.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerDragDrop.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerClipboard.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerTransferPrompts.cpp" />
@@ -458,6 +463,9 @@
     <ClCompile Include="CassoExplorer\Window\Panes\Preview\PreviewHexSources.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerTabManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerStatusBar.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Panes\ExplorerPickerBar.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Panes\ExplorerPickerChips.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\ExplorerPickerMode.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerThemes.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerTips.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerToolbars.cpp" />
@@ -472,6 +480,14 @@
     <ClCompile Include="CassoExplorer\Model\RefreshAnchor.cpp" />
     <ClCompile Include="Seams\Win32FolderWatcher.cpp" />
     <ClCompile Include="CassoExplorer\Model\CatalogModel.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CassoImagesListing.cpp" />
+    <ClCompile Include="CassoExplorer\Model\StockDisksListing.cpp" />
+    <ClCompile Include="CassoExplorer\Model\ImageVolumeFacts.cpp" />
+    <ClCompile Include="CassoExplorer\Picker\FileMaskSet.cpp" />
+    <ClCompile Include="CassoExplorer\Picker\ExplorerPickerHost.cpp" />
+    <ClCompile Include="CassoExplorer\Picker\PickerPrefs.cpp" />
+    <ClCompile Include="CassoExplorer\Picker\PickerScope.cpp" />
+    <ClCompile Include="CassoExplorer\Picker\StartupDiskPicker.cpp" />
     <ClCompile Include="CassoExplorer\Model\AppleFileProperties.cpp" />
     <ClCompile Include="CassoExplorer\Model\BasicConversion.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostAppleFile.cpp" />
@@ -916,6 +932,7 @@
     <ClCompile Include="Machines\Apple2\Common\WozLoader.cpp" />
     <ClCompile Include="Machines\Apple2\Common\BlankDiskBuilder.cpp" />
     <ClCompile Include="Machines\Apple2\Common\StockBootDisks.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\StockDisk800K.cpp" />
     <ClCompile Include="Capture\CaptureOutcome.cpp" />
     <ClCompile Include="Capture\CapturedImage.cpp" />
     <ClCompile Include="Capture\ScreenshotMode.cpp" />
@@ -945,6 +962,7 @@
     <ClCompile Include="Devices\Disk\PreservedCopy.cpp" />
     <ClCompile Include="Seams\Win32IntentChannel.cpp" />
     <ClCompile Include="Seams\Win32HostDialogs.cpp" />
+    <ClCompile Include="Seams\CassoHostDialogs.cpp" />
     <ClCompile Include="Seams\Win32Clipboard.cpp" />
     <ClCompile Include="Controllers\ControllerTokens.cpp" />
     <ClCompile Include="Controllers\GamePortInputMixer.cpp" />
@@ -1196,7 +1214,12 @@
     <ClCompile Include="Shell\ModernPrintDialog.cpp" />
     <ClCompile Include="Shell\WindowCommandManager.cpp" />
     <ClCompile Include="Shell\WindowManager.cpp" />
+    <ClCompile Include="Shell\DiskMenuRule.cpp" />
+    <ClCompile Include="Shell\DiskPortChainRule.cpp" />
     <ClCompile Include="Shell\DiskMru.cpp" />
+    <ClCompile Include="Shell\BootDriveRule.cpp" />
+    <ClCompile Include="Shell\DriveDropRule.cpp" />
+    <ClCompile Include="Shell\DrivePickers.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
     <ClCompile Include="BuildInfo.cpp" />
     <ClCompile Include="CrtPostProcess.cpp" />
@@ -1218,6 +1241,7 @@
     <ClCompile Include="Shell\Components\EmulatorUpdaterHost.cpp" />
     <ClCompile Include="Shell\Components\ShellUpdater.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerUpdaterHost.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerWindowFinder.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerBlockInspectorWindow.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerInspectorHost.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerInspectorWindow.cpp" />
@@ -1425,6 +1449,9 @@
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockEditBuffer.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockHistory.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockImageFile.h" />
+    <ClInclude Include="Devices\Disk\ImageClassifier.h" />
+    <ClInclude Include="Devices\Disk\ImageClassCache.h" />
+    <ClInclude Include="Devices\Disk\DriveImageRule.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockInspectorModel.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockLeftovers.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockFieldList.h" />
@@ -1574,6 +1601,9 @@
     <ClInclude Include="CassoExplorer\Window\Panes\Preview\PreviewHexSources.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerTabManager.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerStatusBar.h" />
+    <ClInclude Include="CassoExplorer\Window\Panes\ExplorerPickerBar.h" />
+    <ClInclude Include="CassoExplorer\Window\Panes\ExplorerPickerChips.h" />
+    <ClInclude Include="CassoExplorer\Window\Managers\ExplorerPickerMode.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerThemes.h" />
     <ClInclude Include="CassoExplorer\Window\Managers\ExplorerTips.h" />
     <ClInclude Include="CassoExplorer\Window\Panes\ExplorerToolbars.h" />
@@ -1589,6 +1619,15 @@
     <ClInclude Include="CassoExplorer\Model\IFolderWatcher.h" />
     <ClInclude Include="Seams\Win32FolderWatcher.h" />
     <ClInclude Include="CassoExplorer\Model\CatalogModel.h" />
+    <ClInclude Include="CassoExplorer\Model\CassoImagesListing.h" />
+    <ClInclude Include="CassoExplorer\Model\StockDisksListing.h" />
+    <ClInclude Include="CassoExplorer\Model\ImageVolumeFacts.h" />
+    <ClInclude Include="CassoExplorer\Picker\FileMaskSet.h" />
+    <ClInclude Include="CassoExplorer\Picker\PickerRequest.h" />
+    <ClInclude Include="CassoExplorer\Picker\ExplorerPickerHost.h" />
+    <ClInclude Include="CassoExplorer\Picker\PickerPrefs.h" />
+    <ClInclude Include="CassoExplorer\Picker\PickerScope.h" />
+    <ClInclude Include="CassoExplorer\Picker\StartupDiskPicker.h" />
     <ClInclude Include="CassoExplorer\Model\AppleFileProperties.h" />
     <ClInclude Include="CassoExplorer\Model\BasicConversion.h" />
     <ClInclude Include="CassoExplorer\Model\HostAppleFile.h" />
@@ -1735,6 +1774,7 @@
     <ClInclude Include="Machines\Apple2\Common\WozMetadata.h" />
     <ClInclude Include="Machines\Apple2\Common\BlankDiskBuilder.h" />
     <ClInclude Include="Machines\Apple2\Common\StockBootDisks.h" />
+    <ClInclude Include="Machines\Apple2\Common\StockDisk800K.h" />
     <ClInclude Include="Capture\CaptureOutcome.h" />
     <ClInclude Include="Capture\CapturedImage.h" />
     <ClInclude Include="Capture\ScreenshotMode.h" />
@@ -1766,6 +1806,7 @@
     <ClInclude Include="Seams\IIntentChannel.h" />
     <ClInclude Include="Seams\Win32IntentChannel.h" />
     <ClInclude Include="Seams\Win32HostDialogs.h" />
+    <ClInclude Include="Seams\CassoHostDialogs.h" />
     <ClInclude Include="Seams\Win32Clipboard.h" />
     <ClInclude Include="Seams\IPrintDialog.h" />
     <ClInclude Include="Seams\IHostDialogs.h" />
@@ -2138,7 +2179,12 @@
     <ClInclude Include="Ui\Scene\FullscreenStripState.h" />
     <ClInclude Include="Ui\PrinterPanel.h" />
     <ClInclude Include="Ui\PrinterPaperView.h" />
+    <ClInclude Include="Shell\DiskMenuRule.h" />
+    <ClInclude Include="Shell\DiskPortChainRule.h" />
     <ClInclude Include="Shell\DiskMru.h" />
+    <ClInclude Include="Shell\BootDriveRule.h" />
+    <ClInclude Include="Shell\DriveDropRule.h" />
+    <ClInclude Include="Shell\DrivePickers.h" />
     <ClInclude Include="Shell\RepoCheckout.h" />
     <ClInclude Include="Shell\ClipboardManager.h" />
     <ClInclude Include="Shell\ScreenshotCapture.h" />
@@ -2171,10 +2217,12 @@
     <ClInclude Include="Shell\Components\ShellSerialCard.h" />
     <ClInclude Include="Shell\SerialCardNotice.h" />
     <ClInclude Include="Shell\Components\ShellSettings.h" />
+    <ClInclude Include="Shell\Components\ShellDrivePickers.h" />
     <ClInclude Include="Shell\Components\ShellTapeDeck.h" />
     <ClInclude Include="Shell\Components\EmulatorUpdaterHost.h" />
     <ClInclude Include="Shell\Components\ShellUpdater.h" />
     <ClInclude Include="CassoExplorer\ExplorerUpdaterHost.h" />
+    <ClInclude Include="CassoExplorer\ExplorerWindowFinder.h" />
     <ClInclude Include="CassoExplorer\ExplorerBlockInspectorWindow.h" />
     <ClInclude Include="CassoExplorer\ExplorerInspectorHost.h" />
     <ClInclude Include="CassoExplorer\ExplorerInspectorWindow.h" />

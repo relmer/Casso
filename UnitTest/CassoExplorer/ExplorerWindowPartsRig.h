@@ -18,6 +18,7 @@
 #include "RecordingExplorerServices.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/Model/DiskImagePictures.h"

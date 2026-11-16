@@ -26,6 +26,9 @@ public:
     //  `diskBlocks` is the mounted disk's or image's size, 0 for none;
     //  `capacityBlocks` is a ProFile's fixed size.
     static std::wstring  GetTitle   (const DeskDrive & drive, bool numbered);
+
+    //  The slot the guest sees the drive in: slot 5 for a //c's own drives.
+    static int           GetSlot    (const DeskDrive & drive);
     static std::wstring  GetDetail  (DeskDriveModel model, uint32_t diskBlocks, uint32_t capacityBlocks);
     static std::wstring  FormatSize (uint32_t blocks);
 

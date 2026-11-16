@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 struct MachineConfig;
+enum class ReceivingDriveKind;
 
 
 
@@ -18,6 +19,10 @@ enum class DeskDriveModel
     Apple35Plus,     // the //c Plus's built-in drive, in its colors
     HardDisk20SC,
     ProFile,
+
+    //  Not a model. It bounds a sweep over the models, so the test of each
+    //  model's images fails to compile when a model is added. Keep it last.
+    Count,
 };
 
 //  The two classes the desk places as a whole.
@@ -116,10 +121,13 @@ class DeskDrivePlan
 public:
     static constexpr float  kUnderMonitorSlackMm = 10.0f;
 
-    static DeskDriveClass  GetClass       (DeskDriveModel model);
-    static float           GetCaseWidthMm (DeskDriveModel model);
-    static bool            IsOnDesk       (DeskClassPlace place, size_t count);
-    static bool            IsDiskII       (DeskDriveModel model);
+    static DeskDriveClass      GetClass         (DeskDriveModel model);
+    static float               GetCaseWidthMm   (DeskDriveModel model);
+    static bool                IsOnDesk         (DeskClassPlace place, size_t count);
+    static bool                IsDiskII         (DeskDriveModel model);
+
+    //  The images the model mounts, as the picker and a drop check them.
+    static ReceivingDriveKind  GetReceivingKind (DeskDriveModel model);
 
     //  "auto", "desk" or "bar", as the global preferences store a class's
     //  place; anything else is Auto.

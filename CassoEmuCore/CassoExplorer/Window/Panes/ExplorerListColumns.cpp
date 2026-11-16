@@ -54,7 +54,7 @@ void ExplorerListColumns::ShowChosenColumns()
 
     for (size_t c = 0; c < m_chosen.size(); c++)
     {
-        m_pane.GetListView()->SetColumnVisible (c, IsListColumnShown (c, m_chosen[c], location.kind, SearchQuery::IsId (location.path), CollectionQuery::IsId (location.path)));
+        m_pane.GetListView()->SetColumnVisible (c, IsListColumnShown (c, m_chosen[c], location.kind, SearchQuery::IsId (location.path), IsResultsList (location)));
 
         //  File Explorer's filters, on a folder's or a disk's list.
         m_pane.GetListView()->SetColumnFilter (c, CassoExplorerBrowser::GetFilterField (c) != RowGrouping::Field::None && location.kind != Location::Kind::Root,
@@ -163,6 +163,42 @@ bool ExplorerListColumns::StepIconSize (int notches)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerListColumns::IsCassoImageList
+//
+//  The Casso node's list of its folders' images.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListColumns::IsCassoImageList (const Location & location)
+{
+    return location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::IsResultsList
+//
+//  A list of files from several folders, which has the Folder column and
+//  Disk list's columns: Disk list's and Find duplicates' results, and the
+//  Casso node's images.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerListColumns::IsResultsList (const Location & location)
+{
+    return CollectionQuery::IsId (location.path) || IsCassoImageList (location);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerListColumns::IsListColumnShown
 //
 //  Whether a list column is visible: the user's choice from the header's
@@ -183,6 +219,12 @@ bool ExplorerListColumns::IsListColumnShown (size_t column, bool chosen, Locatio
     if (column == (size_t) CatalogModel::Column::Name)
     {
         return true;
+    }
+
+    //  An image's file system and volume name are in an ordinary folder too.
+    if (column == (size_t) CatalogModel::Column::FileSystem || column == (size_t) CatalogModel::Column::VolumeName)
+    {
+        return chosen && (results || kind == Location::Kind::HostFolder);
     }
 
     if (CatalogModel::IsCollectionColumn (column))
@@ -490,6 +532,12 @@ void ExplorerListColumns::ApplyFolderView()
             //  Each duplicate set is a group.
             entry.groupBy = (int) RowGrouping::Field::DuplicateSet;
         }
+        else if (IsCassoImageList (m_context.browser.GetLocation()))
+        {
+            //  The Casso node's images open with the one Casso loaded last first.
+            sortColumn           = (size_t) CatalogModel::Column::LastUsed;
+            entry.sortDescending = true;
+        }
         else if (searching)
         {
             //  Search results open by relevance, as File Explorer's do.
@@ -534,9 +582,77 @@ void ExplorerListColumns::ApplyFolderView()
         ApplyChoiceIds (m_context.prefs.hiddenColumns, m_context.prefs.shownColumns);
 
         //  The Folder column distinguishes Disk list's and Find duplicates' rows.
-        if (CollectionQuery::IsId (m_context.browser.GetLocation().path) && m_chosen.size() > (size_t) CatalogModel::Column::Folder)
+        if (IsResultsList (m_context.browser.GetLocation()) && m_chosen.size() > (size_t) CatalogModel::Column::Folder)
         {
             m_chosen[(size_t) CatalogModel::Column::Folder] = true;
+        }
+
+        //  The Casso node's images, with what each is and when Casso last loaded it.
+        if (IsCassoImageList (m_context.browser.GetLocation()) && m_chosen.size() > (size_t) CatalogModel::Column::LastUsed)
+        {
+            for (CatalogModel::Column column : { CatalogModel::Column::FormFactor, CatalogModel::Column::FormattedSize, CatalogModel::Column::LastUsed })
+            {
+                m_chosen[(size_t) column] = true;
+            }
+
+            if (m_context.IsPicker())
+            {
+                ApplyPickerImageColumns (entry.columnOrder.empty());
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerListColumns::ApplyPickerImageColumns
+//
+//  A picker's first view of the Casso node's images: what each image is
+//  before the file's dates and size. A 140K disk and an 800K disk differ
+//  in the first columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerListColumns::ApplyPickerImageColumns (bool isOrderDefault)
+{
+    static constexpr CatalogModel::Column  s_kShown[]  = { CatalogModel::Column::Name,       CatalogModel::Column::FormFactor, CatalogModel::Column::FormattedSize,
+                                                           CatalogModel::Column::FileSystem, CatalogModel::Column::VolumeName, CatalogModel::Column::LastUsed,
+                                                           CatalogModel::Column::Folder };
+    static constexpr CatalogModel::Column  s_kHidden[] = { CatalogModel::Column::Modified, CatalogModel::Column::Type, CatalogModel::Column::Size };
+
+
+
+    for (CatalogModel::Column column : s_kShown)
+    {
+        m_chosen[(size_t) column] = true;
+    }
+
+    for (CatalogModel::Column column : s_kHidden)
+    {
+        m_chosen[(size_t) column] = false;
+    }
+
+    if (!isOrderDefault)
+    {
+        return;
+    }
+
+    m_folderOrder.clear();
+
+    for (CatalogModel::Column column : s_kShown)
+    {
+        m_folderOrder.push_back (CatalogModel::GetColumnId ((size_t) column));
+    }
+
+    for (CatalogModel::Column column : CatalogModel::GetDefaultOrder())
+    {
+        if (std::find (std::begin (s_kShown), std::end (s_kShown), column) == std::end (s_kShown))
+        {
+            m_folderOrder.push_back (CatalogModel::GetColumnId ((size_t) column));
         }
     }
 }
@@ -1180,7 +1296,7 @@ void ExplorerListColumns::ChooseDetails()
                                                           L"System.Recycle.DeletedFrom", L"System.Recycle.DateDeleted", L"System.ItemFolderPathDisplay" };
     const Location &                         location  = m_context.browser.GetLocation();
     bool                                     searching = SearchQuery::IsId (location.path);
-    bool                                     results   = CollectionQuery::IsId (location.path);
+    bool                                     results   = IsResultsList (location);
     std::vector<ChooseDetailsModel::Column>  columns;
     std::vector<std::wstring>                names     = m_context.prefs.propertyColumns;
     ChooseDetailsModel                       model;

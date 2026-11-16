@@ -152,6 +152,107 @@ const wchar_t * CassoExplorerCommands::GetMenuTitle (Menu menu)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerCommands::IsAllowedInPicker
+//
+//  A list of what a picker has, so a command added to the table later is
+//  left out of a picker until it is added here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerCommands::IsAllowedInPicker (int id, bool isSaveForm)
+{
+    if ((id >= kSortByColumn && id < kViewFirst) || (id >= kViewFirst && id < kGroupByField) || (id >= kGroupByField && id <= kGroupByLast))
+    {
+        return true;
+    }
+
+    switch (id)
+    {
+        case kBack:
+        case kForward:
+        case kUp:
+        case kRefresh:
+        case kEditAddress:
+        case kAddressHistory:
+        case kTogglePreview:
+        case kSort:
+        case kSortAscending:
+        case kSortDescending:
+        case kSortByRelevance:
+        case kView:
+        case kViewDetails:
+        case kGroupBy:
+        case kGroupAscending:
+        case kGroupDescending:
+        case kCloseSearch:
+        case kSearchOptions:
+        {
+            return true;
+        }
+
+        case kNewFolder:
+        {
+            return isSaveForm;
+        }
+
+        default:
+        {
+            return false;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerCommands::GetAllIds
+//
+//  The ids of the menu rows, the toolbars' and the keys', each once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> CassoExplorerCommands::GetAllIds()
+{
+    std::set<int>  ids;
+
+
+
+    for (const Row & row : kRows)
+    {
+        ids.insert (row.id);
+    }
+
+    for (const Key & key : kKeys)
+    {
+        ids.insert (key.id);
+    }
+
+    for (std::span<const ToolbarRow> rows : { std::span<const ToolbarRow> (kToolbarRows),    std::span<const ToolbarRow> (kCommandBarRows),
+                                              std::span<const ToolbarRow> (kSearchRows),     std::span<const ToolbarRow> (kResultsRows),
+                                              std::span<const ToolbarRow> (kRecycleBinRows), std::span<const ToolbarRow> (kArchiveRows),
+                                              std::span<const ToolbarRow> (kDiskImageRows),  std::span<const ToolbarRow> (kDiskImagePairRows),
+                                              std::span<const ToolbarRow> (kAppleDriveRows), std::span<const ToolbarRow> (kPreviewToolbarRows) })
+    {
+        for (const ToolbarRow & row : rows)
+        {
+            ids.insert (row.id);
+        }
+    }
+
+    ids.erase (kSeparator);
+
+    return std::vector<int> (ids.begin(), ids.end());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerCommands::GetStandardCommand
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -7,6 +7,7 @@
 #include "Seams/IntentReplyTracker.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Shell/CpuCommandTargets.h"
+#include "Shell/DiskMenuRule.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DriveWidgetState.h"
@@ -112,13 +113,14 @@ public:
     HRESULT  Mount (int slot, int drive, const std::wstring & path) override;
     void     Eject (int slot, int drive) override;
 
-    // UI helper: open the drive door for visual feedback, show the
-    // file-open dialog, then close the door again. Mount-on-success
-    // is handled by the existing PromptForDiskImage path; this
-    // method just owns the door visual. `anchorClientPx` is the clicked
-    // drive in client pixels, which the picker opens below; null (the menu
-    // and accelerator path) centers the picker on the window.
-    void  BrowseForDisk (int drive, const RECT * anchorClientPx = nullptr);
+    // Opens the drive's picker, or brings it to the front when it is open.
+    void  BrowseForDisk (int drive);
+
+    // The door while the drive's picker is open: opened with the picker,
+    // and on its close left to the insert or put back to the mount state.
+    void            OpenDoorForPicker      (int drive);
+    void            RestoreDoorAfterPicker (int drive, bool isInserted);
+    static int64_t  GetDoorNowMs           ();
 
     // Push a freshly mounted disk image onto the recent-disks MRU
     // and persist user prefs. Best-effort; never propagates failures
@@ -156,20 +158,8 @@ public:
     bool  MachineHasBuiltInDrive () const;
     bool  HasDiskIicDrives       () const;
 
-    // The //c Plus's disk port, whose drives are attached from the Disk menu:
-    // whether the machine offers that, how many drives of `device` are on
-    // the port's chain, and how many it takes. The port takes two drives in
-    // all, so a drive of `device` fits while the chain has fewer than two
-    // and fewer than the limit of its kind.
-    bool  IsPortChainOffered () const;
-    int   CountPortDrives    (const std::string & device) const;
-    int   GetPortDriveLimit  (const std::string & device) const;
-    bool  CanPlugInPortDrive (const std::string & device) const;
-    bool  CanSwapPortDrive   (const std::string & device) const;
-
-    // The kind a drive of `device` swaps for: a 3.5-inch drive for a
-    // 5.25-inch drive and the reverse. Empty for any other device.
-    static std::string  GetSwapDevice (const std::string & device);
+    // The drive the Storage menu's drive 1 (0) or drive 2 (1) commands act on.
+    DiskMenuDrive  GetMenuDrive (int menuDrive) const;
 
     // The info icon's tooltip for a drive: what its WOZ image declares about
     // the machine, and what conflicts with the one running. Empty when nothing

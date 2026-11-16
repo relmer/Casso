@@ -10,6 +10,11 @@ Entries before versioning was introduced use dates only.
 
 ### Added
 
+- Casso Explorer has Form factor, Formatted size and Last used columns.
+- Casso Explorer's Casso node lists every disk and tape image in its folders,
+  most recently used first.
+- Picking an image for a hard disk, or dropping one on it, sets it for the next
+  restart.
 - Apple's Super Serial Card, in slot 2 of the ][, ][+, //e and Enhanced //e.
   Turn it on in Settings > Machine and set it up on the new Serial card page.
   You can also send its output to a file, feed it input from a file, or loop
@@ -32,6 +37,14 @@ Entries before versioning was introduced use dates only.
 
 ### Changed
 
+- Replaced Casso's disk image picker with one based on Casso Explorer. Each
+  drive's picker lists only the images that drive can use, most recently used
+  first, and stays open until you insert a disk or close it.
+- Every request to open or save a disk or tape image, in Casso and in Casso
+  Explorer, uses the new picker, as does the boot disk choice at startup.
+- The pointer is the no-drop cursor while you drag an image over a drive that
+  can't use it.
+- The recent list has room for 1,000 images, up from 16.
 - In Settings > Machine, click a device's name to turn it on or off. You no
   longer have to hit the checkbox.
 - The //c's serial ports send and receive bytes at the selected baud rate, not

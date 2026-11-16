@@ -18,9 +18,8 @@
 
 std::wstring DriveLabel::GetTitle (const DeskDrive & drive, bool numbered)
 {
-    constexpr int  kCSmartPortSlot = 5;
-    std::wstring   title;
-    int            slot            = (drive.slot == 0) ? kCSmartPortSlot : drive.slot;
+    std::wstring  title;
+    int           slot  = GetSlot (drive);
 
 
 
@@ -41,6 +40,28 @@ std::wstring DriveLabel::GetTitle (const DeskDrive & drive, bool numbered)
     }
 
     return title;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveLabel::GetSlot
+//
+//  The slot the guest sees the drive in. A //c's or //c Plus's own drives
+//  are slot 0 here, and its SmartPort is slot 5.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DriveLabel::GetSlot (const DeskDrive & drive)
+{
+    constexpr int  kCSmartPortSlot = 5;
+
+
+
+    return (drive.slot == 0) ? kCSmartPortSlot : drive.slot;
 }
 
 

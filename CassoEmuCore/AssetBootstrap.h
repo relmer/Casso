@@ -13,12 +13,9 @@ class JsonValue;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MediaFilter, MediaPickerKind
+//  MediaFilter
 //
-//  What the insert picker is choosing. Disks and tapes share one picker, one
-//  recent list and one set of scanned folders; the filter keeps each picker to
-//  its own kind of file, and the kind holds the wording and the stock-download
-//  rows, which only disks have.
+//  Which files of a folder a scan lists: disks, tapes, or both.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,20 +23,6 @@ using MediaFilter = bool (*) (const std::wstring & path);
 
 class IDxuiTheme;
 struct CassoTheme;
-
-
-
-
-
-struct MediaPickerKind
-{
-    std::wstring  title;
-    std::wstring  intro;            // shown when there are recent entries
-    std::wstring  emptyIntro;       // shown when there are none
-    std::wstring  createLabel;      // the pinned <Create new ...> row
-    std::wstring  mediaColumn;      // the list header over the file names
-    bool          offerDownloads = false;
-};
 
 
 
@@ -153,6 +136,10 @@ public:
                                            vector<string>         & outRomFiles,
                                            string                 & outError);
 
+    // The machine's name from its embedded config, such as "Apple //e";
+    // the id when the config can't be read.
+    static wstring  GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & machineName);
+
     static HRESULT  HasDiskController     (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            bool                   & outHasDiskController,
@@ -192,69 +179,6 @@ public:
                                             uint32_t                 sampleRate,
                                             string                 & outError);
 
-    // Themed boot-disk picker. Lists the user's recent disk images
-    // plus "Download" rows for the DOS 3.3 and ProDOS stock masters
-    // (sourced from the Asimov archive). Always shown when the
-    // machine has a Disk ][ controller and no boot disk has been
-    // resolved yet, even when the MRU is empty -- the download rows
-    // give a fresh install somewhere to go. Picking a row mounts it
-    // (downloading on demand for the stock rows); Skip leaves the
-    // slot empty. A stock download that fails is reported in a themed
-    // box and the picker comes back; outError is set only for a failure
-    // that ends the picker (an embedded config that cannot be read).
-    //
-    // On return:
-    //   outDiskPath = path to mount, or empty if the user skipped /
-    //                 the machine has no Disk ][ controller.
-    static HRESULT  PromptBootDiskMru     (HINSTANCE                hInstance,
-                                           HWND                     hwndParent,
-                                           const wstring          & machineName,
-                                           const vector<DiskMru::Entry> & mruEntries,
-                                           const fs::path         & diskDir,
-                                           std::string_view         themeName,
-                                           wstring                & outDiskPath,
-                                           bool                   & outUserClosed,
-                                           string                 & outError);
-
-    // Themed runtime disk-insert picker. Mirrors PromptBootDiskMru
-    // but is used when the user clicks a drive widget (or invokes
-    // Disk -> Insert in drive N) on a running machine. Lists the
-    // user's recent disk images plus "Download" rows for the DOS 3.3
-    // and ProDOS stock masters so the picker is never empty even on
-    // a fresh install. The "Browse..." footer button falls through to
-    // the Win32 IFileOpenDialog for ad-hoc images. Cancel / close box
-    // leaves the slot untouched. A stock download that fails is reported
-    // in a themed box and the picker comes back, so it is not returned as
-    // a failure. A non-null `anchorRectPx` (screen pixels) opens the
-    // picker centered below that rect; null centers it on `hwndParent`.
-    //
-    // On return:
-    //   outDiskPath  = path to mount, or empty if the user canceled
-    //                  or chose Browse (caller then runs IFileOpenDialog)
-    //   outBrowse    = true if the user clicked Browse... (caller
-    //                  should fall through to its file-picker path)
-    //   outCreateNew = true if the user chose the pinned
-    //                  <Create new disk...> row (caller runs
-    //                  the create-disk flow for the same drive)
-    //   outPickerRectPx = where the picker's window was when it
-    //                  closed, in screen pixels, for a dialog that
-    //                  follows it to open in the same place
-    static MediaPickerKind  MakeDiskPickerKind (int drive);
-    static MediaPickerKind  MakeTapePickerKind ();
-
-    static HRESULT  PromptInsertDiskMru   (HINSTANCE                hInstance,
-                                           HWND                     hwndParent,
-                                           const MediaPickerKind  & kind,
-                                           const RECT             * anchorRectPx,
-                                           const vector<DiskMru::Entry> & mruEntries,
-                                           const fs::path         & diskDir,
-                                           std::string_view         themeName,
-                                           wstring                & outDiskPath,
-                                           bool                   & outBrowse,
-                                           bool                   & outCreateNew,
-                                           RECT                   & outPickerRectPx,
-                                           string                 & outError);
-
     // Unified startup downloader. Inspects the current install for
     // every required-or-optional asset that's missing (ROMs from the
     // catalog, Disk II drive audio per mechanism) and presents a
@@ -274,7 +198,7 @@ public:
     // `prefs.audioDownloadConsent` is read AND updated to reflect the
     // user's choice (allow / decline). The caller is responsible for
     // flushing prefs to disk after this returns. Boot-disk selection is
-    // not handled here -- it is owned solely by PromptBootDiskMru.
+    // StartupDiskPicker's.
     static HRESULT  RunStartupDownloader  (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            HWND                     hwndParent,

@@ -9,9 +9,11 @@
 #include "Core/TextEncoding.h"
 #include "Core/PathResolver.h"
 #include "CassoExplorer/ExplorerUpdaterHost.h"
+#include "CassoExplorer/ExplorerWindowFinder.h"
 #include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
+#include "CassoExplorer/Model/CassoImagesListing.h"
 #include "Seams/Win32FolderWatcher.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Seams/Win32IntentChannel.h"
@@ -652,111 +654,6 @@ CassoExplorerWindowRequest CassoExplorerShell::PlanForwardedLaunch (const CassoE
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerShell::GetWindowClass
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * CassoExplorerShell::GetWindowClass()
-{
-    static constexpr DWORD  kFolderChars = 32768;
-
-
-
-    static const std::wstring  windowClass = [] ()
-    {
-        std::wstring  folder (kFolderChars, L'\0');
-        DWORD         length = GetEnvironmentVariableW (PathResolver::kpszProfileVariable, folder.data(), kFolderChars);
-
-        folder.resize (length < kFolderChars ? length : 0);
-        return MakeWindowClass (folder);
-    } ();
-
-
-
-    return windowClass.c_str();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerShell::MakeWindowClass
-//
-//  kTestCopyClass and the folder's 32-bit FNV-1a hash in hex, taken over its
-//  path in lowercase so that C:\Temp and c:\temp give the same class;
-//  kWindowClass for no folder.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoExplorerShell::MakeWindowClass (const std::wstring & profileFolder)
-{
-    static constexpr uint32_t  kOffsetBasis = 2166136261u;
-    static constexpr uint32_t  kPrime       = 16777619u;
-
-
-
-    uint32_t      hash        = kOffsetBasis;
-    std::wstring  windowClass = kWindowClass;
-
-
-
-    for (wchar_t ch : profileFolder)
-    {
-        hash = (hash ^ static_cast<uint32_t> (towlower (ch))) * kPrime;
-    }
-
-    if (!profileFolder.empty())
-    {
-        windowClass = std::format (L"{}_{:08X}", kTestCopyClass, hash);
-    }
-
-    return windowClass;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerShell::FindWindowForOwner
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HWND CassoExplorerShell::FindWindowForOwner (HWND owner)
-{
-    HWND  found = nullptr;
-    HWND  next  = nullptr;
-
-
-
-    if (owner == nullptr)
-    {
-        return nullptr;
-    }
-
-    do
-    {
-        next = FindWindowExW (nullptr, next, GetWindowClass(), nullptr);
-
-        if (next != nullptr && (HWND) GetPropW (next, kOwnerProperty) == owner)
-        {
-            found = next;
-        }
-    }
-    while (next != nullptr && found == nullptr);
-
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerShell::FrontWindow
 //
 //  A process launched by the emulator's menu item holds the foreground
@@ -1042,6 +939,8 @@ void CassoExplorerShell::ConfigureBrowser (CassoExplorerBrowser & browser)
     browser.GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
     browser.GetTreeModel().SetLocalizedNameLookup (&HostFolderNames::GetLocalizedFolderName);
     browser.SetPhysicalCards (&m_cards);
+
+    browser.SetRecentLoads ([this] () { return CassoImagesListing::LoadRecent (m_fs, m_baseDir); });
     browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path)
     {
         DWORD  attributes = GetFileAttributesW (path.c_str());
@@ -1114,7 +1013,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
 
     if (owner != 0)
     {
-        marked = SetPropW (slot->window->GetHwnd(), kOwnerProperty, (HANDLE) owner);
+        marked = SetPropW (slot->window->GetHwnd(), ExplorerWindowFinder::kOwnerProperty, (HANDLE) owner);
         CWR (marked);
     }
 
@@ -1364,7 +1263,7 @@ BOOL CALLBACK CassoExplorerShell::CloseDialog (HWND hwnd, LPARAM)
 
     GetClassNameW (hwnd, className, (int) std::size (className));
 
-    if (IsWindowVisible (hwnd) && wcscmp (className, GetWindowClass()) != 0)
+    if (IsWindowVisible (hwnd) && wcscmp (className, ExplorerWindowFinder::GetWindowClass()) != 0)
     {
         PostMessageW (hwnd, WM_CLOSE, 0, 0);
     }
@@ -1590,7 +1489,7 @@ void CassoExplorerShell::ReleaseClosedWindows()
     {
         if (slot->closed && slot->window != nullptr && slot->window->GetHwnd() != nullptr)
         {
-            RemovePropW (slot->window->GetHwnd(), kOwnerProperty);
+            RemovePropW (slot->window->GetHwnd(), ExplorerWindowFinder::kOwnerProperty);
         }
     }
 

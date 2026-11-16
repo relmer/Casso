@@ -398,6 +398,47 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProDosSkeleton::TryGetVolumeName
+//
+//  The header's first byte is the storage type in its high nibble and the
+//  name's length in its low nibble.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProDosSkeleton::TryGetVolumeName (const vector<Byte> & buffer, std::string & outName)
+{
+    size_t  bufferBytes = buffer.size();
+    size_t  header      = 0;
+    size_t  length      = 0;
+
+
+
+    outName.clear();
+
+    if (!IsValidVolumeSize (bufferBytes))
+    {
+        return false;
+    }
+
+    header = GetBlockByteOffset (bufferBytes, kDirKeyBlock, kOffFirstEntry);
+    length = buffer[header + kHdrOffTypeName] & 0x0F;
+
+    if ((buffer[header + kHdrOffTypeName] & 0xF0) != kStorageVolumeDir || length == 0)
+    {
+        return false;
+    }
+
+    outName.assign (reinterpret_cast<const char *> (&buffer[header + kHdrOffName]), length);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProDosReader::ExtractFile
 //
 //  A file in the volume directory.

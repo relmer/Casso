@@ -10,6 +10,7 @@
 #include "Shell/MachineGamePortSink.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
+#include "Seams/CassoHostDialogs.h"
 #include "Seams/Win32HostNetwork.h"
 #include "Seams/Win32HostFirewall.h"
 #include "Seams/Win32NetworkChanges.h"
@@ -29,6 +30,10 @@
 
 class ClipboardManager;
 struct DeskDrive;
+struct DriveAddress;
+enum class ReceivingDriveKind;
+struct ImageClass;
+struct ReceivingDrive;
 class DxuiHwndSource;
 class MachineBuilder;
 class MachineManager;
@@ -46,6 +51,7 @@ class ShellRenderer;
 class ShellWindow;
 class ShellDeskScene;
 class ShellDisks;
+class ShellDrivePickers;
 class ShellPrinter;
 class ShellSettings;
 class ShellSerialCard;
@@ -407,14 +413,26 @@ private:
     void    SetSecondDriveConnected   (bool connected);
     void    SetTapeRecorderConnected  (bool connected);
     void    SaveStorageDevices        ();
+    HRESULT EditSavedMachine          (const std::function<HRESULT (class SettingsPanelState & state)> & edit);
     void    SaveHardDiskImage         (int slot, int drive, const std::string & path);
     void    SaveMachineSettings       (const std::function<void (SettingsPanelState &)> & edit);
 
-    // A hard disk's new image, dropped on the drive or chosen from its file
-    // dialog. Changing it restarts the machine, so the change is confirmed
-    // first. On Cancel the drive has its image from before, and the machine
-    // runs on.
+    //  Inserts an image in a drive: mounted in a floppy drive, loaded in
+    //  the recorder, or, for a hard disk, attached after a confirmed restart.
+    bool    InsertInDrive             (const DriveAddress & address, ReceivingDriveKind kind, const std::wstring & label, const std::wstring & path);
+
+    //  A hard disk's capacity in blocks, from the drive on the card's port;
+    //  0 for a port without one.
+    uint32_t  GetHardDiskBlocks       (int slot, int port) const;
+
+    //  A modal picker over owner, for a caller that waits for a path.
+    HRESULT RunModalPicker            (HWND owner, PickerRequest request, PickerOutcome & outOutcome);
+
+    // A hard disk's new image, dropped on the drive or chosen in its picker.
+    // Changing it restarts the machine, so the change is confirmed first. On
+    // Cancel the drive has its image from before, and the machine runs on.
     void    ChangeHardDiskImage       (const DeskDrive & drive, const std::wstring & path);
+    void    ChangeHardDiskImage       (int slot, int drive, const std::wstring & driveTitle, const std::wstring & path);
     void    BrowseHardDisk            (const DeskDrive & drive);
 
     // Plugs a drive of `device` into the disk port's chain, unplugs the
@@ -706,7 +724,13 @@ private:
     bool    AreDrivesOnStrip     () const;
 
     // A file dropped on a drive or the recorder.
-    void    OnFileDropped      (int tag, const std::wstring & path);
+    void          OnFileDropped     (int tag, const std::wstring & path);
+    std::wstring  GetDropDriveLabel (int tag);
+
+    // The drive under a drop tag, when it takes a disk while the machine
+    // runs, and whether it takes the image.
+    bool    TryGetDropDrive    (int tag, ReceivingDrive & outDrive, DriveAddress & outAddress);
+    bool    IsDropAccepted     (int tag, const ImageClass & image);
 
     // The operating system's pickers, behind their seam. The shell owns the
     // Win32 implementation; whoever needs to put one up asks for the
@@ -795,6 +819,7 @@ private:
     friend class ShellWindow;
     friend class ShellDeskScene;
     friend class ShellDisks;
+    friend class ShellDrivePickers;
     friend class ShellPrinter;
     friend class ShellSettings;
     friend class ShellSerialCard;
@@ -1050,7 +1075,10 @@ private:
     // The host services the clipboard manager and the dialogs go through.
     // Declared ahead of the manager, which holds a reference to the clipboard.
     Win32Clipboard                            m_hostClipboard;
-    Win32HostDialogs                          m_hostDialogs;
+    // An image request opens the Casso Explorer picker, and any other
+    // opens Windows' dialog.
+    Win32HostDialogs                          m_win32Dialogs;
+    CassoHostDialogs                          m_hostDialogs { m_win32Dialogs, [this] (HWND owner, PickerRequest request, PickerOutcome & outOutcome) { return RunModalPicker (owner, std::move (request), outOutcome); } };
 
     // Whether the //e and //c Caps Lock key is down: down until the first
     // Caps Lock press in this window, the host's from then on. Session-scoped,
@@ -1060,6 +1088,7 @@ private:
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<ShellDisks>               m_disks;
     std::unique_ptr<ShellTapeDeck>            m_tapeDeck;
+    std::unique_ptr<ShellDrivePickers>        m_drivePickers;
     std::unique_ptr<ShellSerialCard>          m_serialCard;
     std::unique_ptr<ShellNetworkCard>         m_networkCard;
     std::wstring                              m_lastListenProblem;   // CPU thread: the sentence last passed to m_networkCard

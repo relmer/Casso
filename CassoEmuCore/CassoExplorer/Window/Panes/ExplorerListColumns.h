@@ -32,6 +32,8 @@ public:
 
     static bool  IsListColumnShown          (size_t column, bool chosen, Location::Kind kind, bool searching = false, bool results = false);
     static bool  IsListColumnOffered        (size_t column, Location::Kind kind, bool searching = false, bool results = false);
+    static bool  IsCassoImageList           (const Location & location);
+    static bool  IsResultsList              (const Location & location);
     void         ApplyColumnOrder           ();
     void         ShowChosenColumns          ();
     void         ChooseAll                  (size_t count) { m_chosen.assign (count, true); }
@@ -45,6 +47,7 @@ public:
     //  hidden, and of those hidden until chosen that are visible.
     void         GetChoiceIds               (std::vector<int> & outHidden, std::vector<int> & outShown) const;
     void         ApplyChoiceIds             (const std::vector<int> & hidden, const std::vector<int> & shown);
+    void         ApplyPickerImageColumns    (bool isOrderDefault);
 
     static std::vector<int>  ToColumnIds    (const std::vector<size_t> & columns);
     static void              SetColumnWidth (std::vector<int> & widthsDip, std::vector<int> & addedWidthsDip, size_t column, int widthDip);

@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/ExplorerWindowFinder.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -344,13 +345,13 @@ public:
 
     TEST_METHOD (MakeWindowClass_DiffersPerProfileFolder)
     {
-        std::wstring  first  = CassoExplorerShell::MakeWindowClass (LR"(C:\Temp\ProfileA)");
-        std::wstring  second = CassoExplorerShell::MakeWindowClass (LR"(C:\Temp\ProfileB)");
+        std::wstring  first  = ExplorerWindowFinder::MakeWindowClass (LR"(C:\Temp\ProfileA)");
+        std::wstring  second = ExplorerWindowFinder::MakeWindowClass (LR"(C:\Temp\ProfileB)");
 
-        Assert::AreEqual (std::wstring (CassoExplorerShell::kWindowClass), CassoExplorerShell::MakeWindowClass (L""));
-        Assert::IsTrue (first.starts_with (CassoExplorerShell::kTestCopyClass));
+        Assert::AreEqual (std::wstring (ExplorerWindowFinder::kWindowClass), ExplorerWindowFinder::MakeWindowClass (L""));
+        Assert::IsTrue (first.starts_with (ExplorerWindowFinder::kTestCopyClass));
         Assert::AreNotEqual (first, second);
-        Assert::AreEqual (first, CassoExplorerShell::MakeWindowClass (LR"(c:\temp\profilea)"));
+        Assert::AreEqual (first, ExplorerWindowFinder::MakeWindowClass (LR"(c:\temp\profilea)"));
     }
 
 

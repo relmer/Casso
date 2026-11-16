@@ -196,18 +196,18 @@ public:
     {
         for (UINT dpi : { 96u, 144u })
         {
-            InspectorSession        session;
-            IssuesView              issues  { session.context };
-            DxuiDpiScaler           scaler;
-            RepairPlan              plan;
-            std::set<std::wstring>  chosen  = { L"none" };
-            RECT                    button  = {};
-            RECT                    icon    = {};
-            RECT                    cell    = {};
+            std::unique_ptr<InspectorSession>  session = std::make_unique<InspectorSession>();
+            IssuesView                         issues  { session->context };
+            DxuiDpiScaler                      scaler;
+            RepairPlan                         plan;
+            std::set<std::wstring>             chosen  = { L"none" };
+            RECT                               button  = {};
+            RECT                               icon    = {};
+            RECT                               cell    = {};
 
-            Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session.analysis);
-            session.context.hasDisk = true;
-            plan = DiskRepair::Plan (session.analysis, {});
+            Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session->analysis);
+            session->context.hasDisk = true;
+            plan = DiskRepair::Plan (session->analysis, {});
             scaler.SetDpi (dpi);
 
             issues.SetRepairPlan (&plan);
