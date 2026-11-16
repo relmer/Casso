@@ -160,6 +160,9 @@ public:
     //  views at one zoom.
     static View   GetBetweenView (const View & from, const View & to, double t);
 
+    //  Progress from 0 to 1, slow at the start and end and fastest halfway.
+    static double  Ease (double t);
+
     //  A flight zooms the platter out until both the view's center and the
     //  selection are in view, then in to the selection (FR-038). ZoomAbout, PanBy, Fit and StopFlight end the flight.
     void              StartFlight  (double nowMs);
@@ -188,7 +191,6 @@ private:
     void           ClearBytes             ();
     void           BringSelectionIntoView ();
     void           ClampPan               ();
-    static double  Ease                   (double t);
 
     const DiskAnalysis *  m_analysis      = nullptr;
     uint64_t              m_mediaId       = 0;

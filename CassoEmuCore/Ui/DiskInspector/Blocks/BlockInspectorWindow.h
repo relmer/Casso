@@ -5,6 +5,7 @@
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
+#include "Seams/Win32ShellIcons.h"
 #include "Ui/DiskInspector/Blocks/BlockBrowser.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
 #include "Ui/DiskInspector/Components/InspectorMenuBar.h"
@@ -127,6 +128,7 @@ private:
     std::wstring              m_displayName;
     std::wstring              m_hint;
     DxuiTooltip               m_tooltip;
+    Win32ShellIcons           m_icons;
     std::wstring              m_tooltipText;
     const IDxuiTheme        * m_theme           = nullptr;
     std::function<void ()>    m_onClosed;

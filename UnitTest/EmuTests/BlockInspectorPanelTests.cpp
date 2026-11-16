@@ -146,6 +146,83 @@ public:
     }
 
 
+    TEST_METHOD (Grid_EachZoomDrawsEveryBlockLargerThanTheLast)
+    {
+        BlockMapGrid  fit      (65535, 300, 300);
+        double        before   = 0.0;
+        bool          isSplit  = false;
+        double        zoom     = 1.0;
+
+
+
+        Assert::IsTrue (fit.GetGroup() > 1);
+
+        for (zoom = 1.0; zoom < 40.0; zoom *= 1.25)
+        {
+            BlockMapGrid  grid (65535, fit.GetBlockColumns(), fit.GetBlockPx() * zoom, fit.GetGroup());
+            double        size = grid.GetPitch() / grid.GetGroup();
+
+            Assert::IsTrue (size > before, std::format (L"a block at zoom {} is {} px, after {} px", zoom, size, before).c_str());
+            Assert::IsTrue (grid.GetGroup() == fit.GetGroup() || grid.GetGroup() == 1);
+            Assert::IsTrue (!isSplit || grid.GetGroup() == 1, L"once split into single blocks, the cells stay single blocks");
+
+            isSplit = grid.GetGroup() == 1;
+            before  = size;
+        }
+
+        Assert::IsTrue (isSplit);
+    }
+
+
+    TEST_METHOD (MapView_AFlightZoomsOutThenInToTheHighlightedBlocks)
+    {
+        FakeDiskFileIo       io;
+        BlockInspectorModel  model;
+        BlockMapView         view;
+        DxuiDpiScaler        scaler;
+        std::wstring         tip;
+        RECT                 anchor = {};
+        double               start  = 0.0;
+        double               least  = 0.0;
+        double               ms     = 0.0;
+
+
+
+        OpenModel (io, model);
+
+        view.SetModel    (&model);
+        view.SetZoomable (true);
+        view.Layout      (RECT { 0, 0, 400, 400 }, scaler);
+        view.Refresh();
+
+        //  Zoomed in on the first blocks, then a block in the middle of the
+        //  volume is highlighted.
+        view.StepZoomAt (100, { 1, 1 });
+        start = view.GetZoom();
+        least = start;
+
+        model.HighlightBlocks ({ 820 });
+        view.Refresh();
+        view.StartFlight (0.0);
+        Assert::IsTrue (view.IsFlying());
+
+        for (ms = 0.0; view.StepFlight (ms); ms += 20.0)
+        {
+            least = std::min (least, view.GetZoom());
+        }
+
+        Assert::IsFalse (view.IsFlying());
+        Assert::IsTrue  (least < start && least < view.GetZoom(), std::format (L"from {} out to {} and in to {}", start, least, view.GetZoom()).c_str());
+        Assert::IsTrue  (view.GetTooltip ({ 200, 200 }, tip, anchor));
+        Assert::IsTrue  (tip.starts_with (L"Block 820\n"), tip.c_str());
+
+        //  A zoom ends a flight.
+        view.StartFlight (ms);
+        view.StepZoom (-1);
+        Assert::IsFalse (view.IsFlying());
+    }
+
+
     TEST_METHOD (MapView_ZoomStepsEvenlyToALargeCellAndTipsAsTheFileMapGrid)
     {
         FakeDiskFileIo             io;

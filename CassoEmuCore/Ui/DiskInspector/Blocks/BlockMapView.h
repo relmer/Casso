@@ -5,6 +5,7 @@
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
+#include "Ui/DiskInspector/InspectorViewModel.h"
 #include "Ui/DiskInspector/ZoomStops.h"
 
 
@@ -63,12 +64,21 @@ public:
     void    StepZoom   (int steps);
     void    StepZoomAt (int steps, POINT anchorPx);
     void    Fit        ();
-    bool    IsAtFit    () const { return m_zoom <= 1.0; }
+    bool    IsAtFit    () const { return m_zoom <= 1.0 && !m_isFlying; }
     bool    IsAtMost   () const { return m_stops.empty() || m_zoom >= m_stops.back(); }
     double  GetZoom    () const { return m_zoom; }
 
     //  Reads each cell's role and highlight from the model again.
     void  Refresh ();
+
+    //  A flight zooms the map out until both the view's center and the
+    //  highlighted blocks are in view, then in to the highlighted blocks, as
+    //  the disk inspector's platter flies to a sector. A zoom, a pan, Fit and
+    //  StopFlight end the flight.
+    void  StartFlight (double nowMs);
+    bool  StepFlight  (double nowMs);
+    void  StopFlight  () { m_isFlying = false; }
+    bool  IsFlying    () const { return m_isFlying; }
 
     //  What pointing at a cell reports.
     std::wstring  DescribeCell   (uint32_t cell) const;
@@ -81,7 +91,7 @@ public:
     bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const;
 
     //  Whether the map is animated: the marquee around the highlighted
-    //  blocks marches, and the current block shimmers.
+    //  blocks marches, the current block shimmers, and a flight moves it.
     bool  IsAnimating () const;
 
     void  Layout  (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
@@ -99,6 +109,7 @@ private:
 
     static constexpr double  kZoomRatio    = 1.25;
     static constexpr double  kMinStepRatio = 1.05;
+    static constexpr double  kFlightFill   = 0.75;   // the highlighted blocks' share of the view at a flight's end
     static constexpr float   kMostCellDip  = 48.0f;  // a cell at the last stop
     static constexpr float   kNumberDip    = 26.0f;  // the least cell a block's number is drawn in
 
@@ -113,35 +124,47 @@ private:
     void      ClampPan        ();
     int64_t   FindCellAt      (POINT pointPx) const;
 
-    BlockInspectorModel  * m_model        = nullptr;
-    DxuiDpiScaler          m_scaler;
-    BlockMapGrid           m_grid;
-    vector<SectorRole>     m_roles;
-    vector<bool>           m_highlighted;
-    vector<uint32_t>       m_numbers;                // a highlighted block's number in its file, from 1, or 0
-    bool                   m_hasHighlight = false;
-    bool                   m_isDark       = true;   // the theme's surface the last time the map was drawn
-    vector<bool>           m_differs;
-    SelectFn               m_onSelect;
-    SelectFn               m_onOpen;
-    HoverFn                m_onHover;
-    int64_t                m_hoverCell    = -1;
-    bool                   m_isOutlined   = true;
-    bool                   m_isFrozen     = false;
-    vector<BlockBand>      m_bands;
-    uint32_t               m_blockCount   = 0;
-    uint32_t               m_current      = 0;
-    bool                   m_isZoomable   = false;
-    bool                   m_isDiffsShown = true;
-    double                 m_zoom         = 1.0;
-    double                 m_panX         = 0.0;   // where the view starts in the zoomed grid, in pixels
-    double                 m_panY         = 0.0;
-    vector<double>         m_stops;
-    SIZE                   m_stopsSize    = {};   // the grid's size and block count the stops were built for
-    uint32_t               m_stopsCount   = 0;
-    bool                   m_isPressed    = false;
-    bool                   m_isPanning    = false;
-    POINT                  m_pressAt      = {};
-    POINT                  m_lastAt       = {};
-    int64_t                m_lastClickMs  = 0;
+    //  Views as the platter's flight has them: a point d of the fit grid, in
+    //  pixels, is at pan + zoom * d in the view.
+    InspectorViewModel::View  GetView    () const { return { m_zoom, { -m_panX, -m_panY } }; }
+    InspectorViewModel::View  GetBoxView (double left, double top, double right, double bottom) const;
+
+    BlockInspectorModel       * m_model         = nullptr;
+    DxuiDpiScaler               m_scaler;
+    BlockMapGrid                m_grid;
+    vector<SectorRole>          m_roles;
+    vector<bool>                m_highlighted;
+    vector<uint32_t>            m_numbers;   // a highlighted block's number in its file, from 1, or 0
+    bool                        m_hasHighlight  = false;
+    RECT                        m_highlightBox  = {};   // the highlighted blocks' columns and rows, right and bottom past the last
+    InspectorViewModel::View    m_flightFrom;
+    InspectorViewModel::View    m_flightMid;
+    InspectorViewModel::View    m_flightTo;
+    double                      m_flightStartMs = 0.0;
+    bool                        m_isFlying      = false;
+    bool                        m_isTwoLegs     = false;
+    bool                        m_isDark        = true;   // the theme's surface the last time the map was drawn
+    vector<bool>                m_differs;
+    SelectFn                    m_onSelect;
+    SelectFn                    m_onOpen;
+    HoverFn                     m_onHover;
+    int64_t                     m_hoverCell     = -1;
+    bool                        m_isOutlined    = true;
+    bool                        m_isFrozen      = false;
+    vector<BlockBand>           m_bands;
+    uint32_t                    m_blockCount    = 0;
+    uint32_t                    m_current       = 0;
+    bool                        m_isZoomable    = false;
+    bool                        m_isDiffsShown  = true;
+    double                      m_zoom          = 1.0;
+    double                      m_panX          = 0.0;   // where the view starts in the zoomed grid, in pixels
+    double                      m_panY          = 0.0;
+    vector<double>              m_stops;
+    SIZE                        m_stopsSize     = {};   // the grid's size and block count the stops were built for
+    uint32_t                    m_stopsCount    = 0;
+    bool                        m_isPressed     = false;
+    bool                        m_isPanning     = false;
+    POINT                       m_pressAt       = {};
+    POINT                       m_lastAt        = {};
+    int64_t                     m_lastClickMs   = 0;
 };

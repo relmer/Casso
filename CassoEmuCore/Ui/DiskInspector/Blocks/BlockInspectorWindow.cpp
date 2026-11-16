@@ -9,6 +9,7 @@
 #include "Ui/DiskInspector/Blocks/BlockInspectorWindow.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Core/NumberFormat.h"
 
@@ -262,6 +263,11 @@ void BlockInspectorWindow::OnCreate()
 
     m_panel = CreateChild<BlockInspectorPanel>();
     m_panel->Init (&m_model, &m_worker, m_theme, GetHwnd(), GetTextRenderer(), &m_commands);
+
+    m_icons.SetDpi    (GetDpiForWindow (GetHwnd()));
+    m_icons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), USER_DEFAULT_SCREEN_DPI));
+    m_panel->GetNavigator().SetIcons (&m_icons);
+
     m_panel->SetOnChildPressed ([this] (IDxuiControl * child) { FocusControl (child); });
     m_panel->SetOnChanged      ([this] () { m_isDirty = true; });
     m_panel->SetOnJobQueued    ([this] () { m_isDirty = true; });
@@ -354,6 +360,11 @@ void BlockInspectorWindow::RenderIfChanged()
     m_menus.Tick ((int64_t) GetTickCount64());
     m_status.Tick (GetHwnd());
     m_tooltip.Tick ((int64_t) GetTickCount64());
+
+    if (m_panel->GetMap().IsFlying())
+    {
+        m_panel->GetMap().StepFlight (InspectorMarquee::GetClockMs());
+    }
 
     //  The map's marquee marches and its current block shimmers, as the
     //  disk inspector's do, so the map is drawn each frame while they're on it.

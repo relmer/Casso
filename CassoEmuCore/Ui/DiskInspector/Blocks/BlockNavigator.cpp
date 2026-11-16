@@ -1,5 +1,8 @@
 #include "Pch.h"
 
+#include "CassoExplorer/Browser/BrowserCells.h"
+#include "CassoExplorer/Window/ExplorerTextStyles.h"
+#include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "Core/NumberFormat.h"
 #include "Ui/DiskInspector/Blocks/BlockNavigator.h"
 
@@ -70,6 +73,9 @@ void BlockNavigator::Create (DxuiPanel & host, BlockInspectorModel * model, cons
     m_list->SetTheme                 (theme);
     m_list->SetOwnerWindow           (hwnd);
     m_list->SetShowHeader            (true);
+    m_list->SetIconColumn            (0);
+    m_list->SetExplorerDetails       (true);
+    m_list->SetRowHeightPxFn         (&ExplorerLayout::GetListRowHeightPx);
     m_list->SetActivateOnDoubleClick (true);
     m_list->SetAlwaysShowSelection   (true);
     m_list->SetOnSelectionChanged    ([this] (int row) { OnRowSelected (row); });
@@ -80,6 +86,8 @@ void BlockNavigator::Create (DxuiPanel & host, BlockInspectorModel * model, cons
         m_sortColumn   = column;
         FillList();
     });
+
+    ExplorerTextStyles::Apply (*m_list, ExplorerTextStyles::kProse);
 }
 
 
@@ -111,8 +119,14 @@ void BlockNavigator::Sync()
         m_browser.Start();
     }
 
+    vector<DxuiTreeNode>  nodes = m_browser.BuildTree (GetCardLabel());
+
+
+
+    SetTreeIcons (nodes);
+
     m_isFilling = true;
-    m_tree->SetNodes (m_browser.BuildTree (GetCardLabel()));
+    m_tree->SetNodes (std::move (nodes));
     m_isFilling = false;
 
     Show();
@@ -373,6 +387,11 @@ void BlockNavigator::FillList()
                 cells.push_back ({ text });
             }
 
+            if (!cells.empty())
+            {
+                cells[0].icon = GetRowIcon (row);
+            }
+
             rows.push_back (std::move (cells));
         }
     }
@@ -621,4 +640,69 @@ std::wstring BlockNavigator::GetSelectionLine() const
 std::wstring BlockNavigator::GetCardLabel() const
 {
     return m_model != nullptr && m_model->IsOpen() ? fs::path (m_model->GetFile().GetPath()).filename().wstring() : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockNavigator::SetTreeIcons
+//
+//  The card and each volume have the disk image's floppy, and each
+//  directory the folder, as in Casso Explorer's tree.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockNavigator::SetTreeIcons (vector<DxuiTreeNode> & nodes)
+{
+    BlockPlace  place;
+
+
+
+    if (m_icons == nullptr)
+    {
+        return;
+    }
+
+    for (DxuiTreeNode & node : nodes)
+    {
+        if (BlockBrowser::ParseId (node.id, place))
+        {
+            node.icon = m_icons->GetForKind (place.kind == BlockPlace::Kind::Directory ? IShellIcons::Kind::Folder : IShellIcons::Kind::DiskImage);
+        }
+
+        SetTreeIcons (node.children);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockNavigator::GetRowIcon
+//
+//  A partition has the disk image's floppy, a directory the folder, and a
+//  file its Apple type's icon, as in Casso Explorer's list. A structure, a
+//  finding and a run of blocks have the generic file's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> BlockNavigator::GetRowIcon (const BlockListRow & row)
+{
+    if (m_icons == nullptr)
+    {
+        return nullptr;
+    }
+
+    switch (row.kind)
+    {
+        case BlockListRow::Kind::Partition: return m_icons->GetForKind (IShellIcons::Kind::DiskImage);
+        case BlockListRow::Kind::Directory: return m_icons->GetForKind (IShellIcons::Kind::Folder);
+        case BlockListRow::Kind::File:      return m_icons->GetForKind (row.cells.size() > (size_t) BlockBrowser::kType ? BrowserCells::GetAppleTypeIconKind (row.cells[(size_t) BlockBrowser::kType]) : IShellIcons::Kind::File);
+        default:                            return m_icons->GetForKind (IShellIcons::Kind::File);
+    }
 }

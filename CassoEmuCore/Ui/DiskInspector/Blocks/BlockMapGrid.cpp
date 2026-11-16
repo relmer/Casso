@@ -61,19 +61,17 @@ BlockMapGrid::BlockMapGrid (uint32_t blockCount, int widthPx, int heightPx) :
 //
 //  BlockMapGrid::BlockMapGrid
 //
-//  The same layout of blocks at another size, as a zoom draws it.
+//  The same layout of blocks at another size, as a zoom draws it: the
+//  fit's squares of blocks until a block alone is at least kMinCellPx, and
+//  a block a cell from then on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BlockMapGrid::BlockMapGrid (uint32_t blockCount, int blockColumns, double blockPx) :
+BlockMapGrid::BlockMapGrid (uint32_t blockCount, int blockColumns, double blockPx, uint32_t fitGroup) :
     m_blockCount   (blockCount),
     m_blockColumns (std::max (1, blockColumns))
 {
     constexpr int  kMinPitch = kMinCellPx + kGapPx;
-
-
-
-    uint32_t  group = 1;
 
 
 
@@ -84,12 +82,7 @@ BlockMapGrid::BlockMapGrid (uint32_t blockCount, int blockColumns, double blockP
 
     m_blockRows = (int) ((blockCount + (uint32_t) m_blockColumns - 1) / (uint32_t) m_blockColumns);
 
-    while (std::floor (group * blockPx) < kMinPitch && group < blockCount)
-    {
-        group++;
-    }
-
-    Arrange (blockPx, group);
+    Arrange (blockPx, blockPx >= kMinPitch ? 1 : std::max<uint32_t> (1, fitGroup));
 }
 
 
@@ -108,7 +101,7 @@ void BlockMapGrid::Arrange (double blockPx, uint32_t group)
 {
     m_blockPx = blockPx;
     m_group   = std::max<uint32_t> (1, group);
-    m_pitch   = std::max (kMinCellPx + kGapPx, (int) std::floor (m_group * blockPx));
+    m_pitch   = m_group * blockPx;
     m_columns = (int) ((m_blockColumns + m_group - 1) / m_group);
     m_rows    = (int) ((m_blockRows + m_group - 1) / m_group);
     m_cells   = (uint32_t) m_columns * (uint32_t) m_rows;
@@ -235,7 +228,7 @@ POINT BlockMapGrid::GetCellOrigin (uint32_t cell) const
         return {};
     }
 
-    return { (LONG) ((cell % (uint32_t) m_columns) * m_pitch), (LONG) ((cell / (uint32_t) m_columns) * m_pitch) };
+    return { (LONG) std::floor ((cell % (uint32_t) m_columns) * m_pitch), (LONG) std::floor ((cell / (uint32_t) m_columns) * m_pitch) };
 }
 
 
@@ -261,8 +254,8 @@ int64_t BlockMapGrid::FindCellAt (int xPx, int yPx) const
         return -1;
     }
 
-    column = xPx / m_pitch;
-    row    = yPx / m_pitch;
+    column = (int) (xPx / m_pitch);
+    row    = (int) (yPx / m_pitch);
     cell   = (uint64_t) row * (uint64_t) m_columns + (uint64_t) column;
 
     if (column >= m_columns || cell >= m_cells || !HasBlocks ((uint32_t) cell))

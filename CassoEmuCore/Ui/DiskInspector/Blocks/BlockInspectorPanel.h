@@ -211,6 +211,7 @@ private:
     bool                    m_isDiffsOn       = true;
     bool                    m_isSplitting     = false;
     bool                    m_isTreeSplitting = false;
+    bool                    m_isMapSelecting  = false;   // a click on the map is selecting its row, so the map stays where it is
     bool                    m_hasEdits        = false;
     bool                    m_isRecording     = false;   // the next block drawn goes in the Back history
     bool                    m_isStepping      = false;   // the next block drawn replaces the current location

@@ -10,6 +10,7 @@
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/Components/InspectorCommands.h"
 #include "Ui/DiskInspector/FloatingGroup.h"
+#include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/OverlayChip.h"
 #include "Core/NumberFormat.h"
 
@@ -163,6 +164,17 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
     m_nav.SetOnHighlight ([this] ()
     {
         m_map->Refresh();
+
+        //  A new highlight chosen anywhere but on the map starts a flight to
+        //  it, as a sector chosen off the platter does.
+        if (m_isMapSelecting)
+        {
+            m_map->StopFlight();
+        }
+        else
+        {
+            m_map->StartFlight (InspectorMarquee::GetClockMs());
+        }
 
         if (m_onChanged)
         {
@@ -563,7 +575,9 @@ void BlockInspectorPanel::OnMapSelect (uint32_t block)
         return;
     }
 
+    m_isMapSelecting = true;
     m_nav.SelectForBlock (block);
+    m_isMapSelecting = false;
     m_model->ReplaceBlock (block);
     Refresh();
 }

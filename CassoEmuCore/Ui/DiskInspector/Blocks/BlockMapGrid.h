@@ -15,7 +15,9 @@
 //  Where block mode's map draws each block: the blocks in rows from the top
 //  left, in a fixed number of columns, and a zoom draws the same rows
 //  larger, so the blocks under the pointer stay under it. Where a block
-//  alone would be smaller than kMinCellPx, a square of blocks is one cell.
+//  alone would be smaller than kMinCellPx, a square of blocks is one cell,
+//  the same squares at every zoom until a block alone is large enough, so
+//  each zoom draws every cell larger than the last.
 //  A cell of several blocks takes the color of its most notable role:
 //  damage first, then the volume's structures, then files' data, then free
 //  space. Pure.
@@ -33,11 +35,13 @@ public:
     //  The whole volume fitted to an area, and the same rows of blocks with
     //  each block `blockPx` across, as a zoom draws them.
     BlockMapGrid (uint32_t blockCount, int widthPx, int heightPx);
-    BlockMapGrid (uint32_t blockCount, int blockColumns, double blockPx);
+    BlockMapGrid (uint32_t blockCount, int blockColumns, double blockPx, uint32_t fitGroup);
 
     int       GetColumns       () const { return m_columns; }
     int       GetRows          () const { return m_rows; }
-    int       GetCellPx        () const { return m_pitch - kGapPx; }
+    int       GetCellPx        () const { return std::max (1, (int) std::floor (m_pitch) - kGapPx); }
+    double    GetPitch         () const { return m_pitch; }
+    uint32_t  GetGroup         () const { return m_group; }
     uint32_t  GetBlocksPerCell () const { return m_group * m_group; }
     uint32_t  GetCellCount     () const { return m_cells; }
     int       GetBlockColumns  () const { return m_blockColumns; }
@@ -67,7 +71,7 @@ private:
     int       m_blockRows    = 0;
     double    m_blockPx      = 0.0;
     uint32_t  m_group        = 1;      // the blocks across a cell, and down it
-    int       m_pitch        = kMinCellPx + kGapPx;
+    double    m_pitch        = kMinCellPx + kGapPx;   // a cell and its gap, across
     int       m_columns      = 0;
     int       m_rows         = 0;
     uint32_t  m_cells        = 0;

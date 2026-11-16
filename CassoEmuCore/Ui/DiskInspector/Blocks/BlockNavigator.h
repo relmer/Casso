@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Seams/IShellIcons.h"
 #include "Ui/DiskInspector/Blocks/BlockBrowser.h"
 
 
@@ -32,6 +33,10 @@ public:
     using ChangedFn = std::function<void ()>;
 
     void  Create (DxuiPanel & host, BlockInspectorModel * model, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text);
+
+    //  The tree's and the list's icons, as Casso Explorer's; with none, the
+    //  rows have no icons.
+    void  SetIcons (IShellIcons * icons) { m_icons = icons; }
 
     //  The place changed, and a block is to be opened, for the panel.
     void  SetOnPlace     (ChangedFn fn) { m_onPlace     = std::move (fn); }
@@ -76,8 +81,12 @@ private:
     void          OnRowSelected  (int row);
     void          OnRowActivated (int row);
     std::wstring  GetCardLabel   () const;
+    void          SetTreeIcons   (vector<DxuiTreeNode> & nodes);
+
+    std::shared_ptr<const DxuiIconImage>  GetRowIcon (const BlockListRow & row);
 
     BlockInspectorModel  * m_model        = nullptr;
+    IShellIcons          * m_icons        = nullptr;
     BlockBrowser           m_browser;
     BlockListing           m_listing;
     DxuiAddressBar       * m_crumbs       = nullptr;

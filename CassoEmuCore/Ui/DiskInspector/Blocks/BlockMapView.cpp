@@ -89,7 +89,7 @@ void BlockMapView::Refresh()
     BuildStops();
 
     fit    = BlockMapGrid (count, (int) (grid.right - grid.left), (int) (grid.bottom - grid.top));
-    m_grid = m_zoom <= 1.0 ? fit : BlockMapGrid (count, fit.GetBlockColumns(), fit.GetBlockPx() * m_zoom);
+    m_grid = m_zoom <= 1.0 ? fit : BlockMapGrid (count, fit.GetBlockColumns(), fit.GetBlockPx() * m_zoom, fit.GetGroup());
 
     ClampPan();
 
@@ -98,6 +98,7 @@ void BlockMapView::Refresh()
     m_numbers.assign (m_grid.GetCellCount(), 0);
     m_differs.assign (m_grid.GetCellCount(), false);
     m_hasHighlight = false;
+    m_highlightBox = {};
 
     for (block = 0; block < count && m_grid.GetCellCount() != 0; block++)
     {
@@ -108,6 +109,13 @@ void BlockMapView::Refresh()
 
         if (m_model->HasHighlight() && m_model->IsHighlighted (block))
         {
+            LONG  column = (LONG) (block % (uint32_t) m_grid.GetBlockColumns());
+            LONG  row    = (LONG) (block / (uint32_t) m_grid.GetBlockColumns());
+
+            m_highlightBox = m_hasHighlight ? RECT { std::min (m_highlightBox.left, column), std::min (m_highlightBox.top, row),
+                                                     std::max (m_highlightBox.right, column + 1), std::max (m_highlightBox.bottom, row + 1) }
+                                            : RECT { column, row, column + 1, row + 1 };
+
             m_highlighted[cell] = true;
             m_hasHighlight      = true;
             m_numbers[cell]     = m_grid.GetBlocksPerCell() == 1 ? GetNumberInFile (block) : 0;
@@ -178,7 +186,7 @@ void BlockMapView::BuildStops()
 void BlockMapView::ClampPan()
 {
     RECT    grid     = GetGridRect();
-    double  pitch    = (double) (m_grid.GetCellPx() + BlockMapGrid::kGapPx);
+    double  pitch    = m_grid.GetPitch();
     double  contentW = m_grid.GetColumns() * pitch;
     double  contentH = m_grid.GetRows() * pitch;
 
@@ -209,7 +217,8 @@ void BlockMapView::ZoomAbout (double zoom, POINT anchorPx)
 
 
 
-    zoom = m_stops.empty() ? 1.0 : std::clamp (zoom, 1.0, m_stops.back());
+    zoom       = m_stops.empty() ? 1.0 : std::clamp (zoom, 1.0, m_stops.back());
+    m_isFlying = false;
 
     if (zoom == m_zoom)
     {
@@ -222,6 +231,145 @@ void BlockMapView::ZoomAbout (double zoom, POINT anchorPx)
     m_zoom = zoom;
 
     Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::GetBoxView
+//
+//  The view that centers a box of the fit grid, in pixels, at the zoom that
+//  makes it kFlightFill of the view across or down, whichever is less.
+//  The pan is clamped to the grid's cells.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InspectorViewModel::View BlockMapView::GetBoxView (double left, double top, double right, double bottom) const
+{
+    RECT                      grid  = GetGridRect();
+    double                    w     = (double) (grid.right - grid.left);
+    double                    h     = (double) (grid.bottom - grid.top);
+    double                    most  = m_stops.empty() ? 1.0 : m_stops.back();
+    BlockMapGrid              fit   = BlockMapGrid (m_blockCount, (int) w, (int) h);
+    double                    gridW = fit.GetBlockColumns() * fit.GetBlockPx();
+    double                    gridH = std::ceil ((double) m_blockCount / fit.GetBlockColumns()) * fit.GetBlockPx();
+    InspectorViewModel::View  view;
+
+
+
+    view.zoom  = std::clamp (std::min (w * kFlightFill / std::max (1.0, right - left), h * kFlightFill / std::max (1.0, bottom - top)), 1.0, most);
+    view.pan.x = -std::clamp (view.zoom * (left + right) / 2 - w / 2, 0.0, std::max (0.0, view.zoom * gridW - w));
+    view.pan.y = -std::clamp (view.zoom * (top + bottom) / 2 - h / 2, 0.0, std::max (0.0, view.zoom * gridH - h));
+
+    return view;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::StartFlight
+//
+//  From the view as it is, out only as far as the view with both its center
+//  and the highlighted blocks in it, then in to the view centered on the
+//  highlighted blocks. Blocks near enough that the middle view is no wider
+//  than the view at either end are flown to directly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMapView::StartFlight (double nowMs)
+{
+    RECT          grid   = GetGridRect();
+    BlockMapGrid  fit;
+    double        s      = 0.0;
+    double        cx     = 0.0;
+    double        cy     = 0.0;
+    double        left   = 0.0;
+    double        top    = 0.0;
+    double        right  = 0.0;
+    double        bottom = 0.0;
+
+
+
+    if (!m_isZoomable || !m_hasHighlight || grid.right <= grid.left || grid.bottom <= grid.top)
+    {
+        return;
+    }
+
+    fit    = BlockMapGrid (m_blockCount, (int) (grid.right - grid.left), (int) (grid.bottom - grid.top));
+    s      = fit.GetBlockPx();
+    cx     = (m_panX + (grid.right - grid.left) / 2.0) / m_zoom;
+    cy     = (m_panY + (grid.bottom - grid.top) / 2.0) / m_zoom;
+    left   = m_highlightBox.left * s;
+    top    = m_highlightBox.top * s;
+    right  = m_highlightBox.right * s;
+    bottom = m_highlightBox.bottom * s;
+
+    m_flightFrom    = GetView();
+    m_flightTo      = GetBoxView (left, top, right, bottom);
+    m_flightMid     = GetBoxView (std::min (cx, left), std::min (cy, top), std::max (cx, right), std::max (cy, bottom));
+    m_isTwoLegs     = m_flightMid.zoom < std::min (m_flightFrom.zoom, m_flightTo.zoom) - 1e-9;
+    m_flightStartMs = nowMs;
+    m_isFlying      = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::StepFlight
+//
+//  The view for the moment, eased as the platter's flight is, the two legs
+//  splitting it in the proportion of their changes in zoom by scale.
+//  Returns whether the flight goes on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockMapView::StepFlight (double nowMs)
+{
+    double                    out      = m_isTwoLegs ? std::log (m_flightFrom.zoom / m_flightMid.zoom) : 0.0;
+    double                    in       = m_isTwoLegs ? std::log (m_flightTo.zoom / m_flightMid.zoom) : 0.0;
+    double                    share    = (out + in > 0) ? out / (out + in) : 0.0;
+    double                    duration = m_isTwoLegs ? 2 * InspectorViewModel::kFlightLegMs : InspectorViewModel::kFlightLegMs;
+    double                    t        = std::clamp ((nowMs - m_flightStartMs) / duration, 0.0, 1.0);
+    double                    e        = InspectorViewModel::Ease (t);
+    InspectorViewModel::View  view;
+
+
+
+    if (!m_isFlying)
+    {
+        return false;
+    }
+
+    if (out + in <= 0)
+    {
+        view = InspectorViewModel::GetBetweenView (m_flightFrom, m_flightTo, e);
+    }
+    else if (e < share)
+    {
+        view = InspectorViewModel::GetBetweenView (m_flightFrom, m_flightMid, e / share);
+    }
+    else
+    {
+        view = InspectorViewModel::GetBetweenView (m_flightMid, m_flightTo, (e - share) / (1.0 - share));
+    }
+
+    m_zoom     = view.zoom;
+    m_panX     = -view.pan.x;
+    m_panY     = -view.pan.y;
+    m_isFlying = t < 1.0;
+
+    Refresh();
+
+    return m_isFlying;
 }
 
 
@@ -275,9 +423,10 @@ void BlockMapView::StepZoomAt (int steps, POINT anchorPx)
 
 void BlockMapView::Fit()
 {
-    m_zoom = 1.0;
-    m_panX = 0.0;
-    m_panY = 0.0;
+    m_zoom     = 1.0;
+    m_panX     = 0.0;
+    m_panY     = 0.0;
+    m_isFlying = false;
 
     Refresh();
 }
@@ -429,7 +578,8 @@ bool BlockMapView::OnMouse (const DxuiMouseEvent & ev)
 
         if (m_isPanning)
         {
-            m_panX -= p.x - m_lastAt.x;
+            m_isFlying = false;
+            m_panX    -= p.x - m_lastAt.x;
             m_panY -= p.y - m_lastAt.y;
             m_lastAt = p;
             ClampPan();
@@ -713,7 +863,7 @@ void BlockMapView::PaintMarquee (IDxuiPainter & painter, const DiskInspectorPale
     InspectorMarquee  marquee (palette, m_scaler.ToPxf (InspectorMarquee::kDashDip), InspectorMarquee::kThicknessPx, (int64_t) GetTickCount64());
     int               columns = m_grid.GetColumns();
     int               rows    = m_grid.GetRows();
-    float             pitch   = (float) (m_grid.GetCellPx() + BlockMapGrid::kGapPx);
+    float             pitch   = (float) m_grid.GetPitch();
     float             left    = (float) (grid.left - m_panX);
     float             top     = (float) (grid.top - m_panY);
     float             x0      = 0.0f;
@@ -806,7 +956,7 @@ uint32_t BlockMapView::GetCellColor (const DiskInspectorPalette & palette, uint3
 
 bool BlockMapView::IsAnimating() const
 {
-    return IsVisible() && m_model != nullptr && m_model->IsOpen() && (m_hasHighlight || m_isOutlined);
+    return IsVisible() && m_model != nullptr && m_model->IsOpen() && (m_hasHighlight || m_isOutlined || m_isFlying);
 }
 
 
