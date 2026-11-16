@@ -262,13 +262,22 @@ void BlockNavigator::Show()
     m_crumbs->SetPath     (m_browser.FormatPath (place));
     SelectTreeNode();
 
-    if (place.kind == BlockPlace::Kind::Block)
-    {
-        return;
-    }
-
     m_selected = -1;
     FillList();
+
+    //  At a block, the list is the block's directory's, with the row that
+    //  covers the block selected.
+    if (place.kind == BlockPlace::Kind::Block)
+    {
+        m_selected = m_browser.FindRow (m_listing, place.block);
+
+        if (m_selected >= 0)
+        {
+            m_list->SetSelectedRow (m_selected);
+        }
+
+        return;
+    }
 
     if (place.kind == BlockPlace::Kind::File)
     {
@@ -373,7 +382,7 @@ void BlockNavigator::FillList()
 
 
 
-    m_listing  = m_browser.BuildListing (m_browser.GetPlace(), m_query);
+    m_listing  = m_browser.BuildListing (GetListPlace(), m_query);
     m_selected = -1;
 
     SortRows();
@@ -812,4 +821,22 @@ void BlockNavigator::ShowChildMenu (int index, const RECT & anchor)
     {
         m_crumbs->SetOpenSeparator (-1);
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockNavigator::GetListPlace
+//
+//  The place the list is of: the place, or at a block, the block's
+//  directory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BlockPlace BlockNavigator::GetListPlace() const
+{
+    return IsBlockPlace() ? m_browser.GetContainer (GetPlace()) : GetPlace();
 }

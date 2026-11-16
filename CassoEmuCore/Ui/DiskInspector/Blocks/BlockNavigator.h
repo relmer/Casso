@@ -74,8 +74,10 @@ public:
     DxuiTreeView    & GetTree   () { return *m_tree; }
     DxuiListView    & GetList   () { return *m_list; }
 
-    //  The row at an index in the order of the listing's groups, or null.
-    const BlockListRow  * GetRow (int index) const;
+    //  The row at an index in the order of the listing's groups, or the
+    //  selected row, or null.
+    const BlockListRow  * GetRow         (int index) const;
+    const BlockListRow  * GetSelectedRow () const { return GetRow (m_selected); }
 
 private:
     void          Show           ();
@@ -85,6 +87,7 @@ private:
     void          OnRowSelected  (int row);
     void          OnRowActivated (int row);
     std::wstring  GetCardLabel   () const;
+    BlockPlace    GetListPlace   () const;
     void          SetTreeIcons   (vector<DxuiTreeNode> & nodes);
     void          SubmitPath     (const std::wstring & text);
     void          ShowChildMenu  (int index, const RECT & anchor);

@@ -519,6 +519,39 @@ public:
     }
 
 
+    TEST_METHOD (Panel_SelectingARowDrawsItsFirstBlockBelowTheList)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+        int                   row   = 0;
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+
+        BlockNavigator  & nav = panel.GetNavigator();
+
+        for (row = 0; nav.GetRow (row) != nullptr && nav.GetRow (row)->cells[0] != L"SEED"; row++)
+        {
+        }
+
+        Assert::IsTrue (nav.GetRow (row) != nullptr);
+
+        //  As a click on the row does.
+        nav.SelectForBlock (nav.GetRow (row)->first);
+
+        Assert::AreEqual (nav.GetRow (row)->first, model.GetBlock());
+        Assert::IsTrue   (panel.GetHexView()->IsVisible() && nav.GetList().IsVisible());
+    }
+
+
     TEST_METHOD (Panel_ADoubleClickOnTheMapOpensTheBlock)
     {
         FakeDiskFileIo        io;
@@ -550,7 +583,8 @@ public:
             panel.OnMouse (ev);
         }
 
-        Assert::IsTrue (panel.GetNavigator().IsBlockPlace(), L"the block's hex view is open");
+        Assert::IsFalse (panel.GetNavigator().IsBlockPlace(), L"the list stays at its place");
+        Assert::IsTrue  (model.GetBlock() > 100, L"the block at the middle of the map is drawn below the list");
     }
 
 

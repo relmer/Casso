@@ -320,7 +320,8 @@ public:
         panel.SelectBlock (2);
         Assert::IsTrue   (nav.IsBlockPlace());
         Assert::AreEqual (2u, model.GetBlock());
-        Assert::IsFalse  (nav.GetList().IsVisible(), L"the block is drawn in the list's place");
+        Assert::IsTrue   (nav.GetList().IsVisible(), L"the block is drawn below the list");
+        Assert::IsTrue   (nav.GetSelectedRow() != nullptr && nav.GetSelectedRow()->kind == BlockListRow::Kind::Structure, L"the list is the volume's, with the row of the block's structure selected");
 
         panel.GoBack();
         Assert::IsTrue (nav.GetPlace().kind == BlockPlace::Kind::File);

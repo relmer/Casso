@@ -59,7 +59,10 @@ public:
     static constexpr float  kMinTree     = 0.08f;
     static constexpr float  kMaxTree     = 0.35f;
     static constexpr float  kSearchDip   = 220.0f;
-    static constexpr float  kHexShare    = 0.60f;
+    static constexpr float  kHexShare    = 0.60f;   // the hex view's share of the width beside the fields
+    static constexpr float  kListShare   = 0.45f;   // the list's share of the middle column's height at first
+    static constexpr float  kMinList     = 0.15f;
+    static constexpr float  kMaxList     = 0.80f;
     static constexpr float  kBarDip      = 240.0f;
     static constexpr float  kButtonDip   = 110.0f;
     static constexpr int    kBytesPerRow = 16;
@@ -104,8 +107,11 @@ public:
     //  A block number typed in decimal, or in hex after '$'.
     static bool  TryParseBlock (const std::wstring & text, uint32_t & outBlock);
 
-    //  Steps to a block, or back or forward, and refreshes.
+    //  Steps to a block, or back or forward, and refreshes. OpenBlock draws
+    //  a block below the list without leaving the list's place, and moves
+    //  the keyboard focus to the hex view.
     void  SelectBlock (uint32_t block);
+    void  OpenBlock   (uint32_t block);
     void  Step        (int64_t delta);
     void  GoBack      ();
     void  GoForward   ();
@@ -216,6 +222,7 @@ private:
     bool                    m_isDiffsOn       = true;
     bool                    m_isSplitting     = false;
     bool                    m_isTreeSplitting = false;
+    bool                    m_isListSplitting = false;
     bool                    m_isMapSelecting  = false;   // a click on the map is selecting its row, so the map stays where it is
     bool                    m_hasEdits        = false;
     bool                    m_isRecording     = false;   // the next block drawn goes in the Back history
@@ -224,8 +231,10 @@ private:
     int64_t                 m_shownBlock      = -1;
     float                   m_split           = 0.62f;
     float                   m_treeShare       = kTreeShare;
+    float                   m_listShare       = kListShare;
     RECT                    m_splitterPx      = {};
     RECT                    m_treeSplitterPx  = {};
+    RECT                    m_listSplitterPx  = {};
     RECT                    m_titleRect       = {};
     RECT                    m_fieldRect       = {};
     RECT                    m_rowRect         = {};

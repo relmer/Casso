@@ -77,7 +77,7 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
     m_map->SetModel    (model);
     m_map->SetZoomable (true);
     m_map->SetOnSelect ([this] (uint32_t block) { OnMapSelect (block); });
-    m_map->SetOnOpen   ([this] (uint32_t block) { SelectBlock (block); });
+    m_map->SetOnOpen   ([this] (uint32_t block) { OpenBlock (block); });
     m_map->SetOnHover  ([this] (const std::wstring & value)
     {
         if (m_onHint)
@@ -159,9 +159,18 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
 
     m_nav.Create         (*this, m_model, theme, hwnd, m_text);
     m_nav.SetOnPlace     ([this] () { OnLevelChanged(); });
-    m_nav.SetOnOpenBlock ([this] (uint32_t block) { SelectBlock (block); });
+    m_nav.SetOnOpenBlock ([this] (uint32_t block) { OpenBlock (block); });
     m_nav.SetOnHighlight ([this] ()
     {
+        const BlockListRow  * row = m_nav.GetSelectedRow();
+
+        //  The selected row's first block is drawn below the list.
+        if (row != nullptr && !m_isMapSelecting && !IsBusy() && row->first < m_model->GetBlockCount() && row->first != m_model->GetBlock())
+        {
+            m_model->ReplaceBlock (row->first);
+            Refresh();
+        }
+
         m_map->Refresh();
 
         //  A new highlight chosen anywhere but on the map starts a flight to
@@ -204,7 +213,7 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
     m_hex->SetOnNavigate   ([this] (const DxuiKeyEvent & ev) { return OnNavigateKey (ev); });
     m_hex->SetOnClick      ([this] (uint64_t offset)
     {
-        if (!IsBusy() && IsBlockLevel() && m_model->IsLoaded (m_model->GetBlock()) && m_model->TryFollowLink ((int) offset))
+        if (!IsBusy() && m_model->IsLoaded (m_model->GetBlock()) && m_model->TryFollowLink ((int) offset))
         {
             m_isRecording = true;
             Refresh();
@@ -236,7 +245,7 @@ void BlockInspectorPanel::InitRightColumn (const IDxuiTheme * theme, HWND hwnd)
 
     m_fields->SetOnFollow ([this] (const BlockField * field)
     {
-        if (field != nullptr && field->link != BlockField::kNoLink && IsBlockLevel() && !IsBusy())
+        if (field != nullptr && field->link != BlockField::kNoLink && !IsBusy())
         {
             SelectBlock ((uint32_t) field->link);
         }
@@ -318,6 +327,36 @@ void BlockInspectorPanel::SelectBlock (uint32_t block)
     m_isRecording = true;
     m_model->SelectBlock (block);
     Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::OpenBlock
+//
+//  A double-click on a block, on the map or on a row of blocks: the block
+//  is drawn below the list, which stays where it is, and the hex view gets
+//  the keyboard.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::OpenBlock (uint32_t block)
+{
+    if (IsBusy() || !m_model->IsOpen() || block >= m_model->GetBlockCount())
+    {
+        return;
+    }
+
+    m_model->ReplaceBlock (block);
+    Refresh();
+
+    if (m_onPressed)
+    {
+        m_onPressed (m_hex);
+    }
 }
 
 
@@ -446,7 +485,7 @@ bool BlockInspectorPanel::OnType (uint64_t offset, bool isHexColumn, bool isHigh
 
 
 
-    if (!IsBlockLevel() || IsBusy() || !m_model->IsOpen() || !m_model->IsLoaded (m_model->GetBlock()))
+    if (IsBusy() || !m_model->IsOpen() || !m_model->IsLoaded (m_model->GetBlock()))
     {
         return false;
     }
@@ -1189,6 +1228,8 @@ void BlockInspectorPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & s
     m_nav.GetTree().Layout ({ boundsPx.left + pad, top + pad, treeX, boundsPx.bottom - pad }, scaler);
     m_nav.GetList().SetDpi (scaler.GetDpi());
 
+    m_listShare = std::clamp (m_listShare, kMinList, kMaxList);
+
     LayoutMiddle ({ m_treeSplitterPx.right + pad, top + pad, mapX - pad, boundsPx.bottom - pad }, scaler);
     LayoutGrid   ({ m_splitterPx.right + pad, top + pad, boundsPx.right - pad, boundsPx.bottom - pad }, scaler);
 }
@@ -1263,56 +1304,42 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
 //
 //  BlockInspectorPanel::LayoutMiddle
 //
-//  From the top: the title row with Copy block at its right end, the files
-//  line, the view tabs, the field line, the edit or progress row when there
-//  is one, then the hex view over the fields, or the Files list.
+//  The list at the top, then a splitter, then the current block: its title
+//  row with Copy block at its right end, the field line, the edit or
+//  progress row when there is one, then the hex view beside the fields.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler & scaler)
 {
-    int   pad     = scaler.ToPx ((int) kPadDip);
-    int   row     = scaler.ToPx ((int) kRowDip);
-    int   line    = scaler.ToPx ((int) kLineDip);
-    int   button  = scaler.ToPx ((int) kButtonDip);
-    int   y       = column.top;
-    bool  isRow   = m_isLongJob || m_hasEdits;
-    bool  isBlock = IsBlockLevel();
-    int   hexEnd  = 0;
+    int   pad      = scaler.ToPx ((int) kPadDip);
+    int   row      = scaler.ToPx ((int) kRowDip);
+    int   line     = scaler.ToPx ((int) kLineDip);
+    int   button   = scaler.ToPx ((int) kButtonDip);
+    int   splitter = scaler.ToPx ((int) kSplitterDip);
+    int   listEnd  = column.top + (int) ((column.bottom - column.top) * m_listShare);
+    int   y        = 0;
+    int   hexEnd   = 0;
+    bool  isRow    = m_isLongJob || m_hasEdits;
 
 
 
     m_laidOutLevel = (int) m_nav.GetPlace().kind;
 
-    //  At a place other than a block, the list fills the column, with the
-    //  edit or progress row at its foot.
-    m_nav.GetList().SetVisible (!isBlock);
+    m_nav.GetList().SetVisible (true);
+    m_nav.GetList().Layout ({ column.left, column.top, column.right, listEnd }, scaler);
 
-    if (!isBlock)
-    {
-        m_rowRect = isRow ? RECT { column.left, column.bottom - row, column.right, column.bottom } : RECT { column.left, column.bottom, column.right, column.bottom };
-        y         = m_rowRect.top;
-
-        m_nav.GetList().Layout ({ column.left, column.top, column.right, isRow ? m_rowRect.top - pad : column.bottom }, scaler);
-    }
+    m_listSplitterPx = { column.left, listEnd + pad / 2, column.right, listEnd + pad / 2 + splitter };
+    y                = m_listSplitterPx.bottom + pad / 2;
 
     for (IDxuiControl * control : { (IDxuiControl *) m_previous, (IDxuiControl *) m_next, (IDxuiControl *) m_copy, (IDxuiControl *) m_hex, (IDxuiControl *) m_fields })
     {
-        control->SetVisible (isBlock);
+        control->SetVisible (true);
     }
 
     m_editNote->SetVisible (m_hasEdits && !m_isLongJob);
     m_discard->SetVisible  (m_hasEdits && !m_isLongJob);
     m_apply->SetVisible    (m_hasEdits && !m_isLongJob);
-
-    if (!isBlock)
-    {
-        m_editNote->Layout ({ column.left, y, column.right - 2 * button - 2 * pad, y + row }, scaler);
-        m_discard->Layout  ({ column.right - 2 * button - pad, y, column.right - button - pad, y + row }, scaler);
-        m_apply->Layout    ({ column.right - button, y, column.right, y + row }, scaler);
-        m_cancel->Layout   ({ column.right - button, y, column.right, y + row }, scaler);
-        return;
-    }
 
     m_previous->Layout ({ column.left, y, column.left + row, y + row }, scaler);
     m_next->Layout     ({ column.left + row, y, column.left + 2 * row, y + row }, scaler);
@@ -1331,10 +1358,10 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
     m_cancel->Layout   ({ column.right - button, y, column.right, y + row }, scaler);
     y = m_rowRect.bottom + (isRow ? pad : 0);
 
-    hexEnd = y + (int) ((column.bottom - y) * kHexShare);
+    hexEnd = column.left + (int) ((column.right - column.left) * kHexShare);
 
-    m_hex->Layout    ({ column.left, y, column.right, hexEnd }, scaler);
-    m_fields->Layout ({ column.left, hexEnd + pad, column.right, column.bottom }, scaler);
+    m_hex->Layout    ({ column.left, y, hexEnd, std::max (y, (int) column.bottom) }, scaler);
+    m_fields->Layout ({ hexEnd + pad, y, column.right, std::max (y, (int) column.bottom) }, scaler);
 }
 
 
@@ -1353,13 +1380,11 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                       m_isSplitting ? theme.Accent() : theme.Divider());
     painter.FillRect ((float) m_treeSplitterPx.left, (float) m_treeSplitterPx.top, (float) (m_treeSplitterPx.right - m_treeSplitterPx.left),
                       (float) (m_treeSplitterPx.bottom - m_treeSplitterPx.top), m_isTreeSplitting ? theme.Accent() : theme.Divider());
+    painter.FillRect ((float) m_listSplitterPx.left, (float) (m_listSplitterPx.top + m_listSplitterPx.bottom) / 2.0f, (float) (m_listSplitterPx.right - m_listSplitterPx.left),
+                      1.0f, m_isListSplitting ? theme.Accent() : theme.Divider());
 
     DxuiPanel::Paint (painter, text, theme);
-
-    if (IsBlockLevel())
-    {
-        PaintHeader (painter, text, theme);
-    }
+    PaintHeader (painter, text, theme);
 
     if (m_isLongJob)
     {
@@ -1544,6 +1569,37 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_listSplitterPx, ev.positionDip))
+    {
+        m_isListSplitting = true;
+        return true;
+    }
+
+    if (m_isListSplitting && ev.kind == DxuiMouseEventKind::Move)
+    {
+        RECT  list = m_nav.GetList().GetBounds();
+        int   foot = (int) bounds.bottom - m_scaler.ToPx ((int) kPadDip);
+
+        if (foot > list.top)
+        {
+            m_listShare = std::clamp ((float) (ev.positionDip.y - list.top) / (float) (foot - list.top), kMinList, kMaxList);
+            Layout (bounds, m_scaler);
+
+            if (m_onChanged)
+            {
+                m_onChanged();
+            }
+        }
+
+        return true;
+    }
+
+    if (m_isListSplitting && ev.kind == DxuiMouseEventKind::Up)
+    {
+        m_isListSplitting = false;
+        return true;
+    }
+
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_splitterPx, ev.positionDip))
     {
         m_isSplitting = true;
@@ -1610,8 +1666,9 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 LPCWSTR BlockInspectorPanel::GetCursorForPoint (POINT clientPx) const
 {
     bool  isSplitter = PtInRect (&m_splitterPx, clientPx) || PtInRect (&m_treeSplitterPx, clientPx) || m_isSplitting || m_isTreeSplitting;
+    bool  isList     = PtInRect (&m_listSplitterPx, clientPx) || m_isListSplitting;
 
 
 
-    return isSplitter ? IDC_SIZEWE : DxuiPanel::GetCursorForPoint (clientPx);
+    return isList ? IDC_SIZENS : isSplitter ? IDC_SIZEWE : DxuiPanel::GetCursorForPoint (clientPx);
 }
