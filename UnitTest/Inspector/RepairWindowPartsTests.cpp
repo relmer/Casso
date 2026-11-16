@@ -203,6 +203,7 @@ public:
             std::set<std::wstring>  chosen  = { L"none" };
             RECT                    button  = {};
             RECT                    icon    = {};
+            RECT                    cell    = {};
 
             Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session.analysis);
             session.context.hasDisk = true;
@@ -224,6 +225,8 @@ public:
 
             icon = issues.GetSeverityRect (0);
             Assert::IsTrue (icon.right > icon.left, L"the first row has its icon");
+            Assert::IsTrue (issues.GetList().GetCellRectPx (0, 0, cell));
+            Assert::IsTrue (std::abs ((icon.left + icon.right) / 2 - (cell.left + cell.right) / 2) <= 1, std::format (L"the icon centered in its column at {} dpi", dpi).c_str());
 
             Click (issues, button);
             Assert::IsTrue (chosen.empty(), L"Repair disk image... checks every change");
@@ -455,5 +458,46 @@ public:
         Assert::AreEqual (-1, session.context.errorQuarterTrack, L"a repaired copy opened in the image's place isn't drawn in the error color");
         Assert::AreEqual (-1, session.context.errorSector);
         Assert::IsFalse  (session.context.IsErrorSelected());
+    }
+
+
+
+    TEST_METHOD (TheIssuesColumnsResizeByTheirHeadersDividers_At100And150Percent)
+    {
+        for (UINT dpi : { 96u, 144u })
+        {
+            InspectorSession  session;
+            IssuesView        issues  { session.context };
+            DxuiDpiScaler     scaler;
+            DxuiMouseEvent    ev;
+            RECT              before  = {};
+            RECT              after   = {};
+            POINT             divider = {};
+
+            Images::Analyze (RepairFixtures::MakeDos33Bitmap().damaged, false, session.analysis);
+            session.context.hasDisk = true;
+            scaler.SetDpi (dpi);
+
+            issues.Refresh();
+            issues.Layout ({ 0, 0, scaler.ToPx (900), scaler.ToPx (400) }, scaler);
+
+            //  The divider at the Category column's right edge, in the header.
+            Assert::IsTrue (issues.GetList().GetCellRectPx (0, 2, before));
+            divider = { issues.GetList().GetBounds().left + before.right - 1, issues.GetList().GetBounds().top + issues.GetList().GetHeaderHeightPx() / 2 };
+
+            Assert::IsTrue (issues.GetCursorForPoint (divider) == IDC_SIZEWE, std::format (L"the resize arrows over the divider at {} dpi", dpi).c_str());
+
+            ev.button = DxuiMouseButton::Left;
+
+            for (std::pair<DxuiMouseEventKind, int> step : { std::pair { DxuiMouseEventKind::Move, 0 }, { DxuiMouseEventKind::Down, 0 }, { DxuiMouseEventKind::Move, 40 }, { DxuiMouseEventKind::Up, 40 } })
+            {
+                ev.kind        = step.first;
+                ev.positionDip = { divider.x + scaler.ToPx (step.second), divider.y };
+                (void) issues.OnMouse (ev);
+            }
+
+            Assert::IsTrue   (issues.GetList().GetCellRectPx (0, 2, after));
+            Assert::AreEqual (static_cast<long> (scaler.ToPx (40)), (after.right - after.left) - (before.right - before.left), L"the column is as much wider as the drag");
+        }
     }
 };

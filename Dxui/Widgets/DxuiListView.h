@@ -434,6 +434,10 @@ public:
     //  hidden column.
     bool  GetCellTextRectPx   (int row, size_t column, RECT & outRect) const { return m_columnSizing.GetCellTextRectPx (row, column, outRect); }
 
+    //  A Details row's whole cell in view, list-relative, from the column's left
+    //  edge to its right; false out of view or in another view.
+    bool  GetCellRectPx       (int row, size_t column, RECT & outRect) const { return m_columnSizing.GetCellRectPx (row, column, outRect); }
+
     // Self-contained mouse input. Mouse events arrive through
     // IDxuiControl::OnMouse in the parent's coordinates, as for every other
     // control; the list runs scrolling, thumb / column-resize drags, hover,

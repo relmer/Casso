@@ -60,6 +60,7 @@ public:
     void  Tick             (int64_t nowMs) override { m_list.Tick (nowMs); }
 
     const vector<TableRow> &  GetRows () const { return m_rows; }
+    const DxuiListView     &  GetList () const { return m_list; }
 
     //  The selected row under the header, tab-separated, for Copy (FR-057).
     std::wstring  GetSelectedText () const;
@@ -69,6 +70,9 @@ public:
     bool  OnMouse    (const DxuiMouseEvent & ev) override;
     bool  OnKey      (const DxuiKeyEvent & ev) override;
     bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
+
+    //  The list's cursor: the resize arrows over a header's divider.
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 private:
     void  ShowRows    ();

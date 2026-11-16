@@ -391,6 +391,24 @@ bool InspectorTableView::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorTableView::GetCursorForPoint
+//
+//  The list is a member, not a child, so the window's walk over its
+//  children doesn't include it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR InspectorTableView::GetCursorForPoint (POINT clientPx) const
+{
+    return static_cast<const IDxuiControl &> (m_list).GetCursorForPoint (clientPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorTableView::GetTooltip
 //
 //  A cell its column cut short, in full.

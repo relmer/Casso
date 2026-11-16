@@ -809,6 +809,10 @@ private:
                                                 RECT  clientBoundsDip,
                                                 int   resizeBorderPx);
 
+    //  The point's distance in DIPs from the edge a straight resize edge
+    //  kind is for, or -1 for a corner or no edge.
+    static int  GetEdgeDistance (DxuiHitTestKind kind, POINT clientDip, RECT clientBoundsDip);
+
     static void            NotifySystemButtonsMaximizedInTree (IDxuiControl * control, bool maximized);
     static IDxuiControl *  FindNcSystemControlInTree          (IDxuiControl * control, POINT clientDip);
 

@@ -4628,11 +4628,11 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
         result  = claimed ? kind : result;
     }
 
-    //  A scrollbar at the window's edge keeps the pointer over a straight
-    //  resize edge, whose band would otherwise cover most of it. The corners
-    //  still resize.
-    if (claimed && (kind == DxuiHitTestKind::ResizeEdgeLeft || kind == DxuiHitTestKind::ResizeEdgeRight
-                 || kind == DxuiHitTestKind::ResizeEdgeTop  || kind == DxuiHitTestKind::ResizeEdgeBottom))
+    //  A point over a scrollbar at the window's edge goes to the scrollbar in
+    //  the inner half of a straight resize edge's band, which would otherwise
+    //  cover most of the bar. The outer half and the corners resize, so the
+    //  edge can be grabbed beside a bar that runs the window's height.
+    if (claimed && GetEdgeDistance (kind, clientDip, clientBoundsDip) >= borderPx / 2)
     {
         n =(GetRootPanel() != nullptr) ? GetRootPanel()->GetChildCount() : 0;
 
@@ -4717,6 +4717,34 @@ bool DxuiHwndSource::NcMouseMayHitSystemButton (bool resizable, WPARAM hitTest)
 
 
     return !(resizable && isResize);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetEdgeDistance
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetEdgeDistance (DxuiHitTestKind kind, POINT clientDip, RECT clientBoundsDip)
+{
+    int  distance = -1;
+
+
+
+    switch (kind)
+    {
+        case DxuiHitTestKind::ResizeEdgeLeft:   distance = clientDip.x - clientBoundsDip.left;        break;
+        case DxuiHitTestKind::ResizeEdgeRight:  distance = clientBoundsDip.right - 1 - clientDip.x;   break;
+        case DxuiHitTestKind::ResizeEdgeTop:    distance = clientDip.y - clientBoundsDip.top;         break;
+        case DxuiHitTestKind::ResizeEdgeBottom: distance = clientBoundsDip.bottom - 1 - clientDip.y;  break;
+        default:                                                                                      break;
+    }
+
+    return distance;
 }
 
 

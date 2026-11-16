@@ -126,7 +126,8 @@ void IssuesView::ShowFinding (int finding)
 //
 //  IssuesView::GetSeverityRect
 //
-//  The severity icon of a row in view, centered in its cell; empty out of
+//  The severity icon of a row in view, centered in its whole cell, not the
+//  text's part of it, which starts past the column's padding; empty out of
 //  view.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,7 +142,7 @@ RECT IssuesView::GetSeverityRect (int row) const
 
 
 
-    if (row < 0 || row >= static_cast<int> (m_rows.size()) || !m_list.GetCellTextRectPx (row, 0, cell))
+    if (row < 0 || row >= static_cast<int> (m_rows.size()) || !m_list.GetCellRectPx (row, 0, cell))
     {
         return RECT {};
     }
