@@ -1256,3 +1256,18 @@ CiderPress II's file viewer, from its GUI manual, was compared feature by featur
 - **Decision**: `given.json` in the cache folder: the Full Send fingerprint
   of a disk to the name its image has from the user, written when an image
   with a manifest row is renamed in Casso Explorer.
+
+## R64. One number formatter for all of Casso (FR-297)
+
+- **Decision**: `NumberFormat` in `CassoEmuCore/Core` writes every number
+  on screen with `GetNumberFormatEx` and the user's `LOCALE_STHOUSAND`,
+  `LOCALE_SGROUPING`, `LOCALE_SDECIMAL`, `LOCALE_INEGNUMBER` and
+  `LOCALE_ILZERO`. `InspectorFormat::FormatCount`, Wizardry's and
+  AppleWorks' digit grouping and the CassoLink baud formatter, each of which
+  put a comma every three digits, are removed and call it. Parsing removes
+  a comma or the user's separator first.
+- **Rationale**: the owner, 2026-11-15: one helper, using the regional
+  settings, with no case that overrides them. A quarter track such as 17.25
+  is a track name, not a quantity, and is written with a period.
+- **Alternatives**: `std::format` with `{:L}` and a C++ locale. Not used:
+  a C++ locale's facets aren't the user's Windows settings.
