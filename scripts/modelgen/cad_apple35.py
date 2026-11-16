@@ -14,9 +14,13 @@ from cad_floppy35 import build
 PLATINUM = (0.835, 0.815, 0.760)
 PLUS     = (0.880, 0.870, 0.835)
 
+# The seam two thirds of the way up, front and back, and the slot right
+# under it, as the iFixit teardown's photographs of the drive have them.
+SEAM_FRAC = 0.68
+
 plus = "--plus" in sys.argv
 name = "Apple35Plus" if plus else "Apple35Drive"
-m    = build(PLUS if plus else PLATINUM)
+m    = build(PLUS if plus else PLATINUM, seam_frac=SEAM_FRAC, slot_top_frac=SEAM_FRAC)
 
 if __name__ == "__main__":
     out = os.path.dirname(os.path.abspath(__file__))

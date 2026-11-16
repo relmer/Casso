@@ -17,13 +17,23 @@ What the photographs settle:
 
   TOP. Ten grooves front to back inside a plain border.
 
-  BACK. Below the seam, which runs level round the back as round the sides:
-  the 19-pin daisy-chain socket in a rimmed opening at the lower left (the
-  photograph has its rare dust cover on; the socket is modeled bare) with
-  the drive mark above it; and the Kensington lock loop right of center.
+  BACK, from the iFixit teardown's straight-on photograph of the Apple 3.5
+  Drive's back (ifixit.com/Teardown/92324, step 1), measured at 0.11 mm a
+  pixel from the 4 3/4 in width, as seen from behind:
+    - A recessed well with rounded corners at the lower left, 14.6 to 66.2
+      mm from the left and 6.0 to 20.9 mm up, and in it the 19-pin
+      daisy-chain socket: a D shell with rounded corners on a metal flange,
+      a dark insert with ten receptacles over nine, and a hex screw post
+      each side.
+    - The floppy disk mark recessed into the case above the well.
+    - The lock bracket right of the well, a hollow loop protruding from
+      the back with its opening on top, 70.3 to 90.8 mm from the left and
+      17.6 to 30.4 mm up, with a chain link recessed into its back face.
   The fixed cable is at the right; the cable and its boot are not modeled.
-  The iFixit teardown of the Apple 3.5 Drive lists the socket, the loop and
-  the cable.
+
+  The Apple 3.5 Drive's seam is two thirds of the way up, front and back,
+  and its slot is right under the seam (the teardown's photographs); the
+  UniDisk 3.5's are where its photograph puts them, below.
 
   BOTTOM. A white label at the front end with the name; four felt pads at
   the corners; four screws; grooves along the length; and a shallow
@@ -58,27 +68,139 @@ FOOT_C     = (0.300, 0.300, 0.320)     # the clear feet, drawn translucent gray
 LABEL      = (0.950, 0.945, 0.930)
 INK        = (0.150, 0.150, 0.160)
 METAL      = (0.700, 0.700, 0.700)
+INSERT     = (0.180, 0.180, 0.190)     # clear of the desk scene's finish markers
 
-SEAM_Z     = H * 0.88          # the lid's lower edge, level all round
 SEAM_W     = 0.7
 
 
-def seam_cut(case):
+def seam_cut(case, seam_z):
     # The seam, level all the way round: front, back and both sides.
     case = case.cut(cq.Workplane("XY").box(W + 2.0, 1.4, SEAM_W, centered=(False, False, False))
-                    .translate((-1.0, -0.8, SEAM_Z)))
+                    .translate((-1.0, -0.8, seam_z)))
     case = case.cut(cq.Workplane("XY").box(W + 2.0, 1.4, SEAM_W, centered=(False, False, False))
-                    .translate((-1.0, D - 0.6, SEAM_Z)))
+                    .translate((-1.0, D - 0.6, seam_z)))
 
     for x in (-0.8, W - 0.6):
         case = case.cut(cq.Workplane("XY").box(1.4, D + 2.0, SEAM_W, centered=(False, False, False))
-                        .translate((x, -1.0, SEAM_Z)))
+                        .translate((x, -1.0, seam_z)))
 
     return case
 
 
-def build(case_rgb):
-    m = Model()
+# THE BACK, laid out as seen from behind (x from the left as seen from
+# behind, z up from the case's bottom), and placed in the model's x by
+# mirroring across the centerline.
+def back_x(x):
+    return W - x
+
+
+def back_box(x0, x1, z0, z1, y0, y1):
+    return (cq.Workplane("XY")
+            .box(x1 - x0, y1 - y0, z1 - z0, centered=(False, False, False))
+            .translate((back_x(x1), y0, z0)))
+
+
+WELL_X0, WELL_X1, WELL_Z0, WELL_Z1 = 14.6, 66.2, 6.0, 20.9
+WELL_DEPTH                         = 5.0
+WELL_R                             = 2.5
+
+
+def back_cuts(case):
+    # The socket's well, recessed into the back with rounded corners.
+    well = (back_box(WELL_X0, WELL_X1, WELL_Z0, WELL_Z1, D - WELL_DEPTH, D + 1.0)
+            .edges("|Y").fillet(WELL_R))
+    case = case.cut(well)
+
+    # The floppy disk mark above the well, recessed: the disk's outline, its
+    # shutter at the top and its label at the bottom.
+    cx, z0, w, h, depth, stroke = 40.4, 22.5, 4.7, 5.3, 0.4, 0.55
+    ring = (back_box(cx - w / 2, cx + w / 2, z0, z0 + h, D - depth, D + 1.0)
+            .cut(back_box(cx - w / 2 + stroke, cx + w / 2 - stroke, z0 + stroke, z0 + h - stroke, D - depth - 1.0, D + 2.0)))
+    case = case.cut(ring)
+    case = case.cut(back_box(cx - 1.1, cx + 0.9, z0 + h - stroke - 1.7, z0 + h - stroke, D - depth, D + 1.0))
+    case = case.cut(back_box(cx - 1.4, cx + 1.4, z0 + stroke + 0.5, z0 + stroke + 1.0, D - depth, D + 1.0))
+
+    return case
+
+
+def back_parts(m, case_rgb):
+    wall = D - WELL_DEPTH              # the well's back wall, where the socket mounts
+
+    # The socket's metal flange, with the D shell protruding from it.
+    flange_x0, flange_x1, flange_z0, flange_z1 = 18.6, 62.6, 8.4, 18.6
+    m.add("db19_flange",
+          back_box(flange_x0, flange_x1, flange_z0, flange_z1, wall, wall + 0.8)
+            .edges("|Y").fillet(1.2),
+          METAL)
+
+    db_cx, db_cz       = 40.4, 13.4
+    db_top, db_bottom  = 30.0, 25.0
+    db_h               = 7.7
+    db_out             = 3.4
+
+    def d_shape(top, bottom, height, y0, y1):
+        cx = back_x(db_cx)
+        pts = [(cx - top / 2, db_cz + height / 2), (cx + top / 2, db_cz + height / 2),
+               (cx + bottom / 2, db_cz - height / 2), (cx - bottom / 2, db_cz - height / 2)]
+
+        return (cq.Workplane("XZ").polyline(pts).close().extrude(-(y1 - y0))
+                .translate((0, y0, 0))
+                .edges("|Y").fillet(1.0))
+
+    shell = (d_shape(db_top, db_bottom, db_h, wall + 0.8, wall + 0.8 + db_out)
+             .cut(d_shape(db_top - 1.4, db_bottom - 1.4, db_h - 1.4, wall + 0.5, wall + 0.8 + db_out + 1.0)))
+    m.add("db19_shell", shell, METAL)
+
+    # The insert, set back in the shell, with nineteen receptacles: ten over
+    # nine on the D connectors' 2.77 mm pitch, through to the dark behind.
+    insert_face = wall + 0.8 + db_out - 1.2
+    insert      = d_shape(db_top - 1.4, db_bottom - 1.4, db_h - 1.4, wall + 1.6, insert_face)
+    pitch       = 2.77
+
+    for dz, count in ((db_h * 0.17, 10), (-db_h * 0.17, 9)):
+        x_first = db_cx - (count - 1) * pitch * 0.5
+
+        for i in range(count):
+            insert = insert.cut(cq.Workplane("XZ").circle(0.5).extrude(-3.0)
+                                .translate((back_x(x_first + i * pitch), wall + 1.0, db_cz + dz)))
+
+    m.add("db19_insert", insert, INSERT)
+    m.add("db19_back", d_shape(db_top - 1.6, db_bottom - 1.6, db_h - 1.6, wall + 0.8, wall + 1.6), DARK)
+
+    # The hex screw posts each side of the shell, with their threaded holes.
+    for px in (21.8, 59.0):
+        post = (cq.Workplane("XZ").polygon(6, 4.6).extrude(-3.6)
+                .translate((back_x(px), wall + 0.8, db_cz)))
+        post = post.cut(cq.Workplane("XZ").circle(0.9).extrude(-2.0)
+                        .translate((back_x(px), wall + 3.0, db_cz)))
+        m.add(f"db19_post_{px:.0f}", post, METAL)
+
+    # The lock bracket: a hollow loop protruding from the back, its opening
+    # on top for the lock's cable, with a chain link recessed into its back
+    # face.
+    lx0, lx1, lz0, lz1 = 70.3, 90.8, 17.6, 30.4
+    out, wall_t         = 8.0, 2.2
+    loop = (back_box(lx0, lx1, lz0, lz1, D - 0.5, D + out)
+            .edges("|Z").fillet(1.5))
+    loop = loop.cut(back_box(lx0 + wall_t, lx1 - wall_t, lz0 - 1.0, lz1 + 1.0, D - 1.0, D + out - wall_t))
+
+    ccx, ccz, link_w, link_h, overlap, stroke, depth = 80.5, 22.6, 2.4, 3.6, 1.2, 0.5, 0.35
+
+    for k in range(2):
+        z0   = ccz - link_h + k * (link_h - overlap)
+        ring = (back_box(ccx - link_w / 2, ccx + link_w / 2, z0, z0 + link_h, D + out - depth, D + out + 1.0)
+                .edges("|Y").fillet(link_w / 2 - 0.01))
+        hole = (back_box(ccx - link_w / 2 + stroke, ccx + link_w / 2 - stroke, z0 + stroke, z0 + link_h - stroke,
+                         D + out - depth - 1.0, D + out + 2.0)
+                .edges("|Y").fillet(link_w / 2 - stroke - 0.01))
+        loop = loop.cut(ring.cut(hole))
+
+    m.add("lock_loop", loop, case_rgb)
+
+
+def build(case_rgb, seam_frac=0.88, slot_top_frac=0.74):
+    m       = Model()
+    seam_z  = H * seam_frac            # the lid's lower edge, level all round
 
     case = (cq.Workplane("XY")
             .box(W, D, H, centered=(False, False, False))
@@ -86,7 +208,8 @@ def build(case_rgb):
             .edges(">Z").fillet(EDGE_R)
             .edges("<Z").fillet(EDGE_R * 0.5))
 
-    case = seam_cut(case)
+    case = seam_cut(case, seam_z)
+    case = back_cuts(case)
 
     # Top: ten grooves front to back, 10 mm in from the sides, 12 mm from
     # the front, 8 mm from the back.
@@ -109,7 +232,7 @@ def build(case_rgb):
     # Front: the slot under the seam.
     slot_x0, slot_x1 = W * 0.11, W * 0.83
     slot_h           = 5.0
-    slot_z0          = H * 0.74 - slot_h
+    slot_z0          = H * slot_top_frac - slot_h
     case = case.cut(cq.Workplane("XY")
                     .box(slot_x1 - slot_x0, 8.0, slot_h, centered=(False, False, False))
                     .translate((slot_x0, -1.0, slot_z0)))
@@ -138,59 +261,7 @@ def build(case_rgb):
 
     badge(m, W * 0.11, H * 0.10, 9.0)
 
-    # Back: the socket's rimmed opening, the mark above it and the lock
-    # loop, laid out as seen from behind, as in the photograph, and mirrored
-    # across the centerline into the model's x.
-    def back_add(name, solid, rgb):
-        m.add(name, solid.mirror("YZ", (W * 0.5, 0, 0)), rgb)
-
-    plate_x0, plate_x1 = W * 0.13, W * 0.57
-    plate_z0, plate_z1 = H * 0.13, H * 0.46
-    rim = (cq.Workplane("XY").box(plate_x1 - plate_x0, 0.6, plate_z1 - plate_z0, centered=(False, False, False))
-           .edges("|Y").fillet(2.0)
-           .translate((plate_x0, D, plate_z0)))
-    inner = (cq.Workplane("XY").box(plate_x1 - plate_x0 - 2.0, 1.0, plate_z1 - plate_z0 - 2.0, centered=(False, False, False))
-             .edges("|Y").fillet(1.5)
-             .translate((plate_x0 + 1.0, D + 0.3, plate_z0 + 1.0)))
-    back_add("back_plate", rim.cut(inner), case_rgb)
-
-    # The 19-pin D socket in the opening: its metal shell and dark insert.
-    db_w, db_h = 33.0, 9.0
-    db_x0      = (plate_x0 + plate_x1) * 0.5 - db_w * 0.5
-    db_z0      = (plate_z0 + plate_z1) * 0.5 - db_h * 0.5
-    back_add("db19_opening",
-          cq.Workplane("XY").box(plate_x1 - plate_x0 - 2.0, 0.3, plate_z1 - plate_z0 - 2.0, centered=(False, False, False))
-            .translate((plate_x0 + 1.0, D + 0.05, plate_z0 + 1.0)),
-          DARK)
-    back_add("db19_shell",
-          cq.Workplane("XZ").polyline([(0, db_h), (db_w, db_h), (db_w - 3.0, 0), (3.0, 0)]).close().extrude(-1.2)
-            .translate((db_x0, D + 0.3, db_z0)),
-          METAL)
-    # The insert, with its nineteen contact holes: ten over nine, on the
-    # D connectors' 2.77 mm pitch.
-    insert = (cq.Workplane("XZ").polyline([(1.5, db_h - 1.5), (db_w - 1.5, db_h - 1.5), (db_w - 3.8, 1.5), (3.8, 1.5)]).close().extrude(-1.0)
-              .translate((db_x0, D + 1.2, db_z0)))
-    pitch  = 2.77
-
-    for row, count in ((db_h * 0.66, 10), (db_h * 0.34, 9)):
-        x_first = db_x0 + db_w * 0.5 - (count - 1) * pitch * 0.5
-
-        for i in range(count):
-            insert = insert.cut(cq.Workplane("XZ").circle(0.55).extrude(-1.0)
-                                .translate((x_first + i * pitch, D + 1.6, db_z0 + row)))
-
-    back_add("db19_insert", insert, (0.150, 0.150, 0.155))
-    back_add("back_mark",
-          cq.Workplane("XY").box(3.0, 0.4, 4.0, centered=(False, False, False))
-            .translate((W * 0.34, D, H * 0.50)),
-          case_rgb)
-
-    clip = (cq.Workplane("XY").box(W * 0.19, 9.0, H * 0.22, centered=(False, False, False))
-            .translate((W * 0.62, D, H * 0.46)))
-    clip = clip.cut(cq.Workplane("XY").box(W * 0.19 - 5.0, 10.0, H * 0.22 - 5.0, centered=(False, False, False))
-                    .translate((W * 0.62 + 2.5, D - 0.5, H * 0.46 + 2.5)))
-    back_add("lock_loop", clip, case_rgb)
-
+    back_parts(m, case_rgb)
 
     # Bottom: the label, the felt pads, the screws, and the back panel.
     m.add("bottom_label",
