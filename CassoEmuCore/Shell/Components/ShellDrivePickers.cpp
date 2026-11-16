@@ -223,6 +223,9 @@ bool ShellDrivePickers::Insert (const PickerDrive & drive, const std::wstring & 
 //
 //  ShellDrivePickers::OpenForDiskII
 //
+//  The drive as the desk labels it: a //c's or //c Plus's drive is a Disk
+//  IIc, and the //c's drive 1 is built in.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDrivePickers::OpenForDiskII (int drive)
@@ -231,9 +234,10 @@ void ShellDrivePickers::OpenForDiskII (int drive)
 
 
 
-    deskDrive.model = m_shell.m_disks->MachineHasBuiltInDrive() ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII;
-    deskDrive.slot  = DriveDropRule::kDiskIiSlot;
-    deskDrive.drive = drive;
+    deskDrive.model   = m_shell.m_disks->HasDiskIicDrives() ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII;
+    deskDrive.slot    = DriveDropRule::kDiskIiSlot;
+    deskDrive.drive   = drive;
+    deskDrive.builtIn = m_shell.m_disks->MachineHasBuiltInDrive() && drive == 0;
 
     OpenForDeskDrive (deskDrive);
 }
