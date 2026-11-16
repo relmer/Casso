@@ -135,10 +135,14 @@ the interaction, sound and event log the Disk II already has.
   change restarts the machine, as for a hard disk image change. On Restart
   the chain is saved with the machine and the machine is rebuilt with it.
 - Q: How many drives does the //c Plus's port take, and can one be changed
-  for the other size? A: Two in all, so both rows are disabled once two
-  drives are plugged in. A drive with "Unplug drive" also has "Swap for a
-  5.25-inch drive" or "Swap for a 3.5-inch drive", which removes it and
-  plugs in one of the other size, behind the same confirmation. The
+  for the other size? A: Three in all, as the //c Technical Reference (2nd
+  edition) lists, with up to two 5.25-inch drives. The reference lists one
+  Apple 3.5 Drive; the port takes two, since ROM 05 numbers a second one
+  and boots past it. A plug-in row is left out of the menus while the
+  port has no room for its kind. A drive with "Unplug drive" also has "Swap
+  for a 5.25-inch drive" or "Swap for a 3.5-inch drive" while the port has
+  room for the other size, which removes it and plugs in one of the other
+  size, behind the same confirmation. The
   5.25-inch drives are labeled with their slot and drive, "Disk IIc - S6,D1",
   since the firmware numbers them in slot 6 behind the built-in drive in
   slot 5.

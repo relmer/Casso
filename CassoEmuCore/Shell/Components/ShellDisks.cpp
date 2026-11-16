@@ -1742,7 +1742,7 @@ int ShellDisks::GetPortDriveLimit (const std::string & device) const
 
 bool ShellDisks::CanPlugInPortDrive (const std::string & device) const
 {
-    constexpr int  s_kcPortDrivesMax = 2;
+    constexpr int  s_kcPortDrivesMax = 3;
     int            total             = 0;
 
 
