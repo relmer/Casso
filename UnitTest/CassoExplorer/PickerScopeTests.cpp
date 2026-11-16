@@ -94,6 +94,32 @@ public:
 
 
 
+    //  A stock disk is in the list for the drive already; the filter applies
+    //  to it by its file's name, whatever its label.
+    TEST_METHOD (StockDisk_FollowsTheActiveFilterByItsFileName)
+    {
+        PickerScope  scope (MakeRequest ({ { L"ProDOS images", L"*.po" }, { L"All files", L"*.*" } }, ReceivingDrive { ReceivingDriveKind::Floppy525, 0 }));
+        CatalogRow   po;
+        CatalogRow   dsk;
+
+
+
+        po.name         = L"ProDOS 2.4.3";
+        po.hostPath     = L"C:\\Disks\\ProDOS 2.4.3.po";
+        po.isStockDisk  = true;
+        dsk.name        = L"DOS 3.3 System Master";
+        dsk.hostPath    = L"C:\\Disks\\DOS 3.3 System Master.dsk";
+        dsk.isStockDisk = true;
+
+        Assert::IsTrue  (scope.Passes (po));
+        Assert::IsFalse (scope.Passes (dsk));
+
+        scope.SetActiveFilter (1);
+        Assert::IsTrue  (scope.Passes (dsk), L"not downloaded, so it has no class for the drive rule");
+    }
+
+
+
     TEST_METHOD (OnlyTheActiveFilterApplies)
     {
         PickerScope  scope (MakeRequest ({ { L"ProDOS images", L"*.po;*.2mg" }, { L"All images", L"*.po;*.2mg;*.dsk;*.woz" } }));

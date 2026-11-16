@@ -31,15 +31,21 @@ PickerScope::PickerScope (const PickerRequest & request)
 //
 //  PickerScope::Passes
 //
-//  A stock disk's row was put in the list by the drive rule already.
+//  A stock disk's row was put in the list by the drive rule already, so only
+//  the filter applies to it, by the name of its file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PickerScope::Passes (const CatalogRow & row) const
 {
-    if (row.isDirectory || row.isStockDisk)
+    if (row.isDirectory)
     {
         return true;
+    }
+
+    if (row.isStockDisk)
+    {
+        return GetActiveMasks().Matches (std::filesystem::path (row.hostPath).filename().wstring());
     }
 
     if (!GetActiveMasks().Matches (row.name))
