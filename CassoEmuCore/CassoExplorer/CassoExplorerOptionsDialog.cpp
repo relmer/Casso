@@ -365,12 +365,16 @@ void CassoExplorerProtectionPage::Layout (const RECT & boundsDip, const DxuiDpiS
 
     m_parts->actionLabel.Layout (RECT { boundsDip.left, labelTop, boundsDip.right, choiceAt }, scaler);
 
+    at = choiceAt;
+
+    //  Each choice is as tall as its description wraps.
     for (size_t i = 0; i < options.size(); i++)
     {
-        options[i].rect = RECT { boundsDip.left, choiceAt + optionH * (int) i, boundsDip.right, choiceAt + optionH * (int) (i + 1) };
-    }
+        int  height = std::max (optionH, DxuiRadioGroup::MeasureOptionHeightPx (options[i], width, scaler) + scaler.ToPx (kOptionGapDip));
 
-    at = choiceAt + optionH * (int) options.size();
+        options[i].rect = RECT { boundsDip.left, at, boundsDip.right, at + height };
+        at             += height;
+    }
 
     m_parts->action.SetOptions (std::move (options));
     m_parts->action.Layout (RECT { boundsDip.left, choiceAt, boundsDip.right, at }, scaler);
@@ -816,7 +820,8 @@ void CassoExplorerOptionsDialog::WireProtection()
     ExplorerTextStyles::Apply (m_fullSendProtection.actionLabel, ExplorerTextStyles::kFormLabel);
 
     m_fullSendProtection.action.SetOptions ({ DxuiRadioOption { {}, L"Capture the disk raw" },
-                                              DxuiRadioOption { {}, L"Save the sector copy and mark the disk as likely copy-protected" } });
+                                              DxuiRadioOption { {}, L"Save the sector copy and mark the disk as likely copy-protected",
+                                                                L"With .woz selected on the Full Send tab, the copy is built to the disk's measured track layout, which passes copy protection that checks where each track starts." } });
     m_fullSendProtection.action.SetSelected (choices.captureRaw ? 0 : 1);
 }
 
