@@ -112,7 +112,6 @@ void BlockInspectorPanel::InitCorners()
     m_zoomGroup    = CreateChild<FloatingGroup>();
     m_legendButton = m_legendGroup->CreateChild<DxuiIconButton>();
     m_filesChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Files");
-    m_leftChip     = m_chipsGroup->CreateChild<OverlayChip> (L"Data in free blocks");
     m_diffsChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Differences");
     m_zoomOut      = m_zoomGroup->CreateChild<DxuiIconButton>();
     m_zoomIn       = m_zoomGroup->CreateChild<DxuiIconButton>();
@@ -127,7 +126,6 @@ void BlockInspectorPanel::InitCorners()
     m_legendButton->SetOnClick        ([this] () { ToggleLegend(); });
 
     m_filesChip->SetOnChange ([this] (bool isOn) { SetFilesOn (isOn); });
-    m_leftChip->SetOnChange  ([this] (bool isOn) { SetLeftoversOn (isOn); });
     m_diffsChip->SetOnChange ([this] (bool isOn) { SetDiffsOn (isOn); });
 
     m_zoomOut->SetGlyph          (s_kpszGlyphMinus);
@@ -486,57 +484,6 @@ void BlockInspectorPanel::SetFilesOn (bool isOn)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::IsLeftoversOn
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BlockInspectorPanel::IsLeftoversOn() const
-{
-    return m_model != nullptr && m_model->IsOpen() && m_model->HasLeftovers();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockInspectorPanel::SetLeftoversOn
-//
-//  Turning the overlay on finds the free blocks with text or code in them,
-//  such as a deleted file's, as a long job with progress and Cancel.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BlockInspectorPanel::SetLeftoversOn (bool isOn)
-{
-    BlockInspectorModel  * model = m_model;
-
-
-
-    if (IsBusy() || !m_model->IsOpen() || isOn == m_model->HasLeftovers())
-    {
-        return;
-    }
-
-    if (!isOn)
-    {
-        m_model->ClearLeftovers();
-        Refresh();
-        return;
-    }
-
-    QueueJob ({ L"Finding data in free blocks", true,
-                [model] (BlockJobProgress & progress) { model->FindLeftovers (&progress); },
-                [this] () { Refresh(); } });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  BlockInspectorPanel::SetDiffsOn
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -715,7 +662,7 @@ void BlockInspectorPanel::UpdateBusy()
     m_cancel->SetVisible (m_isLongJob && canCancel);
 
     for (IDxuiControl * control : { (IDxuiControl *) m_views, (IDxuiControl *) m_copy, (IDxuiControl *) m_discard, (IDxuiControl *) m_apply,
-                                    (IDxuiControl *) m_filesChip, (IDxuiControl *) m_leftChip, (IDxuiControl *) m_diffsChip })
+                                    (IDxuiControl *) m_filesChip, (IDxuiControl *) m_diffsChip })
     {
         control->SetEnabled (!m_isLongJob);
     }
@@ -789,7 +736,6 @@ void BlockInspectorPanel::Present()
     m_previous->SetEnabled (m_model->GetBlock() > 0);
     m_next->SetEnabled     (m_model->GetBlock() + 1 < m_model->GetBlockCount());
     m_filesChip->SetOn   (m_isFilesOn);
-    m_leftChip->SetOn    (m_model->HasLeftovers());
     m_diffsChip->SetOn   (m_isDiffsOn);
     m_diffsChip->SetVisible (isComparing);
     m_editNote->SetText  (NumberFormat::FormatInteger (m_model->GetEdits().CountChangedBytes()) + (m_model->GetEdits().CountChangedBytes() == 1 ? L" byte changed, not written" : L" bytes changed, not written"));
@@ -994,9 +940,8 @@ void BlockInspectorPanel::MarkField (const BlockField * field)
 //
 //  BlockInspectorPanel::BuildFieldLine
 //
-//  The field line: the block's Disk Copy tag bytes, whether the block
-//  differs from the other image, and the run of free blocks with text or
-//  code it is in.
+//  The field line: the block's Disk Copy tag bytes, and whether the block
+//  differs from the other image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1004,14 +949,11 @@ void BlockInspectorPanel::BuildFieldLine()
 {
     uint32_t                    block  = m_model->GetBlock();
     BlockInspectorModel::Tags   tags   = {};
-    const LeftoverRun         * run    = m_model->FindLeftoverRun (block);
     size_t                      differ = m_model->IsComparing() ? m_model->CountDifferent() : 0;
-    size_t                      runs   = m_model->HasLeftovers() ? m_model->GetLeftovers().size() : 0;
     std::wstring                other  = m_model->IsComparing() ? fs::path (m_model->GetOther()->GetPath()).filename().wstring() : std::wstring();
     vector<std::wstring>        parts;
     wchar_t                     hex[4] = {};
     std::wstring                tagText;
-    std::wstring                kind;
 
 
 
@@ -1030,19 +972,6 @@ void BlockInspectorPanel::BuildFieldLine()
     {
         parts.push_back ((m_model->IsDifferent (block) ? L"Differs from " : L"Same as ") + other
                          + (differ == 0 ? std::wstring (L" (no blocks differ)") : differ == 1 ? std::wstring (L" (1 block differs)") : std::format (L" ({} blocks differ)", NumberFormat::FormatInteger (differ))));
-    }
-
-    if (run != nullptr)
-    {
-        kind = BlockLeftovers::GetKindName (run->kind);
-        kind = kind.empty() ? kind : (wchar_t) towupper (kind[0]) + kind.substr (1);
-
-        parts.push_back (kind + L" in free blocks " + NumberFormat::FormatInteger (run->first) + L" to " + NumberFormat::FormatInteger (run->first + run->count - 1));
-    }
-    else if (m_model->HasLeftovers())
-    {
-        parts.push_back (runs == 0 ? std::wstring (L"No free blocks with text or code") : runs == 1 ? std::wstring (L"1 run of free blocks with text or code")
-                                                                                                 : std::format (L"{} runs of free blocks with text or code", NumberFormat::FormatInteger (runs)));
     }
 
     m_fieldLine.clear();
@@ -1253,7 +1182,7 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
 
 
 
-    for (OverlayChip * chip : { m_filesChip, m_leftChip, m_diffsChip })
+    for (OverlayChip * chip : { m_filesChip, m_diffsChip })
     {
         chipsW += (chip->IsVisible() && text != nullptr) ? chip->GetWidthPx (*text, scaler) + gap : 0;
     }
@@ -1267,7 +1196,7 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
     m_chipsGroup->Layout ({ left, bottom - group, left + chipsW, bottom }, scaler);
     x = left + pad;
 
-    for (OverlayChip * chip : { m_filesChip, m_leftChip, m_diffsChip })
+    for (OverlayChip * chip : { m_filesChip, m_diffsChip })
     {
         w = (chip->IsVisible() && text != nullptr) ? chip->GetWidthPx (*text, scaler) : 0;
         chip->Layout ({ x, bottom - group + pad, x + w, bottom - pad }, scaler);

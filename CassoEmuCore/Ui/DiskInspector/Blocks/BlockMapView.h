@@ -17,8 +17,7 @@
 //  Block mode's map: the partitions as bands across the top, then a cell for
 //  each block or run of blocks, colored by its role. The current block is
 //  outlined, and the highlighted file's blocks are marked. While comparing,
-//  a block that differs has a mark in its top right corner, and a free block
-//  with text or code has one in its bottom left. Pointing at a
+//  a block that differs has a mark in its top right corner. Pointing at a
 //  cell reports its blocks, role and files; a click on a cell or a band
 //  steps to its first block. Refresh copies what is drawn from the model,
 //  so Paint doesn't read the model while a worker's thread uses it.
@@ -101,7 +100,6 @@ private:
     vector<SectorRole>     m_roles;
     vector<bool>           m_highlighted;
     vector<bool>           m_differs;
-    vector<bool>           m_leftovers;
     SelectFn               m_onSelect;
     HoverFn                m_onHover;
     int64_t                m_hoverCell    = -1;

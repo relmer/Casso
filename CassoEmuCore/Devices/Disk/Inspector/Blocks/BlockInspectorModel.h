@@ -8,7 +8,6 @@
 #include "Devices/Disk/Inspector/Blocks/BlockHistory.h"
 #include "Devices/Disk/Inspector/Blocks/BlockImageFile.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorWorker.h"
-#include "Devices/Disk/Inspector/Blocks/BlockLeftovers.h"
 #include "Devices/Disk/Inspector/Blocks/BlockMap.h"
 #include "Devices/Disk/OffsetBlockStore.h"
 
@@ -56,9 +55,8 @@ struct BlockBand
 //  is read again after. Pure apart from the file's reads and writes.
 //
 //  Each block read is cached, so a block loaded by LoadBlock is read from
-//  memory after. Open, FindLeftovers, CompareWith, ApplyEdits, LoadBlock and
-//  ReadRun read or write the file, and a window calls them on its
-//  BlockInspectorWorker's thread. Every other method is pure once the
+//  memory after. Open, CompareWith, ApplyEdits and LoadBlock read or write
+//  the file, and a window calls them on its BlockInspectorWorker's thread. Every other method is pure once the
 //  current block is loaded.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,17 +157,8 @@ public:
     bool              FindDifference (bool isForward, uint32_t & outBlock) const;
     BlockImageFile  * GetOther       () const { return m_other.get(); }
 
-    //  The free blocks with text or code in them, and the run a block is in.
-    //  A search canceled through `progress` finds nothing.
-    void                         FindLeftovers   (BlockJobProgress * progress = nullptr);
-    void                         ClearLeftovers  ()       { m_leftovers.clear(); m_hasLeftovers = false; }
-    bool                         HasLeftovers    () const { return m_hasLeftovers; }
-    const vector<LeftoverRun>  & GetLeftovers    () const { return m_leftovers; }
-    const LeftoverRun          * FindLeftoverRun (uint32_t block) const;
-    HRESULT                      ReadRun         (const LeftoverRun & run, vector<Byte> & outBytes);
-
 private:
-    static constexpr uint32_t  kRunBlocks = 256;     // blocks read at once while finding leftovers or comparing
+    static constexpr uint32_t  kRunBlocks = 256;     // blocks read at once while comparing
 
     //  A volume of blocks, or of DOS sectors in track and sector order: two
     //  to a block, or one in the first or second half of each block, by
@@ -221,8 +210,6 @@ private:
     std::unique_ptr<BlockImageFile>  m_other;
     vector<bool>                     m_differs;
     size_t                           m_differCount     = 0;
-    vector<LeftoverRun>              m_leftovers;
-    bool                             m_hasLeftovers    = false;
     std::map<uint32_t, Block>        m_stored;
     std::map<uint32_t, Block>        m_storedOther;
     std::map<uint32_t, Tags>         m_tags;

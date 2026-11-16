@@ -324,7 +324,6 @@
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockImageFile.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockInspectorModel.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockInspectorWorker.cpp" />
-    <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockLeftovers.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockFieldList.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMap.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.cpp" />
@@ -1385,7 +1384,6 @@
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockImageFile.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockInspectorModel.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockInspectorWorker.h" />
-    <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockLeftovers.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockFieldList.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMap.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.h" />

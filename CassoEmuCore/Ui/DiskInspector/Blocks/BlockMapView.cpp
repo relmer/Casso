@@ -92,7 +92,6 @@ void BlockMapView::Refresh()
     m_roles.assign (m_grid.GetCellCount(), SectorRole::Free);
     m_highlighted.assign (m_grid.GetCellCount(), false);
     m_differs.assign (m_grid.GetCellCount(), false);
-    m_leftovers.assign (m_grid.GetCellCount(), false);
 
     for (block = 0; block < count && m_grid.GetCellCount() != 0; block++)
     {
@@ -109,11 +108,6 @@ void BlockMapView::Refresh()
         if (m_isDiffsShown && m_model->IsDifferent (block))
         {
             m_differs[cell] = true;
-        }
-
-        if (m_model->HasLeftovers() && m_model->FindLeftoverRun (block) != nullptr)
-        {
-            m_leftovers[cell] = true;
         }
     }
 }
@@ -623,11 +617,6 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme,
         if (m_differs[cell])
         {
             painter.FillRect (x + size - corner, y, corner, corner, theme.ErrorForeground());
-        }
-
-        if (m_leftovers[cell])
-        {
-            painter.FillRect (x, y + size - corner, corner, corner, theme.Accent());
         }
     }
 

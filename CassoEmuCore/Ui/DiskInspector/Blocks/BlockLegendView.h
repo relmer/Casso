@@ -13,8 +13,8 @@
 //  BlockLegendView
 //
 //  The block grid's legend: a swatch and a name for each role a block can
-//  have, and the marks for a block that differs and for text or code in a
-//  free block, on a card over the grid's top left.
+//  have, and the mark for a block that differs, on a card over the grid's
+//  top left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

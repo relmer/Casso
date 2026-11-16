@@ -3,7 +3,6 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorWorker.h"
-#include "Devices/Disk/Inspector/Blocks/BlockLeftovers.h"
 #include "Ui/DiskInspector/Blocks/BlockHexSource.h"
 
 class BlockFieldsView;
@@ -28,8 +27,8 @@ struct InspectorCommands;
 //  Block mode's content between the menu bar and the status band, laid out
 //  as the track inspector's is. Across the top, the toolbar row with Go to
 //  at its right end. On the left, the grid of blocks with the platter's
-//  corner groups: the legend at the top left, the overlays (Files, Data in
-//  free blocks, and Differences while comparing) at the bottom left, and
+//  corner groups: the legend at the top left, the overlays (Files, and
+//  Differences while comparing) at the bottom left, and
 //  zoom - and + at the bottom right; the cell under the pointer is outlined.
 //  Past the splitter, on the right: the block's number with the previous
 //  and next block buttons and its capsules (Free or Used, its role, its
@@ -74,7 +73,6 @@ public:
 
     using PressedFn = std::function<void (IDxuiControl * child)>;
     using ChangedFn = std::function<void ()>;
-    using SaveRunFn = std::function<void (const LeftoverRun & run)>;
     using ActionFn  = std::function<void ()>;
     using HintFn    = std::function<void (const std::wstring & hint)>;
 
@@ -88,7 +86,6 @@ public:
 
     void  SetOnChildPressed (PressedFn fn) { m_onPressed = std::move (fn); }
     void  SetOnChanged      (ChangedFn fn) { m_onChanged = std::move (fn); }
-    void  SetOnSaveRun      (SaveRunFn fn) { m_onSaveRun = std::move (fn); }
     void  SetOnJobQueued    (ActionFn fn)  { m_onQueued  = std::move (fn); }
     void  SetOnApply        (ActionFn fn)  { m_onApply   = std::move (fn); }
     void  SetOnDiscard      (ActionFn fn)  { m_onDiscard = std::move (fn); }
@@ -122,10 +119,8 @@ public:
 
     //  The overlays, as the corner chips and the View menu turn them.
     bool  IsFilesOn      () const { return m_isFilesOn; }
-    bool  IsLeftoversOn  () const;
     bool  IsDiffsOn      () const { return m_isDiffsOn; }
     void  SetFilesOn     (bool isOn);
-    void  SetLeftoversOn (bool isOn);
     void  SetDiffsOn     (bool isOn);
 
     //  The view tabs.
@@ -188,7 +183,6 @@ private:
     DxuiIconButton        * m_legendButton = nullptr;
     BlockLegendView       * m_legend       = nullptr;
     OverlayChip           * m_filesChip    = nullptr;
-    OverlayChip           * m_leftChip     = nullptr;
     OverlayChip           * m_diffsChip    = nullptr;
     DxuiIconButton        * m_zoomOut      = nullptr;
     DxuiIconButton        * m_zoomIn       = nullptr;
@@ -206,7 +200,6 @@ private:
     BlockHexSource          m_source;
     PressedFn               m_onPressed;
     ChangedFn               m_onChanged;
-    SaveRunFn               m_onSaveRun;
     ActionFn                m_onQueued;
     ActionFn                m_onApply;
     ActionFn                m_onDiscard;
