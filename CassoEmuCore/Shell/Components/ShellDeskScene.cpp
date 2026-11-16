@@ -1109,9 +1109,12 @@ DeskSceneMetrics ShellDeskScene::GetDeskCompositionMetrics() const
 
 
 
+    // Auto-hidden, every device slides up in front of the monitor and takes
+    // no part in the framing.
     if (m_shell.AreDrivesAutoHidden())
     {
         metrics.hasRecorder = false;
+        metrics.extraCount  = 0;
     }
 
     return metrics;
