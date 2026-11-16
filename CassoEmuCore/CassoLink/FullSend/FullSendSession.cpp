@@ -1289,12 +1289,12 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     m_status.SetTitle (drive, title, FullSendDisk::GetSystemName (image));
     m_status.EndDisk (drive, row, earlier != nullptr ? 0 : raw.empty() ? image.size() : raw.size());
 
-    took = CassoLinkDiskTransfer::FormatDuration (m_status.GetSnapshot().disks.front().seconds);
+    took = FullSendStatus::FormatClock (m_status.GetSnapshot().disks.front().seconds);
 
-    Report (earlier != nullptr          ? std::format ("Disk {:04} is {}, a duplicate of {}. It took {}.", sequence, row.file, row.duplicateOf, took)
-                 : !row.duplicateOf.empty()    ? std::format ("Disk {:04} is {}, sent again though it matches {}. It took {}.", sequence, row.file, row.duplicateOf, took)
-                 : !raw.empty()                ? std::format ("Disk {:04} is {}, a raw capture of a disk that is likely copy-protected. It took {}.", sequence, row.file, took)
-                                               : std::format ("Disk {:04} is {}, with {} unreadable sectors. It took {}.", sequence, row.file, row.unreadable, took));
+    Report (earlier != nullptr          ? std::format ("Disk {:04} is {}, a duplicate of {}. Took {}.", sequence, row.file, row.duplicateOf, took)
+                 : !row.duplicateOf.empty()    ? std::format ("Disk {:04} is {}, sent again though it matches {}. Took {}.", sequence, row.file, row.duplicateOf, took)
+                 : !raw.empty()                ? std::format ("Disk {:04} is {}, a raw capture of a disk that is likely copy-protected. Took {}.", sequence, row.file, took)
+                                               : std::format ("Disk {:04} is {}, with {} unreadable sectors. Took {}.", sequence, row.file, row.unreadable, took));
 
     m_manifest.Add (row);
 
@@ -1865,8 +1865,8 @@ void FullSendSession::End (HRESULT hr)
     m_status.End (why);
 
     totals    = m_status.GetSnapshot().totals;
-    times     = std::format ("{} active, {} idle", CassoLinkDiskTransfer::FormatDuration (totals.elapsed), CassoLinkDiskTransfer::FormatDuration (totals.idle));
-    times    += totals.sent != 0 ? std::format (", {} a disk", CassoLinkDiskTransfer::FormatDuration (totals.average)) : std::string();
+    times     = std::format ("{} active, {} idle", FullSendStatus::FormatClock (totals.elapsed), FullSendStatus::FormatClock (totals.idle));
+    times    += totals.sent != 0 ? std::format (", {} a disk", FullSendStatus::FormatClock (totals.average)) : std::string();
     m_message = std::format ("Full Send ended with {} sent, {} duplicates and {} with bad sectors. {}. {}", m_screen.sent, m_screen.duplicates, m_screen.bad, times, why);
 }
 

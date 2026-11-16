@@ -1231,10 +1231,12 @@ public:
         rig.link.readSeconds    = 30.0;
         rig.link.captureSeconds = 300.0;
 
-        rig.Run();
+        auto  session = rig.Run();
 
         snapshot = rig.status.GetSnapshot();
 
+        Assert::IsTrue (std::any_of (rig.link.reports.begin(), rig.link.reports.end(), [] (const std::string & line) { return line.ends_with (". Took 5:30."); }), L"The disk's line has its time");
+        Assert::IsTrue (session->GetMessage().find ("5:30 active, ") != std::string::npos, L"The session's message has its active time");
         Assert::AreEqual ((size_t) 1, rig.link.captures.size(), L"The disk is captured raw");
         Assert::AreEqual ((size_t) 1, snapshot.disks.size());
         Assert::AreEqual (330.0, snapshot.disks[0].seconds, 0.001, L"The disk's time");
