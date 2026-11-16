@@ -412,6 +412,30 @@ public:
     }
 
 
+    //  A //C WITH A WRITE-PROTECTED DISK IN DRIVE 2 starts at once. At power-on
+    //  the ROM selects drive 2 and reads the IWM's sense line; with it high,
+    //  as a write-protected disk sets it, the ROM's SmartPort probe writes the
+    //  bus and polls the HANDSHAKE register for each byte.
+    TEST_METHOD (Apple2c_WithAProtectedDiskInDriveTwo_GetsPastTheSmartPortProbe)
+    {
+        constexpr uint64_t  kStartCap = 3'000'000;
+
+        TestMachine  machine ("Apple2c");
+
+
+
+        Assert::IsNull (machine.GetRefs().apple2cSmartPort, L"no chain on the disk port");
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "boot.dsk",   DiskFormat::Dsk, GuestSession::RequireDos33Master()));
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "second.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
+        machine.GetDiskStore().GetImage (6, 1)->SetUserWriteProtected (true);
+
+        machine.PowerCycle();
+        GuestSession::StartFromPowerOn (machine);
+
+        Assert::IsTrue (RunUntilScreenShows (machine, "Apple", kStartCap), L"the banner is on the screen after power-on");
+    }
+
+
     //  A //C PLUS POWER CYCLED AGAIN after running a while starts at once. The
     //  power cycle zeroes the Apple's cycle count, and the disk port's clock,
     //  which follows that count, advances from the time it had reached.

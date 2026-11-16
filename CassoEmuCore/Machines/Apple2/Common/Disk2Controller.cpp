@@ -158,6 +158,7 @@ void Disk2Controller::Write (Word address, Byte value)
         else
         {
             m_engine[m_activeDrive].WriteLatch (value);
+            m_cyclesSinceLoad = 0;
             OnLatchLoad();
         }
     }
@@ -358,6 +359,7 @@ void Disk2Controller::HandleSwitch (int offset)
 //  Q7=0, Q6=1: sense write protect (bit 7 = WP state).
 //  Q7=1, Q6=0: shift-load (real HW prepares the write latch). Phase 9
 //              returns 0 — the LSS write path uses Q7=1+Q6=1 + Write().
+//              On the //c's IWM, the HANDSHAKE register.
 //  Q7=1, Q6=1: write mode read returns 0 (write-only path).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -427,6 +429,19 @@ Byte Disk2Controller::HandleReadDispatch()
                                           | ((m_motorOn && m_motorSpindownCycles == 0) ? 0x20 : 0x00)
                                           | (m_iwmModeReg & 0x1F))
                      : sense;
+    }
+    else if (!m_q6 && m_q7 && m_iwmMode)
+    {
+        // IWM (//c): Q6L + Q7H reads the HANDSHAKE register. Bit 7 sets once
+        // the write buffer has passed the CPU's byte to the shift register,
+        // a byte time after the load. Bit 6 is set until an underrun, the
+        // shift register running dry a byte time after that with no byte
+        // loaded. The //c ROM's SmartPort probe at power-on, run when drive
+        // 2's sense line is high, polls bit 7 before each byte and bit 6
+        // after the last; reading 0 here, the //c never got past the probe.
+        result = kIwmHandshakeOnes;
+        result = static_cast<Byte> (result | ((m_cyclesSinceLoad >= kIwmByteCycles)     ? kIwmBufferReady : 0));
+        result = static_cast<Byte> (result | ((m_cyclesSinceLoad <  2 * kIwmByteCycles) ? kIwmNoUnderrun  : 0));
     }
 
     return result;
@@ -695,7 +710,7 @@ void Disk2Controller::Tick (uint32_t cpuCycles)
     // sub-instruction precision.
     if (m_cpuCycleSource == nullptr)
     {
-        m_engine[m_activeDrive].Tick (cpuCycles);
+        AdvanceEngine (cpuCycles);
     }
 
     PumpIdleCallback (cpuCycles);
@@ -811,9 +826,30 @@ void Disk2Controller::CatchUpToCpu()
             delta         = now - m_lastCpuSync;
             m_lastCpuSync = now;
 
-            m_engine[m_activeDrive].Tick (static_cast<uint32_t> (delta));
+            AdvanceEngine (static_cast<uint32_t> (delta));
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdvanceEngine
+//
+//  Moves the active drive's engine on by `cycles`, and with it the time
+//  since the CPU last loaded the write latch, which the IWM's HANDSHAKE
+//  register reports.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::AdvanceEngine (uint32_t cycles)
+{
+    m_engine[m_activeDrive].Tick (cycles);
+
+    m_cyclesSinceLoad = (m_cyclesSinceLoad > UINT32_MAX - cycles) ? UINT32_MAX : m_cyclesSinceLoad + cycles;
 }
 
 
@@ -1103,6 +1139,7 @@ void Disk2Controller::Reset()
     m_activeDrive  = 0;
     m_q6           = false;
     m_q7           = false;
+    m_cyclesSinceLoad = UINT32_MAX;
 
     for (i = 0; i < kDriveCount; i++)
     {
