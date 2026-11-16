@@ -31,7 +31,11 @@ public:
 
     using FieldFn = std::function<void (const BlockField * field)>;
 
+    //  A new block's fields, from the top; or the same block's again, as
+    //  after an edit or a field marked under the pointer, with the rows
+    //  scrolled and the pointer's row as they were.
     void  SetFields    (vector<BlockField> fields);
+    void  UpdateFields (vector<BlockField> fields);
     void  SetOnFollow  (FieldFn fn) { m_onFollow = std::move (fn); }
     void  SetOnHover   (FieldFn fn) { m_onHover  = std::move (fn); }
     void  SetHeading   (const std::wstring & heading) { m_heading = heading; }
@@ -40,6 +44,7 @@ public:
     void  SetEmptyText (const std::wstring & text) { m_emptyText = text; }
 
     const vector<BlockField> &  GetFields () const { return m_fields; }
+    int                         GetTopRow () const { return m_top; }
 
     //  The text of a field's row after its offset.
     static std::wstring  FormatRow (const BlockField & field);

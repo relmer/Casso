@@ -374,6 +374,33 @@ public:
     }
 
 
+    TEST_METHOD (FieldsView_TheSameBlocksFieldsKeepTheRowsWhereTheyWere)
+    {
+        DxuiDpiScaler       scaler;
+        BlockFieldsView     view;
+        vector<BlockField>  fields (40);
+        DxuiMouseEvent      ev;
+
+
+
+        view.SetFields (fields);
+        view.Layout    (RECT { 0, 0, 300, 200 }, scaler);
+
+        ev.kind        = DxuiMouseEventKind::Wheel;
+        ev.wheelDelta  = -2.0f;
+        ev.positionDip = { 10, 100 };
+        Assert::IsTrue (view.OnMouse (ev));
+        Assert::IsTrue (view.GetTopRow() > 0);
+
+        //  As marking the field under the pointer draws the block again.
+        view.UpdateFields (fields);
+        Assert::IsTrue (view.GetTopRow() > 0, L"the rows stay scrolled");
+
+        view.SetFields (fields);
+        Assert::AreEqual (0, view.GetTopRow(), L"a new block's fields start at the top");
+    }
+
+
     TEST_METHOD (FieldsView_AClickOnALinkedFieldFollowsIt)
     {
         DxuiDpiScaler       scaler;

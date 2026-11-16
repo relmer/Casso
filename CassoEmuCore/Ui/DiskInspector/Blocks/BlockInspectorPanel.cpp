@@ -1003,8 +1003,15 @@ void BlockInspectorPanel::ShowBytes()
         }
     }
 
-    m_fields->SetFields (std::move (fields));
-    m_fieldTip.Hide();
+    if (shown != m_shownBlock)
+    {
+        m_fields->SetFields (std::move (fields));
+        m_fieldTip.Hide();
+    }
+    else
+    {
+        m_fields->UpdateFields (std::move (fields));
+    }
 
     if (shown != m_shownBlock)
     {
