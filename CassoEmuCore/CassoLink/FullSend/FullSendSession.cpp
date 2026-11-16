@@ -644,29 +644,35 @@ Error:
 //
 //  A disk whose image did not boot, sent as a new image beside the first. A
 //  raw capture is built from its reads and the first capture's. A likely
-//  copy-protected disk saved as its sectors is captured raw, because its
-//  sectors read the same each time. Any other sector image is read with
-//  verification on, for a disk whose sectors read differently each time.
+//  copy-protected disk saved as its sectors, or one whose damage is unclear,
+//  is captured raw, because protected sectors read the same each time. A
+//  damaged disk is read with verification on, for sectors that read
+//  differently each time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT FullSendSession::SendAgain (int drive, const CheckedDisk & disk)
 {
-    HRESULT              hr        = S_OK;
-    bool                 wasVerify = m_link.IsVerifying();
-    const FullSendRow  * first     = FindWithImage ([&] (const FullSendRow & row) { return row.fingerprint == disk.fingerprint; });
-    bool                 verify    = false;
+    HRESULT              hr            = S_OK;
+    bool                 wasVerify     = m_link.IsVerifying();
+    const FullSendRow  * first         = FindWithImage ([&] (const FullSendRow & row) { return row.fingerprint == disk.fingerprint; });
+    bool                 protectedCopy = false;
+    bool                 unclearCopy   = false;
+    bool                 verify        = false;
 
 
 
     m_retried.insert (disk.fingerprint);
     m_repeats[(size_t) drive - 1] = false;
     m_deeper                      = true;
-    m_rawAgain                    = first != nullptr && first->status == FullSendManifest::kStatusProtected;
+    protectedCopy                 = first != nullptr && first->status == FullSendManifest::kStatusProtected;
+    unclearCopy                   = first != nullptr && first->status == FullSendManifest::kStatusUnclear;
+    m_rawAgain                    = protectedCopy || unclearCopy;
     verify                        = !m_rawAgain && !wasVerify;
 
-    Report (m_rawAgain ? std::format ("The image captured from the disk in drive {} did not boot, and the disk is likely copy-protected. Capturing the disk again in raw mode.", drive)
-                       : std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive));
+    Report (protectedCopy ? std::format ("The image captured from the disk in drive {} did not boot; the disk is likely copy-protected. Capturing the disk again in raw mode.", drive)
+          : unclearCopy   ? std::format ("The image captured from the disk in drive {} did not boot, and its unreadable sectors may be copy protection. Capturing the disk again in raw mode.", drive)
+                          : std::format ("The image captured from the disk in drive {} did not boot. Capturing the disk again with verified reads.", drive));
 
     if (verify)
     {
@@ -1428,14 +1434,19 @@ HRESULT FullSendSession::CaptureProtected (int drive, const std::vector<Byte> & 
     outRaw.clear();
 
     outLikely = readSign || m_protection.IsMet (signs);
-    BAIL_OUT_IF (!outLikely || !(m_protection.captureRaw || m_rawAgain), S_OK);
+    BAIL_OUT_IF (!m_rawAgain && (!outLikely || !m_protection.captureRaw), S_OK);
 
-    reason = readSign                                         ? std::format ("Unreadable sectors were found on the disk in drive {} during the normal transfer", drive)
-           : m_protection.unrecognized && signs.isUnrecognized ? std::format ("The disk in drive {} has no recognized file system", drive)
-           : m_protection.diskCode && signs.hasDiskCode        ? std::format ("{} on the disk in drive {} accesses the disk drive directly", signs.diskCodeFile, drive)
-                                                                : std::format ("The disk in drive {} doesn't have a recognized boot loader", drive);
+    //  A disk read again in raw mode whose damage is unclear has the reason
+    //  in SendAgain's line.
+    if (outLikely)
+    {
+        reason = readSign                                         ? std::format ("Unreadable sectors were found on the disk in drive {} during the normal transfer", drive)
+               : m_protection.unrecognized && signs.isUnrecognized ? std::format ("The disk in drive {} has no recognized file system", drive)
+               : m_protection.diskCode && signs.hasDiskCode        ? std::format ("{} on the disk in drive {} accesses the disk drive directly", signs.diskCodeFile, drive)
+                                                                    : std::format ("The disk in drive {} doesn't have a recognized boot loader", drive);
 
-    Report (reason + ", so it appears to be copy-protected. Restarting the capture using raw mode.");
+        Report (reason + ", so it appears to be copy-protected. Restarting the capture using raw mode.");
+    }
 
     SetDriveState (drive, FullSendDriveState::Capturing);
     m_status.SetActivity (FullSendActivity::Capturing, drive);

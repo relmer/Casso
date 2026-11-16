@@ -357,7 +357,7 @@ private:
     std::string                 m_retryPrint;                      // the fingerprint of the disk the pause offers to read again
     std::set<std::string>       m_retried;                         // the fingerprint of each disk read again
     bool                        m_deeper     = false;              // the disk being sent is one read again
-    bool                        m_rawAgain   = false;              // and its first image is a likely copy-protected disk's sectors
+    bool                        m_rawAgain   = false;              // and its first image is the sectors of a disk that may be copy-protected
     std::string                 m_latestBoot;                      // the boot result ApplyBoots took last
     std::array<std::string, 2>  m_blankDisk;                       // the blank each drive last added to the blanks
     uint64_t                    m_commitTag  = 1;

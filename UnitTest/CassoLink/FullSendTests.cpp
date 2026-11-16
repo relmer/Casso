@@ -729,14 +729,14 @@ public:
     {
         Rig  rig;
 
-        rig.link.drives[0]          = Other (1);
-        rig.link.badDisk            = rig.link.drives[0];
-        rig.link.badSectors         = { { 5, 0 }, { 6, 0 } };
-        rig.link.reportEmpty        = 3;
-        rig.link.present[1]         = false;
-        rig.link.onAwait            = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
-        rig.link.keys               = { FullSendKey::Space };
-        rig.protection.captureRaw   = false;
+        rig.link.drives[0]        = Other (1);
+        rig.link.badDisk          = rig.link.drives[0];
+        rig.link.badSectors       = { { 5, 0 }, { 6, 0 } };
+        rig.link.reportEmpty      = 3;
+        rig.link.present[1]       = false;
+        rig.link.onAwait          = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
+        rig.link.keys             = { FullSendKey::Space };
+        rig.protection.captureRaw = false;
 
         auto  session = rig.Run();
 
@@ -746,6 +746,28 @@ public:
         Assert::AreEqual (std::string (FullSendManifest::kStatusRawCapture), session->GetManifest().GetRows()[1].status);
         Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001.dsk") && rig.io.files.contains ("C:\\Box\\0002.woz"));
         Assert::IsFalse (rig.link.verifying);
+    }
+
+    //  A DOS 3.3 disk with whole tracks unreadable may be copy-protected: its
+    //  status is unclear, and Space captures it raw.
+    TEST_METHOD (Session_SpaceOnAnUnclearDiskThatDidNotBoot_CapturesItRaw)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]   = Dos ("GAME");
+        rig.link.badDisk     = rig.link.drives[0];
+        rig.link.badSectors  = { { 20, 3 } };
+        rig.link.reportEmpty = 3;
+        rig.link.present[1]  = false;
+        rig.link.onAwait     = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
+        rig.link.keys        = { FullSendKey::Space };
+
+        auto  session = rig.Run();
+
+        Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear), session->GetManifest().GetRows()[0].status);
+        Assert::IsTrue (rig.link.captures == std::vector<int> { 1 }, L"Only the second read is captured");
+        Assert::IsTrue (rig.link.readsVerified == std::vector<bool> ({ false, false }), L"Neither read is verified");
+        Assert::AreEqual (std::string (FullSendManifest::kStatusRawCapture), session->GetManifest().GetRows()[1].status);
     }
 
     //  A DOS 3.3 disk with a bad sector is damaged, not protected: Space reads
@@ -768,6 +790,7 @@ public:
         Assert::AreEqual ((size_t) 2, session->GetManifest().GetRows().size());
         Assert::IsFalse (rig.link.verifying, L"Verification is off again after it");
     }
+
     //  A write-protected disk's image is write-protected: a sector image by
     //  its read-only attribute, and its manifest row has the flag.
     TEST_METHOD (Session_AWriteProtectedDisk_HasAWriteProtectedImage)
