@@ -799,7 +799,6 @@ void CassoExplorerOptionsDialog::WireProtection()
 
 
 
-
     m_fullSendProtection.note.SetText (L"Copy protection often depends on details of the disk that a sector copy can't record, so a copy-protected disk has to be "
                                        L"captured raw. A raw capture is always saved as a WOZ image, even when another image type is selected on the Full Send tab, "
                                        L"and it takes longer than a sector copy.");
