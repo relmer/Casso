@@ -81,10 +81,17 @@ void DriveBarFanControl::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text
     HRESULT             hr     = S_OK;
     const CassoTheme  & theme  = static_cast<const CassoTheme &> (dxuiTheme);
     float               radius = (float) Scale (kPanelRadiusPx, m_dpi);
+    RECT                bounds = GetBounds();
 
 
 
     _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
+
+    // Nothing is drawn outside the bounds: a sliding bar's lower part is
+    // under the //c's switch strip.
+    painter.PushClipRect ((float) bounds.left, (float) bounds.top, (float) (bounds.right - bounds.left), (float) (bounds.bottom - bounds.top));
+    hr = text.PushClipRect ((float) bounds.left, (float) bounds.top, (float) (bounds.right - bounds.left), (float) (bounds.bottom - bounds.top));
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     for (int c = 0; c < m_fan.GetClassCount() && c < (int) m_views.size(); c++)
     {
@@ -132,6 +139,10 @@ void DriveBarFanControl::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text
             PaintArrow (painter, theme, head, panel);
         }
     }
+
+    painter.PopClipRect();
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
