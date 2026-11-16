@@ -186,10 +186,11 @@ HRESULT DeskSceneLayout::ComputeSliding (const RECT             & viewportPx,
                                          float                    slideProgress,
                                          int                      slideClearPx,
                                          DeskSceneComposition   & out,
-                                         const DeskSceneView    & view)
+                                         const DeskSceneView    & view,
+                                         const DeskDockHover    & dock)
 {
     return SolveComposition (viewportPx, dpi, driveCount, metrics, kDriveDeskGapMm, out, view,
-                             std::clamp (slideProgress, 0.0f, 1.0f), std::max (slideClearPx, 0));
+                             std::clamp (slideProgress, 0.0f, 1.0f), std::max (slideClearPx, 0), dock);
 }
 
 
@@ -291,7 +292,8 @@ bool DeskSceneLayout::GetSlideTanRange (const DeskSceneComposition  & comp,
 
     for (int i = 0; ok && i < comp.extraCount; i++)
     {
-        ok = GetBoxTanRange (comp.view, comp.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max, offsetMm, axis, outLo, outHi);
+        ok = comp.extraDocked[i] == 0 ||
+             GetBoxTanRange (comp.view, comp.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max, offsetMm, axis, outLo, outHi);
     }
 
     return ok;
@@ -382,7 +384,7 @@ void DeskSceneLayout::ScaleSlideDevices (DeskSceneComposition & comp,
 
 
 
-        if (i == -1 && comp.hasRecorder == 0)
+        if ((i == -1 && comp.hasRecorder == 0) || (i < -1 && comp.extraDocked[-2 - i] == 0))
         {
             continue;
         }
@@ -406,12 +408,12 @@ void DeskSceneLayout::ScaleSlideDevices (DeskSceneComposition & comp,
 //
 //  DeskSceneLayout::PlaceSlidingDevices
 //
-//  The drives and the recorder for a sliding composition, on the desk: the
-//  drives side by side with their backs kSlideMonitorGapMm in front of the
-//  monitor's frontmost point, so no part of a drive is ever inside the
-//  monitor, and the recorder beside them. The row is then centered under the
-//  monitor as one group, so the recorder does not push it off one side of
-//  the frame. SlideDevices scales and raises them afterward.
+//  The dock for a sliding composition, on the desk: the Disk II drives, then
+//  the other floppy drives, then the recorder, side by side in one row with
+//  their backs kSlideMonitorGapMm in front of the monitor's frontmost point,
+//  so no part of a device is ever inside the monitor. The row is then
+//  centered under the monitor. The hard disks are in their desk spots, not in
+//  the dock. SlideDevices scales and raises the row afterward.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -420,69 +422,54 @@ void DeskSceneLayout::PlaceSlidingDevices (const DeskSceneMetrics & metrics,
                                            DeskSceneComposition   & out)
 {
     float  driveW      = metrics.driveMax[0] - metrics.driveMin[0];
-    float  driveCx     = (metrics.driveMin[0] + metrics.driveMax[0]) * 0.5f;
     float  forwardMm   = -metrics.monitorMin[1] + kSlideMonitorGapMm + metrics.driveMax[1];
-    float  driveTx[2]  = { (driveCount == 2) ? -(driveW + kDriveGapMm) * 0.5f : 0.0f,
-                           (driveW + kDriveGapMm) * 0.5f };
-    float  stackMin[3] = { FLT_MAX, FLT_MAX, FLT_MAX };
-    float  stackMax[3] = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+    float  frontZ      = forwardMm - metrics.driveFrontY;
+    float  x           = 0.0f;
+    float  rowMin[3]   = {};
+    float  rowMax[3]   = {};
     float  spareMin[3] = {};
     float  spareMax[3] = {};
     float  shiftX      = 0.0f;
+    bool   hasDocked   = false;
 
 
 
     for (int i = 0; i < driveCount; i++)
     {
-        float  dlo[3] = { metrics.driveMin[0] - driveCx + driveTx[i], metrics.driveMin[2], forwardMm - metrics.driveMax[1] };
-        float  dhi[3] = { metrics.driveMax[0] - driveCx + driveTx[i], metrics.driveMax[2], forwardMm - metrics.driveMin[1] };
-
-
-
-        MakeDeviceWorld (driveTx[i] - driveCx, 0.0f, forwardMm, 1.0f, out.driveWorld[i]);
-
-        for (int axis = 0; axis < 3; axis++)
-        {
-            stackMin[axis] = std::min (stackMin[axis], dlo[axis]);
-            stackMax[axis] = std::max (stackMax[axis], dhi[axis]);
-        }
+        MakeDeviceWorld (x - metrics.driveMin[0], 0.0f, forwardMm, 1.0f, out.driveWorld[i]);
+        x += driveW + kDriveGapMm;
     }
 
-    // With no Disk II the extra drives start the row at x 0, one recorder gap
-    // right of an empty seed, and the recorder follows them.
-    if (driveCount <= 0)
+    for (int i = 0; i < metrics.extraCount; i++)
     {
-        for (int axis = 0; axis < 3; axis++)
+        const DeskExtraMetrics  & extra = metrics.extras[i];
+
+        if (!IsDockedExtra (extra))
         {
-            stackMin[axis] = 0.0f;
-            stackMax[axis] = 0.0f;
+            continue;
         }
 
-        stackMin[0] = -kRecorderGapMm;
-        stackMax[0] = -kRecorderGapMm;
-
-        PlaceStack (metrics, DeskDriveSpot::RightStack, true, 0, forwardMm, forwardMm - metrics.driveFrontY,
-                    stackMin, stackMax, spareMin, spareMax, out);
-
-        stackMin[0] = 0.0f;
-
-        if (metrics.hasRecorder)
-        {
-            PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, stackMin, stackMax, spareMin, spareMax, out);
-        }
+        MakeDeviceWorld (x - extra.min[0], -extra.min[2], frontZ, 1.0f, out.extraWorld[i]);
+        out.extraDocked[i] = 1;
+        out.extraCount     = metrics.extraCount;
+        x                 += (extra.max[0] - extra.min[0]) + kDriveGapMm;
+        hasDocked          = true;
     }
-    else
+
+    if (driveCount <= 0 && !hasDocked && !metrics.hasRecorder)
     {
-        if (metrics.hasRecorder)
-        {
-            PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, stackMin, stackMax, spareMin, spareMax, out);
-        }
-
-        PlaceStack (metrics, DeskDriveSpot::LeftStack, true, 0, forwardMm, forwardMm - metrics.driveFrontY,
-                    stackMin, stackMax, spareMin, spareMax, out);
+        return;
     }
 
-    shiftX = -(stackMin[0] + stackMax[0]) * 0.5f;
+    // The recorder's left edge is kRecorderGapMm right of the row's.
+    rowMax[0] = (x > 0.0f) ? x - kDriveGapMm : -kRecorderGapMm;
+
+    if (metrics.hasRecorder)
+    {
+        PlaceRecorder (metrics, frontZ, rowMin, rowMax, spareMin, spareMax, out);
+    }
+
+    shiftX = -(std::min (rowMin[0], 0.0f) + rowMax[0]) * 0.5f;
 
     for (int i = 0; i < driveCount; i++)
     {
@@ -493,7 +480,7 @@ void DeskSceneLayout::PlaceSlidingDevices (const DeskSceneMetrics & metrics,
 
     for (int i = 0; i < out.extraCount; i++)
     {
-        out.extraWorld[i][12] += shiftX;
+        out.extraWorld[i][12] += (out.extraDocked[i] != 0) ? shiftX : 0.0f;
     }
 }
 
@@ -556,7 +543,7 @@ int DeskSceneLayout::SlideDevices (DeskSceneComposition   & out,
 
     for (int i = 0; i < out.extraCount; i++)
     {
-        out.extraWorld[i][12] += centerXMm;
+        out.extraWorld[i][12] += (out.extraDocked[i] != 0) ? centerXMm : 0.0f;
     }
 
     if (eyeDistMm > depthMm)
@@ -584,19 +571,190 @@ int DeskSceneLayout::SlideDevices (DeskSceneComposition   & out,
 
     for (int i = 0; i < out.extraCount; i++)
     {
-        out.extraWorld[i][13] += offsetMm;
+        out.extraWorld[i][13] += (out.extraDocked[i] != 0) ? offsetMm : 0.0f;
     }
 
+    // Down, the dock is not drawn; the hard disks on the desk are.
     if (slideProgress <= 0.0f)
     {
         driveCount      = 0;
         out.hasRecorder = 0;
-        out.extraCount  = 0;
+
+        for (int i = 0; i < out.extraCount; i++)
+        {
+            out.extraHidden[i] = (out.extraDocked[i] != 0) ? 1 : out.extraHidden[i];
+        }
     }
 
     out.driveCount = driveCount;
 
     return driveCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::MagnifyDock
+//
+//  Each docked device grows about its back-bottom center, so its back is
+//  clear of the monitor and its base is on the desk, by an amount that falls
+//  off with its distance from the pointer. The row is then laid out again
+//  with the grown widths, shifted so the point under the pointer is under it
+//  after the change. The magnification is computed from the pointer's place
+//  in the row at rest, so the pointer is over the same device as the row
+//  grows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::MagnifyDock (DeskSceneComposition   & out,
+                                   const DeskSceneMetrics & metrics,
+                                   int                      driveCount,
+                                   const DeskDockHover    & dock,
+                                   float                    tanHalfX,
+                                   const RECT             & viewportPx)
+{
+    struct Item
+    {
+        float        * world;
+        const float  * lo;
+        const float  * hi;
+        float          x0;
+        float          w;
+        float          mag;
+    };
+
+    constexpr float                       kPi       = 3.14159265f;
+    std::vector<Item>                     items;
+    std::vector<std::pair<float, float>>  edges;
+    float                                 halfW     = (float) (viewportPx.right - viewportPx.left) * 0.5f;
+    float                                 pointer   = 0.0f;
+    float                                 reach     = 0.0f;
+    float                                 pointerX  = 0.0f;
+    float                                 x         = 0.0f;
+    float                                 shift     = 0.0f;
+    float                                 fraction  = 0.0f;
+    size_t                                anchor    = 0;
+    size_t                                k         = 0;
+
+
+
+    if (dock.strength <= 0.0f || dock.pointerPx < 0.0f || halfW <= 0.0f || tanHalfX <= 0.0f)
+    {
+        return;
+    }
+
+    for (int i = 0; i < driveCount; i++)
+    {
+        items.push_back ({ out.driveWorld[i], metrics.driveMin, metrics.driveMax });
+    }
+
+    for (int i = 0; i < out.extraCount; i++)
+    {
+        if (out.extraDocked[i] != 0 && out.extraHidden[i] == 0)
+        {
+            items.push_back ({ out.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max });
+        }
+    }
+
+    if (out.hasRecorder != 0)
+    {
+        items.push_back ({ out.recorderWorld, metrics.recorderMin, metrics.recorderMax });
+    }
+
+    if (items.empty())
+    {
+        return;
+    }
+
+    // Each device's span in world x, and the view tangents of its front
+    // corners, which place its edges on screen.
+    for (Item & item : items)
+    {
+        float  s = item.world[0];
+
+        item.x0 = item.world[12] + s * item.lo[0];
+        item.w  = s * (item.hi[0] - item.lo[0]);
+        reach  += item.w;
+
+        for (float edgeX : { item.x0, item.x0 + item.w })
+        {
+            float  pt[3]     = { edgeX, item.world[13] + s * item.lo[2], item.world[14] - s * item.lo[1] };
+            float  viewPt[3] = {};
+
+            if (SceneCamera::TransformPoint (out.view, pt, viewPt) && viewPt[2] < 0.0f)
+            {
+                edges.push_back ({ viewPt[0] / -viewPt[2], edgeX });
+            }
+        }
+    }
+
+    std::sort (items.begin(), items.end(), [] (const Item & a, const Item & b) { return a.x0 < b.x0; });
+    std::sort (edges.begin(), edges.end());
+
+    if (edges.size() < 2)
+    {
+        return;
+    }
+
+    reach = reach / (float) items.size() * kDockReachWidths;
+
+    // The pointer's world x on the row at rest: between the two device edges
+    // it lies between on screen, or past an end at the end's slope.
+    pointer = ((dock.pointerPx - (float) viewportPx.left) - halfW) / halfW * tanHalfX;
+
+    while (k + 2 < edges.size() && pointer > edges[k + 1].first)
+    {
+        k++;
+    }
+
+    {
+        float  span = edges[k + 1].first - edges[k].first;
+        float  t    = (span > 0.0f) ? (pointer - edges[k].first) / span : 0.0f;
+
+        pointerX = edges[k].second + (edges[k + 1].second - edges[k].second) * t;
+    }
+
+    for (size_t i = 0; i < items.size(); i++)
+    {
+        float  d = std::abs (pointerX - (items[i].x0 + items[i].w * 0.5f)) / reach;
+
+        items[i].mag = 1.0f + (kDockMagnify - 1.0f) * dock.strength * ((d < 1.0f) ? 0.5f * (1.0f + std::cos (kPi * d)) : 0.0f);
+        anchor       = (pointerX >= items[i].x0) ? i : anchor;
+    }
+
+    fraction = (items[anchor].w > 0.0f) ? (pointerX - items[anchor].x0) / items[anchor].w : 0.0f;
+
+    // Lay the row out again from the left, the gaps growing with the devices
+    // beside them, then shift it so the anchor point stays under the pointer.
+    for (size_t i = 0; i < items.size(); i++)
+    {
+        bool   hasNext = i + 1 < items.size();
+        float  gap     = hasNext ? items[i + 1].x0 - (items[i].x0 + items[i].w) : 0.0f;
+        float  nextMag = hasNext ? items[i + 1].mag : 1.0f;
+
+        items[i].x0 = x;
+        x          += items[i].w * items[i].mag + gap * (items[i].mag + nextMag) * 0.5f;
+    }
+
+    shift = pointerX - (items[anchor].x0 + fraction * items[anchor].w * items[anchor].mag);
+
+    for (Item & item : items)
+    {
+        float  s       = item.world[0];
+        float  bottomY = item.world[13] + s * item.lo[2];
+        float  backZ   = item.world[14] - s * item.hi[1];
+        float  grown   = s * item.mag;
+
+        item.world[0]  = grown;
+        item.world[6]  = -grown;
+        item.world[9]  = grown;
+        item.world[12] = item.x0 + shift - grown * item.lo[0];
+        item.world[13] = bottomY - grown * item.lo[2];
+        item.world[14] = backZ + grown * item.hi[1];
+    }
 }
 
 
@@ -648,10 +806,16 @@ void DeskSceneLayout::ProjectDeviceRects (DeskSceneComposition   & out,
                          out.viewProj, viewportPx, out.recorderRectPx);
     }
 
+    // A drive that is not drawn has no rect, so it is never hit.
     for (int i = 0; i < out.extraCount; i++)
     {
-        ProjectModelBox (out.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max,
-                         out.viewProj, viewportPx, out.extraRectPx[i]);
+        out.extraRectPx[i] = {};
+
+        if (out.IsExtraShown (i))
+        {
+            ProjectModelBox (out.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max,
+                             out.viewProj, viewportPx, out.extraRectPx[i]);
+        }
     }
 }
 
@@ -688,7 +852,7 @@ bool DeskSceneLayout::GetSlideFrontTopPx (const DeskSceneComposition & comp,
 
 
 
-        if (i == -1 && comp.hasRecorder == 0)
+        if ((i == -1 && comp.hasRecorder == 0) || (i < -1 && (comp.extraDocked[-2 - i] == 0 || comp.extraHidden[-2 - i] != 0)))
         {
             continue;
         }
@@ -844,7 +1008,8 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                                            DeskSceneComposition   & out,
                                            const DeskSceneView    & view,
                                            float                    slideProgress,
-                                           int                      slideClearPx)
+                                           int                      slideClearPx,
+                                           const DeskDockHover    & dock)
 {
     HRESULT  hr            = S_OK;
     bool     sliding       = slideProgress >= 0.0f;
@@ -900,9 +1065,9 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
     //
     // A hard disk the drive plan put under the monitor lifts it by its height
     // instead, and then no drive is under it.
-    for (int i = 0; i < metrics.extraCount && !sliding; i++)
+    for (int i = 0; i < metrics.extraCount; i++)
     {
-        if (metrics.extras[i].spot == DeskDriveSpot::UnderMonitor)
+        if (metrics.extras[i].spot == DeskDriveSpot::UnderMonitor && (!sliding || !IsDockedExtra (metrics.extras[i])))
         {
             underExtra = i;
         }
@@ -1052,11 +1217,9 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
 
     // The stacks beside the monitor, the right one first so the recorder
     // lies outside it.
-    if (!sliding)
-    {
-        PlaceStack (metrics, DeskDriveSpot::RightStack, false, driveCount - driveUnder, forwardMm, forwardMm - metrics.driveFrontY,
-                    deviceMin, deviceMax, sceneMin, sceneMax, out);
-    }
+    // Sliding, only the hard disks stay in the stacks; the rest are docked.
+    PlaceStack (metrics, DeskDriveSpot::RightStack, false, sliding ? 0 : driveCount - driveUnder, forwardMm, forwardMm - metrics.driveFrontY,
+                deviceMin, deviceMax, sceneMin, sceneMax, out, sliding);
 
     // The cassette recorder joins both bounds, so the camera fit contains it
     // and its shadow exactly as it does the stack.
@@ -1066,11 +1229,8 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
                        sceneMin, sceneMax, out);
     }
 
-    if (!sliding)
-    {
-        PlaceStack (metrics, DeskDriveSpot::LeftStack, false, 0, forwardMm, forwardMm - metrics.driveFrontY,
-                    deviceMin, deviceMax, sceneMin, sceneMax, out);
-    }
+    PlaceStack (metrics, DeskDriveSpot::LeftStack, false, 0, forwardMm, forwardMm - metrics.driveFrontY,
+                deviceMin, deviceMax, sceneMin, sceneMax, out, sliding);
 
     if (sliding)
     {
@@ -1204,6 +1364,8 @@ HRESULT DeskSceneLayout::SolveComposition (const RECT             & viewportPx,
             driveCount = SlideDevices (out, metrics, driveCount, eyeZ - (-metrics.monitorMin[1]),
                                        tanHalfX, tanHalfY, viewportH, slideProgress, slideClearPx, 0.0f,
                                        kWindowedSlideScale);
+
+            MagnifyDock (out, metrics, driveCount, dock, tanHalfX, viewportPx);
         }
 
         // THE ORBIT ROTATES THE SCENE, NOT THE CAMERA. The eye stays in its
@@ -1434,6 +1596,21 @@ void DeskSceneLayout::PlaceRecorder (const DeskSceneMetrics & metrics,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneLayout::IsDockedExtra
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneLayout::IsDockedExtra (const DeskExtraMetrics & extra)
+{
+    return DeskDrivePlan::GetClass (extra.model) == DeskDriveClass::Floppy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneLayout::PlaceStack
 //
 //  A stack beside the devices placed so far, kRecorderGapMm clear of their
@@ -1456,7 +1633,8 @@ void DeskSceneLayout::PlaceStack (const DeskSceneMetrics & metrics,
                                   float                    deviceMax[3],
                                   float                    sceneMin[3],
                                   float                    sceneMax[3],
-                                  DeskSceneComposition   & out)
+                                  DeskSceneComposition   & out,
+                                  bool                     hardDisksOnly)
 {
     struct Item
     {
@@ -1476,7 +1654,7 @@ void DeskSceneLayout::PlaceStack (const DeskSceneMetrics & metrics,
 
     for (int i = 0; i < metrics.extraCount; i++)
     {
-        if (everyExtra || metrics.extras[i].spot == spot)
+        if ((everyExtra || metrics.extras[i].spot == spot) && !(hardDisksOnly && IsDockedExtra (metrics.extras[i])))
         {
             items.push_back ({ metrics.extras[i].level, out.extraWorld[i], metrics.extras[i].min, metrics.extras[i].max, frontZ });
         }
@@ -1683,7 +1861,8 @@ HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
                                            DeskSceneComposition   & out,
                                            int                      driveCount,
                                            float                    slideProgress,
-                                           int                      slideClearPx)
+                                           int                      slideClearPx,
+                                           const DeskDockHover    & dock)
 {
     HRESULT   hr        = S_OK;
     int       viewportW = viewportPx.right - viewportPx.left;
@@ -1751,7 +1930,7 @@ HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
     // The drives slide up in front of the glass exactly as they do on the
     // windowed desk, under this camera. The eye is the standoff in front of
     // the glass plane.
-    if (slideProgress >= 0.0f && (driveCount > 0 || metrics.extraCount > 0))
+    if (slideProgress >= 0.0f && (driveCount > 0 || std::any_of (metrics.extras, metrics.extras + metrics.extraCount, IsDockedExtra)))
     {
         float  eyeDistMm = (-metrics.glass.baseY + standoff) - (-metrics.monitorMin[1]);
 
@@ -1759,9 +1938,18 @@ HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
 
         PlaceSlidingDevices (metrics, driveCount, out);
 
+        // Fullscreen draws the tube and the dock alone, so the hard disks
+        // are not drawn.
+        for (int i = 0; i < out.extraCount; i++)
+        {
+            out.extraHidden[i] = (out.extraDocked[i] == 0) ? 1 : 0;
+        }
+
         driveCount = SlideDevices (out, metrics, driveCount, eyeDistMm, tanY * aspect, tanY, viewportH,
                                    std::clamp (slideProgress, 0.0f, 1.0f), std::max (slideClearPx, 0),
                                    glassCx, kFullscreenSlideScale);
+
+        MagnifyDock (out, metrics, driveCount, dock, tanY * aspect, viewportPx);
 
         ProjectDeviceRects (out, metrics, driveCount, viewportPx);
     }

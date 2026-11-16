@@ -1099,6 +1099,25 @@ int ShellDeskScene::GetDeskCompositionDriveCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDeskScene::HasDockedExtra
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::HasDockedExtra() const
+{
+    DeskSceneMetrics  metrics = m_deskScene.Metrics();
+
+
+
+    return std::any_of (metrics.extras, metrics.extras + metrics.extraCount, DeskSceneLayout::IsDockedExtra);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDeskScene::GetDeskCompositionMetrics
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1106,15 +1125,25 @@ int ShellDeskScene::GetDeskCompositionDriveCount() const
 DeskSceneMetrics ShellDeskScene::GetDeskCompositionMetrics() const
 {
     DeskSceneMetrics  metrics = m_deskScene.Metrics();
+    int               kept    = 0;
 
 
 
-    // Auto-hidden, every device slides up in front of the monitor and takes
-    // no part in the framing.
+    // Auto-hidden, the docked devices slide up in front of the monitor and
+    // take no part in the framing. The hard disks stay on the desk.
     if (m_shell.AreDrivesAutoHidden())
     {
         metrics.hasRecorder = false;
-        metrics.extraCount  = 0;
+
+        for (int i = 0; i < metrics.extraCount; i++)
+        {
+            if (!DeskSceneLayout::IsDockedExtra (metrics.extras[i]))
+            {
+                metrics.extras[kept++] = metrics.extras[i];
+            }
+        }
+
+        metrics.extraCount = kept;
     }
 
     return metrics;
@@ -2361,7 +2390,7 @@ bool ShellDeskScene::TryMakeHoverLabelQuad (const DeskSceneComposition & comp, c
 
     m_hoverLabelAlpha = 0.0f;
 
-    if (m_hoverExtra >= 0 && m_hoverExtra < comp.extraCount && m_deskScene.GetExtraModelBounds (m_hoverExtra, boundsMin, boundsMax))
+    if (comp.IsExtraShown (m_hoverExtra) && m_deskScene.GetExtraModelBounds (m_hoverExtra, boundsMin, boundsMax))
     {
         world = comp.extraWorld[m_hoverExtra];
     }

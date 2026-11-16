@@ -8,6 +8,7 @@
 #include "Ui/Chrome/DriveBarFanControl.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/Chrome/VolumeFlyout.h"
+#include "Ui/Scene/DeskSceneLayout.h"
 
 
 
@@ -149,6 +150,11 @@ public:
 
     // Re-solves the desk with the drives risen by `progress` (0 to 1).
     void    ComposeDeskSlide     (float progress);
+
+    // Eases the dock's magnification in while the pointer is over the risen
+    // dock, and out once it is off it. Returns whether the desk changed.
+    bool    UpdateDockHover      (POINT cursor, bool isOverDock, int64_t nowMs);
+    void    RecomposeDeskSlide   ();
 
     // Fullscreen presentation (FR-014): every chrome element collapses to
     // nothing -- host caption, menu bar, toolbar, joystick row, drive band,
@@ -396,6 +402,10 @@ private:
     RECT                     m_deskSlideBox        = {};
     float                    m_deskSlideProgress   = 0.0f;
     RECT                     m_deskSlideCoverPx    = {};
+
+    // The dock's magnification under the pointer, and when it last eased.
+    DeskDockHover            m_dockHover;
+    int64_t                  m_dockHoverMs         = 0;
 
     // The top of the zone that reveals the drives: see
     // FullscreenStripState::GetRevealTopPx. Written by UpdateViewportLayout

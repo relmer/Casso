@@ -194,10 +194,14 @@ public:
     int     DeskSceneDriveCount  () const;
 
     // The drive count and metrics the desk is framed with. With the drives
-    // auto-hidden, the framing is the monitor alone: no drives and no
-    // recorder.
+    // auto-hidden, the framing is the monitor and the hard disks: the floppy
+    // drives and the recorder are in the dock.
     int               GetDeskCompositionDriveCount () const;
     DeskSceneMetrics  GetDeskCompositionMetrics    () const;
+
+    // Whether the desk has a floppy drive besides the Disk II pair, which
+    // auto-hide docks.
+    bool              HasDockedExtra               () const;
 
     // Whether a strip label extends below the strip's area, where it would be
     // drawn over the //c switch strip mid-slide. Always false off the strip.

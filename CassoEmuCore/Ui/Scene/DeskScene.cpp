@@ -1160,6 +1160,11 @@ void DeskScene::SceneBoundsWorld (const DeskSceneComposition & comp,
 
     for (int i = 0; i < comp.extraCount && i < (int) m_extras.size(); i++)
     {
+        if (!comp.IsExtraShown (i))
+        {
+            continue;
+        }
+
         size_t  kind = (size_t) m_extras[(size_t) i].drive.model;
 
 
@@ -1354,6 +1359,11 @@ HRESULT DeskScene::RenderShadowMaps (const DeskSceneComposition & comp,
 
         for (int i = 0; i < comp.extraCount && i < (int) m_extras.size() && SUCCEEDED (hr); i++)
         {
+            if (!comp.IsExtraShown (i))
+            {
+                continue;
+            }
+
             size_t  kind = (size_t) m_extras[(size_t) i].drive.model;
 
 
@@ -1833,6 +1843,11 @@ HRESULT DeskScene::DrawExtras (const DeskSceneComposition & comp, const D3D11_VI
 
     for (int i = 0; i < comp.extraCount && i < (int) m_extras.size(); i++)
     {
+        if (!comp.IsExtraShown (i))
+        {
+            continue;
+        }
+
         const ExtraDrive  & extra   = m_extras[(size_t) i];
         size_t              kind    = (size_t) extra.drive.model;
         size_t              lit     = extra.lampOn ? 1 : 0;
@@ -2392,6 +2407,11 @@ HRESULT DeskScene::DrawShadows (const DeskSceneComposition & comp,
     // stack's bottom drive gets a contact shadow on the desk.
     for (int i = 0; i < comp.extraCount && i < (int) m_extras.size(); i++)
     {
+        if (!comp.IsExtraShown (i))
+        {
+            continue;
+        }
+
         size_t  kind = (size_t) m_extras[(size_t) i].drive.model;
 
 

@@ -860,7 +860,7 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
                                                       kFramebufferWidth, kFramebufferHeight,
                                                       m_shell.m_scene->GetScene().Metrics(), comp,
                                                       m_shell.m_scene->DeskSceneDriveCount(), m_deskSlideProgress,
-                                                      GetDeskSlideClearPx());
+                                                      GetDeskSlideClearPx(), m_dockHover);
         BAIL_OUT_IF (hrLayout != S_OK, S_OK);
 
         m_deskSlideBox = full;
@@ -900,7 +900,7 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
             {
                 hrLayout = DeskSceneLayout::ComputeSliding (sceneBox, m_shell.m_scaler.GetDpi(), driveCount, metrics,
                                                             m_deskSlideProgress, GetDeskSlideClearPx(), comp,
-                                                            m_shell.m_scene->GetView());
+                                                            m_shell.m_scene->GetView(), m_dockHover);
             }
             else
             {
@@ -1041,27 +1041,54 @@ Error:
 
 void ShellChrome::ComposeDeskSlide (float progress)
 {
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (!m_shell.IsDeskSlideActive() || progress == m_deskSlideProgress, S_OK);
+
+    m_deskSlideProgress = progress;
+
+    RecomposeDeskSlide();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::RecomposeDeskSlide
+//
+//  Re-solves the slide at its progress and the dock's magnification inside
+//  the scene box the last layout used, and pushes it to the scene.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::RecomposeDeskSlide()
+{
     HRESULT                hr     = S_OK;
     DeskSceneComposition   comp;
 
 
 
-    BAIL_OUT_IF (!m_shell.IsDeskSlideActive() || progress == m_deskSlideProgress, S_OK);
     BAIL_OUT_IF (m_deskSlideBox.right <= m_deskSlideBox.left, S_OK);
-
-    m_deskSlideProgress = progress;
 
     if (m_shell.m_renderer->GetD3D().IsFullscreen())
     {
         hr = DeskSceneLayout::ComputeGlassFill (m_deskSlideBox, m_shell.m_scaler.GetDpi(), kFramebufferWidth, kFramebufferHeight,
                                                 m_shell.m_scene->GetScene().Metrics(), comp,
-                                                m_shell.m_scene->DeskSceneDriveCount(), progress, GetDeskSlideClearPx());
+                                                m_shell.m_scene->DeskSceneDriveCount(), m_deskSlideProgress, GetDeskSlideClearPx(),
+                                                m_dockHover);
     }
     else
     {
         hr = DeskSceneLayout::ComputeSliding (m_deskSlideBox, m_shell.m_scaler.GetDpi(), m_shell.m_scene->DeskSceneDriveCount(),
-                                              m_shell.m_scene->GetScene().Metrics(), progress, GetDeskSlideClearPx(), comp,
-                                              m_shell.m_scene->GetView());
+                                              m_shell.m_scene->GetScene().Metrics(), m_deskSlideProgress, GetDeskSlideClearPx(), comp,
+                                              m_shell.m_scene->GetView(), m_dockHover);
     }
 
     BAIL_OUT_IF (hr != S_OK, S_OK);
@@ -1073,6 +1100,52 @@ void ShellChrome::ComposeDeskSlide (float progress)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::UpdateDockHover
+//
+//  The magnification grows over kDockEaseMs once the dock is fully up and the
+//  pointer is over it, and shrinks back over the same time once the pointer
+//  is off it, about the pointer's last place so the row settles where it
+//  was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellChrome::UpdateDockHover (POINT cursor, bool isOverDock, int64_t nowMs)
+{
+    constexpr float  kDockEaseMs = 120.0f;
+    DeskDockHover    next        = m_dockHover;
+    float            target      = (isOverDock && m_deskSlideProgress >= 1.0f) ? 1.0f : 0.0f;
+    float            step        = (m_dockHoverMs > 0) ? std::clamp ((float) (nowMs - m_dockHoverMs) / kDockEaseMs, 0.0f, 1.0f) : 0.0f;
+    bool             isChanged   = false;
+
+
+
+    m_dockHoverMs = nowMs;
+
+    if (target > 0.0f)
+    {
+        next.pointerPx = (float) cursor.x;
+    }
+
+    next.strength = (target > next.strength) ? std::min (target, next.strength + step)
+                                             : std::max (target, next.strength - step);
+
+    isChanged = next.pointerPx != m_dockHover.pointerPx || next.strength != m_dockHover.strength;
+
+    if (isChanged)
+    {
+        m_dockHover = next;
+        RecomposeDeskSlide();
+    }
+
+    return isChanged;
 }
 
 

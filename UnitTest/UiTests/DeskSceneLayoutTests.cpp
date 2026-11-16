@@ -269,6 +269,80 @@ public:
         Assert::IsTrue (full.driveWorld[0][0] < 1.0f, L"nearer the eye than the monitor, the drives are scaled to look its size");
     }
 
+    //  THE DOCK MAGNIFIES UNDER THE POINTER: the drive under it grows, a drive
+    //  far from it does not, the row spreads so nothing overlaps, and every
+    //  back stays clear of the monitor.
+    TEST_METHOD (Dock_Magnifies_Under_The_Pointer)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        RECT                  vp            = { 0, 0, 1120, 768 };
+        DeskSceneComposition  rest;
+        DeskSceneComposition  grown;
+        DeskDockHover         hover;
+        float                 lo[3]         = {};
+        float                 hi[3]         = {};
+        float                 prevRight     = -FLT_MAX;
+        float                 monitorFrontZ = -metrics.monitorMin[1];
+
+
+
+        for (int i = 0; i < 4; i++)
+        {
+            AddExtraModel (metrics, DeskDriveModel::Apple35Drive, DeskDriveSpot::RightStack, i);
+        }
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f, kSlideClearPx, rest));
+
+        hover.pointerPx = (float) (rest.driveRectPx[0].left + rest.driveRectPx[0].right) * 0.5f;
+        hover.strength  = 1.0f;
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f, kSlideClearPx, grown, DeskSceneView {}, hover));
+
+        Assert::IsTrue (grown.driveWorld[0][0] > rest.driveWorld[0][0] * 1.8f, L"the drive under the pointer grows");
+        Assert::IsTrue (std::abs (grown.extraWorld[3][0] - rest.extraWorld[3][0]) < 1e-4f, L"a drive far from the pointer does not");
+        Assert::IsTrue (grown.driveRectPx[0].left <= (LONG) hover.pointerPx && (LONG) hover.pointerPx <= grown.driveRectPx[0].right,
+                        L"the grown drive is still under the pointer");
+
+        for (int i = -2; i < 4; i++)
+        {
+            const float  * world = (i < 0) ? grown.driveWorld[i + 2] : grown.extraWorld[i];
+            const float  * mlo   = (i < 0) ? metrics.driveMin : metrics.extras[i].min;
+            const float  * mhi   = (i < 0) ? metrics.driveMax : metrics.extras[i].max;
+
+            GetWorldBox (world, mlo, mhi, lo, hi);
+            Assert::IsTrue (lo[0] >= prevRight - 0.01f, L"the grown row does not overlap");
+            Assert::IsTrue (lo[2] >= monitorFrontZ + DeskSceneLayout::kSlideMonitorGapMm - 0.01f, L"every back is clear of the monitor");
+            prevRight = hi[0];
+        }
+    }
+
+    //  A HARD DISK STAYS ON THE DESK UNDER AUTO-HIDE: only the floppy drives
+    //  and the recorder are in the dock, and the hard disk is drawn whether
+    //  the dock is up or down.
+    TEST_METHOD (Sliding_Keeps_The_Hard_Disk_On_The_Desk)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1120, 768 };
+        DeskSceneComposition  hidden;
+        DeskSceneComposition  full;
+
+
+
+        AddExtraModel (metrics, DeskDriveModel::ProFile,      DeskDriveSpot::LeftStack,  0);
+        AddExtraModel (metrics, DeskDriveModel::Apple35Drive, DeskDriveSpot::RightStack, 0);
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 0.0f, kSlideClearPx, hidden));
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f, kSlideClearPx, full));
+
+        Assert::IsTrue  (hidden.IsExtraShown (0), L"the hard disk is on the desk with the dock down");
+        Assert::IsFalse (hidden.IsExtraShown (1), L"the docked drive is not drawn with the dock down");
+        Assert::AreEqual (0, full.extraDocked[0]);
+        Assert::AreEqual (1, full.extraDocked[1]);
+        Assert::IsTrue  (memcmp (hidden.extraWorld[0], full.extraWorld[0], sizeof (full.extraWorld[0])) == 0,
+                         L"the hard disk does not move with the dock");
+        Assert::IsTrue  (full.extraRectPx[0].right <= full.monitorRectPx.left + 1, L"the hard disk is in its stack left of the monitor");
+    }
+
     //  A DESK WITH NO DISK II SLIDES ITS OTHER DRIVES: a //c Plus has only
     //  3.5-inch drives, and they rise in front of the monitor like a pair.
     TEST_METHOD (Sliding_Raises_The_Extra_Drives_Without_A_Disk_II)
@@ -279,6 +353,7 @@ public:
         DeskSceneComposition  full;
         float                 lo[3]         = {};
         float                 hi[3]         = {};
+        float                 left          = 0.0f;
         float                 monitorFrontZ = -metrics.monitorMin[1];
 
 
@@ -289,15 +364,19 @@ public:
         AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 0, metrics, 0.0f, kSlideClearPx, hidden));
         AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 0, metrics, 1.0f, kSlideClearPx, full));
 
-        Assert::AreEqual (0, hidden.extraCount, L"hidden, the drives are not drawn");
-        Assert::AreEqual (2, full.extraCount);
+        Assert::IsFalse (hidden.IsExtraShown (0) || hidden.IsExtraShown (1), L"hidden, the drives are not drawn");
+        Assert::IsTrue  (full.IsExtraShown (0) && full.IsExtraShown (1));
+        Assert::IsTrue  (full.extraRectPx[0].bottom == full.extraRectPx[1].bottom ||
+                         std::abs (full.extraRectPx[0].bottom - full.extraRectPx[1].bottom) <= 2, L"the dock is one row, not a stack");
         Assert::IsTrue (full.extraRectPx[0].top < vp.bottom, L"fully up, the drives are in the frame");
         Assert::IsTrue (full.extraRectPx[0].bottom <= vp.bottom - kSlideClearPx + 1, L"their fronts are inside the frame");
 
         GetWorldBox (full.extraWorld[0], metrics.extras[0].min, metrics.extras[0].max, lo, hi);
         Assert::IsTrue (lo[2] >= monitorFrontZ + DeskSceneLayout::kSlideMonitorGapMm - 0.01f,
                         L"the drives are wholly in front of the monitor");
-        Assert::IsTrue (std::abs ((lo[0] + hi[0]) * 0.5f) < 1.0f, L"the drives are centered under the monitor");
+        left = lo[0];
+        GetWorldBox (full.extraWorld[1], metrics.extras[1].min, metrics.extras[1].max, lo, hi);
+        Assert::IsTrue (std::abs ((left + hi[0]) * 0.5f) < 1.0f, L"the row is centered under the monitor");
     }
 
     TEST_METHOD (Sliding_Row_Fits_Within_The_Frame)
