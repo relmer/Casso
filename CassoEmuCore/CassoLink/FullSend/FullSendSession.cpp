@@ -910,6 +910,10 @@ HRESULT FullSendSession::CheckDrive (int drive, CheckedDisk & outDisk)
     {
         m_status.SetTitle (drive, "Blank disk", outDisk.system);
     }
+    else if (outDisk.check == DiskCheck::Repeat && !swapped)
+    {
+        m_status.SetTitle (drive, m_screen.names[(size_t) drive - 1], outDisk.system);
+    }
 
     hr = m_link.ShowScreen (m_screen);
     CHR (hr);

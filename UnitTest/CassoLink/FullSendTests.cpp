@@ -1077,6 +1077,22 @@ public:
         Assert::AreEqual (std::string ("or press 1 to send D1 anyway."), rig.link.pauseLines.back()[4]);
     }
 
+    //  The drive of a disk already sent has the image it matches, not "No disk".
+    TEST_METHOD (Session_ADiskAlreadySent_HasTheImageItMatchesInTheStatus)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+        rig.link.keys       = { FullSendKey::Space };
+
+        auto              session  = rig.Run();
+        FullSendSnapshot  snapshot = rig.status.GetSnapshot();
+
+        Assert::IsTrue   (snapshot.drives[0].state == FullSendDiskState::Duplicate);
+        Assert::AreEqual (session->GetManifest().GetRows()[0].file, snapshot.drives[0].title);
+    }
+
     //  Two Apples sending to one folder at once: the second session runs from
     //  start to end while the first is between reading its disk and writing it.
     TEST_METHOD (Session_TwoAtOnceInOneFolder_KeepEveryRow_AndNumberEachDisk)
