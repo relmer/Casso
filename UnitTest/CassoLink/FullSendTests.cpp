@@ -81,6 +81,11 @@ public:
         bool                                  bootTones      = false;
         std::array<bool, 2>                   writeProtected = { false, false };
         bool                                  measuring      = false;
+        double                              * clock          = nullptr;   // the status's clock, which a disk read and a raw capture advance
+        double                                readSeconds    = 0.0;
+        double                                captureSeconds = 0.0;
+
+        void  Advance (double seconds) { if (clock != nullptr) { *clock += seconds; } }
         std::vector<TrackLayout>              layouts;   // each track's, for a read when measuring and for MeasureLayouts
         std::vector<int>                      measures;  // the tracks of each MeasureLayouts
 
@@ -141,6 +146,7 @@ public:
             int  read = (int) diskReads.size() + 1;
 
             diskReads.push_back (drive);
+            Advance (readSeconds);
 
             if (failDiskRead != S_OK)
             {
@@ -185,6 +191,7 @@ public:
         HRESULT  CaptureRaw (int drive, bool withEarlier, Image & outWoz, Image & outReads, std::string & outMarks) override
         {
             captures.push_back (drive);
+            Advance (captureSeconds);
             capturesWithEarlier += withEarlier ? 1 : 0;
             outWoz   = rawWoz;
             outReads = rawReads;
@@ -251,11 +258,14 @@ public:
 
     struct Rig
     {
-        ScriptedLink    link;
-        FakeDiskFileIo  io;
-        std::string     extension;
-        std::string     prefix;
-        FullSendStatus             status { [] () { return 0.0; }, [] () { return std::string(); } };
+        Rig() { link.clock = &now; }
+
+        ScriptedLink               link;
+        FakeDiskFileIo             io;
+        std::string                extension;
+        std::string                prefix;
+        double                     now        = 0.0;
+        FullSendStatus             status     { [this] () { return now; }, [] () { return std::string(); } };
         FullSendProtectionChoices  protection;
 
         std::unique_ptr<FullSendSession>  Run (HRESULT result = HRESULT_FROM_WIN32 (ERROR_CANCELLED))
@@ -1204,6 +1214,31 @@ public:
 
         Assert::IsTrue (unmeasured->GetManifest().GetRows()[0].file.ends_with (".dsk"));
         Assert::IsTrue (off.link.measures.empty());
+    }
+
+    //  A disk captured raw after its sector read took the read's time and the
+    //  capture's, and both are active time.
+    TEST_METHOD (Session_ADiskCapturedRawAfterItsRead_TookTheReadAndTheCapture)
+    {
+        Rig               rig;
+        FullSendSnapshot  snapshot;
+
+        rig.link.drives[0]      = Other (1);
+        rig.link.badDisk        = rig.link.drives[0];
+        rig.link.badSectors     = { { 5, 0 }, { 6, 0 } };
+        rig.link.reportEmpty    = 3;
+        rig.link.present[1]     = false;
+        rig.link.readSeconds    = 30.0;
+        rig.link.captureSeconds = 300.0;
+
+        rig.Run();
+
+        snapshot = rig.status.GetSnapshot();
+
+        Assert::AreEqual ((size_t) 1, rig.link.captures.size(), L"The disk is captured raw");
+        Assert::AreEqual ((size_t) 1, snapshot.disks.size());
+        Assert::AreEqual (330.0, snapshot.disks[0].seconds, 0.001, L"The disk's time");
+        Assert::AreEqual (330.0, snapshot.totals.elapsed, 0.001, L"The session's active time");
     }
 
     TEST_METHOD (Session_WithBootTonesOnTheApple_TheResultsToneIsInPlaceOfTheDisks)

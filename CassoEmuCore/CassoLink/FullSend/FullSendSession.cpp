@@ -1120,6 +1120,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     bool                                whole            = false;
     bool                                same             = false;
     int                                 afterTrack       = 0;
+    std::string                         took;
     std::unique_lock<std::mutex>        folderLock       = std::unique_lock<std::mutex> (GetFolderLock (m_folder), std::defer_lock);
 
 
@@ -1285,14 +1286,17 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
         m_screen.recovered += (row.recovered != 0 || row.unreliable != 0) ? 1 : 0;
     }
 
-    Report (earlier != nullptr          ? std::format ("Disk {:04} is {}, a duplicate of {}", sequence, row.file, row.duplicateOf)
-                 : !row.duplicateOf.empty()    ? std::format ("Disk {:04} is {}, sent again though it matches {}", sequence, row.file, row.duplicateOf)
-                 : !raw.empty()                ? std::format ("Disk {:04} is {}, a raw capture of a disk that is likely copy-protected", sequence, row.file)
-                                               : std::format ("Disk {:04} is {}, with {} unreadable sectors", sequence, row.file, row.unreadable));
-
-    m_manifest.Add (row);
     m_status.SetTitle (drive, title, FullSendDisk::GetSystemName (image));
     m_status.EndDisk (drive, row, earlier != nullptr ? 0 : raw.empty() ? image.size() : raw.size());
+
+    took = CassoLinkDiskTransfer::FormatDuration (m_status.GetSnapshot().disks.front().seconds);
+
+    Report (earlier != nullptr          ? std::format ("Disk {:04} is {}, a duplicate of {}. It took {}.", sequence, row.file, row.duplicateOf, took)
+                 : !row.duplicateOf.empty()    ? std::format ("Disk {:04} is {}, sent again though it matches {}. It took {}.", sequence, row.file, row.duplicateOf, took)
+                 : !raw.empty()                ? std::format ("Disk {:04} is {}, a raw capture of a disk that is likely copy-protected. It took {}.", sequence, row.file, took)
+                                               : std::format ("Disk {:04} is {}, with {} unreadable sectors. It took {}.", sequence, row.file, row.unreadable, took));
+
+    m_manifest.Add (row);
 
     hr = WriteManifest();
     CHRF (hr, m_fileFailed = true);
@@ -1832,8 +1836,10 @@ Error:
 
 void FullSendSession::End (HRESULT hr)
 {
-    std::string  why;
-    std::string  model = m_link.GetModelName();
+    std::string     why;
+    std::string     model = m_link.GetModelName();
+    std::string     times;
+    FullSendTotals  totals;
 
 
 
@@ -1856,9 +1862,12 @@ void FullSendSession::End (HRESULT hr)
         default:                         why = "The link failed.";                                                                                                            break;
     }
 
-    m_message = std::format ("Full Send ended with {} sent, {} duplicates and {} with bad sectors. {}", m_screen.sent, m_screen.duplicates, m_screen.bad, why);
-
     m_status.End (why);
+
+    totals    = m_status.GetSnapshot().totals;
+    times     = std::format ("{} active, {} idle", CassoLinkDiskTransfer::FormatDuration (totals.elapsed), CassoLinkDiskTransfer::FormatDuration (totals.idle));
+    times    += totals.sent != 0 ? std::format (", {} a disk", CassoLinkDiskTransfer::FormatDuration (totals.average)) : std::string();
+    m_message = std::format ("Full Send ended with {} sent, {} duplicates and {} with bad sectors. {}. {}", m_screen.sent, m_screen.duplicates, m_screen.bad, times, why);
 }
 
 

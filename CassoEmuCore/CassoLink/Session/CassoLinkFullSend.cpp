@@ -63,7 +63,6 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
     operation.message         = session.GetMessage();
     operation.imagePrefix     = session.GetPrefix();
     operation.fullSendSummary = std::format ("{} sent, {} bad, {} dup", session.GetScreen().sent, session.GetScreen().bad, session.GetScreen().duplicates);
-    m_session.m_sink.OnActivity (operation.message);
     m_operation       = nullptr;
 
     for (size_t i = 0; i < CassoLinkSessionTypes::kDriveCount; i++)
