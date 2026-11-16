@@ -26,7 +26,7 @@ public:
 
     TEST_METHOD (EachStockDiskIsARow_WithItsPathAndWhetherItIsDownloaded)
     {
-        std::vector<StockDiskRow>  disks = { { L"DOS 3.3 System Master", L"C:\\Stock\\DOS 3.3 System Master.dsk", true, L"Boots on every Apple II." },
+        std::vector<StockDiskRow>  disks = { { L"DOS 3.3 System Master", L"C:\\Stock\\DOS 3.3 System Master.dsk", true, L"Boots on every Apple II with a Disk II drive." },
                                              { L"ProDOS Users Disk",     L"C:\\Stock\\ProDOS Users Disk.dsk",     false } };
         std::vector<CatalogRow>    rows;
 
@@ -42,7 +42,7 @@ public:
         Assert::IsTrue  (rows[1].isStockDisk);
         Assert::IsFalse (rows[1].stockDownloaded);
         Assert::IsFalse (rows[0].isDirectory);
-        Assert::AreEqual (std::wstring (L"Boots on every Apple II."), rows[0].stockNote, L"the tooltip's text");
+        Assert::AreEqual (std::wstring (L"Boots on every Apple II with a Disk II drive."), rows[0].stockNote, L"the tooltip's text");
     }
 
 

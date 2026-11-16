@@ -104,7 +104,7 @@ const wchar_t * StockBootDisks::GetCompatibility (Which disk)
 {
     switch (disk)
     {
-        case Which::Dos33Master:      return L"Boots on every Apple II.";
+        case Which::Dos33Master:      return L"Boots on every Apple II with a Disk II drive.";
         case Which::ProDosUsersDisk:  return L"Requires 64K: a //e or //c, or a ][ or ][+ with a language card.";
         case Which::ProDos243Disk:    return L"Boots on every Apple II with 64K, which a ][ or ][+ has with a language card.";
         case Which::PascalBootDisk:
