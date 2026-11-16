@@ -400,6 +400,11 @@ void PreviewDiskThumbnail::Create()
 //  Another file starts over with "Analyzing"; an empty path is no
 //  thumbnail.
 //
+//  The infobar's space stays, empty, while the next image is read after one
+//  that had an infobar, so the catalog under it doesn't jump down when the
+//  next one's infobar arrives. Its text stays in the hidden infobar to
+//  measure the space.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void PreviewDiskThumbnail::SetPath (const std::wstring & path)
@@ -408,6 +413,8 @@ void PreviewDiskThumbnail::SetPath (const std::wstring & path)
     {
         return;
     }
+
+    m_isVerdictReserved = !path.empty() && (HasVerdict() || m_isVerdictReserved);
 
     m_path         = path;
     m_state        = State::Analyzing;
@@ -501,6 +508,8 @@ void PreviewDiskThumbnail::ApplyResult()
     std::wstring      text;
 
 
+
+    m_isVerdictReserved = false;
 
     if (!m_result.isOpened || copy == nullptr)
     {
@@ -659,7 +668,7 @@ int PreviewDiskThumbnail::Layout (const RECT & area, int scrollPx, int bottomPx,
         return area.top;
     }
 
-    if (HasVerdict())
+    if (HasVerdict() || m_isVerdictReserved)
     {
         PlaceVerdict (area, top, GetVerdictHeightPx (width) - gap);
         top     += GetVerdictHeightPx (width);
@@ -885,7 +894,8 @@ bool PreviewDiskThumbnail::HandlePlatterMouse (const DxuiMouseEvent & ev)
 //  PreviewDiskThumbnail::GetVerdictHeightPx
 //
 //  The infobar as tall as its text wrapped to the pane's width, measured
-//  where the window has a text renderer, and a gap; nothing for none.
+//  where the window has a text renderer, and a gap; nothing for none. The
+//  last image's, hidden, while its space is reserved for the next image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -899,7 +909,7 @@ int PreviewDiskThumbnail::GetVerdictHeightPx (int widthPx) const
 
 
 
-    if (!HasVerdict())
+    if (!HasVerdict() && !m_isVerdictReserved)
     {
         return 0;
     }

@@ -1643,6 +1643,86 @@ public:
     }
 
 
+    //  From one damaged image to the next, the infobar's space stays while the
+    //  next is read, empty, so the catalog doesn't move down when its infobar
+    //  arrives. After a clean image is read the space closes.
+    TEST_METHOD (Preview_TheInfobarsSpaceStaysWhileTheNextImageIsRead_At100And150Percent)
+    {
+        vector<Byte>  damaged = RepairFixtures::MakeDos33Bitmap().damaged;
+        vector<Byte>  clean   = RepairFixtures::MakeDos33();
+
+
+
+        for (UINT dpi : { 96u, 144u })
+        {
+            Rig                    rig;
+            std::filesystem::path  folder = std::filesystem::temp_directory_path() / std::format (L"CassoPreviewReserve{}_{}", ::GetCurrentProcessId(), dpi);
+            LONG                   top    = 0;
+
+            rig.scaler.SetDpi (dpi);
+            rig.prefs.previewVisible = true;
+            std::filesystem::create_directories (folder);
+
+            for (std::pair<const wchar_t *, const vector<Byte> *> file : { std::pair { L"a.dsk", &damaged }, { L"b.dsk", &damaged }, { L"c.dsk", &clean } })
+            {
+                std::string  narrow = (folder / file.first).string();
+
+                AssertSucceeded (rig.fs.WriteAllText ((folder / file.first).c_str(), std::string (file.second->begin(), file.second->end())));
+                rig.io.files[narrow]  = *file.second;
+                rig.io.stamps[narrow] = FileStamp { file.second->size(), 100 };
+                AssertSucceeded (DiskImageStore::WriteFileAtomically (narrow, *file.second));
+            }
+
+            rig.Open();
+            rig.parts->layout.SetClient (RECT { 0, 0, rig.scaler.ToPx (1280), rig.scaler.ToPx (900) });
+            Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+            rig.parts->listPane.FillList();
+
+            auto  select = [&rig] (const wchar_t * name)
+            {
+                Assert::IsTrue (rig.parts->listPane.SelectRowNamed (name));
+                rig.parts->preview.FillPreview();
+                rig.parts->layout.RecomputeLayout();
+            };
+
+            auto  read = [&rig]()
+            {
+                Assert::IsTrue (WaitFor (rig, [&rig]()
+                {
+                    rig.parts->layout.RecomputeLayout();
+
+                    return rig.parts->preview.GetThumbnail().IsReady();
+                }));
+
+                rig.parts->layout.RecomputeLayout();
+            };
+
+            select (L"a.dsk");
+            read();
+            Assert::IsTrue (rig.parts->preview.GetThumbnail().GetVerdict().IsVisible(), L"a's infobar");
+            top = rig.parts->preview.GetContentRect().top;
+
+            select (L"b.dsk");
+            Assert::IsFalse  (rig.parts->preview.GetThumbnail().IsReady(), L"b is being read");
+            Assert::IsFalse  (rig.parts->preview.GetThumbnail().GetVerdict().IsVisible(), L"no infobar while b is read");
+            Assert::AreEqual (top, rig.parts->preview.GetContentRect().top, std::format (L"the catalog stays put while b is read at {} dpi", dpi).c_str());
+
+            read();
+            Assert::IsTrue   (rig.parts->preview.GetThumbnail().GetVerdict().IsVisible(), L"b's infobar");
+            Assert::AreEqual (top, rig.parts->preview.GetContentRect().top, std::format (L"and when b's infobar arrives at {} dpi", dpi).c_str());
+
+            select (L"c.dsk");
+            Assert::AreEqual (top, rig.parts->preview.GetContentRect().top, L"the space stays while c is read");
+
+            read();
+            Assert::IsFalse (rig.parts->preview.GetThumbnail().GetVerdict().IsVisible(), L"c has no infobar");
+            Assert::IsTrue  (rig.parts->preview.GetContentRect().top < top, L"and the space closes");
+
+            std::filesystem::remove_all (folder);
+        }
+    }
+
+
     //  In a pane too short for a disk image's thumbnail and catalog, the wheel
     //  scrolls the thumbnail away before the catalog, clipped under the
     //  toolbar, and back again, at 100% and at 150%.

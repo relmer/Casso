@@ -254,15 +254,16 @@ private:
     InspectorViewModel                      m_model;
     DiskThumbnailWorker                     m_worker;
     DiskThumbnailResult                     m_result;
-    DxuiScrollPanel                       * m_header         = nullptr;   // the controls below, clipped where the pane scrolls them away
-    ThumbnailPlatterView                  * m_platter        = nullptr;
-    ThumbnailChips                        * m_chips          = nullptr;
-    ThumbnailScreen                       * m_screen         = nullptr;
-    DxuiLabel                             * m_bootLine       = nullptr;   // the boot result, under the picture
-    DxuiInfoBanner                        * m_verdict        = nullptr;
-    DxuiButton                            * m_inspect        = nullptr;   // Inspect..., at the platter area's bottom right
-    ThumbnailScrollbar                    * m_scrollbar      = nullptr;   // a window child after the views, so it's offered the mouse first
-    bool                                    m_isVerdictShown = false;
+    DxuiScrollPanel                       * m_header            = nullptr;   // the controls below, clipped where the pane scrolls them away
+    ThumbnailPlatterView                  * m_platter           = nullptr;
+    ThumbnailChips                        * m_chips             = nullptr;
+    ThumbnailScreen                       * m_screen            = nullptr;
+    DxuiLabel                             * m_bootLine          = nullptr;   // the boot result, under the picture
+    DxuiInfoBanner                        * m_verdict           = nullptr;
+    DxuiButton                            * m_inspect           = nullptr;   // Inspect..., at the platter area's bottom right
+    ThumbnailScrollbar                    * m_scrollbar         = nullptr;   // a window child after the views, so it's offered the mouse first
+    bool                                    m_isVerdictShown    = false;
+    bool                                    m_isVerdictReserved = false;     // the last image's infobar space is reserved while the next is read
 
     std::shared_ptr<const DxuiIconImage>    m_picture;
     std::wstring                            m_path;
