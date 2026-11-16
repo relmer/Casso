@@ -613,30 +613,29 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         }
 
         // A 3.5-inch drive or hard disk on the desk, or a Disk II in a stack,
-        // has no name strip, so its case's tip has its name, its size and its
-        // image.
-        if (tip.empty() && DeskSceneActive() && !AreDrivesOnStrip())
+        // has no name strip, so the drive under the pointer has its image's
+        // name on its front.
         {
-            const DeskSceneComposition  & comp = m_scene->m_deskScene.Composition();
+            const DeskSceneComposition  & comp       = m_scene->m_deskScene.Composition();
+            int                           hoverExtra = -1;
+            int                           hoverDisk  = -1;
+            bool                          isOnDesk   = DeskSceneActive() && !AreDrivesOnStrip();
 
 
 
-            for (int i = 0; i < comp.driveCount && i < 2 && m_scene->AreDiskIiStacked() && tip.empty(); i++)
+            for (int i = 0; isOnDesk && i < comp.extraCount && i < m_scene->m_deskScene.GetExtraCount() && hoverExtra < 0; i++)
             {
-                if (PtInRect (&comp.driveRectPx[i], pointer))
-                {
-                    anchor = comp.driveRectPx[i];
-                    tip    = m_scene->GetDiskIiTip (i);
-                }
+                hoverExtra = PtInRect (&comp.extraRectPx[i], pointer) ? i : -1;
             }
 
-            for (int i = 0; i < comp.extraCount && i < m_scene->m_deskScene.GetExtraCount() && tip.empty(); i++)
+            for (int i = 0; isOnDesk && hoverExtra < 0 && i < comp.driveCount && i < 2 && m_scene->AreDiskIiStacked() && hoverDisk < 0; i++)
             {
-                if (PtInRect (&comp.extraRectPx[i], pointer))
-                {
-                    anchor = comp.extraRectPx[i];
-                    tip    = m_scene->GetExtraDriveTip (i);
-                }
+                hoverDisk = PtInRect (&comp.driveRectPx[i], pointer) ? i : -1;
+            }
+
+            if (m_scene->SetHoverDrive (hoverExtra, hoverDisk))
+            {
+                m_renderer->m_d3dRenderer.MarkRedrawNeeded();
             }
         }
 
@@ -704,6 +703,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
     // and the desk's scrolling name returns to its start.
     m_tapeDeck->GetWidget().UpdateHover (INT_MIN / 2, INT_MIN / 2);
     m_scene->m_recorderHoverKey = -1;
+    m_scene->SetHoverDrive (-1, -1);
 
     if (m_scene->UpdateSceneLabelHover (INT_MIN / 2, INT_MIN / 2, nowMs))
     {

@@ -154,16 +154,21 @@ public:
     // texture is grown rather than resized, so even a lone label rarely
     // covers all of it.
     // The baked labels the scene draws: the drives' names, the recorder's,
-    // and the info icon after each drive's name (see
-    // EmulatorShell::s_kSceneLabelCount).
-    static constexpr int  kLabelCount = 8;
+    // the name of the drive under the pointer, and the info icon after each
+    // drive's name (see ShellDeskScene::s_kSceneLabelCount).
+    static constexpr int  kLabelCount = 9;
     // The name of the recorder key under the pointer. A tip rather than a
     // decal, so it is drawn over everything, and the recorder's own front
     // lip never cuts through it.
     static constexpr int  kTipLabel   = 4;
 
+    // `alpha` fades the label: a drive's hover name fades as its face turns
+    // away from the viewer.
     void  SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const float corners[4][3],
-                        const float uv[4]);
+                        const float uv[4], float alpha = 1.0f);
+
+    // A desk extra drive's model bounds; false when its model isn't loaded.
+    bool  GetExtraModelBounds (int index, float outMin[3], float outMax[3]) const;
 
     // The measured metrics DeskSceneLayout composes with.
     DeskSceneMetrics  Metrics () const;

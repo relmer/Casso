@@ -74,7 +74,6 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Core/TextEncoding.h"
-#include "Shell/Layout/DriveLabel.h"
 #include "Shell/Layout/DriveLamp.h"
 
 
@@ -1660,6 +1659,13 @@ void ShellDeskScene::SyncSceneDriveLabels()
         }
     }
 
+    // The drive under the pointer that has no name strip has its name on its
+    // face.
+    if (inScene)
+    {
+        fullNames[s_kSceneHoverCell] = GetHoverLabelText();
+    }
+
     SyncStripTapeLabels (comp, onStrip, fullNames);
 
     if (inScene)
@@ -1846,13 +1852,17 @@ bool ShellDeskScene::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
 
 float ShellDeskScene::GetSceneLabelScrollPx (int drive, int64_t nowMs)
 {
-    float    period   = m_sceneDiskLabelPeriod[(size_t) drive];
-    float    speed    = (float) m_shell.m_scaler.ToPx (1) * s_kSceneLabelScrollDipPerSec;
-    int64_t  scrollMs = 0;
+    // The hover label is on the drive under the pointer, so it scrolls from
+    // when the pointer moved onto that drive.
+    float      period   = m_sceneDiskLabelPeriod[(size_t) drive];
+    float      speed    = (float) m_shell.m_scaler.ToPx (1) * s_kSceneLabelScrollDipPerSec;
+    int64_t    scrollMs = 0;
+    bool       isHover  = drive == s_kSceneHoverCell;
+    int64_t  & startMs  = isHover ? m_hoverLabelMs : m_sceneLabelHoverMs;
 
 
 
-    if (drive != m_sceneLabelHover || period <= 0.0f || speed <= 0.0f)
+    if ((!isHover && drive != m_sceneLabelHover) || period <= 0.0f || speed <= 0.0f)
     {
         return 0.0f;
     }
@@ -1860,12 +1870,12 @@ float ShellDeskScene::GetSceneLabelScrollPx (int drive, int64_t nowMs)
     // Finished and still under the pointer: go again after the hold.
     scrollMs = (int64_t) (period / speed * 1000.0f);
 
-    if (nowMs - (m_sceneLabelHoverMs + scrollMs) >= s_kSceneLabelScrollHoldMs)
+    if (nowMs - (startMs + scrollMs) >= s_kSceneLabelScrollHoldMs)
     {
-        m_sceneLabelHoverMs = nowMs;
+        startMs = nowMs;
     }
 
-    return TapeDeckWidget::GetMarqueeOffset (nowMs, m_sceneLabelHoverMs, period, speed);
+    return TapeDeckWidget::GetMarqueeOffset (nowMs, startMs, period, speed);
 }
 
 
@@ -2248,6 +2258,11 @@ bool ShellDeskScene::TryMakeSceneLabelQuad (const DeskSceneComposition & comp, i
         return TryMakeCassetteTitleQuad (comp, cellPx, corners);
     }
 
+    if (cell == s_kSceneHoverCell)
+    {
+        return TryMakeHoverLabelQuad (comp, cellPx, corners);
+    }
+
     if (comp.hasRecorder == 0 ||
         !GetRecorderLabelAnchor (comp, (cell == s_kSceneKeyCell) ? m_recorderHoverKey : -1, anchor))
     {
@@ -2308,6 +2323,139 @@ bool ShellDeskScene::TryMakeCassetteTitleQuad (const DeskSceneComposition & comp
     }
 
     return isMade;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::TryMakeHoverLabelQuad
+//
+//  The hover label lies on the drive's front, a little proud of it, so it
+//  turns with the drive, and the drive's case and anything in front of it
+//  cover it. It fades out as the front turns edge-on and is not drawn from
+//  behind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::TryMakeHoverLabelQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3])
+{
+    float          boundsMin[3] = {};
+    float          boundsMax[3] = {};
+    float          normal[3]    = {};
+    float          center[3]    = {};
+    const float *  world        = nullptr;
+    LONG           cellW        = GetSceneLabelCellWidthPx  (s_kSceneHoverCell, cellPx);
+    LONG           cellH        = GetSceneLabelCellHeightPx (s_kSceneHoverCell, cellPx);
+    float          aspect       = (cellH > 0) ? (float) cellW / (float) cellH : 0.0f;
+    bool           isMade       = false;
+
+
+
+    m_hoverLabelAlpha = 0.0f;
+
+    if (m_hoverExtra >= 0 && m_hoverExtra < comp.extraCount && m_deskScene.GetExtraModelBounds (m_hoverExtra, boundsMin, boundsMax))
+    {
+        world = comp.extraWorld[m_hoverExtra];
+    }
+    else if (m_hoverDiskIi >= 0 && m_hoverDiskIi < comp.driveCount)
+    {
+        m_deskScene.DriveModel().BoundsMin (boundsMin);
+        m_deskScene.DriveModel().BoundsMax (boundsMax);
+        world = comp.driveWorld[m_hoverDiskIi];
+    }
+
+    isMade = world != nullptr && DeskSceneLayout::TryMakeFaceLabelQuad (world, boundsMin, boundsMax, aspect, corners, normal);
+
+    for (int axis = 0; isMade && axis < 3; axis++)
+    {
+        center[axis] = (corners[0][axis] + corners[3][axis]) * 0.5f;
+    }
+
+    if (isMade)
+    {
+        m_hoverLabelAlpha = DeskSceneLayout::GetFaceLabelAlpha (DeskSceneLayout::GetFacing (comp.viewProj, center, normal));
+    }
+
+    return isMade && m_hoverLabelAlpha > 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetHoverLabelText
+//
+//  The mounted image's file name, with a lock ahead of it when the drive is
+//  write-protected, or the drive's title when it is empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ShellDeskScene::GetHoverLabelText() const
+{
+    std::wstring  text;
+    std::string   path;
+    bool          isLocked = false;
+
+
+
+    if (m_hoverExtra >= 0 && m_hoverExtra < m_deskScene.GetExtraCount())
+    {
+        const DeskDrive  & drive = m_deskScene.GetExtraDrive (m_hoverExtra);
+
+        path     = GetDriveImagePath (drive);
+        isLocked = IsDriveWriteProtected (drive);
+        text     = path.empty() ? GetDriveTitle (drive) : fs::path (path).filename().wstring();
+    }
+    else if (m_hoverDiskIi >= 0 && m_hoverDiskIi < 2)
+    {
+        DeskDriveModel  model = m_deskSceneMachineIsC ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII;
+
+        path     = m_shell.m_machine.GetDiskStore().GetSourcePath (6, m_hoverDiskIi);
+        isLocked = !path.empty() && m_shell.m_disks->GetDriveWidgetState()[(size_t) m_hoverDiskIi].writeProtect.Any();
+        text     = path.empty() ? GetDriveTitle ({ model, 6, m_hoverDiskIi, false }) : fs::path (path).filename().wstring();
+    }
+
+    if (isLocked && !path.empty())
+    {
+        text = std::wstring (s_kpszLock) + L" " + text;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::SetHoverDrive
+//
+//  -1 for both clears it. Returns whether the drive changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::SetHoverDrive (int extraIndex, int diskIi)
+{
+    bool  isChanged = extraIndex != m_hoverExtra || diskIi != m_hoverDiskIi;
+
+
+
+    if (isChanged)
+    {
+        m_hoverExtra   = extraIndex;
+        m_hoverDiskIi  = diskIi;
+        m_hoverLabelMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        SyncSceneDriveLabels();
+    }
+
+    return isChanged;
 }
 
 
@@ -2396,7 +2544,7 @@ void ShellDeskScene::SyncSceneDiskLabelQuads (const std::array<std::wstring, s_k
             uv[3] = (top + height)                / (float) texH;
         }
 
-        m_deskScene.SetDiskLabel (i, m_sceneDiskLabelSrv, corners, uv);
+        m_deskScene.SetDiskLabel (i, m_sceneDiskLabelSrv, corners, uv, (i == s_kSceneHoverCell) ? m_hoverLabelAlpha : 1.0f);
     }
 }
 
@@ -3831,39 +3979,6 @@ bool ShellDeskScene::IsDriveWriteProtected (const DeskDrive & drive) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDeskScene::GetExtraDriveTip
-//
-//  The drive's two-line label, numbered as on the drive bar when the desk
-//  has two of its kind, then its image.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ShellDeskScene::GetExtraDriveTip (int extraIndex) const
-{
-    const DeskDrive  & drive = m_deskScene.GetExtraDrive (extraIndex);
-    int                kind  = 0;
-    std::string        path  = GetDriveImagePath (drive);
-
-
-
-    for (int i = 0; i < m_deskScene.GetExtraCount(); i++)
-    {
-        kind += (m_deskScene.GetExtraDrive (i).model == drive.model) ? 1 : 0;
-    }
-
-    return DriveLabel::GetTip (DriveLabel::GetTitle (drive, kind > 1),
-                               DriveLabel::GetDetail (drive.model, GetDriveDiskBlocks (drive), GetDriveCapacityBlocks (drive)),
-                               path.empty() ? std::wstring() : fs::path (path).filename().wstring(),
-                               DeskDrivePlan::GetClass (drive.model) == DeskDriveClass::HardDisk,
-                               IsDriveWriteProtected (drive));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ShellDeskScene::AreDiskIiStacked
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3882,30 +3997,6 @@ bool ShellDeskScene::AreDiskIiStacked() const
     }
 
     return stacked;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDeskScene::GetDiskIiTip
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ShellDeskScene::GetDiskIiTip (int drive) const
-{
-    DeskDriveModel  model = m_deskSceneMachineIsC ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII;
-    std::string     path  = m_shell.m_machine.GetDiskStore().GetSourcePath (6, drive);
-
-
-
-    return DriveLabel::GetTip (DriveLabel::GetTitle ({ model, 6, drive, m_shell.m_disks->MachineHasBuiltInDrive() && drive == 0 }, false),
-                               DriveLabel::GetDetail (model, 0, 0),
-                               path.empty() ? std::wstring() : fs::path (path).filename().wstring(),
-                               false,
-                               m_shell.m_disks->GetDriveWidgetState()[(size_t) drive].writeProtect.Any());
 }
 
 

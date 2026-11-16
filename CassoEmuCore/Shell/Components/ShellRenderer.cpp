@@ -852,6 +852,12 @@ bool ShellRenderer::TryPresentUiFrame()
                 labelsMoved = true;
             }
 
+            if ((m_shell.m_scene->m_hoverExtra >= 0 || m_shell.m_scene->m_hoverDiskIi >= 0) &&
+                m_shell.m_scene->m_sceneDiskLabelPeriod[(size_t) ShellDeskScene::s_kSceneHoverCell] > 0.0f)
+            {
+                labelsMoved = true;
+            }
+
             if (labelsMoved)
             {
                 m_shell.m_scene->SyncSceneDriveLabels();

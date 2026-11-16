@@ -454,6 +454,40 @@ public:
                                            float                        outCorners[4][3],
                                            int                          offsetXPx = 0);
 
+    // The eye point of a view-projection matrix: the one point it sends to
+    // clip x = y = w = 0. False for a matrix with none.
+    static bool     TryGetEyePoint        (const float viewProj[16], float outEye[3]);
+
+    // A drive's hover label, lying in a plane parallel to the drive's front,
+    // kFaceLabelStandoffMm in front of the model's frontmost point: centered
+    // across the face, kFaceLabelWidthFrac of its width, its center
+    // kFaceLabelHeightFrac of the way up, with `aspect` (width over height).
+    // The corners are world space, top-left, top-right, bottom-left,
+    // bottom-right as the front is seen; `outNormal` is the face's outward
+    // normal in world space. The label turns with the drive.
+    static constexpr float  kFaceLabelStandoffMm = 0.6f;
+    static constexpr float  kFaceLabelWidthFrac  = 0.8f;
+    static constexpr float  kFaceLabelHeightFrac = 0.28f;
+
+    static bool     TryMakeFaceLabelQuad  (const float  world[16],
+                                           const float  modelMin[3],
+                                           const float  modelMax[3],
+                                           float        aspect,
+                                           float        outCorners[4][3],
+                                           float        outNormal[3]);
+
+    // How squarely a face is seen: the cosine between its outward normal and
+    // the direction from `center` to the eye. Negative from behind.
+    static float    GetFacing             (const float viewProj[16], const float center[3], const float normal[3]);
+
+    // A face label's opacity for its facing: none from behind or edge-on,
+    // where a label on the face has no thickness, and full from
+    // kFaceLabelFullFacing on.
+    static constexpr float  kFaceLabelZeroFacing = 0.15f;
+    static constexpr float  kFaceLabelFullFacing = 0.40f;
+
+    static float    GetFaceLabelAlpha     (float facing);
+
 private:
     static void     SolveStandoff (const float             sceneMin[3],
                                    const float             sceneMax[3],

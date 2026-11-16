@@ -656,6 +656,80 @@ public:
     }
 
 
+    //  THE EYE IS AT THE CAMERA: in front of the desk, a seated
+    //  viewer's distance from the monitor.
+    TEST_METHOD (Eye_IsInFrontOfTheDesk)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1600, 900 };
+        DeskSceneComposition  comp;
+        float                 eye[3]  = {};
+
+
+
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 2, metrics, comp));
+
+        Assert::IsTrue (DeskSceneLayout::TryGetEyePoint (comp.viewProj, eye));
+        Assert::IsTrue (eye[2] > DeskSceneLayout::kViewingDistanceMm * 0.5f,
+                        std::format (L"the eye is in front of the desk, at z {}", eye[2]).c_str());
+        Assert::IsTrue (std::fabs (eye[0]) < 1.0f, L"and on its centerline");
+    }
+
+
+    //  A DRIVE'S HOVER LABEL LIES ON ITS FRONT, parallel to it and just in
+    //  front of it, across the middle of the face, and faces the viewer.
+    TEST_METHOD (FaceLabel_LiesOnTheDrivesFront)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        RECT                  vp            = { 0, 0, 1600, 900 };
+        DeskSceneComposition  comp;
+        float                 corners[4][3] = {};
+        float                 normal[3]     = {};
+        float                 frontPt[3]    = {};
+        float                 front[3]      = {};
+        float                 center[3]     = {};
+
+
+
+        AddExtraModel (metrics, DeskDriveModel::UniDisk35, DeskDriveSpot::RightStack, 0);
+        AssertSucceeded (DeskSceneLayout::Compute (vp, 96, 0, metrics, comp));
+
+        Assert::IsTrue (DeskSceneLayout::TryMakeFaceLabelQuad (comp.extraWorld[0], metrics.extras[0].min, metrics.extras[0].max, 6.0f, corners, normal));
+
+        frontPt[0] = (metrics.extras[0].min[0] + metrics.extras[0].max[0]) * 0.5f;
+        frontPt[1] = metrics.extras[0].min[1];
+        frontPt[2] = (metrics.extras[0].min[2] + metrics.extras[0].max[2]) * 0.5f;
+        Assert::IsTrue (SceneCamera::TransformPoint (comp.extraWorld[0], frontPt, front));
+
+        for (int c = 0; c < 4; c++)
+        {
+            float  ahead = (corners[c][0] - front[0]) * normal[0] + (corners[c][1] - front[1]) * normal[1] + (corners[c][2] - front[2]) * normal[2];
+
+            Assert::IsTrue (ahead > 0.0f && ahead < 2.0f, std::format (L"corner {} is {} mm in front of the face", c, ahead).c_str());
+
+            for (int axis = 0; axis < 3; axis++)
+            {
+                center[axis] += corners[c][axis] * 0.25f;
+            }
+        }
+
+        Assert::IsTrue (corners[1][0] > corners[0][0], L"left to right as the face is seen");
+        Assert::IsTrue (corners[0][1] > corners[2][1], L"top above bottom");
+        Assert::IsTrue (DeskSceneLayout::GetFacing (comp.viewProj, center, normal) > 0.8f, L"seen nearly square on");
+    }
+
+
+    //  THE LABEL FADES OUT AS THE FACE TURNS AWAY and is gone from behind,
+    //  where it has no thickness.
+    TEST_METHOD (FaceLabel_FadesEdgeOnAndHidesFromBehind)
+    {
+        Assert::AreEqual (0.0f, DeskSceneLayout::GetFaceLabelAlpha (-0.5f), L"from behind");
+        Assert::AreEqual (0.0f, DeskSceneLayout::GetFaceLabelAlpha (0.05f), L"edge-on");
+        Assert::AreEqual (1.0f, DeskSceneLayout::GetFaceLabelAlpha (1.0f),  L"square on");
+        Assert::IsTrue   (DeskSceneLayout::GetFaceLabelAlpha (0.25f) > 0.0f && DeskSceneLayout::GetFaceLabelAlpha (0.25f) < 1.0f, L"turning away");
+    }
+
+
     TEST_METHOD (Empty_Viewport_Reports_S_FALSE)
     {
         DeskSceneMetrics      metrics = MakeMetrics();

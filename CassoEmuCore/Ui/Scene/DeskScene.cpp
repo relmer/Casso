@@ -3454,7 +3454,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const float corners[4][3],
-                              const float uv[4])
+                              const float uv[4], float alpha)
 {
     // Two triangles over the corner order the layout hands over -- top-left,
     // top-right, bottom-left, bottom-right -- with v running down the
@@ -3482,7 +3482,9 @@ void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const f
             v.z = corners[corner][2];
             v.u = (corner & 1) ? uv[2] : uv[0];
             v.v = (corner & 2) ? uv[3] : uv[1];
-            v.r = 1.0f;  v.g = 1.0f;  v.b = 1.0f;  v.a = 1.0f;
+            // The whole tint scales with the fade, which fades a
+            // premultiplied texel as it fades a straight one.
+            v.r = alpha;  v.g = alpha;  v.b = alpha;  v.a = alpha;
 
             next.push_back (v);
         }
@@ -3508,6 +3510,32 @@ void DeskScene::SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const f
     // upload path with it.
     m_diskLabelRev++;
     InvalidatePlate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskScene::GetExtraModelBounds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskScene::GetExtraModelBounds (int index, float outMin[3], float outMax[3]) const
+{
+    size_t  kind     = (index >= 0 && index < (int) m_extras.size()) ? (size_t) m_extras[(size_t) index].drive.model : 0;
+    bool    isLoaded = index >= 0 && index < (int) m_extras.size() && m_hasExtraModel[kind];
+
+
+
+    if (isLoaded)
+    {
+        m_extraModels[kind].BoundsMin (outMin);
+        m_extraModels[kind].BoundsMax (outMax);
+    }
+
+    return isLoaded;
 }
 
 

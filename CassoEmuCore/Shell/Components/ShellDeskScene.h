@@ -92,15 +92,10 @@ public:
     uint32_t     GetDriveCapacityBlocks (const DeskDrive & drive) const;
     bool         IsDriveWriteProtected  (const DeskDrive & drive) const;
 
-    // A 3.5-inch drive's or hard disk's tip on the desk, for the drive at
-    // `extraIndex` among the desk's extra drives.
-    std::wstring GetExtraDriveTip       (int extraIndex) const;
-
     // Whether the Disk II drives are in a stack on the desk, where a drive
-    // has no room under it for a label: each drive's label text is in its tip
-    // instead, as the other desk drives' is.
+    // has no room under it for a label, so its name is on its front on
+    // hover instead, as the other desk drives' is.
     bool         AreDiskIiStacked       () const;
-    std::wstring GetDiskIiTip           (int drive) const;
 
     void         InsertInExtraDrive (int index, const std::wstring & path);
 
@@ -267,13 +262,20 @@ public:
     // Re-hangs the mounted-image basename strip under each projected drive.
     // The desk's baked labels: the two drives' names, the recorder's tape
     // name, its counter, the name of the key under the pointer, the title on
-    // the cassette, and the two drives' info icons.
-    static constexpr size_t  s_kSceneLabelCount    = 8;
+    // the cassette, the name of the drive under the pointer, and the two
+    // drives' info icons, which are last.
+    static constexpr size_t  s_kSceneLabelCount    = 9;
     static constexpr int     s_kSceneTapeNameCell  = 2;
     static constexpr int     s_kSceneCounterCell   = 3;
     static constexpr int     s_kSceneKeyCell       = DeskScene::kTipLabel;
     static constexpr int     s_kSceneCassetteCell  = 5;   // the title written on the cassette itself
-    static constexpr int     kSceneInfoIconCell    = 6;   // drive 0's info icon; drive 1's is the next cell
+    static constexpr int     s_kSceneHoverCell     = 6;   // on the face of the drive under the pointer
+    static constexpr int     kSceneInfoIconCell    = 7;   // drive 0's info icon; drive 1's is the next cell
+
+    // The drive under the pointer whose name is on its face: a desk extra
+    // drive, or a Disk II in a stack, which have no name strip. A change
+    // syncs the labels again.
+    bool  SetHoverDrive (int extraIndex, int diskIi);
 
     // Where a baked label's quad sits relative to its anchor, when it is not
     // the whole cell centered under it: a drive name sharing its strip with
@@ -326,9 +328,11 @@ public:
     bool   GetRecorderLabelAnchor (const DeskSceneComposition & comp, int key, float anchor[3]);
     void    SyncStripTapeLabels    (const DeskSceneComposition & comp, bool onStrip,
                                     const std::array<std::wstring, s_kSceneLabelCount> & names);
-    void  SetStripLabelMarquee     (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc);
-    int   GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp);
-    bool  TryMakeCassetteTitleQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3]);
+    void         SetStripLabelMarquee     (DxuiShadowedText & label, int cell, const std::wstring & name, const RECT & rc);
+    int          GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp);
+    bool         TryMakeCassetteTitleQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3]);
+    bool         TryMakeHoverLabelQuad    (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3]);
+    std::wstring GetHoverLabelText        () const;
 
     // Splits a drive's name strip between the name and the info icon after
     // it, with the 2D widget's rule: centered together when the name fits,
@@ -531,6 +535,13 @@ private:
     std::array<float, s_kSceneLabelCount>  m_sceneDiskLabelPeriod = {};
     int                                    m_sceneLabelHover      = -1;
     int64_t                                m_sceneLabelHoverMs    = 0;
+
+    // The drive under the pointer whose name is on its face (SetHoverDrive),
+    // -1 for none, when its name began to scroll, and the label's fade.
+    int                                    m_hoverExtra           = -1;
+    int                                    m_hoverDiskIi          = -1;
+    int64_t                                m_hoverLabelMs         = 0;
+    float                                  m_hoverLabelAlpha      = 0.0f;
 
     // When each of the desk recorder's keys was last clicked, for its dip.
     std::array<int64_t, 6>    m_recorderKeyDipMs      = {};

@@ -2229,6 +2229,191 @@ bool DeskSceneLayout::TryMakeDriveLabelQuad (const DeskSceneComposition & comp,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneLayout::TryGetEyePoint
+//
+//  A point p maps to clip x, y and w by the matrix's columns 0, 1 and 3, in
+//  the row-vector convention: clip_j = p.x m[j] + p.y m[4+j] + p.z m[8+j] +
+//  m[12+j]. The eye is where all three are zero, solved by Cramer's rule.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneLayout::TryGetEyePoint (const float viewProj[16], float outEye[3])
+{
+    static constexpr int  kCols[3] = { 0, 1, 3 };
+    double                a[3][3]  = {};
+    double                b[3]     = {};
+    double                det      = 0.0;
+    bool                  isSolved = false;
+
+
+
+    for (int r = 0; r < 3; r++)
+    {
+        a[r][0] = viewProj[kCols[r]];
+        a[r][1] = viewProj[4 + kCols[r]];
+        a[r][2] = viewProj[8 + kCols[r]];
+        b[r]    = -viewProj[12 + kCols[r]];
+    }
+
+    det = a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1])
+        - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
+        + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
+
+    isSolved = std::fabs (det) > 1e-12;
+
+    for (int axis = 0; axis < 3 && isSolved; axis++)
+    {
+        double  m[3][3] = {};
+
+        for (int r = 0; r < 3; r++)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                m[r][c] = (c == axis) ? b[r] : a[r][c];
+            }
+        }
+
+        outEye[axis] = (float) ((m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+                               - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+                               + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])) / det);
+    }
+
+    return isSolved;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::TryMakeFaceLabelQuad
+//
+//  Model space is X right, Y back from the front, Z up, so the front is the
+//  model's lowest y and the viewer is at -Y.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneLayout::TryMakeFaceLabelQuad (const float  world[16],
+                                            const float  modelMin[3],
+                                            const float  modelMax[3],
+                                            float        aspect,
+                                            float        outCorners[4][3],
+                                            float        outNormal[3])
+{
+    float  faceW     = modelMax[0] - modelMin[0];
+    float  faceH     = modelMax[2] - modelMin[2];
+    float  halfW     = faceW * kFaceLabelWidthFrac * 0.5f;
+    float  halfH     = (aspect > 0.0f) ? halfW / aspect : 0.0f;
+    float  cx        = (modelMin[0] + modelMax[0]) * 0.5f;
+    float  cz        = modelMin[2] + faceH * kFaceLabelHeightFrac;
+    float  y         = modelMin[1] - kFaceLabelStandoffMm;
+    float  inner[3]  = { cx, y + 1.0f, cz };
+    float  outer[3]  = { cx, y, cz };
+    float  innerW[3] = {};
+    float  outerW[3] = {};
+    float  length    = 0.0f;
+    bool   isMade    = faceW > 0.0f && faceH > 0.0f && halfH > 0.0f;
+
+
+
+    // As tall as the face allows, the width following the aspect.
+    if (halfH > faceH * 0.5f)
+    {
+        halfW *= (faceH * 0.5f) / halfH;
+        halfH  = faceH * 0.5f;
+    }
+
+    for (int corner = 0; isMade && corner < 4; corner++)
+    {
+        float  model[3] = { (corner & 1) ? cx + halfW : cx - halfW,
+                            y,
+                            (corner & 2) ? cz - halfH : cz + halfH };
+
+        isMade = SceneCamera::TransformPoint (world, model, outCorners[corner]);
+    }
+
+    isMade = isMade && SceneCamera::TransformPoint (world, inner, innerW) && SceneCamera::TransformPoint (world, outer, outerW);
+
+    for (int axis = 0; isMade && axis < 3; axis++)
+    {
+        outNormal[axis] = outerW[axis] - innerW[axis];
+        length         += outNormal[axis] * outNormal[axis];
+    }
+
+    isMade = isMade && length > 0.0f;
+
+    for (int axis = 0; isMade && axis < 3; axis++)
+    {
+        outNormal[axis] /= std::sqrt (length);
+    }
+
+    return isMade;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::GetFacing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DeskSceneLayout::GetFacing (const float viewProj[16], const float center[3], const float normal[3])
+{
+    float  eye[3]   = {};
+    float  toEye[3] = {};
+    float  length   = 0.0f;
+    float  facing   = -1.0f;
+
+
+
+    if (TryGetEyePoint (viewProj, eye))
+    {
+        for (int axis = 0; axis < 3; axis++)
+        {
+            toEye[axis] = eye[axis] - center[axis];
+            length     += toEye[axis] * toEye[axis];
+        }
+
+        if (length > 0.0f)
+        {
+            facing = (toEye[0] * normal[0] + toEye[1] * normal[1] + toEye[2] * normal[2]) / std::sqrt (length);
+        }
+    }
+
+    return facing;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::GetFaceLabelAlpha
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DeskSceneLayout::GetFaceLabelAlpha (float facing)
+{
+    float  t = (facing - kFaceLabelZeroFacing) / (kFaceLabelFullFacing - kFaceLabelZeroFacing);
+
+
+
+    t = std::clamp (t, 0.0f, 1.0f);
+
+    return t * t * (3.0f - 2.0f * t);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneLayout::TryMakeLabelQuad
 //
 ////////////////////////////////////////////////////////////////////////////////
