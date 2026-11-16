@@ -72,3 +72,29 @@ Test copies of Casso at `3a8b17f67`, each with `CASSO_PROFILE_DIR` set to a scra
 - T095, a test copy of Casso Explorer from this build with a scratch profile folder, two image folders in its `KnownFolders.json` and no CassoLink connections. Launched minimized without activation, placed on the portrait monitor, captured with `PrintWindow`, closed with its Exit command. No input was posted. The Casso node listed the six images of both folders as one list, with the Folder, File system and Volume name columns filled. A plain folder had the File system and Volume name columns filled.
 - The test copy's window class was `CassoExplorerTestCopyWindow.B8EEC345`: a hash of the profile folder is now part of the class, so a test copy with a different profile folder opens in a separate app.
 - The 800K stock disk built from the downloaded ProDOS 2.4.3 image (SHA-256 matched) booted to Bitsy Bye on an enhanced //e with the Apple 3.5 controller card, listing every file of the 140K disk, and to the ProDOS 2.4.3 banner on a //c Plus. `StockDisk800K_Boots` boots one built from the ProDOS User's Disk on both.
+
+## T073, T080, T089, T023 and the tips (2026-11-16)
+
+Test copies of Casso and Casso Explorer at `33b1fc9a6`, each with a scratch profile and the title "Explorer Picker Test", on the portrait monitor. The owner allowed focus changes and the real pointer for this run.
+
+| Check | Result |
+|---|---|
+| T073: Create new disk from a Disk II picker | Pass. `New Disk.woz` (DOS 3.3, 140K) was made in the folder listed in the picker and inserted in drive 1 |
+| T073: Create new disk from the //c Plus's 3.5-inch picker | Pass. The dialog started at ProDOS, .po, 800K. `New Disk.po` was made and inserted: a power cycle reported "UNABLE TO FIND A BOOTABLE DISK ONLINE." |
+| T073: New blank tape from the recorder's picker | Pass. The Save as form saved `New tape.wav`, and its name was on the recorder |
+| T073: a stock disk | Pass. Insert put the DOS 3.3 System Master in drive 2. On the //c Plus's startup form, "ProDOS 2.4.3 (800K)" was built from the downloaded ProDOS 2.4.3 and booted to Bitsy Bye |
+| T080: Choose image for the HD20SC on the Hardware page | Pass. The picker was modal over Settings, listed hard disk images up to 32 MB, and the pick was written into the drive's row |
+| T080: Choose image for the UniDisk 3.5 | Pass. The picker listed only 400K and 800K images, and the pick was written into the row. Settings was canceled |
+| T089 | The save form ran from the emulator's New blank tape. "Save disk as" for a lost disk and Casso Explorer's "Write image to..." on a real connection were not run; `PickerSaveFormTests` and `CassoHostDialogsTests` cover them |
+| T023: a real OLE drag of a file onto the //c Plus's 3.5-inch drive | A 140K image: effect None, the no-drop cursor, nothing inserted. An 800K image: effect Copy, inserted, and it booted |
+| T023: the same onto the //e's Disk II | An 800K image: effect None. A 140K image: effect Copy, and its name was on the drive |
+| The stock disk tips and the Casso node's tip in a disk drive's picker | Pass, with the window active: the approved texts, and "Disk images in the folders Casso has used, most recently used first" |
+| Tips hidden when a picker opens | Not checked: neither the toolbar's labeled buttons nor the drive bar raised a tip to hide |
+
+Found:
+- Two clicks on a stock disk's row select it and open an empty preview, but do not insert it. Insert does.
+- With a stock disk selected, the status bar reads ", 140 KB", with a stray comma.
+- The //c Plus's 3.5-inch picker has no "In drive" mark for the inserted image.
+- The 3.5-inch picker draws a tree row's arrow below the bottom of the tree.
+- On the Hardware page, a click on a drive's name does not select the drive, so Choose image stays unavailable. Only a click on the empty part of the row selects it.
+- On a //c Plus, Insert disk for drive 1 opens the external 5.25-inch drive's picker.
