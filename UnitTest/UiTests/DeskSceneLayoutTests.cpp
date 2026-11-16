@@ -269,6 +269,37 @@ public:
         Assert::IsTrue (full.driveWorld[0][0] < 1.0f, L"nearer the eye than the monitor, the drives are scaled to look its size");
     }
 
+    //  A DESK WITH NO DISK II SLIDES ITS OTHER DRIVES: a //c Plus has only
+    //  3.5-inch drives, and they rise in front of the monitor like a pair.
+    TEST_METHOD (Sliding_Raises_The_Extra_Drives_Without_A_Disk_II)
+    {
+        DeskSceneMetrics      metrics       = MakeMetrics();
+        RECT                  vp            = { 0, 0, 1120, 768 };
+        DeskSceneComposition  hidden;
+        DeskSceneComposition  full;
+        float                 lo[3]         = {};
+        float                 hi[3]         = {};
+        float                 monitorFrontZ = -metrics.monitorMin[1];
+
+
+
+        AddExtraModel (metrics, DeskDriveModel::Apple35Drive, DeskDriveSpot::RightStack, 0);
+        AddExtraModel (metrics, DeskDriveModel::Apple35Drive, DeskDriveSpot::RightStack, 1);
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 0, metrics, 0.0f, kSlideClearPx, hidden));
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 0, metrics, 1.0f, kSlideClearPx, full));
+
+        Assert::AreEqual (0, hidden.extraCount, L"hidden, the drives are not drawn");
+        Assert::AreEqual (2, full.extraCount);
+        Assert::IsTrue (full.extraRectPx[0].top < vp.bottom, L"fully up, the drives are in the frame");
+        Assert::IsTrue (full.extraRectPx[0].bottom <= vp.bottom - kSlideClearPx + 1, L"their fronts are inside the frame");
+
+        GetWorldBox (full.extraWorld[0], metrics.extras[0].min, metrics.extras[0].max, lo, hi);
+        Assert::IsTrue (lo[2] >= monitorFrontZ + DeskSceneLayout::kSlideMonitorGapMm - 0.01f,
+                        L"the drives are wholly in front of the monitor");
+        Assert::IsTrue (std::abs ((lo[0] + hi[0]) * 0.5f) < 1.0f, L"the drives are centered under the monitor");
+    }
+
     TEST_METHOD (Sliding_Row_Fits_Within_The_Frame)
     {
         DeskSceneMetrics      metrics     = MakeMetrics();

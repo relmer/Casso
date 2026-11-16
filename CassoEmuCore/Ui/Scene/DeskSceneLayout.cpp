@@ -448,18 +448,39 @@ void DeskSceneLayout::PlaceSlidingDevices (const DeskSceneMetrics & metrics,
         }
     }
 
+    // With no Disk II the extra drives start the row at x 0, one recorder gap
+    // right of an empty seed, and the recorder follows them.
     if (driveCount <= 0)
     {
-        return;
-    }
+        for (int axis = 0; axis < 3; axis++)
+        {
+            stackMin[axis] = 0.0f;
+            stackMax[axis] = 0.0f;
+        }
 
-    if (metrics.hasRecorder)
+        stackMin[0] = -kRecorderGapMm;
+        stackMax[0] = -kRecorderGapMm;
+
+        PlaceStack (metrics, DeskDriveSpot::RightStack, true, 0, forwardMm, forwardMm - metrics.driveFrontY,
+                    stackMin, stackMax, spareMin, spareMax, out);
+
+        stackMin[0] = 0.0f;
+
+        if (metrics.hasRecorder)
+        {
+            PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, stackMin, stackMax, spareMin, spareMax, out);
+        }
+    }
+    else
     {
-        PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, stackMin, stackMax, spareMin, spareMax, out);
-    }
+        if (metrics.hasRecorder)
+        {
+            PlaceRecorder (metrics, forwardMm - metrics.driveFrontY, stackMin, stackMax, spareMin, spareMax, out);
+        }
 
-    PlaceStack (metrics, DeskDriveSpot::LeftStack, true, 0, forwardMm, forwardMm - metrics.driveFrontY,
-                stackMin, stackMax, spareMin, spareMax, out);
+        PlaceStack (metrics, DeskDriveSpot::LeftStack, true, 0, forwardMm, forwardMm - metrics.driveFrontY,
+                    stackMin, stackMax, spareMin, spareMax, out);
+    }
 
     shiftX = -(stackMin[0] + stackMax[0]) * 0.5f;
 
@@ -1730,7 +1751,7 @@ HRESULT DeskSceneLayout::ComputeGlassFill (const RECT             & viewportPx,
     // The drives slide up in front of the glass exactly as they do on the
     // windowed desk, under this camera. The eye is the standoff in front of
     // the glass plane.
-    if (slideProgress >= 0.0f && driveCount > 0)
+    if (slideProgress >= 0.0f && (driveCount > 0 || metrics.extraCount > 0))
     {
         float  eyeDistMm = (-metrics.glass.baseY + standoff) - (-metrics.monitorMin[1]);
 

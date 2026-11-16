@@ -865,8 +865,11 @@ bool ShellRenderer::TryPresentUiFrame()
     // band the hook will render. The flat themes ride the same FSM with the
     // 2D widgets laid into the band, so fullscreen hides the drives the same
     // way everywhere and brings them back the same way too.
+    // The desk slide also raises the 3.5-inch drives and hard disks, so a
+    // desk with only those still has drives to reveal.
     bool  stripHasDrives = m_shell.DeskSceneActive()
-                         ? m_shell.m_scene->DeskSceneDriveCount() > 0 || m_shell.m_scene->AreDrivesOnBar()
+                         ? m_shell.m_scene->DeskSceneDriveCount() > 0 || m_shell.m_scene->AreDrivesOnBar() ||
+                           (m_shell.IsDeskSlideActive() && m_shell.m_scene->m_deskScene.GetExtraCount() > 0)
                          : ((m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller()) ||
                            m_shell.m_scene->AreDrivesOnBar();
 
