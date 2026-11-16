@@ -8,6 +8,7 @@
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
+#include "Ui/DiskInspector/Components/InspectorDialogs.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/InspectorText.h"
@@ -835,6 +836,14 @@ void EditingPart::TakeApplyReply (const InspectorReply & reply)
         m_applyRequest = 0;
     }
 
+    //  After a save chosen when closing, the window closes once the save
+    //  succeeds. It stays open when the save fails or is canceled.
+    if (m_isCloseAfterSave && !m_isApplyWaiting)
+    {
+        m_isCloseDue       = isApplied && reply.applyKind == ApplyKind::Apply;
+        m_isCloseAfterSave = false;
+    }
+
     if (isApplied)
     {
         if (reply.applyKind == ApplyKind::Apply)
@@ -1109,4 +1118,92 @@ bool EditingPart::ConfirmDiscardEdits (const std::wstring & action)
     }
 
     return isGoingOn;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::ConfirmClose
+//
+//  With unsaved changes, the user picks Save, Discard or Cancel. Save is
+//  offered only when the disk can be saved to. After Save, the window
+//  stays open until the save succeeds, which can wait for the drive to
+//  stop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditingPart::ConfirmClose()
+{
+    static constexpr int  kCancel  = 0;
+    static constexpr int  kSave    = 1;
+    static constexpr int  kDiscard = 2;
+
+
+
+    EditController::Counts         counts    = m_session.edits.GetCounts();
+    bool                           canSave   = m_state.canApply || m_applyRequest != 0;
+    bool                           isClosing = counts.sectors == 0;
+    int                            choice    = kCancel;
+    vector<MessageDialog::Button>  buttons;
+
+
+
+    if (!isClosing)
+    {
+        if (canSave)
+        {
+            buttons.push_back ({ L"Save", kSave, true, false });
+        }
+
+        buttons.push_back ({ L"Discard", kDiscard, !canSave, false });
+        buttons.push_back ({ L"Cancel", kCancel, false, true });
+
+        choice = InspectorDialogs::ShowChoice (m_host.GetOwnerHwnd(), m_session.theme, L"Unsaved changes",
+                                               { L"There are unsaved changes to " + InspectorText::FormatCount (counts.sectors, L"sector", L"sectors") + L"." }, buttons);
+
+        if (choice == kSave)
+        {
+            if (m_applyRequest == 0)
+            {
+                ApplyEdits();
+            }
+
+            m_isCloseAfterSave = m_applyRequest != 0;
+        }
+
+        if (choice == kDiscard)
+        {
+            m_session.edits = EditController();
+            m_sectorsView.SetEditing (false);
+        }
+
+        isClosing = choice == kDiscard;
+    }
+
+    return isClosing;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::TakeCloseDue
+//
+//  True once, after a save chosen when closing the window succeeds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditingPart::TakeCloseDue()
+{
+    bool  isDue = m_isCloseDue;
+
+
+
+    m_isCloseDue = false;
+    return isDue;
 }

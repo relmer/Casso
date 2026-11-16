@@ -527,6 +527,12 @@ HRESULT DiskInspectorWindow::RenderFrame()
 
     m_hostLink->TakeReplies();
     m_hostLink->TakeResults();
+
+    if (m_editing->TakeCloseDue())
+    {
+        PostMessageW (GetHwnd(), WM_CLOSE, 0, 0);
+    }
+
     m_comparisonPart->TakeComparison();
     m_comparisonPart->SyncSideB();
     m_hostLink->TickHead();
@@ -1012,8 +1018,9 @@ DxuiMessageResult DiskInspectorWindow::OnCopyData (WPARAM sender, LPARAM data)
 
 void DiskInspectorWindow::OnWindowClose()
 {
-    //  The window stays open when the user cancels (FR-108).
-    if (ConfirmDiscardEdits (L"Closing the disk inspector"))
+    //  The window stays open when the user cancels, and after Save until
+    //  the save succeeds (FR-108).
+    if (m_editing->ConfirmClose())
     {
         m_tooltip.HideImmediate();
         m_zoomNote.HideImmediate();
