@@ -6,6 +6,7 @@
 #include "Net/FirewallText.h"
 #include "CassoExplorer/CassoExplorerAbout.h"
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/ExplorerWindowFinder.h"
 #include "Core/TextEncoding.h"
 #include "resource.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
@@ -160,7 +161,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     params.minSizeDip               = { kMinWindowWidthDip, 400 };
     params.resizable                = true;
     params.insetContentBelowCaption = true;
-    params.classNameOverride        = CassoExplorerShell::GetWindowClass();
+    params.classNameOverride        = ExplorerWindowFinder::GetWindowClass();
     params.appIconBig               = LoadIconW (instance, MAKEINTRESOURCEW (IDI_CASSO_EXPLORER));
     params.appIconSmall             = params.appIconBig;
     params.micaBackdrop             = true;

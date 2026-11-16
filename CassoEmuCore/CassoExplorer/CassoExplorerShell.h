@@ -150,9 +150,6 @@ public:
     //  right from `from`, the window it was opened over.
     static CassoExplorerWindowRequest  PlanForwardedLaunch (const CassoExplorerLaunchOptions & options, const CassoExplorerPrefs::Placement & from);
 
-    //  The window already serving `owner`, or null.
-    static HWND  FindWindowForOwner (HWND owner);
-
     //  Restores a minimized window and brings it forward.
     static void  FrontWindow (HWND hwnd);
 
@@ -209,16 +206,6 @@ public:
     void                   SetInspectorTheme   (const DxuiTheme & theme) override;
     void                   OfferBootRoms       (HWND hwnd, const DxuiTheme * theme) override;
 
-    static constexpr const wchar_t *  kWindowClass   = L"CassoExplorerWindow";
-    static constexpr const wchar_t *  kTestCopyClass = L"CassoExplorerTestCopyWindow";
-    static constexpr const wchar_t *  kOwnerProperty = L"CassoExplorerOwner";
-
-    //  The window class: kWindowClass, or for a copy run with a profile
-    //  folder set (PathResolver::IsProfileFolderSet), kTestCopyClass and a
-    //  hash of the folder. A launch is then forwarded only to windows of the
-    //  same copy and profile folder.
-    static const wchar_t *  GetWindowClass  ();
-    static std::wstring     MakeWindowClass ();
     static constexpr const wchar_t *  kAppName       = L"Casso Explorer";
     static constexpr const char *     kFaultLogName  = "Fault injection";
 

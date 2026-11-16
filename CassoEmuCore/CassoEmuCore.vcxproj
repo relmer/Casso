@@ -1220,6 +1220,7 @@
     <ClCompile Include="Shell\Components\EmulatorUpdaterHost.cpp" />
     <ClCompile Include="Shell\Components\ShellUpdater.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerUpdaterHost.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerWindowFinder.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerBlockInspectorWindow.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerInspectorHost.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerInspectorWindow.cpp" />
@@ -2180,6 +2181,7 @@
     <ClInclude Include="Shell\Components\EmulatorUpdaterHost.h" />
     <ClInclude Include="Shell\Components\ShellUpdater.h" />
     <ClInclude Include="CassoExplorer\ExplorerUpdaterHost.h" />
+    <ClInclude Include="CassoExplorer\ExplorerWindowFinder.h" />
     <ClInclude Include="CassoExplorer\ExplorerBlockInspectorWindow.h" />
     <ClInclude Include="CassoExplorer\ExplorerInspectorHost.h" />
     <ClInclude Include="CassoExplorer\ExplorerInspectorWindow.h" />
