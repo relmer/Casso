@@ -122,10 +122,11 @@ public:
     bool  HasChanges          (int slot, Byte sectorNumber) const;
     int   CountChangedSectors (int slot) const;
 
-    Counts                       GetCounts () const;
-    bool                         IsEmpty   () const { return GetCounts().sectors == 0; }
-    const vector<PendingEdit>  & GetEdits  () const { return m_edits; }
-    const PendingEdit          & GetEdit   (int edit) const { return m_edits[edit]; }
+    Counts                       GetCounts      () const;
+    bool                         IsEmpty        () const { return GetCounts().sectors == 0; }
+    bool                         HasSameChanges (const EditController & other) const;
+    const vector<PendingEdit>  & GetEdits       () const { return m_edits; }
+    const PendingEdit          & GetEdit        (int edit) const { return m_edits[edit]; }
 
 private:
     struct Action

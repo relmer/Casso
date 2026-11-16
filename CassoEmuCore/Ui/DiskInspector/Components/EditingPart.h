@@ -56,8 +56,8 @@ public:
     static std::wstring  GetApplyBlock (const InspectorSession & session);
 
 private:
-    //  One apply's tracks before and after, the guest write counts it left,
-    //  and those an undo of it left (FR-107).
+    //  One save's tracks before and after, the guest write counts it left,
+    //  those an undo of it left, and the unsaved changes it saved (FR-107).
     struct AppliedEditRecord
     {
         vector<std::shared_ptr<const TrackCopy>>  before;
@@ -65,6 +65,7 @@ private:
         vector<RecordWriteCount>                  countsAfter;
         vector<RecordWriteCount>                  countsUndone;
         std::string                               savedTo;
+        EditController                            edits;
     };
 
     bool          HandleEditKey     (const DxuiKeyEvent & ev);

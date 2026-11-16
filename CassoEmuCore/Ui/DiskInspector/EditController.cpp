@@ -674,6 +674,53 @@ EditController::Counts EditController::GetCounts() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EditController::HasSameChanges
+//
+//  Whether the two have the same changed sectors, with the same bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditController::HasSameChanges (const EditController & other) const
+{
+    vector<const PendingEdit *>  mine;
+    vector<const PendingEdit *>  theirs;
+    bool                         isSame = true;
+
+
+
+    for (const PendingEdit & edit : m_edits)
+    {
+        if (edit.CountChanged() > 0)
+        {
+            mine.push_back (&edit);
+        }
+    }
+
+    for (const PendingEdit & edit : other.m_edits)
+    {
+        if (edit.CountChanged() > 0)
+        {
+            theirs.push_back (&edit);
+        }
+    }
+
+    isSame = mine.size() == theirs.size();
+
+    for (size_t i = 0; isSame && i < mine.size(); i++)
+    {
+        isSame = mine[i]->slot == theirs[i]->slot && mine[i]->sectorNumber == theirs[i]->sectorNumber && mine[i]->fieldKind == theirs[i]->fieldKind &&
+                 mine[i]->bytes == theirs[i]->bytes && mine[i]->bytesAtStart == theirs[i]->bytesAtStart && mine[i]->checksumMode == theirs[i]->checksumMode;
+    }
+
+    return isSame;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EditController::Record
 //
 //  A new action drops the actions undone before it.

@@ -171,14 +171,16 @@ public:
 
     //  Writes each changed block and reads the map again. Fails, writing
     //  nothing, when the file changed since it was opened. UndoApplied puts
-    //  back the blocks the last apply changed, and RedoApplied applies the
-    //  last undone edit again; each fails when the file's blocks changed
-    //  since.
+    //  back the blocks the last save changed and makes its edits unsaved
+    //  again, and RedoApplied saves those edits again; each fails when the
+    //  file's blocks changed since. A save can be undone only with no unsaved
+    //  changes, and redone only while the unsaved changes are the ones the
+    //  undo restored.
     HRESULT  ApplyEdits     (std::wstring & outError, BlockJobProgress * progress = nullptr);
     HRESULT  UndoApplied    (std::wstring & outError, BlockJobProgress * progress = nullptr);
     HRESULT  RedoApplied    (std::wstring & outError, BlockJobProgress * progress = nullptr);
-    bool     CanUndoApplied () const { return m_appliedAt > 0; }
-    bool     CanRedoApplied () const { return m_appliedAt < m_applied.size(); }
+    bool     CanUndoApplied () const { return m_appliedAt > 0 && m_edits.IsEmpty(); }
+    bool     CanRedoApplied () const { return m_appliedAt < m_applied.size() && m_edits.HasSameChanges (m_applied[m_appliedAt].edits); }
 
     //  The pending edits written into a copy of the image that the caller
     //  made at `path`.
@@ -225,11 +227,13 @@ private:
         int       half   = -1;
     };
 
-    //  One apply's blocks as they were before it and as it wrote them.
+    //  One save's blocks as they were before it and as it wrote them, and
+    //  the unsaved changes it saved.
     struct AppliedEdit
     {
         std::map<uint32_t, Block>  before;
         std::map<uint32_t, Block>  after;
+        BlockEditBuffer            edits;
     };
 
     HRESULT  WriteBlocks        (const std::map<uint32_t, Block> & blocks, std::wstring & outError, BlockJobProgress * progress);

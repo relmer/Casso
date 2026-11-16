@@ -778,11 +778,8 @@ void BlockInspectorWindow::UndoApplied()
         return;
     }
 
-    if (InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Undo save", { L"Put back the blocks the last save changed, and save " + GetFileName() + L"?" }, L"Undo"))
-    {
-        QueueWrite (L"Undoing the last save", L"Undone and saved to",[] (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)
-                    { return model.UndoApplied (outError, &progress); });
-    }
+    QueueWrite (L"Undoing the last save", L"Undid the save to", [] (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)
+                { return model.UndoApplied (outError, &progress); });
 }
 
 
@@ -802,11 +799,8 @@ void BlockInspectorWindow::RedoApplied()
         return;
     }
 
-    if (InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Redo save", { L"Save the undone edit to " + GetFileName() + L" again?" }, L"Redo"))
-    {
-        QueueWrite (L"Redoing the last save", L"Redone and saved to",[] (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)
-                    { return model.RedoApplied (outError, &progress); });
-    }
+    QueueWrite (L"Saving the edits", L"Saved to", [] (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)
+                { return model.RedoApplied (outError, &progress); });
 }
 
 

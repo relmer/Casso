@@ -1247,8 +1247,8 @@ bool BlockInspectorModel::TypeCharacter (int offset, wchar_t ch)
 //  BlockInspectorModel::ApplyEdits
 //
 //  The changed blocks are written, and the blocks before and after go in
-//  the history for Undo applied edit. A new apply clears the applied edits
-//  that were undone.
+//  the history for Undo save, with the unsaved changes. A new save clears
+//  the saves that were undone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1277,6 +1277,7 @@ HRESULT BlockInspectorModel::ApplyEdits (std::wstring & outError, BlockJobProgre
     hr = WriteBlocks (applied.after, outError, progress);
     CHR (hr);
 
+    applied.edits = m_edits;
     m_applied.resize (m_appliedAt);
     m_applied.push_back (std::move (applied));
     m_appliedAt = m_applied.size();
@@ -1294,8 +1295,8 @@ Error:
 //
 //  BlockInspectorModel::UndoApplied
 //
-//  The last applied edit's blocks put back as they were before it, when
-//  the file has the blocks the apply wrote.
+//  The last save's blocks put back as they were before it, when the file
+//  has the blocks the save wrote, and its edits unsaved again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1306,7 +1307,7 @@ HRESULT BlockInspectorModel::UndoApplied (std::wstring & outError, BlockJobProgr
 
 
 
-    BAIL_OUT_IF (m_appliedAt == 0, S_OK);
+    BAIL_OUT_IF (!CanUndoApplied(), S_OK);
 
     hr = IsStoredAs (m_applied[m_appliedAt - 1].after, isCurrent);
     CHRF (hr, outError = L"A changed block can't be read.");
@@ -1316,6 +1317,7 @@ HRESULT BlockInspectorModel::UndoApplied (std::wstring & outError, BlockJobProgr
     CHR (hr);
 
     m_appliedAt--;
+    m_edits = m_applied[m_appliedAt].edits;
 
 Error:
     return hr;
@@ -1338,7 +1340,7 @@ HRESULT BlockInspectorModel::RedoApplied (std::wstring & outError, BlockJobProgr
 
 
 
-    BAIL_OUT_IF (m_appliedAt >= m_applied.size(), S_OK);
+    BAIL_OUT_IF (!CanRedoApplied(), S_OK);
 
     hr = IsStoredAs (m_applied[m_appliedAt].before, isCurrent);
     CHRF (hr, outError = L"A changed block can't be read.");
@@ -1348,6 +1350,7 @@ HRESULT BlockInspectorModel::RedoApplied (std::wstring & outError, BlockJobProgr
     CHR (hr);
 
     m_appliedAt++;
+    m_edits = BlockEditBuffer();
 
 Error:
     return hr;

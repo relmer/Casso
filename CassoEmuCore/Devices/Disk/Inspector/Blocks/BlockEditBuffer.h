@@ -49,6 +49,7 @@ public:
     vector<uint32_t>  GetChangedBlocks  () const;
     int               CountChangedBytes () const;
     bool              IsEmpty           () const { return CountChangedBytes() == 0; }
+    bool              HasSameChanges    (const BlockEditBuffer & other) const;
 
 private:
     struct Pending

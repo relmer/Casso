@@ -492,9 +492,10 @@ void EditingPart::UpdateEditBar()
     state.isWaiting        = m_isApplyWaiting;
     state.isMachinePaused  = m_isApplyPaused;
     state.canUseB          = reason.empty() && GetBSectorBytes (paired);
-    state.canUndoApplied   = m_historyAt > 0 && m_applyRequest == 0 && state.applyBlocked.empty() && IsHistoryCurrent (m_history[m_historyAt - 1].countsAfter);
+    state.canUndoApplied   = m_historyAt > 0 && m_applyRequest == 0 && state.applyBlocked.empty() && m_session.edits.IsEmpty() &&
+                             IsHistoryCurrent (m_history[m_historyAt - 1].countsAfter);
     state.canRedoApplied   = m_historyAt < static_cast<int> (m_history.size()) && m_applyRequest == 0 && state.applyBlocked.empty() &&
-                             IsHistoryCurrent (m_history[m_historyAt].countsUndone);
+                             m_session.edits.HasSameChanges (m_history[m_historyAt].edits) && IsHistoryCurrent (m_history[m_historyAt].countsUndone);
     state.note             = !m_session.editNote.empty() ? m_session.editNote : (m_session.model.GetSector() != nullptr && !reason.empty()) ? L"Cannot edit: " + reason : std::wstring();
 
     //  A change of the bar's rows moves the bytes under it.
@@ -736,8 +737,9 @@ void EditingPart::CancelApply()
 //
 //  EditingPart::UndoApplied
 //
-//  Undo and redo each restore tracks exactly as the history has them, once the
-//  user confirms (FR-107).
+//  Undo puts the tracks back as they were before the last save, and its
+//  edits become unsaved changes again; redo saves those edits again
+//  (FR-107).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -748,7 +750,7 @@ void EditingPart::UndoApplied()
 
 
 
-    BAIL_OUT_IF (m_historyAt <= 0, S_OK);
+    BAIL_OUT_IF (!m_state.canUndoApplied, S_OK);
 
     request.kind           = InspectorRequestKind::Apply;
     request.drive          = m_session.drive;
@@ -757,10 +759,7 @@ void EditingPart::UndoApplied()
     request.restore        = m_history[m_historyAt - 1].before;
     request.expectedCounts = m_history[m_historyAt - 1].countsAfter;
 
-    if (m_host.Confirm (L"Undo save", { L"Put back the sectors the last save changed, and save " + m_session.GetFileName() + L"?" }, L"Undo"))
-    {
-        PostApply (request);
-    }
+    PostApply (request);
 
 Error:
     return;
@@ -783,7 +782,7 @@ void EditingPart::RedoApplied()
 
 
 
-    BAIL_OUT_IF (m_historyAt >= static_cast<int> (m_history.size()), S_OK);
+    BAIL_OUT_IF (!m_state.canRedoApplied, S_OK);
 
     request.kind           = InspectorRequestKind::Apply;
     request.drive          = m_session.drive;
@@ -792,10 +791,7 @@ void EditingPart::RedoApplied()
     request.restore        = m_history[m_historyAt].after;
     request.expectedCounts = m_history[m_historyAt].countsUndone;
 
-    if (m_host.Confirm (L"Redo save", { L"Save the undone edit to " + m_session.GetFileName() + L" again?" }, L"Redo"))
-    {
-        PostApply (request);
-    }
+    PostApply (request);
 
 Error:
     return;
@@ -844,7 +840,7 @@ void EditingPart::TakeApplyReply (const InspectorReply & reply)
         if (reply.applyKind == ApplyKind::Apply)
         {
             m_history.resize (m_historyAt);
-            m_history.push_back ({ reply.before, reply.after, reply.countsAfter, {}, reply.savedPath });
+            m_history.push_back ({ reply.before, reply.after, reply.countsAfter, {}, reply.savedPath, m_session.edits });
             m_historyAt        = static_cast<int> (m_history.size());
             m_session.edits    = EditController();
             m_isFirstApplyDone = true;
@@ -854,11 +850,14 @@ void EditingPart::TakeApplyReply (const InspectorReply & reply)
         {
             m_historyAt--;
             m_history[m_historyAt].countsUndone = reply.countsAfter;
+            m_session.edits                     = m_history[m_historyAt].edits;
         }
         else
         {
             m_history[m_historyAt].countsAfter = reply.countsAfter;
             m_historyAt++;
+            m_session.edits = EditController();
+            m_sectorsView.SetEditing (false);
         }
 
         for (const std::shared_ptr<const TrackCopy> & copy : reply.after)
@@ -870,7 +869,7 @@ void EditingPart::TakeApplyReply (const InspectorReply & reply)
 
         m_session.editNote = (reply.applyOutcome == ApplyOutcome::AppliedToPreservedCopy)
                          ? L"Saved to a preserved copy, since the file changed outside Casso: " + std::filesystem::path (TextEncoding::Utf8ToWide (reply.savedPath)).filename().wstring()
-                         : std::wstring ((reply.applyKind == ApplyKind::Undo) ? L"Undone and saved to " : (reply.applyKind == ApplyKind::Redo) ? L"Redone and saved to " : L"Saved to ")
+                         : std::wstring ((reply.applyKind == ApplyKind::Undo) ? L"Undid the save to " : L"Saved to ")
                            + std::filesystem::path (TextEncoding::Utf8ToWide (reply.savedPath)).filename().wstring();
 
         tracks.mediaId = reply.mediaId;

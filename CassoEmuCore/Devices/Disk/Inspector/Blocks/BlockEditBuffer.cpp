@@ -407,3 +407,30 @@ int BlockEditBuffer::CountChangedBytes() const
 
     return count;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockEditBuffer::HasSameChanges
+//
+//  Whether the two have the same changed blocks, with the same bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockEditBuffer::HasSameChanges (const BlockEditBuffer & other) const
+{
+    vector<uint32_t>  blocks  = GetChangedBlocks();
+    bool              isSame  = blocks == other.GetChangedBlocks();
+
+
+
+    for (size_t i = 0; isSame && i < blocks.size(); i++)
+    {
+        isSame = m_pending.at (blocks[i]).bytes == other.m_pending.at (blocks[i]).bytes;
+    }
+
+    return isSame;
+}

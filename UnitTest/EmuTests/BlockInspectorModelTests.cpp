@@ -232,7 +232,7 @@ public:
     }
 
 
-    TEST_METHOD (UndoApplied_PutsTheBlocksBackAndRedoWritesThemAgain)
+    TEST_METHOD (UndoApplied_PutsTheBlocksBackAndTheEditsAreUnsavedAgain)
     {
         FakeDiskFileIo       io;
         BlockInspectorModel  model;
@@ -258,12 +258,46 @@ public:
 
         AssertSucceeded (model.UndoApplied (error));
         Assert::AreEqual (original, io.files["vol.po"][kAt]);
+        Assert::IsTrue   (model.GetEdits().IsChanged (300, 100), L"the saved edit is unsaved again");
+        Assert::IsTrue   (model.GetEdits().CanUndo(), L"with its typing");
         Assert::IsFalse  (model.CanUndoApplied());
         Assert::IsTrue   (model.CanRedoApplied());
 
         AssertSucceeded (model.RedoApplied (error));
         Assert::AreEqual ((Byte) 0xA5, io.files["vol.po"][kAt]);
+        Assert::IsTrue   (model.GetEdits().IsEmpty());
         Assert::IsFalse  (model.CanRedoApplied());
+    }
+
+
+    TEST_METHOD (UndoApplied_WaitsForNoUnsavedChangesAndAChangeEndsRedo)
+    {
+        FakeDiskFileIo       io;
+        BlockInspectorModel  model;
+        std::wstring         error;
+
+
+
+        Seed (io, "vol.po", MakeProDos());
+        OpenModel (io, "vol.po", model);
+
+        model.SelectBlock (300);
+        Assert::IsTrue (model.TypeCharacter (0, L'Q'));
+        AssertSucceeded (model.ApplyEdits (error));
+
+        Assert::IsTrue  (model.TypeCharacter (1, L'R'));
+        Assert::IsFalse (model.CanUndoApplied(), L"the newer edit is unsaved");
+
+        Assert::IsTrue  (model.Undo());
+        Assert::IsTrue  (model.CanUndoApplied());
+        AssertSucceeded (model.UndoApplied (error));
+        Assert::IsTrue  (model.CanRedoApplied());
+
+        Assert::IsTrue  (model.TypeCharacter (2, L'S'));
+        Assert::IsFalse (model.CanRedoApplied(), L"the unsaved changes differ from the undone save");
+
+        Assert::IsTrue  (model.Undo());
+        Assert::IsTrue  (model.CanRedoApplied(), L"the same changes again");
     }
 
 
