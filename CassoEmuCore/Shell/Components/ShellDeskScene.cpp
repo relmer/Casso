@@ -2346,6 +2346,8 @@ bool ShellDeskScene::TryMakeHoverLabelQuad (const DeskSceneComposition & comp, c
     float          boundsMax[3] = {};
     float          normal[3]    = {};
     float          center[3]    = {};
+    float          topPx[2]     = {};
+    float          bottomPx[2]  = {};
     const float *  world        = nullptr;
     LONG           cellW        = GetSceneLabelCellWidthPx  (s_kSceneHoverCell, cellPx);
     LONG           cellH        = GetSceneLabelCellHeightPx (s_kSceneHoverCell, cellPx);
@@ -2372,6 +2374,24 @@ bool ShellDeskScene::TryMakeHoverLabelQuad (const DeskSceneComposition & comp, c
     for (int axis = 0; isMade && axis < 3; axis++)
     {
         center[axis] = (corners[0][axis] + corners[3][axis]) * 0.5f;
+    }
+
+    // A small drive, such as one slid up in front of the monitor, would make
+    // the name too small to read, so the quad grows in its plane until the
+    // name is as tall on screen as it was baked.
+    if (isMade && SceneCamera::ProjectToScreen (comp.viewProj, corners[0], comp.viewportPx, topPx) &&
+                  SceneCamera::ProjectToScreen (comp.viewProj, corners[2], comp.viewportPx, bottomPx))
+    {
+        float  heightPx = std::hypot (bottomPx[0] - topPx[0], bottomPx[1] - topPx[1]);
+        float  grow     = (heightPx > 0.0f) ? (float) cellH / heightPx : 1.0f;
+
+        for (int corner = 0; grow > 1.0f && corner < 4; corner++)
+        {
+            for (int axis = 0; axis < 3; axis++)
+            {
+                corners[corner][axis] = center[axis] + (corners[corner][axis] - center[axis]) * grow;
+            }
+        }
     }
 
     if (isMade)
