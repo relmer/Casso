@@ -634,6 +634,13 @@ hardware.
 - Q: When two connections have a Full Send at once, is there one window for both? -> A: No. Each connection with a session has a separate Full Send window, with the connection's name in its title and an End session for that session (owner, 2026-11-14). A section per connection in one window was built and removed: the window would be crowded, and End session would apply to one connection only. The status bar's summary has the connection's name, and has each session's summary when two run.
 - Q: Is the Apple's screen text in capitals? -> A: Only for an Apple with no small letters, the ][ and ][+, and for inverse text, whose characters have no small letters (owner, 2026-11-14). The PC writes the text in sentence case and sends it as written to a //e, a //c or a IIgs, by the ROM identification in the program's Ready.
 
+### Session 2026-11-15
+
+- Q: Does block mode look in free blocks for text and code left by deleted files? -> A: No. The search, its overlay and map mark, its legend line and field line, and Save as file are removed (owner, 2026-11-15). It was a partial data and deleted-file recovery feature that isn't offered on every medium Casso supports. A free block is drawn as free.
+- Q: How are numbers written on screen? -> A: With the user's regional settings in Windows, through one helper for all of Casso: the thousands separator and grouping, the decimal separator and the negative sign (owner, 2026-11-15). Nothing overrides the settings, and a number typed with separators, as in Go to, is parsed.
+- Q: How does a user find a file or a structure on a volume of tens of thousands of files in block mode? -> A: The grid of blocks stays on the left, always the whole volume, with the selection's blocks highlighted. The right side is a drill-down with a breadcrumb, Back and Forward: Card (only for a card), Volume (where block mode opens), Files, File and Block (owner, 2026-11-15). Files is a tree and a list as in Casso Explorer, with a search over the whole volume.
+- Q: Can a user get from the card, volume, directory or file level to the blocks that store each item there? -> A: Yes. Each item stored in blocks steps to its block when clicked: a partition to its first block, the volume header to block 2, the bitmap to its blocks, a directory to its blocks, and a file to its key block (owner, 2026-11-15).
+
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
 
@@ -2080,14 +2087,31 @@ back, and edit a byte and see it written.
 8. **Given** two block images, **When** they are compared, **Then** the
    blocks that differ are listed and stepped through, as Compare does for
    tracks.
-9. **Given** a free block with text or code in it, **When** the block map
-   is open, **Then** it is marked as leftover data, and a run of such
-   blocks can be saved as a file on the PC.
-10. **Given** a volume inside another, as the two DOS 3.3 volumes of a
-    UniDOS, AmDOS or OzDOS 800K disk, or a ProDOS volume inside a DOS 3.3
-    hybrid, **When** a block of it is selected, **Then** the block is also
-    addressed in the inner volume's terms, track and sector for DOS 3.3, and
-    annotated by the inner volume's structure.
+9. **Given** a volume inside another, as the two DOS 3.3 volumes of a
+   UniDOS, AmDOS or OzDOS 800K disk, or a ProDOS volume inside a DOS 3.3
+   hybrid, **When** a block of it is selected, **Then** the block is also
+   addressed in the inner volume's terms, track and sector for DOS 3.3, and
+   annotated by the inner volume's structure.
+10. **Given** a volume, **When** it is opened in block mode, **Then** the
+    grid of the whole volume is on the left, and the right side has the
+    Volume level: the header's fields, the boot blocks and their loader, the
+    volume directory and the bitmap, the space used and free, the file
+    system verdict's findings with Repair, and a container's header.
+11. **Given** a card, **When** it is opened, **Then** the Card level lists
+    its partitions as bands and in a table of number, file system, name,
+    size, space used and verdict, and a partition opens at its Volume level.
+12. **Given** a volume of tens of thousands of files, **When** the Files
+    level is open, **Then** a tree of its directories and a list of the
+    selected directory's files, with Name, Type, Aux, Blocks, EOF, Storage,
+    Key block and Modified, find a file by browsing or by a search of the
+    whole volume, and the selected file's blocks are highlighted on the grid.
+13. **Given** a selected file, **When** Enter is pressed, **Then** the File
+    level has its directory entry, its key block, index blocks and data runs,
+    its fragmentation and its blocks, and a block opens at the Block level.
+14. **Given** an item at the Card, Volume, Files or File level that is
+    stored in blocks, **When** it is clicked, **Then** block mode steps to
+    its first block, and Back returns to the level it came from. The
+    breadcrumb has each level from the card or the volume down.
 
 ---
 
@@ -3850,12 +3874,39 @@ as they arrive.
 - **FR-253**: A block number in an index block, directory link or B-tree
   link MUST step to that block when clicked, with Back and Forward.
 - **FR-254**: Each partition MUST be drawn as a band over its blocks.
-- **FR-255**: Block mode MUST compare two block images block by block, and
-  mark free blocks with text or code in them, which can be saved as a file.
+- **FR-255**: Block mode MUST compare two block images block by block.
 - **FR-256**: A volume inside another MUST be addressed and annotated by
   its file system over the outer volume's blocks: the DOS 3.3 volumes of
   UniDOS, AmDOS and OzDOS disks by track and sector, and a hybrid disk's
   second file system.
+- **FR-292**: In block mode, the grid of the whole volume MUST be on the
+  left, with the selection's blocks highlighted: a file, a directory and the files
+  under it, a structure, or a finding's blocks. The right side MUST be a
+  drill-down of levels, Card, Volume, Files, File and Block, with a
+  breadcrumb, Back and Forward. Card appears only for a card, and a volume
+  opens at Volume.
+- **FR-293**: The Volume level MUST have the volume header's fields, the boot
+  blocks and their loader, the volume directory, the bitmap, the space used
+  and free, the file system verdict's findings with Repair, and the 2MG or
+  Disk Copy 4.2 header where there is one.
+- **FR-294**: The Files level MUST have a tree of the volume's directories
+  and a list of the selected directory's entries, with the selection,
+  sorting and keys of Casso Explorer's tree and list, a search over the
+  whole volume, and
+  the columns Name, Type, Aux, Blocks, EOF, Storage, Key block and Modified.
+  It MUST stay responsive on a 1 GB HFS volume of about 2.1 million blocks
+  and on a volume of tens of thousands of files.
+- **FR-295**: The File level MUST have the file's directory entry, its
+  storage as key block, index blocks and data runs, its fragmentation, and
+  its blocks.
+- **FR-296**: Every item at the Card, Volume, Files and File levels that is
+  stored in blocks MUST step to its first block when clicked: a partition to
+  its first block, the volume header to its block, the bitmap and a
+  directory to their blocks, and a file to its key block.
+- **FR-297**: Every number Casso writes on screen MUST use the user's
+  regional settings in Windows, the same way everywhere: thousands
+  separator, grouping, decimal separator and negative sign. A number typed with
+  separators MUST be parsed.
 
 **HFS**
 
@@ -4300,6 +4351,11 @@ as they arrive.
   its row's Repair disk image writes a copy with the verdict OK; a Full Send
   of a copy-protected disk has "No standard file system" and sounds success
   when it boots.
+- **SC-077**: On a volume of 20,000 entries, a search at the Files level
+  selects a file and highlights its blocks within one second, and the
+  window's thread doesn't stall for more than 100 ms while the level fills.
+- **SC-078**: With the region set to German (Germany), block 47790 is
+  written as 47.790 and a Go to of 47.790 steps to it.
 
 ## Assumptions
 
