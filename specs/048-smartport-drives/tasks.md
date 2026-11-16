@@ -258,6 +258,7 @@ runs on machines as they ship today.
 - [ ] T109 Run the 033 block device scenario tests (T573) on the SCSI card (SC-009), in coordination with whoever is working on spec 033's Story 23
 - [ ] T110 Confirm that no "to verify" marker is left in `research.md`, and that `data-model.md` matches it
 - [ ] T111 `CHANGELOG.md` and `README.md` entries for the new cards, drives and machine, terse, after the owner approves the text
+- [ ] T113 A click on a 3.5-inch drive opens Casso's disk picker, as a click on a Disk II does, rather than the standard Open dialog. Waits for spec 049, whose picker replaces Casso's
 - [ ] T112 Pre-merge gate: `scripts/CheckStyle.ps1 -Mode Tree`, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, `scripts/RunTests.ps1 -Build`, `scripts/RunTests.ps1 -Build -Scenario`, `scripts/RunTests.ps1 -Build -Sanitize -Configuration Release -Scenario`
 
 ---

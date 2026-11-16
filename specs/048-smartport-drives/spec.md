@@ -134,6 +134,16 @@ the interaction, sound and event log the Disk II already has.
   (for the 5.25-inch drives, the last one). A confirmation states that the
   change restarts the machine, as for a hard disk image change. On Restart
   the chain is saved with the machine and the machine is rebuilt with it.
+- Q: How many drives does the //c Plus's port take, and can one be changed
+  for the other size? A: Two in all, so both rows are disabled once two
+  drives are plugged in. A drive with "Unplug drive" also has "Swap for a
+  5.25-inch drive" or "Swap for a 3.5-inch drive", which removes it and
+  plugs in one of the other size, behind the same confirmation. The
+  5.25-inch drives are labeled with their slot and drive, "Disk IIc - S6,D1",
+  since the firmware numbers them in slot 6 behind the built-in drive in
+  slot 5.
+- Q: What happens to the window when the theme changes between a 2D and a
+  3D theme? A: The view is reset, as Ctrl+0 does.
 
 ## User Scenarios & Testing *(mandatory)*
 
