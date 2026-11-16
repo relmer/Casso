@@ -8,6 +8,7 @@
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/ClipboardManager.h"
+#include "Shell/DiskMenuRule.h"
 #include "Shell/Components/ShellWindow.h"
 #include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellRenderer.h"
@@ -1159,28 +1160,50 @@ Error:
 //  picker is up, closes back on cancel, and the picker path already
 //  reports anything worth reporting.
 //
+//  On a //c Plus, drive 1 is the built-in 3.5-inch drive, which has only
+//  insert and eject, and drive 2 is the first 5.25-inch drive on the disk
+//  port. The posted commands address the Disk II drive.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void WindowCommandManager::OnDiskCommand (int id)
 {
+    bool           isDrive1 = (id == IDM_DISK_INSERT1  || id == IDM_DISK_EJECT1   || id == IDM_DISK_WP1 ||
+                               id == IDM_DISK_SALVAGE1 || id == IDM_DISK_INSPECT1 || id == IDM_DISK_THUMBNAIL1);
+    DiskMenuDrive  target   = m_shell.m_disks->GetMenuDrive (isDrive1 ? 0 : 1);
+    int            drive    = target.diskIiDrive;
+
+
+
     switch (id)
     {
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
         {
-            m_shell.m_disks->BrowseForDisk ((id == IDM_DISK_INSERT1) ? 0 : 1);
+            if (target.isBuiltIn35 && m_shell.m_scene)
+            {
+                m_shell.m_scene->BrowseDeskDrive (DiskMenuRule::GetBuiltIn35Drive());
+            }
+            else if (target.IsDiskIi())
+            {
+                m_shell.m_disks->BrowseForDisk (drive);
+            }
+
             break;
         }
 
         case IDM_DISK_EJECT1:
         case IDM_DISK_EJECT2:
         {
-            if (!m_shell.ConfirmInspectorDiscard ((id == IDM_DISK_EJECT1) ? 0 : 1, L"Ejecting the disk"))
+            if (target.isBuiltIn35)
             {
-                break;
+                m_shell.m_disks->Eject (DiskMenuRule::GetBuiltIn35Drive().slot, DiskMenuRule::GetBuiltIn35Drive().drive);
+            }
+            else if (target.IsDiskIi() && m_shell.ConfirmInspectorDiscard (drive, L"Ejecting the disk"))
+            {
+                m_shell.PostCommand (static_cast<WORD> ((drive == 0) ? IDM_DISK_EJECT1 : IDM_DISK_EJECT2));
             }
 
-            m_shell.PostCommand (static_cast<WORD> (id));
             break;
         }
 
@@ -1189,7 +1212,11 @@ void WindowCommandManager::OnDiskCommand (int id)
         {
             // The toggle runs on the CPU thread (like mount / eject) so its
             // flush never races the drive engine.
-            m_shell.PostCommand (static_cast<WORD> (id));
+            if (target.IsDiskIi())
+            {
+                m_shell.PostCommand (static_cast<WORD> ((drive == 0) ? IDM_DISK_WP1 : IDM_DISK_WP2));
+            }
+
             break;
         }
 
@@ -1197,7 +1224,11 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_SALVAGE2:
         {
             // Stays on the UI thread: the flow opens Dxui modals.
-            m_shell.m_disks->RunSalvageFlow ((id == IDM_DISK_SALVAGE1) ? 0 : 1);
+            if (target.IsDiskIi())
+            {
+                m_shell.m_disks->RunSalvageFlow (drive);
+            }
+
             break;
         }
 
@@ -1210,14 +1241,22 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_INSPECT1:
         case IDM_DISK_INSPECT2:
         {
-            m_shell.OpenDiskInspector ((id == IDM_DISK_INSPECT1) ? 0 : 1);
+            if (target.IsDiskIi())
+            {
+                m_shell.OpenDiskInspector (drive);
+            }
+
             break;
         }
 
         case IDM_DISK_THUMBNAIL1:
         case IDM_DISK_THUMBNAIL2:
         {
-            m_shell.SetDiskThumbnail ((id == IDM_DISK_THUMBNAIL1) ? 0 : 1);
+            if (target.IsDiskIi())
+            {
+                m_shell.SetDiskThumbnail (drive);
+            }
+
             break;
         }
 

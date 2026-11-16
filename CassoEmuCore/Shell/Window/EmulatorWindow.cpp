@@ -653,22 +653,28 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         StartNewControllerProfile (unit);
     });
 
+    // A drive command is offered for the Disk II drive it acts on, and the
+    // //c Plus's built-in drive has only insert and eject.
     m_chrome->m_mainMenu.SetEnableQuery ([this] (WORD commandId) -> bool
     {
+        int   drive1  = m_disks->GetMenuDrive (0).diskIiDrive;
+        int   drive2  = m_disks->GetMenuDrive (1).diskIiDrive;
+        auto  isShown = [this] (int drive) { return drive == 0 || (drive == 1 && m_disks->ShouldShowExternalDrive()); };
+
         switch (commandId)
         {
-            case IDM_DISK_WP1:      return m_disks->IsWriteProtectToggleOffered (0);
-            case IDM_DISK_WP2:      return m_disks->IsWriteProtectToggleOffered (1);
-            case IDM_DISK_SALVAGE1: return m_disks->IsSalvageOffered (0);
-            case IDM_DISK_SALVAGE2: return m_disks->IsSalvageOffered (1);
-            case IDM_DISK_INSPECT1: return m_disks->GetManager()->HasSlot6Controller();
-            case IDM_DISK_INSPECT2: return m_disks->GetManager()->HasSlot6Controller() && m_disks->ShouldShowExternalDrive();
-            case IDM_DISK_THUMBNAIL1: return !m_disks->GetMountedImagePath (0).empty();
-            case IDM_DISK_THUMBNAIL2: return m_disks->ShouldShowExternalDrive() && !m_disks->GetMountedImagePath (1).empty();
+            case IDM_DISK_WP1:      return drive1 >= 0 && m_disks->IsWriteProtectToggleOffered (drive1);
+            case IDM_DISK_WP2:      return drive2 >= 0 && m_disks->IsWriteProtectToggleOffered (drive2);
+            case IDM_DISK_SALVAGE1: return drive1 >= 0 && m_disks->IsSalvageOffered (drive1);
+            case IDM_DISK_SALVAGE2: return drive2 >= 0 && m_disks->IsSalvageOffered (drive2);
+            case IDM_DISK_INSPECT1: return isShown (drive1) && m_disks->GetManager()->HasSlot6Controller();
+            case IDM_DISK_INSPECT2: return isShown (drive2) && m_disks->GetManager()->HasSlot6Controller();
+            case IDM_DISK_THUMBNAIL1: return isShown (drive1) && !m_disks->GetMountedImagePath (drive1).empty();
+            case IDM_DISK_THUMBNAIL2: return isShown (drive2) && !m_disks->GetMountedImagePath (drive2).empty();
             case IDM_STORAGE_DRIVE2:   return m_disks->IsSecondDriveOffered();
             case IDM_STORAGE_RECORDER: return m_tapeDeck->MachineHasCassettePort();
-            case IDM_DISK_INSERT2:     return m_disks->ShouldShowExternalDrive();
-            case IDM_DISK_EJECT2:      return m_disks->ShouldShowExternalDrive();
+            case IDM_DISK_INSERT2:     return isShown (drive2);
+            case IDM_DISK_EJECT2:      return isShown (drive2);
             case IDM_TAPE_INSERT:      return m_tapeDeck->IsTapeRecorderShown();
             case IDM_TAPE_NEW:         return m_tapeDeck->IsTapeRecorderShown();
             case IDM_TAPE_PLAY:        return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,        m_tapeDeck->GetTapeView());
@@ -710,8 +716,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                 // preference is a different toggle and does not flip it. An
                 // empty return keeps the static "Write-protect disk N" label
                 // for an empty (disabled) drive.
-                int           drive = (commandId == IDM_DISK_WP1) ? 0 : 1;
-                DiskImage  *  image = m_machine.GetDiskStore().GetImage (6, drive);
+                int           drive = m_disks->GetMenuDrive ((commandId == IDM_DISK_WP1) ? 0 : 1).diskIiDrive;
+                DiskImage  *  image = (drive >= 0) ? m_machine.GetDiskStore().GetImage (6, drive) : nullptr;
                 std::wstring  name;
 
                 if (image == nullptr)

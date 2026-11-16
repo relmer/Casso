@@ -1634,6 +1634,25 @@ bool ShellDisks::MachineHasBuiltInDrive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDisks::GetMenuDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskMenuDrive ShellDisks::GetMenuDrive (int menuDrive) const
+{
+    const MachineConfig  & config = m_shell.m_machine.GetConfig();
+
+
+
+    return DiskMenuRule::Resolve (menuDrive, DiskMenuRule::HasBuiltIn35Drive (config), config.CountDiskPortFloppies());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDisks::HasDiskIicDrives
 //
 //  Whether the machine's 5.25-inch drives are the //c family's, on a disk

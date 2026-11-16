@@ -7,6 +7,7 @@
 #include "Seams/IntentReplyTracker.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Shell/CpuCommandTargets.h"
+#include "Shell/DiskMenuRule.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DriveWidgetState.h"
@@ -156,6 +157,9 @@ public:
     // card, which decides the drive the desk scene draws.
     bool  MachineHasBuiltInDrive () const;
     bool  HasDiskIicDrives       () const;
+
+    // The drive the Storage menu's drive 1 (0) or drive 2 (1) commands act on.
+    DiskMenuDrive  GetMenuDrive (int menuDrive) const;
 
     // The info icon's tooltip for a drive: what its WOZ image declares about
     // the machine, and what conflicts with the one running. Empty when nothing

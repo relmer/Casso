@@ -13,6 +13,8 @@
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Devices/Disk/DriveImageRule.h"
 #include "Devices/Disk/ImageClassifier.h"
+#include "Shell/BootDriveRule.h"
+#include "Shell/DiskMenuRule.h"
 #include "Shell/DriveDropRule.h"
 #include "Shell/Layout/DriveLabel.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
@@ -590,7 +592,19 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
         return;
     }
 
-    if (device == kStorageMenuRecorder)
+    // A //c Plus's drive 2 commands act on its first 5.25-inch drive, and its
+    // second has only insert and eject.
+    if (device != kStorageMenuRecorder && DiskMenuRule::HasBuiltIn35Drive (m_machine.GetConfig()))
+    {
+        if (device != 0)
+        {
+            ShowDriveContextMenu (DeskDrive { DeskDriveModel::Disk2c, BootDriveRule::kDiskIiSlot, device }, x, y);
+            return;
+        }
+
+        ids = { IDM_DISK_INSERT2, IDM_DISK_EJECT2, IDM_DISK_WP2, IDM_DISK_SALVAGE2, IDM_DISK_INSPECT2, IDM_DISK_THUMBNAIL2 };
+    }
+    else if (device == kStorageMenuRecorder)
     {
         ids = { IDM_STORAGE_RECORDER, 0, IDM_TAPE_INSERT, IDM_TAPE_PLAY, IDM_TAPE_STOP, IDM_TAPE_REWIND,
                 IDM_TAPE_FASTFORWARD, IDM_TAPE_EJECT };
@@ -648,8 +662,8 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
 //
 //  EmulatorShell::ShowDriveContextMenu
 //
-//  A 3.5-inch drive's or hard disk's menu: the drive's name, then for a
-//  3.5-inch drive its insert and eject, and for a hard disk its image
+//  A floppy drive's or hard disk's menu: the drive's name, then for a
+//  floppy drive its insert and eject, and for a hard disk its image
 //  change, then the switches every storage menu ends with.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -668,7 +682,23 @@ void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
 
     items.push_back (DxuiPopupMenuItem::ForHeader (ShellDeskScene::GetDriveTitle (drive)));
 
-    if (ShellDeskScene::IsFloppy35 (drive))
+    if (drive.model == DeskDriveModel::Disk2c)
+    {
+        auto  insert = std::make_shared<DxuiCommand>();
+        auto  eject  = std::make_shared<DxuiCommand>();
+
+
+
+        insert->label     = L"&Insert disk...";
+        insert->dispatch  = [this, drive] () { m_disks->BrowseForDisk (drive.drive); };
+        eject->label      = L"&Eject disk";
+        eject->dispatch   = [this, drive] () { m_disks->Eject (drive.slot, drive.drive); };
+        eject->isEnabled  = [this, drive] () { return !m_disks->GetMountedImagePath (drive.drive).empty(); };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (insert));
+        items.push_back (DxuiPopupMenuItem::ForCommand (eject));
+    }
+    else if (ShellDeskScene::IsFloppy35 (drive))
     {
         auto  insert = std::make_shared<DxuiCommand>();
         auto  eject  = std::make_shared<DxuiCommand>();

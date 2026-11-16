@@ -1195,6 +1195,7 @@
     <ClCompile Include="Shell\ModernPrintDialog.cpp" />
     <ClCompile Include="Shell\WindowCommandManager.cpp" />
     <ClCompile Include="Shell\WindowManager.cpp" />
+    <ClCompile Include="Shell\DiskMenuRule.cpp" />
     <ClCompile Include="Shell\DiskMru.cpp" />
     <ClCompile Include="Shell\BootDriveRule.cpp" />
     <ClCompile Include="Shell\DriveDropRule.cpp" />
@@ -2140,6 +2141,7 @@
     <ClInclude Include="Ui\Scene\FullscreenStripState.h" />
     <ClInclude Include="Ui\PrinterPanel.h" />
     <ClInclude Include="Ui\PrinterPaperView.h" />
+    <ClInclude Include="Shell\DiskMenuRule.h" />
     <ClInclude Include="Shell\DiskMru.h" />
     <ClInclude Include="Shell\BootDriveRule.h" />
     <ClInclude Include="Shell\DriveDropRule.h" />
