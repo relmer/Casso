@@ -572,6 +572,10 @@ void BlockInspectorWindow::UpdateTooltip (POINT pointPx)
     {
         (void) m_panel->GetMap().GetTooltipSwatches (pointPx, swatches);
     }
+    else if (!m_worker.IsBusy() && !m_panel->GetHexTooltip (pointPx, tip, anchor, swatches))
+    {
+        tip.clear();
+    }
 
     if (tip.empty())
     {

@@ -29,6 +29,10 @@ public:
 
     SIZE  GetSizePx (const DxuiDpiScaler & scaler) const;
 
+    //  Whether another image is compared, so the mark for a block that
+    //  differs has its line.
+    void  SetComparing (bool isComparing) { m_isComparing = isComparing; }
+
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override { SetBounds (boundsPx); m_scaler = scaler; }
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
@@ -36,4 +40,5 @@ private:
     static const vector<SectorRole> &  GetRoles ();
 
     DxuiDpiScaler  m_scaler;
+    bool           m_isComparing = false;
 };

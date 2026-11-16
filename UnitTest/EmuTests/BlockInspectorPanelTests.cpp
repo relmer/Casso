@@ -519,6 +519,75 @@ public:
     }
 
 
+    TEST_METHOD (Panel_TheWheelScrollsTheHexViewUnderThePointer)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        DxuiMouseEvent        ev;
+        RECT                  hex = {};
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+        panel.SelectBlock (2);
+        panel.Paint  (painter, text, theme);
+
+        hex            = panel.GetHexView()->GetBounds();
+        ev.kind        = DxuiMouseEventKind::Wheel;
+        ev.wheelDelta  = -1.0f;
+        ev.positionDip = { (hex.left + hex.right) / 2, (hex.top + hex.bottom) / 2 };
+
+        Assert::IsTrue (panel.OnMouse (ev));
+        Assert::IsTrue (panel.GetHexView()->GetTopRow() > 0, L"the hex view scrolled down");
+    }
+
+
+    TEST_METHOD (Panel_ALinkedByteHasATipThatSaysWhereItLeads)
+    {
+        FakeDiskFileIo             io;
+        BlockInspectorModel        model;
+        BlockInspectorPanel        panel;
+        DxuiDarkTheme              theme;
+        DxuiDpiScaler              scaler;
+        MockDxuiPainter            painter;
+        MockDxuiTextRenderer       text;
+        RECT                       hex     = {};
+        RECT                       anchor  = {};
+        std::wstring               tip;
+        vector<DxuiTooltipSwatch>  swatches;
+        bool                       isFound = false;
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+        panel.SelectBlock (2);
+        panel.Paint  (painter, text, theme);
+
+        hex = panel.GetHexView()->GetBounds();
+
+        //  Block 2, the volume directory's key block, starts with links to
+        //  the previous and next directory blocks.
+        for (int x = hex.left; x < hex.right && !isFound; x += 2)
+        {
+            isFound = panel.GetHexTooltip ({ x, hex.top + 4 }, tip, anchor, swatches) && tip.find (L"Links to block") != std::wstring::npos;
+        }
+
+        Assert::IsTrue (isFound, tip.c_str());
+        Assert::IsFalse (swatches.empty());
+    }
+
+
     TEST_METHOD (Panel_SelectingARowDrawsItsFirstBlockBelowTheList)
     {
         FakeDiskFileIo        io;

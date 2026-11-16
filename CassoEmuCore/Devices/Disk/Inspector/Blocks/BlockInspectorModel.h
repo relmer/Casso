@@ -116,6 +116,10 @@ public:
     SectorRole    GetRole   (uint32_t block) const;
     std::wstring  GetOwners (uint32_t block) const;
 
+    //  A number for the first file that uses a block, the same for every
+    //  block of the file and different for each file on the image, or -1.
+    int64_t       GetOwnerKey (uint32_t block) const;
+
     //  "Driver descriptor" or "Partition map" for a block of an Apple
     //  Partition Map, or null for any other block.
     LPCWSTR  GetMapLabel (uint32_t block) const;

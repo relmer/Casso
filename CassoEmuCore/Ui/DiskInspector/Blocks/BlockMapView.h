@@ -57,6 +57,10 @@ public:
     //  Whether a block that differs from the other image has its mark.
     void  SetDiffsShown (bool isShown) { m_isDiffsShown = isShown; }
 
+    //  Whether each file's blocks have a different color, in place of the
+    //  one color for all files' data.
+    void  SetFilesColored (bool isColored) { m_isFilesColored = isColored; }
+
     //  The zoom, from 1 for the whole volume, in even steps up to a cell of
     //  kMostCellDip with one block in it. StepZoom steps about
     //  the map's center, StepZoomAt about a point, and Fit returns to the
@@ -114,63 +118,71 @@ private:
     static constexpr float   kLabelDip     = 18.0f;  // the least cell a run of blocks is labeled in
     static constexpr float   kLabelPadDip  = 4.0f;
 
-    RECT          GetGridRect   () const;
-    void          PaintBands    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void          PaintCells    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & grid) const;
-    void          PaintMarquee  (IDxuiPainter & painter, const DiskInspectorPalette & palette, const RECT & grid) const;
-    uint32_t      GetCellColor  (const DiskInspectorPalette & palette, uint32_t cell) const;
-    void          PaintLabels   (IDxuiTextRenderer & text, const DiskInspectorPalette & palette, const RECT & grid, float left, float top) const;
-    void          ReadLabels    (const RECT & grid);
-    std::wstring  GetBlockLabel (uint32_t block) const;
-    void          BuildStops    ();
-    void          ZoomAbout     (double zoom, POINT anchorPx);
-    void          ClampPan      ();
-    int64_t       FindCellAt    (POINT pointPx) const;
+    RECT             GetGridRect    () const;
+    void             PaintBands     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void             PaintCells     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & grid) const;
+    void             PaintMarquee   (IDxuiPainter & painter, const DiskInspectorPalette & palette, const RECT & grid) const;
+    uint32_t         GetCellColor   (const DiskInspectorPalette & palette, uint32_t cell) const;
+    void             PaintLabels    (IDxuiTextRenderer & text, const DiskInspectorPalette & palette, const RECT & grid, float left, float top) const;
+    void             GetCellsInView (const RECT & grid, int & outFirstColumn, int & outLastColumn, int & outFirstRow, int & outLastRow) const;
+    void             ReadBlocks     ();
+    static uint32_t  GetFileColor   (int64_t key, bool isDark);
+    void             ReadLabels     (const RECT & grid);
+    std::wstring     GetBlockLabel  (uint32_t block) const;
+    void             BuildStops     ();
+    void             ZoomAbout      (double zoom, POINT anchorPx);
+    void             ClampPan       ();
+    int64_t          FindCellAt     (POINT pointPx) const;
 
     //  Views as the platter's flight has them: a point d of the fit grid, in
     //  pixels, is at pan + zoom * d in the view.
     InspectorViewModel::View  GetView    () const { return { m_zoom, { -m_panX, -m_panY } }; }
     InspectorViewModel::View  GetBoxView (double left, double top, double right, double bottom) const;
 
-    BlockInspectorModel       * m_model           = nullptr;
+    BlockInspectorModel       * m_model            = nullptr;
     DxuiDpiScaler               m_scaler;
     BlockMapGrid                m_grid;
     vector<SectorRole>          m_roles;
+    vector<int64_t>             m_owners;   // each cell's file, as GetOwnerKey has it, or -1
+    vector<SectorRole>          m_blockRoles;   // each block's role and file, read once for the map's generation
+    vector<int64_t>             m_blockOwners;
+    uint32_t                    m_blocksGeneration = 0;
+    bool                        m_isFilesColored   = false;
     vector<bool>                m_highlighted;
     vector<std::wstring>        m_labels;   // each cell in view's file or structure, where the cells are labeled
     vector<std::wstring>        m_blockLabels;   // each block's label once read, for the map's generation
     vector<bool>                m_isLabelRead;
-    uint32_t                    m_labelGeneration = 0;
-    bool                        m_hasHighlight    = false;
-    RECT                        m_highlightBox    = {};   // the highlighted blocks' columns and rows, right and bottom past the last
+    uint32_t                    m_labelGeneration  = 0;
+    bool                        m_hasHighlight     = false;
+    RECT                        m_highlightBox     = {};   // the highlighted blocks' columns and rows, right and bottom past the last
     InspectorViewModel::View    m_flightFrom;
     InspectorViewModel::View    m_flightMid;
     InspectorViewModel::View    m_flightTo;
-    double                      m_flightStartMs   = 0.0;
-    bool                        m_isFlying        = false;
-    bool                        m_isTwoLegs       = false;
-    bool                        m_isDark          = true;   // the theme's surface the last time the map was drawn
+    double                      m_flightStartMs    = 0.0;
+    bool                        m_isFlying         = false;
+    bool                        m_isTwoLegs        = false;
+    bool                        m_isDark           = true;   // the theme's surface the last time the map was drawn
     vector<bool>                m_differs;
     SelectFn                    m_onSelect;
     SelectFn                    m_onOpen;
     HoverFn                     m_onHover;
-    int64_t                     m_hoverCell       = -1;
-    bool                        m_isOutlined      = true;
-    bool                        m_isFrozen        = false;
+    int64_t                     m_hoverCell        = -1;
+    bool                        m_isOutlined       = true;
+    bool                        m_isFrozen         = false;
     vector<BlockBand>           m_bands;
-    uint32_t                    m_blockCount      = 0;
-    uint32_t                    m_current         = 0;
-    bool                        m_isZoomable      = false;
-    bool                        m_isDiffsShown    = true;
-    double                      m_zoom            = 1.0;
-    double                      m_panX            = 0.0;   // where the view starts in the zoomed grid, in pixels
-    double                      m_panY            = 0.0;
+    uint32_t                    m_blockCount       = 0;
+    uint32_t                    m_current          = 0;
+    bool                        m_isZoomable       = false;
+    bool                        m_isDiffsShown     = true;
+    double                      m_zoom             = 1.0;
+    double                      m_panX             = 0.0;   // where the view starts in the zoomed grid, in pixels
+    double                      m_panY             = 0.0;
     vector<double>              m_stops;
-    SIZE                        m_stopsSize       = {};   // the grid's size and block count the stops were built for
-    uint32_t                    m_stopsCount      = 0;
-    bool                        m_isPressed       = false;
-    bool                        m_isPanning       = false;
-    POINT                       m_pressAt         = {};
-    POINT                       m_lastAt          = {};
-    int64_t                     m_lastClickMs     = 0;
+    SIZE                        m_stopsSize        = {};   // the grid's size and block count the stops were built for
+    uint32_t                    m_stopsCount       = 0;
+    bool                        m_isPressed        = false;
+    bool                        m_isPanning        = false;
+    POINT                       m_pressAt          = {};
+    POINT                       m_lastAt           = {};
+    int64_t                     m_lastClickMs      = 0;
 };

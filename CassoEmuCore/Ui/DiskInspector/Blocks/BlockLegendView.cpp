@@ -55,7 +55,7 @@ const vector<SectorRole> & BlockLegendView::GetRoles()
 
 SIZE BlockLegendView::GetSizePx (const DxuiDpiScaler & scaler) const
 {
-    int  rows = (int) GetRoles().size() + s_kMarkRows;
+    int  rows = (int) GetRoles().size() + (m_isComparing ? s_kMarkRows : 0);
 
 
 
@@ -119,5 +119,8 @@ void BlockLegendView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         line (palette.GetRoleColor (static_cast<MapRole> (role)), BlockMapGrid::GetRoleName (role), false);
     }
 
-    line (theme.ErrorForeground(), L"Differs from the other image", true);
+    if (m_isComparing)
+    {
+        line (theme.ErrorForeground(), L"Differs from the other image", true);
+    }
 }

@@ -157,8 +157,17 @@ bool BlockFieldsView::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
         case DxuiMouseEventKind::Wheel:
-            m_top = std::clamp (m_top - (int) ev.wheelDelta * kWheelRows, 0, maximum);
+        {
+            RECT  bounds = GetBounds();
+
+            if (ev.wheelHorizontal || !PtInRect (&bounds, ev.positionDip))
+            {
+                return false;
+            }
+
+            m_top = std::clamp (m_top - (int) std::lround (ev.wheelDelta * kWheelRows), 0, maximum);
             return true;
+        }
 
         case DxuiMouseEventKind::Leave:
             row = -1;

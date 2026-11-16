@@ -761,9 +761,9 @@ uint32_t BlockInspectorModel::GetUnitBlock (const Volume & volume, uint32_t unit
 
 SectorRole BlockInspectorModel::GetRole (uint32_t block) const
 {
-    bool           isDescriptor = false;
-    vector<Place>  places;
-    SectorRole     role         = SectorRole::Free;
+    thread_local vector<Place>  places;
+    bool                        isDescriptor = false;
+    SectorRole                  role         = SectorRole::Free;
 
 
 
@@ -804,6 +804,37 @@ LPCWSTR BlockInspectorModel::GetMapLabel (uint32_t block) const
     }
 
     return isDescriptor ? L"Driver descriptor" : L"Partition map";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorModel::GetOwnerKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t BlockInspectorModel::GetOwnerKey (uint32_t block) const
+{
+    thread_local vector<Place>  places;
+
+
+
+    FindPlaces (block, places);
+
+    for (const Place & place : places)
+    {
+        const vector<int> &  owners = m_volumes[place.volume]->map.blocks[place.unit].owners;
+
+        if (!owners.empty() && owners[0] >= 0)
+        {
+            return ((int64_t) place.volume << 32) | (uint32_t) owners[0];
+        }
+    }
+
+    return -1;
 }
 
 
@@ -1108,7 +1139,7 @@ void BlockInspectorModel::ClearHighlight()
 
 bool BlockInspectorModel::IsHighlighted (uint32_t block) const
 {
-    vector<Place>  places;
+    thread_local vector<Place>  places;
 
 
 

@@ -59,8 +59,9 @@ public:
     static constexpr float  kMinTree      = 0.08f;
     static constexpr float  kMaxTree      = 0.35f;
     static constexpr float  kSearchDip    = 220.0f;
-    static constexpr float  kHexShare     = 0.60f;   // the hex view's share of the width beside the fields, until it is measured
-    static constexpr float  kMinFieldsDip = 200.0f;
+    static constexpr float  kHexShare     = 0.60f;   // the hex view's share of the width beside the fields at first
+    static constexpr float  kMinHex       = 0.30f;
+    static constexpr float  kMaxHex       = 0.85f;
     static constexpr float  kHexScrollDip = 12.0f;   // room for the hex view's vertical scroll bar
     static constexpr float  kListShare    = 0.45f;   // the list's share of the middle column's height at first
     static constexpr float  kMinList      = 0.15f;
@@ -137,6 +138,10 @@ public:
     std::wstring  GetSelectionLine () const;
 
 
+    //  The tip for a byte of the hex view under a point: its field, and what
+    //  its color marks. False where there is no byte.
+    bool  GetHexTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx, vector<DxuiTooltipSwatch> & outSwatches) const;
+
     BlockMapView    & GetMap          () const { return *m_map; }
     BlockHexView    * GetHexView      () const { return m_hex; }
     DxuiIconButton  & GetLegendButton () const { return *m_legendButton; }
@@ -151,6 +156,9 @@ private:
     //  The legend is visible while the pointer is over its button or over
     //  the legend, as a tooltip is.
     void  TrackLegendHover (POINT pointPx);
+
+    //  The most bytes in a hex row that fit `widthPx`.
+    void  FitHexRows (int widthPx);
 
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 
@@ -225,6 +233,7 @@ private:
     bool                    m_isSplitting     = false;
     bool                    m_isTreeSplitting = false;
     bool                    m_isListSplitting = false;
+    bool                    m_isHexSplitting  = false;
     bool                    m_isMapSelecting  = false;   // a click on the map is selecting its row, so the map stays where it is
     bool                    m_hasEdits        = false;
     bool                    m_isRecording     = false;   // the next block drawn goes in the Back history
@@ -235,9 +244,11 @@ private:
     float                   m_split           = 0.62f;
     float                   m_treeShare       = kTreeShare;
     float                   m_listShare       = kListShare;
+    float                   m_hexShare        = kHexShare;
     RECT                    m_splitterPx      = {};
     RECT                    m_treeSplitterPx  = {};
     RECT                    m_listSplitterPx  = {};
+    RECT                    m_hexSplitterPx   = {};
     RECT                    m_titleRect       = {};
     RECT                    m_fieldRect       = {};
     RECT                    m_rowRect         = {};

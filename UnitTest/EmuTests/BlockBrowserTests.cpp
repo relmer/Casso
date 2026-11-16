@@ -8,6 +8,7 @@
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Ui/DiskInspector/Blocks/BlockBrowser.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
+#include "Ui/DiskInspector/Blocks/BlockMapGrid.h"
 #include "Ui/DiskInspector/Blocks/BlockMapView.h"
 #include "Ui/DiskInspector/Blocks/BlockNavigator.h"
 
@@ -263,6 +264,54 @@ public:
 
         Assert::AreEqual ((size_t) 1, browser.GetChildPlaces ({ BlockPlace::Kind::Volume, 0 }).size(), L"the volume's one directory");
         Assert::AreEqual (std::wstring (L"GAMES"), browser.GetChildPlaces ({ BlockPlace::Kind::Volume, 0 })[0].first);
+    }
+
+
+    TEST_METHOD (MapView_FilesOnGivesEachFileItsOwnColor)
+    {
+        FakeDiskFileIo             io;
+        BlockInspectorModel        model;
+        BlockMapView               view;
+        DxuiDpiScaler              scaler;
+        BlockMapGrid               grid (k800KBlocks, 400, 400);
+        uint32_t                   a      = UINT32_MAX;
+        uint32_t                   b      = UINT32_MAX;
+        POINT                      at     = {};
+        vector<DxuiTooltipSwatch>  first;
+        vector<DxuiTooltipSwatch>  second;
+        uint32_t                   block  = 0;
+
+
+
+        OpenModel (io, model);
+
+        for (block = 0; block < k800KBlocks; block++)
+        {
+            int64_t  key = model.GetOwnerKey (block);
+
+            if (key >= 0 && a == UINT32_MAX && model.GetRole (block) == SectorRole::FileData)
+            {
+                a = block;
+            }
+            else if (key >= 0 && a != UINT32_MAX && b == UINT32_MAX && key != model.GetOwnerKey (a) && model.GetRole (block) == SectorRole::FileData)
+            {
+                b = block;
+            }
+        }
+
+        Assert::IsTrue (b != UINT32_MAX, L"two files' data blocks");
+
+        view.SetModel        (&model);
+        view.SetFilesColored (true);
+        view.Layout          (RECT { 0, 0, 400, 400 }, scaler);
+        view.Refresh();
+
+        at = grid.GetCellOrigin (grid.GetCellOf (a));
+        Assert::IsTrue (view.GetTooltipSwatches ({ at.x, at.y }, first));
+        at = grid.GetCellOrigin (grid.GetCellOf (b));
+        Assert::IsTrue (view.GetTooltipSwatches ({ at.x, at.y }, second));
+
+        Assert::AreNotEqual (first[0].argb, second[0].argb);
     }
 
 

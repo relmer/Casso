@@ -509,8 +509,8 @@ bool BlockInspectorPanel::OnType (uint64_t offset, bool isHexColumn, bool isHigh
 //
 //  BlockInspectorPanel::SetFilesOn
 //
-//  The Files overlay highlights the blocks of the current block's file, and
-//  follows the current block.
+//  The Files overlay draws each file's blocks in a different color, and
+//  at a block, highlights the blocks of the block's file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -522,6 +522,7 @@ void BlockInspectorPanel::SetFilesOn (bool isOn)
     }
 
     m_isFilesOn = isOn;
+    m_map->SetFilesColored (isOn);
     Refresh();
 }
 
@@ -862,6 +863,7 @@ void BlockInspectorPanel::Present()
     m_filesChip->SetOn   (m_isFilesOn);
     m_diffsChip->SetOn   (m_isDiffsOn);
     m_diffsChip->SetVisible (isComparing);
+    m_legend->SetComparing  (isComparing);
     m_editNote->SetText  (NumberFormat::FormatInteger (m_model->GetEdits().CountChangedBytes()) + (m_model->GetEdits().CountChangedBytes() == 1 ? L" byte changed, not written" : L" bytes changed, not written"));
 
     m_hasEdits = hasEdits;
@@ -1306,9 +1308,8 @@ void BlockInspectorPanel::LayoutGrid (const RECT & column, const DxuiDpiScaler &
 //
 //  The list at the top, then a splitter, then the current block: its title
 //  row with Copy block at its right end, the field line, the edit or
-//  progress row when there is one, then the hex view beside the fields.
-//  The hex view is as wide as its columns once it has measured them, and
-//  the fields have the rest, at least kMinFieldsDip.
+//  progress row when there is one, then the hex view beside the fields,
+//  with a splitter between them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1360,13 +1361,117 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
     m_cancel->Layout   ({ column.right - button, y, column.right, y + row }, scaler);
     y = m_rowRect.bottom + (isRow ? pad : 0);
 
-    m_hexContentPx = m_hex->GetContentWidthPx();
-    hexEnd         = m_hexContentPx > 0 ? (int) column.left + m_hexContentPx + scaler.ToPx ((int) kHexScrollDip) + pad
-                                        : (int) column.left + (int) ((column.right - column.left) * kHexShare);
-    hexEnd         = std::max ((int) column.left + (int) (column.right - column.left) / 3, std::min (hexEnd, (int) column.right - scaler.ToPx ((int) kMinFieldsDip)));
+    m_hexShare = std::clamp (m_hexShare, kMinHex, kMaxHex);
+    hexEnd     = (int) column.left + (int) ((column.right - column.left) * m_hexShare);
+
+    m_hexSplitterPx = { hexEnd + pad / 2 - splitter / 2, y, hexEnd + pad / 2 + splitter / 2 + 1, std::max (y, (int) column.bottom) };
 
     m_hex->Layout    ({ column.left, y, hexEnd, std::max (y, (int) column.bottom) }, scaler);
     m_fields->Layout ({ hexEnd + pad, y, column.right, std::max (y, (int) column.bottom) }, scaler);
+    FitHexRows (hexEnd - (int) column.left);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::FitHexRows
+//
+//  The most bytes in a row, of 16, 8 and 4, whose columns fit the hex
+//  view's width, so no scroll bar across is drawn. Before the view has
+//  measured its text, the rows stay as they are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::FitHexRows (int widthPx)
+{
+    int  room  = widthPx - m_scaler.ToPx ((int) kHexScrollDip);
+    int  bytes = m_hex->GetBytesPerRow();
+
+
+
+    for (int count : { 16, 8, 4 })
+    {
+        m_hex->SetBytesPerRow (count);
+        bytes = count;
+
+        if (m_hex->GetContentWidthPx() == 0 || m_hex->GetContentWidthPx() <= room)
+        {
+            break;
+        }
+    }
+
+    m_hex->SetBytesPerRow (bytes);
+    m_hexContentPx = m_hex->GetContentWidthPx();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::GetHexTooltip
+//
+//  A byte's offset, then its field and the field's value, then what the
+//  byte's color marks: a link to another block, an edit not yet written,
+//  or a byte that differs from the other image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorPanel::GetHexTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx, vector<DxuiTooltipSwatch> & outSwatches) const
+{
+    DxuiHexView::HitResult  hit   = m_hex->IsVisible() ? m_hex->HitTestPoint (pointPx) : DxuiHexView::HitResult();
+    uint8_t                 mark  = BlockHexSource::kMarkNone;
+    const BlockField      * field = nullptr;
+    std::wstring            note;
+
+
+
+    if (!hit.hit || hit.offset >= m_source.GetByteCount())
+    {
+        return false;
+    }
+
+    m_source.ReadMarks (hit.offset, std::span<uint8_t> (&mark, 1));
+
+    for (const BlockField & candidate : m_fields->GetFields())
+    {
+        if (field == nullptr && candidate.Contains ((uint32_t) hit.offset))
+        {
+            field = &candidate;
+        }
+    }
+
+    outText = std::format (L"Byte ${:03X}", hit.offset);
+
+    if (field != nullptr)
+    {
+        outText += L"\n" + field->label + (field->value.empty() ? L"" : L": " + field->value);
+    }
+
+    note = mark == BlockHexSource::kMarkLink    ? (field != nullptr && field->link != BlockField::kNoLink ? L"Links to block " + NumberFormat::FormatInteger (field->link) + L"; click to open it" : L"Links to another block")
+         : mark == BlockHexSource::kMarkChanged ? L"Changed, not yet written"
+         : mark == BlockHexSource::kMarkDiffers ? L"Differs from the other image"
+         : mark == BlockHexSource::kMarkField   ? L"In the field under the pointer in the field list"
+         :                                        L"";
+
+    if (!note.empty())
+    {
+        outText += L"\n" + note;
+        outSwatches = { { (int) std::count (outText.begin(), outText.end(), L'\n'),
+                          mark == BlockHexSource::kMarkLink ? s_kLinkColor : mark == BlockHexSource::kMarkChanged ? s_kChangedColor : mark == BlockHexSource::kMarkDiffers ? s_kDiffersColor : s_kFieldColor } };
+    }
+    else
+    {
+        outSwatches.clear();
+    }
+
+    outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
+
+    return true;
 }
 
 
@@ -1387,15 +1492,17 @@ void BlockInspectorPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                       (float) (m_treeSplitterPx.bottom - m_treeSplitterPx.top), m_isTreeSplitting ? theme.Accent() : theme.Divider());
     painter.FillRect ((float) m_listSplitterPx.left, (float) (m_listSplitterPx.top + m_listSplitterPx.bottom) / 2.0f, (float) (m_listSplitterPx.right - m_listSplitterPx.left),
                       1.0f, m_isListSplitting ? theme.Accent() : theme.Divider());
+    painter.FillRect ((float) (m_hexSplitterPx.left + m_hexSplitterPx.right) / 2.0f, (float) m_hexSplitterPx.top, 1.0f, (float) (m_hexSplitterPx.bottom - m_hexSplitterPx.top),
+                      m_isHexSplitting ? theme.Accent() : theme.Divider());
 
     DxuiPanel::Paint (painter, text, theme);
     PaintHeader (painter, text, theme);
 
-    //  The hex view measures its text as it paints, so the column is laid
-    //  out again once its width is known.
-    if (m_hex->GetContentWidthPx() != m_hexContentPx && m_scaler.GetDpi() != 0)
+    //  The hex view measures its text as it paints, so its rows are fitted
+    //  again once their width is known.
+    if (m_hex->GetContentWidthPx() != m_hexContentPx)
     {
-        Layout (GetBounds(), m_scaler);
+        FitHexRows ((int) (m_hex->GetBounds().right - m_hex->GetBounds().left));
 
         if (m_onChanged)
         {
@@ -1586,6 +1693,36 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_hexSplitterPx, ev.positionDip))
+    {
+        m_isHexSplitting = true;
+        return true;
+    }
+
+    if (m_isHexSplitting && ev.kind == DxuiMouseEventKind::Move)
+    {
+        RECT  list = m_nav.GetList().GetBounds();
+
+        if (list.right > list.left)
+        {
+            m_hexShare = std::clamp ((float) (ev.positionDip.x - list.left) / (float) (list.right - list.left), kMinHex, kMaxHex);
+            Layout (bounds, m_scaler);
+
+            if (m_onChanged)
+            {
+                m_onChanged();
+            }
+        }
+
+        return true;
+    }
+
+    if (m_isHexSplitting && ev.kind == DxuiMouseEventKind::Up)
+    {
+        m_isHexSplitting = false;
+        return true;
+    }
+
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_listSplitterPx, ev.positionDip))
     {
         m_isListSplitting = true;
@@ -1661,10 +1798,26 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
     }
 
     //  The wheel over the grid zooms it, as the wheel over the platter does,
-    //  whichever control has the keyboard.
+    //  whichever control has the keyboard. Over any other control, the wheel
+    //  scrolls that control alone.
     if (ev.kind == DxuiMouseEventKind::Wheel && !ev.ctrl && PtInRect (&map, ev.positionDip))
     {
         return m_map->OnMouse (ev);
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Wheel && !ev.ctrl)
+    {
+        for (IDxuiControl * child : { (IDxuiControl *) m_hex, (IDxuiControl *) m_fields, (IDxuiControl *) &m_nav.GetList(), (IDxuiControl *) &m_nav.GetTree() })
+        {
+            RECT  r = child->GetBounds();
+
+            if (child->IsVisible() && PtInRect (&r, ev.positionDip))
+            {
+                return child->OnMouse (ev);
+            }
+        }
+
+        return false;
     }
 
     return DxuiPanel::OnMouse (ev);
@@ -1682,7 +1835,8 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
 
 LPCWSTR BlockInspectorPanel::GetCursorForPoint (POINT clientPx) const
 {
-    bool  isSplitter = PtInRect (&m_splitterPx, clientPx) || PtInRect (&m_treeSplitterPx, clientPx) || m_isSplitting || m_isTreeSplitting;
+    bool  isSplitter = PtInRect (&m_splitterPx, clientPx) || PtInRect (&m_treeSplitterPx, clientPx) || PtInRect (&m_hexSplitterPx, clientPx)
+                    || m_isSplitting || m_isTreeSplitting || m_isHexSplitting;
     bool  isList     = PtInRect (&m_listSplitterPx, clientPx) || m_isListSplitting;
 
 
