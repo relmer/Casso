@@ -707,6 +707,10 @@ HRESULT DxuiPopupHost::Update (const RECT & anchorRectScreen, SIZE sizeDip)
     hr = ResizeSwapChain (windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
     CHRA (hr);
 
+    //  The visuals the swap chain is drawn through take the new size too, or
+    //  a tip that grows as it follows the pointer is cut to its first size.
+    SetCompositionSize (windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
+
     SetWindowPos (m_hwnd, HWND_TOPMOST, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top,
                   SWP_NOACTIVATE);
 
