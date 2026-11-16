@@ -5,6 +5,7 @@
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/Session/TrackMeasures.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
+#include "CassoLink/FullSend/FullSendSession.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "Core/TextEncoding.h"

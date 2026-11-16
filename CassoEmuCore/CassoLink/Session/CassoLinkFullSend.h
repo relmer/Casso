@@ -2,7 +2,9 @@
 
 #include "Pch.h"
 
-#include "CassoLink/FullSend/FullSendSession.h"
+#include "CassoLink/FullSend/FullSendLink.h"
+#include "CassoLink/FullSend/FullSendScreen.h"
+#include "CassoLink/FullSend/FullSendStatus.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
 
