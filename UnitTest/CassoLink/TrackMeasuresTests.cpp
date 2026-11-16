@@ -27,10 +27,14 @@ public:
 
     using Image = std::vector<Byte>;
 
-    //  The bits from one track's sector 0 to the next's, in a turn.
-    static long long  GetOffset (const TrackLayout & before, const TrackLayout & after)
+    //  The share of a turn from one track's sector 0 to the next's.
+    static double  GetOffset (const TrackLayout & before, const TrackLayout & after)
     {
-        return ((after.sector0 - before.sector0) % after.bits + after.bits) % after.bits;
+        double  share = (double) after.sector0 / after.bits - (double) before.sector0 / before.bits;
+
+
+
+        return share < 0.0 ? share + 1.0 : share;
     }
 
     //  A WOZ built with sector 0 at a different place on each track, as a
@@ -87,7 +91,7 @@ public:
 
             if (track > 0)
             {
-                long long  error = GetOffset (measured[(size_t) track - 1], layout) - GetOffset (built[(size_t) track - 1], built[(size_t) track]);
+                long long  error = llround ((GetOffset (measured[(size_t) track - 1], layout) - GetOffset (built[(size_t) track - 1], built[(size_t) track])) * kBits);
 
                 Assert::IsTrue (std::abs (error) <= kToleranceBits, std::format (L"Track {}'s offset is {} bits off", track, error).c_str());
             }
@@ -122,5 +126,19 @@ public:
         Assert::AreEqual (6334, layouts[3].nibbles);
         Assert::AreEqual ((Byte) 9, layouts[3].volume);
         Assert::IsTrue (layouts[3].sector0 > 0, L"Placed from the measures");
+    }
+
+    //  A drive 2% slow has more of its bits in a turn than the disk has: each
+    //  track fits 16 sectors, its bits follow its nibbles, and the step covers
+    //  less of the turn.
+    TEST_METHOD (Layouts_FromASlowDrive_HaveTheDisksLengths)
+    {
+        std::vector<CassoLinkHost::TrackMeasure>  measures = { { 0, 6337, 0 }, { 3000, 6337, 0 } };
+        std::vector<TrackLayout>                  normal   = TrackMeasures::ToLayouts (measures, TrackLayoutWriter::kDefaultBits);
+        std::vector<TrackLayout>                  slow     = TrackMeasures::ToLayouts (measures, TrackLayoutWriter::kDefaultBits * 102 / 100);
+
+        Assert::AreEqual (6341, slow[1].nibbles, L"The track fits 16 sectors");
+        Assert::AreEqual (normal[1].bits, slow[1].bits, L"The track's length");
+        Assert::IsTrue (slow[1].sector0 < normal[1].sector0, L"The step covers less of a slow turn");
     }
 };

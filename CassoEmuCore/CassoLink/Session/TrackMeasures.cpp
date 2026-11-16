@@ -10,15 +10,21 @@
 //
 //  TrackMeasures::ToLayouts
 //
-//  A track with no measure, or one whose layout can't fit 16 sectors, as
-//  after a misread, has no layout, and the volume of the track before.
+//  Sector 0's place on each track is a share of a turn: the step
+//  covers kStepBits of the drive's bitsPerTurn, and the nibbles counted
+//  after it their share of the turn's nibbles. A track's bits are its
+//  nibbles at TrackLayoutWriter's default bits for a nibble, so a drive
+//  that turns slow or fast changes the step's share, not the track's
+//  length. A track with no measure, or one whose layout can't fit 16
+//  sectors, as after a misread, has no layout, and the volume of the track
+//  before.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TrackLayout> TrackMeasures::ToLayouts (const std::vector<CassoLinkHost::TrackMeasure> & measures, int bitsPerTurn)
 {
     std::vector<TrackLayout>  layouts;
-    long long                 sector0 = 0;
+    double                    turn    = 0.0;
     Byte                      volume  = NibblizationLayer::kDefaultVolume;
 
 
@@ -27,17 +33,17 @@ std::vector<TrackLayout> TrackMeasures::ToLayouts (const std::vector<CassoLinkHo
     {
         const CassoLinkHost::TrackMeasure  & measure = measures[track];
         TrackLayout                          layout;
-        long long                            bits    = 0;
+        double                               step    = 0.0;
 
         if (measure.turn != 0 && bitsPerTurn > 0)
         {
-            bits    = track == 0 ? 0 : kStepBits + (long long) llround ((double) measure.fromStep * bitsPerTurn / measure.turn);
-            sector0 = (sector0 + bits) % bitsPerTurn;
+            step    = track == 0 ? 0.0 : (double) kStepBits / bitsPerTurn + (double) measure.fromStep / measure.turn;
+            turn    = std::fmod (turn + step, 1.0);
             volume  = measure.volume;
 
             layout.nibbles = measure.turn + kTurnNibbles;
-            layout.bits    = bitsPerTurn;
-            layout.sector0 = sector0;
+            layout.bits    = (int) llround ((double) layout.nibbles * TrackLayoutWriter::kDefaultBits / TrackLayoutWriter::kDefaultNibbles);
+            layout.sector0 = llround (turn * layout.bits) % layout.bits;
         }
 
         if (!TrackLayoutWriter::IsFeasible (layout))
