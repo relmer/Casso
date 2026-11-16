@@ -238,6 +238,23 @@ static constexpr BootDiskSpec s_kProDOSDisk =
 
 static constexpr LPCWSTR  s_kpszBootDiskMirrorHost = L"mirrors.apple2.org.za";
 
+//  ProDOS 2.4.3 (John Brooks, 2023), from the project's release repository,
+//  the files releases.prodos8.com serves. SHA-256
+//  398D333CB2AB92DF9F8BB2CF64B946F2567116910EB8359CF4BDEE5D4194F0FA, as the
+//  repository's SHA256SUM lists it.
+static constexpr LPCWSTR  s_kpszProDosReleasesHost = L"raw.githubusercontent.com";
+
+static constexpr BootDiskSpec s_kProDos243Disk =
+{
+    StockBootDisks::kpszProDos243File,
+    L"/ProDOS-8/ProDOS8-Releases/master/ProDOS_2_4_3.po",
+    143360,
+    "ProDOS 2.4.3",
+    "ProDOS 2.4.3 (2023), for every Apple II. Boots ProDOS 8 with the BASIC.SYSTEM "
+    "shell and the Bitsy Bye program launcher.",
+    s_kpszProDosReleasesHost
+};
+
 static constexpr BootDiskSpec s_kPascalDisk =
 {
     StockBootDisks::kpszPascalBootDiskFile,
@@ -2288,6 +2305,7 @@ static const BootDiskSpec & GetStockBootDiskSpec (AssetBootstrap::StockBootDisk 
     switch (disk)
     {
         case AssetBootstrap::StockBootDisk::ProDosUsersDisk:  return s_kProDOSDisk;
+        case AssetBootstrap::StockBootDisk::ProDos243Disk:    return s_kProDos243Disk;
         case AssetBootstrap::StockBootDisk::PascalBootDisk:   return s_kPascalDisk;
         case AssetBootstrap::StockBootDisk::CpamBootDisk:     return s_kCpamDisk;
         case AssetBootstrap::StockBootDisk::SoftCardBootDisk: return s_kSoftCardDisk;

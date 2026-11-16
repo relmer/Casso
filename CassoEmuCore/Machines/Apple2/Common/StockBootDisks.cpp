@@ -25,6 +25,7 @@ const wchar_t * StockBootDisks::GetFileName (Which disk)
     {
         case Which::Dos33Master:      return kpszDos33MasterFile;
         case Which::ProDosUsersDisk:  return kpszProDosUsersDiskFile;
+        case Which::ProDos243Disk:    return kpszProDos243File;
         case Which::PascalBootDisk:   return kpszPascalBootDiskFile;
         case Which::CpamBootDisk:     return kpszCpamBootDiskFile;
         case Which::SoftCardBootDisk: return kpszSoftCardBootDiskFile;
@@ -50,6 +51,7 @@ const wchar_t * StockBootDisks::GetLabel (Which disk)
     {
         case Which::Dos33Master:      return L"DOS 3.3";
         case Which::ProDosUsersDisk:  return L"ProDOS";
+        case Which::ProDos243Disk:    return L"ProDOS 2.4.3";
         case Which::PascalBootDisk:   return L"Apple Pascal";
         case Which::CpamBootDisk:     return L"CP/AM 5.1";
         case Which::SoftCardBootDisk: return L"CP/M 2.23";

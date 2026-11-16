@@ -3,6 +3,7 @@
 #include "../EhmTestHelper.h"
 #include "CassoExplorer/Browser/BrowserCells.h"
 #include "CassoExplorer/Model/StockDisksListing.h"
+#include "CassoExplorer/Picker/StartupDiskPicker.h"
 #include "Devices/Disk/DriveImageRule.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -86,6 +87,25 @@ public:
 
         Assert::AreEqual (std::wstring::npos, blank.find (BrowserCells::FormatSizeColumn (0)), blank.c_str());
         Assert::AreNotEqual (std::wstring::npos, downloaded.find (BrowserCells::FormatSizeColumn (rows[1].sizeBytes)), downloaded.c_str());
+    }
+
+
+
+    //  The stock disks are the DOS 3.3 System Master, Apple's ProDOS Users
+    //  Disk and ProDOS 2.4.3, all 140K, so a 3.5-inch drive's list is empty.
+    TEST_METHOD (StockDisks_AreTheMastersAndProDos243_ForA525Drive)
+    {
+        std::vector<StockDiskRow>  floppy  = StartupDiskPicker::GetStockDisks (ReceivingDrive { ReceivingDriveKind::Floppy525, 0 });
+        std::vector<StockDiskRow>  apple35 = StartupDiskPicker::GetStockDisks (ReceivingDrive { ReceivingDriveKind::Apple35, 0 });
+
+
+
+        Assert::AreEqual ((size_t) 3, floppy.size());
+        Assert::AreEqual (std::wstring (L"DOS 3.3 System Master"), floppy[0].label);
+        Assert::AreEqual (std::wstring (L"ProDOS Users Disk"),     floppy[1].label);
+        Assert::AreEqual (std::wstring (L"ProDOS 2.4.3"),          floppy[2].label);
+        Assert::IsTrue   (floppy[2].path.ends_with (L"ProDOS 2.4.3.po"));
+        Assert::IsTrue   (apple35.empty());
     }
 
 

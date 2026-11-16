@@ -68,7 +68,7 @@ std::vector<StockDiskRow> StartupDiskPicker::GetStockDisks (const ReceivingDrive
 
     if (DriveImageRule::Accepts (drive, master))
     {
-        for (AssetBootstrap::StockBootDisk disk : { AssetBootstrap::StockBootDisk::Dos33Master, AssetBootstrap::StockBootDisk::ProDosUsersDisk })
+        for (AssetBootstrap::StockBootDisk disk : { AssetBootstrap::StockBootDisk::Dos33Master, AssetBootstrap::StockBootDisk::ProDosUsersDisk, AssetBootstrap::StockBootDisk::ProDos243Disk })
         {
             std::filesystem::path  path = AssetBootstrap::GetStockBootDiskPath (disk);
 
@@ -133,7 +133,7 @@ bool StartupDiskPicker::FetchStockDisk (const std::wstring & path, std::wstring 
 
     outError.clear();
 
-    for (AssetBootstrap::StockBootDisk disk : { AssetBootstrap::StockBootDisk::Dos33Master, AssetBootstrap::StockBootDisk::ProDosUsersDisk })
+    for (AssetBootstrap::StockBootDisk disk : { AssetBootstrap::StockBootDisk::Dos33Master, AssetBootstrap::StockBootDisk::ProDosUsersDisk, AssetBootstrap::StockBootDisk::ProDos243Disk })
     {
         if (_wcsicmp (AssetBootstrap::GetStockBootDiskPath (disk).c_str(), path.c_str()) == 0)
         {
