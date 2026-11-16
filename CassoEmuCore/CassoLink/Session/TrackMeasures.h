@@ -21,8 +21,8 @@
 //  of a turn after the track before's that stepto's time covers, kStepBits
 //  of bitsPerTurn, plus the share of the nibbles counted from the step. A
 //  track's bits are its nibbles at TrackLayoutWriter's default bits for a
-//  nibble, as the disk has them whatever the speed of the drive that read
-//  it: a drive 2% slow has 2% more of its bits in a turn, not the disk.
+//  nibble: the disk's length, whatever the speed of the drive that read
+//  it. A drive 2% slow has 2% more of its bits in a turn, not the disk.
 //  The program reads past a nibble or two after each address field it
 //  compares, so kTurnNibbles is added to the nibbles it counts in a turn.
 //  Both are calibrated on an emulated //c so that a WOZ TrackLayoutWriter

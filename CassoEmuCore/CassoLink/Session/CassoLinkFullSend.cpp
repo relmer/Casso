@@ -262,7 +262,7 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
         hr = CheckStop();
         CHR (hr);
 
-        //  The measure has the track's share of the bar, as its read does, so
+        //  The measure has the track's share of the bar, the read's share, so
         //  the Apple draws the bar the same for both.
         if (m_measuring)
         {

@@ -217,7 +217,7 @@ public:
     }
 
     //  Measure track has its read's share of the bar: the bar is drawn at the
-    //  share's start, as a read with no sector done yet is, not as it was.
+    //  share's start, where a read with no sector done yet draws it.
     TEST_METHOD (AMeasure_DrawsTheBarAtItsShare)
     {
         ProgramRig                   rig ({}, Dos33());
