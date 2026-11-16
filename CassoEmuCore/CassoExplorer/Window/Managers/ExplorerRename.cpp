@@ -337,7 +337,7 @@ void ExplorerRename::EndRename (bool commit)
             return;
         }
 
-        m_context.folderSync.RefreshAfterHostChange();
+        m_context.folderSync.RefreshAfterHostChange (SUCCEEDED (hr) ? newName : std::wstring());
 
         if (SUCCEEDED (hr))
         {
