@@ -190,6 +190,34 @@ public:
 
 
     //
+    //  A borderless window drawn over a backdrop is created without the
+    //  system menu style, so Windows doesn't draw caption buttons under its
+    //  see-through caption, and the host opens the system menu. A window
+    //  drawn opaque, or a composited one, is created with the style.
+    //
+
+    TEST_METHOD (IsSystemMenuDropped_OnlyForABorderlessWindowOverABackdrop)
+    {
+        struct Case { bool overBackdrop; bool composited; bool borderless; bool dropped; };
+
+        for (const Case & c : { Case { true, false, true, true }, Case { false, false, true, false }, Case { true, true, true, false }, Case { true, false, false, false } })
+        {
+            std::unique_ptr<DxuiHwndSource>  host;
+            DxuiHwndSource::CreateParams     cp = MakeAdoptParams();
+
+            cp.drawOverBackdrop = c.overBackdrop;
+            cp.composited       = c.composited;
+            cp.borderless       = c.borderless;
+
+            Assert::AreEqual (S_OK, DxuiHwndSource::CreateInAdoptMode (nullptr, cp, host));
+            Assert::AreEqual (c.dropped, host->IsSystemMenuDropped(),
+                              std::format (L"over a backdrop {}, composited {}, borderless {}", c.overBackdrop, c.composited, c.borderless).c_str());
+        }
+    }
+
+
+
+    //
     //  A maximized window's client area is inset from the top by the same
     //  frame Windows insets it by at the sides, so the caption is on the
     //  screen. A restored window's client area starts at the window's top.

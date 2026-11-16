@@ -696,8 +696,10 @@ public:
     //  unit tests can assert the final NC return without instantiating
     //  the full WndProc dispatch.
     //
-    static LRESULT  KindToHt       (DxuiHitTestKind kind);
-    HRESULT         ShowSystemMenu (POINT ptScreen);
+    static LRESULT  KindToHt            (DxuiHitTestKind kind);
+    HRESULT         ShowSystemMenu      (POINT ptScreen);
+    bool            IsSystemMenuDropped () const;
+    POINT           GetSystemMenuPoint  () const;
 
     //
     //  Whether an NC mouse message may be claimed by a caption system

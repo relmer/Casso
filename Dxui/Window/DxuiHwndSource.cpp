@@ -482,6 +482,15 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
         style &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
     }
 
+    //  Over a backdrop the caption is see-through, and Windows draws its
+    //  caption buttons under it for a window with a system menu. The host
+    //  draws the buttons, so the style is dropped and the host opens the
+    //  system menu (IsSystemMenuDropped).
+    if (IsSystemMenuDropped())
+    {
+        style &= ~WS_SYSMENU;
+    }
+
     // Composited (per-pixel alpha) windows must be pure WS_POPUP. DWM draws an
     // opaque frame-background fill BEHIND the DirectComposition visual tree of
     // any framed window -- dark gray in dark mode, and WS_THICKFRAME alone is
@@ -2878,7 +2887,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
         //  Windows opens no system menu for a right-click on a caption the
         //  window draws itself, so the host opens it.
         case WM_NCRBUTTONUP:
-            isHandled = wp == HTCAPTION && (GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_SYSMENU) != 0;
+            isHandled = wp == HTCAPTION && ((GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_SYSMENU) != 0 || IsSystemMenuDropped());
 
             if (isHandled)
             {
@@ -2927,6 +2936,17 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             // A command the client added to the system menu.
             isHandled = m_client != nullptr && (wp & 0xFFF0) < SC_SIZE &&
                         m_client->OnSysCommand ((UINT) (wp & 0xFFF0)) == DxuiMessageResult::Handled;
+
+            // Alt+Space. Windows opens the system menu for it only on a window
+            // with the system menu style.
+            if (!isHandled && (wp & 0xFFF0) == SC_KEYMENU && lp == VK_SPACE && IsSystemMenuDropped())
+            {
+                HRESULT  hrMenu = ShowSystemMenu (GetSystemMenuPoint());
+
+                IGNORE_RETURN_VALUE (hrMenu, S_OK);
+                isHandled = true;
+            }
+
             result    = 0;
             break;
 
@@ -4924,6 +4944,48 @@ HRESULT DxuiHwndSource::ShowSystemMenu (POINT ptScreen)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::IsSystemMenuDropped
+//
+//  Whether the window is created without the system menu style. Without it,
+//  Windows doesn't draw its caption buttons under a see-through caption.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::IsSystemMenuDropped() const
+{
+    return m_params.borderless && m_params.drawOverBackdrop && !m_params.composited;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::GetSystemMenuPoint
+//
+//  Where Alt+Space opens the system menu: the client area's left edge, under
+//  the caption, as Windows opens it under a window's icon.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT DxuiHwndSource::GetSystemMenuPoint() const
+{
+    POINT  point = { 0, GetCaptionHeightPx() };
+
+
+
+    (void) ClientToScreen (m_hwnd, &point);
+
+    return point;
 }
 
 
