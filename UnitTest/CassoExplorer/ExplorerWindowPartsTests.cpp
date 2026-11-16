@@ -25,6 +25,7 @@
 #include "Core/AppTimerIds.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 
@@ -92,6 +93,60 @@ public:
         Assert::IsTrue   (rig.icons->sizePx > 0);
     }
 
+
+
+    //  A card reader with a card Windows can't read, counting each query of
+    //  its volumes, since each such query reads the card.
+    struct CountingCardHost : public IPhysicalCardHost
+    {
+        int  volumeQueries = 0;
+
+        HRESULT ListDrives (std::vector<PhysicalDrive> & outDrives) override
+        {
+            PhysicalDrive  drive;
+
+            drive.number    = 5;
+            drive.bytes     = 2'048'094'720;
+            drive.bus       = "USB";
+            drive.removable = true;
+            outDrives       = { drive };
+
+            return S_OK;
+        }
+
+        HRESULT HasUnmountedPartition (int, bool & outHasUnmounted) override             { volumeQueries++; outHasUnmounted = true; return S_OK; }
+        HRESULT ListVolumes           (int, std::vector<WindowsVolume> & outVolumes) override { volumeQueries++; outVolumes.clear(); return S_OK; }
+        HRESULT FindVolumeDrive       (const std::wstring &, int &) override                { return E_NOTIMPL; }
+        HRESULT InitializeDrive       (int, HWND, uint64_t, const WriteProgress &) override { return E_NOTIMPL; }
+        HRESULT FormatFirstPartition  (int, const WriteProgress &, bool &) override         { return E_NOTIMPL; }
+        bool    IsBrokerRunning       () override                                           { return false; }
+        HRESULT OpenDrive             (int, HWND, PhysicalDrive &, std::unique_ptr<IBlockStore> &) override { return E_NOTIMPL; }
+    };
+
+
+    TEST_METHOD (DrivePoll_AsksAboutTheCardsVolumesOnlyAfterADeviceChange)
+    {
+        Rig               rig;
+        CountingCardHost  host;
+        PhysicalCards     cards (host);
+
+
+
+        rig.app.cards = &cards;
+        rig.Open();
+
+        host.volumeQueries = 0;
+
+        for (int tick = 0; tick < 5; tick++)
+        {
+            rig.parts->folderSync.PollDrives();
+        }
+
+        Assert::AreEqual (0, host.volumeQueries, L"a poll with the same drive letters doesn't query the card");
+
+        rig.parts->folderSync.HandleDeviceTimer ((UINT_PTR) AppTimerId::ExplorerDeviceSoon);
+        Assert::IsTrue (host.volumeQueries > 0, L"a device attached or removed lists the cards again");
+    }
 
 
     TEST_METHOD (Open_StartsTheFolderWatch)
