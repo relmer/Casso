@@ -3513,7 +3513,8 @@ void ShellDeskScene::PlanDrives()
         DeskDrivePlan::GetCompactPlaces (drives, floppies, hardDisks);
     }
 
-    m_drivePlan = DeskDrivePlan::Place (drives, floppies, hardDisks, monitor, prefs.deskFloppyPairBeside);
+    m_drivePlan         = DeskDrivePlan::Place (drives, floppies, hardDisks, monitor, prefs.deskFloppyPairBeside);
+    m_floppyPairMovable = DeskDrivePlan::HasDiskIiPairUnderMonitor (DeskDrivePlan::Place (drives, floppies, hardDisks, monitor, false));
 
     for (const DeskDrivePlacement & placed : m_drivePlan)
     {
@@ -3624,6 +3625,21 @@ void ShellDeskScene::ToggleClassOnDesk (DeskDriveClass driveClass)
         (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left), (UINT) (rcClient.bottom - rcClient.top));
         m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsFloppyPairBesideOffered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsFloppyPairBesideOffered() const
+{
+    return m_shell.m_settings->GetPrefs().deskFloppyPairBeside || (m_floppyPairMovable && !m_shell.AreDrivesAutoHidden());
 }
 
 

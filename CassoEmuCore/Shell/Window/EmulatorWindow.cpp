@@ -680,6 +680,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         }
     });
 
+    m_chrome->m_mainMenu.SetVisibleQuery ([this] (WORD commandId) -> bool
+    {
+        return commandId != IDM_VIEW_FLOPPY_PAIR_BESIDE || m_scene->IsFloppyPairBesideOffered();
+    });
+
     m_chrome->m_mainMenu.SetLabelQuery ([this] (WORD commandId) -> std::wstring
     {
         switch (commandId)

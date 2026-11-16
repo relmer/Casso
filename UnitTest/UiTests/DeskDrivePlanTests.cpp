@@ -87,6 +87,23 @@ public:
     }
 
 
+    //  Only a Disk II pair under the monitor can move beside it.
+    TEST_METHOD (DiskIiPairUnderMonitor_OnlyForTwoDiskIis)
+    {
+        auto  pair  = DeskDrivePlan::Place ({ { M::Disk2c, 6, 0, true }, { M::Disk2c, 6, 1 } }, P::Auto, P::Auto, kMonitorC);
+        auto  one   = DeskDrivePlan::Place ({ { M::Disk2c, 6, 0, true } }, P::Auto, P::Auto, kMonitorC);
+        auto  mixed = DeskDrivePlan::Place ({ { M::Disk2c, 6, 0 }, { M::Apple35Plus, 0, 0 } }, P::Auto, P::Auto, kMonitorC);
+        auto  moved = DeskDrivePlan::Place ({ { M::Disk2c, 6, 0, true }, { M::Disk2c, 6, 1 } }, P::Auto, P::Auto, kMonitorC, true);
+
+
+
+        Assert::IsTrue  (DeskDrivePlan::HasDiskIiPairUnderMonitor (pair));
+        Assert::IsFalse (DeskDrivePlan::HasDiskIiPairUnderMonitor (one));
+        Assert::IsFalse (DeskDrivePlan::HasDiskIiPairUnderMonitor (mixed));
+        Assert::IsFalse (DeskDrivePlan::HasDiskIiPairUnderMonitor (moved));
+    }
+
+
     //  The shipped //e: two Disk IIs and a UniDisk 3.5 are three floppies, so
     //  they go on the drive bar; the HD20SC stays on the desk.
     TEST_METHOD (ThreeFloppies_GoOnTheDriveBarByDefault)

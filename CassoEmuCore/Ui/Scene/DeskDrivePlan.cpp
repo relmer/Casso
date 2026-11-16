@@ -150,6 +150,30 @@ std::vector<DeskDrivePlacement> DeskDrivePlan::Place (const std::vector<DeskDriv
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskDrivePlan::HasDiskIiPairUnderMonitor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskDrivePlan::HasDiskIiPairUnderMonitor (const std::vector<DeskDrivePlacement> & plan)
+{
+    int  count = 0;
+
+
+
+    for (const DeskDrivePlacement & placed : plan)
+    {
+        count += (placed.spot == DeskDriveSpot::UnderMonitor && IsDiskII (placed.drive.model)) ? 1 : 0;
+    }
+
+    return count == 2;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsDiskII
 //
 ////////////////////////////////////////////////////////////////////////////////

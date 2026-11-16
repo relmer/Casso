@@ -132,6 +132,9 @@ public:
                                                    float                          monitorWidthMm,
                                                    bool                           floppyPairBeside = false);
 
+    //  Whether `plan` has two Disk II drives under the monitor.
+    static bool  HasDiskIiPairUnderMonitor (const std::vector<DeskDrivePlacement> & plan);
+
     //  The classes' places in the compact themes, whose drive band has the
     //  Disk II widgets or the drive bar: both classes on the bar when the
     //  machine has a drive other than its Disk II drives, and otherwise on

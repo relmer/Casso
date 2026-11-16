@@ -62,6 +62,11 @@ public:
     void                                     ToggleClassOnDesk      (DeskDriveClass driveClass);
     void                                     ToggleFloppyPairBeside ();
 
+    // The option to move the floppies beside the monitor is in the menus
+    // while two Disk II drives are under it and the drives are not
+    // auto-hidden, and while it is on, so it can be turned off.
+    bool                                     IsFloppyPairBesideOffered () const;
+
     // The Disk II drives the machine has, on the desk or not.
     int   CountDiskIiDrives () const;
 
@@ -467,6 +472,7 @@ private:
     bool                             m_deskSceneMachineIsC = false;
     std::vector<DeskDrivePlacement>  m_drivePlan;
     int                              m_plannedDiskIiCount  = -1;
+    bool                             m_floppyPairMovable   = false;
     int                              m_deskSceneDebug      = 0;   // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
 
     // Fullscreen drive overlay strip (FR-015): the pure FSM plus this

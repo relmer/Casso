@@ -195,6 +195,11 @@ EmulatorCommands::EmulatorCommands()
             return m_isEnabled ? m_isEnabled (commandId) : true;
         };
 
+        cmd->isVisible = [this, commandId] () -> bool
+        {
+            return m_isVisible ? m_isVisible (commandId) : true;
+        };
+
         cmd->labelText = [this, commandId, staticLabel] () -> std::wstring
         {
             std::wstring  dynamic = m_labelQuery ? m_labelQuery (commandId)

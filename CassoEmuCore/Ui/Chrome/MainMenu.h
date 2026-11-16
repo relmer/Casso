@@ -36,10 +36,11 @@ public:
     MainMenu  ();
     ~MainMenu () override;
 
-    void  SetDispatch     (DispatchFn dispatch)   { m_commands.SetDispatch    (std::move (dispatch)); }
-    void  SetCheckQuery   (CheckFn query)         { m_commands.SetCheckQuery  (std::move (query)); }
-    void  SetEnableQuery  (CheckFn query)         { m_commands.SetEnableQuery (std::move (query)); }
-    void  SetLabelQuery   (LabelFn query)         { m_commands.SetLabelQuery  (std::move (query)); }
+    void  SetDispatch     (DispatchFn dispatch)   { m_commands.SetDispatch     (std::move (dispatch)); }
+    void  SetCheckQuery   (CheckFn query)         { m_commands.SetCheckQuery   (std::move (query)); }
+    void  SetEnableQuery  (CheckFn query)         { m_commands.SetEnableQuery  (std::move (query)); }
+    void  SetVisibleQuery (CheckFn query)         { m_commands.SetVisibleQuery (std::move (query)); }
+    void  SetLabelQuery   (LabelFn query)         { m_commands.SetLabelQuery   (std::move (query)); }
 
     EmulatorCommands       &  GetCommands ()        { return m_commands; }
     const EmulatorCommands &  GetCommands () const  { return m_commands; }
