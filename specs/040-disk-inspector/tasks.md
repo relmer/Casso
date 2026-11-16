@@ -581,4 +581,5 @@ compared byte for byte with the image before the damage.
 - [X] T788 [US18] The severity icon centered in its column, the inspector's list columns resizable with the resize cursor over a header's divider, and Casso Explorer's right edge resizable beside the preview pane's bar Done 2026-11-15: `InspectorTableView` passes `GetCursorForPoint` to its list. The outer half of a straight resize band resizes over a scrollbar at the window's edge.
 - [X] T789 [US18] Casso Explorer's panes stop short of the right edge's resize band, so the whole band resizes beside the preview pane's scrollbar Done 2026-11-15: `DxuiHwndSource::GetResizeBorderPx`. The last pixel of an edge resizes at 125%.
 - [X] T790 [US18] The arrow cursor over the preview pane's scrollbar beside a disk image's thumbnail, not the catalog's I-beam Done 2026-11-15: `ExplorerPreviewManager::GetCursorForPoint` checks the pane's bar before the views drawn under it.
+- [X] T791 [US18] A maximized window's caption on the screen, not partly above it Done 2026-11-15: `DxuiHwndSource::HandleNcCalcSize` insets the top by the frame Windows insets the sides by.
 

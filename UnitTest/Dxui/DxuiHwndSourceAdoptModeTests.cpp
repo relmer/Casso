@@ -190,6 +190,50 @@ public:
 
 
     //
+    //  A maximized window's client area is inset from the top by the same
+    //  frame Windows insets it by at the sides, so the caption is on the
+    //  screen. A restored window's client area starts at the window's top.
+    //
+
+    TEST_METHOD (HandleMessage_NcCalcSize_AMaximizedWindowsTopIsInsetLikeItsSides)
+    {
+        for (bool maximized : { false, true })
+        {
+            std::unique_ptr<DxuiHwndSource>  host;
+            HWND                             hwnd   = CreateWindowExW (0, L"STATIC", L"", WS_OVERLAPPEDWINDOW, 0, 0, 800, 600, nullptr, nullptr, nullptr, nullptr);
+            NCCALCSIZE_PARAMS                params = {};
+            WINDOWPOS                        pos    = {};
+            LRESULT                          result = 0;
+            RECT                             window = { 100, 50, 900, 650 };
+
+            Assert::IsNotNull (hwnd);
+
+            if (maximized)
+            {
+                SetWindowLongPtrW (hwnd, GWL_STYLE, GetWindowLongPtrW (hwnd, GWL_STYLE) | WS_MAXIMIZE);
+            }
+
+            Assert::AreEqual (S_OK, DxuiHwndSource::CreateInAdoptMode (hwnd, MakeAdoptParams(), host));
+
+            params.rgrc[0] = window;
+            params.rgrc[1] = window;
+            params.rgrc[2] = window;
+            params.lppos   = &pos;
+
+            (void) host->HandleMessage (WM_NCCALCSIZE, TRUE, reinterpret_cast<LPARAM> (&params), result);
+
+            Assert::AreEqual (maximized ? params.rgrc[0].left - window.left : 0L, params.rgrc[0].top - window.top,
+                              maximized ? L"maximized: inset at the top as at the left" : L"restored: the client starts at the window's top");
+            Assert::IsTrue   (!maximized || params.rgrc[0].top > window.top, L"a maximized window's frame is inset");
+
+            host.reset();
+            DestroyWindow (hwnd);
+        }
+    }
+
+
+
+    //
     //  WM_DPICHANGED propagates DPI to the host's scaler. Adopt mode
     //  does NOT claim the message (returns false) so the caller's
     //  WndProc keeps doing its own SetWindowPos + subclass DPI hooks.

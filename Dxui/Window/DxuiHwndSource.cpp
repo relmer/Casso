@@ -3353,13 +3353,49 @@ LRESULT DxuiHwndSource::HandleNcCalcSize (WPARAM wp, LPARAM lp)
 
         // A non-zero result means DefWindowProc asked for special client
         // handling; leave its rects alone in that case.
+        //
+        // A maximized window extends past the monitor by its frame on every
+        // side. DefWindowProc insets the other three edges by it, and the top
+        // is inset by the same frame here. Without it the caption's top was
+        // off the screen, and its buttons were drawn above the ones Windows
+        // draws.
         if (defResult == 0)
         {
-            pParams->rgrc[0].top = originalTop;
+            pParams->rgrc[0].top = originalTop + GetMaximizedFramePx();
         }
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMaximizedFramePx
+//
+//  How far a maximized window extends past each edge of its monitor, at the
+//  window's DPI; 0 for a window that isn't maximized.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetMaximizedFramePx() const
+{
+    UINT  dpi = 0;
+
+
+
+    if (m_hwnd == nullptr || ::IsZoomed (m_hwnd) == FALSE)
+    {
+        return 0;
+    }
+
+    dpi = GetDpiForWindow (m_hwnd);
+    dpi = (dpi != 0) ? dpi : s_kDefaultDpi;
+
+    return GetSystemMetricsForDpi (SM_CYFRAME, dpi) + GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
 }
 
 

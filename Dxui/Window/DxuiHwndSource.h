@@ -786,6 +786,7 @@ private:
     bool  IsClaimed             (DxuiMessageResult clientResult, RepaintOnClaim repaint);
 
     LRESULT      HandleNcCalcSize            (WPARAM wp, LPARAM lp);
+    int          GetMaximizedFramePx         () const;
     LRESULT      HandleNcHitTest             (LPARAM lp);
     LRESULT      HandleNcMouse               (UINT msg, WPARAM wp, LPARAM lp);
     void         UpdateCaptionTip            (UINT msg, WPARAM wp, LPARAM lp);
