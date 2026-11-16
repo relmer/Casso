@@ -13,9 +13,11 @@
 //  A machine with no Disk ][ controller has no drive widgets, so the band
 //  collapses and the viewport grows into the room they would have taken.
 //  Under the desk scene there is no bottom band, the drives being scene
-//  objects, unless drives are on the drive bar, which is then drawn at the
-//  window's scale rather than the scene's: the scene zooms out to fit the
-//  desk, and a bar zoomed with it was too small to read. With auto-hide on,
+//  objects. In any theme, drives on the drive bar get the band, such as a
+//  //c Plus's drives in a compact theme, which has no Disk ][ controller.
+//  The bar is drawn at the window's scale rather than the scene's: the scene
+//  zooms out to fit the desk, and a bar zoomed with it was too small to
+//  read. With auto-hide on,
 //  the drives slide up over the picture from the bottom edge, so the band
 //  collapses too. Otherwise the band zooms with the scene so it hugs the
 //  scaled widgets instead of leaving dead space around them.
@@ -25,7 +27,7 @@
 int ChromeBandLayout::DriveBandDp (const ChromeBandInputs & inputs)
 {
     int   dp    = 0;
-    bool  bar   = inputs.crtMonitorActive && inputs.drivesOnBar;
+    bool  bar   = inputs.drivesOnBar;
     float scale = bar ? 1.0f : inputs.chromeSceneScale;
 
 

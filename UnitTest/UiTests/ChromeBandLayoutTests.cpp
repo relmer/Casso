@@ -64,6 +64,20 @@ public:
     }
 
 
+    TEST_METHOD (CompactTheme_DrivesOnTheBar_GetABandWithNoDiskController)
+    {
+        ChromeBandInputs  inputs = Typical();
+
+        inputs.crtMonitorActive    = false;
+        inputs.drivesOnBar         = true;
+        inputs.hasDiskController   = false;
+        inputs.driveBarThicknessDp = 180;
+
+        Assert::AreEqual (180, ChromeBandLayout::DriveBandDp (inputs),
+                          L"a //c Plus's drives on the bar get a band without a Disk ][ controller");
+    }
+
+
     TEST_METHOD (WithAutoHideOnTheDriveBandCollapses)
     {
         ChromeBandInputs  inputs = Typical();
