@@ -821,7 +821,7 @@ void CassoExplorerOptionsDialog::WireProtection()
 
     m_fullSendProtection.action.SetOptions ({ DxuiRadioOption { {}, L"Capture the disk raw" },
                                               DxuiRadioOption { {}, L"Save the sector copy and mark the disk as likely copy-protected",
-                                                                L"With .woz selected on the Full Send tab, the copy is built to the disk's measured track layout, which passes copy protection that checks where each track starts." } });
+                                                                L"Woz images are able to more faithfully represent the physical sector layout of the disk. If .woz is selected as the image type on the Full Send tab, some copy protection schemes may pass even without using a raw capture." } });
     m_fullSendProtection.action.SetSelected (choices.captureRaw ? 0 : 1);
 }
 
