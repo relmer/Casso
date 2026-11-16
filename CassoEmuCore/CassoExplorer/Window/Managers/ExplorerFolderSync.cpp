@@ -343,6 +343,61 @@ void ExplorerFolderSync::CheckDrives()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerFolderSync::PollDrives
+//
+//  Listing the cards calls GetVolumeInformationW for each volume, and for a
+//  volume Windows can't read, as a CFFA card's are, Windows reads the card
+//  again for each file system it has. So the cards are listed only when the
+//  drive letters changed, or Windows reports a device attached or removed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::PollDrives()
+{
+    if (GetLogicalDrives() != m_driveMask)
+    {
+        CheckDrives();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::HandleDeviceChange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::HandleDeviceChange()
+{
+    SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDeviceSoon, kDeviceSoonMs, nullptr);
+    SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDeviceLate, kDeviceLateMs, nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::HandleDeviceTimer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::HandleDeviceTimer (UINT_PTR timerId)
+{
+    KillTimer (m_context.window.GetHwnd(), timerId);
+    CheckDrives();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerFolderSync::CheckOpenedCard
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -810,8 +865,9 @@ void ExplorerFolderSync::StartWatch()
 //
 //  ExplorerFolderSync::StartPolling
 //
-//  The drives attached at the start, polled for others, and the folder of
-//  File Explorer's Quick access, with its file's last write.
+//  The drives attached at the start, the drive letters polled and Windows'
+//  device notifications watched for others, and the folder of File
+//  Explorer's Quick access, with its file's last write.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -824,6 +880,9 @@ void ExplorerFolderSync::StartPolling()
 
     m_driveMask = GetLogicalDrives();
     SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDrive, kDrivePollMs, nullptr);
+
+    hr = m_deviceWatch.Start ([this]() { HandleDeviceChange(); });
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = SHGetKnownFolderPath (FOLDERID_Recent, 0, nullptr, &recent);
 

@@ -493,9 +493,15 @@ bool ExplorerWindowParts::HandleTimer (UINT_PTR timerId)
         return true;
     }
 
+    if (timerId == (UINT_PTR) AppTimerId::ExplorerDeviceSoon || timerId == (UINT_PTR) AppTimerId::ExplorerDeviceLate)
+    {
+        folderSync.HandleDeviceTimer (timerId);
+        return true;
+    }
+
     if (timerId == (UINT_PTR) AppTimerId::ExplorerDrive)
     {
-        folderSync.CheckDrives();
+        folderSync.PollDrives();
         cassoLinkManager.PollFirewall();
 
         //  An announcement since the last look is listed, on the same poll
