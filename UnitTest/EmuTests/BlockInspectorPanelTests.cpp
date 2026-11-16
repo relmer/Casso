@@ -350,6 +350,30 @@ public:
     }
 
 
+    TEST_METHOD (FieldsView_ACutOffRowHasItsWholeRectForTheTip)
+    {
+        DxuiDpiScaler         scaler;
+        BlockFieldsView       view;
+        MockDxuiTextRenderer  text;
+        vector<BlockField>    fields (2);
+        RECT                  box = {};
+
+
+
+        fields[0].label = L"Data, block 173 of the file: X/LAST.GLADIATR.1, a name long enough to be cut off";
+        fields[1].label = L"Next";
+
+        view.SetFields (fields);
+        view.Layout    (RECT { 0, 0, 160, 200 }, scaler);
+
+        Assert::IsTrue  (view.GetClippedRowRect (0, text, box));
+        Assert::IsTrue  (box.right > 160, L"the tip extends past the view's right edge");
+        Assert::AreEqual (0L, box.left);
+        Assert::IsFalse (view.GetClippedRowRect (1, text, box), L"a row that fits has no tip");
+        Assert::AreEqual (0, view.FindRowAt ({ 10, scaler.ToPx ((int) BlockFieldsView::kRowDip) + 2 }));
+    }
+
+
     TEST_METHOD (FieldsView_AClickOnALinkedFieldFollowsIt)
     {
         DxuiDpiScaler       scaler;

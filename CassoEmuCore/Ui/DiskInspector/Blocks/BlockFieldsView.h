@@ -47,6 +47,16 @@ public:
     //  The width at which the heading and every row fit whole.
     int  MeasureWidthPx (IDxuiTextRenderer & text) const;
 
+    //  The row under a point, or -1.
+    int  FindRowAt (POINT pointPx) const;
+
+    //  A row the view's width cuts off: the rect it takes whole, laid over
+    //  the row and a pixel past it above and below, as Casso Explorer's
+    //  tree lays a cut-off name. False for a row that fits. PaintRowTip
+    //  draws the row whole into that rect, from its top left.
+    bool  GetClippedRowRect (int row, IDxuiTextRenderer & text, RECT & outRect) const;
+    void  PaintRowTip       (int row, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+
     void  Layout  (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
@@ -58,7 +68,6 @@ public:
 private:
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 
-    int  FindRowAt    (POINT pointPx) const;
     int  GetRowsShown () const;
 
     vector<BlockField>  m_fields;

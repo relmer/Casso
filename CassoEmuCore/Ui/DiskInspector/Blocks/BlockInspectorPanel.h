@@ -139,6 +139,9 @@ public:
     std::wstring  GetSelectionLine () const;
 
 
+    //  The popup host for a cut-off field row's tip.
+    void  SetPopupHost (DxuiHwndSource * host) { m_fieldTip.SetPopupHost (host); }
+
     //  The tip for a byte of the hex view under a point: its field, and what
     //  its color marks. False where there is no byte.
     bool  GetHexTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx, vector<DxuiTooltipSwatch> & outSwatches) const;
@@ -157,6 +160,9 @@ private:
     //  The legend is visible while the pointer is over its button or over
     //  the legend, as a tooltip is.
     void  TrackLegendHover (POINT pointPx);
+
+    //  A cut-off field row under the pointer, drawn whole over the row.
+    void  UpdateFieldTip (const DxuiMouseEvent & ev);
 
     //  The most bytes in a hex row that fit `widthPx`, and the fields list
     //  as wide as its rows.
@@ -236,6 +242,8 @@ private:
     bool                    m_isSplitting     = false;
     bool                    m_isTreeSplitting = false;
     bool                    m_isListSplitting = false;
+    DxuiInPlaceTip          m_fieldTip;
+    const IDxuiTheme      * m_theme           = nullptr;
     bool                    m_isHexSplitting  = false;
     bool                    m_isMapSelecting  = false;   // a click on the map is selecting its row, so the map stays where it is
     bool                    m_hasEdits        = false;

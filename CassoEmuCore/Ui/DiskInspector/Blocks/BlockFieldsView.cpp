@@ -302,3 +302,87 @@ int BlockFieldsView::MeasureWidthPx (IDxuiTextRenderer & text) const
 
     return (int) std::ceil (widest) + m_scaler.ToPx ((int) kPadDip);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockFieldsView::GetClippedRowRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockFieldsView::GetClippedRowRect (int row, IDxuiTextRenderer & text, RECT & outRect) const
+{
+    RECT     bounds = GetBounds();
+    int      rowPx  = m_scaler.ToPx ((int) kRowDip);
+    int      top    = 0;
+    float    width  = 0.0f;
+    float    height = 0.0f;
+    HRESULT  hr     = S_OK;
+
+
+
+    if (!IsVisible() || row < m_top || row >= (int) m_fields.size() || row - m_top >= GetRowsShown())
+    {
+        return false;
+    }
+
+    hr = text.MeasureString (FormatRow (m_fields[(size_t) row]).c_str(), m_scaler.ToPxf (kFontDip), s_kpszFont, width, height);
+
+    if (FAILED (hr) || bounds.left + m_scaler.ToPxf (kOffsetDip) + width <= bounds.right)
+    {
+        return false;
+    }
+
+    top     = (int) bounds.top + rowPx * (row - m_top + 1);
+    outRect = { bounds.left, top - 1, bounds.left + (LONG) std::ceil (m_scaler.ToPxf (kOffsetDip) + width) + m_scaler.ToPx ((int) kPadDip), top + rowPx + 1 };
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockFieldsView::PaintRowTip
+//
+//  The row's offset and text at the places the row has them, inside the
+//  tooltip's border, as the tree's tip draws a name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockFieldsView::PaintRowTip (int row, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+{
+    RECT     box    = {};
+    float    rowPx  = m_scaler.ToPxf (kRowDip);
+    float    font   = m_scaler.ToPxf (kFontDip);
+    float    offset = m_scaler.ToPxf (kOffsetDip);
+    HRESULT  hr     = S_OK;
+    wchar_t  at[16] = {};
+
+
+
+    if (!GetClippedRowRect (row, text, box))
+    {
+        return;
+    }
+
+    const BlockField  & field = m_fields[(size_t) row];
+
+    painter.OutlineRect (0.0f, 0.0f, (float) (box.right - box.left), (float) (box.bottom - box.top), 1.0f, theme.TooltipBorder());
+
+    swprintf_s (at, L"+$%03X", field.offset);
+
+    hr = text.DrawString (at, 0.0f, 1.0f, offset, rowPx, theme.ForegroundMuted(), font, s_kpszFont,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = text.DrawString (FormatRow (field).c_str(), offset, 1.0f, (float) (box.right - box.left) - offset, rowPx,
+                          field.link != BlockField::kNoLink ? theme.Accent() : theme.Foreground(), font, s_kpszFont,
+                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}

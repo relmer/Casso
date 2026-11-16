@@ -65,6 +65,7 @@ void BlockInspectorPanel::Init (BlockInspectorModel * model, BlockInspectorWorke
     m_model  = model;
     m_worker = worker;
     m_text   = text;
+    m_theme  = theme;
 
     if (commands != nullptr && commands->goTo != nullptr)
     {
@@ -1003,6 +1004,7 @@ void BlockInspectorPanel::ShowBytes()
     }
 
     m_fields->SetFields (std::move (fields));
+    m_fieldTip.Hide();
 
     if (shown != m_shownBlock)
     {
@@ -1379,6 +1381,45 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockInspectorPanel::UpdateFieldTip
+//
+//  As Casso Explorer's tree draws a name its pane cuts off: the field row
+//  under the pointer whole, laid over the row and on over the map, at
+//  once, with the pointer passing through to the row. A press, the wheel
+//  or leaving the row hides it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::UpdateFieldTip (const DxuiMouseEvent & ev)
+{
+    int   row = -1;
+    RECT  box = {};
+
+
+
+    if (ev.kind == DxuiMouseEventKind::Move && m_text != nullptr && m_theme != nullptr)
+    {
+        row = m_fields->FindRowAt (ev.positionDip);
+    }
+
+    if (row < 0 || !m_fields->GetClippedRowRect (row, *m_text, box))
+    {
+        m_fieldTip.Hide();
+        return;
+    }
+
+    m_fieldTip.Show (box, m_theme->BackgroundElevated() | 0xFF000000u, [this, row] (IDxuiPainter & painter, IDxuiTextRenderer & text)
+    {
+        m_fields->PaintRowTip (row, painter, text, *m_theme);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockInspectorPanel::FitFields
 //
 //  For each new block, the splitter is moved so the fields list is as wide
@@ -1706,6 +1747,8 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
     {
         TrackLegendHover (ev.kind == DxuiMouseEventKind::Leave ? POINT { SHRT_MIN, SHRT_MIN } : ev.positionDip);
     }
+
+    UpdateFieldTip (ev);
 
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_treeSplitterPx, ev.positionDip))
     {
