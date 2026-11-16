@@ -865,7 +865,7 @@ void BlockInspectorPanel::Present()
     m_filesChip->SetOn   (m_isFilesOn);
     m_diffsChip->SetOn   (m_isDiffsOn);
     m_diffsChip->SetVisible (isComparing);
-    m_legend->SetComparing  (isComparing);
+    m_legend->SetComparing  (isComparing ? fs::path (m_model->GetOther()->GetPath()).filename().wstring() : std::wstring());
     m_editNote->SetText  (NumberFormat::FormatInteger (m_model->GetEdits().CountChangedBytes()) + (m_model->GetEdits().CountChangedBytes() == 1 ? L" byte changed, not written" : L" bytes changed, not written"));
 
     m_hasEdits = hasEdits;
@@ -1514,6 +1514,7 @@ bool BlockInspectorPanel::GetHexTooltip (POINT pointPx, std::wstring & outText, 
     uint8_t                 mark  = BlockHexSource::kMarkNone;
     const BlockField      * field = nullptr;
     std::wstring            note;
+    std::wstring            other;
 
 
 
@@ -1524,14 +1525,16 @@ bool BlockInspectorPanel::GetHexTooltip (POINT pointPx, std::wstring & outText, 
 
     m_source.ReadMarks (hit.offset, std::span<uint8_t> (&mark, 1));
 
+    //  A split pointer's high byte lies outside its field, at pairOffset.
     for (const BlockField & candidate : m_fields->GetFields())
     {
-        if (field == nullptr && candidate.Contains ((uint32_t) hit.offset))
+        if (field == nullptr && (candidate.Contains ((uint32_t) hit.offset) || candidate.pairOffset == (int) hit.offset))
         {
             field = &candidate;
         }
     }
 
+    other   = m_model->IsComparing() ? fs::path (m_model->GetOther()->GetPath()).filename().wstring() : std::wstring();
     outText = std::format (L"Byte ${:03X}", hit.offset);
 
     if (field != nullptr)
@@ -1539,9 +1542,9 @@ bool BlockInspectorPanel::GetHexTooltip (POINT pointPx, std::wstring & outText, 
         outText += L"\n" + field->label + (field->value.empty() ? L"" : L": " + field->value);
     }
 
-    note = mark == BlockHexSource::kMarkLink    ? (field != nullptr && field->link != BlockField::kNoLink ? L"Links to block " + NumberFormat::FormatInteger (field->link) + L"; click to open it" : L"Links to another block")
+    note = mark == BlockHexSource::kMarkLink    ? (field != nullptr && field->link != BlockField::kNoLink ? L"Links to block " + NumberFormat::FormatInteger (field->link) + L". Click to open it." : L"Links to another block")
          : mark == BlockHexSource::kMarkChanged ? L"Changed, not yet written"
-         : mark == BlockHexSource::kMarkDiffers ? L"Differs from the other image"
+         : mark == BlockHexSource::kMarkDiffers ? L"Differs from " + other
          : mark == BlockHexSource::kMarkField   ? L"In the field under the pointer in the field list"
          :                                        L"";
 

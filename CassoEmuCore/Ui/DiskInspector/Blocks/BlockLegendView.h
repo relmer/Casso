@@ -29,9 +29,10 @@ public:
 
     SIZE  GetSizePx (const DxuiDpiScaler & scaler) const;
 
-    //  Whether another image is compared, so the mark for a block that
-    //  differs has its line.
-    void  SetComparing (bool isComparing) { m_isComparing = isComparing; }
+    //  The file name of the image compared with this one, or empty when
+    //  none is. The mark for a block that differs has a line only while
+    //  comparing.
+    void  SetComparing (const std::wstring & otherName) { m_otherName = otherName; m_isComparing = !otherName.empty(); }
 
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override { SetBounds (boundsPx); m_scaler = scaler; }
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -41,4 +42,5 @@ private:
 
     DxuiDpiScaler  m_scaler;
     bool           m_isComparing = false;
+    std::wstring   m_otherName;
 };

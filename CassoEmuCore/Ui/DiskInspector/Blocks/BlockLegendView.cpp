@@ -121,6 +121,6 @@ void BlockLegendView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
     if (m_isComparing)
     {
-        line (theme.ErrorForeground(), L"Differs from the other image", true);
+        line (theme.ErrorForeground(), (L"Differs from " + m_otherName).c_str(), true);
     }
 }
