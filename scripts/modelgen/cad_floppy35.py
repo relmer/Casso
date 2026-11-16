@@ -138,23 +138,30 @@ def back_parts(m, case_rgb):
     db_h               = 7.7
     db_out             = 3.4
 
-    def d_shape(top, bottom, height, y0, y1):
+    # The shell and the insert are offsets of one core trapezoid, so the
+    # shell's rim is the same width all round the insert and its corners are
+    # concentric with the insert's.
+    insert_r, shell_wall = 0.6, 0.7
+    core_top            = db_top - 2.0 * (insert_r + shell_wall)
+    core_bottom         = db_bottom - 2.0 * (insert_r + shell_wall)
+    core_h              = db_h - 2.0 * (insert_r + shell_wall)
+
+    def d_shape(offset, y0, y1):
         cx = back_x(db_cx)
-        pts = [(cx - top / 2, db_cz + height / 2), (cx + top / 2, db_cz + height / 2),
-               (cx + bottom / 2, db_cz - height / 2), (cx - bottom / 2, db_cz - height / 2)]
+        pts = [(cx - core_top / 2, db_cz + core_h / 2), (cx + core_top / 2, db_cz + core_h / 2),
+               (cx + core_bottom / 2, db_cz - core_h / 2), (cx - core_bottom / 2, db_cz - core_h / 2)]
 
-        return (cq.Workplane("XZ").polyline(pts).close().extrude(-(y1 - y0))
-                .translate((0, y0, 0))
-                .edges("|Y").fillet(1.0))
+        return (cq.Workplane("XZ").polyline(pts).close().offset2D(offset, "arc").extrude(-(y1 - y0))
+                .translate((0, y0, 0)))
 
-    shell = (d_shape(db_top, db_bottom, db_h, wall + 0.8, wall + 0.8 + db_out)
-             .cut(d_shape(db_top - 1.4, db_bottom - 1.4, db_h - 1.4, wall + 0.5, wall + 0.8 + db_out + 1.0)))
+    shell = (d_shape(insert_r + shell_wall, wall + 0.8, wall + 0.8 + db_out)
+             .cut(d_shape(insert_r, wall + 0.5, wall + 0.8 + db_out + 1.0)))
     m.add("db19_shell", shell, METAL)
 
     # The insert, set back in the shell, with nineteen receptacles: ten over
     # nine on the D connectors' 2.77 mm pitch, through to the dark behind.
     insert_face = wall + 0.8 + db_out - 1.2
-    insert      = d_shape(db_top - 1.4, db_bottom - 1.4, db_h - 1.4, wall + 1.6, insert_face)
+    insert      = d_shape(insert_r, wall + 1.6, insert_face)
     pitch       = 2.77
 
     for dz, count in ((db_h * 0.17, 10), (-db_h * 0.17, 9)):
@@ -165,7 +172,7 @@ def back_parts(m, case_rgb):
                                 .translate((back_x(x_first + i * pitch), wall + 1.0, db_cz + dz)))
 
     m.add("db19_insert", insert, INSERT)
-    m.add("db19_back", d_shape(db_top - 1.6, db_bottom - 1.6, db_h - 1.6, wall + 0.8, wall + 1.6), DARK)
+    m.add("db19_back", d_shape(insert_r - 0.1, wall + 0.8, wall + 1.6), DARK)
 
     # The hex screw posts each side of the shell, with their threaded holes.
     for px in (21.8, 59.0):
@@ -184,10 +191,13 @@ def back_parts(m, case_rgb):
             .edges("|Z").fillet(1.5))
     loop = loop.cut(back_box(lx0 + wall_t, lx1 - wall_t, lz0 - 1.0, lz1 + 1.0, D - 1.0, D + out - wall_t))
 
-    ccx, ccz, link_w, link_h, overlap, stroke, depth = 80.5, 22.6, 2.4, 3.6, 1.2, 0.5, 0.35
+    # The chain link is centered on the loop's back face, both ways.
+    link_w, link_h, overlap, stroke, depth = 2.4, 3.6, 1.2, 0.5, 0.35
+    ccx                                     = (lx0 + lx1) * 0.5
+    chain_z0                                = (lz0 + lz1) * 0.5 - (2.0 * link_h - overlap) * 0.5
 
     for k in range(2):
-        z0   = ccz - link_h + k * (link_h - overlap)
+        z0   = chain_z0 + k * (link_h - overlap)
         ring = (back_box(ccx - link_w / 2, ccx + link_w / 2, z0, z0 + link_h, D + out - depth, D + out + 1.0)
                 .edges("|Y").fillet(link_w / 2 - 0.01))
         hole = (back_box(ccx - link_w / 2 + stroke, ccx + link_w / 2 - stroke, z0 + stroke, z0 + link_h - stroke,
