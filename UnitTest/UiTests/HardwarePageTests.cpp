@@ -41,8 +41,8 @@ public:
         return e;
     }
 
-    //  A SCSI CARD'S DRIVES ARE ROWS UNDER ITS SLOT, each with its image and a
-    //  real timing row that toggles the port's switch.
+    //  A SCSI CARD'S DRIVES ARE ROWS UNDER ITS SLOT, each with its image. No
+    //  hard disk has a real timing row.
     TEST_METHOD (BuildNodes_BlockCardDrivesAndRealTiming)
     {
         std::vector<HardwareEntry>  entries;
@@ -63,9 +63,8 @@ public:
         Assert::AreEqual<size_t> (2u, nodes[0].children[0].children.size(), L"one row per drive");
         Assert::AreEqual (std::wstring (L"SCSI ID 1: Apple Hard Disk 20SC (Total Replay.hdv)"), nodes[0].children[0].children[0].label);
         Assert::AreEqual (std::wstring (L"SCSI ID 6: Apple Hard Disk 20SC (Stock hard disk.hdv)"), nodes[0].children[0].children[1].label);
-        Assert::IsTrue   (nodes[0].children[0].children[0].children[0].checked, L"real timing is on for ID 1");
-        Assert::IsFalse  (nodes[0].children[0].children[1].children[0].checked);
-        Assert::AreEqual (std::wstring (L"Real timing, slot 7 SCSI ID 6"), nodes[0].children[0].children[1].children[0].label);
+        Assert::IsTrue   (nodes[0].children[0].children[0].children.empty(), L"no real timing row for ID 1");
+        Assert::IsTrue   (nodes[0].children[0].children[1].children.empty(), L"no real timing row for ID 6");
     }
 
 

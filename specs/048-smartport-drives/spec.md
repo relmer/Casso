@@ -39,6 +39,11 @@ the interaction, sound and event log the Disk II already has.
 - Q: Should hard disks have their real spin-up and seek times? A: Real timing is
   available as a per-drive setting, and the default is speed: drives are ready
   at power-on and seek without delay. The sounds are audible either way.
+- Q: Is the real timing setting worth offering? A: Not yet (2026-11-16). The
+  power-on wait only makes a cold boot fall through to BASIC, and a seek
+  delay is worth having only with seek sound samples. The Machine tab
+  doesn't offer the switch. The timing code is in the drives, and a machine
+  file can turn it on.
 - Q: The CFFA 3000's firmware runs on an AVR microcontroller. How should Casso
   run it? A: Drop the CFFA from Casso entirely, the 2.0 and the 3000. It can be
   added later. Casso Explorer's CFFA card layout support from spec 033 stays.
@@ -519,7 +524,8 @@ on each device's feed.
 - **FR-023**: In the compact themes each drive MUST be a widget in the drive
   band, with the same tip and clicks as on the desk.
 - **FR-023b**: Each hard disk MUST have a setting for real spin-up and seek
-  timing, off by default. With it off the drive is ready at power-on and seeks
+  timing, off by default, in the machine file. The Machine tab doesn't offer
+  it until seek sound samples exist (Clarifications, 2026-11-16). With it off the drive is ready at power-on and seeks
   without delay; with it on the firmware waits as on real hardware. The sounds
   are audible in both cases.
 - **FR-024**: The desk scene MUST place the attached drives automatically

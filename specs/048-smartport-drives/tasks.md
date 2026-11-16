@@ -259,6 +259,8 @@ runs on machines as they ship today.
 - [X] T110 (done: each "to verify" that no later **Checked** entry resolves has an **Update**: R9's WOZ writes, R10's chain length, R15's timing and R19's hosts; `data-model.md` matches. R9's status numbering and R15's service manual times remain unchecked against Apple's documents) Confirm that no "to verify" marker is left in `research.md`, and that `data-model.md` matches it
 - [ ] T111 `CHANGELOG.md` and `README.md` entries for the new cards, drives and machine, terse, after the owner approves the text
 - [X] T114 (done in `ProFileTests::RealTiming` and `BlockDeviceBootTests::ProFile_RealTimingBootsWhenReady`) A ProFile's real timing checkbox in the Machine tab sets a spin-up delay and seek time in `ProFileDrive`, as `ScsiHardDisk::SetRealTiming` does for the HD20SC, wired in `CassoEmuCore/Shell/StorageCardWiring.cpp`, with tests in `UnitTest/BlockDeviceTests/ProFileTests.cpp`
+- [X] T115 (done: `hasRealTiming` is false for each drive in `BlockDeviceCatalog.cpp`) Hide the real timing switch from the Machine tab, per the owner (spec Clarifications, 2026-11-16)
+- [ ] T116 Once hard disk seek sound samples exist, offer real timing again, with seek time charged by the head's travel instead of an average per command, in `ProFileDrive` and `ScsiHardDisk`
 - [ ] T113 A click on a 3.5-inch drive opens Casso's disk picker, as a click on a Disk II does, rather than the standard Open dialog. Waits for spec 049, whose picker replaces Casso's
 - [ ] T112 Pre-merge gate: `scripts/CheckStyle.ps1 -Mode Tree`, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, `scripts/RunTests.ps1 -Build`, `scripts/RunTests.ps1 -Build -Scenario`, `scripts/RunTests.ps1 -Build -Sanitize -Configuration Release -Scenario`
 
