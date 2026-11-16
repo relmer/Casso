@@ -169,6 +169,31 @@ std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendPanel::DescribeTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FullSendPanel::DescribeTrack (const FullSendDriveStatus & drive, int track)
+{
+    int           last = drive.positions.empty() ? track * 4 : std::min (track * 4 + 3, (int) drive.positions.size() - 1);
+    std::wstring  text;
+
+
+
+    for (int position = track * 4; position <= last; position++)
+    {
+        text += (text.empty() ? std::wstring() : std::wstring (L"\n")) + DescribeCell (drive, position);
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendPanel::AddCell
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,6 +217,33 @@ void FullSendPanel::AddCell (float left, float top, float width, float height, i
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendPanel::TryGetTrackAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::TryGetTrackAt (POINT pointPx, int & outDrive, int & outTrack, RECT * outBounds) const
+{
+    auto  found = std::find_if (m_cells.begin(), m_cells.end(), [&] (const Cell & cell) { return PtInRect (&cell.bounds, pointPx) != FALSE; });
+
+
+
+    outDrive = found == m_cells.end() ? 0 : found->drive + 1;
+    outTrack = found == m_cells.end() ? 0 : found->position / 4;
+
+    if (outBounds != nullptr && found != m_cells.end())
+    {
+        *outBounds = found->bounds;
+    }
+
+    return found != m_cells.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendPanel::OnMouse
 //
 //  The map cell under the pointer has a tip; anywhere else, none.
@@ -200,8 +252,11 @@ void FullSendPanel::AddCell (float left, float top, float width, float height, i
 
 bool FullSendPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    int64_t  now = (int64_t) GetTickCount64();
-    POINT    pt  = { ev.positionDip.x, ev.positionDip.y };
+    int64_t  now    = (int64_t) GetTickCount64();
+    POINT    pt     = { ev.positionDip.x, ev.positionDip.y };
+    int      drive  = 0;
+    int      track  = 0;
+    RECT     bounds = {};
 
 
 
@@ -215,16 +270,10 @@ bool FullSendPanel::OnMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Enter)
+    if ((ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Enter) && TryGetTrackAt (pt, drive, track, &bounds))
     {
-        for (const Cell & cell : m_cells)
-        {
-            if (PtInRect (&cell.bounds, pt))
-            {
-                m_tooltip->RequestShow (cell.bounds, DescribeCell (m_view.snapshot.drives[(size_t) cell.drive], cell.position), now);
-                return false;
-            }
-        }
+        m_tooltip->RequestShow (bounds, DescribeTrack (m_view.snapshot.drives[(size_t) drive - 1], track), now);
+        return false;
     }
 
     m_tooltip->RequestHide (now);
@@ -751,13 +800,15 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
     top += lineH + space * 2.0f;
 
     //  In a raw capture a track's cell is its whole-track read's, as the
-    //  sector read before it found the tracks unreadable.
+    //  sector read before it found the tracks unreadable. A track's tip covers
+    //  its column, the quarter tracks under it too, as those are too narrow
+    //  to point at.
     for (int track = 0; track < FullSendDriveStatus::kTracks; track++)
     {
         uint32_t  color = drive.positions.empty() ? GetColor (drive.tracks[(size_t) track], theme) : GetColor (drive.positions[(size_t) track * 4], theme);
 
         painter.FillRect (left + track * pitch, top, pitch - space, cellH, color);
-        AddCell (left + track * pitch, top, pitch - space, cellH, number, track * 4);
+        AddCell (left + track * pitch, top, pitch - space, cellH + space + rawH, number, track * 4);
     }
 
     top += cellH + space;
@@ -774,7 +825,6 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
         }
 
         painter.FillRect (left + position * quarter, top, std::max (1.0f, quarter - space), rawH, GetColor (mark, theme));
-        AddCell (left + position * quarter, top, std::max (1.0f, quarter - space), rawH, number, (int) position);
     }
 
     top += rawH + space * 4.0f;
