@@ -2465,11 +2465,19 @@ std::wstring ShellDeskScene::GetHoverLabelText() const
     }
     else if (m_hoverDiskIi >= 0 && m_hoverDiskIi < 2)
     {
-        DeskDriveModel  model = m_deskSceneMachineIsC ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII;
+        DeskDrive  drive = { m_deskSceneMachineIsC ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII, 6, m_hoverDiskIi };
+
+        for (const DeskDrive & planned : m_plannedDrives)
+        {
+            if (planned.slot == 6 && planned.drive == m_hoverDiskIi)
+            {
+                drive = planned;
+            }
+        }
 
         path     = m_shell.m_machine.GetDiskStore().GetSourcePath (6, m_hoverDiskIi);
         isLocked = !path.empty() && m_shell.m_disks->GetDriveWidgetState()[(size_t) m_hoverDiskIi].writeProtect.Any();
-        text     = path.empty() ? GetDriveTitle ({ model, 6, m_hoverDiskIi, false }) : fs::path (path).filename().wstring();
+        text     = path.empty() ? GetDriveTitle (drive) : fs::path (path).filename().wstring();
     }
 
     if (isLocked && !path.empty())
@@ -3898,7 +3906,7 @@ std::wstring ShellDeskScene::GetDriveTitle (const DeskDrive & drive)
     switch (drive.model)
     {
         case DeskDriveModel::DiskII:        title = std::format (L"Disk II, drive {}", drive.drive + 1);  break;
-        case DeskDriveModel::Disk2c:        title = std::format (L"//c drive {}", drive.drive + 1);       break;
+        case DeskDriveModel::Disk2c:        title = drive.onPort ? std::format (L"Disk IIc, slot 6 drive {}", drive.drive + 1) : std::format (L"//c drive {}", drive.drive + 1); break;
         case DeskDriveModel::UniDisk35:     title = L"UniDisk 3.5";                                       break;
         case DeskDriveModel::Apple35Drive:  title = L"Apple 3.5 Drive";                                   break;
         case DeskDriveModel::Apple35Plus:   title = L"Built-in 3.5 drive";                                break;

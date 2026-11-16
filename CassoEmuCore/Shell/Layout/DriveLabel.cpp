@@ -27,7 +27,7 @@ std::wstring DriveLabel::GetTitle (const DeskDrive & drive, bool numbered)
     switch (drive.model)
     {
         case DeskDriveModel::DiskII:        title = std::format (L"Drive {} - Disk ][", drive.drive + 1);                            break;
-        case DeskDriveModel::Disk2c:        title = drive.builtIn ? std::wstring (L"Drive 1 - Built-in") : std::format (L"Drive {} - Disk IIc", drive.drive + 1);  break;
+        case DeskDriveModel::Disk2c:        title = GetDisk2cTitle (drive);                                                          break;
         case DeskDriveModel::UniDisk35:     title = L"UniDisk 3.5";                                                                  break;
         case DeskDriveModel::Apple35Drive:  title = L"Apple 3.5 Drive";                                                              break;
         case DeskDriveModel::Apple35Plus:   title = L"Built-in 3.5";                                                                 break;
@@ -38,6 +38,37 @@ std::wstring DriveLabel::GetTitle (const DeskDrive & drive, bool numbered)
     if (numbered && drive.model != DeskDriveModel::DiskII && drive.model != DeskDriveModel::Disk2c && drive.model != DeskDriveModel::HardDisk20SC)
     {
         title += (drive.drive < 2) ? std::format (L" - S{},D{}", slot, drive.drive + 1) : std::format (L" - unit {}", drive.drive + 1);
+    }
+
+    return title;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveLabel::GetDisk2cTitle
+//
+//  The //c Plus's 5.25-inch drives are drives 1 and 2 of slot 6, behind its
+//  built-in 3.5-inch drive in slot 5, so their slot is in the label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DriveLabel::GetDisk2cTitle (const DeskDrive & drive)
+{
+    std::wstring  title = std::format (L"Drive {} - Disk IIc", drive.drive + 1);
+
+
+
+    if (drive.builtIn)
+    {
+        title = L"Drive 1 - Built-in";
+    }
+    else if (drive.onPort)
+    {
+        title = std::format (L"Disk IIc - S6,D{}", drive.drive + 1);
     }
 
     return title;

@@ -180,7 +180,7 @@ void ShellChrome::SetDiskIiBarCaptions (bool onBar)
 
     for (int w = 0; w < (int) widgets.size(); w++)
     {
-        DeskDrive  drive = { model, 6, w, m_shell.m_disks->MachineHasBuiltInDrive() && w == 0 };
+        DeskDrive  drive = { model, 6, w, m_shell.m_disks->MachineHasBuiltInDrive() && w == 0, m_shell.m_disks->IsPortChainOffered() };
 
         if (onBar)
         {

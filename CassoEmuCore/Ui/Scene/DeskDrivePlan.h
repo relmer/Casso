@@ -68,6 +68,10 @@ struct DeskDrive
     //  The //c's drive 1, soldered in.
     bool            builtIn = false;
 
+    //  A 5.25-inch drive on the //c Plus's disk port, behind its built-in
+    //  3.5-inch drive.
+    bool            onPort  = false;
+
     bool  operator== (const DeskDrive & other) const = default;
 };
 
