@@ -137,8 +137,8 @@ private:
 //
 //  CassoExplorerProtectionPage
 //
-//  The Copy-protected disks section: a heading, a note, a checkbox for each
-//  condition, and the choice for a disk with any of them.
+//  Copy-protected disks: a note, a checkbox for each condition, and the
+//  choice for a disk with any of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,7 +147,6 @@ class CassoExplorerProtectionPage : public DxuiPropertyPage
 public:
     struct Parts
     {
-        DxuiLabel                    head;
         DxuiLabel                    note;
         std::array<DxuiCheckbox, 4>  conditions;
         DxuiLabel                    actionLabel;

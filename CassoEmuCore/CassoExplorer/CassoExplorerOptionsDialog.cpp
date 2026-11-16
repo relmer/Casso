@@ -315,7 +315,6 @@ void CassoExplorerProtectionPage::Init (Parts & parts)
 {
     m_parts = &parts;
 
-    Adopt (parts.head);
     Adopt (parts.note);
 
     for (DxuiCheckbox & condition : parts.conditions)
@@ -343,8 +342,7 @@ void CassoExplorerProtectionPage::Layout (const RECT & boundsDip, const DxuiDpiS
     int                           labelH   = scaler.ToPx (kLabelHeightDip);
     int                           fieldH   = scaler.ToPx (ExplorerMetrics::kStackFieldHeightDip);
     int                           optionH  = scaler.ToPx (kOptionLabelHeightDip + kOptionGapDip);
-    int                           noteTop  = boundsDip.top + labelH;
-    int                           noteEnd  = noteTop + CassoExplorerVerifyPage::GetNoteHeightPx (m_parts->note, width, scaler, kNoteHeightDip);
+    int                           noteEnd  = boundsDip.top + CassoExplorerVerifyPage::GetNoteHeightPx (m_parts->note, width, scaler, kNoteHeightDip);
     int                           at       = noteEnd;
     std::vector<DxuiRadioOption>  options  = m_parts->action.GetOptions();
     int                           labelTop = 0;
@@ -354,8 +352,7 @@ void CassoExplorerProtectionPage::Layout (const RECT & boundsDip, const DxuiDpiS
 
     SetBounds (boundsDip);
 
-    m_parts->head.Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, noteTop }, scaler);
-    m_parts->note.Layout (RECT { boundsDip.left, noteTop, boundsDip.right, noteEnd }, scaler);
+    m_parts->note.Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, noteEnd }, scaler);
 
     for (DxuiCheckbox & condition : m_parts->conditions)
     {
@@ -802,9 +799,6 @@ void CassoExplorerOptionsDialog::WireProtection()
 
 
 
-
-    m_fullSendProtection.head.SetText (L"Copy-protected disks");
-    ExplorerTextStyles::Apply (m_fullSendProtection.head, ExplorerTextStyles::kFormLabel);
 
     m_fullSendProtection.note.SetText (L"Copy protection often depends on details of the disk that a sector copy can't record, so a copy-protected disk has to be "
                                        L"captured raw. A raw capture is always saved as a WOZ image, even when another image type is selected on the Full Send tab, "
