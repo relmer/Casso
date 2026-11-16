@@ -222,6 +222,7 @@ public:
     DWORD    GetSilenceMs () const;
 
     void     SetActivitySink (ActivityFn sink) { m_adtProServer.m_activity = std::move (sink); }
+    void     ReportActivity  (const std::string & text) { if (m_adtProServer.m_activity) { m_adtProServer.m_activity (text); } }
 
     //  Each packet sent and received, as CassoLinkPacketText describes it, for
     //  a log; sent is false for one received. A pause's report of no key, once

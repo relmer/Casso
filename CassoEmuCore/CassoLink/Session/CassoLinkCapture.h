@@ -191,6 +191,7 @@ private:
         int                      percent        = 0;
         bool                     writeProtected = false;
         StopFn                   stop;
+        int                      position       = 0;     // the position last read
     };
 
     static HRESULT              ReadOnce       (Run & run, int position, Byte delay, int read, int reads, Byte syncPosition, std::span<const Byte> marker, std::vector<Byte> & outBytes, bool & outMissed);
@@ -314,6 +315,7 @@ private:
     static constexpr size_t  s_kMarkerBytes  = 11;
     static constexpr int     s_kReadAttempts = 3;
     static constexpr DWORD   s_kBusyPollMs   = 200;     // Analyze's wait for a Ready, between checks that the work is done
+    static constexpr DWORD   s_kSlowMs       = 5000;    // an analysis, or the wait after it, this long is logged
 
     //  The cycles from a marker's last byte to the first byte of a read of
     //  the same track that waited on it, with no step, as measured on Casso's
