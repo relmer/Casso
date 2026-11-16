@@ -203,7 +203,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     {
         CommandLineOptions::DiskOptions::Command::SectorRead,
-        "sectorread",
+        "sectorread | read-sector",
         "Read sectors directly from the disk",
         "CassoCli disk sectorread <image> %Llogical|%Lphysical %Ltrack <n> %Lsector <n> [%Lcount <n>] [%Lout <file>]",
         "  %Llogical               Sector numbers are DOS logical: what catalogs, DOS tools and reference books use\n"
@@ -219,7 +219,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     {
         CommandLineOptions::DiskOptions::Command::SectorWrite,
-        "sectorwrite",
+        "sectorwrite | write-sector",
         "Write sectors directly to the disk",
         "CassoCli disk sectorwrite <image> <file> %Llogical|%Lphysical %Ltrack <n> %Lsector <n>",
         "  %Llogical               Sector numbers are DOS logical: what catalogs, DOS tools and reference books use\n"
@@ -234,7 +234,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     {
         CommandLineOptions::DiskOptions::Command::BlockRead,
-        "blockread",
+        "blockread | read-block",
         "Read 512-byte ProDOS blocks directly from the disk",
         "CassoCli disk blockread <image> %Lblock <n> [%Lcount <n>] [%Lout <file>]",
         "  %Lblock <n>             Block to start at, 0 to 279\n"
@@ -247,7 +247,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     {
         CommandLineOptions::DiskOptions::Command::BlockWrite,
-        "blockwrite",
+        "blockwrite | write-block",
         "Write 512-byte ProDOS blocks directly to the disk",
         "CassoCli disk blockwrite <image> <file> %Lblock <n>",
         "  %Lblock <n>             Block to start at, 0 to 279. Continues to subsequent blocks if file is larger than one block\n",
@@ -312,15 +312,50 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
     },
 
     {
-        CommandLineOptions::DiskOptions::Command::Thumbnail,
-        "thumbnail",
-        "Set, remove, or save a disk image's thumbnail",
-        "CassoCli disk thumbnail <image> [<picture>] [%Lremove] [%Lout <file>]",
-        "  %Lremove                Remove the thumbnail the user set, so the image has the one made by booting it\n"
-        "  %Lout <file>            Write the image's thumbnail to <file> as a PNG\n",
-        "A <picture> in PNG, JPEG, BMP, GIF, or TIFF becomes the image's thumbnail in Casso Explorer, marked as set by the user,"
-        " in place of the one made by booting the image. Use one of <picture>, %Lremove, and %Lout.",
-        "CassoCli disk thumbnail Archon.woz title.png"
+        CommandLineOptions::DiskOptions::Command::Repair,
+        "repair",
+        "Check a disk image's file system and write a repaired copy",
+        "CassoCli disk repair <image> [<copy>] [%Lno-free-unowned] [%Llist]",
+        "  %Lno-free-unowned       Keep sectors not in any file marked as used, for copy protection that stores data in them\n"
+        "  %Llist                  List the changes without writing the copy\n",
+        "Checks the file system of a DOS 3.3, ProDOS or Apple Pascal volume. Lists the verdict, the findings and each change,"
+        " then writes a repaired copy to <copy>, or beside <image> with \" (repaired)\" before its extension. The bitmap is set"
+        " from the files, the catalog's links and counts are corrected, and a DOS 3.3 VTOC header is restored to DOS's values."
+        " <image> isn't changed. A copy-protected disk, a volume with a file whose chain can't be followed, or a disk with no"
+        " standard file system can't be repaired, and the command exits with 1.",
+        "CassoCli disk repair Capture.dsk"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::SetThumbnail,
+        "set-thumbnail",
+        "Set a disk image's thumbnail from a picture",
+        "CassoCli disk set-thumbnail <image> <picture>",
+        nullptr,
+        "<picture>, a PNG, JPEG, BMP, GIF, or TIFF file to use as the custom thumbnail Casso Explorer draws for <image>."
+        " Replaces the thumbnail automatically captured by Casso Explorer.",
+        "CassoCli disk set-thumbnail Archon.woz title.png"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::GetThumbnail,
+        "get-thumbnail",
+        "Save a disk image's thumbnail as a PNG",
+        "CassoCli disk get-thumbnail <image> <file>",
+        nullptr,
+        "Saves the disk image's thumbnail to <file> as a PNG.",
+        "CassoCli disk get-thumbnail Archon.woz archon.png"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::RemoveThumbnail,
+        "remove-thumbnail",
+        "Remove a disk image's thumbnail",
+        "CassoCli disk remove-thumbnail <image>",
+        nullptr,
+        "Removes the disk image's custom thumbnail, or the automatically captured thumbnail if no custom thumbnail is"
+        " set.",
+        "CassoCli disk remove-thumbnail Archon.woz"
     },};
 
 

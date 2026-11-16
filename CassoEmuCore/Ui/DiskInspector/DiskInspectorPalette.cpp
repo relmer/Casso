@@ -109,12 +109,7 @@ bool DiskInspectorPalette::IsDarkSurface (uint32_t background)
 
 uint32_t DiskInspectorPalette::GetTextColorOn (uint32_t background)
 {
-    static constexpr uint32_t  kBlack = 0xFF000000;
-    static constexpr uint32_t  kWhite = 0xFFFFFFFF;
-
-
-
-    return DxuiColor::ComputeContrastRatio (background, kWhite) >= DxuiColor::ComputeContrastRatio (background, kBlack) ? kWhite : kBlack;
+    return DxuiColor::GetContrastingInk (background);
 }
 
 

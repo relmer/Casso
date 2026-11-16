@@ -43,37 +43,44 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 //
 static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
 {
-    { "list",        CommandLineOptions::DiskOptions::Command::List        },
-    { "ls",          CommandLineOptions::DiskOptions::Command::List        },
-    { "dir",         CommandLineOptions::DiskOptions::Command::List        },
-    { "cat",         CommandLineOptions::DiskOptions::Command::List        },
-    { "catalog",     CommandLineOptions::DiskOptions::Command::List        },
-    { "get",         CommandLineOptions::DiskOptions::Command::Get         },
-    { "read",        CommandLineOptions::DiskOptions::Command::Get         },
-    { "put",         CommandLineOptions::DiskOptions::Command::Put         },
-    { "write",       CommandLineOptions::DiskOptions::Command::Put         },
-    { "delete",      CommandLineOptions::DiskOptions::Command::Delete      },
-    { "rm",          CommandLineOptions::DiskOptions::Command::Delete      },
-    { "del",         CommandLineOptions::DiskOptions::Command::Delete      },
-    { "boot",        CommandLineOptions::DiskOptions::Command::Boot        },
-    { "mkdir",       CommandLineOptions::DiskOptions::Command::Mkdir       },
-    { "md",          CommandLineOptions::DiskOptions::Command::Mkdir       },
-    { "rmdir",       CommandLineOptions::DiskOptions::Command::Rmdir       },
-    { "rd",          CommandLineOptions::DiskOptions::Command::Rmdir       },
-    { "create",      CommandLineOptions::DiskOptions::Command::Create      },
-    { "new",         CommandLineOptions::DiskOptions::Command::Create      },
-    { "init",        CommandLineOptions::DiskOptions::Command::Init        },
-    { "format",      CommandLineOptions::DiskOptions::Command::Init        },
-    { "sectorread",  CommandLineOptions::DiskOptions::Command::SectorRead  },
-    { "sectorwrite", CommandLineOptions::DiskOptions::Command::SectorWrite },
-    { "blockread",   CommandLineOptions::DiskOptions::Command::BlockRead   },
-    { "blockwrite",  CommandLineOptions::DiskOptions::Command::BlockWrite  },
-    { "krunch",      CommandLineOptions::DiskOptions::Command::Krunch      },
-    { "test",        CommandLineOptions::DiskOptions::Command::Test        },
-    { "dupes",       CommandLineOptions::DiskOptions::Command::Dupes       },
-    { "search",      CommandLineOptions::DiskOptions::Command::Search      },
-    { "inspect",     CommandLineOptions::DiskOptions::Command::Inspect     },
-    { "thumbnail",   CommandLineOptions::DiskOptions::Command::Thumbnail   },
+    { "list",             CommandLineOptions::DiskOptions::Command::List            },
+    { "ls",               CommandLineOptions::DiskOptions::Command::List            },
+    { "dir",              CommandLineOptions::DiskOptions::Command::List            },
+    { "cat",              CommandLineOptions::DiskOptions::Command::List            },
+    { "catalog",          CommandLineOptions::DiskOptions::Command::List            },
+    { "get",              CommandLineOptions::DiskOptions::Command::Get             },
+    { "read",             CommandLineOptions::DiskOptions::Command::Get             },
+    { "put",              CommandLineOptions::DiskOptions::Command::Put             },
+    { "write",            CommandLineOptions::DiskOptions::Command::Put             },
+    { "delete",           CommandLineOptions::DiskOptions::Command::Delete          },
+    { "rm",               CommandLineOptions::DiskOptions::Command::Delete          },
+    { "del",              CommandLineOptions::DiskOptions::Command::Delete          },
+    { "boot",             CommandLineOptions::DiskOptions::Command::Boot            },
+    { "mkdir",            CommandLineOptions::DiskOptions::Command::Mkdir           },
+    { "md",               CommandLineOptions::DiskOptions::Command::Mkdir           },
+    { "rmdir",            CommandLineOptions::DiskOptions::Command::Rmdir           },
+    { "rd",               CommandLineOptions::DiskOptions::Command::Rmdir           },
+    { "create",           CommandLineOptions::DiskOptions::Command::Create          },
+    { "new",              CommandLineOptions::DiskOptions::Command::Create          },
+    { "init",             CommandLineOptions::DiskOptions::Command::Init            },
+    { "format",           CommandLineOptions::DiskOptions::Command::Init            },
+    { "sectorread",       CommandLineOptions::DiskOptions::Command::SectorRead      },
+    { "read-sector",      CommandLineOptions::DiskOptions::Command::SectorRead      },
+    { "sectorwrite",      CommandLineOptions::DiskOptions::Command::SectorWrite     },
+    { "write-sector",     CommandLineOptions::DiskOptions::Command::SectorWrite     },
+    { "blockread",        CommandLineOptions::DiskOptions::Command::BlockRead       },
+    { "read-block",       CommandLineOptions::DiskOptions::Command::BlockRead       },
+    { "blockwrite",       CommandLineOptions::DiskOptions::Command::BlockWrite      },
+    { "write-block",      CommandLineOptions::DiskOptions::Command::BlockWrite      },
+    { "krunch",           CommandLineOptions::DiskOptions::Command::Krunch          },
+    { "test",             CommandLineOptions::DiskOptions::Command::Test            },
+    { "dupes",            CommandLineOptions::DiskOptions::Command::Dupes           },
+    { "search",           CommandLineOptions::DiskOptions::Command::Search          },
+    { "inspect",          CommandLineOptions::DiskOptions::Command::Inspect         },
+    { "repair",           CommandLineOptions::DiskOptions::Command::Repair          },
+    { "set-thumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
+    { "get-thumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
+    { "remove-thumbnail", CommandLineOptions::DiskOptions::Command::RemoveThumbnail },
 };
 
 
@@ -263,7 +270,8 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "recurse",
     "force",
     "yes",
-    "remove",
+    "no-free-unowned",
+    "list",
 
     //  Here so `/on-change` is matched as one word rather than shredded into
     //  the single-character flags -o -n -c -h ...
@@ -1024,6 +1032,7 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::Test:
         case CommandLineOptions::DiskOptions::Command::Dupes:
         case CommandLineOptions::DiskOptions::Command::Inspect:
+        case CommandLineOptions::DiskOptions::Command::RemoveThumbnail:
             count = 1;
             break;
 
@@ -1039,7 +1048,9 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::SectorWrite:
         case CommandLineOptions::DiskOptions::Command::BlockWrite:
         case CommandLineOptions::DiskOptions::Command::Search:
-        case CommandLineOptions::DiskOptions::Command::Thumbnail:
+        case CommandLineOptions::DiskOptions::Command::Repair:
+        case CommandLineOptions::DiskOptions::Command::SetThumbnail:
+        case CommandLineOptions::DiskOptions::Command::GetThumbnail:
             count = 2;
             break;
 
@@ -1349,9 +1360,15 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
-        if (arg == "--remove")
+        if (arg == "--no-free-unowned")
         {
-            options.disk.remove = true;
+            options.disk.noFreeUnowned = true;
+            continue;
+        }
+
+        if (arg == "--list")
+        {
+            options.disk.listOnly = true;
             continue;
         }
 
@@ -1731,11 +1748,13 @@ void CommandLineParser::ParseDiskOptions (
             // they write to may have no filesystem to hold a name in.
             if (options.disk.command == CommandLineOptions::DiskOptions::Command::Put
              || options.disk.command == CommandLineOptions::DiskOptions::Command::SectorWrite
-             || options.disk.command == CommandLineOptions::DiskOptions::Command::BlockWrite)
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::BlockWrite
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::GetThumbnail
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::Repair)
             {
                 options.disk.hostFile = arg;
             }
-            else if (options.disk.command == CommandLineOptions::DiskOptions::Command::Thumbnail)
+            else if (options.disk.command == CommandLineOptions::DiskOptions::Command::SetThumbnail)
             {
                 options.disk.picturePath = arg;
             }

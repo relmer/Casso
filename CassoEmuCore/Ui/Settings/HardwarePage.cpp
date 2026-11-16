@@ -1368,6 +1368,7 @@ void HardwarePage::AttachImage()
 {
     int          entry = GetSelectedEntry();
     std::string  path;
+    std::string  device;
     HRESULT      hr    = S_OK;
 
 
@@ -1380,10 +1381,11 @@ void HardwarePage::AttachImage()
     {
         const HardwareEntry  & e = m_state->GetHardware()[(size_t) entry];
 
-        path = (size_t) m_selectedPort < e.portImages.size() ? e.portImages[(size_t) m_selectedPort] : std::string();
+        path   = (size_t) m_selectedPort < e.portImages.size() ? e.portImages[(size_t) m_selectedPort] : std::string();
+        device = (size_t) m_selectedPort < e.ports.size()      ? e.ports[(size_t) m_selectedPort]      : std::string();
     }
 
-    if (m_onBrowseImage (path))
+    if (m_onBrowseImage (device, path))
     {
         hr = m_state->SetPortImage ((size_t) entry, (size_t) m_selectedPort, path);
         m_storagePrompt = SUCCEEDED (hr) ? std::wstring (L"Takes effect when the machine resets.") : std::wstring();

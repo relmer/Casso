@@ -55,7 +55,9 @@ public:
     static int   GetBlockCell (int block, int sector);
 
 private:
-    static bool          ReadDirectory (const SectorSource & source, vector<Byte> & outBytes, int & outBadSector);
-    static bool          IsValid       (const Byte * entry, bool & outIsInUse);
-    static Entry         ReadEntry     (const Byte * entry, int index);
+    static bool          ReadDirectory   (const SectorSource & source, vector<Byte> & outBytes, int & outBadSector);
+    static bool          IsValid         (const Byte * entry, bool & outIsInUse);
+    static std::wstring  DescribeInvalid (const Byte * entry);
+    static Entry         ReadEntry       (const Byte * entry, int index);
+    static void          CheckEntries    (FileMapWriter & writer, const vector<Entry> & entries);
 };

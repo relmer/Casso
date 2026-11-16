@@ -2,6 +2,8 @@
 
 #include "CassoExplorer/CassoExplorerLinkDialog.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "CassoExplorer/Model/CassoLinkConnectionText.h"
+#include "CassoExplorer/Model/CassoLinkShimBuilder.h"
 #include "Core/TextEncoding.h"
 #include "Seams/Win32NetworkAdapters.h"
 #include "Ui/Settings/SettingsInfoTip.h"
@@ -50,7 +52,7 @@ std::vector<std::wstring> CassoExplorerLinkChoices::GetSpeedLabels()
 
     for (DWORD speed : kSpeeds)
     {
-        labels.push_back (std::format (L"{} baud", CassoLinkConnections::FormatBaud (speed)));
+        labels.push_back (std::format (L"{} baud", CassoLinkConnectionText::FormatBaud (speed)));
     }
 
     return labels;
@@ -341,7 +343,7 @@ std::wstring CassoExplorerLinkChoices::ValidateAddressFor (LinkTransport transpo
         settings.transport = LinkTransport::Uthernet;
         settings.address   = TextEncoding::WideToNarrow (text);
 
-        hr    = CassoLinkConnections::MakeNetworkConfig (settings, {}, network);
+        hr    = CassoLinkShimBuilder::MakeNetworkConfig (settings, {}, network);
         error = FAILED (hr) ? std::wstring (L"Enter the card's IPv4 address and a port, such as 192.168.1.50:6502.") : std::wstring();
     }
 

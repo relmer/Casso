@@ -201,7 +201,7 @@ HRESULT NuLzw::ExpandCodes (
         }
 
         defined = code < state.next && code != kClearCode;
-        usable  = defined || (code == state.next && state.next < kTableSize);
+        usable  = (defined || (code == state.next && state.next < kTableSize)) && code < kTableSize && state.prev < kTableSize;
         CBRFEx (usable, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = "The LZW data has a code its table doesn't define.");
 
         firstChar = (code == state.next) ? (state.prev < kFirstCode ? (Byte) state.prev : state.first[state.prev])

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/DiskAnalysis.h"
+#include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Devices/Disk/IDiskImage.h"
 
 struct FileMap;
@@ -31,6 +32,7 @@ enum class SummaryChipKind
     Flux,
     Damaged,
     Volume,
+    FileSystem,
 };
 
 
@@ -73,6 +75,7 @@ class InspectorText
 {
 public:
     static vector<SummaryChip>  BuildChips          (const DiskSummary & summary);
+    static vector<SummaryChip>  BuildChips          (const DiskSummary & summary, FileSystemVerdict verdict);
     static std::wstring         FormatDiskFormat    (DiskFormatClass format);
     static std::wstring         FormatOrdinal       (int n);
     static std::wstring         FormatCount         (int count, LPCWSTR singular, LPCWSTR plural);

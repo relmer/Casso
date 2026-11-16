@@ -77,15 +77,15 @@ public:
 
 
 
-    void                      AddTarget     (HWND, UINT) override                      {}
-    void                      RemoveTarget  (HWND) override                            {}
-    bool                      IsUserSet     (const std::wstring &) override            { return false; }
-    HRESULT                   RemoveUserSet (const std::wstring &) override            { return S_OK; }
-    std::vector<std::string>  GetKeys       (const std::vector<std::wstring> &) override { return {}; }
-    void                      RemoveDeleted (const std::vector<std::string> &) override  {}
-    int                       CountUserSet  () override                                { return 0; }
-    HRESULT                   Clear         (bool) override                            { return S_OK; }
-    size_t                    GetQueued     () override                                { return queued; }
+    void                      AddTarget       (HWND, UINT) override                        {}
+    void                      RemoveTarget    (HWND) override                              {}
+    bool                      HasThumbnail    (const std::wstring &) override              { return false; }
+    HRESULT                   RemoveThumbnail (const std::wstring &) override              { return S_OK; }
+    std::vector<std::string>  GetKeys         (const std::vector<std::wstring> &) override { return {}; }
+    void                      RemoveDeleted   (const std::vector<std::string> &) override  {}
+    int                       CountUserSet    () override                                  { return 0; }
+    HRESULT                   Clear           (bool) override                              { return S_OK; }
+    size_t                    GetQueued       () override                                  { return queued; }
 
     size_t  queued = 0;
 

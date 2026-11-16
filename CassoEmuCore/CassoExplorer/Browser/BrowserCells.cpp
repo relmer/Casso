@@ -5,6 +5,7 @@
 #include "CassoExplorer/Model/SearchExpression.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/ImageClassifier.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
@@ -111,18 +112,22 @@ void BrowserCells::UpdateStatus()
 
     if (m_browser.m_selectedRows.size() == 1)
     {
-        const CatalogRow &  row = m_browser.m_rows[m_browser.m_selectedRows[0]];
+        const CatalogRow &  row    = m_browser.m_rows[m_browser.m_selectedRows[0]];
+        std::wstring      & detail = m_browser.m_status.detail;
+        bool                sized  = !row.isDirectory && !(m_browser.IsHomeLocation() && row.hostPath.empty()) && !(row.isStockDisk && !row.stockDownloaded);
 
-        m_browser.m_status.detail = row.typeText;
+        //  The type, size and address that the row has, with a comma between
+        //  each two. A stock disk has no type.
+        detail = row.typeText;
 
-        if (!row.isDirectory)
+        if (sized)
         {
-            m_browser.m_status.detail += (m_browser.IsHomeLocation() && row.hostPath.empty()) ? std::wstring() : L", " + FormatSize (row.sizeBytes);
+            detail += (detail.empty() ? L"" : L", ") + FormatSize (row.sizeBytes);
         }
 
         if (!row.addressText.empty())
         {
-            m_browser.m_status.detail += L", " + row.addressText;
+            detail += (detail.empty() ? L"" : L", ") + row.addressText;
         }
     }
 
@@ -247,6 +252,9 @@ std::vector<DxuiListView::Column> BrowserCells::GetColumns()
     columns.push_back (DxuiListView::Column { L"Free space",    kForkColumnDip,     false, DxuiTextHAlign::Right });
     columns.push_back (DxuiListView::Column { L"CRC-32",        kForkColumnDip,     false, DxuiTextHAlign::Left  });
     columns.push_back (DxuiListView::Column { L"SHA-256",       kOriginalColumnDip, false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Form factor",   kTypeColumnDip,     false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Formatted size", kSizeColumnDip,    false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Last used",     kModifiedColumnDip, false, DxuiTextHAlign::Left  });
 
     return columns;
 }
@@ -302,7 +310,7 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCatalogPreviewCells (const Catal
     //  A folder has no size of its own, except in the Recycle Bin, which adds up
     //  what each deleted folder held, as Explorer shows; nor does a shell item
     //  that is not a file, such as a computer on the network.
-    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty()) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
+    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty()) || (row.isStockDisk && !row.stockDownloaded) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
 
     return cells;
 }
@@ -380,7 +388,7 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
     //  A folder has no size of its own, except in the Recycle Bin, which adds up
     //  what each deleted folder held, as Explorer shows; nor does a shell item
     //  that is not a file, such as a computer on the network.
-    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty() && row.sizeBytes == 0) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
+    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty() && row.sizeBytes == 0) || (row.isStockDisk && !row.stockDownloaded) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
     cells.push_back (DxuiListView::Cell { row.addressText, false });
     cells.push_back (DxuiListView::Cell { row.locked ? L"Yes" : L"", false });
     cells.push_back (DxuiListView::Cell { row.originalFolder, false });
@@ -396,6 +404,12 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
     cells.push_back (DxuiListView::Cell { row.collection.isDisk && !row.collection.fileSystem.empty() ? FormatSizeColumn (row.collection.freeBytes) : std::wstring(), false });
     cells.push_back (DxuiListView::Cell { row.collection.crc32, false });
     cells.push_back (DxuiListView::Cell { row.collection.sha256, false });
+    cells.push_back (DxuiListView::Cell { ImageClassifier::FormatFormFactor (row.imageClass), false });
+    cells.push_back (DxuiListView::Cell { ImageClassifier::FormatSize (row.imageClass), false });
+    cells.push_back (DxuiListView::Cell { (row.isStockDisk && !row.stockDownloaded) ? std::wstring (L"Not downloaded")
+                                        : !row.inDrive.empty()    ? L"In " + row.inDrive
+                                        : (row.lastUsedUnix != 0) ? FormatModified (row.lastUsedUnix, false)
+                                                                  : std::wstring(), false });
 
     if (icons != nullptr && !cells.empty())
     {

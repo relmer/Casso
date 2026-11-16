@@ -2,14 +2,15 @@
 
 #include "Ui/DiskInspector/Views/IssuesView.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 
 
 
 
 
-static constexpr int    s_kToggleDip    = 104;
-static constexpr int    s_kToggleGapDip = 4;
-static constexpr float  s_kToggleHDip   = 22.0f;
+static constexpr int      s_kToggleDip    = 104;
+static constexpr int      s_kToggleGapDip = 4;
+static constexpr float    s_kToggleHDip   = 22.0f;
 
 
 
@@ -19,13 +20,35 @@ static constexpr float  s_kToggleHDip   = 22.0f;
 //
 //  IssuesView::IssuesView
 //
+//  The finding columns, the severity as an icon and the finding wrapped to
+//  its column's width; Repair disk image... in the accent, as the one thing
+//  under the list to do.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 IssuesView::IssuesView (InspectorViewContext & context) :
     InspectorTableView (context)
 {
-    SetColumns (InspectorTables::GetFindingColumns());
-    SetOnSort  ([this] (int column) { OnSort (column); });
+    vector<std::wstring>  columns = InspectorTables::GetFindingColumns();
+    vector<int>           widths  (columns.size(), 0);
+
+
+
+    widths.front() = kSeverityColumnDip;
+
+    SetColumns    (columns, widths, kFindingColumn);
+    SetIconColumn (0);
+    SetWrapsText  (true);
+    SetOnSort     ([this] (int column) { OnSort (column); });
+
+    m_repairButton.SetVariant (DxuiButton::Variant::Primary);
+    m_repairButton.SetOnClick ([this] ()
+    {
+        if (m_repair)
+        {
+            m_repair ({});
+        }
+    });
 }
 
 
@@ -58,21 +81,185 @@ void IssuesView::Refresh()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IssuesView::ShowFinding
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void IssuesView::ShowFinding (int finding)
+{
+    int  category = 0;
+
+
+
+    if (m_context.analysis == nullptr || finding < 0 || finding >= static_cast<int> (m_context.analysis->findings.size()))
+    {
+        return;
+    }
+
+    category = static_cast<int> (m_context.analysis->findings[finding].category);
+
+    if ((m_mask & (1u << category)) == 0)
+    {
+        m_mask |= (1u << category);
+        Refresh();
+    }
+
+    SelectRowWhere ([finding] (const TableRow & row) { return row.finding == finding; });
+
+    if (m_select)
+    {
+        for (const TableRow & row : m_rows)
+        {
+            if (row.finding == finding)
+            {
+                m_select (row);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IssuesView::GetSeverityRect
+//
+//  The severity icon of a row in view, centered in its whole cell, not the
+//  text's part of it, which starts past the column's padding; empty out of
+//  view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT IssuesView::GetSeverityRect (int row) const
+{
+    RECT  cell = {};
+    RECT  list = m_list.GetBounds();
+    int   size = m_scaler.ToPx (kSeverityIconDip);
+    int   left = 0;
+    int   top  = 0;
+
+
+
+    if (row < 0 || row >= static_cast<int> (m_rows.size()) || !m_list.GetCellRectPx (row, 0, cell))
+    {
+        return RECT {};
+    }
+
+    left = list.left + (cell.left + cell.right - size) / 2;
+    top  = list.top + (cell.top + cell.bottom - size) / 2;
+
+    if (top < list.top + m_list.GetHeaderHeightPx() || top + size > list.bottom)
+    {
+        return RECT {};
+    }
+
+    return RECT { left, top, left + size, top + size };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IssuesView::Layout
+//
+//  The list over the bounds but for the band at the bottom, and Repair disk
+//  image... centered in the band.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void IssuesView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    RECT  list   = boundsDip;
+    int   band   = HasButtonBand() ? scaler.ToPx (kButtonBandDip) : 0;
+    int   wide   = scaler.ToPx (kButtonWideDip);
+    int   high   = scaler.ToPx (kButtonHighDip);
+    int   center = (boundsDip.left + boundsDip.right) / 2;
+
+
+
+    list.bottom = (std::max) (list.top, list.bottom - band);
+
+    InspectorTableView::Layout (list, scaler);
+    SetBounds (boundsDip);
+
+    m_bandPx = RECT { boundsDip.left, list.bottom, boundsDip.right, boundsDip.bottom };
+
+    m_repairButton.Layout     (RECT { center - wide / 2, m_bandPx.top + (band - high) / 2, center + wide / 2, m_bandPx.top + (band + high) / 2 }, scaler);
+    m_repairButton.SetVisible (band > 0 && m_plan != nullptr && m_plan->canRepair);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IssuesView::Paint
+//
+//  The table, a severity icon on each row, and the band under it with
+//  Repair disk image... or the reason the volume can't be repaired.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void IssuesView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    RECT  rect = {};
+
+
+
+    InspectorTableView::Paint (painter, text, theme);
+
+    for (int row = m_list.GetTopRow(); row < static_cast<int> (m_rows.size()); row++)
+    {
+        rect = GetSeverityRect (row);
+
+        if (rect.right > rect.left && m_rows[row].severity >= 0)
+        {
+            DxuiSeverityBadge::Draw (painter, static_cast<DxuiSeverity> (m_rows[row].severity), static_cast<float> (rect.left), static_cast<float> (rect.top),
+                                     static_cast<float> (rect.right - rect.left), theme, m_context.palette.colors.sectorBad);
+        }
+    }
+
+    if (m_repairButton.IsVisible())
+    {
+        m_repairButton.Paint (painter, text, theme);
+    }
+    else if (m_bandPx.bottom > m_bandPx.top && m_plan != nullptr)
+    {
+        std::wstring  reason = L"Repair isn't available. " + m_plan->reason;
+
+        text.DrawString (reason.c_str(), static_cast<float> (m_bandPx.left), static_cast<float> (m_bandPx.top), static_cast<float> (m_bandPx.right - m_bandPx.left),
+                         static_cast<float> (m_bandPx.bottom - m_bandPx.top), theme.ForegroundMuted(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace,
+                         DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, true);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IssuesView::OnMouse
 //
-//  A click on a category toggles it in the filter.
+//  Repair disk image... first, then a click on a category toggles it in the
+//  filter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IssuesView::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool  isHandled = false;
+    bool  isHandled = m_repairButton.IsVisible() && m_repairButton.OnMouse (ev);
     int   c         = 0;
     RECT  r         = {};
 
 
 
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
+    if (!isHandled && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
     {
         for (c = 0; c < InspectorTables::kCategoryCount && !isHandled; c++)
         {
@@ -101,6 +288,29 @@ bool IssuesView::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IssuesView::HasButtonBand
+//
+//  A band under the list while the volume has a Bad or Suspect verdict, for
+//  Repair disk image... or the reason it isn't available.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool IssuesView::HasButtonBand() const
+{
+    bool  isDamaged = m_context.analysis != nullptr && m_context.hasDisk &&
+                      (m_context.analysis->verdict == FileSystemVerdict::Bad || m_context.analysis->verdict == FileSystemVerdict::Suspect);
+
+
+
+    return m_plan != nullptr && (m_plan->canRepair || isDamaged);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IssuesView::GetTopHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,8 +329,8 @@ int IssuesView::GetTopHeightPx() const
 //  IssuesView::PaintTop
 //
 //  A toggle per category that has findings, with its count; one filtered
-//  out is drawn without its fill. With no findings, the list has a line
-//  to that effect.
+//  out is drawn without its fill. With no findings, the list has a line to
+//  that effect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,6 +343,8 @@ void IssuesView::PaintTop (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     std::wstring  label;
 
 
+
+    (void) top;
 
     for (c = 0; c < InspectorTables::kCategoryCount; c++)
     {

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/DiskManager.h"
 #include "Shell/EmulatorShell.h"
@@ -597,97 +598,89 @@ void ShellDisks::Eject (int slot, int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BrowseForDisk
+//  ShellDisks::GetDoorNowMs
 //
-//  UI helper: start the drive-door-open animation and show the disk
-//  picker IN PARALLEL. The picker's modal GetMessage loop owns the UI
-//  thread, so RunMessageLoop stops driving frames; the host's modal
-//  keep-alive tick (the same one that carries chrome through an OS
-//  move / size loop) drives TryPresentUiFrame for the dialog's whole
-//  lifetime, so the door visibly opens behind the picker instead of
-//  stalling until it is dismissed. This replaces a blocking pre-dialog
-//  wait that pumped the full animation before the picker appeared --
-//  dead time at best, and a frozen door whenever the present gate
-//  declined the frames.
-//
-//  Mount-on-success runs through DiskManager::Mount, which queues
-//  to the CPU thread and posts a DoorClose sync event picked up
-//  by UpdateDriveWidgets -- so we don't need to touch the door on
-//  the success path here; BeginInsert closes it naturally. Cancel
-//  restores the door to match the mount state: a mounted drive
-//  closes back, an empty drive rests open (matches a real Disk II).
+//  The time base MUST match DiskManager::GetNowMs (steady_clock ms):
+//  TickDoorAnimation diffs the current frame time against
+//  animationStartTimeMs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDisks::BrowseForDisk (int drive, const RECT * anchorClientPx)
+int64_t ShellDisks::GetDoorNowMs()
 {
-    DriveWidgetState *  pSt          = nullptr;
-    HRESULT             hrBrowse     = S_OK;
-    bool                mountStarted = false;
-    RECT                anchorScreen = {};
-    const RECT *        pAnchor      = nullptr;
+    return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 
 
 
-    using std::chrono::steady_clock;
-    using std::chrono::duration_cast;
-    using std::chrono::milliseconds;
-
-    auto  nowMs = []() -> int64_t {
-        return (int64_t) duration_cast<milliseconds> (steady_clock::now().time_since_epoch()).count();
-    };
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::BrowseForDisk
+//
+//  Opens the drive's picker, or brings it to the front when it is open.
+//
+////////////////////////////////////////////////////////////////////////////////
 
+void ShellDisks::BrowseForDisk (int drive)
+{
+    if (drive >= 0 && drive < (int) m_driveWidgetState.size())
+    {
+        m_shell.m_drivePickers->OpenForDiskII (drive);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::OpenDoorForPicker
+//
+//  The door opens while the drive's picker is open. An empty drive rests
+//  with its door already open, so StartDoorTransition does nothing there.
+//  The picker is not modal, so the message loop draws the animation.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::OpenDoorForPicker (int drive)
+{
     if (drive < 0 || drive >= (int) m_driveWidgetState.size())
     {
         return;
     }
 
-    //  Confirm before the picker opens. When the user cancels, the door does not move.
-    if (!m_shell.ConfirmInspectorDiscard (drive, L"Inserting another disk"))
+    m_driveWidgetState[drive].StartDoorTransition (DriveWidgetState::Door::Opening, GetDoorNowMs());
+    m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::RestoreDoorAfterPicker
+//
+//  After an insert the door is left alone: the queued mount completes on
+//  the CPU thread and BeginInsert runs the close. With nothing inserted the
+//  door follows the mount state: a mounted drive closes back, and an empty
+//  drive rests open, as a real Disk II does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::RestoreDoorAfterPicker (int drive, bool isInserted)
+{
+    if (drive < 0 || drive >= (int) m_driveWidgetState.size())
     {
         return;
     }
 
-    m_shell.m_chrome->HideTooltips();
-
-    pSt = &m_driveWidgetState[drive];
-
-    // The time base MUST match DiskManager::GetNowMs (steady_clock ms):
-    // TickDoorAnimation diffs the current frame time against
-    // animationStartTimeMs. An empty drive rests with its door already
-    // Open, so StartDoorTransition is a no-op there.
-    pSt->StartDoorTransition (DriveWidgetState::Door::Opening, nowMs());
-    m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
-
-    // The keep-alive spans the whole modal picker (including its nested
-    // IFileOpenDialog when the user clicks Browse...), animating the door
-    // and keeping the printer preview live behind the dialog.
-    // An empty rect (a drive not laid out this frame) is no anchor at all.
-    if (anchorClientPx != nullptr && !IsRectEmpty (anchorClientPx))
+    if (!isInserted && m_driveWidgetState[drive].IsMounted())
     {
-        anchorScreen = *anchorClientPx;
-        MapWindowPoints (m_shell.m_hwnd, HWND_DESKTOP, reinterpret_cast<POINT *> (&anchorScreen), 2);
-        pAnchor = &anchorScreen;
-    }
-
-    m_shell.m_host->BeginModalKeepAlive();
-
-    hrBrowse = m_shell.m_windowCommandManager->PromptInsertDiskMru (drive + 1, pAnchor, mountStarted);
-    IGNORE_RETURN_VALUE (hrBrowse, S_OK);
-
-    m_shell.m_host->EndModalKeepAlive();
-
-    // No-mount path (cancel or failure): the door follows the mount
-    // state -- a mounted drive closes back, an empty drive rests open
-    // (matches a real Disk II). mountStarted is the discriminator
-    // because a cancel returns S_OK by design. When a mount DID start,
-    // the door is left alone: the queued mount completes on the CPU
-    // thread and BeginInsert runs the close choreography.
-    if (!mountStarted && pSt->IsMounted())
-    {
-        pSt->StartDoorTransition (DriveWidgetState::Door::Closing, nowMs());
+        m_driveWidgetState[drive].StartDoorTransition (DriveWidgetState::Door::Closing, GetDoorNowMs());
         m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 }
@@ -1379,6 +1372,11 @@ bool ShellDisks::AskWhereToSaveLostDisk (const std::string & imagePath,
     spec.filters       = { { L"Disk image", L"*.dsk;*.do;*.po;*.woz" } };
     spec.initialFolder = original.parent_path();
 
+    //  The picker while the machine runs. This is also the last-chance route
+    //  at shutdown, after the message loop has gone, where only Windows'
+    //  dialog can open.
+    spec.content       = m_shell.m_cpuManager.IsRunning() ? FileDialogContent::Images : FileDialogContent::Any;
+
     if (!original.filename().empty())
     {
         std::string  suggested = PreservedCopy::MakePath (
@@ -1637,6 +1635,49 @@ bool ShellDisks::MachineHasBuiltInDrive() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDisks::GetMenuDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskMenuDrive ShellDisks::GetMenuDrive (int menuDrive) const
+{
+    const MachineConfig  & config = m_shell.m_machine.GetConfig();
+
+
+
+    return DiskMenuRule::Resolve (menuDrive, DiskMenuRule::HasBuiltIn35Drive (config), config.CountDiskPortFloppies());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::GetMenuIndex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDisks::GetMenuIndex (int diskIiDrive) const
+{
+    int  index = -1;
+
+
+
+    for (int menuDrive = 0; menuDrive < 2 && index < 0; menuDrive++)
+    {
+        index = (GetMenuDrive (menuDrive).diskIiDrive == diskIiDrive) ? menuDrive : -1;
+    }
+
+    return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDisks::HasDiskIicDrives
 //
 //  Whether the machine's 5.25-inch drives are the //c family's, on a disk
@@ -1651,158 +1692,6 @@ bool ShellDisks::HasDiskIicDrives() const
 
 
     return (definition != nullptr && definition->diskPortFloppyCount > 0);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDisks::IsPortChainOffered
-//
-//  The machines whose disk port takes Apple 3.5 Drives: the //c Plus.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellDisks::IsPortChainOffered() const
-{
-    const MachineDefinition *  definition = MachineDefinitions::Find (m_shell.m_machine.GetConfig().machineId);
-
-
-
-    return (definition != nullptr && definition->diskPortApple35Count > 0);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDisks::CountPortDrives
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int ShellDisks::CountPortDrives (const std::string & device) const
-{
-    int  count = 0;
-
-
-
-    for (const PortConfig & port : m_shell.m_machine.GetConfig().ports)
-    {
-        for (const PortConfig & entry : port.chain)
-        {
-            count += (entry.device == device) ? 1 : 0;
-        }
-    }
-
-    return count;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDisks::GetPortDriveLimit
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int ShellDisks::GetPortDriveLimit (const std::string & device) const
-{
-    const MachineDefinition *  definition = MachineDefinitions::Find (m_shell.m_machine.GetConfig().machineId);
-    int                        limit      = 0;
-
-
-
-    if (definition != nullptr && device == kpszApple35DriveDevice)
-    {
-        limit = definition->diskPortApple35Count;
-    }
-    else if (definition != nullptr && device == kpszDiskIicDevice)
-    {
-        limit = definition->diskPortFloppyCount;
-    }
-
-    return limit;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDisks::CanPlugInPortDrive
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellDisks::CanPlugInPortDrive (const std::string & device) const
-{
-    constexpr int  s_kcPortDrivesMax = 3;
-    int            total             = 0;
-
-
-
-    for (const PortConfig & port : m_shell.m_machine.GetConfig().ports)
-    {
-        total += (int) port.chain.size();
-    }
-
-    return total < s_kcPortDrivesMax && CountPortDrives (device) < GetPortDriveLimit (device);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDisks::CanSwapPortDrive
-//
-//  A 3.5-inch drive swaps for a 5.25-inch drive and the reverse, while the
-//  chain has room for one more of the other kind.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellDisks::CanSwapPortDrive (const std::string & device) const
-{
-    std::string  other = GetSwapDevice (device);
-
-
-
-    return !other.empty() && CountPortDrives (other) < GetPortDriveLimit (other);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDisks::GetSwapDevice
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDisks::GetSwapDevice (const std::string & device)
-{
-    std::string  other;
-
-
-
-    if (device == kpszApple35DriveDevice)
-    {
-        other = kpszDiskIicDevice;
-    }
-    else if (device == kpszDiskIicDevice)
-    {
-        other = kpszApple35DriveDevice;
-    }
-
-    return other;
 }
 
 

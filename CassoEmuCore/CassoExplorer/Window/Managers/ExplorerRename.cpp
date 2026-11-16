@@ -11,6 +11,8 @@
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/Window/Panes/Preview/PreviewDiskThumbnail.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Core/TextEncoding.h"
@@ -147,6 +149,12 @@ void ExplorerRename::BeginRename()
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
+
     //  The focused item, as Explorer renames, even with others selected
     //  around it.
     row = m_context.listPane.GetFocusedRow();
@@ -217,6 +225,12 @@ void ExplorerRename::BeginTreeRename (const std::wstring & id)
     std::wstring  path;
 
 
+
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
 
     if (!m_context.treePane.HasNode (id) || !m_context.browser.TryGetNodePath (id, path))
     {
@@ -318,6 +332,7 @@ void ExplorerRename::EndRename (bool commit)
                 m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::HostRename, Location(), { (std::filesystem::path (path).parent_path() / newName).wstring() }, oldName, newName });
                 m_context.manifestSync.NoteRename (path, newName);
                 m_context.actions.GetA2retroNet().NoteMove (path, (std::filesystem::path (path).parent_path() / newName).wstring());
+                m_context.preview.GetThumbnail().MovePath (path, (std::filesystem::path (path).parent_path() / newName).wstring());
             }
         }
 
@@ -337,7 +352,7 @@ void ExplorerRename::EndRename (bool commit)
             return;
         }
 
-        m_context.folderSync.RefreshAfterHostChange();
+        m_context.folderSync.RefreshAfterHostChange (SUCCEEDED (hr) ? newName : std::wstring());
 
         if (SUCCEEDED (hr))
         {

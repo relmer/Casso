@@ -83,6 +83,8 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .listPane         = listPane,
                  .folderSync       = folderSync,
                  .cassoLinkManager = cassoLinkManager,
+                 .linkDrives       = linkDrives,
+                 .fullSendWindows  = fullSendWindows,
                  .dragDrop         = dragDrop,
                  .tabManager       = tabManager,
                  .preview          = preview,
@@ -103,7 +105,9 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .themes           = themes,
                  .statusBar        = statusBar,
                  .toolbars         = toolbars,
-                 .treePane         = treePane }
+                 .treePane         = treePane,
+                 .pickerMode       = pickerMode,
+                 .pickerBar        = pickerBar }
 {
 }
 
@@ -160,6 +164,7 @@ void ExplorerWindowParts::CreateControls()
 
     layout.SetSplitters (treeSplitter, previewSplitter);
     statusBar.Create();
+    pickerBar.Create();
     tabManager.Create();
     toolbars.CreateNavBar();
     addressBar.Create();
@@ -350,6 +355,16 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
     if (msg == (UINT) AppMessage::ExplorerContentDetails)
     {
         listPane.HandleContentDetailsArrived();
+        return true;
+    }
+
+    if (msg == (UINT) AppMessage::ExplorerVolumeFacts)
+    {
+        if (context.browser.ApplyVolumeFacts())
+        {
+            listPane.RefreshVolumeCells();
+        }
+
         return true;
     }
 

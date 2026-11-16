@@ -13,6 +13,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "Core/AppMessages.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/Model/HostFolderNames.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
@@ -38,18 +39,31 @@ ExplorerFolderSync::ExplorerFolderSync (ExplorerContext & context)
 //
 //  ExplorerFolderSync::RefreshAfterHostChange
 //
-//  The folder watcher sees the change too, a moment later; rereading now
-//  shows it at once.
+//  The folder watcher's notice of the change arrives a moment later, so the
+//  folder is reread now. The row whose name is select, such as a file just
+//  renamed, is selected before the list is filled, so the preview pane stays
+//  open.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerFolderSync::RefreshAfterHostChange()
+void ExplorerFolderSync::RefreshAfterHostChange (const std::wstring & select)
 {
-    HRESULT  hr = m_context.browser.Reload (true);
+    HRESULT                          hr   = m_context.browser.Reload (true);
+    const std::vector<CatalogRow>  & rows = m_context.browser.GetRows();
 
 
 
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (size_t i = 0; i < rows.size() && !select.empty(); i++)
+    {
+        if (_wcsicmp (rows[i].name.c_str(), select.c_str()) == 0)
+        {
+            m_context.browser.SetSelectedRows ({ (int) i });
+            break;
+        }
+    }
+
     m_context.listPane.FillList();
 }
 
@@ -298,7 +312,7 @@ void ExplorerFolderSync::CheckDrives()
 
     m_driveMask = mask;
 
-    m_context.browser.GetTreeModel().SetDrives (CassoExplorerShell::GetDriveRoots());
+    m_context.browser.GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
     m_context.browser.GetTreeModel().Invalidate (TreeModel::kThisPcRootId);
     m_context.treePane.ReloadChildren (TreeModel::kThisPcRootId);
     ReloadKnownFolders();
@@ -813,12 +827,14 @@ void ExplorerFolderSync::RefreshChangedFolders()
     //  selection and where the view lands.
     hr = m_context.browser.Reload (false);
     IGNORE_RETURN_VALUE (hr, S_OK);
-    m_context.listPane.FillList();
 
+    //  The selection is set before the list is filled, so the preview pane
+    //  doesn't close and reopen in between.
     m_context.browser.GetRowKeys (keys);
     after = RefreshAnchor::Compute (before, keys);
 
     m_context.browser.SetSelectedRows (after.selected);
+    m_context.listPane.FillList();
     m_context.listPane.RestoreView (after);
 
     m_context.preview.FillPreview();

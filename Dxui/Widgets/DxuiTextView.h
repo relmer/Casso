@@ -53,7 +53,8 @@ class DxuiTextView : public IDxuiControl
 public:
     //  A run of a cell's characters drawn in a color of their own.
     //  A stretch of a cell's text in a color, zero for the text color, and
-    //  bold, italic or underlined.
+    //  bold, italic or underlined. An inverse stretch is filled with that
+    //  color and its text drawn in the background color.
     struct Span
     {
         int       cell      = 0;
@@ -63,6 +64,7 @@ public:
         bool      bold      = false;
         bool      italic    = false;
         bool      underline = false;
+        bool      inverse   = false;
     };
 
     //  A picture in 32-bit BGRA pixels, drawn a pixel a DIP, or smaller to
@@ -120,8 +122,14 @@ public:
     //  color goes from the background toward the theme's foreground (1 is
     //  the full foreground).
     void   SetZoom         (float zoom);
-    float  GetZoom         () const               { return m_zoom; }
-    void   SetTextStrength (float strength)       { m_textStrength = strength; }
+
+    //  The vertical bar neither drawn nor hit-tested, for a host that scrolls
+    //  the view with another bar; its strip stays reserved. Off by
+    //  default.
+    void   SetVerticalScrollbarHidden (bool hidden)  { m_vertBarHidden = hidden; }
+    int    GetLineHeightPx            () const       { return m_cellHeightPx; }
+    float  GetZoom                    () const               { return m_zoom; }
+    void   SetTextStrength            (float strength)       { m_textStrength = strength; }
 
     int   GetLineCount () const { return (int) m_lines.size(); }
     int   GetLineCap   () const;
@@ -201,7 +209,7 @@ private:
     int           GetTextColumns         (bool scrollbar) const;
     int           GetContentColumns      () const;
     float         GetTextLeft            () const;
-    bool          IsOverVertScrollbar    (POINT pt) const { return IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y); }
+    bool          IsOverVertScrollbar    (POINT pt) const { return IsScrollbarVisible() && !m_vertBarHidden && m_vertScroll.HitTest (pt.x, pt.y); }
     bool          IsOverHorzScrollbar    (POINT pt) const { return m_horzVisible && m_horzScroll.HitTest (pt.x, pt.y); }
     int           GetCellStart           (const Row & row, int cell) const;
     int           GetCellBase            (const Row & row, int cell) const;
@@ -227,10 +235,12 @@ private:
     float                  GetLineShift (int lineIndex) const;
 
     //  The line being painted: its shift for its row's alignment, each
-    //  character's style bits, and the painter an underline is drawn with.
+    //  character's style bits, and the painter an underline and an inverse
+    //  fill are drawn with.
     static constexpr uint8_t  kStyleBold      = 0x01;
     static constexpr uint8_t  kStyleItalic    = 0x02;
     static constexpr uint8_t  kStyleUnderline = 0x04;
+    static constexpr uint8_t  kStyleInverse   = 0x08;
 
     float                  m_paintShift    = 0.0f;
     std::vector<uint8_t>   m_paintStyles;
@@ -277,5 +287,6 @@ private:
     ContextMenuFn      m_onContextMenu;
     DxuiDpiScaler      m_scaler;
     DxuiScrollbar      m_vertScroll;
+    bool               m_vertBarHidden = false;
     DxuiScrollbar      m_horzScroll;
 };

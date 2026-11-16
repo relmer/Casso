@@ -101,25 +101,73 @@ public:
     }
 
 
-    //  A boot result is written to the image's row, and the row's status is
-    //  returned; for a file with no row, the status is empty.
-    TEST_METHOD (NoteBoot_WritesTheResult_AndReturnsTheRowsStatus)
+    //  A row's write-protect is written and read back, and a manifest from
+    //  before the column loads with it clear.
+    TEST_METHOD (ARowsWriteProtect_IsWrittenAndReadBack)
+    {
+        std::vector<FullSendRow>  rows     = MakeManifest().GetRows();
+        FullSendManifest          manifest;
+        FullSendManifest          read;
+        FullSendManifest          older;
+        std::vector<Byte>         bytes;
+        std::string               text;
+        std::string               dropped;
+        size_t                    at       = 0;
+
+
+
+        rows[0].writeProtected = true;
+
+        for (const FullSendRow & row : rows)
+        {
+            manifest.Add (row);
+        }
+
+        bytes = manifest.Format();
+        AssertSucceeded (read.Parse (bytes));
+        Assert::IsTrue  (read.GetRows()[0].writeProtected);
+        Assert::IsFalse (read.GetRows()[1].writeProtected);
+
+        //  The same manifest without the column: the header's last name and
+        //  each row's last cell removed.
+        text = std::string (bytes.begin(), bytes.end());
+
+        while (at < text.size())
+        {
+            size_t  end  = text.find ("\r\n", at);
+            size_t  last = text.rfind (',', end);
+
+            //  A comment line has no column to drop.
+            last     = (last == std::string::npos || last < at || text[at] == '#') ? end : last;
+            dropped += text.substr (at, last - at) + "\r\n";
+            at       = end + 2;
+        }
+
+        AssertSucceeded (older.Parse (std::vector<Byte> (dropped.begin(), dropped.end())));
+        Assert::AreEqual ((size_t) 2, older.GetRows().size());
+        Assert::IsFalse (older.GetRows()[0].writeProtected);
+    }
+
+
+    //  A boot result is written to the image's row, and the row is returned;
+    //  for a file with no row, the row returned has no file.
+    TEST_METHOD (NoteBoot_WritesTheResult_AndReturnsTheRow)
     {
         FakeDiskFileIo     io;
         std::vector<Byte>  bytes;
         FullSendManifest   read;
-        std::string        status;
+        FullSendRow        row;
 
         AssertSucceeded (io.WriteAllBytes (ManifestPath(), MakeManifest().Format()));
-        AssertSucceeded (FullSendManifestFile::NoteBoot (io, kFolder, "disk 001.DSK", FullSendManifest::kBootBooted, status));
+        AssertSucceeded (FullSendManifestFile::NoteBoot (io, kFolder, "disk 001.DSK", FullSendManifest::kBootBooted, row));
         AssertSucceeded (io.ReadAllBytes (ManifestPath(), bytes));
         AssertSucceeded (read.Parse (bytes));
 
-        Assert::AreEqual (std::string (FullSendManifest::kStatusSent), status);
+        Assert::AreEqual (std::string (FullSendManifest::kStatusSent), row.status);
         Assert::AreEqual (std::string (FullSendManifest::kBootBooted), read.GetRows()[0].boot);
 
-        AssertSucceeded (FullSendManifestFile::NoteBoot (io, kFolder, "Other.dsk", FullSendManifest::kBootBooted, status));
-        Assert::IsTrue (status.empty());
+        AssertSucceeded (FullSendManifestFile::NoteBoot (io, kFolder, "Other.dsk", FullSendManifest::kBootBooted, row));
+        Assert::IsTrue (row.file.empty());
     }
 
 

@@ -86,8 +86,9 @@ public:
     // attaches the chosen image, as a dropped image is.
     static bool  IsFloppy35         (const DeskDrive & drive);
     static bool  IsHardDisk         (const DeskDrive & drive);
+    static bool  TakesImage         (const DeskDrive & drive);
     void         BrowseExtraDrive   (int index);
-    void         BrowseFloppy35     (const DeskDrive & drive);
+    void         BrowseDeskDrive    (const DeskDrive & drive);
 
     // The image in a 3.5-inch drive or a hard disk, or an empty string; the
     // size in blocks of the disk or image, 0 for none; and a ProFile's fixed

@@ -29,6 +29,10 @@ static constexpr int      s_kMaxRings       = 256;
 static constexpr int      s_kMaxQuads       = 32768;
 static constexpr double   s_kShimmerSteps   = 16.0;
 static constexpr uint32_t s_kSweepLineArgb  = 0xFF808080u;
+static constexpr uint32_t s_kErrorEdgeArgb  = 0xFF000000u;   // under an error selection's dashes
+static constexpr uint32_t s_kErrorDashArgb  = 0xFFFFFFFFu;   // between its red dashes
+static constexpr int      s_kErrorDashPieces = 1;            // outline pieces a dash spans
+static constexpr double   s_kErrorDashStepMs = 160.0;        // how long the dashes take to march one piece
 static constexpr float    s_kMinMarkDip     = 8.0f;
 static constexpr float    s_kShimmerStepDip = 3.0f;
 static constexpr double   s_kPiecesPerTurn   = 96.0;
@@ -435,7 +439,8 @@ void PlatterOverlays::PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme
 //  the mark is plain at fit. The selection is outlined in the selection
 //  color over a contrasting edge, the selection color dimmed to mid gray
 //  while the shimmer's band sweeps so the band is plain to see against it
-//  (FR-038).
+//  (FR-038). A selection made from an error finding is outlined in dashes of
+//  the bad sector color and white that march around it.
 //  The hovered sector is lit faintly and outlined thinly.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -459,7 +464,9 @@ void PlatterOverlays::PaintArcMark (IDxuiPainter & painter, const PlatterPlaceme
     double    m      = 0;
     auto      getX   = [&] (double turn, double r) { float x = 0.0f; float y = 0.0f; PlatterGeometry::ProjectAt (view, turn, r, x, y); return x; };
     auto      getY   = [&] (double turn, double r) { float x = 0.0f; float y = 0.0f; PlatterGeometry::ProjectAt (view, turn, r, x, y); return y; };
-    auto      drawOutline = [&] (float w, const std::function<uint32_t (float, float)> & colorAt)
+    bool      isError = isSelected && m_view.m_context.IsErrorSelected();
+    int       phase   = static_cast<int> (now / s_kErrorDashStepMs);
+    auto      drawOutline = [&] (float w, const std::function<uint32_t (float, float, int)> & colorAt)
     {
         for (const std::pair<double, double> & part : GetVisibleParts (view, start, end))
         {
@@ -471,13 +478,13 @@ void PlatterOverlays::PaintArcMark (IDxuiPainter & painter, const PlatterPlaceme
                 b = part.first + (part.second - part.first) * (k + 1) / pieces;
                 m = (a + b) / 2;
 
-                painter.DrawLine (getX (a, r1), getY (a, r1), getX (b, r1), getY (b, r1), w, colorAt (getX (m, r1), getY (m, r1)));
-                painter.DrawLine (getX (a, r0), getY (a, r0), getX (b, r0), getY (b, r0), w, colorAt (getX (m, r0), getY (m, r0)));
+                painter.DrawLine (getX (a, r1), getY (a, r1), getX (b, r1), getY (b, r1), w, colorAt (getX (m, r1), getY (m, r1), k));
+                painter.DrawLine (getX (a, r0), getY (a, r0), getX (b, r0), getY (b, r0), w, colorAt (getX (m, r0), getY (m, r0), pieces - 1 - k));
             }
         }
 
-        painter.DrawLine (getX (start, r0), getY (start, r0), getX (start, r1), getY (start, r1), w, colorAt (getX (start, (r0 + r1) / 2), getY (start, (r0 + r1) / 2)));
-        painter.DrawLine (getX (end, r0),   getY (end, r0),   getX (end, r1),   getY (end, r1),   w, colorAt (getX (end, (r0 + r1) / 2),   getY (end, (r0 + r1) / 2)));
+        painter.DrawLine (getX (start, r0), getY (start, r0), getX (start, r1), getY (start, r1), w, colorAt (getX (start, (r0 + r1) / 2), getY (start, (r0 + r1) / 2), 0));
+        painter.DrawLine (getX (end, r0),   getY (end, r0),   getX (end, r1),   getY (end, r1),   w, colorAt (getX (end, (r0 + r1) / 2),   getY (end, (r0 + r1) / 2), 0));
     };
 
 
@@ -524,13 +531,20 @@ void PlatterOverlays::PaintArcMark (IDxuiPainter & painter, const PlatterPlaceme
     //  The outline: for the selection, the edge wider than the line, then
     //  the selection color, dimmed to mid gray while the band sweeps so the
     //  band is plain to see against it.
+    if (isError)
+    {
+        drawOutline (thick + 2.0f, [&] (float, float, int) { return s_kErrorEdgeArgb; });
+        drawOutline (thick, [&] (float, float, int k) { return ((k + phase) / s_kErrorDashPieces) % 2 == 0 ? m_view.m_context.palette.colors.sectorBad : s_kErrorDashArgb; });
+        return;
+    }
+
     if (isSelected)
     {
         ink = DxuiColor::Lerp (ink, s_kSweepLineArgb, static_cast<float> (InspectorMarquee::GetSweepWeight (now)));
-        drawOutline (thick + 2.0f, [&] (float, float) { return edge; });
+        drawOutline (thick + 2.0f, [&] (float, float, int) { return edge; });
     }
 
-    drawOutline (thick, [&] (float, float) { return ink; });
+    drawOutline (thick, [&] (float, float, int) { return ink; });
 }
 
 

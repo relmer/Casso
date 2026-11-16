@@ -48,6 +48,11 @@ public:
     //  A block's 512 bytes, or false when either half is bad or missing.
     bool  ReadBlock (int block, std::array<Byte, 2 * kBytes> & outBytes) const;
 
+    //  A sector's bytes replaced by the caller's, which must outlive this
+    //  source, and read as good, as a repair would write them.
+    void  SetPhysical (int track, int physical, const Byte * bytes);
+    void  SetDos33    (int track, int logical, const Byte * bytes) { SetPhysical (track, GetDos33Physical (logical), bytes); }
+
     //  Whether the tracks are mostly 13-sector, which the map does not read.
     bool  IsThirteenSector () const { return m_isThirteenSector; }
 

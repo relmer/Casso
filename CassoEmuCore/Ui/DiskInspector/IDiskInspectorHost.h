@@ -47,6 +47,12 @@ public:
     //  running Casso's reply to a saved edit (FR-105).
     virtual bool          HandleCopyData (const COPYDATASTRUCT & data) { (void) data; return false; }
     virtual std::wstring  TakeHostNote   ()                            { return {}; }
+
+    //  UI thread: Repair wrote a copy of the window's image there, which
+    //  Casso Explorer opens in the window and selects. Whether the host opens
+    //  the copy, so the confirmation offers it.
+    virtual void  OnRepairedCopyWritten (const std::wstring & path) { (void) path; }
+    virtual bool  CanOpenRepairedCopy   () const                     { return false; }
 };
 
 

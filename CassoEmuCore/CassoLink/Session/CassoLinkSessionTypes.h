@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoLink/FullSend/FullSendProtection.h"
 #include "CassoLink/LinkedDisk.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 
@@ -120,6 +121,9 @@ struct LinkOperation
     std::string                      imagePrefix;
     bool                             blankUnreadable = false;
 
+    //  Full Send: the Copy-protected disks section's choices.
+    FullSendProtectionChoices        protection;
+
     //  Full Send: set while the Apple waits for a disk and a key, and while a
     //  drive's disk is checked, so the status bar reads that rather than the
     //  last read's percentage; and once it ends, the disks sent, duplicated
@@ -127,6 +131,10 @@ struct LinkOperation
     std::atomic<bool>                fullSendWaiting  { false };
     std::atomic<bool>                fullSendChecking { false };
     std::string                      fullSendSummary;
+
+    //  Set for an operation queued while a Full Send runs, which isn't run:
+    //  the Full Send has the drives until it ends.
+    bool                             isBlocked        = false;
 
     //  What a long operation is doing, for the status bar, as a capture's
     //  track and read; set on the session's thread and read on the UI's.
@@ -192,6 +200,9 @@ public:
     //  The folder and extension of a Full Send started from the Apple, with
     //  the folder ready to use; false when there is no folder to send to.
     virtual bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) { UNREFERENCED_PARAMETER (outFolder); UNREFERENCED_PARAMETER (outExtension); return false; }
+
+    //  The Copy-protected disks section's choices for that Full Send.
+    virtual FullSendProtectionChoices  GetFullSendProtection () { return {}; }
 
     //  A disk image the session wrote, by its path, and the model of Apple
     //  it was read from, as Apple //c (ROM 3), for the boot check. True

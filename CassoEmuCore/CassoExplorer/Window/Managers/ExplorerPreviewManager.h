@@ -56,6 +56,12 @@ public:
     void                              Hide                   ();
     void                              FillPreview            ();
     void                              TakeThumbnail          ();
+
+    //  The text view filled from the preview, with an image's File system
+    //  detail from the thumbnail's analysis once it has one: an image that
+    //  doesn't mount reads as having no file system, though the analysis may
+    //  find one, as on a disk whose VTOC header is lost.
+    void                              FillText               (const PreviewContent & preview);
     void                              HandlePicturesReady    ();
     void                              SetPinned              (bool pinned);
     static bool                       IsKnownPreview         (const PreviewContent & preview);
@@ -64,6 +70,18 @@ public:
     bool                              UpdateScrollbarHover   (POINT at);
     bool                              TickScrollbars         (int64_t nowMs);
     bool                              IsOverPane             (POINT point) const;
+
+    //  The wheel over the pane below its toolbar, with a disk image's
+    //  thumbnail: down, the thumbnail scrolls away before the view does, and
+    //  up, the view scrolls to its top before the thumbnail comes back, so
+    //  the two scroll as one. True when the thumbnail took it.
+    bool                              HandleWheel            (const DxuiMouseEvent & ev);
+
+    //  The pane's one bar while a disk image has a thumbnail: its
+    //  position read from the thumbnail and the view, and a position of it
+    //  applied to them.
+    void                              SyncScrollbar          ();
+    void                              ScrollTo               (int posPx);
     LPCWSTR                           GetCursorForPoint      (POINT clientPx) const;
     std::vector<DxuiPopupMenuItem>    GetScrollbarMenu       (const DxuiMouseEvent & ev) const;
     IDxuiControl                    * GetFocusedControl      () const;
@@ -126,6 +144,11 @@ private:
     int                             m_barFocus      = 0;   // the toolbar's focused button
     RECT                            m_rect          = {};   // the pane, its toolbar included
     RECT                            m_content       = {};   // below the toolbar
+    int                             m_headerTop     = 0;    // the thumbnail's top, under the toolbar
+    int                             m_headerMax     = 0;    // how far the thumbnail scrolls away: no further than the view overflows
+    int                             m_headerRange   = 0;    // how far the pane's bar scrolls the thumbnail and the view together
+    int                             m_headerPage    = 0;    // the height they are seen through
+    int                             m_headerScroll  = 0;    // how far it is scrolled away
     int                             m_pictureZoom   = 100;
     PreviewContent::Kind            m_lastKind      = PreviewContent::Kind::Text;
     bool                            m_pinned        = false;   // turned on manually, so automatic preview doesn't close it

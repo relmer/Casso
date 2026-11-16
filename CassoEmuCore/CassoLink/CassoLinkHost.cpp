@@ -137,16 +137,20 @@ void CassoLinkHost::Consume (size_t count)
 //  CassoLinkHost::ReadPacket
 //
 //  ERROR_TIMEOUT when the packet is not whole within the timeout, and
-//  ERROR_INVALID_DATA for a damaged packet, whose bytes are dropped.
+//  ERROR_INVALID_DATA for a damaged packet, whose bytes are dropped. The
+//  timeout is for the whole packet, so bytes that arrive slowly and never
+//  make one end the wait on time; they stay for the next read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkHost::ReadPacket (DWORD timeoutMs, CassoLinkPacket & outPacket)
 {
-    HRESULT  hr       = S_OK;
-    size_t   consumed = 0;
-    bool     complete = false;
-    bool     filled   = false;
+    HRESULT    hr       = S_OK;
+    size_t     consumed = 0;
+    bool       complete = false;
+    bool       filled   = false;
+    ULONGLONG  deadline = GetTickCount64() + timeoutMs;
+    ULONGLONG  now      = 0;
 
 
 
@@ -164,7 +168,9 @@ HRESULT CassoLinkHost::ReadPacket (DWORD timeoutMs, CassoLinkPacket & outPacket)
 
         BAIL_OUT_IF (complete, S_OK);
 
-        hr = Fill (m_adtProServer.m_buffer.size() + 1, timeoutMs, filled);
+        now = GetTickCount64();
+
+        hr = Fill (m_adtProServer.m_buffer.size() + 1, now < deadline ? (DWORD) (deadline - now) : 0, filled);
         CHR (hr);
         CBREx (filled, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
     }
@@ -583,6 +589,76 @@ HRESULT CassoLinkHost::TimeDriveOnce (Byte drive, Byte track, Byte revolutions, 
     {
         outRevolutionMs = (double) (last.QuadPart - first.QuadPart) * 1000.0 / (double) frequency.QuadPart / (double) (marks - 1);
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::MeasureTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::MeasureTrack (Byte drive, Byte track, TrackMeasure & outMeasure, CassoLinkStatus & outStatus)
+{
+    return Resend ([&] () { return MeasureTrackOnce (drive, track, outMeasure, outStatus); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::MeasureTrackOnce
+//
+//  Track measure, then the Status; a track with no sector 0 has the Status
+//  alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::MeasureTrackOnce (Byte drive, Byte track, TrackMeasure & outMeasure, CassoLinkStatus & outStatus)
+{
+    constexpr size_t  kMeasureBytes = 5;
+    HRESULT           hr            = S_OK;
+    const Byte        request[]     = { GetRequestDrive (drive), track, m_progressStart, m_progressEnd };
+    CassoLinkPacket   packet;
+    bool              valid         = false;
+
+
+
+    outMeasure = {};
+    outStatus  = {};
+
+    hr = AwaitRequest();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kMeasureTrack, request);
+    CHR (hr);
+
+    hr = ReadReply (packet);
+    CHR (hr);
+
+    if (packet.command == CassoLinkCodec::kTrackMeasure)
+    {
+        valid = packet.payload.size() == kMeasureBytes;
+        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        outMeasure.fromStep = (Word) (packet.payload[0] | (packet.payload[1] << 8));
+        outMeasure.turn     = (Word) (packet.payload[2] | (packet.payload[3] << 8));
+        outMeasure.volume   = packet.payload[4];
+
+        hr = ReadReply (packet);
+        CHR (hr);
+    }
+
+    hr = ReadStatus (packet, outStatus);
+    CHR (hr);
 
 Error:
     return hr;
@@ -1515,11 +1591,17 @@ HRESULT CassoLinkHost::ReadStatus (const CassoLinkPacket & packet, CassoLinkStat
 
     CBREx (status, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    outStatus.operation = packet.payload[0];
-    outStatus.drive     = packet.payload[1];
-    outStatus.track     = packet.payload[2];
-    outStatus.done      = packet.payload[3];
-    outStatus.error     = packet.payload[4];
+    outStatus.operation      = packet.payload[0];
+    outStatus.drive          = (Byte) (packet.payload[1] & ~CassoLinkCodec::kStatusWriteProtected);
+    outStatus.writeProtected = (packet.payload[1] & CassoLinkCodec::kStatusWriteProtected) != 0;
+    outStatus.track          = packet.payload[2];
+    outStatus.done           = packet.payload[3];
+    outStatus.error          = packet.payload[4];
+
+    if (outStatus.drive >= 1 && outStatus.drive <= 2)
+    {
+        m_writeProtected[outStatus.drive - 1] = outStatus.writeProtected;
+    }
 
 Error:
     return hr;
@@ -1867,82 +1949,4 @@ Byte CassoLinkHost::ToAppleChar (char ch, bool isInverse) const
 
 
     return (byte < ' ' || byte > '~') ? (Byte) '?' : caps ? (Byte) toupper (byte) : byte;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkClient::HasLowercase
-//
-//  $FBB3 is 6 on a //e, a //c and a IIgs, and $38 on a ][ and a ][+.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoLinkClient::HasLowercase() const
-{
-    static constexpr Byte  kFamilyIIe = 0x06;
-
-
-
-    return hasRomId && romId[0] == kFamilyIIe;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkClient::GetModelName
-//
-//  From the identification bytes Apple's technical notes list for each
-//  model.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoLinkClient::GetModelName() const
-{
-    Byte  family  = romId[0];
-    Byte  version = romId[1];
-    Byte  release = romId[2];
-
-
-
-    if (!hasRomId)
-    {
-        return std::wstring();
-    }
-
-    if (family == 0x38)
-    {
-        return (romId[3] == 0xAD) ? L"Apple ][" : L"Apple ][+";
-    }
-
-    if (family != 0x06)
-    {
-        return L"Apple II";
-    }
-
-    if (version == 0xEA)
-    {
-        return L"Apple //e";
-    }
-
-    if (version == 0xE0)
-    {
-        return (romId[4] != 0) ? L"Apple IIgs" : L"Apple //e enhanced";
-    }
-
-    switch (release)
-    {
-        case 0xFF:  return L"Apple //c";
-        case 0x00:  return L"Apple //c (ROM 0)";
-        case 0x03:  return L"Apple //c (ROM 3)";
-        case 0x04:  return L"Apple //c (ROM 4)";
-        case 0x05:  return L"Apple //c Plus";
-        default:    return L"Apple //c";
-    }
 }

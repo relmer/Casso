@@ -782,6 +782,7 @@ void DiskAnalyzer::AddFileSystemFindings (DiskAnalysis & inOut)
 
 
     inOut.fileMaps.clear();
+    inOut.verdict = FileSystemVerdict::None;
 
     for (qt = 0; isReady && qt < DiskImage::kQuarterTrackCount; qt += DiskImage::kQuarterTracksPerWholeTrack)
     {
@@ -792,6 +793,7 @@ void DiskAnalyzer::AddFileSystemFindings (DiskAnalysis & inOut)
     if (isReady)
     {
         inOut.fileMaps = FileMapBuilder::Build (inOut);
+        inOut.verdict  = FileMapBuilder::GetVerdict (inOut.fileMaps);
 
         for (const FileMap & map : inOut.fileMaps)
         {

@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/InspectorSearch.h"
+#include "Devices/Disk/Inspector/Repair/DiskRepair.h"
 #include "Seams/Win32Clipboard.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/DiskInspector/AnalysisScheduler.h"
@@ -180,5 +181,6 @@ public:
     bool                                     is35              = false;
     std::wstring                             openError;
     InspectorViews                           views;
+    RepairPlan                               repairPlan;
     InspectorLayout                          layout;
 };

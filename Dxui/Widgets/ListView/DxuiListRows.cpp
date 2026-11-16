@@ -721,6 +721,10 @@ void DxuiListRows::Paint (
         boxW = std::clamp (lastRight - (float) m_list.m_scaler.ToPx (s_kRowBoxEndInsetDip), 0.0f, layoutW);
     }
 
+    //  Scrolled across, the highlight's left end moves with the columns, as its
+    //  right end does, and stops at the list's edge.
+    boxL = (std::max) (boxL + colOff, 0.0f);
+
     //  Where firstRow is drawn: the rows lifted at the end of the list or
     //  after a page down, and moved with a sliding page.
     top   = y + headerH + hdrGap - (float) m_list.m_scrollbars.GetRowShiftPx() + (float) m_list.m_items.GetPageSlidePx() - (float) (m_list.m_topRow - firstRow) * rowH;

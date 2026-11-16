@@ -563,6 +563,20 @@ bool CatalogModel::IsBefore (const CatalogRow & a, const CatalogRow & b, Column 
             if (a.collection.sha256 != b.collection.sha256) { return a.collection.sha256 < b.collection.sha256; }
             break;
 
+        case Column::FormFactor:
+            if (a.imageClass.IsClassified() != b.imageClass.IsClassified()) { return a.imageClass.IsClassified(); }
+            if (a.imageClass.formFactor != b.imageClass.formFactor) { return a.imageClass.formFactor < b.imageClass.formFactor; }
+            break;
+
+        case Column::FormattedSize:
+            if (a.imageClass.IsClassified() != b.imageClass.IsClassified()) { return a.imageClass.IsClassified(); }
+            if (a.imageClass.formattedBytes != b.imageClass.formattedBytes) { return a.imageClass.formattedBytes < b.imageClass.formattedBytes; }
+            break;
+
+        case Column::LastUsed:
+            if (a.lastUsedUnix != b.lastUsedUnix) { return a.lastUsedUnix < b.lastUsedUnix; }
+            break;
+
         case Column::Folder:
         {
             std::wstring  folderA = GetFolderColumnText (a.folderPath);
@@ -890,7 +904,7 @@ bool CatalogModel::IsHiddenUntilChosen (size_t column)
 
 bool CatalogModel::IsCollectionColumn (size_t column)
 {
-    return column >= (size_t) Column::FileSystem && column < kColumnCount;
+    return column >= (size_t) Column::FileSystem && column <= (size_t) Column::Sha256;
 }
 
 
@@ -903,7 +917,7 @@ bool CatalogModel::IsCollectionColumn (size_t column)
 //
 //  The fork lengths and the total follow Size, and the access flags follow
 //  them, ahead of the catalog's Address and Locked. Disk list's columns
-//  come last.
+//  follow, then a host image's form factor, formatted size and last use.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -912,7 +926,8 @@ const std::vector<CatalogModel::Column> & CatalogModel::GetDefaultOrder()
     static const std::vector<Column>  s_order = { Column::Name, Column::Modified, Column::Type, Column::Size,
                                                   Column::DataFork, Column::ResourceFork, Column::TotalSize, Column::Access,
                                                   Column::Address, Column::Locked, Column::OriginalLocation, Column::DateDeleted, Column::Folder,
-                                                  Column::FileSystem, Column::VolumeName, Column::FileCount, Column::FreeSpace, Column::Crc32, Column::Sha256 };
+                                                  Column::FileSystem, Column::VolumeName, Column::FileCount, Column::FreeSpace, Column::Crc32, Column::Sha256,
+                                                  Column::FormFactor, Column::FormattedSize, Column::LastUsed };
 
 
 

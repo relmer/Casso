@@ -82,7 +82,7 @@ public:
             return path.string();
         }
 
-        DiskCommandResult  Run (std::vector<std::string> args)
+        DiskCommandResult  Run (const char * command, std::vector<std::string> args)
         {
             FakeDiskFileIo             io;
             DiskCommandRunner          runner (io);
@@ -91,7 +91,7 @@ public:
 
 
 
-            args.insert (args.begin(), { "CassoCli", "disk", "thumbnail" });
+            args.insert (args.begin(), { "CassoCli", "disk", command });
 
             for (std::string & arg : args)
             {
@@ -119,8 +119,8 @@ public:
     };
 
     //  A picture set from the command line is the image's thumbnail, marked
-    //  as set by the user, and --out writes it; --remove restores the one
-    //  made by booting.
+    //  as set by the user, get-thumbnail saves it, remove-thumbnail draws the
+    //  one made by booting again, and then removes that one.
     TEST_METHOD (APicture_IsSetWrittenAndRemoved)
     {
         Rig                    rig;
@@ -142,7 +142,7 @@ public:
             AssertSucceeded (store.Store (rig.image, booted, ThumbnailRecord()));
         }
 
-        result = rig.Run ({ Rig::Narrow (rig.image), Rig::Narrow (picture) });
+        result = rig.Run ("set-thumbnail", { Rig::Narrow (rig.image), Rig::Narrow (picture) });
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, TextEncoding::NarrowToWide (result.diagnostics).c_str());
 
         {
@@ -153,11 +153,11 @@ public:
             Assert::IsFalse (found == booted);
         }
 
-        result = rig.Run ({ Rig::Narrow (rig.image), "--out", Rig::Narrow (written) });
+        result = rig.Run ("get-thumbnail", { Rig::Narrow (rig.image), Rig::Narrow (written) });
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
-        Assert::IsTrue (Rig::Read (written) == found, L"--out writes the thumbnail returned");
+        Assert::IsTrue (Rig::Read (written) == found, L"get-thumbnail saves the thumbnail returned");
 
-        result = rig.Run ({ Rig::Narrow (rig.image), "--remove" });
+        result = rig.Run ("remove-thumbnail", { Rig::Narrow (rig.image) });
         Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
 
         {
@@ -168,13 +168,23 @@ public:
             Assert::IsTrue (found == booted, L"The booted one again");
         }
 
-        result = rig.Run ({ Rig::Narrow (rig.image), "--remove" });
-        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus, L"Nothing set by the user to remove");
+        result = rig.Run ("remove-thumbnail", { Rig::Narrow (rig.image) });
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus, L"The one made by booting is removed");
+
+        {
+            ThumbnailStore  store (rig.cache);
+
+            AssertSucceeded (store.Find (rig.image, found, record, isUserSet));
+            Assert::IsTrue (found.empty(), L"No thumbnail in the cache or the stream");
+        }
+
+        result = rig.Run ("remove-thumbnail", { Rig::Narrow (rig.image) });
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus, L"Nothing to remove");
     }
 
-    //  A file that isn't a picture fails and sets nothing; --out fails for an
-    //  image with no thumbnail; no action, or two, fails.
-    TEST_METHOD (ABadPictureOrActionCount_IsRefused)
+    //  A file that isn't a picture fails and sets nothing; get-thumbnail fails
+    //  for an image with no thumbnail; a missing operand fails.
+    TEST_METHOD (ABadPictureOrOperand_IsRefused)
     {
         Rig                    rig;
         std::filesystem::path  text    = rig.root / L"notes.txt";
@@ -186,22 +196,19 @@ public:
         Rig::Write (text, std::vector<Byte> (100, 'A'));
         Rig::Write (picture, rig.MakePicture (0xFF00FF00));
 
-        result = rig.Run ({ Rig::Narrow (rig.image), Rig::Narrow (text) });
+        result = rig.Run ("set-thumbnail", { Rig::Narrow (rig.image), Rig::Narrow (text) });
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
         Assert::AreEqual (0, ThumbnailStore (rig.cache).CountUserSet());
 
-        result = rig.Run ({ Rig::Narrow (rig.image), "--out", Rig::Narrow (rig.root / L"out.png") });
-        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus, L"No thumbnail to write");
+        result = rig.Run ("get-thumbnail", { Rig::Narrow (rig.image), Rig::Narrow (rig.root / L"out.png") });
+        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus, L"No thumbnail to save");
         Assert::IsFalse (std::filesystem::exists (rig.root / L"out.png"));
 
-        result = rig.Run ({ Rig::Narrow (rig.image) });
-        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus, L"No action");
-
-        result = rig.Run ({ Rig::Narrow (rig.image), Rig::Narrow (picture), "--remove" });
-        Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus, L"Two actions");
+        result = rig.Run ("set-thumbnail", { Rig::Narrow (rig.image) });
+        Assert::AreNotEqual (DiskCommandResult::kClean, result.exitStatus, L"No picture");
         Assert::AreEqual (0, ThumbnailStore (rig.cache).CountUserSet());
 
-        result = rig.Run ({ Rig::Narrow (rig.root / L"missing.dsk"), Rig::Narrow (picture) });
+        result = rig.Run ("set-thumbnail", { Rig::Narrow (rig.root / L"missing.dsk"), Rig::Narrow (picture) });
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus, L"No such image");
     }
 

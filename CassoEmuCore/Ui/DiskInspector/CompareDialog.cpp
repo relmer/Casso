@@ -272,6 +272,7 @@ bool CompareDialog::PickImage (ComparisonSource & inOut)
 
     spec.filters = { { L"Disk images", L"*.dsk;*.do;*.po;*.nib;*.nb2;*.woz" },
                      { L"All files",   L"*.*" } };
+    spec.content = FileDialogContent::Images;
 
     hr = dialogs.PickFileToOpen (GetHwnd(), spec, chosen, isPicked);
     CHR (hr);

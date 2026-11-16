@@ -4,6 +4,7 @@
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/Session/CaptureStream.h"
+#include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -24,7 +25,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<const Byte> module, const std::string & imageDate,
-                                   const ProgressFn & progress, Result & outResult, int lastTrack)
+                                   const ProgressFn & progress, Result & outResult, int lastTrack, const StopFn & stop)
 {
     HRESULT                hr        = S_OK;
     HRESULT                built     = S_OK;
@@ -51,6 +52,7 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
 
     outResult   = Result();
     run.started = GetTickCount64();
+    run.stop    = stop;
     run.planned = (last / 4 + 1) * kWholeReads;
 
     for (int position = 0; position <= last; position += 4)
@@ -498,12 +500,17 @@ HRESULT CassoLinkCapture::ReadPosition (Run & run, int position, int reads, Posi
 
 
 
+    run.position         = position;
     outPosition.position = position;
     outPosition.reads.clear();
     outPosition.delays.clear();
 
     for (int read = 0; read < reads; read++)
     {
+        bool  stopped = run.stop && run.stop();
+
+        CBREx (!stopped, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+
         //  A capture's first read takes the arm to track 0 first, as the
         //  program's record of its place can be wrong.
         std::vector<Byte>  bytes;
@@ -562,15 +569,21 @@ Error:
 //  `work`, the PC's analysis between reads, on another thread, with a busy
 //  Idle sent after each Ready the program sends (CassoLinkHost::AnswerBusy). The program counts the PC as gone after a
 //  few seconds with no packet, and then turns the motor off, so the next read
-//  waits for the disk to come up to speed.
+//  waits for the disk to come up to speed. An analysis that takes
+//  s_kSlowMs or more is logged with its position, and so is a wait that
+//  long for the rest of a packet after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkCapture::Analyze (Run & run, const std::function<void()> & work)
 {
-    HRESULT            hr       = S_OK;
-    std::atomic<bool>  finished { false };
-    std::thread        worker   ([&work, &finished] () { work(); finished = true; });
+    HRESULT                 hr       = S_OK;
+    std::atomic<bool>       finished { false };
+    ULONGLONG               began    = GetTickCount64();
+    std::atomic<ULONGLONG>  doneAt   { 0 };
+    std::thread             worker   ([&work, &finished, &doneAt] () { work(); doneAt = GetTickCount64(); finished = true; });
+    ULONGLONG               worked   = 0;
+    ULONGLONG               waited   = 0;
 
 
 
@@ -582,6 +595,20 @@ HRESULT CassoLinkCapture::Analyze (Run & run, const std::function<void()> & work
 
 Error:
     worker.join();
+
+    worked = doneAt - began;
+    waited = GetTickCount64() - doneAt;
+
+    if (worked >= s_kSlowMs)
+    {
+        run.host.ReportActivity (std::format ("Analyzing the reads of track {} took {:.1f} s", CassoLinkDiskTransfer::FormatPosition (run.position), (double) worked / 1000.0));
+    }
+
+    if (waited >= s_kSlowMs)
+    {
+        run.host.ReportActivity (std::format ("After analyzing the reads of track {}, the PC waited {:.1f} s for the rest of a packet from the Apple", CassoLinkDiskTransfer::FormatPosition (run.position), (double) waited / 1000.0));
+    }
+
     return hr;
 }
 

@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/Model/CollectionCells.h"
 #include "Config/IFileSystem.h"
+#include "Devices/Disk/ImageClassifier.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 
@@ -119,6 +120,19 @@ struct CatalogRow
     //  A Disk list or Find duplicates row's columns.
     CollectionCells  collection;
 
+    //  A host file's form factor and formatted size, when it is an image,
+    //  and when Casso last loaded it (0 for never). A stock disk's row is
+    //  one of the stock system disks, offered before it is downloaded.
+    ImageClass    imageClass;
+    int64_t       lastUsedUnix    = 0;
+    bool          isStockDisk     = false;
+    bool          stockDownloaded = false;
+    std::wstring  stockNote;
+
+    //  In a picker opened from the emulator: the drive of the running machine
+    //  the image is inserted in, such as "slot 6 drive 1", or empty.
+    std::wstring  inDrive;
+
     //  A shell folder's row: the shell's own name for the item, which opens it
     //  whether or not it is a file; hostPath holds its path when it has one.
     std::wstring  shellId;
@@ -169,9 +183,10 @@ public:
     //  In File Explorer's order: Name, Date modified, Type, Size, then the
     //  two only a disk catalog has.
     //  The last two are the Recycle Bin's, shown only there.
-    //  The columns from FileSystem on are Disk list's and Find duplicates'.
+    //  The columns from FileSystem to Sha256 are Disk list's and Find duplicates'.
+    //  FormFactor, FormattedSize and LastUsed are a host image's.
     enum class Column { Name, Modified, Type, Size, Address, Locked, OriginalLocation, DateDeleted, Folder, DataFork, ResourceFork, TotalSize, Access,
-                        FileSystem, VolumeName, FileCount, FreeSpace, Crc32, Sha256 };
+                        FileSystem, VolumeName, FileCount, FreeSpace, Crc32, Sha256, FormFactor, FormattedSize, LastUsed };
 
     static CatalogRow  FromFileEntry (const FileEntry & entry, VolumeKind kind, size_t sourceIndex);
     static CatalogRow  FromHostEntry (const FileSystemEntry & entry, bool isDiskImage, size_t sourceIndex);
@@ -190,7 +205,7 @@ public:
     static void  Sort (std::vector<CatalogRow> & rows, Column column, bool descending);
 
     //  The count of fixed columns; a column after them is a shell property's.
-    static constexpr size_t  kColumnCount = (size_t) Column::Sha256 + 1;
+    static constexpr size_t  kColumnCount = (size_t) Column::LastUsed + 1;
 
     //  A column's id, which the preferences and the session store. Through
     //  Folder, a column's id is its position, and a shell property's is its

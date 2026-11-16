@@ -128,8 +128,10 @@ private:
     //  Stands for a separator in a list of command ids.
     static constexpr int  kSeparatorId = 0;
 
-    bool  IsTickWanted        () const;
-    void  RecordSession       ();
+    bool                     IsTickWanted   () const;
+    void                     RecordSession  ();
+    struct ExplorerServices  MakeServices   ();
+    HRESULT                  RunModalPicker (HWND owner, PickerRequest request, PickerOutcome & outOutcome);
 
     CassoExplorerBrowser                  & m_browser;
     CassoExplorerActions                  & m_actions;

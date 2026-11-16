@@ -8,6 +8,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 
 class ExplorerInspectorHost;
+class ICassoExplorerHost;
 class IDiskInspectorHost;
 class IIntentChannel;
 
@@ -37,6 +38,7 @@ class InspectorWindowSet
 {
 public:
     static constexpr UINT       kFrameMs  = 16;
+    static constexpr UINT       kClockMs  = 1;       // the system clock's period while the frame timer runs
     static constexpr ULONGLONG  kSettleMs = 250;
 
     //  One inspector window, as the set drives it: DiskInspectorWindow in
@@ -73,7 +75,8 @@ public:
         std::function<bool (const std::wstring &)>                     fileExists;
         std::function<ULONGLONG ()>                                    nowMs;
         std::function<std::unique_ptr<IIntentChannel> (HWND)>          makeIntents;
-        IDiskFileIo                                                  * fileIo = nullptr;
+        IDiskFileIo                                                  * fileIo   = nullptr;
+        ICassoExplorerHost                                           * explorer = nullptr;
     };
 
     InspectorWindowSet (IImageWatcher & watcher, DiskInspectorPrefs & prefs, Seams seams = {});
@@ -128,20 +131,25 @@ private:
     void     StartTimer    ();
     void     StopTimer     ();
 
-    IImageWatcher                        & m_watcher;
-    DiskInspectorPrefs                   & m_prefs;
-    Seams                                  m_seams;
-    Win32DiskFileIo                        m_fileIo;
-    vector<std::unique_ptr<Entry>>         m_entries;
-    std::map<std::wstring, int>            m_folders;
-    std::mutex                             m_changeLock;
-    vector<std::wstring>                   m_changes;
-    UINT_PTR                               m_timer = 0;
-    DxuiLightTheme                         m_lightTheme;
-    DxuiDarkTheme                          m_darkTheme;
-    CassoTheme                             m_cassoTheme;
-    DxuiTheme                              m_otherTheme;
-    const DxuiTheme                      * m_theme = &m_darkTheme;
+    //  Repair's copy in the window in place of the image, and selected in a
+    //  Casso Explorer window.
+    void     ShowRepairedCopy (Entry & entry, const std::wstring & path);
+
+    IImageWatcher                   & m_watcher;
+    DiskInspectorPrefs              & m_prefs;
+    Seams                             m_seams;
+    Win32DiskFileIo                   m_fileIo;
+    vector<std::unique_ptr<Entry>>    m_entries;
+    std::map<std::wstring, int>       m_folders;
+    std::mutex                        m_changeLock;
+    vector<std::wstring>              m_changes;
+    UINT_PTR                          m_timer       = 0;
+    bool                              m_isClockFast = false;   // timeBeginPeriod succeeded for the frame timer
+    DxuiLightTheme                    m_lightTheme;
+    DxuiDarkTheme                     m_darkTheme;
+    CassoTheme                        m_cassoTheme;
+    DxuiTheme                         m_otherTheme;
+    const DxuiTheme                 * m_theme       = &m_darkTheme;
 
     static std::map<UINT_PTR, InspectorWindowSet *>  s_timers;
 };

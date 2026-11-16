@@ -105,6 +105,9 @@ public:
     //  Whether a file's name or type marks it as a container the walk opens.
     static bool  IsContainerName (const std::string & name);
 
+    //  A volume's name, or a DOS 3.3 disk's volume number, from its listing.
+    static std::string  GetVolumeName (const VolumeListing & listing);
+
 private:
     static void         WalkFolder       (IDiskFileIo & io, const std::string & folder, const Visitor & visitor);
     static void         WalkZip          (const std::string & path, std::span<const Byte> bytes, int depth, const Visitor & visitor);
@@ -115,7 +118,6 @@ private:
     static bool         IsStopped        (const Visitor & visitor);
     static bool         HasExtension     (const std::string & name, std::string_view extension);
     static std::string  GetLeaf          (const std::string & path);
-    static std::string  GetVolumeName    (const VolumeListing & listing);
     static std::string  GetContainerName (const std::string & name);
 
     static constexpr Byte    s_kArchiveType = 0xE0;

@@ -39,8 +39,8 @@ public:
     //  EVENTS COME OUT IN THE ORDER THEY WENT IN, through the sink interface.
     TEST_METHOD (EventsPopInPushOrder)
     {
-        BlockDeviceEventRing     ring;
-        IBlockDeviceEventSink  & sink  = ring;
+        auto                     ring  = std::make_unique<BlockDeviceEventRing>();
+        IBlockDeviceEventSink  & sink  = *ring;
         BlockDeviceEvent         event;
         uint32_t                 count = 0;
 
@@ -51,7 +51,7 @@ public:
             sink.OnBlockDeviceEvent (MakeEvent (block));
         }
 
-        while (ring.TryPop (event))
+        while (ring->TryPop (event))
         {
             Assert::AreEqual (count, event.firstBlock);
             count++;
@@ -84,8 +84,8 @@ public:
     //  THE 3.5-INCH RING KEEPS EACH FIELD OF ITS EVENTS.
     TEST_METHOD (FloppyRingKeepsFields)
     {
-        Floppy35EventRing     ring;
-        IFloppy35EventSink  & sink = ring;
+        auto                  ring = std::make_unique<Floppy35EventRing>();
+        IFloppy35EventSink  & sink = *ring;
         Floppy35Event         in;
         Floppy35Event         out;
 
@@ -100,11 +100,11 @@ public:
 
         sink.OnFloppy35Event (in);
 
-        Assert::IsTrue  (ring.TryPop (out));
+        Assert::IsTrue  (ring->TryPop (out));
         Assert::AreEqual ((uint64_t) 12345, out.cycle);
         Assert::AreEqual ((int) Floppy35Op::Step, (int) out.op);
         Assert::AreEqual ((Byte) 79, out.track);
         Assert::AreEqual ((Byte) 11, out.sector);
-        Assert::IsFalse (ring.TryPop (out));
+        Assert::IsFalse (ring->TryPop (out));
     }
 };

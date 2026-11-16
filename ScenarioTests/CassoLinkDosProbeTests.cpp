@@ -246,7 +246,7 @@ public:
         }
 
         screen = rig.Screen();
-        Assert::AreNotEqual (std::string::npos, screen.find ("CASSOLINK"), L"the program's status screen, before Escape");
+        Assert::AreNotEqual (std::string::npos, screen.find ("CassoLink"), L"the program's status screen, before Escape");
 
         rig.machine.GetRefs().iieKeyboard->PressKey (0x1B);
         rig.machine.RunCycles (2 * kClockHz);

@@ -726,6 +726,54 @@ namespace DxuiInfoBannerTests
         }
 
 
+        //  With the actions set below, they are under the text at any width.
+        TEST_METHOD (ActionsBelow_AreUnderTheTextAtAnyWidth)
+        {
+            DxuiDpiScaler   scaler = Scaler96();
+            DxuiInfoBanner  banner (L"Possible inconsistencies found.");
+
+
+
+            banner.SetActions      ({ L"Inspect disk image" });
+            banner.SetActionsBelow (true);
+
+            Assert::IsTrue (banner.IsStacked (1200.0f, scaler));
+            Assert::IsTrue (banner.IsStacked (300.0f, scaler));
+        }
+
+
+        //  Wide, the action is beside the text and as wide as set; narrow, it is
+        //  on a row under the text, and the banner is taller by that row.
+        TEST_METHOD (Stacked_ActionMovesUnderTheTextWhenNarrow)
+        {
+            DxuiDpiScaler   scaler = Scaler96();
+            DxuiInfoBanner  banner (L"File system damaged.");
+            float  wideH   = 0.0f;
+            float  narrowH = 0.0f;
+            RECT   action  = {};
+
+
+
+            banner.SetActions        ({ L"Repair disk image" });
+            banner.SetActionWidthDip (140.0f);
+            banner.SetStackBelowDip  (160.0f);
+
+            Assert::IsFalse (banner.IsStacked (600.0f, scaler));
+            Assert::IsTrue  (banner.IsStacked (300.0f, scaler));
+
+            wideH = banner.GetPreferredHeightPx (600.0f, scaler);
+            banner.Layout (RECT { 0, 0, 600, (LONG) wideH }, scaler);
+            action = banner.GetAction (0)->GetBounds();
+            Assert::AreEqual (140L, action.right - action.left, L"as wide as set");
+
+            narrowH = banner.GetPreferredHeightPx (300.0f, scaler);
+            banner.Layout (RECT { 0, 0, 300, (LONG) narrowH }, scaler);
+            action = banner.GetAction (0)->GetBounds();
+            Assert::IsTrue (narrowH > wideH, L"taller by the action's row");
+            Assert::IsTrue (action.bottom <= (LONG) narrowH && action.top >= (LONG) (narrowH / 2), L"the action is in the bottom row");
+        }
+
+
         //  The ring's chords and the dot: every mark the hand-drawn badge makes
         //  that the surface fill and border never do.
         static int CountBadgeMarks (const MockDxuiPainter & painter)

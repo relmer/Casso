@@ -37,5 +37,7 @@ private:
     static bool          ReadDirectory (const SectorSource & source, vector<Byte> & outBytes, int & outBadBlock);
     static std::wstring  ReadName      (const Byte * name, int length);
     static std::wstring  GetKindName   (int kind);
+    static void          CheckEntry    (FileMapWriter & writer, const Byte * entry, const std::wstring & path, int kind, int first);
+    static bool          IsValidName   (const Byte * name, int length);
     static int           GetWord       (const Byte * bytes) { return bytes[0] | (bytes[1] << 8); }
 };

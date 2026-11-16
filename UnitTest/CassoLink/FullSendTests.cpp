@@ -6,6 +6,7 @@
 #include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "CassoLink/FullSend/FullSendManifestFile.h"
+#include "CassoLink/FullSend/FullSendProtection.h"
 #include "CassoLink/FullSend/FullSendSession.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkProgram.h"
@@ -17,8 +18,11 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/WozLoader.h"
+#include "FullSendTestDisks.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+using namespace FullSendTestDisks;
 
 
 
@@ -28,9 +32,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  FullSendTests
 //
-//  FullSendManifest, FullSendDisk and FullSendSession, the session over a
-//  scripted Apple: each drive's disk changes at scripted events, and each key
-//  in the script ends a pause.
+//  FullSendSession, the session over a scripted Apple: each drive's disk
+//  changes at scripted events, and each key in the script ends a pause.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,9 +41,6 @@ TEST_CLASS (FullSendTests)
 {
 public:
 
-    using Image = std::vector<Byte>;
-
-    static constexpr size_t  kTrackBytes = 16 * 256;
     static constexpr const char * kFolder = "C:\\Box";
 
     struct ScriptedLink : IFullSendLink
@@ -49,6 +49,7 @@ public:
         std::array<bool, 2>                    present             = { true, true };
         std::deque<FullSendKey>                keys;
         std::vector<int>                       diskReads;   // the drive of each whole-disk read, in order
+        std::vector<bool>                      readsVerified;   // whether verification was on for each whole-disk read
         std::vector<int>                       trackDrives;   // the drive of each track read
         std::vector<FullSendScreen>            screens;
         std::vector<std::string>               reports;
@@ -77,6 +78,15 @@ public:
         std::vector<std::string>               noted;   // the path of each image written
         std::function<void (const std::string &)>  onAwait;               // with one, each image is booted, and this is the wait for its result
         bool                                  bootTones      = false;
+        std::array<bool, 2>                   writeProtected = { false, false };
+        bool                                  measuring      = false;
+        double                              * clock          = nullptr;   // the status's clock, which a disk read and a raw capture advance
+        double                                readSeconds    = 0.0;
+        double                                captureSeconds = 0.0;
+
+        void  Advance (double seconds) { if (clock != nullptr) { *clock += seconds; } }
+        std::vector<TrackLayout>              layouts;   // each track's, for a read when measuring and for MeasureLayouts
+        std::vector<int>                      measures;  // the tracks of each MeasureLayouts
 
         //  Called at the end of the Nth whole-disk read, counted from 1, and
         //  at the Nth wait for a key.
@@ -114,16 +124,29 @@ public:
 
         bool     IsVerifying() override { return verifying; }
         void     ToggleVerify() override { verifying = !verifying; }
+        void     SetMeasuring (bool on) override { measuring = on; }
+
+        HRESULT  MeasureLayouts (int drive, int tracks, std::vector<TrackLayout> & outLayouts) override
+        {
+            UNREFERENCED_PARAMETER (drive);
+
+            measures.push_back (tracks);
+            outLayouts.assign (layouts.begin(), layouts.begin() + (ptrdiff_t) std::min ((size_t) tracks, layouts.size()));
+            return S_OK;
+        }
 
         HRESULT  ReadDisk (int drive, Image & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport) override
         {
             outReport.marks          = reportMarks;
             outReport.tracksVerified = reportVerified;
             outReport.emptyTracks    = reportEmpty;
+            outReport.layouts        = measuring ? layouts : std::vector<TrackLayout>();
 
             int  read = (int) diskReads.size() + 1;
 
             diskReads.push_back (drive);
+            readsVerified.push_back (verifying);
+            Advance (readSeconds);
 
             if (failDiskRead != S_OK)
             {
@@ -168,6 +191,7 @@ public:
         HRESULT  CaptureRaw (int drive, bool withEarlier, Image & outWoz, Image & outReads, std::string & outMarks) override
         {
             captures.push_back (drive);
+            Advance (captureSeconds);
             capturesWithEarlier += withEarlier ? 1 : 0;
             outWoz   = rawWoz;
             outReads = rawReads;
@@ -178,6 +202,7 @@ public:
         bool     NoteImage (const std::string & path) override { noted.push_back (path); return (bool) onAwait; }
 
         bool     HasBootTones() override { return bootTones; }
+        bool     IsWriteProtected (int drive) override { return writeProtected[(size_t) drive - 1]; }
 
         HRESULT  AwaitBoot (const std::string & file) override
         {
@@ -233,15 +258,21 @@ public:
 
     struct Rig
     {
-        ScriptedLink    link;
-        FakeDiskFileIo  io;
-        std::string     extension;
-        std::string     prefix;
-        FullSendStatus  status { [] () { return 0.0; }, [] () { return std::string(); } };
+        Rig() { link.clock = &now; }
+
+        ScriptedLink               link;
+        FakeDiskFileIo             io;
+        std::string                extension;
+        std::string                prefix;
+        double                     now        = 0.0;
+        FullSendStatus             status     { [this] () { return now; }, [] () { return std::string(); } };
+        FullSendProtectionChoices  protection;
 
         std::unique_ptr<FullSendSession>  Run (HRESULT result = HRESULT_FROM_WIN32 (ERROR_CANCELLED))
         {
             auto  session = std::make_unique<FullSendSession> (link, io, [] () { return std::string ("2026-10-30T12:00:00Z"); }, kFolder, extension, prefix, &status);
+
+            session->SetProtection (protection);
 
             Assert::AreEqual (result, session->Run());
             Assert::IsTrue (session->GetState() == FullSendSession::State::Ended);
@@ -263,353 +294,6 @@ public:
             return files;
         }
     };
-
-    static Image  Dos (const char * program, Byte seed = 1)
-    {
-        Image        buffer (NibblizationLayer::kImageByteSize, 0);
-        Image        next;
-        FilePayload  payload;
-
-        payload.type           = Dos33Volume::kTypeBinary;
-        payload.loadAddress    = 0x2000;
-        payload.hasLoadAddress = true;
-        payload.bytes.assign (600, seed);
-
-        AssertSucceeded (Dos33Skeleton::Write (buffer, 254));
-        AssertSucceeded (Dos33Volume (buffer).Write (FilePath::Parse (program), payload, next));
-
-        return next;
-    }
-
-    //  A ProDOS disk with one file, so it isn't blank.
-    static Image  ProDos (const char * volume)
-    {
-        Image        buffer (NibblizationLayer::kImageByteSize, 0);
-        Image        next;
-        FilePayload  payload;
-
-        payload.type           = ProDosVolume::kTypeBinary;
-        payload.loadAddress    = 0x2000;
-        payload.hasLoadAddress = true;
-        payload.bytes.assign (600, 1);
-
-        AssertSucceeded (ProDosSkeleton::Write (buffer, volume));
-        AssertSucceeded (ProDosVolume (buffer).Write (FilePath::Parse ("DATA"), payload, next));
-
-        return next;
-    }
-
-    //  A formatted disk with no files.
-    static Image  BlankProDos (const char * volume)
-    {
-        Image  buffer (NibblizationLayer::kImageByteSize, 0);
-
-        AssertSucceeded (ProDosSkeleton::Write (buffer, volume));
-
-        return buffer;
-    }
-
-    static Image  BlankDos()
-    {
-        Image  buffer (NibblizationLayer::kImageByteSize, 0);
-
-        AssertSucceeded (Dos33Skeleton::Write (buffer, 254));
-
-        return buffer;
-    }
-
-    //  A DOS 3.3 disk whose one file is a BASIC program with the given bytes.
-    static Image  DosProgram (std::initializer_list<Byte> program)
-    {
-        Image        next;
-        FilePayload  payload;
-
-        payload.type  = Dos33Volume::kTypeApplesoft;
-        payload.bytes = program;
-
-        AssertSucceeded (Dos33Volume (BlankDos()).Write (FilePath::Parse ("HELLO"), payload, next));
-
-        return next;
-    }
-
-    //  An unrecognized disk, with bytes of its seed in every sector.
-    static Image  Other (Byte seed)
-    {
-        return Image (NibblizationLayer::kImageByteSize, seed);
-    }
-
-
-
-
-    //  The manifest.
-
-    static FullSendRow  Row (int sequence, const std::string & file, char fingerprint = 'a', char hash = 'b')
-    {
-        FullSendRow  row;
-
-        row.sequence    = sequence;
-        row.file        = file;
-        row.drive       = 2;
-        row.fingerprint = std::string (64, fingerprint);
-        row.hash        = std::string (64, hash);
-        row.time        = "2026-10-30T12:00:00Z";
-        row.unreadable  = 3;
-        row.status      = FullSendManifest::kStatusProtected;
-
-        return row;
-    }
-
-    TEST_METHOD (Manifest_RoundTripsEveryColumn_WithACommaAndQuoteInAFileName)
-    {
-        FullSendManifest  written;
-        FullSendManifest  read;
-
-        written.Add (Row (7, "0007 A, \"B\".dsk"));
-        AssertSucceeded (read.Parse (written.Format()));
-
-        Assert::AreEqual ((size_t) 1, read.GetRows().size());
-
-        const FullSendRow  & row = read.GetRows()[0];
-
-        Assert::AreEqual (7, row.sequence);
-        Assert::AreEqual (std::string ("0007 A, \"B\".dsk"), row.file);
-        Assert::AreEqual (2, row.drive);
-        Assert::AreEqual (std::string (64, 'a'), row.fingerprint);
-        Assert::AreEqual (std::string (64, 'b'), row.hash);
-        Assert::AreEqual (std::string ("2026-10-30T12:00:00Z"), row.time);
-        Assert::AreEqual (3, row.unreadable);
-        Assert::AreEqual (std::string ("likely-copy-protected"), row.status);
-    }
-
-    //  A row's boot result and its capture's marks are written and read, a
-    //  comma in the marks included; a manifest from before those two columns
-    //  loads with both empty.
-    TEST_METHOD (Manifest_HasTheBootResultAndTheCapturesMarks_AndReadsAManifestWithout)
-    {
-        FullSendManifest   written;
-        FullSendManifest   read;
-        FullSendManifest   prior;
-        FullSendRow        row   = Row (7, "0007.woz");
-        std::string        older = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf,verification,recovered,unreliable\r\n"
-                                   "3,0003.dsk,1," + std::string (64, 'a') + "," + std::string (64, 'b') + ",2026-10-30T12:00:00Z,0,sent,,none,0,0\r\n";
-
-
-
-        row.boot  = "did-not-boot";
-        row.marks = "weak 3, 11; replaced 1.3";
-
-        written.Add (row);
-        AssertSucceeded (read.Parse (written.Format()));
-
-        Assert::AreEqual (std::string ("did-not-boot"), read.GetRows()[0].boot);
-        Assert::AreEqual (std::string ("weak 3, 11; replaced 1.3"), read.GetRows()[0].marks);
-
-        AssertSucceeded (prior.Parse (std::vector<Byte> (older.begin(), older.end())));
-
-        Assert::AreEqual ((size_t) 1, prior.GetRows().size());
-        Assert::IsTrue (prior.GetRows()[0].boot.empty() && prior.GetRows()[0].marks.empty());
-        Assert::AreEqual (std::string ("none"), prior.GetRows()[0].verification);
-    }
-
-    TEST_METHOD (Manifest_ParsesTheEarlierProtectedLabel)
-    {
-        FullSendManifest   manifest;
-        FullSendManifest   parsed;
-        auto               row = Row (1, "x.dsk");
-        std::vector<Byte>  text;
-
-        row.status = FullSendManifest::kStatusLegacyProtected;
-        manifest.Add (row);
-        text = manifest.Format();
-
-        AssertSucceeded (parsed.Parse (text));
-        Assert::AreEqual (std::string (FullSendManifest::kStatusLegacyProtected), parsed.GetRows()[0].status);
-    }
-
-    TEST_METHOD (Manifest_FailsToParseDamage_WithNoRows)
-    {
-        FullSendManifest   good;
-        const std::string  text = [&] () { good.Add (Row (1, "x.dsk")); auto b = good.Format(); return std::string (b.begin(), b.end()); }();
-
-        std::vector<std::string>  damaged =
-        {
-            "",
-            "not a manifest\r\n",
-            text + "1,2,3\r\n",
-            std::string (text).replace (text.find ("sent") == std::string::npos ? text.find ("likely-copy-protected") : text.find ("sent"), 18, "whatever"),
-            text + "x,y.dsk,1," + std::string (64, 'a') + "," + std::string (64, 'b') + ",t,0,sent,\r\n",
-            text + "2,\"unclosed,1," + std::string (64, 'a') + "," + std::string (64, 'b') + ",t,0,sent,\r\n",
-            text + "2,y.dsk,3," + std::string (64, 'a') + "," + std::string (64, 'b') + ",t,0,sent,\r\n",
-            text + "2,y.dsk,1,abc," + std::string (64, 'b') + ",t,0,sent,\r\n",
-        };
-
-        Assert::IsFalse (damaged.empty());
-
-        for (const std::string & bytes : damaged)
-        {
-            FullSendManifest  manifest;
-            HRESULT           hr = manifest.Parse (std::vector<Byte> (bytes.begin(), bytes.end()));
-
-            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, TextEncoding::NarrowToWide (bytes).c_str());
-            Assert::IsTrue (manifest.GetRows().empty());
-        }
-    }
-
-    TEST_METHOD (Manifest_NextSequenceFollowsTheHighest_AndADuplicateHasNoImage)
-    {
-        FullSendManifest  manifest;
-        FullSendRow       duplicate = Row (9, "", 'c', 'd');
-
-        Assert::AreEqual (1, manifest.GetNextSequence());
-
-        manifest.Add (duplicate);
-        manifest.Add (Row (4, "0004.dsk", 'e', 'd'));
-
-        Assert::AreEqual (10, manifest.GetNextSequence());
-        Assert::IsTrue  (manifest.HasFingerprint (std::string (64, 'c')));
-        Assert::IsFalse (manifest.HasFingerprint (std::string (64, 'f')));
-        Assert::AreEqual (std::string ("0004.dsk"), manifest.FindImageByHash (std::string (64, 'd'))->file);
-    }
-
-
-
-
-    //  Fingerprints and hashes.
-
-    TEST_METHOD (Sha256_MatchesAKnownDigest)
-    {
-        const Byte   abc[] = { 'a', 'b', 'c' };
-        std::string  hex;
-
-        AssertSucceeded (FullSendDisk::ComputeHash (abc, hex));
-
-        Assert::AreEqual (std::string ("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"), hex);
-    }
-
-    TEST_METHOD (Fingerprint_OfAnUnrecognizedDisk_AddsTrackThree)
-    {
-        Image        image = Other (0xE5);
-        std::string  base;
-        std::string  next;
-
-        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, base));
-
-        image[3 * kTrackBytes]++;
-        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, next));
-
-        Assert::AreNotEqual (base, next, L"two CP/M data disks differ only in their directory");
-    }
-
-    TEST_METHOD (Fingerprint_OfADosDisk_LeavesTrackThreeOut)
-    {
-        Image        image = Dos ("HELLO");
-        std::string  base;
-        std::string  next;
-
-        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, base));
-
-        image[3 * kTrackBytes]++;
-        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, next));
-
-        Assert::AreEqual (base, next);
-    }
-
-    TEST_METHOD (Fingerprint_CoversTrackZeroAndTheCatalogTrack_AndNoOther)
-    {
-        Image        image = Other (5);
-        std::string  base;
-        std::string  next;
-
-        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, base));
-
-        image[5 * kTrackBytes]++;
-        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, next));
-        Assert::AreEqual (base, next, L"track 5 is not part of it");
-
-        image[17 * kTrackBytes]++;
-        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, next));
-        Assert::AreNotEqual (base, next, L"track 17 is part of it");
-
-        image = Other (5);
-        image[0]++;
-        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, next));
-        Assert::AreNotEqual (base, next, L"track 0 is part of it");
-    }
-
-    TEST_METHOD (Fingerprint_OfProDos_IsTrackZeroAlone)
-    {
-        Image        image = ProDos ("BOX");
-        std::string  base;
-        std::string  next;
-
-        Assert::IsTrue (FullSendDisk::IsCatalogOnTrackZero (image));
-        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, base));
-
-        image[17 * kTrackBytes]++;
-        AssertSucceeded (FullSendDisk::ComputeFingerprint (image, next));
-
-        Assert::AreEqual (base, next);
-        Assert::IsFalse (FullSendDisk::IsCatalogOnTrackZero (Dos ("HELLO")));
-    }
-
-
-
-
-    //  File titles.
-
-    TEST_METHOD (Title_ComesFromTheCatalog_OrIsTheNumberAlone)
-    {
-        Image   pascalDisk = Other (0);
-        size_t  at         = ProDosSkeleton::GetBlockByteOffset (2, 0);
-
-        pascalDisk[at + 2] = 6;
-        pascalDisk[at + 6] = 5;
-        std::copy_n ("APPLE", 5, pascalDisk.begin() + (ptrdiff_t) at + 7);
-
-        Assert::AreEqual (std::string ("0003 GAMES"), FullSendDisk::MakeImageTitle (3, FullSendDisk::GetCatalogTitle (ProDos ("GAMES")), ""));
-        Assert::AreEqual (std::string ("0012 HELLO"), FullSendDisk::MakeImageTitle (12, FullSendDisk::GetCatalogTitle (Dos ("HELLO")), ""));
-        Assert::AreEqual (std::string ("0004 APPLE"), FullSendDisk::MakeImageTitle (4, FullSendDisk::GetCatalogTitle (pascalDisk), ""));
-        Assert::AreEqual (std::string ("0005"),       FullSendDisk::MakeImageTitle (5, FullSendDisk::GetCatalogTitle (Other (9)), ""));
-    }
-
-    TEST_METHOD (Title_CleansCharactersAHostNameCannotHave)
-    {
-        Assert::AreEqual (std::string ("0001 A_B"), FullSendDisk::MakeImageTitle (1, "A/B", ""));
-    }
-
-    //  The first program on a protected disk can have a name of control
-    //  characters, as on The Print Shop, which is no title at all.
-    TEST_METHOD (Title_DropsControlCharacters_AndSkipsANameOfThemAlone)
-    {
-        constexpr size_t  kCatalogSector = (size_t) (17 * 16 + 15) * 256;
-        constexpr size_t  kFirstName     = kCatalogSector + 0x0B + 3;
-        constexpr size_t  kNameLength    = 30;
-        constexpr Byte    kBackspace     = 0x88;
-        constexpr Byte    kSpace         = 0xA0;
-        constexpr Byte    kShopName[]    = { kBackspace, kBackspace, 0xD3, 0xC8, 0xCF, 0xD0 };   // two backspaces, then SHOP with the high bit set
-
-        Image        disk = Dos ("HELLO");
-        Image        next;
-        FilePayload  payload;
-
-
-
-        payload.type           = Dos33Volume::kTypeBinary;
-        payload.loadAddress    = 0x2000;
-        payload.hasLoadAddress = true;
-        payload.bytes.assign (100, 3);
-
-        AssertSucceeded (Dos33Volume (disk).Write (FilePath::Parse ("GAME"), payload, next));
-        std::fill_n (next.begin() + (ptrdiff_t) kFirstName, kNameLength, kBackspace);
-
-        Assert::AreEqual (std::string ("GAME"), FullSendDisk::GetCatalogTitle (next));
-
-        //  Control characters ahead of a name are dropped from the title.
-        std::fill_n (next.begin() + (ptrdiff_t) kFirstName, kNameLength, kSpace);
-        std::copy_n (std::begin (kShopName), std::size (kShopName), next.begin() + (ptrdiff_t) kFirstName);
-
-        Assert::AreEqual (std::string ("SHOP"), FullSendDisk::GetCatalogTitle (next));
-    }
 
     TEST_METHOD (Session_NeverOverwritesAFile)
     {
@@ -635,13 +319,13 @@ public:
     {
         Rig  rig;
 
-        rig.link.drives[0] = Dos ("HELLO");
+        rig.link.drives[0] = Dos ("GAME");
         rig.link.drives[1] = ProDos ("GAMES");
 
         auto  session = rig.Run();
 
         Assert::IsTrue (rig.link.diskReads == std::vector<int> ({ 1, 2 }));
-        Assert::IsTrue (rig.io.files["C:\\Box\\0001 HELLO.dsk"] == rig.link.drives[0]);
+        Assert::IsTrue (rig.io.files["C:\\Box\\0001 GAME.dsk"] == rig.link.drives[0]);
         Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0002 GAMES.po"));
         Assert::AreEqual (1, rig.link.waits, L"the pause came only once neither drive had a new disk");
         Assert::AreEqual (2, session->GetScreen().sent);
@@ -772,21 +456,21 @@ public:
         Assert::AreEqual (std::string ("D2: On deck--Feed me, Seymour!"), screen.GetRows()[5]);
     }
 
-    TEST_METHOD (Session_ScreenName_HasNoLeadingZeros_AndTheMapMarksABadTrack)
+    TEST_METHOD (Session_ScreenName_HasTheImagesNumber_AndTheMapMarksABadTrack)
     {
         Rig  rig;
 
-        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.drives[0]  = Dos ("GAME");
         rig.link.badDisk    = rig.link.drives[0];
         rig.link.badSectors = { { 29, 3 } };
         rig.link.present[1] = false;
 
         auto  session = rig.Run();
 
-        Assert::AreEqual (std::string ("1 HELLO"), session->GetScreen().names[0]);
+        Assert::AreEqual (std::string ("0001 GAME"), session->GetScreen().names[0]);
         Assert::AreEqual ('X', session->GetScreen().maps[0][29]);
         Assert::AreEqual ('.', session->GetScreen().maps[0][28]);
-        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001 HELLO.dsk"), L"the file keeps its zeros");
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001 GAME.dsk"));
     }
 
     TEST_METHOD (Session_OnDeck_HasTheInstructionFirst_ThenAPromptLine)
@@ -883,8 +567,8 @@ public:
     {
         Assert::AreEqual (std::string (FullSendManifest::kStatusProtected), std::string (FullSendDisk::AssessDamage (Other (1), 4, 64)));
         Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear),   std::string (FullSendDisk::AssessDamage (Other (1), 0, 2)));
-        Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear),   std::string (FullSendDisk::AssessDamage (Dos ("HELLO"), 4, 64)));
-        Assert::AreEqual (std::string (FullSendManifest::kStatusDamaged),   std::string (FullSendDisk::AssessDamage (Dos ("HELLO"), 0, 2)));
+        Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear),   std::string (FullSendDisk::AssessDamage (Dos ("GAME"), 4, 64)));
+        Assert::AreEqual (std::string (FullSendManifest::kStatusDamaged),   std::string (FullSendDisk::AssessDamage (Dos ("GAME"), 0, 2)));
     }
 
     //  A formatted disk with no files is blank, whatever its file system. A
@@ -905,7 +589,7 @@ public:
         Assert::IsTrue (FullSendDisk::IsBlank (BlankProDos ("EMPTY"), {}, system));
         Assert::AreEqual (std::string ("ProDOS"), system);
 
-        Assert::IsFalse (FullSendDisk::IsBlank (Dos ("HELLO"), all, system), L"A disk with a file");
+        Assert::IsFalse (FullSendDisk::IsBlank (Dos ("GAME"), all, system), L"A disk with a file");
         Assert::IsFalse (FullSendDisk::IsBlank (ProDos ("FULL"), all, system), L"A ProDOS disk with a file");
         Assert::IsFalse (FullSendDisk::IsBlank (Other (1), all, system), L"No file system");
 
@@ -1038,6 +722,225 @@ public:
         Assert::AreEqual ((size_t) 2, session->GetManifest().GetRows().size());
     }
 
+    //  A likely copy-protected disk saved as its sectors, with raw capture
+    //  off, is captured raw when its image doesn't boot and Space reads it
+    //  again; verification stays off.
+    TEST_METHOD (Session_SpaceOnAProtectedSectorCopyThatDidNotBoot_CapturesItRaw)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]        = Other (1);
+        rig.link.badDisk          = rig.link.drives[0];
+        rig.link.badSectors       = { { 5, 0 }, { 6, 0 } };
+        rig.link.reportEmpty      = 3;
+        rig.link.present[1]       = false;
+        rig.link.onAwait          = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
+        rig.link.keys             = { FullSendKey::Space };
+        rig.protection.captureRaw = false;
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (rig.link.captures == std::vector<int> { 1 }, L"Only the second read is captured");
+        Assert::IsTrue (rig.link.readsVerified == std::vector<bool> ({ false, false }), L"Neither read is verified");
+        Assert::AreEqual (std::string (FullSendManifest::kStatusProtected),  session->GetManifest().GetRows()[0].status);
+        Assert::AreEqual (std::string (FullSendManifest::kStatusRawCapture), session->GetManifest().GetRows()[1].status);
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001.dsk") && rig.io.files.contains ("C:\\Box\\0002.woz"));
+        Assert::IsFalse (rig.link.verifying);
+    }
+
+    //  A DOS 3.3 disk with whole tracks unreadable may be copy-protected: its
+    //  status is unclear, and Space captures it raw.
+    TEST_METHOD (Session_SpaceOnAnUnclearDiskThatDidNotBoot_CapturesItRaw)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]   = Dos ("GAME");
+        rig.link.badDisk     = rig.link.drives[0];
+        rig.link.badSectors  = { { 20, 3 } };
+        rig.link.reportEmpty = 3;
+        rig.link.present[1]  = false;
+        rig.link.onAwait     = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
+        rig.link.keys        = { FullSendKey::Space };
+
+        auto  session = rig.Run();
+
+        Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear), session->GetManifest().GetRows()[0].status);
+        Assert::IsTrue (rig.link.captures == std::vector<int> { 1 }, L"Only the second read is captured");
+        Assert::IsTrue (rig.link.readsVerified == std::vector<bool> ({ false, false }), L"Neither read is verified");
+        Assert::AreEqual (std::string (FullSendManifest::kStatusRawCapture), session->GetManifest().GetRows()[1].status);
+    }
+
+    //  A DOS 3.3 disk with a bad sector is damaged, not protected: Space reads
+    //  it again with verification, and isn't a raw capture.
+    TEST_METHOD (Session_SpaceOnADamagedDiskThatDidNotBoot_ReadsItAgainVerified)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Dos ("GAME");
+        rig.link.badDisk    = rig.link.drives[0];
+        rig.link.badSectors = { { 20, 3 } };
+        rig.link.present[1] = false;
+        rig.link.onAwait    = [&rig] (const std::string & file) { rig.status.SetBoot (file, FullSendManifest::kBootDidNotBoot); };
+        rig.link.keys       = { FullSendKey::Space };
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (rig.link.captures.empty(), L"Not captured raw");
+        Assert::IsTrue (rig.link.readsVerified == std::vector<bool> ({ false, true }), L"The second read is verified");
+        Assert::AreEqual ((size_t) 2, session->GetManifest().GetRows().size());
+        Assert::IsFalse (rig.link.verifying, L"Verification is off again after it");
+    }
+
+    //  A write-protected disk's image is write-protected: a sector image by
+    //  its read-only attribute, and its manifest row has the flag.
+    TEST_METHOD (Session_AWriteProtectedDisk_HasAWriteProtectedImage)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]         = Other (1);
+        rig.link.present[1]        = false;
+        rig.link.writeProtected[0] = true;
+
+        auto  session = rig.Run();
+
+        Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size());
+        Assert::IsTrue (session->GetManifest().GetRows()[0].writeProtected);
+        Assert::IsTrue (rig.io.readOnlyFiles.contains ("C:\\Box\\" + session->GetManifest().GetRows()[0].file), L"The read-only attribute");
+        Assert::IsTrue (rig.io.readOnlyFiles["C:\\Box\\" + session->GetManifest().GetRows()[0].file]);
+    }
+
+    //  With WOZ chosen, each disk is measured and its image is built to the
+    //  measured layouts, write-protected as its disk is; with another type,
+    //  no disk is measured.
+    TEST_METHOD (Session_WithWozChosen_TheImageIsBuiltToTheMeasuredLayouts)
+    {
+        Rig    rig;
+        Rig    sectors;
+        Image  built;
+
+        rig.extension              = ".woz";
+        rig.link.drives[0]         = Dos ("GAME");
+        rig.link.present[1]        = false;
+        rig.link.writeProtected[0] = true;
+
+        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            rig.link.layouts.push_back (TrackLayout { 254, 6337, 51244, (track * 30763LL + 4111) % 51244 });
+        }
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (rig.link.measuring);
+        Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size());
+
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (rig.link.drives[0], rig.link.layouts, built));
+        AssertSucceeded (WozLoader::SetWriteProtectFlag (built, true));
+
+        Assert::IsTrue (rig.io.files["C:\\Box\\" + session->GetManifest().GetRows()[0].file] == built, L"The WOZ is built to the layouts, write-protected");
+
+        sectors.extension       = ".dsk";
+        sectors.link.drives[0]  = Dos ("GAME");
+        sectors.link.present[1] = false;
+
+        sectors.Run();
+
+        Assert::IsFalse (sectors.link.measuring);
+    }
+
+    //  The layouts of a disk at 300 rpm whose address fields have `volume`.
+    static std::vector<TrackLayout>  MakeLayouts (Byte volume)
+    {
+        std::vector<TrackLayout>  layouts;
+
+        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            layouts.push_back (TrackLayout { volume, 6330, TrackLayoutWriter::kDefaultBits, (track * 30763LL) % TrackLayoutWriter::kDefaultBits });
+        }
+
+        return layouts;
+    }
+
+    //  A disk whose track 0 has a volume its sector image can't reproduce is
+    //  measured on every track and saved as a WOZ built to the layouts,
+    //  whatever image type is chosen.
+    TEST_METHOD (Session_ADiskWithAVolumeItsImageCantStore_IsSavedAsABuiltWoz)
+    {
+        Rig    rig;
+        Image  built;
+
+        rig.extension       = ".dsk";
+        rig.link.drives[0]  = Dos ("GAME");
+        rig.link.present[1] = false;
+        rig.link.layouts    = MakeLayouts (0);
+
+        auto  session = rig.Run();
+
+        Assert::AreEqual ((size_t) 1, session->GetManifest().GetRows().size());
+        Assert::IsTrue (session->GetManifest().GetRows()[0].file.ends_with (".woz"), L"A WOZ in place of the .dsk");
+        Assert::IsTrue (rig.link.measures == std::vector<int> { 1, NibblizationLayer::kTrackCount }, L"Track 0, then every track");
+
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (rig.link.drives[0], rig.link.layouts, built));
+        Assert::IsTrue (rig.io.files["C:\\Box\\" + session->GetManifest().GetRows()[0].file] == built, L"The WOZ is built to the layouts");
+        Assert::IsTrue (std::any_of (rig.link.reports.begin(), rig.link.reports.end(), [] (const std::string & line) { return line.find ("doesn't use volume 254") != std::string::npos && line.find ("its volume 0") != std::string::npos; }));
+    }
+
+    //  A disk with the volume its image is nibblized with, the DOS 3.3
+    //  catalog's here, is a sector image after a measure of track 0; with
+    //  the option off, no track is measured.
+    TEST_METHOD (Session_ADiskWithItsImagesVolume_OrWithTheOptionOff_IsASectorImage)
+    {
+        Rig  rig;
+        Rig  off;
+
+        rig.extension       = ".dsk";
+        rig.link.drives[0]  = Dos ("GAME");
+        rig.link.present[1] = false;
+        rig.link.layouts    = MakeLayouts (254);
+
+        auto  session = rig.Run();
+
+        Assert::IsTrue (session->GetManifest().GetRows()[0].file.ends_with (".dsk"));
+        Assert::IsTrue (rig.link.measures == std::vector<int> { 1 });
+
+        off.extension            = ".dsk";
+        off.link.drives[0]       = Dos ("GAME");
+        off.link.present[1]      = false;
+        off.link.layouts         = MakeLayouts (0);
+        off.protection.volumeWoz = false;
+
+        auto  unmeasured = off.Run();
+
+        Assert::IsTrue (unmeasured->GetManifest().GetRows()[0].file.ends_with (".dsk"));
+        Assert::IsTrue (off.link.measures.empty());
+    }
+
+    //  A disk captured raw after its sector read took the read's time and the
+    //  capture's, and both are active time.
+    TEST_METHOD (Session_ADiskCapturedRawAfterItsRead_TookTheReadAndTheCapture)
+    {
+        Rig               rig;
+        FullSendSnapshot  snapshot;
+
+        rig.link.drives[0]      = Other (1);
+        rig.link.badDisk        = rig.link.drives[0];
+        rig.link.badSectors     = { { 5, 0 }, { 6, 0 } };
+        rig.link.reportEmpty    = 3;
+        rig.link.present[1]     = false;
+        rig.link.readSeconds    = 30.0;
+        rig.link.captureSeconds = 300.0;
+
+        auto  session = rig.Run();
+
+        snapshot = rig.status.GetSnapshot();
+
+        Assert::IsTrue (std::any_of (rig.link.reports.begin(), rig.link.reports.end(), [] (const std::string & line) { return line.ends_with (". Took 5:30."); }), L"The disk's line has its time");
+        Assert::IsTrue (session->GetMessage().find ("5:30 active, ") != std::string::npos, L"The session's message has its active time");
+        Assert::AreEqual ((size_t) 1, rig.link.captures.size(), L"The disk is captured raw");
+        Assert::AreEqual ((size_t) 1, snapshot.disks.size());
+        Assert::AreEqual (330.0, snapshot.disks[0].seconds, 0.001, L"The disk's time");
+        Assert::AreEqual (330.0, snapshot.totals.elapsed, 0.001, L"The session's active time");
+    }
+
     TEST_METHOD (Session_WithBootTonesOnTheApple_TheResultsToneIsInPlaceOfTheDisks)
     {
         Rig  rig;
@@ -1111,7 +1014,7 @@ public:
 
         Rig  damaged;
 
-        damaged.link.drives[0]  = Dos ("HELLO");
+        damaged.link.drives[0]  = Dos ("GAME");
         damaged.link.badDisk    = damaged.link.drives[0];
         damaged.link.badSectors = { { 20, 3 } };
         damaged.link.present[1] = false;
@@ -1122,13 +1025,69 @@ public:
         Assert::AreEqual (std::string (FullSendManifest::kStatusDamaged), other->GetManifest().GetRows()[0].status);
     }
 
+    //  A disk that reads cleanly with a program that reads the disk drive's
+    //  data register itself, as Wizardry I's boot disk does, is captured raw;
+    //  saved as its sector copy with the likely copy-protected status when
+    //  the choice is to save it; and sent as any disk when its condition is
+    //  off.
+    TEST_METHOD (Session_ADiskWithDiskCode_IsCapturedRaw_OrMarked_ByTheChoices)
+    {
+        Image        buffer (NibblizationLayer::kImageByteSize, 0);
+        Image        disk;
+        FilePayload  payload;
+        Rig          capture;
+        Rig          marked;
+        Rig          off;
+
+
+
+        payload.type           = Dos33Volume::kTypeBinary;
+        payload.loadAddress    = 0x8A00;
+        payload.hasLoadAddress = true;
+
+        for (int i = 0; i < FullSendProtection::kDiskCodeReads; i++)
+        {
+            payload.bytes.insert (payload.bytes.end(), { 0xBD, 0x8C, 0xC0, 0x10, 0xFB, 0xEA, 0xEA });
+        }
+
+        AssertSucceeded (Dos33Skeleton::Write (buffer, 254));
+        AssertSucceeded (Dos33Volume (buffer).Write (FilePath::Parse ("GAME"), payload, disk));
+
+        for (Rig * rig : { &capture, &marked, &off })
+        {
+            rig->link.drives[0]  = disk;
+            rig->link.present[1] = false;
+        }
+
+        marked.protection.captureRaw = false;
+        off.protection.diskCode      = false;
+
+        auto  captured = capture.Run();
+        auto  saved    = marked.Run();
+        auto  sent     = off.Run();
+
+        Assert::IsTrue  (capture.link.captures == std::vector<int> { 1 }, L"Captured raw");
+        Assert::AreEqual (std::string (FullSendManifest::kStatusRawCapture), captured->GetManifest().GetRows()[0].status);
+        Assert::IsTrue  (std::any_of (capture.link.reports.begin(), capture.link.reports.end(), [] (const std::string & text) { return text.starts_with ("GAME on the disk in drive 1 accesses the disk drive directly"); }));
+
+        Assert::IsTrue  (marked.link.captures.empty(), L"Not captured when the choice is to save the sector copy");
+        Assert::AreEqual (std::string (FullSendManifest::kStatusProtected), saved->GetManifest().GetRows()[0].status);
+        Assert::AreEqual (std::string ("0001 GAME.dsk"), saved->GetManifest().GetRows()[0].file);
+        Assert::AreEqual (1, saved->GetScreen().prot);
+        Assert::AreEqual (std::string ("D1: Protected, sent 0001 GAME"), saved->GetScreen().GetRows()[3], L"Not captured raw");
+        Assert::AreEqual (std::string ("D1: Protected, captured raw 0001 GAME"), captured->GetScreen().GetRows()[3]);
+
+        Assert::IsTrue  (off.link.captures.empty(), L"Not captured with the condition off");
+        Assert::AreEqual (std::string (FullSendManifest::kStatusSent), sent->GetManifest().GetRows()[0].status);
+    }
+
     //  The Full Send window's model after a disk: its row, title, file
     //  system and tracks, the totals, the session's end and the lines.
     TEST_METHOD (Session_ADiskSent_IsInTheStatus_WithItsTitleTracksAndRow)
     {
         Rig  rig;
 
-        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.drives[0]  = Dos ("GAME");
         rig.link.present[1] = false;
 
         auto              session  = rig.Run();
@@ -1142,9 +1101,9 @@ public:
         Assert::AreEqual (1, snapshot.totals.sent);
         Assert::AreEqual ((uint64_t) NibblizationLayer::kImageByteSize, snapshot.totals.bytes);
         Assert::IsTrue (snapshot.drives[0].state == FullSendDiskState::Sent);
-        Assert::AreEqual (std::string ("0001 HELLO"), snapshot.drives[0].title);
+        Assert::AreEqual (std::string ("0001 GAME"), snapshot.drives[0].title);
         Assert::IsTrue (std::all_of (snapshot.drives[0].tracks.begin(), snapshot.drives[0].tracks.end(), [] (FullSendTrackMark mark) { return mark == FullSendTrackMark::Read; }));
-        Assert::IsTrue (std::any_of (snapshot.lines.begin(), snapshot.lines.end(), [] (const FullSendLine & line) { return line.text.find ("0001 HELLO.dsk") != std::string::npos; }));
+        Assert::IsTrue (std::any_of (snapshot.lines.begin(), snapshot.lines.end(), [] (const FullSendLine & line) { return line.text.find ("0001 GAME.dsk") != std::string::npos; }));
     }
 
     TEST_METHOD (Session_DoesNotReadADisk_UntilSpaceBegins)
@@ -1191,6 +1150,22 @@ public:
         Assert::AreEqual (std::string ("or press 1 to send D1 anyway."), rig.link.pauseLines.back()[4]);
     }
 
+    //  The drive of a disk already sent has the image it matches, not "No disk".
+    TEST_METHOD (Session_ADiskAlreadySent_HasTheImageItMatchesInTheStatus)
+    {
+        Rig  rig;
+
+        rig.link.drives[0]  = Other (1);
+        rig.link.present[1] = false;
+        rig.link.keys       = { FullSendKey::Space };
+
+        auto              session  = rig.Run();
+        FullSendSnapshot  snapshot = rig.status.GetSnapshot();
+
+        Assert::IsTrue   (snapshot.drives[0].state == FullSendDiskState::Duplicate);
+        Assert::AreEqual (session->GetManifest().GetRows()[0].file, snapshot.drives[0].title);
+    }
+
     //  Two Apples sending to one folder at once: the second session runs from
     //  start to end while the first is between reading its disk and writing it.
     TEST_METHOD (Session_TwoAtOnceInOneFolder_KeepEveryRow_AndNumberEachDisk)
@@ -1202,7 +1177,7 @@ public:
 
 
 
-        first.link.drives[0]    = Dos ("HELLO");
+        first.link.drives[0]    = Dos ("GAME");
         first.link.present[1]   = false;
         second.link.drives[0]   = Dos ("WORLD", 2);
         second.link.present[1]  = false;
@@ -1218,7 +1193,7 @@ public:
         AssertSucceeded (manifest.Parse (first.io.files["C:\\Box\\manifest.fullsend"]));
         Assert::AreEqual ((size_t) 2, manifest.GetRows().size());
         Assert::AreEqual (std::string ("0001 WORLD.dsk"), manifest.GetRows()[0].file);
-        Assert::AreEqual (std::string ("0002 HELLO.dsk"), manifest.GetRows()[1].file);
+        Assert::AreEqual (std::string ("0002 GAME.dsk"), manifest.GetRows()[1].file);
     }
 
     TEST_METHOD (Session_ADiskAnotherSessionSent_IsARepeat)
@@ -1228,7 +1203,7 @@ public:
 
 
 
-        first.link.drives[0]    = Dos ("HELLO");
+        first.link.drives[0]    = Dos ("GAME");
         first.link.present[1]   = false;
         second.link.drives[0]   = Image();
         second.link.present[1]  = false;
@@ -1241,7 +1216,7 @@ public:
             FullSendSession  session (first.link, second.io, [] () { return std::string ("2026-10-30T12:00:00Z"); }, kFolder, "", "");
 
             Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANCELLED), session.Run());
-            link.drives[0] = Dos ("HELLO");
+            link.drives[0] = Dos ("GAME");
         };
 
         second.Run();
@@ -1280,7 +1255,7 @@ public:
         Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1, 1 }));
         Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "0001.dsk", "0002.dsk", "manifest.fullsend" }));
         Assert::AreEqual (0, session->GetScreen().duplicates);
-        Assert::AreEqual (std::string ("D1: Sent 2"), session->GetScreen().GetRows()[3]);
+        Assert::AreEqual (std::string ("D1: Sent 0002"), session->GetScreen().GetRows()[3]);
     }
 
     TEST_METHOD (Session_DriveKey_WithNoDiskListed_DoesNothing)
@@ -1419,7 +1394,7 @@ public:
     {
         Rig  rig;
 
-        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.drives[0]  = Dos ("GAME");
         rig.link.present[1] = false;
 
         rig.Run();
@@ -1477,14 +1452,14 @@ public:
         Rig  rig;
 
         rig.prefix          = "Box 3-";
-        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.drives[0]  = Dos ("GAME");
         rig.link.drives[1]  = Other (2);
 
         auto  session = rig.Run();
 
-        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\Box 3-0001 HELLO.dsk"));
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\Box 3-0001 GAME.dsk"));
         Assert::IsTrue (rig.io.files.contains ("C:\\Box\\Box 3-0002.dsk"));
-        Assert::AreEqual (std::string ("Box 3-0001 HELLO.dsk"), session->GetManifest().GetRows()[0].file);
+        Assert::AreEqual (std::string ("Box 3-0001 GAME.dsk"), session->GetManifest().GetRows()[0].file);
     }
 
     TEST_METHOD (Session_PrefixTypedOnTheApple_BeginsEachImagesName)
@@ -1494,13 +1469,13 @@ public:
         rig.link.beginKey   = FullSendKey::Prefix;
         rig.link.keys       = { FullSendKey::Space };
         rig.link.typed      = { (Byte) 0xC2, (Byte) 0xCF, (Byte) 0xD8, (Byte) 0xDA, CassoLinkCodec::kKeyLeft, (Byte) 0xAD, CassoLinkCodec::kKeyReturn };
-        rig.link.drives[0]  = Dos ("HELLO");
+        rig.link.drives[0]  = Dos ("GAME");
         rig.link.present[1] = false;
 
         auto  session = rig.Run();
 
         Assert::AreEqual (std::string ("BOX-"), session->GetPrefix());
-        Assert::IsTrue   (rig.io.files.contains ("C:\\Box\\BOX-0001 HELLO.dsk"));
+        Assert::IsTrue   (rig.io.files.contains ("C:\\Box\\BOX-0001 GAME.dsk"));
         Assert::AreEqual (std::string ("Prefix: _"), rig.link.typedLines[0][1]);
         Assert::AreEqual (std::string ("Prefix: BOX-_"), rig.link.typedLines.back()[1]);
         Assert::AreEqual (std::string ("P: File name prefix: BOX-"), rig.link.pauseLines[0][2]);
@@ -1595,7 +1570,7 @@ public:
         auto  session = rig.Run();
 
         Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "0001.dsk", "0002.dsk", "manifest.fullsend" }));
-        Assert::AreEqual (std::string ("D1: Sent 2, dupe of 0001.dsk"), session->GetScreen().GetRows()[3]);
+        Assert::AreEqual (std::string ("D1: Sent 0002, dupe of 0001.dsk"), session->GetScreen().GetRows()[3]);
 
         const auto  & rows = session->GetManifest().GetRows();
 

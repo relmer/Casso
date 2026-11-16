@@ -66,6 +66,7 @@ public:
     void                                     HandleHomeRowAction     (int row, int action);
     static int                               GetIconBucketPx         (int iconPx);
     void                                     RefreshListIcons        ();
+    void                                     RefreshVolumeCells      ();
     void                                     RefreshContentDetails   ();
     void                                     StartLoaders            ();
     bool                                     TryApplyContentDetails  (int row, DxuiListView::Cell & name);

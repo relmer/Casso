@@ -1,31 +1,5 @@
 #include "Pch.h"
-#include "../EhmTestHelper.h"
-#include "../CaptureTests/FakeHostDialogs.h"
-#include "../CassoLink/FakeApple.h"
-#include "../CassoLink/InMemoryCassoLinkFolder.h"
-#include "../EmuTests/FakeDiskFileIo.h"
-#include "../EmuTests/FixtureProvider.h"
-#include "../UiTests/InMemoryFileSystem.h"
-#include "FakeDiskPictures.h"
-#include "FakeExplorerWindow.h"
-#include "FakeFolderWatcher.h"
-#include "RecordingExplorerServices.h"
-#include "CassoExplorer/CassoExplorerActions.h"
-#include "CassoExplorer/CassoExplorerBrowser.h"
-#include "CassoExplorer/CassoExplorerWindow.h"
-#include "CassoExplorer/Model/CassoLinkConnections.h"
-#include "CassoExplorer/Model/DiskImagePictures.h"
-#include "CassoExplorer/Window/ExplorerWindowParts.h"
-#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
-#include "CassoExplorer/Window/Panes/Preview/PreviewDiskThumbnail.h"
-#include "CassoLink/FullSend/FullSendManifest.h"
-#include "Core/AppMessages.h"
-#include "Core/AppTimerIds.h"
-#include "Core/TextEncoding.h"
-#include "Devices/Disk/DiskImageStore.h"
-#include "Devices/Disk/Partitions/PhysicalCards.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
-#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "ExplorerWindowPartsRig.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -47,116 +21,7 @@ TEST_CLASS (ExplorerWindowPartsTests)
 {
 public:
 
-    struct Rig
-    {
-        InMemoryFileSystem                       fs;
-        FakeDiskFileIo                           io;
-        CassoExplorerBrowser                     browser { fs, io };
-        CassoExplorerActions                     actions { browser, fs };
-        CassoExplorerPrefs                       prefs;
-        CassoExplorerWindowContext               app;
-        FakeFolderWatcher                        watcher;
-        FakeApple                                apple;
-        FakeAppleFactory                         factory { apple };
-        InMemoryCassoLinkFolder                  folder;
-        FakeDiskFileIo                           linkIo;
-        std::unique_ptr<CassoLinkConnections>    links;
-        DxuiDpiScaler                            scaler;
-        const DxuiTheme                        * theme   = nullptr;
-        FakeExplorerWindow                       window;
-        RecordingShellVerbs                    * verbs   = nullptr;
-        RecordingInfoTips                      * tips    = nullptr;
-        BlankShellIcons                        * icons   = nullptr;
-        FakeHostDialogs                        * dialogs = nullptr;
-        std::unique_ptr<ExplorerWindowParts>     parts;
-
-        Rig()
-        {
-            CassoLinkSettings  settings;
-            ExplorerServices   services;
-
-
-
-            settings.name      = "Test";
-            settings.transport = LinkTransport::Emulated;
-            settings.address   = "127.0.0.1:6502";
-            prefs.links        = { settings };
-            prefs.typedPaths   = { L"C:\\Disks", L"C:\\Games" };
-
-            links = std::make_unique<CassoLinkConnections> (factory, folder, linkIo);
-
-            app.fs      = &fs;
-            app.watcher = &watcher;
-            app.links   = links.get();
-
-            services.dialogs    = std::make_unique<FakeHostDialogs>();
-            services.shellIcons = std::make_unique<BlankShellIcons>();
-            services.infoTips   = std::make_unique<RecordingInfoTips>();
-            services.shellVerbs = std::make_unique<RecordingShellVerbs>();
-
-            icons   = static_cast<BlankShellIcons *>     (services.shellIcons.get());
-            tips    = static_cast<RecordingInfoTips *>   (services.infoTips.get());
-            verbs   = static_cast<RecordingShellVerbs *> (services.shellVerbs.get());
-            dialogs = static_cast<FakeHostDialogs *>     (services.dialogs.get());
-
-            parts = std::make_unique<ExplorerWindowParts> (window, browser, actions, prefs, app, scaler, theme, std::move (services));
-        }
-
-        ~Rig()
-        {
-            parts.reset();
-            links.reset();
-        }
-
-        //  A fixture image at a path on the in-memory host.
-        void  Seed (const char * fixture, const wchar_t * path)
-        {
-            FixtureProvider    fixtures;
-            std::vector<Byte>  bytes;
-            std::string        narrow;
-
-
-
-            AssertSucceeded (fixtures.OpenFixture (fixture, bytes));
-            AssertSucceeded (fs.WriteAllText (path, std::string (bytes.begin(), bytes.end())));
-
-            for (const wchar_t * p = path; *p != L'\0'; p++)
-            {
-                narrow.push_back ((char) *p);
-            }
-
-            io.files[narrow]  = bytes;
-            io.stamps[narrow] = FileStamp { bytes.size(), 100 };
-        }
-
-        //  A left click at the middle of the bounds, through the window's
-        //  input, as a real click arrives: a move, a press and a release.
-        void  Click (const RECT & bounds)
-        {
-            DxuiMouseEvent  mouse;
-
-
-
-            mouse.button      = DxuiMouseButton::Left;
-            mouse.positionDip = { (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
-
-            for (DxuiMouseEventKind kind : { DxuiMouseEventKind::Move, DxuiMouseEventKind::Down, DxuiMouseEventKind::Up })
-            {
-                mouse.kind = kind;
-                parts->input.HandleMouse (mouse);
-            }
-        }
-
-        //  What the window runs as it opens, in order, then its first layout.
-        void  Open()
-        {
-            parts->Prepare();
-            parts->CreateControls();
-            parts->Configure();
-            parts->layout.SetClient (RECT { 0, 0, 1280, 800 });
-            parts->layout.RecomputeLayout();
-        }
-    };
+    using Rig = ExplorerWindowPartsRig;
 
 
 
@@ -812,7 +677,7 @@ public:
         dialogs        = static_cast<FakeHostDialogs *> (rig.parts->services.dialogs.get());
         dialogs->picks = false;
 
-        rig.parts->cassoLinkManager.ReadDiskToImage (drive);
+        rig.parts->linkDrives.ReadDiskToImage (drive);
 
         Assert::AreEqual (1, dialogs->saves);
         Assert::IsTrue   (dialogs->lastSpec.title.starts_with (L"Create image from"));
@@ -837,10 +702,11 @@ public:
         dialogs        = static_cast<FakeHostDialogs *> (rig.parts->services.dialogs.get());
         dialogs->picks = false;
 
-        rig.parts->cassoLinkManager.WriteImageToDisk (drive);
+        rig.parts->linkDrives.WriteImageToDisk (drive);
 
         Assert::AreEqual (1, dialogs->opens);
         Assert::IsTrue   (dialogs->lastSpec.title.starts_with (L"Write image to"));
+        Assert::IsTrue   (dialogs->lastSpec.receivingDrive == ReceivingDrive { ReceivingDriveKind::Floppy525, 0 }, L"the picker lists the images a 5.25-inch drive can use");
         Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.dsk"), rig.browser.GetLocation().path);
     }
 
@@ -1487,30 +1353,6 @@ public:
     }
 
 
-    //  Polls `isDone`, with the window's message for loaded icons before each
-    //  poll, for up to kWaitMs: the icons are loaded on other threads.
-    static bool  WaitFor (Rig & rig, const std::function<bool()> & isDone)
-    {
-        static constexpr int  kWaitMs  = 5000;
-        static constexpr int  kPollMs  = 10;
-        auto                  deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (kWaitMs);
-        bool                  done     = isDone();
-
-
-
-        while (!done && std::chrono::steady_clock::now() < deadline)
-        {
-            std::this_thread::sleep_for (std::chrono::milliseconds (kPollMs));
-
-            rig.parts->HandleAppMessage ((UINT) AppMessage::ExplorerIconsLoaded, 0, 0);
-            rig.parts->preview.GetThumbnail().TakeResult();
-            done = isDone();
-        }
-
-        return done;
-    }
-
-
     //  In the large icon view, at 100% and at 150%, a disk image in a folder
     //  has its picture in place of the floppy, made at a size that covers
     //  the view's icon.
@@ -1538,7 +1380,7 @@ public:
             iconPx = rig.parts->listPane.GetListView()->GetViewIconPx();
             Assert::IsTrue (iconPx > 0);
 
-            loaded = WaitFor (rig, [&rig]()
+            loaded = Rig::WaitFor (rig, [&rig]()
             {
                 const std::vector<DxuiListView::Cell> &  cells = rig.parts->listPane.GetListRowCells (0);
 
@@ -1550,60 +1392,6 @@ public:
             Assert::IsFalse (pictures.GetLoaded().empty());
             Assert::AreEqual (std::wstring (L"C:\\Disks\\a.dsk"), pictures.GetLoaded()[0].first);
             Assert::IsTrue (pictures.GetLoaded()[0].second >= iconPx, std::format (L"A picture of {} px for an icon of {} px at {} dpi", pictures.GetLoaded()[0].second, iconPx, dpi).c_str());
-        }
-    }
-
-
-    //  The preview of a disk image has the picture of its screen and the
-    //  line with its boot result under it, at 100% and at 150%: beside the
-    //  platter in a wide pane, and three quarters as tall as it is wide. The
-    //  platter's analysis reads the file from the disk, so the image is in a
-    //  folder of the test's in the temporary folder as well.
-    TEST_METHOD (Preview_HasADiskImagesScreenAndResultLine_At100And150Percent)
-    {
-        for (UINT dpi : { 96u, 144u })
-        {
-            Rig                    rig;
-            FakeDiskPictures       pictures;
-            ThumbnailRecord        record;
-            bool                   isDrawn = false;
-            RECT                   screen  = {};
-            std::filesystem::path  folder  = std::filesystem::temp_directory_path() / std::format (L"CassoPreviewScreen{}_{}", ::GetCurrentProcessId(), dpi);
-            std::filesystem::path  image   = folder / L"a.dsk";
-
-
-
-            record.verdict      = "booted";
-            record.machine      = "Apple2eEnhanced";
-            pictures.resultLine = DiskImagePictures::DescribeRecord (record, false);
-
-            rig.app.pictures = &pictures;
-            rig.scaler.SetDpi (dpi);
-            rig.prefs.previewVisible = true;
-            rig.Seed ("CassoExplorer/dos33.dsk", image.c_str());
-            std::filesystem::create_directories (folder);
-            AssertSucceeded (DiskImageStore::WriteFileAtomically (image.string(), rig.io.files[image.string()]));
-            rig.Open();
-            Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
-            rig.parts->listPane.FillList();
-            Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
-            rig.parts->preview.FillPreview();
-
-            isDrawn = WaitFor (rig, [&rig]()
-            {
-                rig.parts->layout.RecomputeLayout();
-
-                return rig.parts->preview.GetThumbnail().IsScreenShown();
-            });
-
-            Assert::IsTrue (isDrawn, std::format (L"The screen's picture at {} dpi", dpi).c_str());
-            Assert::AreEqual (pictures.resultLine, rig.parts->preview.GetThumbnail().GetResultLine());
-
-            screen = rig.parts->preview.GetThumbnail().GetScreenRect();
-            Assert::AreEqual ((long) rig.scaler.ToPx (PreviewDiskThumbnail::kScreenDip), screen.right - screen.left);
-            Assert::AreEqual ((screen.right - screen.left) * 3 / 4, screen.bottom - screen.top);
-
-            std::filesystem::remove_all (folder);
         }
     }
 

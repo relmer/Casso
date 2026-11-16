@@ -129,25 +129,45 @@ Error:
 //  time, by which a backup or a sync would take the image for a changed one.
 //  An empty PNG deletes both streams.
 //
+//  A read-only image, made so that no emulator writes to the disk, has its
+//  streams written too: the attribute is cleared for the write and set
+//  again after it.
+//
+//  Nothing is touched on a drive with no streams, and the times are set
+//  again only after a stream is written or deleted. A file changed with no
+//  stream written would load a folder that Casso Explorer watches again, the
+//  thumbnail would be found, and the streams written again without end.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ThumbnailStore::WriteStreams (const std::filesystem::path & image, std::span<const Byte> png, const std::string & record)
 {
-    HRESULT                    hr       = S_OK;
-    WIN32_FILE_ATTRIBUTE_DATA  before   = {};
-    BOOL                       hasTimes = ::GetFileAttributesExW (image.c_str(), GetFileExInfoStandard, &before);
-    std::wstring               picture  = image.wstring() + kStreamName;
-    std::wstring               fields   = image.wstring() + kRecordStreamName;
-    HANDLE                     whole    = INVALID_HANDLE_VALUE;
+    HRESULT                    hr         = S_OK;
+    WIN32_FILE_ATTRIBUTE_DATA  before     = {};
+    BOOL                       hasTimes   = ::GetFileAttributesExW (image.c_str(), GetFileExInfoStandard, &before);
+    std::wstring               picture    = image.wstring() + kStreamName;
+    std::wstring               fields     = image.wstring() + kRecordStreamName;
+    HANDLE                     whole      = INVALID_HANDLE_VALUE;
+    bool                       isReadOnly = hasTimes && (before.dwFileAttributes & FILE_ATTRIBUTE_READONLY) != 0;
+    bool                       hasStreams = HasStreams (image);
+    bool                       isCleared  = false;
+    bool                       isTouched  = false;
 
 
 
     CBREx (hasTimes, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+    CBREx (hasStreams, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+    if (isReadOnly)
+    {
+        isCleared = ::SetFileAttributesW (image.c_str(), before.dwFileAttributes & ~FILE_ATTRIBUTE_READONLY) != FALSE;
+        CBREx (isCleared, HRESULT_FROM_WIN32 (::GetLastError()));
+    }
 
     if (png.empty())
     {
-        ::DeleteFileW (picture.c_str());
-        ::DeleteFileW (fields.c_str());
+        isTouched = ::DeleteFileW (picture.c_str()) != FALSE;
+        isTouched = ::DeleteFileW (fields.c_str()) != FALSE || isTouched;
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -159,14 +179,15 @@ HRESULT ThumbnailStore::WriteStreams (const std::filesystem::path & image, std::
 
         CBREx (file != INVALID_HANDLE_VALUE, HRESULT_FROM_WIN32 (::GetLastError()));
 
-        isDone = ::WriteFile (file, bytes.data(), (DWORD) bytes.size(), &written, nullptr) && written == (DWORD) bytes.size();
+        isTouched = true;
+        isDone    = ::WriteFile (file, bytes.data(), (DWORD) bytes.size(), &written, nullptr) && written == (DWORD) bytes.size();
         ::CloseHandle (file);
 
         CBREx (isDone, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
     }
 
 Error:
-    if (hasTimes)
+    if (isTouched)
     {
         whole = ::CreateFileW (image.c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     }
@@ -177,7 +198,38 @@ Error:
         ::CloseHandle (whole);
     }
 
+    if (isCleared)
+    {
+        ::SetFileAttributesW (image.c_str(), before.dwFileAttributes);
+    }
+
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailStore::HasStreams
+//
+//  Whether the image's drive has alternate data streams: NTFS and ReFS do,
+//  FAT and exFAT don't.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ThumbnailStore::HasStreams (const std::filesystem::path & image)
+{
+    wchar_t  volume[MAX_PATH] = {};
+    DWORD    flags            = 0;
+    BOOL     isFound          = ::GetVolumePathNameW (image.c_str(), volume, MAX_PATH);
+
+
+
+    isFound = isFound && ::GetVolumeInformationW (volume, nullptr, 0, nullptr, nullptr, &flags, nullptr, 0);
+
+    return isFound && (flags & FILE_NAMED_STREAMS) != 0;
 }
 
 
@@ -731,6 +783,37 @@ HRESULT ThumbnailStore::Remove (const std::filesystem::path & image)
         hrStream = WriteStreams (image, {}, std::string());
         IGNORE_RETURN_VALUE (hrStream, S_OK);
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThumbnailStore::RemoveAll
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ThumbnailStore::RemoveAll (const std::filesystem::path & image)
+{
+    HRESULT      hr       = S_OK;
+    HRESULT      hrStream = S_OK;
+    std::string  hash;
+
+
+
+    hr = GetHash (image, hash);
+    CHR (hr);
+
+    hr = RemoveForDeleted (hash);
+    CHR (hr);
+
+    hrStream = WriteStreams (image, {}, std::string());
+    IGNORE_RETURN_VALUE (hrStream, S_OK);
 
 Error:
     return hr;

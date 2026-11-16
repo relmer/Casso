@@ -8,6 +8,7 @@
 #include "Devices/Floppy35/Apple35ControllerCard.h"
 #include "Devices/Floppy35/LironCard.h"
 #include "Shell/Components/ShellDeskScene.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Capture/ScreenshotMetadata.h"
@@ -1539,7 +1540,7 @@ void ShellDeskScene::SyncSceneDriveChrome()
 
     for (int i = 0; i < comp.extraCount && i < m_deskScene.GetExtraCount(); i++)
     {
-        if ((IsFloppy35 (m_deskScene.GetExtraDrive (i)) || IsHardDisk (m_deskScene.GetExtraDrive (i))) && !IsRectEmpty (&comp.extraRectPx[i]))
+        if (TakesImage (m_deskScene.GetExtraDrive (i)) && !IsRectEmpty (&comp.extraRectPx[i]))
         {
             m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { comp.extraRectPx[i], DxuiHitSlot::Custom, kExtraDropTagBase + i });
         }
@@ -1556,7 +1557,7 @@ void ShellDeskScene::SyncSceneDriveChrome()
         {
             for (int i = 0; i < fan.GetEntryCount (c); i++)
             {
-                if (fan.IsSlotShown (c, i) && (IsFloppy35 (fan.GetDrive (c, i)) || IsHardDisk (fan.GetDrive (c, i))))
+                if (fan.IsSlotShown (c, i) && TakesImage (fan.GetDrive (c, i)))
                 {
                     m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { fan.GetSlotRect (c, i), DxuiHitSlot::Custom,
                                                                              kBarDropTagBase + c * kBarDropClassStride + i });
@@ -3825,6 +3826,24 @@ bool ShellDeskScene::IsHardDisk (const DeskDrive & drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDeskScene::TakesImage
+//
+//  A 3.5-inch drive, which mounts the image, or a hard disk, which attaches
+//  it after a confirmed restart.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::TakesImage (const DeskDrive & drive)
+{
+    return IsFloppy35 (drive) || IsHardDisk (drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDeskScene::IsDriveBusy
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -4225,7 +4244,7 @@ void ShellDeskScene::BrowseExtraDrive (int index)
     }
     else if (index >= 0 && index < m_deskScene.GetExtraCount())
     {
-        BrowseFloppy35 (m_deskScene.GetExtraDrive (index));
+        BrowseDeskDrive (m_deskScene.GetExtraDrive (index));
     }
 }
 
@@ -4235,34 +4254,16 @@ void ShellDeskScene::BrowseExtraDrive (int index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellDeskScene::BrowseFloppy35
+//  ShellDeskScene::BrowseDeskDrive
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDeskScene::BrowseFloppy35 (const DeskDrive & drive)
+void ShellDeskScene::BrowseDeskDrive (const DeskDrive & drive)
 {
-    HRESULT         hr     = S_OK;
-    FileDialogSpec  spec;
-    fs::path        chosen;
-    bool            picked = false;
-
-
-
-    BAIL_OUT_IF (!IsFloppy35 (drive), S_OK);
-
-    spec.filters = { { L"3.5-inch disk image", L"*.po;*.2mg;*.2img;*.dc;*.dc42;*.image;*.dsk;*.woz" }, { L"All files", L"*.*" } };
-
-    m_shell.m_chrome->HideTooltips();
-
-    hr = m_shell.m_hostDialogs.PickFileToOpen (m_shell.m_hwnd, spec, chosen, picked);
-    CHR (hr);
-    BAIL_OUT_IF (!picked, S_OK);
-
-    hr = m_shell.m_disks->Mount (drive.slot, drive.drive, chosen.wstring());
-    CHR (hr);
-
-Error:
-    return;
+    if (TakesImage (drive))
+    {
+        m_shell.m_drivePickers->OpenForDeskDrive (drive);
+    }
 }
 
 

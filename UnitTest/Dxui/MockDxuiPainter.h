@@ -76,10 +76,29 @@ public:
     void  SetClipRect       (const RECT * clipPx) override        { m_hasClip = (clipPx != nullptr); m_clip = m_hasClip ? *clipPx : RECT {}; }
     bool  GetClipRect       (RECT & clipPx) const override        { clipPx = m_clip; return m_hasClip; }
 
+    //  A pushed clip is in force until its pop, which puts back the one before.
+    void  PushClipRect      (float xPx, float yPx, float widthPx, float heightPx) override
+    {
+        m_saved.push_back ({ m_hasClip, m_clip });
+        m_hasClip = true;
+        m_clip    = RECT { (LONG) xPx, (LONG) yPx, (LONG) (xPx + widthPx), (LONG) (yPx + heightPx) };
+    }
+
+    void  PopClipRect       () override
+    {
+        if (!m_saved.empty())
+        {
+            m_hasClip = m_saved.back().first;
+            m_clip    = m_saved.back().second;
+            m_saved.pop_back();
+        }
+    }
+
 private:
     void  Record (RecordedPaintCall & call);
 
-    std::vector<RecordedPaintCall>  m_calls;
-    bool                            m_hasClip = false;
-    RECT                            m_clip    = {};
+    std::vector<RecordedPaintCall>        m_calls;
+    bool                                  m_hasClip = false;
+    RECT                                  m_clip    = {};
+    std::vector<std::pair<bool, RECT>>    m_saved;
 };

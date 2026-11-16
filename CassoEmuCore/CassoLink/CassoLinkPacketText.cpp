@@ -76,7 +76,11 @@ std::string CassoLinkPacketText::Describe (Byte command, std::span<const Byte> p
             return std::format ("Acknowledge, {} bytes", size);
 
         case CassoLinkCodec::kStatus:
-            return (size >= 5) ? std::format ("Status: drive {}, track {}, {} sectors done, {}", payload[1], payload[2], payload[3], GetErrorText (payload[4])) : std::string ("Status");
+            //  The drive byte has the disk's write-protect in bit 6.
+            return (size >= 5) ? std::format ("Status: drive {}{}, track {}, {} sectors done, {}", payload[1] & ~CassoLinkCodec::kStatusWriteProtected,
+                                              (payload[1] & CassoLinkCodec::kStatusWriteProtected) != 0 ? " (write-protected)" : "",
+                                              payload[2], payload[3], GetErrorText (payload[4]))
+                               : std::string ("Status");
 
         case CassoLinkCodec::kFormatTrack:
             return (size >= 3) ? std::format ("Format track: drive {}, track {}, volume {}", payload[0], payload[1], payload[2]) : std::string ("Format track");
@@ -86,6 +90,13 @@ std::string CassoLinkPacketText::Describe (Byte command, std::span<const Byte> p
 
         case CassoLinkCodec::kTimeDrive:
             return (size >= 3) ? std::format ("Time drive: drive {}, track {}, {} revolutions", payload[0], payload[1], payload[2]) : std::string ("Time drive");
+
+        case CassoLinkCodec::kMeasureTrack:
+            return (size >= 2) ? std::format ("Measure track: drive {}, track {}", payload[0], payload[1]) : std::string ("Measure track");
+
+        case CassoLinkCodec::kTrackMeasure:
+            return (size >= 5) ? std::format ("Track measure: {} nibbles from the step, {} in a turn, volume {}", payload[0] | (payload[1] << 8), payload[2] | (payload[3] << 8), payload[4])
+                               : std::string ("Track measure");
 
         case CassoLinkCodec::kSetSpeed:
             return (size >= 1) ? std::format ("Set speed: control {:02X}", payload[0]) : std::string ("Set speed");

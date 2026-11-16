@@ -239,9 +239,11 @@ public:
 
     //  Runs the dialog modally over `owner`, the format list starting at
     //  `formatIndex`. With `appleDrive`, the target is a linked Apple's drive
-    //  rather than an image file.
+    //  rather than an image file. The container and size lists start at
+    //  containerIndex and sizeIndex.
     static Outcome  Ask (HWND owner, const IDxuiTheme * theme, bool formatMode, const ExistsFn & exists = {},
-                         int formatIndex = CassoExplorerNewDiskChoices::kFormatDos33, const std::wstring & target = {}, bool appleDrive = false);
+                         int formatIndex = CassoExplorerNewDiskChoices::kFormatDos33, const std::wstring & target = {}, bool appleDrive = false,
+                         int containerIndex = 0, int sizeIndex = 0);
 
 protected:
     void  OnCreate     () override;
@@ -265,6 +267,8 @@ private:
     bool                  m_formatMode     = false;
     bool                  m_appleDrive     = false;
     int                   m_formatIndex    = CassoExplorerNewDiskChoices::kFormatDos33;
+    int                   m_containerIndex = 0;
+    int                   m_sizeIndex      = 0;
     std::wstring          m_target;
     bool                  m_fitted         = false;
     ExistsFn              m_exists;

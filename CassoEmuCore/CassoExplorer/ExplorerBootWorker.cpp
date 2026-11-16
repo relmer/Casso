@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/ExplorerBootWorker.h"
 #include "CassoExplorer/Model/PicturePreview.h"
+#include "CassoLink/FullSend/FullSendDisk.h"
 #include "CassoLink/FullSend/FullSendManifestFile.h"
 #include "Core/TextEncoding.h"
 #include "DiskCheck/BootTitle.h"
@@ -333,17 +334,24 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
         std::string  name     = TextEncoding::WideToNarrow (file.filename().wstring());
         std::string  titled   = (report.verdict == BootVerdict::Booted) ? MakeTitledName (name, record.title) : std::string();
         std::string  fromUser = FindGivenName (*fileIo, given, folder, name);
-        std::string  status;
+        FullSendRow  row;
         bool         renamed  = false;
 
-        hr = FullSendManifestFile::NoteBoot (*fileIo, folder, name, record.verdict, status);
+        hr = FullSendManifestFile::NoteBoot (*fileIo, folder, name, record.verdict, row);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        result.isComplete = status.empty() || status == FullSendManifest::kStatusSent || status == FullSendManifest::kStatusRawCapture;
+        //  An image with unreadable sectors is a failed capture, even when it
+        //  boots. The Apple's tone has the same rule.
+        result.isComplete = row.unreadable == 0;
 
-        //  A raw capture saved as a number is renamed with the user's earlier
-        //  name for its disk, or its title once it boots, as its disk has no
-        //  catalog to read a name from.
+        //  An image saved as a number is renamed with the user's earlier name
+        //  for its disk, or its title once it boots, or with neither, a DOS
+        //  3.3 disk's first program after HELLO.
+        if (titled.empty() && (format == DiskFormat::Dsk || format == DiskFormat::Do))
+        {
+            titled = MakeNumberedName (name, FullSendDisk::GetProgramTitle (bytes));
+        }
+
         titled = fromUser.empty() ? titled : fromUser;
 
         if (!titled.empty())

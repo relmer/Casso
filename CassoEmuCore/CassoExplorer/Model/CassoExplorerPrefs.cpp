@@ -542,12 +542,19 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("autoPreview",    JsonValue (autoPreview));
     root.emplace_back ("enterExpandsPreview", JsonValue (enterExpandsPreview));
     root.emplace_back ("autoThumbnails", JsonValue (autoThumbnails));
+    root.emplace_back ("rawCopyMenu",    JsonValue (rawCopyMenu));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
     root.emplace_back ("fullSendFolder", JsonValue (TextEncoding::WideToUtf8 (fullSendFolder)));
     root.emplace_back ("fullSendExtension", JsonValue (fullSendExtension));
     root.emplace_back ("verifyReads", JsonValue (verifyReads));
     root.emplace_back ("verifyWrites", JsonValue (verifyWrites));
     root.emplace_back ("autoVerify", JsonValue (autoVerify));
+    root.emplace_back ("protectReadErrors",   JsonValue (fullSendProtection.readErrors));
+    root.emplace_back ("protectUnrecognized", JsonValue (fullSendProtection.unrecognized));
+    root.emplace_back ("protectDiskCode",     JsonValue (fullSendProtection.diskCode));
+    root.emplace_back ("protectOtherBoot",    JsonValue (fullSendProtection.otherBoot));
+    root.emplace_back ("protectCaptureRaw",   JsonValue (fullSendProtection.captureRaw));
+    root.emplace_back ("volumeWoz",           JsonValue (fullSendProtection.volumeWoz));
     root.emplace_back ("bootSoundPlace", JsonValue ((double) bootSoundPlace));
 
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
@@ -742,6 +749,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("autoPreview",    autoPreview);
     root.HasBool ("enterExpandsPreview", enterExpandsPreview);
     root.HasBool ("autoThumbnails", autoThumbnails);
+    root.HasBool ("rawCopyMenu",    rawCopyMenu);
     root.HasBool ("lineAddresses",  lineAddresses);
     root.HasBool ("skipElevationNotice", skipElevationNotice);
     root.HasBool ("hexShowValues",  hexShowValues);
@@ -808,6 +816,12 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("verifyReads", verifyReads);
     root.HasBool ("verifyWrites", verifyWrites);
     root.HasBool ("autoVerify", autoVerify);
+    root.HasBool ("protectReadErrors",   fullSendProtection.readErrors);
+    root.HasBool ("protectUnrecognized", fullSendProtection.unrecognized);
+    root.HasBool ("protectDiskCode",     fullSendProtection.diskCode);
+    root.HasBool ("protectOtherBoot",    fullSendProtection.otherBoot);
+    root.HasBool ("protectCaptureRaw",   fullSendProtection.captureRaw);
+    root.HasBool ("volumeWoz",           fullSendProtection.volumeWoz);
     //  One of the places, and the PC for a number that isn't.
     {
         double  place = bootSoundPlace;
@@ -1057,8 +1071,35 @@ Error:
 
 HRESULT CassoExplorerPrefs::Load (const std::wstring & baseDir, IFileSystem & fs)
 {
+    HRESULT       hr      = S_OK;
+    std::wstring  path    = GetFilePath (baseDir);
+    bool          present = fs.Exists (path);
+
+
+
+    hr = LoadFile (path, fs);
+
+    if (!present)
+    {
+        theme = ReadCassoTheme (baseDir, fs);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::LoadFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerPrefs::LoadFile (const std::wstring & path, IFileSystem & fs)
+{
     HRESULT         hr      = S_OK;
-    std::wstring    path    = GetFilePath (baseDir);
     bool            present = fs.Exists (path);
     std::string     content;
     JsonValue       root;
@@ -1068,12 +1109,7 @@ HRESULT CassoExplorerPrefs::Load (const std::wstring & baseDir, IFileSystem & fs
 
     *this = CassoExplorerPrefs();
 
-    if (!present)
-    {
-        theme = ReadCassoTheme (baseDir, fs);
-
-        return S_OK;
-    }
+    BAIL_OUT_IF (!present, S_OK);
 
     hr = fs.ReadAllText (path, content);
     CHR (hr);
@@ -1100,6 +1136,21 @@ Error:
 
 HRESULT CassoExplorerPrefs::Save (const std::wstring & baseDir, IFileSystem & fs) const
 {
+    return SaveFile (GetFilePath (baseDir), fs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::SaveFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerPrefs::SaveFile (const std::wstring & path, IFileSystem & fs) const
+{
     HRESULT              hr = S_OK;
     std::string          text;
     JsonWriter::Options  options;
@@ -1109,7 +1160,7 @@ HRESULT CassoExplorerPrefs::Save (const std::wstring & baseDir, IFileSystem & fs
     hr = JsonWriter::Write (ToJson(), options, text);
     CHR (hr);
 
-    hr = fs.WriteAllText (GetFilePath (baseDir), text);
+    hr = fs.WriteAllText (path, text);
     CHR (hr);
 
 Error:

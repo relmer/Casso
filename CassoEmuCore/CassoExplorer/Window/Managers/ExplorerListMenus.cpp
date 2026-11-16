@@ -65,7 +65,7 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
     std::vector<DxuiListView::Column>  columns   = m_pane.GetColumns().GetListColumns();
     Location                           location  = m_context.browser.GetLocation();
     bool                               searching = SearchQuery::IsId (location.path);
-    bool                               results   = CollectionQuery::IsId (location.path);
+    bool                               results   = ExplorerListColumns::IsResultsList (location);
 
 
 
@@ -166,6 +166,12 @@ void ExplorerListMenus::ShowHomeItemMenu (int x, int y, int row)
     HWND                            hwnd = m_context.window.GetHwnd();
 
 
+
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
 
     if (row < 0 || (size_t) row >= m_context.browser.GetRows().size())
     {
@@ -389,6 +395,12 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     size_t                                           undoRow        = 0;
 
 
+
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
 
     //  Home's items have the shell's own menu: Add to Favorites, Remove from
     //  list and the rest are its commands.
@@ -835,14 +847,15 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
         }
 
-        //  Remove thumbnail restores the thumbnail made by booting.
-        if (selectedPaths.size() == 1 && m_context.app.pictures != nullptr && m_context.app.pictures->IsUserSet (selectedPaths[0]))
+        //  Remove thumbnail removes the thumbnail the user set, or with none
+        //  set, the one made by booting.
+        if (selectedPaths.size() == 1 && m_context.app.pictures != nullptr && m_context.app.pictures->HasThumbnail (selectedPaths[0]))
         {
             std::wstring  path = selectedPaths[0];
 
             m_context.menus.AddMenuCommand (items, L"Remove thum&bnail", [this, path]()
             {
-                HRESULT  removed = m_context.app.pictures->RemoveUserSet (path);
+                HRESULT  removed = m_context.app.pictures->RemoveThumbnail (path);
 
                 IGNORE_RETURN_VALUE (removed, S_OK);
             });
@@ -1261,7 +1274,7 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices (bool commandBa
         int                           id      = CassoExplorerCommands::kSortByColumn + (int) column;
         std::shared_ptr<DxuiCommand>  command;
 
-        if (!ExplorerListColumns::IsListColumnShown (column, chosen, m_context.browser.GetLocation().kind, SearchQuery::IsId (m_context.browser.GetLocation().path), CollectionQuery::IsId (m_context.browser.GetLocation().path)))
+        if (!ExplorerListColumns::IsListColumnShown (column, chosen, m_context.browser.GetLocation().kind, SearchQuery::IsId (m_context.browser.GetLocation().path), ExplorerListColumns::IsResultsList (m_context.browser.GetLocation())))
         {
             continue;
         }

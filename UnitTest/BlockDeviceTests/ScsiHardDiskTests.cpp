@@ -256,17 +256,17 @@ public:
     {
         FakeDiskFileIo        io;
         ScsiHardDisk          disk (6, 7);
-        BlockDeviceEventRing  ring;
+        auto                  ring = std::make_unique<BlockDeviceEventRing>();
         BlockDeviceEvent      event;
 
 
 
         AttachBlocks (io, disk, kBlocks);
-        disk.SetBlockDeviceEventSink (&ring);
+        disk.SetBlockDeviceEventSink (ring.get());
 
         Run (disk, { 0x08, 0, 0, 12, 4, 0 });
 
-        Assert::IsTrue   (ring.TryPop (event));
+        Assert::IsTrue   (ring->TryPop (event));
         Assert::AreEqual ((int) BlockDeviceOp::Read, (int) event.op);
         Assert::AreEqual (12u, event.firstBlock);
         Assert::AreEqual (4u,  event.blockCount);

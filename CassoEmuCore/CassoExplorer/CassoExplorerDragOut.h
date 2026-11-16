@@ -5,6 +5,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
+#include "CassoExplorer/RawCopyDropHandler.h"
 
 
 
@@ -56,9 +57,11 @@ public:
 
     //  The formats for the browser's current selection; empty when there is
     //  nothing to drag. `log`, when given, is set with which files the drop read
-    //  whole, so a move deletes only originals the target got intact.
+    //  whole, so a move deletes only originals the target got intact. With
+    //  `offerRawCopy`, a drag of files with a conversion is marked for
+    //  RawCopyDropHandler.
     static std::vector<DxuiDragDropSource::Format>  BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style,
-                                                                  std::shared_ptr<RenderLog> log = nullptr, bool raw = false);
+                                                                  std::shared_ptr<RenderLog> log = nullptr, bool raw = false, bool offerRawCopy = false);
 
     //  The same formats on the clipboard, for a paste into Explorer. A drag
     //  reads each file when the target asks, while it still holds the
@@ -120,7 +123,11 @@ public:
     static constexpr const wchar_t *  kFilesFormatName = L"CassoExplorer.Files";
 
     //  The marker above, as a format to offer.
-    static DxuiDragDropSource::Format  MakeFilesMarker ();
+    static DxuiDragDropSource::Format  MakeFilesMarker   ();
+
+    //  RawCopyDropHandler::kOfferedFormat, on a drag of files with a
+    //  conversion, so File Explorer's right-drag menu offers a raw copy.
+    static DxuiDragDropSource::Format  MakeRawCopyMarker ();
 
     //  A linked Apple's whole drive as one image file, its volume in its name:
     //  the drive's id for Casso Explorer's own drops, and the image's bytes,

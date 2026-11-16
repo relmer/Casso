@@ -176,6 +176,8 @@ void InspectorMenus::Rebuild()
     add (c.endComparison);
     separator();
     add (c.decodeSettings);
+    separator();
+    add (c.repair);
     menu (L"&Disk");
 
     add (c.windowZoomIn);

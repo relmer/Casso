@@ -393,8 +393,8 @@ public:
         Assert::IsTrue (data == pattern, L"the sector written reads back");
 
         rig.machine.RunCycles (kWaitCycles / 40);
-        Assert::AreEqual (std::string ("CASSOLINK: CONNECTED"),         rig.Row (kRowStatus));
-        Assert::AreEqual (std::string ("UTHERNET II, SLOT 3"),          rig.Row (kRowCard));
+        Assert::AreEqual (std::string ("CassoLink: Connected"),         rig.Row (kRowStatus));
+        Assert::AreEqual (std::string ("Uthernet II, slot 3"),          rig.Row (kRowCard));
         Assert::AreEqual (std::format ("127.0.0.1:{}", kPort),          rig.Row (kRowAddress), L"the address and port under the connection");
     }
 
@@ -481,7 +481,7 @@ public:
         AssertSucceeded (rig.host->SetColumns (true));
         rig.machine.RunCycles (kWaitCycles / 40);
 
-        Assert::IsTrue   (rig.Row80 (kRowStatus).ends_with ("UTHERNET II, SLOT 3"), TextEncoding::NarrowToWide (rig.Row80 (kRowStatus)).c_str());
+        Assert::IsTrue   (rig.Row80 (kRowStatus).ends_with ("Uthernet II, slot 3"), TextEncoding::NarrowToWide (rig.Row80 (kRowStatus)).c_str());
         Assert::AreEqual (std::string (80 - address.size(), ' ') + address, rig.Row80 (kRowCard), L"the address right-justified under the connection");
         Assert::AreEqual (std::string(), rig.Row80 (kRowAddress), L"and nothing on the row the address was on");
     }

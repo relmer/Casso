@@ -997,11 +997,11 @@ emulator targets are that session's.
 | 2. The expanded preview | On Release: expanded on a hi-res picture, a step to the next file and back, and Escape back to the list with the selection as it was. `ExpandedPreview_StepsWithinHalfASecond` measures the steps |
 | 3. Disk list and Find duplicates | `CollectionScaleTests` |
 | 4. Tokenize and renumber | `GuestVisibleBasicToolsTests` and `BasicCorpusFixtureTests` |
-| 5. Wizardry and Infocom | `GameDataTests` |
+| 5. Wizardry and Infocom | `GameDataTests`. Checked against the games in Casso 2026-11-14: `WizardryI_ACharacterMadeInTheGame_DecodesAsItsSheet` creates a fighter in Wizardry I and decodes the saved SCENARIO.DATA as the game's character sheet has it, and the Zork I tests boot the story to the room the decoded story opens in and decode a save made in the game |
 
 ### Findings left open
 
-T751 to T757 and T759 were fixed 2026-11-14. T758 is open.
+T751 to T759 were fixed 2026-11-14.
 
 - Bold and italic runs overlap the text after them in an AppleWorks or Teach
   document's preview (T751).
@@ -1039,7 +1039,7 @@ thumbnail cache is the user's, so nothing was cleared there.
 | `CassoCli disk thumbnail <image> <picture>` | the picture in the icon view and the preview pane, marked as set by the user |
 | `--out`, `--remove` with none set, no action, a file that isn't a picture | the PNG written, and each error as on the help page |
 | A picture set from the command line while the folder is in view | the icon redrawn with no refresh, after the cache watcher below |
-| Remove thumbnail on a disk image's menu | the item there for a picture the user set; the picture made by booting drawn again |
+| Remove thumbnail on a disk image's menu | the item there for an image with a thumbnail; a picture the user set removed and the picture made by booting drawn again; a second Remove removes that one |
 | Casso's "Save screenshot as disk 1's thumbnail" with a disk mounted | the screen, Arcticfox's title, as the image's thumbnail; byte-identical copies of the image have it too |
 | A folder of eight images with no thumbnails | "Capturing thumbnails: 8" in the status bar, gone once all eight were booted |
 | Options, General page | "Automatically create thumbnails for disk images by booting them headlessly and capturing the screen", checked; the Clear thumbnails button removed (owner) |
@@ -1067,3 +1067,22 @@ reported "did not boot" on the ][ plus once on 2026-11-14 at 10:55 and boots
 on the enhanced //e in every run since, ten of ten in
 `ImagesInAFolder_AreCheckedAsCassoExplorerChecksThem`; the cause wasn't found.
 
+## Boot check over the captures of 2026-11-13 (T730, SC-072)
+
+`ImagesInAFolder_AreProbed` booted each image saved from the owner's //c on
+2026-11-13, on an emulated //c in a Debug build, with `CASSO_PROBE_IMAGES` set
+to their folder. Each image took 4 to 10 seconds.
+
+| Image | Result |
+|---|---|
+| Wizardry I | booted |
+| Archon | booted |
+| Arcticfox | booted |
+| The Witness | booted |
+| One-on-One, the images that boot | booted |
+| One-on-One, the second bad capture | did not boot |
+
+Casso Explorer boots each image a Full Send saves on the machines of FR-275 in
+order: the model it was captured from, then the enhanced //e, then the ][ plus.
+`BootCheckTests::TheMachines_BeginWithTheModelCapturedFrom` tests the order, and
+the Wizardry I images of 2026-11-15 were checked that way after their Full Send.
