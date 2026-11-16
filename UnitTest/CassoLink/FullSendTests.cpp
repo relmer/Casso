@@ -454,7 +454,7 @@ public:
         Assert::AreEqual (std::string ("D2: On deck--Feed me, Seymour!"), screen.GetRows()[5]);
     }
 
-    TEST_METHOD (Session_ScreenName_HasNoLeadingZeros_AndTheMapMarksABadTrack)
+    TEST_METHOD (Session_ScreenName_HasTheImagesNumber_AndTheMapMarksABadTrack)
     {
         Rig  rig;
 
@@ -465,10 +465,10 @@ public:
 
         auto  session = rig.Run();
 
-        Assert::AreEqual (std::string ("1 GAME"), session->GetScreen().names[0]);
+        Assert::AreEqual (std::string ("0001 GAME"), session->GetScreen().names[0]);
         Assert::AreEqual ('X', session->GetScreen().maps[0][29]);
         Assert::AreEqual ('.', session->GetScreen().maps[0][28]);
-        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001 GAME.dsk"), L"the file keeps its zeros");
+        Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001 GAME.dsk"));
     }
 
     TEST_METHOD (Session_OnDeck_HasTheInstructionFirst_ThenAPromptLine)
@@ -1003,6 +1003,8 @@ public:
         Assert::AreEqual (std::string (FullSendManifest::kStatusProtected), saved->GetManifest().GetRows()[0].status);
         Assert::AreEqual (std::string ("0001 GAME.dsk"), saved->GetManifest().GetRows()[0].file);
         Assert::AreEqual (1, saved->GetScreen().prot);
+        Assert::AreEqual (std::string ("D1: Protected, sent 0001 GAME"), saved->GetScreen().GetRows()[3], L"Not captured raw");
+        Assert::AreEqual (std::string ("D1: Protected, captured raw 0001 GAME"), captured->GetScreen().GetRows()[3]);
 
         Assert::IsTrue  (off.link.captures.empty(), L"Not captured with the condition off");
         Assert::AreEqual (std::string (FullSendManifest::kStatusSent), sent->GetManifest().GetRows()[0].status);
@@ -1182,7 +1184,7 @@ public:
         Assert::IsTrue   (rig.link.diskReads == std::vector<int> ({ 1, 1 }));
         Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "0001.dsk", "0002.dsk", "manifest.fullsend" }));
         Assert::AreEqual (0, session->GetScreen().duplicates);
-        Assert::AreEqual (std::string ("D1: Sent 2"), session->GetScreen().GetRows()[3]);
+        Assert::AreEqual (std::string ("D1: Sent 0002"), session->GetScreen().GetRows()[3]);
     }
 
     TEST_METHOD (Session_DriveKey_WithNoDiskListed_DoesNothing)
@@ -1497,7 +1499,7 @@ public:
         auto  session = rig.Run();
 
         Assert::IsTrue   (rig.Files() == std::vector<std::string> ({ "0001.dsk", "0002.dsk", "manifest.fullsend" }));
-        Assert::AreEqual (std::string ("D1: Sent 2, dupe of 0001.dsk"), session->GetScreen().GetRows()[3]);
+        Assert::AreEqual (std::string ("D1: Sent 0002, dupe of 0001.dsk"), session->GetScreen().GetRows()[3]);
 
         const auto  & rows = session->GetManifest().GetRows();
 

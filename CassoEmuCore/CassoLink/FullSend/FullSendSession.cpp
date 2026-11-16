@@ -70,6 +70,7 @@ std::vector<std::string> FullSendScreen::GetRows() const
             case FullSendDriveState::Protected: row += "Protected, captured raw " + names[i]; break;
             case FullSendDriveState::Capturing: row += "Protected, capturing raw " + names[i]; break;
             case FullSendDriveState::Validating: row += "Validating image on PC, please wait"; break;
+            case FullSendDriveState::ProtectedSent: row += "Protected, sent " + names[i]; break;
             case FullSendDriveState::Changed:  row += "Changed while it was read"; break;
             case FullSendDriveState::OnDeck:
                 row += "On deck--";
@@ -1359,7 +1360,7 @@ HRESULT FullSendSession::SendDisk (int drive, const CheckedDisk & checked, bool 
     }
 
     m_lastSent = true;
-    SetDriveState (drive, isProtected ? FullSendDriveState::Protected : FullSendDriveState::Sent);
+    SetDriveState (drive, !raw.empty() ? FullSendDriveState::Protected : isProtected ? FullSendDriveState::ProtectedSent : FullSendDriveState::Sent);
 
     hr = m_link.ShowScreen (m_screen);
     m_screen.tone = FullSendTone::None;
@@ -1377,18 +1378,14 @@ Error:
 //
 //  FullSendSession::GetScreenName
 //
-//  The sequence number with no leading zeros and the disk's name, with no
-//  prefix, as the prefix is on every disk and the row is short.
+//  The image's number and the disk's name, with no prefix, as the prefix is
+//  on every disk and the row is short.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string FullSendSession::GetScreenName (int sequence, const std::string & catalogTitle)
 {
-    std::string  title = FullSendDisk::MakeImageTitle (sequence, catalogTitle, std::string());
-
-
-
-    return title.substr (title.find_first_not_of ('0'));
+    return FullSendDisk::MakeImageTitle (sequence, catalogTitle, std::string());
 }
 
 
