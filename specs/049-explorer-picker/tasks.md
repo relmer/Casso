@@ -104,7 +104,7 @@
 - [x] T029 [US2] Add `ImageVolumeFacts` (file system and volume name per image, a cache keyed like `ImageClassCache`, a worker modeled on `DiskThumbnailWorker` that reads the volume's directory header only) in `CassoEmuCore/CassoExplorer/Model/ImageVolumeFacts.h` and `.cpp`
 - [x] T030 [US2] Make `FileSystem` and `VolumeName` available in folder listings: change `CatalogModel::IsCollectionColumn` so they are no longer collection-only, fill them from `ImageVolumeFacts` as results arrive, and repaint only the rows that changed, in `CassoEmuCore/CassoExplorer/Model/CatalogModel.cpp` and the list pane
 - [x] T031 [US2] Stub the classification call in T027 to return `NotAnImage`, confirm T024 fails, restore and confirm it passes
-- [ ] T032 [US2] Measure per quickstart.md "Performance" in a Release build with a folder of 500 generated images and record the three times in `specs/049-explorer-picker/validation.md`
+- [x] T032 [US2] Measure per quickstart.md "Performance" in a Release build with a folder of 500 generated images and record the three times in `specs/049-explorer-picker/validation.md`
 
 **Checkpoint**: run `-Filter PickerColumn` and `-Filter CassoExplorer`; commit and push.
 
@@ -267,7 +267,7 @@
 - [x] T092 [P] Write `ScenarioTests/ImageClassifierScenarioTests.cpp`: for every fixture under `UnitTest/Fixtures/CiderPress/` and `Disks/` that the emulator mounts, the classification's form factor and size equal what the mount reports; a fixture that cannot be read fails the test; assert a non-zero count compared (SC-008)
 - [x] T093 Run `scripts\RunTests.ps1 -Build` and `scripts\RunTests.ps1 -Build -Scenario` and record both results in `specs/049-explorer-picker/validation.md`
 - [x] T094 Captures of the picker for each drive kind in a light and a dark theme, sent to the owner for the gestalt check; apply the owner's layout changes
-- [ ] T095 Window check of Casso Explorer as a file manager with a test copy that has no saved serial session: the two columns in an ordinary folder and the Casso node's list; restore only the preferences the run changed
+- [x] T095 Window check of Casso Explorer as a file manager with a test copy that has no saved serial session: the two columns in an ordinary folder and the Casso node's list; restore only the preferences the run changed
 - [x] T096 Draft the `CHANGELOG.md` entries under `[Unreleased]` (one terse line each: the picker and its save form, the columns, the Casso node's list, the drop cursor, the recent list's size) and the `README.md` changes, and get the owner's approval of the text before pushing them
 - [x] T097 Update `docs/` pages about inserting a disk or the insert disk dialog, found by `rg -il "insert disk" docs README.md`
 - [x] T098 Merge `origin/048-smartport-drives`, run `scripts\CheckStyle.ps1 -Mode Tree`, then `scripts\RunMergeGate.ps1`; record the results in `specs/049-explorer-picker/validation.md`; push; merge to another branch only on the owner's instruction
