@@ -93,17 +93,16 @@ int DiskPortChainRule::GetDriveLimit (const MachineConfig & config, const std::s
 
 bool DiskPortChainRule::CanPlugIn (const MachineConfig & config, const std::string & device)
 {
-    constexpr int  s_kcPortDrivesMax = 3;
-    int            total             = 0;
+    size_t  total = 0;
 
 
 
     for (const PortConfig & port : config.ports)
     {
-        total += (int) port.chain.size();
+        total += port.chain.size();
     }
 
-    return total < s_kcPortDrivesMax && CountDrives (config, device) < GetDriveLimit (config, device);
+    return total < MachineConfigLoader::kMaxChainDrives && CountDrives (config, device) < GetDriveLimit (config, device);
 }
 
 

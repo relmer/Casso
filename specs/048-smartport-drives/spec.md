@@ -128,17 +128,18 @@ the interaction, sound and event log the Disk II already has.
 
 - Q: Where are external drives plugged into the //c Plus's disk port? A: In
   the Storage menu, which has "Plug in a 3.5-inch drive" and "Plug in a
-  5.25-inch drive" on the //c Plus, each disabled at two drives of its kind,
-  in place of the //c's "Attach external drive". The same rows are on each
+  5.25-inch drive" on the //c Plus, each left out while the port has no
+  room for its kind, in place of the //c's "Attach external drive". The same rows are on each
   drive's right-click menu, and a drive on the port has "Unplug drive" there
   (for the 5.25-inch drives, the last one). A confirmation states that the
   change restarts the machine, as for a hard disk image change. On Restart
   the chain is saved with the machine and the machine is rebuilt with it.
 - Q: How many drives does the //c Plus's port take, and can one be changed
   for the other size? A: Three in all, as the //c Technical Reference (2nd
-  edition) lists, with up to two 5.25-inch drives. The reference lists one
-  Apple 3.5 Drive; the port takes two, since ROM 05 numbers a second one
-  and boots past it. A plug-in row is left out of the menus while the
+  edition) lists: at most one Apple 3.5 Drive, then UniDisk 3.5 drives, then
+  at most two 5.25-inch drives. The //c's port also takes three: UniDisk 3.5
+  drives, then at most one 5.25-inch drive. A machine whose chain is over a
+  limit or out of that order fails to load, with the reason. A plug-in row is left out of the menus while the
   port has no room for its kind. A drive with "Unplug drive" also has "Swap
   for a 5.25-inch drive" or "Swap for a 3.5-inch drive" while the port has
   room for the other size, which removes it and plugs in one of the other
