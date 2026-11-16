@@ -178,6 +178,9 @@ public:
     void  SetPath    (const std::wstring & path);
     void  TakeResult ();
 
+    //  The image in the pane, renamed from one path to the other.
+    void  MovePath   (const std::wstring & from, const std::wstring & to);
+
     //  The picture of the image's screen and its result, read again: a
     //  picture that was missing has been made.
     void  RefreshScreen ();

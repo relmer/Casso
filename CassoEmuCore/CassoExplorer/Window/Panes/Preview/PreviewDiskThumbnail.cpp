@@ -443,6 +443,31 @@ void PreviewDiskThumbnail::SetPath (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewDiskThumbnail::MovePath
+//
+//  The result read from the image moves to its new path, so the pane isn't
+//  laid out again when the renamed file is selected. An image that is being
+//  read is read again under the new path by SetPath.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDiskThumbnail::MovePath (const std::wstring & from, const std::wstring & to)
+{
+    if (m_path.empty() || m_state == State::Analyzing || _wcsicmp (m_path.c_str(), from.c_str()) != 0)
+    {
+        return;
+    }
+
+    m_path        = to;
+    m_result.path = to;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewDiskThumbnail::RefreshScreen
 //
 //  An image with no picture yet is queued to be booted by the read, and the

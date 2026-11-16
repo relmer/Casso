@@ -1778,6 +1778,77 @@ public:
     }
 
 
+    //  After F2 renames the disk image in the preview pane, the thumbnail isn't
+    //  read again and the pane isn't laid out again.
+    TEST_METHOD (Rename_OfTheImageInThePreview_KeepsItsThumbnail)
+    {
+        Rig                    rig;
+        DxuiKeyEvent           key;
+        vector<Byte>           bytes   = RepairFixtures::MakeDos33Bitmap().damaged;
+        std::filesystem::path  folder  = std::filesystem::temp_directory_path() / std::format (L"CassoPreviewRename{}", ::GetCurrentProcessId());
+        std::filesystem::path  before  = folder / L"a.dsk";
+        std::filesystem::path  after   = folder / L"b.dsk";
+        LONG                   top     = 0;
+
+
+
+        rig.prefs.previewVisible = true;
+        std::filesystem::create_directories (folder);
+        AssertSucceeded (rig.fs.WriteAllText (before.c_str(), std::string (bytes.begin(), bytes.end())));
+        rig.io.files[before.string()]  = bytes;
+        rig.io.stamps[before.string()] = FileStamp { bytes.size(), 100 };
+        AssertSucceeded (DiskImageStore::WriteFileAtomically (before.string(), bytes));
+
+        rig.verbs->onRename = [&] (const std::wstring &, const std::wstring &)
+        {
+            AssertSucceeded (rig.fs.WriteAllText (after.c_str(), std::string (bytes.begin(), bytes.end())));
+            AssertSucceeded (rig.fs.Delete (before.wstring()));
+            rig.io.files[after.string()]  = bytes;
+            rig.io.stamps[after.string()] = FileStamp { bytes.size(), 100 };
+            rig.io.files.erase (before.string());
+            rig.io.stamps.erase (before.string());
+            std::filesystem::rename (before, after);
+            return S_OK;
+        };
+
+        rig.Open();
+        rig.parts->layout.SetClient (RECT { 0, 0, rig.scaler.ToPx (1280), rig.scaler.ToPx (900) });
+        Assert::IsTrue (rig.browser.NavigateToAddress (folder.wstring()));
+        rig.parts->listPane.FillList();
+        Assert::IsTrue (rig.parts->listPane.SelectRowNamed (L"a.dsk"));
+        rig.parts->preview.FillPreview();
+
+        Assert::IsTrue (WaitFor (rig, [&rig]()
+        {
+            rig.parts->layout.RecomputeLayout();
+
+            return rig.parts->preview.GetThumbnail().IsReady();
+        }));
+
+        rig.parts->layout.RecomputeLayout();
+        top = rig.parts->preview.GetContentRect().top;
+
+        rig.parts->rename.BeginRename();
+
+        key.kind = DxuiKeyEventKind::Char;
+        key.vk   = L'b';
+        rig.parts->rename.HandleRenameKey (key);
+        key.kind = DxuiKeyEventKind::Down;
+        key.vk   = VK_RETURN;
+        rig.parts->rename.HandleRenameKey (key);
+
+        rig.parts->preview.FillPreview();
+        rig.parts->layout.RecomputeLayout();
+
+        Assert::AreEqual (after.wstring(), rig.parts->preview.GetThumbnail().GetPath());
+        Assert::IsTrue   (rig.parts->preview.GetThumbnail().IsReady(), L"the thumbnail isn't read again");
+        Assert::IsTrue   (rig.parts->preview.GetThumbnail().GetVerdict().IsVisible(), L"its infobar stays");
+        Assert::AreEqual (top, rig.parts->preview.GetContentRect().top, L"the catalog stays put");
+
+        std::filesystem::remove_all (folder);
+    }
+
+
     //  In a pane too short for a disk image's thumbnail and catalog, the wheel
     //  scrolls the thumbnail away before the catalog, clipped under the
     //  toolbar, and back again, at 100% and at 150%.

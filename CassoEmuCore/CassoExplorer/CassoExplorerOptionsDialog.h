@@ -295,8 +295,6 @@ public:
 
         //  The folder picker over the dialog; ioFolder changes when one is picked.
         std::function<void (HWND owner, std::wstring & ioFolder)>  pickFolder;
-
-        //  Clear thumbnails, with its confirmation over the dialog.
     };
 
     //  The host file name forms, in the order the setting stores them.

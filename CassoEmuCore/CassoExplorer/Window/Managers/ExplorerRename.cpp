@@ -11,6 +11,8 @@
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerManifestSync.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/Window/Panes/Preview/PreviewDiskThumbnail.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Core/TextEncoding.h"
@@ -318,6 +320,7 @@ void ExplorerRename::EndRename (bool commit)
                 m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::HostRename, Location(), { (std::filesystem::path (path).parent_path() / newName).wstring() }, oldName, newName });
                 m_context.manifestSync.NoteRename (path, newName);
                 m_context.actions.GetA2retroNet().NoteMove (path, (std::filesystem::path (path).parent_path() / newName).wstring());
+                m_context.preview.GetThumbnail().MovePath (path, (std::filesystem::path (path).parent_path() / newName).wstring());
             }
         }
 
