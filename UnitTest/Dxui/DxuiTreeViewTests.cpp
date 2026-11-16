@@ -165,6 +165,29 @@ public:
     }
 
 
+    //  A row half below the tree is clipped to the rows' area: its check box
+    //  and chevron are not drawn under the tree.
+    TEST_METHOD (Paint_ClipsARowHalfBelowTheTree)
+    {
+        DxuiTreeView          tv = MakeTallTree (10, 110);
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+
+
+        tv.Paint (painter, text, theme);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            if (call.y + call.height > 110.0f)
+            {
+                Assert::IsTrue (call.isClipped && call.clip.bottom <= 110, L"a fill past the bottom of the tree is clipped to it");
+            }
+        }
+    }
+
+
     TEST_METHOD (Scroll_IsNotOfferedWhenEveryRowFits)
     {
         DxuiTreeView  tv = MakeTallTree (3, 100);

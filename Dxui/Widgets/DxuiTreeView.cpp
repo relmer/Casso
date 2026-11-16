@@ -1205,6 +1205,10 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                             (float) GetContentHeightPx());
     IGNORE_RETURN_VALUE (hr, S_OK);
 
+    //  The chevrons and check boxes are painted, so the painter is clipped as
+    //  well: a row half below the pane drew its chevron under the tree.
+    painter.PushClipRect ((float) m_boundsDip.left, (float) m_boundsDip.top, (float) GetContentWidthPx(), (float) GetContentHeightPx());
+
     for (i = first; i < last; ++i)
     {
         const FlatRow       & fr          = m_flatRows[(size_t) i];
@@ -1424,6 +1428,8 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     hr = text.PopClipRect();
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    painter.PopClipRect();
 
     if (IsScrollbarVisible())
     {
