@@ -250,6 +250,41 @@ void BlockMapView::GetCellsInView (const RECT & grid, int & outFirstColumn, int 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockMapView::Regrid
+//
+//  The grid at the zoom as it is now. While each cell is the same blocks as
+//  before, only the cells' places change: the roles and the highlight
+//  already read are reused, and a zoom or a frame of a flight reads only
+//  the labels in view. Otherwise, the cells are read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMapView::Regrid()
+{
+    RECT          grid = GetGridRect();
+    BlockMapGrid  fit  = BlockMapGrid (m_blockCount, (int) (grid.right - grid.left), (int) (grid.bottom - grid.top));
+    BlockMapGrid  next = m_zoom <= 1.0 ? fit : BlockMapGrid (m_blockCount, fit.GetBlockColumns(), fit.GetBlockPx() * m_zoom);
+
+
+
+    if (next.GetCellCount() != m_grid.GetCellCount() || next.GetGroup() != m_grid.GetGroup() || next.GetColumns() != m_grid.GetColumns()
+        || m_roles.size() != next.GetCellCount())
+    {
+        Refresh();
+        return;
+    }
+
+    m_grid = next;
+    ClampPan();
+    ReadLabels (grid);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockMapView::BuildStops
 //
 //  Even steps from the whole volume up to the zoom at which a cell of one
@@ -346,7 +381,7 @@ void BlockMapView::ZoomAbout (double zoom, POINT anchorPx)
     m_panY = (ay + m_panY) * ratio - ay;
     m_zoom = zoom;
 
-    Refresh();
+    Regrid();
 }
 
 
@@ -483,7 +518,7 @@ bool BlockMapView::StepFlight (double nowMs)
     m_panY     = -view.pan.y;
     m_isFlying = t < 1.0;
 
-    Refresh();
+    Regrid();
 
     return m_isFlying;
 }
@@ -544,7 +579,7 @@ void BlockMapView::Fit()
     m_panY     = 0.0;
     m_isFlying = false;
 
-    Refresh();
+    Regrid();
 }
 
 

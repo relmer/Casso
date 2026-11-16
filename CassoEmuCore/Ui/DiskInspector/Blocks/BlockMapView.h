@@ -132,6 +132,7 @@ private:
     void             BuildStops     ();
     void             ZoomAbout      (double zoom, POINT anchorPx);
     void             ClampPan       ();
+    void             Regrid         ();
     int64_t          FindCellAt     (POINT pointPx) const;
 
     //  Views as the platter's flight has them: a point d of the fit grid, in

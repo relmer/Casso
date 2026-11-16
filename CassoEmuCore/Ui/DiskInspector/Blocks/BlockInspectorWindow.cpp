@@ -360,6 +360,14 @@ void BlockInspectorWindow::RenderIfChanged()
     m_status.Tick (GetHwnd());
     m_tooltip.Tick ((int64_t) GetTickCount64());
 
+    //  The window's context menus open with an animation each frame
+    //  advances, as the disk inspector's do.
+    if (GetPopupHost() != nullptr && GetPopupHost()->GetContextMenu().WantsTick())
+    {
+        GetPopupHost()->GetContextMenu().Tick ((int64_t) GetTickCount64());
+        m_isDirty = true;
+    }
+
     if (m_panel->GetMap().IsFlying())
     {
         m_panel->GetMap().StepFlight (InspectorMarquee::GetClockMs());
