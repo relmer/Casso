@@ -3,6 +3,8 @@
 #include "../CaptureTests/FakeHostDialogs.h"
 #include "../CassoLink/FakeApple.h"
 #include "../CassoLink/InMemoryCassoLinkFolder.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "../Inspector/RepairFixtures.h"
@@ -1653,14 +1655,17 @@ public:
         for (UINT dpi : { 96u, 144u })
         {
             Rig                    rig;
-            bool                   isDrawn = false;
-            std::filesystem::path  folder  = std::filesystem::temp_directory_path() / std::format (L"CassoPreviewScroll{}_{}", ::GetCurrentProcessId(), dpi);
-            std::filesystem::path  image   = folder / L"bad.dsk";
-            std::string            narrow  = image.string();
-            RECT                   start   = {};
-            RECT                   banner  = {};
-            RECT                   moved   = {};
-            RECT                   bar     = {};
+            bool                   isDrawn  = false;
+            std::filesystem::path  folder   = std::filesystem::temp_directory_path() / std::format (L"CassoPreviewScroll{}_{}", ::GetCurrentProcessId(), dpi);
+            std::filesystem::path  image    = folder / L"bad.dsk";
+            std::string            narrow   = image.string();
+            RECT                   start    = {};
+            RECT                   banner   = {};
+            RECT                   moved    = {};
+            RECT                   bar      = {};
+            LONG                   catalogY = 0;
+            MockDxuiTextRenderer   text;
+            MockDxuiTheme          theme;
             DxuiMouseEvent         wheel;
 
             rig.scaler.SetDpi (dpi);
@@ -1731,6 +1736,32 @@ public:
             rig.parts->preview.SyncScrollbar();
             Assert::IsTrue   (rig.parts->preview.GetThumbnail().GetVerdict().GetBounds().top < banner.top, L"the bar scrolls the thumbnail");
             Assert::AreEqual (rig.scaler.ToPx (40), rig.parts->preview.GetThumbnail().GetScrollbar().GetPos());
+
+            //  Scrolled to the end, with the catalog in view beside the bar.
+            isDrawn = WaitFor (rig, [&rig, &text, &theme]()
+            {
+                static_cast<DxuiTextView *> (rig.parts->preview.GetText().GetControl())->Measure (text, theme);
+                rig.parts->layout.RecomputeLayout();
+                rig.parts->preview.ScrollTo (rig.scaler.ToPx (100000));
+
+                return rig.parts->preview.GetContentRect().bottom - rig.parts->preview.GetContentRect().top > rig.scaler.ToPx (40);
+            });
+
+            Assert::IsTrue (isDrawn, std::format (L"the catalog in view at {} dpi", dpi).c_str());
+
+            rig.parts->preview.SyncScrollbar();
+
+            //  The arrow over the bar, from its left edge to its right, though
+            //  the catalog beside it is the I-beam.
+            bar      = rig.parts->preview.GetThumbnail().GetScrollbar().GetBounds();
+            catalogY = (rig.parts->preview.GetContentRect().top + rig.parts->preview.GetContentRect().bottom) / 2;
+
+            for (LONG x : { bar.left, (bar.left + bar.right) / 2, bar.right - 1 })
+            {
+                Assert::IsTrue (rig.parts->input.GetCursorForPoint (POINT { x, catalogY }) == IDC_ARROW, std::format (L"the arrow over the bar at x {}, {} dpi", x, dpi).c_str());
+            }
+
+            Assert::IsTrue (rig.parts->input.GetCursorForPoint (POINT { bar.left - rig.scaler.ToPx (20), catalogY }) == IDC_IBEAM, std::format (L"the I-beam over the catalog at {} dpi", dpi).c_str());
 
             std::filesystem::remove_all (folder);
         }
