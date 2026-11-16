@@ -383,6 +383,30 @@ public:
         Assert::IsTrue (rig->window.closed);
     }
 
+    //  A stock disk has no type, so the status bar has its size alone, and
+    //  nothing for one that isn't downloaded.
+    TEST_METHOD (Picker_StockDiskStatus_HasNoStrayComma)
+    {
+        auto           rig = std::make_unique<Rig>();
+        PickerRequest  request;
+
+
+
+        request.form           = PickerForm::DriveWindow;
+        request.receivingDrive = ReceivingDrive { ReceivingDriveKind::Floppy525, 0 };
+        request.stockDisks     = { { L"DOS 3.3 System Master", L"C:\\Stock\\DOS 3.3 System Master.dsk", true }, { L"ProDOS 2.4.3", L"C:\\Stock\\ProDOS 2.4.3.po", false } };
+
+        rig->app.picker = &request;
+        rig->Open();
+        rig->browser.NavigateToLocation (Location::MakeRoot (TreeModel::kStockDisksId));
+
+        rig->browser.SetSelectedRows ({ 0 });
+        Assert::AreEqual (std::wstring (L"140 KB"), rig->browser.GetStatus().detail);
+
+        rig->browser.SetSelectedRows ({ 1 });
+        Assert::AreEqual (std::wstring(), rig->browser.GetStatus().detail);
+    }
+
     //  A save form returns the name in its box, in the folder listed. A file
     //  already there is replaced only on a yes.
     TEST_METHOD (PickerSaveForm_ReturnsTheTypedName_AndAsksBeforeReplacing)

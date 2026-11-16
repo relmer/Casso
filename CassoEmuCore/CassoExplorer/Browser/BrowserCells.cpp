@@ -112,18 +112,22 @@ void BrowserCells::UpdateStatus()
 
     if (m_browser.m_selectedRows.size() == 1)
     {
-        const CatalogRow &  row = m_browser.m_rows[m_browser.m_selectedRows[0]];
+        const CatalogRow &  row    = m_browser.m_rows[m_browser.m_selectedRows[0]];
+        std::wstring      & detail = m_browser.m_status.detail;
+        bool                sized  = !row.isDirectory && !(m_browser.IsHomeLocation() && row.hostPath.empty()) && !(row.isStockDisk && !row.stockDownloaded);
 
-        m_browser.m_status.detail = row.typeText;
+        //  The type, size and address that the row has, with a comma between
+        //  each two. A stock disk has no type.
+        detail = row.typeText;
 
-        if (!row.isDirectory)
+        if (sized)
         {
-            m_browser.m_status.detail += (m_browser.IsHomeLocation() && row.hostPath.empty()) ? std::wstring() : L", " + FormatSize (row.sizeBytes);
+            detail += (detail.empty() ? L"" : L", ") + FormatSize (row.sizeBytes);
         }
 
         if (!row.addressText.empty())
         {
-            m_browser.m_status.detail += L", " + row.addressText;
+            detail += (detail.empty() ? L"" : L", ") + row.addressText;
         }
     }
 
