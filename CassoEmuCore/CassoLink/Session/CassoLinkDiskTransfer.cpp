@@ -68,7 +68,8 @@ HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
     CHR (hr);
 
     hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) operation.drive, module, date,
-                                    [this, &operation] (const CassoLinkCapture::Progress & where) { ReportCapture (operation, where); }, result);
+                                    [this, &operation] (const CassoLinkCapture::Progress & where) { ReportCapture (operation, where); }, result,
+                                    CassoLinkCapture::kTracks - 1, [this] () { return m_session.m_canceled.load(); });
     CHR (hr);
 
     //  A capture with no track that repeats is an empty drive or a disk with

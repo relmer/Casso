@@ -62,8 +62,9 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
 
     operation.message         = session.GetMessage();
     operation.imagePrefix     = session.GetPrefix();
-    operation.fullSendSummary = std::format ("{} sent, {} bad, {} dup", session.GetScreen().sent, session.GetScreen().bad, session.GetScreen().duplicates);
-    m_session.m_sink.OnActivity (operation.message);
+    //  The Apple's history line: how the session ended and its counts.
+    operation.fullSendSummary = std::format ("{}: {} sent, {} bad, {} dup", session.GetEndReason() == FullSendSession::EndReason::Canceled ? "Ended on PC" : "Full Send",
+                                             session.GetScreen().sent, session.GetScreen().bad, session.GetScreen().duplicates);
     m_operation       = nullptr;
 
     for (size_t i = 0; i < CassoLinkSessionTypes::kDriveCount; i++)
@@ -556,7 +557,8 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, bool withEarlier, std::vector<
     CHR (hr);
 
     hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) drive, module, date,
-                                    [this, drive] (const CassoLinkCapture::Progress & where) { NoteCapture (drive, where); }, result);
+                                    [this, drive] (const CassoLinkCapture::Progress & where) { NoteCapture (drive, where); }, result,
+                                    CassoLinkCapture::kTracks - 1, [this] () { return m_canceled.load(); });
     CHR (hr);
 
     //  A disk captured again has the reads of both captures for each

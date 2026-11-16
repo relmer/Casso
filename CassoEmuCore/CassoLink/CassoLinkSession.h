@@ -223,6 +223,7 @@ private:
     std::array<std::optional<VolumeListing>, 2>    m_listings;
     std::array<std::atomic<VolumeKind>, 2>         m_chosenKinds = {};
     std::atomic<bool>                              m_stopping    { false };   // Stop closed the line
+    std::atomic<bool>                              m_canceled    { false };   // Cancel was called for the running operation
     std::shared_ptr<LinkOperation>                 m_running;
     const ListenGate                             * m_gate        = nullptr;
 

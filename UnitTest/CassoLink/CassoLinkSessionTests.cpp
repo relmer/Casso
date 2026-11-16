@@ -1385,7 +1385,8 @@ public:
 
     TEST_METHOD (FullSend_CancelDuringThePause_EndsTheSession)
     {
-        Rig  rig;
+        Rig                       rig;
+        std::vector<std::string>  logs;
 
         rig.apple.drives[1].clear();
         rig.Start();
@@ -1405,6 +1406,18 @@ public:
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
         Assert::AreEqual (1, rig.apple.cancels.load());
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready), L"the link goes on");
+
+        for (int polls = 0; polls < 400 && logs.empty(); polls++)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            logs = rig.apple.logs;
+        }
+
+        Assert::IsFalse (logs.empty(), L"the Apple's history has the session");
+        Assert::IsTrue (logs.back().starts_with ("ENDED ON PC: "), L"how it ended, in capitals: the rig's Ready has no ROM bytes");
     }
 
 

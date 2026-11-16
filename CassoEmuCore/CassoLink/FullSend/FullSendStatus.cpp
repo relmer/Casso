@@ -24,6 +24,28 @@ FullSendStatus::FullSendStatus (SecondsFn seconds, TimeFn time) :
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendStatus::FormatClock
+//
+//  As the Full Send window formats its times.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string FullSendStatus::FormatClock (double seconds)
+{
+    int  whole = (int) std::max (0.0, seconds + 0.5);
+
+
+
+    return whole >= 3600 ? std::format ("{}:{:02}:{:02}", whole / 3600, whole / 60 % 60, whole % 60)
+                         : std::format ("{}:{:02}", whole / 60, whole % 60);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendStatus::Begin
 //
 ////////////////////////////////////////////////////////////////////////////////
