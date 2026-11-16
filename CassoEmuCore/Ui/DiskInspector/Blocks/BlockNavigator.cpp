@@ -19,14 +19,20 @@
 void BlockNavigator::Create (DxuiPanel & host, BlockInspectorModel * model, const IDxuiTheme * theme, HWND hwnd, IDxuiTextRenderer * text)
 {
     m_model  = model;
+    m_hwnd   = hwnd;
     m_crumbs = host.CreateChild<DxuiAddressBar>();
-    m_search = host.CreateChild<DxuiSearchBox>();
+    m_search = host.CreateChild<DxuiTextInput>();
     m_tree   = host.CreateChild<DxuiTreeView>();
     m_list   = host.CreateChild<DxuiListView>();
 
     m_browser.SetModel (model);
 
+    //  The address bar and the search box as Casso Explorer has them: its
+    //  text face and icons, and the search box's magnifier and clear button.
     m_crumbs->SetTextRenderer (text);
+    m_crumbs->SetIconFace     (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace) ? DxuiToolbar::kFluentIconFace : DxuiToolbar::kMdl2IconFace);
+    m_crumbs->SetFont         (DxuiTextRenderer::IsFontFamilyInstalled (DxuiAddressBar::kVariableTextFace) ? DxuiAddressBar::kVariableTextFace : DxuiTheme::GetUiFace(),
+                               DxuiAddressBar::kFontDip);
     m_crumbs->SetOnSegment    ([this] (int index)
     {
         if (index < 0 || index >= (int) m_targets.size())
@@ -48,11 +54,18 @@ void BlockNavigator::Create (DxuiPanel & host, BlockInspectorModel * model, cons
     });
     m_crumbs->SetOnSubmit    ([this] (const std::wstring & text) { SubmitPath (text); });
     m_crumbs->SetOnSeparator ([this] (int index, const RECT & anchor) { ShowChildMenu (index, anchor); });
+    m_crumbs->SetOnOverflow  ([this] (const RECT & anchor) { ShowOverflowMenu (anchor); });
 
-    m_search->SetTheme       (theme);
-    m_search->SetHwnd        (hwnd);
-    m_search->SetPlaceholder (L"Search");
-    m_search->SetOnChange    ([this] (const std::wstring & value)
+    m_search->SetTheme          (theme);
+    m_search->SetHwnd           (hwnd);
+    m_search->SetTextRenderer   (text);
+    m_search->SetFont           (DxuiTextRenderer::IsFontFamilyInstalled (DxuiAddressBar::kVariableTextFace) ? DxuiAddressBar::kVariableTextFace : DxuiTheme::GetUiFace(),
+                                 DxuiAddressBar::kFontDip);
+    m_search->SetExplorerChrome (true);
+    m_search->SetTrailingGlyph  (s_kpszMdl2Search, DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace) ? DxuiToolbar::kFluentIconFace : DxuiToolbar::kMdl2IconFace);
+    m_search->SetClearGlyph     (s_kpszMdl2Cancel);
+    m_search->SetPlaceholder    (L"Search");
+    m_search->SetOnChange       ([this] (const std::wstring & value)
     {
         if (!m_isFilling)
         {
@@ -150,7 +163,7 @@ void BlockNavigator::GoTo (const BlockPlace & place)
     m_browser.GoTo (place);
 
     m_isFilling = true;
-    m_search->Clear();
+    m_search->SetText (std::wstring());
     m_isFilling = false;
     m_query.clear();
 
@@ -260,7 +273,8 @@ void BlockNavigator::Show()
 
     m_crumbs->SetSegments (m_browser.BuildCrumbs (place, GetCardLabel(), m_targets));
     m_crumbs->SetPath     (m_browser.FormatPath (place));
-    SelectTreeNode();
+    m_crumbs->SetLeadIcon (m_icons == nullptr ? nullptr : m_icons->GetForKind (m_browser.GetContainer (place).kind == BlockPlace::Kind::Directory ? IShellIcons::Kind::Folder : IShellIcons::Kind::DiskImage));
+    SelectTreeNode (m_browser.GetContainer (m_browser.GetPlace()));
 
     m_selected = -1;
     FillList();
@@ -313,9 +327,8 @@ void BlockNavigator::Show()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockNavigator::SelectTreeNode()
+void BlockNavigator::SelectTreeNode (const BlockPlace & container)
 {
-    BlockPlace           container = m_browser.GetContainer (m_browser.GetPlace());
     vector<std::wstring> chain;
     int                  at        = container.entry;
     int                  row       = 0;
@@ -513,6 +526,8 @@ void BlockNavigator::OnRowSelected (int index)
         return;
     }
 
+    SelectTreeNode (GetRowContainer (*row));
+
     if (row->kind == BlockListRow::Kind::File)
     {
         m_model->HighlightFiles (row->volume, { row->entry });
@@ -577,27 +592,60 @@ void BlockNavigator::OnRowActivated (int index)
 //
 //  BlockNavigator::SelectForBlock
 //
-//  The block's row in the list, or after going to the directory of the
-//  block's file, its row there.
+//  A click on the map selects what the block is part of: the file or the
+//  directory that uses it, in the list of the directory it is in, or a
+//  structure of the volume, such as its bitmap, in the volume's list. At a
+//  file's place, the file's run with the block is selected instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockNavigator::SelectForBlock (uint32_t block)
 {
-    int         index     = m_browser.FindRow (m_listing, block);
-    BlockPlace  container = m_browser.GetContainer (m_browser.MakeBlockPlace (block));
+    BlockPlace  at     = m_browser.MakeBlockPlace (block);
+    BlockPlace  target = { HasCardPlace() ? BlockPlace::Kind::Card : BlockPlace::Kind::Volume, at.volume };
+    int         entry  = -1;
+    int         index  = -1;
 
 
 
-    if (index < 0 && container.kind != BlockPlace::Kind::Card && !(container == m_browser.GetPlace()))
+    if (at.volume >= 0 && at.volume < m_model->GetVolumeCount())
     {
-        GoTo (container);
-        index = m_browser.FindRow (m_listing, block);
+        const BlockMap  & map   = m_model->GetVolumeMap (at.volume);
+        uint32_t          inner = block - m_model->GetVolumeFirst (at.volume);
+
+        entry  = inner < map.GetBlockCount() && !map.blocks[inner].owners.empty() ? map.blocks[inner].owners[0] : -1;
+        entry  = entry >= 0 && (size_t) entry < map.entries.size() ? entry : -1;
+        target = entry >= 0 && map.entries[entry].parent >= 0 ? BlockPlace { BlockPlace::Kind::Directory, at.volume, map.entries[entry].parent }
+                                                              : BlockPlace { BlockPlace::Kind::Volume, at.volume };
     }
+
+    //  A file's place lists its runs, which cover the block.
+    if (GetPlace().kind == BlockPlace::Kind::File && GetPlace().volume == at.volume && GetPlace().entry == entry)
+    {
+        target = GetPlace();
+    }
+
+    if (!(target == GetPlace()) && target.kind != BlockPlace::Kind::Card)
+    {
+        GoTo (target);
+    }
+
+    for (int i = 0; entry >= 0 && GetPlace().kind != BlockPlace::Kind::File && GetRow (i) != nullptr && index < 0; i++)
+    {
+        const BlockListRow  * row = GetRow (i);
+
+        if ((row->kind == BlockListRow::Kind::File || row->kind == BlockListRow::Kind::Directory) && row->volume == at.volume && row->entry == entry)
+        {
+            index = i;
+        }
+    }
+
+    index = index >= 0 ? index : m_browser.FindRow (m_listing, block);
 
     if (index >= 0)
     {
         m_list->SetSelectedRow (index);
+        m_list->EnsureVisible  (index);
         OnRowSelected (index);
     }
 }
@@ -839,4 +887,152 @@ void BlockNavigator::ShowChildMenu (int index, const RECT & anchor)
 BlockPlace BlockNavigator::GetListPlace() const
 {
     return IsBlockPlace() ? m_browser.GetContainer (GetPlace()) : GetPlace();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockNavigator::GetRowContainer
+//
+//  The tree's node for a row: a file's or a directory's directory, or for
+//  any other row, its volume.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BlockPlace BlockNavigator::GetRowContainer (const BlockListRow & row) const
+{
+    if (row.volume < 0 || row.volume >= m_model->GetVolumeCount())
+    {
+        return m_browser.GetContainer (GetPlace());
+    }
+
+    const BlockMap  & map = m_model->GetVolumeMap (row.volume);
+
+    if ((row.kind == BlockListRow::Kind::File || row.kind == BlockListRow::Kind::Directory) && row.entry >= 0 && (size_t) row.entry < map.entries.size() && map.entries[row.entry].parent >= 0)
+    {
+        return { BlockPlace::Kind::Directory, row.volume, map.entries[row.entry].parent };
+    }
+
+    return { BlockPlace::Kind::Volume, row.volume };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockNavigator::HasCardPlace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockNavigator::HasCardPlace() const
+{
+    return m_browser.HasCard();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockNavigator::AddMenuCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockNavigator::AddMenuCommand (vector<DxuiPopupMenuItem> & items, const std::wstring & label, std::function<void()> dispatch)
+{
+    std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+
+
+
+    command->label    = label;
+    command->dispatch = std::move (dispatch);
+
+    items.push_back (DxuiPopupMenuItem::ForCommand (command));
+    m_menuCommands.push_back (std::move (command));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockNavigator::ShowOverflowMenu
+//
+//  The segments collapsed behind the overflow button, nearest first, as
+//  Casso Explorer's address bar lists them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockNavigator::ShowOverflowMenu (const RECT & anchor)
+{
+    vector<DxuiPopupMenuItem>  items;
+    vector<BlockPlace>         targets;
+    vector<std::wstring>       labels = m_browser.BuildCrumbs (GetPlace(), GetCardLabel(), targets);
+
+
+
+    if (m_popupHost == nullptr)
+    {
+        return;
+    }
+
+    m_menuCommands.clear();
+
+    for (int i = std::min (m_crumbs->GetFirstShown(), (int) labels.size()) - 1; i >= 0; i--)
+    {
+        BlockPlace  target = targets[(size_t) i];
+
+        AddMenuCommand (items, labels[(size_t) i], [this, target] () { GoTo (target); });
+    }
+
+    if (!items.empty())
+    {
+        DxuiContextMenu::ShowUnder (*m_popupHost, anchor, std::move (items));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockNavigator::ShowAddressMenu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockNavigator::ShowAddressMenu (int x, int y, std::function<void()> focus)
+{
+    vector<DxuiPopupMenuItem>  items;
+    std::wstring               address = m_browser.FormatPath (GetPlace());
+
+
+
+    if (m_popupHost == nullptr)
+    {
+        return;
+    }
+
+    m_menuCommands.clear();
+
+    AddMenuCommand (items, L"&Copy Address",         [this, address] () { DxuiClipboard::SetText (m_hwnd, address); });
+    AddMenuCommand (items, L"Copy Address as &Text", [this, address] () { DxuiClipboard::SetText (m_hwnd, address); });
+    AddMenuCommand (items, L"&Edit Address",         [this, focus] ()
+    {
+        if (focus)
+        {
+            focus();
+        }
+
+        m_crumbs->BeginEdit();
+    });
+
+    DxuiContextMenu::Show (*m_popupHost, x, y, std::move (items));
 }

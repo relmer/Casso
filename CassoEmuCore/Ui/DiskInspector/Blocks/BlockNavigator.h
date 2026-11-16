@@ -42,6 +42,11 @@ public:
     //  separator does nothing.
     void  SetPopupHost (DxuiHwndSource * host) { m_popupHost = host; }
 
+    //  Casso Explorer's address bar menu at a point: Copy Address, Copy
+    //  Address as Text and Edit Address. `focus` moves the keyboard focus to
+    //  the address bar for the edit.
+    void  ShowAddressMenu (int x, int y, std::function<void ()> focus);
+
     //  The place changed, and a block is to be opened, for the panel.
     void  SetOnPlace     (ChangedFn fn) { m_onPlace     = std::move (fn); }
     void  SetOnOpenBlock (BlockFn fn)   { m_onOpenBlock = std::move (fn); }
@@ -70,9 +75,13 @@ public:
     std::wstring  GetSelectionLine () const;
 
     DxuiAddressBar  & GetCrumbs () { return *m_crumbs; }
-    DxuiSearchBox   & GetSearch () { return *m_search; }
-    DxuiTreeView    & GetTree   () { return *m_tree; }
-    DxuiListView    & GetList   () { return *m_list; }
+    DxuiTextInput   & GetSearch () { return *m_search; }
+
+    //  Whether a key goes to text being typed: the search box has the
+    //  keyboard, or the address bar is open for a path.
+    bool            IsTyping (const IDxuiControl * focused) const { return focused == m_search || m_crumbs->IsEditing(); }
+    DxuiTreeView  & GetTree  () { return *m_tree; }
+    DxuiListView  & GetList  () { return *m_list; }
 
     //  The row at an index in the order of the listing's groups, or the
     //  selected row, or null.
@@ -80,28 +89,33 @@ public:
     const BlockListRow  * GetSelectedRow () const { return GetRow (m_selected); }
 
 private:
-    void          Show           ();
-    void          FillList       ();
-    void          SortRows       ();
-    void          SelectTreeNode ();
-    void          OnRowSelected  (int row);
-    void          OnRowActivated (int row);
-    std::wstring  GetCardLabel   () const;
-    BlockPlace    GetListPlace   () const;
-    void          SetTreeIcons   (vector<DxuiTreeNode> & nodes);
-    void          SubmitPath     (const std::wstring & text);
-    void          ShowChildMenu  (int index, const RECT & anchor);
+    void          Show             ();
+    void          FillList         ();
+    void          SortRows         ();
+    void          SelectTreeNode   (const BlockPlace & container);
+    BlockPlace    GetRowContainer  (const BlockListRow & row) const;
+    bool          HasCardPlace     () const;
+    void          OnRowSelected    (int row);
+    void          OnRowActivated   (int row);
+    std::wstring  GetCardLabel     () const;
+    BlockPlace    GetListPlace     () const;
+    void          SetTreeIcons     (vector<DxuiTreeNode> & nodes);
+    void          SubmitPath       (const std::wstring & text);
+    void          ShowChildMenu    (int index, const RECT & anchor);
+    void          ShowOverflowMenu (const RECT & anchor);
+    void          AddMenuCommand   (vector<DxuiPopupMenuItem> & items, const std::wstring & label, std::function<void ()> dispatch);
 
     std::shared_ptr<const DxuiIconImage>  GetRowIcon (const BlockListRow & row);
 
     BlockInspectorModel                   * m_model        = nullptr;
     IShellIcons                           * m_icons        = nullptr;
     DxuiHwndSource                        * m_popupHost    = nullptr;
+    HWND                                    m_hwnd         = nullptr;
     vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     BlockBrowser                            m_browser;
     BlockListing                            m_listing;
     DxuiAddressBar                        * m_crumbs       = nullptr;
-    DxuiSearchBox                         * m_search       = nullptr;
+    DxuiTextInput                         * m_search       = nullptr;
     DxuiTreeView                          * m_tree         = nullptr;
     DxuiListView                          * m_list         = nullptr;
     ChangedFn                               m_onPlace;

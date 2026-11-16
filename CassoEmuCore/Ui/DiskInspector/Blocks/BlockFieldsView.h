@@ -26,6 +26,7 @@ public:
     static constexpr float  kRowDip     = 18.0f;
     static constexpr float  kFontDip    = 12.0f;
     static constexpr float  kOffsetDip  = 44.0f;
+    static constexpr float  kPadDip     = 12.0f;
     static constexpr int    kWheelRows  = 3;
 
     using FieldFn = std::function<void (const BlockField * field)>;
@@ -42,6 +43,9 @@ public:
 
     //  The text of a field's row after its offset.
     static std::wstring  FormatRow (const BlockField & field);
+
+    //  The width at which the heading and every row fit whole.
+    int  MeasureWidthPx (IDxuiTextRenderer & text) const;
 
     void  Layout  (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;

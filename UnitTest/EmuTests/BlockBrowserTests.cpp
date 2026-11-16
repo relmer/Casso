@@ -381,6 +381,34 @@ public:
     }
 
 
+    TEST_METHOD (Navigator_TypingInTheSearchBoxListsWhatMatches)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1400, 800 }, scaler);
+
+        BlockNavigator  & nav = panel.GetNavigator();
+
+        nav.GetSearch().SetFocused (true);
+        Assert::IsTrue (nav.GetSearch().OnChar (L'h'));
+        Assert::IsTrue (nav.GetSearch().OnChar (L'e'));
+
+        Assert::IsTrue   (nav.IsTyping (&nav.GetSearch()), L"keys go to the search box first");
+        Assert::AreEqual ((size_t) 1, nav.GetListing().groups.size());
+        Assert::AreEqual (std::wstring (L"GAMES/HELLO"), nav.GetListing().groups[0].rows[0].cells[0]);
+    }
+
+
     TEST_METHOD (Navigator_AMapClickSelectsTheRowThatCoversTheBlock)
     {
         FakeDiskFileIo        io;
@@ -405,7 +433,9 @@ public:
         key   = model.GetVolumeMap (0).entries[hello].keyBlock;
 
         nav.SelectForBlock (key);
-        Assert::AreEqual (std::wstring (L"Selected: GAMES"), nav.GetSelectionLine(), L"at the volume, the directory's row covers the file's blocks");
+        Assert::AreEqual (std::wstring (L"Selected: GAMES/HELLO"), nav.GetSelectionLine(), L"the file itself is selected, in its directory");
+        Assert::IsTrue   (nav.GetPlace().kind == BlockPlace::Kind::Directory, L"the list is the file's directory");
+        Assert::IsTrue   (nav.GetTree().GetHighlight() == nav.GetTree().FindRowById (BlockBrowser::MakeId (nav.GetPlace())), L"the tree follows to the directory");
 
         nav.SelectForBlock (2);
         Assert::AreEqual (std::wstring (L"Selected: Volume directory, Blocks 2 to 5"), nav.GetSelectionLine());

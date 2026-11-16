@@ -123,6 +123,7 @@ void BlockInspectorPanel::InitCorners()
     m_legendButton->SetAccessibleName (L"Legend");
 
     m_filesChip->SetOnChange ([this] (bool isOn) { SetFilesOn (isOn); });
+    m_map->SetFilesColored   (m_isFilesOn);
     m_diffsChip->SetOnChange ([this] (bool isOn) { SetDiffsOn (isOn); });
 
     m_zoomOut->SetGlyph          (s_kpszGlyphMinus);
@@ -1008,6 +1009,7 @@ void BlockInspectorPanel::ShowBytes()
         m_shownBlock = shown;
         m_hex->SetSource (&m_source);
         m_hex->ResetNibble();
+        FitFields();
     }
 }
 
@@ -1369,6 +1371,43 @@ void BlockInspectorPanel::LayoutMiddle (const RECT & column, const DxuiDpiScaler
     m_hex->Layout    ({ column.left, y, hexEnd, std::max (y, (int) column.bottom) }, scaler);
     m_fields->Layout ({ hexEnd + pad, y, column.right, std::max (y, (int) column.bottom) }, scaler);
     FitHexRows (hexEnd - (int) column.left);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::FitFields
+//
+//  For each new block, the splitter is moved so the fields list is as wide
+//  as its rows, within the splitter's range, with room left in the hex view
+//  for at least kMinHexBytes in a row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::FitFields()
+{
+    RECT  list   = m_nav.GetList().GetBounds();
+    int   width  = (int) (list.right - list.left);
+    int   pad    = m_scaler.ToPx ((int) kPadDip);
+    int   bytes  = m_hex->GetBytesPerRow();
+    int   hexMin = 0;
+
+
+
+    if (m_text == nullptr || width <= 0 || m_scaler.GetDpi() == 0)
+    {
+        return;
+    }
+
+    m_hex->SetBytesPerRow (kMinHexBytes);
+    hexMin = m_hex->GetContentWidthPx() > 0 ? m_hex->GetContentWidthPx() + m_scaler.ToPx ((int) kHexScrollDip) : 0;
+    m_hex->SetBytesPerRow (bytes);
+
+    m_hexShare = std::clamp ((float) (width - pad - m_fields->MeasureWidthPx (*m_text)) / (float) width, std::max (kMinHex, (float) hexMin / (float) width), kMaxHex);
+    Layout (GetBounds(), m_scaler);
 }
 
 
@@ -1777,6 +1816,26 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
     {
         m_isSplitting = false;
         return true;
+    }
+
+    //  A right-click on the address bar, while it isn't being edited, opens
+    //  its menu, as Casso Explorer's does.
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right && !m_nav.GetCrumbs().IsEditing())
+    {
+        RECT  crumbs = m_nav.GetCrumbs().GetBounds();
+
+        if (PtInRect (&crumbs, ev.positionDip))
+        {
+            m_nav.ShowAddressMenu (ev.positionDip.x, ev.positionDip.y, [this] ()
+            {
+                if (m_onPressed)
+                {
+                    m_onPressed (&m_nav.GetCrumbs());
+                }
+            });
+
+            return true;
+        }
     }
 
     //  A press moves the keyboard focus to the control under it, so the

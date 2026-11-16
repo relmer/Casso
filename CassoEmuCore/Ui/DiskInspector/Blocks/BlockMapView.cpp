@@ -696,9 +696,10 @@ bool BlockMapView::OnMouse (const DxuiMouseEvent & ev)
         {
             m_isFlying = false;
             m_panX    -= p.x - m_lastAt.x;
-            m_panY -= p.y - m_lastAt.y;
-            m_lastAt = p;
+            m_panY    -= p.y - m_lastAt.y;
+            m_lastAt   = p;
             ClampPan();
+            ReadLabels (grid);
             return true;
         }
 

@@ -632,6 +632,13 @@ bool BlockInspectorWindow::OnKey (const DxuiKeyEvent & ev)
         return RunCommand (ev.vk == VK_LEFT ? m_commands.back : m_commands.forward);
     }
 
+    //  Text being typed takes its keys first: Ctrl+A, the clipboard, undo,
+    //  Escape and the arrows.
+    if (m_panel->GetNavigator().IsTyping (GetFocusManager().GetFocusedControl()))
+    {
+        return DxuiPanel::OnKey (ev);
+    }
+
     if (ev.ctrl && !ev.alt)
     {
         switch (ev.vk)

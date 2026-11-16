@@ -266,3 +266,39 @@ void BlockFieldsView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockFieldsView::MeasureWidthPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BlockFieldsView::MeasureWidthPx (IDxuiTextRenderer & text) const
+{
+    float    font   = m_scaler.ToPxf (kFontDip);
+    float    widest = 0.0f;
+    float    width  = 0.0f;
+    float    height = 0.0f;
+    HRESULT  hr     = S_OK;
+
+
+
+    hr = text.MeasureStringWeighted (m_heading.c_str(), font, s_kpszFont, DxuiFontWeight::SemiBold, widest, height);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (const BlockField & field : m_fields)
+    {
+        hr = text.MeasureString (FormatRow (field).c_str(), font, s_kpszFont, width, height);
+
+        if (SUCCEEDED (hr))
+        {
+            widest = std::max (widest, m_scaler.ToPxf (kOffsetDip) + width);
+        }
+    }
+
+    return (int) std::ceil (widest) + m_scaler.ToPx ((int) kPadDip);
+}

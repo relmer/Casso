@@ -62,6 +62,7 @@ public:
     static constexpr float  kHexShare     = 0.60f;   // the hex view's share of the width beside the fields at first
     static constexpr float  kMinHex       = 0.30f;
     static constexpr float  kMaxHex       = 0.85f;
+    static constexpr int    kMinHexBytes  = 8;       // the fewest bytes in a hex row when the fields are fitted
     static constexpr float  kHexScrollDip = 12.0f;   // room for the hex view's vertical scroll bar
     static constexpr float  kListShare    = 0.45f;   // the list's share of the middle column's height at first
     static constexpr float  kMinList      = 0.15f;
@@ -157,8 +158,10 @@ private:
     //  the legend, as a tooltip is.
     void  TrackLegendHover (POINT pointPx);
 
-    //  The most bytes in a hex row that fit `widthPx`.
+    //  The most bytes in a hex row that fit `widthPx`, and the fields list
+    //  as wide as its rows.
     void  FitHexRows (int widthPx);
+    void  FitFields  ();
 
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 
@@ -228,7 +231,7 @@ private:
     uint64_t                m_jobDone         = 0;
     uint64_t                m_jobTotal        = 0;
     bool                    m_isLongJob       = false;
-    bool                    m_isFilesOn       = false;
+    bool                    m_isFilesOn       = true;
     bool                    m_isDiffsOn       = true;
     bool                    m_isSplitting     = false;
     bool                    m_isTreeSplitting = false;
