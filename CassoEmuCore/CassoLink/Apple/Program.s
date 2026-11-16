@@ -4442,8 +4442,8 @@ pcsame: rts
 
 ; nopc: a second with no reply. The host ends its session after a few
 ; seconds with no packet, so after PCGONE of them the PC is gone: the label
-; of its operation is cleared, and the PC is waited for again. Before a
-; first reply there is no silence to count.
+; of its operation and the bars are cleared, and the PC is waited for again.
+; Before a first reply there is no silence to count.
 nopc:   lda pcflag
         beq npdraw
         inc silent
@@ -4454,6 +4454,11 @@ nopc:   lda pcflag
         sta pcflag
         sta silent
         jsr clrlabel
+        lda #0                  ; and so are its operation and the bars
+        sta op
+        sta barpct
+        sta barpct+1
+        jsr stplain
         lda fsmode              ; a session with no PC is over
         beq npdraw
         jsr fsleave
@@ -4823,7 +4828,7 @@ fcclear: jsr fsrow
 
 ; fsleave: back to the standard screen: the session's rows cleared, the
 ; history saved when the session began drawn again, and the heading, keys and
-; drives drawn.
+; drives drawn, with the bars empty.
 fsleave: lda fssaved
         beq flnosave
         lda #1
@@ -4831,6 +4836,9 @@ fsleave: lda fssaved
 flnosave: lda #0
         sta fssaved
         sta fsmode
+        sta op                  ; no bar after the session, as a capture's
+        sta barpct
+        sta barpct+1
         sta sbyte
 flrow:  ldx sbyte
         lda fsrowhi,x

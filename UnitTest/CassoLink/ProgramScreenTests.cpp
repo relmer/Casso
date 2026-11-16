@@ -215,4 +215,49 @@ public:
         AssertSucceeded (rig.host->ReadSectors (2, kCatalogTrack, sector, data, status));
         Assert::AreNotEqual (std::string(), Row (rig, kRowBar2), L"a whole-disk transfer's read");
     }
+
+    //  A Full Send whose PC goes silent during a read, as when the line is
+    //  closed during a raw capture, ends on the standard screen with empty
+    //  bars, not the read's.
+    TEST_METHOD (AFullSendWhosePCIsGone_EndsWithEmptyBars)
+    {
+        static constexpr uint64_t  kGoneCycles = 7 * 1'020'484;   // past the program's PCGONE seconds
+        ProgramRig                 rig ({}, Dos33());
+        const Byte                 sector[] = { 0 };
+        std::vector<Byte>          data;
+        CassoLinkStatus            status;
+
+
+
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+        AssertSucceeded (rig.host->SendSessionScreen (true, 0, { "Full Send" }));
+
+        rig.host->SetProgress (0, 100);
+        AssertSucceeded (rig.host->ReadSectors (2, kCatalogTrack, sector, data, status));
+
+        rig.machine.RunCycles (kGoneCycles);
+        AssertRow (rig, kRowBar2, "", L"with the PC gone");
+    }
+
+    //  A Full Send the PC ends, as with Cancel during a raw capture, ends on the
+    //  standard screen with empty bars, not the last read's.
+    TEST_METHOD (AFullSendThePCEnds_EndsWithEmptyBars)
+    {
+        ProgramRig         rig ({}, Dos33());
+        const Byte         sector[] = { 0 };
+        std::vector<Byte>  data;
+        CassoLinkStatus    status;
+
+
+
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+        AssertSucceeded (rig.host->SendSessionScreen (true, 0, { "Full Send" }));
+
+        rig.host->SetProgress (0, 100);
+        AssertSucceeded (rig.host->ReadSectors (2, kCatalogTrack, sector, data, status));
+
+        rig.host->SetProgress (0, 0);
+        AssertSucceeded (rig.host->SendSessionScreen (false, 0, {}));
+        AssertRow (rig, kRowBar2, "", L"after the session");
+    }
 };

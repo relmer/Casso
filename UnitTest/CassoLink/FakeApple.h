@@ -102,8 +102,9 @@ public:
     std::atomic<int>                keyWaits        { 0 };
     std::atomic<bool>               quitPending     { false };
     std::atomic<bool>               fullSendPending { false };
-    //  Each Label's text, in the order received.
+    //  Each Label's text, in the order received, and each history line's.
     std::vector<std::string>          labels;
+    std::vector<std::string>          logs;
     std::mutex                        lock;
 
     ~FakeApple()
@@ -449,6 +450,20 @@ private:
                     std::lock_guard<std::mutex>  guard (lock);
 
                     labels.emplace_back (packet.payload.begin(), packet.payload.end());
+                    break;
+                }
+
+                case CassoLinkCodec::kLog:
+                {
+                    std::lock_guard<std::mutex>  guard (lock);
+                    std::string                  text;
+
+                    for (size_t at = 2; at < packet.payload.size(); at++)
+                    {
+                        text.push_back ((char) (packet.payload[at] & 0x7F));
+                    }
+
+                    logs.push_back (text);
                     break;
                 }
 

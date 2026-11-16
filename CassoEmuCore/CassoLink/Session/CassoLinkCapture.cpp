@@ -24,7 +24,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<const Byte> module, const std::string & imageDate,
-                                   const ProgressFn & progress, Result & outResult, int lastTrack)
+                                   const ProgressFn & progress, Result & outResult, int lastTrack, const StopFn & stop)
 {
     HRESULT                hr        = S_OK;
     HRESULT                built     = S_OK;
@@ -51,6 +51,7 @@ HRESULT CassoLinkCapture::Capture (CassoLinkHost & host, Byte drive, std::span<c
 
     outResult   = Result();
     run.started = GetTickCount64();
+    run.stop    = stop;
     run.planned = (last / 4 + 1) * kWholeReads;
 
     for (int position = 0; position <= last; position += 4)
@@ -504,6 +505,10 @@ HRESULT CassoLinkCapture::ReadPosition (Run & run, int position, int reads, Posi
 
     for (int read = 0; read < reads; read++)
     {
+        bool  stopped = run.stop && run.stop();
+
+        CBREx (!stopped, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+
         //  A capture's first read takes the arm to track 0 first, as the
         //  program's record of its place can be wrong.
         std::vector<Byte>  bytes;
