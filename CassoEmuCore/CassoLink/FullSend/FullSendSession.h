@@ -311,6 +311,7 @@ private:
     HRESULT  ReadFingerprint  (int drive, CheckedDisk & outDisk, bool & outStable);
     HRESULT  ReadStableTrack  (int drive, int track, CheckedDisk & ioDisk, bool & outHasDisk, bool & outStable);
     HRESULT  SendDisk         (int drive, const CheckedDisk & checked, bool anyway);
+    HRESULT  ReadWholeDisk    (int drive, const CheckedDisk & checked, std::vector<Byte> & ioImage, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport, bool & outSame);
     HRESULT  CaptureProtected (int drive, const std::vector<Byte> & image, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, std::vector<Byte> & outRaw, bool & outLikely);
     HRESULT  CheckVolume      (int drive, const std::vector<Byte> & image, FullSendReadReport & ioReport);
     HRESULT  WriteImage       (const std::string & title, const std::vector<Byte> & image, const std::vector<Byte> & raw, const std::vector<std::pair<int, int>> & unreadable, const FullSendReadReport & report, bool writeProtected, std::string & outFile);

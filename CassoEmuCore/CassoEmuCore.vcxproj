@@ -292,6 +292,7 @@
     <ClCompile Include="CassoLink\FullSend\FullSendManifestFile.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendProtection.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendStatus.cpp" />
+    <ClCompile Include="CassoLink\FullSend\FullSendDriveCheck.cpp" />
     <ClCompile Include="CassoLink\FullSend\FullSendSession.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSettings.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSearch.cpp" />
