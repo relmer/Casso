@@ -34,6 +34,7 @@ class MachineBuilder;
 class MachineManager;
 class WindowCommandManager;
 struct DialogDefinition;
+struct DxuiPopupMenuItem;
 struct MachineConfig;
 class SettingsSheet;
 class SettingsPanelState;
@@ -242,6 +243,7 @@ public:
     static constexpr int  kHardDiskChangeRestart = 1;
 
     static DialogDefinition  MakeHardDiskChangeDialog (const std::wstring & driveTitle, const std::wstring & fileName);
+    static DialogDefinition  MakePortDriveDialog      (const std::string & device, bool plugIn);
 private:
 
     //  The shell the EHM notification sink forwards to. One per process; set
@@ -403,6 +405,14 @@ private:
     // runs on.
     void    ChangeHardDiskImage       (const DeskDrive & drive, const std::wstring & path);
     void    BrowseHardDisk            (const DeskDrive & drive);
+
+    // Plugs a drive of `device` into the disk port's chain, or unplugs the
+    // `nth` one, once the user picks Restart in the prompt: the machine is
+    // rebuilt with the new chain. The rows add the Disk menu's plug-in
+    // commands to a drive's menu and, for a drive on the chain (`nth` not
+    // negative), the command that unplugs it.
+    void    ChangePortDrive           (const std::string & device, bool plugIn, size_t nth);
+    void    AddPortDriveRows          (const std::string & device, int nth, std::vector<DxuiPopupMenuItem> & items);
 
     // A drive's (0 or 1) or the recorder's (kStorageMenuRecorder) right-click
     // menu, at a client point.

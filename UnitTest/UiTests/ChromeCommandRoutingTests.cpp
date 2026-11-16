@@ -144,6 +144,8 @@ public:
         { L"IDM_MOUSE_DISCONNECT",          IDM_MOUSE_DISCONNECT          },
         { L"IDM_STORAGE_DRIVE2",            IDM_STORAGE_DRIVE2            },
         { L"IDM_STORAGE_RECORDER",          IDM_STORAGE_RECORDER          },
+        { L"IDM_STORAGE_ATTACH_APPLE35",    IDM_STORAGE_ATTACH_APPLE35    },
+        { L"IDM_STORAGE_ATTACH_FLOPPY",     IDM_STORAGE_ATTACH_FLOPPY     },
 
         { L"IDM_PRINTER_DISCARD",           IDM_PRINTER_DISCARD           },
         { L"IDM_PRINTER_COPY",              IDM_PRINTER_COPY              },

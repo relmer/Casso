@@ -67,6 +67,8 @@ struct DeskDrive
 
     //  The //c's drive 1, soldered in.
     bool            builtIn = false;
+
+    bool  operator== (const DeskDrive & other) const = default;
 };
 
 

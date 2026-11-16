@@ -18,6 +18,7 @@
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "../resource.h"
@@ -452,6 +453,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id == IDM_DISK_THUMBNAIL1 || id == IDM_DISK_THUMBNAIL2)        { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_TAPE_INSERT    && id <= IDM_TAPE_FASTFORWARD)        { route = WindowCommandRoute::Disk; }
     else if (id == IDM_STORAGE_DRIVE2 || id == IDM_STORAGE_RECORDER)        { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_STORAGE_ATTACH_APPLE35 || id == IDM_STORAGE_ATTACH_FLOPPY) { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_AUTOHIDE_DRIVES)                               { route = WindowCommandRoute::View; }
@@ -1669,6 +1671,9 @@ void WindowCommandManager::OnDiskCommand (int id)
         // Each flips its device, connected to disconnected or back.
         case IDM_STORAGE_DRIVE2:   m_shell.SetSecondDriveConnected  (!m_shell.m_disks->ShouldShowExternalDrive()); break;
         case IDM_STORAGE_RECORDER: m_shell.SetTapeRecorderConnected (!m_shell.m_tapeDeck->IsRecorderConnected());  break;
+
+        case IDM_STORAGE_ATTACH_APPLE35: m_shell.ChangePortDrive (kpszApple35DriveDevice, true, 0); break;
+        case IDM_STORAGE_ATTACH_FLOPPY:  m_shell.ChangePortDrive (kpszDiskIicDevice,      true, 0); break;
     }
 }
 

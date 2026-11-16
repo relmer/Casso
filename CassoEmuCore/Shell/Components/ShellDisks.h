@@ -156,6 +156,13 @@ public:
     bool  MachineHasBuiltInDrive () const;
     bool  HasDiskIicDrives       () const;
 
+    // The //c Plus's disk port, whose drives are attached from the Disk menu:
+    // whether the machine offers that, how many drives of `device` are on
+    // the port's chain, and how many it takes.
+    bool  IsPortChainOffered () const;
+    int   CountPortDrives    (const std::string & device) const;
+    int   GetPortDriveLimit  (const std::string & device) const;
+
     // The info icon's tooltip for a drive: what its WOZ image declares about
     // the machine, and what conflicts with the one running. Empty when nothing
     // does.

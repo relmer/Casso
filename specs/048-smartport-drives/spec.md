@@ -124,6 +124,17 @@ the interaction, sound and event log the Disk II already has.
   drives are silent until recordings of a real drive replace them. The hard
   disks have their seek ticks.
 
+### Session 2026-11-16
+
+- Q: Where are external drives plugged into the //c Plus's disk port? A: In
+  the Storage menu, which has "Plug in a 3.5-inch drive" and "Plug in a
+  5.25-inch drive" on the //c Plus, each disabled at two drives of its kind,
+  in place of the //c's "Attach external drive". The same rows are on each
+  drive's right-click menu, and a drive on the port has "Unplug drive" there
+  (for the 5.25-inch drives, the last one). A confirmation states that the
+  change restarts the machine, as for a hard disk image change. On Restart
+  the chain is saved with the machine and the machine is rebuilt with it.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Boot a hard disk on the Apple II SCSI Card (Priority: P1)

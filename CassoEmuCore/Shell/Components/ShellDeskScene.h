@@ -476,6 +476,7 @@ private:
     bool                             m_deskSceneMachineIsC = false;
     std::vector<DeskDrivePlacement>  m_drivePlan;
     int                              m_plannedDiskIiCount  = -1;
+    std::vector<DeskDrive>           m_plannedDrives;
     bool                             m_floppyPairMovable   = false;
     int                              m_deskSceneDebug      = 0;   // CASSO_SCENE_DEBUG: 1=layout rects, 2=+calibration texture
 

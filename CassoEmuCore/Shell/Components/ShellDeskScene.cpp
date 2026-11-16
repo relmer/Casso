@@ -3535,6 +3535,7 @@ void ShellDeskScene::PlanDrives()
 
     m_plannedDiskIiCount = CountDiskIiDrives();
     drives               = DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), m_plannedDiskIiCount, m_shell.m_disks->HasDiskIicDrives());
+    m_plannedDrives      = drives;
 
     // A compact theme's drive band has the Disk II widgets or the drive bar.
     if (m_shell.m_chrome->GetTheme().compactDrives)
@@ -3584,13 +3585,21 @@ void ShellDeskScene::PlanDrives()
 //
 //  The plan is made when the machine's models load, which at startup is
 //  ahead of the //c's external drive being connected from its saved state.
-//  Planned for one drive, the pair stacked beside the monitor.
+//  Planned for one drive, the pair stacked beside the monitor. A machine
+//  rebuilt with the same monitor doesn't load its models again, so a drive
+//  plugged into the //c Plus's disk port is found here too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDeskScene::ReplanIfDrivesChanged()
 {
-    if (m_deskSceneReady && CountDiskIiDrives() != m_plannedDiskIiCount)
+    int  diskIiCount = CountDiskIiDrives();
+
+
+
+    if (m_deskSceneReady &&
+        (diskIiCount != m_plannedDiskIiCount ||
+         DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), diskIiCount, m_shell.m_disks->HasDiskIicDrives()) != m_plannedDrives))
     {
         PlanDrives();
     }

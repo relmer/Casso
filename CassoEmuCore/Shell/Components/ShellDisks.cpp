@@ -36,6 +36,7 @@
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/MachineDefinitions.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
@@ -1650,6 +1651,83 @@ bool ShellDisks::HasDiskIicDrives() const
 
 
     return (definition != nullptr && definition->diskPortFloppyCount > 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::IsPortChainOffered
+//
+//  The machines whose disk port takes Apple 3.5 Drives: the //c Plus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDisks::IsPortChainOffered() const
+{
+    const MachineDefinition *  definition = MachineDefinitions::Find (m_shell.m_machine.GetConfig().machineId);
+
+
+
+    return (definition != nullptr && definition->diskPortApple35Count > 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::CountPortDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDisks::CountPortDrives (const std::string & device) const
+{
+    int  count = 0;
+
+
+
+    for (const PortConfig & port : m_shell.m_machine.GetConfig().ports)
+    {
+        for (const PortConfig & entry : port.chain)
+        {
+            count += (entry.device == device) ? 1 : 0;
+        }
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::GetPortDriveLimit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDisks::GetPortDriveLimit (const std::string & device) const
+{
+    const MachineDefinition *  definition = MachineDefinitions::Find (m_shell.m_machine.GetConfig().machineId);
+    int                        limit      = 0;
+
+
+
+    if (definition != nullptr && device == kpszApple35DriveDevice)
+    {
+        limit = definition->diskPortApple35Count;
+    }
+    else if (definition != nullptr && device == kpszDiskIicDevice)
+    {
+        limit = definition->diskPortFloppyCount;
+    }
+
+    return limit;
 }
 
 
