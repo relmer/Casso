@@ -546,9 +546,11 @@ int DeskSceneLayout::SlideDevices (DeskSceneComposition   & out,
         out.extraWorld[i][12] += (out.extraDocked[i] != 0) ? centerXMm : 0.0f;
     }
 
+    out.dockFullScale = (eyeDistMm > depthMm) ? (eyeDistMm - kSlideMonitorGapMm) / (eyeDistMm + depthMm) : 1.0f;
+
     if (eyeDistMm > depthMm)
     {
-        ScaleSlideDevices (out, driveCount, (eyeDistMm - kSlideMonitorGapMm) / (eyeDistMm + depthMm), centerXMm, backZ);
+        ScaleSlideDevices (out, driveCount, out.dockFullScale, centerXMm, backZ);
     }
 
     FitSlideDevices (out, metrics, driveCount, tanHalfX * kSlideFitMargin, centerXMm, backZ);
@@ -559,7 +561,9 @@ int DeskSceneLayout::SlideDevices (DeskSceneComposition   & out,
     }
 
     hideMm   = SolveSlideOffset (out, metrics, driveCount, -1.0f, -tanHalfY);
-    liftMm   = SolveSlideOffset (out, metrics, driveCount, 1.0f, -tanHalfY + clearTan);
+    out.dockFloorTan = -tanHalfY + clearTan;
+
+    liftMm   = SolveSlideOffset (out, metrics, driveCount, 1.0f, out.dockFloorTan);
     offsetMm = -hideMm + slideProgress * (hideMm + liftMm);
 
     for (int i = 0; i < driveCount; i++)
@@ -605,7 +609,11 @@ int DeskSceneLayout::SlideDevices (DeskSceneComposition   & out,
 //  with the grown widths, shifted so the point under the pointer is under it
 //  after the change. The magnification is computed from the pointer's place
 //  in the row at rest, so the pointer is over the same device as the row
-//  grows.
+//  grows. A device grows at most to kDockMostOfFullSize of dockFullScale, its
+//  true size. A dock with one device grows it in place, whatever part of it
+//  the pointer is over. A grown device extends further toward the viewer and
+//  lower on screen, so the row is then raised until it is in the frame
+//  again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -636,6 +644,7 @@ void DeskSceneLayout::MagnifyDock (DeskSceneComposition   & out,
     float                                 x         = 0.0f;
     float                                 shift     = 0.0f;
     float                                 fraction  = 0.0f;
+    float                                 lift      = 0.0f;
     size_t                                anchor    = 0;
     size_t                                k         = 0;
 
@@ -717,11 +726,18 @@ void DeskSceneLayout::MagnifyDock (DeskSceneComposition   & out,
         pointerX = edges[k].second + (edges[k + 1].second - edges[k].second) * t;
     }
 
+    if (items.size() == 1)
+    {
+        pointerX = items[0].x0 + items[0].w * 0.5f;
+    }
+
     for (size_t i = 0; i < items.size(); i++)
     {
         float  d = std::abs (pointerX - (items[i].x0 + items[i].w * 0.5f)) / reach;
 
-        items[i].mag = 1.0f + (kDockMagnify - 1.0f) * dock.strength * ((d < 1.0f) ? 0.5f * (1.0f + std::cos (kPi * d)) : 0.0f);
+        float  most = (items[i].world[0] > 0.0f) ? std::max (1.0f, out.dockFullScale * kDockMostOfFullSize / items[i].world[0]) : 1.0f;
+
+        items[i].mag = 1.0f + (most - 1.0f) * dock.strength * ((d < 1.0f) ? 0.5f * (1.0f + std::cos (kPi * d)) : 0.0f);
         anchor       = (pointerX >= items[i].x0) ? i : anchor;
     }
 
@@ -754,6 +770,13 @@ void DeskSceneLayout::MagnifyDock (DeskSceneComposition   & out,
         item.world[12] = item.x0 + shift - grown * item.lo[0];
         item.world[13] = bottomY - grown * item.lo[2];
         item.world[14] = backZ + grown * item.hi[1];
+    }
+
+    lift = SolveSlideOffset (out, metrics, driveCount, 1.0f, out.dockFloorTan);
+
+    for (Item & item : items)
+    {
+        item.world[13] += lift;
     }
 }
 

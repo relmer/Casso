@@ -298,7 +298,12 @@ public:
 
         AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 2, metrics, 1.0f, kSlideClearPx, grown, DeskSceneView {}, hover));
 
-        Assert::IsTrue (grown.driveWorld[0][0] > rest.driveWorld[0][0] * 1.8f, L"the drive under the pointer grows");
+        float  most = grown.dockFullScale * DeskSceneLayout::kDockMostOfFullSize;
+
+        Assert::IsTrue (most > rest.driveWorld[0][0], L"the most is bigger than the dock's rest size");
+        Assert::IsTrue (grown.driveWorld[0][0] > most * 0.97f && grown.driveWorld[0][0] <= most + 1e-4f,
+                        L"the drive under the pointer grows to the most and no more");
+        Assert::IsTrue (grown.driveRectPx[0].bottom <= vp.bottom - kSlideClearPx + 1, L"the grown drive and its label are in the frame");
         Assert::IsTrue (std::abs (grown.extraWorld[3][0] - rest.extraWorld[3][0]) < 1e-4f, L"a drive far from the pointer does not");
         Assert::IsTrue (grown.driveRectPx[0].left <= (LONG) hover.pointerPx && (LONG) hover.pointerPx <= grown.driveRectPx[0].right,
                         L"the grown drive is still under the pointer");
@@ -314,6 +319,41 @@ public:
             Assert::IsTrue (lo[2] >= monitorFrontZ + DeskSceneLayout::kSlideMonitorGapMm - 0.01f, L"every back is clear of the monitor");
             prevRight = hi[0];
         }
+    }
+
+    //  A DOCK WITH ONE DRIVE GROWS IT IN PLACE: to the most, centered
+    //  where it was, wherever on it the pointer is.
+    TEST_METHOD (Dock_With_One_Drive_Grows_In_Place)
+    {
+        DeskSceneMetrics      metrics = MakeMetrics();
+        RECT                  vp      = { 0, 0, 1120, 768 };
+        DeskSceneComposition  rest;
+        DeskSceneComposition  grown;
+        DeskDockHover         hover;
+        float                 lo[3]   = {};
+        float                 hi[3]   = {};
+        float                 restCx  = 0.0f;
+
+
+
+        metrics.hasRecorder = false;
+        AddExtraModel (metrics, DeskDriveModel::Apple35Plus, DeskDriveSpot::RightStack, 0);
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 0, metrics, 1.0f, kSlideClearPx, rest));
+
+        hover.pointerPx = (float) rest.extraRectPx[0].left + 2.0f;
+        hover.strength  = 1.0f;
+
+        AssertSucceeded (DeskSceneLayout::ComputeSliding (vp, 96, 0, metrics, 1.0f, kSlideClearPx, grown, DeskSceneView {}, hover));
+
+        GetWorldBox (rest.extraWorld[0], metrics.extras[0].min, metrics.extras[0].max, lo, hi);
+        restCx = (lo[0] + hi[0]) * 0.5f;
+        GetWorldBox (grown.extraWorld[0], metrics.extras[0].min, metrics.extras[0].max, lo, hi);
+
+        Assert::IsTrue (std::abs (grown.extraWorld[0][0] - grown.dockFullScale * DeskSceneLayout::kDockMostOfFullSize) < 1e-4f,
+                        L"the drive grows to the most");
+        Assert::IsTrue (grown.extraRectPx[0].bottom <= vp.bottom - kSlideClearPx + 1, L"the grown drive and its label are in the frame");
+        Assert::IsTrue (std::abs ((lo[0] + hi[0]) * 0.5f - restCx) < 0.01f, L"the drive does not move sideways");
     }
 
     //  A HARD DISK STAYS ON THE DESK UNDER AUTO-HIDE: only the floppy drives

@@ -223,6 +223,12 @@ struct DeskSceneComposition
     int    extraDocked[kMaxDeskExtras]     = {};
     int    extraHidden[kMaxDeskExtras]     = {};
 
+    // The scale at which a docked device in front of the monitor looks its
+    // true size beside it, and the lowest view tangent of the dock and its
+    // labels that is in the frame.
+    float  dockFullScale                   = 0.0f;
+    float  dockFloorTan                    = 0.0f;
+
     bool  IsExtraShown (int i) const { return i >= 0 && i < extraCount && extraHidden[i] == 0; }
 };
 
@@ -401,9 +407,10 @@ public:
     // cover less of the monitor when they rise.
     static constexpr float  kWindowedSlideScale    = 0.5f;
 
-    // The dock magnifies the device under the pointer to this many times its
-    // size, and its neighbors less, out to this many average device widths.
-    static constexpr float  kDockMagnify           = 2.2f;
+    // The dock magnifies the device under the pointer to this share of its
+    // true size, and its neighbors less, out to this many average device
+    // widths.
+    static constexpr float  kDockMostOfFullSize    = 0.75f;
     static constexpr float  kDockReachWidths       = 2.0f;
     static constexpr float  kNoSlide               = -1.0f;
     static constexpr float  kContainMargin         = 1.005f;
