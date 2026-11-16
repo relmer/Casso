@@ -3,6 +3,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Ui/DiskInspector/Blocks/BlockGoToDialog.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
@@ -23,7 +24,7 @@
 static constexpr LPCWSTR  s_kpszGlyphGoTo = L"\xE8AD";
 static constexpr LPCWSTR  s_kpszGlyphCopy = L"\xE8C8";
 static constexpr LPCWSTR  s_kpszGlyphEdit = L"\xE70F";
-static constexpr size_t   s_kListedBlocks = 12;   // the blocks listed in the Apply question; more are counted
+static constexpr size_t   s_kListedBlocks = 12;   // the blocks listed in the Save question; more are counted
 static constexpr LPCWSTR  s_kpszClassName = L"CassoBlockInspector";
 
 
@@ -124,12 +125,16 @@ void BlockInspectorWindow::BuildCommands()
     };
 
     //  File
-    c.close = make (L"&Close", L"Alt+F4", [this] () { OnWindowClose(); });
+    c.save                      = make (L"&Save...", L"Ctrl+S", [this] () { Save(); });
+    c.save->isEnabled           = hasEdits;
+    c.saveEditedCopy            = make (L"Save &as...", L"", [this] () { SaveEditedCopy(); });
+    c.saveEditedCopy->isEnabled = [this, hasEdits] () { return hasEdits() && !IsOnCard(); };
+    c.close                     = make (L"&Close", L"Alt+F4", [this] () { OnWindowClose(); });
 
     //  Edit
-    c.undoApplied                = make (L"&Undo applied edit", L"Ctrl+Z", [this] () { UndoApplied(); });
+    c.undoApplied                = make (L"&Undo save", L"Ctrl+Z", [this] () { UndoApplied(); });
     c.undoApplied->isEnabled     = [this, isOpen] () { return isOpen() && m_model.CanUndoApplied(); };
-    c.redoApplied                = make (L"&Redo applied edit", L"Ctrl+Y", [this] () { RedoApplied(); });
+    c.redoApplied                = make (L"&Redo save", L"Ctrl+Y", [this] () { RedoApplied(); });
     c.redoApplied->isEnabled     = [this, isOpen] () { return isOpen() && m_model.CanRedoApplied(); };
     c.copySector                 = make (L"Copy &block", L"Ctrl+Shift+C", [this] () { CopyBlock(); });
     c.copySector->isEnabled      = isOpen;
@@ -140,8 +145,6 @@ void BlockInspectorWindow::BuildCommands()
     c.editSector->isEnabled      = isOpen;
     c.editSector->isChecked      = [this] () { return m_panel != nullptr && m_panel->IsEditing(); };
     c.editSector->glyph          = s_kpszGlyphEdit;
-    c.applyEdits                 = make (L"A&pply edits...", L"", [this] () { Apply(); });
-    c.applyEdits->isEnabled      = hasEdits;
     c.discardEdits               = make (L"&Discard edits", L"", [this] () { Discard(); });
     c.discardEdits->isEnabled    = hasEdits;
 
@@ -676,6 +679,7 @@ bool BlockInspectorWindow::OnKey (const DxuiKeyEvent & ev)
         {
             case 'G': return RunCommand (m_commands.goTo);
             case 'C': return ev.shift ? RunCommand (m_commands.copySector) : DxuiPanel::OnKey (ev);
+            case 'S': return RunCommand (m_commands.save);
             case 'Z': return RunCommand (m_commands.undoApplied);
             case 'Y': return RunCommand (m_commands.redoApplied);
             default:  break;
@@ -718,14 +722,13 @@ LPCWSTR BlockInspectorWindow::GetCursorForPoint (POINT clientPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorWindow::Apply
+//  BlockInspectorWindow::Save
 //
-//  Nothing changes until the user confirms the list of changed blocks, as
-//  in the track inspector.
+//  Nothing changes until the user confirms the list of changed blocks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorWindow::Apply()
+void BlockInspectorWindow::Save()
 {
     vector<uint32_t>      changed = m_model.IsOpen() ? m_model.GetEdits().GetChangedBlocks() : vector<uint32_t>();
     vector<std::wstring>  lines;
@@ -740,7 +743,7 @@ void BlockInspectorWindow::Apply()
     }
 
     count = EditBar::FormatCount (m_model.GetEdits().CountChangedBytes(), (int) changed.size(), L"block", L"blocks");
-    lines.push_back (L"Apply " + count.substr (0, count.size() - std::wstring (L" changed").size()) + L" and save " + GetFileName() + L"?");
+    lines.push_back (L"Save " + count.substr (0, count.size() - std::wstring (L" changed").size()) + L" to " + GetFileName() + L"?");
 
     for (size_t i = 0; i < changed.size() && i < s_kListedBlocks; i++)
     {
@@ -754,11 +757,26 @@ void BlockInspectorWindow::Apply()
         lines.push_back (L"And " + InspectorText::FormatCount ((int) (changed.size() - s_kListedBlocks), L"more block", L"more blocks"));
     }
 
-    if (InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Apply edits", lines, L"Apply"))
+    if (InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Save", lines, L"Save"))
     {
-        QueueWrite (L"Writing the edits", L"Applied", [] (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)
-                    { return model.ApplyEdits (outError, &progress); });
+        QueueSave();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::QueueSave
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::QueueSave()
+{
+    QueueWrite (L"Saving the edits", L"Saved to", [] (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)
+                { return model.ApplyEdits (outError, &progress); });
 }
 
 
@@ -778,9 +796,9 @@ void BlockInspectorWindow::UndoApplied()
         return;
     }
 
-    if (InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Undo applied edit", { L"Put back the blocks the last apply changed, and save " + GetFileName() + L"?" }, L"Undo"))
+    if (InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Undo save", { L"Put back the blocks the last save changed, and save " + GetFileName() + L"?" }, L"Undo"))
     {
-        QueueWrite (L"Undoing the applied edit", L"Undone", [] (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)
+        QueueWrite (L"Undoing the last save", L"Undone and saved to",[] (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)
                     { return model.UndoApplied (outError, &progress); });
     }
 }
@@ -802,9 +820,9 @@ void BlockInspectorWindow::RedoApplied()
         return;
     }
 
-    if (InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Redo applied edit", { L"Apply the undone edit again, and save " + GetFileName() + L"?" }, L"Redo"))
+    if (InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Redo save", { L"Save the undone edit to " + GetFileName() + L" again?" }, L"Redo"))
     {
-        QueueWrite (L"Redoing the applied edit", L"Redone", [] (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)
+        QueueWrite (L"Redoing the last save", L"Redone and saved to",[] (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)
                     { return model.RedoApplied (outError, &progress); });
     }
 }
@@ -817,8 +835,9 @@ void BlockInspectorWindow::RedoApplied()
 //
 //  BlockInspectorWindow::QueueWrite
 //
-//  An apply, undo or redo on the worker's thread. Its result goes in the
-//  edit bar's note, as "Applied and saved to" the file.
+//  A save, undo or redo on the worker's thread. Its result goes in the
+//  edit bar's note, as "Saved to" the file. A save chosen when closing the
+//  window closes it once the save succeeds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -836,9 +855,17 @@ void BlockInspectorWindow::QueueWrite (const std::wstring & label, const std::ws
                          [result, model, write] (BlockJobProgress & progress) { result->hr = write (*model, result->message, progress); },
                          [this, result, done] ()
                          {
-                             m_editNote = SUCCEEDED (result->hr) ? done + L" and saved to " + GetFileName()
-                                                                 : (result->message.empty() ? L"The edits weren't written." : result->message);
+                             bool  isClosing = m_isCloseAfterSave && SUCCEEDED (result->hr);
+
+                             m_isCloseAfterSave = false;
+                             m_editNote         = SUCCEEDED (result->hr) ? done + L" " + GetFileName()
+                                                                         : (result->message.empty() ? L"The edits weren't saved." : result->message);
                              m_panel->Refresh();
+
+                             if (isClosing)
+                             {
+                                 CloseWindow();
+                             }
                          } });
 }
 
@@ -872,9 +899,9 @@ void BlockInspectorWindow::SaveEditedCopy()
 
 
 
-    BAIL_OUT_IF (m_worker.IsBusy() || !m_model.IsOpen() || m_model.GetEdits().IsEmpty(), S_OK);
+    BAIL_OUT_IF (m_worker.IsBusy() || !m_model.IsOpen() || m_model.GetEdits().IsEmpty() || IsOnCard(), S_OK);
 
-    spec.filters          = { { L"Disk images", L"*." + extension } };
+    spec.filters         = { { L"Disk images", L"*." + extension } };
     spec.defaultExtension = extension;
     spec.defaultFileName  = image.stem().wstring() + L" edited." + extension;
     spec.initialFolder    = image.parent_path();
@@ -936,10 +963,11 @@ void BlockInspectorWindow::InitEditBar()
 
 
 
+    bar.UseSaveWords();
     bar.SetOnEdit          ([this] () { m_panel->SetEditing (false); });
     bar.SetOnDiscardSector ([this] () { if (!m_worker.IsBusy()) { m_model.DiscardBlock (m_model.GetBlock()); m_panel->Refresh(); } });
     bar.SetOnDiscard       ([this] () { Discard(); });
-    bar.SetOnApply         ([this] () { Apply(); });
+    bar.SetOnApply         ([this] () { Save(); });
     bar.SetOnSaveCopy      ([this] () { SaveEditedCopy(); });
     bar.SetOnUndoApplied   ([this] () { UndoApplied(); });
     bar.SetOnRedoApplied   ([this] () { RedoApplied(); });
@@ -972,6 +1000,7 @@ void BlockInspectorWindow::UpdateEditing()
     state.bytes          = m_model.IsOpen() ? m_model.GetEdits().CountChangedBytes() : 0;
     state.sectors        = m_model.IsOpen() ? (int) m_model.GetEdits().GetChangedBlocks().size() : 0;
     state.canApply       = isOpen;
+    state.canSaveCopy    = !IsOnCard();
     state.canUndoApplied = isOpen && m_model.CanUndoApplied();
     state.canRedoApplied = isOpen && m_model.CanRedoApplied();
     state.canUseB        = isOpen && m_model.IsComparing() && m_model.IsDifferent (m_model.GetBlock());
@@ -1174,16 +1203,42 @@ void BlockInspectorWindow::StepDifference (bool isForward)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockInspectorWindow::IsOnCard
+//
+//  A partition of a storage card is written in place; there is no image
+//  file to copy for Save as.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorWindow::IsOnCard() const
+{
+    return PhysicalCards::IsOnCard (m_path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockInspectorWindow::ConfirmClose
 //
 //  A job that can be canceled is canceled; while one that can't be is
-//  running, the window stays open.
+//  running, the window stays open. With unsaved changes, the user picks
+//  Save, Discard or Cancel.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BlockInspectorWindow::ConfirmClose()
 {
-    int           bytes     = 0;
+    static constexpr int  kCancel  = 0;
+    static constexpr int  kSave    = 1;
+    static constexpr int  kDiscard = 2;
+
+
+
+    int           blocks    = 0;
+    int           choice    = kCancel;
     bool          isClosing = true;
     std::wstring  label;
     bool          canCancel = false;
@@ -1200,15 +1255,22 @@ bool BlockInspectorWindow::ConfirmClose()
 
     m_worker.Cancel();
 
-    bytes = m_model.IsOpen() ? m_model.GetEdits().CountChangedBytes() : 0;
+    blocks = m_model.IsOpen() ? (int) m_model.GetEdits().GetChangedBlocks().size() : 0;
 
-    //  The same question as the track inspector's.
-    if (bytes > 0)
+    if (blocks > 0)
     {
-        isClosing = InspectorDialogs::ShowConfirm (GetHwnd(), m_theme, L"Pending edits",
-                                                   { EditBar::FormatCount (bytes, (int) m_model.GetEdits().GetChangedBlocks().size(), L"block", L"blocks") + L" and not applied.",
-                                                     L"Closing the disk inspector discards these edits." },
-                                                   L"Discard edits");
+        choice = InspectorDialogs::ShowChoice (GetHwnd(), m_theme, L"Unsaved changes",
+                                               { L"There are unsaved changes to " + InspectorText::FormatCount (blocks, L"block", L"blocks") + L"." },
+                                               { { L"Save", kSave, true, false }, { L"Discard", kDiscard, false, false }, { L"Cancel", kCancel, false, true } });
+
+        //  The window closes once the save succeeds.
+        if (choice == kSave)
+        {
+            m_isCloseAfterSave = true;
+            QueueSave();
+        }
+
+        isClosing = choice == kDiscard;
     }
 
     return isClosing;

@@ -22,6 +22,7 @@ struct InspectorCommands
 
     //  File
     Command  exportFile;
+    Command  save;
     Command  saveEditedCopy;
     Command  close;
 

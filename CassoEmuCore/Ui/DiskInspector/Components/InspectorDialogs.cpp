@@ -317,19 +317,38 @@ bool InspectorDialogs::Confirm (const std::wstring & title, const vector<std::ws
 
 bool InspectorDialogs::ShowConfirm (HWND owner, const IDxuiTheme * theme, const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action)
 {
+    static constexpr int  kYes = 1;
+
+
+
+    return ShowChoice (owner, theme, title, lines, { { action, kYes, true, false }, { L"Cancel", 0, false, true } }) == kYes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorDialogs::ShowChoice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int InspectorDialogs::ShowChoice (HWND owner, const IDxuiTheme * theme, const std::wstring & title, const vector<std::wstring> & lines, const vector<MessageDialog::Button> & buttons)
+{
     static constexpr int  kWidthDip  = 560;
     static constexpr int  kChromeDip = 108;
     static constexpr int  kMaxDip    = 640;
-    static constexpr int  kYes       = 1;
 
 
 
-    auto                                content = std::make_unique<DialogBodyContent>();
+    auto                                content  = std::make_unique<DialogBodyContent>();
     MessageDialog                       dialog;
     DxuiWindow::CreateParams            params;
     vector<DialogTextRun>               runs;
-    HRESULT                             hr      = S_OK;
-    int                                 result  = 0;
+    HRESULT                             hr       = S_OK;
+    int                                 result   = 0;
+    int                                 canceled = 0;
 
 
 
@@ -338,10 +357,18 @@ bool InspectorDialogs::ShowConfirm (HWND owner, const IDxuiTheme * theme, const 
         runs.push_back ({ line + L"\n" });
     }
 
+    for (const MessageDialog::Button & button : buttons)
+    {
+        if (button.isCancel)
+        {
+            canceled = button.resultCode;
+        }
+    }
+
     content->SetRuns (runs);
     params.initialSizeDip = { kWidthDip, std::min (kMaxDip, kChromeDip + content->GetPreferredHeightDip()) };
 
-    dialog.Configure (std::move (content), { { action, kYes, true, false }, { L"Cancel", 0, false, true } }, 0);
+    dialog.Configure (std::move (content), buttons, canceled);
 
     params.title                    = title;
     params.hInstance                = GetModuleHandle (nullptr);
@@ -358,5 +385,5 @@ bool InspectorDialogs::ShowConfirm (HWND owner, const IDxuiTheme * theme, const 
     result = dialog.TranslateResult (dialog.ShowModalDialog (dialog.GetDefaultCommandId()));
 
 Error:
-    return result == kYes;
+    return FAILED (hr) ? canceled : result;
 }

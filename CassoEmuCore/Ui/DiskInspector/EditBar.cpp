@@ -103,7 +103,7 @@ void EditBar::SetState (const EditBarState & state)
     m_discard->SetVisible       (hasEdits && !state.isWaiting);
     m_apply->SetVisible         (hasEdits && !state.isWaiting);
     m_apply->SetEnabled         (state.canApply);
-    m_saveCopy->SetVisible      (hasEdits && !state.isWaiting);
+    m_saveCopy->SetVisible      (hasEdits && !state.isWaiting && state.canSaveCopy);
     m_undoApplied->SetVisible   (state.canUndoApplied && !state.isWaiting);
     m_redoApplied->SetVisible   (state.canRedoApplied && !state.isWaiting);
     m_pauseApply->SetVisible    (state.isWaiting);
@@ -144,10 +144,10 @@ std::wstring EditBar::GetTip (POINT pointPx, RECT & outAnchorPx) const
                            L"A sector image (.dsk, .do or .po) stores only sector data, so its checksum is always recomputed" },
         { m_discardSector, L"Drop the selected " + m_unit + L"'s pending edits",                               L"" },
         { m_discard,       L"Drop every pending edit (Ctrl+Z brings them back)",                            L"" },
-        { m_apply,         L"Write the pending edits to the disk and save it",                              m_applyBlocked },
+        { m_apply,         m_isSaveWords ? L"Save the pending edits (Ctrl+S)" : L"Write the pending edits to the disk and save it", m_applyBlocked },
         { m_saveCopy,      L"Save the disk with the pending edits to a new file",                           L"" },
-        { m_undoApplied,   L"Put back the " + m_units + L" the last apply changed, and save",                    L"" },
-        { m_redoApplied,   L"Apply the last undone edit again, and save",                                   L"" },
+        { m_undoApplied,   L"Put back the " + m_units + L" the last " + (m_isSaveWords ? L"save" : L"apply") + L" changed, and save", L"" },
+        { m_redoApplied,   m_isSaveWords ? L"Save the last undone edit again" : L"Apply the last undone edit again, and save", L"" },
         { m_pauseApply,    L"Let the machine run to the next moment the head is clear of the edited fields, and apply there", L"" },
         { m_cancelApply,   L"Stop waiting; the edits stay pending",                                         L"" },
         { m_useB,          L"Put B's bytes for the paired " + m_unit + L" into this " + m_unit + L" as a pending edit", L"" },
@@ -203,6 +203,25 @@ void EditBar::SetUnit (const std::wstring & unit, const std::wstring & unitPlura
     m_unit  = unit;
     m_units = unitPlural;
     m_discardSector->SetLabel (L"Discard " + unit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditBar::UseSaveWords
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EditBar::UseSaveWords()
+{
+    m_isSaveWords = true;
+    m_apply->SetLabel       (L"Save...");
+    m_saveCopy->SetLabel    (L"Save as...");
+    m_undoApplied->SetLabel (L"Undo save");
+    m_redoApplied->SetLabel (L"Redo save");
 }
 
 

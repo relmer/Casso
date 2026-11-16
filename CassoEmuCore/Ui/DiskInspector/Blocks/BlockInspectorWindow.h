@@ -104,7 +104,8 @@ private:
     void                                  BuildCommands  ();
     static bool                           RunCommand     (const InspectorCommands::Command & command);
     void                                  QueueOpen      ();
-    void                                  Apply          ();
+    void                                  Save           ();
+    void                                  QueueSave      ();
     void                                  UndoApplied    ();
     void                                  RedoApplied    ();
     void                                  QueueWrite     (const std::wstring & label, const std::wstring & done, WriteFn write);
@@ -125,6 +126,7 @@ private:
     void                                  CloseWindow    ();
     void                                  ShowMessage    (const std::wstring & text);
     std::wstring                          GetFileName    () const { return m_displayName.empty() ? fs::path (m_path).filename().wstring() : m_displayName; }
+    bool                                  IsOnCard       () const;
 
     //  m_worker follows m_model, so it is destroyed first and its thread
     //  ends before the model goes away.
@@ -140,7 +142,7 @@ private:
     std::wstring              m_path;
     std::wstring              m_displayName;
     std::wstring              m_hint;
-    std::wstring              m_editNote;                // the edit bar's note: the last apply's result, or why it failed
+    std::wstring              m_editNote;                // the edit bar's note: the last save's result, or why it failed
     std::wstring              m_titleNote;               // after the name in the title, as the image compared with
     std::wstring              m_title;
     DxuiTooltip               m_tooltip;
@@ -148,8 +150,9 @@ private:
     std::wstring              m_tooltipText;
     const IDxuiTheme        * m_theme           = nullptr;
     std::function<void ()>    m_onClosed;
-    double                    m_zoom            = 1.0;
-    bool                      m_isDirty         = true;
-    bool                      m_isClosed        = false;
-    bool                      m_isReloadPending = false;
+    double  m_zoom             = 1.0;
+    bool    m_isDirty          = true;
+    bool    m_isClosed         = false;
+    bool    m_isReloadPending  = false;
+    bool    m_isCloseAfterSave = false;
 };

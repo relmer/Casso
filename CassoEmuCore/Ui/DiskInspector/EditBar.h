@@ -33,6 +33,7 @@ struct EditBarState
     bool          isMachinePaused  = false;
     bool          canUseB          = false;
     bool          hasChecksum      = true;    // false for an image with no checksums, as one of blocks
+    bool          canSaveCopy      = true;    // false where a copy can't be made, as on a storage card
 };
 
 
@@ -79,6 +80,10 @@ public:
     //  What an edit is made on, "sector" at first: the "Discard" button's
     //  label, the count and the tips.
     void  SetUnit  (const std::wstring & unit, const std::wstring & unitPlural);
+
+    //  "Save...", "Save as...", "Undo save" and "Redo save" in place of the
+    //  words for applying edits to a disk in a drive.
+    void  UseSaveWords ();
 
     //  The tooltip for the control under a point, with why it is unavailable
     //  when it is; empty when no control is there.
@@ -130,4 +135,5 @@ private:
     std::wstring    m_applyBlocked;
     std::wstring    m_unit          = L"sector";
     std::wstring    m_units         = L"sectors";
+    bool            m_isSaveWords   = false;
 };

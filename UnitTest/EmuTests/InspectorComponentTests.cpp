@@ -282,6 +282,50 @@ public:
 
 
 
+    TEST_METHOD (SaveWordsAndNoSaveAsOnACard)
+    {
+        EditBar        bar;
+        EditBarState   state;
+        DxuiDpiScaler  scaler;
+        int            widthPx = 1200;
+
+
+
+        auto  collectTips = [&] ()
+        {
+            std::set<std::wstring>  tips;
+            RECT                    anchor = {};
+            int                     height = bar.GetHeightPx (widthPx, scaler);
+
+            bar.Layout ({ 0, 0, widthPx, height }, scaler);
+
+            for (int y = 2; y < height; y += 4)
+            {
+                for (int x = 0; x < widthPx; x += 4)
+                {
+                    tips.insert (bar.GetTip ({ x, y }, anchor));
+                }
+            }
+
+            return tips;
+        };
+
+        bar.UseSaveWords();
+        state.bytes    = 1;
+        state.sectors  = 1;
+        state.canApply = true;
+        bar.SetState (state);
+
+        Assert::IsTrue (collectTips().contains (L"Save the pending edits (Ctrl+S)"), L"the apply button saves");
+        Assert::IsTrue (collectTips().contains (L"Save the disk with the pending edits to a new file"), L"Save as is offered for an image");
+
+        state.canSaveCopy = false;
+        bar.SetState (state);
+        Assert::IsFalse (collectTips().contains (L"Save the disk with the pending edits to a new file"), L"a card has no Save as");
+    }
+
+
+
     TEST_METHOD (TimingIsDisabledOnADiskWithNoFluxTracks)
     {
         InspectorSession    session;

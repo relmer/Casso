@@ -5,6 +5,7 @@
 #include "Devices/Disk/Inspector/DecodeSettings.h"
 #include "Ui/DiskInspector/Components/IInspectorComponent.h"
 #include "Devices/Disk/Inspector/InspectorSearch.h"
+#include "Ui/Dialogs/MessageDialog.h"
 
 class IInspectorComponentHost;
 class InspectorSession;
@@ -43,6 +44,10 @@ public:
 
     //  The same question for any owner window, as block mode's.
     static bool  ShowConfirm (HWND owner, const IDxuiTheme * theme, const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action);
+
+    //  A modal question with the buttons given; the chosen button's result
+    //  code, or the Cancel button's on Escape or the close box.
+    static int   ShowChoice  (HWND owner, const IDxuiTheme * theme, const std::wstring & title, const vector<std::wstring> & lines, const vector<MessageDialog::Button> & buttons);
 
 private:
     InspectorSession         & m_session;
