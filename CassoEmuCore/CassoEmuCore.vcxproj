@@ -341,6 +341,9 @@
     <ClCompile Include="Devices\Disk\Inspector\FileMap\CpmMapReader.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\FileMap\Dos33MapReader.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\FileMap\FileMap.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Repair\DiskRepair.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Repair\FileSystemCheck.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Repair\RepairCopy.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\FileMap\FileMapWriter.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\FileMap\PascalMapReader.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\FileMap\ProDosMapReader.cpp" />
@@ -483,6 +486,7 @@
     <ClCompile Include="CassoExplorer\Model\CopyOutConversion.cpp" />
     <ClCompile Include="CassoExplorer\Model\DragPayload.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostFileNaming.cpp" />
+    <ClCompile Include="CassoExplorer\Model\HostFolderNames.cpp" />
     <ClCompile Include="CassoExplorer\Model\KnownFolderStore.cpp" />
     <ClCompile Include="CassoExplorer\Model\LaunchCommand.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoExplorerSession.cpp" />
@@ -529,6 +533,7 @@
     <ClCompile Include="Devices\Disk\DiskCommandRunner.cpp" />
     <ClCompile Include="Devices\Disk\DiskCollectionCommands.cpp" />
     <ClCompile Include="Devices\Disk\DiskInspectCommand.cpp" />
+    <ClCompile Include="Devices\Disk\DiskRepairCommand.cpp" />
     <ClCompile Include="Devices\Disk\DiskThumbnailCommand.cpp" />
     <ClCompile Include="Devices\Disk\DiskHelpPage.cpp" />
     <ClCompile Include="Devices\Disk\DiskImageSession.cpp" />
@@ -1117,6 +1122,7 @@
     <ClCompile Include="Ui\DiskInspector\Components\InspectorMenus.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\InspectorSession.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\InspectorToolbar.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\InspectorTooltips.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\PlatterCorners.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\InspectorDialogs.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\SelectionPart.cpp" />
@@ -1165,6 +1171,7 @@
     <ClCompile Include="Ui\DiskInspector\FindSession.cpp" />
     <ClCompile Include="Ui\DiskInspector\Views\FluxView.cpp" />
     <ClCompile Include="Ui\DiskInspector\GoToDialog.cpp" />
+    <ClCompile Include="Ui\DiskInspector\RepairDialog.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterGeometry.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterLegendView.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterRenderer.cpp" />
@@ -1404,6 +1411,9 @@
     <ClInclude Include="Devices\Disk\Inspector\FileMap\CpmMapReader.h" />
     <ClInclude Include="Devices\Disk\Inspector\FileMap\Dos33MapReader.h" />
     <ClInclude Include="Devices\Disk\Inspector\FileMap\FileMap.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Repair\DiskRepair.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Repair\FileSystemCheck.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Repair\RepairCopy.h" />
     <ClInclude Include="Devices\Disk\Inspector\FileMap\FileMapWriter.h" />
     <ClInclude Include="Devices\Disk\Inspector\FileMap\PascalMapReader.h" />
     <ClInclude Include="Devices\Disk\Inspector\FileMap\ProDosMapReader.h" />
@@ -1559,6 +1569,7 @@
     <ClInclude Include="CassoExplorer\Model\CopyOutConversion.h" />
     <ClInclude Include="CassoExplorer\Model\DragPayload.h" />
     <ClInclude Include="CassoExplorer\Model\HostFileNaming.h" />
+    <ClInclude Include="CassoExplorer\Model\HostFolderNames.h" />
     <ClInclude Include="CassoExplorer\Model\KnownFolderStore.h" />
     <ClInclude Include="CassoExplorer\Model\LaunchCommand.h" />
     <ClInclude Include="CassoExplorer\Model\CassoExplorerSession.h" />
@@ -1615,6 +1626,7 @@
     <ClInclude Include="Devices\Disk\DiskCommandRunner.h" />
     <ClInclude Include="Devices\Disk\DiskCollectionCommands.h" />
     <ClInclude Include="Devices\Disk\DiskInspectCommand.h" />
+    <ClInclude Include="Devices\Disk\DiskRepairCommand.h" />
     <ClInclude Include="Devices\Disk\DiskThumbnailCommand.h" />
     <ClInclude Include="Devices\Disk\DiskHelpPage.h" />
     <ClInclude Include="Devices\Disk\DiskImageSession.h" />
@@ -2024,6 +2036,7 @@
     <ClInclude Include="Ui\DiskInspector\Components\InspectorMenus.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorSession.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorToolbar.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\InspectorTooltips.h" />
     <ClInclude Include="Ui\DiskInspector\Components\PlatterCorners.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorDialogs.h" />
     <ClInclude Include="Ui\DiskInspector\Components\SelectionPart.h" />
@@ -2076,6 +2089,7 @@
     <ClInclude Include="Ui\DiskInspector\FindSession.h" />
     <ClInclude Include="Ui\DiskInspector\Views\FluxView.h" />
     <ClInclude Include="Ui\DiskInspector\GoToDialog.h" />
+    <ClInclude Include="Ui\DiskInspector\RepairDialog.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterGeometry.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterLegendView.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterRenderer.h" />

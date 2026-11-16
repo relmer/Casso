@@ -226,7 +226,7 @@ DiskThumbnailResult DiskThumbnailWorker::BuildFromBytes (const vector<Byte> & by
             }
         }
 
-        result.chips = InspectorText::BuildChips (analysis->summary);
+        result.chips     = InspectorText::BuildChips (analysis->summary);
     }
 
     result.analysis = analysis;

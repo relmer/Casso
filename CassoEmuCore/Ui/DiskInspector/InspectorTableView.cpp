@@ -70,7 +70,7 @@ InspectorTableView::InspectorTableView (InspectorViewContext & context) :
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InspectorTableView::SetColumns (const vector<std::wstring> & titles)
+void InspectorTableView::SetColumns (const vector<std::wstring> & titles, int trailingDip)
 {
     vector<DxuiListView::Column>  columns;
 
@@ -87,7 +87,48 @@ void InspectorTableView::SetColumns (const vector<std::wstring> & titles)
         columns.push_back (column);
     }
 
-    columns.back().stretch = true;
+    if (trailingDip > 0 && columns.size() > 1)
+    {
+        columns.back().widthDip            = trailingDip;
+        columns[columns.size() - 2].stretch = true;
+    }
+    else
+    {
+        columns.back().stretch = true;
+    }
+
+    m_list.SetColumns (std::move (columns));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTableView::SetColumns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTableView::SetColumns (const vector<std::wstring> & titles, const vector<int> & widthsDip, size_t stretch)
+{
+    vector<DxuiListView::Column>  columns;
+
+
+
+    m_titles = titles;
+
+    for (size_t c = 0; c < titles.size(); c++)
+    {
+        DxuiListView::Column  column;
+
+        column.title    = titles[c];
+        column.elide    = (c == stretch) ? DxuiElide::None : DxuiElide::Tail;
+        column.widthDip = (c < widthsDip.size()) ? widthsDip[c] : 0;
+        column.stretch  = c == stretch;
+        columns.push_back (column);
+    }
+
     m_list.SetColumns (std::move (columns));
 }
 
@@ -156,7 +197,7 @@ void InspectorTableView::ShowRows()
         {
             DxuiListView::Cell  cell;
 
-            cell.text     = text;
+            cell.text     = (static_cast<int> (line.size()) == m_iconColumn) ? std::wstring() : text;
             cell.isStrong  = m_isGrouped && IsGroupRow (row);
             cell.isHeading = cell.isStrong && &text == &row.cells[0];
             cell.isOpen    = cell.isHeading && !m_collapsed.contains (row.cells[0].substr (s_kHeadingIndent.size()));
@@ -342,6 +383,24 @@ bool InspectorTableView::OnMouse (const DxuiMouseEvent & ev)
     }
 
     return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTableView::GetCursorForPoint
+//
+//  The list is a member, not a child, so the window's walk over its
+//  children doesn't include it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR InspectorTableView::GetCursorForPoint (POINT clientPx) const
+{
+    return static_cast<const IDxuiControl &> (m_list).GetCursorForPoint (clientPx);
 }
 
 

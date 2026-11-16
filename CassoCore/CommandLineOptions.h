@@ -115,7 +115,7 @@ struct CommandLineOptions
         enum class Command      { None, List, Get, Put, Delete, Boot, Create, Init,
                                   Mkdir, Rmdir, SectorRead, SectorWrite, BlockRead,
                                   BlockWrite, Krunch, Test, Dupes, Search, Inspect,
-                                  SetThumbnail, GetThumbnail, RemoveThumbnail, Help };
+                                  Repair, SetThumbnail, GetThumbnail, RemoveThumbnail, Help };
 
         //  How a payload's bytes relate to the file on the host. Verbatim means
         //  no CHARACTER conversion -- length and header semantics still apply,
@@ -162,6 +162,8 @@ struct CommandLineOptions
         bool         yes            = false;           // --yes, -y
         std::string  hostFile;                         // source for put, --out for get
         std::string  picturePath;                      // the picture `set-thumbnail` sets
+        bool         noFreeUnowned  = false;           // --no-free-unowned, for `repair`
+        bool         listOnly       = false;           // --list, for `repair`
         std::string  typeName;                         // --type, as the user wrote it
         Word         loadAddress    = 0;               // --load
         bool         hasLoadAddress = false;           // $0000 is a legal address

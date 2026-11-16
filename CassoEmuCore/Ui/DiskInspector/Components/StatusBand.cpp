@@ -6,6 +6,7 @@
 #include "Ui/DiskInspector/Components/InspectorMetrics.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 
 
 
@@ -15,6 +16,8 @@ static constexpr float    s_kChipPadDip    = 8.0f;
 static constexpr float    s_kChipGapDip    = 6.0f;
 static constexpr float    s_kChipHeightDip = 20.0f;
 static constexpr float    s_kChipTextDip   = 12.0f;
+static constexpr uint32_t s_kRgbMask       = 0x00FFFFFFu;
+static constexpr uint32_t s_kHotTintAlpha  = 0x4C000000u;   // a linked chip's fill under the pointer, its color at 30%
 static constexpr float    s_kHintTextDip   = 12.0f;
 static constexpr LPCWSTR  s_kpszAnalyzing  = L"Analyzing";
 
@@ -199,6 +202,8 @@ void StatusBand::PaintUnder (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
     PaintLead (painter, text, theme, items);
     PaintHelp (text, theme);
+
+    m_placed = std::move (items);
 }
 
 
@@ -231,9 +236,10 @@ vector<StatusBand::LeadItem> StatusBand::BuildLead() const
                                LeadKind::Result });
         }
 
-        for (const SummaryChip & chip : InspectorText::BuildChips (m_session.analysis.summary))
+        for (const SummaryChip & chip : InspectorText::BuildChips (m_session.analysis.summary, m_session.analysis.verdict))
         {
             items.push_back ({ chip.text, chip.isBad ? LeadKind::BadChip : LeadKind::Chip });
+            items.back().isLinked = chip.kind == SummaryChipKind::FileSystem && FileSystemCheck::GetVerdictFinding (m_session.analysis) != nullptr;
         }
 
         if (!m_session.analysis.settings.IsStandard())
@@ -350,12 +356,24 @@ void StatusBand::PaintLead (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
             case LeadKind::Chip:
             case LeadKind::BadChip:
+            {
+                //  A linked chip is in the accent unless it's bad, and tinted with
+                //  that color while the pointer is on it.
+                uint32_t  ink = (item.kind == LeadKind::BadChip) ? bad : (item.isLinked ? theme.Accent() : theme.Foreground());
+
                 painter.FillRoundedRect    (item.x, y, item.w, chipH, chipH / 2, theme.ButtonIdle());
+
+                if (item.isLinked && m_isLinkHot)
+                {
+                    painter.FillRoundedRect (item.x, y, item.w, chipH, chipH / 2, (ink & s_kRgbMask) | s_kHotTintAlpha);
+                }
+
                 painter.OutlineRoundedRect (item.x, y, item.w, chipH, chipH / 2, m_scaler.ToPxf (1.0f),
-                                            item.kind == LeadKind::BadChip ? bad : theme.ButtonBorder());
-                text.DrawString (item.text.c_str(), item.x, y, item.w, chipH, item.kind == LeadKind::BadChip ? bad : theme.Foreground(), textPx,
+                                            (item.kind == LeadKind::BadChip || item.isLinked) ? ink : theme.ButtonBorder());
+                text.DrawString (item.text.c_str(), item.x, y, item.w, chipH, ink, textPx,
                                  DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
                 break;
+            }
 
             case LeadKind::Analyzing:
                 text.DrawString (item.text.c_str(), item.x, y, item.w + 1.0f, chipH, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace,
@@ -428,22 +446,62 @@ void StatusBand::PaintHelp (IDxuiTextRenderer & text, const IDxuiTheme & theme) 
 //
 //  StatusBand::OnMouse
 //
-//  A press on "?" opens the walkthrough.
+//  A press on "?" opens the walkthrough, and one on the file-system chip of
+//  a Bad or Suspect volume opens its finding on the Issues tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool StatusBand::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool  isPress = ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_helpPx, ev.positionDip);
+    bool             isDown  = ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left;
+    bool             isHot   = ev.kind != DxuiMouseEventKind::Leave && GetLinkedChipAt (ev.positionDip) != nullptr;
+    bool             isHelp  = isDown && PtInRect (&m_helpPx, ev.positionDip);
+    const LeadItem * chip    = isDown ? GetLinkedChipAt (ev.positionDip) : nullptr;
+    const Finding  * finding = (chip != nullptr) ? FileSystemCheck::GetVerdictFinding (m_session.analysis) : nullptr;
 
 
 
-    if (isPress)
+    m_isLinkHot = isHot;
+
+    if (isHelp)
     {
         m_host.OpenWalkthrough();
     }
 
-    return isPress;
+    if (finding != nullptr)
+    {
+        m_host.ShowFinding (static_cast<int> (finding - m_session.analysis.findings.data()));
+    }
+
+    return isHelp || chip != nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StatusBand::GetLinkedChipAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const StatusBand::LeadItem * StatusBand::GetLinkedChipAt (POINT pointPx) const
+{
+    float             chipH = m_scaler.ToPxf (s_kChipHeightDip);
+    float             top   = (m_chipsPx.top + m_chipsPx.bottom - chipH) / 2.0f;
+    const LeadItem  * found = nullptr;
+
+
+
+    for (const LeadItem & item : m_placed)
+    {
+        bool  isOver = item.isLinked && item.isPlaced && pointPx.x >= item.x && pointPx.x < item.x + item.w && pointPx.y >= top && pointPx.y < top + chipH;
+
+        found = (found == nullptr && isOver) ? &item : found;
+    }
+
+    return found;
 }
 
 
@@ -462,10 +520,19 @@ std::wstring StatusBand::GetTip (POINT pointPx, RECT & outAnchorPx) const
 
 
 
+    const LeadItem *  chip = GetLinkedChipAt (pointPx);
+
+
+
     if (PtInRect (&m_helpPx, pointPx))
     {
         tip         = L"Open the walkthrough";
         outAnchorPx = m_helpPx;
+    }
+    else if (chip != nullptr)
+    {
+        tip         = L"Go to this issue on the Issues tab";
+        outAnchorPx = RECT { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
     }
 
     return tip;

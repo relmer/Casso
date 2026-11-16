@@ -2,6 +2,7 @@
 
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
+#include "Devices/Disk/Inspector/FindingFormatter.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Ui/DiskInspector/FindBar.h"
@@ -78,13 +79,16 @@ public:
         Assert::AreEqual (analysis.findings.size(), rows.size());
         Assert::AreEqual (17, static_cast<int> (rows.size()), L"16 volume findings and one checksum");
 
+        //  The most severe first, and in disk order within a severity.
         for (size_t i = 1; i < rows.size(); i++)
         {
-            Assert::IsTrue (rows[i - 1].quarterTrack <= rows[i].quarterTrack);
+            Assert::IsTrue (rows[i - 1].severity > rows[i].severity || (rows[i - 1].severity == rows[i].severity && rows[i - 1].quarterTrack <= rows[i].quarterTrack));
         }
 
         Assert::AreEqual (17, InspectorTables::CountCategories (analysis)[static_cast<int> (FindingCategory::Field)]);
-        Assert::AreEqual (std::wstring (L"5"), rows[0].cells[1]);
+        Assert::AreEqual (std::wstring (L"Severity"), InspectorTables::GetFindingColumns()[0]);
+        Assert::AreEqual (std::wstring (L"Finding"),  InspectorTables::GetFindingColumns()[1]);
+        Assert::AreEqual (std::wstring (L"5"), rows[0].cells[3]);
     }
 
 
@@ -101,9 +105,40 @@ public:
         rows = InspectorTables::BuildFindings (analysis, 1u << static_cast<int> (FindingCategory::Track), -1, false);
         Assert::AreEqual (static_cast<size_t> (0), rows.size(), L"no track findings on this disk");
 
-        rows = InspectorTables::BuildFindings (analysis, InspectorTables::GetAllCategories(), 2, true);
-        Assert::AreEqual (std::wstring (L"$F"), rows[0].cells[2], L"sectors sort by their hex value, highest first");
-        Assert::AreEqual (std::wstring (L"$0"), rows.back().cells[2]);
+        rows = InspectorTables::BuildFindings (analysis, InspectorTables::GetAllCategories(), 4, true);
+        Assert::AreEqual (std::wstring (L"$F"), rows[0].cells[4], L"sectors sort by their hex value, highest first");
+        Assert::AreEqual (std::wstring (L"$0"), rows.back().cells[4]);
+    }
+
+
+
+    TEST_METHOD (EachFindingHasASeverity)
+    {
+        struct Case { FindingCategory category; FindingKind kind; FindingWeight weight; FindingSeverity severity; };
+
+        const Case  cases[] =
+        {
+            { FindingCategory::FileSystem, FindingKind::FileOwnedMarkedFree,   FindingWeight::Damage,  FindingSeverity::Error   },
+            { FindingCategory::FileSystem, FindingKind::Dos33NextTrackOffDisk, FindingWeight::Suspect, FindingSeverity::Info    },
+            { FindingCategory::FileSystem, FindingKind::FileAllocatedUnowned,  FindingWeight::Note,    FindingSeverity::Info    },
+            { FindingCategory::Sector,     FindingKind::DataChecksumFailed,    FindingWeight::Note,    FindingSeverity::Error   },
+            { FindingCategory::ImageFile,  FindingKind::ChecksumMismatch,      FindingWeight::Note,    FindingSeverity::Error   },
+            { FindingCategory::Field,      FindingKind::VolumeDiffers,         FindingWeight::Note,    FindingSeverity::Warning },
+            { FindingCategory::Protection, FindingKind::ThirteenSectorFields,  FindingWeight::Note,    FindingSeverity::Info    },
+        };
+
+
+
+        for (const Case & c : cases)
+        {
+            Finding  finding;
+
+            finding.category = c.category;
+            finding.kind     = c.kind;
+            finding.weight   = c.weight;
+
+            Assert::IsTrue (FindingFormatter::GetSeverity (finding) == c.severity, FindingFormatter::FormatSeverity (c.severity).c_str());
+        }
     }
 
 

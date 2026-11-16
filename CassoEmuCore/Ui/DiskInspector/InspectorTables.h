@@ -31,6 +31,7 @@ struct TableRow
     int                   sectorIndex  = -1;
     int                   field        = -1;
     int                   finding      = -1;
+    int                   severity     = -1;     // a finding's FindingSeverity
 };
 
 
@@ -43,8 +44,9 @@ struct TableRow
 //
 //  The rows of the Findings tab (FR-048, FR-049), the Tracks tab (FR-047)
 //  and the Fields tab (FR-042), kept out of the views so they can be tested.
-//  Findings come in quarter-track and cell order; any column sorts them, and
-//  a category filter hides the rest.
+//  Findings come most severe first, in quarter-track and cell order within
+//  each severity; any column sorts them, and a category filter hides the
+//  rest.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

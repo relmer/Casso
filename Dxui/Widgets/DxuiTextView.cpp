@@ -1214,7 +1214,7 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     painter.PopClipRect();
 
-    if (IsScrollbarVisible())
+    if (IsScrollbarVisible() && !m_vertBarHidden)
     {
         m_vertScroll.Paint (painter, theme.ForegroundMuted());
     }

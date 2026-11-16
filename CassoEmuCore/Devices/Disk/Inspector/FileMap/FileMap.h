@@ -76,6 +76,17 @@ enum class NotMappedReason
 };
 
 
+//  A volume's file-system verdict (FR-166), best first; None for a disk
+//  with no standard file system.
+enum class FileSystemVerdict
+{
+    Ok,
+    Suspect,
+    Bad,
+    None,
+};
+
+
 
 
 
@@ -132,21 +143,47 @@ struct MappedFile
 };
 
 
+//  A count or pointer a catalog entry or a directory header has that
+//  differs from the value in the volume's structure: a little-endian byte or
+//  word at a byte offset in a cell, which Repair sets to the actual value
+//  (FR-175). The finding that reports it is identified by its kind and detail.
+struct RecordedCount
+{
+    int           cell     = -1;
+    int           offset   = 0;
+    int           recorded = 0;
+    int           actual   = 0;
+    std::wstring  what;
+    int           width    = 2;
+    FindingKind   kind     = FindingKind::FileCountDiffers;
+    std::string   finding;
+};
+
+
 struct FileMap
 {
-    MapFileSystem       fileSystem        = MapFileSystem::None;
-    std::wstring        volumeName;
-    int                 tracks            = 35;
-    int                 cellsPerTrack     = 16;
-    vector<MapCell>     cells;
-    vector<MappedFile>  files;
-    bool                isCatalogComplete = true;
-    int                 unreadableCell    = -1;
-    NotMappedReason     notMapped         = NotMappedReason::None;
-    int                 otherSize         = 0;
-    std::wstring        likelyCause;
-    bool                usesUnchecked     = false;
-    vector<Finding>     findings;
+    MapFileSystem          fileSystem        = MapFileSystem::None;
+    std::wstring           volumeName;
+    int                    tracks            = 35;
+    int                    cellsPerTrack     = 16;
+    vector<MapCell>        cells;
+    vector<MappedFile>     files;
+    bool                   isCatalogComplete = true;
+    int                    unreadableCell    = -1;
+    NotMappedReason        notMapped         = NotMappedReason::None;
+    int                    otherSize         = 0;
+    std::wstring           likelyCause;
+    bool                   usesUnchecked     = false;
+    vector<Finding>        findings;
+    FileSystemVerdict      verdict           = FileSystemVerdict::None;
+    vector<RecordedCount>  counts;
+
+    //  DOS 3.3 only: the catalog's sectors in chain order, whether the
+    //  header was blank and read as DOS's, and whether the catalog's entries
+    //  are too odd to follow (FR-168, FR-174).
+    vector<int>         catalogCells;
+    bool                isHeaderLost      = false;
+    bool                isCatalogStandard = true;
 
     int  GetTrack  (int cell) const { return cell / cellsPerTrack; }
     int  GetColumn (int cell) const { return cell % cellsPerTrack; }
@@ -177,9 +214,22 @@ struct FileMap
 ////////////////////////////////////////////////////////////////////////////////
 
 struct DiskAnalysis;
+class SectorSource;
 
 class FileMapBuilder
 {
 public:
     static vector<FileMap>  Build (const DiskAnalysis & analysis);
+
+    //  The same from a volume's sectors, with the volume number of its address
+    //  fields for a DOS 3.3 VTOC whose header is lost.
+    static vector<FileMap>  Build (const SectorSource & source, int volume);
+
+    //  A volume's verdict from its findings, and a disk's: the worst of its
+    //  volumes', or None when no volume was mapped.
+    static FileSystemVerdict  GetVerdict (const FileMap & map);
+    static FileSystemVerdict  GetVerdict (const vector<FileMap> & maps);
+
+private:
+    static void  ReadLostHeader (const SectorSource & source, int volume, FileMap & outMap);
 };

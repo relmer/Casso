@@ -286,7 +286,7 @@ void DxuiScrollPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         }
     }
 
-    if (m_isScrollable)
+    if (m_isScrollable && m_isBarShown)
     {
         painter.SetClipRect (&clip);
         m_scrollbar.Paint (painter, theme.Foreground());
@@ -426,7 +426,7 @@ bool DxuiScrollPanel::OnMouse (const DxuiMouseEvent & ev)
         if (ev.kind == DxuiMouseEventKind::Up)   { return m_scrollbar.OnMouseUp(); }
     }
 
-    if (m_isScrollable && inView && ev.kind == DxuiMouseEventKind::Down && m_scrollbar.HitTest (ev.positionDip.x, ev.positionDip.y))
+    if (m_isScrollable && m_isBarShown && inView && ev.kind == DxuiMouseEventKind::Down && m_scrollbar.HitTest (ev.positionDip.x, ev.positionDip.y))
     {
         return m_scrollbar.OnMouseDown (ev.positionDip.x, ev.positionDip.y);
     }

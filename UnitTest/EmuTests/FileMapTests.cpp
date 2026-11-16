@@ -281,8 +281,8 @@ public:
         AssertOnce (map, FindingKind::FileChainBroken, true);
         Assert::AreEqual (4, FileOf (map, L"HELLO").GetUsedCount());
 
-        //  HELLO's catalog count says five sectors.
-        Images::GetDosSector (miscount, 17, 15)[0x0B + 0x21] = 5;
+        //  HELLO's catalog count is seven sectors, three more than it uses.
+        Images::GetDosSector (miscount, 17, 15)[0x0B + 0x21] = 7;
         map = MapOf (miscount, false);
         AssertOnce (map, FindingKind::FileCountDiffers, false);
     }
@@ -367,6 +367,39 @@ public:
         map = MapOf (invalid, false);
         Assert::IsTrue (map.fileSystem == MapFileSystem::Cpm, L"more than four valid entries still find the volume");
         AssertOnce (map, FindingKind::CpmInvalidEntry, true);
+    }
+
+
+
+    TEST_METHOD (CpmExtentsAndBlocksAreChecked)
+    {
+        vector<Byte>  missing   = Images::MakeCpm();
+        vector<Byte>  records   = Images::MakeCpm();
+        vector<Byte>  directory = Images::MakeCpm();
+        vector<Byte>  past      = Images::MakeCpm();
+        FileMap       map;
+
+
+
+        //  PIP.COM's second extent numbered 2, so extent 1 is missing.
+        Images::GetCpmSector (missing, 3, 0)[1 * 32 + 12] = 2;
+        map = MapOf (missing, false);
+        AssertOnce (map, FindingKind::CpmExtentMissing, false);
+        Assert::IsTrue (map.verdict == FileSystemVerdict::Bad);
+
+        //  NOTES.TXT's 16 records fill two blocks, and the entry has one.
+        Images::GetCpmSector (records, 3, 0)[3 * 32 + 15] = 0x10;
+        AssertOnce (MapOf (records, false), FindingKind::CpmRecordsPastBlocks, true);
+
+        //  NOTES.TXT's block is the directory's second.
+        Images::GetCpmSector (directory, 3, 0)[3 * 32 + 16] = 1;
+        AssertOnce (MapOf (directory, false), FindingKind::CpmBlockInDirectory, true);
+
+        //  NOTES.TXT's 8 records fill one block, and it has a second: a note.
+        Images::GetCpmSector (past, 3, 0)[3 * 32 + 17] = 30;
+        map = MapOf (past, false);
+        AssertOnce (map, FindingKind::CpmBlocksPastRecords, true);
+        Assert::IsTrue (map.verdict == FileSystemVerdict::Ok);
     }
 
 

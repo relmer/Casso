@@ -177,6 +177,7 @@
     <ClCompile Include="SosTests.cpp" />
     <ClCompile Include="CatalogReproductionTest.cpp" />
     <ClCompile Include="FileMapStockDiskTests.cpp" />
+    <ClCompile Include="FileSystemVerdictTests.cpp" />
     <ClCompile Include="GuestVisibleBasicTests.cpp" />
     <ClCompile Include="GuestVisibleBasicToolsTests.cpp" />
     <ClCompile Include="GuestVisibleBootTests.cpp" />
@@ -217,6 +218,8 @@
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />
+    <ClCompile Include="..\UnitTest\EmuTests\FileMapTestImages.cpp" />
+    <ClCompile Include="..\UnitTest\Inspector\RepairFixtures.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\GuestSession.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\EmbeddedMachineJson.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\TestMachine.cpp" />

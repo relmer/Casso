@@ -252,8 +252,8 @@ public:
     //  Whether a point is on a scrollbar, and the hover that widens one. The
     //  bars' tracks are placed in widget coordinates for input and in client
     //  coordinates for painting, so either placement counts.
-    bool  IsOverScrollbar   (POINT pt) const override { return IsOverBar (m_scrollbars.m_vertScroll, pt) || IsOverBar (m_scrollbars.m_horzScroll, pt); }
-    bool  SetScrollbarHover (POINT pt)                { return ((int) m_scrollbars.m_vertScroll.SetHover (IsOverBar (m_scrollbars.m_vertScroll, pt), GetBarPoint (m_scrollbars.m_vertScroll, pt)) | (int) m_scrollbars.m_horzScroll.SetHover (IsOverBar (m_scrollbars.m_horzScroll, pt), GetBarPoint (m_scrollbars.m_horzScroll, pt))) != 0; }
+    bool  IsOverScrollbar   (POINT pt) const override { return (!m_vertBarHidden && IsOverBar (m_scrollbars.m_vertScroll, pt)) || IsOverBar (m_scrollbars.m_horzScroll, pt); }
+    bool  SetScrollbarHover (POINT pt)                { return ((int) m_scrollbars.m_vertScroll.SetHover (!m_vertBarHidden && IsOverBar (m_scrollbars.m_vertScroll, pt), GetBarPoint (m_scrollbars.m_vertScroll, pt)) | (int) m_scrollbars.m_horzScroll.SetHover (IsOverBar (m_scrollbars.m_horzScroll, pt), GetBarPoint (m_scrollbars.m_horzScroll, pt))) != 0; }
     bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_scrollbars.m_vertScroll.Tick (nowMs) | (int) m_scrollbars.m_horzScroll.Tick (nowMs)) != 0; }
 
     //  Whether a dragged header's neighbors are still sliding aside, so the
@@ -329,6 +329,11 @@ public:
     void  SetRowHeightPxFn             (std::function<int (UINT dpi)> fn) { m_rowHeightPxFn = std::move (fn); }
 
     void  SetHorizontalScrollEnabled   (bool b)                { m_hScrollEnabled = b; }
+
+    // The vertical bar neither drawn nor hit-tested, for a host that scrolls
+    // the list with another bar; the bar's strip stays reserved, so the
+    // host's bar has the room. Off by default.
+    void  SetVerticalScrollbarHidden   (bool hidden)           { m_vertBarHidden = hidden; }
     bool  IsHorizontalScrollEnabled    () const                { return m_hScrollEnabled; }
     int   GetContentWidthPx            () const { return m_columnSizing.GetContentWidthPx(); }
     int   GetMaxLeftPx                 () const { return m_scrollbars.GetMaxLeftPx(); }
@@ -428,6 +433,10 @@ public:
     //  as a rename in place does. False for a row scrolled out of view or a
     //  hidden column.
     bool  GetCellTextRectPx   (int row, size_t column, RECT & outRect) const { return m_columnSizing.GetCellTextRectPx (row, column, outRect); }
+
+    //  A Details row's whole cell in view, list-relative, from the column's left
+    //  edge to its right; false out of view or in another view.
+    bool  GetCellRectPx       (int row, size_t column, RECT & outRect) const { return m_columnSizing.GetCellRectPx (row, column, outRect); }
 
     // Self-contained mouse input. Mouse events arrive through
     // IDxuiControl::OnMouse in the parent's coordinates, as for every other
@@ -709,6 +718,7 @@ private:
     bool                       m_kbColNavEnabled     = false;
     bool                       m_kbColResize         = false;
     bool                       m_hScrollEnabled      = false;
+    bool                       m_vertBarHidden       = false;
     int                        m_leftPx              = 0;
     bool                       m_contentHidden       = false;
     std::function<void (int)>         m_onSelectionChanged;

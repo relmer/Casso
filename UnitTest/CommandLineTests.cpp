@@ -3021,6 +3021,7 @@ namespace CommandLineTests
                 { "dupes",            CommandLineOptions::DiskOptions::Command::Dupes           },
                 { "search",           CommandLineOptions::DiskOptions::Command::Search          },
                 { "inspect",          CommandLineOptions::DiskOptions::Command::Inspect         },
+                { "repair",           CommandLineOptions::DiskOptions::Command::Repair          },
                 { "set-thumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
                 { "get-thumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
                 { "remove-thumbnail", CommandLineOptions::DiskOptions::Command::RemoveThumbnail },
@@ -3054,7 +3055,7 @@ namespace CommandLineTests
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
             }
 
-            Assert::AreEqual (size_t (37), CommandLineParser::GetAllDiskCommands().size(),
+            Assert::AreEqual (size_t (38), CommandLineParser::GetAllDiskCommands().size(),
                 L"and the table holds exactly the forms swept above");
         }
 

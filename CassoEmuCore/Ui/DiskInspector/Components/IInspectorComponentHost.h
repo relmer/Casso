@@ -42,6 +42,11 @@ public:
     virtual void                 TakeTracks          (const InspectorReply & reply) = 0;
     virtual void                 SetWindowZoom       (double zoom) = 0;
     virtual void                 OpenWalkthrough     () = 0;
+    virtual void                 OpenRepair          (const std::set<std::wstring> & chosen) = 0;
+
+    //  The Issues tab with the finding at that index of the analysis's
+    //  findings selected, focused and scrolled into view.
+    virtual void                 ShowFinding         (int finding) = 0;
 
     //  Passed to every component in the window's order.
     virtual void                 NotifyDiskStarting    (const DiskChange & change) = 0;

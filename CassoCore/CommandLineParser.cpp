@@ -77,6 +77,7 @@ static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
     { "dupes",            CommandLineOptions::DiskOptions::Command::Dupes           },
     { "search",           CommandLineOptions::DiskOptions::Command::Search          },
     { "inspect",          CommandLineOptions::DiskOptions::Command::Inspect         },
+    { "repair",           CommandLineOptions::DiskOptions::Command::Repair          },
     { "set-thumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
     { "get-thumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
     { "remove-thumbnail", CommandLineOptions::DiskOptions::Command::RemoveThumbnail },
@@ -269,6 +270,8 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "recurse",
     "force",
     "yes",
+    "no-free-unowned",
+    "list",
 
     //  Here so `/on-change` is matched as one word rather than shredded into
     //  the single-character flags -o -n -c -h ...
@@ -1034,6 +1037,7 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::SectorWrite:
         case CommandLineOptions::DiskOptions::Command::BlockWrite:
         case CommandLineOptions::DiskOptions::Command::Search:
+        case CommandLineOptions::DiskOptions::Command::Repair:
         case CommandLineOptions::DiskOptions::Command::SetThumbnail:
         case CommandLineOptions::DiskOptions::Command::GetThumbnail:
             count = 2;
@@ -1342,6 +1346,18 @@ void CommandLineParser::ParseDiskOptions (
         if (arg == "--yes" || arg == "-y")
         {
             options.disk.yes = true;
+            continue;
+        }
+
+        if (arg == "--no-free-unowned")
+        {
+            options.disk.noFreeUnowned = true;
+            continue;
+        }
+
+        if (arg == "--list")
+        {
+            options.disk.listOnly = true;
             continue;
         }
 
@@ -1722,7 +1738,8 @@ void CommandLineParser::ParseDiskOptions (
             if (options.disk.command == CommandLineOptions::DiskOptions::Command::Put
              || options.disk.command == CommandLineOptions::DiskOptions::Command::SectorWrite
              || options.disk.command == CommandLineOptions::DiskOptions::Command::BlockWrite
-             || options.disk.command == CommandLineOptions::DiskOptions::Command::GetThumbnail)
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::GetThumbnail
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::Repair)
             {
                 options.disk.hostFile = arg;
             }

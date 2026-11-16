@@ -2,6 +2,7 @@
 
 
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/Model/HostFolderNames.h"
 #include "DiskCheck/BootSounds.h"
 #include "AssetBootstrap.h"
 #include "BuildInfo.h"
@@ -657,7 +658,61 @@ CassoExplorerWindowRequest CassoExplorerShell::PlanForwardedLaunch (const CassoE
 
 const wchar_t * CassoExplorerShell::GetWindowClass()
 {
-    return PathResolver::IsProfileFolderSet() ? kTestCopyClass : kWindowClass;
+    static constexpr DWORD  kFolderChars = 32768;
+
+
+
+    static const std::wstring  windowClass = [] ()
+    {
+        std::wstring  folder (kFolderChars, L'\0');
+        DWORD         length = GetEnvironmentVariableW (PathResolver::kpszProfileVariable, folder.data(), kFolderChars);
+
+        folder.resize (length < kFolderChars ? length : 0);
+        return MakeWindowClass (folder);
+    } ();
+
+
+
+    return windowClass.c_str();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::MakeWindowClass
+//
+//  kTestCopyClass and the folder's 32-bit FNV-1a hash in hex, taken over its
+//  path in lowercase so that C:\Temp and c:\temp give the same class;
+//  kWindowClass for no folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerShell::MakeWindowClass (const std::wstring & profileFolder)
+{
+    static constexpr uint32_t  kOffsetBasis = 2166136261u;
+    static constexpr uint32_t  kPrime       = 16777619u;
+
+
+
+    uint32_t      hash        = kOffsetBasis;
+    std::wstring  windowClass = kWindowClass;
+
+
+
+    for (wchar_t ch : profileFolder)
+    {
+        hash = (hash ^ static_cast<uint32_t> (towlower (ch))) * kPrime;
+    }
+
+    if (!profileFolder.empty())
+    {
+        windowClass = std::format (L"{}_{:08X}", kTestCopyClass, hash);
+    }
+
+    return windowClass;
 }
 
 
@@ -865,115 +920,6 @@ void CassoExplorerShell::ReportAssertion (const wchar_t * message)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerShell::GetPlainFolderName
-//
-//  The LocalizedResourceName of a folder's desktop.ini when it is text rather
-//  than a reference to a module's string, which starts with an at sign.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoExplorerShell::GetPlainFolderName (const std::wstring & path)
-{
-    wchar_t       text[MAX_PATH] = {};
-    std::wstring  ini            = path + L"\\desktop.ini";
-    DWORD         length         = GetPrivateProfileStringW (L".ShellClassInfo", L"LocalizedResourceName", L"", text, ARRAYSIZE (text), ini.c_str());
-
-
-
-    return (length > 0 && text[0] != L'@') ? std::wstring (text, length) : std::wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerShell::GetLocalizedFolderName
-//
-//  SHGetLocalizedName returns the module and string id the desktop.ini
-//  refers to; the string is loaded from that module as data, never run. A
-//  desktop.ini whose name is plain text, as iCloud's is, has no module, and
-//  its text is the name.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoExplorerShell::GetLocalizedFolderName (const std::wstring & path)
-{
-    HRESULT       hr                 = S_OK;
-    wchar_t       module[MAX_PATH]   = {};
-    wchar_t       expanded[MAX_PATH] = {};
-    wchar_t       text[MAX_PATH]     = {};
-    int           id                 = 0;
-    HMODULE       library            = nullptr;
-    int           length             = 0;
-    std::wstring  name;
-
-
-
-    hr = SHGetLocalizedName (path.c_str(), module, ARRAYSIZE (module), &id);
-    BAIL_OUT_IF (FAILED (hr), S_OK);
-
-    BAIL_OUT_IF (ExpandEnvironmentStringsW (module, expanded, ARRAYSIZE (expanded)) == 0, S_OK);
-
-    library = LoadLibraryExW (expanded, nullptr, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE);
-    BAIL_OUT_IF (library == nullptr, S_OK);
-
-    length = LoadStringW (library, (UINT) id, text, ARRAYSIZE (text));
-
-    if (length > 0)
-    {
-        name.assign (text, (size_t) length);
-    }
-
-Error:
-    if (library != nullptr)
-    {
-        FreeLibrary (library);
-    }
-
-    return name.empty() ? GetPlainFolderName (path) : name;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerShell::GetDriveRoots
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::wstring> CassoExplorerShell::GetDriveRoots()
-{
-    std::vector<std::wstring>  roots;
-    wchar_t                    buffer[512] = {};
-    DWORD                      length      = GetLogicalDriveStringsW (ARRAYSIZE (buffer), buffer);
-    const wchar_t *            root        = buffer;
-
-
-
-    if (length == 0 || length > ARRAYSIZE (buffer))
-    {
-        return roots;
-    }
-
-    while (*root != L'\0')
-    {
-        roots.push_back (root);
-        root += wcslen (root) + 1;
-    }
-
-    return roots;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerShell::StartLinkFaults
 //
 //  A Debug build's fault injection: the Apple's program is built with the
@@ -1021,7 +967,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
     m_instance    = instance;
     m_showCommand = showCommand;
     m_baseDir     = AssetBootstrap::GetAssetBaseDirectory().wstring();
-    m_inspectors  = std::make_unique<InspectorWindowSet> (m_imageWatcher, m_prefs.diskInspector, InspectorWindowSet::Seams { .fileIo = &m_containerIo });
+    m_inspectors  = std::make_unique<InspectorWindowSet> (m_imageWatcher, m_prefs.diskInspector, InspectorWindowSet::Seams { .fileIo = &m_containerIo, .explorer = this });
 
 #if defined (_DEBUG)
     StartLinkFaults();
@@ -1093,8 +1039,8 @@ Error:
 void CassoExplorerShell::ConfigureBrowser (CassoExplorerBrowser & browser)
 {
     browser.GetTreeModel().SetKnownFolders (m_knownFolders);
-    browser.GetTreeModel().SetDrives (GetDriveRoots());
-    browser.GetTreeModel().SetLocalizedNameLookup (&CassoExplorerShell::GetLocalizedFolderName);
+    browser.GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
+    browser.GetTreeModel().SetLocalizedNameLookup (&HostFolderNames::GetLocalizedFolderName);
     browser.SetPhysicalCards (&m_cards);
     browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path)
     {
@@ -1237,6 +1183,33 @@ void CassoExplorerShell::ForEachWindow (const std::function<void (CassoExplorerW
         if (!slot->closed)
         {
             fn (*slot->window);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::SelectInFolder
+//
+//  The first open window, drawn again, since a tab opened from outside its
+//  input isn't otherwise drawn until it next has input. The window isn't
+//  brought to the front.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::SelectInFolder (const std::wstring & path)
+{
+    for (const std::unique_ptr<WindowSlot> & slot : m_windows)
+    {
+        if (!slot->closed)
+        {
+            slot->window->SelectInFolder (path);
+            slot->window->Invalidate();
+            break;
         }
     }
 }

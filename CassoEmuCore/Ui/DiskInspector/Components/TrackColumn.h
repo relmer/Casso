@@ -43,6 +43,7 @@ public:
     void          Tick              (int64_t nowMs) override;
     std::wstring  GetTip            (POINT pointPx, RECT & outAnchorPx) const override;
     void          OnAnalysisChanged () override;
+    void          OnDiskStarted     (const DiskChange & change) override;
 
     //  Lays out the header, the sector row and the selector from the top of
     //  the area; returns where the views' content starts.
@@ -69,4 +70,7 @@ private:
     RECT                       m_columnPx  = {};
     int                        m_rows      = 1;
     bool                       m_hasIssues = false;
+    int                        m_issues    = 0;                       // the disk's findings, for the badge on Issues
+    DxuiSeverity               m_severity  = DxuiSeverity::Info;      // the most severe of them
+    bool                       m_isOpening = false;                   // a new disk whose analysis hasn't finished, before a choice of view
 };

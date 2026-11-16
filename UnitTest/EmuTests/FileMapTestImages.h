@@ -60,5 +60,6 @@ public:
 
 private:
     static void  SetWord    (Byte * at, int value);
+    static void  FillData   (Byte * sector, int header, int length);
     static void  SetDosName (Byte * at, const char * name);
 };
