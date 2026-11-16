@@ -164,9 +164,6 @@ void BlockInspectorWindow::BuildCommands()
         };
     }
 
-    c.legend            = make (L"Le&gend", L"", [this] () { m_panel->ToggleLegend(); });
-    c.legend->isEnabled = isOpen;
-
     //  Go
     c.back                          = make (L"&Back", L"Alt+Left", [this] () { m_panel->GoBack(); });
     c.back->isEnabled               = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_panel->GetNavigator().GetBrowser().CanGoBack(); };

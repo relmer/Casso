@@ -223,6 +223,86 @@ public:
     }
 
 
+    TEST_METHOD (Grid_EveryGapIsOnePixelAndEachPixelIsInTheCellDrawnThere)
+    {
+        BlockMapGrid  fit  (65535, 437, 311);
+        BlockMapGrid  zoom (65535, fit.GetBlockColumns(), fit.GetBlockPx() * 3.7, fit.GetGroup());
+
+
+
+        for (const BlockMapGrid * grid : { &fit, &zoom })
+        {
+            int  x = 0;
+            int  c = 0;
+
+            for (c = 0; c + 1 < grid->GetColumns(); c++)
+            {
+                RECT  a = grid->GetCellRect ((uint32_t) c);
+                RECT  b = grid->GetCellRect ((uint32_t) c + 1);
+
+                Assert::AreEqual ((LONG) BlockMapGrid::kGapPx, b.left - a.right, std::format (L"the gap after column {}", c).c_str());
+            }
+
+            for (x = 0; x < grid->GetColumns() * (int) grid->GetPitch() - 2; x++)
+            {
+                int64_t  cell = grid->FindCellAt (x, 0);
+                RECT     r    = grid->GetCellRect ((uint32_t) cell);
+
+                Assert::IsTrue (cell >= 0 && x >= r.left && x <= r.right, std::format (L"pixel {} in cell {}", x, cell).c_str());
+            }
+        }
+    }
+
+
+    TEST_METHOD (MapView_FreeSpaceIsNotDimmedAndRunsAreLabeledWithTheirFile)
+    {
+        FakeDiskFileIo             io;
+        BlockInspectorModel        model;
+        BlockMapView               view;
+        DxuiDpiScaler              scaler;
+        DxuiDarkTheme              theme;
+        MockDxuiPainter            painter;
+        MockDxuiTextRenderer       text;
+        BlockMapGrid               grid (k800KBlocks, 400, 400);
+        POINT                      at   = grid.GetCellOrigin (grid.GetCellOf (1500));
+        vector<DxuiTooltipSwatch>  plain;
+        vector<DxuiTooltipSwatch>  dimmed;
+        uint32_t                   seed = 0;
+
+
+
+        OpenModel (io, model);
+
+        view.SetModel    (&model);
+        view.SetZoomable (true);
+        view.Layout      (RECT { 0, 0, 400, 400 }, scaler);
+        view.Refresh();
+
+        Assert::IsTrue (view.GetTooltipSwatches ({ at.x + 1, at.y + 1 }, plain));
+
+        model.HighlightBlocks ({ 2 });
+        view.Refresh();
+        Assert::IsTrue   (view.GetTooltipSwatches ({ at.x + 1, at.y + 1 }, dimmed));
+        Assert::AreEqual (plain[0].argb, dimmed[0].argb, L"free space is not dimmed while other blocks are highlighted");
+
+        //  At the closest zoom, the file's block has its name.
+        while (seed < k800KBlocks && model.GetOwners (seed).find (L"SEED") == std::wstring::npos)
+        {
+            seed++;
+        }
+
+        Assert::IsTrue (seed < k800KBlocks);
+
+        model.ClearHighlight();
+        at = grid.GetCellOrigin (grid.GetCellOf (seed));
+        view.StepZoomAt (100, { at.x + 1, at.y + 1 });
+        view.Paint (painter, text, theme);
+
+        Assert::IsTrue  (HasText (text, L"SEED"));
+        Assert::IsFalse (HasText (text, L"1,500"), L"blocks are not labeled with their numbers");
+    }
+
+
     TEST_METHOD (MapView_ZoomStepsEvenlyToALargeCellAndTipsAsTheFileMapGrid)
     {
         FakeDiskFileIo             io;
@@ -400,6 +480,41 @@ public:
         text.Reset();
         panel.Paint (painter, text, theme);
         Assert::IsTrue  (HasText (text, L"Block 2"));
+    }
+
+
+    TEST_METHOD (Panel_TheLegendShowsWhileThePointerIsOverItsButtonOrIt)
+    {
+        FakeDiskFileIo        io;
+        BlockInspectorModel   model;
+        BlockInspectorPanel   panel;
+        DxuiDarkTheme         theme;
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+        DxuiMouseEvent        ev;
+        RECT                  button = {};
+
+
+
+        OpenModel (io, model);
+
+        panel.Init   (&model, nullptr, &theme, nullptr, &text);
+        panel.Layout (RECT { 0, 0, 1180, 700 }, scaler);
+
+        button         = panel.GetLegendButton().GetBounds();
+        ev.kind        = DxuiMouseEventKind::Move;
+        ev.positionDip = { (button.left + button.right) / 2, (button.top + button.bottom) / 2 };
+        panel.OnMouse (ev);
+        Assert::IsTrue (panel.IsLegendShown());
+
+        //  Down from the button onto the legend, it stays.
+        ev.positionDip = { (button.left + button.right) / 2, button.bottom + scaler.ToPx (20) };
+        panel.OnMouse (ev);
+        Assert::IsTrue (panel.IsLegendShown());
+
+        ev.kind = DxuiMouseEventKind::Leave;
+        panel.OnMouse (ev);
+        Assert::IsFalse (panel.IsLegendShown());
     }
 
 

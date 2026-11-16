@@ -53,8 +53,11 @@ public:
     uint32_t  CountBlocks   (uint32_t cell) const;
     bool      HasBlocks     (uint32_t cell) const { return GetFirstBlock (cell) < m_blockCount; }
 
-    //  A cell's top left, from the grid's.
+    //  A cell's top left, and its rectangle, from the grid's. Each edge is
+    //  on a whole pixel, so every gap between cells is kGapPx and the cells
+    //  differ in size by at most a pixel.
     POINT     GetCellOrigin (uint32_t cell) const;
+    RECT      GetCellRect   (uint32_t cell) const;
 
     //  The cell at a point from the grid's top left, or -1. A point in the
     //  gap right of or below a cell is in that cell.

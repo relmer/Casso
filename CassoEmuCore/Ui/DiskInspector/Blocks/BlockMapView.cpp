@@ -95,7 +95,6 @@ void BlockMapView::Refresh()
 
     m_roles.assign (m_grid.GetCellCount(), SectorRole::Free);
     m_highlighted.assign (m_grid.GetCellCount(), false);
-    m_numbers.assign (m_grid.GetCellCount(), 0);
     m_differs.assign (m_grid.GetCellCount(), false);
     m_hasHighlight = false;
     m_highlightBox = {};
@@ -118,7 +117,6 @@ void BlockMapView::Refresh()
 
             m_highlighted[cell] = true;
             m_hasHighlight      = true;
-            m_numbers[cell]     = m_grid.GetBlocksPerCell() == 1 ? GetNumberInFile (block) : 0;
         }
 
         if (m_isDiffsShown && m_model->IsDifferent (block))
@@ -126,6 +124,8 @@ void BlockMapView::Refresh()
             m_differs[cell] = true;
         }
     }
+
+    ReadLabels (grid);
 }
 
 
@@ -686,7 +686,8 @@ bool BlockMapView::OnMouse (const DxuiMouseEvent & ev)
 
 void BlockMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    RECT  grid = GetGridRect();
+    RECT     grid = GetGridRect();
+    HRESULT  hr   = S_OK;
 
 
 
@@ -700,7 +701,13 @@ void BlockMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     PaintBands (painter, text, theme);
 
     painter.PushClipRect ((float) grid.left, (float) grid.top, (float) (grid.right - grid.left), (float) (grid.bottom - grid.top));
+    hr = text.PushClipRect ((float) grid.left, (float) grid.top, (float) (grid.right - grid.left), (float) (grid.bottom - grid.top));
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
     PaintCells (painter, text, theme, grid);
+
+    hr = text.PopClipRect();
+    IGNORE_RETURN_VALUE (hr, S_OK);
     painter.PopClipRect();
 }
 
@@ -762,69 +769,60 @@ void BlockMapView::PaintBands (IDxuiPainter & painter, IDxuiTextRenderer & text,
 //
 //  As the disk inspector's File map grid draws its cells: only those in
 //  view; while blocks are highlighted, every other cell dimmed and a
-//  marching marquee around the highlighted ones, each with its number in
-//  its file where the cell has room; the cell under the pointer lit faintly
-//  and outlined; and the current block lit by the shimmer and outlined in
-//  the focus ring.
+//  marching marquee around the highlighted ones; each run of blocks with
+//  its file or structure where the cells have room; the cell under the
+//  pointer lit faintly and outlined; and the current block lit by the
+//  shimmer and outlined in the focus ring.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockMapView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & grid) const
 {
     DiskInspectorPalette  palette = DiskInspectorPalette::MakeFallback (DiskInspectorPalette::IsDarkSurface (theme.Background()));
-    float                 size    = (float) m_grid.GetCellPx();
-    float                 corner  = std::max (2.0f, std::floor (size / 2.0f));
+    float                 corner  = std::max (2.0f, std::floor (m_grid.GetCellPx() / 2.0f));
     float                 outline = m_scaler.ToPxf (kOutlineDip);
-    float                 left    = (float) (grid.left - m_panX);
-    float                 top     = (float) (grid.top - m_panY);
-    bool                  isRoom  = size >= m_scaler.ToPxf (kNumberDip);
-    float                 textPx  = std::min (m_scaler.ToPxf (kFontDip), size / 2.5f);
+    float                 left    = (float) std::floor (grid.left - m_panX);
+    float                 top     = (float) std::floor (grid.top - m_panY);
     uint32_t              cell    = 0;
     uint32_t              color   = 0;
-    POINT                 at      = {};
+    RECT                  at      = {};
     float                 x       = 0.0f;
     float                 y       = 0.0f;
+    float                 w       = 0.0f;
+    float                 h       = 0.0f;
     RECT                  box     = {};
-    HRESULT               hr      = S_OK;
 
 
 
     for (cell = 0; cell < m_grid.GetCellCount(); cell++)
     {
-        at = m_grid.GetCellOrigin (cell);
-        x  = left + at.x;
-        y  = top + at.y;
+        at = m_grid.GetCellRect (cell);
+        x  = left + at.left;
+        y  = top + at.top;
+        w  = (float) (at.right - at.left);
+        h  = (float) (at.bottom - at.top);
 
-        if (x + size < grid.left || x > grid.right || y + size < grid.top || y > grid.bottom || !m_grid.HasBlocks (cell))
+        if (x + w < grid.left || x > grid.right || y + h < grid.top || y > grid.bottom || !m_grid.HasBlocks (cell))
         {
             continue;
         }
 
         color = GetCellColor (palette, cell);
-        painter.FillRect (x, y, size, size, color);
+        painter.FillRect (x, y, w, h, color);
 
         if (m_differs[cell])
         {
-            painter.FillRect (x + size - corner, y, corner, corner, theme.ErrorForeground());
-        }
-
-        //  A highlighted block's number in its file, or with no highlight,
-        //  each block's number, once the cell has room.
-        if (isRoom && m_grid.GetBlocksPerCell() == 1 && (!m_hasHighlight || m_numbers[cell] > 0))
-        {
-            hr = text.DrawString ((m_hasHighlight ? std::to_wstring (m_numbers[cell]) : NumberFormat::FormatInteger (m_grid.GetFirstBlock (cell))).c_str(), x, y, size, size,
-                                  m_hasHighlight ? theme.Foreground() : (DiskInspectorPalette::GetTextColorOn (color) & 0x00FFFFFFu) | 0xB0000000u, textPx,
-                                  m_hasHighlight ? DxuiTheme::kMonoFace : DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center,
-                                  m_hasHighlight ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal, false);
-            IGNORE_RETURN_VALUE (hr, S_OK);
+            painter.FillRect (x + w - corner, y, corner, corner, theme.ErrorForeground());
         }
 
         if (m_isZoomable && (int64_t) cell == m_hoverCell)
         {
-            painter.FillRect    (x, y, size, size, InspectorMarquee::GetHoverFill());
-            painter.OutlineRect (x, y, size, size, 1.0f, InspectorMarquee::GetHoverLine());
+            painter.FillRect    (x, y, w, h, InspectorMarquee::GetHoverFill());
+            painter.OutlineRect (x, y, w, h, 1.0f, InspectorMarquee::GetHoverLine());
         }
     }
+
+    PaintLabels (text, palette, grid, left, top);
 
     if (m_hasHighlight)
     {
@@ -833,14 +831,194 @@ void BlockMapView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
     if (m_isOutlined && m_grid.GetCellCount() != 0)
     {
-        at  = m_grid.GetCellOrigin (m_grid.GetCellOf (m_current));
-        x   = left + at.x;
-        y   = top + at.y;
-        box = { (LONG) std::max (x, (float) grid.left), (LONG) std::max (y, (float) grid.top), (LONG) std::min (x + size, (float) grid.right), (LONG) std::min (y + size, (float) grid.bottom) };
+        at  = m_grid.GetCellRect (m_grid.GetCellOf (m_current));
+        x   = left + at.left;
+        y   = top + at.top;
+        w   = (float) (at.right - at.left);
+        h   = (float) (at.bottom - at.top);
+        box = { (LONG) std::max (x, (float) grid.left), (LONG) std::max (y, (float) grid.top), (LONG) std::min (x + w, (float) grid.right), (LONG) std::min (y + h, (float) grid.bottom) };
 
-        InspectorMarquee::PaintShimmer (painter, x, y, size, size, InspectorMarquee::GetClockMs(), box);
-        painter.OutlineRect (x - 1.0f, y - 1.0f, size + 2.0f, size + 2.0f, outline, theme.FocusRing());
+        InspectorMarquee::PaintShimmer (painter, x, y, w, h, InspectorMarquee::GetClockMs(), box);
+        painter.OutlineRect (x - 1.0f, y - 1.0f, w + 2.0f, h + 2.0f, outline, theme.FocusRing());
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::PaintLabels
+//
+//  Each run of cells in a row with the same file or structure has its name
+//  centered across the part of the run in view, where the name fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMapView::PaintLabels (IDxuiTextRenderer & text, const DiskInspectorPalette & palette, const RECT & grid, float left, float top) const
+{
+    float     pad     = m_scaler.ToPxf (kLabelPadDip);
+    float     textPx  = std::min (m_scaler.ToPxf (kFontDip), m_grid.GetCellPx() / 1.6f);
+    int       columns = m_grid.GetColumns();
+    int       row     = 0;
+    int       first   = 0;
+    int       last    = 0;
+    uint32_t  cell    = 0;
+    RECT      from    = {};
+    RECT      to      = {};
+    float     width   = 0.0f;
+    float     height  = 0.0f;
+    float     x0      = 0.0f;
+    float     x1      = 0.0f;
+    HRESULT   hr      = S_OK;
+
+
+
+    if (m_labels.empty())
+    {
+        return;
+    }
+
+    for (row = 0; row < m_grid.GetRows(); row++)
+    {
+        for (first = 0; first < columns; first = last + 1)
+        {
+            cell = (uint32_t) (row * columns + first);
+            last = first;
+
+            if (cell >= m_labels.size() || m_labels[cell].empty())
+            {
+                continue;
+            }
+
+            while (last + 1 < columns && cell + (uint32_t) (last + 1 - first) < m_labels.size() && m_labels[cell + (uint32_t) (last + 1 - first)] == m_labels[cell])
+            {
+                last++;
+            }
+
+            from = m_grid.GetCellRect (cell);
+            to   = m_grid.GetCellRect (cell + (uint32_t) (last - first));
+
+            if (top + from.bottom < grid.top || top + from.top > grid.bottom || left + to.right < grid.left || left + from.left > grid.right)
+            {
+                continue;
+            }
+
+            x0 = std::max (left + from.left, (float) grid.left);
+            x1 = std::min (left + to.right, (float) grid.right);
+            hr = text.MeasureString (m_labels[cell].c_str(), textPx, DxuiTheme::kBodyFace, width, height);
+
+            if (FAILED (hr) || width + 2 * pad > x1 - x0)
+            {
+                continue;
+            }
+
+            hr = text.DrawString (m_labels[cell].c_str(), x0, top + from.top, x1 - x0, (float) (from.bottom - from.top),
+                                  DiskInspectorPalette::GetTextColorOn (GetCellColor (palette, cell)), textPx, DxuiTheme::kBodyFace,
+                                  DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::ReadLabels
+//
+//  The label of each cell in view, once a cell is one block and tall
+//  enough for a line of text. A block's label is read from the model the
+//  first time it is in view and cached until the map's generation changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockMapView::ReadLabels (const RECT & grid)
+{
+    int64_t   firstCell = 0;
+    int64_t   lastCell  = 0;
+    uint32_t  cell      = 0;
+    uint32_t  block     = 0;
+
+
+
+    m_labels.clear();
+
+    if (m_grid.GetBlocksPerCell() != 1 || m_grid.GetCellPx() < m_scaler.ToPxf (kLabelDip) || m_grid.GetColumns() == 0)
+    {
+        return;
+    }
+
+    if (m_labelGeneration != m_model->GetMapGeneration() || m_blockLabels.size() != m_blockCount)
+    {
+        m_labelGeneration = m_model->GetMapGeneration();
+        m_blockLabels.assign (m_blockCount, std::wstring());
+        m_isLabelRead.assign (m_blockCount, false);
+    }
+
+    m_labels.assign (m_grid.GetCellCount(), std::wstring());
+
+    firstCell = (int64_t) (m_panY / m_grid.GetPitch()) * m_grid.GetColumns();
+    lastCell  = (int64_t) ((m_panY + (grid.bottom - grid.top)) / m_grid.GetPitch() + 1) * m_grid.GetColumns();
+
+    for (cell = (uint32_t) std::max<int64_t> (0, firstCell); cell < m_grid.GetCellCount() && (int64_t) cell <= lastCell; cell++)
+    {
+        block = m_grid.GetFirstBlock (cell);
+
+        if (block >= m_blockCount)
+        {
+            continue;
+        }
+
+        if (!m_isLabelRead[block])
+        {
+            m_blockLabels[block] = GetBlockLabel (block);
+            m_isLabelRead[block] = true;
+        }
+
+        m_labels[cell] = m_blockLabels[block];
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockMapView::GetBlockLabel
+//
+//  The name of the file that uses a block, without its directories, or the
+//  structure the block is part of. Free space has no label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlockMapView::GetBlockLabel (uint32_t block) const
+{
+    std::wstring  owners = m_model->GetOwners (block);
+    SectorRole    role   = m_model->GetRole (block);
+    size_t        end    = owners.find (L'\n');
+    size_t        slash  = 0;
+
+
+
+    if (!owners.empty())
+    {
+        owners = owners.substr (0, end);
+        slash  = owners.find_last_of (L'/');
+
+        return slash == std::wstring::npos ? owners : owners.substr (slash + 1);
+    }
+
+    if (m_model->GetMapLabel (block) != nullptr)
+    {
+        return m_model->GetMapLabel (block);
+    }
+
+    return role == SectorRole::Free ? std::wstring() : BlockMapGrid::GetRoleName (role);
 }
 
 
@@ -863,9 +1041,9 @@ void BlockMapView::PaintMarquee (IDxuiPainter & painter, const DiskInspectorPale
     InspectorMarquee  marquee (palette, m_scaler.ToPxf (InspectorMarquee::kDashDip), InspectorMarquee::kThicknessPx, (int64_t) GetTickCount64());
     int               columns = m_grid.GetColumns();
     int               rows    = m_grid.GetRows();
-    float             pitch   = (float) m_grid.GetPitch();
-    float             left    = (float) (grid.left - m_panX);
-    float             top     = (float) (grid.top - m_panY);
+    double            pitch   = m_grid.GetPitch();
+    float             left    = (float) std::floor (grid.left - m_panX);
+    float             top     = (float) std::floor (grid.top - m_panY);
     float             x0      = 0.0f;
     float             y0      = 0.0f;
     float             x1      = 0.0f;
@@ -894,10 +1072,10 @@ void BlockMapView::PaintMarquee (IDxuiPainter & painter, const DiskInspectorPale
             }
 
             //  On pixel centers, so each one-pixel line covers one pixel.
-            x0 = std::floor (left + c * pitch) + 0.5f;
-            y0 = std::floor (top + r * pitch) + 0.5f;
-            x1 = std::floor (left + (c + 1) * pitch) - 0.5f;
-            y1 = std::floor (top + (r + 1) * pitch) - 0.5f;
+            x0 = left + (float) std::floor (c * pitch) + 0.5f;
+            y0 = top + (float) std::floor (r * pitch) + 0.5f;
+            x1 = left + (float) std::floor ((c + 1) * pitch) - 0.5f;
+            y1 = top + (float) std::floor ((r + 1) * pitch) - 0.5f;
 
             if (!isMarked (r - 1, c))
             {
@@ -931,7 +1109,8 @@ void BlockMapView::PaintMarquee (IDxuiPainter & painter, const DiskInspectorPale
 //  BlockMapView::GetCellColor
 //
 //  The cell's role color, dimmed while other blocks are highlighted, so the
-//  highlighted ones are the brightest on the map.
+//  highlighted ones are the brightest on the map. Free space is not
+//  dimmed: dimmed, it is the color of the gaps between cells.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -941,7 +1120,7 @@ uint32_t BlockMapView::GetCellColor (const DiskInspectorPalette & palette, uint3
 
 
 
-    return m_hasHighlight && !m_highlighted[cell] ? InspectorMarquee::Dim (palette, color) : color;
+    return m_hasHighlight && !m_highlighted[cell] && m_roles[cell] != SectorRole::Free ? InspectorMarquee::Dim (palette, color) : color;
 }
 
 
@@ -1028,34 +1207,6 @@ bool BlockMapView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> 
     outSwatches = { { 1, GetCellColor (DiskInspectorPalette::MakeFallback (m_isDark), (uint32_t) cell) } };
 
     return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BlockMapView::GetNumberInFile
-//
-//  A block of a file's data's number in the file, from 1, or 0 for any
-//  other block.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t BlockMapView::GetNumberInFile (uint32_t block) const
-{
-    uint32_t          inner = 0;
-    const BlockMap  * map   = m_model->FindMap (block, inner);
-
-
-
-    if (map == nullptr || inner >= map->GetBlockCount() || map->blocks[inner].structure != BlockStructure::FileData)
-    {
-        return 0;
-    }
-
-    return map->blocks[inner].node + 1;
 }
 
 

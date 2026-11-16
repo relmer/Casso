@@ -70,17 +70,18 @@ void BlockNavigator::Create (DxuiPanel & host, BlockInspectorModel * model, cons
         }
     });
 
-    m_list->SetTheme                 (theme);
-    m_list->SetOwnerWindow           (hwnd);
-    m_list->SetShowHeader            (true);
-    m_list->SetIconColumn            (0);
-    m_list->SetExplorerDetails       (true);
-    m_list->SetRowHeightPxFn         (&ExplorerLayout::GetListRowHeightPx);
-    m_list->SetActivateOnDoubleClick (true);
-    m_list->SetAlwaysShowSelection   (true);
-    m_list->SetOnSelectionChanged    ([this] (int row) { OnRowSelected (row); });
-    m_list->SetOnActivateRow         ([this] (int row) { OnRowActivated (row); });
-    m_list->SetOnSortColumn          ([this] (int column)
+    m_list->SetTheme                   (theme);
+    m_list->SetOwnerWindow             (hwnd);
+    m_list->SetShowHeader              (true);
+    m_list->SetHorizontalScrollEnabled (true);
+    m_list->SetIconColumn              (0);
+    m_list->SetExplorerDetails         (true);
+    m_list->SetRowHeightPxFn           (&ExplorerLayout::GetListRowHeightPx);
+    m_list->SetActivateOnDoubleClick   (true);
+    m_list->SetAlwaysShowSelection     (true);
+    m_list->SetOnSelectionChanged      ([this] (int row) { OnRowSelected (row); });
+    m_list->SetOnActivateRow           ([this] (int row) { OnRowActivated (row); });
+    m_list->SetOnSortColumn            ([this] (int column)
     {
         m_isDescending = column == m_sortColumn && !m_isDescending;
         m_sortColumn   = column;
@@ -277,6 +278,13 @@ void BlockNavigator::Show()
     else
     {
         m_model->ClearHighlight();
+    }
+
+    //  A place opened anywhere flies the map to its blocks, as a row selected
+    //  in the list does.
+    if (m_onHighlight)
+    {
+        m_onHighlight();
     }
 }
 

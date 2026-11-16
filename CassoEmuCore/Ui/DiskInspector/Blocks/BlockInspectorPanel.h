@@ -128,10 +128,11 @@ public:
     //  Volume level, or empty.
     std::wstring  GetSelectionLine () const;
 
-    void  ToggleLegend ();
 
-    BlockMapView  & GetMap     () const { return *m_map; }
-    BlockHexView  * GetHexView () const { return m_hex; }
+    BlockMapView    & GetMap          () const { return *m_map; }
+    BlockHexView    * GetHexView      () const { return m_hex; }
+    DxuiIconButton  & GetLegendButton () const { return *m_legendButton; }
+    bool              IsLegendShown   () const;
 
     void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -139,6 +140,10 @@ public:
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 private:
+    //  The legend is visible while the pointer is over its button or over
+    //  the legend, as a tooltip is.
+    void  TrackLegendHover (POINT pointPx);
+
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 
     //  A capsule beside the block's number: Free or Used, the block's role,

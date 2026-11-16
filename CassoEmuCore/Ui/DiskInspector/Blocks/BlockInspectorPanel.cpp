@@ -121,7 +121,6 @@ void BlockInspectorPanel::InitCorners()
     m_legendButton->SetGlyph          (s_kpszGlyphLegend);
     m_legendButton->SetRound          (true);
     m_legendButton->SetAccessibleName (L"Legend");
-    m_legendButton->SetOnClick        ([this] () { ToggleLegend(); });
 
     m_filesChip->SetOnChange ([this] (bool isOn) { SetFilesOn (isOn); });
     m_diffsChip->SetOnChange ([this] (bool isOn) { SetDiffsOn (isOn); });
@@ -588,13 +587,44 @@ void BlockInspectorPanel::OnMapSelect (uint32_t block)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BlockInspectorPanel::ToggleLegend
+//  BlockInspectorPanel::IsLegendShown
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BlockInspectorPanel::ToggleLegend()
+bool BlockInspectorPanel::IsLegendShown() const
 {
-    m_legend->SetVisible (!m_legend->IsVisible());
+    return m_legend->IsVisible();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorPanel::TrackLegendHover
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorPanel::TrackLegendHover (POINT pointPx)
+{
+    RECT  button = m_legendButton->GetBounds();
+    RECT  legend = m_legend->GetBounds();
+    bool  isOver = false;
+
+
+
+    //  The gap between the button and the legend counts as the legend, so
+    //  the pointer can move from one to the other.
+    legend.top = std::min (legend.top, button.top);
+    isOver     = m_legendGroup->IsVisible() && (PtInRect (&button, pointPx) || (m_legend->IsVisible() && PtInRect (&legend, pointPx)));
+
+    if (isOver == m_legend->IsVisible())
+    {
+        return;
+    }
+
+    m_legend->SetVisible (isOver);
 
     if (m_onChanged)
     {
@@ -1483,6 +1513,11 @@ bool BlockInspectorPanel::OnMouse (const DxuiMouseEvent & ev)
     if (IsBusy())
     {
         return m_cancel->IsVisible() && PtInRect (&cancel, ev.positionDip) ? DxuiPanel::OnMouse (ev) : true;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
+    {
+        TrackLegendHover (ev.kind == DxuiMouseEventKind::Leave ? POINT { SHRT_MIN, SHRT_MIN } : ev.positionDip);
     }
 
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && PtInRect (&m_treeSplitterPx, ev.positionDip))

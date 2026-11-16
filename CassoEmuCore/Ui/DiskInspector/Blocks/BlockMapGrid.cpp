@@ -237,6 +237,35 @@ POINT BlockMapGrid::GetCellOrigin (uint32_t cell) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockMapGrid::GetCellRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT BlockMapGrid::GetCellRect (uint32_t cell) const
+{
+    POINT  at     = GetCellOrigin (cell);
+    LONG   right  = 0;
+    LONG   bottom = 0;
+
+
+
+    if (m_columns == 0)
+    {
+        return {};
+    }
+
+    right  = (LONG) std::floor ((cell % (uint32_t) m_columns + 1) * m_pitch) - kGapPx;
+    bottom = (LONG) std::floor ((cell / (uint32_t) m_columns + 1) * m_pitch) - kGapPx;
+
+    return { at.x, at.y, std::max (at.x + 1, right), std::max (at.y + 1, bottom) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockMapGrid::FindCellAt
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,8 +283,12 @@ int64_t BlockMapGrid::FindCellAt (int xPx, int yPx) const
         return -1;
     }
 
+    //  Each cell starts on the whole pixel at or left of its place, so a
+    //  point left of the next cell's place may already be in it.
     column = (int) (xPx / m_pitch);
     row    = (int) (yPx / m_pitch);
+    column = std::floor ((column + 1) * m_pitch) <= xPx ? column + 1 : column;
+    row    = std::floor ((row + 1) * m_pitch) <= yPx ? row + 1 : row;
     cell   = (uint64_t) row * (uint64_t) m_columns + (uint64_t) column;
 
     if (column >= m_columns || cell >= m_cells || !HasBlocks ((uint32_t) cell))
