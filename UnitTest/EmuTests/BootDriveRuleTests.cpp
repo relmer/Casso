@@ -171,7 +171,7 @@ namespace BootDriveRuleTests
 
 
         //  Slot 7 comes before slot 6. A hard disk with an image boots; one
-        //  with none is passed over.
+        //  with none, or with the stock image, is passed over.
         TEST_METHOD (HardDiskInSlot7_BootsWithAnImage_AndIsPassedOverWithout)
         {
             MachineConfig  config = MakeDiskIiMachine();
@@ -182,6 +182,10 @@ namespace BootDriveRuleTests
             config.slots.push_back (MakeSlot (7, kpszAppleScsiCardDevice, { MakePort ("", ""), MakePort ("", kpszHd20scDevice) }));
 
             Assert::IsTrue  (BootDriveRule::TryFindDriveToFill (config, false, false, drive));
+            Assert::IsTrue  (drive.drive.model == M::DiskII);
+
+            config.slots.back().ports[1].image = kpszStockImage;
+            Assert::IsTrue  (BootDriveRule::TryFindDriveToFill (config, false, false, drive), L"the stock image is an empty volume");
             Assert::IsTrue  (drive.drive.model == M::DiskII);
 
             config.slots.back().ports[1].image = "C:\\Disks\\hard.hdv";

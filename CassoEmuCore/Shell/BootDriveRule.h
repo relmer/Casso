@@ -38,8 +38,8 @@ struct BootDrive
 //  the Apple II looks for a boot disk: a //c's built-in drive or a //c Plus's
 //  internal 3.5-inch drive, then the enabled cards from slot 7 down to slot
 //  1. A drive with an image ends the search, since the machine boots from
-//  it. A hard disk with no image is passed over, since the ROM goes on to
-//  the next slot. The first floppy drive with no image is the one returned.
+//  it. A hard disk with no image, or with the stock image, which is an empty
+//  volume, is passed over, since the ROM goes on to the next slot. The first floppy drive with no image is the one returned.
 //
 //  Slot 6's Disk II has an image when drive 1 has a saved disk. Another
 //  drive has one when its port in the configuration has an image.

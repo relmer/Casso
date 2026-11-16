@@ -173,13 +173,16 @@ bool BootDriveRule::TryGetCardFloppy (const std::string & card, const std::vecto
 //
 //  BootDriveRule::HasAnyImage
 //
+//  The stock image is an empty ProDOS volume with no boot loader, which the
+//  card's ROM passes over, so it doesn't count.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BootDriveRule::HasAnyImage (const std::vector<PortConfig> & ports)
 {
     for (const PortConfig & port : ports)
     {
-        if (!port.image.empty())
+        if (!port.image.empty() && port.image != kpszStockImage)
         {
             return true;
         }
