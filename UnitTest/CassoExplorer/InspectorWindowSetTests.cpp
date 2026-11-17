@@ -43,6 +43,7 @@ struct FakeInspectorWindowLog
     vector<std::wstring>  compared;
     const DxuiTheme     * theme        = nullptr;
     IDiskInspectorHost  * host         = nullptr;
+    bool                  isPositioned = false;
 };
 
 
@@ -53,7 +54,7 @@ public:
 
     HRESULT  Create (HINSTANCE, HWND, const DxuiTheme * theme, IDiskInspectorHost * host) override { m_log.created++; m_log.theme = theme; m_log.host = host; return S_OK; }
     void     Front() override { m_log.fronted++; }
-    void     ApplyPrefs (const DiskInspectorPrefs &) override {}
+    void     ApplyPrefs (const DiskInspectorPrefs &, bool isPositioned) override { m_log.isPositioned = isPositioned; }
     void     GetPrefs (DiskInspectorPrefs & inOut) const override { inOut.x = kSavedX; }
     void     OpenWalkthrough() override { m_log.walkthroughs++; }
     HRESULT  ShowDisk() override { m_log.shown++; return S_OK; }
@@ -157,6 +158,21 @@ public:
         Assert::AreEqual (0, rig.blockLogs[0]->walkthroughs);
         Assert::AreEqual ((size_t) 1, rig.logs.size(), L"the 140K image opens in the track inspector");
     }
+
+
+    TEST_METHOD (OnlyTheFirstWindowOpenTakesTheSavedPosition)
+    {
+        Rig  rig;
+
+
+
+        Assert::AreEqual (S_OK, rig.Open (kMist));
+        Assert::AreEqual (S_OK, rig.Open (kBandits));
+
+        Assert::IsTrue  (rig.logs[0]->isPositioned, L"the first window is placed where the last one closed");
+        Assert::IsFalse (rig.logs[1]->isPositioned, L"the second is placed by Windows");
+    }
+
 
 
     TEST_METHOD (OpeningAnImageAgainFrontsItsWindow)

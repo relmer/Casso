@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/DiskInspectorWindow.h"
+#include "Ui/DiskInspector/InspectorPlacement.h"
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/DiskComparer.h"
@@ -1854,26 +1855,11 @@ bool DiskInspectorWindow::Confirm (const std::wstring & title, const vector<std:
 //
 //  DiskInspectorWindow::GetPrefs
 //
-//  The placement is the restored one, in the workspace coordinates
-//  SetWindowPlacement takes back, so a maximized window comes back to the
-//  size it had before.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskInspectorWindow::GetPrefs (DiskInspectorPrefs & inOut) const
 {
-    WINDOWPLACEMENT  placement = { sizeof (WINDOWPLACEMENT) };
-
-
-
-    if (GetHwnd() != nullptr && GetWindowPlacement (GetHwnd(), &placement))
-    {
-        inOut.x           = placement.rcNormalPosition.left;
-        inOut.y           = placement.rcNormalPosition.top;
-        inOut.w           = placement.rcNormalPosition.right - placement.rcNormalPosition.left;
-        inOut.h           = placement.rcNormalPosition.bottom - placement.rcNormalPosition.top;
-        inOut.isMaximized = placement.showCmd == SW_SHOWMAXIMIZED || IsZoomed (GetHwnd());
-    }
+    InspectorPlacement::Get (GetHwnd(), inOut);
 
     inOut.zoom         = m_zoom;
     inOut.tilt          = m_session.model.GetTilt();
@@ -1893,24 +1879,14 @@ void DiskInspectorWindow::GetPrefs (DiskInspectorPrefs & inOut) const
 //
 //  DiskInspectorWindow::ApplyPrefs
 //
-//  The saved size and whether the window was maximized, at the position
-//  Windows chose for it.
+//  The saved position only with isPositioned, for the first inspector
+//  window open (InspectorPlacement).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs)
+void DiskInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs, bool isPositioned)
 {
-    WINDOWPLACEMENT  placement = { sizeof (WINDOWPLACEMENT) };
-
-
-
-    if (prefs.w > 0 && prefs.h > 0 && GetWindowPlacement (GetHwnd(), &placement))
-    {
-        placement.rcNormalPosition.right  = placement.rcNormalPosition.left + prefs.w;
-        placement.rcNormalPosition.bottom = placement.rcNormalPosition.top + prefs.h;
-        placement.showCmd                 = prefs.isMaximized ? SW_SHOWMAXIMIZED : (IsWindowVisible (GetHwnd()) ? SW_SHOWNOACTIVATE : SW_HIDE);
-        SetWindowPlacement (GetHwnd(), &placement);
-    }
+    InspectorPlacement::Apply (GetHwnd(), prefs, isPositioned);
 
     for (IInspectorComponent * component : m_components)
     {

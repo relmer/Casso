@@ -95,9 +95,9 @@ void ExplorerInspectorWindow::Front()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs)
+void ExplorerInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs, bool isPositioned)
 {
-    m_window->ApplyPrefs (prefs);
+    m_window->ApplyPrefs (prefs, isPositioned);
 }
 
 
