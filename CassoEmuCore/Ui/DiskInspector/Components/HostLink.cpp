@@ -92,6 +92,37 @@ void HostLink::RequestCopy()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HostLink::FollowHostDisk
+//
+//  When the host reads the window's disk from somewhere else, such as its
+//  file after an eject, the window requests a copy from there. The same
+//  file read again is a reload, so the unsaved edits follow it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HostLink::FollowHostDisk()
+{
+    uint64_t  generation = m_session.host->GetSourceGeneration();
+    bool      isWindowA  = m_session.IsWindowDiskA();
+
+
+
+    if (generation != m_sourceGeneration)
+    {
+        m_sourceGeneration         = generation;
+        m_session.drive            = m_session.host->GetWindowDrive();
+        m_session.sourceA          = isWindowA ? ComparisonSource { ComparisonSourceKind::DriveNow, m_session.drive } : m_session.sourceA;
+        m_session.requestedMediaId = UINT64_MAX;
+        RequestCopy();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HostLink::TakeReplies
 //
 //  Only the reply to the latest request counts. Its disk starts the view

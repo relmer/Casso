@@ -204,37 +204,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::FollowHostDisk
-//
-//  When the host reads the window's disk from somewhere else, such as its
-//  file after an eject, the window requests a copy from there. The same
-//  file read again is a reload, so the unsaved edits follow it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::FollowHostDisk()
-{
-    uint64_t  generation = m_session.host->GetSourceGeneration();
-    bool      isWindowA  = m_session.IsWindowDiskA();
-
-
-
-    if (generation != m_sourceGeneration)
-    {
-        m_sourceGeneration         = generation;
-        m_session.drive            = m_session.host->GetWindowDrive();
-        m_session.sourceA          = isWindowA ? ComparisonSource { ComparisonSourceKind::DriveNow, m_session.drive } : m_session.sourceA;
-        m_session.requestedMediaId = UINT64_MAX;
-        m_hostLink->RequestCopy();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskInspectorWindow::ShowDrive
 //
 //  Starts over on the disk in the drive: the window asks for a copy and
@@ -553,7 +522,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
     m_zoomNote.SetTheme (*m_session.theme);
 
     m_hostLink->TakeReplies();
-    FollowHostDisk();
+    m_hostLink->FollowHostDisk();
     m_hostLink->TakeResults();
 
     if (std::function<void()> action = m_editing->TakeDueAction(); action != nullptr)

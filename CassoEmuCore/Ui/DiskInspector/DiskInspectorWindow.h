@@ -151,7 +151,6 @@ private:
     void          BuildCommands  ();
     static bool   RunCommand     (const InspectorCommands::Command & command);
     void          UpdateTitle    ();
-    void          FollowHostDisk ();
 
 
 
@@ -204,5 +203,4 @@ private:
 
 
     double                                  m_zoom               = 1.0;
-    uint64_t                                m_sourceGeneration   = 0;
 };
