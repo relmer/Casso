@@ -22,7 +22,7 @@ runs once, in the last phase. New UI strings come from
 ## Phase 1: Setup
 
 - [x] T001 Collect the Apple documents listed in research.md R1 into `%USERPROFILE%\Downloads\Casso\apple3\docs` and list each file with its source URL in `specs/050-apple3/research.md` under R1
-- [ ] T002 Check every row of `specs/050-apple3/contracts/hardware-map.md` against the documents: fill **Checked** with document and page, correct rows the documents contradict, settle rows the documents do not cover by consulting an existing emulator under the limits in research.md R1, and add the rows marked as missing (every VIA port line, drive select, character set loading, smooth scroll, color encoding, timing)
+- [ ] T002 (done for every row with a **Checked** entry; the "Open rows" table remains) Check every row of `specs/050-apple3/contracts/hardware-map.md` against the documents: fill **Checked** with document and page, correct rows the documents contradict, settle rows the documents do not cover by consulting an existing emulator under the limits in research.md R1, and add the rows marked as missing (every VIA port line, drive select, character set loading, smooth scroll, color encoding, timing)
 - [ ] T003 Update `specs/050-apple3/spec.md`, `data-model.md` and `research.md` wherever T002 changed a fact a requirement or decision depended on, and list the changes for the owner
 - [ ] T004 [P] Add `Apple3.rom` (each accepted revision with size and CRC) to the ROM catalog and to `scripts/FetchRoms.ps1 -Fixtures`
 - [ ] T005 [P] Add the Business BASIC, System Utilities, Confidence Test and Apple II Emulation disks to `scripts/FetchStockDisks.ps1` and to `.gitignore`'s existing fetched-disk entries under `Disks/Apple/`
@@ -277,7 +277,7 @@ Phases 3 to 11; can start after T001.
 - [ ] T118 [P] [US13] Write Plus tests (256K only; every Plus key's code; interlace decoding) in `UnitTest/Apple3Tests/Apple3PlusTests.cpp`
 - [ ] T119 [US13] Implement `Apple3Plus` in `CassoEmuCore/Machines/Apple3/Apple3Plus.h`, register it, and add `Resources/Machines/Apple3Plus/Apple3Plus.json`
 - [ ] T120 [P] [US13] Add the `Apple3Plus` keyboard layout and its PC key mappings
-- [ ] T121 [US13] Implement interlaced video in `CassoEmuCore/Machines/Apple3/Apple3Video.cpp`
+- [ ] T121 [US13] Implement text interlace (560 by 384) in `CassoEmuCore/Machines/Apple3/Apple3Video.cpp`, turned on by a case switch on the Plus through the existing case switch mechanism (`IMachine::HasCaseSwitches`) and its setting
 - [ ] T122 [US13] Use the Plus badge variant of the body model for the Plus (FR-073) and add a Plus boot to `ScenarioTests/Apple3SosTests.cpp`
 
 ---

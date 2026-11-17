@@ -23,12 +23,26 @@ and RS-232 driver source listings (register and I/O addresses, drive
 selection, the sound port, VIA initialization), and Apple's specifications
 sheet (video modes, connectors, keyboard, CPU type).
 
-**Not yet read**: the scanned documents with no text layer, which have to be
-read page by page: the Service Reference Manual, the schematics, the SOS
-Device Driver Writer's Guide, the Standard Device Drivers Manual, the
-Owner's Guides and the Monitor /// manual. They are the source for the
-environment register's bits, each VIA line, video mode switches and color
-encoding, timing, the keyboard codes, and every model dimension.
+**Second pass, 2026-11-17**: text-layer copies of the Device Driver Writer's
+Guide and the Standard Device Drivers Manual were added, and the Service
+Reference Manual (730 page images) was read by page for the chapters on
+memory, the VIAs, clocks and timing, video, the keyboard and Apple II
+emulation, with the Monitor III Owner's Manual and the Apple /// Plus
+Owner's Guide. These confirmed the environment register's bits, both VIAs
+line by line, the video mode switch table and every mode's buffers, the
+color byte layout, the 16 colors, character download, the keyboard's two
+ports and its full code table, the A/D selection table, line and frame
+timing, and the Monitor ///'s dimensions.
+
+**Open after the second pass**: the rows in the hardware map's "Open rows"
+table. They are settled from the schematics (`Apple III Schematic
+Diagrams.zip`, not yet opened), the PROM listings in chapters 6 and 17 of
+the Service Reference Manual, or an existing emulator. No emulator source
+has been read yet.
+
+**Not yet read**: the Apple /// Owner's Guide (page images), the schematics,
+the Service Reference Manual's chapters 7, 11 to 17, and its assembly
+drawings, which are the source for the body's and back panel's dimensions.
 
 **Corrections the documents made to the first draft**:
 
@@ -44,6 +58,14 @@ encoding, timing, the keyboard codes, and every model dimension.
   extended address `8x:nnnn` (SOS Reference Manual 2.1.1 and 2.1.2). The
   debugger uses Apple's `b:nnnn`, with `/` in the two command modes where
   `:` is the deposit command (R15).
+- The Plus's text interlace is a switch on the left side of the case, not a
+  software control. It is a case switch in Casso, as the //c's switches are.
+- The Apple II 40-column mode has flashing text as well as inverse.
+- The Monitor /// is 17 3/16 by 10 5/8 by 12 1/2 inches (Apple's manual).
+  The museum catalog figures quoted earlier were wrong or were of the box.
+- The beeper is a 0.1 second 1 kHz tone.
+- The keyboard's second port reads its modifier bits active low, and its
+  bit layout differs from the byte the console driver returns to programs.
 - Apple's Business BASIC and SOS source listings exist. They replace
   observation as the source for Business BASIC's internals (R19).
 

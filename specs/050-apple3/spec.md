@@ -468,7 +468,8 @@ the Apple /// does, with the same settings, debugger support and desk models.
 and the one with the clock chip fitted at the factory.
 
 **Independent Test**: Boot a Business BASIC disk on the Plus, read every key
-of the Plus keyboard from a test program, and turn on interlaced video.
+of the Plus keyboard from a test program, and turn on the text interlace
+switch.
 
 **Acceptance Scenarios**:
 
@@ -478,8 +479,8 @@ of the Plus keyboard from a test program, and turn on interlaced video.
    offered.
 3. **Given** each key of the Plus keyboard, **When** the mapped PC key is
    pressed, **Then** the program reads that key's documented code.
-4. **Given** a program that turns on interlaced video, **Then** the frame is
-   drawn interlaced, per the Apple /// Plus Owner's Guide.
+4. **Given** the text interlace switch on the Plus's case turned on, **Then**
+   text is drawn on 384 lines, per the Apple /// Plus Owner's Guide.
 5. **Given** the skeuomorphic theme, **Then** the body model has the Plus's
    badge.
 
@@ -638,8 +639,9 @@ and check that the mark moves.
 - **FR-019**: Text MUST be drawn from the character set RAM. The RAM MUST be
   loaded only through the documented loading mechanism, and no built-in font
   MUST be substituted for it.
-- **FR-020**: Normal and inverse text, the smooth scroll feature, the video
-  enable bit and every other documented video control MUST work.
+- **FR-020**: Normal and inverse text, flashing text in the Apple II
+  40-column mode, the smooth scroll feature, the video enable bit and every
+  other documented video control MUST work.
 - **FR-021**: The Monitor /// MUST offer the color, green, amber and white
   styles the other monitors offer, with green as its default. In a
   monochrome style the 16 colors MUST be drawn as the gray levels the black
@@ -700,7 +702,7 @@ and check that the mark moves.
 
 - **FR-071**: Casso MUST offer the Apple /// Plus as a separate machine type
   with 256K, the clock chip, the Plus keyboard and its documented key codes,
-  and the documented interlaced video.
+  and text interlace, turned on by a case switch as on the real machine.
 - **FR-072**: Every other requirement in this spec MUST apply to the Plus as
   to the Apple ///.
 - **FR-073**: The body model MUST have the badge of the machine in use.

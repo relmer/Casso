@@ -16,9 +16,11 @@ block the model's generator.
 
 | Dimension | Value | Source |
 |---|---|---|
-| Width | 444.5 mm (17.5 in) | spec sheet |
-| Height | 122.0 mm (4.8 in) | spec sheet |
-| Depth of the whole machine, keyboard included | 462.3 mm (18.2 in) | spec sheet |
+| Width | 444.5 mm (17.5 in) | Apple /// Plus Owner's Guide, appendix D; specifications sheet |
+| Height | 121.9 mm (4.8 in) | the same |
+| Depth of the whole machine, keyboard included | 462.3 mm (18.2 in) | the same |
+| Construction | cast aluminum base, molded plastic cover | the same |
+| Text interlace switch (Plus) | left side, about halfway back, just above the bottom of the cover | Apple /// Plus Owner's Guide p. 16 |
 | Depth of the modeled body (front of the upper body to the back) | | |
 | Top surface: flat area, edge radii, vent slots | | |
 | Drive bay: position, opening, door, latch, lamp | | |
@@ -49,18 +51,32 @@ panel, viewed from behind.
 | Slot openings 1 to 4 | rectangular cutouts | | |
 | ProFile interface card | the card's cable connector in its slot opening | | |
 
-The connector forms above are from memory and are confirmed from the
-Owner's Guide and the Service Reference Manual with the positions.
+Order, from the rear, left to right: disk drive connector, port A, port B,
+color video, black and white video, audio, serial, power plug, power switch,
+with the slot openings above the strip (Apple /// Plus Owner's Guide,
+Figure 2-1). Connector types are from Apple's specifications sheet. The
+positions come from the Service Reference Manual's assembly drawings
+(chapter 16) and photographs, and are not yet measured.
+
+The Monitor /// weighs 16.5 pounds and rests directly on the Apple ///
+(Monitor III Owner's Manual p. 4, p. 6). Its 436.6 mm width is 7.9 mm
+narrower than the body's 444.5 mm.
 
 ### Apple Monitor /// (`Monitor3`, `cad_monitor3.py`)
 
 | Dimension | Value | Source |
 |---|---|---|
-| Width, height, depth | | Computer History Museum catalog entries disagree (11.25 by 17 by 12.5 in; 11.5 by 16 by 9.5 in) |
-| Tube | 12 in diagonal | Apple Monitor /// documentation, to cite |
-| Glass: opening, sag radius, anti-glare mesh | | |
+| Width | 436.6 mm (17 3/16 in) | Monitor III Owner's Manual p. 6 |
+| Height | 269.9 mm (10 5/8 in) | the same |
+| Depth | 317.5 mm (12 1/2 in) | the same |
+| Display zone | 214.3 by 160.3 mm (8 7/16 by 6 5/16 in) | the same |
+| Tube | 12 in (30.5 cm) diagonal; 78 degrees horizontal, 61 vertical, 90 diagonal deflection | the same |
+| Glare filter | a microporous filter in front of the tube | Monitor III Owner's Manual p. 4 |
+| Front | power switch and contrast knob, right of the tube | Monitor III Owner's Manual p. 3 |
+| Back | hand grip, brightness, vertical hold, vertical size, RCA video input, power cord | the same |
+| Glass sag radius; case edge radii and taper | | measured from the manual's drawings and photographs |
 | Base footprint | | |
-| Controls, power lamp, brand stamp | | |
+| Control and badge positions | | measured from the manual's drawings |
 
 Phosphor: green (A3M0039). The catalog entry is `AppleMonitorIII`, default
 color mode green.
