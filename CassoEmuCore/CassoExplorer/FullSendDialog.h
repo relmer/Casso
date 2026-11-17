@@ -49,8 +49,8 @@ public:
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 
     //  The marks' colors, which don't change with the theme.
-    static uint32_t      GetColor (FullSendTrackMark mark, const IDxuiTheme & theme);
-    static uint32_t      GetColor (FullSendPositionMark mark, const IDxuiTheme & theme);
+    static uint32_t      GetColor           (FullSendTrackMark mark, const IDxuiTheme & theme);
+    static uint32_t      GetColor           (FullSendPositionMark mark, const IDxuiTheme & theme);
     static bool          TryGetQuarterColor (FullSendPositionMark mark, int quarter, uint32_t & outColor);
 
     //  What the session is doing or what it waits for, as a sentence. The

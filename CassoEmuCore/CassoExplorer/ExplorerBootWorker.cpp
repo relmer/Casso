@@ -341,8 +341,9 @@ ExplorerBootWorker::Result ExplorerBootWorker::Check (const std::wstring & path,
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         //  An image with unreadable sectors is a failed capture, even when it
-        //  boots. The Apple's tone has the same rule.
-        result.isComplete = row.unreadable == 0;
+        //  boots. The Apple's tone has the same rule. A raw capture has every
+        //  track, so the count from the sector read before it doesn't apply.
+        result.isComplete = row.unreadable == 0 || row.status == FullSendManifest::kStatusRawCapture;
 
         //  An image saved as a number is renamed with the user's earlier name
         //  for its disk, or its title once it boots, or with neither, a DOS
