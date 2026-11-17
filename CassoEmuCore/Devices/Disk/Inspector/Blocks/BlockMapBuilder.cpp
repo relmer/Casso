@@ -2,6 +2,7 @@
 
 #include "Devices/Disk/BlockImage.h"
 #include "Devices/Disk/Inspector/Blocks/BlockMapBuilder.h"
+#include "Devices/Disk/Inspector/Blocks/BootLoaderId.h"
 #include "Devices/Disk/Inspector/Blocks/HfsBlockLayout.h"
 #include "Devices/Disk/Inspector/Blocks/PascalBlockLayout.h"
 #include "Devices/Disk/Inspector/Blocks/ProDosBlockLayout.h"
@@ -100,6 +101,11 @@ void BlockMapBuilder::Build (const BlockImage & image, BlockMap & outMap)
     else
     {
         SettleWithoutReport (outMap);
+    }
+
+    if (fileSystem != BlockFileSystem::None)
+    {
+        outMap.bootLoader = BootLoaderId::Identify (image, fileSystem);
     }
 
     outMap.CompleteEntries();

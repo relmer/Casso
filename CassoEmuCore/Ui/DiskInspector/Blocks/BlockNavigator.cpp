@@ -387,13 +387,15 @@ void BlockNavigator::SelectTreeNode (const BlockPlace & container)
 void BlockNavigator::FillList()
 {
     static constexpr int  kNameDip   = 180;
+    static constexpr int  kTypeDip   = 130;     // a boot loader, as "Apple Pascal loader", or a file system
     static constexpr int  kColumnDip = 78;
 
 
 
     vector<DxuiListView::Column>  columns;
     vector<DxuiListView::Group>   groups;
-    size_t                        i = 0;
+    size_t                        i     = 0;
+    int                           width = 0;
 
 
 
@@ -406,7 +408,9 @@ void BlockNavigator::FillList()
     {
         bool  isNumber = i < m_listing.isNumber.size() && m_listing.isNumber[i];
 
-        columns.push_back ({ m_listing.columns[i], i == 0 ? kNameDip : kColumnDip, i + 1 == m_listing.columns.size(), isNumber ? DxuiTextHAlign::Right : DxuiTextHAlign::Left });
+        width = (i == 0) ? kNameDip : (i == 1) ? kTypeDip : kColumnDip;
+
+        columns.push_back ({ m_listing.columns[i], width, i + 1 == m_listing.columns.size(), isNumber ? DxuiTextHAlign::Right : DxuiTextHAlign::Left });
     }
 
     m_rowOrder.clear();
