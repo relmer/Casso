@@ -268,6 +268,7 @@
     <ClCompile Include="CassoLink\CassoLinkCodec.cpp" />
     <ClCompile Include="CassoLink\CassoLinkFolder.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHost.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkHostBlocks.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostModules.cpp" />
     <ClCompile Include="CassoLink\CassoLinkPacketText.cpp" />
     <ClCompile Include="CassoLink\Host\CassoLinkAdtProServer.cpp" />
@@ -279,9 +280,11 @@
     <ClCompile Include="CassoLink\Session\CassoLinkDiskTransfer.cpp" />
     <ClCompile Include="CassoLink\Session\TrackVerifier.cpp" />
     <ClCompile Include="CassoLink\Session\CaptureStream.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkBlockTransfer.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkCapture.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkCaptureStream.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkFullSend.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkResume.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
     <ClCompile Include="DiskCheck\GivenNames.cpp" />
     <ClCompile Include="DiskCheck\BootCheck.cpp" />
@@ -1910,7 +1913,9 @@
     <ClInclude Include="CassoLink\Session\CassoLinkDiskTransfer.h" />
     <ClInclude Include="CassoLink\Session\TrackVerifier.h" />
     <ClInclude Include="CassoLink\Session\CaptureStream.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkBlockTransfer.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkCapture.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkResume.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
     <ClInclude Include="DiskCheck\ThumbnailStore.h" />
     <ClInclude Include="DiskCheck\GivenNames.h" />
@@ -2349,6 +2354,7 @@
     <None Include="CassoLink\Apple\Shim.s" />
     <None Include="CassoLink\Apple\Universal.s" />
     <None Include="CassoLink\Apple\SlotFinder.s" />
+    <None Include="CassoLink\Apple\Modules\Block.s" />
     <None Include="CassoLink\Apple\Modules\Capture.s" />
     <None Include="CassoLink\Apple\AppleSources.targets" />
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />

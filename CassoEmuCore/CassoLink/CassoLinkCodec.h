@@ -161,6 +161,17 @@ public:
     static constexpr size_t  kCapturePages    = 55;
     static constexpr int     kQuarterTracks   = 140;
 
+    //  The block module's requests (Block.s): List block devices, with
+    //  Block devices in reply; Read blocks, with a Block data packet for
+    //  each block, then a Status; and Write blocks, with an Acknowledge
+    //  that requests each block's Block data, then a Status.
+    static constexpr Byte    kListBlocks      = 0xEE;
+    static constexpr Byte    kBlockDevices    = 0xEF;
+    static constexpr Byte    kReadBlocks      = 0xF0;
+    static constexpr Byte    kBlockData       = 0xF1;
+    static constexpr Byte    kWriteBlocks     = 0xF2;
+    static constexpr size_t  kBlockSize       = 512;
+
     //  The longest row on the Session screen.
     static constexpr size_t  kSessionRowLength = 80;
 
@@ -239,6 +250,11 @@ public:
         { kCaptureData,   "CMDCAPDATA"  },
         { kMeasureTrack,  "CMDMEASURE"  },
         { kTrackMeasure,  "CMDMEASURED" },
+        { kListBlocks,    "CMDBLKLIST"  },
+        { kBlockDevices,  "CMDBLKDEVS"  },
+        { kReadBlocks,    "CMDBLKREAD"  },
+        { kBlockData,     "CMDBLKDATA"  },
+        { kWriteBlocks,   "CMDBLKWRITE" },
     };
 
     static HRESULT   Encode            (Byte command, std::span<const Byte> payload, std::vector<Byte> & out);

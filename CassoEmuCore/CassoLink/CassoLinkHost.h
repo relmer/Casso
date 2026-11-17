@@ -60,6 +60,48 @@ struct CassoLinkStatus
     bool  writeProtected = false;   // the drive's disk, as the program sensed it at the operation's start
 };
 
+//  A ProDOS block device or SmartPort unit, as the block module lists it:
+//  its slot; its unit, a SmartPort unit's number or a ProDOS drive, 1 or 2;
+//  its blocks; its kind, a SmartPort unit's type or kNoKind; and its volume
+//  name, empty when block 2 isn't a ProDOS volume header.
+struct CassoLinkBlockDevice
+{
+    static constexpr Byte  kNoKind = 0xFF;
+
+    Byte          slot        = 0;
+    Byte          unit        = 0;
+    bool          isSmartPort = false;
+    uint32_t      blocks      = 0;
+    Byte          kind        = kNoKind;
+    std::string   volume;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ICassoLinkBlockIo
+//
+//  A block device's blocks read and written: CassoLinkHost through the
+//  block module, and a fake in tests.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ICassoLinkBlockIo
+{
+public:
+    virtual ~ICassoLinkBlockIo () = default;
+
+    virtual HRESULT  ReadBlocks  (const CassoLinkBlockDevice & device, uint32_t first, Byte count, bool verify, std::vector<Byte> & outData, CassoLinkStatus & outStatus) = 0;
+    virtual HRESULT  WriteBlocks (const CassoLinkBlockDevice & device, uint32_t first, std::span<const Byte> data, bool verify, CassoLinkStatus & outStatus)          = 0;
+};
+
+
+
+
+
 //  A capture read's times: from its request to its first packet, which is
 //  mostly the arm's step and the read, and from its first packet to its
 //  Status, which is mostly the line; and the bytes of the encoding.
@@ -103,7 +145,7 @@ struct CaptureTiming
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class CassoLinkHost : public CassoLinkHostTypes
+class CassoLinkHost : public CassoLinkHostTypes, public ICassoLinkBlockIo
 {
 public:
 
@@ -354,6 +396,27 @@ public:
     //  The capture module for the program this host loads.
     HRESULT  BuildCaptureModule  (std::vector<Byte> & outModule) const;
 
+    //  The block module's requests (Block.s), which must be loaded: each
+    //  block device and SmartPort unit the Apple has; `count` blocks read
+    //  from `first`, 512 bytes each in outData, as far as the Status's count
+    //  of blocks done; and data's blocks written from `first`. With verify,
+    //  each block is read again and compared on the Apple. A device's error
+    //  is the Status's error, a firmware code below or kErrorVerify, with
+    //  the block it failed on `first` plus the Status's count.
+    static constexpr Byte    kBlockIoError       = 0x27;
+    static constexpr Byte    kBlockNoDevice      = 0x28;
+    static constexpr Byte    kBlockWriteProtect  = 0x2B;
+    static constexpr Byte    kBlockOffline       = 0x2F;
+    static constexpr size_t  kMaxBlocksARequest  = 255;
+
+    HRESULT  ListBlockDevices    (std::vector<CassoLinkBlockDevice> & outDevices);
+    HRESULT  ReadBlocks          (const CassoLinkBlockDevice & device, uint32_t first, Byte count, bool verify, std::vector<Byte> & outData, CassoLinkStatus & outStatus) override;
+    HRESULT  WriteBlocks         (const CassoLinkBlockDevice & device, uint32_t first, std::span<const Byte> data, bool verify, CassoLinkStatus & outStatus) override;
+    HRESULT  BuildBlockModule    (std::vector<Byte> & outModule) const;
+
+    //  A block device's error as words for the user, with the block.
+    static std::string  DescribeBlockError (Byte error, uint32_t block);
+
     //  A request of the module loaded, and the first packet in reply.
     HRESULT  RequestModule     (Byte command, std::span<const Byte> payload, CassoLinkPacket & outReply);
 
@@ -447,6 +510,8 @@ private:
     }
 
     HRESULT  ReadStatus        (const CassoLinkPacket & packet, CassoLinkStatus & outStatus);
+    void     MakeBlockRequest  (const CassoLinkBlockDevice & device, uint32_t first, Byte count, bool verify, std::vector<Byte> & outRequest) const;
+    HRESULT  SendBlock         (uint32_t block, std::span<const Byte> data);
     HRESULT  SendPacket        (Byte command, std::span<const Byte> payload);
     HRESULT  LoadProgram       ();
     HRESULT  SendSectors       (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,

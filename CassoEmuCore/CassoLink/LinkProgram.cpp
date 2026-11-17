@@ -12,6 +12,7 @@
 #include "Universal.s.h"
 #include "SlotFinder.s.h"
 #include "Capture.s.h"
+#include "Block.s.h"
 
 
 
@@ -367,6 +368,40 @@ HRESULT LinkProgram::BuildCaptureModule (std::vector<Byte> & outModule, LinkChip
 
 
     return AssembleModule (GetCaptureModuleSource(), outModule, errors, chip, faults);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetBlockModuleSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetBlockModuleSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kBlockModuleSource), sizeof (s_kBlockModuleSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildBlockModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildBlockModule (std::vector<Byte> & outModule, LinkChip chip, bool faults)
+{
+    std::string  errors;
+
+
+
+    return AssembleModule (GetBlockModuleSource(), outModule, errors, chip, faults);
 }
 
 
