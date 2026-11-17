@@ -73,6 +73,12 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
     found = TryGetTargetDrive (drive, target, link, number);
     BAIL_OUT_IF (!found, S_OK);
 
+    if (number >= CassoLinkBlockDevices::kFirstDrive)
+    {
+        ReadBlockDeviceToImage (target, link, number, forceVerify);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     spec.filters          = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib, *.nb2)", L"*.dsk;*.do;*.po;*.woz;*.nib;*.nb2" },
                               FileDialogFilter { L"All files (*.*)", L"*.*" } };
     spec.clientGuid       = s_kLinkDiskPickerGuid;
@@ -264,6 +270,12 @@ void CassoLinkDriveManager::WriteImageToDisk (const Location & drive, bool force
 
     found = TryGetTargetDrive (drive, target, link, number);
     BAIL_OUT_IF (!found, S_OK);
+
+    if (number >= CassoLinkBlockDevices::kFirstDrive)
+    {
+        WriteImageToBlockDevice (target, link, number, forceVerify);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     spec.filters        = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib, *.nb2)", L"*.dsk;*.do;*.po;*.woz;*.nib;*.nb2" },
                             FileDialogFilter { L"All files (*.*)", L"*.*" } };

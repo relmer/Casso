@@ -1157,7 +1157,7 @@ std::wstring TreeModel::GetLinkDriveLabel (int slot, int drive)
 
 std::wstring TreeModel::GetLinkDriveLabel (const LinkTreeEntry::Drive & drive)
 {
-    std::wstring  label = GetLinkDriveLabel (drive.slot, drive.drive);
+    std::wstring  label = drive.isBlockDevice ? GetBlockDeviceLabel (drive) : GetLinkDriveLabel (drive.slot, drive.drive);
 
 
 
@@ -1173,6 +1173,30 @@ std::wstring TreeModel::GetLinkDriveLabel (const LinkTreeEntry::Drive & drive)
     }
 
     return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::GetBlockDeviceLabel
+//
+//  "Slot 5, Unit 1, 800K": the size in K below a megabyte, in MB from it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TreeModel::GetBlockDeviceLabel (const LinkTreeEntry::Drive & drive)
+{
+    static constexpr uint32_t  kBlocksPerK  = 2;
+    static constexpr uint32_t  kBlocksPerMb = 2048;
+    std::wstring               size         = drive.blocks >= kBlocksPerMb ? std::format (L"{} MB", (drive.blocks + kBlocksPerMb / 2) / kBlocksPerMb)
+                                                                           : std::format (L"{}K", drive.blocks / kBlocksPerK);
+
+
+
+    return std::format (L"Slot {}, Unit {}, {}", drive.slot, drive.unit, size);
 }
 
 

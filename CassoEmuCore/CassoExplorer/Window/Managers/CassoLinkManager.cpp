@@ -1119,16 +1119,27 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
     }
     else if (m_context.app.links != nullptr && hasLocation && location.kind == Location::Kind::AppleDrive && location.innerPath.empty())
     {
-        //  A drive's whole disk, read or written from its node.
-        std::wstring  title = m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path);
+        //  A drive's whole disk, read or written from its node. A block device
+        //  has no raw capture, CassoLink disk or format here.
+        std::wstring  title   = m_context.browser.GetTreeModel().GetLinkDriveTitle (location.path);
+        bool          isBlock = TreeModel::TryParseLinkId (location.path, link, slot, drive) && drive >= CassoLinkBlockDevices::kFirstDrive;
 
         m_context.menus.AddMenuCommand (items, std::format (L"Create &image from {}...", title).c_str(), [this, location]() { m_context.linkDrives.ReadDiskToImage (location); });
         m_context.menus.AddMenuCommand (items, std::format (L"Create &verified image from {}...", title).c_str(), [this, location]() { m_context.linkDrives.ReadDiskToImage (location, true); });
-        m_context.menus.AddMenuCommand (items, std::format (L"Ca&pture raw disk from {}...", title).c_str(), [this, location]() { m_context.linkDrives.CaptureRawDisk (location); });
+
+        if (!isBlock)
+        {
+            m_context.menus.AddMenuCommand (items, std::format (L"Ca&pture raw disk from {}...", title).c_str(), [this, location]() { m_context.linkDrives.CaptureRawDisk (location); });
+        }
+
         m_context.menus.AddMenuCommand (items, std::format (L"&Write image to {}...", title).c_str(), [this, location]() { m_context.linkDrives.WriteImageToDisk (location); });
         m_context.menus.AddMenuCommand (items, std::format (L"Write image to {} and veri&fy...", title).c_str(), [this, location]() { m_context.linkDrives.WriteImageToDisk (location, true); });
-        m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { m_context.linkDrives.SaveLinkToDisk (location); });
-        m_context.menus.AddMenuCommand (items, L"&Format disk...",            [this, location]() { m_context.linkDrives.FormatAppleDisk (location); });
+
+        if (!isBlock)
+        {
+            m_context.menus.AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { m_context.linkDrives.SaveLinkToDisk (location); });
+            m_context.menus.AddMenuCommand (items, L"&Format disk...",            [this, location]() { m_context.linkDrives.FormatAppleDisk (location); });
+        }
 
         //  As a Pascal image's menu has it, with its icon.
         if (TreeModel::TryParseLinkId (location.path, link, slot, drive) && m_context.actions.IsDrivePascal (TextEncoding::WideToNarrow (link), drive))

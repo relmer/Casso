@@ -179,8 +179,13 @@ public:
     std::vector<LinkTreeEntry>  BuildTreeEntries () const;
 
     //  Each connected Apple's drives read as soon as it replies: a catalog
-    //  read is queued for each drive that has none.
+    //  read is queued for each drive without one, and its block devices are
+    //  listed, each one a drive from CassoLinkBlockDevices::kFirstDrive.
     void  ProbeDrives ();
+
+    //  A started link's block devices, by drive from kFirstDrive; empty for
+    //  none or a link not started.
+    std::vector<CassoLinkBlockDevice>  GetBlockDevices (const std::string & name) const;
 
     //  A directory's listing on a drive, or a file's contents, once read:
     //  false while it is being read, starting the read, and the link with it,
@@ -301,6 +306,12 @@ private:
     };
 
     static std::string  MakeKey (int drive, const std::string & path, bool file);
+
+    //  The request that lists a link's block devices, among its catalog reads.
+    static constexpr const char *  s_kBlockListKey = "blocks";
+
+    void          ProbeBlockDevices (Link & link);
+    static void   AddBlockDevices   (const Link & link, LinkTreeEntry & ioEntry);
 
     Link        * FindLink (const std::string & name);
     const Link  * FindLink (const std::string & name) const;

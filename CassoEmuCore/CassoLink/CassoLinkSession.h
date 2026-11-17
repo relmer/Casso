@@ -106,8 +106,9 @@ public:
 
     //  The file system of a drive's disk when detection doesn't recognize it,
     //  until another disk is found there. It takes effect at the next operation.
-    void        SetChosenKind (int drive, VolumeKind kind) { m_chosenKinds[(size_t) drive - 1] = kind; }
-    VolumeKind  GetChosenKind (int drive) const            { return m_chosenKinds[(size_t) drive - 1].load(); }
+    //  A block device's is always detected.
+    void        SetChosenKind (int drive, VolumeKind kind) { if (drive >= 1 && drive <= kDriveCount) { m_chosenKinds[(size_t) drive - 1] = kind; } }
+    VolumeKind  GetChosenKind (int drive) const            { return (drive >= 1 && drive <= kDriveCount) ? m_chosenKinds[(size_t) drive - 1].load() : VolumeKind::Unknown; }
 
     std::shared_ptr<LinkOperation>  Enumerate     (int drive, const FilePath & directory);
     std::shared_ptr<LinkOperation>  ReadFile      (int drive, const FilePath & path);
@@ -166,8 +167,8 @@ public:
     //  whole device to or from an image, continued from a record of one the
     //  link cut short when `resume` is set.
     std::shared_ptr<LinkOperation>  ListBlockDevices ();
-    std::shared_ptr<LinkOperation>  ReadBlockDevice  (int drive, const std::string & imagePath, bool resume);
-    std::shared_ptr<LinkOperation>  WriteBlockDevice (int drive, const std::string & imagePath, bool resume);
+    std::shared_ptr<LinkOperation>  ReadBlockDevice  (int drive, const std::string & imagePath, bool resume, bool forceVerify = false);
+    std::shared_ptr<LinkOperation>  WriteBlockDevice (int drive, const std::string & imagePath, bool resume, bool forceVerify = false);
 
     //  The devices the last list found, by drive from kFirstDrive; any thread.
     std::vector<CassoLinkBlockDevice>  GetBlockDevices () const { return m_blockDevices.GetDevices(); }

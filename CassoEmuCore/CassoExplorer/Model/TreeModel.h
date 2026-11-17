@@ -105,6 +105,12 @@ struct LinkTreeEntry
         bool          empty   = false;
         std::wstring  volume;
 
+        //  A block device or SmartPort unit: its unit and size, its drive the
+        //  session's number for it, from 3.
+        bool          isBlockDevice = false;
+        int           unit          = 0;
+        uint32_t      blocks        = 0;
+
         //  A ProDOS drive's top-level folders, once its catalog is read.
         std::vector<std::wstring>  folders;
     };
@@ -337,6 +343,9 @@ public:
     //  "Slot 6, Drive 1", and the volume in parentheses after it when known.
     static std::wstring  GetLinkDriveLabel (int slot, int drive);
     static std::wstring  GetLinkDriveLabel (const LinkTreeEntry::Drive & drive);
+
+    //  A block device's: "Slot 5, Unit 1, 800K".
+    static std::wstring  GetBlockDeviceLabel (const LinkTreeEntry::Drive & drive);
 
     //  A drive of a link, by its id, as the tree labels it: its slot, its drive
     //  and its volume once known.

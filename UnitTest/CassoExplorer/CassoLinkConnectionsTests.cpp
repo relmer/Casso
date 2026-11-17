@@ -14,6 +14,7 @@
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Net/FirewallMonitor.h"
 #include "Seams/ILinkAnnouncements.h"
 
@@ -292,6 +293,41 @@ public:
         Assert::AreEqual ((size_t) 2, entries[0].drives.size(), L"both drives, read with no listing requested");
         Assert::IsFalse  (entries[0].probing);
         Assert::AreEqual (std::wstring (L"DOS 3.3 volume 200"), entries[0].drives[0].volume);
+    }
+
+
+
+
+    //  A connected Apple's block devices are listed after its drives, each a
+    //  row from drive 3 with its slot, unit, size and volume.
+    TEST_METHOD (AConnectedApple_HasItsBlockDevicesListed_AfterItsDrives)
+    {
+        Rig                         rig;
+        std::vector<LinkTreeEntry>  entries;
+        std::vector<Byte>           volume (1600 * 512, 0);
+        auto                        until = std::chrono::steady_clock::now() + std::chrono::seconds (20);
+
+        AssertSucceeded (ProDosSkeleton::Write (volume, "BIGDISK"));
+        rig.apple.blockDisk = volume;
+
+        AssertSucceeded (rig.links->Start ("Test"));
+
+        do
+        {
+            rig.links->ProbeDrives();
+            entries = rig.links->BuildTreeEntries();
+            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+        }
+        while ((entries[0].drives.size() < 3 || entries[0].drives.back().volume.empty()) && std::chrono::steady_clock::now() < until);
+
+        Assert::AreEqual ((size_t) 3, entries[0].drives.size(), L"the two drives and the block device");
+
+        const LinkTreeEntry::Drive  & device = entries[0].drives[2];
+
+        Assert::IsTrue   (device.isBlockDevice);
+        Assert::AreEqual (7, device.slot);
+        Assert::AreEqual (CassoLinkBlockDevices::kFirstDrive, device.drive);
+        Assert::AreEqual (std::wstring (L"Slot 7, Unit 1, 800K (/BIGDISK)"), TreeModel::GetLinkDriveLabel (device));
     }
 
 

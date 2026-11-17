@@ -454,6 +454,7 @@
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerInput.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\ExplorerLayout.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkDriveManager.cpp" />
+    <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkDriveManagerBlocks.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\CassoLinkManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Managers\FullSendWindowManager.cpp" />
     <ClCompile Include="CassoExplorer\Window\Panes\ExplorerListPane.cpp" />

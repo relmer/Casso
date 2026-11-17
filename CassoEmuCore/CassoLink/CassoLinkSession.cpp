@@ -328,7 +328,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::ListBlockDevices()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<LinkOperation> CassoLinkSession::ReadBlockDevice (int drive, const std::string & imagePath, bool resume)
+std::shared_ptr<LinkOperation> CassoLinkSession::ReadBlockDevice (int drive, const std::string & imagePath, bool resume, bool forceVerify)
 {
     std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
 
@@ -336,7 +336,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::ReadBlockDevice (int drive, con
 
     operation->imagePath   = imagePath;
     operation->resume      = resume;
-    operation->verifyReads = m_verifyReads;
+    operation->verifyReads = forceVerify || m_verifyReads;
 
     return Queue (LinkOperationKind::ReadDisk, drive, FilePath(), operation);
 }
@@ -351,7 +351,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::ReadBlockDevice (int drive, con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<LinkOperation> CassoLinkSession::WriteBlockDevice (int drive, const std::string & imagePath, bool resume)
+std::shared_ptr<LinkOperation> CassoLinkSession::WriteBlockDevice (int drive, const std::string & imagePath, bool resume, bool forceVerify)
 {
     std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
 
@@ -359,7 +359,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::WriteBlockDevice (int drive, co
 
     operation->imagePath    = imagePath;
     operation->resume       = resume;
-    operation->verifyWrites = m_verifyWrites;
+    operation->verifyWrites = forceVerify || m_verifyWrites;
 
     return Queue (LinkOperationKind::WriteDisk, drive, FilePath(), operation);
 }
