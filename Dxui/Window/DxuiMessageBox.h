@@ -35,9 +35,18 @@ class IDxuiTheme;
 //  "Overwrite" and "Cancel" for MB_OKCANCEL, say -- and each still returns
 //  the id its place in the set does.
 //
+//  `dangerButton`, when 0 or more, is the index of a button drawn in the
+//  theme's error color, for an action that destroys data. Make another
+//  button the default: Enter presses the focused button, else the default.
+//
 //  `text` may mark runs as semibold between pairs of `**`, as for text the
 //  user types: "1. Type **IN#2** and press Return". Every line wraps at its
 //  spaces, whether or not it has a mark.
+//
+//  `checkLabel`, when given, adds a checkbox under the text, as a task
+//  dialog's verification checkbox, checked as `ioChecked` is on the way in;
+//  `ioChecked` returns its state when the box closes, whichever button
+//  closed it.
 //
 //  The one departure from MessageBox is the required `theme`: a Dxui window
 //  needs a theme to render. `owner` supplies the modal parent (disabled while
@@ -51,7 +60,10 @@ int  DxuiMessageBox (HWND                                 owner,
                      const wchar_t                      * text,
                      const wchar_t                      * caption,
                      UINT                                 uType,
-                     const std::vector<const wchar_t *> & buttonLabels = {});
+                     const std::vector<const wchar_t *> & buttonLabels = {},
+                     int                                  dangerButton = -1,
+                     const wchar_t                      * checkLabel   = nullptr,
+                     bool                               * ioChecked    = nullptr);
 
 
 

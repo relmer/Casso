@@ -171,7 +171,10 @@ public:
         io.files[kImagePath]  = image;
         io.stamps[kImagePath] = FileStamp { image.size(), 100 };
         io.files[kHostFile]   = MakePayload();
-        io.stamps[kHostFile]  = FileStamp { kPayloadBytes, 100 };
+
+        //  No time for the host file, so the placed file is undated and the
+        //  guest's row doesn't depend on the time zone.
+        io.stamps[kHostFile]  = FileStamp { kPayloadBytes, 0 };
     }
 
 

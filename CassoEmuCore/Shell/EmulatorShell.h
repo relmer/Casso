@@ -10,6 +10,7 @@
 #include "Shell/MachineGamePortSink.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
+#include "Seams/CassoHostDialogs.h"
 #include "Seams/Win32HostNetwork.h"
 #include "Seams/Win32HostFirewall.h"
 #include "Seams/Win32NetworkChanges.h"
@@ -19,20 +20,29 @@
 #include "Shell/Input/ShellKeyRouting.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/CpuManager.h"
+#include "Shell/ShellInspectorHost.h"
 #include "Shell/MachineHost.h"
+#include "CommandLineOptions.h"
 #include "Ui/UiShell.h"
 #include "Ui/UiCommandTypes.h"
 
 
 
 class ClipboardManager;
+struct DeskDrive;
+struct DriveAddress;
+enum class ReceivingDriveKind;
+struct ImageClass;
+struct ReceivingDrive;
 class DxuiHwndSource;
 class MachineBuilder;
 class MachineManager;
 class WindowCommandManager;
 struct DialogDefinition;
+struct DxuiPopupMenuItem;
 struct MachineConfig;
 class SettingsSheet;
+class SettingsPanelState;
 class JsonValue;
 class DriveWidget;
 class ShellAudio;
@@ -41,6 +51,7 @@ class ShellRenderer;
 class ShellWindow;
 class ShellDeskScene;
 class ShellDisks;
+class ShellDrivePickers;
 class ShellPrinter;
 class ShellSettings;
 class ShellSerialCard;
@@ -53,6 +64,16 @@ struct MonitorSpec;
 // Defined in Devices/AppleKeyboard.h. Forward-declared so the shell's
 // key classifiers can name it without dragging the device header in.
 enum class AppleSpecialKey;
+
+
+// A change to the //c Plus's disk port chain: a drive plugged in, unplugged,
+// or swapped for the other size.
+enum class PortDriveChange
+{
+    PlugIn,
+    Unplug,
+    Swap,
+};
 
 
 
@@ -203,6 +224,10 @@ public:
     // not refresh the caption itself.
     void  SetWindowTitlePrefix (const wstring & prefix);
 
+    //  The --hd and --smartport images, applied to the first machine built.
+    void  SetRunBlockAttachments (const std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment> & hd,
+                                  const std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment> & smartPort);
+
     // The preferences and the Settings dialog: the global preferences, the
     // config store, the theme catalog and the Settings sheet.
     ShellSettings &  GetSettings();
@@ -220,6 +245,22 @@ public:
     void  SoftReset  ();
     void  PowerCycle ();
 
+    // The disk inspector window for the disk in a drive: the window that
+    // inspects that disk, or a new one.
+    void OpenDiskInspector (int drive);
+
+    // The screen as it is now, as the thumbnail of the drive's image, marked
+    // as set by the user.
+    void SetDiskThumbnail (int drive);
+
+    // The confirmation that changing a hard disk's image restarts the
+    // machine: its text and buttons. Restart returns kHardDiskChangeRestart
+    // and Cancel 0.
+    static constexpr int  kHardDiskChangeRestart = 1;
+
+    static DialogDefinition  MakeHardDiskChangeDialog (const std::wstring & driveTitle, const std::wstring & fileName);
+    static DialogDefinition  MakePortDriveDialog      (PortDriveChange change, const std::string & device);
+    static const wchar_t   * GetPortDriveText         (const std::string & device);
 private:
 
     //  The shell the EHM notification sink forwards to. One per process; set
@@ -228,8 +269,40 @@ private:
     static EmulatorShell *  s_pNotifyShell;
     DxuiMessageResult  OnChar          (WPARAM ch, LPARAM lParam) override;
     DxuiMessageResult  OnCommand       (WORD commandId) override;
-    DxuiMessageResult  OnKeyDown       (WPARAM vk, LPARAM lParam) override;
-    DxuiMessageResult  OnKeyUp         (WPARAM vk, LPARAM lParam) override;
+    DxuiMessageResult  OnClose         () override;
+
+    //  One disk inspector window and the host for its disk.
+    struct DiskInspectorEntry
+    {
+        DiskInspectorEntry  ();
+        ~DiskInspectorEntry ();
+
+        std::unique_ptr<class ShellInspectorWindowHost>  host;
+        std::unique_ptr<class DiskInspectorWindow>       window;
+        bool                                             isClosed = false;
+    };
+
+    //  True when no disk inspector window has unsaved changes, or the user
+    //  confirms quitting for each one that has them.
+    bool               ConfirmInspectorDiscard (std::function<void()> afterSave);
+
+    //  Open the disk inspector on a drive's disk, in the foreground only
+    //  when `activate`; save the windows' state for the next launch; at
+    //  launch, reopen a window for each drive that had one open at exit
+    //  (FR-080).
+    void                 ShowDiskInspector        (int drive, bool activate);
+    void                 SaveInspectorPrefs       (const DiskInspectorEntry * from);
+    void                 ReopenDiskInspector      ();
+    DiskInspectorEntry * FindDiskInspector        (int drive, const std::wstring & path);
+    int                  FindDiskDrive            (const std::wstring & path) const;
+    void                 RenderDiskInspectors     ();
+    bool                 IsDiskInspectorWindow    (HWND hwnd) const;
+    void                 ReleaseClosedInspectors  ();
+
+    //  Whether an enabled Disk II card is in a slot other than 6.
+    bool               HasOtherDiskController () const;
+    DxuiMessageResult  OnKeyDown              (WPARAM vk, LPARAM lParam) override;
+    DxuiMessageResult  OnKeyUp                (WPARAM vk, LPARAM lParam) override;
 
     // IDxuiViewportInputSink -- the emulator viewport routes its raw
     // keyboard input here (SetWantsAllKeys(true) so even Esc/Tab/arrows
@@ -298,6 +371,7 @@ private:
     // before it became CpuCommandDispatcher. The disk, drive-sound and tape
     // commands go to ShellDisks, ShellAudio and ShellTapeDeck.
     void     StepInstruction           () override;
+    void     ServiceInspectorRequests  () override;
     void     SaveTrace                 () override;
     void     ConfigureNetworkCard      (const NetworkCardSettings & settings) override;
     void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
@@ -334,6 +408,8 @@ private:
 
     HRESULT BuildMachineDevices             (const MachineConfig & config);
     void    QueueUthernetNotices            ();
+    void    QueueNotice                     (std::wstring text);
+    void    QueueBlockMediaNotices          ();
     HRESULT InitializeUiShell               ();
     HRESULT WireUiShellChromeAndThemes      ();
     void    RestoreColorTextPref            ();
@@ -353,11 +429,59 @@ private:
     void    SetSecondDriveConnected   (bool connected);
     void    SetTapeRecorderConnected  (bool connected);
     void    SaveStorageDevices        ();
+    HRESULT EditSavedMachine          (const std::function<HRESULT (class SettingsPanelState & state)> & edit);
+    void    SaveHardDiskImage         (int slot, int drive, const std::string & path);
+    void    SaveMachineSettings       (const std::function<void (SettingsPanelState &)> & edit);
+
+    //  Inserts an image in a drive: mounted in a floppy drive, loaded in
+    //  the recorder, or, for a hard disk, attached after a confirmed restart.
+    bool    InsertInDrive             (const DriveAddress & address, ReceivingDriveKind kind, const std::wstring & label, const std::wstring & path);
+
+    //  A hard disk's capacity in blocks, from the drive on the card's port;
+    //  0 for a port without one.
+    uint32_t  GetHardDiskBlocks       (int slot, int port) const;
+
+    //  A modal picker over owner, for a caller that waits for a path.
+    HRESULT RunModalPicker            (HWND owner, PickerRequest request, PickerOutcome & outOutcome);
+
+    // A hard disk's new image, dropped on the drive or chosen in its picker.
+    // Changing it restarts the machine, so the change is confirmed first. On
+    // Cancel the drive has its image from before, and the machine runs on.
+    void    ChangeHardDiskImage       (const DeskDrive & drive, const std::wstring & path);
+    void    ChangeHardDiskImage       (int slot, int drive, const std::wstring & driveTitle, const std::wstring & path);
+    void    BrowseHardDisk            (const DeskDrive & drive);
+
+    // Plugs a drive of `device` into the disk port's chain, unplugs the
+    // `nth` one or swaps it for the other size, once the user picks Restart
+    // in the prompt: the machine is rebuilt with the new chain. The rows add
+    // to a drive's menu, for a drive on the chain (`nth` not negative), the
+    // commands that unplug and swap it, then the Disk menu's plug-in commands,
+    // which are hidden while the port has no room for their kind.
+    void    ChangePortDrive           (PortDriveChange change, const std::string & device, size_t nth);
+    void    AddPortDriveRows          (const std::string & device, int nth, std::vector<DxuiPopupMenuItem> & items);
+
+    // A copy of a Disk menu command with the label a drive's menu uses,
+    // where the drive's name heads the menu: "Insert disk..." for "Insert
+    // drive 1...".
+    static std::shared_ptr<const DxuiCommand>  MakeRelabeled (const std::shared_ptr<const DxuiCommand> & command, const wchar_t * label);
 
     // A drive's (0 or 1) or the recorder's (kStorageMenuRecorder) right-click
     // menu, at a client point.
-    static constexpr int  kStorageMenuRecorder = 2;
+    // A 3.5-inch drive or hard disk on the desk is kStorageMenuDeskExtra plus
+    // its index; one on the drive bar is kStorageMenuBar plus its class times
+    // ShellDeskScene::kBarDropClassStride plus its place in the class.
+    static constexpr int  kStorageMenuRecorder  = 2;
+    static constexpr int  kStorageMenuDeskExtra = 32;
+    static constexpr int  kStorageMenuBar       = 64;
     void    ShowStorageContextMenu    (int device, int x, int y);
+    void    ShowDriveContextMenu      (const DeskDrive & drive, int x, int y);
+
+    // Every floppy drive's menu, 5.25-inch and 3.5-inch alike: one list of
+    // rows, less the ones that don't apply to the drive. `outDevice` and
+    // `outNth` specify the drive's place on the //c Plus's disk port chain,
+    // empty and -1 for a drive that can't be unplugged.
+    void    ShowFloppyContextMenu     (const DeskDrive & drive, int x, int y);
+    void    FindPortDrive             (const DeskDrive & drive, std::string & outDevice, int & outNth) const;
     int     StorageDeviceAt           (int x, int y) const;
 
     // Bounds-changed callback wired onto m_viewport. Stores the new
@@ -623,7 +747,13 @@ private:
     bool    AreDrivesOnStrip     () const;
 
     // A file dropped on a drive or the recorder.
-    void    OnFileDropped      (int tag, const std::wstring & path);
+    void          OnFileDropped     (int tag, const std::wstring & path);
+    std::wstring  GetDropDriveLabel (int tag);
+
+    // The drive under a drop tag, when it takes a disk while the machine
+    // runs, and whether it takes the image.
+    bool    TryGetDropDrive    (int tag, ReceivingDrive & outDrive, DriveAddress & outAddress);
+    bool    IsDropAccepted     (int tag, const ImageClass & image);
 
     // The operating system's pickers, behind their seam. The shell owns the
     // Win32 implementation; whoever needs to put one up asks for the
@@ -712,6 +842,7 @@ private:
     friend class ShellWindow;
     friend class ShellDeskScene;
     friend class ShellDisks;
+    friend class ShellDrivePickers;
     friend class ShellPrinter;
     friend class ShellSettings;
     friend class ShellSerialCard;
@@ -746,7 +877,9 @@ private:
     ListenGate              m_listenGate;   // the firewall's verdicts, for the Uthernet II's CPU-thread listens
 
     //  Notices raised before the window exists, displayed once it does.
-    std::vector<std::wstring>  m_pendingNotices;
+    std::vector<std::wstring>                                          m_pendingNotices;
+    std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment>  m_runHdAttachments;
+    std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment>  m_runSmartPortAttachments;
 
     //  The emulated machine: bus, CPU, devices, video modes, and the
     //  configuration and identity that say which machine this is. Everything
@@ -958,10 +1091,17 @@ private:
     // (>= 0) every keydown is consumed so letters never leak to the //e.
     int             m_chromeFocusIndex      = -1;
 
+    // The disk inspector windows, one per disk, and the host through which
+    // the CPU thread services their requests.
+    vector<std::unique_ptr<DiskInspectorEntry>>  m_diskInspectors;
+    ShellInspectorHost                           m_inspectorHost { m_cpuManager, m_machine };
     // The host services the clipboard manager and the dialogs go through.
     // Declared ahead of the manager, which holds a reference to the clipboard.
     Win32Clipboard                            m_hostClipboard;
-    Win32HostDialogs                          m_hostDialogs;
+    // An image request opens the Casso Explorer picker, and any other
+    // opens Windows' dialog.
+    Win32HostDialogs                          m_win32Dialogs;
+    CassoHostDialogs                          m_hostDialogs { m_win32Dialogs, [this] (HWND owner, PickerRequest request, PickerOutcome & outOutcome) { return RunModalPicker (owner, std::move (request), outOutcome); } };
 
     // Whether the //e and //c Caps Lock key is down: down until the first
     // Caps Lock press in this window, the host's from then on. Session-scoped,
@@ -971,6 +1111,7 @@ private:
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<ShellDisks>               m_disks;
     std::unique_ptr<ShellTapeDeck>            m_tapeDeck;
+    std::unique_ptr<ShellDrivePickers>        m_drivePickers;
     std::unique_ptr<ShellSerialCard>          m_serialCard;
     std::unique_ptr<ShellNetworkCard>         m_networkCard;
     std::wstring                              m_lastListenProblem;   // CPU thread: the sentence last passed to m_networkCard

@@ -9,6 +9,7 @@
 #include "DiskCommandResult.h"
 #include "DiskHelpPage.h"
 #include "DiskImageSession.h"
+#include "Devices/Disk/BlockImage.h"
 #include "IDiskFileIo.h"
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
@@ -24,6 +25,7 @@ enum class VolumeKind;
 //  project, which is the failure mode the note above is about.
 enum class DiskFormat;
 enum class BlankDiskContents;
+enum class ProDosBootSystem;
 struct BlankDiskSpec;
 struct BootPayload;
 struct ParsedHostName;
@@ -63,6 +65,8 @@ struct ParsedHostName;
 ////////////////////////////////////////////////////////////////////////////////
 
 class IIntentChannel;
+class BlockBuffer;
+class CardVolumeEdit;
 
 
 class DiskCommandRunner
@@ -96,6 +100,9 @@ public:
     using ClockFn = std::function<SYSTEMTIME()>;
 
     void  SetClock (ClockFn clock) { m_clock = std::move (clock); }
+
+    //  The thumbnail cache `thumbnail` uses: a test's temporary folder.
+    void  SetThumbnailFolder (std::filesystem::path folder) { m_thumbnailFolder = std::move (folder); }
 
     DiskCommandResult  Run (const CommandLineOptions & options);
 
@@ -174,6 +181,38 @@ public:
     static void  AppendTypeExtension (std::string & imagePath, const std::string & containerType);
 
     void  RunCreate (const CommandLineOptions & options, DiskCommandResult & result);
+
+    //  A ProDOS volume larger than a floppy, in a block container.
+    //  The `._NAME` file a data fork's resource fork is written to.
+    //  Each problem an image's or archive's structure has.
+    void  RunTest (const CommandLineOptions & options, DiskCommandResult & result);
+
+    static std::string  GetAppleDoublePath (const std::string & hostFile);
+    HRESULT             WriteAppleDouble   (const std::string & hostFile, const FilePayload & payload);
+
+    //  The resource fork, Finder information and, with no --type or --load,
+    //  the ProDOS type from `._NAME` beside a file being put, as get writes
+    //  them and Casso Explorer reads them.
+    void                ReadAppleDouble    (const CommandLineOptions & options, FilePayload & inOutPayload);
+
+    static bool                IsThirteenSectorImage  (const CommandLineOptions & options);
+    void                       BuildThirteenSector    (const CommandLineOptions & options, bool overExisting, DiskCommandResult & result);
+    static bool                IsLargeCreate          (const CommandLineOptions & options);
+    static ProDosBootSystem    GetBootSystem          (const std::string & formatName);
+    static bool                IsProDosFamilyFormat   (const std::string & formatName);
+    static bool                IsHfsFormat            (const CommandLineOptions & options);
+    static const char        * GetVolumeNameRule      (bool isHfs);
+    static bool                IsBlockOnlyExtension   (const std::string & imagePath);
+    static bool                IsProDosOrderExtension (const std::string & imagePath);
+    static bool                TryGetLargeBlockCount  (const std::string & sizeName, uint32_t & outBlocks);
+    void                       BuildLargeProDos       (const CommandLineOptions & options, DiskCommandResult & result);
+    void                       ReformatLargeProDos    (const CommandLineOptions & options, const FileStamp & stamp, DiskCommandResult & result);
+
+    //  --bootable on a volume larger than 140K, as on a 140K one: PRODOS and
+    //  BASIC.SYSTEM from the master, and SOS for a format that starts an
+    //  Apple ///. `outBootWords` is what the summary line adds, or empty.
+    HRESULT                    InstallLargeBoot       (const CommandLineOptions & options, bool isHfs, vector<Byte> & ioVolume, std::string & outBootWords, DiskCommandResult & result);
+
     void  RunInit   (const CommandLineOptions & options, DiskCommandResult & result);
 
     //
@@ -213,6 +252,9 @@ public:
                           BlankDiskSpec            & inOutSpec,
                           BootPayload              & outPayload,
                           DiskCommandResult        & result);
+
+    //  The SOS disk a ProDOS volume that starts an Apple /// copies SOS from.
+    HRESULT  ResolveSosBoot   (const std::string & source, BootPayload & outPayload, DiskCommandResult & result);
 
     //  The disk a bootable Apple Pascal or CP/M disk is copied from.
     HRESULT  LoadSystemSource (const std::string   & path,
@@ -303,14 +345,15 @@ public:
 
 
 private:
-    void  RunList   (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunGet    (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunPut    (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunDelete (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunBoot   (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunKrunch (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunMkdir  (const CommandLineOptions & options, DiskCommandResult & result);
-    void  RunRmdir  (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunList      (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunGet       (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunPut       (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunDelete    (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunBoot      (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunKrunch    (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunMkdir     (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunRmdir     (const CommandLineOptions & options, DiskCommandResult & result);
+    void  RunThumbnail (const CommandLineOptions & options, DiskCommandResult & result);
 
     //  A Pascal or CP/M catalog as the Filer or STAT prints it.
     HRESULT  AppendNativeListing (const CommandLineOptions             & options,
@@ -326,19 +369,26 @@ private:
                                   DiskCommandResult                    & result);
 
     //  One directory's rows, and with `recurse` the rows of everything below
-    //  it, each of those written as a full path.
+    //  it, each of those written as a full path. The name column is
+    //  `nameWidth` wide.
     HRESULT  AppendDirectoryRows (const IVolume      & volume,
                                   VolumeKind           kind,
                                   const std::string  & directory,
                                   bool                 recurse,
+                                  size_t               nameWidth,
                                   DiskCommandResult  & result);
+
+    //  The name column's width for a recursive listing of `directory`: its
+    //  longest name or path and a gap, if wider than inOutWidth.
+    static HRESULT  MeasureNameWidth (const IVolume & volume, const std::string & directory, size_t & inOutWidth);
 
     //  A typed path as the volume reads it. A path with no leading slash is
     //  read from the volume directory and comes back unchanged; one with a
     //  leading slash names the volume first, and is turned down when that name
     //  is not this image's. A DOS 3.3 name is one name, slashes included.
     HRESULT  ResolveVolumePath (const CommandLineOptions             & options,
-                                const DiskImageSession::OpenedImage  & opened,
+                                VolumeKind                             kind,
+                                const BlockImage                     & sectors,
                                 const std::string                    & typed,
                                 std::string                          & outPath,
                                 DiskCommandResult                    & result);
@@ -346,10 +396,18 @@ private:
     //  Puts --user on a CP/M name. An error on any other file system.
     HRESULT  ApplyUser (const CommandLineOptions & options, VolumeKind kind, std::string & inOutName, DiskCommandResult & result);
 
+    //  The blocks a change to a card partition's volume touched written to
+    //  the card, or the reason the commit failed set in the result.
+    static HRESULT  CommitCard (const std::string & imagePath, CardVolumeEdit & card, const BlockBuffer & edited, DiskCommandResult & result);
+
+    //  Whether mkdir and rmdir change the file system.
+    static bool  HasDirectories (VolumeKind kind);
+
     //  The path `get`, `delete` and `boot` act on, and the name used in their
     //  messages: the name as typed, or with --index the entry at that position.
     HRESULT  ResolveEntryPath (const CommandLineOptions             & options,
-                               const DiskImageSession::OpenedImage  & opened,
+                               VolumeKind                             kind,
+                               const BlockImage                     & sectors,
                                FilePath                             & outPath,
                                std::string                          & outName,
                                DiskCommandResult                    & result);
@@ -395,6 +453,9 @@ private:
     //  produces and what the default has always been.
     static Byte     DetectFileType  (const std::vector<Byte> & bytes, VolumeKind kind);
 
+    //  ProDOS's type for an Integer BASIC program.
+    static constexpr Byte  kProDosIntegerType = 0xFA;
+
     static HRESULT  ResolvePascalKind  (const CommandLineOptions & options, Byte & outType, DiskCommandResult & result);
     static bool     ParseCpmAttributes (const std::string & text, bool & outReadOnly, bool & outSystem);
 
@@ -413,6 +474,19 @@ private:
     //  other host name, and the options are then left as they were.
     static bool     ApplyHostFileName (CommandLineOptions & inOutOptions, ParsedHostName & outParsed);
 
+    //  For a get with no --text or --basic, the one an output name in Casso
+    //  Explorer's text or BASIC listing form has, as a copy out writes it.
+    static void     ApplyOutputEncoding (CommandLineOptions & inOutOptions);
+
+    //  For a get whose output file has a conversion's suffix, such as
+    //  SOURCE.Merlin.txt: replace the payload's bytes with that conversion.
+    //  An error for a file in another format.
+    static HRESULT  ApplyHostFileConversion (const CommandLineOptions  & options,
+                                             VolumeKind                  kind,
+                                             const std::string         & name,
+                                             FilePayload               & inOutPayload,
+                                             DiskCommandResult         & result);
+
     //  Set the payload's type and aux type from that form's name.
     static HRESULT  ApplyHostFileType (const ParsedHostName & parsed, VolumeKind kind, FilePayload & inOutPayload);
 
@@ -424,8 +498,10 @@ private:
     //  One line per catalog entry, in the shape the guest's own listing uses --
     //  with every column the volume records, since ProDOS fills eof= and aux=
     //  whether or not anybody asks and the widest row still fits in 80.
+    static constexpr size_t  kNameWidth = 17;
+
     static std::string  FormatDos33Entry  (const FileEntry & entry);
-    static std::string  FormatProDosEntry (const FileEntry & entry);
+    static std::string  FormatProDosEntry (const FileEntry & entry, size_t nameWidth = kNameWidth);
 
     static char  GetDos33TypeLetter (Byte type);
 
@@ -453,6 +529,9 @@ public:
                                    FilePayload              & payload,
                                    DiskCommandResult        & result);
 
+    //  Text with an LF line end made CR LF.
+    static void     ToWindowsLineEndings (std::vector<Byte> & inOutBytes);
+
 private:
     static SYSTEMTIME  GetLocalDate ();
 
@@ -474,6 +553,9 @@ private:
     IDiskFileIo       & m_fileIo;
     DiskImageSession    m_session;
     std::string         m_banner;
+
+    //  The thumbnail cache, or empty for the one under local application data.
+    std::filesystem::path  m_thumbnailFolder;
 
     //  The command being run and the prefix it was typed with, recorded at the
     //  top of Run so a refusal deep inside can answer in the reader's own

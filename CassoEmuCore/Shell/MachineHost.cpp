@@ -1,9 +1,25 @@
 #include "Pch.h"
 
 #include "Shell/MachineHost.h"
+#include "Devices/Floppy35/Apple2cPlusDiskPort.h"
+#include "Devices/Floppy35/Apple2cSmartPort.h"
+#include "Machines/Apple2/Apple2cPlus/Apple2cPlusAccelerator.h"
+#include "Devices/Floppy35/Apple35ControllerCard.h"
+#include "Devices/Floppy35/LironCard.h"
 #include "CassoLink/RunningCassoRegistry.h"
 
 #include "Core/Prng.h"
+#include "Devices/BlockDevice/AppleScsiCard.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Devices/BlockDevice/BlockDeviceMedia.h"
+#include "Devices/BlockDevice/IBlockDeviceEventSink.h"
+#include "Devices/BlockDevice/ProFileCard.h"
+#include "Devices/BlockDevice/ScsiHardDisk.h"
+#include "Shell/StorageCardWiring.h"
+#include "Devices/Disk/DiskImageStore.h"
+#include "Seams/Win32DiskFileIo.h"
+#include "Shell/DiskManager.h"
+#include "Devices/Floppy35/IFloppy35EventSink.h"
 #include "Devices/RamDevice.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/VideoScanner.h"
@@ -70,6 +86,81 @@ MachineHost::MachineHost() :
 
 MachineHost::~MachineHost()
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SetBlockMediaFileIo
+//
+//  Null restores the host's file system and its write-protect probe.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetBlockMediaFileIo (IDiskFileIo * fileIo, WriteProtectProbe probe)
+{
+    m_blockFileIo = fileIo;
+    m_blockProbe  = std::move (probe);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::GetBlockMediaFileIo
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDiskFileIo & MachineHost::GetBlockMediaFileIo()
+{
+    if (m_blockFileIo != nullptr)
+    {
+        return *m_blockFileIo;
+    }
+
+    if (m_hostBlockFileIo == nullptr)
+    {
+        m_hostBlockFileIo = std::make_unique<Win32DiskFileIo>();
+    }
+
+    return *m_hostBlockFileIo;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ProbeBlockMedia
+//
+//  The host file's read-only attribute and write permission, for the host's
+//  file system; nothing for an in-memory one without a probe.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+WriteProtectInfo MachineHost::ProbeBlockMedia (const std::string & path) const
+{
+    WriteProtectInfo  info;
+
+
+
+    if (m_blockProbe)
+    {
+        return m_blockProbe (path);
+    }
+
+    if (m_blockFileIo == nullptr)
+    {
+        DiskManager::ProbeFileWritability (path, info.readOnlyFile, info.noPermission);
+    }
+
+    return info;
 }
 
 
@@ -145,6 +236,25 @@ void MachineHost::SetApple2cRomBank (std::unique_ptr<Apple2cRomBank> romBank)
 void MachineHost::SetMouse (std::unique_ptr<AppleMouse> mouse)
 {
     m_mouse = std::move (mouse);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SetAccelerator
+//
+//  The memory bus watches the soft switches for the accelerator, so the
+//  bus is pointed at the new one before the old one is deleted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetAccelerator (std::unique_ptr<Apple2cPlusAccelerator> accelerator)
+{
+    m_memoryBus->SetIoObserver (accelerator.get());
+    m_accelerator = std::move (accelerator);
 }
 
 
@@ -239,6 +349,14 @@ Byte MachineHost::StepOne()
     m_cpu->StepOne();
 
     cycles = m_cpu->GetLastInstructionCycles();
+
+    //  The //c Plus's accelerator runs the CPU faster than the machine's
+    //  clock, so the instruction takes fewer of the machine's cycles.
+    if (m_accelerator != nullptr)
+    {
+        cycles = m_accelerator->Scale (cycles);
+    }
+
     m_cpu->AddCycles (cycles);
 
     if (m_refs.diskController != nullptr)
@@ -856,6 +974,28 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
         spent += StepOne();
     }
 
+    //  Cards with separate processors run up to the Apple's time, so their
+    //  firmware's timers run while the guest doesn't access them.
+    for (LironCard * lironCard : m_refs.lironCards)
+    {
+        lironCard->CatchUp (CatchUpKind::BetweenFrames);
+    }
+
+    for (Apple35ControllerCard * apple35Card : m_refs.apple35Cards)
+    {
+        apple35Card->CatchUp (CatchUpKind::BetweenFrames);
+    }
+
+    if (m_refs.apple2cSmartPort != nullptr)
+    {
+        m_refs.apple2cSmartPort->GetPort().CatchUp (CatchUpKind::BetweenFrames);
+    }
+
+    if (m_refs.apple2cPlusDiskPort != nullptr)
+    {
+        m_refs.apple2cPlusDiskPort->GetPort().CatchUp (CatchUpKind::BetweenFrames);
+    }
+
     return (spent);
 }
 
@@ -891,6 +1031,11 @@ void MachineHost::SoftReset()
     }
 
     m_memoryBus->SoftResetAll();
+
+    if (m_accelerator != nullptr)
+    {
+        m_accelerator->Reset();
+    }
 
     if (m_mmu != nullptr)
     {
@@ -938,7 +1083,9 @@ void MachineHost::SoftReset()
 
 void MachineHost::PowerCycle()
 {
-    HRESULT  hrFlush = S_OK;
+    constexpr int  kDiskSlot = 6;
+    HRESULT        hrFlush   = S_OK;
+    int            drive     = 0;
 
 
 
@@ -958,6 +1105,19 @@ void MachineHost::PowerCycle()
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     m_memoryBus->PowerCycleAll (*m_prng);
+
+    if (m_accelerator != nullptr)
+    {
+        m_accelerator->Reset();
+    }
+
+    // The Disk II controller's power cycle selects its empty disks, so the
+    // drives are pointed back at the store's mounts. Without this, a disk
+    // mounted from memory, which has no file to remount, is disconnected.
+    for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+    {
+        ConnectDiskToController (kDiskSlot, drive);
+    }
 
     if (m_mmu != nullptr)
     {
@@ -1074,6 +1234,16 @@ void MachineHost::AttachObservers (const MachineObservers & observers)
     {
         m_refs.gamePort->SetInputEventSink (observers.input);
     }
+
+    for (IBlockDeviceEventSource * source : m_refs.blockDeviceSources)
+    {
+        source->SetBlockDeviceEventSink (observers.blockDevice);
+    }
+
+    for (IFloppy35EventSource * source : m_refs.floppy35Sources)
+    {
+        source->SetFloppy35EventSink (observers.floppy35);
+    }
 }
 
 
@@ -1129,3 +1299,197 @@ void MachineHost::StopTape()
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::FindFloppy35
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Sony35Drive * MachineHost::FindFloppy35 (int slot, int drive)
+{
+    Sony35Drive  * found = nullptr;
+    size_t         index = (size_t) drive;
+
+
+
+    // The //c Plus's drive 0 is its internal drive, then the chain in order.
+    if (slot == 0 && m_refs.apple2cPlusDiskPort != nullptr)
+    {
+        Apple2cPlusDiskPort  & port     = *m_refs.apple2cPlusDiskPort;
+        size_t                 external = (size_t) port.GetExternalCount();
+
+
+
+        if (drive == 0)
+        {
+            found = &port.GetInternalDrive();
+        }
+        else if (index <= external)
+        {
+            found = &port.GetExternalDrive (drive - 1);
+        }
+        else if (index - 1 - external < port.GetPort().GetDriveCount())
+        {
+            found = &port.GetPort().GetDrive (index - 1 - external).GetMechanism();
+        }
+    }
+    else if (slot == 0 && m_refs.apple2cSmartPort != nullptr && index < m_refs.apple2cSmartPort->GetPort().GetDriveCount())
+    {
+        found = &m_refs.apple2cSmartPort->GetPort().GetDrive (index).GetMechanism();
+    }
+
+    for (LironCard * card : m_refs.lironCards)
+    {
+        if (card->GetSlot() == slot && index < card->GetDriveCount())
+        {
+            found = &card->GetDrive (index).GetMechanism();
+        }
+    }
+
+    for (Apple35ControllerCard * card : m_refs.apple35Cards)
+    {
+        if (card->GetSlot() == slot && (drive == 0 || drive == 1))
+        {
+            found = &card->GetCardMemory().GetDrive (drive);
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::InsertFloppy35
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::InsertFloppy35 (int slot, int drive, const std::string & path, std::wstring & outError)
+{
+    HRESULT        hr     = S_OK;
+    Sony35Drive  * target = FindFloppy35 (slot, drive);
+
+
+
+    CBREx (target != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    hr = target->Insert (GetBlockMediaFileIo(), path, ProbeBlockMedia (path), outError);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::EjectFloppy35
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::EjectFloppy35 (int slot, int drive)
+{
+    HRESULT        hr     = S_OK;
+    Sony35Drive  * target = FindFloppy35 (slot, drive);
+
+
+
+    CBREx (target != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    hr = target->Eject();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::AttachHardDisk
+//
+//  The image before is attached again when the new one fails, so a failed
+//  change is no change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::AttachHardDisk (int slot, int drive, const std::string & path, std::wstring & outError)
+{
+    HRESULT                  hr         = S_OK;
+    HRESULT                  hrPrevious = S_OK;
+    BlockDeviceMedia       * media      = nullptr;
+    PortConfig             * port       = nullptr;
+    const BlockDriveSpec   * spec       = nullptr;
+    uint32_t                 maxBlocks  = 0;
+    std::string              previous;
+    std::wstring             ignored;
+
+
+
+    for (AppleScsiCard * card : m_refs.scsiCards)
+    {
+        if (card->GetSlot() == slot && drive >= 0 && drive < AppleScsiCard::kTargets)
+        {
+            media = &card->GetTarget (drive).GetMedia();
+        }
+    }
+
+    for (ProFileCard * card : m_refs.proFileCards)
+    {
+        if (card->GetDrive().GetSlot() == slot && drive == 0)
+        {
+            media     = &card->GetDrive().GetMedia();
+            maxBlocks = card->GetDrive().GetCapacity();
+        }
+    }
+
+    for (SlotConfig & entry : m_config->slots)
+    {
+        if (entry.slot == slot && drive >= 0 && (size_t) drive < entry.ports.size())
+        {
+            port = &entry.ports[(size_t) drive];
+        }
+    }
+
+    CBREx (media != nullptr && port != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    if (maxBlocks == 0)
+    {
+        spec = BlockDeviceCatalog::FindDrive (port->device);
+        CBREx (spec != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+        maxBlocks = spec->maxBlocks;
+    }
+
+    previous = media->GetPath();
+
+    hr = media->Attach (GetBlockMediaFileIo(), path, maxBlocks, ProbeBlockMedia (path), outError);
+
+    if (SUCCEEDED (hr) && StorageCardWiring::RejectFloppyImage (*media, outError))
+    {
+        hr = HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
+    }
+
+    if (FAILED (hr) && !previous.empty())
+    {
+        hrPrevious = media->Attach (GetBlockMediaFileIo(), previous, maxBlocks, ProbeBlockMedia (previous), ignored);
+        IGNORE_RETURN_VALUE (hrPrevious, S_OK);
+    }
+
+    CHR (hr);
+
+    port->image = path;
+
+Error:
+    return hr;
+}

@@ -5,6 +5,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
+#include "CassoExplorer/RawCopyDropHandler.h"
 
 
 
@@ -56,22 +57,26 @@ public:
 
     //  The formats for the browser's current selection; empty when there is
     //  nothing to drag. `log`, when given, is set with which files the drop read
-    //  whole, so a move deletes only originals the target got intact.
+    //  whole, so a move deletes only originals the target got intact. With
+    //  `offerRawCopy`, a drag of files with a conversion is marked for
+    //  RawCopyDropHandler.
     static std::vector<DxuiDragDropSource::Format>  BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style,
-                                                                  std::shared_ptr<RenderLog> log = nullptr);
+                                                                  std::shared_ptr<RenderLog> log = nullptr, bool raw = false, bool offerRawCopy = false);
 
     //  The same formats on the clipboard, for a paste into Explorer. A drag
     //  reads each file when the target asks, while it still holds the
     //  selection it began with; a paste can come long after the selection
     //  moved, so every file is read before the clipboard is set. A file that
-    //  could not be read has its name and why in outFailure.
+    //  could not be read has its name and why in outFailure. A file that fails
+    //  to convert is left out of a copy and the rest are copied, and
+    //  outFailure has each reason on a line though it succeeded.
     //
     //  A cut offers the files to be moved, and `onMovePasted` is called
     //  once a target reports that it pasted them, when the originals are the
     //  source's to delete. It is called during the target's call to the
     //  clipboard's object, so it should only schedule the deletion.
     static HRESULT  CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style, std::wstring & outFailure,
-                                     bool cut = false, std::function<void()> onMovePasted = nullptr);
+                                     bool cut = false, std::function<void()> onMovePasted = nullptr, bool raw = false);
 
     //  Why CopyToClipboard failed, as the end of a sentence: the clipboard
     //  in use, the Apple gone while its files were read, or the system's
@@ -85,6 +90,11 @@ public:
 
     //  A FILEGROUPDESCRIPTORW holding one descriptor per entry.
     static std::vector<uint8_t>  MakeFileGroupDescriptor (const std::vector<DragPayload::Descriptor> & descriptors);
+
+    //  The files, and a FILEGROUPDESCRIPTORW's descriptors, without those at
+    //  the skipped positions.
+    static void                  DropSkipped            (std::vector<std::vector<uint8_t>> & ioFiles, const std::vector<bool> & skipped);
+    static std::vector<uint8_t>  DropSkippedDescriptors (const std::vector<uint8_t> & group, const std::vector<bool> & skipped);
 
     //  A DROPFILES block with its double-terminated wide path list.
     static std::vector<uint8_t>  MakeHDrop (const std::vector<std::wstring> & paths);
@@ -113,7 +123,11 @@ public:
     static constexpr const wchar_t *  kFilesFormatName = L"CassoExplorer.Files";
 
     //  The marker above, as a format to offer.
-    static DxuiDragDropSource::Format  MakeFilesMarker ();
+    static DxuiDragDropSource::Format  MakeFilesMarker   ();
+
+    //  RawCopyDropHandler::kOfferedFormat, on a drag of files with a
+    //  conversion, so File Explorer's right-drag menu offers a raw copy.
+    static DxuiDragDropSource::Format  MakeRawCopyMarker ();
 
     //  A linked Apple's whole drive as one image file, its volume in its name:
     //  the drive's id for Casso Explorer's own drops, and the image's bytes,

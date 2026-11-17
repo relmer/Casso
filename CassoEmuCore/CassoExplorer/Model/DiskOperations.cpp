@@ -4,7 +4,9 @@
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskCommandRunner.h"
+#include "Devices/Disk/BlockVolumeOpener.h"
 #include "Devices/Disk/FilePath.h"
+#include "Devices/Disk/Partitions/CardVolumeEdit.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -125,7 +127,10 @@ DiskOperations::Result DiskOperations::RunCommand (const CommandLineOptions & op
 
     if (command.hasPayload)
     {
-        result.payload = std::move (command.payload);
+        result.payload         = std::move (command.payload);
+    result.resourceFork    = std::move (command.resourceFork);
+    result.finderInfo      = std::move (command.finderInfo);
+    result.hasResourceFork = command.hasResourceFork;
     }
 
     return result;
@@ -274,6 +279,57 @@ DiskOperations::Result DiskOperations::CommitEdit (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskOperations::TryEditCardVolume
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskOperations::TryEditCardVolume (const std::string & imagePath, const std::string & failure, const CardEditFn & edit, Result & outResult)
+{
+    CardVolumeEdit  card;
+    BlockBuffer     edited;
+    std::string     refusal;
+    HRESULT         hr      = S_OK;
+
+
+
+    if (!card.TryOpen (m_fileIo, imagePath))
+    {
+        return false;
+    }
+
+    outResult = Result();
+    hr        = edit (card.GetVolume(), card.GetKind(), edited);
+
+    if (FAILED (hr))
+    {
+        outResult.hr      = hr;
+        outResult.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("{}: {}", failure, DescribeVolumeRefusal (hr, card.GetKind())));
+        return true;
+    }
+
+    hr = card.Commit (edited, refusal);
+
+    if (FAILED (hr))
+    {
+        outResult.hr      = hr;
+        outResult.message = DiskCommandResult::FormatFailure (imagePath, "", refusal);
+        return true;
+    }
+
+    if (m_intentChannel != nullptr)
+    {
+        m_intentChannel->StateIntent (imagePath, ExternalChangeIntent::ReloadInPlace);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskOperations::List
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,13 +337,32 @@ DiskOperations::Result DiskOperations::CommitEdit (
 DiskOperations::Result DiskOperations::List (const std::string & imagePath, const std::string & directory, VolumeListing & outListing, VolumeKind & outKind)
 {
     DiskImageSession::OpenedImage  opened;
-    Result                         result = OpenVolume (imagePath, opened);
+    Result                         result;
     HRESULT                        hr     = S_OK;
+    std::unique_ptr<IBlockStore>   store;
+    std::unique_ptr<IVolume>       blockVolume;
 
 
 
     outListing = VolumeListing();
     outKind    = VolumeKind::Unknown;
+
+    if (BlockVolumeOpener::TryOpen (m_fileIo, imagePath, GetChoice (imagePath), store, blockVolume, outKind))
+    {
+        hr      = blockVolume->EnumerateDirectory (FilePath::Parse (directory), outListing);
+
+        result.listingDamaged = !outListing.damage.empty();
+
+        if (FAILED (hr))
+        {
+            result.hr      = hr;
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", "catalog could not be read");
+        }
+
+        return result;
+    }
+
+    result = OpenVolume (imagePath, opened);
 
     if (result.Succeeded())
     {
@@ -321,12 +396,30 @@ DiskOperations::Result DiskOperations::List (const std::string & imagePath, cons
 DiskOperations::Result DiskOperations::Read (const std::string & imagePath, const std::string & name, FilePayload & outPayload, size_t catalogIndex)
 {
     DiskImageSession::OpenedImage  opened;
-    Result                         result = OpenVolume (imagePath, opened);
-    HRESULT                        hr     = S_OK;
+    Result                         result;
+    HRESULT                        hr          = S_OK;
+    std::unique_ptr<IBlockStore>   store;
+    std::unique_ptr<IVolume>       blockVolume;
+    VolumeKind                     blockKind   = VolumeKind::Unknown;
 
 
 
     outPayload = FilePayload();
+
+    if (BlockVolumeOpener::TryOpen (m_fileIo, imagePath, GetChoice (imagePath), store, blockVolume, blockKind))
+    {
+        hr = blockVolume->Read (MakeEntryPath (blockKind, name, catalogIndex), outPayload);
+
+        if (FAILED (hr))
+        {
+            result.hr      = hr;
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("Unable to read {}: {}", name, DescribeVolumeRefusal (hr, blockKind)));
+        }
+
+        return result;
+    }
+
+    result = OpenVolume (imagePath, opened);
 
     if (result.Succeeded())
     {
@@ -638,6 +731,24 @@ DiskOperations::Result DiskOperations::Krunch (const std::string & imagePath)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskOperations::Test
+//
+//  `casso disk test`'s report: the integrity of an image's file system, or
+//  each record's CRC in an archive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskOperations::Result DiskOperations::Test (const std::string & imagePath)
+{
+    return RunCommand (MakeOptions (Command::Test, imagePath));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskOperations::FillNewDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -645,6 +756,7 @@ DiskOperations::Result DiskOperations::Krunch (const std::string & imagePath)
 void DiskOperations::FillNewDisk (const NewDiskRequest & request, CommandLineOptions & inOutOptions)
 {
     inOutOptions.disk.containerType = request.containerType;
+    inOutOptions.disk.sizeName      = request.sizeName;
     inOutOptions.disk.formatName    = request.formatName;
     inOutOptions.disk.volumeName    = request.volumeName;
     inOutOptions.disk.bootable      = request.bootable;
@@ -828,11 +940,19 @@ DiskOperations::Result DiskOperations::WritePayload (
     const FilePayload  & payload)
 {
     DiskImageSession::OpenedImage  opened;
-    Result                         result = OpenVolume (imagePath, opened);
+    Result                         result;
     HRESULT                        hr     = S_OK;
     std::vector<Byte>              edited;
 
 
+
+    if (TryEditCardVolume (imagePath, std::format ("Unable to write {}", name),
+                           [&] (const IVolume & volume, VolumeKind, BlockBuffer & outEdited) { return volume.Write (FilePath::Parse (name), payload, outEdited); }, result))
+    {
+        return result;
+    }
+
+    result = OpenVolume (imagePath, opened);
 
     if (result.Succeeded())
     {
@@ -872,11 +992,19 @@ DiskOperations::Result DiskOperations::Rename (
     size_t               catalogIndex)
 {
     DiskImageSession::OpenedImage  opened;
-    Result                         result = OpenVolume (imagePath, opened);
+    Result                         result;
     HRESULT                        hr     = S_OK;
     std::vector<Byte>              edited;
 
 
+
+    if (TryEditCardVolume (imagePath, std::format ("Unable to rename {} to {}", from, to),
+                           [&] (const IVolume & volume, VolumeKind kind, BlockBuffer & outEdited) { return volume.Rename (MakeEntryPath (kind, from, catalogIndex), to, outEdited); }, result))
+    {
+        return result;
+    }
+
+    result = OpenVolume (imagePath, opened);
 
     if (result.Succeeded())
     {
@@ -916,11 +1044,19 @@ DiskOperations::Result DiskOperations::SetAttributes (
     size_t                  catalogIndex)
 {
     DiskImageSession::OpenedImage  opened;
-    Result                         result = OpenVolume (imagePath, opened);
+    Result                         result;
     HRESULT                        hr     = S_OK;
     std::vector<Byte>              edited;
 
 
+
+    if (TryEditCardVolume (imagePath, std::format ("Unable to change {}", name),
+                           [&] (const IVolume & volume, VolumeKind kind, BlockBuffer & outEdited) { return volume.SetAttributes (MakeEntryPath (kind, name, catalogIndex), attributes, outEdited); }, result))
+    {
+        return result;
+    }
+
+    result = OpenVolume (imagePath, opened);
 
     if (result.Succeeded())
     {

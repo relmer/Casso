@@ -2,6 +2,7 @@
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiTextView.h"
+#include "DxuiTextRowLayout.h"
 #include "Theme/DxuiColor.h"
 #include "Core/DxuiClipboard.h"
 #include "Core/DxuiUnicodeSymbols.h"
@@ -439,12 +440,19 @@ void DxuiTextView::BuildLines (int columns)
         int             start  = GetCellStart (row, (int) row.cells.size() - 1);
         int             length = (int) last.size();
         int             avail  = (m_noWrap && !row.warning) ? (std::max) (1, length) : (std::max) (1, columns - start);
+        int             indent = DxuiTextRowLayout::GetWrapIndent (row, avail);
         int             pos    = 0;
         bool            first  = true;
 
+        if (row.picture != nullptr)
+        {
+            AddPictureLines (r, (float) columns * m_cellAdvance);
+            continue;
+        }
+
         do
         {
-            int     take  = (std::min) (avail, length - pos);
+            int     take  = (std::min) (first ? avail : avail - indent, length - pos);
             size_t  space = std::wstring::npos;
 
             if (pos + take < length)
@@ -488,6 +496,12 @@ void DxuiTextView::BuildProportionalLines (float widthPx)
         int                   length = (int) last.size();
         int                   pos    = 0;
         bool                  first  = true;
+
+        if (row.picture != nullptr)
+        {
+            AddPictureLines (r, widthPx);
+            continue;
+        }
 
         do
         {
@@ -547,22 +561,43 @@ void DxuiTextView::MeasureCharacters (IDxuiTextRenderer & text, const DxuiFontHa
 
     for (size_t r = 0; r < m_rows.size(); r++)
     {
-        const Row &  row = m_rows[r];
+        const Row &           row    = m_rows[r];
+        std::vector<uint8_t>  styles = GetRowStyles (row);
+
+        auto  styleAt = [&] (size_t flat) { return (flat < styles.size()) ? styles[flat] : (uint8_t) 0; };
 
         m_charX[r].resize (row.cells.size());
 
         for (size_t c = 0; c < row.cells.size(); c++)
         {
-            const std::wstring &  cell   = row.cells[c];
-            std::vector<float> &  places = m_charX[r][c];
+            const std::wstring &  cell     = row.cells[c];
+            std::vector<float> &  places   = m_charX[r][c];
+            size_t                base     = (size_t) GetCellBase (row, (int) c);
+            size_t                runStart = 0;
+            float                 runLeft  = 0.0f;
+            float                 runMarkW = markW;
 
             places.assign (cell.size() + 1, 0.0f);
 
+            //  A bold or italic run is wider or narrower than the same
+            //  characters in the regular face, so each run of one style is
+            //  measured in its weight, from where the run before it ends.
             for (size_t i = 1; i <= cell.size(); i++)
             {
-                hr = text.MeasureString ((cell.substr (0, i) + L"|").c_str(), font.sizeDip, font.face, width, height);
+                uint8_t  style = styleAt (base + i - 1);
 
-                places[i] = SUCCEEDED (hr) ? (std::max) (places[i - 1], width - markW) : places[i - 1] + m_cellAdvance;
+                if (i == 1 || style != styleAt (base + runStart))
+                {
+                    runStart = i - 1;
+                    runLeft  = places[i - 1];
+
+                    hr = text.MeasureStringWeighted (L"|", font.sizeDip, font.face, DxuiTextRowLayout::GetWeight ((style & kStyleBold) != 0, (style & kStyleItalic) != 0), runMarkW, height);
+                    runMarkW = SUCCEEDED (hr) ? runMarkW : markW;
+                }
+
+                hr = text.MeasureStringWeighted ((cell.substr (runStart, i - runStart) + L"|").c_str(), font.sizeDip, font.face, DxuiTextRowLayout::GetWeight ((style & kStyleBold) != 0, (style & kStyleItalic) != 0), width, height);
+
+                places[i] = SUCCEEDED (hr) ? (std::max) (places[i - 1], runLeft + width - runMarkW) : places[i - 1] + m_cellAdvance;
             }
 
             if (c + 1 < row.cells.size())
@@ -752,6 +787,8 @@ DxuiTextView::Position DxuiTextView::HitTest (POINT point) const
     const Line &  line = m_lines[(size_t) lineIndex];
     const Row &   row  = m_rows[(size_t) line.row];
 
+    x      -= (int) GetLineShift (lineIndex);
+    column  = (x < 0) ? 0 : (int) (((float) x + m_cellAdvance / 2.0f) / m_cellAdvance);
     pos.row = line.row;
     last    = (int) row.cells.size() - 1;
 
@@ -1177,7 +1214,7 @@ void DxuiTextView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     painter.PopClipRect();
 
-    if (IsScrollbarVisible())
+    if (IsScrollbarVisible() && !m_vertBarHidden)
     {
         m_vertScroll.Paint (painter, theme.ForegroundMuted());
     }
@@ -1219,6 +1256,22 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     std::vector<uint32_t>    colors   = GetRowColors (row);
 
 
+
+    m_paintShift   = GetLineShift (lineIndex);
+    m_paintStyles  = GetRowStyles (row);
+    m_paintPainter = &painter;
+
+    //  A picture is drawn once, from its first line or from the top line
+    //  when its first is scrolled above the view.
+    if (row.picture != nullptr)
+    {
+        if (line.first || lineIndex == m_topLine)
+        {
+            PaintPicture (text, lineIndex);
+        }
+
+        return;
+    }
 
     if (line.first && row.warning)
     {
@@ -1268,6 +1321,58 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::AddPictureLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::AddPictureLines (int row, float widthPx)
+{
+    int  count = DxuiTextRowLayout::GetPictureLines (*m_rows[(size_t) row].picture, widthPx, m_scaler.ToPxf (1.0f), m_cellHeightPx);
+
+
+
+    for (int i = 0; i < count; i++)
+    {
+        m_lines.push_back (Line { row, 0, 0, i == 0 });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::PaintPicture
+//
+//  At the top of the picture's first line, which can be above the view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::PaintPicture (IDxuiTextRenderer & text, int lineIndex) const
+{
+    int              first   = lineIndex;
+    const Picture &  picture = *m_rows[(size_t) m_lines[(size_t) lineIndex].row].picture;
+    float            top     = 0.0f;
+
+
+
+    while (first > 0 && m_lines[(size_t) first - 1].row == m_lines[(size_t) lineIndex].row)
+    {
+        first--;
+    }
+
+    top = (float) m_boundsDip.top + (float) m_scaler.ToPx (s_kPadDip) + (float) ((first - m_topLine) * m_cellHeightPx);
+
+    DxuiTextRowLayout::PaintPicture (text, picture, GetTextLeft(), top, (float) GetTextColumns (IsScrollbarVisible()) * m_cellAdvance, m_scaler.ToPxf (1.0f));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::DrawRun
 //
 //  A run of characters at `column` on a line, whose first is at `flatStart`
@@ -1293,7 +1398,7 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer           & text,
                             const std::vector<uint32_t> & colors) const
 {
     HRESULT   hr     = S_OK;
-    float     left   = GetTextLeft() + GetCellX (m_rows[(size_t) row], cell);
+    float     left   = GetTextLeft() + GetCellX (m_rows[(size_t) row], cell) + m_paintShift;
     int       count  = (int) chars.size();
     int       first  = selected ? std::clamp (selFrom - flatStart, 0, count) : count;
     int       end    = selected ? std::clamp (selTo - flatStart, first, count) : count;
@@ -1312,19 +1417,41 @@ void DxuiTextView::DrawRun (IDxuiTextRenderer           & text,
                                                             : normal;
     };
 
+    auto  styleAt = [&] (int i)
+    {
+        size_t  flat = (size_t) (flatStart + i);
+
+        return (flat < m_paintStyles.size()) ? m_paintStyles[flat] : (uint8_t) 0;
+    };
+
     for (int i = 1; i <= count; i++)
     {
-        if (i < count && colorAt (i) == colorAt (start))
+        uint8_t         style   = styleAt (start);
+        float           x       = left + GetCharsPx (row, cell, cellFrom, cellFrom + start);
+        float           width   = GetCharsPx (row, cell, cellFrom + start, cellFrom + i);
+        bool            inverse = (style & kStyleInverse) != 0 && m_paintPainter != nullptr;
+
+        if (i < count && colorAt (i) == colorAt (start) && styleAt (i) == style)
         {
             continue;
         }
 
+        if (inverse)
+        {
+            m_paintPainter->FillRect (x, (float) y, width, (float) m_cellHeightPx, colorAt (start));
+        }
+
         hr = text.DrawString (chars.substr ((size_t) start, (size_t) (i - start)).c_str(),
-                              left + GetCharsPx (row, cell, cellFrom, cellFrom + start), (float) y,
-                              GetCharsPx (row, cell, cellFrom + start, cellFrom + i) + m_cellAdvance, (float) m_cellHeightPx,
-                              colorAt (start), font.sizeDip, font.face,
-                              DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, false);
+                              x, (float) y,
+                              width + m_cellAdvance, (float) m_cellHeightPx,
+                              inverse ? theme.ContentBackground() : colorAt (start), font.sizeDip, font.face,
+                              DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiTextRowLayout::GetWeight ((style & kStyleBold) != 0, (style & kStyleItalic) != 0), false);
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if ((style & kStyleUnderline) && m_paintPainter != nullptr)
+        {
+            m_paintPainter->FillRect (x, (float) y + (float) m_cellHeightPx - (float) m_scaler.ToPx (2), width, (float) (std::max) (1, m_scaler.ToPx (1)), colorAt (start));
+        }
 
         start = i;
     }
@@ -1376,6 +1503,96 @@ std::vector<uint32_t> DxuiTextView::GetRowColors (const Row & row) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTextView::GetRowStyles
+//
+//  Each character's style bits by the row's spans; empty for a row with no
+//  styled span.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<uint8_t> DxuiTextView::GetRowStyles (const Row & row) const
+{
+    std::vector<uint8_t>  styles;
+
+
+
+    for (const Span & span : row.spans)
+    {
+        uint8_t  bits   = (uint8_t) ((span.bold ? kStyleBold : 0) | (span.italic ? kStyleItalic : 0) | (span.underline ? kStyleUnderline : 0) | (span.inverse ? kStyleInverse : 0));
+        int      base   = GetCellBase (row, span.cell);
+        int      length = (span.cell < (int) row.cells.size()) ? (int) row.cells[(size_t) span.cell].size() : 0;
+
+        if (bits == 0)
+        {
+            continue;
+        }
+
+        if (styles.empty())
+        {
+            styles.assign ((size_t) GetRowLength (row), 0);
+        }
+
+        for (int i = (std::max) (0, span.start); i < span.start + span.length && i < length; i++)
+        {
+            styles[(size_t) (base + i)] |= bits;
+        }
+    }
+
+    return styles;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::GetLineShift
+//
+//  How far a line of a centered or right-aligned row of one cell starts
+//  from the left of the text, in pixels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTextView::GetLineShift (int lineIndex) const
+{
+    float  width = 0.0f;
+    float  used  = 0.0f;
+
+
+
+    if (lineIndex < 0 || lineIndex >= (int) m_lines.size())
+    {
+        return 0.0f;
+    }
+
+    const Line &  line = m_lines[(size_t) lineIndex];
+    const Row &   row  = m_rows[(size_t) line.row];
+
+    if (!line.first && !m_proportional && row.wrapIndent > 0)
+    {
+        int  avail = GetTextColumns (IsScrollbarVisible()) - GetCellStart (row, (int) row.cells.size() - 1);
+
+        return (float) DxuiTextRowLayout::GetWrapIndent (row, (std::max) (1, avail)) * m_cellAdvance;
+    }
+
+    if (row.alignment == DxuiTextHAlign::Left || row.cells.size() != 1 || m_noWrap)
+    {
+        return 0.0f;
+    }
+
+    width = (float) GetTextColumns (IsScrollbarVisible()) * m_cellAdvance;
+    used  = GetCharsPx (line.row, 0, line.start, line.start + line.length);
+
+    return (row.alignment == DxuiTextHAlign::Right) ? (std::max) (0.0f, width - used) : (std::max) (0.0f, width - used) / 2.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTextView::FillSelectedRange
 //
 //  The selected part of `count` characters starting at `flatStart` in the
@@ -1387,7 +1604,7 @@ std::vector<uint32_t> DxuiTextView::GetRowColors (const Row & row) const
 
 void DxuiTextView::FillSelectedRange (IDxuiPainter & painter, int y, int row, int cell, int cellFrom, int flatStart, int count, float trailPx, int selFrom, int selTo, uint32_t argb) const
 {
-    float  left      = GetTextLeft() + GetCellX (m_rows[(size_t) row], cell);
+    float  left      = GetTextLeft() + GetCellX (m_rows[(size_t) row], cell) + m_paintShift;
     int    first     = (std::max) (selFrom, flatStart);
     int    end       = (std::min) (selTo, flatStart + count);
     int    separator = flatStart + count;

@@ -1,0 +1,171 @@
+#include "Pch.h"
+
+#include "CassoLink/Session/CaptureStream.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureStream::FindRevolution
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CaptureStream::FindRevolution (std::span<const Byte> bytes, size_t & outLength)
+{
+    outLength = 0;
+
+    for (size_t length = kMinRevolutionBytes; length + kMatchBytes <= bytes.size(); length++)
+    {
+        size_t  at         = 0;
+        size_t  mismatches = 0;
+        size_t  overlap    = bytes.size() - length;
+
+        while (at < kMatchBytes && (bytes[at] | s_kTopBit) == (bytes[at + length] | s_kTopBit))
+        {
+            at++;
+        }
+
+        if (at < kMatchBytes)
+        {
+            continue;
+        }
+
+        for (; at < overlap; at++)
+        {
+            mismatches += ((bytes[at] | s_kTopBit) != (bytes[at + length] | s_kTopBit)) ? 1 : 0;
+        }
+
+        if (mismatches * s_kMismatchShare <= overlap)
+        {
+            outLength = length;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureStream::Decode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CaptureStream::Decode (std::span<const Byte> encoded, size_t count, std::vector<Byte> & outBytes)
+{
+    size_t  at       = 2;
+    size_t  distance = 0;
+    size_t  marks    = (count + s_kMarksPerByte - 1) / s_kMarksPerByte;
+    bool    valid    = encoded.size() >= 2;
+
+
+
+    outBytes.clear();
+    outBytes.reserve (count);
+
+    distance = valid ? (size_t) (encoded[0] | (encoded[1] << 8)) : 0;
+
+    while (valid && outBytes.size() < count && at < encoded.size())
+    {
+        Byte  value = encoded[at++];
+        Byte  token = 0;
+
+        if (value != s_kEscape)
+        {
+            outBytes.push_back (value);
+            continue;
+        }
+
+        valid = at < encoded.size();
+        token = valid ? encoded[at++] : 0;
+
+        if (valid && token == s_kEscape)
+        {
+            valid = false;
+        }
+        else if (valid && token < s_kRepeatToken)
+        {
+            valid = distance > 0 && outBytes.size() >= distance;
+
+            for (size_t each = 0; valid && each < (size_t) token + s_kCopyBase; each++)
+            {
+                outBytes.push_back (outBytes[outBytes.size() - distance]);
+            }
+        }
+        else if (valid)
+        {
+            valid = at < encoded.size();
+
+            if (valid)
+            {
+                outBytes.insert (outBytes.end(), (size_t) (token & s_kCountMask) + s_kRepeatBase, encoded[at++]);
+            }
+        }
+    }
+
+    valid = valid && outBytes.size() == count && at + marks <= encoded.size();
+
+    for (size_t each = 0; valid && each < count; each++)
+    {
+        bool  isMarked = ((encoded[at + each / s_kMarksPerByte] << (each % s_kMarksPerByte)) & s_kTopBit) == 0;
+
+        outBytes[each] = isMarked ? (Byte) (outBytes[each] & ~s_kTopBit) : outBytes[each];
+    }
+
+    return valid;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureStream::BuildRevolution
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CaptureStream::BuildRevolution (std::span<const Byte> bytes, size_t length, std::vector<uint8_t> & outBits)
+{
+    outBits.clear();
+
+    for (size_t at = 0; at < length && at < bytes.size(); at++)
+    {
+        AppendByte (bytes, at, length, outBits);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureStream::AppendByte
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CaptureStream::AppendByte (std::span<const Byte> bytes, size_t at, size_t length, std::vector<uint8_t> & ioBits)
+{
+    Byte  value = bytes[at] | s_kTopBit;
+    bool  sync  = IsSync (bytes[at]) && (at + length >= bytes.size() || IsSync (bytes[at + length]));
+
+
+
+    for (int bit = 7; bit >= 0; bit--)
+    {
+        ioBits.push_back ((uint8_t) ((value >> bit) & 1));
+    }
+
+    if (sync)
+    {
+        ioBits.push_back (0);
+        ioBits.push_back (0);
+    }
+}

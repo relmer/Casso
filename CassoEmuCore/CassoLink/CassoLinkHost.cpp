@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkHost.h"
+#include "CassoLink/LinkProgram.h"
 #include "Seams/FaultInjectingByteStream.h"
 #include "CassoLink/CassoLinkPacketText.h"
 #include "Seams/IByteStream.h"
@@ -70,6 +71,39 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::DiscardReceived
+//
+//  The bytes received and not yet read, and those the line has now, up to
+//  kDiscardReads reads of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::DiscardReceived()
+{
+    HRESULT  hr  = S_OK;
+    Byte     chunk[4096];
+    size_t   got = sizeof (chunk);
+
+
+
+    m_adtProServer.m_buffer.clear();
+
+    for (int read = 0; read < kDiscardReads && got > 0; read++)
+    {
+        hr = m_stream->Read (chunk, sizeof (chunk), 0, got);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::GetSilenceMs
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,16 +137,20 @@ void CassoLinkHost::Consume (size_t count)
 //  CassoLinkHost::ReadPacket
 //
 //  ERROR_TIMEOUT when the packet is not whole within the timeout, and
-//  ERROR_INVALID_DATA for a damaged packet, whose bytes are dropped.
+//  ERROR_INVALID_DATA for a damaged packet, whose bytes are dropped. The
+//  timeout is for the whole packet, so bytes that arrive slowly and never
+//  make one end the wait on time; they stay for the next read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkHost::ReadPacket (DWORD timeoutMs, CassoLinkPacket & outPacket)
 {
-    HRESULT  hr       = S_OK;
-    size_t   consumed = 0;
-    bool     complete = false;
-    bool     filled   = false;
+    HRESULT    hr       = S_OK;
+    size_t     consumed = 0;
+    bool       complete = false;
+    bool       filled   = false;
+    ULONGLONG  deadline = GetTickCount64() + timeoutMs;
+    ULONGLONG  now      = 0;
 
 
 
@@ -124,12 +162,15 @@ HRESULT CassoLinkHost::ReadPacket (DWORD timeoutMs, CassoLinkPacket & outPacket)
 
         if (complete)
         {
+            m_lastPacketMs = GetTickCount64();
             TraceReceived (outPacket);
         }
 
         BAIL_OUT_IF (complete, S_OK);
 
-        hr = Fill (m_adtProServer.m_buffer.size() + 1, timeoutMs, filled);
+        now = GetTickCount64();
+
+        hr = Fill (m_adtProServer.m_buffer.size() + 1, now < deadline ? (DWORD) (deadline - now) : 0, filled);
         CHR (hr);
         CBREx (filled, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
     }
@@ -153,6 +194,8 @@ HRESULT CassoLinkHost::Send (std::span<const Byte> bytes)
     std::lock_guard<std::mutex>  lock (m_sendLock);
 
 
+
+    m_lastPacketMs = GetTickCount64();
 
     if (m_pcFault.IsArmed())
     {
@@ -557,6 +600,76 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::MeasureTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::MeasureTrack (Byte drive, Byte track, TrackMeasure & outMeasure, CassoLinkStatus & outStatus)
+{
+    return Resend ([&] () { return MeasureTrackOnce (drive, track, outMeasure, outStatus); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::MeasureTrackOnce
+//
+//  Track measure, then the Status; a track with no sector 0 has the Status
+//  alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::MeasureTrackOnce (Byte drive, Byte track, TrackMeasure & outMeasure, CassoLinkStatus & outStatus)
+{
+    constexpr size_t  kMeasureBytes = 5;
+    HRESULT           hr            = S_OK;
+    const Byte        request[]     = { GetRequestDrive (drive), track, m_progressStart, m_progressEnd };
+    CassoLinkPacket   packet;
+    bool              valid         = false;
+
+
+
+    outMeasure = {};
+    outStatus  = {};
+
+    hr = AwaitRequest();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kMeasureTrack, request);
+    CHR (hr);
+
+    hr = ReadReply (packet);
+    CHR (hr);
+
+    if (packet.command == CassoLinkCodec::kTrackMeasure)
+    {
+        valid = packet.payload.size() == kMeasureBytes;
+        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        outMeasure.fromStep = (Word) (packet.payload[0] | (packet.payload[1] << 8));
+        outMeasure.turn     = (Word) (packet.payload[2] | (packet.payload[3] << 8));
+        outMeasure.volume   = packet.payload[4];
+
+        hr = ReadReply (packet);
+        CHR (hr);
+    }
+
+    hr = ReadStatus (packet, outStatus);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::Krunch
 //
 //  Two Readies in a row after Krunch progress are a Status lost on the line:
@@ -884,7 +997,7 @@ HRESULT CassoLinkHost::SendLabel (const std::string & text)
             break;
         }
 
-        label.push_back ((ch >= ' ' && ch <= '~') ? (Byte) toupper ((unsigned char) ch) : (Byte) '?');
+        label.push_back (ToAppleChar (ch, false));
     }
 
     hr = AwaitReady();
@@ -921,7 +1034,7 @@ HRESULT CassoLinkHost::SendLog (int hour, int minute, const std::string & text)
             break;
         }
 
-        line.push_back ((ch >= ' ' && ch <= '~') ? (Byte) toupper ((unsigned char) ch) : (Byte) '?');
+        line.push_back (ToAppleChar (ch, false));
     }
 
     hr = AwaitReady();
@@ -986,7 +1099,7 @@ HRESULT CassoLinkHost::SendSessionScreen (bool active, Byte tone, const std::vec
 
             ch &= 0x7F;
 
-            screen.push_back ((ch >= ' ' && ch <= '~') ? (Byte) (toupper (ch) | inverse) : (Byte) '?');
+            screen.push_back ((ch >= ' ' && ch <= '~') ? (Byte) (ToAppleChar ((char) ch, inverse != 0) | inverse) : (Byte) '?');
         }
 
         screen.push_back (0);
@@ -1061,7 +1174,7 @@ HRESULT CassoLinkHost::WaitForKeyOnce (const std::vector<std::string> & lines, B
     {
         for (size_t i = 0; i < line.size() && i < CassoLinkCodec::kSessionRowLength; i++)
         {
-            prompt.push_back ((line[i] >= ' ' && line[i] <= '~') ? (Byte) toupper ((unsigned char) line[i]) : (Byte) '?');
+            prompt.push_back (ToAppleChar (line[i], false));
         }
 
         prompt.push_back (0);
@@ -1165,8 +1278,10 @@ HRESULT CassoLinkHost::ServeReady (const CassoLinkPacket & packet)
     }
 
     //  A program that fails again after it is loaded again points to the
-    //  Apple's memory, which another load would not fix.
+    //  Apple's memory, which another load would not fix. The cassette build
+    //  came from the cassette input, so its audio is sent again instead.
     CBREx (m_badProgramLoads <= kMaxProgramReloads, HRESULT_FROM_WIN32 (ERROR_CRC));
+    CBREx (intact || m_programChip != LinkChip::Cassette, HRESULT_FROM_WIN32 (ERROR_CRC));
 
     if (intact)
     {
@@ -1235,7 +1350,10 @@ Error:
 
 void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
 {
-    LinkChip  chip = (packet.payload[2] & LinkProgram::kW5100ReadyFlag) != 0 ? LinkChip::W5100 : LinkChip::Acia;
+    Byte      flags = (Byte) (LinkProgram::kW5100ReadyFlag | LinkProgram::kCassetteReadyFlag);
+    LinkChip  chip  = (packet.payload[2] & LinkProgram::kW5100ReadyFlag) != 0    ? LinkChip::W5100
+                    : (packet.payload[2] & LinkProgram::kCassetteReadyFlag) != 0 ? LinkChip::Cassette
+                                                                                 : LinkChip::Acia;
 
 
 
@@ -1245,7 +1363,7 @@ void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
     }
 
     m_client.programVersion = (Word) (packet.payload[0] | (packet.payload[1] << 8));
-    m_client.shimVersion    = (Byte) (packet.payload[2] & ~LinkProgram::kW5100ReadyFlag);
+    m_client.shimVersion    = (Byte) (packet.payload[2] & ~flags);
     m_client.driveMap       = packet.payload[3];
     m_client.hasRomId       = packet.payload.size() >= 9;
     m_client.hasProgramCrc  = packet.payload.size() == 11;
@@ -1268,15 +1386,20 @@ void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
 //
 //  Waits for Ready from the current program, loading it first if the Ready
 //  is from another version. Other packets, and damage between them, are
-//  passed over.
+//  passed over. A wait that lasts the notice time is reported to the wait
+//  observer, as is its end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkHost::AwaitReady()
 {
-    HRESULT          hr      = S_OK;
+    HRESULT          hr       = S_OK;
     CassoLinkPacket  packet;
-    bool             current = false;
+    bool             current  = false;
+    bool             noticed  = false;
+    DWORD            whole    = m_adtProServer.m_operationTimeoutMs;
+    DWORD            timeout  = whole;
+    bool             canWatch = m_waitObserver && whole > m_waitNoticeMs;
 
 
 
@@ -1287,9 +1410,29 @@ HRESULT CassoLinkHost::AwaitReady()
     current        = m_readyPending;
     m_readyPending = false;
 
+    //  After this PC has neither sent nor read a packet for longer than the
+    //  client waits for a reply, its Readies have piled up here, and the
+    //  client is sending another: a request sent on an old one never arrives,
+    //  as the client's chip doesn't take a byte while it sends. They are
+    //  dropped, and the next one, just sent, is waited for. A read's Status
+    //  counts, so the Ready right after it is used.
+    if (!current && m_lastPacketMs != 0 && GetTickCount64() - m_lastPacketMs > kStaleReadyMs)
+    {
+        hr = DiscardReceived();
+        CHR (hr);
+    }
+
     while (!current)
     {
-        hr = ReadPacket (m_adtProServer.m_operationTimeoutMs, packet);
+        timeout = !canWatch ? whole : noticed ? whole - m_waitNoticeMs : m_waitNoticeMs;
+        hr      = ReadPacket (timeout, packet);
+
+        if (hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT) && canWatch && !noticed)
+        {
+            noticed = true;
+            m_waitObserver (true);
+            continue;
+        }
 
         if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA))
         {
@@ -1323,6 +1466,55 @@ HRESULT CassoLinkHost::AwaitReady()
             hr = ServeReady (packet);
             CHR (hr);
         }
+    }
+
+Error:
+    if (noticed)
+    {
+        m_waitObserver (false);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::AnswerBusy
+//
+//  No Idle is sent after a Ready from another program version: the program
+//  sends Ready again each second, and the next AwaitReady loads the program. A
+//  damaged packet is passed over.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::AnswerBusy (DWORD timeoutMs)
+{
+    HRESULT          hr      = S_OK;
+    const Byte       busy[]  = { 1 };
+    CassoLinkPacket  packet;
+    bool             current = false;
+
+
+
+    hr = ReadPacket (timeoutMs, packet);
+    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT) || hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), S_OK);
+    CHR (hr);
+
+    if (IsKeyReport (packet))
+    {
+        NoteKey (packet);
+    }
+
+    current = packet.command == CassoLinkCodec::kReady && IsWholeReady (packet) && (Word) (packet.payload[0] | (packet.payload[1] << 8)) == LinkProgram::kProgramVersion;
+
+    if (current)
+    {
+        hr = SendPacket (CassoLinkCodec::kIdle, busy);
+        CHR (hr);
     }
 
 Error:
@@ -1404,11 +1596,17 @@ HRESULT CassoLinkHost::ReadStatus (const CassoLinkPacket & packet, CassoLinkStat
 
     CBREx (status, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    outStatus.operation = packet.payload[0];
-    outStatus.drive     = packet.payload[1];
-    outStatus.track     = packet.payload[2];
-    outStatus.done      = packet.payload[3];
-    outStatus.error     = packet.payload[4];
+    outStatus.operation      = packet.payload[0];
+    outStatus.drive          = (Byte) (packet.payload[1] & ~CassoLinkCodec::kStatusWriteProtected);
+    outStatus.writeProtected = (packet.payload[1] & CassoLinkCodec::kStatusWriteProtected) != 0;
+    outStatus.track          = packet.payload[2];
+    outStatus.done           = packet.payload[3];
+    outStatus.error          = packet.payload[4];
+
+    if (outStatus.drive >= 1 && outStatus.drive <= 2)
+    {
+        m_writeProtected[outStatus.drive - 1] = outStatus.writeProtected;
+    }
 
 Error:
     return hr;
@@ -1744,53 +1942,16 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkClient::GetModelName
-//
-//  From the identification bytes Apple's technical notes list for each
-//  model.
+//  CassoLinkHost::ToAppleChar
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CassoLinkClient::GetModelName() const
+Byte CassoLinkHost::ToAppleChar (char ch, bool isInverse) const
 {
-    Byte  family  = romId[0];
-    Byte  version = romId[1];
-    Byte  release = romId[2];
+    Byte  byte = (Byte) ch;
+    bool  caps = isInverse || !m_client.HasLowercase();
 
 
 
-    if (!hasRomId)
-    {
-        return std::wstring();
-    }
-
-    if (family == 0x38)
-    {
-        return (romId[3] == 0xAD) ? L"Apple ][" : L"Apple ][+";
-    }
-
-    if (family != 0x06)
-    {
-        return L"Apple II";
-    }
-
-    if (version == 0xEA)
-    {
-        return L"Apple //e";
-    }
-
-    if (version == 0xE0)
-    {
-        return (romId[4] != 0) ? L"Apple IIgs" : L"Apple //e enhanced";
-    }
-
-    switch (release)
-    {
-        case 0xFF:  return L"Apple //c";
-        case 0x00:  return L"Apple //c (ROM 0)";
-        case 0x03:  return L"Apple //c (ROM 3)";
-        case 0x04:  return L"Apple //c (ROM 4)";
-        case 0x05:  return L"Apple //c Plus";
-        default:    return L"Apple //c";
-    }
+    return (byte < ' ' || byte > '~') ? (Byte) '?' : caps ? (Byte) toupper (byte) : byte;
 }

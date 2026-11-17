@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "CassoLink/Audio/CassetteByteStream.h"
+#include "CassoLink/LinkAudioBootstrap.h"
 #include "CassoLink/Session/CassoLinkConnector.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/CassoLinkSearch.h"
@@ -174,6 +176,64 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnector::RunCassetteBootstrap
+//
+//  The program's tape is sent through the cassette link's output, the
+//  user having typed the monitor's read command first, and the session then
+//  waits for the program's Ready on the same cables. The wait starts once
+//  the tape ends, as the stream's reads count from then.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkConnector::RunCassetteBootstrap (std::stop_token stop, LinkOperation & operation)
+{
+    HRESULT               hr       = S_OK;
+    std::vector<double>   halves;
+    std::string           command;
+    CassetteByteStream  * cassette = nullptr;
+
+
+
+    operation.state = LinkOperationState::Running;
+
+    hr = LinkAudioBootstrap::BuildCassetteLinkRecord (halves, command);
+    CHR (hr);
+
+    m_session.SetState (LinkState::Bootstrapping);
+
+    hr = OpenStream (m_session.m_settings.baud, stop);
+    CHR (hr);
+
+    cassette = dynamic_cast<CassetteByteStream *> (m_stream.get());
+    CBREx (cassette != nullptr, E_UNEXPECTED);
+
+    hr = cassette->PlayHalves (halves);
+    CHR (hr);
+
+    m_bootstrapped = true;
+    m_prompted     = true;
+
+    hr = Connect (stop, m_session.m_settings.baud);
+    CHR (hr);
+
+Error:
+    operation.result = hr;
+    operation.state  = SUCCEEDED (hr) ? LinkOperationState::Done : LinkOperationState::Failed;
+
+    if (FAILED (hr) && operation.message.empty())
+    {
+        operation.message = "The Apple did not answer after the program was sent. Check that the monitor's read command was typed before the audio started, and that the volume is up.";
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnector::Connect
 //
 //  A serial line is opened at the bootstrap speed, where a typed-in shim
@@ -281,8 +341,8 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
 
     CBREx (ready, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
 
-    //  An Uthernet II has no speed to set.
-    if (m_session.m_settings.transport != LinkTransport::Uthernet)
+    //  An Uthernet II and the cassette ports have no speed to set.
+    if (m_session.m_settings.transport != LinkTransport::Uthernet && m_session.m_settings.transport != LinkTransport::Cassette)
     {
         LinkProgram::GetSpeedControl (m_session.m_settings.baud, control);
 
@@ -331,7 +391,7 @@ HRESULT CassoLinkConnector::Connect (std::stop_token stop, DWORD openAt)
     columns = m_session.m_host->SetColumns (!m_session.m_settings.use40);
     IGNORE_RETURN_VALUE (columns, S_OK);
 
-    logged = LogOnApple ("PC CONNECTED");
+    logged = LogOnApple ("PC connected");
     IGNORE_RETURN_VALUE (logged, S_OK);
 
 Error:
@@ -676,7 +736,12 @@ HRESULT CassoLinkConnector::OpenStream (DWORD baud, std::stop_token stop)
         m_stream.reset();
     }
 
-    if (m_session.m_settings.IsComPort())
+    if (m_session.m_settings.transport == LinkTransport::Cassette)
+    {
+        hr = m_session.m_factory.OpenCassette (m_session.m_settings.cassetteAudio.output, m_session.m_settings.cassetteAudio.input, stream);
+        CHR (hr);
+    }
+    else if (m_session.m_settings.IsComPort())
     {
         com.baud              = baud;
         com.hardwareHandshake = m_session.m_settings.hardwareHandshake;
@@ -732,6 +797,7 @@ HRESULT CassoLinkConnector::OpenStream (DWORD baud, std::stop_token stop)
         m_session.m_host->SetProgramChip (CassoLinkSession::GetLinkChip (m_session.m_settings.transport));
         m_session.m_host->SetFaultProgram (LinkFaults::IsEnabled());
         m_session.m_host->SetClients (m_session.m_settings.transport == LinkTransport::AdtProServer ? CassoLinkHost::Clients::AdtPro : CassoLinkHost::Clients::Casso);
+        m_session.m_host->SetVirtualDrives (&m_session.m_virtualDrives);
         m_openBaud = baud;
         m_prompted = false;
 

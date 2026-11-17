@@ -152,7 +152,7 @@ public:
     //  call did not block). Use for a live overlay whose backdrop must
     //  keep animating (e.g. Settings over the running emulator).
     //
-    void  ShowModelessDialog (int defaultButtonId);
+    void  ShowModelessDialog (int defaultButtonId, bool activate = true);
     void  EndDialog          (int result);
 
     //
@@ -247,7 +247,10 @@ public:
 
     void                SetTheme           (const IDxuiTheme * theme);
     const IDxuiTheme  * GetTheme           () const { return m_theme; }
-    void                SetTitle           (const std::wstring & title);
+    void                SetTitle           (const std::wstring & title, size_t markAt = std::wstring::npos);
+
+    //  The smallest size the user can resize the window to, as at creation.
+    void                SetMinSizeDip      (const SIZE & sizeDip) { m_minSizeDip = sizeDip; }
     int                 GetCaptionHeightPx () const { return m_source != nullptr ? m_source->GetCaptionHeightPx() : 0; }
     UINT                GetDpi             () const { return m_source != nullptr ? m_source->GetScaler().GetDpi() : USER_DEFAULT_SCREEN_DPI; }
 
@@ -283,6 +286,12 @@ protected:
     //  simply drops focus rather than leaving it somewhere invisible.
     //
     void  RefreshFocusOrder (IDxuiControl * fallback);
+
+    //
+    //  The focus manager, for a window that walks focus with Tab outside
+    //  dialog mode and routes keys to the focused control itself.
+    //
+    DxuiFocusManager &  GetFocusManager () { return m_focus; }
 
     //
     //  Subclass hooks. OnCreate fires once the backend + HWND exist
@@ -374,12 +383,15 @@ protected:
     //
     void  DestroyBackend ();
 
-
-private:
-    DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
+    //  The button handlers a window adds to, as for mouse capture around
+    //  them.
     DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+
+
+private:
+    DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnXButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseLeave    () override;

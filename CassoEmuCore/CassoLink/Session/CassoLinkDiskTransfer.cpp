@@ -1,14 +1,19 @@
 #include "Pch.h"
 
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
+#include "CassoLink/Session/CassoLinkCapture.h"
+#include "CassoLink/Session/CassoLinkThirteenSector.h"
+#include "CassoLink/Session/TrackMeasures.h"
 #include "CassoLink/Session/TrackVerifier.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 
 
 
@@ -31,31 +36,220 @@ CassoLinkDiskTransfer::CassoLinkDiskTransfer (CassoLinkSession & session)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkDiskTransfer::CaptureWholeDisk
+//
+//  The WOZ is written only once every position has been read. The message
+//  lists the tracks with bytes that differ between reads, as a protection's
+//  weak bits do, and those whose reads differ in length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::CaptureWholeDisk (LinkOperation & operation)
+{
+    HRESULT                   hr       = S_OK;
+    std::vector<Byte>         module;
+    CassoLinkCapture::Result  result;
+    CommitPlan::Progress      progress;
+    bool                      hasData  = false;
+    std::string               date     = std::format ("{:%Y-%m-%dT%H:%M:%SZ}", std::chrono::floor<std::chrono::seconds> (std::chrono::system_clock::now()));
+    auto                      listTracks = [] (const std::vector<int> & positions)
+    {
+        std::string  text;
+
+        for (int position : positions)
+        {
+            text += (text.empty() ? "" : ", ") + FormatPosition (position);
+        }
+
+        return text;
+    };
+
+
+
+    hr = m_session.m_host->BuildCaptureModule (module);
+    CHR (hr);
+
+    hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) operation.drive, module, date,
+                                    [this, &operation] (const CassoLinkCapture::Progress & where) { ReportCapture (operation, where); }, result,
+                                    CassoLinkCapture::kTracks - 1, [this] () { return m_session.m_canceled.load(); });
+    CHR (hr);
+
+    //  A capture with no track that repeats is an empty drive or a disk with
+    //  nothing written on it, and no image is written for it.
+    hasData = !result.streams.empty();
+
+    if (!hasData)
+    {
+        operation.message = std::format ("Nothing was found on the disk in drive {}, so no image was written. The drive may be empty, or the disk unformatted.", operation.drive);
+    }
+
+    CBREx (hasData, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+
+    m_session.Report (operation, 100);
+
+    hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, result.woz, m_commitTag++, CommitMode::Replace, progress);
+    CHR (hr);
+
+    m_session.m_sink.OnImageWritten (operation.imagePath, TextEncoding::WideToNarrow (m_session.GetModelName()));
+
+    if (!result.weak.empty())
+    {
+        operation.message = "Tracks with weak bits, which read differently every time: " + listTracks (result.weak) + ".";
+    }
+
+    if (!result.unstable.empty())
+    {
+        operation.message += (operation.message.empty() ? "" : " ") + std::string ("Tracks whose reads differ in length: ") + listTracks (result.unstable) + ".";
+    }
+
+    operation.message += (operation.message.empty() ? "" : " ") + FormatCaptureTimes (result);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::ReportCapture
+//
+//  The status bar's text: the track and read, the pass, and the time left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkDiskTransfer::ReportCapture (LinkOperation & operation, const CassoLinkCapture::Progress & where)
+{
+    std::string  left;
+
+
+
+    if (where.secondsLeft >= 0.0)
+    {
+        left = std::format (", about {} left", FormatDuration (where.secondsLeft));
+    }
+
+    operation.SetDetail (std::format ("{}, track {}, read {} of {}{}", where.pass == 1 ? "whole tracks" : "between tracks",
+                                      FormatPosition (where.position), where.read, where.reads, left));
+
+    m_session.Report (operation, where.percent);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::FormatCaptureTimes
+//
+//  The time on the disk and on the line, and the line's pace, so the slower
+//  of the two is plain in a slow capture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkDiskTransfer::FormatCaptureTimes (const CassoLinkCapture::Result & result)
+{
+    double  pace = (result.lineMs > 0.0) ? (double) result.sentBytes / (result.lineMs / 1000.0) : 0.0;
+
+
+
+    return std::format ("{} reads: {} stepping and reading, {} sending {} KB encoded from {} KB at {:.1f} KB/s. {} of {} positions between tracks read.",
+                        result.reads, FormatDuration (result.diskMs / 1000.0), FormatDuration (result.lineMs / 1000.0),
+                        result.sentBytes / 1024, result.storedBytes / 1024, pace / 1024.0, result.betweenRead, result.betweenTotal);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::FormatPosition
+//
+//  A whole track as its number, any other position with two decimals.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkDiskTransfer::FormatPosition (int position)
+{
+    return (position % 4 == 0) ? std::to_string (position / 4) : std::format ("{:.2f}", position / 4.0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::FormatDuration
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkDiskTransfer::FormatDuration (double seconds)
+{
+    int  whole = (int) std::lround (seconds);
+
+
+
+    return (whole < 60) ? std::format ("{} s", whole) : std::format ("{} min {} s", whole / 60, whole % 60);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkDiskTransfer::ReadWholeDisk
 //
 //  The image is written only once every track has been read, so a failed or
-//  canceled read writes nothing.
+//  canceled read writes nothing. A WOZ is built to each track's measured
+//  layout, so a title that times the turn from track to track runs from it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
 {
-    HRESULT               hr       = S_OK;
-    DiskFormat            format   = DiskFormat::Dsk;
-    std::vector<Byte>     sectors (NibblizationLayer::kImageByteSize, 0);
-    std::vector<Byte>     bytes;
-    CommitPlan::Progress  progress;
-    bool                  complete = false;
+    HRESULT                                   hr          = S_OK;
+    DiskFormat                                format      = DiskFormat::Dsk;
+    std::vector<Byte>                         sectors (NibblizationLayer::kImageByteSize, 0);
+    std::vector<Byte>                         bytes;
+    CommitPlan::Progress                      progress;
+    bool                                      complete    = false;
+    std::vector<CassoLinkHost::TrackMeasure>  measures;
+    int                                       bitsPerTurn = 0;
 
 
+
+    if (_stricmp (std::filesystem::path (operation.imagePath).extension().string().c_str(), ".d13") == 0)
+    {
+        hr = ReadThirteenSectorDisk (operation);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, format);
     CHR (hr);
+
+    if (format == DiskFormat::Woz)
+    {
+        hr = TimeDriveForLayout (operation.drive, bitsPerTurn);
+        CHR (hr);
+    }
 
     for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
         m_session.Report (operation, track * 100 / NibblizationLayer::kTrackCount);
         m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
+
+        if (format == DiskFormat::Woz)
+        {
+            hr = MeasureTrack (operation.drive, track, measures);
+            CHR (hr);
+        }
 
         if (operation.verifyReads)
         {
@@ -79,8 +273,16 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
 
     CBREx (complete, HRESULT_FROM_WIN32 (ERROR_CRC));
 
-    hr = BlankDiskBuilder::WrapInContainer (format, NibbleImageCodec::GetTrackSizeForPath (operation.imagePath), false, 0, sectors, bytes);
-    CHR (hr);
+    if (format == DiskFormat::Woz)
+    {
+        hr = TrackLayoutWriter::BuildWoz (sectors, TrackMeasures::ToLayouts (measures, bitsPerTurn), bytes);
+        CHR (hr);
+    }
+    else
+    {
+        hr = BlankDiskBuilder::WrapInContainer (format, NibbleImageCodec::GetTrackSizeForPath (operation.imagePath), false, 0, sectors, bytes);
+        CHR (hr);
+    }
 
     hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, bytes, m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);
@@ -508,6 +710,118 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkDiskTransfer::ReadThirteenSectorDisk
+//
+//  As ReadWholeDisk, the image is written only once every track is read; a
+//  sector that didn't decode fails the read unless it is blanked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::ReadThirteenSectorDisk (LinkOperation & operation)
+{
+    HRESULT               hr       = S_OK;
+    std::vector<Byte>     module;
+    std::vector<Byte>     sectors;
+    SectorDecodeReport    report;
+    CommitPlan::Progress  progress;
+    CassoLinkStatus       status;
+    bool                  complete = true;
+
+
+
+    hr = m_session.m_host->BuildThirteenSectorModule (module);
+    CHR (hr);
+
+    hr = m_session.m_host->EnsureModule (module);
+    CHR (hr);
+
+    hr = CassoLinkThirteenSector::ReadDisk (*m_session.m_host, (Byte) operation.drive,
+                                            [this, &operation] (int track) { m_session.Report (operation, (track + 1) * 100 / ThirteenSectorCodec::kTrackCount); },
+                                            [this] () { return m_session.m_canceled.load(); }, sectors, report, status);
+    CHR (hr);
+
+    hr = CassoLinkSession::FromStatusError (status.error);
+    CHR (hr);
+
+    for (int track = 0; track < ThirteenSectorCodec::kTrackCount; track++)
+    {
+        for (int sector = 0; sector < ThirteenSectorCodec::kSectorsPerTrack; sector++)
+        {
+            if ((report.GetCoverage (track) & (1u << sector)) == 0)
+            {
+                operation.unreadable.emplace_back (track, sector);
+            }
+        }
+    }
+
+    complete = operation.unreadable.empty();
+
+    if (!complete && !operation.blankUnreadable)
+    {
+        operation.message = std::format ("{} sectors could not be read, the first on track {}, sector {}.",
+                                         operation.unreadable.size(), operation.unreadable[0].first, operation.unreadable[0].second);
+    }
+
+    CBREx (complete || operation.blankUnreadable, HRESULT_FROM_WIN32 (ERROR_CRC));
+
+    hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, sectors, m_commitTag++, CommitMode::Replace, progress);
+    CHR (hr);
+
+    m_session.m_sink.OnImageWritten (operation.imagePath, TextEncoding::WideToNarrow (m_session.GetModelName()));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::WriteThirteenSectorDisk
+//
+//  The drive's sectors and listing are dropped after, as the disk is another
+//  one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::WriteThirteenSectorDisk (LinkOperation & operation, const std::vector<Byte> & sectors)
+{
+    HRESULT            hr     = S_OK;
+    size_t             index  = (size_t) operation.drive - 1;
+    std::vector<Byte>  module;
+    CassoLinkStatus    status;
+
+
+
+    hr = m_session.m_host->BuildThirteenSectorModule (module);
+    CHR (hr);
+
+    hr = m_session.m_host->EnsureModule (module);
+    CHR (hr);
+
+    hr = CassoLinkThirteenSector::WriteDisk (*m_session.m_host, (Byte) operation.drive, sectors,
+                                             [this, &operation] (int track) { m_session.Report (operation, (track + 1) * 100 / ThirteenSectorCodec::kTrackCount); },
+                                             [this] () { return m_session.m_canceled.load(); }, status);
+    CHR (hr);
+
+    hr = CassoLinkSession::FromStatusError (status.error);
+    CHR (hr);
+
+    m_session.m_disks[index]->Clear();
+    m_session.m_listings[index].reset();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkDiskTransfer::WriteWholeDisk
 //
 //  The image is decoded first, and nothing is written if any track is not
@@ -542,6 +856,13 @@ HRESULT CassoLinkDiskTransfer::WriteWholeDisk (LinkOperation & operation)
 
     hr = VolumeImage::Load (fileBytes, operation.imagePath, sectors, report);
     CHR (hr);
+
+    if (sectors.size() == ThirteenSectorCodec::kImageByteSize)
+    {
+        hr = WriteThirteenSectorDisk (operation, sectors);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     for (int track = 0; track < report.GetTrackCount(); track++)
     {
@@ -719,7 +1040,7 @@ HRESULT CassoLinkDiskTransfer::TimeDriveForFormat (int drive, Byte & outGap)
 
     outGap = 0;
 
-    BAIL_OUT_IF (m_session.m_settings.transport != LinkTransport::Serial && m_session.m_settings.transport != LinkTransport::WifiModem, S_OK);
+    BAIL_OUT_IF (!IsTimed(), S_OK);
 
     //  A drive's speed is its own, not its disk's: timed once a connection.
     revolution = m_revolutionMs[(size_t) drive - 1];
@@ -746,6 +1067,95 @@ Error:
     outGap = (revolution > 0.0) ? CassoLinkHost::ComputeFormatGap (revolution) : 0;
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::TimeDriveForLayout
+//
+//  As for a format, the drive is timed on track 0 once a connection, and
+//  only on a real Apple. A disk being read is never formatted, so a drive
+//  whose track 0 has no sector 0 gets the bits of a turn at 300 rpm.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::TimeDriveForLayout (int drive, int & outBitsPerTurn)
+{
+    HRESULT          hr         = S_OK;
+    CassoLinkStatus  status;
+    double           revolution = 0.0;
+
+
+
+    BAIL_OUT_IF (!IsTimed(), S_OK);
+
+    revolution = m_revolutionMs[(size_t) drive - 1];
+    BAIL_OUT_IF (revolution > 0.0, S_OK);
+
+    hr = m_session.m_host->TimeDrive ((Byte) drive, 0, kTimedRevolutions, revolution, status);
+    CHR (hr);
+
+    BAIL_OUT_IF (revolution == 0.0, S_OK);
+
+    m_revolutionMs[(size_t) drive - 1] = revolution;
+    m_session.m_sink.OnActivity (DescribeDriveSpeed (drive, revolution));
+
+Error:
+    outBitsPerTurn = TrackMeasures::GetBitsPerTurn (revolution);
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::MeasureTrack
+//
+//  A track with no sector 0, as a copy-protected disk can have, is not a
+//  failure: its layout is left to TrackLayoutWriter's default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::MeasureTrack (int drive, int track, std::vector<CassoLinkHost::TrackMeasure> & ioMeasures)
+{
+    HRESULT                      hr      = S_OK;
+    CassoLinkHost::TrackMeasure  measure;
+    CassoLinkStatus              status;
+
+
+
+    hr = m_session.m_host->MeasureTrack ((Byte) drive, (Byte) track, measure, status);
+    CHR (hr);
+
+    ioMeasures.push_back (measure);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::IsTimed
+//
+//  Only a real Apple's drive is timed: the PC times the revolution by its
+//  clock, and an emulated Apple does not always run in real time.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkDiskTransfer::IsTimed() const
+{
+    return m_session.m_settings.transport == LinkTransport::Serial || m_session.m_settings.transport == LinkTransport::WifiModem;
 }
 
 

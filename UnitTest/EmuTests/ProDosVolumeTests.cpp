@@ -3,6 +3,8 @@
 #include "FixtureProvider.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Devices/Disk/BlockImage.h"
+#include "Devices/Disk/MemoryBlockStore.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -806,6 +808,32 @@ public:
         Assert::IsTrue (bytes.size() > 0, L"a fixture must not be empty");
 
         return bytes;
+    }
+
+
+    TEST_METHOD (Volume_OverAStore_ListsA32MbVolumeFromItsDirectoryAndBitmap)
+    {
+        vector<Byte>       vol ((size_t) 65535 * ProDosSkeleton::kBlockByteSize, 0);
+        vector<Byte>       result;
+        FilePayload        payload = MakeBinaryPayload (20000, 0x2000);
+        FilePayload        back;
+        VolumeListing      listing;
+
+        AssertSucceeded (ProDosSkeleton::Write (vol, "BIG"));
+        AssertSucceeded (ProDosVolume (vol).Write (FilePath::Parse ("PROG"), payload, result));
+
+        MemoryBlockStore   store (result);
+        BlockImage         image (store);
+        ProDosVolume       volume (image);
+
+        AssertSucceeded (volume.Enumerate (listing));
+
+        Assert::AreEqual (size_t (1), listing.entries.size());
+        Assert::AreEqual (string ("PROG"), listing.entries[0].name);
+        Assert::IsTrue (volume.GetBytesLoaded() < (size_t) 64 * ProDosSkeleton::kBlockByteSize);
+
+        AssertSucceeded (volume.Read (FilePath::Parse ("PROG"), back));
+        Assert::IsTrue (back.bytes == payload.bytes);
     }
 
 

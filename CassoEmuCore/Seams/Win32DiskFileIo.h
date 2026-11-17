@@ -32,10 +32,13 @@ public:
     HRESULT  ReadAllBytes  (const std::string & path, std::vector<Byte> & outBytes) override;
     HRESULT  WriteAllBytes (const std::string & path, const std::vector<Byte> & bytes) override;
     HRESULT  WriteAt       (const std::string & path, uint64_t offset, std::span<const Byte> bytes) override;
+    HRESULT  ReadAt        (const std::string & path, uint64_t offset, std::span<Byte> outBytes) override;
     HRESULT  Stat          (const std::string & path, FileStamp & outStamp) override;
 
     bool     Exists        (const std::string & path) override;
     HRESULT  ListFiles     (const std::string & folder, std::vector<std::string> & outNames) override;
+    HRESULT  ListFolders   (const std::string & folder, std::vector<std::string> & outNames) override;
+    bool     IsFolder      (const std::string & path) override;
     HRESULT  Remove        (const std::string & path) override;
 
     HRESULT  ReplaceAtomically (const std::string & tempPath,
@@ -43,6 +46,7 @@ public:
 
     HRESULT  FlushToStorage         (const std::string & path) override;
     HRESULT  CopyFileMetadata       (const std::string & fromPath, const std::string & toPath) override;
+    HRESULT  SetReadOnly            (const std::string & path, bool readOnly) override;
     HRESULT  RenameWithoutReplacing (const std::string & tempPath, const std::string & targetPath) override;
     bool     IsHeldByAnotherProcess (const std::string & path) override;
 

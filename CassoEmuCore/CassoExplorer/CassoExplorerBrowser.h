@@ -6,11 +6,16 @@
 #include "CassoExplorer/Browser/BrowserCells.h"
 
 #include "CassoExplorer/Model/BrowserModel.h"
+#include "CassoExplorer/Model/StockDisksListing.h"
 #include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/TypedPathHistory.h"
+#include "CassoExplorer/Model/ImageVolumeFacts.h"
+#include "Devices/Disk/ImageClassCache.h"
+#include "Shell/DiskMru.h"
 
 class CassoLinkConnections;
 class FilesystemChoices;
+class PhysicalCards;
 class IDiskFileIo;
 
 
@@ -48,6 +53,7 @@ public:
     const TreeModel  & GetTreeModel    () const { return m_tree;  }
     BrowserModel     & GetBrowserModel ()       { return m_model; }
     DiskOperations   & GetOperations   ()       { return m_operations; }
+    ImageClassCache  & GetImageClasses ()       { return m_imageClasses; }
 
     //  The tree's roots, collapsed with children unloaded, and one node's
     //  children for the tree widget's provider.
@@ -190,14 +196,16 @@ public:
 
     //  Whether the list is on a search that is being read, and stopping that
     //  read, so the list has the results found before the stop.
-    bool                              IsSearchRunning ();
-    void                              StopSearch      ();
-    bool                              IsTabPreview    () { return m_model.HasTabs() && m_model.GetActiveTab().previewOpen; }
-    void                              SetTabTopRow    (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().listTopRow = row; } }
-    int                               GetTabTopRow    () { return m_model.HasTabs() ? m_model.GetActiveTab().listTopRow : 0; }
-    void                              SetTabTreeRow   (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().treeTopRow = row; } }
-    int                               GetTabTreeRow   () { return m_model.HasTabs() ? m_model.GetActiveTab().treeTopRow : -1; }
-    void                              SetSelectedRows (const std::vector<int> & rows);
+    bool                              IsSearchRunning       ();
+    void                              StopSearch            ();
+    bool                              IsTabPreview          () { return m_model.HasTabs() && m_model.GetActiveTab().previewOpen; }
+    void                              SetTabPreviewExpanded (bool expanded) { if (m_model.HasTabs()) { m_model.GetActiveTab().previewExpanded = expanded; } }
+    bool                              IsTabPreviewExpanded  () const { return m_model.HasTabs() && m_model.GetActiveTab().previewExpanded; }
+    void                              SetTabTopRow          (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().listTopRow = row; } }
+    int                               GetTabTopRow          () { return m_model.HasTabs() ? m_model.GetActiveTab().listTopRow : 0; }
+    void                              SetTabTreeRow         (int row) { if (m_model.HasTabs()) { m_model.GetActiveTab().treeTopRow = row; } }
+    int                               GetTabTreeRow         () { return m_model.HasTabs() ? m_model.GetActiveTab().treeTopRow : -1; }
+    void                              SetSelectedRows       (const std::vector<int> & rows);
 
     //  The row at a place in the list, or the last row when the list ends
     //  before it; nothing for a negative place or an empty list.
@@ -208,8 +216,14 @@ public:
 
     //  A shell preview that failed or took too long is replaced by the file's
     //  bytes.
-    void  ShowShellPreviewBytes () { m_previewer.ShowShellPreviewBytes(); }
-    void  SetHexForm            (PreviewDecoder::HexForm form) { m_previewer.SetHexForm (form); }
+    void  ShowShellPreviewBytes  () { m_previewer.ShowShellPreviewBytes(); }
+    void  SetHexForm             (PreviewDecoder::HexForm form) { m_previewer.SetHexForm (form); }
+    void  SetPreviewCharset      (Charset charset)              { m_previewer.SetCharset (charset); }
+    void  SetPreviewRecordLength (size_t recordLength)          { m_previewer.SetRecordLength (recordLength); }
+    void  SetPreviewFormulas     (bool formulas)                { m_previewer.SetFormulas (formulas); }
+    void  SetPreviewViewAs       (ViewChoice view)              { m_previewer.SetViewAs (view); }
+
+    DecodeOptions  GetDecodeOptions (const std::wstring & imagePath, const std::string & entryPath) const { return m_previewer.GetDecodeOptions (imagePath, entryPath); }
 
     const std::vector<CatalogRow>  & GetRows    () const { return m_rows;      }
     const PreviewContent           & GetPreview () const { return m_previewer.m_preview;   }
@@ -246,6 +260,9 @@ public:
     //  An image or an Apple drive: a volume whose catalog is in the list.
     bool  IsVolumeLocation () const { return m_isImage || m_isAppleDrive; }
     bool  IsImageLocation  () const { return m_isImage; }
+
+    //  An image with no catalog, whose partitions are the rows.
+    bool  IsPartitionListLocation () const { return m_isPartitionList; }
 
     //  The root being listed, or empty when the list is another location's.
     std::wstring                     GetRootId () const;
@@ -325,6 +342,43 @@ public:
     FilesystemChoices     * GetFilesystemChoices () const { return m_filesystemChoices; }
     CassoLinkConnections  * GetLinks             () const                       { return m_links; }
 
+    //  The cards open through removable drives. Without them, a path on a card
+    //  lists nothing.
+    void                    SetPhysicalCards     (PhysicalCards * cards)         { m_cards = cards; }
+
+    //  The recent list's images and their load times, read each time the
+    //  Casso node is listed, for its Last used column.
+    using RecentLoadsFn = std::function<std::vector<DiskMru::Entry> ()>;
+    void                    SetRecentLoads       (RecentLoadsFn recentLoads)     { m_recentLoads = std::move (recentLoads); }
+
+    //  Called on a worker's thread when an image's file system and volume
+    //  name are read; ApplyVolumeFacts, on the window's thread, puts them in
+    //  the rows and returns whether any row changed.
+    //  A picker's scope: the host rows it lists. The rows a listing drops for
+    //  it are counted, for the status bar.
+    using RowScopeFn = std::function<bool (const CatalogRow & row)>;
+    void                    SetRowScope          (RowScopeFn scope)              { m_rowScope = std::move (scope); }
+
+    //  The images inserted in the running machine's drives, by path, each
+    //  with its drive. Their rows are marked with the drive.
+    void                    SetMountedImages     (const std::map<std::wstring, std::wstring> & mounted);
+
+    //  The rows of a picker's "Stock disks" node.
+    void                    SetStockDisks        (std::vector<StockDiskRow> disks)  { m_stockDisks = std::move (disks); }
+    void                    SetDemoDisks         (std::vector<StockDiskRow> disks)  { m_demoDisks  = std::move (disks); }
+    IDiskFileIo           & GetFileIo            ()                              { return m_fileIo; }
+    size_t                  GetScopedOutCount    () const                        { return m_scopedOut; }
+
+    void                    SetVolumeFactsNotify (std::function<void ()> notify) { m_onVolumeFacts = std::move (notify); }
+    bool                    ApplyVolumeFacts     ();
+
+    //  Until set, a card that is not open is not opened, so the tabs restored
+    //  at launch raise no UAC prompt.
+    void                    SetCardOpenAllowed   (bool allowed)                 { m_cardOpenAllowed = allowed; }
+    PhysicalCards         * GetPhysicalCards     () const                       { return m_cards; }
+
+    HRESULT                 ListPartitions       (const std::wstring & path, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries) { return m_loader.ListPartitions (path, outKind, outEntries); }
+
     //  What lists the Recycle Bin. None set, it shows empty.
     void  SetShellVerbs (IShellItemVerbs * verbs);
 
@@ -386,6 +440,7 @@ private:
 
     CassoExplorerShellListings  m_shellListings;
     void  SortRows               ();
+    void  QueueVolumeFacts       (const std::wstring & folder);
     std::vector<CatalogRow>  m_homeRows;            // all of Home's items; the rows are Quick access and one tab's
     int                      m_homeTab         = 0;
     Location                 m_homeParent;
@@ -404,6 +459,10 @@ private:
     void  SelectRowsByKeys (const std::vector<std::wstring> & names);
 
     IFileSystem                       & m_fs;
+    IDiskFileIo                       & m_fileIo;
+    ImageClassCache                     m_imageClasses;
+    std::function<void ()>              m_onVolumeFacts;
+    ImageVolumeFacts                    m_volumeFacts    { m_fileIo, [this] () { if (m_onVolumeFacts) { m_onVolumeFacts(); } } };
     TreeModel                           m_tree;
     BrowserModel                        m_model;
     DiskOperations                      m_operations;
@@ -421,8 +480,17 @@ private:
     VolumeKind                          m_kind           = VolumeKind::Unknown;
     bool                                m_isImage        = false;
     bool                                m_isAppleDrive   = false;
+    bool                                m_isPartitionList = false;
     bool                                m_listingKept    = false;   // an Apple drive's listing as last read, while it is read again
     CassoLinkConnections              * m_links          = nullptr;
+    PhysicalCards                     * m_cards          = nullptr;
+    RecentLoadsFn                       m_recentLoads;
+    RowScopeFn                          m_rowScope;
+    std::map<std::wstring, std::wstring>  m_mountedImages;   // by CassoImagesListing::MakePathKey
+    std::vector<StockDiskRow>             m_stockDisks;
+    std::vector<StockDiskRow>             m_demoDisks;
+    size_t                              m_scopedOut      = 0;
+    bool                                m_cardOpenAllowed = false;
     FilesystemChoices                 * m_filesystemChoices = nullptr;
     std::vector<int>                    m_selectedRows;
     Status                              m_status;

@@ -19,7 +19,8 @@
 //  CELLS LINE UP IN COLUMNS AND THE LAST ONE WRAPS. Every cell but a row's last
 //  starts in a column as wide as that column's widest cell. The last cell takes
 //  the rest of the width and wraps at a space, and a wrapped line continues
-//  under the last cell's first character, not under the row's. A BASIC line is
+//  under the last cell's first character, not under the row's, or a row's
+//  wrap indent past it, as source code wraps under its operand. A BASIC line is
 //  a number and a statement, so a long statement wraps under itself; a detail
 //  is a label and a value, so a long value wraps under the value.
 //
@@ -51,20 +52,42 @@ class DxuiTextView : public IDxuiControl
 {
 public:
     //  A run of a cell's characters drawn in a color of their own.
+    //  A stretch of a cell's text in a color, zero for the text color, and
+    //  bold, italic or underlined. An inverse stretch is filled with that
+    //  color and its text drawn in the background color.
     struct Span
     {
-        int       cell   = 0;
-        int       start  = 0;
-        int       length = 0;
-        uint32_t  argb   = 0;
+        int       cell      = 0;
+        int       start     = 0;
+        int       length    = 0;
+        uint32_t  argb      = 0;
+        bool      bold      = false;
+        bool      italic    = false;
+        bool      underline = false;
+        bool      inverse   = false;
     };
 
+    //  A picture in 32-bit BGRA pixels, drawn a pixel a DIP, or smaller to
+    //  fit the text's width.
+    struct Picture
+    {
+        std::vector<uint32_t>  bgra;
+        int                    width  = 0;
+        int                    height = 0;
+    };
+
+    //  A row of cells. A row of one cell is aligned in the text's width on
+    //  each line it wraps onto; Justify draws as Left. A row with a picture
+    //  is the picture alone, on as many lines as it is tall.
     struct Row
     {
-        std::vector<std::wstring>  cells;
-        bool                       warning = false;
-        bool                       heading = false;   // drawn in the accent color
-        std::vector<Span>          spans;
+        std::vector<std::wstring>       cells;
+        bool                            warning    = false;
+        bool                            heading    = false;     // drawn in the accent color
+        std::vector<Span>               spans;
+        DxuiTextHAlign                  alignment  = DxuiTextHAlign::Left;
+        int                             wrapIndent = 0;         // characters past the last cell's start that a wrapped line starts at
+        std::shared_ptr<const Picture>  picture;
     };
 
     //  A character in a row's text, its cells joined by tabs.
@@ -99,8 +122,14 @@ public:
     //  color goes from the background toward the theme's foreground (1 is
     //  the full foreground).
     void   SetZoom         (float zoom);
-    float  GetZoom         () const               { return m_zoom; }
-    void   SetTextStrength (float strength)       { m_textStrength = strength; }
+
+    //  The vertical bar neither drawn nor hit-tested, for a host that scrolls
+    //  the view with another bar; its strip stays reserved. Off by
+    //  default.
+    void   SetVerticalScrollbarHidden (bool hidden)  { m_vertBarHidden = hidden; }
+    int    GetLineHeightPx            () const       { return m_cellHeightPx; }
+    float  GetZoom                    () const               { return m_zoom; }
+    void   SetTextStrength            (float strength)       { m_textStrength = strength; }
 
     int   GetLineCount () const { return (int) m_lines.size(); }
     int   GetLineCap   () const;
@@ -169,6 +198,7 @@ private:
     static constexpr int  s_kPadDip             = 6;
     static constexpr int  s_kScrollbarWidthDip  = 10;
 
+
     void          Rebuild                ();
     void          BuildLines             (int columns);
     void          BuildProportionalLines (float widthPx);
@@ -179,7 +209,7 @@ private:
     int           GetTextColumns         (bool scrollbar) const;
     int           GetContentColumns      () const;
     float         GetTextLeft            () const;
-    bool          IsOverVertScrollbar    (POINT pt) const { return IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y); }
+    bool          IsOverVertScrollbar    (POINT pt) const { return IsScrollbarVisible() && !m_vertBarHidden && m_vertScroll.HitTest (pt.x, pt.y); }
     bool          IsOverHorzScrollbar    (POINT pt) const { return m_horzVisible && m_horzScroll.HitTest (pt.x, pt.y); }
     int           GetCellStart           (const Row & row, int cell) const;
     int           GetCellBase            (const Row & row, int cell) const;
@@ -194,11 +224,27 @@ private:
     //  what a double-click selects.
     static int    GetCharClass      (wchar_t ch) { return (ch == L'\t') ? 2 : (ch == L' ') ? 1 : 0; }
     void          PaintLine         (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex, const DxuiFontHandle & font);
+    void          PaintPicture      (IDxuiTextRenderer & text, int lineIndex) const;
+    void          AddPictureLines   (int row, float widthPx);
     void          FillSelectedRange (IDxuiPainter & painter, int y, int row, int cell, int cellFrom, int flatStart, int count, float trailPx, int selFrom, int selTo, uint32_t argb) const;
     void          DrawRun           (IDxuiTextRenderer & text, const IDxuiTheme & theme, const DxuiFontHandle & font, int y, int row, int cell, int cellFrom,
                                      int flatStart, const std::wstring & chars, bool selected, int selFrom, int selTo,
                                      const std::vector<uint32_t> & colors) const;
     std::vector<uint32_t>  GetRowColors (const Row & row) const;
+    std::vector<uint8_t>   GetRowStyles (const Row & row) const;
+    float                  GetLineShift (int lineIndex) const;
+
+    //  The line being painted: its shift for its row's alignment, each
+    //  character's style bits, and the painter an underline and an inverse
+    //  fill are drawn with.
+    static constexpr uint8_t  kStyleBold      = 0x01;
+    static constexpr uint8_t  kStyleItalic    = 0x02;
+    static constexpr uint8_t  kStyleUnderline = 0x04;
+    static constexpr uint8_t  kStyleInverse   = 0x08;
+
+    float                  m_paintShift    = 0.0f;
+    std::vector<uint8_t>   m_paintStyles;
+    IDxuiPainter         * m_paintPainter  = nullptr;
 
     std::vector<Row>   m_rows;
     std::vector<Line>  m_lines;
@@ -241,5 +287,6 @@ private:
     ContextMenuFn      m_onContextMenu;
     DxuiDpiScaler      m_scaler;
     DxuiScrollbar      m_vertScroll;
+    bool               m_vertBarHidden = false;
     DxuiScrollbar      m_horzScroll;
 };

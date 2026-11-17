@@ -149,6 +149,7 @@ bool PreviewArchiveView::HandleMouse (const DxuiMouseEvent & ev, POINT point)
         release.button      = DxuiMouseButton::Left;
         release.positionDip = POINT { bounds.left, bounds.top };
         m_listing.GetList()->AsControl().OnMouse (release);
+        m_context.input.ReleasePressed();
 
         if (!ids.empty())
         {

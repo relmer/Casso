@@ -1,9 +1,13 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
+#include "Seams/IDiskPictures.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
@@ -45,6 +49,11 @@ void ExplorerStatusBar::Create()
 {
     m_status = m_context.window.CreateChild<DxuiStatusBar>();
 
+    m_context.window.SetMouseHandler (m_status, [this] (const DxuiMouseEvent & ev)
+    {
+        return HandleZoomClick (ev) || HandleSummaryClick (ev) || HandleActivityClick (ev) || m_status->OnMouse (ev);
+    });
+
     m_status->SetDividers (false);
     m_status->SetLeadDip  (ExplorerMetrics::kStatusLeadDip);
 }
@@ -61,7 +70,7 @@ void ExplorerStatusBar::Create()
 
 void ExplorerStatusBar::Configure()
 {
-    m_status->SetFields ({ { L"", 0, false, -1, true }, { L"", 0, false, -1, true }, { L"", 0, true },
+    m_status->SetFields ({ { L"", 0, false, -1, true }, { L"", 0, false, -1, true }, { L"", 0, false, -1, true }, { L"", 0, true },
                            { L"", kStatusFreeDip, false }, { L"", kStatusDetailDip, false }, { L"", kStatusZoomDip, false } });
 }
 
@@ -88,6 +97,31 @@ bool ExplorerStatusBar::HandleZoomClick (const DxuiMouseEvent & ev)
     }
 
     m_context.commandManager.Dispatch (CassoExplorerCommands::kZoomReset);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerStatusBar::HandleSummaryClick
+//
+//  A Full Send's line opens the Full Send window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerStatusBar::HandleSummaryClick (const DxuiMouseEvent & ev)
+{
+    if (ev.kind != DxuiMouseEventKind::Down || ev.button != DxuiMouseButton::Left
+        || !ExplorerLayout::Contains (m_status->GetFieldRect (kStatusDetail), ev.positionDip) || !m_context.fullSendWindows.IsFullSendRunning())
+    {
+        return false;
+    }
+
+    m_context.fullSendWindows.ShowFullSendWindow (true);
 
     return true;
 }
@@ -131,8 +165,12 @@ void ExplorerStatusBar::Fill()
 {
     const CassoExplorerBrowser::Status &  status = m_context.browser.GetStatus();
     std::wstring                          detail = status.detail;
+    std::wstring                          count  = status.selection;
 
 
+
+    //  A picker's confirm button follows the selection, as the counts do.
+    m_context.pickerBar.Update();
 
     //  Bytes or characters selected in the preview take the detail section.
     m_context.preview.TryGetSelectionDetail (detail);
@@ -142,16 +180,66 @@ void ExplorerStatusBar::Fill()
     //  updates.
     if (m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty())
     {
-        detail                   = CassoLinkConnections::DescribeJobs (m_context.app.links->GetPendingJobs());
+        detail                   = m_context.cassoLinkManager.DescribeJobs();
         m_context.cassoLinkManager.MarkJobsShown();
     }
 
-    m_status->SetText (kStatusCount,    status.selection);
+    if (m_context.IsPicker())
+    {
+        count = DescribePickerCount (status.selection, m_context.browser.GetRows().size(), m_context.browser.GetScopedOutCount(), m_context.app.picker->IsForDrive(),
+                                     m_context.browser.GetLocation() == Location::MakeRoot (TreeModel::kCassoRootId));
+    }
+
+    m_status->SetText (kStatusCount,    count);
     m_status->SetText (kStatusSelected, status.selected);
+    m_status->SetText (kStatusThumbnails, DescribeThumbnails (m_context.app.pictures != nullptr ? m_context.app.pictures->GetQueued() : 0));
     m_status->SetText (kStatusFree,     status.freeSpace);
     m_status->SetText (kStatusDetail,   detail);
     m_status->SetText (kStatusZoom,     std::format (L"{}%", m_context.preview.GetShownZoom()));
     m_status->SetText (kStatusFill,     m_context.cassoLinkManager.GetLatestActivity());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerStatusBar::DescribePickerCount
+//
+//  A picker's count with how many files its scope left out, so a short list
+//  is not taken for a nearly empty folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ExplorerStatusBar::DescribePickerCount (const std::wstring & count, size_t listed, size_t scopedOut, bool isForDrive, bool isCassoList)
+{
+    if (isCassoList && listed == 0 && scopedOut == 0)
+    {
+        return L"No recent folders. Browse from This PC.";
+    }
+
+    if (scopedOut == 0)
+    {
+        return count;
+    }
+
+    return std::format (L"{} ({} more hidden because they don't match {})", count, scopedOut, isForDrive ? L"this drive" : L"the filter");
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerStatusBar::DescribeThumbnails
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ExplorerStatusBar::DescribeThumbnails (size_t queued)
+{
+    return queued == 0 ? std::wstring() : std::format (L"Capturing thumbnails: {}", queued);
 }
 
 
@@ -182,6 +270,7 @@ void ExplorerStatusBar::Layout (const RECT & band)
     //  the two it draws in the middle of its sash, since the darker one is the
     //  color of the panes beside it. The two dividers then meet.
     m_status->SetFields ({ { L"", 0, false, -1, true },
+                           { L"", 0, false, -1, true },
                            { L"", 0, false, -1, true },
                            { L"", 0, true },
                            { L"", kStatusFreeDip, false },

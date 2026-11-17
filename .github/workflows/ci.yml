@@ -148,6 +148,9 @@ jobs:
           path: |
             x64/Release/Casso.exe
             x64/Release/CassoCli.exe
+            x64/Release/CassoExplorer.exe
+            x64/Release/CassoStorageCardBroker.exe
+            x64/Release/CassoShellExtension.dll
           retention-days: 1
 
   build-arm64:
@@ -166,8 +169,9 @@ jobs:
 
       # 64-bit tools, as the x64 build above uses and for the same reason.
       #
-      # Only the three programs and the libraries they link, not UnitTest or
-      # ScenarioTests. An ARM64 test DLL cannot run on this x64 runner, and
+      # Only the three programs, the shell extension and the libraries they
+      # link, not UnitTest or ScenarioTests. An ARM64 test DLL cannot run on
+      # this x64 runner, and
       # building the two took over half of the Release job: about twelve
       # minutes to compile and analyze UnitTest, then six and a half for its
       # link-time code generation. The x64 jobs compile and run the same test
@@ -175,7 +179,7 @@ jobs:
       #
       # No code analysis, for the reason given at the x64 build step.
       - name: Build ARM64
-        run: msbuild Casso.sln -m -t:"Casso;CassoCli;CassoExplorer" -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64
+        run: msbuild Casso.sln -m -t:"Casso;CassoCli;CassoExplorer;CassoShellExtension" -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:PreferredToolArchitecture=x64
 
       # Hand the Release ARM64 binaries to the release job so it doesn't rebuild
       # them. Only on master pushes (the only place the release job runs).
@@ -187,6 +191,9 @@ jobs:
           path: |
             ARM64/Release/Casso.exe
             ARM64/Release/CassoCli.exe
+            ARM64/Release/CassoExplorer.exe
+            ARM64/Release/CassoStorageCardBroker.exe
+            ARM64/Release/CassoShellExtension.dll
           retention-days: 1
 
   release:
@@ -313,6 +320,22 @@ jobs:
           tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # The broker is signed in a separate call, with a description: the UAC
+      # prompt displays a signed program's description as its name. The
+      # description applies to every file of a call, and a second signature
+      # would replace the first, so the broker is moved out of the staging
+      # tree for the main call and back after the second.
+      - name: Move the broker out of the staging tree
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          Get-ChildItem staging -Recurse -Filter CassoStorageCardBroker.exe | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath((Resolve-Path staging), $_.DirectoryName)
+            $target   = Join-Path broker-staging $relative
+            New-Item -ItemType Directory -Force $target | Out-Null
+            Move-Item $_.FullName $target
+          }
+
       # One call covers both platforms: the staging tree holds x64 and ARM64
       # side by side, and an ARM64 PE signs on an x64 runner like any other.
       - name: Sign the staged binaries
@@ -331,6 +354,72 @@ jobs:
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
 
+      - name: Sign the storage card broker
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          endpoint: https://wcus.codesigning.azure.net/
+          signing-account-name: relmer-signing
+          certificate-profile-name: relmer-public
+          files-folder: ${{ github.workspace }}/broker-staging
+          files-folder-filter: exe
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Casso Explorer storage card access
+
+      - name: Move the broker back into the staging tree
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          Get-ChildItem broker-staging -Recurse -Filter CassoStorageCardBroker.exe | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath((Resolve-Path broker-staging), $_.DirectoryName)
+            Move-Item $_.FullName (Join-Path staging $relative)
+          }
+
+      # The shell extension is the one DLL Casso builds. The staging tree
+      # also contains the C runtime's DLLs, which are signed by Microsoft, so
+      # a dll filter on the tree is not an option: the extension is signed
+      # separately, as the broker is.
+      - name: Move the shell extension out of the staging tree
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          Get-ChildItem staging -Recurse -Filter CassoShellExtension.dll | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath((Resolve-Path staging), $_.DirectoryName)
+            $target   = Join-Path shellext-staging $relative
+            New-Item -ItemType Directory -Force $target | Out-Null
+            Move-Item $_.FullName $target
+          }
+
+      - name: Sign the shell extension
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        uses: azure/artifact-signing-action@v2.0.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          endpoint: https://wcus.codesigning.azure.net/
+          signing-account-name: relmer-signing
+          certificate-profile-name: relmer-public
+          files-folder: ${{ github.workspace }}/shellext-staging
+          files-folder-filter: dll
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Move the shell extension back into the staging tree
+        if: steps.check.outputs.exists != 'true' && env.AZURE_CLIENT_ID != ''
+        shell: pwsh
+        run: |
+          Get-ChildItem shellext-staging -Recurse -Filter CassoShellExtension.dll | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath((Resolve-Path shellext-staging), $_.DirectoryName)
+            Move-Item $_.FullName (Join-Path staging $relative)
+          }
+
       # A signing action that fails is loud; one that runs and leaves a file
       # untouched is not. Every executable that ships has to have a
       # signature, and the check walks the tree rather than a list.
@@ -345,7 +434,7 @@ jobs:
         shell: pwsh
         run: |
           $bad = @()
-          Get-ChildItem staging -Recurse -Filter *.exe | ForEach-Object {
+          Get-ChildItem staging -Recurse -Include *.exe, CassoShellExtension.dll | ForEach-Object {
             $sig = Get-AuthenticodeSignature $_.FullName
             Write-Host "  $($_.Name): $($sig.Status) -- $($sig.SignerCertificate.Subject)"
             if ($sig.Status -in @('NotSigned', 'HashMismatch')) { $bad += $_.Name }

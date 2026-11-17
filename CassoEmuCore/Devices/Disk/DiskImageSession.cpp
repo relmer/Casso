@@ -1,11 +1,14 @@
 #include "Pch.h"
 
 #include "DiskImageSession.h"
+#include "Machines/Apple2/Common/InfocomSave.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DurableCommit.h"
+#include "Devices/Disk/Containers/TwoImgContainer.h"
+#include "Devices/Disk/Containers/DiskCopy42Container.h"
 
 
 
@@ -476,6 +479,73 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskImageSession::DescribeContainerHeader
+//
+//  A 2IMG or Disk Copy 4.2 image's header, as label and value lines under a
+//  heading, as the WOZ chunks are listed. Empty for any other file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::DescribeContainerHeader (const std::vector<Byte> & fileBytes)
+{
+    HRESULT           hr      = S_OK;   // vestigial, for the bail
+    TwoImgHeader      twoImg;
+    DiskCopy42Header  diskCopy;
+    vector<Byte>      payload;
+    std::string       error;
+    std::string       text;
+
+
+
+    if (TwoImgContainer::IsTwoImg (fileBytes))
+    {
+        hr = TwoImgContainer::Parse (fileBytes, twoImg, payload, error);
+        CHR (hr);
+
+        text += FormatDetailHeading ("2IMG header");
+        text += FormatDetailLine ("creator", std::string (twoImg.creator.begin(), twoImg.creator.end()));
+        text += FormatDetailLine ("order",   twoImg.format == TwoImgHeader::kFormatDosOrder    ? "DOS 3.3 sectors"
+                                           : twoImg.format == TwoImgHeader::kFormatProDosOrder ? "ProDOS blocks"
+                                                                                               : "nibbles");
+        text += FormatDetailLine ("locked",  (twoImg.flags & TwoImgHeader::kFlagLocked) != 0 ? "yes" : "no");
+
+        if ((twoImg.flags & TwoImgHeader::kFlagVolumeValid) != 0)
+        {
+            text += FormatDetailLine ("volume", std::to_string (twoImg.flags & 0xFF));
+        }
+
+        if (!twoImg.comment.empty())
+        {
+            text += FormatDetailLine ("comment", twoImg.comment);
+        }
+
+        if (!twoImg.creatorData.empty())
+        {
+            text += FormatDetailLine ("creator data", std::format ("{} bytes", twoImg.creatorData.size()));
+        }
+    }
+    else if (DiskCopy42Container::IsDiskCopy42 (fileBytes))
+    {
+        hr = DiskCopy42Container::Parse (fileBytes, diskCopy, payload, error);
+        CHR (hr);
+
+        text += FormatDetailHeading ("Disk Copy 4.2 header");
+        text += FormatDetailLine ("name",     diskCopy.name);
+        text += FormatDetailLine ("size",     std::format ("{}K", diskCopy.dataSize / 1024));
+        text += FormatDetailLine ("checksum", diskCopy.isDataChecksumBad ? "doesn't match the data; the image opens read-only" : "matches");
+        text += FormatDetailLine ("tags",     std::format ("{} bytes", diskCopy.tagSize));
+    }
+
+Error:
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskImageSession::DescribeSurface
 //
 //  What the decoded sectors show, which is a different question from what the
@@ -494,7 +564,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
+std::string DiskImageSession::DescribeSurface (const OpenedImage & opened, bool bootSector)
 {
     int                     complete     = 0;
     int                     partial      = 0;
@@ -612,11 +682,11 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
     // "blank". A track that decoded cleanly and holds zeros really is empty; a
     // track that never decoded reads back as zeros too, and calling that one
     // blank would tell somebody their bootable disk does not boot.
-    if (!trackZeroOk && !opened.report.IsSectorRecovered (0, 0))
+    if (bootSector && !trackZeroOk && !opened.report.IsSectorRecovered (0, 0))
     {
         text += FormatDetailLine ("boot sector", "track 0 doesn't have a standard sector 0, so its contents are unknown");
     }
-    else
+    else if (bootSector)
     {
         for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize && i < opened.sectors.size(); i++)
         {
@@ -650,7 +720,43 @@ std::string DiskImageSession::DescribeSurface (const OpenedImage & opened)
 
 std::string DiskImageSession::DescribeUnrecognizedImage (const OpenedImage & opened)
 {
-    return DescribeWozChunks (opened.fileBytes) + DescribeSurface (opened);
+    std::string  saves = DescribeInfocomSaves (opened);
+
+
+
+    return DescribeWozChunks (opened.fileBytes) + DescribeContainerHeader (opened.fileBytes) + saves + DescribeSurface (opened, saves.empty());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageSession::DescribeInfocomSaves
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskImageSession::DescribeInfocomSaves (const OpenedImage & opened)
+{
+    std::vector<InfocomSave::Position>  positions;
+    std::string                         text;
+
+
+
+    InfocomSave::FindPositions (opened.sectors, positions);
+
+    if (!positions.empty())
+    {
+        text = FormatDetailHeading ("Infocom saved game");
+
+        for (const InfocomSave::Position & position : positions)
+        {
+            text += FormatDetailLine (std::format ("position {}", position.number).c_str(), InfocomSave::Describe (position));
+        }
+    }
+
+    return text;
 }
 
 
@@ -786,10 +892,6 @@ std::string DiskImageSession::DescribeCommitFailure (HRESULT hr, CommitPlan::Ste
         case CommitPlan::Step::WriteTemporary:
         case CommitPlan::Step::FlushTemporary:
             sentence = DescribeTemporaryWriteFailure (hr);
-            break;
-
-        case CommitPlan::Step::CopyMetadata:
-            sentence = "could not have its attributes and permissions given to the new copy. Nothing was written";
             break;
 
         case CommitPlan::Step::Replace:

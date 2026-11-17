@@ -50,15 +50,15 @@ public:
     void                  ApplyTheme             (const DxuiTheme & theme);
     void                  PlanForWidth           (int widthPx);
     void                  Layout                 (const RECT & commandBand, const RECT & navBand);
+    void                  SetHidden              (bool hidden) { m_toolbar->SetVisible (!hidden); m_commandBar->SetVisible (!hidden); }
     RECT                  GetFreeRect            () const { return m_toolbar->GetFreeRect(); }
     void                  UpdateCommandBar       ();
     void                  SetCommandBarDropDowns ();
     void                  ShowViewOnButton       ();
-    void                  CloseMenusOutside      (const DxuiMouseEvent & ev);
     void                  CloseMenus             ();
     bool                  RouteToolbarMouse      (DxuiToolbar & toolbar, const DxuiMouseEvent & ev);
+    bool                  HandleBarMouse         (DxuiToolbar & bar, const DxuiMouseEvent & ev);
     bool                  TryMenuBarKey          (const DxuiKeyEvent & ev, bool & outHandled);
-    static DxuiToolbar  & GetToolbarUnder        (const RECT & commandBarBand, POINT point, DxuiToolbar & navToolbar, DxuiToolbar & commandBar);
     bool                  WantsTick              () const;
     bool                  IsMenuOpen             () const;
     void                  TickMenus              (int64_t nowMs);
@@ -67,10 +67,9 @@ public:
     DxuiToolbar &  GetNavToolbar () const { return *m_toolbar; }
     DxuiToolbar &  GetCommandBar () const { return *m_commandBar; }
 
-    bool  HandleMenuBarMouse (const DxuiMouseEvent & ev) { return m_menuBar->OnMouse (ev); }
-    bool  HandleMouse        (const DxuiMouseEvent & ev);
-
 private:
+    DxuiToolbar * CreateBar ();
+
     ExplorerContext  & m_context;
     DxuiToolbar      * m_toolbar    = nullptr;
     DxuiToolbar      * m_commandBar = nullptr;
@@ -82,6 +81,7 @@ private:
     RECT                   m_tipMuteRect = {};
 
     void                                    SetCommandBarEntries ();
+    std::vector<DxuiToolbar::Entry>         GetCommandBarEntries (CassoExplorerCommands::CommandBarExtra extra) const;
     void                                    SetCommandBarSvgs    ();
     DxuiPopupMenuItem                       GetShowSubmenu       ();
 

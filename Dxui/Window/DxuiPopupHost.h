@@ -232,6 +232,14 @@ public:
     HRESULT  Show      (ShowParams params);
 
     //
+    //  Moves and resizes an open popup against a new anchor and repaints
+    //  it, without hiding it: for content that changes while it is up,
+    //  such as a tip that follows the pointer, where closing and showing
+    //  again would blink. The popup must be open.
+    //
+    HRESULT  Update    (const RECT & anchorRectScreen, SIZE sizeDip);
+
+    //
     //  Hide the popup HWND, release its content panel, and resolve
     //  the GetCompletion() future with resultCode. Idempotent.
     //
@@ -281,6 +289,10 @@ public:
     //  behind a window. Otherwise its card is filled opaque.
     static bool  IsAcrylicAvailable ();
     bool         IsRevealing        () const { return m_revealing; }
+
+    //  True from BeginFadeOut until the popup opens again: it is fading out, or
+    //  open at zero opacity.
+    bool     IsFadingOut   () const { return m_revealOut; }
 
     //
     //  Measure the natural extent of `text` (in DIPs) through the
@@ -367,6 +379,7 @@ public:
 private:
     static RECT  GetWorkAreaForRect (const RECT & rectScreenPx);
     static RECT  PlaceOnEdge        (const RECT & anchor, DxuiPopupPlacement edge, SIZE popupSizePx);
+    static RECT  ClampVertically    (RECT placed, RECT monitorWorkAreaPx);
 
     static LRESULT CALLBACK  s_WndProcThunk  (HWND, UINT, WPARAM, LPARAM);
     LRESULT                  WndProc         (UINT msg, WPARAM wp, LPARAM lp);

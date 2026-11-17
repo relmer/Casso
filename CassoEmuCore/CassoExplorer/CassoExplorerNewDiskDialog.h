@@ -34,15 +34,34 @@ public:
         { L"Apple Pascal", "pascal" },
         { L"CP/M",         "cpm"    },
         { L"Unformatted",  "none"   },
+        { L"DOS 3.2",      "dos32"  },
+        { L"HFS",          "hfs"    },
+        { L"SOS (Apple ///)", "sos" },
+        { L"ProDOS and SOS",  "prodos+sos" },
     };
 
     static constexpr Choice  kContainers[] =
     {
-        { L"WOZ (.woz)",           "woz" },
-        { L"DOS order (.dsk)",     "dsk" },
-        { L"ProDOS order (.po)",   "po"  },
-        { L"Nibble (.nib)",        "nib" },
-        { L"Nibble (.nb2)",        "nb2" },
+        { L"WOZ (.woz)",            "woz"  },
+        { L"DOS order (.dsk)",      "dsk"  },
+        { L"ProDOS order (.po)",    "po"   },
+        { L"Nibble (.nib)",         "nib"  },
+        { L"Nibble (.nb2)",         "nb2"  },
+        { L"Hard disk (.hdv)",      "hdv"  },
+        { L"2IMG (.2mg)",           "2mg"  },
+        { L"Disk Copy 4.2 (.dc42)", "dc42" },
+        { L"13-sector (.d13)",      "d13"  },
+    };
+
+    //  The sizes a ProDOS volume can be made at.
+    static constexpr Choice  kSizes[] =
+    {
+        { L"140K (5.25\" disk)", "140k" },
+        { L"800K (3.5\" disk)",  "800k" },
+        { L"5 MB hard disk",     "5m"   },
+        { L"10 MB hard disk",    "10m"  },
+        { L"20 MB hard disk",    "20m"  },
+        { L"32 MB hard disk",    "32m"  },
     };
 
     //  CP/M's two boot disks, the default first.
@@ -55,6 +74,7 @@ public:
     static std::vector<std::wstring>  GetFormatLabels    ();
     static std::vector<std::wstring>  GetContainerLabels ();
     static std::vector<std::wstring>  GetCpmSystemLabels ();
+    static std::vector<std::wstring>  GetSizeLabels      ();
 
     //  What `--bootable` receives: the image's path when one is typed, the word
     //  for a SoftCard when that's the CP/M system chosen, and otherwise nothing,
@@ -63,15 +83,15 @@ public:
 
     //  The request for the chosen indices. An index out of range takes the
     //  first choice; an empty volume leaves the runner's default.
-    static DiskOperations::NewDiskRequest  MakeRequest (int formatIndex, int containerIndex, const std::wstring & volume, bool bootable);
+    static DiskOperations::NewDiskRequest  MakeRequest (int formatIndex, int containerIndex, const std::wstring & volume, bool bootable, int sizeIndex = 0);
 
     //  The file name with the container's extension, added when it has none.
     static std::wstring  ApplyExtension (const std::wstring & name, int containerIndex);
 
     //  The container, and the format where the extension implies one, that a
     //  typed extension asks for: .po a ProDOS-order ProDOS disk, .dsk and .do
-    //  a DOS-order DOS 3.3 disk, .nib a nibble DOS 3.3 disk, .woz a WOZ image
-    //  of either. False, both left alone, for any other extension or none;
+    //  a DOS-order DOS 3.3 disk, .nib a nibble DOS 3.3 disk, .d13 a 13-sector
+    //  DOS 3.2 disk, .woz a WOZ image of either. False, both left alone, for any other extension or none;
     //  `outFormat` is -1 where the extension implies no format.
     static bool          GetChoicesForExtension (const std::wstring & name, int & outContainer, int & outFormat);
 
@@ -80,20 +100,30 @@ public:
     //  taken.
     static std::wstring  ValidateFileName  (const std::wstring & name, int containerIndex, const std::function<bool (const std::wstring &)> & exists);
     static std::wstring  ValidateVolume    (int formatIndex, const std::wstring & volume);
+    static std::wstring  ValidateSize      (int formatIndex, int containerIndex, int sizeIndex);
 
     //  The most characters the volume field takes for a format: a DOS 3.3
     //  volume number's three digits, or a ProDOS name's fifteen characters.
     static size_t        GetVolumeMaxLength (int formatIndex);
+
+    //  ProDOS, SOS, and ProDOS and SOS: one file system, which differ only in
+    //  the computers a bootable disk starts.
+    static bool          IsProDosFamily     (int formatIndex);
 
     static constexpr int     kFormatDos33           = 0;   // indices into kFormats
     static constexpr int     kFormatProDos          = 1;
     static constexpr int     kFormatPascal          = 2;
     static constexpr int     kFormatCpm             = 3;
     static constexpr int     kFormatNone            = 4;
+    static constexpr int     kFormatDos32           = 5;
+    static constexpr int     kFormatHfs             = 6;
+    static constexpr int     kFormatSos             = 7;
+    static constexpr int     kFormatProDosSos       = 8;
     static constexpr size_t  kMaxFileNameLength     = 200;
     static constexpr size_t  kMaxDos33VolumeLength  = 3;
     static constexpr size_t  kMaxProDosVolumeLength = 15;
     static constexpr size_t  kMaxPascalVolumeLength = 7;
+    static constexpr size_t  kMaxHfsVolumeLength    = 27;
 };
 
 
@@ -123,6 +153,9 @@ public:
         DxuiComboBox    * container      = nullptr;
         DxuiLabel       * formatLabel    = nullptr;
         DxuiComboBox    * format         = nullptr;
+        DxuiLabel       * sizeLabel      = nullptr;
+        DxuiComboBox    * size           = nullptr;
+        DxuiFieldError  * sizeError      = nullptr;
         DxuiLabel       * volumeLabel    = nullptr;
         DxuiTextInput   * volume         = nullptr;
         DxuiFieldError  * volumeError    = nullptr;
@@ -206,9 +239,11 @@ public:
 
     //  Runs the dialog modally over `owner`, the format list starting at
     //  `formatIndex`. With `appleDrive`, the target is a linked Apple's drive
-    //  rather than an image file.
+    //  rather than an image file. The container and size lists start at
+    //  containerIndex and sizeIndex.
     static Outcome  Ask (HWND owner, const IDxuiTheme * theme, bool formatMode, const ExistsFn & exists = {},
-                         int formatIndex = CassoExplorerNewDiskChoices::kFormatDos33, const std::wstring & target = {}, bool appleDrive = false);
+                         int formatIndex = CassoExplorerNewDiskChoices::kFormatDos33, const std::wstring & target = {}, bool appleDrive = false,
+                         int containerIndex = 0, int sizeIndex = 0);
 
 protected:
     void  OnCreate     () override;
@@ -232,6 +267,8 @@ private:
     bool                  m_formatMode     = false;
     bool                  m_appleDrive     = false;
     int                   m_formatIndex    = CassoExplorerNewDiskChoices::kFormatDos33;
+    int                   m_containerIndex = 0;
+    int                   m_sizeIndex      = 0;
     std::wstring          m_target;
     bool                  m_fitted         = false;
     ExistsFn              m_exists;
@@ -247,6 +284,9 @@ private:
     DxuiComboBox          m_container;
     DxuiLabel             m_formatLabel;
     DxuiComboBox          m_format;
+    DxuiLabel             m_sizeLabel;
+    DxuiComboBox          m_size;
+    DxuiFieldError        m_sizeError;
     DxuiLabel             m_volumeLabel;
     DxuiLabel             m_fileLabel;
     DxuiLabel             m_fileName;

@@ -76,6 +76,10 @@ public:
     void               AttachSlotRom         (int slot, vector<Byte> data);
     CxxxRomRouter *    GetCxxxRouter         () { return &m_cxxxRouter; }
 
+    //  Points the read-page table at the router's internal ROM pages again,
+    //  after the router's fast pages change.
+    void               RebindCxxxInternalRom ();
+
     // The language card owns $D000-$FFFF and page-maps it for fast reads. ALTZP
     // flips the aux/main LC RAM side, so SetAltZp re-points its window through
     // this handle. Null on machines without an LC (no-op).
@@ -83,7 +87,6 @@ public:
 
 private:
     void   RebindPageTable       ();
-    void   RebindCxxxInternalRom ();
     void   ResolveZeroPage     ();
     void   ResolveMain02_BF    ();
     void   ResolveText04_07    ();

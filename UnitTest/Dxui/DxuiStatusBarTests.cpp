@@ -147,4 +147,40 @@ public:
         Assert::IsTrue (countEnd > 0.0f);
         Assert::IsTrue (nextX >= countEnd, L"the field's text starts past the count's");
     }
+
+
+    //  A count too long for the room before a fixed field further right runs
+    //  past that field's left edge, so the field's text starts past the
+    //  count's rather than on top of it.
+    TEST_METHOD (Paint_ALongFlowingCount_PushesAFixedFieldRight)
+    {
+        DxuiStatusBar         bar;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        std::wstring          count    = L"3 items (7 more hidden because they don't match this drive), a long count";
+        float                 countEnd = 0.0f;
+        float                 freeX    = -1.0f;
+
+        bar.SetFields ({ { count, 0, false, -1, true }, { L"", 0, true }, { L"7 KB free of 800 KB", 120, false } });
+        LayOut (bar);
+
+        bar.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.kind == RecordedTextKind::DrawString && call.text == count)
+            {
+                countEnd = call.x + call.width;
+            }
+
+            if (call.kind == RecordedTextKind::DrawString && call.text != count)
+            {
+                freeX = call.x;
+            }
+        }
+
+        Assert::IsTrue (countEnd > 480.0f, L"the count runs past the free space field's left edge");
+        Assert::IsTrue (freeX < 0.0f || freeX >= countEnd, L"the free space starts past the count, or has no room");
+    }
 };

@@ -68,6 +68,8 @@ public:
     static constexpr int  kLockedColumnDip   = 64;
     static constexpr int  kOriginalColumnDip = 230;
     static constexpr int  kDeletedColumnDip  = 144;
+    static constexpr int  kForkColumnDip     = 104;
+    static constexpr int  kAccessColumnDip   = 80;
 
     //  Explorer's selection field: "1 item selected" or "4 items selected",
     //  then two spaces and the files' total size when any file is selected.

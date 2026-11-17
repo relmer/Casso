@@ -380,3 +380,46 @@ calls only:
 | `Stop` | the stream is closed and the port released |
 
 Progress and results are posted to the window; no call waits on the line.
+
+## Modules (Stories 23 to 29, R40)
+
+A module is a block of 6502 code assembled from `CassoLink/Apple/Modules/`,
+loaded at $5000 to $8FFF after Ready (R40's revision). Its header: the module's id (1), version
+(1), entry count (1), then a two-byte address per entry. The request codes
+below are reserved here; each is allocated from the free codes in the
+request table when its module is built, and this table is updated then.
+
+| Request | From | Contents |
+|---|---|---|
+| Load module | host | id (1), version (1), address (2), length (2), the bytes in packets as the program is loaded, CRC-16/XMODEM (2); the client replies Ready with the module's id |
+| List block devices ($EE) | host | none; the client replies with Block devices ($EF): a count, then per unit: slot (1), unit (1), SmartPort (1), blocks (3), kind (1, $FF for a ProDOS drive), volume name (16, ProDOS's, zeros for none) |
+| Read blocks ($F0) | host | slot (1), unit (1), SmartPort (1), first block (3), count (1), verify (1), progress (2); the client replies with Block data ($F1) for each block: its number (3), 512 bytes and their CRC, then Status, whose count is the blocks done and whose error is the firmware's or ERRVERIFY |
+| Write blocks ($F2) | host | as Read blocks; the client requests each block with an Acknowledge of its index, the host replies with its Block data, a NAK requests it again; the client writes each, reads it back when verify is on, and replies Status, whose count is the blocks done |
+| Read quarter track | host | drive (1), position (1, 0 to 140), revolutions (1), reads (1); the client replies with the first read's bytes and timings, then per later read the ranges that differ, then Status. An empty position is one byte, $00 |
+| Write nibble track ($F3) | host | drive (1), track (1), the stream's length (2); the client requests the stream with an Acknowledge, the host replies with Nibble data ($F4): the stream, each byte with its top bit set a nibble and each 0 a self-sync byte, and its CRC (2), a NAK requests it again; the client writes it in one pass and replies Status |
+| Read 13-sector track ($F6) | host | drive (1), track (1), the sectors to read (2, a bit each, sector 0 in bit 0); the client reads each requested sector's address field, D5 AA B5 or RDOS's D4 AA B7, and its data field, for about six revolutions at most, then replies with a 13-sector data packet ($F7) for each sector found, in physical order: the sector (1), its data field's 410 nibbles and checksum nibble as the drive read them (411) and their CRC (2); or, for an address field with no data field after it, the sector with bit 7 set (1) alone. Then Status, whose count is the packets. The host decodes the 5-and-3 and requests the sectors not read again |
+| Virtual block ($F5) | client | drive (1), operation (1: 0 status, 1 read, 2 write), block (2), and for a write the block and its CRC (2); the host replies with Virtual block: ProDOS's error (1), then for a status the drive's blocks (2) and for a read the block and its CRC (2). A request of the wrong length, or a write that fails its CRC, has no reply |
+| Audio track | either | over cassette audio: track (1), the track's 16 sectors, CRC (2), in ADTPro's published audio encoding |
+
+Modules and the requests they serve:
+
+| Module | Requests | Machines |
+|---|---|---|
+| Block | List block devices, Read blocks, Write blocks | every Apple II with a ProDOS block device |
+| Capture | Read quarter track | every Apple II with a Disk II |
+| 13-sector | Read 13-sector track, Write nibble track | every Apple II with a Disk II |
+| Cassette | Audio track, and the program's transport over cassette | ][+, //e |
+| SCC | the program's transport | IIgs |
+| Pascal firmware | the program's transport | any slot with a Pascal 1.1 serial card |
+| CS8900A, LAN91C96 | the program's transport, with ARP, IPv4, UDP and TCP | the original Uthernet, the LANceGS |
+| Virtual drive | Virtual block, from `CASSOLINK.SYSTEM`'s driver | ProDOS 8 with BASIC.SYSTEM |
+
+The SOS interpreter (Story 29) is the program assembled for SOS, and the
+Block module's requests are served through SOS's block calls.
+
+## Resume (R42)
+
+`NAME.partial.json` is written beside `NAME.partial` after every 64 blocks
+verified, with the fields in data-model.md's ResumeRecord. A transfer of a
+device whose slot, unit, block count, volume name and directory hash match
+offers to continue at `lastVerifiedBlock + 1`.

@@ -318,6 +318,24 @@ JsonValue CassoExplorerPrefs::LinkToJson (const CassoLinkSettings & link)
         fields.emplace_back ("folder",        JsonValue (TextEncoding::WideToNarrow (link.folder)));
     }
 
+    if (!link.virtualDrives.drive1.empty() || !link.virtualDrives.drive2.empty())
+    {
+        std::vector<std::pair<std::string, JsonValue>>  drives;
+
+        drives.emplace_back ("drive1", JsonValue (TextEncoding::WideToNarrow (link.virtualDrives.drive1)));
+        drives.emplace_back ("drive2", JsonValue (TextEncoding::WideToNarrow (link.virtualDrives.drive2)));
+        fields.emplace_back ("virtualDrives", JsonValue (std::move (drives)));
+    }
+
+    if (!link.cassetteAudio.output.empty() || !link.cassetteAudio.input.empty())
+    {
+        std::vector<std::pair<std::string, JsonValue>>  audio;
+
+        audio.emplace_back ("output", JsonValue (TextEncoding::WideToNarrow (link.cassetteAudio.output)));
+        audio.emplace_back ("input",  JsonValue (TextEncoding::WideToNarrow (link.cassetteAudio.input)));
+        fields.emplace_back ("cassetteAudio", JsonValue (std::move (audio)));
+    }
+
     if (link.verify != CassoLinkSettings::kVerifyDefault)
     {
         fields.emplace_back ("verify",        JsonValue ((double) link.verify));
@@ -362,10 +380,11 @@ JsonValue CassoExplorerPrefs::LinkToJson (const CassoLinkSettings & link)
 
 bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSettings & outLink)
 {
-    std::string  transport;
-    std::string  folder;
-    int          baud      = 0;
-    bool         usable    = false;
+    std::string        transport;
+    std::string        folder;
+    int                baud   = 0;
+    const JsonValue  * drives = nullptr;
+    bool               usable = false;
 
 
 
@@ -401,6 +420,32 @@ bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSett
             outLink.folder = TextEncoding::NarrowToWide (folder);
         }
 
+        if (value.HasObject ("virtualDrives", drives))
+        {
+            if (drives->HasString ("drive1", folder))
+            {
+                outLink.virtualDrives.drive1 = TextEncoding::NarrowToWide (folder);
+            }
+
+            if (drives->HasString ("drive2", folder))
+            {
+                outLink.virtualDrives.drive2 = TextEncoding::NarrowToWide (folder);
+            }
+        }
+
+        if (value.HasObject ("cassetteAudio", drives))
+        {
+            if (drives->HasString ("output", folder))
+            {
+                outLink.cassetteAudio.output = TextEncoding::NarrowToWide (folder);
+            }
+
+            if (drives->HasString ("input", folder))
+            {
+                outLink.cassetteAudio.input = TextEncoding::NarrowToWide (folder);
+            }
+        }
+
         //  A Wi-Fi modem listens on the one port its boot disk dials.
         if (outLink.transport == LinkTransport::WifiModem)
         {
@@ -427,6 +472,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
 {
     std::vector<std::pair<std::string, JsonValue>>  root;
     std::vector<std::pair<std::string, JsonValue>>  placementFields;
+    std::vector<std::pair<std::string, JsonValue>>  fullSendFields;
     std::vector<std::pair<std::string, JsonValue>>  splitterFields;
     std::vector<JsonValue>                          tabValues;
     std::vector<JsonValue>                          typedValues;
@@ -473,10 +519,16 @@ JsonValue CassoExplorerPrefs::ToJson() const
             fields.emplace_back ("columnOrder", MakeIntArray (entry.columnOrder));
         }
 
+        if (!entry.addedColumnWidthsDip.empty())
+        {
+            fields.emplace_back ("addedColumnWidths", MakeIntArray (entry.addedColumnWidthsDip));
+        }
+
         //  Present, even empty, only for a folder with a choice of its own.
         if (entry.columnsChosen)
         {
             fields.emplace_back ("hiddenColumns", MakeIntArray (entry.hiddenColumns));
+            fields.emplace_back ("shownColumns",  MakeIntArray (entry.shownColumns));
         }
 
         viewValues.push_back (JsonValue (std::move (fields)));
@@ -514,6 +566,10 @@ JsonValue CassoExplorerPrefs::ToJson() const
     placementFields.emplace_back ("maximized", JsonValue (placement.maximized));
     placementFields.emplace_back ("valid",     JsonValue (placement.valid));
 
+    fullSendFields.emplace_back ("x",     JsonValue ((double) fullSendWindow.x));
+    fullSendFields.emplace_back ("y",     JsonValue ((double) fullSendWindow.y));
+    fullSendFields.emplace_back ("valid", JsonValue (fullSendWindow.valid));
+
     splitterFields.emplace_back ("treeDip",    JsonValue ((double) treeWidthDip));
     splitterFields.emplace_back ("previewDip", JsonValue ((double) previewWidthDip));
 
@@ -529,15 +585,27 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("searchZipped",      JsonValue (searchZipped));
     root.emplace_back ("searchContents",    JsonValue (searchContents));
     root.emplace_back ("autoPreview",    JsonValue (autoPreview));
+    root.emplace_back ("enterExpandsPreview", JsonValue (enterExpandsPreview));
+    root.emplace_back ("autoThumbnails", JsonValue (autoThumbnails));
+    root.emplace_back ("rawCopyMenu",    JsonValue (rawCopyMenu));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
     root.emplace_back ("fullSendFolder", JsonValue (TextEncoding::WideToUtf8 (fullSendFolder)));
     root.emplace_back ("fullSendExtension", JsonValue (fullSendExtension));
     root.emplace_back ("verifyReads", JsonValue (verifyReads));
     root.emplace_back ("verifyWrites", JsonValue (verifyWrites));
     root.emplace_back ("autoVerify", JsonValue (autoVerify));
+    root.emplace_back ("protectReadErrors",   JsonValue (fullSendProtection.readErrors));
+    root.emplace_back ("protectUnrecognized", JsonValue (fullSendProtection.unrecognized));
+    root.emplace_back ("protectDiskCode",     JsonValue (fullSendProtection.diskCode));
+    root.emplace_back ("protectOtherBoot",    JsonValue (fullSendProtection.otherBoot));
+    root.emplace_back ("protectCaptureRaw",   JsonValue (fullSendProtection.captureRaw));
+    root.emplace_back ("volumeWoz",           JsonValue (fullSendProtection.volumeWoz));
+    root.emplace_back ("bootSoundPlace", JsonValue ((double) bootSoundPlace));
 
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
+    root.emplace_back ("cffaAdapter",    JsonValue ((double) cffaAdapter));
     root.emplace_back ("lineAddresses",  JsonValue (lineAddresses));
+    root.emplace_back ("skipElevationNotice", JsonValue (skipElevationNotice));
     root.emplace_back ("hexColumns",     JsonValue ((double) hexColumns));
     root.emplace_back ("hexShowValues",  JsonValue (hexShowValues));
     root.emplace_back ("hexFormat",      JsonValue (hexFormat));
@@ -568,15 +636,23 @@ JsonValue CassoExplorerPrefs::ToJson() const
 
     root.emplace_back ("crtOverrides",   JsonValue (std::move (crtFields)));
     root.emplace_back ("placement",      JsonValue (std::move (placementFields)));
+    root.emplace_back ("fullSendWindow", JsonValue (std::move (fullSendFields)));
     root.emplace_back ("splitters",      JsonValue (std::move (splitterFields)));
     root.emplace_back ("tabs",           JsonValue (std::move (tabValues)));
     root.emplace_back ("typedPaths",     JsonValue (std::move (typedValues)));
     root.emplace_back ("listColumnWidths", JsonValue (std::move (widthValues)));
     root.emplace_back ("listColumnOrder",  JsonValue (std::move (orderValues)));
     root.emplace_back ("listHiddenColumns", MakeIntArray (hiddenColumns));
+    root.emplace_back ("listShownColumns", MakeIntArray (shownColumns));
+    root.emplace_back ("listAddedColumnWidths", MakeIntArray (addedColumnWidthsDip));
     root.emplace_back ("listPropertyColumns", JsonValue (std::move (propertyValues)));
     root.emplace_back ("folderViews",      JsonValue (std::move (viewValues)));
     root.emplace_back ("links",            JsonValue (std::move (linkValues)));
+
+    if (diskInspector.IsSaved())
+    {
+        root.emplace_back ("diskInspector", diskInspector.ToJson (false));
+    }
 
     std::vector<JsonValue>  seenValues;
 
@@ -691,9 +767,11 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     const JsonValue  * orderArray   = nullptr;
     const JsonValue  * viewArray    = nullptr;
     const JsonValue  * overridesObj = nullptr;
+    const JsonValue  * inspectorObj = nullptr;
     std::string        text;
     size_t             i            = 0;
     int                grouping     = kDefaultHexGrouping;
+    int                adapter      = 0;
     int                columns      = 0;
     int                zoom         = kDefaultPreviewZoom;
     int                view         = 0;
@@ -714,7 +792,11 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("searchZipped",      searchZipped);
     root.HasBool ("searchContents",    searchContents);
     root.HasBool ("autoPreview",    autoPreview);
+    root.HasBool ("enterExpandsPreview", enterExpandsPreview);
+    root.HasBool ("autoThumbnails", autoThumbnails);
+    root.HasBool ("rawCopyMenu",    rawCopyMenu);
     root.HasBool ("lineAddresses",  lineAddresses);
+    root.HasBool ("skipElevationNotice", skipElevationNotice);
     root.HasBool ("hexShowValues",  hexShowValues);
     root.HasBool ("treeCassoOpen",     treeCassoOpen);
     root.HasBool ("treeCassoLinkOpen", treeCassoLinkOpen);
@@ -779,6 +861,19 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     root.HasBool ("verifyReads", verifyReads);
     root.HasBool ("verifyWrites", verifyWrites);
     root.HasBool ("autoVerify", autoVerify);
+    root.HasBool ("protectReadErrors",   fullSendProtection.readErrors);
+    root.HasBool ("protectUnrecognized", fullSendProtection.unrecognized);
+    root.HasBool ("protectDiskCode",     fullSendProtection.diskCode);
+    root.HasBool ("protectOtherBoot",    fullSendProtection.otherBoot);
+    root.HasBool ("protectCaptureRaw",   fullSendProtection.captureRaw);
+    root.HasBool ("volumeWoz",           fullSendProtection.volumeWoz);
+    //  One of the places, and the PC for a number that isn't.
+    {
+        double  place = bootSoundPlace;
+
+        root.HasNumber ("bootSoundPlace", place);
+        bootSoundPlace = (place >= kBootSoundPc && place <= kBootSoundNeither) ? (int) place : (int) kBootSoundPc;
+    }
 
 
     if (root.HasString ("fullSendExtension", text) && (text.empty() || text == ".dsk" || text == ".do" || text == ".po" || text == ".woz" || text == ".nib" || text == ".nb2"))
@@ -796,6 +891,11 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         hexGrouping = grouping;
     }
 
+    if (root.HasInt ("cffaAdapter", adapter) && adapter >= 0 && adapter < kCffaAdapterCount)
+    {
+        cffaAdapter = adapter;
+    }
+
     if (root.HasObject ("placement", placed))
     {
         placed->HasInt  ("x",         placement.x);
@@ -804,6 +904,13 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         placed->HasInt  ("h",         placement.h);
         placed->HasBool ("maximized", placement.maximized);
         placed->HasBool ("valid",     placement.valid);
+    }
+
+    if (root.HasObject ("fullSendWindow", placed))
+    {
+        placed->HasInt  ("x",     fullSendWindow.x);
+        placed->HasInt  ("y",     fullSendWindow.y);
+        placed->HasBool ("valid", fullSendWindow.valid);
     }
 
     if (root.HasObject ("splitters", splitters))
@@ -841,6 +948,11 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
                 links.push_back (link);
             }
         }
+    }
+
+    if (root.HasObject ("diskInspector", inspectorObj))
+    {
+        diskInspector.FromJson (*inspectorObj);
     }
 
     if (root.HasArray ("linkFolderSeen", seenArray))
@@ -919,6 +1031,9 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
         hiddenColumns = ReadIntArray (root, "listHiddenColumns");
     }
 
+    shownColumns         = ReadIntArray (root, "listShownColumns");
+    addedColumnWidthsDip = ReadIntArray (root, "listAddedColumnWidths");
+
     if (root.HasArray ("listPropertyColumns", typedArray))
     {
         propertyColumns.clear();
@@ -974,6 +1089,9 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
                 entry.columnOrder   = ReadIntArray (value, "columnOrder");
                 entry.columnsChosen = value.HasArray ("hiddenColumns", widths);
                 entry.hiddenColumns = ReadIntArray (value, "hiddenColumns");
+                entry.shownColumns  = ReadIntArray (value, "shownColumns");
+
+                entry.addedColumnWidthsDip = ReadIntArray (value, "addedColumnWidths");
 
                 entries.push_back (entry);
             }
@@ -998,8 +1116,35 @@ Error:
 
 HRESULT CassoExplorerPrefs::Load (const std::wstring & baseDir, IFileSystem & fs)
 {
+    HRESULT       hr      = S_OK;
+    std::wstring  path    = GetFilePath (baseDir);
+    bool          present = fs.Exists (path);
+
+
+
+    hr = LoadFile (path, fs);
+
+    if (!present)
+    {
+        theme = ReadCassoTheme (baseDir, fs);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::LoadFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerPrefs::LoadFile (const std::wstring & path, IFileSystem & fs)
+{
     HRESULT         hr      = S_OK;
-    std::wstring    path    = GetFilePath (baseDir);
     bool            present = fs.Exists (path);
     std::string     content;
     JsonValue       root;
@@ -1009,12 +1154,7 @@ HRESULT CassoExplorerPrefs::Load (const std::wstring & baseDir, IFileSystem & fs
 
     *this = CassoExplorerPrefs();
 
-    if (!present)
-    {
-        theme = ReadCassoTheme (baseDir, fs);
-
-        return S_OK;
-    }
+    BAIL_OUT_IF (!present, S_OK);
 
     hr = fs.ReadAllText (path, content);
     CHR (hr);
@@ -1041,6 +1181,21 @@ Error:
 
 HRESULT CassoExplorerPrefs::Save (const std::wstring & baseDir, IFileSystem & fs) const
 {
+    return SaveFile (GetFilePath (baseDir), fs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::SaveFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerPrefs::SaveFile (const std::wstring & path, IFileSystem & fs) const
+{
     HRESULT              hr = S_OK;
     std::string          text;
     JsonWriter::Options  options;
@@ -1050,7 +1205,7 @@ HRESULT CassoExplorerPrefs::Save (const std::wstring & baseDir, IFileSystem & fs
     hr = JsonWriter::Write (ToJson(), options, text);
     CHR (hr);
 
-    hr = fs.WriteAllText (GetFilePath (baseDir), text);
+    hr = fs.WriteAllText (path, text);
     CHR (hr);
 
 Error:

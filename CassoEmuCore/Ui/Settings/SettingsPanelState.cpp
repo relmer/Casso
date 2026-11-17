@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "SettingsPanelState.h"
 #include "Ui/Settings/SettingsJson.h"
 
@@ -9,6 +10,7 @@
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
+#include "Config/UserConfigStore.h"
 #include "Machines/MachineDefinitions.h"
 
 
@@ -174,7 +176,8 @@ bool SettingsPanelState::IsDirty() const
 //
 //  RequiresReset
 //
-//  A reset is required iff the hardware-enable bits changed.
+//  A reset is required iff the hardware-enable bits changed, or a storage
+//  card was put in, replaced, taken out, or its drives or images changed.
 //  Speed / color / sound / mechanism / write-protect, every serial
 //  connector's attachment, the ImageWriter II's connector and the Uthernet
 //  II's settings are all live-applicable.
@@ -190,7 +193,17 @@ bool SettingsPanelState::RequiresReset() const
 
     for (i = 0; !changed && i < m_current.hardware.size(); ++i)
     {
-        changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled;
+        const HardwareEntry  & before    = m_original.hardware[i];
+        const HardwareEntry  & after     = m_current.hardware[i];
+        bool                   isStorage = BlockDeviceCatalog::FindCard (after.type) != nullptr;
+
+
+
+        changed = before.enabled != after.enabled
+               || before.type    != after.type
+               || (isStorage && (before.ports          != after.ports
+                              || before.portImages     != after.portImages
+                              || before.portRealTiming != after.portRealTiming));
     }
 
     return changed;
@@ -616,6 +629,293 @@ void SettingsPanelState::SetMouseConnected (bool connected)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetChainRank
+//
+//  The order of a chain's kinds of drive: Apple 3.5 Drives, then UniDisks,
+//  then 5.25-inch drives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SettingsPanelState::GetChainRank (const std::string & device)
+{
+    int  rank = 1;
+
+
+
+    if (device == kpszApple35DriveDevice)
+    {
+        rank = 0;
+    }
+    else if (device == kpszDiskIicDevice)
+    {
+        rank = 2;
+    }
+
+    return rank;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetChainDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string SettingsPanelState::GetChainDevice (const JsonValue & entry)
+{
+    std::string  device;
+    HRESULT      hr     = S_OK;
+
+
+
+    if (entry.GetType() == JsonType::Object)
+    {
+        hr = entry.GetString (kpszPortDeviceKey, device);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    return device;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditDiskPortChain
+//
+//  Applies `edit` to a copy of the disk port's chain and writes the copy
+//  back. An empty chain is removed from the port.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::EditDiskPortChain (const std::function<void (std::vector<JsonValue> &)> & edit)
+{
+    for (SettingsMachinePort & port : m_current.machinePorts)
+    {
+        std::vector<JsonValue>  chain;
+        size_t                  key   = port.otherKeys.size();
+
+
+
+        if (port.name != kpszDiskPortName)
+        {
+            continue;
+        }
+
+        for (size_t i = 0; i < port.otherKeys.size(); i++)
+        {
+            const JsonValue  & value = port.otherKeys[i].second;
+
+
+
+            if (port.otherKeys[i].first == kpszChainKey && value.GetType() == JsonType::Array)
+            {
+                key = i;
+
+                for (size_t j = 0; j < value.GetArraySize(); j++)
+                {
+                    chain.push_back (SettingsJson::CloneJson (value.GetArrayElement (j)));
+                }
+            }
+        }
+
+        edit (chain);
+
+        if (key < port.otherKeys.size() && chain.empty())
+        {
+            port.otherKeys.erase (port.otherKeys.begin() + (ptrdiff_t) key);
+        }
+        else if (key < port.otherKeys.size())
+        {
+            port.otherKeys[key].second = JsonValue (std::move (chain));
+        }
+        else if (!chain.empty())
+        {
+            port.otherKeys.emplace_back (kpszChainKey, JsonValue (std::move (chain)));
+        }
+
+        break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDiskPortChain
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> SettingsPanelState::GetDiskPortChain() const
+{
+    std::vector<std::string>  devices;
+
+
+
+    for (const SettingsMachinePort & port : m_current.machinePorts)
+    {
+        for (const auto & [key, value] : port.otherKeys)
+        {
+            if (port.name != kpszDiskPortName || key != kpszChainKey || value.GetType() != JsonType::Array)
+            {
+                continue;
+            }
+
+            for (size_t i = 0; i < value.GetArraySize(); i++)
+            {
+                devices.push_back (GetChainDevice (value.GetArrayElement (i)));
+            }
+        }
+    }
+
+    return devices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddDiskPortDrive
+//
+//  The drive goes after the last drive of its kind or of a kind ahead of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::AddDiskPortDrive (const std::string & device)
+{
+    EditDiskPortChain ([&device] (std::vector<JsonValue> & chain)
+    {
+        std::vector<std::pair<std::string, JsonValue>>  entry;
+        size_t                                          at    = 0;
+
+
+
+        while (at < chain.size() && GetChainRank (GetChainDevice (chain[at])) <= GetChainRank (device))
+        {
+            at++;
+        }
+
+        entry.emplace_back (kpszPortDeviceKey, JsonValue (device));
+        chain.insert (chain.begin() + (ptrdiff_t) at, JsonValue (std::move (entry)));
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RemoveDiskPortDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::RemoveDiskPortDrive (const std::string & device, size_t nth)
+{
+    EditDiskPortChain ([&device, nth] (std::vector<JsonValue> & chain)
+    {
+        size_t  seen = 0;
+
+
+
+        for (size_t i = 0; i < chain.size(); i++)
+        {
+            if (GetChainDevice (chain[i]) != device)
+            {
+                continue;
+            }
+
+            if (seen == nth)
+            {
+                chain.erase (chain.begin() + (ptrdiff_t) i);
+                break;
+            }
+
+            seen++;
+        }
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPortRealTiming
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetPortRealTiming (size_t index, size_t port, bool isOn)
+{
+    HRESULT                 hr            = S_OK;
+    size_t                  hardwareCount = m_current.hardware.size();
+    HardwareEntry         * entry         = nullptr;
+    const BlockDriveSpec  * drive         = nullptr;
+    bool                    hasPort       = false;
+
+
+
+    CBR (index < hardwareCount);
+
+    entry   = &m_current.hardware[index];
+    hasPort = port < entry->ports.size();
+    CBR (hasPort);
+
+    drive = BlockDeviceCatalog::FindDrive (entry->ports[port]);
+    CBR (drive != nullptr && drive->hasRealTiming);
+
+    entry->portRealTiming.resize (entry->ports.size(), false);
+    entry->portImages.resize     (entry->ports.size());
+    entry->portRealTiming[port] = isOn;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSlotPortImage
+//
+//  The image on `port` of the card in `slot`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetSlotPortImage (int slot, size_t port, const std::string & path)
+{
+    HRESULT  hr    = S_OK;
+    int      index = SlotCards::FindSlot (m_current.hardware, slot);
+
+
+
+    CBREx (index >= 0, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    hr = SetPortImage ((size_t) index, port, path);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetHardwareEnabled
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -867,5 +1167,74 @@ HRESULT SettingsPanelState::Apply (
     outCurrentJson = SettingsJson::BuildJson (m_mergedJson, m_current.hardware, m_current.prefs,
                                 m_current.machinePorts);
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMachinePortImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetMachinePortImage (const std::string & name, const std::string & path)
+{
+    HRESULT  hr = HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
+
+
+
+    for (SettingsMachinePort & port : m_current.machinePorts)
+    {
+        if (port.name != name)
+        {
+            continue;
+        }
+
+        std::erase_if (port.otherKeys, [] (const std::pair<std::string, JsonValue> & key) { return key.first == kpszPortImageKey; });
+        port.otherKeys.emplace_back (kpszPortImageKey, JsonValue (path));
+        hr = S_OK;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditSaved
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::EditSaved (UserConfigStore & store, IFileSystem & fs, const std::string & machineName, const JsonValue & defaultJson,
+                                       const std::function<HRESULT (SettingsPanelState & state)> & edit)
+{
+    HRESULT             hr = S_OK;
+    JsonValue           mergedJson;
+    JsonValue           savedJson;
+    SettingsPanelState  state;
+
+
+
+    hr = store.Load (machineName, defaultJson, fs, mergedJson);
+    CHR (hr);
+
+    hr = state.LoadFromMachine (machineName, defaultJson, mergedJson);
+    CHR (hr);
+
+    hr = edit (state);
+    CHR (hr);
+
+    savedJson = state.BuildCurrentJson();
+
+    hr = store.SaveDelta (machineName, savedJson, defaultJson, fs);
+    CHR (hr);
+
+Error:
     return hr;
 }

@@ -305,19 +305,19 @@ public:
         auto  cell = [&] (Byte code)             { bytes[at++] = code; if (wide) { bytes[at++] = code; } };
 
         cell (kInverseSpace);
-        put  (" DONE");
+        put  (" done");
         put  (gap);
         cell ((Byte) ('#' | kNormalBit));
-        put  (" TO GO");
+        put  (" to go");
         put  (gap);
         cell ((Byte) ('.' | kNormalBit));
-        put  (" FREE");
+        put  (" free");
         put  (gap);
         cell (kFlashR);
-        put  (" READ");
+        put  (" read");
         put  (gap);
         cell (kFlashW);
-        put  (" WRITE");
+        put  (" write");
         return bytes;
     }
 
@@ -365,14 +365,14 @@ public:
         {
             std::string  heading = ReadTextRow (rig.machine, kRowHeading, wide);
 
-            if (record.maps.empty() && heading == "HISTORY:")
+            if (record.maps.empty() && heading == "History:")
             {
                 record.before = ReadHistory (rig.machine, wide);
             }
 
             //  A map is added only when whole: its legend is drawn last, and
             //  its heading is drawn over first when the history is drawn again.
-            if (heading == "BLOCKS:" && ReadRawRow (rig.machine, kRowLegend, wide) == legend)
+            if (heading == "Blocks:" && ReadRawRow (rig.machine, kRowLegend, wide) == legend)
             {
                 record.maps.push_back (ReadMap (rig.machine, wide));
             }
@@ -401,7 +401,7 @@ public:
         }
 
         Assert::IsTrue (settled, L"the history is drawn again with the krunch's line");
-        Assert::AreEqual (std::string ("HISTORY:"), ReadTextRow (rig.machine, kRowHeading, wide), L"the history's heading is back");
+        Assert::AreEqual (std::string ("History:"), ReadTextRow (rig.machine, kRowHeading, wide), L"the history's heading is back");
     }
 
     //  A map's rows in the test's log, as text.

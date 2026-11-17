@@ -4,6 +4,7 @@
 #include "Utils.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/ProDosStartup.h"
 
 
 
@@ -26,6 +27,220 @@ ProDosVolume::ProDosVolume (const vector<Byte> & sectors)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProDosVolume::ProDosVolume
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProDosVolume::ProDosVolume (const BlockImage & image)
+    : m_sectors (image)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::CreateDirectory
+//
+//  Each change through the vector forms of IVolume is made into a buffer
+//  over the volume's image and copied out whole.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::CreateDirectory (const FilePath & path, vector<Byte> & outBuffer) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_writer.CreateDirectory (path, buffer);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::Write
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::Write (const FilePath & path, const FilePayload & payload, vector<Byte> & outBuffer) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_writer.Write (path, payload, buffer);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::SetStartupProgram
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::SetStartupProgram (const FilePath & path, vector<Byte> & outBuffer) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_writer.SetStartupProgram (path, buffer);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::Rename
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::Rename (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_writer.Rename (from, to, buffer);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::SetAttributes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::SetAttributes (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_writer.SetAttributes (path, attributes, buffer);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::RemoveDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::RemoveDirectory (const FilePath & path, bool force, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_remover.RemoveDirectory (path, force, buffer, outOutcome);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::Delete
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::Delete (const FilePath & path, vector<Byte> & outBuffer) const
+{
+    DeleteOutcome  outcome;
+
+
+
+    return Delete (path, outBuffer, outcome);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::Delete
+//
+//  With the account of what the delete freed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::Delete (const FilePath & path, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const
+{
+    BlockBuffer  buffer;
+    HRESULT      hr     = m_remover.Delete (path, buffer, outOutcome);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        outBuffer = buffer.ToVector();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProDosVolume::ReadByte
 //
 //  Refuses a block the volume cannot hold rather than indexing past the end of
@@ -40,12 +255,12 @@ Byte ProDosVolume::ReadByte (int block, size_t offset) const
 
 
 
-    if (block < 0 || block >= ProDosSkeleton::kTotalBlocks)
+    if (block < 0 || block >= GetBlockCount())
     {
         return 0;
     }
 
-    at = ProDosSkeleton::GetBlockByteOffset (block, offset);
+    at = ProDosSkeleton::GetBlockByteOffset (m_sectors.size(), block, offset);
 
     if (at >= m_sectors.size())
     {
@@ -65,9 +280,9 @@ Byte ProDosVolume::ReadByte (int block, size_t offset) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const vector<Byte> & ProDosVolume::AccessBlock (int block) const
+const BlockImage & ProDosVolume::AccessBlock (int block) const
 {
-    ProDosReader::NoteBlockRead (m_readObserver, block);
+    ProDosReader::NoteBlockRead (m_readObserver, m_sectors.size(), block);
 
     return m_sectors;
 }
@@ -111,10 +326,11 @@ void ProDosVolume::CollectEntries (
     vector<std::string> & outDamage,
     bool                & outFullyParsed) const
 {
-    ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+    ChainWalkGuard  guard ((uint32_t) GetBlockCount());
     int             dirBlock = keyBlock;
     int             n        = 0;
     size_t          i        = 0;
+    int             perBlock = GetEntriesPerBlock (keyBlock);
 
 
 
@@ -122,7 +338,7 @@ void ProDosVolume::CollectEntries (
 
     while (dirBlock != 0)
     {
-        bool  inRange = dirBlock > 0 && dirBlock < ProDosSkeleton::kTotalBlocks;
+        bool  inRange = dirBlock > 0 && dirBlock < GetBlockCount();
         bool  stepOk  = inRange && guard.TryVisit ((uint32_t) dirBlock);
         int   first   = (dirBlock == keyBlock) ? 1 : 0;
 
@@ -134,7 +350,7 @@ void ProDosVolume::CollectEntries (
             break;
         }
 
-        for (n = first; n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
+        for (n = first; n < perBlock; n++)
         {
             RawEntry  entry;
             size_t    at      = ProDosSkeleton::kOffFirstEntry
@@ -210,7 +426,7 @@ bool ProDosVolume::CollectFileBlocks (
 {
     bool  ok       = true;
     bool  keyInUse = entry.keyPointer != 0
-                  && entry.keyPointer < (Word) ProDosSkeleton::kTotalBlocks;
+                  && entry.keyPointer < (Word) GetBlockCount();
     int   i        = 0;
 
 
@@ -248,7 +464,7 @@ bool ProDosVolume::CollectFileBlocks (
                 continue;   // sparse hole
             }
 
-            if (block >= (Word) ProDosSkeleton::kTotalBlocks)
+            if (block >= (Word) GetBlockCount())
             {
                 ok = false;
                 break;
@@ -279,7 +495,7 @@ bool ProDosVolume::CollectFileBlocks (
                 continue;
             }
 
-            if (indexBlock >= (Word) ProDosSkeleton::kTotalBlocks)
+            if (indexBlock >= (Word) GetBlockCount())
             {
                 ok = false;
                 break;
@@ -305,7 +521,7 @@ bool ProDosVolume::CollectFileBlocks (
                     continue;
                 }
 
-                if (block >= (Word) ProDosSkeleton::kTotalBlocks)
+                if (block >= (Word) GetBlockCount())
                 {
                     ok = false;
                     break;
@@ -323,9 +539,62 @@ bool ProDosVolume::CollectFileBlocks (
         return ok;
     }
 
+    // An extended file's key block has an entry for each fork, and each fork's
+    // blocks are its own seedling, sapling or tree.
+    if (entry.storage == ProDosSkeleton::kStorageExtended)
+    {
+        for (size_t at : { ProDosSkeleton::kExtOffDataFork, ProDosSkeleton::kExtOffResourceFork })
+        {
+            RawEntry  fork;
+            uint32_t  eof = 0;
+
+            ProDosReader::ReadMiniEntry (m_sectors, entry.keyPointer, at, fork.storage, fork.keyPointer, eof);
+
+            ok = ok && CollectFileBlocks (fork, outBlocks, guard);
+        }
+
+        return ok;
+    }
+
     // A directory or an unrecognized storage type: the key block is claimed,
     // but this layer does not walk further into it yet.
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::FillExtendedSizes
+//
+//  An extended file's entry has the key block's length as its EOF, so its
+//  forks' lengths are read from the key block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolume::FillExtendedSizes (const RawEntry & entry, FileEntry & inOutListed) const
+{
+    Byte      storage  = 0;
+    Word      key      = 0;
+    uint32_t  dataEof  = 0;
+    uint32_t  forkEof  = 0;
+    bool      keyOk    = entry.keyPointer != 0 && entry.keyPointer < (Word) GetBlockCount();
+
+
+
+    if (entry.storage != ProDosSkeleton::kStorageExtended || !keyOk)
+    {
+        return;
+    }
+
+    ProDosReader::ReadMiniEntry (m_sectors, entry.keyPointer, ProDosSkeleton::kExtOffDataFork,     storage, key, dataEof);
+    ProDosReader::ReadMiniEntry (m_sectors, entry.keyPointer, ProDosSkeleton::kExtOffResourceFork, storage, key, forkEof);
+
+    inOutListed.eofBytes          = dataEof;
+    inOutListed.resourceForkBytes = forkEof;
+    inOutListed.hasResourceFork   = true;
 }
 
 
@@ -398,7 +667,7 @@ HRESULT ProDosVolume::ResolveDirectory (const FilePath & directory, int & outKey
     bool                 isDirectory = false;
     bool                 stepOk      = false;
     uint16_t             owner       = 0;
-    ChainWalkGuard       guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+    ChainWalkGuard       guard ((uint32_t) GetBlockCount());
 
 
 
@@ -414,7 +683,7 @@ HRESULT ProDosVolume::ResolveDirectory (const FilePath & directory, int & outKey
         CBREx (isDirectory, HRESULT_FROM_WIN32 (ERROR_DIRECTORY));
 
         keyBlock = (int) entries[owner].keyPointer;
-        stepOk   = keyBlock > 0 && keyBlock < ProDosSkeleton::kTotalBlocks && guard.TryVisit ((uint32_t) keyBlock);
+        stepOk   = keyBlock > 0 && keyBlock < GetBlockCount() && guard.TryVisit ((uint32_t) keyBlock);
         CBREx (stepOk, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
     }
 
@@ -488,6 +757,7 @@ HRESULT ProDosVolume::EnumerateDirectory (const FilePath & directory, VolumeList
     for (const RawEntry & entry : entries)
     {
         outListing.entries.push_back (ToFileEntry (entry));
+        FillExtendedSizes (entry, outListing.entries.back());
         outListing.entries.back().catalogIndex = outListing.entries.size() - 1;
     }
 
@@ -507,19 +777,21 @@ Error:
 
 HRESULT ProDosVolume::Enumerate (VolumeListing & outListing) const
 {
-    HRESULT           hr          = S_OK;
-    size_t            bufferBytes = m_sectors.size();
-    vector<RawEntry>  entries;
-    bool              fullyParsed = true;
-    size_t            i           = 0;
-    int               bit         = 0;
-    uint32_t          freeBlocks  = 0;
-    Byte              headerType  = 0;
-    size_t            nameLen     = 0;
+    HRESULT                                                      hr          = S_OK;
+    size_t                                                       bufferBytes = m_sectors.size();
+    bool                                                         sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
+    vector<RawEntry>                                             entries;
+    bool                                                         fullyParsed = true;
+    size_t                                                       i           = 0;
+    uint32_t                                                     block       = 0;
+    uint32_t                                                     freeBlocks  = 0;
+    Byte                                                         headerType  = 0;
+    size_t                                                       nameLen     = 0;
+    std::array<std::array<Byte, ProDosStartup::kBlockBytes>, 2>  bootBlocks  = {};
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (sizeOk, E_INVALIDARG);
 
     outListing = VolumeListing();
 
@@ -538,25 +810,31 @@ HRESULT ProDosVolume::Enumerate (VolumeListing & outListing) const
         outListing.hasVolumeName = true;
     }
 
-    outListing.totalUnits = (uint32_t) ProDosSkeleton::kTotalBlocks;
+    outListing.totalUnits = (uint32_t) GetBlockCount();
 
     CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, outListing.damage, fullyParsed);
 
     for (const RawEntry & entry : entries)
     {
         outListing.entries.push_back (ToFileEntry (entry));
+        FillExtendedSizes (entry, outListing.entries.back());
         outListing.entries.back().catalogIndex = outListing.entries.size() - 1;
     }
 
-    // Volume bitmap: one bit per block, MSB of byte 0 is block 0, SET is free.
-    for (i = 0; i < (size_t) (ProDosSkeleton::kTotalBlocks / 8); i++)
+    for (block = 0; block < 2; block++)
     {
-        Byte  bits = ReadByte (ProDosSkeleton::kBitmapBlock, i);
-
-        for (bit = 0; bit < 8; bit++)
+        for (i = 0; i < ProDosStartup::kBlockBytes; i++)
         {
-            freeBlocks += (uint32_t) ((bits >> bit) & 1);
+            bootBlocks[block][i] = ReadByte ((int) block, i);
         }
+    }
+
+    outListing.startup = ProDosStartup::Detect (bootBlocks[0], bootBlocks[1], outListing.entries);
+
+    // Volume bitmap: one bit per block, MSB of byte 0 is block 0, SET is free.
+    for (block = 0; block < (uint32_t) GetBlockCount(); block++)
+    {
+        freeBlocks += IsBitmapBitFree (block) ? 1u : 0u;
     }
 
     outListing.freeUnits = freeBlocks;
@@ -583,6 +861,7 @@ HRESULT ProDosVolume::Read (const FilePath & path, FilePayload & outPayload) con
 {
     HRESULT              hr          = S_OK;
     size_t               bufferBytes = m_sectors.size();
+    bool                 sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
     int                  dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
     bool                 hasLeaf     = !path.IsEmpty();
     Byte                 fileType    = 0;
@@ -590,12 +869,13 @@ HRESULT ProDosVolume::Read (const FilePath & path, FilePayload & outPayload) con
     bool                 parsed      = true;
     bool                 found       = false;
     uint16_t             local       = 0;
+    ProDosForks          forks;
     vector<RawEntry>     entries;
     vector<std::string>  damage;
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (sizeOk, E_INVALIDARG);
     CBREx (hasLeaf, E_INVALIDARG);
 
     // A file in a subdirectory is found in that directory's own chain.
@@ -604,9 +884,14 @@ HRESULT ProDosVolume::Read (const FilePath & path, FilePayload & outPayload) con
 
     outPayload = FilePayload();
 
-    hr = ProDosReader::ExtractFileFromDirectory (m_sectors, dirKeyBlock, path.GetLeaf(), outPayload.bytes,
-                                                 fileType, auxType, m_readObserver);
+    hr = ProDosReader::ExtractForksFromDirectory (m_sectors, dirKeyBlock, path.GetLeaf(), forks,
+                                                  fileType, auxType, m_readObserver);
     CHR (hr);
+
+    outPayload.bytes           = std::move (forks.data);
+    outPayload.resourceFork    = std::move (forks.resource);
+    outPayload.finderInfo      = std::move (forks.finderInfo);
+    outPayload.hasResourceFork = forks.isExtended;
 
     outPayload.type       = fileType;
     outPayload.auxType    = auxType;
@@ -658,7 +943,7 @@ void ProDosVolume::CollectDirectoryBlocks (
 
     while (block != 0)
     {
-        bool  inRange = block > 0 && block < ProDosSkeleton::kTotalBlocks;
+        bool  inRange = block > 0 && block < GetBlockCount();
         bool  stepOk  = inRange && guard.TryVisit ((uint32_t) block);
 
         if (!stepOk)
@@ -696,7 +981,7 @@ void ProDosVolume::CollectEntriesBelow (
 
 
 
-    visitOk = keyBlock > 0 && keyBlock < ProDosSkeleton::kTotalBlocks && guard.TryVisit ((uint32_t) keyBlock);
+    visitOk = keyBlock > 0 && keyBlock < GetBlockCount() && guard.TryVisit ((uint32_t) keyBlock);
 
     if (!visitOk)
     {
@@ -735,7 +1020,7 @@ void ProDosVolume::CollectAllEntries (
     vector<std::string> & outDamage,
     bool                & outFullyParsed) const
 {
-    ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+    ChainWalkGuard  guard ((uint32_t) GetBlockCount());
 
 
 
@@ -795,38 +1080,36 @@ bool ProDosVolume::TryFindOwnerIndex (
 
 HRESULT ProDosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) const
 {
-    //  Blocks 0-1 are the boot blocks, 2-5 the volume directory, 6 the bitmap.
-    constexpr uint32_t  kReservedBlocks = 7;
-
-
-
     HRESULT              hr          = S_OK;
     size_t               bufferBytes = m_sectors.size();
+    bool                 sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
     vector<RawEntry>     entries;
     vector<std::string>  damage;
     bool                 fullyParsed = true;
     uint16_t             owner       = 0;
     uint32_t             block       = 0;
-    size_t               i           = 0;
-    int                  bit         = 0;
+    uint32_t             reserved    = 0;
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (sizeOk, E_INVALIDARG);
 
-    outReport.Reset ((uint32_t) ProDosSkeleton::kTotalBlocks);
+    outReport.Reset ((uint32_t) GetBlockCount());
 
     CollectAllEntries (entries, damage, fullyParsed);
     outReport.SetCatalogFullyParsed (fullyParsed);
 
-    for (block = 0; block < kReservedBlocks; block++)
+    //  The boot blocks, the volume directory and the bitmap's blocks.
+    reserved = (uint32_t) ProDosSkeleton::GetReservedBlockCount (bufferBytes);
+
+    for (block = 0; block < reserved; block++)
     {
         outReport.AddClaim (block, VolumeIntegrityReport::kVolumeOwner);
     }
 
     for (owner = 0; owner < (uint16_t) entries.size(); owner++)
     {
-        ChainWalkGuard    guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+        ChainWalkGuard    guard ((uint32_t) GetBlockCount());
         vector<uint32_t>  blocks;
         bool              isDirectory = entries[owner].storage == ProDosSkeleton::kStorageSubdir;
         bool              walked      = true;
@@ -854,16 +1137,9 @@ HRESULT ProDosVolume::BuildIntegrityReport (VolumeIntegrityReport & outReport) c
         }
     }
 
-    for (i = 0; i < (size_t) (ProDosSkeleton::kTotalBlocks / 8); i++)
+    for (block = 0; block < (uint32_t) GetBlockCount(); block++)
     {
-        Byte  bits = ReadByte (ProDosSkeleton::kBitmapBlock, i);
-
-        for (bit = 0; bit < 8; bit++)
-        {
-            bool  isFree = ((bits >> bit) & 1) != 0;
-
-            outReport.SetAllocatedInFreeMap ((uint32_t) (i * 8 + (size_t) (7 - bit)), !isFree);
-        }
+        outReport.SetAllocatedInFreeMap (block, !IsBitmapBitFree (block));
     }
 
     outReport.Finish();
@@ -882,19 +1158,19 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProDosVolume::IsFreeInBitmap (const vector<Byte> & buffer, uint32_t block)
+bool ProDosVolume::IsFreeInBitmap (const BlockImage & buffer, uint32_t block)
 {
     size_t  at   = 0;
     Byte    mask = (Byte) (0x80 >> (block % 8));
 
 
 
-    if (block >= (uint32_t) ProDosSkeleton::kTotalBlocks)
+    if (block >= (uint32_t) ProDosSkeleton::GetBlockCount (buffer.size()))
     {
         return false;
     }
 
-    at = ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kBitmapBlock, (size_t) (block / 8));
+    at = ProDosSkeleton::GetBitmapByteOffset (buffer, block);
 
     return at < buffer.size() && (buffer[at] & mask) != 0;
 }
@@ -996,6 +1272,42 @@ bool ProDosVolume::TryFindEntry (
 //  requires, and a volume that already carried a disagreement would become
 //  permanently uneditable -- on the degraded disks this feature exists to
 //  recover. The comparison is against the input, on the sets that matter.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolume::HandBackVerifiedResult (
+    const VolumeIntegrityReport  & before,
+    const BlockBuffer            & result,
+    BlockBuffer                  & outBuffer)
+{
+    HRESULT                hr     = S_OK;
+    ProDosVolume           volume = ProDosVolume (BlockImage (result));
+    bool                   safe   = false;
+    VolumeIntegrityReport  after;
+
+
+
+    hr = volume.BuildIntegrityReport (after);
+    CHRA (hr);
+
+    safe = after.IsSafeToCommitAfter (before);
+    CBRAEx (safe, E_UNEXPECTED);
+
+    outBuffer = result;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::HandBackVerifiedResult
+//
+//  Over a vector, for a result made as a vector.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1118,4 +1430,60 @@ bool ProDosVolume::TryToUnixTime (Word date, Word time, int64_t & outUnix)
             + (int64_t) minute * kSecondsInMinute;
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::GetBlockCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ProDosVolume::GetBlockCount() const
+{
+    return ProDosSkeleton::GetBlockCount (m_sectors.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::IsBitmapBitFree
+//
+//  A block's bit in this volume's bitmap, with the bitmap block's read
+//  reported to the observer as every other read is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProDosVolume::IsBitmapBitFree (uint32_t block) const
+{
+    size_t  at = ProDosSkeleton::GetBitmapByteOffset (m_sectors, block);
+
+
+
+    ProDosReader::NoteBlockRead (m_readObserver,
+                                 m_sectors.size(),
+                                 (int) (at / (size_t) ProDosSkeleton::kBlockByteSize));
+
+    return IsFreeInBitmap (m_sectors, block);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::GetEntriesPerBlock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ProDosVolume::GetEntriesPerBlock (int keyBlock) const
+{
+    return ProDosSkeleton::GetEntriesPerBlock (ReadByte (keyBlock, ProDosSkeleton::kEntriesPerBlockAt));
 }

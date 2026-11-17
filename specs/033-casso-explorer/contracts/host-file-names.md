@@ -34,6 +34,7 @@ Rules, out:
 | Applesoft listing | `NAME.Applesoft BASIC.txt` | same |
 | Integer listing | `NAME.Integer BASIC.txt` | same |
 | Text | `NAME.Text.txt` | same |
+| A row of the file format table | `NAME` and the row's suffix: `NAME.Merlin.txt`, `NAME.Pascal text.txt`, `NAME.AppleWorks WP.rtf`, `NAME.VisiCalc.csv`, `NAME.Super Hi-Res.png` | same |
 | Binary, ProDOS `$06` or DOS `B` | `NAME.Binary.$AAAA.bin` | `NAME#06AAAA` |
 | Other ProDOS type | `NAME.ProDOS.$TT.bin`, `.$AAAA` before `.bin` when aux nonzero | `NAME#TTAAAA` |
 | Other DOS 3.3 type | `NAME.DOS.X.bin` | `NAME#TT0000` with the DOS letter mapped to its ProDOS type |
@@ -45,6 +46,20 @@ Rules, in: `Parse` recognizes every descriptive form, the CiderPress
 `#TTAAAA` form, and otherwise returns false with `catalogName` set to the
 name minus any trailing extension. Matching is case-insensitive on the
 suffix words.
+
+A row's suffix is parsed to `ConvertedKind::Format` and the row's
+`FileFormat`. Two rows have an import, and `CanImport` is true for them on
+these file systems only:
+
+| Row | File systems | Name from `MakeImportName` |
+|---|---|---|
+| Merlin source | ProDOS | `NAME.S`, with a leading `T.` removed |
+| Merlin source | DOS 3.3 | `T.NAME`, with a trailing `.S` removed |
+| Pascal text | Pascal | `NAME.TEXT` |
+| Pascal text | ProDOS | `NAME` |
+
+On any other file system a file with an import suffix is put as text. A
+conversion with no import is put as any other host file.
 
 ## ContentSniffer
 

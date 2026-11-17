@@ -2,9 +2,13 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Actions/ActionsA2retroNet.h"
 #include "CassoExplorer/Actions/ActionsAppleDrive.h"
+#include "CassoExplorer/Actions/ActionsArchive.h"
 #include "CassoExplorer/Actions/ActionsCopy.h"
 #include "CassoExplorer/Actions/ActionsGoTo.h"
+#include "CassoExplorer/Actions/ActionsPartition.h"
+#include "CassoExplorer/Actions/ActionsTape.h"
 #include "Devices/Disk/IDiskFileIo.h"
 
 struct AppleSingleFile;
@@ -44,7 +48,7 @@ public:
     //  The verbs the list's context menu offers for the current selection.
     std::vector<Verb>  GetListVerbs() const;
 
-    Outcome  GetSelected    (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision = nullptr);
+    Outcome  GetSelected    (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision = nullptr, bool raw = false);
 
     //  Files a copy put on the clipboard as file descriptors and contents,
     //  written into the host folder by Get's rules for a name in use, so a
@@ -53,11 +57,38 @@ public:
     //  paste's undo.
     Outcome  PasteVirtualFiles (IDataObject * data, const std::wstring & hostFolder, const CollisionFn & collision,
                                 std::vector<std::wstring> & outCreated) { return m_copier.PasteVirtualFiles (data, hostFolder, collision, outCreated); }
+    void     WriteZipSidecars  (const std::vector<std::wstring> & sources, const std::vector<std::wstring> & copies) { m_copier.WriteZipSidecars (sources, copies); }
 
     //  Copy every file on the image into a new folder beside it, called after the
     //  image without its extension, and its directories as folders inside.
     //  `outFolder` is the folder made.
     Outcome  ExtractImage   (const std::wstring & imagePath, HostFileNaming::Style style, std::wstring & outFolder) { return m_copier.ExtractImage (imagePath, style, outFolder); }
+
+    //  A ShrinkIt archive of files on the PC, a ShrinkIt disk of an image, and
+    //  the test of an image or an archive.
+    Outcome  MakeArchive            (const std::vector<std::wstring> & hostPaths, std::wstring & outPath) { return m_archiver.MakeArchive (hostPaths, outPath); }
+    Outcome  MakeShrinkItDisk       (const std::wstring & imagePath, std::wstring & outPath)              { return m_archiver.MakeShrinkItDisk (imagePath, outPath); }
+    Outcome  TestImage              (const std::wstring & imagePath, std::wstring & outReport)            { return m_archiver.Test (imagePath, outReport); }
+    Outcome  MakeTapeRecording      (const std::wstring & target)                                         { return m_tapes.MakeRecording (target); }
+    Outcome  AddToA2retroNet        (const std::wstring & imagePath)                                      { return m_a2retroNet.Add (imagePath); }
+    bool     CanAddToA2retroNet     (const std::wstring & imagePath) const                              { return m_a2retroNet.CanAdd (imagePath); }
+    Outcome  CreateA2retroNetConfig (const std::wstring & root)                                       { return m_a2retroNet.CreateConfig (root); }
+    Outcome  RepairA2retroNetConfig (const std::wstring & root)                                       { return m_a2retroNet.Repair (root); }
+    bool     IsA2PicoCard           (const std::wstring & folder) const                              { return m_a2retroNet.IsCard (folder); }
+    HRESULT  ReadA2PicoCard         (const std::wstring & root, ActionsA2retroNet::Card & outCard)   { return m_a2retroNet.ReadCard (root, outCard); }
+    Outcome  SaveA2retroNetConfig   (const std::wstring & root, const A2retroNetConfig & config)    { return m_a2retroNet.Save (root, config); }
+    HRESULT  ListA2PicoImages       (const std::wstring & root, std::vector<std::string> & outPaths) { return m_a2retroNet.ListImages (root, outPaths); }
+
+    //  The A2Pico card actions, for A2retroNET drives.
+    ActionsA2retroNet & GetA2retroNet () { return m_a2retroNet; }
+
+    //  One partition of a card image: the one selected or open, its copy as
+    //  an image file beside the card image, and an image file written over it
+    //  after the question DescribeReplace returns.
+    bool     TryGetPartition          (std::wstring & outPartitionPath) const                                                          { return m_partitions.TryGetTarget (outPartitionPath); }
+    Outcome  CopyPartitionToImage     (const std::wstring & partitionPath, std::wstring & outPath, const std::wstring & target = {})   { return m_partitions.CopyToImage (partitionPath, outPath, target); }
+    Outcome  ReplacePartition         (const std::wstring & partitionPath, const std::wstring & imagePath)                             { return m_partitions.Replace (partitionPath, imagePath); }
+    Outcome  DescribePartitionReplace (const std::wstring & partitionPath, const std::wstring & imagePath, std::wstring & outQuestion) { return m_partitions.DescribeReplace (partitionPath, imagePath, outQuestion); }
 
     //  The list's Apple drive: its link, drive and directory. False when the
     //  list is not on one.
@@ -145,6 +176,16 @@ public:
     //  What the selected files of a disk offer besides copy, delete and
     //  rename.
     void  AddFileVerbs (const std::vector<FileEntry> & entries, std::vector<Verb> & inOutVerbs) const;
+
+    //  Whether every selected image is one the disk inspector opens.
+    bool  CanInspectSelected () const;
+
+    //  Whether the disk inspector opens what the list is on: the selected
+    //  disk images in a folder, or the image whose contents are listed. And
+    //  whether the selection is two images the inspector compares.
+    bool  CanInspect () const;
+    bool  CanCompare () const;
+
     //  A new directory in the ProDOS location the list shows. The name is the
     //  volume's to accept, so an illegal one comes back as a refusal.
     Outcome  CreateFolder (const std::wstring & name);
@@ -174,6 +215,9 @@ public:
     //  verbs act on the same image.
     std::wstring  GetFormatTarget() const;
 
+    //  The blocks the format target has, for a raw block read or write.
+    int           GetTargetBlockCount() const;
+
     //  Raw access through the runner's sector and block verbs. Sectors are
     //  numbered as DOS 3.3 numbers them.
     Outcome  ReadSectors  (int track, int sector, int count, const std::wstring & hostPath, DiskOperations::Numbering numbering = DiskOperations::Numbering::Logical) { return m_appleDrive.ReadSectors (track, sector, count, hostPath, numbering); }
@@ -184,7 +228,8 @@ public:
     //  The open drive's disk, or the given link's drive, so a second read
     //  goes to the drive the first one did, wherever the window is by then.
     Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable) { return m_appleDrive.ReadDiskToImage (imagePath, blankUnreadable, onUnreadable); }
-    Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, UnreadableFn onUnreadable) { return m_appleDrive.ReadDiskToImage (link, drive, imagePath, blankUnreadable, forceVerify, onUnreadable); }
+    Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, UnreadableFn onUnreadable, std::function<void ()> onRead = nullptr) { return m_appleDrive.ReadDiskToImage (link, drive, imagePath, blankUnreadable, forceVerify, onUnreadable, std::move (onRead)); }
+    Outcome  CaptureDisk      (const std::string & link, int drive, const std::wstring & imagePath, std::function<void (const std::wstring &)> report) { return m_appleDrive.CaptureDisk (link, drive, imagePath, std::move (report)); }
     Outcome  WriteImageToDisk (const std::wstring & imagePath) { return m_appleDrive.WriteImageToDisk (imagePath); }
 
     //  The same for any drive of any link, as a drop onto a drive's node
@@ -215,7 +260,8 @@ public:
     //  The same boot disk as an image file on the PC, for an emulator or to
     //  write to a disk some other way. A Wi-Fi modem link's disk dials this
     //  PC before its first Ready.
-    Outcome  SaveLinkDiskImage (const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkDiskImage (imagePath, settings); }
+    Outcome  SaveLinkDiskImage  (const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkDiskImage (imagePath, settings); }
+    Outcome  SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkProDosDisk (usersDisk, imagePath, settings); }
 
     //  The cassette bootstrap for a link as a WAV file on the PC, to send into
     //  a ][+ or //e's cassette input from another device, or to insert in
@@ -250,6 +296,7 @@ public:
     static PutPlan       PlanPutByContent     (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind);
     static PutPlan       PlanForcedConversion (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion);
     static PutPlan       AdaptPlanToVolume    (PutPlan plan, VolumeKind kind);
+    static void          PlanImport           (PutPlan & inOutPlan, FileFormat format, const std::vector<Byte> & bytes, VolumeKind kind);
     static std::string   SanitizePascalName   (const std::wstring & stem);
     static std::string   SanitizeCpmName      (const std::wstring & stem);
 
@@ -306,11 +353,19 @@ private:
     mutable std::map<std::wstring, ImageFacts>    m_imageFacts;
 
     //  The actions' parts, each with the state it uses.
+    friend class       ActionsA2retroNet;
     friend class       ActionsAppleDrive;
+    friend class       ActionsArchive;
     friend class       ActionsCopy;
     friend class       ActionsGoTo;
+    friend class       ActionsPartition;
+    friend class       ActionsTape;
     ActionsAppleDrive  m_appleDrive      { *this };
     ActionsCopy        m_copier          { *this };
+    ActionsArchive     m_archiver        { *this };
     ActionsGoTo        m_goTo            { *this };
+    ActionsPartition   m_partitions      { *this };
+    ActionsTape        m_tapes           { *this };
+    ActionsA2retroNet  m_a2retroNet      { *this };
 };
 

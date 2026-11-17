@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/CassetteLevelMeter.h"
+#include "CassoLink/Audio/WasapiCassetteAudio.h"
 #include "CassoLink/CassoLinkSettings.h"
 
 
@@ -34,6 +36,7 @@ public:
         { L"Wi-Fi modem",                  LinkTransport::WifiModem    },
         { L"Uthernet II",                  LinkTransport::Uthernet     },
         { L"ADTPro-compatible server",     LinkTransport::AdtProServer },
+        { L"Cassette ports (audio)",       LinkTransport::Cassette     },
     };
 
     static constexpr DWORD  kSpeeds[] = { 115200, 19200, 9600, 4800, 2400, 1200 };
@@ -63,6 +66,15 @@ public:
     static bool  UsesBootstrap (LinkTransport transport)                 { return transport == LinkTransport::Serial; }
     static bool  UsesHandshake (LinkTransport transport, int portIndex) { return UsesSpeed (transport, portIndex); }
     static bool  UsesFolder    (LinkTransport transport)                 { return transport == LinkTransport::AdtProServer; }
+    static bool  UsesDrives    (LinkTransport transport)                 { return transport == LinkTransport::Serial; }
+    static bool  UsesSound     (LinkTransport transport)                 { return transport == LinkTransport::Cassette; }
+
+    //  A sound device drop-down: Default device, then the devices found. The
+    //  id at an index, empty for the default, and the index of an id, 0 for
+    //  the default or one not found.
+    static std::vector<std::wstring>  GetSoundLabels (const std::vector<AudioDeviceChoice> & devices);
+    static std::wstring               GetSoundId     (const std::vector<AudioDeviceChoice> & devices, int index);
+    static int                        GetSoundIndex  (const std::vector<AudioDeviceChoice> & devices, const std::wstring & id);
 
     //  What the transport connects, for the line under the drop-down.
     static const wchar_t  * GetNote               (LinkTransport transport);
@@ -75,6 +87,10 @@ public:
                                                        L"Bootstrap the Apple on the connection's menu, and Casso Explorer types a small loader "
                                                        L"into the Apple at this speed. Transfers then run at the transfer speed.";
     static constexpr const wchar_t *  kFolderNote    = L"ADTPro's client reads and writes disk images in this folder and its subfolders only.";
+    static constexpr const wchar_t *  kDrivesNote    = L"Booted on the Apple, a CassoLink ProDOS disk adds two drives in a slot with no card. "
+                                                       L"They read and write these disk images on this PC.";
+    static constexpr const wchar_t *  kSoundNote     = L"Turn this PC's output most of the way up. The level is red when the Apple's "
+                                                       L"output is too quiet to read or loud enough to clip.";
     static constexpr const wchar_t *  kHandshakeTip = L"Start with it off. Many null-modem cables do not connect RTS and CTS, or "
                                                       L"connect each end's to each other, and a //c's serial chip has CTS tied on. A "
                                                       L"cable without the lines stops every transfer while handshake is on.";
@@ -146,6 +162,20 @@ public:
         DxuiLabel       * folderLabel    = nullptr;
         DxuiTextInput   * folder         = nullptr;
         DxuiButton      * browse         = nullptr;
+        DxuiLabel       * outputLabel    = nullptr;
+        DxuiComboBox    * output         = nullptr;
+        DxuiLabel       * inputLabel     = nullptr;
+        DxuiComboBox    * input          = nullptr;
+        DxuiLabel       * levelLabel     = nullptr;
+        CassetteLevelMeter * level       = nullptr;
+        DxuiLabel       * soundNote      = nullptr;
+        DxuiLabel       * drivesNote     = nullptr;
+        DxuiLabel       * drive1Label    = nullptr;
+        DxuiTextInput   * drive1         = nullptr;
+        DxuiButton      * browse1        = nullptr;
+        DxuiLabel       * drive2Label    = nullptr;
+        DxuiTextInput   * drive2         = nullptr;
+        DxuiButton      * browse2        = nullptr;
         DxuiFieldError  * duplicate      = nullptr;
     };
 
@@ -168,7 +198,7 @@ public:
     static constexpr int  kLabelWidthDip    = 150;
     static constexpr int  kFallbackNoteDip  = 40;
     static constexpr int  kBrowseWidthDip   = 90;
-    static constexpr int  kRowCount         = 8;
+    static constexpr int  kRowCount         = 10;
 
 private:
     int   ArrangeRows      (const RECT & bounds, const DxuiDpiScaler & scaler, bool place) const;
@@ -213,12 +243,16 @@ public:
     //  false when none is picked.
     using BrowseFn = std::function<bool (HWND owner, std::wstring & inOutFolder)>;
 
+    //  Picks a disk image for a virtual drive, starting at the image given;
+    //  false when none is picked.
+    using BrowseImageFn = std::function<bool (HWND owner, std::wstring & inOutImage)>;
+
     //  Runs the dialog modally over `owner`, starting from `initial`.
     //  otherNames are the other links', which this one's must differ from,
     //  and comPorts the PC's.
     static Outcome  Ask (HWND owner, const IDxuiTheme * theme, const CassoLinkSettings & initial,
                          const std::vector<std::wstring> & otherNames, const std::vector<std::wstring> & comPorts,
-                         bool adding, BrowseFn browse);
+                         bool adding, BrowseFn browse, BrowseImageFn browseImage = nullptr);
 
 protected:
     void  OnCreate     () override;
@@ -229,12 +263,15 @@ private:
     void               Revalidate        ();
     void               ShowTransportRows ();
     void               FitToContent      ();
+    void               BrowseImage       (DxuiTextInput & field);
+    void               UpdateLevel       ();
 
     const IDxuiTheme           * m_theme          = nullptr;
     CassoLinkSettings            m_initial;
     std::vector<std::wstring>    m_otherNames;
     std::vector<std::wstring>    m_comPorts;
     BrowseFn                     m_browseFolder;
+    BrowseImageFn                m_browseImage;
     bool                         m_adding         = true;
     bool                         m_fitted         = false;
     LinkTransport                m_shownTransport = LinkTransport::Serial;
@@ -266,6 +303,26 @@ private:
     DxuiLabel                    m_folderLabel;
     DxuiTextInput                m_folder;
     DxuiButton                   m_browse { L"Browse..." };
-    DxuiFieldError               m_duplicate;
-    CassoExplorerLinkPanel     * m_body    = nullptr;
+    DxuiLabel                    m_drivesNote;
+    DxuiLabel                    m_drive1Label;
+    DxuiTextInput                m_drive1;
+    DxuiButton                   m_browse1 { L"Browse..." };
+    DxuiLabel                    m_drive2Label;
+    DxuiTextInput                m_drive2;
+    DxuiButton                   m_browse2 { L"Browse..." };
+    DxuiLabel                               m_outputLabel;
+    DxuiComboBox                            m_output;
+    DxuiLabel                               m_inputLabel;
+    DxuiComboBox                            m_input;
+    DxuiLabel                               m_levelLabel;
+    CassetteLevelMeter                      m_level;
+    DxuiLabel                               m_soundNote;
+    std::vector<AudioDeviceChoice>          m_outputs;
+    std::vector<AudioDeviceChoice>          m_inputs;
+    std::unique_ptr<WasapiCassetteAudio>    m_meterAudio;
+    std::wstring                            m_meterInput;
+    float                                   m_peak        = 0.0f;
+    bool                                    m_meterFailed = false;
+    DxuiFieldError                          m_duplicate;
+    CassoExplorerLinkPanel                * m_body        = nullptr;
 };

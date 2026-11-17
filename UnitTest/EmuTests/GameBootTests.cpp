@@ -55,8 +55,6 @@ public:
 
     static constexpr int        kSlot6           = 6;
     static constexpr int        kDrive1          = 0;
-    static constexpr Word       kBootRomEntry    = 0xC600;
-    static constexpr Word       kIntCxRomOff     = 0xC006;
     static constexpr uint64_t   kChunkCycles     =    250'000ULL;
     static constexpr uint64_t   kBootCycleBudget = 60'000'000ULL;
 
@@ -189,9 +187,7 @@ public:
 
         GuestSession::AssertTheDriveHoldsWrittenTracks (*external, minTracks, label);
 
-        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
-
-        machine.GetCpu()->SetPC (kBootRomEntry);
+        GuestSession::StartFromPowerOn (machine);
 
         RunAndSampleTracks (machine, kBootCycleBudget, tracksVisited, minTracks);
 
@@ -221,9 +217,8 @@ public:
     //
     //  Same real disk game, but booted end-to-end on the Apple //c through
     //  its built-in slot-6 IWM -- the //c has no card slots, so the internal
-    //  drive is the only disk path. Unlike the //e helper (which forces the
-    //  $C600 boot ROM entry), this cold-boots and lets the //c firmware
-    //  autoboot its internal drive, the real user boot path proven by
+    //  drive is the only disk path. The //c firmware autoboots its internal
+    //  drive, the real user boot path proven by
     //  Apple2cBootTests.BootsFromInternalDriveViaIwm. Skips when the
     //  copyrighted //c ROM 4 fixture is absent (CI never needs a machine ROM).
     //

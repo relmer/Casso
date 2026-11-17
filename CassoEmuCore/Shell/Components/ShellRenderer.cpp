@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Devices/BlockDevice/AppleScsiCard.h"
+#include "Devices/BlockDevice/ProFileCard.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/MachineBuilder.h"
@@ -24,6 +26,7 @@
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
+#include "Ui/DiskInspector/DiskInspectorWindow.h"
 #include "Core/PathResolver.h"
 #include "Version.h"
 #include "BuildInfo.h"
@@ -747,6 +750,19 @@ bool ShellRenderer::TryPresentUiFrame()
         }
     }
 
+    // Refresh the drive bar's labels and lamps, in the desk theme and in a
+    // compact one.
+    if (m_shell.m_chrome->m_driveBarFan.IsVisible())
+    {
+        bool  sliding = m_shell.m_chrome->AnimateDriveBarFan();
+        bool  changed = m_shell.m_chrome->SyncDriveBarViews();
+
+        if (sliding || changed)
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+    }
+
     // 3D scene drive visuals: activity lamp, door swing, and the padlock,
     // pushed from the same per-drive state the 2D widgets mirror. The scene
     // only rebuilds geometry when a value actually moved.
@@ -773,6 +789,30 @@ bool ShellRenderer::TryPresentUiFrame()
             }
 
             m_shell.m_scene->m_deskScene.SetDriveVisuals (i, lampOn, progress, st.writeProtect.Any());
+        }
+
+        // Each desk drive's lamp is lit for a tenth of a second after a hard
+        // disk command, so a run of reads reads as steady activity, and while
+        // a 3.5-inch drive's motor runs. A 3.5-inch drive with a disk in is
+        // drawn with the disk in its slot. An HD20SC's front has its card's
+        // model label ("20SC").
+        {
+            const auto  & cards  = m_shell.m_machine.GetRefs().scsiCards;
+            uint64_t      now    = m_shell.m_machine.GetCpu() != nullptr ? *m_shell.m_machine.GetCpu()->GetBusCyclePtr() : 0;
+            uint64_t      window = m_shell.m_machine.GetConfig().clockSpeed / 10;
+            DeskScene   & scene  = m_shell.m_scene->m_deskScene;
+
+
+
+            for (int i = 0; i < scene.GetExtraCount(); i++)
+            {
+                const DeskDrive  & drive = scene.GetExtraDrive (i);
+                std::wstring       label = (drive.model == DeskDriveModel::HardDisk20SC && !cards.empty()) ? cards[0]->GetModelLabel() : std::wstring();
+
+
+
+                scene.SetExtraVisuals (i, m_shell.m_scene->IsDriveBusy (drive, now, window), m_shell.m_scene->HasDiskIn (drive), label);
+            }
         }
 
         // The volume wheel stands where the tape volume is, however it was
@@ -812,6 +852,12 @@ bool ShellRenderer::TryPresentUiFrame()
                 labelsMoved = true;
             }
 
+            if ((m_shell.m_scene->m_hoverExtra >= 0 || m_shell.m_scene->m_hoverDiskIi >= 0) &&
+                m_shell.m_scene->m_sceneDiskLabelPeriod[(size_t) ShellDeskScene::s_kSceneHoverCell] > 0.0f)
+            {
+                labelsMoved = true;
+            }
+
             if (labelsMoved)
             {
                 m_shell.m_scene->SyncSceneDriveLabels();
@@ -825,9 +871,13 @@ bool ShellRenderer::TryPresentUiFrame()
     // band the hook will render. The flat themes ride the same FSM with the
     // 2D widgets laid into the band, so fullscreen hides the drives the same
     // way everywhere and brings them back the same way too.
+    // The desk slide also raises the 3.5-inch drives, so a desk with only
+    // those has drives to reveal too.
     bool  stripHasDrives = m_shell.DeskSceneActive()
-                         ? m_shell.m_scene->DeskSceneDriveCount() > 0
-                         : (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
+                         ? m_shell.m_scene->DeskSceneDriveCount() > 0 || m_shell.m_scene->AreDrivesOnBar() ||
+                           (m_shell.IsDeskSlideActive() && m_shell.m_scene->HasDockedExtra())
+                         : ((m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller()) ||
+                           m_shell.m_scene->AreDrivesOnBar();
 
     // On the windowed desk with the monitor, the same FSM moves the desk's
     // drives instead: its progress raises them onto the desk.
@@ -860,7 +910,7 @@ bool ShellRenderer::TryPresentUiFrame()
 
             inputs.pointerAtBottomEdge = PtInRect (&area, cursor) && cursor.y >= edgeTop;
             inputs.pointerOverStrip    = m_shell.m_scene->m_stripState.Mode() != StripMode::Hidden &&
-                                         PtInRect (&engageRect, cursor);
+                                         (PtInRect (&engageRect, cursor) || m_shell.m_chrome->IsPointOnDriveBar (cursor));
         }
 
         inputs.hotkey        = m_shell.m_scene->m_stripHotkeyPending;
@@ -914,6 +964,13 @@ bool ShellRenderer::TryPresentUiFrame()
             if (progress != m_shell.m_chrome->m_deskSlideProgress)
             {
                 m_shell.m_chrome->ComposeDeskSlide (progress);
+                m_shell.m_chrome->SlideDriveBar (progress);
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
+
+            // The dock magnifies under the pointer once it is up.
+            if (m_shell.m_chrome->UpdateDockHover (cursor, PtInRect (&client, cursor) && PtInRect (&engageRect, cursor), stripNowMs))
+            {
                 m_d3dRenderer.MarkRedrawNeeded();
             }
         }
@@ -928,6 +985,13 @@ bool ShellRenderer::TryPresentUiFrame()
             int    bandH      = m_shell.DeskSceneActive() ? m_shell.m_scaler.ToPx (s_kStripBandDp)
                                                           : m_shell.m_scaler.ToPx (m_shell.m_chrome->m_driveBarThicknessDp);
             bool   wasShowing = m_shell.m_scene->m_stripRectPx.bottom > m_shell.m_scene->m_stripRectPx.top;
+
+            // The drive bar rides the strip's slide too.
+            if ((m_shell.DeskSceneActive() || m_shell.m_scene->AreDrivesOnBar()) && progress != m_shell.m_chrome->m_driveBarSlideProgress)
+            {
+                m_shell.m_chrome->SlideDriveBar (progress);
+                m_d3dRenderer.MarkRedrawNeeded();
+            }
 
             // On the frame where the strip finishes hiding, the mode is
             // already Hidden, so nothing else requests a present. Without
@@ -971,7 +1035,7 @@ bool ShellRenderer::TryPresentUiFrame()
                                                              DeskSceneLayout::kDriveBandGazeDownRad);
                     IGNORE_RETURN_VALUE (hrStrip, S_OK);
                 }
-                else
+                else if (!m_shell.m_scene->AreDrivesOnBar())
                 {
                     // The flat widgets sit in the band wherever the slide has
                     // put it this frame, bottom-anchored the way the windowed
@@ -994,7 +1058,7 @@ bool ShellRenderer::TryPresentUiFrame()
                 m_shell.m_scene->m_stripRectPx = {};
                 m_shell.m_scene->m_stripComp   = {};
 
-                if (!m_shell.DeskSceneActive())
+                if (!m_shell.DeskSceneActive() && !m_shell.m_scene->AreDrivesOnBar())
                 {
                     m_shell.m_chrome->m_driveBandSurface.SetVisible (false);
                     m_shell.m_disks->GetDriveChrome()[0].SetVisible (false);
@@ -1061,6 +1125,8 @@ bool ShellRenderer::TryPresentUiFrame()
 
     hr = m_shell.m_printer->RenderPanelFrame();
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    m_shell.RenderDiskInspectors();
 
     if (m_shell.m_chrome->m_mainMenu.IsOpen())
     {

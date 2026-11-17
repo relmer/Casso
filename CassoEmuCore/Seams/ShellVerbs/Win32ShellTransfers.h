@@ -38,6 +38,10 @@ public:
 
     static bool  IsFromFolder (IDataObject * data, const std::wstring & folder);
 
+    //  Whether the two paths are one folder, compared without a final
+    //  backslash: a drive's root, I:\, ends in one, and a folder's path may.
+    static bool  IsSameFolder (const std::wstring & a, const std::wstring & b);
+
     //  Virtual files, a descriptor and each file's contents with no file on
     //  disk, as from Casso Explorer's own copy out of a disk or a CassoLink
     //  drive, are pasted through the folder's drop target, as Explorer pastes

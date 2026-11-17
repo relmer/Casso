@@ -172,6 +172,32 @@ public:
 
 
 
+    //  A wait for Ready that lasts the notice time is reported, and then its
+    //  end; a Ready within the notice time isn't.
+    TEST_METHOD (ALongWaitForReady_IsReportedToTheWaitObserver)
+    {
+        Client             client;
+        std::vector<bool>  events;
+        std::mutex         lock;
+
+        client.host->SetWaitObserver ([&] (bool waiting) { std::lock_guard guard (lock); events.push_back (waiting); }, 100);
+
+        client.SendReady (LinkProgram::kProgramVersion);
+        Assert::AreEqual (S_OK, client.host->SendLabel ("QUICK"));
+        Assert::IsTrue (events.empty(), L"A Ready in time isn't a wait");
+
+        auto  sending = std::async (std::launch::async, [&] () { return client.host->SendLabel ("SLOW"); });
+
+        std::this_thread::sleep_for (std::chrono::milliseconds (400));
+        client.SendReady (LinkProgram::kProgramVersion);
+
+        Assert::AreEqual (S_OK, sending.get());
+        Assert::IsTrue (events == std::vector<bool> ({ true, false }));
+    }
+
+
+
+
     TEST_METHOD (Ready_FromTheShim_LoadsTheProgram_ResendingANakedPage)
     {
         Client             client;
@@ -393,6 +419,27 @@ public:
         Assert::AreEqual (std::wstring (L"Apple //c (ROM 4)"),  client.GetModelName());
         client.romId    = { 0x06, 0x00, 0x05, 0x00, 0 };
         Assert::AreEqual (std::wstring (L"Apple //c Plus"),     client.GetModelName());
+    }
+
+
+
+    //  Small letters for a //e, //c or IIgs; capitals for a ][ or ][+, and
+    //  for the shim, whose Ready has no ROM bytes.
+    TEST_METHOD (Lowercase_IsForTheModelsWhoseScreenHasIt)
+    {
+        CassoLinkClient  client;
+
+        Assert::IsFalse (client.HasLowercase());
+
+        client.hasRomId = true;
+        client.romId    = { 0x38, 0x00, 0x00, 0xAD, 0 };
+        Assert::IsFalse (client.HasLowercase(), L"Apple ][");
+        client.romId    = { 0x38, 0x00, 0x00, 0xEA, 0 };
+        Assert::IsFalse (client.HasLowercase(), L"Apple ][+");
+        client.romId    = { 0x06, 0xEA, 0x00, 0x00, 0 };
+        Assert::IsTrue  (client.HasLowercase(), L"Apple //e");
+        client.romId    = { 0x06, 0x00, 0x04, 0x00, 0 };
+        Assert::IsTrue  (client.HasLowercase(), L"Apple //c");
     }
 
 

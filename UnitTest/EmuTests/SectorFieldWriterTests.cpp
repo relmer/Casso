@@ -624,6 +624,31 @@ public:
 
 
 
+    //  Two writes to one sector: the second replaces the first's nibbles, so
+    //  the first's bytes don't read back and the check of the new track fails.
+    TEST_METHOD (AFailedVerificationChangesNothing)
+    {
+        DiskImage                 image;
+        vector<Byte>              bitsBefore;
+        vector<SectorWriteError>  errors;
+        SectorWrite               writes[2] = { MakeWrite (17, 3, 0x11), MakeWrite (17, 3, 0x22) };
+        HRESULT                   hr        = S_OK;
+
+
+
+        MakeImage (image, false);
+        bitsBefore = image.GetTrackBits (0);
+
+        hr = SectorFieldWriter::Write (image, writes, SectorWritePolicy::Editor, errors);
+
+        Assert::IsTrue  (FAILED (hr));
+        Assert::IsTrue  (errors.size() == 1 && errors[0].reason == SectorWriteFailure::VerifyFailed, L"the new track did not read back as written");
+        Assert::IsTrue  (image.GetTrackBits (0) == bitsBefore, L"the record is as it was");
+        Assert::IsFalse (image.IsDirty());
+    }
+
+
+
     TEST_METHOD (AThirteenSectorFieldIsWrittenAndDecodes)
     {
         InspectorTrackBuilder     builder;

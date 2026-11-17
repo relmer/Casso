@@ -3008,11 +3008,23 @@ namespace CommandLineTests
                 //  Both halves of the raw pairs, which are the cases worth
                 //  sweeping: each pair shares a prefix, and a table matched by
                 //  anything less than the whole word would fold them together.
-                { "sectorread",  CommandLineOptions::DiskOptions::Command::SectorRead  },
-                { "sectorwrite", CommandLineOptions::DiskOptions::Command::SectorWrite },
-                { "blockread",   CommandLineOptions::DiskOptions::Command::BlockRead   },
-                { "blockwrite",  CommandLineOptions::DiskOptions::Command::BlockWrite  },
-                { "krunch",      CommandLineOptions::DiskOptions::Command::Krunch      },
+                { "sectorread",       CommandLineOptions::DiskOptions::Command::SectorRead      },
+                { "read-sector",      CommandLineOptions::DiskOptions::Command::SectorRead      },
+                { "sectorwrite",      CommandLineOptions::DiskOptions::Command::SectorWrite     },
+                { "write-sector",     CommandLineOptions::DiskOptions::Command::SectorWrite     },
+                { "blockread",        CommandLineOptions::DiskOptions::Command::BlockRead       },
+                { "read-block",       CommandLineOptions::DiskOptions::Command::BlockRead       },
+                { "blockwrite",       CommandLineOptions::DiskOptions::Command::BlockWrite      },
+                { "write-block",      CommandLineOptions::DiskOptions::Command::BlockWrite      },
+                { "krunch",           CommandLineOptions::DiskOptions::Command::Krunch          },
+                { "test",             CommandLineOptions::DiskOptions::Command::Test            },
+                { "dupes",            CommandLineOptions::DiskOptions::Command::Dupes           },
+                { "search",           CommandLineOptions::DiskOptions::Command::Search          },
+                { "inspect",          CommandLineOptions::DiskOptions::Command::Inspect         },
+                { "repair",           CommandLineOptions::DiskOptions::Command::Repair          },
+                { "set-thumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
+                { "get-thumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
+                { "remove-thumbnail", CommandLineOptions::DiskOptions::Command::RemoveThumbnail },
             };
 
             for (const auto & form : kSpellings)
@@ -3043,7 +3055,7 @@ namespace CommandLineTests
                 Assert::IsTrue (opts.parseVerdict == CommandLineOptions::ParseVerdict::Refused);
             }
 
-            Assert::AreEqual (size_t (26), CommandLineParser::GetAllDiskCommands().size(),
+            Assert::AreEqual (size_t (38), CommandLineParser::GetAllDiskCommands().size(),
                 L"and the table holds exactly the forms swept above");
         }
 
@@ -3753,6 +3765,62 @@ namespace CommandLineTests
             Assert::AreEqual (std::string ("--disk1 <image>"), dashed[1].option,
                 L"the value name follows the switch");
             Assert::AreEqual (std::string ("/disk1 <image>"), slashed[1].option);
+        }
+
+        //  --HD AND --SMARTPORT RECORD A SLOT, A UNIT OR A CHAIN POSITION AND
+        //  AN IMAGE, in either prefix, and are rows of the help dialog.
+        TEST_METHOD (Emulator_HdAndSmartPortAttachments)
+        {
+            ArgVector  args = { "--hd", "7=C:\\a.hdv", "/hd", "7.3=b.po", "--smartport", "2=c.2mg" };
+            CommandLineOptions::EmulatorOptions  parsed = CommandLineParser::ParseEmulator (args.Count(), args.Data());
+            std::vector<CommandLineHelpRow>      rows   = CommandLineHelp::GetEmulatorRows ('-');
+            bool                                 hasHd  = false;
+            bool                                 hasSp  = false;
+
+
+
+            Assert::AreEqual ((int) CommandLineOptions::EmulatorOptions::Verdict::Clean, (int) parsed.verdict);
+            Assert::AreEqual ((size_t) 2, parsed.hdAttachments.size());
+            Assert::AreEqual (7,  parsed.hdAttachments[0].slot);
+            Assert::AreEqual (-1, parsed.hdAttachments[0].unit, L"no unit is the card's first");
+            Assert::AreEqual (std::string ("C:\\a.hdv"), parsed.hdAttachments[0].image);
+            Assert::AreEqual (3,  parsed.hdAttachments[1].unit);
+            Assert::AreEqual ((size_t) 1, parsed.smartPortAttachments.size());
+            Assert::AreEqual (2,  parsed.smartPortAttachments[0].chain);
+
+            for (const CommandLineHelpRow & row : rows)
+            {
+                hasHd = hasHd || row.option.starts_with ("--hd ");
+                hasSp = hasSp || row.option.starts_with ("--smartport ");
+            }
+
+            Assert::IsTrue (hasHd && hasSp, L"both flags are rows of the help dialog");
+        }
+
+        //  A BAD --HD OR --SMARTPORT VALUE REFUSES THE LINE, in the fixed
+        //  error layout.
+        TEST_METHOD (Emulator_BadBlockAttachmentsAreRefused)
+        {
+            for (const char * value : { "8=x.po", "7.7=x.po", "7=", "x=y", "7.a=x.po" })
+            {
+                ArgVector  args = { "--hd", value };
+                CommandLineOptions::EmulatorOptions  parsed = CommandLineParser::ParseEmulator (args.Count(), args.Data());
+
+
+
+                Assert::AreEqual ((int) CommandLineOptions::EmulatorOptions::Verdict::Refused, (int) parsed.verdict, Widen (value).c_str());
+                Assert::IsTrue   (parsed.refusalMessage.starts_with ("Error: illegal --hd value"));
+                Assert::IsTrue   (parsed.refusalMessage.find ("\n       ") != std::string::npos, L"the rule is on the next line");
+            }
+
+            {
+                ArgVector  args = { "--smartport", "5=x.po" };
+                CommandLineOptions::EmulatorOptions  parsed = CommandLineParser::ParseEmulator (args.Count(), args.Data());
+
+
+
+                Assert::IsTrue (parsed.refusalMessage.starts_with ("Error: illegal --smartport value"));
+            }
         }
 
         //  THE PREFIX IS TAKEN FROM THE LINE, NOT ONLY FROM A HELP REQUEST.

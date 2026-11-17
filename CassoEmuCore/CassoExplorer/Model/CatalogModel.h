@@ -2,7 +2,9 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Model/CollectionCells.h"
 #include "Config/IFileSystem.h"
+#include "Devices/Disk/ImageClassifier.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 
@@ -28,6 +30,16 @@ struct CatalogRow
     std::wstring  typeText;
     std::wstring  addressText;
     uint64_t      sizeBytes    = 0;
+
+    //  A file on a ProDOS volume: each fork's length, both together, and the
+    //  access flags as DNBIWR, a dash for each one clear. hasForks is false
+    //  for a file on a volume with no forks or access flags.
+    uint64_t      dataForkBytes     = 0;
+    uint64_t      resourceForkBytes = 0;
+    bool          hasResourceFork   = false;
+    bool          hasForks          = false;
+    std::wstring  accessText;
+
     int64_t       modifiedUnix = 0;
     bool          hasModified  = false;
 
@@ -96,9 +108,30 @@ struct CatalogRow
     bool          homeInList        = false;   // Home's item in its grouped list, not in a section
     std::wstring  imagePath;
     size_t        imageCatalogIndex = 0;
+
+    //  A disk image inside a ZIP the shell lists, or inside any container in
+    //  Disk list's results, as a ContainerPath's text, which it opens by;
+    //  empty for every other row.
+    std::wstring  containerPath;
     std::string   imageDirectory;
     int64_t       deletedUnix       = 0;
     bool          hasDeleted        = false;
+
+    //  A Disk list or Find duplicates row's columns.
+    CollectionCells  collection;
+
+    //  A host file's form factor and formatted size, when it is an image,
+    //  and when Casso last loaded it (0 for never). A stock disk's row is
+    //  one of the stock system disks, offered before it is downloaded.
+    ImageClass    imageClass;
+    int64_t       lastUsedUnix    = 0;
+    bool          isStockDisk     = false;
+    bool          stockDownloaded = false;
+    std::wstring  stockNote;
+
+    //  In a picker opened from the emulator: the drive of the running machine
+    //  the image is inserted in, such as "slot 6 drive 1", or empty.
+    std::wstring  inDrive;
 
     //  A shell folder's row: the shell's own name for the item, which opens it
     //  whether or not it is a file; hostPath holds its path when it has one.
@@ -150,7 +183,10 @@ public:
     //  In File Explorer's order: Name, Date modified, Type, Size, then the
     //  two only a disk catalog has.
     //  The last two are the Recycle Bin's, shown only there.
-    enum class Column { Name, Modified, Type, Size, Address, Locked, OriginalLocation, DateDeleted, Folder };
+    //  The columns from FileSystem to Sha256 are Disk list's and Find duplicates'.
+    //  FormFactor, FormattedSize and LastUsed are a host image's.
+    enum class Column { Name, Modified, Type, Size, Address, Locked, OriginalLocation, DateDeleted, Folder, DataFork, ResourceFork, TotalSize, Access,
+                        FileSystem, VolumeName, FileCount, FreeSpace, Crc32, Sha256, FormFactor, FormattedSize, LastUsed };
 
     static CatalogRow  FromFileEntry (const FileEntry & entry, VolumeKind kind, size_t sourceIndex);
     static CatalogRow  FromHostEntry (const FileSystemEntry & entry, bool isDiskImage, size_t sourceIndex);
@@ -169,7 +205,33 @@ public:
     static void  Sort (std::vector<CatalogRow> & rows, Column column, bool descending);
 
     //  The count of fixed columns; a column after them is a shell property's.
-    static constexpr size_t  kColumnCount = (size_t) Column::Folder + 1;
+    static constexpr size_t  kColumnCount = (size_t) Column::LastUsed + 1;
+
+    //  A column's id, which the preferences and the session store. Through
+    //  Folder, a column's id is its position, and a shell property's is its
+    //  position less the added columns, the ids both had before the columns
+    //  from DataFork on existed. Those have ids from kFirstAddedColumnId,
+    //  above every property's id, since the properties are capped at
+    //  kMaxPropertyColumns, so adding a column doesn't change an id, and an
+    //  id doesn't indicate a position.
+    static constexpr size_t  kOriginalColumnCount = (size_t) Column::Folder + 1;
+    static constexpr int     kFirstAddedColumnId  = 100;
+    static constexpr size_t  kMaxPropertyColumns  = (size_t) kFirstAddedColumnId - kOriginalColumnCount;
+
+    static int   GetColumnId  (size_t column);
+    static bool  TryGetColumn (int id, size_t & outColumn);
+
+    //  The columns the header's menu offers that are hidden until chosen.
+    static bool  IsHiddenUntilChosen (size_t column);
+
+    //  Disk list's and Find duplicates' columns, visible only in their results.
+    static bool  IsCollectionColumn  (size_t column);
+
+    //  The columns in their order when none was dragged: each added column
+    //  beside the ones it is like.
+    static const std::vector<Column> &  GetDefaultOrder ();
+
+    static std::wstring  FormatAccess (Byte access);
 
     //  A search's results by the index's relevance, which is no column.
     static constexpr Column  kRelevance   = (Column) 1000;
@@ -222,34 +284,6 @@ public:
     static uint64_t  GetUnitBytes (VolumeKind kind);
 
 private:
-    //  The ProDOS file types a catalog names in three letters, as ProDOS's
-    //  own CATALOG writes them. Anything else shows its number.
-    struct ProDosTypeName
-    {
-        Byte             type;
-        const wchar_t  * mnemonic;
-    };
-
-    static constexpr ProDosTypeName  kProDosTypeNames[] =
-    {
-        { 0x00, L"NON" },
-        { 0x01, L"BAD" },
-        { 0x04, L"TXT" },
-        { 0x06, L"BIN" },
-        { 0x0F, L"DIR" },
-        { 0x19, L"ADB" },
-        { 0x1A, L"AWP" },
-        { 0x1B, L"ASP" },
-        { 0xEF, L"PAS" },
-        { 0xF0, L"CMD" },
-        { 0xFA, L"INT" },
-        { 0xFB, L"IVR" },
-        { 0xFC, L"BAS" },
-        { 0xFD, L"VAR" },
-        { 0xFE, L"REL" },
-        { 0xFF, L"SYS" },
-    };
-
     static bool  IsBefore         (const CatalogRow & a, const CatalogRow & b, Column column, bool tiesReversed = false);
     static bool  IsPropertyBefore (const CatalogRow & a, const PropertyKey & keyA, const CatalogRow & b, const PropertyKey & keyB);
 };

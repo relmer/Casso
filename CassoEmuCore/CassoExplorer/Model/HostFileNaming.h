@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "FileTypes/DecodedFile.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 
@@ -27,7 +28,9 @@ enum class VolumeKind;
 
 struct ParsedHostName
 {
-    enum class ConvertedKind { None, ApplesoftListing, IntegerListing, Text };
+    //  Format is a conversion of the file format table, and `format` is its
+    //  row.
+    enum class ConvertedKind { None, ApplesoftListing, IntegerListing, Text, Format };
 
     std::string    catalogName;
     bool           hasType   = false;
@@ -35,6 +38,7 @@ struct ParsedHostName
     bool           hasAux    = false;
     Word           aux       = 0;
     ConvertedKind  converted = ConvertedKind::None;
+    FileFormat     format    = FileFormat::None;
 };
 
 
@@ -65,6 +69,9 @@ public:
     static std::wstring  ForConverted (const std::string             & catalogName,
                                        ParsedHostName::ConvertedKind   kind);
 
+    //  A conversion of the file format table, under its row's suffix.
+    static std::wstring  ForConverted (const std::string & catalogName, FileFormat format);
+
     //  A raw copy. The type is the volume's own byte; the address is given
     //  only when the entry records one, since a DOS 3.3 catalog does not.
     static std::wstring  ForRaw (const std::string  & catalogName,
@@ -73,6 +80,17 @@ public:
                                  bool                 hasAddress,
                                  Word                 address,
                                  Style                style);
+
+    //  Whether a format of the table has an import for a file system: Merlin
+    //  source on ProDOS and DOS 3.3, and a Pascal textfile on Pascal and
+    //  ProDOS.
+    static bool  CanImport (FileFormat format, VolumeKind kind);
+
+    //  The catalog name an import is written under. Merlin source ends in .S
+    //  on ProDOS and starts with T. on DOS 3.3, and the other system's mark
+    //  is removed. A textfile on a Pascal volume ends in .TEXT.
+    static std::string  MakeImportName     (const std::string & catalogName, FileFormat format, VolumeKind kind);
+    static std::string  MakePascalTextName (const std::string & catalogName);
 
     //  False when no suffix was recognized; `catalogName` is still set, to
     //  the name minus any trailing extension.

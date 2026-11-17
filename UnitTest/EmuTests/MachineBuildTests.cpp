@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/MachineConfig.h"
 #include "Devices/RamDevice.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
@@ -7,6 +8,7 @@
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleTextMode.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Machines/MachineDefinitions.h"
 
@@ -298,5 +300,31 @@ public:
         TestMachine  machine ("Apple2c", TestMachine::Slots::Empty);
 
         Assert::IsNull (machine.GetJoyport(), L"the //c joystick port has no annunciators to drive one");
+    }
+
+
+    //  A second Disk II card in slot 5 is built ahead of slot 6's, and the
+    //  disk store, drive widgets and inspector use slot 6's drives.
+    TEST_METHOD (ASlot5DiskCardLeavesSlot6sTheMachinesController)
+    {
+        TestMachine  machine ("Apple2e", [] (MachineConfig & config)
+        {
+            for (const SlotConfig & entry : config.slots)
+            {
+                if (entry.slot == 6 && entry.device == kpszDiskIiDevice)
+                {
+                    SlotConfig  second = entry;
+
+                    second.slot = 5;
+                    config.slots.insert (config.slots.begin(), second);
+                    break;
+                }
+            }
+        });
+
+
+
+        Assert::IsNotNull (machine.GetRefs().diskController);
+        Assert::AreEqual (6, machine.GetRefs().diskController->GetSlot());
     }
 };

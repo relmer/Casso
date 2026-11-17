@@ -7,7 +7,6 @@
 class FirewallMonitor;
 struct CassoLinkSettings;
 class ILinkAnnouncements;
-class KrunchMapDialog;
 struct ExplorerContext;
 struct LinkTreeEntry;
 
@@ -20,9 +19,8 @@ struct LinkTreeEntry;
 //  CassoLinkManager
 //
 //  The CassoLink connections in the window: adding, editing and removing
-//  them, bootstrapping an Apple, the firewall's remedies, a linked Apple's
-//  drives and their whole-disk reads and writes, the list's link buttons
-//  and the status bar's activity log.
+//  them, bootstrapping an Apple, the firewall's remedies, the list's link
+//  buttons and the status bar's activity log.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,21 +37,7 @@ public:
     static constexpr int  kActivityShownMinutes = 15;
     static constexpr int  kFaultTextMax         = 400;
 
-    //  The whole-disk read and write pickers' own history.
-    static constexpr GUID  s_kLinkDiskPickerGuid = { 0x71d2ac7c, 0x3b03, 0x4c2c, { 0xac, 0xae, 0x2d, 0xa5, 0x0c, 0x9d, 0x7f, 0x8b } };
-
     void          RefreshCassoLinkViews   ();
-    void          ReadDiskToImage         (const Location & drive = Location(), bool forceVerify = false);
-    void          StartImageWrite         (const Location & drive, const std::wstring & imagePath, bool forceVerify = false);
-    bool          TryGetSelectedLinkDrive (Location & outDrive) const;
-    bool          TryGetTargetDrive       (const Location & drive, Location & outDrive, std::wstring & outLink, int & outNumber) const;
-    bool          IsOnLinkedMachine       () const;
-    void          OpenSelectedLinkDrive   ();
-    void          WriteImageToDisk        (const Location & drive = Location(), bool forceVerify = false);
-    void          SaveLinkToDisk          (const Location & drive = Location());
-    void          FormatAppleDisk         (const Location & location);
-    void          KrunchAppleDisk         (const Location & location);
-    void          SaveLinkDiskImage       (const std::string & name);
     void          EditConnection          (const std::string & name);
     void          RemoveConnection        (const std::string & name);
     void          Disconnect              (const std::string & name);
@@ -64,9 +48,14 @@ public:
     void          SaveCassetteBootstrap   (const std::string & name);
     void          ArmLinkFaults           ();
     bool          IsSerialConnection      (const std::string & name) const;
+    bool          IsCassetteConnection    (const std::string & name) const;
     bool          CanBootstrapConnection  (const std::string & name) const;
     std::wstring  GetLatestActivity       () const;
     std::wstring  FormatActivity          (size_t lines) const;
+
+    //  The status bar's text for the pending operations: each Full Send's
+    //  summary while any is in progress, the first operation's otherwise.
+    std::wstring  DescribeJobs            ();
     void          ShowActivityLog         ();
     void          StartConnections        ();
     void          SaveConnectionState     ();
@@ -77,13 +66,10 @@ public:
     bool          IsWifiModemConnection   (const std::string & name) const;
     void          ReleaseIdleConnections  ();
     void          ApplyConnections        ();
-    void          ApplyFullSendPrefs      ();
     void          ApplyVerifyPrefs        ();
     void          HandleTransferTimer     ();
     void          HandleCassetteTimer     ();
     void          NoteListFilled          ();
-
-    static std::wstring  GetDefaultFullSendFolder ();
 
     void          CreateListActions       ();
     void          LayoutListActions       ();
@@ -103,11 +89,10 @@ public:
 
     void  HandleConnectionChanged ();
     void  HandleRunningChanged    ();
-    bool  HandleListActionMouse   (const DxuiMouseEvent & ev);
 
 private:
-    void  UpdateUnseenFiles    ();
-    void  UpdateTransferTimer  ();
+    void  UpdateUnseenFiles   ();
+    void  UpdateTransferTimer ();
 
     static constexpr UINT  kTransferFrameMs = 150;
     static constexpr int   kPulseFrames     = 8;
@@ -138,7 +123,4 @@ private:
     std::vector<Byte>        m_cassetteWav;
     std::string              m_cassetteLink;
     int                      m_cassettePlays = 0;
-
-    //  The last krunch's window, which stays open after the krunch ends.
-    std::unique_ptr<KrunchMapDialog>  m_krunchMap;
 };

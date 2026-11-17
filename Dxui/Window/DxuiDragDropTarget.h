@@ -25,6 +25,11 @@ public:
     using DropFn    = std::function<void (int tag, const std::wstring & path)>;
     using FilterFn  = std::function<bool (const std::wstring & path)>;
 
+    //  Whether the widget with 	ag takes the file at path, asked as the
+    //  pointer moves over it after the FilterFn has taken the file. Without
+    //  it, every widget takes every file the FilterFn takes.
+    using TagFilterFn = std::function<bool (int tag, const std::wstring & path)>;
+
     //  For a host that looks at the whole drag rather than one file path:
     //  what a drop at this point would do, asked as the pointer moves, and
     //  the drop itself. The data object is the drag's own, valid only for
@@ -46,6 +51,7 @@ public:
     HRESULT              AttachAdditionalWindow (HWND hwnd);
     void                 Shutdown               ();
     void                 SetFilter              (FilterFn filter) { m_filter = std::move (filter); }
+    void                 SetTagFilter           (TagFilterFn tagFilter) { m_tagFilter = std::move (tagFilter); }
     void                 SetHitTest             (HitTestFn hitTest) { m_hitTest = std::move (hitTest); }
     void                 SetDataHandlers        (OverFn over, DataDropFn drop, LeaveFn leave = {}) { m_over = std::move (over); m_dataDrop = std::move (drop); m_leave = std::move (leave); }
 
@@ -118,6 +124,7 @@ public:
 
 private:
     int   PickAtScreen           (POINTL pt) const;
+    bool  IsAcceptedAt           (int tag) const;
     void  RevokeAllRegistrations ();
 
     std::atomic<ULONG>   m_refCount              { 1 };
@@ -127,6 +134,7 @@ private:
     DxuiHitTester     *  m_hitTester             = nullptr;
     DropFn               m_drop;
     FilterFn             m_filter;
+    TagFilterFn          m_tagFilter;
     int                  m_lastHitTag            = -1;
     DWORD                m_dragKeys              = 0;
     bool                 m_fDragActive           = false;

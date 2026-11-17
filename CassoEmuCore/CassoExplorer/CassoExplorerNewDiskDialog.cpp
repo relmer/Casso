@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 #include "Core/TextEncoding.h"
+#include "Machines/Apple2/Common/HfsWriter.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/StockBootDisks.h"
 #include "Ui/FileBrowseModel.h"
@@ -13,8 +14,10 @@
 //  What each field takes, shown when the pointer rests on it.
 static constexpr const wchar_t *  s_kpszNameTip         = L"The new image's file name. The image type's extension is added when you do not type one.";
 static constexpr const wchar_t *  s_kpszDos33VolumeTip  = L"DOS 3.3: a volume number from 1 to 254. Leave it blank for 254.";
+static constexpr const wchar_t *  s_kpszDos32VolumeTip  = L"DOS 3.2: a volume number from 1 to 254. Leave it blank for 254.";
 static constexpr const wchar_t *  s_kpszProDosVolumeTip = L"ProDOS: up to 15 letters, digits and periods, starting with a letter. Leave it blank for NEWDISK.";
 static constexpr const wchar_t *  s_kpszPascalVolumeTip = L"Apple Pascal: up to 7 characters, with no spaces or any of $ = ? , : [ ]. Leave it blank for NEWDISK.";
+static constexpr const wchar_t *  s_kpszHfsVolumeTip    = L"HFS: up to 27 characters, with no colon. Leave it blank for Untitled.";
 
 
 
@@ -118,7 +121,7 @@ std::string CassoExplorerNewDiskChoices::MakeBootSource (int formatIndex, int cp
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskOperations::NewDiskRequest CassoExplorerNewDiskChoices::MakeRequest (int formatIndex, int containerIndex, const std::wstring & volume, bool bootable)
+DiskOperations::NewDiskRequest CassoExplorerNewDiskChoices::MakeRequest (int formatIndex, int containerIndex, const std::wstring & volume, bool bootable, int sizeIndex)
 {
     DiskOperations::NewDiskRequest  request;
     int                             formats    = (int) ARRAYSIZE (kFormats);
@@ -129,7 +132,8 @@ DiskOperations::NewDiskRequest CassoExplorerNewDiskChoices::MakeRequest (int for
     request.formatName    = kFormats[(formatIndex >= 0 && formatIndex < formats) ? formatIndex : 0].value;
     request.containerType = kContainers[(containerIndex >= 0 && containerIndex < containers) ? containerIndex : 0].value;
     request.volumeName    = TextEncoding::WideToNarrow (volume);
-    request.bootable      = bootable && request.formatName != "none";
+    request.bootable      = bootable && request.formatName != "none" && request.formatName != "dos32";
+    request.sizeName      = kSizes[(sizeIndex >= 0 && sizeIndex < (int) ARRAYSIZE (kSizes)) ? sizeIndex : 0].value;
 
     return request;
 }
@@ -180,12 +184,16 @@ bool CassoExplorerNewDiskChoices::GetChoicesForExtension (const std::wstring & n
 
     static constexpr Rule  kRules[] =
     {
-        { L".woz", 0, -1            },
-        { L".dsk", 1, kFormatDos33  },
-        { L".do",  1, kFormatDos33  },
-        { L".po",  2, kFormatProDos },
-        { L".nib", 3, kFormatDos33  },
-        { L".nb2", 4, kFormatDos33  },
+        { L".woz",  0, -1            },
+        { L".dsk",  1, kFormatDos33  },
+        { L".do",   1, kFormatDos33  },
+        { L".po",   2, kFormatProDos },
+        { L".nib",  3, kFormatDos33  },
+        { L".nb2",  4, kFormatDos33  },
+        { L".hdv",  5, kFormatProDos },
+        { L".2mg",  6, kFormatProDos },
+        { L".dc42", 7, kFormatProDos },
+        { L".d13",  8, kFormatDos32  },
     };
 
     size_t  dot = name.rfind (L'.');
@@ -253,8 +261,9 @@ std::wstring CassoExplorerNewDiskChoices::ValidateFileName (const std::wstring &
 //  Blank takes the runner's default for the format. A DOS 3.3 volume is a
 //  number from 1 to 254; a ProDOS volume is a name of up to 15 letters, digits
 //  and periods, starting with a letter, matched without regard to case. An
-//  Apple Pascal volume is a name of up to 7 characters. CP/M and an unformatted
-//  image have no volume.
+//  Apple Pascal volume is a name of up to 7 characters, and an HFS volume a
+//  name of up to 27 Mac OS Roman characters with no colon. CP/M and an
+//  unformatted image have no volume.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -280,6 +289,13 @@ std::wstring CassoExplorerNewDiskChoices::ValidateVolume (int formatIndex, const
              : std::wstring (L"Use up to 7 characters, with no spaces or any of $ = ? , : [ ], or leave it blank for NEWDISK.");
     }
 
+    if (formatIndex == kFormatHfs)
+    {
+        return HfsWriter::IsValidVolumeName (TextEncoding::WideToUtf8 (volume))
+             ? error
+             : std::wstring (L"Use up to 27 characters, with no colon, or leave it blank for Untitled.");
+    }
+
     for (i = 0; i < volume.size(); i++)
     {
         wchar_t  c        = volume[i];
@@ -290,7 +306,7 @@ std::wstring CassoExplorerNewDiskChoices::ValidateVolume (int formatIndex, const
         name   = name   && (isLetter || (i > 0 && (isDigit || c == L'.')));
     }
 
-    if (formatIndex == kFormatDos33)
+    if (formatIndex == kFormatDos33 || formatIndex == kFormatDos32)
     {
         number = (digits && volume.size() <= kMaxDos33VolumeLength) ? wcstol (volume.c_str(), nullptr, 10) : 0;
 
@@ -313,14 +329,111 @@ std::wstring CassoExplorerNewDiskChoices::ValidateVolume (int formatIndex, const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerNewDiskChoices::ValidateSize
+//
+//  A disk larger than 140K, and any hard disk, 2IMG or Disk Copy 4.2 image, is
+//  a ProDOS or HFS volume; a large one is written in a container with blocks
+//  in order, and a Disk Copy 4.2 image is 800K. An HFS volume is 800K or
+//  larger. DOS 3.2 and the 13-sector image go together.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerNewDiskChoices::ValidateSize (int formatIndex, int containerIndex, int sizeIndex)
+{
+    constexpr int  kSize800K = 1;
+
+
+
+    int           containers = (int) ARRAYSIZE (kContainers);
+    std::string   container  = kContainers[(containerIndex >= 0 && containerIndex < containers) ? containerIndex : 0].value;
+    bool          isLarge    = sizeIndex > 0;
+    bool          blockOnly  = container == "hdv" || container == "2mg" || container == "dc42";
+    std::wstring  error;
+
+
+
+    if ((container == "d13") != (formatIndex == kFormatDos32))
+    {
+        error = L"A DOS 3.2 disk is written as a .d13 image, and a .d13 image is a DOS 3.2 disk.";
+    }
+    else if (isLarge && formatIndex == kFormatDos32)
+    {
+        error = L"A DOS 3.2 disk cannot be larger than a 5.25\" disk.";
+    }
+    else if (!isLarge && formatIndex == kFormatHfs)
+    {
+        error = L"An HFS volume is 800K or larger.";
+    }
+    else if ((isLarge || blockOnly) && !IsProDosFamily (formatIndex) && formatIndex != kFormatHfs)
+    {
+        error = L"Disks larger than 140K, and hard disk, 2IMG and Disk Copy 4.2 images, are ProDOS or HFS volumes.";
+    }
+    else if (isLarge && !blockOnly && container != "po")
+    {
+        error = L"A disk larger than 140K is written as a .po, .hdv, .2mg or .dc42 image.";
+    }
+    else if (container == "dc42" && sizeIndex != kSize800K)
+    {
+        error = L"A Disk Copy 4.2 image is an 800K disk.";
+    }
+
+    return error;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerNewDiskChoices::GetSizeLabels
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> CassoExplorerNewDiskChoices::GetSizeLabels()
+{
+    std::vector<std::wstring>  labels;
+
+
+
+    for (const Choice & choice : kSizes)
+    {
+        labels.push_back (choice.label);
+    }
+
+    return labels;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerNewDiskChoices::IsProDosFamily
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerNewDiskChoices::IsProDosFamily (int formatIndex)
+{
+    return formatIndex == kFormatProDos || formatIndex == kFormatSos || formatIndex == kFormatProDosSos;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerNewDiskChoices::GetVolumeMaxLength
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 size_t CassoExplorerNewDiskChoices::GetVolumeMaxLength (int formatIndex)
 {
-    return (formatIndex == kFormatProDos) ? kMaxProDosVolumeLength
+    return IsProDosFamily (formatIndex)   ? kMaxProDosVolumeLength
          : (formatIndex == kFormatPascal) ? kMaxPascalVolumeLength
+         : (formatIndex == kFormatHfs)    ? kMaxHfsVolumeLength
                                           : kMaxDos33VolumeLength;
 }
 
@@ -352,6 +465,9 @@ void CassoExplorerNewDiskPanel::Init (const Children & children, bool showNameRo
     Adopt (*children.container);
     Adopt (*children.formatLabel);
     Adopt (*children.format);
+    Adopt (*children.sizeLabel);
+    Adopt (*children.size);
+    Adopt (*children.sizeError);
     Adopt (*children.volumeLabel);
     Adopt (*children.volume);
     Adopt (*children.volumeError);
@@ -366,6 +482,9 @@ void CassoExplorerNewDiskPanel::Init (const Children & children, bool showNameRo
     children.nameError->SetVisible (showNameRows);
     children.containerLabel->SetVisible (showNameRows);
     children.container->SetVisible (showNameRows);
+    children.sizeLabel->SetVisible (showNameRows);
+    children.size->SetVisible (showNameRows);
+    children.sizeError->SetVisible (showNameRows);
 }
 
 
@@ -465,6 +584,26 @@ int CassoExplorerNewDiskPanel::ArrangeRows (const RECT & bounds, const DxuiDpiSc
 
     y += row + gap;
 
+    if (m_showNameRows)
+    {
+        if (place)
+        {
+            m_kids.sizeLabel->Layout (RECT { bounds.left, y, fieldX, y + row }, scaler);
+            m_kids.size->Layout      (RECT { fieldX, y, bounds.right, y + row }, scaler);
+        }
+
+        y  += row;
+        err = GetErrorHeightPx (*m_kids.sizeError, fieldW, scaler);
+        y  += (err > 0) ? errTop : 0;
+
+        if (place)
+        {
+            m_kids.sizeError->Layout (RECT { fieldX, y, bounds.right, y + err }, scaler);
+        }
+
+        y += err + gap;
+    }
+
     if (place)
     {
         m_kids.volumeLabel->Layout (RECT { bounds.left, y, fieldX, y + row }, scaler);
@@ -548,7 +687,7 @@ int CassoExplorerNewDiskPanel::GetErrorHeightPx (const DxuiFieldError & error, i
 
 bool CassoExplorerNewDiskPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    IDxuiControl *  fields[] = { m_kids.container, m_kids.format, m_kids.system, m_kids.name, m_kids.volume, m_kids.bootable, m_kids.image };
+    IDxuiControl *  fields[] = { m_kids.container, m_kids.format, m_kids.size, m_kids.system, m_kids.name, m_kids.volume, m_kids.bootable, m_kids.image };
     bool            handled  = false;
 
 
@@ -595,7 +734,7 @@ bool CassoExplorerNewDiskPanel::OnMouse (const DxuiMouseEvent & ev)
 
 void CassoExplorerNewDiskPanel::UpdateTooltip (int x, int y)
 {
-    IDxuiControl *  fields[] = { m_kids.name, m_kids.container, m_kids.format, m_kids.volume, m_kids.bootable, m_kids.system, m_kids.image };
+    IDxuiControl *  fields[] = { m_kids.name, m_kids.container, m_kids.format, m_kids.size, m_kids.volume, m_kids.bootable, m_kids.system, m_kids.image };
     int64_t         now      = (int64_t) GetTickCount64();
     POINT           pt       = { x, y };
     std::wstring    tip;
@@ -642,7 +781,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
 
 
 
-    for (DxuiLabel * label : { &m_nameLabel, &m_containerLabel, &m_formatLabel, &m_volumeLabel, &m_fileLabel, &m_fileName, &m_systemLabel, &m_imageLabel })
+    for (DxuiLabel * label : { &m_nameLabel, &m_containerLabel, &m_formatLabel, &m_sizeLabel, &m_volumeLabel, &m_fileLabel, &m_fileName, &m_systemLabel, &m_imageLabel })
     {
         ExplorerTextStyles::Apply (*label, ExplorerTextStyles::kFormLabel);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
@@ -651,6 +790,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
     m_nameLabel.SetText      (L"File name:");
     m_containerLabel.SetText (L"Image type:");
     m_formatLabel.SetText    (L"Format:");
+    m_sizeLabel.SetText      (L"Size:");
     m_volumeLabel.SetText    (L"Volume:");
     m_fileLabel.SetText      (m_appleDrive ? L"Drive:" : L"File:");
     m_systemLabel.SetText    (L"CP/M system:");
@@ -682,7 +822,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
 
     m_container.SetPopupHost (GetPopupHost());
     m_container.SetItems     (CassoExplorerNewDiskChoices::GetContainerLabels());
-    m_container.SetSelected  (0);
+    m_container.SetSelected  (m_containerIndex);
     m_container.SetSelect    ([this] (int) { Revalidate(); });
 
     m_format.SetPopupHost (GetPopupHost());
@@ -702,6 +842,11 @@ void CassoExplorerNewDiskDialog::OnCreate()
         Revalidate();
     });
 
+    m_size.SetPopupHost (GetPopupHost());
+    m_size.SetItems     (CassoExplorerNewDiskChoices::GetSizeLabels());
+    m_size.SetSelected  (m_sizeIndex);
+    m_size.SetSelect    ([this] (int) { Revalidate(); });
+
     m_bootable.SetSingleLineLabel (true);
     m_bootable.SetOnChange ([this] (bool) { Revalidate(); });
 
@@ -718,6 +863,9 @@ void CassoExplorerNewDiskDialog::OnCreate()
     kids.container      = &m_container;
     kids.formatLabel    = &m_formatLabel;
     kids.format         = &m_format;
+    kids.sizeLabel      = &m_sizeLabel;
+    kids.size           = &m_size;
+    kids.sizeError      = &m_sizeError;
     kids.volumeLabel    = &m_volumeLabel;
     kids.volume         = &m_volume;
     kids.volumeError    = &m_volumeError;
@@ -753,8 +901,10 @@ void CassoExplorerNewDiskDialog::OnCreate()
         {
             int  format = m_format.GetSelectedIndex();
 
-            tip = (format == CassoExplorerNewDiskChoices::kFormatProDos) ? s_kpszProDosVolumeTip
+            tip = CassoExplorerNewDiskChoices::IsProDosFamily (format) ? s_kpszProDosVolumeTip
                 : (format == CassoExplorerNewDiskChoices::kFormatPascal) ? s_kpszPascalVolumeTip
+                : (format == CassoExplorerNewDiskChoices::kFormatDos32)  ? s_kpszDos32VolumeTip
+                : (format == CassoExplorerNewDiskChoices::kFormatHfs)    ? s_kpszHfsVolumeTip
                                                                          : s_kpszDos33VolumeTip;
         }
 
@@ -769,7 +919,8 @@ void CassoExplorerNewDiskDialog::OnCreate()
         m_outcome.confirmed = true;
         m_outcome.fileName  = CassoExplorerNewDiskChoices::ApplyExtension (m_name.GetText(), m_container.GetSelectedIndex());
         m_outcome.request   = CassoExplorerNewDiskChoices::MakeRequest (m_format.GetSelectedIndex(), m_container.GetSelectedIndex(),
-                                                                  m_volume.GetText(), m_bootable.IsChecked());
+                                                                  m_volume.GetText(), m_bootable.IsChecked(),
+                                                                  m_formatMode ? 0 : m_size.GetSelectedIndex());
         m_outcome.request.bootableFrom = m_outcome.request.bootable
                                        ? CassoExplorerNewDiskChoices::MakeBootSource (m_format.GetSelectedIndex(), m_system.GetSelectedIndex(), m_image.GetText())
                                        : std::string();
@@ -788,6 +939,12 @@ void CassoExplorerNewDiskDialog::OnCreate()
     {
         return CassoExplorerNewDiskChoices::ValidateVolume (m_format.GetSelectedIndex(), m_volume.GetText());
     }, &m_volumeError);
+
+    m_validator.AddField ([this]()
+    {
+        return m_formatMode ? std::wstring()
+                            : CassoExplorerNewDiskChoices::ValidateSize (m_format.GetSelectedIndex(), m_container.GetSelectedIndex(), m_size.GetSelectedIndex());
+    }, &m_sizeError);
 
     m_validator.SetConfirmButton (m_ok);
 
@@ -811,12 +968,13 @@ void CassoExplorerNewDiskDialog::OnCreate()
 ////////////////////////////////////////////////////////////////////////////////
 
 CassoExplorerNewDiskDialog::Outcome CassoExplorerNewDiskDialog::Ask (HWND owner, const IDxuiTheme * theme, bool formatMode, const ExistsFn & exists,
-                                                                     int formatIndex, const std::wstring & target, bool appleDrive)
+                                                                     int formatIndex, const std::wstring & target, bool appleDrive,
+                                                                     int containerIndex, int sizeIndex)
 {
     HRESULT                     hr     = S_OK;
     CassoExplorerNewDiskDialog  dialog;
     DxuiWindow::CreateParams    params;
-    int                         rows   = formatMode ? 6 : 7;
+    int                         rows   = formatMode ? 6 : 8;
 
 
 
@@ -826,6 +984,8 @@ CassoExplorerNewDiskDialog::Outcome CassoExplorerNewDiskDialog::Ask (HWND owner,
     dialog.m_formatIndex = formatIndex;
     dialog.m_target      = target;
     dialog.m_appleDrive  = appleDrive;
+    dialog.m_containerIndex = containerIndex;
+    dialog.m_sizeIndex      = sizeIndex;
 
     params.title                    = appleDrive ? L"Format disk" : formatMode ? L"Format disk image" : L"New disk image";
     params.hInstance                = GetModuleHandleW (nullptr);
@@ -870,7 +1030,7 @@ void CassoExplorerNewDiskDialog::Revalidate()
 {
     int   format    = m_format.GetSelectedIndex();
     bool  hasVolume = format != CassoExplorerNewDiskChoices::kFormatNone && format != CassoExplorerNewDiskChoices::kFormatCpm;
-    bool  hasName   = format == CassoExplorerNewDiskChoices::kFormatProDos || format == CassoExplorerNewDiskChoices::kFormatPascal;
+    bool  hasName   = CassoExplorerNewDiskChoices::IsProDosFamily (format) || format == CassoExplorerNewDiskChoices::kFormatPascal;
     bool  valid     = false;
 
 
@@ -878,7 +1038,9 @@ void CassoExplorerNewDiskDialog::Revalidate()
     m_volumeLabel.SetEnabled (hasVolume);
     m_volume.SetEnabled      (hasVolume);
     m_volume.SetPlaceholder  (hasName                                                ? L"NEWDISK"
+                            : (format == CassoExplorerNewDiskChoices::kFormatHfs)    ? L"Untitled"
                             : (format == CassoExplorerNewDiskChoices::kFormatDos33)  ? L"254"
+                            : (format == CassoExplorerNewDiskChoices::kFormatDos32)  ? L"254"
                                                                                 : L"");
 
     m_systemLabel.SetEnabled (m_bootable.IsChecked() && format == CassoExplorerNewDiskChoices::kFormatCpm);

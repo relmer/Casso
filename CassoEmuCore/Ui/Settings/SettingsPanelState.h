@@ -2,12 +2,16 @@
 
 #include "Pch.h"
 
+#include "Ui/Settings/SlotCards.h"
 #include "Config/NetworkCardSettings.h"
 #include "Controllers/ControllerTypes.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
 #include "Machines/Apple2/Common/SscSwitches.h"
 #include "Ui/Settings/SettingsConnectors.h"
+
+class IFileSystem;
+class UserConfigStore;
 
 
 
@@ -144,6 +148,12 @@ struct HardwareEntry
     // never had ports does not acquire an empty list by being looked at.
     std::vector<std::string>  ports;
 
+    // A hard disk's or 3.5-inch drive's image and real timing switch, by
+    // port, beside `ports`; written as the port's object form when either is
+    // set, so saving the tab keeps a card's images.
+    std::vector<std::string>  portImages;
+    std::vector<bool>         portRealTiming;
+
     // A Super Serial Card's DIP switches as "on off ..." text, and the host
     // file its first connector's attachment uses. Empty for every other card,
     // and BuildJson does not write the slot's keys while they are empty.
@@ -180,6 +190,10 @@ struct SettingsMachinePort
 {
     std::string  name;      // "disk", "serial1", "joystick"
     std::string  device;    // what is attached; empty for an unoccupied port
+
+    // The port object's other keys, such as a disk port's `chain`, written
+    // back as they were read.
+    std::vector<std::pair<std::string, JsonValue>>  otherKeys;
 };
 
 
@@ -197,6 +211,7 @@ struct SettingsMachineInfo
     std::string                          cpu;
     std::string                          cpuManufacturer;
     uint32_t                             clockSpeed    = 0;
+    uint32_t                             cpuClockSpeed = 0;   // the CPU's clock when an accelerator runs it faster than the machine; 0 when it doesn't
     std::string                          ramSummary;    // "128K RAM" total, ROM excluded
     std::vector<SettingsMemoryRegion>    memoryRegions;
     size_t                               devices       = 0;
@@ -303,6 +318,11 @@ public:
     // changes are reverted on OK.
     void    RefreshMergedJson (const JsonValue & mergedJson);
 
+    // Loads the machine's saved settings over its default document, applies
+    // `edit` and saves them, through the same document Settings writes.
+    static HRESULT  EditSaved (UserConfigStore & store, IFileSystem & fs, const std::string & machineName, const JsonValue & defaultJson,
+                               const std::function<HRESULT (SettingsPanelState & state)> & edit);
+
     // The machine document as it would be saved now, for a caller that
     // changes a setting without a sheet -- the Storage menu's second drive.
     void       SetTapeRecorderConnected (bool connected) { m_current.prefs.tapeRecorderConnected = connected; }
@@ -369,6 +389,14 @@ public:
     void  SetSecondDriveAttached (bool attached);
     void  SetMouseConnected      (bool connected);
 
+    // The drives on the back-panel disk port's chain, each one's device in
+    // chain order. A drive added goes where the firmware looks for its kind:
+    // Apple 3.5 Drives first, UniDisks next, 5.25-inch drives last. `nth`
+    // counts the drives of that device, from 0.
+    std::vector<std::string>  GetDiskPortChain    () const;
+    void                      AddDiskPortDrive    (const std::string & device);
+    void                      RemoveDiskPortDrive (const std::string & device, size_t nth);
+
     // What a //c serial port, 1 or 2, connects to, where the ImageWriter II is
     // attached, the Super Serial Card and the Uthernet II: see
     // SettingsConnectors.
@@ -392,6 +420,25 @@ public:
     bool                            AreSerialPortsChanged   () const { return m_connectors.AreSerialPortsChanged(); }
 
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
+
+    // A hard disk's real timing switch, by hardware entry and port. Fails on
+    // a port without a drive that has the switch.
+    HRESULT SetPortRealTiming (size_t index, size_t port, bool isOn);
+
+    // The Machine tab's storage card edits; see SlotCards. Each takes a
+    // machine reset to apply.
+    std::vector<SlotCardChoice>  GetCardChoices   () const { return SlotCards::GetChoices (m_machineName); }
+    bool                         IsSlotFilled     (int slot) const { return SlotCards::FindSlot (m_current.hardware, slot) >= 0; }
+    HRESULT                      SetSlotCard      (int slot, const std::string & device, std::wstring & outError) { return SlotCards::SetCard (m_current.hardware, m_machineName, slot, device, outError); }
+    HRESULT                      SetPortImage     (size_t index, size_t port, const std::string & path) { return SlotCards::SetPortImage (m_current.hardware, index, port, path); }
+    HRESULT                      SetSlotPortImage (int slot, size_t port, const std::string & path);
+    HRESULT                      AddChainDrive    (size_t index, std::wstring & outError) { return SlotCards::AddChainDrive (m_current.hardware, index, outError); }
+    HRESULT                      RemoveChainDrive (size_t index, size_t port) { return SlotCards::RemoveChainDrive (m_current.hardware, index, port); }
+
+    // An image on a port of the machine rather than of a card, such as the
+    // //c Plus's internal 3.5-inch drive. Not found when the machine has no
+    // such port.
+    HRESULT  SetMachinePortImage (const std::string & name, const std::string & path);
 
     // The Uthernet II. The machine's slot list places it and the Machine tab
     // turns it on; turned on with no MAC address, it gets a random locally
@@ -424,6 +471,8 @@ private:
     static constexpr const char *  kpszPortNameKey  = "name";
     static constexpr const char *  kpszPortDeviceKey = "device";
     static constexpr const char *  kpszPortPathKey   = "path";
+    static constexpr const char *  kpszPortImageKey  = "image";
+    static constexpr const char *  kpszPortTimingKey = "realTiming";
     static constexpr const char *  kpszPortBeforeKey = "beforePrinter";
     static constexpr const char *  kpszPortPathBeforeKey = "pathBeforePrinter";
     static constexpr const char *  kpszSwitchesKey   = "switches";
@@ -431,6 +480,7 @@ private:
     static constexpr const char *  kpszSw2Key        = "sw2";
     static constexpr const char *  kpszSw1BeforeKey  = "sw1BeforePrinter";
     static constexpr const char *  kpszDiskPortName = "disk";
+    static constexpr const char *  kpszChainKey     = "chain";
     static constexpr const char *  kpszSerialPortNames[] = { "serial1", "serial2" };
     static constexpr const char *  kpszDiskIicDrive = "disk-iic-drive";
     static constexpr const char *  kpszDiskIiDevice = "disk-ii";
@@ -440,6 +490,11 @@ private:
 
     friend class SettingsJson;
     friend class SettingsConnectors;
+
+    static int          GetChainRank   (const std::string & device);
+    static std::string  GetChainDevice (const JsonValue & entry);
+
+    void  EditDiskPortChain (const std::function<void (std::vector<JsonValue> &)> & edit);
 
     std::string          m_machineName;
     SettingsMachineInfo  m_machineInfo;

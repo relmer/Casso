@@ -71,6 +71,39 @@ public:
     }
 
 
+    //  The cassette build, in its debug form too, ends below the shim's copy
+    //  of the zero page, as the other builds do.
+    TEST_METHOD (TheCassetteProgram_Assembles)
+    {
+        for (bool faults : { false, true })
+        {
+            std::vector<Byte>  bytes;
+            std::string        errors;
+            HRESULT            hr = LinkProgram::AssembleProgram (bytes, errors, LinkChip::Cassette, faults);
+
+            Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+            Assert::IsTrue (LinkProgram::kProgramAddress + bytes.size() <= LinkProgram::kZeroPageSave);
+        }
+    }
+
+
+
+
+    //  CASSOLINK: the installer at $2000, the driver after it within its
+    //  two pages, and the relocation list after the driver.
+    TEST_METHOD (TheVirtualDrive_Assembles_WithTheDriverInItsTwoPages)
+    {
+        std::vector<Byte>  file;
+        std::string        errors;
+        Byte               control = 0;
+        HRESULT            hr      = S_OK;
+
+        Assert::IsTrue (LinkProgram::GetSpeedControl (115200, control));
+
+        hr = LinkProgram::BuildVirtualDrive (control, file, errors);
+        Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+        Assert::IsTrue (file.size() > LinkProgram::kDriverLimit);
+    }
 
 
     TEST_METHOD (Shim_ReadyHasNoProgramAndTheCoreShimVersion)
@@ -270,9 +303,9 @@ public:
     //  changed with no new version fails here.
     TEST_METHOD (Program_ChangesOnlyWithANewVersion)
     {
-        static constexpr Word      s_kHashedVersion = 85;
-        static constexpr uint64_t  s_kAciaHash      = 0xA57418316B2DCDA9;
-        static constexpr uint64_t  s_kW5100Hash     = 0x1BCA3D52EFF76DA0;
+        static constexpr Word      s_kHashedVersion = 98;
+        static constexpr uint64_t  s_kAciaHash      = 0x7AA9C5178674975B;
+        static constexpr uint64_t  s_kW5100Hash     = 0x874160366021EB2B;
 
         std::vector<Byte>  acia;
         std::vector<Byte>  w5100;

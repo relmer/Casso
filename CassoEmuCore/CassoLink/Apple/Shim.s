@@ -86,9 +86,8 @@ STESTAB  = $17
 IRSENDOK = $10
         endif
 
-CMDREADY = $D2
-CMDLOAD  = $CF
-CMDDATA  = $CA
+; CMDREADY, CMDLOAD and CMDDATA are assigned ahead of this source by
+; LinkProgram, from CassoLinkCodec::kCommands.
 ACK      = $06
 NAK      = $15
 

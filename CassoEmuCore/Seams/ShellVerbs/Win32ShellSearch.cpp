@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Seams/ShellVerbs/Win32ShellSearch.h"
+#include "CassoExplorer/Model/ImageFileSearchSources.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/DiskOperations.h"
@@ -638,7 +639,9 @@ void Win32ShellSearch::SearchImages (const std::wstring & scope, const SearchExp
 //
 //  Every directory in the image, the volume's first, as far as the limits
 //  allow: a subdirectory's files match as the volume's do. A file in an
-//  image has its name, its size and its file system's modified date.
+//  image has its name, its size and its file system's modified date, and
+//  for File contents the text of its preview, read only for a term that
+//  tests it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -648,7 +651,7 @@ void Win32ShellSearch::SearchImage (const std::wstring & image, const SearchExpr
     DiskOperations            operations (fileIo);
     std::vector<std::string>  pending = { std::string() };
     size_t                    read    = 0;
-    NullSearchSources         none;
+    std::string               path    = TextEncoding::WideToNarrow (image);
 
 
 
@@ -657,7 +660,7 @@ void Win32ShellSearch::SearchImage (const std::wstring & image, const SearchExpr
         std::string             directory = pending.back();
         VolumeListing           listing;
         VolumeKind              kind      = VolumeKind::Dos33;
-        DiskOperations::Result  result    = operations.List (TextEncoding::WideToNarrow (image), directory, listing, kind);
+        DiskOperations::Result  result    = operations.List (path, directory, listing, kind);
         std::wstring            shownIn   = image;
 
         pending.pop_back();
@@ -678,8 +681,9 @@ void Win32ShellSearch::SearchImage (const std::wstring & image, const SearchExpr
         {
             IShellItemVerbs::ShellFolderItem  entry;
             SearchExpression::FileFacts       facts;
-            __time64_t                        when  = (__time64_t) file.modifiedUnix;
-            tm                                parts = {};
+            __time64_t                        when    = (__time64_t) file.modifiedUnix;
+            tm                                parts   = {};
+            ImageFileSearchSources            sources (operations, path, directory.empty() ? file.name : directory + "/" + file.name, file, kind);
 
             if (file.isDirectory)
             {
@@ -696,7 +700,7 @@ void Win32ShellSearch::SearchImage (const std::wstring & image, const SearchExpr
             facts.sizeBytes = entry.sizeBytes;
             facts.modified  = { file.hasModified && _gmtime64_s (&parts, &when) == 0, parts.tm_year + 1900, parts.tm_mon + 1, parts.tm_mday };
 
-            if (!expression.Matches (facts, none) || outItems.size() >= s_kMaxResults)
+            if (!expression.Matches (facts, sources) || outItems.size() >= s_kMaxResults)
             {
                 continue;
             }

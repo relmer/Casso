@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "AssetBootstrap.h"
 #include "Core/JsonParser.h"
 #include "Machines/MachineDefinitions.h"
 #include "Core/JsonValue.h"
@@ -7,6 +8,7 @@
 #include "EmbeddedMachineConfigs.h"
 #include "EmbeddedMachineJson.h"
 #include "Core/TextEncoding.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -33,6 +35,47 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 TEST_CLASS (AssetBootstrapTests)
 {
 public:
+
+    //  EVERY SMARTPORT AND HARD DISK CARD'S FIRMWARE IS IN THE DOWNLOAD
+    //  CATALOG, at the size the card takes and with a SHA-256 the download is
+    //  checked against. The sweep is over the card table, so a card added
+    //  without a catalog row fails here.
+    TEST_METHOD (Catalog_HasEveryCardsFirmwareWithAChecksum)
+    {
+        std::span<const BlockCardSpec>  cards = BlockDeviceCatalog::GetCards();
+
+
+
+        Assert::IsTrue (cards.size() > 0, L"a sweep over an empty table checks nothing");
+
+        for (const BlockCardSpec & card : cards)
+        {
+            size_t  size      = 0;
+            bool    hasSha256 = false;
+            bool    found     = AssetBootstrap::TryGetCatalogRom (card.defaultFirmware, size, hasSha256);
+
+
+
+            Assert::IsTrue   (found, TextEncoding::NarrowToWide (card.defaultFirmware).c_str());
+            Assert::AreEqual (card.firmwareSize, size);
+            Assert::IsTrue   (hasSha256);
+        }
+    }
+
+
+    //  With no folder to search, every card's firmware is missing. Nothing
+    //  is fetched for a device that isn't a SmartPort or hard disk card.
+    TEST_METHOD (GetMissingCardRom_IsTheCardsDefaultFirmware)
+    {
+        for (const BlockCardSpec & card : BlockDeviceCatalog::GetCards())
+        {
+            Assert::AreEqual (std::string (card.defaultFirmware), AssetBootstrap::GetMissingCardRom (card.device, {}));
+        }
+
+        Assert::IsTrue (AssetBootstrap::GetMissingCardRom ("mockingboard-c", {}).empty());
+        Assert::IsTrue (AssetBootstrap::GetMissingCardRom ("", {}).empty());
+    }
+
 
     TEST_METHOD (Embedded_AppleII_RequiresSystemCharacterAndDisk2Rom)
     {
@@ -161,6 +204,58 @@ public:
         Assert::IsTrue (EmbeddedHasDiskController (IDR_MACHINE_APPLE2E_ENHANCED),
             L"Apple //e Enhanced must declare a slot 6 disk-ii device so the "
             L"first-run boot-disk prompt actually fires");
+    }
+
+    //  A switch to a machine without slot 6's drives is confirmed first, since it
+    //  discards the disk inspector's pending edits. Every shipped machine has
+    //  them, the //c in its built-in drive.
+    TEST_METHOD (Embedded_EveryMachine_HasSlot6Drives)
+    {
+        for (int id : { IDR_MACHINE_APPLE2, IDR_MACHINE_APPLE2PLUS, IDR_MACHINE_APPLE2E, IDR_MACHINE_APPLE2E_ENHANCED, IDR_MACHINE_APPLE2C })
+        {
+            JsonValue       root;
+            JsonParseError  parseError;
+            HRESULT         hrParse = JsonParser::Parse (EmbeddedMachineJson::Load (id), root, parseError);
+
+
+
+            AssertSucceeded (hrParse);
+            Assert::IsTrue (AssetBootstrap::HasSlot6Drives (root), std::format (L"resource {}", id).c_str());
+        }
+    }
+
+
+    //  With a disabled slot 6 card, or a card in slot 5 only, there are no slot 6 drives.
+    TEST_METHOD (HasSlot6Drives_NeedsAnEnabledCardInSlot6)
+    {
+        struct Case
+        {
+            const char  * json;
+            bool          hasDrives;
+        };
+
+        static constexpr Case  kCases[] =
+        {
+            { R"({ "slots": [ { "slot": 6, "device": "disk-ii" } ] })",                     true  },
+            { R"({ "slots": [ { "slot": 6, "device": "disk-ii", "enabled": false } ] })", false },
+            { R"({ "slots": [ { "slot": 5, "device": "disk-ii" } ] })",                     false },
+            { R"({ "slots": [ { "slot": 6, "device": "mouse" } ] })",                       false },
+            { R"({ })",                                                                       false },
+        };
+
+
+
+        for (const Case & entry : kCases)
+        {
+            JsonValue       root;
+            JsonParseError  parseError;
+            HRESULT         hrParse = JsonParser::Parse (entry.json, root, parseError);
+
+
+
+            AssertSucceeded (hrParse);
+            Assert::AreEqual (entry.hasDrives, AssetBootstrap::HasSlot6Drives (root), TextEncoding::NarrowToWide (entry.json).c_str());
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////

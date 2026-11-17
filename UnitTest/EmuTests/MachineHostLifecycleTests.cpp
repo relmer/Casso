@@ -5,6 +5,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Shell/MachineHost.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
@@ -233,6 +234,32 @@ public:
         Assert::IsFalse (store.GetImage (6, 0)->IsDirty());
         Assert::IsTrue (store.GetSharedState (6, 0)->GetIdentity().Matches (identity),
                         L"and the bay's identity matches the file it wrote");
+    }
+
+
+    //  Disk2Controller::PowerCycle selects the controller's internal empty
+    //  disks. A disk mounted from memory has no file for the shell to remount
+    //  afterward, so unless the host points the drives back at the store, the
+    //  machine powers on with an empty drive while the store reports a
+    //  mounted disk.
+    TEST_METHOD (APowerCycleLeavesTheDrivesReadingTheMountedDisks)
+    {
+        TestMachine        machine ("Apple2e");
+        DiskImageStore &   store      = machine.GetDiskStore();
+        Disk2Controller *  controller = machine.GetRefs().diskController;
+        std::vector<Byte>  disk (143360, 0);
+
+
+
+        Assert::IsNotNull (controller);
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "one.dsk", DiskFormat::Dsk, disk));
+        AssertSucceeded (store.MountFromBytes (6, 1, "two.dsk", DiskFormat::Dsk, disk));
+
+        machine.PowerCycle();
+
+        Assert::IsTrue (controller->GetDisk (0) == store.GetImage (6, 0), L"drive 1 reads the store's disk");
+        Assert::IsTrue (controller->GetDisk (1) == store.GetImage (6, 1), L"drive 2 reads the store's disk");
     }
 
 

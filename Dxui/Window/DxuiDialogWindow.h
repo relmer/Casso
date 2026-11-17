@@ -129,6 +129,15 @@ protected:
     HRESULT  GrowHeightBy (int deltaPx);
 
 
+protected:
+    //
+    //  Widens or narrows the window by deltaPx, keeping its center, for
+    //  content whose width is measured, as FitHeightToContent measures its
+    //  height.
+    //
+    HRESULT  ResizeWidthBy (int deltaPx);
+
+
 private:
     HRESULT  FitHeightToContent ();
     HRESULT  ResizeHeightBy     (int deltaPx);

@@ -101,8 +101,6 @@ public:
 
 
 
-    static constexpr Word      kBootRomEntry = 0xC600;
-    static constexpr Word      kIntCxRomOff  = 0xC006;
     static constexpr int       kSlot6        = 6;
     static constexpr int       kDrive1       = 0;
 
@@ -170,17 +168,16 @@ public:
 
         machine.PowerCycle();
 
-        //  Drive 1 is index 0 and INTCXROM-off is $C006. Getting either wrong
-        //  leaves the boot ROM seeking an empty drive forever, which does not
-        //  fail -- it just never goes idle and spends the whole ceiling.
+        //  Drive 1 is index 0. With the wrong index, the boot ROM seeks an
+        //  empty drive forever, which does not fail -- the machine never goes
+        //  idle and spends the whole ceiling.
         AssertSucceeded (machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1, "boot.nib",
                                                          DiskFormat::Nib, nibFile));
 
         mounted = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (mounted, L"the nibble image must mount");
 
-        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
-        machine.GetCpu()->SetPC (kBootRomEntry);
+        GuestSession::StartFromPowerOn (machine);
 
         MachineIdle::RunUntilIdle (machine, kBootCeiling);
 

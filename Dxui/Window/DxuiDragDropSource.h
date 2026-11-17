@@ -54,8 +54,11 @@ public:
     //  moved the items itself -- an optimized move -- returns none and says so
     //  in `outLogicalEffect`, which is then DROPEFFECT_MOVE. With `dragImage`,
     //  that image is drawn under the pointer in place of one the shell builds.
+    //  onEnd is called with the source once the drag ends, before it is
+    //  released, to read formats a target stored on it.
     static HRESULT  Begin (std::vector<Format> formats, DWORD allowedEffects, POINT startScreen,
-                           DWORD & resultEffect, DWORD * outLogicalEffect = nullptr, const DxuiIconImage * dragImage = nullptr);
+                           DWORD & resultEffect, DWORD * outLogicalEffect = nullptr, const DxuiIconImage * dragImage = nullptr,
+                           const std::function<void (const DxuiDragDropSource & source)> & onEnd = nullptr);
 
     //  Sets `image` as the drag image of `data`, above the pointer as File
     //  Explorer draws a dragged file's icon. The shell builds an image only
@@ -65,6 +68,9 @@ public:
 
     //  A DWORD a target stored under the registered format, or `fallback`.
     DWORD  GetStoredDword (const wchar_t * formatName, DWORD fallback) const;
+
+    //  The bytes a target stored under the registered format, or false.
+    bool   GetStoredBytes (const wchar_t * formatName, std::vector<uint8_t> & outBytes) const;
 
     //  Called with each format a target stores and its first DWORD, as a
     //  paste of a cut stores CFSTR_PASTESUCCEEDED. Called on the thread the

@@ -679,6 +679,10 @@ void CommandLine::PrintPageFor (CommandLineOptions::Subcommand mode, char prefix
 
         break;
 
+    case CommandLineOptions::Subcommand::Basic:
+        PrintUsageBlock (CommandLineHelp::BuildBasicHelp (BuildBanner(), prefix));
+        break;
+
     default:
         PrintUsageBlock (CommandLineHelp::BuildGeneralHelp (BuildBanner(), prefix));
         break;

@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "GuestSession.h"
 #include "TestMachine.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
@@ -46,8 +47,6 @@ TEST_CLASS (BootRomDecoderTests)
 {
 public:
 
-    static constexpr Word       kBootRomEntry        = 0xC600;
-    static constexpr Word       kIntCxRomOff         = 0xC006;
     static constexpr Word       kBootLoadAddress     = 0x0800;
     static constexpr int        kSlot6               = 6;
     static constexpr int        kDrive1              = 0;
@@ -126,11 +125,8 @@ public:
         external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
 
-        // Surface the Disk2.rom slot ROM at $C600 (CxxxRomRouter /
-        // INTCXROM=0; audit C1).
-        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        GuestSession::StartFromPowerOn (machine);
 
-        machine.GetCpu()->SetPC (kBootRomEntry);
         return external;
     }
 

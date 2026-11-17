@@ -4,6 +4,8 @@
 
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
+#include "FileTypes/DecodedFile.h"
+#include "Machines/Apple2/Common/StockBootDisks.h"
 
 struct ExplorerContext;
 
@@ -42,14 +44,20 @@ public:
     int                    ChooseFormatDefault        (const std::wstring & image);
     void                   ChooseFilesystem           (VolumeKind kind);
     void                   ExtractAll                 ();
+    void                   MakeArchive                (bool shrinkItDisk);
+    void                   TestImage                  ();
+    void                   CopyPartitionToImage       ();
+    void                   ReplacePartition           ();
     void                   Dispatch                   (int id);
     bool                   IsEnabled                  (int id) const;
+    bool                   IsBlockedInPicker          (int id) const;
     bool                   IsChecked                  (int id) const;
 
     //  The count of list columns with a Sort by command: the fixed ones and
     //  the shell properties added, up to the ids set aside for them.
     int                        GetSortColumnCount         () const;
     void                       CreateDisk                 (const CassoExplorerNewDiskDialog::Outcome & newDisk);
+    bool                       CreateDiskForPicker        (std::wstring & outPath);
     void                       ShowOptions                ();
     bool                       IsToolbarEntryAvailable    (int index) const;
     bool                       IsCommandBarEntryAvailable (int index) const;
@@ -62,8 +70,15 @@ public:
     bool                       IsRawTargetCurrent         (const std::wstring & target);
     void                       ReportOutcome              (const CassoExplorerActions::Outcome & outcome, const wchar_t * verbName);
     bool                       TryPrepareBootDisk         (const DiskOperations::NewDiskRequest & request);
+    bool                       TryDownloadBootDisk        (StockBootDisks::Which disk);
     void                       ExtractImageFiles          (const std::wstring & imagePath);
+    void                       InspectDiskImages          (const std::vector<std::wstring> & paths);
+    void                       RepairDiskImage            (const std::wstring & path);
+    void                       CompareSelectedDiskImages  ();
 
 private:
+    void  ChooseCharset      (Charset charset);
+    void  ChooseSheetForm    (bool formulas);
+
     ExplorerContext  & m_context;
 };

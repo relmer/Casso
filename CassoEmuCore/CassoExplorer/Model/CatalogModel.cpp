@@ -10,6 +10,7 @@
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "Machines/Apple2/Common/ProDosTypeNames.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
@@ -25,9 +26,13 @@
 
 uint64_t CatalogModel::GetUnitBytes (VolumeKind kind)
 {
-    return (kind == VolumeKind::Dos33) ? (uint64_t) NibblizationLayer::kSectorByteSize
-         : (kind == VolumeKind::Cpm)   ? (uint64_t) CpmVolume::kBlockBytes
-                                       : (uint64_t) ProDosSkeleton::kBlockByteSize;
+    bool  isSectors = kind == VolumeKind::Dos33 || kind == VolumeKind::Gutenberg || kind == VolumeKind::Rdos || kind == VolumeKind::Infocom;
+
+
+
+    return isSectors                  ? (uint64_t) NibblizationLayer::kSectorByteSize
+         : (kind == VolumeKind::Cpm)  ? (uint64_t) CpmVolume::kBlockBytes
+                                      : (uint64_t) ProDosSkeleton::kBlockByteSize;
 }
 
 
@@ -100,21 +105,26 @@ std::wstring CatalogModel::GetTypeText (Byte type, VolumeKind kind)
         return GetPascalKindText (type);
     }
 
+    //  An Infocom disk's one file is its story.
+    if (kind == VolumeKind::Infocom)
+    {
+        return L"Story";
+    }
+
     //  CP/M has no types, only names.
     if (kind == VolumeKind::Cpm)
     {
         return std::wstring();
     }
 
-    for (const ProDosTypeName & row : kProDosTypeNames)
+    //  A Gutenberg or RDOS type is a letter, and a Gutenberg document's is a
+    //  space.
+    if (kind == VolumeKind::Gutenberg || kind == VolumeKind::Rdos)
     {
-        if (row.type == type)
-        {
-            return row.mnemonic;
-        }
+        return (type == ' ') ? std::wstring() : std::wstring (1, (wchar_t) type);
     }
 
-    return std::format (L"${:02X}", (unsigned) type);
+    return ProDosTypeNames::Format (type);
 }
 
 
@@ -235,6 +245,19 @@ CatalogRow CatalogModel::FromFileEntry (const FileEntry & entry, VolumeKind kind
     row.sourceIndex  = sourceIndex;
 
     row.modifiedIsWallClock = true;
+
+    if (entry.hasAccess && !entry.isDirectory)
+    {
+        row.hasForks          = true;
+        row.dataForkBytes     = row.sizeBytes;
+        row.resourceForkBytes = entry.resourceForkBytes;
+        row.hasResourceFork   = entry.hasResourceFork;
+    }
+
+    if (entry.hasAccess)
+    {
+        row.accessText = FormatAccess (entry.access);
+    }
 
     //  A directory's auxiliary field holds nothing a reader would call an
     //  address.
@@ -499,6 +522,61 @@ bool CatalogModel::IsBefore (const CatalogRow & a, const CatalogRow & b, Column 
             if (a.deletedUnix != b.deletedUnix) { return a.deletedUnix < b.deletedUnix; }
             break;
 
+        case Column::DataFork:
+            if (a.dataForkBytes != b.dataForkBytes) { return a.dataForkBytes < b.dataForkBytes; }
+            break;
+
+        case Column::ResourceFork:
+            if (a.hasResourceFork != b.hasResourceFork) { return !a.hasResourceFork; }
+            if (a.resourceForkBytes != b.resourceForkBytes) { return a.resourceForkBytes < b.resourceForkBytes; }
+            break;
+
+        case Column::TotalSize:
+            if (a.dataForkBytes + a.resourceForkBytes != b.dataForkBytes + b.resourceForkBytes) { return a.dataForkBytes + a.resourceForkBytes < b.dataForkBytes + b.resourceForkBytes; }
+            break;
+
+        case Column::Access:
+            if (a.accessText != b.accessText) { return a.accessText < b.accessText; }
+            break;
+
+        case Column::FileSystem:
+            if (a.collection.fileSystem != b.collection.fileSystem) { return _wcsicmp (a.collection.fileSystem.c_str(), b.collection.fileSystem.c_str()) < 0; }
+            break;
+
+        case Column::VolumeName:
+            if (a.collection.volumeName != b.collection.volumeName) { return StrCmpLogicalW (a.collection.volumeName.c_str(), b.collection.volumeName.c_str()) < 0; }
+            break;
+
+        case Column::FileCount:
+            if (a.collection.files != b.collection.files) { return a.collection.files < b.collection.files; }
+            break;
+
+        case Column::FreeSpace:
+            if (a.collection.freeBytes != b.collection.freeBytes) { return a.collection.freeBytes < b.collection.freeBytes; }
+            break;
+
+        case Column::Crc32:
+            if (a.collection.crc32 != b.collection.crc32) { return a.collection.crc32 < b.collection.crc32; }
+            break;
+
+        case Column::Sha256:
+            if (a.collection.sha256 != b.collection.sha256) { return a.collection.sha256 < b.collection.sha256; }
+            break;
+
+        case Column::FormFactor:
+            if (a.imageClass.IsClassified() != b.imageClass.IsClassified()) { return a.imageClass.IsClassified(); }
+            if (a.imageClass.formFactor != b.imageClass.formFactor) { return a.imageClass.formFactor < b.imageClass.formFactor; }
+            break;
+
+        case Column::FormattedSize:
+            if (a.imageClass.IsClassified() != b.imageClass.IsClassified()) { return a.imageClass.IsClassified(); }
+            if (a.imageClass.formattedBytes != b.imageClass.formattedBytes) { return a.imageClass.formattedBytes < b.imageClass.formattedBytes; }
+            break;
+
+        case Column::LastUsed:
+            if (a.lastUsedUnix != b.lastUsedUnix) { return a.lastUsedUnix < b.lastUsedUnix; }
+            break;
+
         case Column::Folder:
         {
             std::wstring  folderA = GetFolderColumnText (a.folderPath);
@@ -708,15 +786,19 @@ std::wstring CatalogModel::GetDiskImageTypeName (const std::wstring & name)
 {
     static constexpr std::pair<const wchar_t *, const wchar_t *>  s_kTypes[] =
     {
-        { L".dsk", L"Apple II disk image"       },
-        { L".do",  L"DOS-order disk image"      },
-        { L".po",  L"ProDOS-order disk image"   },
-        { L".d13", L"13-sector disk image"      },
-        { L".nib", L"Nibble disk image"         },
-        { L".nb2", L"NB2 nibble disk image"     },
-        { L".woz", L"WOZ disk image"            },
-        { L".2mg", L"2IMG disk image"           },
-        { L".hdv", L"ProDOS hard disk image"    },
+        { L".dsk",   L"Apple II disk image"       },
+        { L".do",    L"DOS-order disk image"      },
+        { L".po",    L"ProDOS-order disk image"   },
+        { L".d13",   L"13-sector disk image"      },
+        { L".nib",   L"Nibble disk image"         },
+        { L".nb2",   L"NB2 nibble disk image"     },
+        { L".woz",   L"WOZ disk image"            },
+        { L".2mg",   L"2IMG disk image"           },
+        { L".2img",  L"2IMG disk image"           },
+        { L".hdv",   L"ProDOS hard disk image"    },
+        { L".dc",    L"Disk Copy 4.2 disk image"  },
+        { L".dc42",  L"Disk Copy 4.2 disk image"  },
+        { L".image", L"Disk Copy 4.2 disk image"  },
     };
     size_t        dot       = name.rfind (L'.');
     std::wstring  extension = (dot == std::wstring::npos) ? std::wstring() : name.substr (dot);
@@ -732,4 +814,153 @@ std::wstring CatalogModel::GetDiskImageTypeName (const std::wstring & name)
     }
 
     return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::GetColumnId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CatalogModel::GetColumnId (size_t column)
+{
+    if (column < kOriginalColumnCount)
+    {
+        return (int) column;
+    }
+
+    if (column < kColumnCount)
+    {
+        return kFirstAddedColumnId + (int) (column - kOriginalColumnCount);
+    }
+
+    return (int) (kOriginalColumnCount + (column - kColumnCount));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::TryGetColumn
+//
+//  False for a negative id, and for an id in the added range with no column,
+//  as a later build's may be.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CatalogModel::TryGetColumn (int id, size_t & outColumn)
+{
+    constexpr size_t  kAddedCount = kColumnCount - kOriginalColumnCount;
+
+
+
+    outColumn = 0;
+
+    if (id < 0)
+    {
+        return false;
+    }
+
+    if (id >= kFirstAddedColumnId)
+    {
+        outColumn = kOriginalColumnCount + (size_t) (id - kFirstAddedColumnId);
+        return (size_t) (id - kFirstAddedColumnId) < kAddedCount;
+    }
+
+    outColumn = ((size_t) id < kOriginalColumnCount) ? (size_t) id : kColumnCount + ((size_t) id - kOriginalColumnCount);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::IsHiddenUntilChosen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CatalogModel::IsHiddenUntilChosen (size_t column)
+{
+    return column >= kOriginalColumnCount && column <= (size_t) Column::Access;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::IsCollectionColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CatalogModel::IsCollectionColumn (size_t column)
+{
+    return column >= (size_t) Column::FileSystem && column <= (size_t) Column::Sha256;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::GetDefaultOrder
+//
+//  The fork lengths and the total follow Size, and the access flags follow
+//  them, ahead of the catalog's Address and Locked. Disk list's columns
+//  follow, then a host image's form factor, formatted size and last use.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<CatalogModel::Column> & CatalogModel::GetDefaultOrder()
+{
+    static const std::vector<Column>  s_order = { Column::Name, Column::Modified, Column::Type, Column::Size,
+                                                  Column::DataFork, Column::ResourceFork, Column::TotalSize, Column::Access,
+                                                  Column::Address, Column::Locked, Column::OriginalLocation, Column::DateDeleted, Column::Folder,
+                                                  Column::FileSystem, Column::VolumeName, Column::FileCount, Column::FreeSpace, Column::Crc32, Column::Sha256,
+                                                  Column::FormFactor, Column::FormattedSize, Column::LastUsed };
+
+
+
+    return s_order;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CatalogModel::FormatAccess
+//
+//  ProDOS's six access flags, destroy, rename, backup, invisible, write and
+//  read, as their letters, each a dash when clear.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CatalogModel::FormatAccess (Byte access)
+{
+    static constexpr std::pair<Byte, wchar_t>  kFlags[] = { { 0x80, L'D' }, { 0x40, L'N' }, { 0x20, L'B' }, { 0x04, L'I' }, { 0x02, L'W' }, { 0x01, L'R' } };
+
+
+
+    std::wstring  text;
+
+
+
+    for (const auto & [mask, letter] : kFlags)
+    {
+        text += (access & mask) ? letter : L'-';
+    }
+
+    return text;
 }

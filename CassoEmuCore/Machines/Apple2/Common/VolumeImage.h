@@ -2,8 +2,11 @@
 
 #include "Pch.h"
 
+#include "AppleTextCodec.h"
+
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/MountDiagnosis.h"
+#include "Devices/Disk/Containers/ImageContainer.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Devices/Disk/SectorWrite.h"
 
@@ -32,6 +35,24 @@ enum class VolumeKind
     ProDos,
     Pascal,
     Cpm,
+
+    //  A NuFX or Binary II archive, whose bytes are the buffer.
+    Archive,
+
+    //  A Gutenberg word processor disk.
+    Gutenberg,
+
+    //  A Strategic Simulations RDOS disk, which is read-only.
+    Rdos,
+
+    //  A Macintosh HFS volume, as GS/OS writes on 800K disks and hard disks.
+    Hfs,
+
+    //  An Infocom game disk, whose story is its one file. Read-only.
+    Infocom,
+
+    //  A tape recording, whose bytes are the buffer. Read-only.
+    Tape,
 };
 
 
@@ -66,6 +87,11 @@ public:
     //  The file system's name as a listing's heading uses it, and an empty
     //  string for Unknown.
     static const char * GetSystemName (VolumeKind kind);
+
+    //  The form a host text file is written in on a file system: plain ASCII
+    //  with $0D line ends on ProDOS and HFS, as GS/OS reads it, and high-bit
+    //  text with $8D line ends on DOS 3.3 and a Gutenberg disk.
+    static AppleTextConvention  GetTextConvention (VolumeKind kind);
 
     //  Any mountable image file to a DOS-logical sector buffer. The report
     //  describes what the track layer could recover, and is empty of meaning
@@ -115,10 +141,18 @@ public:
     //  Which filesystem the DOS-logical buffer carries.
     static VolumeKind  DetectFilesystem (const vector<Byte> & sectors);
 
+    //  Every file system on the buffer, the one DetectFilesystem returns
+    //  first: two for a hybrid disk, and none for an unrecognized buffer.
+    static void  DetectFilesystems (const vector<Byte> & sectors, vector<VolumeKind> & outKinds);
+
     //  The volume of `kind` over the buffer, which must outlive it. Each read
     //  of a sector is reported to the observer, when there is one. An Unknown
     //  kind has a NullVolume, whose operations all fail.
     static std::unique_ptr<IVolume>  CreateVolume (VolumeKind kind, const vector<Byte> & sectors, ISectorReadObserver * observer = nullptr);
+
+    //  The volume layer's buffer as blocks in ProDOS order: a 140K one
+    //  reordered from DOS logical order, a larger one as it is.
+    static void  SaveBlockPayload (const vector<Byte> & sectors, vector<Byte> & outPayload);
 
 private:
     //  The bit-stream half of Save: decode, judge, re-encode only what changed.
@@ -138,6 +172,34 @@ private:
     static HRESULT  SerializeBitStream (DiskFormat format, const DiskImage & image,
                                         const vector<Byte> & originalFileBytes,
                                         vector<Byte> & outFileBytes);
+
+    //  A bit-stream image as a sector buffer: a 13-sector disk in the layout
+    //  of a .d13 file, any other in DOS logical order.
+    static HRESULT  DenibblizeBitStream  (const DiskImage & image, vector<Byte> & outSectors, SectorDecodeReport & outReport);
+
+    //  True for a path with the .d13 extension.
+    static bool     IsThirteenSectorFile (const std::string & path);
+
+    //  The containers Load and Save read beside the emulator's formats: raw
+    //  block images, 2IMG and Disk Copy 4.2.
+    static HRESULT  LoadContainer (ImageContainerKind     kind,
+                                   const vector<Byte>   & fileBytes,
+                                   const std::string    & innerPath,
+                                   vector<Byte>         & outSectors,
+                                   SectorDecodeReport   & outReport,
+                                   MountDiagnosis       & outDiagnosis);
+    static HRESULT  SaveContainer (ImageContainerKind     kind,
+                                   const vector<Byte>   & originalFileBytes,
+                                   const std::string    & innerPath,
+                                   const vector<Byte>   & editedSectors,
+                                   vector<Byte>         & outFileBytes,
+                                   std::string          & outRefusalReason);
+
+    //  A block-order payload as the volume layer's buffer: a 140K one in DOS
+    //  logical order, a larger one as it is.
+    static HRESULT  LoadBlockPayload    (const vector<Byte> & payload, vector<Byte> & outSectors);
+    static HRESULT  ExtractShrinkItDisk (const vector<Byte> & fileBytes, vector<Byte> & outDisk, std::string & outError);
+    static HRESULT  ReplaceShrinkItDisk (const vector<Byte> & originalFileBytes, const vector<Byte> & disk, vector<Byte> & outFileBytes, std::string & outRefusalReason);
 
     static std::string  DescribeUnwritableTrack (int track);
     static void         CollectSectorWrites     (const vector<Byte> & priorSectors, const vector<Byte> & editedSectors, vector<SectorWrite> & outWrites);

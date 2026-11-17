@@ -1,0 +1,1155 @@
+#include "Pch.h"
+
+#include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Seams/RawDevice/RawDeviceProtocol.h"
+#include "Core/TextEncoding.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::MakeCardPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string PhysicalCards::MakeCardPath (int number)
+{
+    return std::format ("{}{}", kDrivePrefix, number);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::ParsePath
+//
+//  The prefix in any case, the drive's number in decimal, and then nothing
+//  for a card or '|' and a partition's step for a partition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PhysicalCards::PathKind PhysicalCards::ParsePath (const std::string & path, int & outDrive, int & outPartition)
+{
+    size_t       i      = kDrivePrefix.size();
+    size_t       digits = 0;
+    int          drive  = 0;
+    bool         isStep = false;
+    std::string  rest;
+
+
+
+    outDrive     = -1;
+    outPartition = 0;
+
+    if (path.size() <= kDrivePrefix.size() || _strnicmp (path.c_str(), kDrivePrefix.data(), kDrivePrefix.size()) != 0)
+    {
+        return PathKind::None;
+    }
+
+    while (i < path.size() && path[i] >= '0' && path[i] <= '9' && digits < kMaxDigits)
+    {
+        drive = drive * 10 + (path[i] - '0');
+        digits++;
+        i++;
+    }
+
+    if (digits == 0)
+    {
+        return PathKind::None;
+    }
+
+    outDrive = drive;
+
+    if (i == path.size())
+    {
+        return PathKind::Card;
+    }
+
+    if (path[i] != '|')
+    {
+        return PathKind::Other;
+    }
+
+    rest   = path.substr (i + 1);
+    isStep = PartitionAccess::TryParseStepName (rest, outPartition);
+
+    return isStep ? PathKind::Partition : PathKind::Other;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::IsCardPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PhysicalCards::IsCardPath (const std::string & path)
+{
+    int  drive     = 0;
+    int  partition = 0;
+
+
+
+    return ParsePath (path, drive, partition) == PathKind::Card;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::IsCardPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PhysicalCards::IsCardPath (const std::wstring & path)
+{
+    return IsCardPath (TextEncoding::WideToUtf8 (path));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::IsOnCard
+//
+//  True for a card, a partition of one, and anything inside a partition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PhysicalCards::IsOnCard (const std::wstring & path)
+{
+    int  drive     = 0;
+    int  partition = 0;
+
+
+
+    return ParsePath (TextEncoding::WideToUtf8 (path), drive, partition) != PathKind::None;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::FormatDrive
+//
+//  Gigabytes to one decimal place from a gigabyte up. A drive with no model
+//  is "Drive 2".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PhysicalCards::FormatDrive (const PhysicalDrive & drive)
+{
+    std::string  model = drive.model.empty() ? std::format ("Drive {}", drive.number) : drive.model;
+
+
+
+    return TextEncoding::Utf8ToWide (std::format ("{} ({})", model, FormatDriveSize (drive)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::MakePartitionImageName
+//
+//  The volume's name is the text after the label's colon. Each character a
+//  file name can't have becomes an underscore.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PhysicalCards::MakePartitionImageName (const std::wstring & label, const PhysicalDrive & drive, int index)
+{
+    size_t        colon  = label.find (L": ");
+    std::wstring  volume = (colon == std::wstring::npos) ? std::wstring() : label.substr (colon + 2);
+    std::wstring  name;
+
+
+
+    if (!volume.empty())
+    {
+        name = volume;
+    }
+    else
+    {
+        name = drive.model.empty() ? std::format (L"Card {} partition {}", drive.number, index)
+                                   : std::format (L"{} partition {}", TextEncoding::Utf8ToWide (drive.model), index);
+    }
+
+    for (wchar_t & c : name)
+    {
+        c = (c < L' ' || wcschr (L"<>:\"/\\|?*", c) != nullptr) ? L'_' : c;
+    }
+
+    return name + L".po";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::FormatCardLabel
+//
+//  A drive with no model is "Storage card (29.7 GB)".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PhysicalCards::FormatCardLabel (const PhysicalDrive & drive, const std::wstring & letters)
+{
+    std::wstring  size   = TextEncoding::Utf8ToWide (FormatDriveSize (drive));
+    std::wstring  prefix = letters.empty() ? std::wstring() : letters + L", ";
+
+
+
+    return drive.model.empty() ? std::format (L"Storage card ({}{})", prefix, size)
+                               : std::format (L"Storage card ({}{}, {})", prefix, TextEncoding::Utf8ToWide (drive.model), size);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::FormatDriveSize
+//
+//  Gigabytes to one decimal place from a gigabyte up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string PhysicalCards::FormatDriveSize (const PhysicalDrive & drive)
+{
+    uint64_t  tenths = (drive.bytes * 10 + kGigabyte / 2) / kGigabyte;
+
+
+
+    return drive.bytes >= kGigabyte ? std::format ("{}.{} GB", tenths / 10, tenths % 10) : PartitionAccess::FormatSize (drive.bytes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::ListRemovableDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::ListRemovableDrives (std::vector<PhysicalDrive> & outDrives)
+{
+    HRESULT                     hr = S_OK;
+    std::vector<PhysicalDrive>  drives;
+
+
+
+    outDrives.clear();
+
+    hr = m_host.ListDrives (drives);
+    CHR (hr);
+
+    for (PhysicalDrive & drive : drives)
+    {
+        if (drive.removable)
+        {
+            outDrives.push_back (std::move (drive));
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::ListStorageCards
+//
+//  A card whose partitions can't be read is listed with a node, so it can
+//  be opened.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::ListStorageCards (std::vector<StorageCard> & outCards)
+{
+    HRESULT                     hr = S_OK;
+    std::vector<PhysicalDrive>  drives;
+
+
+
+    outCards.clear();
+
+    hr = ListRemovableDrives (drives);
+    CHR (hr);
+
+    for (PhysicalDrive & drive : drives)
+    {
+        StorageCard  card;
+        HRESULT      hrLayout = m_host.HasUnmountedPartition (drive.number, card.hasUnmounted);
+
+        card.hasUnmounted = card.hasUnmounted || FAILED (hrLayout);
+        card.drive        = std::move (drive);
+
+        outCards.push_back (std::move (card));
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::TryGetVolumeCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PhysicalCards::TryGetVolumeCard (const std::wstring & root, int & outNumber)
+{
+    HRESULT                     hr     = S_OK;
+    int                         number = -1;
+    bool                        isCard = false;
+    std::vector<PhysicalDrive>  drives;
+
+
+
+    outNumber = -1;
+
+    hr = m_host.FindVolumeDrive (root, number);
+    CHR (hr);
+
+    hr = ListRemovableDrives (drives);
+    CHR (hr);
+
+    for (const PhysicalDrive & drive : drives)
+    {
+        isCard = isCard || drive.number == number;
+    }
+
+    outNumber = isCard ? number : -1;
+
+Error:
+    return isCard;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::Initialize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::Initialize (int number, HWND owner, uint64_t layout, const WriteProgress & progress)
+{
+    HRESULT                     hr        = S_OK;
+    bool                        removable = false;
+    bool                        done      = false;
+    bool                        started   = false;
+    std::vector<PhysicalDrive>  drives;
+    WriteProgress               report;
+
+
+
+    hr = ListRemovableDrives (drives);
+    CHR (hr);
+
+    for (const PhysicalDrive & drive : drives)
+    {
+        removable = removable || drive.number == number;
+    }
+
+    CBREx (removable, E_ACCESSDENIED);
+
+    hr = CheckNotBusy (number);
+    CHR (hr);
+
+    SetWork (number, 0, 0);
+    started = true;
+
+    Close (number);
+
+    report = [this, number, &progress] (uint64_t doneBytes, uint64_t totalBytes)
+    {
+        SetWork (number, doneBytes, totalBytes);
+
+        if (progress)
+        {
+            progress (doneBytes, totalBytes);
+        }
+    };
+
+    //  The first report, of no bytes, is made once the card is busy.
+    report (0, 0);
+
+    //  FAT32 over a card's first partition is written without administrator
+    //  access. The broker is started only for a card without that partition.
+    if (layout == RawDeviceProtocol::kLayoutFat32)
+    {
+        hr = m_host.FormatFirstPartition (number, report, done);
+        CHR (hr);
+        BAIL_OUT_IF (done, S_OK);
+    }
+
+    for (const PhysicalDrive & drive : drives)
+    {
+        if (drive.number == number)
+        {
+            hr = CheckElevation (drive);
+            CHR (hr);
+        }
+    }
+
+    hr = m_host.InitializeDrive (number, owner, layout, report);
+    CHR (hr);
+
+Error:
+    if (started)
+    {
+        EndWork (number);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::CheckElevation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::CheckElevation (const PhysicalDrive & drive)
+{
+    bool  isConfirming = !m_host.IsBrokerRunning() && m_confirmElevation;
+
+
+
+    return isConfirming && !m_confirmElevation (drive) ? HRESULT_FROM_WIN32 (ERROR_CANCELLED) : S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::TryGetWork
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PhysicalCards::TryGetWork (int number, uint64_t & outDone, uint64_t & outTotal)
+{
+    std::lock_guard<std::mutex>  lock (m_workMutex);
+    auto                         found  = m_work.find (number);
+    bool                         isBusy = found != m_work.end();
+
+
+
+    outDone  = isBusy ? found->second.done  : 0;
+    outTotal = isBusy ? found->second.total : 0;
+
+    return isBusy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::CheckNotBusy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::CheckNotBusy (int number)
+{
+    std::lock_guard<std::mutex>  lock (m_workMutex);
+
+
+
+    return m_work.contains (number) ? HRESULT_FROM_WIN32 (ERROR_BUSY) : S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::SetWork
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PhysicalCards::SetWork (int number, uint64_t done, uint64_t total)
+{
+    std::lock_guard<std::mutex>  lock (m_workMutex);
+
+
+
+    m_work[number] = Work { done, total };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::EndWork
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PhysicalCards::EndWork (int number)
+{
+    std::lock_guard<std::mutex>  lock (m_workMutex);
+
+
+
+    m_work.erase (number);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::Open
+//
+//  The drive is opened outside the lock, as the UAC prompt can stay up for
+//  minutes. A card that is open already is closed
+//  first, so the blocks are read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::Open (int number, HWND owner)
+{
+    HRESULT                     hr        = S_OK;
+    bool                        removable = false;
+    std::vector<PhysicalDrive>  drives;
+    Session                     session;
+
+
+
+    hr = ListRemovableDrives (drives);
+    CHR (hr);
+
+    for (const PhysicalDrive & drive : drives)
+    {
+        removable = removable || drive.number == number;
+    }
+
+    CBREx (removable, E_ACCESSDENIED);
+
+    hr = CheckNotBusy (number);
+    CHR (hr);
+
+    for (const PhysicalDrive & drive : drives)
+    {
+        if (drive.number == number)
+        {
+            hr = CheckElevation (drive);
+            CHR (hr);
+        }
+    }
+
+    Close (number);
+
+    hr = m_host.OpenDrive (number, owner, session.drive, session.store);
+    CHR (hr);
+
+    CBREx (session.store != nullptr, E_UNEXPECTED);
+
+    session.cache = std::make_unique<CachingBlockStore> (*session.store);
+
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        session.stamp = m_nextStamp++;
+        m_sessions.erase (number);
+        m_sessions.emplace (number, std::move (session));
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::Close
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PhysicalCards::Close (int number)
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    m_sessions.erase (number);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::IsOpen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PhysicalCards::IsOpen (int number)
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+
+
+
+    return m_sessions.contains (number);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::TryGetDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PhysicalCards::TryGetDrive (int number, PhysicalDrive & outDrive)
+{
+    std::lock_guard<std::mutex>  lock (m_mutex);
+    auto                         found = m_sessions.find (number);
+
+
+
+    outDrive = {};
+
+    if (found == m_sessions.end())
+    {
+        return false;
+    }
+
+    outDrive = found->second.drive;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::ListPartitions
+//
+//  The list is made once for each open of the card and after each write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::ListPartitions (int number, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries)
+{
+    HRESULT                      hr      = S_OK;
+    std::lock_guard<std::mutex>  lock (m_mutex);
+    Session                    * session = nullptr;
+
+
+
+    outKind = PartitionLayoutKind::None;
+    outEntries.clear();
+
+    hr = FindSession (number, session);
+    CHR (hr);
+
+    hr = ListSession (*session);
+    CHR (hr);
+
+    outKind    = session->kind;
+    outEntries = session->entries;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::ReadPartition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::ReadPartition (int number, int partition, std::vector<Byte> & outBytes)
+{
+    HRESULT                      hr      = S_OK;
+    std::lock_guard<std::mutex>  lock (m_mutex);
+    Session                    * session = nullptr;
+    const PartitionEntry       * entry   = nullptr;
+
+
+
+    outBytes.clear();
+
+    hr = FindSession (number, session);
+    CHR (hr);
+
+    hr = FindPartition (*session, partition, entry);
+    CHR (hr);
+
+    hr = PartitionAccess::ReadUsedBytes (*session->cache, entry->partition, outBytes);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::WritePartition
+//
+//  The write is staged first to find whether any block differs, and a write
+//  that changes nothing succeeds without a question. The staged blocks are
+//  dropped while the question is up, so a read on another thread returns
+//  the card's blocks, and staged again after the user confirms.
+//
+//  A write made while a question is up fails with ERROR_BUSY. After a write
+//  that fails partway the card is closed, as its blocks are then unknown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::WritePartition (int number, int partition, std::span<const Byte> bytes)
+{
+    return WritePartitionAt (number, partition, 0, bytes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::WritePartitionAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::WritePartitionAt (int number, int partition, uint64_t offset, std::span<const Byte> bytes)
+{
+    HRESULT                       hr        = S_OK;
+    std::unique_lock<std::mutex>  lock (m_mutex);
+    Session                     * session   = nullptr;
+    bool                          confirmed = false;
+    PhysicalDrive                 drive;
+
+
+
+    CBREx (!m_confirming, HRESULT_FROM_WIN32 (ERROR_BUSY));
+
+    hr = StageWrite (number, partition, offset, bytes, session);
+    CHR (hr);
+
+    BAIL_OUT_IF (session->cache->GetChangedBlockCount() == 0, S_OK);
+
+    session->cache->Discard();
+    drive        = session->drive;
+    m_confirming = true;
+
+    lock.unlock();
+    confirmed = m_confirmed || m_confirmedThread == GetCurrentThreadId() || (m_confirmWrite && m_confirmWrite (drive));
+    lock.lock();
+
+    m_confirming = false;
+
+    CBREx (confirmed, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+
+    hr = StageWrite (number, partition, offset, bytes, session);
+    CHR (hr);
+
+    hr = session->cache->Commit();
+
+    if (FAILED (hr))
+    {
+        m_sessions.erase (number);
+    }
+
+    CHR (hr);
+
+    session->stamp  = m_nextStamp++;
+    session->listed = false;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::DescribePartition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PhysicalCards::DescribePartition (const std::wstring & path)
+{
+    int                          drive     = 0;
+    int                          partition = 0;
+    int                          number    = 0;
+    PartitionLayoutKind          kind      = PartitionLayoutKind::None;
+    std::vector<PartitionEntry>  entries;
+    PhysicalDrive                card;
+    std::wstring                 text;
+    HRESULT                      hr        = S_OK;
+
+
+
+    if (ParsePath (TextEncoding::WideToUtf8 (path), drive, partition) != PathKind::Partition || !TryGetDrive (drive, card))
+    {
+        return text;
+    }
+
+    hr = ListPartitions (drive, kind, entries);
+
+    if (FAILED (hr))
+    {
+        return text;
+    }
+
+    for (const PartitionEntry & entry : entries)
+    {
+        if (text.empty() && PartitionAccess::TryParseStepName (entry.step, number) && number == partition)
+        {
+            text = TextEncoding::NarrowToWide (PartitionAccess::GetLabel (entry, false)) + L" on " + FormatDrive (card);
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::EndThreadConfirmation
+//
+//  Only the confirmed thread ends its confirmation.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PhysicalCards::EndThreadConfirmation()
+{
+    DWORD  current = GetCurrentThreadId();
+
+
+
+    m_confirmedThread.compare_exchange_strong (current, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::GetStamp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::GetStamp (int number, int partition, FileStamp & outStamp)
+{
+    HRESULT                      hr      = S_OK;
+    std::lock_guard<std::mutex>  lock (m_mutex);
+    Session                    * session = nullptr;
+    const PartitionEntry       * entry   = nullptr;
+
+
+
+    outStamp = {};
+
+    hr = FindSession (number, session);
+    CHR (hr);
+
+    hr = FindPartition (*session, partition, entry);
+    CHR (hr);
+
+    outStamp.sizeBytes    = entry->byteCount;
+    outStamp.modifiedUnix = session->stamp;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::ReadPartitionAt
+//
+//  The blocks the range covers, read whole, and the range copied out of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::ReadPartitionAt (int number, int partition, uint64_t offset, std::span<Byte> outBytes)
+{
+    HRESULT                      hr      = S_OK;
+    std::lock_guard<std::mutex>  lock (m_mutex);
+    Session                    * session = nullptr;
+    const PartitionEntry       * entry   = nullptr;
+    bool                         inside  = false;
+    uint64_t                     first   = 0;
+    uint64_t                     last    = 0;
+    std::vector<Byte>            blocks;
+
+
+
+    hr = FindSession (number, session);
+    CHR (hr);
+
+    hr = FindPartition (*session, partition, entry);
+    CHR (hr);
+
+    inside = offset <= entry->byteCount && outBytes.size() <= entry->byteCount - offset;
+    CBREx (inside, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+    BAIL_OUT_IF (outBytes.empty(), S_OK);
+
+    if (entry->partition.span != PartitionSpan::WholeBlocks || entry->partition.dosSectors)
+    {
+        hr = PartitionAccess::ReadBytes (*session->cache, entry->partition, blocks);
+        CHR (hr);
+
+        std::copy_n (blocks.begin() + (ptrdiff_t) offset, outBytes.size(), outBytes.begin());
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    first = offset / IBlockStore::kBlockBytes;
+    last  = (offset + outBytes.size() - 1) / IBlockStore::kBlockBytes;
+
+    blocks.resize ((size_t) (last - first + 1) * IBlockStore::kBlockBytes);
+
+    hr = session->cache->ReadBlocks (entry->partition.firstBlock + (uint32_t) first, (uint32_t) (last - first + 1), blocks);
+    CHR (hr);
+
+    std::copy_n (blocks.begin() + (ptrdiff_t) (offset % IBlockStore::kBlockBytes), outBytes.size(), outBytes.begin());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::FindSession
+//
+//  Called with the lock taken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::FindSession (int number, Session * & outSession)
+{
+    HRESULT  hr     = S_OK;
+    auto     found  = m_sessions.find (number);
+    bool     isOpen = found != m_sessions.end();
+
+
+
+    outSession = nullptr;
+
+    CBREx (isOpen, HRESULT_FROM_WIN32 (ERROR_DEVICE_NOT_CONNECTED));
+
+    outSession = &found->second;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::ListSession
+//
+//  Lists the card's partitions when the session has no list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::ListSession (Session & session)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (session.listed, S_OK);
+
+    hr = PartitionAccess::ListCard (*session.cache, session.kind, session.entries);
+    CHR (hr);
+
+    session.listed = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::FindPartition
+//
+//  A partition that ends past the end of the card fails with ERROR_FILE_CORRUPT, and one
+//  longer than kMaxPartitionBytes with ERROR_NOT_SUPPORTED.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::FindPartition (Session & session, int partition, const PartitionEntry * & outEntry)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    outEntry = nullptr;
+
+    hr = ListSession (session);
+    CHR (hr);
+
+    for (const PartitionEntry & entry : session.entries)
+    {
+        if (outEntry == nullptr && entry.partition.index == partition)
+        {
+            outEntry = &entry;
+        }
+    }
+
+    CBREx (outEntry != nullptr,                      HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+    CBREx (!outEntry->partition.damaged,             HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+    CBREx (outEntry->byteCount <= kMaxPartitionBytes, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+Error:
+    if (FAILED (hr))
+    {
+        outEntry = nullptr;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PhysicalCards::StageWrite
+//
+//  The partition's bytes with `bytes` over their start, written to the
+//  cache and not committed. Called with the lock taken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PhysicalCards::StageWrite (int number, int partition, uint64_t offset, std::span<const Byte> bytes, Session * & outSession)
+{
+    HRESULT                 hr      = S_OK;
+    Session               * session = nullptr;
+    const PartitionEntry  * entry   = nullptr;
+    std::vector<Byte>       current;
+    bool                    fits    = false;
+    bool                    blocks  = false;
+
+
+
+    outSession = nullptr;
+
+    hr = FindSession (number, session);
+    CHR (hr);
+
+    hr = FindPartition (*session, partition, entry);
+    CHR (hr);
+
+    fits   = offset <= entry->byteCount && bytes.size() <= entry->byteCount - offset;
+    blocks = entry->partition.span == PartitionSpan::WholeBlocks && !entry->partition.dosSectors
+          && offset % IBlockStore::kBlockBytes == 0 && bytes.size() % IBlockStore::kBlockBytes == 0;
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH));
+
+    if (blocks && !bytes.empty())
+    {
+        hr = session->cache->WriteBlocks (entry->partition.firstBlock + (uint32_t) (offset / IBlockStore::kBlockBytes), bytes);
+        CHR (hr);
+
+        outSession = session;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    //  A write that doesn't cover the partition is laid over what is there
+    //  now.
+    if (offset > 0 || bytes.size() < entry->byteCount)
+    {
+        hr = PartitionAccess::ReadBytes (*session->cache, entry->partition, current);
+        CHR (hr);
+    }
+
+    current.resize ((size_t) entry->byteCount);
+    std::copy (bytes.begin(), bytes.end(), current.begin() + (ptrdiff_t) offset);
+
+    hr = PartitionAccess::WriteUsedBytes (*session->cache, entry->partition, current);
+    CHR (hr);
+
+    outSession = session;
+
+Error:
+    if (FAILED (hr) && session != nullptr)
+    {
+        session->cache->Discard();
+    }
+
+    return hr;
+}

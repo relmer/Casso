@@ -295,7 +295,7 @@ public:
             }
         }
 
-        Assert::AreNotEqual (std::string::npos, rig.screens.back().find ("PRESS ESC TO EXIT"), L"the last row has how to leave");
+        Assert::AreNotEqual (std::string::npos, rig.screens.back().find ("Press Esc to exit"), L"the last row has how to leave");
     }
 
 
@@ -349,7 +349,7 @@ public:
         rows = TextScreenScraper::Scrape (rig.machine);
 
         Assert::AreEqual (std::string::npos, rows[4].find_first_not_of (' '), L"the label row is blank");
-        Assert::AreNotEqual (std::string::npos, rows[0].find ("WAITING"), L"the PC is waited for");
+        Assert::AreNotEqual (std::string::npos, rows[0].find ("Waiting"), L"the PC is waited for");
     }
 
 
@@ -358,7 +358,7 @@ public:
     //  With the PC's port closed, CTS is false and the 6551 sends nothing.
     //  The program drops what it can't send, so it counts the PC's silence and
     //  waits for the PC again, rather than waiting forever to send its next
-    //  Ready with CONNECTED on the screen.
+    //  Ready with Connected on the screen.
     TEST_METHOD (APcThatClosesItsPort_IsWaitedForAgain)
     {
         Rig                       rig;
@@ -375,7 +375,7 @@ public:
 
         rows = TextScreenScraper::Scrape (rig.machine);
 
-        Assert::AreNotEqual (std::string::npos, rows[0].find ("WAITING"), TextEncoding::NarrowToWide (rows[0]).c_str());
+        Assert::AreNotEqual (std::string::npos, rows[0].find ("Waiting"), TextEncoding::NarrowToWide (rows[0]).c_str());
     }
 
 
@@ -609,7 +609,7 @@ public:
         }
 
         rows = TextScreenScraper::Scrape (rig.machine);
-        Assert::IsTrue (rows[10].starts_with ("D2: EMPTY OR NO RECOGNIZED SECTORS"), TextEncoding::NarrowToWide (rows[10]).c_str());
+        Assert::IsTrue (rows[10].starts_with ("D2: Empty or no recognized sectors"), TextEncoding::NarrowToWide (rows[10]).c_str());
 
         AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Po, rig.prodos));
         rig.Read (2, 0, sectors);
@@ -620,7 +620,7 @@ public:
         }
 
         rows = TextScreenScraper::Scrape (rig.machine);
-        Assert::IsTrue (rows[10].starts_with ("D2: IDLE"), TextEncoding::NarrowToWide (rows[10]).c_str());
+        Assert::IsTrue (rows[10].starts_with ("D2: Idle"), TextEncoding::NarrowToWide (rows[10]).c_str());
     }
 
 
@@ -638,7 +638,7 @@ public:
 
         for (const std::string & screen : rig.screens)
         {
-            if (screen.find ("D1: READING") != std::string::npos && screen.find (" 50%") != std::string::npos)
+            if (screen.find ("D1: Reading") != std::string::npos && screen.find (" 50%") != std::string::npos)
             {
                 reading = screen;
                 break;
@@ -646,8 +646,8 @@ public:
         }
 
         Assert::IsFalse (reading.empty(), L"the screen reported the read halfway through");
-        Assert::IsTrue (reading.find ("CASSOLINK: CONNECTED") != std::string::npos, L"the PC");
-        Assert::IsTrue (reading.find ("SERIAL PORT 2, 115200") != std::string::npos, L"the connection");
+        Assert::IsTrue (reading.find ("CassoLink: Connected") != std::string::npos, L"the PC");
+        Assert::IsTrue (reading.find ("Serial port 2, 115200") != std::string::npos, L"the connection");
     }
 
 

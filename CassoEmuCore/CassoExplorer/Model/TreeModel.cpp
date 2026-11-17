@@ -9,6 +9,9 @@
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Devices/Disk/Archives/ContainerPath.h"
+#include "Devices/Disk/Containers/ImageContainer.h"
+#include "Devices/Disk/Partitions/PartitionAccess.h"
 
 
 
@@ -104,6 +107,25 @@ void TreeModel::SetDrives (std::vector<std::wstring> driveRoots)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::SetStorageCards
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TreeModel::SetStorageCards (std::vector<StorageCardTreeEntry> cards)
+{
+    m_storageCards = std::move (cards);
+
+    m_children.erase (kThisPcRootId);
+    m_children.erase (kDesktopRootId);
+    std::erase_if (m_children, [] (const auto & child) { return child.first.starts_with (kStorageCardTag); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::IsSupportedImage
 //
 //  The container words the disk tool advertises, as extensions.
@@ -138,7 +160,7 @@ bool TreeModel::IsSupportedImage (const std::wstring & fileName)
         }
     }
 
-    return false;
+    return ImageContainer::IsListedExtension (extension);
 }
 
 
@@ -301,6 +323,21 @@ bool TreeModel::TryParseImageOrDirectoryId (
     outUnderCasso = tag == kCassoTag;
     secondBar     = id.find (kSeparator, firstBar + 1);
 
+    //  A partition's step is part of the image's path.
+    while (secondBar != std::wstring::npos)
+    {
+        size_t        nextBar   = id.find (kSeparator, secondBar + 1);
+        std::wstring  step      = id.substr (secondBar + 1, (nextBar == std::wstring::npos) ? std::wstring::npos : nextBar - secondBar - 1);
+        int           partition = 0;
+
+        if (!PartitionAccess::TryParseStepName (TextEncoding::WideToNarrow (step), partition))
+        {
+            break;
+        }
+
+        secondBar = nextBar;
+    }
+
     if (secondBar == std::wstring::npos)
     {
         outPath = id.substr (firstBar + 1);
@@ -419,8 +456,12 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
 
     //  CassoLink first, at the top of the pane, then Casso.
     outNodes.clear();
-    outNodes.push_back (MakeRootNode (kCassoLinkRootId));
-    outNodes.back().id = kLinkCopyTag + outNodes.back().id;
+    if (m_showCassoLink)
+    {
+        outNodes.push_back (MakeRootNode (kCassoLinkRootId));
+        outNodes.back().id = kLinkCopyTag + outNodes.back().id;
+    }
+
     outNodes.push_back (casso);
 
     //  With the all-folders option on, Explorer's pane has the desktop alone, with
@@ -439,7 +480,10 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
             outNodes.push_back (pc);
         }
 
-        outNodes.push_back (MakeRootNode (kCassoLinkRootId));
+        if (m_showCassoLink)
+        {
+            outNodes.push_back (MakeRootNode (kCassoLinkRootId));
+        }
 
         if (m_navOptions.showAllFolders)
         {
@@ -483,14 +527,14 @@ void TreeModel::GetRoots (std::vector<TreeNode> & outNodes) const
                     || (root.isNetwork   && !IsNavRootShown (NavRoot::Network))
                     || (root.isLibraries && !IsNavRootShown (NavRoot::Libraries));
 
-        if (root.leading || root.isRecycleBin || hidden)
+        if (root.leading || root.isRecycleBin || hidden || IsHiddenDrive (root.path))
         {
             continue;
         }
 
         outNodes.push_back (root.isThisPc ? pc : MakeShellNode (root));
 
-        if (root.isThisPc)
+        if (root.isThisPc && m_showCassoLink)
         {
             outNodes.push_back (MakeRootNode (kCassoLinkRootId));
         }
@@ -539,6 +583,12 @@ TreeNode TreeModel::MakeRootNode (const std::wstring & id) const
     {
         node.kind     = TreeNode::Kind::CassoLinkRoot;
         node.location = Location::MakeRoot (kCassoLinkRootId);
+    }
+    else if (id == kStockDisksId || id == kDemoDisksId)
+    {
+        node.kind      = TreeNode::Kind::CassoRoot;
+        node.location  = Location::MakeRoot (id);
+        node.canExpand = false;
     }
     else if (id == Location::kRecycleBinId)
     {
@@ -596,7 +646,7 @@ HRESULT TreeModel::ListDesktopRoot (std::vector<TreeNode> & outNodes)
                       || (item->isNetwork   && !IsNavRootShown (NavRoot::Network))
                       || (item->isLibraries && !IsNavRootShown (NavRoot::Libraries));
 
-        if (hidden)
+        if (hidden || IsHiddenDrive (item->path))
         {
             continue;
         }
@@ -712,7 +762,7 @@ bool TreeModel::IsPinnedFolder (const std::wstring & path) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TreeNode TreeModel::MakeShellNode (const IShellItemVerbs::ShellFolderItem & item)
+TreeNode TreeModel::MakeShellNode (const IShellItemVerbs::ShellFolderItem & item) const
 {
     TreeNode  node;
 
@@ -723,10 +773,16 @@ TreeNode TreeModel::MakeShellNode (const IShellItemVerbs::ShellFolderItem & item
 
     if (!item.path.empty() && !item.isFile)
     {
+        //  A drive at the top level, as a removable drive is, is grayed when
+        //  it can't be read, as it is under This PC.
+        bool  isDrive = item.path.size() <= 3 && item.path.size() >= 2 && item.path[1] == L':';
+        bool  exists  = !isDrive || !m_directoryProbe || m_directoryProbe (item.path);
+
         node.id        = MakeFolderId (false, item.path);
         node.kind      = TreeNode::Kind::HostFolder;
         node.location  = Location::MakeHostFolder (item.path);
-        node.canExpand = true;
+        node.missing   = !exists;
+        node.canExpand = exists;
     }
     else
     {
@@ -811,6 +867,16 @@ std::wstring TreeModel::GetRootLabel (const std::wstring & id)
     if (id == kCassoLinkRootId)
     {
         return L"CassoLink";
+    }
+
+    if (id == kStockDisksId)
+    {
+        return L"Stock disks";
+    }
+
+    if (id == kDemoDisksId)
+    {
+        return L"Demo disks";
     }
 
     if (id == Location::kRecycleBinId)
@@ -1091,7 +1157,7 @@ std::wstring TreeModel::GetLinkDriveLabel (int slot, int drive)
 
 std::wstring TreeModel::GetLinkDriveLabel (const LinkTreeEntry::Drive & drive)
 {
-    std::wstring  label = GetLinkDriveLabel (drive.slot, drive.drive);
+    std::wstring  label = drive.isBlockDevice ? GetBlockDeviceLabel (drive) : GetLinkDriveLabel (drive.slot, drive.drive);
 
 
 
@@ -1107,6 +1173,30 @@ std::wstring TreeModel::GetLinkDriveLabel (const LinkTreeEntry::Drive & drive)
     }
 
     return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TreeModel::GetBlockDeviceLabel
+//
+//  "Slot 5, Unit 1, 800K": the size in K below a megabyte, in MB from it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TreeModel::GetBlockDeviceLabel (const LinkTreeEntry::Drive & drive)
+{
+    static constexpr uint32_t  kBlocksPerK  = 2;
+    static constexpr uint32_t  kBlocksPerMb = 2048;
+    std::wstring               size         = drive.blocks >= kBlocksPerMb ? std::format (L"{} MB", (drive.blocks + kBlocksPerMb / 2) / kBlocksPerMb)
+                                                                           : std::format (L"{}K", drive.blocks / kBlocksPerK);
+
+
+
+    return std::format (L"Slot {}, Unit {}, {}", drive.slot, drive.unit, size);
 }
 
 
@@ -1464,7 +1554,14 @@ HRESULT TreeModel::ListRoot (bool underCasso, std::vector<TreeNode> & outNodes)
     {
         const std::wstring &  path   = paths[i];
         TreeNode              node;
-        bool                  exists = !m_directoryProbe || m_directoryProbe (path);
+        bool                  exists = false;
+
+        if (!underCasso && IsHiddenDrive (path))
+        {
+            continue;
+        }
+
+        exists = !m_directoryProbe || m_directoryProbe (path);
 
         node.id        = MakeFolderId (underCasso, path);
         node.kind      = underCasso ? TreeNode::Kind::KnownFolder : TreeNode::Kind::Drive;
@@ -1472,6 +1569,21 @@ HRESULT TreeModel::ListRoot (bool underCasso, std::vector<TreeNode> & outNodes)
         node.location  = Location::MakeHostFolder (path);
         node.missing   = !exists;
         node.canExpand = exists;
+
+        outNodes.push_back (node);
+    }
+
+    //  A card opens when it is selected, which raises the UAC prompt the
+    //  first time, so it has no expander for the tree to read it through.
+    for (const StorageCardTreeEntry & card : underCasso ? std::vector<StorageCardTreeEntry>() : m_storageCards)
+    {
+        TreeNode  node;
+
+        node.id        = kStorageCardTag + card.path;
+        node.kind      = TreeNode::Kind::DiskImage;
+        node.label     = card.label;
+        node.location  = Location::MakeDiskImage (card.path);
+        node.canExpand = !card.partitions.empty();
 
         outNodes.push_back (node);
     }
@@ -1485,79 +1597,24 @@ HRESULT TreeModel::ListRoot (bool underCasso, std::vector<TreeNode> & outNodes)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TreeModel::DescribeImage
-//
-//  Reads the image once. A ProDOS volume's subdirectories become the node's
-//  children and give it an expand affordance; a DOS 3.3 volume has none; a
-//  file that will not parse gets the error as its tooltip and no affordance.
+//  TreeModel::IsHiddenDrive
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, TreeNode & inOutNode)
+bool TreeModel::IsHiddenDrive (const std::wstring & path) const
 {
-    HRESULT                hr         = S_OK;
-    std::string            content;
-    std::vector<Byte>      fileBytes;
-    std::vector<Byte>      sectors;
-    SectorDecodeReport     report;
-    MountDiagnosis         diagnosis;
-    bool                   loaded     = false;
-    VolumeKind             kind       = VolumeKind::Unknown;
-    std::vector<TreeNode>  children;
-    std::string            narrowPath = TextEncoding::WideToNarrow (path);
-
-
-
-    inOutNode.canExpand = false;
-    inOutNode.broken    = false;
-    inOutNode.loadError.clear();
-
-    hr = m_fs.ReadAllText (path, content);
-
-    if (SUCCEEDED (hr))
+    for (const StorageCardTreeEntry & card : m_storageCards)
     {
-        fileBytes.assign (content.begin(), content.end());
-
-        hr     = VolumeImage::Load (fileBytes, narrowPath, sectors, report, diagnosis);
-        loaded = SUCCEEDED (hr);
-    }
-
-    if (SUCCEEDED (hr))
-    {
-        kind = VolumeImage::DetectFilesystem (sectors);
-
-        if (kind == VolumeKind::Unknown && m_filesystemChoices != nullptr)
+        for (const std::wstring & root : card.hiddenRoots)
         {
-            kind = m_filesystemChoices->GetChoice (path);
-        }
-
-        if (kind == VolumeKind::Unknown)
-        {
-            hr = HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME);
+            if (_wcsnicmp (root.c_str(), path.c_str(), 2) == 0 && path.size() <= 3)
+            {
+                return true;
+            }
         }
     }
 
-    if (FAILED (hr))
-    {
-        //  A file the loader refused says why, as the list does; one that
-        //  loaded holds no file system this browser reads.
-        inOutNode.loadError = loaded ? GetLeaf (path) + L" " + kNoFilesystemText
-                                     : BreakAfterFirstSentence (GetLeaf (path) + L" " + TextEncoding::NarrowToWide (diagnosis.Describe()) + L".");
-        inOutNode.broken         = !loaded;
-        m_children[inOutNode.id] = children;
-
-        return S_OK;
-    }
-
-    if (kind == VolumeKind::ProDos)
-    {
-        ListDirectories (underCasso, path, sectors, std::string(), children);
-    }
-
-    inOutNode.canExpand      = !children.empty();
-    m_children[inOutNode.id] = children;
-
-    return S_OK;
+    return false;
 }
 
 
@@ -1566,103 +1623,36 @@ HRESULT TreeModel::DescribeImage (bool underCasso, const std::wstring & path, Tr
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TreeModel::ListDirectories
+//  TreeModel::ListStorageCard
 //
-//  The subdirectories of one directory inside a ProDOS image. Each is listed
-//  one level deeper, so only a directory that contains subdirectories can
-//  expand. A directory whose listing fails has no children.
+//  An open card's partitions. Their directories are in the list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TreeModel::ListDirectories (
-    bool                      underCasso,
-    const std::wstring      & path,
-    const std::vector<Byte> & sectors,
-    const std::string       & inner,
-    std::vector<TreeNode>   & outNodes)
+void TreeModel::ListStorageCard (const std::wstring & path, std::vector<TreeNode> & outNodes) const
 {
-    ProDosVolume                          volume (sectors);
-    VolumeListing                            listing;
-    VolumeListing                            below;
-    std::unordered_map<std::string, size_t>  seen;
-    HRESULT                                  hr      = volume.EnumerateDirectory (FilePath::Parse (inner), listing);
-
-
-
     outNodes.clear();
 
-    if (FAILED (hr))
+    for (const StorageCardTreeEntry & card : m_storageCards)
     {
-        return;
-    }
-
-    for (const FileEntry & entry : listing.entries)
-    {
-        TreeNode     child;
-        std::string  childInner = inner.empty() ? entry.name : inner + "/" + entry.name;
-        bool         hasSubdir  = false;
-
-        if (!entry.isDirectory)
+        if (_wcsicmp (card.path.c_str(), path.c_str()) != 0)
         {
             continue;
         }
 
-        below = VolumeListing();
-        hr    = volume.EnumerateDirectory (FilePath::Parse (childInner), below);
-
-        for (const FileEntry & grandchild : below.entries)
+        for (const StorageCardTreeEntry::Partition & partition : card.partitions)
         {
-            hasSubdir = hasSubdir || (SUCCEEDED (hr) && grandchild.isDirectory);
+            std::wstring  partitionPath = card.path + kSeparator + partition.step;
+            TreeNode      node;
+
+            node.id       = MakeImageId (false, partitionPath);
+            node.kind     = TreeNode::Kind::DiskImage;
+            node.label    = partition.label;
+            node.location = Location::MakeDiskImage (partitionPath);
+
+            outNodes.push_back (node);
         }
-
-        child.id        = MakeDirectoryId (underCasso, path, childInner, seen[entry.name]++);
-        child.kind      = TreeNode::Kind::DiskDirectory;
-        child.label     = AppleFileName::ToDisplay (entry.name);
-        child.location  = Location::MakeDiskDirectory (path, childInner);
-        child.canExpand = hasSubdir;
-
-        outNodes.push_back (child);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TreeModel::ListImageDirectory
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT TreeModel::ListImageDirectory (bool underCasso, const std::wstring & path, const std::string & inner, std::vector<TreeNode> & outNodes)
-{
-    HRESULT             hr        = S_OK;
-    std::string         content;
-    std::vector<Byte>   fileBytes;
-    std::vector<Byte>   sectors;
-    SectorDecodeReport  report;
-    bool                isProDos  = false;
-
-
-
-    outNodes.clear();
-
-    hr = m_fs.ReadAllText (path, content);
-    CHR (hr);
-
-    fileBytes.assign (content.begin(), content.end());
-
-    hr = VolumeImage::Load (fileBytes, TextEncoding::WideToNarrow (path), sectors, report);
-    CHR (hr);
-
-    isProDos = VolumeImage::DetectFilesystem (sectors) == VolumeKind::ProDos;
-    CBREx (isProDos, HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME));
-
-    ListDirectories (underCasso, path, sectors, inner, outNodes);
-
-Error:
-    return hr;
 }
 
 
@@ -1824,40 +1814,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TreeModel::ListImage
-//
-//  An image expanded before its folder was listed -- a restored tab, say --
-//  is described on demand; otherwise its children are already cached.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT TreeModel::ListImage (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes)
-{
-    HRESULT   hr = S_OK;
-    TreeNode  node;
-
-
-
-    node.id       = MakeImageId (underCasso, path);
-    node.kind     = TreeNode::Kind::DiskImage;
-    node.label    = GetLeaf (path);
-    node.location = Location::MakeDiskImage (path);
-
-    hr = DescribeImage (underCasso, path, node);
-    CHR (hr);
-
-    outNodes = m_children[node.id];
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  TreeModel::GetChildren
 //
 //  The cache answers when it can; otherwise the id says which listing to
@@ -1914,10 +1870,28 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     else if (id == kCassoRootId)
     {
         hr = ListRoot (true, outNodes);
+
+        if (m_showDemoDisks)
+        {
+            outNodes.insert (outNodes.begin(), MakeRootNode (kDemoDisksId));
+        }
+
+        if (m_showStockDisks)
+        {
+            outNodes.insert (outNodes.begin(), MakeRootNode (kStockDisksId));
+        }
+    }
+    else if (id == kStockDisksId || id == kDemoDisksId)
+    {
+        //  Nothing under it in the tree: the stock disks are in the list.
     }
     else if (id == kThisPcRootId)
     {
         hr = ListRoot (false, outNodes);
+    }
+    else if (id.starts_with (kStorageCardTag))
+    {
+        ListStorageCard (id.substr (wcslen (kStorageCardTag)), outNodes);
     }
     else if (id == kCassoLinkRootId)
     {

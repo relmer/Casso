@@ -98,6 +98,7 @@ public:
 
     //  The whole general page, banner included.
     static std::string  BuildGeneralHelp (const std::string & banner, char flagPrefix);
+    static std::string  BuildBasicHelp   (const std::string & banner, char flagPrefix);
 
     //  The widest line BuildEmulatorHelp will produce.
     //

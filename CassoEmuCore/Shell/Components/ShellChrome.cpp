@@ -271,13 +271,18 @@ void ShellChrome::SetChromeHiddenForFullscreenScene (bool hidden)
     // bar along the window's bottom edge.
     // With auto-hide on, they stay hidden after fullscreen too, and reappear on
     // the strip when the pointer is at the bottom edge.
-    m_driveBandSurface.SetVisible (!hidden && !m_shell.DeskSceneActive() && !m_shell.AreDrivesOnStrip());
+    m_driveBandSurface.SetVisible (!hidden && (!m_shell.DeskSceneActive() || m_shell.m_scene->AreDrivesOnBar()) && !m_shell.AreDrivesOnStrip());
     m_switchBar.SetVisible (!hidden);
+
+    if (hidden)
+    {
+        HideDriveBar();
+    }
 
     // Leaving fullscreen must not hand the flat widgets back to a scene that
     // has already retired them.
-    m_shell.m_disks->GetDriveChrome()[0].SetVisible (!hidden && !m_shell.DeskSceneActive() && !m_shell.AreDrivesOnStrip());
-    m_shell.m_disks->GetDriveChrome()[1].SetVisible (!hidden && !m_shell.DeskSceneActive() && !m_shell.AreDrivesOnStrip());
+    m_shell.m_disks->GetDriveChrome()[0].SetVisible (!hidden && (!m_shell.DeskSceneActive() || m_shell.m_scene->AreDrivesOnBar()) && !m_shell.AreDrivesOnStrip());
+    m_shell.m_disks->GetDriveChrome()[1].SetVisible (!hidden && (!m_shell.DeskSceneActive() || m_shell.m_scene->AreDrivesOnBar()) && !m_shell.AreDrivesOnStrip());
 
     if (hidden)
     {
@@ -855,7 +860,7 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
                                                       kFramebufferWidth, kFramebufferHeight,
                                                       m_shell.m_scene->GetScene().Metrics(), comp,
                                                       m_shell.m_scene->DeskSceneDriveCount(), m_deskSlideProgress,
-                                                      GetDeskSlideClearPx());
+                                                      GetDeskSlideClearPx(), m_dockHover);
         BAIL_OUT_IF (hrLayout != S_OK, S_OK);
 
         m_deskSlideBox = full;
@@ -895,7 +900,7 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
             {
                 hrLayout = DeskSceneLayout::ComputeSliding (sceneBox, m_shell.m_scaler.GetDpi(), driveCount, metrics,
                                                             m_deskSlideProgress, GetDeskSlideClearPx(), comp,
-                                                            m_shell.m_scene->GetView());
+                                                            m_shell.m_scene->GetView(), m_dockHover);
             }
             else
             {
@@ -995,6 +1000,10 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
         center             = ComputeViewportRect (widthPx, heightPx);
         viewportRect       = center;
 
+        // No drive is in the scene. The composition is emptied, so the drop
+        // targets are the drive bar's slots and not the desk theme's drives
+        // from before a theme switch.
+        m_shell.m_scene->GetScene().SetComposition (DeskSceneComposition {});
         m_shell.m_scene->LayoutSceneCompass();
     }
 
@@ -1032,27 +1041,54 @@ Error:
 
 void ShellChrome::ComposeDeskSlide (float progress)
 {
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (!m_shell.IsDeskSlideActive() || progress == m_deskSlideProgress, S_OK);
+
+    m_deskSlideProgress = progress;
+
+    RecomposeDeskSlide();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::RecomposeDeskSlide
+//
+//  Re-solves the slide at its progress and the dock's magnification inside
+//  the scene box the last layout used, and pushes it to the scene.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::RecomposeDeskSlide()
+{
     HRESULT                hr     = S_OK;
     DeskSceneComposition   comp;
 
 
 
-    BAIL_OUT_IF (!m_shell.IsDeskSlideActive() || progress == m_deskSlideProgress, S_OK);
     BAIL_OUT_IF (m_deskSlideBox.right <= m_deskSlideBox.left, S_OK);
-
-    m_deskSlideProgress = progress;
 
     if (m_shell.m_renderer->GetD3D().IsFullscreen())
     {
         hr = DeskSceneLayout::ComputeGlassFill (m_deskSlideBox, m_shell.m_scaler.GetDpi(), kFramebufferWidth, kFramebufferHeight,
                                                 m_shell.m_scene->GetScene().Metrics(), comp,
-                                                m_shell.m_scene->DeskSceneDriveCount(), progress, GetDeskSlideClearPx());
+                                                m_shell.m_scene->DeskSceneDriveCount(), m_deskSlideProgress, GetDeskSlideClearPx(),
+                                                m_dockHover);
     }
     else
     {
         hr = DeskSceneLayout::ComputeSliding (m_deskSlideBox, m_shell.m_scaler.GetDpi(), m_shell.m_scene->DeskSceneDriveCount(),
-                                              m_shell.m_scene->GetScene().Metrics(), progress, GetDeskSlideClearPx(), comp,
-                                              m_shell.m_scene->GetView());
+                                              m_shell.m_scene->GetScene().Metrics(), m_deskSlideProgress, GetDeskSlideClearPx(), comp,
+                                              m_shell.m_scene->GetView(), m_dockHover);
     }
 
     BAIL_OUT_IF (hr != S_OK, S_OK);
@@ -1064,6 +1100,49 @@ void ShellChrome::ComposeDeskSlide (float progress)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::UpdateDockHover
+//
+//  The magnification grows over s_kDockEaseMs once the dock is fully up and the
+//  pointer is over it, and shrinks back over the same time once the pointer
+//  is off it, about the pointer's last place so the row settles where it
+//  was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellChrome::UpdateDockHover (POINT cursor, bool isOverDock, int64_t nowMs)
+{
+    DeskDockHover  next      = m_dockHover;
+    bool           isNear    = isOverDock && m_deskSlideProgress >= 1.0f;
+    bool           isChanged = false;
+
+
+
+    m_dockFade.SetNear (isNear, nowMs);
+
+    if (isNear)
+    {
+        next.pointerPx = (float) cursor.x;
+    }
+
+    next.strength = m_dockFade.GetStrength (nowMs);
+
+    isChanged = next.pointerPx != m_dockHover.pointerPx || next.strength != m_dockHover.strength;
+
+    if (isChanged)
+    {
+        m_dockHover = next;
+        RecomposeDeskSlide();
+    }
+
+    return isChanged;
 }
 
 
@@ -1167,6 +1246,7 @@ void ShellChrome::SyncChromeBands()
     inputs.hasDiskController   = (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
     inputs.crtMonitorActive    = m_shell.CrtMonitorActive();
     inputs.drivesOnStrip       = m_shell.AreDrivesAutoHidden();
+    inputs.drivesOnBar         = m_shell.m_scene->AreDrivesOnBar();
     inputs.hasCaseSwitches     = m_shell.MachineHasCaseSwitches();
     inputs.driveBarThicknessDp = m_driveBarThicknessDp;
     inputs.chromeSceneScale    = m_chromeSceneScale;
@@ -1965,6 +2045,24 @@ void ShellChrome::ShowNotice (const std::wstring & text)
     SyncNotice();
 
     m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HideTooltips
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::HideTooltips()
+{
+    m_toolbarTooltip.HideImmediate();
+    m_switchBarTooltip.HideImmediate();
+    m_driveTooltip.HideImmediate();
+    m_captionTooltip.HideImmediate();
 }
 
 

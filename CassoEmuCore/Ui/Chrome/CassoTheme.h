@@ -107,10 +107,12 @@ struct CassoTheme : public DxuiTheme
         theme.dropdownBorder      = 0xFF334050;
         theme.dropdownDivider     = 0xFF334050;
         theme.driveLabel          = 0xFFE6E2D8;
-        theme.ledIdle             = 0xFF1A0606;
-        theme.ledPresent          = 0xFF1A0606;
-        theme.ledActive           = 0xFFFF2818;
-        theme.ledHalo             = 0x60FF2818;
+        // The 2D activity rails in a periwinkle between the link blue and the
+        // slate buttons. The 3D drives' lamps are red in the models.
+        theme.ledIdle             = 0xFF0B0E22;
+        theme.ledPresent          = 0xFF0B0E22;
+        theme.ledActive           = 0xFF8F95FF;
+        theme.ledHalo             = 0x608F95FF;
         theme.link                = 0xFF6FB8FF;
         theme.linkHover           = 0xFFB7DFFF;
         theme.panelBg             = 0xFF1A2230;
@@ -124,6 +126,7 @@ struct CassoTheme : public DxuiTheme
         theme.tooltipBorder       = 0xFF4A5F80;
         theme.tooltipText         = 0xFFE8EEF4;
         theme.errorText           = 0xFFFF6B6B;
+        theme.diskInspector       = DiskInspectorColors::MakeDark();
         return theme;
     }
 
@@ -178,6 +181,7 @@ struct CassoTheme : public DxuiTheme
         theme.tooltipBorder             = 0xFF55595F;
         theme.tooltipText               = 0xFFF0F0F0;
         theme.errorText                 = 0xFFFF6B6B;
+        theme.diskInspector             = DiskInspectorColors::MakeDark();
         return theme;
     }
 
@@ -232,6 +236,12 @@ struct CassoTheme : public DxuiTheme
         theme.tooltipBorder             = 0xFF3A7548;
         theme.tooltipText               = 0xFFB7FCB9;
         theme.errorText                 = 0xFFFF6B6B;
+        theme.diskInspector                 = DiskInspectorColors::MakeDark();
+        theme.diskInspector.sync            = 0xFF24503A;
+        theme.diskInspector.nothingRecorded = 0xFF0A1C0E;
+        theme.diskInspector.mapFree         = 0xFF16301C;
+        theme.diskInspector.timingNominal   = 0xFF2E5038;
+        theme.diskInspector.pendingPattern  = 0xFF1E4028;
         return theme;
     }
 
@@ -299,6 +309,13 @@ struct CassoTheme : public DxuiTheme
         theme.tooltipBorder             = kDim;
         theme.tooltipText               = kNormal;
         theme.errorText                 = 0xFFFF6B6B;
+        theme.diskInspector                 = DiskInspectorColors::MakeDark();
+        theme.diskInspector.sync            = 0xFF24503A;
+        theme.diskInspector.nothingRecorded = 0xFF0A140C;
+        theme.diskInspector.mapFree         = kWash;
+        theme.diskInspector.timingNominal   = 0xFF2E5038;
+        theme.diskInspector.pendingPattern  = kRule;
+        theme.diskInspector.selection       = kBright;
         return theme;
     }
 

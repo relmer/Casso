@@ -760,3 +760,364 @@ The Release x64 build packed by `BuildMsix.ps1` and registered from its layout w
 | Packaged Casso's Uthernet II infobar | Not walked: no machine with the card and LAN access in Casso's settings here |
 
 Two findings to follow up: the pane didn't offer to make the network private, with Tailscale's network private beside the public one, and the warning appeared only some seconds after the rule changed.
+
+## 13. File-type fixtures, 2026-11-09 (T478, T523)
+
+`FileTypeFixtureTests` reads every file on the disks below, decodes each one a contract row identifies, and fails on a decode error or on a decode slower than half a second at up to 64 KB. A file of an import row is exported, imported and compared with the file on the disk, byte for byte.
+
+| Disk | Source | Rows it covers |
+|---|---|---|
+| `CiderPress/fileconv/test-files.sdk` | CiderPress II's test data, fetched by `scripts/FetchCiderPressTestFiles.ps1` | Random-access text, Merlin, LISA, Business BASIC, OMF, the AppleWorks files, AppleWorks GS, Teach, the super hi-res pictures, IIgs animation, LZ4FH, Print Shop graphics, shape table, IIgs icons, Apple /// font, IIgs font |
+| `CiderPress/fileconv/dos-files.do.gz` | The same | Magic Window, S-C Assembler, LISA, hi-res font, Fontrix font, Print Shop font |
+| `Disks/Merlin-proProdos2.33-a.dsk`, `-b.dsk` | In the tree | Merlin |
+| `CassoExplorer/prodos.po` | In the tree | Apple /// font |
+
+Rows with no fixture, for the owner: Pascal textfile, Pascal codefile, VisiCalc and Gutenberg. A disk with an Apple Pascal volume covers the first two. `ScenarioTests/Fixtures/FileTypes/` is not created: CiderPress II's files are fetched, not checked in, and the other fixtures are disks already in the tree.
+
+The round trip failed on the Merlin importer until these were fixed: a semicolon inside an operand such as `]1;]2` was read as the start of a comment, a comment after an opcode with no operand was put in the operand column, and the comment after `IF ]1="` was read as part of a string.
+## 14. VisiCalc recalculation, 2026-11-09 (T562 to T565)
+
+`VisiCalcEvaluatorTests` and `VisiCalcSheetTests` cover each operator and function, ERROR and NA, a circular reference, a forward reference by rows and by columns, and each format at a column width. The preview lists values, and its Values and Formulas buttons switch the listing; a copy out writes the form the preview is in.
+
+T565 is open: no VisiCalc disk or saved sheet is in the tree, so no cell was compared with the program. These rules were taken from the User's Guide and are unconfirmed until that comparison is made:
+
+- An entry is evaluated once as the file is read, in the file's order, and the sheet is then recalculated once.
+- A label is zero in arithmetic and in a list function, and `@COUNT` counts it.
+- ERROR takes precedence over NA where a formula has both.
+- The general format drops the zero ahead of the decimal point and uses up to 11 significant digits.
+- A value has one column fewer than the column width, and a value too long for it is drawn as `>` characters.
+- A label is cut at the column width in the values listing.
+
+## 15. The expanded preview, 2026-11-11 (T633 to T636, T677)
+
+`ExplorerWindowPartsTests` drives the expanded preview through `ExplorerInput` and the commands: Alt+Shift+P, Right and Esc; previous and next over a selection of files; View as on a BASIC program; Save as to a PNG and to the file's bytes; and Enter with Options' setting on. `PreviewStepsTests`, `PreviewViewChoicesTests` and `PreviewSaveChoicesTests` cover the rules underneath.
+
+SC-063: `ExpandedPreview_StepsWithinHalfASecond` steps through every file of `CassoExplorer/prodos.po` with a 64 KB binary added. The slowest of 6 steps took 85.5 ms on x64 Debug, against the half second.
+
+Checked on screen in a separate window on the fixtures: the preview expands over the tab below the tab strip, steps to the next file, and collapses with the list, the status bar and the selection as they were. View as lists "BASIC listing (default)", Text, Hex and Disassembly for HELLO, and Hex displays its bytes. View as, Copy, Save as and Expand stay on the toolbar in a narrow pane. Options has the Enter setting.
+
+A host text file can take about a second to appear after a step, docked or expanded: Casso Explorer starts the Windows preview handler for .txt first, and displays the file's bytes when the handler takes too long. Files in disk images don't take that path.
+
+## 16. Raw capture on a real //c, 2026-11-12 (T580, SC-055)
+
+Archon, the owner's original disk, captured from drive 1 of the owner's //c over CassoLink at 115,200 baud, synchronized:
+
+| Measure | Result |
+|---|---|
+| Time | 18 minutes 47 seconds: 321 reads, 306 seconds reading the disk and 606 seconds sending over the line. SC-055's 5 minutes isn't met |
+| Positions | Every whole track, and 96 of the 102 positions between whole tracks, as tracks 3 on aren't standard |
+| Sectors | Every sector of tracks 0 to 4 and 7 to 34 matches the reference's but six: track 1's sector 3 and one sector each of tracks 23, 27 and 29 differ with good checksums, as the owner's copy differs from the reference's; two sectors of track 30 have a bad nibble, and track 31's sector 12 is missing. Tracks 4.75 to 6.5 have no flux on the owner's disk |
+| Boot | In Casso's //c, the image boots to Archon's board and its options screen |
+
+## 17. SOS disks in MAME's Apple ///, 2026-11-12 (T626 to T628, SC-060)
+
+MAME 0.289's `apple3` with the Apple /// ROM from the apple2.org.za
+Documentation Project mirror, booted headlessly by `scripts/MameSnapshot.ps1`.
+Casso has no Apple ///, so these boots are in MAME.
+
+| Disk | Machine | Result |
+|---|---|---|
+| Apple's System Utilities | Apple /// | Utilities main menu |
+| System Utilities with a file written by `casso disk put` | Apple /// | Utilities main menu |
+| `disk create --format sos --bootable` | Apple /// | SOS 1.1 starts, and the Utilities interpreter prompts for its Pascal system disk, as on the original |
+| `disk create --format prodos+sos --bootable` | Apple /// | the same |
+| `disk create --format prodos+sos --bootable` | //e in MAME | ProDOS BASIC prompt |
+| `disk create --format prodos+sos --bootable` | //e in Casso | BASIC prompt, and CAT lists the SOS files (`SosTests`) |
+| System Utilities with block 0 the ProDOS Apple II loader and block 1 the SOS loader | Apple /// | Utilities main menu |
+| the same with block 1 zeroed | Apple /// | doesn't start |
+
+Before the case word fix, disks Casso made stopped at "INTERPRETER FILE NOT
+FOUND": a case word of `` put `` in the byte SOS reads as the file's
+minimum version. Apple's System Demo disk stops at "SYSTEM FAILURE = ``"
+in MAME as downloaded, so it was left out of the boots; Casso reads it, with its
+12 entries a block, and writes to it (`SosTests`).
+
+## A2Pico cards (Story 41, SC-070)
+
+The owner has no A2Pico, so the card is checked against the A2retroNET
+firmware's README and source (R58) and in Casso. `A2PicoCardTests` fills an
+in-memory card through Casso Explorer's actions with Apple's ProDOS Users Disk.
+
+| Step | Result |
+|---|---|
+| The starter A2retroNET.txt Initialize card writes | the firmware's defaults: boot delay 3, 8 drives, none set |
+| The Users Disk copied as it is distributed, a ProDOS volume in DOS order | offered for Write as .po |
+| Write as .po | `users.po`, the same 280 blocks in ProDOS order |
+| `users.po` set as drive 1 | the drive passes `A2retroNetConfig::CheckImage`, with no problem listed |
+| `users.po` mounted in a Disk II on an enhanced //e in Casso | boots ProDOS |
+
+Casso has no SmartPort card, so a drive's image is booted from a Disk II, which
+takes only a 140K image. Larger images are checked by `CheckImage` alone.
+
+### On a real card (T708)
+
+Walked 2026-11-13 on a 1 GB micro SD card in a USB reader, in a copy of Casso
+Explorer started with `CASSO_PROFILE_DIR` set to a profile with no links, so no
+serial port was opened. Input was posted to the window and checked by capture.
+
+| Step | Result |
+|---|---|
+| Initialize card, A2Pico adapter, on a card with four CFFA volumes | one FAT32 volume labeled A2PICO, and a starter `A2retroNET.txt` with LF line ends |
+| The card's root | an infobar with the drives in a sentence and Drives... |
+| `users.dsk` in a folder | the Write as .po offer; the button wrote `users.po`, a ProDOS volume USERS.DISK |
+| Drives... | 8 rows with grippers, disk icons and image lists of the card's `.po`, `.hdv` and `.2mg` files |
+| One image picked for a second drive | the first drive emptied |
+| A row dragged by its gripper | the row lifted with an outline, the others slid, and the drives renumbered on the drop |
+| Drives in use set to 4 | drives 5 to 8 disabled, each `<not configured>` |
+| Save | `A2retroNET.txt` rewritten with LF line ends, in the order on screen |
+| Rename of drive 3's image | drive 3 renamed with it |
+| Cut and paste of drive 2's image into a folder | drive 2 moved with it |
+| Delete of drive 3's image | Casso Explorer's confirmation, then Windows'; drive 3 emptied |
+
+Two bugs were found and fixed. A click on the buttons in the infobars above the list
+went nowhere, because the window's input didn't route to the bars. A move
+within one volume left a drive's line and the undo behind, because the
+file operation reports such a move with `COPYENGINE_S_DONT_PROCESS_CHILDREN`,
+and that code was dropped as a skip. Edit as text and a drag between Casso
+Explorer's windows were not walked: the one opens Notepad, and posted input
+can't start an OLE drag.
+
+## Block devices in MAME (T709)
+
+MAME 0.289's enhanced //e, headless through `scripts/MameSnapshot.ps1`, with
+a hard disk on a card in slot 7: the Apple II SCSI Card with Apple's ROM
+341-0437-A, and the CFFA 2.0 with its 65C02 firmware EEC02. Both ROMs are from
+the apple2.org.za Documentation Project mirror, and their checksums match
+MAME's. Casso has no SmartPort or hard drive card yet. It is a separate spec,
+begun in a worktree cut from 033.
+
+| Image | Made by | SCSI Card | CFFA 2.0 |
+|---|---|---|---|
+| Apple's ProDOS Users Disk in ProDOS order | the disk, reordered | Users Disk menu | Users Disk menu |
+| 800K `.po` | `casso disk create --size 800K --bootable` | ProDOS BASIC prompt | ProDOS BASIC prompt |
+| 5 MB `.hdv` | `--size 5M --bootable` | ProDOS BASIC prompt | ProDOS BASIC prompt |
+| 32 MB `.hdv` | `--size 32M --bootable` | ProDOS BASIC prompt | ProDOS BASIC prompt |
+| 32 MB `.2mg` | `--size 32M --bootable` | ProDOS BASIC prompt | ProDOS BASIC prompt |
+| CFFA card of four 32 MB volumes | Initialize card's layout, with volume 1 from `--bootable` with ProDOS 2.4.2 | - | volume 1 boots, and its STARTUP catalogs CARD2, CARD3 and CARD4 |
+
+The first run found that `--bootable` was dropped without a word for a volume
+larger than 140K: the 32 MB image had no PRODOS, and neither card started it.
+The fix installs PRODOS and BASIC.SYSTEM as on a 140K disk.
+`DiskCommandRunnerTests` tests it. With ProDOS 1.x on volume 1, the CFFA card
+read CARD2 and not CARD3, since ProDOS 8 before 2.0 reads two drives in a
+slot.
+
+The 800K, 32 MB `.hdv` and 32 MB `.2mg` images are the forms an A2Pico's
+drives take, so these boots also check what A2retroNET reads, short of an
+A2Pico.
+## Block mode on screen (T678)
+
+Walked 2026-11-13 in a copy of Casso Explorer started with `CASSO_PROFILE_DIR`
+set to a profile with no links, on copies of CiderPress II's samples. Input
+was posted to the windows and checked by capture.
+
+| Step | Result |
+|---|---|
+| Inspect disk image on `simple-sparse.po`, 800K ProDOS | block mode, its map colored by use, block 0 annotated as the boot loader |
+| Block 2 | the volume header's fields, and the next directory block as a link |
+| The link | block 3, with Back to block 2 and Forward again |
+| A byte typed in block 3 | "1 byte changed, not written"; Apply edits wrote it to the file |
+| Compare disk images on that file and a copy without the edit | block 3 marked, its changed byte in red, Previous and Next difference |
+| Find leftover data on a copy with text in two free blocks | the run marked on the map; Save leftover as file wrote its 1,024 bytes |
+| `simple-gsos.po`, 800K HFS | block mode, and the master directory block's fields annotated |
+| `MultiPart.hdv`, Apple Partition Map | a band per partition, ProDOS_Part and HFS_Part, and block 0's driver descriptor annotated |
+
+Found and fixed: the status line read "1 blocks differ" and "1 runs of
+leftover data". Found and left as is: the status line has "Boot blocks" for
+the partitioned disk's block 0, where its annotation is the Apple Partition
+Map's driver descriptor.
+
+The search for text and code in free blocks (Find leftover data) and its
+Save as file were removed on 2026-11-15, at the owner's request, with T674's
+and T678's part for them. FR-255 is comparison only, and a free block is
+drawn as free.
+
+The "Boot blocks" status line was fixed on 2026-11-13: block 0 and the map's
+blocks read "Driver descriptor" and "Partition map".
+
+## Quickstart 7d to 7h, 2026-11-13 (T525, T653)
+
+Walked in a test copy of Casso Explorer (a separate profile, no links) on x64
+Debug and x64 Release, with CassoCli of the same build. The fixtures are
+CiderPress II's `test-files.sdk`, its Apple Pascal disk, and blank DOS 3.3 and
+ProDOS images made by `disk create`, copied to a folder outside the tree.
+
+### 7d. File types
+
+| Step | Debug | Release |
+|---|---|---|
+| 1. Previews | AppleWorks WP, random-access text, Teach, Merlin, Business BASIC, OMF, Integer BASIC, LZ4FH, IIgs icons, hi-res font, hi-res picture and Pascal codefile previews match their programs' output. `FileTypeFixtureTests` decodes every file of the fixtures under half a second | AppleWorks WP and the pictures, the same |
+| 2. Copy out | Every file of the archive's Docs folder pasted into a PC folder as `.rtf`, `.csv` and `.txt` with the contract's suffixes, and a Pascal text file as `NAME.Pascal text.txt` with its text | The same |
+| 3. Right-drag out | Not walked: posted input can't drive an OLE drag. See the findings | Not walked |
+| 4. Merlin back | `TESTCASE.S.Merlin.txt` pasted onto the ProDOS image is byte for byte the original, type $04; on the DOS 3.3 image it is `B T.TESTCASE`, and its text reads back the same. `GuestVisibleMerlinTests` loads both in Merlin | The same |
+| 5. Pascal text | A `.txt` pasted onto the Pascal volume is `NOTES.TEXT`, type TEXT, with the same text. `GuestVisiblePascalTests` opens one in Apple Pascal's editor | The same |
+| 6. `disk get` | The same bytes as the copy out for every Docs file and the Pascal text, after the fix below | The same |
+| 7. A file that fails to decode | An LZ4FH file of 64 bytes previews with "The LZ4FH picture doesn't unpack." above its bytes, and a copy of it with two pictures reports that and pastes the two, after the fixes below | The same |
+
+Fixed during the walk:
+
+- The reason a decoder gave was kept with the preview and drawn only in a text
+  preview, so a file shown as its bytes had none (FR-169). It is in the
+  summary above the bytes.
+- Copy failed whole when one file of the selection failed to convert, and its
+  message ended in two periods. The file is left out with its reason, and the
+  rest are put on the clipboard (FR-169). A cut fails whole as before, since
+  its originals are deleted once the paste is reported.
+- `disk get` to a name in Casso Explorer's text form, such as
+  `sample.text.Text.txt`, wrote the file's bytes. It converts as `--text` does,
+  and a BASIC listing name as `--basic` does (FR-170).
+- `disk put` didn't read the `._NAME` AppleDouble file beside a file, which
+  `disk get` writes and Casso Explorer reads, so a resource fork and the ProDOS
+  type were lost (FR-170). It reads them.
+
+### 7e. Large volumes, resource forks and archives
+
+| Step | Result |
+|---|---|
+| 1. Images | On an 800K and a 32 MB ProDOS image and an 800K Disk Copy 4.2 image made by CiderPress II, a folder made and a file copied in and out with `disk mkdir`, `put` and `get`; `cp2 test` passes each |
+| 2. MAME's //c Plus | Passed 2026-11-13 in MAME 0.289's apple2cp, with the archive.org ROM set: an 800K image Casso made booted ProDOS, and CAT through a STARTUP program listed WALK/DEEP and HELLO. CAT's listing has `<NO DATE>` for each file (T754) |
+| 3. Forks | A Teach file got from the archive with its `._NAME`, put on the 800K image, has the original's data fork, resource fork and type in `cp2 extract`, after the `disk put` fix. Finder information isn't in cp2's extraction, so it wasn't compared. `ResourceForkTests` covers the host name styles |
+| 4. Archives | Every file of `test-files.sdk` against CiderPress II's extraction: `ArchiveTests`. Add to ShrinkIt archive and Make a ShrinkIt disk, on Release, wrote a `.shk` and an `.sdk` that pass `cp2 test`. NuLib2 isn't installed; `cp2 test` is used in place of `nulib2 t` |
+| 5. An archive on an image in a ZIP | Failed: the ZIP and the image opened in place, and the archive on the image didn't, as `NOTES` or as `NOTES.SHK`. Passed 2026-11-14 after T759: NOTES on a ProDOS image opens in place and lists its records |
+
+### 7f. CassoLink additions
+
+Not walked: the owner's //c is on COM3 for another session's captures, and the
+emulator targets are that session's.
+
+### 7g. File systems and layouts
+
+| Step | Result |
+|---|---|
+| 1. Each file system and layout | `PartitionTests`, `Dos32Tests`, `SosTests`, `RdosTests` and `LargeVolumeTests`, which change each writable one, run `cp2 test` and compare with CiderPress II's extraction; and the images of 7e |
+| 2. GS/OS on a changed HFS image | In part, 2026-11-13: MAME 0.289's apple2gs booted GS/OS 6.0.1 from a hard disk image on a CFFA2 card, with HFS.FST added by CiderPress II, and the Finder mounted an 800K HFS image Casso made, "Casso Walk". Its files weren't opened, as MAME took no typed keys on the IIgs. 2026-11-17, walked by the owner with the mouse: TeachTest opened in Teach, and Teach drew Walk Folder:Notes as boxes, because Casso wrote the PC text as high-bit text with $8D line ends. Fixed: text written to ProDOS and HFS is plain ASCII with $0D line ends. `hfs800-plain.po` has Notes written by the fix, for the next walk |
+| 3. Gutenberg | Passed 2026-11-17 in `GutenbergTests::ADocumentCassoWrites_OpensAndSavesInGutenberg`: Gutenberg, Jr. on a //e in Casso formats a data disk, opens a document Casso copied to it, adds to it and saves it, and the disk passes Casso's check |
+| 4. A CF card | Passed 2026-11-14: a 2 GB CF card initialized with CFFA 2.0's layout, a 32 MB ProDOS image written to partition 1 and read back with the same SHA-256, after one administrator prompt (T620) |
+
+### 7h. Tools
+
+| Step | Result |
+|---|---|
+| 1. VisiCalc | Passed 2026-11-13: VisiCalc 1984 from archive.org booted in the Casso //e, and each sample sheet, loaded with /SL and recalculated with !, draws the values Casso's preview has in columns A to D. Row 1's `/GCC5` cell was drawn as ERROR in Casso, a column width the 80-column version saves at a cell; fixed |
+| 2. The expanded preview | On Release: expanded on a hi-res picture, a step to the next file and back, and Escape back to the list with the selection as it was. `ExpandedPreview_StepsWithinHalfASecond` measures the steps |
+| 3. Disk list and Find duplicates | `CollectionScaleTests` |
+| 4. Tokenize and renumber | `GuestVisibleBasicToolsTests` and `BasicCorpusFixtureTests` |
+| 5. Wizardry and Infocom | `GameDataTests`. Checked against the games in Casso 2026-11-14: `WizardryI_ACharacterMadeInTheGame_DecodesAsItsSheet` creates a fighter in Wizardry I and decodes the saved SCENARIO.DATA as the game's character sheet has it, and the Zork I tests boot the story to the room the decoded story opens in and decode a save made in the game |
+
+### Findings left open
+
+T751 to T759 were fixed 2026-11-14.
+
+- Bold and italic runs overlap the text after them in an AppleWorks or Teach
+  document's preview (T751).
+- The Type column has `$50`, `$09`, `$B5`, `$08`, `$CA`, `$07` and `$E0` with no
+  abbreviation (T752).
+- A long Merlin line wraps to column 0 in the preview, under the label, not
+  under the operand (T753).
+- A new file has no date: a paste onto a Pascal volume, `disk put` on ProDOS,
+  and a record of Add to ShrinkIt archive (T754).
+- `disk list --recurse` runs a long path into the type column, with a blank
+  line after it (T755).
+- `disk put --type` takes only TXT, BIN, BAS, INT and SYS on ProDOS, and `--as`
+  drops the type a host name has (T756).
+- By `--text`'s help it writes Windows line endings; it writes LF, and the
+  Pascal text conversion CRLF (T757).
+- A right-drag out ends with File Explorer's menu, with no choice of the
+  conversion or a raw copy; Copy as has both (T758).
+- An archive on a disk image doesn't open in place, and a double-click opens
+  Windows' Pick an app window (T759).
+- A path typed into the address bar was lost three times under posted input,
+  each time a "Pick an app" window or a burst of characters was involved, and
+  Enter on a path that isn't there does nothing. Not seen with real typing.
+- A short packed super hi-res picture previews with the missing part black,
+  rather than failing.
+
+## Thumbnails and the Full Send window on screen, 2026-11-14 (Stories 42 and 43)
+
+Walked on x64 Debug in this worktree's Casso Explorer, Casso and CassoCli, on
+copies of disk images in a scratch folder. Input was posted to the windows and
+each result captured; a composited popup was captured from the screen. The
+thumbnail cache is the user's, so nothing was cleared there.
+
+| Step | Result |
+|---|---|
+| `CassoCli disk thumbnail <image> <picture>` | the picture in the icon view and the preview pane, marked as set by the user |
+| `--out`, `--remove` with none set, no action, a file that isn't a picture | the PNG written, and each error as on the help page |
+| A picture set from the command line while the folder is in view | the icon redrawn with no refresh, after the cache watcher below |
+| Remove thumbnail on a disk image's menu | the item there for an image with a thumbnail; a picture the user set removed and the picture made by booting drawn again; a second Remove removes that one |
+| Casso's "Save screenshot as disk 1's thumbnail" with a disk mounted | the screen, Arcticfox's title, as the image's thumbnail; byte-identical copies of the image have it too |
+| A folder of eight images with no thumbnails | "Capturing thumbnails: 8" in the status bar, gone once all eight were booted |
+| Options, General page | "Automatically create thumbnails for disk images by booting them headlessly and capturing the screen", checked; the Clear thumbnails button removed (owner) |
+| The Full Send window with no session | the disks of the folder's manifest, newest first |
+| A row's right-click | Open, Inspect disk image and Disk properties for a WOZ |
+| A row's double-click | the Full Send folder in the window that opened it, the image selected and previewed with "Boots on the enhanced Apple //e" |
+| The window moved, closed, Casso Explorer restarted | the window at the place it was moved to |
+
+Found and fixed:
+
+- A row whose image was renamed or deleted outside Casso Explorer went to the
+  folder and selected nothing. A message with the file's name is drawn instead.
+- A thumbnail set by Casso or CassoCli wasn't drawn until the list was filled
+  again. Casso Explorer watches the cache folder for pictures the user sets and
+  removes, and redraws the icons.
+- The boot check read only main memory for an 80-column screen, so Apple
+  Pascal's title came out as every other character. Both memory banks are read.
+- Clear thumbnails deleted every `.json` in the cache folder, `given.json`
+  among them. Only files that begin with an image's hash are cleared.
+
+Found and left as is: the activity list's Copy is on its menu only while the
+list has lines, and a click on the status bar's Full Send line works only with a session
+in progress, so both have unit tests and no walk. Apple Pascal's boot disk
+reported "did not boot" on the ][ plus once on 2026-11-14 at 10:55 and boots
+on the enhanced //e in every run since, ten of ten in
+`ImagesInAFolder_AreCheckedAsCassoExplorerChecksThem`; the cause wasn't found.
+
+## Boot check over the captures of 2026-11-13 (T730, SC-072)
+
+`ImagesInAFolder_AreProbed` booted each image saved from the owner's //c on
+2026-11-13, on an emulated //c in a Debug build, with `CASSO_PROBE_IMAGES` set
+to their folder. Each image took 4 to 10 seconds.
+
+| Image | Result |
+|---|---|
+| Wizardry I | booted |
+| Archon | booted |
+| Arcticfox | booted |
+| The Witness | booted |
+| One-on-One, the images that boot | booted |
+| One-on-One, the second bad capture | did not boot |
+
+Casso Explorer boots each image a Full Send saves on the machines of FR-275 in
+order: the model it was captured from, then the enhanced //e, then the ][ plus.
+`BootCheckTests::TheMachines_BeginWithTheModelCapturedFrom` tests the order, and
+the Wizardry I images of 2026-11-15 were checked that way after their Full Send.
+
+## Full Send timing on an emulated //c (T707, T739, 2026-11-16)
+
+Casso Explorer ran a Full Send against a Debug build of Casso emulating a //c,
+with the CassoLink program on its drive 1. The images are in
+`Downloads\Wizardry Full Send\Timing test`.
+
+| Disk | Time left on screen | Time taken |
+|---|---|---|
+| DOS 3.3 System Master | 0:16 at 0:10, 0:26 in all | 0:28 |
+| Archon as sectors, 496 unreadable | 0:29 at 0:22, 0:51 in all | 0:49 |
+| Archon again, raw capture | 4:29 at 1:14, 4:35 at 3:00 | 5:43 |
+
+A sector read's time left is within 2 seconds of the time taken, unreadable
+sectors included. A raw capture's runs about 20% low: its raw phase read
+"1:24 on the disk, 1:59 on the line", 3:23 in all, and took 4:54.
+
+The boot check added 6 seconds to each sector image and 9 to the raw capture.
+The check for a duplicate of an earlier image took 3 seconds. The raw capture
+of Archon boots, and its sector image doesn't.
+
+Found and fixed: Space on a likely copy-protected disk whose image didn't boot
+read the whole disk as sectors again, 49 seconds, before its raw capture. The
+raw capture now begins at once, with the first read's hash and counts.
+
+Found and left as is: the Drive 2 row reads "No disk" until its drive is read,
+whether or not a disk is in it, since the drive isn't checked before then. The
+Apple's line read "Bad 0" while the window counted 1 disk with bad sectors.
+
+The walk on the owner's //c remains for both tasks.

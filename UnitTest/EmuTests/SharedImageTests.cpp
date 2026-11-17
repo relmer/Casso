@@ -65,6 +65,7 @@ public:
         HRESULT  ListFiles     (const std::string &, std::vector<std::string> &) override { return E_NOTIMPL; }
         HRESULT  WriteAllBytes (const std::string &, const std::vector<Byte> &) override { return E_NOTIMPL; }
         HRESULT  WriteAt       (const std::string &, uint64_t, std::span<const Byte>) override { return E_NOTIMPL; }
+        HRESULT  ReadAt        (const std::string &, uint64_t, std::span<Byte>) override { return E_NOTIMPL; }
         HRESULT  Stat          (const std::string &, FileStamp &) override { return E_NOTIMPL; }
         HRESULT  Remove        (const std::string &) override { return E_NOTIMPL; }
         HRESULT  ReplaceAtomically (const std::string &, const std::string &) override { return E_NOTIMPL; }
@@ -1596,6 +1597,26 @@ public:
 
             Assert::AreEqual ((size_t) 2, rig->bayChanges.size());
             Assert::IsTrue (rig->bayChanges[1] == BayChange::Swapped);
+        }
+
+        //  A restored machine state -> Restored, with a new media id and the
+        //  same bytes as inserted.
+        {
+            auto          rig      = std::make_unique<Rig>();
+            uint64_t      before   = 0;
+            vector<Byte>  inserted;
+
+            rig->WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
+            before   = rig->store.GetMediaId (kSlot, kDrive);
+            inserted = rig->store.GetImage (kSlot, kDrive)->GetSourceBytes();
+
+            rig->store.NoteStateRestored (kSlot, kDrive);
+
+            Assert::AreEqual ((size_t) 2, rig->bayChanges.size());
+            Assert::IsTrue   (rig->bayChanges[1] == BayChange::Restored);
+            Assert::AreNotEqual (before, rig->store.GetMediaId (kSlot, kDrive), L"a viewer analyzes it again");
+            Assert::IsTrue   (inserted == rig->store.GetImage (kSlot, kDrive)->GetSourceBytes(), L"As inserted is the disk as first inserted");
         }
 
         //  User eject -> Ejected.

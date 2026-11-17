@@ -29,6 +29,7 @@ enum class AppMessage : UINT
     ShellControllerPick    = WM_APP + 0x2A,
     ShellUpdateResult      = WM_APP + 0x2B,
     ShellIntentReply       = WM_APP + 0x2C,
+    ShellHardDiskImage     = WM_APP + 0x2D,   // a hard disk's new image, from the CPU thread to the UI thread to be saved
 
     ExplorerReply          = WM_APP + 0x31,
     ExplorerFolderChanged  = WM_APP + 0x32,
@@ -51,4 +52,11 @@ enum class AppMessage : UINT
     ShellPreviewLoad       = WM_APP + 0x44,   // to the shell preview's thread
     ExplorerUpdateStart    = WM_APP + 0x46,   // the automatic update check, posted to the updater's message window
     ExplorerCutPasted      = WM_APP + 0x45,   // a target pasted the files a cut put on the clipboard
+    ExplorerThumbnail      = WM_APP + 0x47,   // a disk image's thumbnail is built, posted to the Explorer window
+    ExplorerCardProgress   = WM_APP + 0x48,   // a storage card's initialize reported progress or ended, posted to the Explorer window
+    ExplorerElevation      = WM_APP + 0x49,   // sent before the storage card broker starts: wParam bool * for OK, lParam the card's name
+    ExplorerCardArrivals   = WM_APP + 0x4A,   // images an A2Pico doesn't read were copied to its card, posted to the Explorer window
+    ExplorerPicturesReady  = WM_APP + 0x4B,   // a disk image was booted and its picture made, posted to each Explorer window
+    ExplorerVolumeFacts    = WM_APP + 0x4C,   // an image's file system and volume name were read, posted to the Explorer window
+    ExplorerCardWrite      = WM_APP + 0x4D,   // sent before a write to a storage card: wParam bool * for OK, lParam the question
 };

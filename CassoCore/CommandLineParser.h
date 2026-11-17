@@ -596,6 +596,12 @@ private:
                                          const std::string & canonical,
                                          CommandLineOptions::EmulatorOptions & parsed);
 
+    //  Records an --hd or --smartport value, or refuses the command line over
+    //  a bad one.
+    static void  ApplyBlockAttachment    (const std::string & text,
+                                          bool                isSmartPort,
+                                          CommandLineOptions::EmulatorOptions & parsed);
+
     //  Records a --seed value, or refuses the command line over a bad one.
     static void  ApplySeed               (const std::string & text,
                                           CommandLineOptions::EmulatorOptions & parsed);
@@ -632,6 +638,7 @@ private:
                                       bool & stop);
 
     static void  ParseDiskOptions  (int argc, char * argv[], int argIndex, CommandLineOptions & options);
+    static void  ParseBasicOptions (int argc, char * argv[], int argIndex, CommandLineOptions & options);
 
     static CommandLineOptions::DiskOptions::Command  LookUpDiskCommand (const std::string & word);
 

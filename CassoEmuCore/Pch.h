@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <dbghelp.h>
 #include <aclapi.h>
 
 //
@@ -49,6 +50,7 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <numeric>
 #include <array>
 #include <atomic>
 #include <bitset>
@@ -111,6 +113,7 @@
 #include <dcomp.h>
 #include <crtdbg.h>
 #include <shellapi.h>
+#include <winioctl.h>
 #include <shobjidl.h>
 #include <xmllite.h>
 #include <searchapi.h>

@@ -1,9 +1,14 @@
 #include "Pch.h"
 
 #include "CassoLink/Session/CassoLinkFullSend.h"
+#include "CassoLink/Session/CassoLinkCapture.h"
+#include "CassoLink/Session/CassoLinkDiskTransfer.h"
+#include "CassoLink/Session/TrackMeasures.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
+#include "CassoLink/FullSend/FullSendSession.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -39,7 +44,7 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
 {
     HRESULT            hr      = S_OK;
     HRESULT            cleared = S_OK;
-    FullSendSession    session (*this, m_session.m_fileIo, GetUtcTime, operation.imagePath, operation.newName, operation.imagePrefix);
+    FullSendSession    session (*this, m_session.m_fileIo, GetUtcTime, operation.imagePath, operation.newName, operation.imagePrefix, &m_status);
 
 
 
@@ -47,12 +52,20 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
     m_operation = &operation;
     m_verifying = operation.verifyReads;
 
+    session.SetProtection (operation.protection);
+
+    //  A long wait for the Apple's reply is the window's state line.
+    m_session.m_host->SetWaitObserver ([this] (bool waiting) { m_status.SetWaiting (waiting); });
+
     hr = session.Run();
+
+    m_session.m_host->SetWaitObserver (nullptr);
 
     operation.message         = session.GetMessage();
     operation.imagePrefix     = session.GetPrefix();
-    operation.fullSendSummary = std::format ("{} SENT, {} BAD, {} DUP", session.GetScreen().sent, session.GetScreen().bad, session.GetScreen().duplicates);
-    m_session.m_sink.OnActivity (operation.message);
+    //  The Apple's history line: how the session ended and its counts.
+    operation.fullSendSummary = std::format ("{}: {} sent, {} bad, {} dup", session.GetEndReason() == FullSendSession::EndReason::Canceled ? "Ended on PC" : "Full Send",
+                                             session.GetScreen().sent, session.GetScreen().bad, session.GetScreen().duplicates);
     m_operation       = nullptr;
 
     for (size_t i = 0; i < CassoLinkSessionTypes::kDriveCount; i++)
@@ -219,26 +232,46 @@ Error:
 //  Read disk to image's track reads, with an unreadable sector listed and left
 //  as zeros, and the check for Q and Cancel between tracks. The session
 //  writes the file only when every track has been read. The operation's drive
-//  is the one being read, for the status bar.
+//  is the one being read, for the status bar. When measuring, every track is
+//  measured, the tracks the check read too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport)
 {
-    HRESULT  hr      = S_OK;
-    size_t   before  = 0;
-    bool     stop    = false;
-    int      damaged = 0;
+    HRESULT                                   hr          = S_OK;
+    size_t                                    before      = 0;
+    size_t                                    marked      = 0;
+    bool                                      stop        = false;
+    int                                       damaged     = 0;
+    std::vector<CassoLinkHost::TrackMeasure>  measures;
+    int                                       bitsPerTurn = 0;
 
 
 
     m_operation->drive            = drive;
     m_operation->fullSendChecking = false;
 
+    if (m_measuring)
+    {
+        hr = m_session.m_diskTransfer.TimeDriveForLayout (drive, bitsPerTurn);
+        CHR (hr);
+    }
+
     for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
         hr = CheckStop();
         CHR (hr);
+
+        //  The measure has the track's share of the bar, the read's share, so
+        //  the Apple draws the bar the same for both.
+        if (m_measuring)
+        {
+            m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
+
+            hr = m_session.m_diskTransfer.MeasureTrack (drive, track, measures);
+            CHR (hr);
+        }
 
         //  A track the check read once still has its three reads when verifying.
         if (!m_verifying && std::find (haveTracks.begin(), haveTracks.end(), track) != haveTracks.end())
@@ -250,6 +283,7 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
         m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
 
         before = outUnreadable.size();
+        marked = outReport.marks.size();
 
         //  With no file system and a track with unreadable sectors, the rest is
         //  read once. Retries don't recover a copy-protected disk's nonstandard
@@ -273,6 +307,11 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
 
         CHR (hr);
 
+        m_status.MarkTrack (drive, track, outUnreadable.size() > before     ? FullSendTrackMark::Unreadable
+                                        : outReport.marks.size() > marked   ? FullSendTrackMark::Unreliable
+                                        : m_verifying                       ? FullSendTrackMark::Verified
+                                                                            : FullSendTrackMark::Read);
+
         outReport.emptyTracks += outUnreadable.size() - before == NibblizationLayer::kSectorsPerTrack ? 1 : 0;
         damaged               += outUnreadable.size() > before ? 1 : 0;
     }
@@ -282,6 +321,49 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
     //  after this one draws the bar full.
     m_session.m_host->SetProgress (100, 100);
     m_barFull = true;
+
+    if (m_measuring)
+    {
+        outReport.layouts = TrackMeasures::ToLayouts (measures, bitsPerTurn);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::MeasureLayouts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkFullSend::MeasureLayouts (int drive, int tracks, std::vector<TrackLayout> & outLayouts)
+{
+    HRESULT                                   hr          = S_OK;
+    std::vector<CassoLinkHost::TrackMeasure>  measures;
+    int                                       bitsPerTurn = 0;
+
+
+
+    outLayouts.clear();
+
+    hr = m_session.m_diskTransfer.TimeDriveForLayout (drive, bitsPerTurn);
+    CHR (hr);
+
+    for (int track = 0; track < tracks; track++)
+    {
+        hr = CheckStop();
+        CHR (hr);
+
+        hr = m_session.m_diskTransfer.MeasureTrack (drive, track, measures);
+        CHR (hr);
+    }
+
+    outLayouts = TrackMeasures::ToLayouts (measures, bitsPerTurn);
 
 Error:
     return hr;
@@ -444,6 +526,269 @@ Error:
 bool CassoLinkFullSend::IsBootstrapped()
 {
     return m_session.m_connector.WasBootstrapped();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::CaptureRaw
+//
+//  The status bar has the capture's track, pass and time left, as for
+//  Capture raw disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkFullSend::CaptureRaw (int drive, bool withEarlier, std::vector<Byte> & outWoz, std::vector<Byte> & outReads, std::string & outMarks)
+{
+    HRESULT                   hr     = S_OK;
+    std::vector<Byte>         module;
+    CassoLinkCapture::Result  result;
+    std::string               date   = std::format ("{:%Y-%m-%dT%H:%M:%SZ}", std::chrono::floor<std::chrono::seconds> (std::chrono::system_clock::now()));
+
+
+
+    outWoz.clear();
+    outReads.clear();
+    outMarks.clear();
+    m_operation->drive = drive;
+
+    hr = CheckStop();
+    CHR (hr);
+
+    hr = m_session.m_host->BuildCaptureModule (module);
+    CHR (hr);
+
+    hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) drive, module, date,
+                                    [this, drive] (const CassoLinkCapture::Progress & where) { NoteCapture (drive, where); }, result,
+                                    CassoLinkCapture::kTracks - 1, [this] () { return m_canceled.load(); });
+    CHR (hr);
+
+    //  A disk captured again has the reads of both captures for each
+    //  position, this capture's first, and its image is built from them all.
+    {
+        std::vector<CassoLinkCapture::Position>  & earlier = m_lastReads[drive == 2 ? 1 : 0];
+
+        if (withEarlier && !earlier.empty())
+        {
+            m_status.AddLine (std::format ("Combining the reads of both captures of the disk in drive {} to build its image", drive));
+
+            CassoLinkCapture::MergeReads (result.positions, earlier);
+
+            hr = CassoLinkCapture::BuildWoz (result.positions, CassoLinkCapture::kLastPosition, date, (Byte) drive, result);
+            CHR (hr);
+        }
+
+        earlier = result.positions;
+    }
+
+    //  The second pass ends at the last position it read, so the positions
+    //  after that one are marked here.
+    for (int position = 0; position < FullSendDriveStatus::kPositions; position++)
+    {
+        if (m_status.GetSnapshot().drives[(size_t) drive - 1].positions[(size_t) position] == FullSendPositionMark::Unread)
+        {
+            m_status.MarkPosition (drive, position, FullSendPositionMark::Skipped);
+        }
+    }
+
+    for (int position : result.weak)
+    {
+        m_status.MarkPosition (drive, position, FullSendPositionMark::Weak);
+    }
+
+    for (const auto & [position, sector] : result.replaced)
+    {
+        m_status.AddLine (std::format ("Track {} sector {} was taken from another read", CassoLinkDiskTransfer::FormatPosition (position), sector));
+    }
+
+    for (int position : result.unstable)
+    {
+        m_status.MarkPosition (drive, position, FullSendPositionMark::Unstable);
+    }
+
+    outMarks = CassoLinkCapture::FormatMarks (result);
+
+    if (m_session.m_sink.HasFullSendReadsOn())
+    {
+        CassoLinkCapture::SerializeReads (result.positions, outReads);
+    }
+
+    m_status.SetCaptureTime (drive, result.diskMs / 1000.0, result.lineMs / 1000.0);
+    m_operation->SetDetail (std::string());
+    m_session.m_sink.OnActivity (CassoLinkDiskTransfer::FormatCaptureTimes (result));
+
+    outWoz = std::move (result.woz);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::NoteImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkFullSend::NoteImage (const std::string & path)
+{
+    return m_session.m_sink.OnImageWritten (path, TextEncoding::WideToNarrow (m_session.GetModelName()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::HasBootTones
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkFullSend::HasBootTones()
+{
+    return m_session.m_sink.HasAppleBootSounds();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::IsWriteProtected
+//
+//  As the program sensed it when it began the drive's latest read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkFullSend::IsWriteProtected (int drive)
+{
+    return m_session.m_host->IsWriteProtected ((Byte) drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::GetModelName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkFullSend::GetModelName()
+{
+    return TextEncoding::WideToNarrow (m_session.GetModelName());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::AwaitBoot
+//
+//  The result arrives from the thread that boots the image. With none by the
+//  time limit, the session goes on, and the result is in the window when it
+//  arrives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkFullSend::AwaitBoot (const std::string & file)
+{
+    HRESULT    hr    = S_OK;
+    ULONGLONG  began = GetTickCount64();
+
+
+
+    while (!m_status.HasBoot (file) && GetTickCount64() - began < s_kBootWaitMs)
+    {
+        hr = CheckStop();
+        CHR (hr);
+
+        Sleep (s_kBootPollMs);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::NoteCapture
+//
+//  A capture's progress to the status bar and the Full Send window. In the
+//  second pass, a position below the one read that has no read was skipped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkFullSend::NoteCapture (int drive, const CassoLinkCapture::Progress & where)
+{
+    m_session.m_diskTransfer.ReportCapture (*m_operation, where);
+    m_status.SetCapture (drive, where.pass, where.position, where.read, where.reads, where.percent, where.secondsLeft);
+
+    if (where.pass == 2 && where.read == 1)
+    {
+        FullSendSnapshot  snapshot = m_status.GetSnapshot();
+
+        for (int position = 0; position < where.position; position++)
+        {
+            if (snapshot.drives[(size_t) drive - 1].positions[(size_t) position] == FullSendPositionMark::Unread)
+            {
+                m_status.MarkPosition (drive, position, FullSendPositionMark::Skipped);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::GetSeconds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double CassoLinkFullSend::GetSeconds()
+{
+    return (double) GetTickCount64() / 1000.0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::GetClockTime
+//
+//  The time of an activity line, as 14:05:09.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkFullSend::GetClockTime()
+{
+    SYSTEMTIME  now = {};
+
+
+
+    ::GetLocalTime (&now);
+
+    return std::format ("{:02}:{:02}:{:02}", now.wHour, now.wMinute, now.wSecond);
 }
 
 

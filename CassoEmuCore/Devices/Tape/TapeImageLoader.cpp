@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Tape/AiffCodec.h"
+#include "Devices/Tape/OggVorbisCodec.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Devices/Tape/WavCodec.h"
 
@@ -31,12 +32,13 @@ HRESULT TapeImageLoader::Load (
     bool        isAiff = AiffCodec::IsAiff (bytes);
     bool        isFlac = IsFlac (bytes);
     bool        isMp3  = !isFlac && IsMp3 (bytes);
+    bool        isOgg  = OggVorbisCodec::IsOgg (bytes);
 
 
 
     image = TapeImage();
 
-    CBRFEx (isWav || isAiff || isMp3 || isFlac, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "The file is not a WAV, AIFF, MP3, or FLAC recording.");
+    CBRFEx (isWav || isAiff || isMp3 || isFlac || isOgg, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "The file is not a WAV, AIFF, MP3, FLAC or Ogg Vorbis recording.");
 
     if (isWav)
     {
@@ -47,6 +49,11 @@ HRESULT TapeImageLoader::Load (
     {
         loaded.format = TapeFormat::Aiff;
         hr = AiffCodec::Decode (bytes, audio, error);
+    }
+    else if (isOgg)
+    {
+        loaded.format = TapeFormat::Ogg;
+        hr = OggVorbisCodec::Decode (bytes, audio, error);
     }
     else
     {
@@ -126,7 +133,7 @@ bool TapeImageLoader::IsFlac (std::span<const Byte> bytes)
 
 bool TapeImageLoader::IsTapeFileExtension (const std::wstring & path)
 {
-    static constexpr const wchar_t * s_kExtensions[] = { L".wav", L".aif", L".aiff", L".aifc", L".mp3", L".flac" };
+    static constexpr const wchar_t * s_kExtensions[] = { L".wav", L".aif", L".aiff", L".aifc", L".mp3", L".flac", L".ogg" };
     std::wstring                     extension       = std::filesystem::path (path).extension().wstring();
 
 

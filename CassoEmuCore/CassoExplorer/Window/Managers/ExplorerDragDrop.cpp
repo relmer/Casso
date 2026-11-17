@@ -1,11 +1,14 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
+#include "CassoExplorer/Actions/ActionsCopy.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/Model/HostFileNaming.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
@@ -71,6 +74,12 @@ void ExplorerDragDrop::BeginTreeDrag (const Location & location)
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
+
     m_context.treePane.ReleasePress();
 
     //  A disk image has Casso's floppy, which the shell has no icon for.
@@ -110,6 +119,12 @@ void ExplorerDragDrop::BeginDiskDrag (const std::wstring & driveId)
     BOOL                                     got     = FALSE;
 
 
+
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
 
     if (formats.empty())
     {
@@ -404,6 +419,47 @@ bool ExplorerDragDrop::IsProgramPath (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerDragDrop::GetDroppedShellIds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> ExplorerDragDrop::GetDroppedShellIds (IDataObject * data)
+{
+    std::vector<std::wstring>   names;
+    ComPtr<IShellItemArray>     items;
+    DWORD                       count = 0;
+    HRESULT                     hr    = (data != nullptr) ? SHCreateShellItemArrayFromDataObject (data, IID_PPV_ARGS (&items)) : E_POINTER;
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        hr = items->GetCount (&count);
+    }
+
+    for (DWORD i = 0; SUCCEEDED (hr) && i < count; i++)
+    {
+        ComPtr<IShellItem>  item;
+        PWSTR               name   = nullptr;
+        HRESULT             hrItem = items->GetItemAt (i, &item);
+        HRESULT             hrName = SUCCEEDED (hrItem) ? item->GetDisplayName (SIGDN_DESKTOPABSOLUTEPARSING, &name) : hrItem;
+
+        if (SUCCEEDED (hrName))
+        {
+            names.push_back (name);
+            CoTaskMemFree (name);
+        }
+    }
+
+    return names;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerDragDrop::GetDroppedNames
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -672,6 +728,12 @@ DWORD ExplorerDragDrop::GetDropEffect (IDataObject * data, int tag, POINT screen
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return DROPEFFECT_NONE;
+    }
+
     if (tag == CassoExplorerWindow::kDropTagTabs)
     {
         HoverDropTab (screen);
@@ -827,7 +889,84 @@ bool ExplorerDragDrop::ReadDropSource (IDataObject * data, DropSource & outSourc
 
     hr = DxuiDragDropTarget::ExtractHDropPaths (data, outSource.hostPaths);
 
-    return SUCCEEDED (hr) && !outSource.hostPaths.empty();
+    if (FAILED (hr) || outSource.hostPaths.empty())
+    {
+        outSource.hostPaths.clear();
+        outSource.isVirtual = !GetDroppedNames (data).empty() && !ActionsCopy::IsCassoCopy (data);
+    }
+
+    return !outSource.hostPaths.empty() || outSource.isVirtual;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDragDrop::WriteVirtualFiles
+//
+//  Each file in a new folder under the PC's temporary folder, by its
+//  name, so a `._` AppleDouble file beside it is read with it as from any
+//  folder. The folder is removed after the put.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerDragDrop::WriteVirtualFiles (IDataObject * data, DropSource & ioSource)
+{
+    std::error_code                error;
+    std::filesystem::path          folder = std::filesystem::temp_directory_path (error) / std::format (L"CassoExplorerDrop-{}", GetTickCount64());
+    std::vector<std::wstring>      created;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    std::filesystem::create_directories (folder, error);
+
+    outcome = m_context.actions.PasteVirtualFiles (data, folder.wstring(), [] (const std::wstring &, int, int) { return ActionsTypes::Collision::Replace; }, created);
+
+    if (!outcome.Succeeded())
+    {
+        std::filesystem::remove_all (folder, error);
+        m_context.window.ShowMessage (outcome.message, MB_ICONWARNING);
+        return false;
+    }
+
+    //  A ZIP member on the PC, dragged from its ZIP folder, comes with no
+    //  AppleDouble entry; the entry is read from the ZIP and written beside it.
+    m_context.actions.WriteZipSidecars (GetDroppedShellIds (data), created);
+
+    for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (folder, error))
+    {
+        ioSource.hostPaths.push_back (entry.path().wstring());
+    }
+
+    m_virtualDropFolder = folder.wstring();
+
+    return !ioSource.hostPaths.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDragDrop::RemoveVirtualFiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerDragDrop::RemoveVirtualFiles()
+{
+    std::error_code  error;
+
+
+
+    if (!m_virtualDropFolder.empty())
+    {
+        std::filesystem::remove_all (m_virtualDropFolder, error);
+        m_virtualDropFolder.clear();
+    }
 }
 
 
@@ -1126,11 +1265,19 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
     DWORD                          effect     = DROPEFFECT_NONE;
     BOOL                           posted     = FALSE;
     HRESULT                        recycled   = S_OK;
+    HRESULT                        hrPaths    = S_OK;
     std::wstring                   hostFolder;
     std::wstring                   driveId;
+    std::vector<std::wstring>      dropped;
     POINTL                         at         = { screen.x, screen.y };
 
 
+
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
 
     //  Back onto the folder the files came from, or onto one of them: nothing
     //  to do.
@@ -1173,6 +1320,12 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
     if (m_hostDrop != nullptr && TryGetHostDropFolder (tag, screen, hostFolder) && ExplorerFolderSync::IsSameFolder (hostFolder, m_hostDropFolder))
     {
         std::vector<std::wstring>  names = GetDroppedNames (data);
+        std::vector<std::wstring>  targets;
+
+        for (const std::wstring & name : names)
+        {
+            targets.push_back ((std::filesystem::path (hostFolder) / name).wstring());
+        }
 
         effect = m_dropTarget.GetAllowedEffects();
 
@@ -1185,6 +1338,23 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
         if (SUCCEEDED (hr) && effect != DROPEFFECT_NONE && !names.empty())
         {
             m_context.listPane.SelectWhenListed (hostFolder, std::move (names));
+        }
+
+        //  Windows may move the files after the drop returns, and it doesn't
+        //  report a move it does that way, so an A2Pico card's drives are
+        //  updated once a listing finds the files moved.
+        hrPaths = SUCCEEDED (hr) ? DxuiDragDropTarget::ExtractHDropPaths (data, dropped) : hr;
+
+        if (SUCCEEDED (hrPaths))
+        {
+            m_context.actions.GetA2retroNet().ExpectMoves (dropped, hostFolder);
+        }
+
+        //  An image dropped onto an A2Pico card that A2retroNET doesn't read
+        //  is offered as a .po once it is listed.
+        if (SUCCEEDED (hr) && effect != DROPEFFECT_NONE)
+        {
+            m_context.actions.GetA2retroNet().ExpectArrivals (targets);
         }
 
         m_hostDrop.Reset();
@@ -1204,7 +1374,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
 
         if (image)
         {
-            m_context.cassoLinkManager.StartImageWrite (location, source.hostPaths[0]);
+            m_context.linkDrives.StartImageWrite (location, source.hostPaths[0]);
             return;
         }
 
@@ -1213,10 +1383,18 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
             m_context.addressBar.GoToLocation (location);
         }
 
+        RemoveVirtualFiles();
+
+        if (source.isVirtual && !WriteVirtualFiles (data, source))
+        {
+            return;
+        }
+
         outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
                                    : m_context.actions.PutFiles (source.hostPaths, m_context.prompts.MakeAddressPrompt());
 
         m_context.commandManager.ReportOutcome (outcome, L"Put");
+        RemoveVirtualFiles();
         return;
     }
 
@@ -1230,6 +1408,19 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
     if (effect == DROPEFFECT_NONE)
     {
         return;
+    }
+
+    //  A file with no path is copied, as there is no original to move.
+    if (source.isVirtual)
+    {
+        effect = DROPEFFECT_COPY;
+
+        RemoveVirtualFiles();
+
+        if (!WriteVirtualFiles (data, source))
+        {
+            return;
+        }
     }
 
     m_dropTarget.SetDropResult (DROPEFFECT_COPY);
@@ -1304,6 +1495,8 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
 
     m_context.commandManager.ReportOutcome (outcome, (effect == DROPEFFECT_MOVE) ? L"Move" : L"Put");
     m_context.folderSync.RefreshAfterHostChange();
+
+    RemoveVirtualFiles();
 }
 
 
@@ -1328,7 +1521,7 @@ void ExplorerDragDrop::BeginDragOut()
     bool                                     moved    = false;
     HostFileNaming::Style                    style    = m_context.commandManager.GetNamingStyle();
     auto                                     log      = std::make_shared<CassoExplorerDragOut::RenderLog>();
-    std::vector<DxuiDragDropSource::Format>  formats  = CassoExplorerDragOut::BuildFormats (m_context.browser, style, log);
+    std::vector<DxuiDragDropSource::Format>  formats  = CassoExplorerDragOut::BuildFormats (m_context.browser, style, log, false, m_context.prefs.rawCopyMenu);
     POINT                                    start    = {};
     std::vector<FileEntry>                   entries;
     std::vector<std::string>                 paths;
@@ -1341,10 +1534,26 @@ void ExplorerDragDrop::BeginDragOut()
     Location                                 drive;
     std::shared_ptr<const DxuiIconImage>     icon     = GetRowDragImage();
     bool                                     images   = !m_context.browser.GetSelectedRows().empty();
+    std::wstring                             rawFolder;
 
 
 
     m_context.listPane.ReleasePress();
+
+    //  A picker's drag is a copy of files on the disk, as an image dragged to
+    //  one of the emulator's drives is. Nothing is moved, and no entry of an
+    //  image is dragged out.
+    if (m_context.IsPicker())
+    {
+        if (m_context.browser.TryGetSelectedShellIds (shellIds))
+        {
+            hr = m_context.shellVerbs.DragItems (shellIds, DROPEFFECT_COPY, icon.get());
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        m_context.window.Invalidate();
+        return;
+    }
 
     //  Casso's own icon goes with a drag of disk images and of files with no
     //  file of their own, which the shell has no image for.
@@ -1357,7 +1566,7 @@ void ExplorerDragDrop::BeginDragOut()
 
     //  Dragging a linked machine's drive drags its whole disk, as dragging its
     //  node in the tree does.
-    if (m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive))
+    if (m_context.linkDrives.TryGetSelectedLinkDrive (drive))
     {
         BeginDiskDrag (drive.path);
         return;
@@ -1402,8 +1611,27 @@ void ExplorerDragDrop::BeginDragOut()
     IGNORE_RETURN_VALUE (got, TRUE);
 
     hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY | DROPEFFECT_MOVE, start, effect, &logical,
-                                    (images || inImage || m_context.browser.IsAppleDriveLocation()) ? icon.get() : nullptr);
+                                    (images || inImage || m_context.browser.IsAppleDriveLocation()) ? icon.get() : nullptr,
+                                    [&rawFolder] (const DxuiDragDropSource & source)
+                                    {
+                                        std::vector<uint8_t>  stored;
+
+                                        if (source.GetStoredBytes (RawCopyDropHandler::kFolderFormat, stored))
+                                        {
+                                            rawFolder = RawCopyDropHandler::GetFolder (stored);
+                                        }
+                                    });
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    //  Copy here without conversion (raw bytes) on File Explorer's right-drag menu: File
+    //  Explorer copied nothing, and the selection is copied raw to its folder
+    //  as Get does.
+    if (!rawFolder.empty())
+    {
+        m_context.commandManager.ReportOutcome (m_context.actions.GetSelected (rawFolder, style, m_context.prompts.MakeCollisionPrompt(), true), L"Copy");
+        m_context.window.Invalidate();
+        return;
+    }
 
     //  File Explorer reports a move of files it read from the drag's streams
     //  in the logical effect, and the drag itself returns DROPEFFECT_NONE.
@@ -1488,6 +1716,16 @@ void ExplorerDragDrop::ShowDropMenu()
             m_context.menus.AddMenuCommand (items, L"Copy here as &text",           [this]() { RunDrop (CassoExplorerActions::Conversion::Text); });
             m_context.menus.AddMenuCommand (items, L"Copy here as Applesoft &BASIC", [this]() { RunDrop (CassoExplorerActions::Conversion::Applesoft); });
             m_context.menus.AddMenuCommand (items, L"Copy here as &binary...",      [this]() { RunDrop (CassoExplorerActions::Conversion::Binary); });
+
+            if (HostFileNaming::CanImport (FileFormat::PascalText, m_pendingDrop.targetKind))
+            {
+                m_context.menus.AddMenuCommand (items, L"Copy here as &Pascal text", [this]() { RunDrop (CassoExplorerActions::Conversion::PascalText); });
+            }
+
+            if (HostFileNaming::CanImport (FileFormat::Merlin, m_pendingDrop.targetKind))
+            {
+                m_context.menus.AddMenuCommand (items, L"Copy here as &Merlin source", [this]() { RunDrop (CassoExplorerActions::Conversion::MerlinSource); });
+            }
         }
     }
 
@@ -1537,6 +1775,8 @@ void ExplorerDragDrop::RunDrop (CassoExplorerActions::Conversion conversion)
     m_context.undo.PushPut    (outcome, drop.location.path, drop.inner);
     m_context.commandManager.ReportOutcome  (outcome, L"Put");
     m_context.folderSync.RefreshAfterHostChange();
+
+    RemoveVirtualFiles();
 }
 
 

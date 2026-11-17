@@ -5,6 +5,7 @@
 #include "CassoExplorer/CassoExplorerShellListings.h"
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoExplorer/Model/TreeModel.h"
+#include "Devices/Disk/Partitions/PartitionAccess.h"
 
 class CassoExplorerBrowser;
 
@@ -28,6 +29,9 @@ public:
     explicit BrowserLoader (CassoExplorerBrowser & browser);
 
     bool  LeaveMissingLocation ();
+
+    //  The partitions of an image, or of a card that is open.
+    HRESULT  ListPartitions (const std::wstring & path, PartitionLayoutKind & outKind, std::vector<PartitionEntry> & outEntries);
 
     bool  PrepareCassoLinkItems ();
 
@@ -57,9 +61,12 @@ public:
     bool     IsOnMissingDrive      (const Location & location) const;
     HRESULT  LoadHostFolder        (const std::wstring & path);
     HRESULT  LoadRoot              (const std::wstring & id);
+    HRESULT  LoadCassoImages       ();
     HRESULT  LoadRecycleBin        ();
     HRESULT  LoadShellFolder       (const std::wstring & id);
     HRESULT  LoadImage             (const std::wstring & path, const std::string & directory);
+    bool     LoadPartitions        (const std::wstring & path);
+    HRESULT  LoadCard              (const std::wstring & path);
     HRESULT  LoadAppleDrive        (const Location & location);
     void     AddCassoLinkItems     ();
     void     AddAdtProHelpItem     ();
@@ -69,6 +76,12 @@ public:
     static constexpr ULONGLONG  kLinkRevisitMs = 30000;   // a visit sooner than this to a drive lists what was read
     bool     CanListImage          (const std::wstring & imagePath);
     bool     TryGetImageLocation   (int row, Location & outLocation) const;
+
+    std::wstring  MakeContainerPath (const std::wstring & folderId, const std::wstring & name) const;
+
+    //  The path a shell folder's image row opens by: its path on the disk, or
+    //  in a ZIP, its ContainerPath's text.
+    static const std::wstring &  GetImagePath (const CatalogRow & row) { return row.hostPath.empty() ? row.containerPath : row.hostPath; }
 
 private:
     struct ImageProblem

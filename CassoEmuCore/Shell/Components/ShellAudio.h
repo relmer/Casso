@@ -74,12 +74,14 @@ public:
                            uint32_t                      sliceCycles,
                            float                         speakerState,
                            uint32_t                      numSamples,
+                           double                        cyclesPerSample,
                            uint64_t                      totalCycles)
     {
         return m_wasapiAudio.SubmitFrame (toggleTimestamps,
                                           sliceCycles,
                                           speakerState,
                                           numSamples,
+                                          cyclesPerSample,
                                           &m_driveAudioMixer,
                                           totalCycles,
                                           &m_mockingboardAudioMixer,
@@ -112,6 +114,7 @@ private:
     // Disk II controller (FR-015).
     DriveAudioMixer                       m_driveAudioMixer;
     vector<unique_ptr<Disk2AudioSource>>  m_diskAudioSources;
+    vector<unique_ptr<IDriveAudioSource>> m_deviceAudioSources;
 
     // Emulated ImageWriter II mechanical audio (Option A: driven by the paced
     // on-screen carriage, not the raw guest stream). A single persistent source

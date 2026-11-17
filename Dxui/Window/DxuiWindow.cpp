@@ -314,7 +314,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::ShowModelessDialog (int defaultButtonId)
+void DxuiWindow::ShowModelessDialog (int defaultButtonId, bool activate)
 {
     if (m_source != nullptr)
     {
@@ -323,7 +323,7 @@ void DxuiWindow::ShowModelessDialog (int defaultButtonId)
         m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
 
         OnDialogShowing();
-        Show();
+        Show (activate);
     }
 }
 
@@ -500,13 +500,16 @@ void DxuiWindow::SetTheme (const IDxuiTheme * theme)
 //
 //  SetTitle
 //
+//  markAt is the position in the title of the unsaved-changes dot, or npos
+//  for none.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::SetTitle (const std::wstring & title)
+void DxuiWindow::SetTitle (const std::wstring & title, size_t markAt)
 {
     if (m_source != nullptr)
     {
-        m_source->SetTitle (title);
+        m_source->SetTitle (title, markAt);
     }
 }
 
@@ -637,7 +640,7 @@ DxuiMessageResult DxuiWindow::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
 DxuiMessageResult DxuiWindow::OnXButtonUp (WPARAM wParam, LPARAM lParam)
 {
-    DxuiMouseButton  button = (GET_XBUTTON_WPARAM (wParam) == XBUTTON1) ? DxuiMouseButton::X1 : DxuiMouseButton::X2;
+    DxuiMouseButton  button = (GET_XBUTTON_WPARAM (wParam) == XBUTTON1) ? DxuiMouseButton::Back : DxuiMouseButton::Forward;
 
 
 
@@ -701,7 +704,7 @@ DxuiMessageResult DxuiWindow::OnMouseLeave()
 
     if (hwnd != nullptr && GetCapture() != hwnd)
     {
-        (void) DispatchMouse (DxuiMouseEventKind::Leave, DxuiMouseButton::None, -1, -1, 0.0f);
+        (void) DispatchMouse (DxuiMouseEventKind::Leave, DxuiMouseButton::None, SHRT_MIN, SHRT_MIN, 0.0f);
     }
 
     return DxuiMessageResult::NotHandled;

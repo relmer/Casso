@@ -5,6 +5,7 @@
 #include "Machines/Apple2/Common/IVolume.h"
 #include "Machines/Apple2/Common/SectorReadObserver.h"
 #include "Devices/Disk/ChainWalkGuard.h"
+#include "Devices/Disk/BlockImage.h"
 #include "Machines/Apple2/Common/ProDosVolumeWriter.h"
 #include "Machines/Apple2/Common/ProDosVolumeRemover.h"
 
@@ -46,6 +47,13 @@ class ProDosVolume : public IVolume
 {
 public:
     explicit ProDosVolume (const vector<Byte> & sectors);
+
+    //  Over an image that reads its blocks as they are touched, as a card's
+    //  partition or a hard drive image is read.
+    explicit ProDosVolume (const BlockImage & image);
+
+    //  The bytes read from the image's store so far.
+    size_t   GetBytesLoaded () const { return m_sectors.GetBytesLoaded(); }
     ProDosVolume (const ProDosVolume &) = delete;
 
     //  Called with each sector the volume reads from here on; null for none.
@@ -56,25 +64,37 @@ public:
     HRESULT  Read               (const FilePath & path, FilePayload & outPayload) const override;
 
     //  Placement goes to the writer and removal to the remover.
-    HRESULT  CreateDirectory   (const FilePath & path, vector<Byte> & outBuffer) const override { return m_writer.CreateDirectory (path, outBuffer); }
-    HRESULT  Write             (const FilePath & path, const FilePayload & payload, vector<Byte> & outBuffer) const override { return m_writer.Write (path, payload, outBuffer); }
-    HRESULT  SetStartupProgram (const FilePath & path, vector<Byte> & outBuffer) const override { return m_writer.SetStartupProgram (path, outBuffer); }
-    HRESULT  Rename            (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const override { return m_writer.Rename (from, to, outBuffer); }
-    HRESULT  SetAttributes     (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const override { return m_writer.SetAttributes (path, attributes, outBuffer); }
+    HRESULT  CreateDirectory   (const FilePath & path, vector<Byte> & outBuffer) const override;
+    HRESULT  Write             (const FilePath & path, const FilePayload & payload, vector<Byte> & outBuffer) const override;
+    HRESULT  SetStartupProgram (const FilePath & path, vector<Byte> & outBuffer) const override;
+    HRESULT  Rename            (const FilePath & from, const std::string & to, vector<Byte> & outBuffer) const override;
+    HRESULT  SetAttributes     (const FilePath & path, const FileAttributes & attributes, vector<Byte> & outBuffer) const override;
+
+    //  The same, into a buffer of the blocks the change touches, which is all
+    //  a write to a large volume over a store reads.
+    HRESULT  CreateDirectory   (const FilePath & path, BlockBuffer & outBuffer) const override { return m_writer.CreateDirectory (path, outBuffer); }
+    HRESULT  Write             (const FilePath & path, const FilePayload & payload, BlockBuffer & outBuffer) const override { return m_writer.Write (path, payload, outBuffer); }
+    HRESULT  Rename            (const FilePath & from, const std::string & to, BlockBuffer & outBuffer) const override { return m_writer.Rename (from, to, outBuffer); }
+    HRESULT  SetAttributes     (const FilePath & path, const FileAttributes & attributes, BlockBuffer & outBuffer) const override { return m_writer.SetAttributes (path, attributes, outBuffer); }
+    HRESULT  RemoveDirectory   (const FilePath & path, bool force, BlockBuffer & outBuffer, DeleteOutcome & outOutcome) const override { return m_remover.RemoveDirectory (path, force, outBuffer, outOutcome); }
+    HRESULT  Delete            (const FilePath & path, BlockBuffer & outBuffer, DeleteOutcome & outOutcome) const override { return m_remover.Delete (path, outBuffer, outOutcome); }
 
     //  ProDOS's rule for a new name, the one Rename applies.
     static bool  IsValidName (const std::string & name) { std::string stored; return ProDosVolumeWriter::TryEncodeDirectoryName (name, stored); }
 
     HRESULT  BuildRemovalPlan (const FilePath & path, DirectoryRemovalPlan & outPlan) const override { return m_remover.BuildRemovalPlan (path, outPlan); }
-    HRESULT  RemoveDirectory  (const FilePath & path, bool force, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const override { return m_remover.RemoveDirectory (path, force, outBuffer, outOutcome); }
-    HRESULT  Delete           (const FilePath & path, vector<Byte> & outBuffer) const override { return m_remover.Delete (path, outBuffer); }
+    HRESULT  RemoveDirectory  (const FilePath & path, bool force, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const override;
+    HRESULT  Delete           (const FilePath & path, vector<Byte> & outBuffer) const override;
 
     //  Delete, plus an account of what it freed, what it refused to free, and
     //  the conditions that bound the answer. The interface form forwards here
     //  and throws the account away; anything reporting to a user wants it.
-    HRESULT  Delete           (const FilePath & path, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const override { return m_remover.Delete (path, outBuffer, outOutcome); }
+    HRESULT  Delete           (const FilePath & path, vector<Byte> & outBuffer, DeleteOutcome & outOutcome) const override;
 
     HRESULT  BuildIntegrityReport (VolumeIntegrityReport & outReport) const override;
+
+    //  The blocks the volume has: 280 for a 140K disk, the buffer's blocks otherwise.
+    int      GetBlockCount() const;
 
     //  The self-check every computed write and delete runs over its own output,
     //  and the ONLY way a computed buffer reaches a caller. Refuses a buffer
@@ -96,6 +116,9 @@ public:
     static HRESULT  HandBackVerifiedResult (const VolumeIntegrityReport  & before,
                                             const vector<Byte>           & result,
                                             vector<Byte>                 & outBuffer);
+    static HRESULT  HandBackVerifiedResult (const VolumeIntegrityReport  & before,
+                                            const BlockBuffer            & result,
+                                            BlockBuffer                  & outBuffer);
 
     //  The ProDOS file types this feature names on the command line. The full
     //  set is 256 values; these are the ones a developer places or extracts.
@@ -159,15 +182,19 @@ private:
     //  startup program was the kernel would only load it a second time.
     static constexpr const char *  kpszKernelName = "PRODOS";
 
-    Byte  ReadByte (int block, size_t offset) const;
+    Byte  ReadByte        (int block, size_t offset) const;
+
+    //  A directory's entries a block, from the header in its key block.
+    int   GetEntriesPerBlock (int keyBlock) const;
+    bool  IsBitmapBitFree    (uint32_t block) const;
 
     //  The buffer, for a read of one block of it. Every read of the volume's
     //  own buffer goes through here, so the read observer has each sector.
-    const vector<Byte>  & AccessBlock (int block) const;
+    const BlockImage    & AccessBlock (int block) const;
     Word                  ReadWord    (int block, size_t offset) const;
 
     //  Volume bitmap: one bit per block, MSB of byte 0 is block 0, SET is free.
-    static bool  IsFreeInBitmap  (const vector<Byte> & buffer, uint32_t block);
+    static bool  IsFreeInBitmap  (const BlockImage & buffer, uint32_t block);
 
     //  An upper-case name with the case word applied, for display. A word
     //  without its top bit describes nothing, and the name comes back as the
@@ -227,6 +254,9 @@ private:
     //  One directory record as a listing reports it.
     static FileEntry  ToFileEntry (const RawEntry & entry);
 
+    //  An extended file's data and resource fork lengths, from its key block.
+    void  FillExtendedSizes (const RawEntry & entry, FileEntry & inOutListed) const;
+
     //  Every block one entry occupies, index blocks included. False when the
     //  structure could not be walked, which the caller reports as an
     //  unfollowable chain rather than as a short file.
@@ -237,7 +267,7 @@ private:
     friend class ProDosVolumeWriter;
     friend class ProDosVolumeRemover;
 
-    const vector<Byte> &   m_sectors;
+    BlockImage             m_sectors;
     ISectorReadObserver  * m_readObserver = nullptr;
 
     ProDosVolumeWriter   m_writer  { *this };

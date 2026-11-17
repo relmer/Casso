@@ -23,8 +23,9 @@ std::shared_ptr<const TrackCopy> TrackCopy::MakeFromImage (const DiskImage & ima
 
 
 
-    copy->slot = slot;
-    copy->kind = image.GetTrackKind (slot);
+    copy->slot            = slot;
+    copy->kind            = image.GetTrackKind (slot);
+    copy->guestWriteCount = image.GetGuestWriteCount (slot);
 
     if (copy->kind == TrackKind::Flux)
     {

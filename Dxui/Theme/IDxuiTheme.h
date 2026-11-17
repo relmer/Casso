@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Theme/DxuiColor.h"
 
 
 
@@ -219,6 +220,11 @@ public:
     // Accent / focus / borders.
     virtual uint32_t  Accent              () const = 0;
     virtual uint32_t  FocusRing           () const = 0;
+
+    //  What marks the pane or tab the user is working in: the accent, or its
+    //  complement where the accent's hue is the background's own and would
+    //  not stand out from it.
+    virtual uint32_t  FocusAccent         () const { return DxuiColor::ComputeFocusAccent (Accent(), Background()); }
     virtual uint32_t  Border              () const = 0;
     virtual uint32_t  Divider             () const = 0;
 
@@ -298,6 +304,24 @@ public:
         constexpr uint32_t  kBorderAlpha = 0x99u << 24;
 
         return (WarningAccent() & 0x00FFFFFFu) | kBorderAlpha;
+    }
+
+    //
+    //  Error severity: the theme's error color, tinted and edged as a
+    //  warning is, for a notice that something is damaged or failed.
+    //
+    virtual uint32_t  InfoBannerErrorBackground () const
+    {
+        constexpr uint32_t  kTintAlpha = 0x1Fu << 24;
+
+        return (ErrorForeground() & 0x00FFFFFFu) | kTintAlpha;
+    }
+
+    virtual uint32_t  InfoBannerErrorBorder () const
+    {
+        constexpr uint32_t  kBorderAlpha = 0xCCu << 24;
+
+        return (ErrorForeground() & 0x00FFFFFFu) | kBorderAlpha;
     }
 
     // Typography. Returned handles are opaque to widgets.

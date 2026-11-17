@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
@@ -9,6 +10,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Model/TreeModel.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
@@ -21,11 +23,15 @@
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
+#include "CassoExplorer/Window/Managers/ExplorerOpen.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Seams/IDiskPictures.h"
 
 
 
@@ -63,6 +69,8 @@ void ExplorerTreePane::Create()
 
     tree->SetAccessibleName (L"Folders and disk images");
     m_tree = tree;
+
+    m_context.window.SetMouseHandler (m_tree, [this] (const DxuiMouseEvent & ev) { return HandleTreeMouse (ev); });
 }
 
 
@@ -217,19 +225,26 @@ void ExplorerTreePane::UpdateLabelTip (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerTreePane::HandleCapturedMouse
+//  ExplorerTreePane::HandleTreeMouse
 //
-//  A press on a drive's, a folder's or an image's node drags it once the
-//  pointer has moved far enough, as a list row's press drags the list's
-//  selection. The tree's events are in the window's coordinates, as its press
-//  was, so a drag that started there has the same origin. The hover is
-//  cleared as the pointer moves off the tree, as in Explorer.
+//  The tree's mouse handler. A press on a drive's, a folder's or an image's
+//  node drags it once the pointer has moved far enough, as a list row's
+//  press drags the list's selection. The hover is cleared as the pointer
+//  moves off the tree, as in Explorer.
+//
+//  A right-click neither selects nor moves focus, as in Explorer: the hover
+//  stays on the node under the pointer, and the menu is the node's. Below
+//  the last node, the menu has the pane's options, as Explorer's has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerTreePane::HandleCapturedMouse (const DxuiMouseEvent & ev)
+bool ExplorerTreePane::HandleTreeMouse (const DxuiMouseEvent & ev)
 {
-    POINT  point = ev.positionDip;
+    POINT                 point = ev.positionDip;
+    bool                  press = ev.kind == DxuiMouseEventKind::Down;
+    int                   row   = -1;
+    const DxuiTreeNode  * node  = nullptr;
+    Location              at;
 
 
 
@@ -250,49 +265,15 @@ bool ExplorerTreePane::HandleCapturedMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    if (m_tree->IsInteracting())
+    if (ev.kind == DxuiMouseEventKind::Leave || (ev.kind == DxuiMouseEventKind::Move && !ExplorerLayout::Contains (m_tree->GetBounds(), point)))
     {
-        m_tree->OnMouse (ev);
-        m_context.window.Invalidate();
-        return true;
-    }
+        if (m_tree->GetHoverRow() >= 0 && !m_tree->IsInteracting())
+        {
+            m_tree->SetHoverRow (-1);
+            m_context.window.Invalidate();
+        }
 
-    if (m_tree->GetHoverRow() >= 0 && (ev.kind == DxuiMouseEventKind::Leave || !ExplorerLayout::Contains (m_tree->GetBounds(), point)))
-    {
-        m_tree->SetHoverRow (-1);
-        m_context.window.Invalidate();
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerTreePane::HandleMouse
-//
-//  A right-click neither selects nor moves focus, as in Explorer: the hover
-//  stays on the node under the pointer, and the menu is the node's. Below
-//  the last node, the menu has the pane's options, as Explorer's has.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerTreePane::HandleMouse (const DxuiMouseEvent & ev)
-{
-    POINT                 point = ev.positionDip;
-    bool                  press = ev.kind == DxuiMouseEventKind::Down;
-    int                   row   = -1;
-    const DxuiTreeNode  * node  = nullptr;
-    Location              at;
-
-
-
-    if (!ExplorerLayout::Contains (m_tree->GetBounds(), point))
-    {
-        return false;
+        return m_tree->IsInteracting() && m_tree->OnMouse (ev);
     }
 
     if (press)
@@ -308,12 +289,15 @@ bool ExplorerTreePane::HandleMouse (const DxuiMouseEvent & ev)
 
     if (press && ev.button == DxuiMouseButton::Right && row < 0)
     {
+        m_context.input.ReleasePressed();
         ShowTreeEmptyMenu (point.x, point.y);
         return true;
     }
 
     if (press && ev.button == DxuiMouseButton::Right)
     {
+        m_context.input.ReleasePressed();
+
         if (node != nullptr)
         {
             m_tree->SetHoverRow (row);
@@ -332,10 +316,7 @@ bool ExplorerTreePane::HandleMouse (const DxuiMouseEvent & ev)
         m_drag.location = at;
     }
 
-    m_tree->OnMouse (ev);
-    m_context.window.Invalidate();
-
-    return true;
+    return m_tree->OnMouse (ev) || ev.kind != DxuiMouseEventKind::Move;
 }
 
 
@@ -491,6 +472,7 @@ void ExplorerTreePane::ReleasePress()
     release.kind   = DxuiMouseEventKind::Up;
     release.button = DxuiMouseButton::Left;
     m_tree->OnMouse (release);
+    m_context.input.ReleasePressed();
 }
 
 
@@ -601,6 +583,36 @@ void ExplorerTreePane::RevealLocationInTree()
         row = m_tree->FindRowById (location.path);
 
         if (row >= 0 && TreeModel::StripLinkCopy (current) != location.path)
+        {
+            m_tree->HighlightRow (row);
+            ScrollTreeToRow (row);
+        }
+
+        return;
+    }
+
+    //  A storage card is its node under This PC, and a partition on it the
+    //  partition's node under the card, which is opened down to it.
+    if (PhysicalCards::IsOnCard (path))
+    {
+        std::wstring  cardPath = path.substr (0, path.find (L'|'));
+        std::wstring  cardId   = std::wstring (TreeModel::kStorageCardTag) + cardPath;
+        std::wstring  target   = cardPath == path ? cardId : TreeModel::MakeImageId (false, path);
+
+        if (target != cardId)
+        {
+            m_tree->SetRowExpanded (m_tree->FindRowById (TreeModel::kThisPcRootId), true);
+            m_tree->SetRowExpanded (m_tree->FindRowById (cardId), true);
+        }
+
+        if (m_tree->FindRowById (target) < 0)
+        {
+            target = cardId;
+        }
+
+        row = m_tree->FindRowById (target);
+
+        if (row >= 0 && current != target)
         {
             m_tree->HighlightRow (row);
             ScrollTreeToRow (row);
@@ -859,9 +871,16 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
     Location                        location;
     bool                            hasFolder   = m_context.browser.TryGetNodePath (id, folder);
     bool                            hasLocation = m_context.browser.TryGetNodeLocation (id, location);
+    bool                            isCard      = hasLocation && PhysicalCards::IsCardPath (location.path);
     const DxuiTreeNode            * node        = m_tree->GetNodeAt (m_tree->FindRowById (id));
 
 
+
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
 
     m_context.menus.GetMenuCommands().clear();
 
@@ -874,7 +893,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
     //  A folder on the disk has Explorer's row of Cut, Copy, Paste, Rename and
     //  Delete, and a drive Copy and Paste.
-    if (hasLocation && (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::DiskImage))
+    if (hasLocation && !isCard && (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::DiskImage))
     {
         AddTreeIconRow (items, location.path, id, location.kind == Location::Kind::HostFolder && location.path.size() <= 3);
     }
@@ -903,8 +922,32 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         m_context.menus.AddOpenRows (items, location, false);
     }
 
+    //  The Full Send folder's row under CassoLink opens the Full Send window.
+    if (hasLocation && TreeModel::StripLinkCopy (id).starts_with (TreeModel::kAdtProId) && _wcsicmp (location.path.c_str(), m_context.fullSendWindows.GetFullSendFolder().c_str()) == 0)
+    {
+        m_context.menus.AddMenuCommand (items, L"Full Send &status", [this]() { m_context.fullSendWindows.ShowFullSendWindow (true); });
+    }
+
+    //  A storage card is erased and given an Apple layout. It doesn't have a
+    //  disk image's commands.
+    //  A drive letter on a storage card can be initialized too, as a card
+    //  with only Windows volumes has no storage card node.
+    if (!isCard && hasLocation && location.kind == Location::Kind::HostFolder)
+    {
+        m_context.opener.AddInitializeRow (items, location.path);
+    }
+
+    if (isCard)
+    {
+        std::wstring  card = location.path;
+
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+        m_context.menus.AddMenuCommand (items, L"&Initialize card for Apple...", [this, card]() { m_context.opener.InitializeCard (card); });
+        m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::AppleMachine);
+    }
+
     //  A disk image's Casso commands, as its row in the list has them.
-    if (hasLocation && location.kind == Location::Kind::DiskImage)
+    if (hasLocation && !isCard && location.kind == Location::Kind::DiskImage)
     {
         std::wstring  image = location.path;
 
@@ -912,6 +955,12 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive1),   [this, image]() { m_context.cassoTarget.InsertIntoDrive (image, 1); });
         m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive2),   [this, image]() { m_context.cassoTarget.InsertIntoDrive (image, 2); });
         m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::OpenInNewCasso), [this, image]() { m_context.cassoTarget.OpenInNewCasso (image); });
+
+        if (InspectorWindowSet::CanInspect (image))
+        {
+            m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InspectDiskImage), [this, image]() { m_context.commandManager.InspectDiskImages ({ image }); });
+        }
+
         m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles),   [this, image]() { m_context.commandManager.ExtractImageFiles (image); });
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (L"windows.compressedfile.extract");
 
@@ -948,6 +997,16 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         {
             m_context.menus.AddMenuCommand (items, L"&Disk properties", [this, image]() { m_context.properties.ShowWozProperties (image, WozPropertiesDialog::kInfoTab); });
             m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
+        }
+
+        if (m_context.app.pictures != nullptr && m_context.app.pictures->HasThumbnail (image))
+        {
+            m_context.menus.AddMenuCommand (items, L"Remove thum&bnail", [this, image]()
+            {
+                HRESULT  removed = m_context.app.pictures->RemoveThumbnail (image);
+
+                IGNORE_RETURN_VALUE (removed, S_OK);
+            });
         }
     }
 
@@ -1249,6 +1308,12 @@ void ExplorerTreePane::ShowTreeEmptyMenu (int x, int y)
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
+
     m_context.menus.GetMenuCommands().clear();
 
     AddNavPaneToggle (items, L"Show This &PC",          &CassoExplorerPrefs::navShowThisPc);
@@ -1469,7 +1534,27 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
     m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Tree, anchor, adtPro       ? TreeModel::StripLinkCopy (node->id).substr (wcslen (TreeModel::kAdtProId)).c_str()
                                         : problem      ? m_treeTipText.c_str()
                                         : node->dimmed ? kMissingNodeTip
-                                        : !fullPath.empty() ? fullPath.c_str() : kCassoNodeTip);
+                                        : !fullPath.empty() ? fullPath.c_str() : GetCassoNodeTip (m_context.app.picker));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::GetCassoNodeTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ExplorerTreePane::GetCassoNodeTip (const PickerRequest * picker)
+{
+    if (picker == nullptr || !picker->IsForDrive())
+    {
+        return kCassoNodeTip;
+    }
+
+    return (picker->receivingDrive->kind == ReceivingDriveKind::Recorder) ? kCassoNodeTapeTip : kCassoNodeDiskTip;
 }
 
 

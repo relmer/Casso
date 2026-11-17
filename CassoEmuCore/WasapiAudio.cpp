@@ -134,6 +134,7 @@ HRESULT WasapiAudio::Initialize()
     CHRA (hr);
 
     m_sampleRate = mixFormat->nSamplesPerSec;
+    m_speakerFilter.SetSampleRate (m_sampleRate);
 
     // Try float32 stereo at the mix format sample rate. The drive
     // mixer (spec 005-disk-ii-audio FR-010 / FR-012) requires a
@@ -525,6 +526,7 @@ HRESULT WasapiAudio::SubmitFrame (
     uint32_t                        totalCyclesThisSlice,
     float                           currentSpeakerState,
     uint32_t                        numSamplesToGenerate,
+    double                          cyclesPerSample,
     DriveAudioMixer *               driveMixer,
     uint64_t                        currentCycleCount,
     DriveAudioMixer *               mockingboardMixer,
@@ -570,6 +572,22 @@ HRESULT WasapiAudio::SubmitFrame (
         m_droppedSlice = true;
     }
 
+    // The speaker's sample grid runs across slices. A dropped slice breaks
+    // it, and the cycles of a slice too short to end a sample begin the next.
+    if (prevFrames >= m_samplesPerFrame * 3)
+    {
+        m_speakerGenerator.Reset();
+    }
+    else if (numSamplesToGenerate == 0)
+    {
+        m_speakerGenerator.GeneratePCM (toggleTimestamps,
+                                        totalCyclesThisSlice,
+                                        currentSpeakerState,
+                                        cyclesPerSample,
+                                        nullptr,
+                                        0);
+    }
+
     if (numSamplesToGenerate > 0 && prevFrames < m_samplesPerFrame * 3)
     {
         if (m_speakerScratch.size() < numSamplesToGenerate)
@@ -582,11 +600,14 @@ HRESULT WasapiAudio::SubmitFrame (
             m_driveScratch.resize (numSamplesToGenerate * 2);
         }
 
-        AudioGenerator::GeneratePCM (toggleTimestamps,
-                                     totalCyclesThisSlice,
-                                     currentSpeakerState,
-                                     m_speakerScratch.data(),
-                                     numSamplesToGenerate);
+        m_speakerGenerator.GeneratePCM (toggleTimestamps,
+                                        totalCyclesThisSlice,
+                                        currentSpeakerState,
+                                        cyclesPerSample,
+                                        m_speakerScratch.data(),
+                                        numSamplesToGenerate);
+
+        m_speakerFilter.Process (m_speakerScratch.data(), numSamplesToGenerate);
 
         // Speaker mono -> centered stereo (equal-power center), mixed in
         // scratch; the pending queue is touched only briefly at the end.

@@ -1,16 +1,24 @@
 #include "Pch.h"
 
+
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/Model/HostFolderNames.h"
+#include "DiskCheck/BootSounds.h"
 #include "AssetBootstrap.h"
 #include "BuildInfo.h"
 #include "Core/TextEncoding.h"
 #include "Core/PathResolver.h"
 #include "CassoExplorer/ExplorerUpdaterHost.h"
+#include "CassoExplorer/ExplorerWindowFinder.h"
+#include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
+#include "CassoExplorer/Model/CassoImagesListing.h"
 #include "Seams/Win32FolderWatcher.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Seams/Win32IntentChannel.h"
+#include "Core/AppMessages.h"
+#include "Config/ShellExtensionRegistration.h"
 
 
 
@@ -72,6 +80,11 @@ CassoExplorerShell::CassoExplorerShell()
         folder->SetFolder (path);
         return folder;
     });
+
+    m_cards.SetConfirmWrite ([this] (const PhysicalDrive & drive) { return ConfirmCardWrite (drive); });
+    m_cards.SetConfirmElevation ([this] (const PhysicalDrive & drive) { return ConfirmElevation (drive); });
+
+    StartBootWorker();
 }
 
 
@@ -94,7 +107,12 @@ CassoExplorerShell::~CassoExplorerShell()
 
 
 
+    //  The windows' icon loaders queue images on the worker, and the
+    //  worker's thread calls into m_links, so the windows go, then the worker.
     m_windows.clear();
+
+    m_links.GetFullSendOptions().SetImageHandler (nullptr);
+    m_bootWorker.reset();
 
     if (m_oleInitialized)
     {
@@ -103,6 +121,193 @@ CassoExplorerShell::~CassoExplorerShell()
 
         OleUninitialize();
         m_oleInitialized = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::StartBootWorker
+//
+//  Each disk image a connection writes is booted with no window on the
+//  worker's thread, and the result goes to the connection it came through.
+//  A boot isn't put off while a connection is busy: a Full Send is a pending
+//  job for as long as its session lasts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::StartBootWorker()
+{
+    std::error_code  error;
+
+
+
+    m_bootedSound    = BootSounds::MakeBooted();
+    m_notBootedSound = BootSounds::MakeDidNotBoot();
+    m_bootWorker     = std::make_unique<ExplorerBootWorker> (m_thumbnails, BootCheck::BuildInstalled);
+
+    m_bootWorker->SetManifestIo (&m_fileIo);
+    m_bootWorker->SetOnCount ([this]() { m_pictures.NotifyReady (IDiskPictures::kQueueChanged); });
+    m_pictures.SetQueuedCount ([this]() { return m_bootWorker != nullptr ? m_bootWorker->GetPending() : 0; });
+    m_bootWorker->SetGivenNames (&m_givenNames);
+    m_bootWorker->SetDone ([this] (const ExplorerBootWorker::Result & result)
+    {
+        std::string  file = TextEncoding::WideToNarrow (std::filesystem::path (result.path).filename().wstring());
+        std::string  boot = result.hasReport ? BootProbe::GetVerdictName (result.verdict) : "";
+
+        if (!result.source.empty() && result.renamedFrom.empty())
+        {
+            m_links.NoteBoot (result.source, file, boot, ExplorerBootWorker::Describe (result), std::string(), result.fsCheck);
+        }
+        else if (!result.source.empty())
+        {
+            m_links.NoteBoot (result.source, result.renamedFrom, boot, ExplorerBootWorker::Describe (result), file, result.fsCheck);
+        }
+
+        if (!result.source.empty() && result.hasReport)
+        {
+            PlayBootSound (result);
+        }
+
+        //  An image no machine could be built for waits for the ROMs, which
+        //  a window offers when it is posted the message.
+        if (!result.hasReport && !result.missing.empty())
+        {
+            std::lock_guard  lock (m_unbootedLock);
+
+            m_unbooted.push_back ({ result.path, result.source });
+            m_romsWanted = true;
+        }
+
+        if (result.hasReport || !result.missing.empty())
+        {
+            m_pictures.NotifyReady();
+        }
+    });
+
+    m_links.GetFullSendOptions().SetImageHandler ([this] (const std::string & link, const std::string & path, const std::string & model)
+    {
+        m_bootWorker->Queue (TextEncoding::NarrowToWide (path), model, link);
+    });
+
+    //  A thumbnail set or removed by Casso, by CassoCli or by another window
+    //  of Casso Explorer is drawn in place of the one in view.
+    std::filesystem::create_directories (ThumbnailStore::GetDefaultFolder(), error);
+
+    m_cacheWatcher.Watch (TextEncoding::WideToNarrow (ThumbnailStore::GetDefaultFolder().wstring()), [this] (const std::string & path)
+    {
+        if (ThumbnailStore::IsUserChange (TextEncoding::NarrowToWide (path)))
+        {
+            m_pictures.NotifyReady (IDiskPictures::kPicturesChanged);
+        }
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::QueueBoot
+//
+//  A disk image in a list with no thumbnail, from an icon loader's thread,
+//  when Options has thumbnails made automatically.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::QueueBoot (const std::wstring & path)
+{
+    if (m_bootWorker != nullptr && m_prefs.autoThumbnails)
+    {
+        m_bootWorker->Queue (path, std::string());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::PlayBootSound
+//
+//  The sound for an image a connection wrote, where Options has the PC
+//  for the sounds: the failure's for an image that did not boot, has
+//  unreadable sectors or has a bad file system, and the success's for any
+//  other. A sound in progress, as a cassette bootstrap's is, isn't stopped
+//  for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::PlayBootSound (const ExplorerBootWorker::Result & result)
+{
+    const std::vector<Byte>  * sound = !result.isComplete || result.verdict == BootVerdict::DidNotBoot ? &m_notBootedSound : &m_bootedSound;
+    bool                       onPc  = m_prefs.bootSoundPlace == CassoExplorerPrefs::kBootSoundPc || m_prefs.bootSoundPlace == CassoExplorerPrefs::kBootSoundBoth;
+
+
+
+    if (sound != nullptr && !sound->empty() && onPc)
+    {
+        PlaySoundW ((LPCWSTR) sound->data(), nullptr, SND_MEMORY | SND_ASYNC | SND_NOSTOP | SND_NODEFAULT);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::OfferBootRoms
+//
+//  The ROMs of the enhanced //e and the ][+, in one dialog, once in a run.
+//  With them installed, each image that waited is booted again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::OfferBootRoms (HWND hwnd, const DxuiTheme * theme)
+{
+    HRESULT                hr         = S_OK;
+    bool                   downloaded = false;
+    std::string            error;
+    std::vector<Unbooted>  waiting;
+
+
+
+    if (!m_romsWanted || m_romsOffered)
+    {
+        return;
+    }
+
+    m_romsOffered = true;
+
+    hr = AssetBootstrap::OfferMachineRoms (hwnd, theme, { TextEncoding::NarrowToWide (BootCheck::kEnhanced), TextEncoding::NarrowToWide (BootCheck::kPlus) },
+                                           L"Machine ROM download",
+                                           L"Casso Explorer boots each disk image on an emulated Apple to check that it runs and to capture a screenshot for its thumbnail. "
+                                           L"The ROMs of these machines aren't installed. Download them?",
+                                           downloaded, error);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (downloaded)
+    {
+        {
+            std::lock_guard  lock (m_unbootedLock);
+
+            waiting.swap (m_unbooted);
+        }
+
+        m_pictures.ForgetQueued();
+
+        for (const Unbooted & image : waiting)
+        {
+            m_bootWorker->Queue (image.path, std::string(), image.source);
+        }
+
+        m_pictures.NotifyReady();
     }
 }
 
@@ -182,6 +387,10 @@ HRESULT CassoExplorerShell::ParseArguments (const std::vector<std::wstring> & ar
         else if (argument == L"/select" && hasValue && outOptions.selectPath.empty())
         {
             outOptions.selectPath = arguments[++i];
+        }
+        else if (argument == L"--full-send-save-reads")
+        {
+            outOptions.saveReads = true;
         }
 #if defined (_DEBUG)
         else if (argument == L"--link-faults" && hasValue && outOptions.linkFaults.empty())
@@ -446,42 +655,6 @@ CassoExplorerWindowRequest CassoExplorerShell::PlanForwardedLaunch (const CassoE
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerShell::FindWindowForOwner
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HWND CassoExplorerShell::FindWindowForOwner (HWND owner)
-{
-    HWND  found = nullptr;
-    HWND  next  = nullptr;
-
-
-
-    if (owner == nullptr)
-    {
-        return nullptr;
-    }
-
-    do
-    {
-        next = FindWindowExW (nullptr, next, kWindowClass, nullptr);
-
-        if (next != nullptr && (HWND) GetPropW (next, kOwnerProperty) == owner)
-        {
-            found = next;
-        }
-    }
-    while (next != nullptr && found == nullptr);
-
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerShell::FrontWindow
 //
 //  A process launched by the emulator's menu item holds the foreground
@@ -645,115 +818,6 @@ void CassoExplorerShell::ReportAssertion (const wchar_t * message)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerShell::GetPlainFolderName
-//
-//  The LocalizedResourceName of a folder's desktop.ini when it is text rather
-//  than a reference to a module's string, which starts with an at sign.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoExplorerShell::GetPlainFolderName (const std::wstring & path)
-{
-    wchar_t       text[MAX_PATH] = {};
-    std::wstring  ini            = path + L"\\desktop.ini";
-    DWORD         length         = GetPrivateProfileStringW (L".ShellClassInfo", L"LocalizedResourceName", L"", text, ARRAYSIZE (text), ini.c_str());
-
-
-
-    return (length > 0 && text[0] != L'@') ? std::wstring (text, length) : std::wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerShell::GetLocalizedFolderName
-//
-//  SHGetLocalizedName returns the module and string id the desktop.ini
-//  refers to; the string is loaded from that module as data, never run. A
-//  desktop.ini whose name is plain text, as iCloud's is, has no module, and
-//  its text is the name.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoExplorerShell::GetLocalizedFolderName (const std::wstring & path)
-{
-    HRESULT       hr                 = S_OK;
-    wchar_t       module[MAX_PATH]   = {};
-    wchar_t       expanded[MAX_PATH] = {};
-    wchar_t       text[MAX_PATH]     = {};
-    int           id                 = 0;
-    HMODULE       library            = nullptr;
-    int           length             = 0;
-    std::wstring  name;
-
-
-
-    hr = SHGetLocalizedName (path.c_str(), module, ARRAYSIZE (module), &id);
-    BAIL_OUT_IF (FAILED (hr), S_OK);
-
-    BAIL_OUT_IF (ExpandEnvironmentStringsW (module, expanded, ARRAYSIZE (expanded)) == 0, S_OK);
-
-    library = LoadLibraryExW (expanded, nullptr, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE);
-    BAIL_OUT_IF (library == nullptr, S_OK);
-
-    length = LoadStringW (library, (UINT) id, text, ARRAYSIZE (text));
-
-    if (length > 0)
-    {
-        name.assign (text, (size_t) length);
-    }
-
-Error:
-    if (library != nullptr)
-    {
-        FreeLibrary (library);
-    }
-
-    return name.empty() ? GetPlainFolderName (path) : name;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerShell::GetDriveRoots
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::wstring> CassoExplorerShell::GetDriveRoots()
-{
-    std::vector<std::wstring>  roots;
-    wchar_t                    buffer[512] = {};
-    DWORD                      length      = GetLogicalDriveStringsW (ARRAYSIZE (buffer), buffer);
-    const wchar_t *            root        = buffer;
-
-
-
-    if (length == 0 || length > ARRAYSIZE (buffer))
-    {
-        return roots;
-    }
-
-    while (*root != L'\0')
-    {
-        roots.push_back (root);
-        root += wcslen (root) + 1;
-    }
-
-    return roots;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerShell::StartLinkFaults
 //
 //  A Debug build's fault injection: the Apple's program is built with the
@@ -801,6 +865,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
     m_instance    = instance;
     m_showCommand = showCommand;
     m_baseDir     = AssetBootstrap::GetAssetBaseDirectory().wstring();
+    m_inspectors  = std::make_unique<InspectorWindowSet> (m_imageWatcher, m_prefs.diskInspector, InspectorWindowSet::Seams { .fileIo = &m_containerIo, .explorer = this, .describePath = [this] (const std::wstring & path) { return m_cards.DescribePartition (path); } });
 
 #if defined (_DEBUG)
     StartLinkFaults();
@@ -853,6 +918,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
     SaveSession();
 
     m_updaterHost->PostAutomaticCheck();
+    ShellExtensionRegistration::StartInstallRegistration();
 
 Error:
     return hr;
@@ -871,8 +937,11 @@ Error:
 void CassoExplorerShell::ConfigureBrowser (CassoExplorerBrowser & browser)
 {
     browser.GetTreeModel().SetKnownFolders (m_knownFolders);
-    browser.GetTreeModel().SetDrives (GetDriveRoots());
-    browser.GetTreeModel().SetLocalizedNameLookup (&CassoExplorerShell::GetLocalizedFolderName);
+    browser.GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
+    browser.GetTreeModel().SetLocalizedNameLookup (&HostFolderNames::GetLocalizedFolderName);
+    browser.SetPhysicalCards (&m_cards);
+
+    browser.SetRecentLoads ([this] () { return CassoImagesListing::LoadRecent (m_fs, m_baseDir); });
     browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path)
     {
         DWORD  attributes = GetFileAttributesW (path.c_str());
@@ -908,7 +977,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
 
     slot->watcher = std::make_unique<Win32FolderWatcher>();
     slot->intents = std::make_unique<Win32IntentChannel>();
-    slot->browser = std::make_unique<CassoExplorerBrowser> (m_fs, m_fileIo);
+    slot->browser = std::make_unique<CassoExplorerBrowser> (m_fs, m_containerIo);
     slot->actions = std::make_unique<CassoExplorerActions> (*slot->browser, m_fs);
 
     slot->browser->GetOperations().SetIntentChannel (slot->intents.get());
@@ -921,9 +990,16 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     context.host        = this;
     context.watcher     = slot->watcher.get();
     context.links       = &m_links;
+
+    //  For finding why a raw capture's image doesn't boot: the reads can be
+    //  made into the image again (RealReads_BuildAWoz).
+    m_links.GetFullSendOptions().SetSavingReads (m_options.saveReads);
     context.running     = &m_running;
     context.announced   = &m_announcements;
     context.firewall    = &m_firewall;
+    context.cards       = &m_cards;
+    context.pictures    = &m_pictures;
+    context.givenNames  = &m_givenNames;
 
     slot->window = std::make_unique<CassoExplorerWindow> (*slot->browser, *slot->actions, m_prefs, std::move (context));
 
@@ -938,7 +1014,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
 
     if (owner != 0)
     {
-        marked = SetPropW (slot->window->GetHwnd(), kOwnerProperty, (HANDLE) owner);
+        marked = SetPropW (slot->window->GetHwnd(), ExplorerWindowFinder::kOwnerProperty, (HANDLE) owner);
         CWR (marked);
     }
 
@@ -1007,6 +1083,33 @@ void CassoExplorerShell::ForEachWindow (const std::function<void (CassoExplorerW
         if (!slot->closed)
         {
             fn (*slot->window);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::SelectInFolder
+//
+//  The first open window, drawn again, since a tab opened from outside its
+//  input isn't otherwise drawn until it next has input. The window isn't
+//  brought to the front.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::SelectInFolder (const std::wstring & path)
+{
+    for (const std::unique_ptr<WindowSlot> & slot : m_windows)
+    {
+        if (!slot->closed)
+        {
+            slot->window->SelectInFolder (path);
+            slot->window->Invalidate();
+            break;
         }
     }
 }
@@ -1161,7 +1264,7 @@ BOOL CALLBACK CassoExplorerShell::CloseDialog (HWND hwnd, LPARAM)
 
     GetClassNameW (hwnd, className, (int) std::size (className));
 
-    if (IsWindowVisible (hwnd) && wcscmp (className, kWindowClass) != 0)
+    if (IsWindowVisible (hwnd) && wcscmp (className, ExplorerWindowFinder::GetWindowClass()) != 0)
     {
         PostMessageW (hwnd, WM_CLOSE, 0, 0);
     }
@@ -1387,7 +1490,7 @@ void CassoExplorerShell::ReleaseClosedWindows()
     {
         if (slot->closed && slot->window != nullptr && slot->window->GetHwnd() != nullptr)
         {
-            RemovePropW (slot->window->GetHwnd(), kOwnerProperty);
+            RemovePropW (slot->window->GetHwnd(), ExplorerWindowFinder::kOwnerProperty);
         }
     }
 
@@ -1445,6 +1548,98 @@ void CassoExplorerShell::CheckForUpdates (HWND hwnd)
     {
         m_updaterHost->SetWindow (window);
         m_updaterHost->GetUpdater().CheckForUpdatesNow();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::InspectDiskImages
+//
+//  A window that cannot be created is reported, and the windows for the
+//  other images are opened after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::InspectDiskImages (HWND hwnd, const std::vector<std::wstring> & paths, const DxuiTheme & theme)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    for (const std::wstring & path : paths)
+    {
+        hr = (m_inspectors != nullptr) ? m_inspectors->Open (m_instance, hwnd, path, theme) : E_UNEXPECTED;
+
+        if (FAILED (hr))
+        {
+            MessageBoxW (hwnd, std::format (L"The disk inspector could not open {} (0x{:08X}).", fs::path (path).filename().wstring(), (uint32_t) hr).c_str(), kAppName, MB_ICONWARNING);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::RepairDiskImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::RepairDiskImage (HWND hwnd, const std::wstring & path, const DxuiTheme & theme)
+{
+    HRESULT  hr = (m_inspectors != nullptr) ? m_inspectors->Repair (m_instance, hwnd, path, theme) : E_UNEXPECTED;
+
+
+
+    if (FAILED (hr))
+    {
+        MessageBoxW (hwnd, std::format (L"The disk inspector could not open {} (0x{:08X}).", fs::path (path).filename().wstring(), (uint32_t) hr).c_str(), kAppName, MB_ICONWARNING);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::CompareDiskImages
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::CompareDiskImages (HWND hwnd, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme)
+{
+    HRESULT  hr = (m_inspectors != nullptr) ? m_inspectors->Compare (m_instance, hwnd, pathA, pathB, theme) : E_UNEXPECTED;
+
+
+
+    if (FAILED (hr))
+    {
+        MessageBoxW (hwnd, std::format (L"The disk inspector could not open {} (0x{:08X}).", fs::path (pathA).filename().wstring(), (uint32_t) hr).c_str(), kAppName, MB_ICONWARNING);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::SetInspectorTheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::SetInspectorTheme (const DxuiTheme & theme)
+{
+    if (m_inspectors != nullptr)
+    {
+        m_inspectors->SetTheme (theme);
     }
 }
 
@@ -1562,6 +1757,13 @@ int CassoExplorerShell::RunMessageLoop()
 
     ReleaseClosedWindows();
 
+    //  The inspector windows close with the app and are not reopened
+    //  (FR-075); their state is saved with the rest.
+    if (m_inspectors != nullptr)
+    {
+        m_inspectors->CloseAll();
+    }
+
     hr = m_prefs.Save (m_baseDir, m_fs);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -1578,3 +1780,115 @@ int CassoExplorerShell::RunMessageLoop()
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::ConfirmCardWrite
+//
+//  The prompt is sent to an Explorer window, as it is a window of the UI
+//  thread. On the UI thread one prompt covers every write of a command; from
+//  another thread it covers that thread's writes until their flush.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerShell::ConfirmCardWrite (const PhysicalDrive & drive)
+{
+    CassoExplorerWindow  * window   = GetWindowFor (GetForegroundWindow());
+    std::wstring           question = std::format (L"Write to {}? The card is changed in place.", PhysicalCards::FormatDrive (drive));
+    bool                   choice   = false;
+    UINT_PTR               timer    = 0;
+
+
+
+    for (const std::unique_ptr<WindowSlot> & slot : m_windows)
+    {
+        if (window == nullptr && !slot->closed)
+        {
+            window = slot->window.get();
+        }
+    }
+
+    if (window == nullptr)
+    {
+        return false;
+    }
+
+    SendMessageW (window->GetHwnd(), (UINT) AppMessage::ExplorerCardWrite, (WPARAM) &choice, (LPARAM) &question);
+
+    //  The writes that follow in the same command are sent without a prompt.
+    //  On the UI thread the timer fires once the thread is back in its loop.
+    if (choice && GetCurrentThreadId() == m_uiThread)
+    {
+        s_confirmedCards = &m_cards;
+        m_cards.SetConfirmed (true);
+        timer = SetTimer (nullptr, 0, 0, &CassoExplorerShell::EndCardConfirmation);
+        IGNORE_RETURN_VALUE (timer, 0);
+    }
+    else if (choice)
+    {
+        m_cards.SetConfirmedThread (GetCurrentThreadId());
+    }
+
+    return choice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::ConfirmElevation
+//
+//  Sent to the foreground window, or the first one open, so the explanation
+//  is a window of the UI thread whichever thread starts the broker. With no
+//  window open the broker starts without it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerShell::ConfirmElevation (const PhysicalDrive & drive)
+{
+    CassoExplorerWindow  * window    = GetWindowFor (GetForegroundWindow());
+    std::wstring           card      = PhysicalCards::FormatDrive (drive);
+    bool                   confirmed = true;
+
+
+
+    for (const std::unique_ptr<WindowSlot> & slot : m_windows)
+    {
+        if (window == nullptr && !slot->closed)
+        {
+            window = slot->window.get();
+        }
+    }
+
+    if (window != nullptr)
+    {
+        SendMessageW (window->GetHwnd(), (UINT) AppMessage::ExplorerElevation, (WPARAM) &confirmed, (LPARAM) &card);
+    }
+
+    return confirmed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::EndCardConfirmation
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CALLBACK CassoExplorerShell::EndCardConfirmation (HWND, UINT, UINT_PTR id, DWORD)
+{
+    BOOL  killed = KillTimer (nullptr, id);
+
+
+
+    IGNORE_RETURN_VALUE (killed, TRUE);
+
+    if (s_confirmedCards != nullptr)
+    {
+        s_confirmedCards->SetConfirmed (false);
+    }
+}

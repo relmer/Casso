@@ -68,7 +68,8 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Devices/Disk/WriteProtectChange.h"
-#include "Devices/Tape/TapeImageLoader.h"
+#include "Devices/Disk/ImageClassifier.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -698,10 +699,23 @@ void ShellWindow::InstallDragDropTarget()
                                           [this] (int tag, const std::wstring & path) { m_shell.OnFileDropped (tag, path); },
                                           [] (const std::wstring & path)
                                           {
-                                              return IsSupportedDiskImageExtension (path) ||
-                                                     TapeImageLoader::IsTapeFileExtension (path);
+                                              return ImageClassifier::IsImageExtension (std::filesystem::path (path).extension().wstring());
                                           });
     IGNORE_RETURN_VALUE (hrDrop, S_OK);
+
+    // Each drive shows the copy cursor only for an image it takes, by the
+    // same rule as the picker and the drop itself. The file is classified
+    // once a drag, not at every move.
+    m_dragDropTarget.SetTagFilter ([this, lastPath = std::wstring(), lastClass = ImageClass()] (int tag, const std::wstring & path) mutable
+    {
+        if (path != lastPath)
+        {
+            lastClass = ImageClassifier::Classify (m_shell.m_machine.GetBlockMediaFileIo(), TextEncoding::WideToUtf8 (path));
+            lastPath  = path;
+        }
+
+        return m_shell.IsDropAccepted (tag, lastClass);
+    });
 
     // UIPI whitelist. When Casso runs at a higher integrity
     // level than the source (e.g. user launched Casso

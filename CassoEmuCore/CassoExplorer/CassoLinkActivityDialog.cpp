@@ -117,6 +117,8 @@ HRESULT CassoLinkActivityDialog::Show (HWND owner, const IDxuiTheme * theme, Cas
     list.SetMultiSelect             (true);
     list.SetRows                    (BuildRows (log));
 
+    list.UpdateAutoFitFromRows();
+
     content->Init (&list);
     dialog.Watch  (&list, std::move (getLog), log);
     dialog.ConfigurePicker (std::move (content), &list, { DialogButton { L"Close", 0, true, true } }, 0);
@@ -233,7 +235,9 @@ void CassoLinkActivityPicker::OnDialogTick()
 
         std::erase_if (selected, [&] (int row) { return row >= (int) log.size(); });
 
-        m_list->SetRows         (CassoLinkActivityDialog::BuildRows (log));
+        m_list->SetRows (CassoLinkActivityDialog::BuildRows (log));
+        m_list->UpdateAutoFitFromRows();
+
         m_list->SetSelectedRows (std::move (selected), (anchor < 0 || anchor + added >= (int) log.size()) ? -1 : anchor + added);
 
         if (top > 0)

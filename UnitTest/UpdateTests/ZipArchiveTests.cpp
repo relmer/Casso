@@ -113,6 +113,32 @@ public:
 
 
 
+    TEST_METHOD (Replace_AddsAndReplacesAndCopiesTheRest)
+    {
+        std::vector<Byte>      disk (5000, 0x5A);
+        std::vector<Byte>      notes = { 'n', 'e', 'w' };
+        std::vector<Byte>      added;
+        std::vector<Byte>      replaced;
+        std::vector<ZipEntry>  entries;
+
+
+
+        AssertSucceeded (ZipArchive::Replace (s_kDeflatedZip, "disk.po", disk, added));
+        AssertSucceeded (ZipArchive::Extract (added, entries));
+        Assert::AreEqual ((size_t) 2, entries.size());
+        Assert::AreEqual (std::string ("docs/notes.txt"), entries[0].path);
+        Assert::AreEqual ((size_t) 12 * 19, entries[0].data.size());
+        Assert::IsTrue (entries[1].data == disk);
+
+        AssertSucceeded (ZipArchive::Replace (added, "docs/notes.txt", notes, replaced));
+        AssertSucceeded (ZipArchive::Extract (replaced, entries));
+        Assert::AreEqual ((size_t) 2, entries.size());
+        Assert::IsTrue (entries[0].data == notes);
+        Assert::IsTrue (entries[1].data == disk);
+    }
+
+
+
     TEST_METHOD (Empty_ArchiveHasNoEntries)
     {
         TestZipBuilder          builder;

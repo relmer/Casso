@@ -2,10 +2,12 @@
 
 #include "Pch.h"
 
+#include "CassoLink/Session/CassoLinkBlockDevices.h"
 #include "CassoLink/Session/CassoLinkConnector.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/Session/CassoLinkFullSend.h"
 #include "CassoLink/CassoLinkHost.h"
+#include "CassoLink/Host/CassoLinkVirtualDrives.h"
 #include "Seams/ByteStreamSettings.h"
 #include "CassoLink/CassoLinkSettings.h"
 
@@ -88,6 +90,12 @@ public:
     bool  IsServingAdtPro () const { return m_connector.m_adtPro; }
     Byte  GetDriveMap     () const { return m_connector.m_driveMap; }
 
+    //  Whether a Full Send is running. Any other operation queued meanwhile
+    //  fails at once, with kFullSendBusy, and has isBlocked set.
+    bool  IsFullSendRunning () const;
+
+    static constexpr const char *  kFullSendBusy = "Full Send is using the drives. Try again when you're finished.";
+
     //  The Apple's model, as its program reported it on connecting; empty
     //  before then.
     std::wstring  GetModelName () const { std::lock_guard<std::mutex>  lock (m_connector.m_lock); return m_connector.m_modelName; }
@@ -99,8 +107,9 @@ public:
 
     //  The file system of a drive's disk when detection doesn't recognize it,
     //  until another disk is found there. It takes effect at the next operation.
-    void        SetChosenKind (int drive, VolumeKind kind) { m_chosenKinds[(size_t) drive - 1] = kind; }
-    VolumeKind  GetChosenKind (int drive) const            { return m_chosenKinds[(size_t) drive - 1].load(); }
+    //  A block device's is always detected.
+    void        SetChosenKind (int drive, VolumeKind kind) { if (drive >= 1 && drive <= kDriveCount) { m_chosenKinds[(size_t) drive - 1] = kind; } }
+    VolumeKind  GetChosenKind (int drive) const            { return (drive >= 1 && drive <= kDriveCount) ? m_chosenKinds[(size_t) drive - 1].load() : VolumeKind::Unknown; }
 
     std::shared_ptr<LinkOperation>  Enumerate     (int drive, const FilePath & directory);
     std::shared_ptr<LinkOperation>  ReadFile      (int drive, const FilePath & path);
@@ -117,6 +126,10 @@ public:
     //  its extension, replaced atomically and only when the read succeeds.
     std::shared_ptr<LinkOperation>  ReadDisk      (int drive, const std::string & imagePath, bool blankUnreadable, bool forceVerify = false);
 
+    //  A raw capture of the drive's disk into a WOZ 2 image, by the capture
+    //  module; the message lists the tracks whose reads differ.
+    std::shared_ptr<LinkOperation>  CaptureDisk   (int drive, const std::string & imagePath);
+
     //  Verified transfers for whole disks, unless an operation asks for them itself.
     void  SetVerifySettings (bool reads, bool writes, bool autoReads) { m_verifyReads = reads; m_verifyWrites = writes; m_autoVerify = autoReads; }
 
@@ -132,6 +145,13 @@ public:
     //  this with the sink's folder and extension, after what is queued already.
     std::shared_ptr<LinkOperation>  FullSend      (const std::string & folder, const std::string & extension, const std::string & prefix);
 
+    //  The Full Send window's model of this connection's session.
+    const FullSendStatus &  GetFullSendStatus () const { return m_fullSend.GetStatus(); }
+
+    //  An image's boot result and file-system verdict, from the thread that
+    //  booted it, with a line for the Full Send window's activity list.
+    void  NoteBoot (const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo = std::string(), const std::string & fsCheck = std::string());
+
     //  Whether the drive has the link's boot disk, by its boot sector: a write
     //  over it, the Apple has no disk to start the link from.
     std::shared_ptr<LinkOperation>  CheckLinkDisk (int drive);
@@ -141,6 +161,18 @@ public:
     //  the Apple, which finishes when the link drops partway. A Cancel takes
     //  effect after the file being moved.
     std::shared_ptr<LinkOperation>  Krunch        (int drive);
+
+    //  The Apple's block devices and SmartPort units, by the block module: from
+    //  then on drives from CassoLinkBlockDevices::kFirstDrive, which the
+    //  operations above take. A block device's Read disk and Write disk are a
+    //  whole device to or from an image, continued from a record of one the
+    //  link cut short when `resume` is set.
+    std::shared_ptr<LinkOperation>  ListBlockDevices ();
+    std::shared_ptr<LinkOperation>  ReadBlockDevice  (int drive, const std::string & imagePath, bool resume, bool forceVerify = false);
+    std::shared_ptr<LinkOperation>  WriteBlockDevice (int drive, const std::string & imagePath, bool resume, bool forceVerify = false);
+
+    //  The devices the last list found, by drive from kFirstDrive; any thread.
+    std::vector<CassoLinkBlockDevice>  GetBlockDevices () const { return m_blockDevices.GetDevices(); }
 
     //  The chip the Apple side talks through on a transport: the W5100 for
     //  an Uthernet II, a 6551 for the rest.
@@ -156,6 +188,11 @@ public:
     //  The Label text the program draws for an operation, or with
     //  `finished`, the past tense for the history line of one that succeeded.
     static std::string  DescribeOperation (const LinkOperation & operation, const std::optional<VolumeListing> & listing = std::nullopt, bool finished = false);
+
+    //  Text for one of the program's lines of `limit` characters: a longer
+    //  one has the operation's file name or path cut short, ending in "...",
+    //  so the drive after it is drawn; with no name in it, the end is cut.
+    static std::string  FitToApple        (const LinkOperation & operation, const std::string & text, size_t limit);
 
     //  A drive as the label has it: D2, and the disk's volume, as
     //  D2 (/GAMES) or D2 (VOL 254), once its catalog is read; the label has 38 characters.
@@ -194,6 +231,7 @@ private:
     ICassoLinkFolder                             & m_folder;
     IDiskFileIo                                  & m_fileIo;
     ICassoLinkSessionSink                        & m_sink;
+    CassoLinkVirtualDrives                         m_virtualDrives;
     CassoLinkSettings                              m_settings;
     std::unique_ptr<CassoLinkHost>                 m_host;
     std::array<std::unique_ptr<DriveSource>, 2>    m_sources;
@@ -201,6 +239,7 @@ private:
     std::array<std::optional<VolumeListing>, 2>    m_listings;
     std::array<std::atomic<VolumeKind>, 2>         m_chosenKinds = {};
     std::atomic<bool>                              m_stopping    { false };   // Stop closed the line
+    std::atomic<bool>                              m_canceled    { false };   // Cancel was called for the running operation
     std::shared_ptr<LinkOperation>                 m_running;
     const ListenGate                             * m_gate        = nullptr;
 
@@ -208,9 +247,11 @@ private:
     friend class CassoLinkConnector;
     friend class CassoLinkDiskTransfer;
     friend class CassoLinkFullSend;
+    friend class CassoLinkBlockDevices;
     friend class CassoLinkSessionTypes::DriveSource;
     CassoLinkConnector     m_connector    { *this };
     CassoLinkDiskTransfer  m_diskTransfer { *this };
     CassoLinkFullSend      m_fullSend     { *this };
+    CassoLinkBlockDevices  m_blockDevices { *this };
 };
 

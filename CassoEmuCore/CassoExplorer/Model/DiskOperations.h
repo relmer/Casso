@@ -6,11 +6,13 @@
 #include "Devices/Disk/DiskCommandResult.h"
 #include "Devices/Disk/DiskImageSession.h"
 #include "Devices/Disk/FilePath.h"
+#include "Devices/Disk/IBlockStore.h"
 #include "Machines/Apple2/Common/SectorReadObserver.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
-
+class BlockBuffer;
 class FilesystemChoices;
+class IVolume;
 class IDiskFileIo;
 class IIntentChannel;
 enum class VolumeKind;
@@ -54,6 +56,11 @@ public:
         std::string        output;        // the runner's stdout text
         std::vector<Byte>  payload;       // a get's bytes when no file was written
 
+        //  A get's resource fork and Finder information, for a file that has one.
+        std::vector<Byte>  resourceFork;
+        std::vector<Byte>  finderInfo;
+        bool               hasResourceFork = false;
+
         //  For a Read, the sectors of the file the image could not be decoded
         //  at, which read as zeros; for a List, whether the catalog chain was
         //  damaged, so entries may be missing.
@@ -67,6 +74,7 @@ public:
     struct NewDiskRequest
     {
         std::string  containerType;    // dsk, do, po, woz, nib, nb2; empty takes the extension
+        std::string  sizeName;         // 140k, 800k, 5m, 10m, 20m, 32m; empty is 140K
         std::string  formatName;       // dos33, prodos, none
         std::string  volumeName;       // a DOS number or a ProDOS name; empty takes the default
         bool         bootable     = false;
@@ -105,6 +113,7 @@ public:
     Result  Delete   (const std::string & imagePath, const std::string & name, size_t catalogIndex = kNoIndex);
     Result  Boot     (const std::string & imagePath, const std::string & name, size_t catalogIndex = kNoIndex);
     Result  Krunch   (const std::string & imagePath);
+    Result  Test     (const std::string & imagePath);
     Result  Create   (const std::string & imagePath, const NewDiskRequest & request);
 
     //  Directories, on the volumes that have them. Mkdir makes the directories
@@ -156,10 +165,18 @@ private:
     Result  RunCommand (const CommandLineOptions & options);
     Result  OpenVolume (const std::string & imagePath, DiskImageSession::OpenedImage & outOpened);
 
+
     VolumeKind  GetChoice (const std::string & imagePath) const;
 
     Result  CommitEdit (const std::string & imagePath, const DiskImageSession::OpenedImage & opened,
                         const std::vector<Byte> & edited);
+
+    //  A change to a ProDOS or HFS volume on a partition of a card, made by
+    //  the block through CardVolumeEdit. False, with nothing done, for any
+    //  other image. `failure` begins the message when the change fails.
+    using CardEditFn = std::function<HRESULT (const IVolume & volume, VolumeKind kind, BlockBuffer & outEdited)>;
+
+    bool  TryEditCardVolume (const std::string & imagePath, const std::string & failure, const CardEditFn & edit, Result & outResult);
 
     static void  FillNewDisk (const NewDiskRequest & request, CommandLineOptions & inOutOptions);
 

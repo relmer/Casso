@@ -6,8 +6,12 @@
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Devices/Floppy35/IDiskDriveBus.h"
+#include "Devices/Floppy35/Iwm.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
+#include "Machines/Apple2/Common/DiskAccessLog.h"
+#include "Machines/Apple2/Common/IDiskPortHook.h"
 
 
 class IDriveAudioSink;
@@ -62,19 +66,31 @@ public:
 
     explicit Disk2Controller (int slot);
 
-    Byte Read (Word address) override;
-    void Write (Word address, Byte value) override;
-    Word GetStart() const override { return m_ioStart; }
-    Word GetEnd() const override { return m_ioEnd; }
-    void Reset() override;
-    void SoftReset() override;
-    void PowerCycle (Prng & prng) override;
+    int  GetSlot () const { return m_slot; }
 
-    HRESULT       MountDisk (int drive, const string & path);
-    void          EjectDisk (int drive);
-    DiskImage *   GetDisk (int drive);
-    void          SetExternalDisk (int drive, DiskImage * external);
-    bool          HasExternalDisk (int drive) const;
+    Byte  Read       (Word address) override;
+    void  Write      (Word address, Byte value) override;
+    Word  GetStart   () const override { return m_ioStart; }
+    Word  GetEnd     () const override { return m_ioEnd; }
+    void  Reset      () override;
+    void  SoftReset  () override;
+    void  PowerCycle (Prng & prng) override;
+
+    HRESULT      MountDisk       (int drive, const string & path);
+    void         EjectDisk       (int drive);
+    DiskImage  * GetDisk         (int drive);
+    void         SetExternalDisk (int drive, DiskImage * external);
+    bool         HasExternalDisk (int drive) const;
+
+    //  What the guest did with each drive since its disk went in, for the
+    //  disk inspector: arrivals of the head at each quarter track, and
+    //  whether its last write was dropped because the disk cannot be written.
+    uint32_t      GetVisitCount   (int drive, int quarterTrack) const;
+
+    //  Where the guest read and wrote on each quarter track of a drive since
+    //  its disk went in (FR-161).
+    const DiskAccessLog  & GetAccessLog   (int drive) const { return m_access[std::clamp (drive, 0, kDriveCount - 1)]; }
+    bool                   IsWriteBlocked (int drive) const;
 
     // Spec-006 bug 14b. When EmulatorShell drives mount/eject through
     // DiskImageStore + SetExternalDisk (bypassing this class's own
@@ -82,15 +98,15 @@ public:
     // runs and the IDisk2EventSink never sees the user-facing
     // insert/eject. These notify-only entrypoints let the shell fire
     // those events without re-routing the actual image bytes.
-    void          NotifyDiskInserted (int drive);
-    void          NotifyDiskEjected (int drive);
+    void  NotifyDiskInserted (int drive);
+    void  NotifyDiskEjected  (int drive);
 
     // Audio sink wiring (spec 005-disk-ii-audio FR-001..FR-004).
     // Caller-owned; controller never deletes it. Single sink covers
     // both drives (per-drive routing happens at the source-mixer
     // level via separate IDriveAudioSource instances).
-    void          SetAudioSink (IDriveAudioSink * sink) { m_audioSink = sink; }
-    IDriveAudioSink * GetAudioSink() const                 { return m_audioSink; }
+    void               SetAudioSink (IDriveAudioSink * sink) { m_audioSink = sink; }
+    IDriveAudioSink  * GetAudioSink () const                 { return m_audioSink; }
 
     // Spec-006 debug-window event sink wiring. Caller-owned;
     // controller never deletes it. Pass nullptr to detach (the
@@ -101,15 +117,19 @@ public:
     // address-mark / data-mark events through the same sink.
     void          SetEventSink (IDisk2EventSink * sink) noexcept;
 
-    // Apple //c IWM mode. The //c's built-in drive is an Integrated Woz
-    // Machine, not a Disk II card, so it adds a write-only MODE register and a
-    // read-only STATUS register selected by Q6=1/Q7 with the motor off:
-    //   Q6H + Q7H + motor off + write -> load MODE register
-    //   Q6H + Q7L + read            -> STATUS register (low 5 bits = MODE)
-    // The //c reset firmware writes the mode register then reads it back via
-    // status to confirm the IWM is present. Off by default so a real Disk II
-    // card (the //e) is byte-for-byte unchanged.
+    // Apple //c IWM mode. The //c's disk port is an Integrated Woz Machine,
+    // not a Disk II card: the switches go to an `Iwm`, whose two drives are
+    // this controller's drives, read and written a cell at a time. Off by
+    // default, for a Disk II card.
     void   SetIwmMode (bool v) { m_iwmMode = v; }
+    bool   IsIwmMode  () const { return m_iwmMode; }
+    Iwm  & GetIwm     ()       { return m_iwm; }
+
+    //  A SmartPort chain on the //c's disk port. Each access to the IWM's
+    //  switches goes to it after the controller, and its byte replaces the
+    //  controller's for drive 2 while it has the bus. On the //c Plus it
+    //  also enables the drives (IDiskPortHook). Caller-owned.
+    void   SetPortHook (IDiskPortHook * hook) { m_portHook = hook; }
 
     // Motor-idle auto-flush hook. Invoked on the CPU thread at the exact
     // moment the motor spins down (the true->false transition in Tick) --
@@ -160,26 +180,30 @@ public:
     void   SetCpuCycleSource (const uint64_t * cycleSource) noexcept { m_cpuCycleSource = cycleSource; m_lastCpuSync = (cycleSource != nullptr) ? *cycleSource : 0; }
 
     // Inspectors used by Phase 9 tests.
-    int    GetActiveDrive() const { return m_activeDrive; }
-    bool   IsMotorOn() const { return m_motorOn; }
-    bool   IsMotorAtSpeed() const { return m_motorOn && m_motorSpinupRemaining == 0; }
-    uint32_t  GetMotorSpinupRemaining() const { return m_motorSpinupRemaining; }
+    int       GetActiveDrive          () const { return m_activeDrive; }
+    bool      IsMotorOn               () const { return m_motorOn; }
+    bool      IsMotorAtSpeed          () const { return m_motorOn && m_motorSpinupRemaining == 0; }
+    uint32_t  GetMotorSpinupRemaining () const { return m_motorSpinupRemaining; }
     // Head position of the selected drive; each drive has its own head.
-    int    GetQuarterTrack() const { return m_quarterTrack[m_activeDrive]; }
-    int    GetCurrentTrack() const { return m_quarterTrack[m_activeDrive] / 4; }
-    bool   IsQ6() const { return m_q6; }
-    bool   IsQ7() const { return m_q7; }
-    Disk2NibbleEngine &  GetEngine (int drive)  { return m_engine[drive]; }
+    int                        GetQuarterTrack () const { return m_quarterTrack[m_activeDrive]; }
+    int                        GetCurrentTrack () const { return m_quarterTrack[m_activeDrive] / 4; }
+    bool                       IsQ6            () const { return m_q6; }
+    bool                       IsQ7            () const { return m_q7; }
+    Disk2NibbleEngine        & GetEngine       (int drive)  { return m_engine[drive]; }
+    const Disk2NibbleEngine  & GetEngine       (int drive) const { return m_engine[drive]; }
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
-    void   HandleSwitch (int offset);
-    void   HandlePhase (int phase, bool on);
-    void   UpdateEngineSelection();
-    void   UpdateEngineWriteMode();
-    Byte   HandleReadDispatch();
-    void   CatchUpToCpu();
+    bool  PollFloppyEnable      ();
+    void  HandleSwitch          (int offset);
+    void  HandlePhase           (int phase, bool on);
+    void  OnLatchLoad           ();
+    void  UpdateEngineSelection ();
+    void  UpdateEngineWriteMode ();
+    Byte  HandleReadDispatch    ();
+    void  CatchUpToCpu          ();
+    void  AdvanceEngine         (uint32_t cycles);
 
     // Offers the idle callback a turn, at most once per emulated frame.
     void   PumpIdleCallback (uint32_t cpuCycles);
@@ -208,6 +232,10 @@ private:
     // for test access.
     uint32_t             m_motorSpindownCycles = 0;
 
+    std::array<std::array<uint32_t, kMaxQuarterTrack + 1>, kDriveCount>  m_visits         = {};
+    std::array<DiskAccessLog, kDriveCount>                                m_access;
+    std::array<bool, kDriveCount>                                         m_isWriteBlocked = {};
+
     // Issue #67 deliverable 1: motor spin-up window remainder.
     // Constant kMotorSpinupCycles lives in the public section
     // for test access. See the public-section comment for the
@@ -218,10 +246,45 @@ private:
     bool                 m_q6           = false;
     bool                 m_q7           = false;
 
-    // Apple //c IWM (see SetIwmMode). m_iwmMode gates the extra register
-    // behavior; m_iwmModeReg holds the last-written MODE register value.
-    bool                 m_iwmMode      = false;
-    Byte                 m_iwmModeReg   = 0;
+    // One of the //c IWM's two drives: its phases step the drive's head,
+    // its cells are the drive's engine, and its enable runs the motor.
+    class IwmDrive : public IDiskDriveBus
+    {
+    public:
+        IwmDrive (Disk2Controller & controller, int drive) : m_controller (controller), m_drive (drive) {}
+
+        void      SetPhases  (bool ph0, bool ph1, bool ph2, bool ph3) override;
+        bool      GetSense   () const override;
+        Byte      ReadCell   (uint64_t cellEndNs) override;
+        void      WriteCell  (Byte bit, uint64_t cellEndNs) override;
+        void      Advance    (uint64_t elapsedNs) override { (void) elapsedNs; }
+        uint32_t  GetCellNs  () const override { return kIwmCellNs; }
+        void      SetEnabled (bool isEnabled) override;
+
+    private:
+        Disk2Controller  & m_controller;
+        int                m_drive = 0;
+    };
+
+    // The IWM's time is the CPU's cycles at a thousand nanoseconds a cycle,
+    // near enough to real time at the //c's 1.02 MHz for its one-second
+    // motor timer. A cell is four cycles, as a Disk II card's is.
+    static constexpr uint64_t  kIwmNsPerCycle = 1000;
+    static constexpr uint32_t  kIwmCellNs     = Disk2NibbleEngine::kCyclesPerBit * kIwmNsPerCycle;
+
+    Byte      AccessIwm    (int offset, bool isWrite, Byte value);
+    uint64_t  GetIwmNow    ();
+    void      OnIwmPhases  (int drive, uint8_t phases);
+    void      OnIwmEnable  (int drive, bool isEnabled);
+    void      SyncIwmMotor ();
+    void      TickIwm      (uint32_t cpuCycles);
+
+    bool                               m_iwmMode    = false;
+    IDiskPortHook                    * m_portHook   = nullptr;
+    Iwm                                m_iwm;
+    std::array<IwmDrive, kDriveCount>  m_iwmDrives  { IwmDrive { *this, 0 }, IwmDrive { *this, 1 } };
+    std::array<bool, kDriveCount>      m_iwmEnabled = {};
+    uint64_t                           m_iwmCycles  = 0;
 
     DiskImage            m_disks[kDriveCount];
     DiskImage *          m_activeDisk[kDriveCount] = { nullptr, nullptr };

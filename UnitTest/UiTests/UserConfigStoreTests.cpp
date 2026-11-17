@@ -335,6 +335,42 @@ public:
     }
 
 
+    //  A DEFAULT THAT GAINS A CARD IN SLOT 7 GIVES IT TO A USER WHO LEFT SLOT
+    //  7 ALONE, and leaves a user's own card in slot 7 as it was.
+    TEST_METHOD (Merge_NewDefaultCard_KeepsTheUsersCardInThatSlot)
+    {
+        JsonValue          d       = ParseOrFail (R"({"slots":[{"slot":6,"device":"disk-ii"},{"slot":7,"device":"apple-scsi-card","rom":"341-0437-A.rom"}]})");
+        JsonValue          mine    = ParseOrFail (R"({"slots":[{"slot":7,"device":"super-serial-card","firmware":"SSC.rom","enabled":true}]})");
+        JsonValue          none    = ParseOrFail (R"({"slots":[{"slot":6,"device":"disk-ii","enabled":true}]})");
+        JsonValue          kept    = UserConfigStore::MergeJson (d, mine);
+        JsonValue          gained  = UserConfigStore::MergeJson (d, none);
+        const JsonValue  * slots   = nullptr;
+        std::string        device;
+        int                slot    = 0;
+        bool               hasScsi = false;
+        bool               hasSsc  = false;
+
+
+
+        AssertSucceeded (kept.GetArray ("slots", slots), L"slots");
+
+        for (size_t i = 0; i < slots->GetArraySize(); i++)
+        {
+            AssertSucceeded (slots->GetArrayElement (i).GetString ("device", device), L"device");
+            AssertSucceeded (slots->GetArrayElement (i).GetInt ("slot", slot), L"slot");
+            hasScsi = hasScsi || device == "apple-scsi-card";
+            hasSsc  = hasSsc  || (device == "super-serial-card" && slot == 7);
+        }
+
+        Assert::IsTrue  (hasSsc,  L"the user's card stays in slot 7");
+        Assert::IsFalse (hasScsi, L"the default's card does not replace it");
+
+        AssertSucceeded (gained.GetArray ("slots", slots), L"slots");
+        AssertSucceeded (slots->GetArrayElement (1).GetString ("device", device), L"device");
+        Assert::AreEqual (std::string ("apple-scsi-card"), device, L"a user who left slot 7 alone gains the card");
+    }
+
+
     TEST_METHOD (Merge_User_Scalar_Overrides_Default)
     {
         JsonValue  m;

@@ -23,6 +23,21 @@ bool AppleSingleCodec::IsAppleSingle (std::span<const Byte> bytes)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleSingleCodec::IsAppleDouble
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleSingleCodec::IsAppleDouble (std::span<const Byte> bytes)
+{
+    return bytes.size() >= kHeaderSize && ReadBigEndian32 (bytes, 0) == kDoubleMagic;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleSingleCodec::Decode
 //
 //  Every entry's offset and length must lie inside the file; a version other
@@ -45,8 +60,8 @@ HRESULT AppleSingleCodec::Decode (std::span<const Byte> bytes, AppleSingleFile &
 
     file = AppleSingleFile();
 
-    isMagic = IsAppleSingle (bytes);
-    CBRFEx (isMagic, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "The file is not an AppleSingle container.");
+    isMagic = IsAppleSingle (bytes) || IsAppleDouble (bytes);
+    CBRFEx (isMagic, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "The file is not an AppleSingle or AppleDouble container.");
 
     version        = ReadBigEndian32 (bytes, 4);
     isKnownVersion = version == kVersion1 || version == kVersion2;
@@ -71,6 +86,15 @@ HRESULT AppleSingleCodec::Decode (std::span<const Byte> bytes, AppleSingleFile &
         if (id == kDataForkId)
         {
             file.data.assign (bytes.begin() + offset, bytes.begin() + offset + length);
+        }
+        else if (id == kResourceForkId)
+        {
+            file.resourceFork.assign (bytes.begin() + offset, bytes.begin() + offset + length);
+            file.hasResourceFork = true;
+        }
+        else if (id == kFinderInfoId && length >= kFinderInfoSize)
+        {
+            file.finderInfo.assign (bytes.begin() + offset, bytes.begin() + offset + kFinderInfoSize);
         }
         else if (id == kRealNameId)
         {
@@ -123,71 +147,110 @@ Error:
 
 void AppleSingleCodec::Encode (const AppleSingleFile & file, std::vector<Byte> & bytes)
 {
-    bool    hasDates = file.createDate.has_value() || file.modifyDate.has_value() ||
-                       file.backupDate.has_value() || file.accessDate.has_value();
-    size_t  count    = 1 + (file.realName.empty() ? 0 : 1) + (hasDates ? 1 : 0) + (file.hasProDosInfo ? 1 : 0) + (file.nameSetByUser ? 1 : 0);
-    size_t  offset   = kHeaderSize + count * kEntrySize;
+    EncodeEntries (file, kMagic, true, bytes);
+}
 
 
 
-    bytes.clear();
-    WriteBigEndian32 (bytes, kMagic);
-    WriteBigEndian32 (bytes, kVersion2);
-    bytes.insert (bytes.end(), kFillerSize, 0);
-    WriteBigEndian16 (bytes, (Word) count);
 
-    WriteBigEndian32 (bytes, kDataForkId);
-    WriteBigEndian32 (bytes, (uint32_t) offset);
-    WriteBigEndian32 (bytes, (uint32_t) file.data.size());
-    offset += file.data.size();
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleSingleCodec::EncodeDouble
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleSingleCodec::EncodeDouble (const AppleSingleFile & file, std::vector<Byte> & bytes)
+{
+    EncodeEntries (file, kDoubleMagic, false, bytes);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleSingleCodec::EncodeEntries
+//
+//  The header and an entry descriptor for each entry the file has, then the
+//  entries' bytes in the same order. An entry of no bytes, as the name
+//  marker is, takes a descriptor and nothing after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleSingleCodec::EncodeEntries (const AppleSingleFile & file, uint32_t magic, bool withData, std::vector<Byte> & bytes)
+{
+    bool                                               hasDates = file.createDate.has_value() || file.modifyDate.has_value() ||
+                                                                  file.backupDate.has_value() || file.accessDate.has_value();
+    std::vector<std::pair<uint32_t, std::vector<Byte>>>  entries;
+    std::vector<Byte>                                  dates;
+    std::vector<Byte>                                  info;
+    size_t                                             offset   = 0;
+
+
+
+    if (withData)
+    {
+        entries.push_back ({ kDataForkId, file.data });
+    }
+
+    if (file.hasResourceFork)
+    {
+        entries.push_back ({ kResourceForkId, file.resourceFork });
+    }
 
     if (!file.realName.empty())
     {
-        WriteBigEndian32 (bytes, kRealNameId);
-        WriteBigEndian32 (bytes, (uint32_t) offset);
-        WriteBigEndian32 (bytes, (uint32_t) file.realName.size());
-        offset += file.realName.size();
+        entries.push_back ({ kRealNameId, std::vector<Byte> (file.realName.begin(), file.realName.end()) });
     }
 
     if (hasDates)
     {
-        WriteBigEndian32 (bytes, kFileDatesId);
-        WriteBigEndian32 (bytes, (uint32_t) offset);
-        WriteBigEndian32 (bytes, (uint32_t) kFileDatesSize);
-        offset += kFileDatesSize;
+        WriteDate (dates, file.createDate);
+        WriteDate (dates, file.modifyDate);
+        WriteDate (dates, file.backupDate);
+        WriteDate (dates, file.accessDate);
+        entries.push_back ({ kFileDatesId, dates });
+    }
+
+    if (file.finderInfo.size() == kFinderInfoSize)
+    {
+        entries.push_back ({ kFinderInfoId, file.finderInfo });
     }
 
     if (file.hasProDosInfo)
     {
-        WriteBigEndian32 (bytes, kProDosInfoId);
-        WriteBigEndian32 (bytes, (uint32_t) offset);
-        WriteBigEndian32 (bytes, (uint32_t) kProDosInfoSize);
-        offset += kProDosInfoSize;
+        WriteBigEndian16 (info, file.access);
+        WriteBigEndian16 (info, file.fileType);
+        WriteBigEndian32 (info, file.auxType);
+        entries.push_back ({ kProDosInfoId, info });
     }
 
     if (file.nameSetByUser)
     {
-        WriteBigEndian32 (bytes, kCassoNameSetId);
+        entries.push_back ({ kCassoNameSetId, std::vector<Byte>() });
+    }
+
+    bytes.clear();
+    WriteBigEndian32 (bytes, magic);
+    WriteBigEndian32 (bytes, kVersion2);
+    bytes.insert (bytes.end(), kFillerSize, 0);
+    WriteBigEndian16 (bytes, (Word) entries.size());
+
+    offset = kHeaderSize + entries.size() * kEntrySize;
+
+    for (const auto & entry : entries)
+    {
+        WriteBigEndian32 (bytes, entry.first);
         WriteBigEndian32 (bytes, (uint32_t) offset);
-        WriteBigEndian32 (bytes, 0);
+        WriteBigEndian32 (bytes, (uint32_t) entry.second.size());
+        offset += entry.second.size();
     }
 
-    bytes.insert (bytes.end(), file.data.begin(), file.data.end());
-    bytes.insert (bytes.end(), file.realName.begin(), file.realName.end());
-
-    if (hasDates)
+    for (const auto & entry : entries)
     {
-        WriteDate (bytes, file.createDate);
-        WriteDate (bytes, file.modifyDate);
-        WriteDate (bytes, file.backupDate);
-        WriteDate (bytes, file.accessDate);
-    }
-
-    if (file.hasProDosInfo)
-    {
-        WriteBigEndian16 (bytes, file.access);
-        WriteBigEndian16 (bytes, file.fileType);
-        WriteBigEndian32 (bytes, file.auxType);
+        bytes.insert (bytes.end(), entry.second.begin(), entry.second.end());
     }
 }
 

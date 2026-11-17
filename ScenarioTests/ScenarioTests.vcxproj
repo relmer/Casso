@@ -100,7 +100,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -118,7 +118,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -136,7 +136,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -154,7 +154,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>winhttp.lib;wintrust.lib;crypt32.lib;runtimeobject.lib;bcrypt.lib;version.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>$(VCInstallDir)Auxiliary\VS\UnitTest\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -168,16 +168,45 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="BasicCorpusFixtureTests.cpp" />
+    <ClCompile Include="BlockCountTests.cpp" />
+    <ClCompile Include="ImageClassifierScenarioTests.cpp" />
+    <ClCompile Include="BlockModeTests.cpp" />
+    <ClCompile Include="GutenbergTests.cpp" />
+    <ClCompile Include="TapeRecordingTests.cpp" />
+    <ClCompile Include="GameDataTests.cpp" />
+    <ClCompile Include="A2PicoCardTests.cpp" />
+    <ClCompile Include="SosTests.cpp" />
     <ClCompile Include="CatalogReproductionTest.cpp" />
+    <ClCompile Include="FileMapStockDiskTests.cpp" />
+    <ClCompile Include="FileSystemVerdictTests.cpp" />
+    <ClCompile Include="FullSendFileSystemCheckTests.cpp" />
     <ClCompile Include="GuestVisibleBasicTests.cpp" />
+    <ClCompile Include="GuestVisibleBasicToolsTests.cpp" />
     <ClCompile Include="GuestVisibleBootTests.cpp" />
     <ClCompile Include="GuestVisibleJoyportTests.cpp" />
     <ClCompile Include="GuestVisibleDirectBootTests.cpp" />
     <ClCompile Include="GuestVisiblePlacementTests.cpp" />
+    <ClCompile Include="GuestVisibleProDosTextTests.cpp" />
     <ClCompile Include="CassoExplorerFileContentsTests.cpp" />
     <ClCompile Include="CassoExplorerShellSearchTests.cpp" />
     <ClCompile Include="WozEditRealImageTests.cpp" />
+    <ClCompile Include="ArchiveTests.cpp" />
+    <ClCompile Include="RdosTests.cpp" />
+    <ClCompile Include="Dos32Tests.cpp" />
+    <ClCompile Include="LargeVolumeTests.cpp" />
+    <ClCompile Include="CollectionScaleTests.cpp" />
+    <ClCompile Include="CassoLinkBlockTests.cpp" />
+    <ClCompile Include="CassoLinkCassetteTests.cpp" />
+    <ClCompile Include="CassoLinkVirtualDriveTests.cpp" />
+    <ClCompile Include="CassoLinkCaptureTests.cpp" />
+    <ClCompile Include="CassoLinkHardwareTests.cpp" />
+    <ClCompile Include="VisiCalcTests.cpp" />
+    <ClCompile Include="PartitionTests.cpp" />
+    <ClCompile Include="ResourceForkTests.cpp" />
+    <ClCompile Include="FileTypeFixtureTests.cpp" />
     <ClCompile Include="DurableCommitFileTests.cpp" />
+    <ClCompile Include="GuestVisibleDiskAccessTests.cpp" />
+    <ClCompile Include="GuestVisibleInspectorEditTests.cpp" />
     <ClCompile Include="GuestVisibleSharedImageTests.cpp" />
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
     <ClCompile Include="RealPascalCpmDiskTests.cpp" />
@@ -189,10 +218,14 @@
     <ClCompile Include="GuestVisibleApple2cSerialTests.cpp" />
     <ClCompile Include="GuestVisibleSuperSerialCardTests.cpp" />
     <ClCompile Include="GuestVisibleKermitTests.cpp" />
+    <ClCompile Include="GuestVisibleMerlinTests.cpp" />
+    <ClCompile Include="GuestVisiblePascalTests.cpp" />
     <ClCompile Include="GuestVisibleTextScreenTests.cpp" />
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />
+    <ClCompile Include="..\UnitTest\EmuTests\FileMapTestImages.cpp" />
+    <ClCompile Include="..\UnitTest\Inspector\RepairFixtures.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\GuestSession.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\EmbeddedMachineJson.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\TestMachine.cpp" />
@@ -203,6 +236,12 @@
     <ClCompile Include="UthernetLoopbackTests.cpp" />
     <ClCompile Include="UthernetSoftwareTests.cpp" />
     <ClCompile Include="..\UnitTest\NetworkTests\W5100Driver.cpp" />
+    <ClCompile Include="BlockDeviceBootTests.cpp" />
+    <ClCompile Include="Floppy35BootTests.cpp" />
+    <ClCompile Include="PickerTimingTests.cpp" />
+    <ClCompile Include="Apple2cPlusTests.cpp" />
+    <ClCompile Include="DeskModelAssetTests.cpp" />
+    <ClCompile Include="MameComparisonTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="PacedRun.h" />

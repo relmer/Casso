@@ -7,6 +7,7 @@
 #include "Theme/DxuiTheme.h"
 #include "Theme/DxuiColor.h"
 #include "Render/DxuiStroke.h"
+#include "Render/DxuiTextRenderer.h"
 
 
 
@@ -35,6 +36,15 @@ static constexpr uint32_t  s_kEdgeDisabledArgb = 0xFF364252;
 static constexpr float     s_kEdgePx          = 1.0f;
 static constexpr float     s_kFontDip         = 13.0f;
 static constexpr float     s_kDisabledScale   = 0.7f;   // darken themed box fill for the disabled state
+static constexpr uint32_t  s_kTextMutedArgb   = 0xFFA8B4C2;
+static constexpr uint32_t  s_kHeadingArgb     = 0xFF7FB2E5;
+static constexpr uint32_t  s_kSeparatorArgb   = 0xFF3A4757;
+static constexpr int       s_kTitleBandDip    = 26;     // the item line of a row with commentary
+static constexpr int       s_kDescBottomDip   = 8;      // below a row's commentary
+static constexpr float     s_kDescFontDip     = 12.0f;
+static constexpr int       s_kHeadingRowDip   = 36;
+static constexpr int       s_kRuleTopDip      = 10;     // a heading row's rule, from the row's top
+static constexpr float     s_kHeadingScale    = 0.92f;  // a heading's font, of an item's
 static const wchar_t * const s_kFontFamily    = DxuiTheme::GetUiFace();
 
 
@@ -67,6 +77,9 @@ void DxuiComboBox::SetItems (const std::vector<std::wstring> & items)
     m_items = items;
     m_glyphs.clear();
     m_itemsEnabled.clear();
+    m_descriptions.clear();
+    m_headings.clear();
+    m_rowHeightsDip.clear();
 
     if (m_selected >= (int) m_items.size())
     {
@@ -105,6 +118,195 @@ void DxuiComboBox::SetItemsEnabled (const std::vector<bool> & enabled)
 bool DxuiComboBox::IsItemEnabled (int index) const
 {
     return index < 0 || index >= (int) m_itemsEnabled.size() || m_itemsEnabled[(size_t) index];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetItemDescriptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiComboBox::SetItemDescriptions (const std::vector<std::wstring> & descriptions)
+{
+    m_descriptions = descriptions;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetItemHeadings
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiComboBox::SetItemHeadings (const std::vector<bool> & headings)
+{
+    m_headings = headings;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsItemHeading
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiComboBox::IsItemHeading (int index) const
+{
+    return index >= 0 && index < (int) m_headings.size() && m_headings[(size_t) index];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureRows
+//
+//  Each row's height for the open list: an item with commentary is its item
+//  line and the commentary as it wraps at the list's width, and a heading
+//  has room for its rule above its label. A list with neither has every row
+//  at s_kRowHeightDip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiComboBox::MeasureRows()
+{
+    HRESULT  hr        = S_OK;
+    int      boxPx     = m_boundsDip.right - m_boundsDip.left;
+    float    widthDip  = (float) MulDiv (boxPx, DxuiDpiScaler::kBaseDpi, (int) m_scaler.GetDpi()) - 2.0f * s_kTextInsetDip;
+    float    textDip   = 0.0f;
+
+
+
+    m_rowHeightsDip.assign (m_items.size(), s_kRowHeightDip);
+
+    for (size_t i = 0; i < m_items.size() && HasRichRows(); i++)
+    {
+        bool  hasCommentary = i < m_descriptions.size() && !m_descriptions[i].empty();
+
+        if (IsItemHeading ((int) i))
+        {
+            m_rowHeightsDip[i] = s_kHeadingRowDip;
+        }
+        else if (hasCommentary)
+        {
+            hr = DxuiTextRenderer::MeasureWrappedDip (m_descriptions[i].c_str(), s_kDescFontDip, s_kFontFamily, DxuiFontWeight::Normal, std::max (1.0f, widthDip), textDip);
+
+            m_rowHeightsDip[i] = s_kTitleBandDip + (SUCCEEDED (hr) ? (int) std::ceil (textDip) : (int) s_kDescFontDip * 2) + s_kDescBottomDip;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRowHeightDip
+//
+//  Until the list first opens, every row is s_kRowHeightDip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiComboBox::GetRowHeightDip (int index) const
+{
+    bool  measured = index >= 0 && index < (int) m_rowHeightsDip.size();
+
+
+
+    return measured ? m_rowHeightsDip[(size_t) index] : s_kRowHeightDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRowSpan
+//
+//  A row's place in pixels from the top of the first visible row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiComboBox::RowSpan DxuiComboBox::GetRowSpan (int index) const
+{
+    RowSpan  span;
+    int      i     = 0;
+
+
+
+    for (i = m_scrollTop; i <= index; i++)
+    {
+        span.top    += span.height;
+        span.height  = m_scaler.ToPx (GetRowHeightDip (i));
+    }
+
+    return span;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetRowAtPx
+//
+//  The row at a height in pixels below the top of the first visible row, or -1
+//  above it and past the last row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiComboBox::GetRowAtPx (int yPx) const
+{
+    int  row = -1;
+    int  top = 0;
+    int  i   = 0;
+
+
+
+    for (i = m_scrollTop; i < (int) m_items.size() && yPx >= top && row < 0; i++)
+    {
+        int  height = m_scaler.ToPx (GetRowHeightDip (i));
+
+        row  = yPx < top + height ? i : row;
+        top += height;
+    }
+
+    return row;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMenuHeightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiComboBox::GetMenuHeightPx() const
+{
+    int      last = m_scrollTop + GetVisibleRowCount() - 1;
+    RowSpan  span = GetRowSpan (last);
+
+
+
+    return GetVisibleRowCount() > 0 ? span.top + span.height : 0;
 }
 
 
@@ -180,6 +382,7 @@ void DxuiComboBox::Open()
     m_open      = true;
     m_highlight = (m_selected >= 0) ? m_selected : (m_items.empty() ? -1 : 0);
     m_scrollTop = 0;
+    MeasureRows();
     EnsureHighlightVisible();
 
     // Opt-in popup hosting: if a host window is wired up, acquire a
@@ -212,12 +415,18 @@ void DxuiComboBox::Open()
     showParams.input            = DxuiPopupInput::Interactive;
     showParams.shadow           = true;
     // Show() scales sizeDip by the owner DPI, so feed DIPs: convert the
-    // box width (physical px) back to DIPs, and use the DIP row-height
-    // constant directly for the column.
+    // box width (physical px) back to DIPs, and add the visible rows' DIP
+    // heights for the column.
     showParams.sizeDip.cx       = MulDiv (m_boundsDip.right - m_boundsDip.left,
                                           DxuiDpiScaler::kBaseDpi,
                                           (int) m_scaler.GetDpi());
-    showParams.sizeDip.cy       = GetVisibleRowCount() * s_kRowHeightDip;
+    showParams.sizeDip.cy       = 0;
+
+    for (int row = m_scrollTop; row < m_scrollTop + GetVisibleRowCount(); row++)
+    {
+        showParams.sizeDip.cy += GetRowHeightDip (row);
+    }
+
     showParams.backgroundArgb   = s_kMenuArgb;
     showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopupMenu (p, t); };
     showParams.onMoveInside     = [this] (POINT localPx) { OnPopupMove  (localPx); };
@@ -283,19 +492,10 @@ void DxuiComboBox::Close()
 
 void DxuiComboBox::OnPopupMove (POINT localPx)
 {
-    int   rowHeight = m_scaler.ToPx (s_kRowHeightDip);
-    int   row       = -1;
-    bool  onRow     = false;
+    int   row   = GetRowAtPx (localPx.y);
+    bool  onRow = row >= 0;
 
 
-
-    onRow = rowHeight > 0 && !m_items.empty();
-
-    if (onRow)
-    {
-        row   = localPx.y / rowHeight + m_scrollTop;
-        onRow = row >= 0 && row < (int) m_items.size();
-    }
 
     if (onRow && row != m_highlight)
     {
@@ -328,21 +528,12 @@ void DxuiComboBox::OnPopupMove (POINT localPx)
 
 void DxuiComboBox::OnPopupClick (POINT localPx)
 {
-    int   rowHeight = m_scaler.ToPx (s_kRowHeightDip);
-    int   row       = -1;
-    bool  onRow     = false;
+    int  row = GetRowAtPx (localPx.y);
 
 
 
-    onRow = rowHeight > 0 && !m_items.empty();
-
-    if (onRow)
-    {
-        row   = localPx.y / rowHeight + m_scrollTop;
-        onRow = row >= 0 && row < (int) m_items.size();
-    }
-
-    if (onRow)
+    //  A click on a heading doesn't close the list, as nothing is chosen.
+    if (row >= 0 && !IsItemHeading (row))
     {
         Commit (row);
         Close();
@@ -392,7 +583,7 @@ RECT DxuiComboBox::GetInWindowMenuRect() const
     {
         menuRect        = m_boundsDip;
         menuRect.top    = m_boundsDip.bottom;
-        menuRect.bottom = m_boundsDip.bottom + GetVisibleRowCount() * m_scaler.ToPx (s_kRowHeightDip);
+        menuRect.bottom = m_boundsDip.bottom + GetMenuHeightPx();
     }
 
     return menuRect;
@@ -419,10 +610,9 @@ RECT DxuiComboBox::GetInWindowMenuRect() const
 
 int DxuiComboBox::HitTestItem (int x, int y) const
 {
-    RECT  menuRect  = m_boundsDip;
-    int   index     = -1;
-    int   rowHeight = m_scaler.ToPx (s_kRowHeightDip);
-    bool  inMenu    = false;
+    RECT  menuRect = m_boundsDip;
+    int   index    = -1;
+    bool  inMenu   = false;
 
 
 
@@ -431,18 +621,13 @@ int DxuiComboBox::HitTestItem (int x, int y) const
     if (m_activePopup == nullptr)
     {
         menuRect.top    = m_boundsDip.bottom;
-        menuRect.bottom = m_boundsDip.bottom + GetVisibleRowCount() * rowHeight;
+        menuRect.bottom = m_boundsDip.bottom + GetMenuHeightPx();
         inMenu          = m_open && IsPointInRect (menuRect, x, y);
     }
 
     if (inMenu)
     {
-        index = (y - menuRect.top) / rowHeight + m_scrollTop;
-
-        if (index >= (int) m_items.size())
-        {
-            index = -1;
-        }
+        index = GetRowAtPx (y - menuRect.top);
     }
 
     return index;
@@ -557,7 +742,7 @@ bool DxuiComboBox::OnLButtonUp (int x, int y)
         onBox   = !onItem && wasArmed && HitTest (x, y);
     }
 
-    if (onItem)
+    if (onItem && !IsItemHeading (item))
     {
         Commit (item);
         Close();
@@ -753,7 +938,7 @@ int DxuiComboBox::StepHighlight (int from, int step) const
     {
         index = (index + step + count) % count;
 
-        if (IsItemEnabled (index))
+        if (IsItemChoosable (index))
         {
             return index;
         }
@@ -781,7 +966,7 @@ void DxuiComboBox::Commit (int index)
 
 
 
-    if (!inRange || !IsItemEnabled (index))
+    if (!inRange || !IsItemChoosable (index))
     {
         return;
     }
@@ -834,7 +1019,8 @@ DxuiComboBox::ResolvedColors DxuiComboBox::ResolveColors() const
     ResolvedColors  c = { s_kBoxIdleArgb,  s_kBoxHoverArgb,     s_kBoxPressedArgb,
                           s_kBoxDisabledArgb, s_kMenuArgb,      s_kMenuHoverArgb,
                           s_kTextArgb,     s_kTextDisabledArgb, s_kEdgeArgb,
-                          s_kEdgeDisabledArgb, s_kFocusRingArgb };
+                          s_kEdgeDisabledArgb, s_kFocusRingArgb,
+                          s_kTextMutedArgb, s_kHeadingArgb,     s_kSeparatorArgb };
 
 
 
@@ -875,6 +1061,9 @@ void DxuiComboBox::SetTheme (const IDxuiTheme * theme) const
     m_themeColors.edge         = theme->Border();
     m_themeColors.edgeDisabled = theme->Divider();
     m_themeColors.focus        = theme->FocusRing();
+    m_themeColors.textMuted    = theme->ForegroundMuted();
+    m_themeColors.heading      = theme->Accent();
+    m_themeColors.separator    = theme->MenuSeparator();
     m_hasThemeColors           = true;
 }
 
@@ -971,7 +1160,7 @@ void DxuiComboBox::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                          (float) chevronX + (float) chevronW * 0.5f, (float) (chevronY + chevronH),
                          (std::max) (1.0f, m_scaler.ToPxf (1.0f)), textColor);
 
-    if (m_focused && m_focusCueVisible)
+    if (m_enabled && m_focused && m_focusCueVisible)
     {
         float  focusInset = m_scaler.ToPxf (s_kFocusInsetPx);
         float  focusThick = m_scaler.ToPxf (s_kFocusRingPx);
@@ -1225,12 +1414,10 @@ void DxuiComboBox::PaintItemGlyph (IDxuiTextRenderer & text, int index, float x,
 
 void DxuiComboBox::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
-    HRESULT         hr        = S_OK;
-    int             i         = 0;
-    int             rowHeight = m_scaler.ToPx (s_kRowHeightDip);
-    int             textInset = m_scaler.ToPx (s_kTextInsetDip);
-    float           fontDip   = m_scaler.ToPxf (s_kFontDip);
-    ResolvedColors  c         = ResolveColors();
+    HRESULT         hr      = S_OK;
+    int             i       = 0;
+    float           fontDip = m_scaler.ToPxf (s_kFontDip);
+    ResolvedColors  c       = ResolveColors();
 
 
 
@@ -1243,10 +1430,9 @@ void DxuiComboBox::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 
     for (i = m_scrollTop; i < m_scrollTop + GetVisibleRowCount(); i++)
     {
-        int       slot  = i - m_scrollTop;
-        RECT      row   = { m_boundsDip.left, m_boundsDip.bottom + slot * rowHeight, m_boundsDip.right, m_boundsDip.bottom + (slot + 1) * rowHeight };
-        uint32_t  color = (i == m_highlight && IsItemEnabled (i)) ? c.menuHover : c.menu;
-        uint32_t  ink   = IsItemEnabled (i) ? c.text : c.textDisabled;
+        RowSpan   span  = GetRowSpan (i);
+        RECT      row   = { m_boundsDip.left, m_boundsDip.bottom + span.top, m_boundsDip.right, m_boundsDip.bottom + span.top + span.height };
+        uint32_t  color = (i == m_highlight && IsItemChoosable (i)) ? c.menuHover : c.menu;
 
         // D2D fill (not D3D painter) so the menu background composites
         // in submission order with prior text and hides sibling text
@@ -1257,10 +1443,61 @@ void DxuiComboBox::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                             (float) (row.bottom - row.top),
                             color);
         IGNORE_RETURN_VALUE (hr, S_OK);
-        PaintItemGlyph (text, i, (float) (row.left + textInset), (float) row.top, (float) (row.bottom - row.top), ink, fontDip);
 
-        DrawItemText (text, m_items[(size_t) i], (float) (row.left + textInset) + GetGlyphIndent (fontDip), (float) row.top,
-                      (float) (row.right - row.left - textInset) - GetGlyphIndent (fontDip), (float) (row.bottom - row.top), ink, fontDip);
+        PaintRow (text, i, row, fontDip, c);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintRow
+//
+//  A row's content in `row`, in the space the caller paints in: a heading's
+//  rule and label, or an item's glyph and text, with its commentary under
+//  the item line when it has some.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiComboBox::PaintRow (IDxuiTextRenderer & text, int index, const RECT & row, float fontPx, const ResolvedColors & c) const
+{
+    HRESULT   hr            = S_OK;
+    float     inset         = (float) m_scaler.ToPx (s_kTextInsetDip);
+    float     indent        = GetGlyphIndent (fontPx);
+    float     left          = (float) row.left + inset;
+    float     width         = (float) (row.right - row.left) - inset;
+    float     height        = (float) (row.bottom - row.top);
+    bool      enabled       = IsItemEnabled (index);
+    uint32_t  ink           = enabled ? c.text : c.textDisabled;
+    bool      hasCommentary = index < (int) m_descriptions.size() && !m_descriptions[(size_t) index].empty();
+    float     titleH        = hasCommentary ? (float) m_scaler.ToPx (s_kTitleBandDip) : height;
+    float     ruleY         = (float) row.top + (float) m_scaler.ToPx (s_kRuleTopDip);
+
+
+
+    if (IsItemHeading (index))
+    {
+        hr = text.FillRect (left, ruleY, width - inset, std::max (1.0f, m_scaler.ToPxf (1.0f)), c.separator);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        hr = text.DrawString (m_items[(size_t) index].c_str(), left, ruleY, width - inset, (float) row.bottom - ruleY, c.heading,
+                              fontPx * s_kHeadingScale, s_kFontFamily, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        return;
+    }
+
+    PaintItemGlyph (text, index, left, (float) row.top, titleH, ink, fontPx);
+    DrawItemText (text, m_items[(size_t) index], left + indent, (float) row.top, width - indent, titleH, ink, fontPx);
+
+    if (hasCommentary)
+    {
+        hr = text.DrawString (m_descriptions[(size_t) index].c_str(), left + indent, (float) row.top + titleH, width - indent - inset, height - titleH,
+                              enabled ? c.textMuted : c.textDisabled, m_scaler.ToPxf (s_kDescFontDip), s_kFontFamily,
+                              DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, true);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
@@ -1285,10 +1522,7 @@ void DxuiComboBox::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
 {
     constexpr float  kHoverInsetXDip = 4.0f;
     constexpr float  kHoverInsetYDip = 2.0f;
-    HRESULT          hr              = S_OK;
     int              i               = 0;
-    int              rowHeight       = m_scaler.ToPx (s_kRowHeightDip);
-    int              textInset       = m_scaler.ToPx (s_kTextInsetDip);
     int              width           = m_boundsDip.right - m_boundsDip.left;
     float            fontPx          = m_scaler.ToPxf (s_kFontDip);
     float            insetX          = m_scaler.ToPxf (kHoverInsetXDip);
@@ -1304,7 +1538,7 @@ void DxuiComboBox::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
     painter.FillRoundedRect (0.0f,
                              0.0f,
                              (float) width,
-                             (float) (GetVisibleRowCount() * rowHeight),
+                             (float) GetMenuHeightPx(),
                              m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip),
                              c.menu);
 
@@ -1312,7 +1546,7 @@ void DxuiComboBox::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
     // sized and placed by how much of the list is in view.
     if ((int) m_items.size() > GetVisibleRowCount())
     {
-        float  trackH = (float) (GetVisibleRowCount() * rowHeight);
+        float  trackH = (float) GetMenuHeightPx();
         float  thumbW = m_scaler.ToPxf (3.0f);
         float  thumbH = std::max (thumbW * 4.0f, trackH * GetVisibleRowCount() / (float) m_items.size());
         float  thumbY = (trackH - thumbH) * m_scrollTop / (float) (m_items.size() - GetVisibleRowCount());
@@ -1322,12 +1556,12 @@ void DxuiComboBox::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
 
     for (i = m_scrollTop; i < m_scrollTop + GetVisibleRowCount(); i++)
     {
-        RECT      row = { 0, (i - m_scrollTop) * rowHeight, width, (i - m_scrollTop + 1) * rowHeight };
-        uint32_t  ink = IsItemEnabled (i) ? c.text : c.textDisabled;
+        RowSpan  span = GetRowSpan (i);
+        RECT     row  = { 0, span.top, width, span.top + span.height };
 
         // The highlight is the same inset rounded card a menu row's hover
-        // draws, not a full-bleed band. A disabled item takes none.
-        if (i == m_highlight && IsItemEnabled (i))
+        // draws, not a full-bleed band. A disabled item or heading isn't highlighted.
+        if (i == m_highlight && IsItemChoosable (i))
         {
             painter.FillRoundedRect ((float) row.left + insetX,
                                      (float) row.top  + insetY,
@@ -1337,10 +1571,7 @@ void DxuiComboBox::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
                                      c.menuHover);
         }
 
-        PaintItemGlyph (text, i, (float) (row.left + textInset), (float) row.top, (float) (row.bottom - row.top), ink, fontPx);
-
-        DrawItemText (text, m_items[(size_t) i], (float) (row.left + textInset) + GetGlyphIndent (fontPx), (float) row.top,
-                      (float) (row.right - row.left - textInset) - GetGlyphIndent (fontPx), (float) (row.bottom - row.top), ink, fontPx);
+        PaintRow (text, i, row, fontPx, c);
     }
 }
 
