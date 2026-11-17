@@ -3,6 +3,7 @@
 #include "Debugger/Events/DebugEventHistory.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Shell/MachineHost.h"
+#include "Shell/MachineReplayMedia.h"
 
 
 
@@ -101,6 +102,9 @@ HRESULT DebugEventHistory::BuildJob (
     CBRA (isCopied);
 
     hr = m_diskCopier.Copy (m_machine.GetDiskStore(), outJob.disks);
+    CHR (hr);
+
+    hr = MachineReplayMedia::Copy (m_machine.GetRefs(), outJob.blockMedia);
     CHR (hr);
 
 Error:

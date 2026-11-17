@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Devices/Floppy35/IDiskDriveBus.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
@@ -36,7 +37,7 @@ class MigChip;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Apple2cPlusDiskPort : public MemoryDevice, public IDiskPortHook, public IFloppy35EventSource
+class Apple2cPlusDiskPort : public MemoryDevice, public IDiskPortHook, public IFloppy35EventSource, public IMachineState
 {
 public:
     static constexpr Word  kIoStart     = 0xC0E0;
@@ -76,6 +77,15 @@ public:
     int              GetExternalCount () const    { return m_externalCount; }
     Sony35Drive    & GetExternalDrive (int index) { return m_externals[(size_t) index]; }
 
+    //  IMachineState: the MIG, the SmartPort chain, the internal drive and
+    //  the external 3.5-inch drives, the phases and the drive enables.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+    bool     HasMedia  () const override { return true; }
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('C', '+', 'D', 'P');
+    static constexpr uint16_t  kStateVersion = 1;
+
 private:
     static constexpr Word  kSwitchMask    = 0x0F;
     static constexpr int   kInternalDrive = 1;
@@ -96,8 +106,18 @@ private:
         uint64_t  GetQuietUntil () const override;
         void      SetEnabled    (bool isEnabled) override;
 
+        //  The drive the phases were last set on, as an ID the state section
+        //  keeps: none, the internal drive, an external drive or the chain.
+        Byte     GetDrivenId () const;
+        HRESULT  SetDrivenId (Byte id);
+
     private:
         IDiskDriveBus  & Sync ();
+
+        static constexpr Byte  kDrivenNone     = 0;
+        static constexpr Byte  kDrivenInternal = 1;
+        static constexpr Byte  kDrivenExternal = 2;
+        static constexpr Byte  kDrivenChain    = 3;
 
         Apple2cPlusDiskPort  & m_diskPort;
         int                    m_drive  = 0;

@@ -297,7 +297,7 @@ private:
             BAIL_OUT_IF (true, S_OK);
         }
 
-        hr = m_scratch->MountDisks (job.disks);
+        hr = m_scratch->MountDisks (job.disks, job.blockMedia);
         CHR (hr);
 
         hr = replayer->LoadFrom (m_state, stretch.startPosition, stretch.journalIndex);

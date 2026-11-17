@@ -10,6 +10,7 @@
 
 #include "Core/Prng.h"
 #include "Core/StateHash.h"
+#include "Shell/MachineHardwareIdentity.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Debugger/DebugHook.h"
@@ -1067,7 +1068,8 @@ void MachineHost::SetOpcodeWatch (const bool * opcodes, IOpcodeWatcher * watcher
 
 Byte MachineHost::FinishStep()
 {
-    Byte  cycles = m_cpu->GetLastInstructionCycles();
+    Byte      cycles        = m_cpu->GetLastInstructionCycles();
+    uint64_t  historyCycles = 0;
 
 
 
@@ -1079,6 +1081,13 @@ Byte MachineHost::FinishStep()
     }
 
     m_cpu->AddCycles (cycles);
+
+    historyCycles = m_cpu->GetHistoryCycles();
+
+    if ((historyCycles >> kCatchUpShift) != ((historyCycles - cycles) >> kCatchUpShift))
+    {
+        CatchUpCards();
+    }
 
     if (m_refs.diskController != nullptr)
     {
@@ -1121,6 +1130,45 @@ Byte MachineHost::FinishStep()
     }
 
     return (cycles);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::CatchUpCards
+//
+//  Cards with separate processors run up to the Apple's time, so their
+//  firmware's timers run while the guest doesn't access them. FinishStep
+//  calls it each time the history's cycle count crosses a multiple of
+//  2^kCatchUpShift, so a run reaches the same state however it is cut into
+//  slices.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::CatchUpCards()
+{
+    for (LironCard * lironCard : m_refs.lironCards)
+    {
+        lironCard->CatchUp (CatchUpKind::BetweenFrames);
+    }
+
+    for (Apple35ControllerCard * apple35Card : m_refs.apple35Cards)
+    {
+        apple35Card->CatchUp (CatchUpKind::BetweenFrames);
+    }
+
+    if (m_refs.apple2cSmartPort != nullptr)
+    {
+        m_refs.apple2cSmartPort->GetPort().CatchUp (CatchUpKind::BetweenFrames);
+    }
+
+    if (m_refs.apple2cPlusDiskPort != nullptr)
+    {
+        m_refs.apple2cPlusDiskPort->GetPort().CatchUp (CatchUpKind::BetweenFrames);
+    }
 }
 
 
@@ -1685,28 +1733,6 @@ uint64_t MachineHost::RunCycles (uint64_t cycleBudget)
         }
     }
 
-    //  Cards with separate processors run up to the Apple's time, so their
-    //  firmware's timers run while the guest doesn't access them.
-    for (LironCard * lironCard : m_refs.lironCards)
-    {
-        lironCard->CatchUp (CatchUpKind::BetweenFrames);
-    }
-
-    for (Apple35ControllerCard * apple35Card : m_refs.apple35Cards)
-    {
-        apple35Card->CatchUp (CatchUpKind::BetweenFrames);
-    }
-
-    if (m_refs.apple2cSmartPort != nullptr)
-    {
-        m_refs.apple2cSmartPort->GetPort().CatchUp (CatchUpKind::BetweenFrames);
-    }
-
-    if (m_refs.apple2cPlusDiskPort != nullptr)
-    {
-        m_refs.apple2cPlusDiskPort->GetPort().CatchUp (CatchUpKind::BetweenFrames);
-    }
-
     return (spent);
 }
 
@@ -1991,7 +2017,8 @@ Error:
 //  Each saved part is matched by its section tag against this machine's
 //  parts, in order: a match loads, anything else is skipped whole. The
 //  saved disks never match, since this machine holds none, so no disk is
-//  seated and no image is touched.
+//  seated and no image is touched; a matched part whose state has a disk's
+//  is skipped too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2033,7 +2060,7 @@ HRESULT MachineHost::LoadStateForPicture (StateReader & reader)
 
         if (next < tags.size() && tags[next] == tag)
         {
-            hr = m_stateParts[next]->LoadState (reader);
+            hr = m_stateParts[next]->HasMedia() ? reader.SkipSection() : m_stateParts[next]->LoadState (reader);
             CHR (hr);
 
             next++;
@@ -2075,6 +2102,7 @@ HRESULT MachineHost::ReadSavedMedia (
     uint32_t            nameLength   = 0;
     Word                ch           = 0;
     uint64_t            romIdentity  = 0;
+    uint64_t            hardware     = 0;
     uint32_t            i            = 0;
 
 
@@ -2095,6 +2123,7 @@ HRESULT MachineHost::ReadSavedMedia (
     }
 
     reader.ReadUInt64 (romIdentity);
+    reader.ReadUInt64 (hardware);
 
     for (uint64_t & mediaId : outIds)
     {
@@ -2117,7 +2146,9 @@ Error:
 //  MachineHost::ReadPictureHeader
 //
 //  The header as CheckStateHeader reads it, holding the state to the same
-//  machine and ROM set, with the drive bays and the Prng left alone.
+//  machine and ROM set, with the drive bays and the Prng left alone. The
+//  hardware isn't held to the machine's: the picture is taken from the parts
+//  whose tags match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2130,6 +2161,7 @@ HRESULT MachineHost::ReadPictureHeader (
     std::wstring  name;
     Word          ch          = 0;
     uint64_t      romIdentity = 0;
+    uint64_t      hardware    = 0;
     uint64_t      mediaId     = 0;
     bool          hasPrng     = false;
     uint64_t      prngState   = 0;
@@ -2152,6 +2184,7 @@ HRESULT MachineHost::ReadPictureHeader (
     }
 
     reader.ReadUInt64 (romIdentity);
+    reader.ReadUInt64 (hardware);
 
     for (i = 0; i < bayCount; i++)
     {
@@ -2285,6 +2318,7 @@ void MachineHost::GetStateParts (std::vector<IMachineState *> & outParts)
         m_videoTiming.get(),
         m_mouse.get(),
         m_joyport.get(),
+        m_accelerator.get(),
     };
     IMachineState  * device     = nullptr;
     DiskImage      * image      = nullptr;
@@ -2469,6 +2503,7 @@ void MachineHost::WriteStateHeader (StateWriter & writer, size_t partCount) cons
     }
 
     writer.WriteUInt64 (GetRomIdentity());
+    writer.WriteUInt64 (MachineHardwareIdentity::Get (*m_config));
 
     for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
     {
@@ -2505,12 +2540,14 @@ HRESULT MachineHost::CheckStateHeader (
     uint32_t     & outParts)
 {
     HRESULT       hr             = S_OK;
+    bool          isSameHardware = false;
     uint32_t      nameLength     = 0;
     size_t        expectedLength = 0;
     std::wstring  name;
     Word          ch             = 0;
     uint64_t      romIdentity    = 0;
     uint64_t      expectedRom    = 0;
+    uint64_t      hardware       = 0;
     MediaIds      mediaIds       = {};
     bool          canSeat        = false;
     uint32_t      savedParts     = 0;
@@ -2532,6 +2569,7 @@ HRESULT MachineHost::CheckStateHeader (
     }
 
     reader.ReadUInt64 (romIdentity);
+    reader.ReadUInt64 (hardware);
 
     for (uint64_t & mediaId : mediaIds)
     {
@@ -2549,6 +2587,11 @@ HRESULT MachineHost::CheckStateHeader (
 
     CBREx (name        == m_currentMachineName, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
     CBREx (romIdentity == expectedRom,          HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    //  A state taken on other hardware doesn't load: its parts would be laid
+    //  onto cards and drives it wasn't taken from.
+    isSameHardware = hardware == MachineHardwareIdentity::Get (*m_config);
+    CBREx (isSameHardware, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     canSeat = isOverMounted ? AreBaysAsSaved (mediaIds) : CanSeatMedia (mediaIds);
     CBREx (canSeat, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));

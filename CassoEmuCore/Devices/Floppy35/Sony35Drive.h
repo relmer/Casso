@@ -2,7 +2,11 @@
 
 #include "Pch.h"
 
+class StateReader;
+class StateWriter;
+
 #include "Devices/BlockDevice/BlockDeviceMedia.h"
+#include "Devices/BlockDevice/IReplayMedia.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Floppy35/IDiskDriveBus.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
@@ -44,7 +48,7 @@ class IDiskFileIo;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Sony35Drive : public IFloppy35EventSource, public IDiskDriveBus
+class Sony35Drive : public IFloppy35EventSource, public IDiskDriveBus, public IReplayMedia
 {
 public:
     static constexpr int       kSides  = 2;
@@ -94,6 +98,18 @@ public:
 
     BlockDeviceMedia  & GetMedia () { return m_media; }
 
+    //  The mechanism, the tracks written since the disk last flushed, and
+    //  the disk, written into and read from the owner's state section. A
+    //  state saved with another disk in the drive, or with none, doesn't
+    //  load.
+    HRESULT  SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
+
+    //  IReplayMedia: a WOZ image's file as last read or written, or the
+    //  block media's copy.
+    HRESULT  CopyForReplay   (ReplayBlockMedia & outCopy) override;
+    HRESULT  MountReplayCopy (const ReplayBlockMedia & copy) override;
+
 private:
     static constexpr uint64_t  kStepNs     = 12'000'000;
     static constexpr uint64_t  kSpinUpNs   = 50'000'000;
@@ -104,7 +120,7 @@ private:
     void                 RunCommand   (int command);
     std::vector<Byte>  & GetTrackBits ();
     void                 Emit         (Floppy35Op op);
-    HRESULT              InsertWoz    (IDiskFileIo & fileIo, const std::string & path, const std::vector<Byte> & bytes, const WriteProtectInfo & hostProtect, std::wstring & outError);
+    HRESULT              InsertWoz    (IDiskFileIo * fileIo, const std::string & path, const std::vector<Byte> & bytes, const WriteProtectInfo & hostProtect, std::wstring & outError);
     HRESULT              FlushBlocks  ();
     HRESULT              FlushWoz     ();
 
@@ -130,6 +146,7 @@ private:
     std::map<int, std::vector<Byte>>            m_tracks;
     std::set<int>                               m_dirty;
     std::unique_ptr<DiskImage>                  m_woz;
+    std::shared_ptr<const std::vector<Byte>>    m_wozBytes;
     IDiskFileIo                               * m_wozIo        = nullptr;
     std::string                                 m_wozPath;
     bool                                        m_wozProtected = false;

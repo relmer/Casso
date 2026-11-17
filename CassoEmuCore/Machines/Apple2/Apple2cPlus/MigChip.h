@@ -2,6 +2,9 @@
 
 #include "Pch.h"
 
+class StateReader;
+class StateWriter;
+
 class Apple2cRomBank;
 
 
@@ -76,6 +79,11 @@ public:
     bool  IsHeadOne    () const { return m_headOne; }
 
     const std::array<Byte, kRamSize> & GetRam () const { return m_ram; }
+
+    //  The RAM, its pointer and the drive selects, written into and read
+    //  from the disk port's state section.
+    void     SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
 
 private:
     static constexpr int   kControlPage  = 0xCC;

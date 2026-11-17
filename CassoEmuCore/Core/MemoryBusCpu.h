@@ -71,6 +71,12 @@ public:
     HRESULT SaveState  (StateWriter & writer) const override;
     HRESULT LoadState  (StateReader & reader) override;
 
+    // The section without the RAM, for a CPU that reaches all of its memory
+    // through its bus, such as a drive's: a version's registers, lines,
+    // counters and last instruction.
+    void    SaveRegisters (StateWriter & writer) const;
+    void    LoadRegisters (StateReader & reader, uint16_t version);
+
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('C', 'P', 'U', ' ');
     static constexpr uint16_t  kStateVersion = 3;
     static constexpr size_t    kStateRamSize = 0xC000;

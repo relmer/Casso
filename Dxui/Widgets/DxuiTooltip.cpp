@@ -675,7 +675,9 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
 
 
 
-    if (isSame)
+    //  A tip Tick would hide at once isn't put up: put up again at each move,
+    //  it blinked on and off.
+    if (isSame || (m_pfnIsActive != nullptr && !m_pfnIsActive()))
     {
         return;
     }
@@ -767,10 +769,11 @@ void DxuiTooltip::ShowAt (const RECT & anchor, const std::wstring & text)
 
 void DxuiTooltip::ShowTimed (const RECT & anchor, const std::wstring & text, int64_t nowMs, int durationMs)
 {
-    bool  changed = !m_visible || text != m_text;
+    bool  changed = !m_visible || m_fadingOut || text != m_text;
 
 
 
+    m_fadingOut    = false;
     m_anchor       = anchor;
     m_text         = text;
     m_pending      = false;
@@ -1132,7 +1135,19 @@ void DxuiTooltip::ShowPopup()
                                           ? kFadeMs : 0;
         showParams.revealFade       = true;
         showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopup (p, t); };
-        showParams.onClosed         = [this] () { m_activePopup = nullptr; };
+        //  When the host closes the balloon itself, as when another popup
+        //  takes its place, the tip is marked hidden, so the next request
+        //  opens it again. A balloon this tip released is no longer the
+        //  active one by the time it closes.
+        showParams.onClosed         = [this, popup = m_activePopup] ()
+        {
+            if (m_activePopup == popup)
+            {
+                m_activePopup = nullptr;
+                m_visible     = false;
+                m_fadingOut   = false;
+            }
+        };
 
         hr = m_activePopup->Show (std::move (showParams));
         if (FAILED (hr))
@@ -1144,7 +1159,54 @@ void DxuiTooltip::ShowPopup()
         {
             m_showCount++;
         }
+
+        //  A new balloon replaces one that was fading out.
+        m_fadingOut = false;
+        AssertPopupShown();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssertPopupShown
+//
+//  Debug builds only. Asserts that a balloon just opened or moved is on
+//  screen: visible, not fading out, and above its owner window in the
+//  z-order. A test-mode popup has no window and is not checked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::AssertPopupShown() const
+{
+#if defined(_DEBUG)
+    HRESULT  hr    = S_OK;
+    HWND     hwnd  = (m_activePopup != nullptr) ? m_activePopup->GetHwnd() : nullptr;
+    HWND     owner = (m_popupHost != nullptr) ? GetAncestor (m_popupHost->GetHwnd(), GA_ROOT) : nullptr;
+    HWND     next  = hwnd;
+    bool     isUp  = false;
+
+
+
+    BAIL_OUT_IF (hwnd == nullptr || owner == nullptr, S_OK);
+
+    isUp = IsWindowVisible (hwnd) != FALSE && !m_activePopup->IsFadingOut();
+    CBRA (isUp);
+
+    //  The owner comes after the balloon in the z-order.
+    while (next != nullptr && next != owner)
+    {
+        next = GetWindow (next, GW_HWNDNEXT);
+    }
+
+    CBRA (next == owner);
+
+Error:
+    return;
+#endif
 }
 
 
@@ -1599,6 +1661,15 @@ void DxuiTooltip::MovePopup (bool isNewText)
         return;
     }
 
+    //  A balloon fading out is replaced rather than moved: moved, it ended its
+    //  fade open and invisible, and every later tip went to it unseen.
+    if (m_activePopup->IsFadingOut())
+    {
+        ReleaseActivePopup();
+        ShowPopup();
+        return;
+    }
+
     if (isNewText && m_isWholePixelFrame)
     {
         MeasureBoxPx (widthPx, heightPx);
@@ -1614,7 +1685,15 @@ void DxuiTooltip::MovePopup (bool isNewText)
         hr = m_activePopup->Reposition (GetScreenAnchor());
     }
 
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    //  A balloon that fails to move is replaced by a new one.
+    if (FAILED (hr))
+    {
+        ReleaseActivePopup();
+        ShowPopup();
+        return;
+    }
+
+    AssertPopupShown();
 }
 
 

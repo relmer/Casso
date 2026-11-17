@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/BlockDevice/ScsiHardDisk.h"
 
 
@@ -588,4 +590,58 @@ void ScsiHardDisk::FlushWrites()
 
 
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ScsiHardDisk::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ScsiHardDisk::SaveState (StateWriter & writer) const
+{
+    writer.WriteUInt64 (m_powerOnCycle);
+    writer.WriteByte   (m_senseKey);
+    writer.WriteByte   (m_senseAsc);
+    writer.WriteUInt32 (m_writeLba);
+    writer.WriteUInt32 (m_writeCount);
+
+    m_media.SaveState (writer);
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ScsiHardDisk::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ScsiHardDisk::LoadState (StateReader & reader)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    reader.ReadUInt64 (m_powerOnCycle);
+    reader.ReadByte   (m_senseKey);
+    reader.ReadByte   (m_senseAsc);
+    reader.ReadUInt32 (m_writeLba);
+    reader.ReadUInt32 (m_writeCount);
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    hr = m_media.LoadState (reader);
+
+Error:
+    return hr;
 }

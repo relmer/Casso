@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Devices/BlockDevice/BlockDeviceCatalog.h"
@@ -255,4 +257,66 @@ void ProFileCard::OnLineAccess (Byte offset)
     {
         m_drive->EndHandshake();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProFileCard::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProFileCard::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteByte (m_lines);
+    writer.WriteBool (m_selected);
+
+    hr = m_drive->SaveState (writer);
+    CHR (hr);
+
+    hr = writer.EndSection();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProFileCard::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProFileCard::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadByte (m_lines);
+    reader.ReadBool (m_selected);
+
+    hr = m_drive->LoadState (reader);
+    CHR (hr);
+
+    hr = reader.EndSection();
+
+Error:
+    return hr;
 }

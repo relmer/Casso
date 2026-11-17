@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
 #include "Devices/Floppy35/SmartPortHost.h"
@@ -27,7 +28,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Apple2cSmartPort : public MemoryDevice, public IDiskPortHook, public IFloppy35EventSource
+class Apple2cSmartPort : public MemoryDevice, public IDiskPortHook, public IFloppy35EventSource, public IMachineState
 {
 public:
     static constexpr int  kDriveTwo = 1;
@@ -48,6 +49,15 @@ public:
     void  SetFloppy35EventSink (IFloppy35EventSink * sink) override { m_port.SetFloppy35EventSink (sink); }
 
     SmartPortHost  & GetPort () { return m_port; }
+
+    //  IMachineState: the SmartPort chain on the disk port, its drives'
+    //  CPUs, RAM and disks included.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+    bool     HasMedia  () const override { return true; }
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('C', '2', 'S', 'P');
+    static constexpr uint16_t  kStateVersion = 1;
 
 private:
     SmartPortHost  m_port;

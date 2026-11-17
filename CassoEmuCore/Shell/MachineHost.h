@@ -461,8 +461,8 @@ public:
     uint64_t  GetRomIdentityHashCount () const noexcept { return m_romIdentityHashes; }
 
     static constexpr uint32_t  kStateTag           = IMachineState::MakeTag ('M', 'A', 'C', 'H');
-    static constexpr uint16_t  kStateVersion       = 2;
-    static constexpr uint16_t  kOldestStateVersion = 2;   // version 1 was never released
+    static constexpr uint16_t  kStateVersion       = 3;
+    static constexpr uint16_t  kOldestStateVersion = 3;   // a state before version 3 has no hardware identity, so it isn't known to match
     //  Points the slot 6 controller's drive at the image the disk store has
     //  in that bay, or at the controller's own empty disk when the bay is
     //  empty. The store's default bay-change sink; a shell that installs its
@@ -534,10 +534,14 @@ private:
 
     Byte  StepOneWithHook  ();
     Byte  FinishStep       ();
+    void  CatchUpCards     ();
     Byte  StepOneAsked     (const DebugHookFilter & filter, Word pc);
 
     //  The slot whose Disk II the refs hold, which the drive bays feed.
     static constexpr int  kDiskControllerSlot = 6;
+
+    //  The cards with separate processors catch up every 16,384 cycles.
+    static constexpr int  kCatchUpShift       = 14;
 
     void                          GetStateParts       (std::vector<IMachineState *> & outParts);
     void                          GetHostInputParts   (std::vector<IMachineState *> & outParts);

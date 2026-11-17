@@ -509,6 +509,35 @@ public:
         Assert::AreEqual ((size_t) 6, text.Calls().size(), L"three parts on each of two lines");
     }
 
+    //  Line colors take effect in a tip with no table too, as a sector's
+    //  checksum error line is drawn in the failed sector's color.
+    TEST_METHOD (APlainLineTakesItsOwnColor)
+    {
+        constexpr uint32_t    kRed    = 0xFFE05050;
+        DxuiTooltip           t;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        bool                  isDrawn = false;
+
+
+
+        t.SetPointerLocator (FindNoPointer);
+        t.SetLineColors     ({ 0, kRed });
+        t.RequestShowNow    (MakeRect (0, 0, 10, 10), L"Sector 3\nChecksum error", 0);
+        t.Paint             (painter, text);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            if (call.text == L"Checksum error")
+            {
+                isDrawn = true;
+                Assert::AreEqual (DxuiColor::ComputeInkForContrast (kRed, t.GetBackgroundArgb(), 4.5f), call.argb);
+            }
+        }
+
+        Assert::IsTrue (isDrawn, L"the colored line is drawn as its own line");
+    }
+
     //  A line with a swatch has a square of its color before it, inside
     //  the line; every line's text moves right by the same indent, so the
     //  lines without one stay lined up with the rest.

@@ -12,13 +12,14 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-static constexpr uint64_t  s_kFrameCycles  = 17030;
-static constexpr uint64_t  s_kWarmupFrames = 30;
-static constexpr uint64_t  s_kRunFrames    = 20;
-static constexpr int       s_kDiskSlot     = 6;
-static constexpr int       s_kDiskDrive    = 0;
-static constexpr size_t    s_kPatternStep  = 7;
-static constexpr Word      s_kSlotRomByte  = 0xC600;
+static constexpr uint64_t  s_kFrameCycles       = 17030;
+static constexpr uint64_t  s_kWarmupFrames      = 30;
+static constexpr uint64_t  s_kRunFrames         = 20;
+static constexpr int       s_kDiskSlot          = 6;
+static constexpr int       s_kDiskDrive         = 0;
+static constexpr int       s_kMockingboardSlot  = 4;
+static constexpr size_t    s_kPatternStep       = 7;
+static constexpr Word      s_kSlotRomByte       = 0xC600;
 
 static constexpr const char * s_kMachineIds[] =
 {
@@ -27,6 +28,7 @@ static constexpr const char * s_kMachineIds[] =
     "Apple2e",
     "Apple2eEnhanced",
     "Apple2c",
+    "Apple2cPlus",
 };
 
 
@@ -164,6 +166,50 @@ public:
 
         hr = Load (same, saved);
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"a //e state must not load into an enhanced //e");
+    }
+
+
+    //  A state taken on other hardware doesn't load, though the machine and
+    //  its ROMs are the same: here the Mockingboard, which has no ROM, is
+    //  turned off, and then the Disk II's second drive is unplugged.
+    TEST_METHOD (AStateFromOtherHardwareDoesNotLoad)
+    {
+        auto               noBoard  = [] (MachineConfig & config, MachineBuildServices &)
+        {
+            for (SlotConfig & slot : config.slots)
+            {
+                slot.enabled = slot.enabled && slot.slot != s_kMockingboardSlot;
+            }
+        };
+        auto               oneDrive = [] (MachineConfig & config, MachineBuildServices &)
+        {
+            for (SlotConfig & slot : config.slots)
+            {
+                if (slot.slot == s_kDiskSlot && slot.ports.size() > 1)
+                {
+                    slot.ports[1].device.clear();
+                }
+            }
+        };
+        TestMachine        source   ("Apple2e");
+        TestMachine        same     ("Apple2e");
+        TestMachine        noCard   ("Apple2e", TestMachine::Slots::AsShipped, noBoard);
+        TestMachine        noDrive  ("Apple2e", TestMachine::Slots::AsShipped, oneDrive);
+        std::vector<Byte>  saved;
+        HRESULT            hr       = S_OK;
+
+
+
+        saved = Save (source);
+
+        hr = Load (same, saved);
+        AssertSucceeded (hr, L"a state loads into a machine with the same hardware");
+
+        hr = Load (noCard, saved);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"not with a card turned off");
+
+        hr = Load (noDrive, saved);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"nor with a drive unplugged");
     }
 
 

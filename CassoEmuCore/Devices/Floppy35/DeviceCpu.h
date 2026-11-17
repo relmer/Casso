@@ -2,6 +2,9 @@
 
 #include "Pch.h"
 
+class StateReader;
+class StateWriter;
+
 #include "I6502DebugInfo.h"
 
 class MemoryBus;
@@ -93,6 +96,12 @@ public:
     Word              GetPC           () const;
 
     const uint64_t  * GetCyclePtr     () const { return &m_cycles; }
+
+    //  The CPU's registers and its cycle and instruction counts, written
+    //  into and read from the owner's state section. Its memory is the
+    //  owner's.
+    HRESULT  SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
 
 private:
     std::unique_ptr<MemoryBus>     m_bus;

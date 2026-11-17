@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/Apple2/Apple2cPlus/MigChip.h"
 
@@ -176,4 +178,56 @@ bool MigChip::Access (Word address, bool isWrite, Byte value, Byte & outValue)
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MigChip::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MigChip::SaveState (StateWriter & writer) const
+{
+    writer.WriteBytes (m_ram.data(), m_ram.size());
+    writer.WriteWord  (m_pointer);
+    writer.WriteBool  (m_internalOn);
+    writer.WriteBool  (m_sel35);
+    writer.WriteBool  (m_headOne);
+    writer.WriteBool  (m_wasActive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MigChip::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MigChip::LoadState (StateReader & reader)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    reader.ReadBytes (m_ram.data(), m_ram.size());
+    reader.ReadWord  (m_pointer);
+    reader.ReadBool  (m_internalOn);
+    reader.ReadBool  (m_sel35);
+    reader.ReadBool  (m_headOne);
+    reader.ReadBool  (m_wasActive);
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    CBREx ((m_pointer & ~kPointerMask) == 0, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
 }

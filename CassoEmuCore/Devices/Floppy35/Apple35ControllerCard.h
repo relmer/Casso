@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Devices/Floppy35/Apple35CardMemory.h"
 #include "Devices/Floppy35/DeviceCpu.h"
@@ -35,7 +36,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Apple35ControllerCard : public MemoryDevice, public IExpansionRomCard, public IFloppy35EventSource
+class Apple35ControllerCard : public MemoryDevice, public IExpansionRomCard, public IFloppy35EventSource, public IMachineState
 {
 public:
     Apple35ControllerCard (int slot, MemoryBus & bus);
@@ -74,7 +75,16 @@ public:
     Apple35CardMemory  & GetCardMemory () { return m_memory; }
     DeviceCpu          & GetCardCpu    () { return m_cpu; }
     SlotRomPage        & GetSlotPage   () { return m_slotPage; }
-    int                  GetSlot       () const { return m_slot; }
+    int                  GetSlot       () const override { return m_slot; }
+
+    //  IMachineState: the card's CPU, RAM, IWM and drives, the bank, the
+    //  expansion ROM's selection and the time kept against the Apple's.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+    bool     HasMedia  () const override { return true; }
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('3', '5', 'C', 'C');
+    static constexpr uint16_t  kStateVersion = 1;
     Byte                 GetBank       () const { return m_bank; }
 
 private:

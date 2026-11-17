@@ -324,10 +324,10 @@ public:
 
         Assert::AreEqual (S_OK, AttachPath (first, io, "C:/Disks/Shared.po"));
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_SHARING_VIOLATION), second.Attach (io, "c:\\disks\\shared.PO", kMaxBlocks, {}, error));
-        Assert::IsTrue   (BlockDeviceMedia::IsPathAttached ("C:/Disks/Shared.po"));
+        Assert::IsTrue   (BlockDeviceMedia::IsPathAttached (io, "C:/Disks/Shared.po"));
 
         Assert::AreEqual (S_OK, first.Detach());
-        Assert::IsFalse  (BlockDeviceMedia::IsPathAttached ("C:/Disks/Shared.po"));
+        Assert::IsFalse  (BlockDeviceMedia::IsPathAttached (io, "C:/Disks/Shared.po"));
         Assert::AreEqual (S_OK, AttachPath (second, io, "c:\\disks\\shared.PO"));
     }
 

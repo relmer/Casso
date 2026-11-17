@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/BlockDevice/ProFileDrive.h"
 
 
@@ -412,4 +414,86 @@ void ProFileDrive::Emit (BlockDeviceOp op, uint32_t block, Byte result)
     event.result     = result;
 
     m_sink->OnBlockDeviceEvent (event);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProFileDrive::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProFileDrive::SaveState (StateWriter & writer) const
+{
+    writer.WriteByte   (static_cast<Byte> (m_phase));
+    writer.WriteByte   (m_state);
+    writer.WriteBool   (m_presenting);
+    writer.WriteBool   (m_busy);
+    writer.WriteByte   (m_hostByte);
+    writer.WriteUInt32 (m_block);
+    writer.WriteUInt32 (static_cast<uint32_t> (m_buffer.size()));
+    writer.WriteBytes  (m_buffer.data(), m_buffer.size());
+    writer.WriteUInt64 (static_cast<uint64_t> (m_index));
+    writer.WriteUInt64 (m_readyCycle);
+
+    m_media.SaveState (writer);
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProFileDrive::LoadState
+//
+//  A phase or a place in the transfer the drive doesn't have is bad data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProFileDrive::LoadState (StateReader & reader)
+{
+    HRESULT   hr          = S_OK;
+    bool      isInBuffer  = false;
+    Byte      phase       = 0;
+    uint32_t  bufferBytes = 0;
+    uint64_t  index       = 0;
+
+
+
+    reader.ReadByte   (phase);
+    reader.ReadByte   (m_state);
+    reader.ReadBool   (m_presenting);
+    reader.ReadBool   (m_busy);
+    reader.ReadByte   (m_hostByte);
+    reader.ReadUInt32 (m_block);
+    reader.ReadUInt32 (bufferBytes);
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    CBREx (phase <= static_cast<Byte> (Phase::WriteData) && bufferBytes <= kStatusBytes + kBusBlockBytes, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_phase = static_cast<Phase> (phase);
+    m_buffer.assign (bufferBytes, 0);
+    reader.ReadBytes  (m_buffer.data(), m_buffer.size());
+    reader.ReadUInt64 (index);
+    reader.ReadUInt64 (m_readyCycle);
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    isInBuffer = index <= m_buffer.size();
+    CBREx (isInBuffer, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    m_index = static_cast<size_t> (index);
+
+    hr = m_media.LoadState (reader);
+
+Error:
+    return hr;
 }

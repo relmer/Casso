@@ -3,6 +3,8 @@
 #include "Pch.h"
 
 class ScsiBus;
+class StateReader;
+class StateWriter;
 
 
 
@@ -86,6 +88,10 @@ public:
 
     //  The chip's reset input.
     void  Reset ();
+
+    //  The state written into and read from the owner's state section.
+    HRESULT  SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
 
 private:
     enum class DmaMode : Byte

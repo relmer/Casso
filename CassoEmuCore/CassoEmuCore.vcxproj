@@ -1514,6 +1514,8 @@
     <ClCompile Include="Shell\MachineBuilder.cpp" />
     <ClCompile Include="Shell\MachineHost.cpp" />
     <ClCompile Include="Shell\MachineStateFile.cpp" />
+    <ClCompile Include="Shell\MachineHardwareIdentity.cpp" />
+    <ClCompile Include="Shell\MachineReplayMedia.cpp" />
     <ClCompile Include="Shell\MachineManager.cpp" />
     <ClCompile Include="Shell\ModernPrintDialog.cpp" />
     <ClCompile Include="Shell\WindowCommandManager.cpp" />
@@ -2842,6 +2844,8 @@
     <ClInclude Include="Shell\MachineBuilder.h" />
     <ClInclude Include="Shell\MachineHost.h" />
     <ClInclude Include="Shell\MachineStateFile.h" />
+    <ClInclude Include="Shell\MachineHardwareIdentity.h" />
+    <ClInclude Include="Shell\MachineReplayMedia.h" />
     <ClInclude Include="Shell\MachineRefs.h" />
     <ClInclude Include="Shell\MachineManager.h" />
     <ClInclude Include="Shell\ModernPrintDialog.h" />
@@ -2948,6 +2952,7 @@
     <ClInclude Include="Devices\Floppy35\IFloppy35EventSink.h" />
     <ClInclude Include="Devices\Floppy35\Floppy35EventRing.h" />
     <ClInclude Include="Devices\BlockDevice\BlockDeviceMedia.h" />
+    <ClInclude Include="Devices\BlockDevice\IReplayMedia.h" />
     <ClInclude Include="Devices\BlockDevice\IScsiTarget.h" />
     <ClInclude Include="Devices\BlockDevice\ScsiBus.h" />
     <ClInclude Include="Devices\BlockDevice\Ncr5380.h" />

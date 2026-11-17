@@ -5,6 +5,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/Reverse/ReverseController.h"
 #include "Shell/MachineHost.h"
+#include "Shell/MachineReplayMedia.h"
 #include "Debugger/CallStackRebuildJob.h"
 
 
@@ -376,6 +377,9 @@ HRESULT CallStackHistory::MakeJob (
     BAIL_OUT_IF (!isCopied, S_OK);
 
     hr = m_diskCopier.Copy (m_machine.GetDiskStore(), outJob.disks);
+    CHR (hr);
+
+    hr = MachineReplayMedia::Copy (m_machine.GetRefs(), outJob.blockMedia);
     CHR (hr);
 
     outHasJob = true;

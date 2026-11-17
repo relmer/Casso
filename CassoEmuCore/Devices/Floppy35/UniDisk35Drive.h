@@ -2,6 +2,9 @@
 
 #include "Pch.h"
 
+class StateReader;
+class StateWriter;
+
 #include "Core/MemoryDevice.h"
 #include "Devices/Floppy35/DeviceCpu.h"
 #include "Devices/Floppy35/IDiskDriveBus.h"
@@ -61,6 +64,12 @@ public:
     Sony35Drive  & GetMechanism () { return m_mechanism; }
     DeviceCpu    & GetCpu       () { return m_cpu; }
     Iwm          & GetIwm       () { return m_iwm; }
+
+    //  The drive's CPU, RAM, IWM, gate array and mechanism, and the lines it
+    //  drives on the bus, written into and read from the owner's state
+    //  section. Its ROM is its firmware's.
+    HRESULT  SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
 
     // MemoryDevice: the drive CPU's whole map.
     Byte  Read     (Word address) override;

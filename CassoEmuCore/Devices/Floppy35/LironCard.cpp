@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Devices/Floppy35/LironCard.h"
@@ -165,6 +167,65 @@ HRESULT LironCard::SetFirmware (std::vector<Byte> firmware)
     CBREx (length == kRomSize, HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH));
 
     m_rom = std::move (firmware);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LironCard::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LironCard::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+    writer.WriteBool    (m_selected);
+
+    hr = m_port.SaveState (writer);
+    CHR (hr);
+
+    hr = writer.EndSection();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LironCard::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LironCard::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBool (m_selected);
+
+    hr = m_port.LoadState (reader);
+    CHR (hr);
+
+    hr = reader.EndSection();
 
 Error:
     return hr;

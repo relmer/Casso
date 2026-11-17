@@ -2,6 +2,9 @@
 
 #include "Pch.h"
 
+class StateReader;
+class StateWriter;
+
 #include "Core/MemoryDevice.h"
 #include "Devices/Floppy35/Iwm.h"
 #include "Devices/Floppy35/Sony35Drive.h"
@@ -50,8 +53,14 @@ public:
     std::vector<Byte>  & GetRam   ()          { return m_ram; }
     std::vector<Byte>  & GetRom   ()          { return m_rom; }
     Sony35Drive        & GetDrive (int index) { return *m_drives[(size_t) index]; }
+    bool                 HasDrive (int index) const { return m_drives[(size_t) index] != nullptr; }
     Iwm                & GetIwm   ()          { return m_iwm; }
     bool                 IsLedOn  () const    { return m_led; }
+
+    //  The RAM, the IWM, each drive and the LED, written into and read from
+    //  the card's state section. The ROM is the card's firmware.
+    HRESULT  SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
 
 private:
     static constexpr Word  kIoPage     = 0x0A00;

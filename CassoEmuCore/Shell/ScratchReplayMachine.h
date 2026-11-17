@@ -4,6 +4,7 @@
 
 #include "Core/MachineConfig.h"
 #include "Debugger/Reverse/KeyframeStore.h"
+#include "Devices/BlockDevice/IReplayMedia.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Shell/MachineBuilder.h"
 
@@ -47,7 +48,7 @@ public:
 
     void          SetMachine  (const MachineConfig & config, const std::wstring & name);
     HRESULT       Build       ();
-    HRESULT       MountDisks  (const std::vector<ReplayDisk> & disks);
+    HRESULT       MountDisks  (const std::vector<ReplayDisk> & disks, const std::vector<ReplayBlockMedia> & blockMedia);
 
     MachineHost * GetMachine  () const { return m_machine.get(); }
     Replayer    * GetReplayer () const { return m_replayer.get(); }
@@ -76,5 +77,6 @@ private:
     KeyframeStore                     m_noKeyframes;
     std::unique_ptr<Replayer>         m_replayer;
     BayIds                            m_mounted          = {};
+    std::vector<ReplayBlockMedia>     m_mountedBlocks;
     uint64_t                          m_builtGeneration  = 0;
 };

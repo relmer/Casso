@@ -245,10 +245,11 @@ public:
     HRESULT  LoadState (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag                 = IMachineState::MakeTag ('D', 'S', 'K', '2');
-    static constexpr uint16_t  kStateVersion             = 3;
+    static constexpr uint16_t  kStateVersion             = 4;
     static constexpr uint16_t  kWatcherStateVersion      = 2;   // the first with the watcher's section
     static constexpr uint16_t  kPerDriveHeadStateVersion = 3;   // the first with a head position per drive
     static constexpr uint16_t  kNibbleRecordStateVersion = 3;   // the first with the recent nibbles
+    static constexpr uint16_t  kIwmStateVersion          = 4;   // the first with the //c's IWM
 
 private:
     bool  PollFloppyEnable      ();

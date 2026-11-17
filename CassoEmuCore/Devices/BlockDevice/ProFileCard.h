@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Devices/BlockDevice/IBlockDeviceEventSink.h"
 #include "Devices/BlockDevice/ProFileDrive.h"
@@ -38,7 +39,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ProFileCard : public MemoryDevice, public IExpansionRomCard, public IBlockDeviceEventSource
+class ProFileCard : public MemoryDevice, public IExpansionRomCard, public IBlockDeviceEventSource, public IMachineState
 {
 public:
     static constexpr size_t  kRomSize      = 0x800;
@@ -75,6 +76,15 @@ public:
     SlotRomPage   & GetSlotPage   () { return m_slotPage; }
     int             GetSlot       () const override { return m_slot; }
     Byte            GetLines      () const { return m_lines; }
+
+    //  IMachineState: the handshake lines, the expansion ROM's selection
+    //  and the drive, its written blocks included.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+    bool     HasMedia  () const override { return true; }
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('P', 'R', 'O', 'F');
+    static constexpr uint16_t  kStateVersion = 1;
 
 private:
     static constexpr Word  kSlotIoBase   = 0xC080;

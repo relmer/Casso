@@ -2,6 +2,9 @@
 
 #include "Pch.h"
 
+class StateReader;
+class StateWriter;
+
 #include "Devices/Floppy35/IFloppy35EventSink.h"
 #include "Devices/Floppy35/Iwm.h"
 #include "Devices/Floppy35/SmartPortBus.h"
@@ -55,6 +58,12 @@ public:
     SmartPortBus        & GetBus        () { return m_bus; }
     const SmartPortBus  & GetBus        () const { return m_bus; }
     Iwm                 & GetIwm        () { return m_iwm; }
+
+    //  The IWM, the bus, each drive on the chain and the time kept against
+    //  the Apple's, written into and read from the owner's state section. A
+    //  state saved with another number of drives doesn't load.
+    HRESULT  SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
 
 private:
     uint64_t  GetNowNs ();

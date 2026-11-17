@@ -3,6 +3,8 @@
 #include "Pch.h"
 
 class IScsiTarget;
+class StateReader;
+class StateWriter;
 
 
 
@@ -96,6 +98,12 @@ public:
 
     //  The command bytes of the last command, for a log.
     const std::vector<Byte> & GetLastCommand () const { return m_lastCommand; }
+
+    //  The lines, the phase, the selected target by its ID and the transfer
+    //  under way, written into and read from the owner's state section. The
+    //  targets are the owner's.
+    HRESULT  SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
 
 private:
     static size_t  GetCommandLength (Byte opcode);

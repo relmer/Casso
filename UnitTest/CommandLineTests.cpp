@@ -740,7 +740,7 @@ namespace CommandLineTests
         {
             const char    kBanner[]   = "CassoCli - 6502 Assembler and Emulator  v0.0.0\n"
                                         "Copyright (c) 2025-2026 by Robert Elmer\n";
-            const size_t  kScreenful  = 30;
+            const size_t  kScreenful  = 32;
             const char    kPrefixes[] = { '-', '/' };
 
             for (char prefix : kPrefixes)

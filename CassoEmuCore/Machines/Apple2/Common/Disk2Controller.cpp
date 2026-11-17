@@ -1907,6 +1907,11 @@ HRESULT Disk2Controller::SaveState (StateWriter & writer) const
     hr = m_nibbleRecord.SaveState (writer);
     CHR (hr);
 
+    m_iwm.SaveState (writer);
+    writer.WriteBool   (m_iwmEnabled[0]);
+    writer.WriteBool   (m_iwmEnabled[1]);
+    writer.WriteUInt64 (m_iwmCycles);
+
     hr = writer.EndSection();
     CHR (hr);
 
@@ -2014,6 +2019,20 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
     else
     {
         m_nibbleRecord.Clear();
+    }
+
+    //  Before version 4 the state had no IWM, so a //c's state from then
+    //  can't be put back; another machine's has no IWM to put back.
+    CBREx (version >= kIwmStateVersion || !m_iwmMode, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    if (version >= kIwmStateVersion)
+    {
+        hr = m_iwm.LoadState (reader);
+        CHR (hr);
+
+        reader.ReadBool   (m_iwmEnabled[0]);
+        reader.ReadBool   (m_iwmEnabled[1]);
+        reader.ReadUInt64 (m_iwmCycles);
     }
 
     hr = reader.EndSection();

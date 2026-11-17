@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
 #include "Devices/Floppy35/SmartPortHost.h"
@@ -30,7 +31,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class LironCard : public MemoryDevice, public IExpansionRomCard, public IFloppy35EventSource
+class LironCard : public MemoryDevice, public IExpansionRomCard, public IFloppy35EventSource, public IMachineState
 {
 public:
     static constexpr size_t  kRomSize = 0x1000;
@@ -73,7 +74,16 @@ public:
     SmartPortBus    & GetBus        () { return m_port.GetBus(); }
     Iwm             & GetIwm        () { return m_port.GetIwm(); }
     SlotRomPage     & GetSlotPage   () { return m_slotPage; }
-    int               GetSlot       () const { return m_slot; }
+    int               GetSlot       () const override { return m_slot; }
+
+    //  IMachineState: the expansion ROM's selection and the SmartPort chain
+    //  behind the card, its drives' CPUs, RAM and disks included.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+    bool     HasMedia  () const override { return true; }
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('L', 'I', 'R', 'N');
+    static constexpr uint16_t  kStateVersion = 1;
 
 private:
     static constexpr Word  kSlotIoBase   = 0xC080;

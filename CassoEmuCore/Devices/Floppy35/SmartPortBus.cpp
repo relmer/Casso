@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/Floppy35/SmartPortBus.h"
 
 
@@ -228,4 +230,105 @@ bool SmartPortBus::IsEnabledAt (size_t position) const
     }
 
     return enabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BitLine::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BitLine::SaveState (StateWriter & writer) const
+{
+    writer.WriteUInt32 (static_cast<uint32_t> (m_events.size()));
+
+    for (uint64_t atNs : m_events)
+    {
+        writer.WriteUInt64 (atNs);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BitLine::LoadState
+//
+//  More events than the line has room for is bad data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BitLine::LoadState (StateReader & reader)
+{
+    HRESULT   hr    = S_OK;
+    uint32_t  count = 0;
+    uint64_t  atNs  = 0;
+
+
+
+    reader.ReadUInt32 (count);
+    CBREx (count <= kMaxEvents, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_events.clear();
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        reader.ReadUInt64 (atNs);
+        m_events.push_back (atNs);
+    }
+
+    hr = reader.GetResult();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SmartPortBus::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SmartPortBus::SaveState (StateWriter & writer) const
+{
+    for (bool phase : m_phases)
+    {
+        writer.WriteBool (phase);
+    }
+
+    writer.WriteBool (m_reset);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SmartPortBus::LoadState
+//
+//  The devices are the owner's; only the lines are the bus's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SmartPortBus::LoadState (StateReader & reader)
+{
+    for (bool & phase : m_phases)
+    {
+        reader.ReadBool (phase);
+    }
+
+    reader.ReadBool (m_reset);
+
+    return reader.GetResult();
 }

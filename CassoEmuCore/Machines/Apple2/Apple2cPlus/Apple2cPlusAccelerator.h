@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Core/IMachineState.h"
 #include "Core/MemoryBus.h"
 
 
@@ -34,7 +35,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Apple2cPlusAccelerator : public IIoAccessObserver
+class Apple2cPlusAccelerator : public IIoAccessObserver, public IMachineState
 {
 public:
     static constexpr uint32_t  kFastHz = 4'000'000;
@@ -53,6 +54,14 @@ public:
     bool  IsUnlocked  () const { return m_unlocked; }
     bool  IsSlowedNow () const;
     Byte  GetMask     () const { return m_mask; }
+
+    //  IMachineState: the speed, the lock, the slot mask and the slow-down
+    //  under way.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('A', 'C', 'C', 'L');
+    static constexpr uint16_t  kStateVersion = 1;
 
 private:
     static constexpr Byte      kUnlockValue   = 0x5A;

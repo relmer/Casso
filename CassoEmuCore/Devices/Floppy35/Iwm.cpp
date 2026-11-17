@@ -3,6 +3,9 @@
 #include "Devices/Floppy35/IDiskDriveBus.h"
 #include "Devices/Floppy35/Iwm.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
+
 
 
 
@@ -562,4 +565,111 @@ void Iwm::UpdateEnables()
     {
         GetSelected()->SetEnabled (m_enabled);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Iwm::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Iwm::SaveState (StateWriter & writer) const
+{
+    writer.WriteBool   (m_phases[0]);
+    writer.WriteBool   (m_phases[1]);
+    writer.WriteBool   (m_phases[2]);
+    writer.WriteBool   (m_phases[3]);
+    writer.WriteBool   (m_enabled);
+    writer.WriteBool   (m_motorOffPending);
+    writer.WriteUInt64 (m_motorOffAt);
+    writer.WriteUInt32 (static_cast<uint32_t> (m_driveSelect));
+    writer.WriteBool   (m_q6);
+    writer.WriteBool   (m_q7);
+    writer.WriteByte   (m_mode);
+    writer.WriteByte   (m_data);
+    writer.WriteByte   (m_shift);
+    writer.WriteBool   (m_isUpdatePending);
+    writer.WriteUInt64 (m_updateAt);
+    writer.WriteBool   (m_hasFreshByte);
+    writer.WriteByte   (m_freshByte);
+    writer.WriteByte   (m_writeBuffer);
+    writer.WriteBool   (m_bufferFull);
+    writer.WriteUInt32 (static_cast<uint32_t> (m_writeBits));
+    writer.WriteBool   (m_underrun);
+    writer.WriteUInt64 (m_lastNs);
+    writer.WriteUInt64 (m_cellCarryNs);
+    writer.WriteBool   (m_ism);
+    writer.WriteByte   (m_ismHistory);
+    writer.WriteByte   (m_ismMode);
+    writer.WriteByte   (m_ismPhase);
+    writer.WriteUInt64 (static_cast<uint64_t> (m_paramIndex));
+    writer.WriteBytes  (m_param.data(), m_param.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Iwm::LoadState
+//
+//  A drive select or parameter index past the chip's is bad data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Iwm::LoadState (StateReader & reader)
+{
+    HRESULT   hr          = S_OK;
+    uint32_t  driveSelect = 0;
+    uint32_t  writeBits   = 0;
+    uint64_t  paramIndex  = 0;
+
+
+
+    reader.ReadBool   (m_phases[0]);
+    reader.ReadBool   (m_phases[1]);
+    reader.ReadBool   (m_phases[2]);
+    reader.ReadBool   (m_phases[3]);
+    reader.ReadBool   (m_enabled);
+    reader.ReadBool   (m_motorOffPending);
+    reader.ReadUInt64 (m_motorOffAt);
+    reader.ReadUInt32 (driveSelect);
+    reader.ReadBool   (m_q6);
+    reader.ReadBool   (m_q7);
+    reader.ReadByte   (m_mode);
+    reader.ReadByte   (m_data);
+    reader.ReadByte   (m_shift);
+    reader.ReadBool   (m_isUpdatePending);
+    reader.ReadUInt64 (m_updateAt);
+    reader.ReadBool   (m_hasFreshByte);
+    reader.ReadByte   (m_freshByte);
+    reader.ReadByte   (m_writeBuffer);
+    reader.ReadBool   (m_bufferFull);
+    reader.ReadUInt32 (writeBits);
+    reader.ReadBool   (m_underrun);
+    reader.ReadUInt64 (m_lastNs);
+    reader.ReadUInt64 (m_cellCarryNs);
+    reader.ReadBool   (m_ism);
+    reader.ReadByte   (m_ismHistory);
+    reader.ReadByte   (m_ismMode);
+    reader.ReadByte   (m_ismPhase);
+    reader.ReadUInt64 (paramIndex);
+    reader.ReadBytes  (m_param.data(), m_param.size());
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    CBREx (driveSelect < kDrives && paramIndex < kParamBytes, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_driveSelect = static_cast<int> (driveSelect);
+    m_writeBits   = static_cast<int> (writeBits);
+    m_paramIndex  = static_cast<size_t> (paramIndex);
+
+Error:
+    return hr;
 }

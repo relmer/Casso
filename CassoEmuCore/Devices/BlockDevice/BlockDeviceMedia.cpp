@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/BlockDevice/BlockDeviceMedia.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Floppy35/Gcr35Track.h"
@@ -111,7 +113,7 @@ HRESULT BlockDeviceMedia::Attach (
     HRESULT                          hr              = S_OK;
     HRESULT                          probe           = S_OK;
     std::unique_ptr<BlockImageFile>  file;
-    std::string                      key             = NormalizePath (path);
+    std::string                      key             = GetClaimKey (fileIo, path);
     uint32_t                         blockCount      = 0;
     bool                             isClaimed       = false;
     bool                             isSumValid      = true;
@@ -310,6 +312,10 @@ Error:
         m_blockCount       = 0;
         m_protect          = {};
         m_hasPendingWrites = false;
+        m_written.clear();
+        m_original.clear();
+        m_attachedBlocks.reset();
+        m_isReplayCopy = false;
     }
 
     return hr;
@@ -340,6 +346,22 @@ HRESULT BlockDeviceMedia::ReadBlock (uint32_t block, std::span<Byte> outBytes)
     if (m_isWoz)
     {
         std::copy_n (m_wozBlocks.begin() + (ptrdiff_t) ((size_t) block * kBlockBytes), kBlockBytes, outBytes.begin());
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (m_isReplayCopy)
+    {
+        auto  written = m_written.find (block);
+
+        if (written != m_written.end())
+        {
+            std::copy_n (written->second->begin(), kBlockBytes, outBytes.begin());
+        }
+        else
+        {
+            std::copy_n (m_attachedBlocks->begin() + (ptrdiff_t) ((size_t) block * kBlockBytes), kBlockBytes, outBytes.begin());
+        }
+
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -374,9 +396,28 @@ HRESULT BlockDeviceMedia::WriteBlock (uint32_t block, std::span<const Byte> byte
     CBREx  (block < m_blockCount,        HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND));
     CBREx  (!isProtected,                HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT));
 
+    if (m_isReplayCopy)
+    {
+        m_written[block] = std::make_shared<const std::vector<Byte>> (bytes.begin(), bytes.end());
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    //  A block's content before its first write, for a state loaded from
+    //  before that write.
+    if (!m_original.contains (block))
+    {
+        std::vector<Byte>  before (kBlockBytes);
+
+        hr = m_file->GetStore().ReadBlocks (block, 1, before);
+        CHR (hr);
+
+        m_original[block] = std::move (before);
+    }
+
     hr = m_file->GetStore().WriteBlocks (block, bytes);
     CHR (hr);
 
+    m_written[block]   = std::make_shared<const std::vector<Byte>> (bytes.begin(), bytes.end());
     m_hasPendingWrites = true;
 
 Error:
@@ -439,9 +480,9 @@ bool BlockDeviceMedia::HasChangedOnHost()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BlockDeviceMedia::IsPathAttached (const std::string & path)
+bool BlockDeviceMedia::IsPathAttached (const IDiskFileIo & fileIo, const std::string & path)
 {
-    std::string  key     = NormalizePath (path);
+    std::string  key     = GetClaimKey (fileIo, path);
     bool         isFree  = ChangeClaim (key, true);
 
 
@@ -478,6 +519,34 @@ std::string BlockDeviceMedia::NormalizePath (const std::string & path)
     for (char & ch : key)
     {
         ch = (ch == '/') ? '\\' : (char) std::tolower ((unsigned char) ch);
+    }
+
+    return key;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetClaimKey
+//
+//  The path, and the file system it is on unless that is the host's: the
+//  same path on two file systems kept in memory is two files.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BlockDeviceMedia::GetClaimKey (const IDiskFileIo & fileIo, const std::string & path)
+{
+    std::string  key      = NormalizePath (path);
+    uintptr_t    systemId = fileIo.GetFileSystemId();
+
+
+
+    if (systemId != 0)
+    {
+        key = std::format ("{:x}|{}", systemId, key);
     }
 
     return key;
@@ -537,4 +606,204 @@ bool BlockDeviceMedia::IsLockedTwoImg (const BlockImageFile & file)
 
 
     return isTwo && (BlockImageFile::ReadLittleLong (header, kFlagsOffset) & TwoImgHeader::kFlagLocked) != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockDeviceMedia::SaveState
+//
+//  The media's path and size, then each written block and its content.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockDeviceMedia::SaveState (StateWriter & writer) const
+{
+    writer.WriteUInt32 (static_cast<uint32_t> (m_path.size()));
+    writer.WriteBytes  (reinterpret_cast<const Byte *> (m_path.data()), m_path.size());
+    writer.WriteUInt32 (m_blockCount);
+    writer.WriteUInt32 (static_cast<uint32_t> (m_written.size()));
+
+    for (const auto & [block, content] : m_written)
+    {
+        writer.WriteUInt32 (block);
+        writer.WriteShared (content, content->data());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockDeviceMedia::LoadState
+//
+//  A block written since the save gets its content from before its first
+//  write; a block the save had written gets the saved content. Media other
+//  than the saved media, by path or by size, is bad data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockDeviceMedia::LoadState (StateReader & reader)
+{
+    HRESULT                                                       hr         = S_OK;
+    uint32_t                                                      pathLength = 0;
+    uint32_t                                                      blockCount = 0;
+    uint32_t                                                      count      = 0;
+    uint32_t                                                      block      = 0;
+    std::string                                                   path;
+    std::vector<Byte>                                             content;
+    std::map<uint32_t, std::shared_ptr<const std::vector<Byte>>>  written;
+
+
+
+    reader.ReadUInt32 (pathLength);
+    CBREx (pathLength <= MAX_PATH * 4, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    path.resize (pathLength);
+    reader.ReadBytes  (reinterpret_cast<Byte *> (path.data()), pathLength);
+    reader.ReadUInt32 (blockCount);
+    reader.ReadUInt32 (count);
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    CBREx (path == m_path && blockCount == m_blockCount && count <= m_blockCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        content.assign (kBlockBytes, 0);
+
+        reader.ReadUInt32 (block);
+        reader.ReadBytes  (content.data(), content.size());
+
+        hr = reader.GetResult();
+        CHR (hr);
+
+        CBREx (block < m_blockCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        written[block] = std::make_shared<const std::vector<Byte>> (std::move (content));
+    }
+
+    if (m_isReplayCopy)
+    {
+        m_written = std::move (written);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    for (const auto & [changed, original] : m_original)
+    {
+        if (!written.contains (changed))
+        {
+            hr = m_file->GetStore().WriteBlocks (changed, original);
+            CHR (hr);
+        }
+    }
+
+    for (const auto & [saved, bytes] : written)
+    {
+        hr = m_file->GetStore().WriteBlocks (saved, *bytes);
+        CHR (hr);
+    }
+
+    m_hasPendingWrites = m_hasPendingWrites || !m_original.empty() || !written.empty();
+    m_written          = std::move (written);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockDeviceMedia::CopyForReplay
+//
+//  The blocks now with each written block's content before its first write
+//  put back, which is the content when the media was attached. An empty
+//  drive's copy has no content.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockDeviceMedia::CopyForReplay (ReplayBlockMedia & outCopy)
+{
+    HRESULT            hr = S_OK;
+    std::vector<Byte>  blocks;
+
+
+
+    outCopy = {};
+
+    BAIL_OUT_IF (!IsAttached(), S_OK);
+
+    if (m_attachedBlocks == nullptr && m_isWoz)
+    {
+        m_attachedBlocks = std::make_shared<const std::vector<Byte>> (m_wozBlocks);
+    }
+    else if (m_attachedBlocks == nullptr)
+    {
+        blocks.assign ((size_t) m_blockCount * kBlockBytes, 0);
+
+        hr = m_file->GetStore().ReadBlocks (0, m_blockCount, blocks);
+        CHR (hr);
+
+        for (const auto & [block, original] : m_original)
+        {
+            std::copy (original.begin(), original.end(), blocks.begin() + (ptrdiff_t) ((size_t) block * kBlockBytes));
+        }
+
+        m_attachedBlocks = std::make_shared<const std::vector<Byte>> (std::move (blocks));
+    }
+
+    outCopy.path    = m_path;
+    outCopy.protect = m_protect;
+    outCopy.content = m_attachedBlocks;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockDeviceMedia::MountReplayCopy
+//
+//  A copy with no content leaves the drive empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockDeviceMedia::MountReplayCopy (const ReplayBlockMedia & copy)
+{
+    HRESULT  hr      = S_OK;
+    size_t   size    = 0;
+    bool     isWhole = false;
+
+
+
+    hr = Detach();
+    CHR (hr);
+
+    BAIL_OUT_IF (copy.content == nullptr, S_OK);
+
+    size    = copy.content->size();
+    isWhole = size > 0 && size % kBlockBytes == 0;
+    CBRAEx (isWhole, E_INVALIDARG);
+
+    m_attachedBlocks = copy.content;
+    m_isReplayCopy   = true;
+    m_path           = copy.path;
+    m_blockCount     = (uint32_t) (size / kBlockBytes);
+    m_protect        = copy.protect;
+
+Error:
+    return hr;
 }

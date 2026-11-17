@@ -2,6 +2,9 @@
 
 #include "Pch.h"
 
+class StateReader;
+class StateWriter;
+
 #include "Devices/BlockDevice/BlockDeviceMedia.h"
 #include "Devices/BlockDevice/IBlockDeviceEventSink.h"
 #include "Devices/BlockDevice/IScsiTarget.h"
@@ -57,6 +60,12 @@ public:
 
     BlockDeviceMedia        & GetMedia ()       { return m_media; }
     const BlockDeviceMedia  & GetMedia () const { return m_media; }
+
+    //  The sense data, the write under way, the cycle the drive powered on
+    //  at and the disk's written blocks, written into and read from the
+    //  card's state section.
+    HRESULT  SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
 
     //  Real timing at the CPU's clock rate. `powerOnCycle` is when the drive
     //  starts spinning up.

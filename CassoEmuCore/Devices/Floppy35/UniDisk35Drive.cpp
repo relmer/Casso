@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/Floppy35/UniDisk35Drive.h"
 
 
@@ -656,4 +658,100 @@ void UniDisk35Drive::MapPages()
 
     m_cpu.MapPages (0,        kRamPages, m_ram.data(), m_ram.data());
     m_cpu.MapPages (kRomPage, kRomPages, rom,          nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UniDisk35Drive::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UniDisk35Drive::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_cpu.SaveState (writer);
+    CHR (hr);
+
+    m_iwm.SaveState (writer);
+
+    hr = m_mechanism.SaveState (writer);
+    CHR (hr);
+
+    writer.WriteBytes (m_ram.data(), m_ram.size());
+
+    m_input.SaveState  (writer);
+    m_output.SaveState (writer);
+
+    for (bool phase : m_phases)
+    {
+        writer.WriteBool (phase);
+    }
+
+    writer.WriteByte   (m_reg0);
+    writer.WriteByte   (m_reg1);
+    writer.WriteBool   (m_latch1);
+    writer.WriteBool   (m_latch2);
+    writer.WriteBool   (m_resetHeld);
+    writer.WriteUInt64 (m_idleAt);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UniDisk35Drive::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UniDisk35Drive::LoadState (StateReader & reader)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_cpu.LoadState (reader);
+    CHR (hr);
+
+    hr = m_iwm.LoadState (reader);
+    CHR (hr);
+
+    hr = m_mechanism.LoadState (reader);
+    CHR (hr);
+
+    reader.ReadBytes (m_ram.data(), m_ram.size());
+
+    hr = m_input.LoadState (reader);
+    CHR (hr);
+
+    hr = m_output.LoadState (reader);
+    CHR (hr);
+
+    for (bool & phase : m_phases)
+    {
+        reader.ReadBool (phase);
+    }
+
+    reader.ReadByte   (m_reg0);
+    reader.ReadByte   (m_reg1);
+    reader.ReadBool   (m_latch1);
+    reader.ReadBool   (m_latch2);
+    reader.ReadBool   (m_resetHeld);
+    reader.ReadUInt64 (m_idleAt);
+
+    hr = reader.GetResult();
+
+Error:
+    return hr;
 }

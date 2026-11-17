@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/Floppy35/Apple2cSmartPort.h"
 
 
@@ -28,4 +30,60 @@ bool Apple2cSmartPort::OnIwmAccess (int offset, bool isWrite, Byte value, Byte &
     }
 
     return isPorts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2cSmartPort::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2cSmartPort::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    hr = m_port.SaveState (writer);
+    CHR (hr);
+
+    hr = writer.EndSection();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2cSmartPort::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2cSmartPort::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    hr = m_port.LoadState (reader);
+    CHR (hr);
+
+    hr = reader.EndSection();
+
+Error:
+    return hr;
 }

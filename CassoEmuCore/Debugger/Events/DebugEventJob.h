@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/BlockDevice/IReplayMedia.h"
 #include "Debugger/Events/DebugEventCache.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/KeyframeUnpacker.h"
@@ -57,6 +58,7 @@ struct DebugEventJob
     size_t                          inputsFrom = 0;
     std::vector<InputRecord>        inputs;
     std::vector<ReplayDisk>         disks;
+    std::vector<ReplayBlockMedia>   blockMedia;
 };
 
 

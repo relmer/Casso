@@ -712,7 +712,7 @@ HRESULT ScratchCallReplayer::LoadPart (
         SettleRecorder();
     }
 
-    hr = m_scratch.MountDisks (job.disks);
+    hr = m_scratch.MountDisks (job.disks, job.blockMedia);
     CHR (hr);
 
     hr = replayer->LoadFrom (m_state, part.startPosition, part.journalIndex);

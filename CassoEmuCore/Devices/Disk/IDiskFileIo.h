@@ -116,4 +116,9 @@ public:
     //  Payload bytes to the process's own output, byte-for-byte. See the note
     //  above on why this belongs to the seam rather than to the caller.
     virtual HRESULT  WritePayloadToStandardOutput (const std::vector<Byte> & bytes) = 0;
+
+    //  The file system the paths are on, for a drive's claim on a path: zero
+    //  for the host's, which every instance shares. A file system kept in
+    //  memory is a different one from each other.
+    virtual uintptr_t  GetFileSystemId () const { return 0; }
 };

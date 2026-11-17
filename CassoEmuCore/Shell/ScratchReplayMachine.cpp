@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Shell/MachineReplayMedia.h"
 #include "Shell/ScratchReplayMachine.h"
 
 #include "Core/Prng.h"
@@ -129,11 +130,12 @@ Error:
 //
 //  Each bay holds the medium given for it, mounted from its image only when
 //  a different one is there, with as many track slots as the medium has,
-//  and bays the list leaves out are emptied.
+//  and bays the list leaves out are emptied. Each hard disk, ProFile and
+//  3.5-inch drive gets its copy of the running machine's disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ScratchReplayMachine::MountDisks (const std::vector<ReplayDisk> & disks)
+HRESULT ScratchReplayMachine::MountDisks (const std::vector<ReplayDisk> & disks, const std::vector<ReplayBlockMedia> & blockMedia)
 {
     HRESULT       hr       = S_OK;
     DiskImage   * image    = nullptr;
@@ -184,6 +186,9 @@ HRESULT ScratchReplayMachine::MountDisks (const std::vector<ReplayDisk> & disks)
         m_mounted[bay] = disk.mediaId;
     }
 
+    hr = MachineReplayMedia::Mount (m_machine->GetRefs(), blockMedia, m_mountedBlocks);
+    CHR (hr);
+
 Error:
     return hr;
 }
@@ -206,6 +211,7 @@ void ScratchReplayMachine::Release()
     m_builder.reset();
     m_machine.reset();
     m_mounted.fill (0);
+    m_mountedBlocks.clear();
 }
 
 

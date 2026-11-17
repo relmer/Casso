@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Devices/BlockDevice/IBlockDeviceEventSink.h"
 #include "Devices/BlockDevice/Ncr5380.h"
@@ -38,7 +39,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class AppleScsiCard : public MemoryDevice, public IExpansionRomCard, public IBlockDeviceEventSource
+class AppleScsiCard : public MemoryDevice, public IExpansionRomCard, public IBlockDeviceEventSource, public IMachineState
 {
 public:
     static constexpr size_t  kRomSize   = 0x4000;
@@ -93,7 +94,17 @@ public:
     ScsiBus       & GetScsiBus    ()       { return m_bus; }
     Ncr5380       & GetNcr5380    ()       { return m_ncr; }
     SlotRomPage   & GetSlotPage   ()       { return m_slotPage; }
-    int             GetSlot       () const { return m_slot; }
+    int             GetSlot       () const override { return m_slot; }
+
+    //  IMachineState: the card's RAM, bank latch and selection, the NCR
+    //  5380, the bus and each disk on it, its written blocks included. A
+    //  state saved with another set of disks doesn't load.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+    bool     HasMedia  () const override { return true; }
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('S', 'C', 'S', 'I');
+    static constexpr uint16_t  kStateVersion = 1;
     Byte            GetBankLatch  () const { return m_bankLatch; }
 
 private:

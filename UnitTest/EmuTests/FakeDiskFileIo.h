@@ -355,6 +355,11 @@ public:
         return reportHeldByOther;
     }
 
+    uintptr_t  GetFileSystemId () const override
+    {
+        return reinterpret_cast<uintptr_t> (this);
+    }
+
     HRESULT  WritePayloadToStandardOutput (const vector<Byte> & bytes) override
     {
         standardOutput.insert (standardOutput.end(), bytes.begin(), bytes.end());

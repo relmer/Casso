@@ -2,6 +2,9 @@
 
 #include "Pch.h"
 
+class StateReader;
+class StateWriter;
+
 #include "Devices/BlockDevice/BlockDeviceMedia.h"
 #include "Devices/BlockDevice/IBlockDeviceEventSink.h"
 
@@ -81,6 +84,12 @@ public:
     // the 10 MB drive, at 3,600 RPM.
     void      SetRealTiming        (bool isOn, uint32_t cpuClockHz, uint64_t powerOnCycle);
     bool      IsRealTiming         () const { return m_realTiming; }
+
+    //  The handshake, the transfer under way, the cycle the drive is ready
+    //  at and the disk's written blocks, written into and read from the
+    //  card's state section.
+    HRESULT  SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
 
 private:
     enum class Phase : Byte

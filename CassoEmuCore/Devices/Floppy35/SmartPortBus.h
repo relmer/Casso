@@ -2,6 +2,9 @@
 
 #include "Pch.h"
 
+class StateReader;
+class StateWriter;
+
 #include "Devices/Floppy35/DeviceCpu.h"
 #include "Devices/Floppy35/IDiskDriveBus.h"
 
@@ -32,6 +35,10 @@ public:
     Byte  Read    (uint64_t cellEndNs, uint32_t cellNs);
     void  Clear   () { m_events.clear(); }
     bool  IsEmpty () const { return m_events.empty(); }
+
+    //  The state written into and read from the owner's state section.
+    void     SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
 
 private:
     static constexpr size_t  kMaxEvents = 16384;
@@ -120,6 +127,10 @@ public:
     bool  IsReset     () const { return m_reset; }
     bool  IsEnabledAt (size_t position) const;
     bool  IsLastAt    (size_t position) const { return position + 1 == m_devices.size(); }
+
+    //  The state written into and read from the owner's state section.
+    void     SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
 
 private:
     std::vector<ISmartPortDevice *>  m_devices;

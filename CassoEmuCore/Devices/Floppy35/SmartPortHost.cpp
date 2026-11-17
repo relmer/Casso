@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/Floppy35/SmartPortHost.h"
 
 
@@ -180,4 +182,85 @@ uint64_t SmartPortHost::GetNowNs()
     }
 
     return m_lastNs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SmartPortHost::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SmartPortHost::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_iwm.SaveState (writer);
+    m_bus.SaveState (writer);
+
+    writer.WriteUInt32 (static_cast<uint32_t> (m_drives.size()));
+
+    for (const std::unique_ptr<UniDisk35Drive> & drive : m_drives)
+    {
+        hr = drive->SaveState (writer);
+        CHR (hr);
+    }
+
+    writer.WriteUInt64 (m_epochCycles);
+    writer.WriteUInt64 (m_epochNs);
+    writer.WriteUInt64 (m_lastNs);
+    writer.WriteUInt64 (m_lastCycles);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SmartPortHost::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SmartPortHost::LoadState (StateReader & reader)
+{
+    HRESULT   hr          = S_OK;
+    bool      isSameCount = false;
+    uint32_t  driveCount  = 0;
+
+
+
+    hr = m_iwm.LoadState (reader);
+    CHR (hr);
+
+    hr = m_bus.LoadState (reader);
+    CHR (hr);
+
+    reader.ReadUInt32 (driveCount);
+    isSameCount = driveCount == m_drives.size();
+    CBREx (isSameCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    for (std::unique_ptr<UniDisk35Drive> & drive : m_drives)
+    {
+        hr = drive->LoadState (reader);
+        CHR (hr);
+    }
+
+    reader.ReadUInt64 (m_epochCycles);
+    reader.ReadUInt64 (m_epochNs);
+    reader.ReadUInt64 (m_lastNs);
+    reader.ReadUInt64 (m_lastCycles);
+
+    hr = reader.GetResult();
+
+Error:
+    return hr;
 }

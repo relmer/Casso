@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/Floppy35/Apple2cPlusDiskPort.h"
 #include "Machines/Apple2/Apple2cPlus/MigChip.h"
 
@@ -419,4 +421,200 @@ void Apple2cPlusDiskPort::PortDrive::SetEnabled (bool isEnabled)
 {
     m_diskPort.m_iwmEnabled[(size_t) m_drive] = isEnabled;
     m_diskPort.SyncEnables();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2cPlusDiskPort::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2cPlusDiskPort::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteBool (m_mig != nullptr);
+
+    if (m_mig != nullptr)
+    {
+        m_mig->SaveState (writer);
+    }
+
+    hr = m_port.SaveState (writer);
+    CHR (hr);
+
+    hr = m_internal.SaveState (writer);
+    CHR (hr);
+
+    for (const Sony35Drive & external : m_externals)
+    {
+        hr = external.SaveState (writer);
+        CHR (hr);
+    }
+
+    for (const PortDrive & drive : m_drives)
+    {
+        writer.WriteByte (drive.GetDrivenId());
+    }
+
+    for (bool phase : m_phases)
+    {
+        writer.WriteBool (phase);
+    }
+
+    for (bool enabled : m_iwmEnabled)
+    {
+        writer.WriteBool (enabled);
+    }
+
+    writer.WriteBool (m_floppies);
+
+    hr = writer.EndSection();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2cPlusDiskPort::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2cPlusDiskPort::LoadState (StateReader & reader)
+{
+    HRESULT   hr       = S_OK;
+    uint16_t  version  = 0;
+    bool      hasMig   = false;
+    Byte      drivenId = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBool (hasMig);
+    CBREx (hasMig == (m_mig != nullptr), HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    if (m_mig != nullptr)
+    {
+        hr = m_mig->LoadState (reader);
+        CHR (hr);
+    }
+
+    hr = m_port.LoadState (reader);
+    CHR (hr);
+
+    hr = m_internal.LoadState (reader);
+    CHR (hr);
+
+    for (Sony35Drive & external : m_externals)
+    {
+        hr = external.LoadState (reader);
+        CHR (hr);
+    }
+
+    for (PortDrive & drive : m_drives)
+    {
+        reader.ReadByte (drivenId);
+
+        hr = reader.GetResult();
+        CHR (hr);
+
+        hr = drive.SetDrivenId (drivenId);
+        CHR (hr);
+    }
+
+    for (bool & phase : m_phases)
+    {
+        reader.ReadBool (phase);
+    }
+
+    for (bool & enabled : m_iwmEnabled)
+    {
+        reader.ReadBool (enabled);
+    }
+
+    reader.ReadBool (m_floppies);
+
+    hr = reader.EndSection();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PortDrive::GetDrivenId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2cPlusDiskPort::PortDrive::GetDrivenId() const
+{
+    Byte  id = kDrivenChain;
+
+
+
+    if (m_driven == nullptr)
+    {
+        id = kDrivenNone;
+    }
+    else if (m_driven == &m_diskPort.m_internal)
+    {
+        id = kDrivenInternal;
+    }
+    else if (m_driven == &m_diskPort.m_externals[(size_t) m_drive])
+    {
+        id = kDrivenExternal;
+    }
+
+    return id;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PortDrive::SetDrivenId
+//
+//  An ID that isn't one GetDrivenId returns is bad data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2cPlusDiskPort::PortDrive::SetDrivenId (Byte id)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    CBREx (id <= kDrivenChain, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    switch (id)
+    {
+        case kDrivenNone:     m_driven = nullptr;                                         break;
+        case kDrivenInternal: m_driven = &m_diskPort.m_internal;                          break;
+        case kDrivenExternal: m_driven = &m_diskPort.m_externals[(size_t) m_drive];       break;
+        default:              m_driven = &m_diskPort.m_port.GetBus();                     break;
+    }
+
+Error:
+    return hr;
 }

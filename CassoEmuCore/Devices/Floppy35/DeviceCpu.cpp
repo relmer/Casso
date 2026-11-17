@@ -1,7 +1,10 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Core/Cpu65C02.h"
 #include "Core/MemoryBus.h"
+#include "Core/MemoryBusCpu.h"
 #include "Core/MemoryDevice.h"
 #include "Devices/Floppy35/DeviceCpu.h"
 
@@ -206,4 +209,56 @@ void DeviceCpu::SetRegisters (const Cpu6502Registers & regs)
     {
         m_cpu->SetRegisters (regs);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeviceCpu::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeviceCpu::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_cpu->SaveRegisters (writer);
+
+    writer.WriteUInt64 (m_cycles);
+    writer.WriteUInt64 (m_instructions);
+    writer.WriteUInt64 (m_idlePass);
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeviceCpu::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DeviceCpu::LoadState (StateReader & reader)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_cpu->LoadRegisters (reader, MemoryBusCpu::kStateVersion);
+
+    reader.ReadUInt64 (m_cycles);
+    reader.ReadUInt64 (m_instructions);
+    reader.ReadUInt64 (m_idlePass);
+
+    hr = reader.GetResult();
+
+    return hr;
 }

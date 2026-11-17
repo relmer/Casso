@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Devices/BlockDevice/AppleScsiCard.h"
@@ -409,4 +411,94 @@ void AppleScsiCard::ResetCard()
     m_bankLatch = 0;
     m_selected  = false;
     m_ncr.Reset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleScsiCard::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleScsiCard::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteBytes  (m_ram.data(), m_ram.size());
+    writer.WriteByte   (m_bankLatch);
+    writer.WriteBool   (m_selected);
+
+    hr = m_ncr.SaveState (writer);
+    CHR (hr);
+
+    hr = m_bus.SaveState (writer);
+    CHR (hr);
+
+    writer.WriteUInt32 (static_cast<uint32_t> (m_targets.size()));
+
+    for (const std::unique_ptr<ScsiHardDisk> & target : m_targets)
+    {
+        hr = target->SaveState (writer);
+        CHR (hr);
+    }
+
+    hr = writer.EndSection();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleScsiCard::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AppleScsiCard::LoadState (StateReader & reader)
+{
+    HRESULT   hr          = S_OK;
+    bool      isSameCount = false;
+    uint16_t  version     = 0;
+    uint32_t  targetCount = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBytes  (m_ram.data(), m_ram.size());
+    reader.ReadByte   (m_bankLatch);
+    reader.ReadBool   (m_selected);
+
+    hr = m_ncr.LoadState (reader);
+    CHR (hr);
+
+    hr = m_bus.LoadState (reader);
+    CHR (hr);
+
+    reader.ReadUInt32 (targetCount);
+    isSameCount = targetCount == m_targets.size();
+    CBREx (isSameCount, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    for (std::unique_ptr<ScsiHardDisk> & target : m_targets)
+    {
+        hr = target->LoadState (reader);
+        CHR (hr);
+    }
+
+    hr = reader.EndSection();
+
+Error:
+    return hr;
 }

@@ -137,9 +137,10 @@ public:
 
     static bool     IsTable     (const std::wstring & text) { return text.find (L'\t') != std::wstring::npos; }
 
-    //  A table's line colors, one for each line from the top; zero, or a line
-    //  past the last, is drawn in the tip's text color. Set before the
-    //  request it goes with; a change of colors raises the tip again.
+    //  Line colors, one for each line from the top; zero, or a line past the
+    //  last, is drawn in the tip's text color. A tip with line colors is laid
+    //  out as a table, so it isn't wrapped. Set before the request it goes
+    //  with; a change of colors raises the tip again.
     void  SetLineColors (std::vector<uint32_t> argbs) { m_lineArgbs = std::move (argbs); }
 
     //  A square of color before each line, for a key to colors drawn
@@ -410,6 +411,7 @@ private:
     SIZE  MeasureBoxDip      ();
     RECT  GetScreenAnchor    () const;
     void  MovePopup          (bool isNewText);
+    void  AssertPopupShown   () const;
 
     //  Whether the colors, swatches, scales or gradient set differ from
     //  those drawn, and the ones set taken as the ones drawn.
@@ -436,7 +438,7 @@ private:
 
     //  The table's parts drawn from its top-left, in pixels.
     void  DrawTable          (IDxuiPainter & painter, IDxuiTextRenderer & text, const TableLayout & table, float left, float top) const;
-    bool  IsTableTip         () const { return IsTable (m_text) || !m_shownLineSwatches.empty() || !m_shownLineScales.empty(); }
+    bool  IsTableTip         () const { return IsTable (m_text) || !m_shownLineArgbs.empty() || !m_shownLineSwatches.empty() || !m_shownLineScales.empty(); }
     float GetSwatchIndentPx  (float lineHeight) const;
     float GetLineIndentPx    (float lineHeight) const;
     void  DrawLineScale      (IDxuiPainter & painter, const std::vector<uint32_t> & stops, float left, float top, float heightPx) const;

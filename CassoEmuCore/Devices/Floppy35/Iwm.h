@@ -3,6 +3,8 @@
 #include "Pch.h"
 
 class IDiskDriveBus;
+class StateReader;
+class StateWriter;
 
 
 
@@ -86,6 +88,12 @@ public:
     Byte  GetMode         () const { return m_mode; }
     bool  GetPhase        (int phase) const { return m_phases[(size_t) phase]; }
     bool  IsIsmMode       () const { return m_ism; }
+
+    //  The chip's registers, latches, timers and the SWIM's parameter RAM,
+    //  written into and read from the owner's state section. The drives are
+    //  the owner's.
+    void     SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
 
 private:
     static constexpr uint64_t  kMotorOffNs    = 1'000'000'000;

@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Devices/Floppy35/Apple35ControllerCard.h"
@@ -462,4 +464,76 @@ Word Apple35ControllerCard::GetRamAddress (Word address) const
     }
 
     return (Word) (kFixedRam + (address - kFixedWindow));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple35ControllerCard::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple35ControllerCard::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    hr = m_memory.SaveState (writer);
+    CHR (hr);
+
+    hr = m_cpu.SaveState (writer);
+    CHR (hr);
+
+    writer.WriteUInt64 (m_hostSynced);
+    writer.WriteUInt64 (m_cardTarget);
+    writer.WriteByte   (m_bank);
+    writer.WriteBool   (m_selected);
+
+    hr = writer.EndSection();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple35ControllerCard::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple35ControllerCard::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    hr = m_memory.LoadState (reader);
+    CHR (hr);
+
+    hr = m_cpu.LoadState (reader);
+    CHR (hr);
+
+    reader.ReadUInt64 (m_hostSynced);
+    reader.ReadUInt64 (m_cardTarget);
+    reader.ReadByte   (m_bank);
+    reader.ReadBool   (m_selected);
+
+    hr = reader.EndSection();
+
+Error:
+    return hr;
 }

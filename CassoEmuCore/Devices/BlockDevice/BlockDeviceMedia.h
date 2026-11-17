@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Devices/BlockDevice/IReplayMedia.h"
 #include "Devices/Disk/IDiskImage.h"
 
 class BlockImageFile;
@@ -27,13 +28,20 @@ class IDiskFileIo;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class BlockDeviceMedia
+class StateReader;
+class StateWriter;
+
+
+
+
+
+class BlockDeviceMedia : public IReplayMedia
 {
 public:
     static constexpr size_t  kBlockBytes = 512;
 
     BlockDeviceMedia();
-    ~BlockDeviceMedia();
+    ~BlockDeviceMedia() override;
 
     BlockDeviceMedia (const BlockDeviceMedia &)             = delete;
     BlockDeviceMedia & operator= (const BlockDeviceMedia &) = delete;
@@ -57,7 +65,7 @@ public:
     //  the file changed on the host since it was attached or last flushed.
     HRESULT  Flush   ();
 
-    bool                       IsAttached        () const { return m_file != nullptr || m_isWoz; }
+    bool                       IsAttached        () const { return m_file != nullptr || m_isWoz || m_isReplayCopy; }
     uint32_t                   GetBlockCount     () const { return m_blockCount; }
     bool                       IsWriteProtected  () const { return m_protect.Any(); }
     const WriteProtectInfo   & GetWriteProtect   () const { return m_protect; }
@@ -67,7 +75,19 @@ public:
 
     void     SetUserWriteProtected (bool isProtected) { m_protect.userSetting = isProtected; }
 
-    static bool  IsPathAttached (const std::string & path);
+    //  The blocks written since the media was attached, as each was written,
+    //  for a machine state; a keyframe shares the block buffers. A load puts
+    //  them back and gives a block written since the save its content before
+    //  the first write. A state saved with other media doesn't load.
+    void     SaveState (StateWriter & writer) const;
+    HRESULT  LoadState (StateReader & reader);
+
+    //  IReplayMedia: the blocks as they were when the media was attached,
+    //  made once and shared by every copy after.
+    HRESULT  CopyForReplay   (ReplayBlockMedia & outCopy) override;
+    HRESULT  MountReplayCopy (const ReplayBlockMedia & copy) override;
+
+    static bool  IsPathAttached (const IDiskFileIo & fileIo, const std::string & path);
 
     //  Whether a block count is the size of a floppy disk a Casso drive
     //  mounts: 280 blocks (140K), 800 (400K) or 1,600 (800K). A hard disk
@@ -78,6 +98,7 @@ public:
 
 private:
     static std::string  NormalizePath  (const std::string & path);
+    static std::string  GetClaimKey    (const IDiskFileIo & fileIo, const std::string & path);
     static bool         ChangeClaim    (const std::string & key, bool isClaim);
     static bool         IsLockedTwoImg (const BlockImageFile & file);
     static bool         IsNibbleImage  (const std::string & path);
@@ -93,4 +114,14 @@ private:
     bool                              m_hasPendingWrites = false;
     bool                              m_isWoz            = false;
     std::vector<Byte>                 m_wozBlocks;
+
+    //  Each block written since the media was attached: its content now, and
+    //  its content before the first write.
+    std::map<uint32_t, std::shared_ptr<const std::vector<Byte>>>  m_written;
+    std::map<uint32_t, std::vector<Byte>>                         m_original;
+
+    //  The blocks as they were when the media was attached: a replay copy's
+    //  blocks, or the ones a copy of this media is made from.
+    std::shared_ptr<const std::vector<Byte>>                      m_attachedBlocks;
+    bool                                                          m_isReplayCopy = false;
 };

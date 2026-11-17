@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/Floppy35/Apple35CardMemory.h"
 
 
@@ -174,4 +176,95 @@ uint64_t Apple35CardMemory::GetNowNs() const
 
 
     return cycles * s_kPicoNsPerCycle / s_kPicoPerNs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple35CardMemory::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple35CardMemory::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.WriteUInt32 (static_cast<uint32_t> (m_ram.size()));
+    writer.WriteBytes  (m_ram.data(), m_ram.size());
+
+    m_iwm.SaveState (writer);
+
+    for (const std::unique_ptr<Sony35Drive> & drive : m_drives)
+    {
+        writer.WriteBool (drive != nullptr);
+
+        if (drive != nullptr)
+        {
+            hr = drive->SaveState (writer);
+            CHR (hr);
+        }
+    }
+
+    writer.WriteBool (m_led);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple35CardMemory::LoadState
+//
+//  A state saved with another set of drives on the card doesn't load.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple35CardMemory::LoadState (StateReader & reader)
+{
+    HRESULT   hr         = S_OK;
+    bool      isSameSize = false;
+    uint32_t  ramBytes   = 0;
+    bool      hasDrive   = false;
+
+
+
+    reader.ReadUInt32 (ramBytes);
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    isSameSize = ramBytes == m_ram.size();
+    CBREx (isSameSize, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    reader.ReadBytes (m_ram.data(), m_ram.size());
+
+    hr = m_iwm.LoadState (reader);
+    CHR (hr);
+
+    for (std::unique_ptr<Sony35Drive> & drive : m_drives)
+    {
+        reader.ReadBool (hasDrive);
+        CBREx (hasDrive == (drive != nullptr), HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        if (drive != nullptr)
+        {
+            hr = drive->LoadState (reader);
+            CHR (hr);
+        }
+    }
+
+    reader.ReadBool (m_led);
+
+    hr = reader.GetResult();
+
+Error:
+    return hr;
 }

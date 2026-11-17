@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/BlockDevice/IScsiTarget.h"
 #include "Devices/BlockDevice/ScsiBus.h"
 
@@ -492,4 +494,129 @@ void ScsiBus::FinishDataOut()
 
     m_status = (Byte) m_selected->FinishDataOut (m_buffer, GetNow(), delay);
     EnterPhase (ScsiPhase::Status, delay);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ScsiBus::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ScsiBus::SaveState (StateWriter & writer) const
+{
+    int  selected = -1;
+
+
+
+    for (size_t id = 0; id < m_targets.size(); id++)
+    {
+        selected = (m_selected != nullptr && m_targets[id] == m_selected) ? (int) id : selected;
+    }
+
+    writer.WriteByte   (m_initiator.data);
+    writer.WriteBool   (m_initiator.driveData);
+    writer.WriteBool   (m_initiator.bsy);
+    writer.WriteBool   (m_initiator.sel);
+    writer.WriteBool   (m_initiator.atn);
+    writer.WriteBool   (m_initiator.ack);
+    writer.WriteBool   (m_initiator.rst);
+    writer.WriteUInt32 (static_cast<uint32_t> (selected));
+    writer.WriteByte   (static_cast<Byte> (m_phase));
+    writer.WriteBool   (m_targetBsy);
+    writer.WriteBool   (m_req);
+    writer.WriteUInt64 (m_reqAtCycle);
+    writer.WriteBool   (m_msg);
+    writer.WriteBool   (m_cd);
+    writer.WriteBool   (m_io);
+    writer.WriteByte   (m_targetData);
+
+    writer.WriteUInt32 (static_cast<uint32_t> (m_buffer.size()));
+    writer.WriteBytes  (m_buffer.data(), m_buffer.size());
+    writer.WriteUInt64 (static_cast<uint64_t> (m_index));
+    writer.WriteUInt64 (static_cast<uint64_t> (m_expected));
+    writer.WriteByte   (m_status);
+
+    writer.WriteUInt32 (static_cast<uint32_t> (m_lastCommand.size()));
+    writer.WriteBytes  (m_lastCommand.data(), m_lastCommand.size());
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ScsiBus::LoadState
+//
+//  A selected target that isn't on the bus, or a phase or place in the
+//  transfer the bus doesn't have, is bad data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ScsiBus::LoadState (StateReader & reader)
+{
+    constexpr uint32_t  kMostBytes   = 0x1000000;
+    HRESULT             hr           = S_OK;
+    bool                isInTransfer = false;
+    bool                isOnBus      = false;
+    uint32_t            selected     = 0;
+    Byte                phase        = 0;
+    uint32_t            bufferBytes  = 0;
+    uint32_t            commandBytes = 0;
+    uint64_t            index        = 0;
+    uint64_t            expected     = 0;
+
+
+
+    reader.ReadByte   (m_initiator.data);
+    reader.ReadBool   (m_initiator.driveData);
+    reader.ReadBool   (m_initiator.bsy);
+    reader.ReadBool   (m_initiator.sel);
+    reader.ReadBool   (m_initiator.atn);
+    reader.ReadBool   (m_initiator.ack);
+    reader.ReadBool   (m_initiator.rst);
+    reader.ReadUInt32 (selected);
+    reader.ReadByte   (phase);
+    reader.ReadBool   (m_targetBsy);
+    reader.ReadBool   (m_req);
+    reader.ReadUInt64 (m_reqAtCycle);
+    reader.ReadBool   (m_msg);
+    reader.ReadBool   (m_cd);
+    reader.ReadBool   (m_io);
+    reader.ReadByte   (m_targetData);
+
+    reader.ReadUInt32 (bufferBytes);
+    CBREx (bufferBytes <= kMostBytes, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    m_buffer.assign (bufferBytes, 0);
+    reader.ReadBytes (m_buffer.data(), m_buffer.size());
+    reader.ReadUInt64 (index);
+    reader.ReadUInt64 (expected);
+    reader.ReadByte   (m_status);
+
+    reader.ReadUInt32 (commandBytes);
+    CBREx (commandBytes <= kMostBytes, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    m_lastCommand.assign (commandBytes, 0);
+    reader.ReadBytes (m_lastCommand.data(), m_lastCommand.size());
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    isOnBus = selected == UINT32_MAX || (selected < m_targets.size() && m_targets[selected] != nullptr);
+    CBREx (isOnBus, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    isInTransfer = phase <= static_cast<Byte> (ScsiPhase::MessageIn) && index <= m_buffer.size();
+    CBREx (isInTransfer, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_selected = (selected == UINT32_MAX) ? nullptr : m_targets[selected];
+    m_phase    = static_cast<ScsiPhase> (phase);
+    m_index    = static_cast<size_t> (index);
+    m_expected = static_cast<size_t> (expected);
+
+Error:
+    return hr;
 }

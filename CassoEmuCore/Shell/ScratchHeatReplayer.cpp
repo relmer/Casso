@@ -407,7 +407,7 @@ HRESULT ScratchHeatReplayer::RunPart (
         hr = m_scratch.Build();
         CHR (hr);
 
-        hr = m_scratch.MountDisks (job.disks);
+        hr = m_scratch.MountDisks (job.disks, job.blockMedia);
         CHR (hr);
 
         m_scratch.GetMachine()->GetInputJournal().LoadRecords (job.inputsFrom, job.inputs);

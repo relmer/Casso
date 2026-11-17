@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/BlockDevice/Ncr5380.h"
 #include "Devices/BlockDevice/ScsiBus.h"
 
@@ -435,4 +437,68 @@ void Ncr5380::PulseAck()
     m_bus.SetInitiatorLines (lines);
 
     Drive();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Ncr5380::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Ncr5380::SaveState (StateWriter & writer) const
+{
+    writer.WriteByte (m_odr);
+    writer.WriteByte (m_icr);
+    writer.WriteByte (m_mode);
+    writer.WriteByte (m_tcr);
+    writer.WriteByte (m_ser);
+    writer.WriteByte (m_idr);
+    writer.WriteBool (m_arbitrating);
+    writer.WriteBool (m_irq);
+    writer.WriteBool (m_busyError);
+    writer.WriteByte (static_cast<Byte> (m_dma));
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Ncr5380::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Ncr5380::LoadState (StateReader & reader)
+{
+    HRESULT  hr  = S_OK;
+    Byte     dma = 0;
+
+
+
+    reader.ReadByte (m_odr);
+    reader.ReadByte (m_icr);
+    reader.ReadByte (m_mode);
+    reader.ReadByte (m_tcr);
+    reader.ReadByte (m_ser);
+    reader.ReadByte (m_idr);
+    reader.ReadBool (m_arbitrating);
+    reader.ReadBool (m_irq);
+    reader.ReadBool (m_busyError);
+    reader.ReadByte (dma);
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    CBREx (dma <= static_cast<Byte> (DmaMode::InitiatorReceive), HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    m_dma = static_cast<DmaMode> (dma);
+
+Error:
+    return hr;
 }

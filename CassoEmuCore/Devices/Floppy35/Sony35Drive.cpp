@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Devices/Disk/CommitPlan.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DurableCommit.h"
@@ -97,7 +99,7 @@ HRESULT Sony35Drive::Insert (IDiskFileIo & fileIo, const std::string & path, con
         hr = fileIo.ReadAllBytes (path, bytes);
         CHR (hr);
 
-        hr = InsertWoz (fileIo, path, bytes, hostProtect, outError);
+        hr = InsertWoz (&fileIo, path, bytes, hostProtect, outError);
         CHR (hr);
     }
     else
@@ -163,6 +165,7 @@ HRESULT Sony35Drive::Eject()
     if (m_woz != nullptr)
     {
         m_woz.reset();
+        m_wozBytes.reset();
         m_wozIo = nullptr;
         m_wozPath.clear();
     }
@@ -661,7 +664,7 @@ std::vector<Byte> & Sony35Drive::GetTrackBits()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Sony35Drive::InsertWoz (IDiskFileIo & fileIo, const std::string & path, const std::vector<Byte> & bytes, const WriteProtectInfo & hostProtect, std::wstring & outError)
+HRESULT Sony35Drive::InsertWoz (IDiskFileIo * fileIo, const std::string & path, const std::vector<Byte> & bytes, const WriteProtectInfo & hostProtect, std::wstring & outError)
 {
     HRESULT                     hr       = S_OK;
     WozLoader::Description      about;
@@ -689,9 +692,10 @@ HRESULT Sony35Drive::InsertWoz (IDiskFileIo & fileIo, const std::string & path, 
 
     m_sides        = (about.info.sides == 1) ? 1 : kSides;
     m_wozProtected = about.writeProtected || hostProtect.Any();
-    m_wozIo        = &fileIo;
+    m_wozIo        = fileIo;
     m_wozPath      = path;
     m_woz          = std::move (image);
+    m_wozBytes     = std::make_shared<const std::vector<Byte>> (bytes);
 
 Error:
     return hr;
@@ -750,8 +754,13 @@ HRESULT Sony35Drive::FlushWoz()
     hr = m_woz->Serialize (bytes);
     CHR (hr);
 
+    //  A replay's copy writes no file.
+    BAIL_OUT_IF (m_wozIo == nullptr, S_OK);
+
     hr = DurableCommit::Commit (*m_wozIo, m_wozPath, bytes, 0, CommitMode::Replace, progress);
     CHR (hr);
+
+    m_wozBytes = std::make_shared<const std::vector<Byte>> (std::move (bytes));
 
 Error:
     return hr;
@@ -784,4 +793,245 @@ void Sony35Drive::Emit (Floppy35Op op)
     event.side  = (Byte) GetSide();
 
     m_sink->OnFloppy35Event (event);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Sony35Drive::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Sony35Drive::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.WriteBool   (m_ca0);
+    writer.WriteBool   (m_ca1);
+    writer.WriteBool   (m_ca2);
+    writer.WriteBool   (m_lstrb);
+    writer.WriteBool   (m_sel);
+    writer.WriteBool   (m_stepOut);
+    writer.WriteBool   (m_motorOn);
+    writer.WriteBool   (m_enabled);
+    writer.WriteBool   (m_diskSwitched);
+    writer.WriteUInt32 (static_cast<uint32_t> (m_track));
+    writer.WriteUInt32 (static_cast<uint32_t> (m_sides));
+    writer.WriteUInt64 (m_stepLeftNs);
+    writer.WriteUInt64 (m_spinLeftNs);
+    writer.WriteUInt64 (m_ejectLeftNs);
+    writer.WriteUInt64 (m_offLeftNs);
+    writer.WriteUInt64 (static_cast<uint64_t> (m_position));
+
+    writer.WriteUInt32 (static_cast<uint32_t> (m_dirty.size()));
+
+    for (int key : m_dirty)
+    {
+        const std::vector<Byte>  & bits = m_tracks.at (key);
+
+        writer.WriteUInt32 (static_cast<uint32_t> (key));
+        writer.WriteUInt32 (static_cast<uint32_t> (bits.size()));
+        writer.WriteBytes  (bits.data(), bits.size());
+    }
+
+    writer.WriteBool (m_woz != nullptr);
+
+    if (m_woz != nullptr)
+    {
+        writer.WriteUInt32 (static_cast<uint32_t> (m_wozPath.size()));
+        writer.WriteBytes  (reinterpret_cast<const Byte *> (m_wozPath.data()), m_wozPath.size());
+
+        hr = m_woz->SaveState (writer);
+        CHR (hr);
+    }
+    else
+    {
+        m_media.SaveState (writer);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Sony35Drive::LoadState
+//
+//  The tracks not written since the disk last flushed are encoded again
+//  from the disk as the head reaches them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Sony35Drive::LoadState (StateReader & reader)
+{
+    constexpr uint32_t  kMostTrackBits = 0x40000;
+    HRESULT             hr             = S_OK;
+    uint32_t            track          = 0;
+    uint32_t            sides          = 0;
+    uint64_t            position       = 0;
+    uint32_t            dirtyCount     = 0;
+    uint32_t            key            = 0;
+    uint32_t            bitCount       = 0;
+    uint32_t            pathLength     = 0;
+    bool                hasWoz         = false;
+    std::string         wozPath;
+    std::vector<Byte>   bits;
+
+
+
+    reader.ReadBool   (m_ca0);
+    reader.ReadBool   (m_ca1);
+    reader.ReadBool   (m_ca2);
+    reader.ReadBool   (m_lstrb);
+    reader.ReadBool   (m_sel);
+    reader.ReadBool   (m_stepOut);
+    reader.ReadBool   (m_motorOn);
+    reader.ReadBool   (m_enabled);
+    reader.ReadBool   (m_diskSwitched);
+    reader.ReadUInt32 (track);
+    reader.ReadUInt32 (sides);
+    reader.ReadUInt64 (m_stepLeftNs);
+    reader.ReadUInt64 (m_spinLeftNs);
+    reader.ReadUInt64 (m_ejectLeftNs);
+    reader.ReadUInt64 (m_offLeftNs);
+    reader.ReadUInt64 (position);
+    reader.ReadUInt32 (dirtyCount);
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    CBREx (track < (uint32_t) Gcr35Track::kTracks && sides == (uint32_t) m_sides, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    m_track    = static_cast<int> (track);
+    m_position = static_cast<size_t> (position);
+
+    m_tracks.clear();
+    m_dirty.clear();
+
+    for (uint32_t i = 0; i < dirtyCount; i++)
+    {
+        reader.ReadUInt32 (key);
+        reader.ReadUInt32 (bitCount);
+        CBREx (bitCount <= kMostTrackBits && key < (uint32_t) (Gcr35Track::kTracks * kSides), HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        bits.assign (bitCount, 0);
+        reader.ReadBytes (bits.data(), bits.size());
+
+        m_tracks[(int) key] = bits;
+        m_dirty.insert ((int) key);
+    }
+
+    reader.ReadBool (hasWoz);
+    CBREx (hasWoz == (m_woz != nullptr), HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    if (hasWoz)
+    {
+        reader.ReadUInt32 (pathLength);
+        CBREx (pathLength <= MAX_PATH * 4, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        wozPath.resize (pathLength);
+        reader.ReadBytes (reinterpret_cast<Byte *> (wozPath.data()), pathLength);
+        CBREx (wozPath == m_wozPath, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        hr = m_woz->LoadState (reader);
+        CHR (hr);
+    }
+    else
+    {
+        hr = m_media.LoadState (reader);
+        CHR (hr);
+    }
+
+    hr = reader.GetResult();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Sony35Drive::CopyForReplay
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Sony35Drive::CopyForReplay (ReplayBlockMedia & outCopy)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_woz != nullptr)
+    {
+        outCopy                   = {};
+        outCopy.path              = m_wozPath;
+        outCopy.protect.imageFlag = m_wozProtected;
+        outCopy.isWoz             = true;
+        outCopy.content           = m_wozBytes;
+    }
+    else
+    {
+        hr = m_media.CopyForReplay (outCopy);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Sony35Drive::MountReplayCopy
+//
+//  The disk in the drive is ejected first. A copy with no content leaves the
+//  drive empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Sony35Drive::MountReplayCopy (const ReplayBlockMedia & copy)
+{
+    HRESULT       hr = S_OK;
+    std::wstring  error;
+
+
+
+    hr = Eject();
+    CHR (hr);
+
+    BAIL_OUT_IF (copy.content == nullptr, S_OK);
+
+    if (copy.isWoz)
+    {
+        hr = InsertWoz (nullptr, copy.path, *copy.content, copy.protect, error);
+        CHR (hr);
+    }
+    else
+    {
+        hr = m_media.MountReplayCopy (copy);
+        CHR (hr);
+
+        m_sides = (m_media.GetBlockCount() == Gcr35Track::kBlocksTwoSides) ? kSides : 1;
+    }
+
+    m_tracks.clear();
+    m_dirty.clear();
+
+Error:
+    return hr;
 }

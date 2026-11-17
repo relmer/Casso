@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Machines/Apple2/Apple2cPlus/Apple2cPlusAccelerator.h"
 
 
@@ -297,4 +299,78 @@ void Apple2cPlusAccelerator::SlowFor (uint32_t milliseconds)
     {
         m_slowUntil = std::max (m_slowUntil, until);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2cPlusAccelerator::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2cPlusAccelerator::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteUInt64 (m_slowUntil);
+    writer.WriteUInt64 (m_remainder);
+    writer.WriteUInt32 (static_cast<uint32_t> (m_unlockCount));
+    writer.WriteBool   (m_unlocked);
+    writer.WriteBool   (m_fast);
+    writer.WriteBool   (m_delaysOff);
+    writer.WriteByte   (m_mask);
+    writer.WriteByte   (m_gameIo);
+
+    hr = writer.EndSection();
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2cPlusAccelerator::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Apple2cPlusAccelerator::LoadState (StateReader & reader)
+{
+    HRESULT   hr          = S_OK;
+    uint16_t  version     = 0;
+    uint32_t  unlockCount = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadUInt64 (m_slowUntil);
+    reader.ReadUInt64 (m_remainder);
+    reader.ReadUInt32 (unlockCount);
+    reader.ReadBool   (m_unlocked);
+    reader.ReadBool   (m_fast);
+    reader.ReadBool   (m_delaysOff);
+    reader.ReadByte   (m_mask);
+    reader.ReadByte   (m_gameIo);
+
+    hr = reader.GetResult();
+    CHR (hr);
+
+    CBREx (unlockCount <= kUnlockWrites, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    m_unlockCount = static_cast<int> (unlockCount);
+
+    hr = reader.EndSection();
+
+Error:
+    return hr;
 }

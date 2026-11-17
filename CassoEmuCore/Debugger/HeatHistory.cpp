@@ -5,6 +5,7 @@
 #include "Debugger/HeatCountDelta.h"
 #include "Debugger/HeatKeyframeSide.h"
 #include "Shell/MachineHost.h"
+#include "Shell/MachineReplayMedia.h"
 
 
 
@@ -591,6 +592,9 @@ HRESULT HeatHistory::FindInStretch (
     hr = m_diskCopier.Copy (m_machine.GetDiskStore(), job.disks);
     CHR (hr);
 
+    hr = MachineReplayMedia::Copy (m_machine.GetRefs(), job.blockMedia);
+    CHR (hr);
+
     hr = m_finder->FindAccess (job, result);
     CHR (hr);
 
@@ -1126,6 +1130,9 @@ HRESULT HeatHistory::MakeRebuildJob (
     CHR (hr);
 
     hr = m_diskCopier.Copy (m_machine.GetDiskStore(), outJob.disks);
+    CHR (hr);
+
+    hr = MachineReplayMedia::Copy (m_machine.GetRefs(), outJob.blockMedia);
     CHR (hr);
 
     outHasWindow = true;
