@@ -739,13 +739,10 @@ Error:
 //
 //  EmulatorShell::ShowStorageContextMenu
 //
-//  Shows a device's own menu on a right-click: the switch that connects it,
-//  then the Storage menu's commands for that device. Drive 1 has no such
-//  switch; the machine's first drive is always present.
-//
-//  The rows are the Storage menu's commands, so their enabled state and
-//  check marks match the menu's. The disk's rows are worded for a menu the
-//  drive's name heads, as a 3.5-inch drive's is.
+//  A device's right-click menu. A drive's is the floppy menu
+//  (ShowFloppyContextMenu) or a hard disk's; the recorder's is the switch
+//  that connects it, then the Storage menu's tape commands, so their
+//  enabled state matches the menu's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -788,61 +785,14 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
         return;
     }
 
-    // A //c Plus's drive 2 commands act on its first 5.25-inch drive, and its
-    // second has only insert and eject.
-    if (device != kStorageMenuRecorder && DiskMenuRule::HasBuiltIn35Drive (m_machine.GetConfig()))
+    if (device != kStorageMenuRecorder)
     {
-        if (device != 0)
-        {
-            ShowDriveContextMenu (DeskDrive { DeskDriveModel::Disk2c, BootDriveRule::kDiskIiSlot, device, false, true }, x, y);
-            return;
-        }
-
-        ids = { IDM_DISK_INSERT2, IDM_DISK_EJECT2, IDM_DISK_WP2, IDM_DISK_SALVAGE2, IDM_DISK_INSPECT2, IDM_DISK_THUMBNAIL2 };
+        ShowFloppyContextMenu (m_scene->GetDiskIiDrive (device), x, y);
+        return;
     }
-    else if (device == kStorageMenuRecorder)
-    {
-        ids = { IDM_STORAGE_RECORDER, 0, IDM_TAPE_INSERT, IDM_TAPE_PLAY, IDM_TAPE_STOP, IDM_TAPE_REWIND,
-                IDM_TAPE_FASTFORWARD, IDM_TAPE_EJECT };
-    }
-    else
-    {
-        // Headed and worded as a 3.5-inch drive's menu is: the drive's name,
-        // then the disk's commands.
-        bool  isFirst = (device == 0);
 
-        items.push_back (DxuiPopupMenuItem::ForHeader (ShellDeskScene::GetDriveTitle (m_scene->GetDiskIiDrive (device))));
-
-        if (!isFirst)
-        {
-            items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (IDM_STORAGE_DRIVE2)));
-            items.push_back (DxuiPopupMenuItem::ForSeparator());
-        }
-
-        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_INSERT1    : IDM_DISK_INSERT2),    L"&Insert disk...")));
-        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_EJECT1     : IDM_DISK_EJECT2),     L"&Eject disk")));
-        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (isFirst ? IDM_DISK_WP1      : IDM_DISK_WP2)));
-        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (isFirst ? IDM_DISK_SALVAGE1 : IDM_DISK_SALVAGE2)));
-        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_INSPECT1   : IDM_DISK_INSPECT2),   L"Inspect &disk...")));
-        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (isFirst ? IDM_DISK_THUMBNAIL1 : IDM_DISK_THUMBNAIL2), L"Save screenshot as the disk's thu&mbnail")));
-
-        // Drive 1 is always there, so its menu is where a detached drive 2 or
-        // recorder is attached again: neither is on screen to be clicked.
-        if (isFirst && m_disks->IsSecondDriveOffered() && !m_disks->ShouldShowExternalDrive())
-        {
-            ids = { 0, IDM_STORAGE_DRIVE2 };
-        }
-
-        if (isFirst && m_tapeDeck->MachineHasCassettePort() && !m_tapeDeck->IsTapeRecorderShown())
-        {
-            if (ids.empty())
-            {
-                ids.push_back (0);
-            }
-
-            ids.push_back (IDM_STORAGE_RECORDER);
-        }
-    }
+    ids = { IDM_STORAGE_RECORDER, 0, IDM_TAPE_INSERT, IDM_TAPE_PLAY, IDM_TAPE_STOP, IDM_TAPE_REWIND,
+            IDM_TAPE_FASTFORWARD, IDM_TAPE_EJECT };
 
     for (int id : ids)
     {
@@ -850,17 +800,6 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
     }
 
     ids.clear();
-
-    // On the //c Plus the 5.25-inch drives are on the disk port's chain. Only
-    // the last one is unplugged, since a disk is saved by its drive's number.
-    if (DiskPortChainRule::IsOffered (m_machine.GetConfig()) && (device == 0 || device == 1))
-    {
-        int  floppies = DiskPortChainRule::CountDrives (m_machine.GetConfig(), kpszDiskIicDevice);
-
-
-
-        AddPortDriveRows (kpszDiskIicDevice, (device >= 0 && device == floppies - 1) ? device : -1, items);
-    }
 
     // Every device's menu ends with the auto-hide switch, since the drives and
     // the recorder appear and disappear together.
@@ -884,11 +823,161 @@ void EmulatorShell::ShowStorageContextMenu (int device, int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::ShowFloppyContextMenu
+//
+//  The drive's name, the disk's commands, the drive's place on the port, the
+//  rows that attach a detached drive or recorder, then the switches every
+//  storage menu ends with. Rows that don't apply are left out: the Disk II
+//  commands on a 3.5-inch drive, "Unplug drive" on a built-in drive, and
+//  the plug-in and swap rows the port has no room for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowFloppyContextMenu (const DeskDrive & drive, int x, int y)
+{
+    const EmulatorCommands          & commands = m_chrome->m_mainMenu.GetCommands();
+    std::vector<DxuiPopupMenuItem>    items;
+    bool                              isDiskIi = (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c);
+    int                               menu     = isDiskIi ? m_disks->GetMenuIndex (drive.drive) : -1;
+    bool                              isFirst  = (menu == 0);
+    std::string                       device;
+    int                               nth      = -1;
+
+
+
+    if (m_host == nullptr)
+    {
+        return;
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForHeader (ShellDeskScene::GetDriveTitle (drive)));
+
+    // A machine's second Disk II is connected and disconnected here.
+    if (isDiskIi && !isFirst && !DiskPortChainRule::IsOffered (m_machine.GetConfig()))
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (IDM_STORAGE_DRIVE2)));
+        items.push_back (DxuiPopupMenuItem::ForSeparator());
+    }
+
+    if (menu >= 0)
+    {
+        static constexpr int  s_kInsert[]    = { IDM_DISK_INSERT1,    IDM_DISK_INSERT2,    IDM_DISK_INSERT3    };
+        static constexpr int  s_kEject[]     = { IDM_DISK_EJECT1,     IDM_DISK_EJECT2,     IDM_DISK_EJECT3     };
+        static constexpr int  s_kWp[]        = { IDM_DISK_WP1,        IDM_DISK_WP2,        IDM_DISK_WP3        };
+        static constexpr int  s_kSalvage[]   = { IDM_DISK_SALVAGE1,   IDM_DISK_SALVAGE2,   IDM_DISK_SALVAGE3   };
+        static constexpr int  s_kInspect[]   = { IDM_DISK_INSPECT1,   IDM_DISK_INSPECT2,   IDM_DISK_INSPECT3   };
+        static constexpr int  s_kThumbnail[] = { IDM_DISK_THUMBNAIL1, IDM_DISK_THUMBNAIL2, IDM_DISK_THUMBNAIL3 };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (s_kInsert[menu]),    L"&Insert disk...")));
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (s_kEject[menu]),     L"&Eject disk")));
+        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (s_kWp[menu])));
+        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (s_kSalvage[menu])));
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (s_kInspect[menu]),   L"Inspect &disk...")));
+        items.push_back (DxuiPopupMenuItem::ForCommand (MakeRelabeled (commands.Find (s_kThumbnail[menu]), L"Save screenshot as the disk's thu&mbnail")));
+    }
+    else
+    {
+        auto  insert = std::make_shared<DxuiCommand>();
+        auto  eject  = std::make_shared<DxuiCommand>();
+
+
+
+        insert->label    = L"&Insert disk...";
+        insert->dispatch = [this, drive, isDiskIi] () { isDiskIi ? m_disks->BrowseForDisk (drive.drive) : m_scene->BrowseDeskDrive (drive); };
+        eject->label     = L"&Eject disk";
+        eject->dispatch  = [this, drive] () { m_disks->Eject (drive.slot, drive.drive); };
+        eject->isEnabled = [this, drive, isDiskIi] () { return isDiskIi ? !m_disks->GetMountedImagePath (drive.drive).empty() : !m_scene->GetDriveImagePath (drive).empty(); };
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (insert));
+        items.push_back (DxuiPopupMenuItem::ForCommand (eject));
+    }
+
+    if (DiskPortChainRule::IsOffered (m_machine.GetConfig()))
+    {
+        FindPortDrive (drive, device, nth);
+        AddPortDriveRows (device, nth, items);
+    }
+
+    // Drive 1 is always there, so its menu is where a detached drive 2 or
+    // recorder is attached again: neither is on screen to be clicked.
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    if (isFirst && m_disks->IsSecondDriveOffered() && !m_disks->ShouldShowExternalDrive())
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (IDM_STORAGE_DRIVE2)));
+    }
+
+    if (isFirst && m_tapeDeck->MachineHasCassettePort() && !m_tapeDeck->IsTapeRecorderShown())
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (IDM_STORAGE_RECORDER)));
+    }
+
+    items.push_back (DxuiPopupMenuItem::ForSeparator());
+
+    for (int id : { IDM_VIEW_AUTOHIDE_DRIVES, IDM_VIEW_FLOPPIES_ON_DESK, IDM_VIEW_HARD_DISKS_ON_DESK, IDM_VIEW_FLOPPY_PAIR_BESIDE })
+    {
+        items.push_back (DxuiPopupMenuItem::ForCommand (commands.Find (id)));
+    }
+
+    DxuiContextMenu::Show (*m_host, x, y, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::FindPortDrive
+//
+//  The //c Plus's 5.25-inch drives are drives 1 and 2 of slot 6, and only
+//  the last one is unplugged, since a disk is saved by its drive's number.
+//  The 3.5-inch drives behind the built-in one are on the chain, the
+//  built-in drive taking the first desk index.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::FindPortDrive (const DeskDrive & drive, std::string & outDevice, int & outNth) const
+{
+    outDevice.clear();
+    outNth = -1;
+
+    if (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
+    {
+        outDevice = kpszDiskIicDevice;
+        outNth    = (drive.drive == DiskPortChainRule::CountDrives (m_machine.GetConfig(), kpszDiskIicDevice) - 1) ? drive.drive : -1;
+        return;
+    }
+
+    if (drive.model == DeskDriveModel::Apple35Drive)
+    {
+        outDevice = kpszApple35DriveDevice;
+    }
+    else if (drive.model == DeskDriveModel::UniDisk35)
+    {
+        outDevice = kpszUniDisk35Device;
+    }
+
+    for (const PortConfig & port : m_machine.GetConfig().ports)
+    {
+        for (size_t i = 0; !outDevice.empty() && i < port.chain.size() && (int) i < drive.drive; i++)
+        {
+            outNth += (port.chain[i].device == outDevice) ? 1 : 0;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::ShowDriveContextMenu
 //
-//  A floppy drive's or hard disk's menu: the drive's name, then for a
-//  floppy drive its insert and eject, and for a hard disk its image
-//  change, then the switches every storage menu ends with.
+//  A drive's menu from the desk or the drive bar. A floppy drive's is the
+//  floppy menu; a hard disk's is its name, its image change, then the
+//  switches every storage menu ends with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -904,41 +993,15 @@ void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
         return;
     }
 
+    if (ShellDeskScene::IsFloppy35 (drive) || drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
+    {
+        ShowFloppyContextMenu (drive, x, y);
+        return;
+    }
+
     items.push_back (DxuiPopupMenuItem::ForHeader (ShellDeskScene::GetDriveTitle (drive)));
 
-    if (drive.model == DeskDriveModel::Disk2c)
-    {
-        auto  insert = std::make_shared<DxuiCommand>();
-        auto  eject  = std::make_shared<DxuiCommand>();
-
-
-
-        insert->label     = L"&Insert disk...";
-        insert->dispatch  = [this, drive] () { m_disks->BrowseForDisk (drive.drive); };
-        eject->label      = L"&Eject disk";
-        eject->dispatch   = [this, drive] () { m_disks->Eject (drive.slot, drive.drive); };
-        eject->isEnabled  = [this, drive] () { return !m_disks->GetMountedImagePath (drive.drive).empty(); };
-
-        items.push_back (DxuiPopupMenuItem::ForCommand (insert));
-        items.push_back (DxuiPopupMenuItem::ForCommand (eject));
-    }
-    else if (ShellDeskScene::IsFloppy35 (drive))
-    {
-        auto  insert = std::make_shared<DxuiCommand>();
-        auto  eject  = std::make_shared<DxuiCommand>();
-
-
-
-        insert->label     = L"&Insert disk...";
-        insert->dispatch  = [this, drive] () { m_scene->BrowseDeskDrive (drive); };
-        eject->label      = L"&Eject disk";
-        eject->dispatch   = [this, drive] () { m_disks->Eject (drive.slot, drive.drive); };
-        eject->isEnabled  = [this, drive] () { return !m_scene->GetDriveImagePath (drive).empty(); };
-
-        items.push_back (DxuiPopupMenuItem::ForCommand (insert));
-        items.push_back (DxuiPopupMenuItem::ForCommand (eject));
-    }
-    else if (ShellDeskScene::IsHardDisk (drive))
+    if (ShellDeskScene::IsHardDisk (drive))
     {
         auto  change = std::make_shared<DxuiCommand>();
 
@@ -948,35 +1011,6 @@ void EmulatorShell::ShowDriveContextMenu (const DeskDrive & drive, int x, int y)
         change->dispatch = [this, drive] () { BrowseHardDisk (drive); };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (change));
-    }
-
-    // On the //c Plus, the drives behind the built-in one are on the disk
-    // port's chain, the built-in drive taking the first desk index.
-    if (drive.slot == 0 && DiskPortChainRule::IsOffered (m_machine.GetConfig()))
-    {
-        std::string  device;
-        int          nth    = -1;
-
-
-
-        if (drive.model == DeskDriveModel::Apple35Drive)
-        {
-            device = kpszApple35DriveDevice;
-        }
-        else if (drive.model == DeskDriveModel::UniDisk35)
-        {
-            device = kpszUniDisk35Device;
-        }
-
-        for (const PortConfig & port : m_machine.GetConfig().ports)
-        {
-            for (size_t i = 0; !device.empty() && i < port.chain.size() && (int) i < drive.drive; i++)
-            {
-                nth += (port.chain[i].device == device) ? 1 : 0;
-            }
-        }
-
-        AddPortDriveRows (device, nth, items);
     }
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());

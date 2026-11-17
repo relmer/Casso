@@ -2451,6 +2451,37 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetMissingCardRom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+string AssetBootstrap::GetMissingCardRom (const string & device, const vector<fs::path> & searchPaths)
+{
+    const BlockCardSpec  * card = BlockDeviceCatalog::FindCard (device);
+    const RomSpec        * spec = nullptr;
+    string                 missing;
+
+
+
+    if (card != nullptr && card->defaultFirmware != nullptr)
+    {
+        spec = FindRomSpec ("", card->defaultFirmware);
+    }
+
+    if (spec != nullptr && PathResolver::FindFile (searchPaths, fs::path (string (spec->localRelDir)) / spec->cassoName).empty())
+    {
+        missing = string (spec->cassoName);
+    }
+
+    return missing;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsOptionalRomInstalled
 //
 ////////////////////////////////////////////////////////////////////////////////

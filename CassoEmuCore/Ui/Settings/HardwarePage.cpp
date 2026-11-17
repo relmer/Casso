@@ -1316,6 +1316,11 @@ void HardwarePage::ApplyCard (const std::string & device)
     m_storagePrompt = SUCCEEDED (hr) ? std::wstring (L"Takes effect when the machine resets.") : error;
     m_selectedPort  = -1;
     OnStorageEdited();
+
+    if (SUCCEEDED (hr) && !device.empty() && m_onCardChosen)
+    {
+        m_onCardChosen (device);
+    }
 }
 
 

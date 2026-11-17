@@ -596,9 +596,10 @@ public:
                                          PortConfig             & port,
                                          string                 & problem);
 
-    // The SmartPort drives a port's chain takes, as the //c's firmware and
-    // ProDOS 8 mount them.
-    static constexpr size_t  kMaxChainDrives = 4;
+    // The external drives a //c or //c Plus disk port takes in all, as the
+    // //c Technical Reference lists: the power supply runs four drives,
+    // counting the built-in one.
+    static constexpr size_t  kMaxChainDrives = 3;
 
     // Each machine port's chain: its order and length checked, and its
     // drives' ROMs resolved. ERROR_INVALID_DATA, with `outError`, for a chain

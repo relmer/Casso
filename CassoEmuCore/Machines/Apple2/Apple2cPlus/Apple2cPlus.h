@@ -31,8 +31,9 @@ public:
     //  Drives 1 and 2 of port 6.
     int   GetDiskPortFloppyCount () const override { return (2); }
 
-    //  IWM drives 1 and 2 with the MIG's 3.5 select on.
-    int   GetDiskPortApple35Count () const override { return (2); }
+    //  IWM drive 2 with the MIG's 3.5 select on, the one external Apple 3.5
+    //  Drive the //c Technical Reference lists.
+    int   GetDiskPortApple35Count () const override { return (1); }
 
     uint16_t  GetWozHardwareFlag () const override { return (WozCompatibility::kApple2cPlus); }
 };

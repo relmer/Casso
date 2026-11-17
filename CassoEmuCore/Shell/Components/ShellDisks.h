@@ -158,8 +158,11 @@ public:
     bool  MachineHasBuiltInDrive () const;
     bool  HasDiskIicDrives       () const;
 
-    // The drive the Storage menu's drive 1 (0) or drive 2 (1) commands act on.
-    DiskMenuDrive  GetMenuDrive (int menuDrive) const;
+    // The drive the Storage menu's drive 1 (0), drive 2 (1) or drive 3 (2)
+    // commands act on, and the reverse: which commands act on a Disk II
+    // drive, or -1 for none.
+    DiskMenuDrive  GetMenuDrive (int menuDrive)   const;
+    int            GetMenuIndex (int diskIiDrive) const;
 
     // The info icon's tooltip for a drive: what its WOZ image declares about
     // the machine, and what conflicts with the one running. Empty when nothing

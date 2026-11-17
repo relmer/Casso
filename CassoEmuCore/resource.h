@@ -164,6 +164,15 @@
 #define IDM_STORAGE_ATTACH_APPLE35  40501
 #define IDM_STORAGE_ATTACH_FLOPPY   40502
 
+// The //c Plus's second 5.25-inch drive on its disk port, slot 6 drive 2.
+// Taken from a separate block above every open branch's ids.
+#define IDM_DISK_INSERT3            40600
+#define IDM_DISK_EJECT3             40601
+#define IDM_DISK_WP3                40602
+#define IDM_DISK_SALVAGE3           40603
+#define IDM_DISK_INSPECT3           40604
+#define IDM_DISK_THUMBNAIL3         40605
+
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_CHECK_UPDATES      40041
 #define IDM_HELP_ABOUT              40042

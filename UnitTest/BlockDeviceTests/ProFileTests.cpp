@@ -108,6 +108,41 @@ public:
     }
 
 
+    //  WITH REAL TIMING, BSY waits for the drive to be ready after power-on,
+    //  and the read's state waits for a seek; without it, both are at once.
+    TEST_METHOD (RealTiming)
+    {
+        constexpr uint32_t  kClock = 1'000'000;
+        FakeDiskFileIo      io;
+        ProFileDrive        drive (5, 9728);
+        uint64_t            now    = 0;
+
+
+
+        Attach (io, drive);
+        drive.SetClock (&now);
+        drive.SetRealTiming (true, kClock, 0);
+
+        drive.StartHandshake();
+        Assert::IsFalse (drive.IsBusy(), L"not ready at power-on");
+
+        now = 60ULL * kClock;
+        Assert::IsTrue (drive.IsBusy(), L"ready after the 5 MB drive's 60 s");
+
+        drive.ReadData();
+        drive.WriteData (ProFileDrive::kAck);
+        drive.EndHandshake();
+        SendCommand (drive, 0, 7);
+
+        drive.StartHandshake();
+        Assert::IsFalse (drive.IsBusy(), L"the seek isn't done");
+
+        now += 188ULL * kClock / 1000;
+        Assert::IsTrue (drive.IsBusy(), L"a 180 ms seek and half a turn later");
+        Assert::AreEqual (ProFileDrive::kStateRead, drive.ReadData());
+    }
+
+
     //  A WRITE: state $04 after the command, the block, state $06, and the
     //  block is in the image.
     TEST_METHOD (WriteTakesTheBlock)

@@ -14,9 +14,9 @@
 //
 //  The //c Plus's disk port, whose drives are attached from the Disk menu:
 //  whether the machine offers that, how many drives of `device` are on the
-//  port's chain, and how many it takes. The port takes two drives in all, so
-//  a drive of `device` fits while the chain has fewer than two and fewer
-//  than the limit of its kind.
+//  port's chain, and how many it takes. The port takes three drives in all,
+//  so a drive of `device` fits while the chain has fewer than three and
+//  fewer than the limit of its kind.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

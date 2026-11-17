@@ -644,6 +644,7 @@ HRESULT SettingsSheet::OpenModeless (
     // reported, and both are synced to it.
     m_printingPage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
     m_hardwarePage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
+    m_hardwarePage->SetOnCardChosen ([this] (const std::string & device) { m_pendingCardDevice = device; });
     m_hardwarePage->SetOnBrowseImage ([this] (const std::string & device, std::string & inOutPath) -> bool
     {
         FileDialogSpec          spec;
@@ -1087,6 +1088,7 @@ void SettingsSheet::OnDialogTick()
     UpdateTabSparkles();
     UpdateTickInterval();
     ShowPendingNotice();
+    OfferCardFirmware();
 
     // The Machine tab's tree, a machine switch and Cancel all change the
     // staged card behind the Network page, and the connectors the printer
@@ -1994,6 +1996,61 @@ void SettingsSheet::ShowPendingNotice()
     {
         DxuiMessageBox (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), notice.c_str(), L"Settings", MB_OK | MB_ICONINFORMATION);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OfferCardFirmware
+//
+//  On the tick after a card is put in a slot, so the drop-down the card was
+//  picked from is closed first. Without its firmware the machine runs
+//  without the card, so the card stays in the slot after a canceled or
+//  failed download.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::OfferCardFirmware()
+{
+    HRESULT                hr          = S_OK;
+    std::string            device      = std::move (m_pendingCardDevice);
+    std::vector<fs::path>  searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory());
+    const BlockCardSpec  * card        = nullptr;
+    std::string            rom;
+    std::string            error;
+    std::wstring           label;
+    std::wstring           intro;
+    std::wstring           message;
+    bool                   downloaded  = false;
+
+
+
+    m_pendingCardDevice.clear();
+    BAIL_OUT_IF (device.empty(), S_OK);
+
+    card = BlockDeviceCatalog::FindCard (device);
+    rom  = AssetBootstrap::GetMissingCardRom (device, searchPaths);
+    BAIL_OUT_IF (card == nullptr || rom.empty(), S_OK);
+
+    label = TextEncoding::NarrowToWide (card->label);
+    intro = std::format (L"The {} runs firmware that is not installed. Click Download to fetch it, or Cancel to "
+                         L"download it later. Until then, the machine runs without the card.", label);
+
+    hr = AssetBootstrap::OfferOptionalRomDownload (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), rom,
+                                                   label + L" firmware", intro, downloaded, error);
+
+    if (FAILED (hr) || !error.empty())
+    {
+        message = std::format (L"The {} firmware could not be downloaded. {}", label, TextEncoding::NarrowToWide (error));
+
+        DxuiMessageBox (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), message.c_str(), label.c_str(), MB_OK | MB_ICONWARNING);
+    }
+
+Error:
+    return;
 }
 
 

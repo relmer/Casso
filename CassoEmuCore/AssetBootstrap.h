@@ -259,6 +259,11 @@ public:
     // download is checked against a SHA-256. False when there is no row.
     static bool      TryGetCatalogRom      (string_view cassoName, size_t & outSize, bool & outHasSha256);
 
+    // The catalog ROM a SmartPort or hard disk card runs by default, when
+    // none of `searchPaths` has it. Empty when one does, or for a device
+    // that isn't such a card.
+    static string    GetMissingCardRom     (const string & device, const vector<fs::path> & searchPaths);
+
 private:
     static HRESULT  LoadMergedConfig      (HINSTANCE                hInstance,
                                            const wstring          & machineName,

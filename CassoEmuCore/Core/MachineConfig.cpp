@@ -832,10 +832,10 @@ int MachineConfig::CountDiskPortFloppies() const
 //  ResolveDiskPortChains
 //
 //  A machine port's SmartPort chain: at most `maxApple35` Apple 3.5 Drives,
-//  first, then UniDisk 3.5 drives, at most kMaxChainDrives of them, then at
-//  most `maxFloppies` 5.25-inch drives, last. Each UniDisk 3.5's ROM is
-//  resolved into its entry. A chain out of that order or over a limit fails
-//  the load.
+//  first, then UniDisk 3.5 drives, then at most `maxFloppies` 5.25-inch
+//  drives, last, and at most kMaxChainDrives drives in all. Each UniDisk
+//  3.5's ROM is resolved into its entry. A chain out of that order or over
+//  a limit fails the load.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -847,7 +847,7 @@ HRESULT MachineConfigLoader::ResolveDiskPortChains (
     size_t                   maxFloppies,
     size_t                   maxApple35)
 {
-    static constexpr const char *  kCounts[] = { "no", "one", "two" };
+    static constexpr const char *  kCounts[] = { "no", "one", "two", "three" };
     HRESULT                        hr        = S_OK;
 
 
@@ -905,9 +905,9 @@ HRESULT MachineConfigLoader::ResolveDiskPortChains (
                 CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
             }
 
-            if (smartPort > kMaxChainDrives)
+            if (apple35 + smartPort + floppies > kMaxChainDrives)
             {
-                outError = format ("The {} port's chain takes at most {} SmartPort drives.", port.name, kMaxChainDrives);
+                outError = format ("The {} port's chain takes at most {} drives.", port.name, kCounts[kMaxChainDrives]);
                 CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
             }
 

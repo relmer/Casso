@@ -63,6 +63,20 @@ public:
     }
 
 
+    //  With no folder to search, every card's firmware is missing. Nothing
+    //  is fetched for a device that isn't a SmartPort or hard disk card.
+    TEST_METHOD (GetMissingCardRom_IsTheCardsDefaultFirmware)
+    {
+        for (const BlockCardSpec & card : BlockDeviceCatalog::GetCards())
+        {
+            Assert::AreEqual (std::string (card.defaultFirmware), AssetBootstrap::GetMissingCardRom (card.device, {}));
+        }
+
+        Assert::IsTrue (AssetBootstrap::GetMissingCardRom ("mockingboard-c", {}).empty());
+        Assert::IsTrue (AssetBootstrap::GetMissingCardRom ("", {}).empty());
+    }
+
+
     TEST_METHOD (Embedded_AppleII_RequiresSystemCharacterAndDisk2Rom)
     {
         std::vector<std::string> files;

@@ -1543,8 +1543,8 @@ public:
     }
 
 
-    //  THE REAL TIMING SWITCH IS SAVED WITH ITS DRIVE, and a port without a
-    //  hard disk has no switch.
+    //  NO DRIVE HAS A REAL TIMING SWITCH in the Machine tab, so setting one
+    //  fails and the saved drive has no realTiming key.
     TEST_METHOD (SetPortRealTiming_IsSavedWithTheDrive)
     {
         SettingsPanelState   st;
@@ -1573,14 +1573,15 @@ public:
         }
 
         hr = st.SetPortRealTiming (scsi, 0, true);
-        Assert::IsTrue  (FAILED (hr), L"no drive on ID 0");
-        AssertSucceeded (st.SetPortRealTiming (scsi, 2, true));
+        Assert::IsTrue (FAILED (hr), L"no drive on ID 0");
+        hr = st.SetPortRealTiming (scsi, 2, true);
+        Assert::IsTrue (FAILED (hr), L"the HD20SC has no switch");
         st.Apply (sink, outJson);
 
         opts.fPretty = false;
         JsonWriter::Write (outJson, opts, text);
 
-        Assert::IsTrue (text.find ("{\"device\":\"hd20sc\",\"realTiming\":true}") != std::string::npos);
+        Assert::IsTrue (text.find ("realTiming") == std::string::npos);
     }
 
 

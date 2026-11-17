@@ -61,6 +61,7 @@ namespace DiskMenuRuleTests
             Assert::AreEqual (0, drive1.diskIiDrive);
             Assert::IsFalse (drive2.isBuiltIn35);
             Assert::AreEqual (1, drive2.diskIiDrive);
+            Assert::IsFalse (DiskMenuRule::Resolve (2, false, 2).IsDiskIi(), L"only the //c Plus has drive 3");
         }
 
 
@@ -86,6 +87,20 @@ namespace DiskMenuRuleTests
             Assert::AreEqual (0, attached.diskIiDrive);
             Assert::IsFalse  (none.isBuiltIn35);
             Assert::IsFalse  (none.IsDiskIi(), L"no 5.25-inch drive on the port");
+        }
+
+
+        TEST_METHOD (Resolve_BuiltIn35_Drive3IsSecondPortDrive)
+        {
+            DiskMenuDrive  attached = DiskMenuRule::Resolve (2, true, 2);
+            DiskMenuDrive  none     = DiskMenuRule::Resolve (2, true, 1);
+
+
+
+            Assert::IsFalse  (attached.isBuiltIn35);
+            Assert::AreEqual (1, attached.diskIiDrive);
+            Assert::IsFalse  (none.isBuiltIn35);
+            Assert::IsFalse  (none.IsDiskIi(), L"one 5.25-inch drive on the port");
         }
     };
 }
