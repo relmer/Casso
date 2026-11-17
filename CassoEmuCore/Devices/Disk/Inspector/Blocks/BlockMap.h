@@ -120,7 +120,9 @@ struct BlockFileEntry
 //  Every block of a volume, the paths of the files that use them, and for
 //  HFS where the allocation blocks start and which block each B-tree node
 //  is in. `hasFreeMap` is false for a volume with no free map, such as
-//  Pascal's, where a block with no file is simply free.
+//  Pascal's, where a block with no file is simply free. `bootLoader` is the
+//  loader in the boot blocks, as "ProDOS loader", or empty for a volume of
+//  no known file system.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,6 +132,7 @@ struct BlockMap
 
     BlockFileSystem        fileSystem          = BlockFileSystem::None;
     std::wstring           volumeName;
+    std::wstring           bootLoader;
     vector<BlockMapEntry>  blocks;
     vector<std::wstring>   files;
     vector<BlockFileEntry> entries;

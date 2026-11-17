@@ -68,7 +68,7 @@ enum class PayloadEncoding
 //
 enum class PayloadTextForm
 {
-    AppleHighAscii,     // DOS 3.3 and ProDOS: high-bit characters, $8D line ends
+    AppleHighAscii,     // DOS 3.3, ProDOS and HFS: high-bit or plain characters, $8D or $0D line ends
     PascalPages,        // Apple Pascal: a header, then pages of indent-coded lines
     CpmRecords,         // CP/M: CR LF line ends, ended by $1A in the last record
 };

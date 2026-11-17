@@ -1237,13 +1237,7 @@ HRESULT DiskCommandRunner::ApplyEncoding (
         case CommandLineOptions::DiskOptions::Encoding::Text:
             // Both conventions decode identically -- once the high bit is
             // ignored, Apple high-ASCII and plain-ASCII text differ in nothing -- so
-            // this choice is inert on the read path. It becomes load-bearing
-            // when writing, which is where the terminator gets chosen.
-            //
-            // Apple high-ASCII is the measured answer on both filesystems: the ProDOS
-            // fixture volumes carry TXT files that are predominantly high-bit
-            // with $8D terminators, not the plain seven-bit form usually
-            // assumed for that filesystem.
+            // this choice has no effect on the read path.
             if (payload.textForm == PayloadTextForm::PascalPages)
             {
                 PascalVolume::DecodeText (payload.bytes, hostText);
@@ -2227,10 +2221,10 @@ HRESULT DiskCommandRunner::ResolvePascalKind (const CommandLineOptions & options
 //  makes extract-edit-replace safe: the bytes the caller did not touch come
 //  back exactly as they were.
 //
-//  Text is written in the Apple high-ASCII convention on BOTH filesystems, which is
-//  the measured answer rather than the assumed one -- the ProDOS fixture
-//  volumes' own TXT files are predominantly high-bit with $8D terminators. It
-//  is also what the read path decodes, so the two directions agree.
+//  Text is written in the form VolumeImage::GetTextConvention returns: plain
+//  ASCII with $0D line ends on ProDOS and HFS, which is what BASIC.SYSTEM and
+//  GS/OS write, and high-bit text with $8D line ends on DOS 3.3. The read path
+//  decodes either form.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2290,7 +2284,7 @@ HRESULT DiskCommandRunner::BuildPutPayload (
             else
             {
                 hr = (kind == VolumeKind::Pascal) ? PascalVolume::EncodeText (hostText, outPayload.bytes, badOffset)
-                                                  : AppleTextCodec::Encode (hostText, AppleTextConvention::HighAscii, outPayload.bytes, badOffset);
+                                                  : AppleTextCodec::Encode (hostText, VolumeImage::GetTextConvention (kind), outPayload.bytes, badOffset);
             }
 
             if (FAILED (hr))

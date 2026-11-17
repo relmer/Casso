@@ -235,6 +235,34 @@ public:
     }
 
 
+    TEST_METHOD (BootBlocks_HaveTheLoaderOfEachFileSystem)
+    {
+        static const std::pair<const char *, LPCWSTR>  s_kCases[] =
+        {
+            { "prodos/simple-sparse.po",  L"ProDOS 8 v2.0.3"     },
+            { "pascal/Apple Pascal1.po",  L"Apple Pascal loader" },
+            { "hfs/simple-gsos.po",       L"None"                },
+        };
+
+        uint32_t  inner = 0;
+
+
+
+        for (const auto & [image, loader] : s_kCases)
+        {
+            std::vector<Byte>    bytes;
+            FakeDiskFileIo       io;
+            BlockInspectorModel  model;
+
+            if (OpenImage (image, bytes))
+            {
+                OpenModel (bytes, io, model);
+                Assert::AreEqual (std::wstring (loader), model.FindMap (0, inner)->bootLoader, TextEncoding::Utf8ToWide (image).c_str());
+            }
+        }
+    }
+
+
     TEST_METHOD (HfsSimpleGsos_MapAgreesWithTheCatalog)
     {
         std::vector<Byte>      bytes;

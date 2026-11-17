@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "AppleTextCodec.h"
+
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/MountDiagnosis.h"
 #include "Devices/Disk/Containers/ImageContainer.h"
@@ -85,6 +87,11 @@ public:
     //  The file system's name as a listing's heading uses it, and an empty
     //  string for Unknown.
     static const char * GetSystemName (VolumeKind kind);
+
+    //  The form a host text file is written in on a file system: plain ASCII
+    //  with $0D line ends on ProDOS and HFS, as GS/OS reads it, and high-bit
+    //  text with $8D line ends on DOS 3.3 and a Gutenberg disk.
+    static AppleTextConvention  GetTextConvention (VolumeKind kind);
 
     //  Any mountable image file to a DOS-logical sector buffer. The report
     //  describes what the track layer could recover, and is empty of meaning

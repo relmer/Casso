@@ -608,7 +608,17 @@ void BlockBrowser::AddVolumeRows (BlockListing & listing, int volume) const
 
     for (const auto & [key, blocks] : parts)
     {
-        structures.rows.push_back (MakeBlocksRow (BlockListRow::Kind::Structure, volume, GetStructureName ((BlockStructure) key.first, key.second), blocks));
+        BlockStructure  structure = (BlockStructure) key.first;
+        BlockListRow    row       = MakeBlocksRow (BlockListRow::Kind::Structure, volume, GetStructureName (structure, key.second), blocks);
+
+
+
+        if (structure == BlockStructure::BootLoader || structure == BlockStructure::HfsBootBlock)
+        {
+            row.cells[kType] = map.bootLoader;
+        }
+
+        structures.rows.push_back (std::move (row));
     }
 
     for (const auto & [role, blocks] : damage)

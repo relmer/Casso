@@ -1263,7 +1263,7 @@ CiderPress II's file viewer, from its GUI manual, was compared feature by featur
   of a disk to the name its image has from the user, written when an image
   with a manifest row is renamed in Casso Explorer.
 
-## R64. One number formatter for all of Casso (FR-297)
+## R64. One number formatter for all of Casso (FR-303)
 
 - **Decision**: `NumberFormat` in `CassoEmuCore/Core` writes every number
   on screen with `GetNumberFormatEx` and the user's `LOCALE_STHOUSAND`,

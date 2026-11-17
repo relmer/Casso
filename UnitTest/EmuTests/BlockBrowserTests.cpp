@@ -161,6 +161,7 @@ public:
         Assert::AreEqual (std::wstring (L"BIN"), FindGroup (listing, L"Files")->rows[0].cells[BlockBrowser::kType]);
         Assert::AreEqual (2u, listing.groups[0].rows[FindRowNamed (listing, L"Volume directory")].first);
         Assert::AreEqual (std::wstring (L"Boot blocks"), FindGroup (listing, L"Structures")->rows[0].cells[0]);
+        Assert::AreEqual (std::wstring (L"None"), FindGroup (listing, L"Structures")->rows[0].cells[BlockBrowser::kType], L"the type is the loader, and a new volume's boot blocks are zeros");
     }
 
 

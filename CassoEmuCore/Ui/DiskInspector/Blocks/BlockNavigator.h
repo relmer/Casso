@@ -105,7 +105,8 @@ private:
     void          ShowOverflowMenu (const RECT & anchor);
     void          AddMenuCommand   (vector<DxuiPopupMenuItem> & items, const std::wstring & label, std::function<void ()> dispatch);
 
-    std::shared_ptr<const DxuiIconImage>  GetRowIcon (const BlockListRow & row);
+    std::shared_ptr<const DxuiIconImage>  GetRowIcon  (const BlockListRow & row);
+    const vector<DxuiListView::Cell>    & GetRowCells (int row);
 
     BlockInspectorModel                   * m_model        = nullptr;
     IShellIcons                           * m_icons        = nullptr;
@@ -114,6 +115,9 @@ private:
     vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     BlockBrowser                            m_browser;
     BlockListing                            m_listing;
+    vector<const BlockListRow *>            m_rowOrder;      // the listing's rows in the list's order
+    vector<vector<DxuiListView::Cell>>      m_rowCells;      // each row's cells once the list has asked for them
+    vector<bool>                            m_rowBuilt;
     DxuiAddressBar                        * m_crumbs       = nullptr;
     DxuiTextInput                         * m_search       = nullptr;
     DxuiTreeView                          * m_tree         = nullptr;

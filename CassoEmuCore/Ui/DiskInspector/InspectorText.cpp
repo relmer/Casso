@@ -100,10 +100,10 @@ vector<SummaryChip> InspectorText::BuildChips (const DiskSummary & summary)
 //  InspectorText::BuildBlockChips
 //
 //  An image of one volume has its file system, its volume name, its blocks,
-//  its blocks in use, its files and any cross-linked blocks. A partitioned
-//  image has its partitions and its blocks. Blocks in use are counted rather
-//  than free blocks, as the blocks of an image past its volume's end are
-//  free on the map.
+//  its blocks in use, its files, not counting directories, and any
+//  cross-linked blocks. A partitioned image has its partitions and its
+//  blocks. Blocks in use are counted rather than free blocks, as the blocks
+//  of an image past its volume's end are free on the map.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,7 +157,7 @@ vector<SummaryChip> InspectorText::BuildBlockChips (const BlockInspectorModel & 
         }
 
         chips.push_back ({ SummaryChipKind::BlocksUsed, FormatCount (used, L"block used", L"blocks used"), false });
-        chips.push_back ({ SummaryChipKind::Files, FormatCount (static_cast<int> (map->files.size()), L"file", L"files"), false });
+        chips.push_back ({ SummaryChipKind::Files, FormatCount (static_cast<int> (std::ranges::count_if (map->entries, [] (const BlockFileEntry & entry) { return !entry.isDirectory; })), L"file", L"files"), false });
     }
 
     if (crossed > 0)
@@ -236,6 +236,45 @@ std::wstring InspectorText::FormatFileSystem (BlockFileSystem fileSystem)
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatWindowTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatWindowTitle (const std::wstring & path, bool isWriteProtected, bool hasEdits, const std::wstring & mount, size_t & outMarkAt)
+{
+    std::wstring  title = L"Disk inspector - ";
+
+
+
+    title    += isWriteProtected ? std::wstring (s_kpszLock) + L" " : std::wstring();
+    title    += path;
+    outMarkAt = hasEdits ? title.size() : std::wstring::npos;
+    title    += mount.empty() ? std::wstring() : L" (mounted in " + mount + L")";
+
+    return title;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatUnsavedChanges
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatUnsavedChanges (int count, LPCWSTR singular, LPCWSTR plural, const std::wstring & fileName)
+{
+    return L"There are unsaved changes to " + FormatCount (count, singular, plural) + L" in " + fileName + L".";
 }
 
 

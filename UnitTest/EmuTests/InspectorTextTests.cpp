@@ -158,6 +158,30 @@ public:
 
 
 
+    TEST_METHOD (TheTitleHasThePathTheMountAndWhereTheUnsavedDotGoes)
+    {
+        size_t        markAt = 0;
+        std::wstring  title  = InspectorText::FormatWindowTitle (L"C:\\Disks\\GAME.dsk", false, true, L"Apple //e drive 1", markAt);
+
+
+
+        Assert::AreEqual (std::wstring (L"Disk inspector - C:\\Disks\\GAME.dsk (mounted in Apple //e drive 1)"), title);
+        Assert::AreEqual (title.find (L" (mounted"), markAt, L"the dot goes after the path, before the mount");
+
+        title = InspectorText::FormatWindowTitle (L"C:\\Disks\\GAME.dsk", true, false, L"", markAt);
+
+        Assert::AreEqual (std::wstring (L"Disk inspector - ") + s_kpszLock + L" C:\\Disks\\GAME.dsk", title, L"a lock while write-protected, no mount once ejected");
+        Assert::AreEqual (std::wstring::npos, markAt, L"no dot without unsaved changes");
+    }
+
+
+    TEST_METHOD (TheUnsavedChangesQuestionHasTheFileName)
+    {
+        Assert::AreEqual (std::wstring (L"There are unsaved changes to 1 sector in GAME.dsk."),   InspectorText::FormatUnsavedChanges (1, L"sector", L"sectors", L"GAME.dsk"));
+        Assert::AreEqual (std::wstring (L"There are unsaved changes to 3 blocks in Total.hdv."), InspectorText::FormatUnsavedChanges (3, L"block", L"blocks", L"Total.hdv"));
+    }
+
+
     TEST_METHOD (TheStatusBandNamesWhatIsSelected)
     {
         DiskAnalysis           analysis;
