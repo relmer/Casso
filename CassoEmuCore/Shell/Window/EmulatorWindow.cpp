@@ -517,6 +517,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // protection source(s).
     m_chrome->m_driveTooltip.SetPopupHost (m_host.get());
     m_chrome->m_driveTooltip.SetTheme     (m_chrome->m_chromeTheme);
+    m_chrome->m_driveBarZoomNote.SetPopupHost (m_host.get());
+    m_chrome->m_driveBarZoomNote.SetTheme     (m_chrome->m_chromeTheme);
 
     // The caption buttons' tooltip, in place of the stock system one.
     m_chrome->m_captionTooltip.SetPopupHost (m_host.get());
@@ -624,8 +626,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_VIEW_FRAME_RATE:         return m_settings->GetPrefs().showFrameRate;
             case IDM_VIEW_SCENE_VIEW:         return m_settings->GetPrefs().showSceneView;
             case IDM_VIEW_AUTOHIDE_DRIVES:    return m_settings->GetPrefs().autoHideDrives;
-            case IDM_VIEW_FLOPPIES_ON_DESK:   return m_scene->IsClassOnDesk (DeskDriveClass::Floppy);
-            case IDM_VIEW_HARD_DISKS_ON_DESK: return m_scene->IsClassOnDesk (DeskDriveClass::HardDisk);
             case IDM_VIEW_FLOPPY_PAIR_BESIDE: return m_settings->GetPrefs().deskFloppyPairBeside;
 
             default:                          return false;
@@ -760,6 +760,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             {
                 return m_tapeDeck->IsTapeRecorderShown() ? std::wstring (L"Detach ca&ssette recorder")
                                                          : std::wstring (L"Attach ca&ssette recorder");
+            }
+
+            case IDM_VIEW_FLOPPIES_ON_DESK:
+            {
+                return EmulatorCommands::GetDrivePlaceLabel (false, m_scene->IsClassOnDesk (DeskDriveClass::Floppy));
+            }
+
+            case IDM_VIEW_HARD_DISKS_ON_DESK:
+            {
+                return EmulatorCommands::GetDrivePlaceLabel (true, m_scene->IsClassOnDesk (DeskDriveClass::HardDisk));
             }
 
             case IDM_DISK_WP1:
@@ -1224,6 +1234,7 @@ void EmulatorShell::WaitForFrameOrMessage()
 
     if (m_chrome->m_switchBarTooltip.WantsTick() ||
         m_chrome->m_driveTooltip.WantsTick()     ||
+        m_chrome->m_driveBarZoomNote.WantsTick() ||
         m_chrome->m_captionTooltip.WantsTick()   ||
         m_scene->m_sceneCompass.WantsTick()     ||
         m_scene->m_compassHintOpacity != (m_scene->m_sceneCompass.IsHovered() ? 1.0f : 0.0f) ||

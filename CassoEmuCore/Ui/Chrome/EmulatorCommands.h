@@ -107,6 +107,10 @@ public:
     // The Storage menu's second-drive row, which the live label query shows.
     static std::wstring  GetDrive2Label (bool isExternal, bool isAttached);
 
+    // The labels of the View menu's floppy and hard disk place rows, returned
+    // by the live label query.
+    static std::wstring  GetDrivePlaceLabel (bool isHardDisk, bool isOnDesk);
+
     // Shell sinks. Read live by every command's functors, so they can be
     // set or replaced at any time without rebuilding anything.
     void  SetDispatch     (DispatchFn fn)   { m_dispatch   = std::move (fn); }
