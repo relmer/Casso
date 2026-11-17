@@ -2365,7 +2365,7 @@
     <None Include="CassoLink\Apple\Universal.s" />
     <None Include="CassoLink\Apple\SlotFinder.s" />
     <None Include="CassoLink\Apple\Modules\Block.s" />
-    <None Include="CassoLink\Apple\Modules\Nibble.s" />
+    <None Include="CassoLink\Apple\Modules\ThirteenSector.s" />
     <None Include="CassoLink\Apple\VirtualDrive.s" />
     <None Include="CassoLink\Apple\Modules\Capture.s" />
     <None Include="CassoLink\Apple\AppleSources.targets" />

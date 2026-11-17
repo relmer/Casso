@@ -64,7 +64,7 @@ public:
     HRESULT  ReadBootSector     (LinkOperation & operation);
 
     //  A 13-sector disk to a .d13 image, and a 13-sector image to the disk,
-    //  through the nibble module (CassoLinkThirteenSector).
+    //  through the 13-sector module (CassoLinkThirteenSector).
     HRESULT  ReadThirteenSectorDisk  (LinkOperation & operation);
     HRESULT  WriteThirteenSectorDisk (LinkOperation & operation, const std::vector<Byte> & sectors);
     HRESULT  ReadTrack          (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable, bool autoVerify = false, std::vector<SectorMark> * marks = nullptr);

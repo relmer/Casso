@@ -157,11 +157,11 @@ public:
     //  filled in here, and end below kModuleAddress + kModuleLimit.
     static HRESULT      AssembleModule   (const std::string & source, std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia, bool faults = false);
 
-    //  The capture, block and nibble modules, for the program built for
+    //  The capture, block and 13-sector modules, for the program built for
     //  `chip`.
-    static HRESULT      BuildCaptureModule (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
-    static HRESULT      BuildBlockModule   (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
-    static HRESULT      BuildNibbleModule  (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
+    static HRESULT      BuildCaptureModule        (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
+    static HRESULT      BuildBlockModule          (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
+    static HRESULT      BuildThirteenSectorModule (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
 
     //  The CassoLink ProDOS disk's CASSOLINK file, loaded and run at
     //  kInstallerAddress: the installer, then the driver as assembled at
@@ -210,14 +210,14 @@ public:
     static HRESULT      AssembleSerialLoader   (std::vector<Byte> & outBytes, std::string & outErrors);
     static HRESULT      BuildBootstrapImage    (const LinkShimOptions & options, std::vector<Byte> & outImage, Word & outStart);
 
-    static std::string  GetShimSource          ();
-    static std::string  GetProgramSource       ();
-    static std::string  GetUniversalSource     ();
-    static std::string  GetSlotFinderSource    ();
-    static std::string  GetCaptureModuleSource ();
-    static std::string  GetBlockModuleSource   ();
-    static std::string  GetNibbleModuleSource  ();
-    static std::string  GetVirtualDriveSource  ();
+    static std::string  GetShimSource                 ();
+    static std::string  GetProgramSource              ();
+    static std::string  GetUniversalSource            ();
+    static std::string  GetSlotFinderSource           ();
+    static std::string  GetCaptureModuleSource        ();
+    static std::string  GetBlockModuleSource          ();
+    static std::string  GetThirteenSectorModuleSource ();
+    static std::string  GetVirtualDriveSource         ();
 
     //  The 6551 control byte for a speed: 8 data bits, 1 stop bit and the
     //  rate. False for a speed the //c's port does not have.

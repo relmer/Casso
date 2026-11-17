@@ -190,7 +190,7 @@ public:
             sectors[at] = (Byte) (at * 7 + at / 256);
         }
 
-        AssertSucceeded (LinkProgram::BuildNibbleModule (module));
+        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
         AssertSucceeded (rig.host->EnsureModule (module));
         AssertSucceeded (CassoLinkThirteenSector::WriteDisk (*rig.host, 1, sectors, nullptr, nullptr, status));
         Assert::AreEqual ((Byte) 0, status.error);
@@ -225,7 +225,7 @@ public:
 
         ThirteenSectorCodec::Denibblize (*rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0), expected, expectedReport);
 
-        AssertSucceeded (LinkProgram::BuildNibbleModule (module));
+        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
         AssertSucceeded (rig.host->EnsureModule (module));
         AssertSucceeded (CassoLinkThirteenSector::ReadDisk (*rig.host, 1, nullptr, nullptr, read, readReport, status));
         Assert::AreEqual ((Byte) 0, status.error);
@@ -265,7 +265,7 @@ public:
             sectors[at] = (Byte) (at * 5 + at / 256 + 1);
         }
 
-        AssertSucceeded (LinkProgram::BuildNibbleModule (module));
+        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module));
         AssertSucceeded (rig.host->EnsureModule (module));
         AssertSucceeded (CassoLinkThirteenSector::WriteDisk (*rig.host, 1, sectors, nullptr, nullptr, status));
 

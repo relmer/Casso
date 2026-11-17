@@ -16,7 +16,7 @@ class SectorDecodeReport;
 //  CassoLinkThirteenSector
 //
 //  A 13-sector disk, DOS 3.2's, over the link (FR-216). The program reads
-//  and writes 16-sector fields alone, so both go through the nibble module,
+//  and writes 16-sector fields alone, so both go through the 13-sector module,
 //  which must be loaded. A read is each track's data fields by Read 13-sector
 //  track, decoded on the PC; a write is each track's stream as
 //  ThirteenSectorCodec lays it out, by Write nibble track.

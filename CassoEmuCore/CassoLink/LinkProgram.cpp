@@ -13,7 +13,7 @@
 #include "SlotFinder.s.h"
 #include "Capture.s.h"
 #include "Block.s.h"
-#include "Nibble.s.h"
+#include "ThirteenSector.s.h"
 #include "VirtualDrive.s.h"
 
 
@@ -412,13 +412,13 @@ HRESULT LinkProgram::BuildBlockModule (std::vector<Byte> & outModule, LinkChip c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LinkProgram::GetNibbleModuleSource
+//  LinkProgram::GetThirteenSectorModuleSource
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string LinkProgram::GetNibbleModuleSource()
+std::string LinkProgram::GetThirteenSectorModuleSource()
 {
-    return std::string (reinterpret_cast<const char *> (s_kNibbleModuleSource), sizeof (s_kNibbleModuleSource) - 1);
+    return std::string (reinterpret_cast<const char *> (s_kThirteenSectorModuleSource), sizeof (s_kThirteenSectorModuleSource) - 1);
 }
 
 
@@ -427,17 +427,17 @@ std::string LinkProgram::GetNibbleModuleSource()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LinkProgram::BuildNibbleModule
+//  LinkProgram::BuildThirteenSectorModule
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LinkProgram::BuildNibbleModule (std::vector<Byte> & outModule, LinkChip chip, bool faults)
+HRESULT LinkProgram::BuildThirteenSectorModule (std::vector<Byte> & outModule, LinkChip chip, bool faults)
 {
     std::string  errors;
 
 
 
-    return AssembleModule (GetNibbleModuleSource(), outModule, errors, chip, faults);
+    return AssembleModule (GetThirteenSectorModuleSource(), outModule, errors, chip, faults);
 }
 
 

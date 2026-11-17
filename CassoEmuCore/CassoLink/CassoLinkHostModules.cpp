@@ -397,13 +397,13 @@ HRESULT CassoLinkHost::BuildCaptureModule (std::vector<Byte> & outModule) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkHost::BuildNibbleModule
+//  CassoLinkHost::BuildThirteenSectorModule
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::BuildNibbleModule (std::vector<Byte> & outModule) const
+HRESULT CassoLinkHost::BuildThirteenSectorModule (std::vector<Byte> & outModule) const
 {
-    return LinkProgram::BuildNibbleModule (outModule, m_programChip, m_faultProgram);
+    return LinkProgram::BuildThirteenSectorModule (outModule, m_programChip, m_faultProgram);
 }
 
 

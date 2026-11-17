@@ -1,5 +1,5 @@
 ; ---------------------------------------------------------------------------
-; Nibble: a module of the link program. 13-sector tracks read, and a track
+; ThirteenSector: a module of the link program. 13-sector tracks read, and a track
 ; written from a stream of nibbles the host builds, so a disk of any format,
 ; 13 sectors among them, is written over the link (R49).
 ;
@@ -39,7 +39,7 @@ DATAGAP    = 40                 ; nibbles to the data prologue at most
 TRIES      = 8
 
         .org $5000
-        .byte 'C', 'M', 3, 2    ; nibble, version 2
+        .byte 'C', 'M', 3, 2    ; 13-sector, version 2
         .word PROGVER
         .word modend - $5000
         .word 0                 ; the CRC, which the PC fills in

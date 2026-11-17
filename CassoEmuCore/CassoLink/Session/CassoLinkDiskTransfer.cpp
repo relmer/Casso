@@ -729,7 +729,7 @@ HRESULT CassoLinkDiskTransfer::ReadThirteenSectorDisk (LinkOperation & operation
 
 
 
-    hr = m_session.m_host->BuildNibbleModule (module);
+    hr = m_session.m_host->BuildThirteenSectorModule (module);
     CHR (hr);
 
     hr = m_session.m_host->EnsureModule (module);
@@ -786,7 +786,7 @@ HRESULT CassoLinkDiskTransfer::WriteThirteenSectorDisk (LinkOperation & operatio
 
 
 
-    hr = m_session.m_host->BuildNibbleModule (module);
+    hr = m_session.m_host->BuildThirteenSectorModule (module);
     CHR (hr);
 
     hr = m_session.m_host->EnsureModule (module);

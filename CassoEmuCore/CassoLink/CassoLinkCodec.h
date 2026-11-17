@@ -172,7 +172,7 @@ public:
     static constexpr Byte    kWriteBlocks     = 0xF2;
     static constexpr size_t  kBlockSize       = 512;
 
-    //  The nibble module's Write nibble track: the drive, the track and the
+    //  The 13-sector module's Write nibble track: the drive, the track and the
     //  stream's length; an Acknowledge requests the stream, in a Nibble data
     //  packet with its CRC, and a Status ends it. In the stream, a byte with
     //  its top bit set is a nibble and a 0 a self-sync byte.
@@ -180,7 +180,7 @@ public:
     static constexpr Byte    kNibbleData       = 0xF4;
     static constexpr size_t  kMaxNibbleStream  = 0x3500;
 
-    //  The nibble module's Read 13-sector track: the drive, the track and
+    //  The 13-sector module's Read 13-sector track: the drive, the track and
     //  the sectors requested, a bit each, low byte first. The reply is a
     //  13-sector data packet for each sector found, in physical order: the
     //  sector, its data field's nibbles as the drive read them and their CRC;
