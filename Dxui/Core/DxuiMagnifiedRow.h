@@ -89,6 +89,8 @@ public:
     bool   IsEasing    (int64_t nowMs) const;
 
 private:
+    static float  GetGap (std::span<const DxuiMagnifiedItem> items, std::span<const DxuiMagnifiedSpan> spans, size_t i, Gaps gaps);
+
     int64_t  m_fadeMs   = kFadeMs;
     bool     m_isNear   = false;
     float    m_from     = 0.0f;     // the strength when the pointer last arrived or left

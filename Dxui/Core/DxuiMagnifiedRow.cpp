@@ -60,13 +60,6 @@ void DxuiMagnifiedRow::Lay (std::span<const DxuiMagnifiedItem> items, float poin
     float   fraction = 0.0f;
     float   fit      = 1.0f;
 
-    auto  getGap = [&] (size_t i)
-    {
-        float  gap = (i < last) ? items[i + 1].left - (items[i].left + items[i].width) : 0.0f;
-
-        return (options.gaps == Gaps::Grow && i < last) ? gap * (outSpans[i].scale + outSpans[i + 1].scale) * 0.5f : gap;
-    };
-
 
 
     for (size_t i = 0; i < count; i++)
@@ -81,7 +74,7 @@ void DxuiMagnifiedRow::Lay (std::span<const DxuiMagnifiedItem> items, float poin
 
     for (size_t i = 0; i < count; i++)
     {
-        gaps += getGap (i);
+        gaps += GetGap (items, outSpans, i, options.gaps);
     }
 
     if (options.anchor == Anchor::Fit && widths > 0.0f)
@@ -94,7 +87,7 @@ void DxuiMagnifiedRow::Lay (std::span<const DxuiMagnifiedItem> items, float poin
     {
         outSpans[i].width *= fit;
         outSpans[i].left   = x;
-        x                 += outSpans[i].width + getGap (i);
+        x                 += outSpans[i].width + GetGap (items, outSpans, i, options.gaps);
     }
 
     if (count > 0 && options.anchor == Anchor::Center)
@@ -112,6 +105,29 @@ void DxuiMagnifiedRow::Lay (std::span<const DxuiMagnifiedItem> items, float poin
     {
         outSpans[i].left += shift;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMagnifiedRow::GetGap
+//
+//  The gap after item i as laid out: as at rest, or grown with the items
+//  beside it. None after the last item.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiMagnifiedRow::GetGap (std::span<const DxuiMagnifiedItem> items, std::span<const DxuiMagnifiedSpan> spans, size_t i, Gaps gaps)
+{
+    bool   isLast = i + 1 >= std::min (items.size(), spans.size());
+    float  gap    = isLast ? 0.0f : items[i + 1].left - (items[i].left + items[i].width);
+
+
+
+    return (gaps == Gaps::Grow && !isLast) ? gap * (spans[i].scale + spans[i + 1].scale) * 0.5f : gap;
 }
 
 
