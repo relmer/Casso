@@ -158,7 +158,8 @@ bool ShellChrome::IsPointOnDriveBar (POINT pt) const
 //  ShellChrome::ZoomDriveBar
 //
 //  The band under the scene grows with the bar, so the whole window is laid
-//  out again, as for a change of where the drives go.
+//  out again, as for a change of where the drives go. A note with the zoom
+//  as a percent appears above the pointer for a moment.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,6 +168,7 @@ bool ShellChrome::ZoomDriveBar (POINT pt, float notches)
     GlobalUserPrefs  & prefs    = m_shell.m_settings->GetPrefs();
     float              zoom     = DriveBarFan::GetZoomAfterWheel (GetDriveBarZoom(), notches);
     RECT               rcClient = {};
+    int64_t            nowMs    = (int64_t) GetTickCount64();
 
 
 
@@ -187,6 +189,8 @@ bool ShellChrome::ZoomDriveBar (POINT pt, float notches)
             m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
         }
     }
+
+    m_driveBarZoomNote.ShowTimed ({ pt.x, pt.y, pt.x + 1, pt.y + 1 }, std::format (L"{:.0f}%", zoom * 100.0f), nowMs, s_kDriveBarZoomNoteMs, DxuiPopupPlacement::Above);
 
     return true;
 }

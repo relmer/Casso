@@ -1170,6 +1170,7 @@ bool ShellRenderer::TryPresentUiFrame()
         m_shell.m_chrome->m_toolbarTooltip.Tick   (nowMs);
         m_shell.m_chrome->m_switchBarTooltip.Tick (nowMs);
         m_shell.m_chrome->m_driveTooltip.Tick     (nowMs);
+        m_shell.m_chrome->m_driveBarZoomNote.Tick (nowMs);
         m_shell.m_chrome->m_captionTooltip.Tick   (nowMs);
 
         // The update indicator's shimmer asks for frames only while it sweeps;

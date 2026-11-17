@@ -301,6 +301,11 @@ private:
     // with the other chrome tooltips (the hover regions are mutually exclusive).
     DxuiTooltip               m_driveTooltip;
 
+    // The note with the drive bar's zoom as a percent, up above the pointer
+    // for a moment after each Ctrl+wheel step over the bar.
+    static constexpr int      s_kDriveBarZoomNoteMs = 1000;
+    DxuiTooltip               m_driveBarZoomNote;
+
     // Hover tooltip for the caption's minimize, maximize and close buttons.
     // The stock system tooltip for those is suppressed at the host, so this
     // is the only one, and it matches every other tooltip in the window.
