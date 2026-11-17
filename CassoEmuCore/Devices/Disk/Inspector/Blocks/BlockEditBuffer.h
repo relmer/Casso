@@ -32,6 +32,12 @@ public:
     bool  TypeCharacter (uint32_t block, const Block & base, int offset, wchar_t ch);
     bool  SetBlock      (uint32_t block, const Block & base, const Block & bytes);
 
+    //  Overwrites from `offset` with pasted hex or text, stopping at the end
+    //  of the block, as one action. Returns the bytes written; `outOverflow`
+    //  has the bytes that didn't fit. Hex text that doesn't read as pairs of
+    //  hex digits writes nothing.
+    int   Paste (uint32_t block, const Block & base, int offset, const std::wstring & text, bool isTextColumn, int & outOverflow);
+
     bool  Undo    ();
     bool  Redo    ();
     bool  CanUndo () const { return m_undoAt > 0; }

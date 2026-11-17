@@ -208,6 +208,42 @@ public:
     }
 
 
+    TEST_METHOD (Paste_WritesHexAndTextFromTheOffsetAsOneAction)
+    {
+        FakeDiskFileIo              io;
+        BlockInspectorModel         model;
+        int                         overflow = 0;
+        BlockInspectorModel::Block  bytes    = {};
+
+
+
+        Seed (io, "vol.po", MakeProDos());
+        OpenModel (io, "vol.po", model);
+        model.SelectBlock (300);
+
+        Assert::AreEqual (2, model.Paste (10, L"A5 5a", false, overflow));
+        AssertSucceeded (model.ReadBlock (300, bytes));
+        Assert::AreEqual ((Byte) 0xA5, bytes[10]);
+        Assert::AreEqual ((Byte) 0x5A, bytes[11]);
+        Assert::AreEqual (0, overflow);
+
+        Assert::AreEqual (1, model.Paste (511, L"0102", false, overflow), L"the rest doesn't fit");
+        Assert::AreEqual (1, overflow);
+
+        Assert::AreEqual (0, model.Paste (20, L"XY", false, overflow), L"not hex");
+        Assert::AreEqual (0, model.Paste (20, L"ABC", false, overflow), L"an odd digit");
+
+        Assert::AreEqual (2, model.Paste (30, L"Hi", true, overflow));
+        AssertSucceeded (model.ReadBlock (300, bytes));
+        Assert::AreEqual ((Byte) 'H', bytes[30]);
+
+        Assert::IsTrue  (model.Undo());
+        AssertSucceeded (model.ReadBlock (300, bytes));
+        Assert::AreEqual ((Byte) 0, bytes[30], L"the text paste is one action");
+        Assert::AreEqual ((Byte) 0xA5, bytes[10]);
+    }
+
+
     TEST_METHOD (ApplyEdits_WritesNothingWhenTheFileChanged)
     {
         FakeDiskFileIo       io;

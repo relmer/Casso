@@ -210,6 +210,89 @@ bool BlockEditBuffer::SetBlock (uint32_t block, const Block & base, const Block 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockEditBuffer::Paste
+//
+//  Hex text is read as pairs of digits, ignoring spaces. Each pasted
+//  character takes the high bit of the byte it replaces, as typing does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BlockEditBuffer::Paste (uint32_t block, const Block & base, int offset, const std::wstring & text, bool isTextColumn, int & outOverflow)
+{
+    constexpr Byte     kHighBit        = 0x80;
+    constexpr Byte     kLowBits        = 0x7F;
+    constexpr wchar_t  kFirstPrintable = 0x20;
+    constexpr wchar_t  kLastPrintable  = 0x7E;
+    constexpr int      kNibbleBits     = 4;
+    constexpr int      kDecimal        = 10;
+
+
+
+    vector<Byte>  values;
+    Block         current = base;
+    int           high    = -1;
+    int           digit   = -1;
+    bool          isValid = offset >= 0 && offset < (int) kBlockBytes;
+    int           room    = (int) kBlockBytes - offset;
+    int           written = 0;
+    size_t        i       = 0;
+
+
+
+    outOverflow = 0;
+
+    for (wchar_t ch : isValid ? text : std::wstring())
+    {
+        if (isTextColumn)
+        {
+            if (ch >= kFirstPrintable && ch <= kLastPrintable)
+            {
+                values.push_back ((Byte) (ch & kLowBits));
+            }
+        }
+        else if (ch != L' ' && ch != L'\t' && ch != L'\r' && ch != L'\n')
+        {
+            digit   = (ch >= L'0' && ch <= L'9') ? ch - L'0' : (ch >= L'a' && ch <= L'f') ? ch - L'a' + kDecimal : (ch >= L'A' && ch <= L'F') ? ch - L'A' + kDecimal : -1;
+            isValid = isValid && digit >= 0;
+
+            if (high < 0)
+            {
+                high = digit;
+            }
+            else
+            {
+                values.push_back ((Byte) ((high << kNibbleBits) | digit));
+                high = -1;
+            }
+        }
+    }
+
+    isValid = isValid && high < 0 && !values.empty();
+
+    if (isValid)
+    {
+        outOverflow = std::max (0, (int) values.size() - room);
+        values.resize (std::min ((int) values.size(), room));
+        Overlay (block, current);
+
+        for (i = 0; i < values.size(); i++)
+        {
+            current[offset + i] = isTextColumn ? (Byte) (values[i] | (current[offset + i] & kHighBit)) : values[i];
+        }
+
+        written = (int) values.size();
+        (void) SetBlock (block, base, current);
+    }
+
+    return written;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockEditBuffer::Undo
 //
 ////////////////////////////////////////////////////////////////////////////////

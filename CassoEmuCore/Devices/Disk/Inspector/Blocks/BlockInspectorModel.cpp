@@ -1244,6 +1244,27 @@ bool BlockInspectorModel::TypeCharacter (int offset, wchar_t ch)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockInspectorModel::Paste
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BlockInspectorModel::Paste (int offset, const std::wstring & text, bool isTextColumn, int & outOverflow)
+{
+    Block    base = {};
+    HRESULT  hr   = ReadStoredBlock (m_block, base);
+
+
+
+    outOverflow = 0;
+    return SUCCEEDED (hr) ? m_edits.Paste (m_block, base, offset, text, isTextColumn, outOverflow) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockInspectorModel::ApplyEdits
 //
 //  The changed blocks are written, and the blocks before and after go in

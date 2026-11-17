@@ -159,6 +159,7 @@ public:
     //  Typing into the current block.
     bool                     TypeHexDigit  (int offset, bool isHighNibble, wchar_t digit);
     bool                     TypeCharacter (int offset, wchar_t ch);
+    int                      Paste         (int offset, const std::wstring & text, bool isTextColumn, int & outOverflow);
     bool                     Undo          ()                 { return m_edits.Undo(); }
     bool                     Redo          ()                 { return m_edits.Redo(); }
     void                     DiscardEdits  ()                 { m_edits.DiscardAll(); }

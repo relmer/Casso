@@ -291,7 +291,7 @@ HRESULT BlockImageFile::Open (
 Error:
     if (hr == HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT) && outError.empty())
     {
-        outError = L"Only a 2IMG file in ProDOS order opens in block mode.";
+        outError = L"Only a 2IMG file in ProDOS order opens in the block inspector.";
     }
 
     return hr;

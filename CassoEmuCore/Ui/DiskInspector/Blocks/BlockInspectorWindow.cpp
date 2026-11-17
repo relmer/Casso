@@ -69,7 +69,7 @@ HRESULT BlockInspectorWindow::Open (
     outError.clear();
     BuildCommands();
 
-    params.title                    = L"Disk inspector - " + GetFileName();
+    params.title                    = L"Block inspector - " + GetFileName();
     params.hInstance                = hInstance;
     params.ownerHwnd                = nullptr;
     params.placementAnchorHwnd      = owner;
@@ -82,7 +82,7 @@ HRESULT BlockInspectorWindow::Open (
     params.fitToWorkArea            = true;
 
     hr = Create (params);
-    CHRAF (hr, outError = L"The disk inspector's window can't be created.");
+    CHRAF (hr, outError = L"The block inspector window can't be created.");
 
     SetTheme (theme);
     m_tooltip.SetTheme (*theme);
@@ -328,7 +328,7 @@ void BlockInspectorWindow::QueueOpen()
                          {
                              if (FAILED (result->hr))
                              {
-                                 ShowMessage (result->message.empty() ? L"The image can't be opened in block mode." : result->message);
+                                 ShowMessage (result->message.empty() ? L"The image can't be opened in the block inspector." : result->message);
                                  CloseWindow();
                                  return;
                              }
@@ -993,7 +993,7 @@ void BlockInspectorWindow::UpdateEditing()
 //
 //  BlockInspectorWindow::UpdateTitle
 //
-//  "Disk inspector - " and the file's name, with a * before the name while
+//  "Block inspector - " and the file's name, with a * before the name while
 //  edits are pending, then a note such as the image it is compared with.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1001,7 +1001,7 @@ void BlockInspectorWindow::UpdateEditing()
 void BlockInspectorWindow::UpdateTitle()
 {
     bool          hasEdits = m_model.IsOpen() && !m_model.GetEdits().IsEmpty();
-    std::wstring  title    = L"Disk inspector - " + std::wstring (hasEdits ? L"*" : L"") + GetFileName() + m_titleNote;
+    std::wstring  title    = L"Block inspector - " + std::wstring (hasEdits ? L"*" : L"") + GetFileName() + m_titleNote;
 
 
 
@@ -1045,6 +1045,10 @@ bool BlockInspectorWindow::HandleEditKey (const DxuiKeyEvent & ev)
         {
             m_panel->Refresh();
         }
+    }
+    else if (ev.ctrl && !ev.alt && ev.vk == 'V')
+    {
+        PasteIntoBlock();
     }
     else if (!ev.ctrl && !ev.alt && ev.vk == VK_ESCAPE)
     {
@@ -1097,6 +1101,44 @@ void BlockInspectorWindow::CopyBlock()
     {
         (void) m_clipboard.SetText (GetHwnd(), text);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::PasteIntoBlock
+//
+//  Ctrl+V while editing: the clipboard's hex digits, or its text in the
+//  text column, over the block from the caret, as the sector editor
+//  pastes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::PasteIntoBlock()
+{
+    BlockHexView  * hex      = m_panel->GetHexView();
+    bool            isText   = hex != nullptr && hex->GetActiveColumn() == DxuiHexView::Column::Text;
+    std::wstring    text;
+    int             overflow = 0;
+    int             written  = 0;
+
+
+
+    if (hex == nullptr || m_worker.IsBusy() || !m_model.IsOpen() || !m_model.IsLoaded (m_model.GetBlock()) || !m_clipboard.GetText (GetHwnd(), text))
+    {
+        return;
+    }
+
+    written    = m_model.Paste ((int) hex->GetCaret(), text, isText, overflow);
+    m_editNote = (written == 0) ? std::wstring (isText ? L"Nothing to paste: the clipboard has no printable text" : L"Nothing to paste: the clipboard has no pairs of hex digits")
+               : (overflow > 0) ? InspectorText::FormatCount (overflow, L"byte", L"bytes") + L" did not fit before the end of the block"
+                                : std::wstring();
+
+    hex->ResetNibble();
+    m_panel->Refresh();
 }
 
 
@@ -1438,7 +1480,7 @@ void BlockInspectorWindow::ChangeTheme (const IDxuiTheme * theme)
 
 void BlockInspectorWindow::ShowMessage (const std::wstring & text)
 {
-    int  shown = DxuiMessageBox (GetHwnd(), m_theme, text.c_str(), L"Disk inspector", MB_OK | MB_ICONWARNING);
+    int  shown = DxuiMessageBox (GetHwnd(), m_theme, text.c_str(), L"Block inspector", MB_OK | MB_ICONWARNING);
 
 
 

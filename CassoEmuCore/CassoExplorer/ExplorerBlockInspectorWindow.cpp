@@ -68,7 +68,7 @@ HRESULT ExplorerBlockInspectorWindow::Create (HINSTANCE hInstance, HWND anchor, 
 
     if (FAILED (hr))
     {
-        shown = DxuiMessageBox (anchor, theme, (error.empty() ? std::wstring (L"The image can't be opened in block mode.") : error).c_str(), L"Disk inspector", MB_OK | MB_ICONWARNING);
+        shown = DxuiMessageBox (anchor, theme, (error.empty() ? std::wstring (L"The image can't be opened in the block inspector.") : error).c_str(), L"Block inspector", MB_OK | MB_ICONWARNING);
         IGNORE_RETURN_VALUE (shown, 0);
     }
 

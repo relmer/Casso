@@ -117,6 +117,7 @@ private:
     bool                                  HandleEditKey  (const DxuiKeyEvent & ev);
     void                                  Discard        ();
     void                                  CopyBlock      ();
+    void                                  PasteIntoBlock ();
     void                                  GoToBlock      ();
     void                                  ShowLevel      (BlockPlace::Kind kind);
     void                                  UpdateTooltip  (POINT pointPx);
