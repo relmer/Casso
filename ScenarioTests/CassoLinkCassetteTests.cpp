@@ -7,6 +7,7 @@
 #include "CassoLink/EmulatedCassetteAudio.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/Audio/CassetteByteStream.h"
+#include "CassoLink/Audio/WasapiCassetteAudio.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkAudioBootstrap.h"
 #include "CassoLink/LinkProgram.h"
@@ -228,6 +229,64 @@ public:
     }
 
 
+    //  This PC's default sound devices, run only when CASSO_CASSETTE_AUDIO is
+    //  set: they open, a burst is sent, and the input is captured. With
+    //  CASSO_CASSETTE_LOOPBACK set too, and the output cabled to the input,
+    //  the burst decodes.
+    TEST_METHOD (TheSoundDevices_SendABurst)
+    {
+        static constexpr DWORD  kListenMs = 3000;
+
+        std::vector<AudioDeviceChoice>  outputs;
+        std::vector<AudioDeviceChoice>  inputs;
+        std::vector<Byte>               bytes   = { 1, 2, 3, 0x55, 0xAA, 0xFF };
+        std::vector<double>             halves;
+        std::vector<float>              samples;
+        std::vector<float>              heard;
+        std::vector<Byte>               burst;
+        WasapiCassetteAudio             audio;
+        CassetteDecoder                 decoder (WasapiCassetteAudio::kSampleRate);
+        size_t                          length  = 0;
+        char                          * value   = nullptr;
+        bool                            enabled = _dupenv_s (&value, &length, "CASSO_CASSETTE_AUDIO") == 0 && value != nullptr;
+        bool                            looped  = false;
+
+
+
+        free (value);
+        value = nullptr;
+
+        if (!enabled)
+        {
+            return;
+        }
+
+        looped = _dupenv_s (&value, &length, "CASSO_CASSETTE_LOOPBACK") == 0 && value != nullptr;
+        free (value);
+
+        AssertSucceeded (WasapiCassetteAudio::ListDevices (false, outputs));
+        AssertSucceeded (WasapiCassetteAudio::ListDevices (true, inputs));
+        Logger::WriteMessage (std::format ("{} outputs, {} inputs\n", outputs.size(), inputs.size()).c_str());
+
+        AssertSucceeded (audio.Open (L"", L""));
+
+        CassetteCodec::AppendBurst (bytes, halves);
+        CassetteCodec::Render (halves, audio.GetSampleRate(), CassetteByteStream::kAmplitude, samples);
+        AssertSucceeded (audio.Play (samples));
+        Assert::IsTrue (audio.GetPlayingMs() > 0.0);
+
+        AssertSucceeded (audio.Capture (kListenMs, heard));
+        Assert::IsFalse (heard.empty(), L"the input is captured");
+
+        decoder.Push (heard);
+
+        if (looped)
+        {
+            Assert::IsTrue (decoder.PopBurst (burst) && burst == bytes, L"the burst comes back through the cable");
+        }
+    }
+
+
     //  A program damaged on its way from the tape fails its CRC, and the host
     //  fails the operation rather than load the program over the cassette
     //  ports, which the cassette build doesn't take.
@@ -289,6 +348,50 @@ public:
         AssertSucceeded (rig.host->WriteSectors (1, kTrack, sectors, pattern, status));
         Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error);
         Assert::IsTrue (rig.ReadTrack (kTrack) == pattern, L"the track written over the cassette ports reads back");
+    }
+
+
+    //  A whole disk written over the cassette ports of a //e: the drive's
+    //  disk then has every sector written.
+    TEST_METHOD (AWholeDisk_IsWritten_OnAnApple2e)
+    {
+        static constexpr Byte  kTracks = 35;
+
+        Rig                rig ("Apple2e");
+        std::vector<Byte>  sectors (kSectors);
+        std::vector<Byte>  image;
+        std::vector<Byte>  expected (rig.disk.size());
+        CassoLinkStatus    status;
+
+
+
+        for (size_t i = 0; i < sectors.size(); i++)
+        {
+            sectors[i] = (Byte) i;
+        }
+
+        for (Byte track = 0; track < kTracks; track++)
+        {
+            std::vector<Byte>  data ((size_t) kSectors * 256);
+
+            for (size_t i = 0; i < data.size(); i++)
+            {
+                data[i] = (Byte) (i * 3 + track * 29 + i / 256);
+            }
+
+            for (int p = 0; p < kSectors; p++)
+            {
+                size_t  offset = (size_t) (track * kSectors + NibblizationLayer::GetDosFileIndexForPhysicalSector (p)) * 256;
+
+                std::copy_n (data.begin() + (ptrdiff_t) p * 256, 256, expected.begin() + (ptrdiff_t) offset);
+            }
+
+            AssertSucceeded (rig.host->WriteSectors (1, track, sectors, data, status));
+            Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, std::format (L"track {}", track).c_str());
+        }
+
+        AssertSucceeded (NibblizationLayer::Denibblize (*rig.machine.GetDiskStore().GetImage (kDiskSlot, 0), DiskFormat::Dsk, image));
+        Assert::IsTrue (image == expected, L"the drive's disk has every sector written over the cassette ports");
     }
 
 

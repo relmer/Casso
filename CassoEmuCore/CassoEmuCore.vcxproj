@@ -315,6 +315,7 @@
     <ClCompile Include="CassoLink\LinkAnnouncement.cpp" />
     <ClCompile Include="CassoLink\Audio\CassetteByteStream.cpp" />
     <ClCompile Include="CassoLink\Audio\CassetteCodec.cpp" />
+    <ClCompile Include="CassoLink\Audio\WasapiCassetteAudio.cpp" />
     <ClCompile Include="CassoLink\LinkAudioBootstrap.cpp" />
     <ClCompile Include="CassoLink\LinkBootstrap.cpp" />
     <ClCompile Include="CassoLink\LinkFault.cpp" />
@@ -1958,6 +1959,7 @@
     <ClInclude Include="CassoLink\Audio\CassetteByteStream.h" />
     <ClInclude Include="CassoLink\Audio\CassetteCodec.h" />
     <ClInclude Include="CassoLink\Audio\ICassetteAudio.h" />
+    <ClInclude Include="CassoLink\Audio\WasapiCassetteAudio.h" />
     <ClInclude Include="CassoLink\LinkAudioBootstrap.h" />
     <ClInclude Include="CassoLink\LinkBootstrap.h" />
     <ClInclude Include="CassoLink\LinkFault.h" />
