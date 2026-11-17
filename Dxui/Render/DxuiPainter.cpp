@@ -1384,6 +1384,49 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FlushLayer
+//
+//  Draws the queued fills to the target, then calls the host's text flush to
+//  replay the text drawn so far over them. Whatever is drawn after this
+//  covers both. Fills go first so that text drawn before the call is on top
+//  of the fills drawn before it, as at the end of a pass.
+//
+//  Does nothing outside a pass or without a target. Without a text flush,
+//  only the fills are drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::FlushLayer()
+{
+    HRESULT  hr       = S_OK;
+    bool     canFlush = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    canFlush = m_betweenBeginEnd && m_customTarget != nullptr;
+    BAIL_OUT_IF (!canFlush, S_OK);
+
+    hr = Flush (m_customTarget);
+    CHRA (hr);
+
+    if (m_textFlush)
+    {
+        hr = m_textFlush();
+        CHRA (hr);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Flush
 //
 //  Draws the shapes queued so far and empties the list, leaving the pass open.
