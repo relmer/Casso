@@ -197,6 +197,7 @@ public:
     bool                   OfferMouseToUpdater (HWND hwnd, const DxuiMouseEvent & ev) override;
     void                   InspectDiskImages   (HWND hwnd, const std::vector<std::wstring> & paths, const DxuiTheme & theme) override;
     void                   CompareDiskImages   (HWND hwnd, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme) override;
+    void                   RepairDiskImage     (HWND hwnd, const std::wstring & path, const DxuiTheme & theme) override;
     void                   SetInspectorTheme   (const DxuiTheme & theme) override;
     void                   SelectInFolder      (const std::wstring & path) override;
     void                   OfferBootRoms       (HWND hwnd, const DxuiTheme * theme) override;

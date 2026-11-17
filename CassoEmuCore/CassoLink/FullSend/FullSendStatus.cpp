@@ -571,7 +571,7 @@ void FullSendStatus::AddLine (const std::string & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FullSendStatus::SetBoot (const std::string & file, const std::string & boot, const std::string & renamedTo)
+void FullSendStatus::SetBoot (const std::string & file, const std::string & boot, const std::string & renamedTo, const std::string & fsCheck)
 {
     std::lock_guard  lock (m_lock);
 
@@ -581,12 +581,13 @@ void FullSendStatus::SetBoot (const std::string & file, const std::string & boot
     {
         if (disk.row.file == file)
         {
-            disk.row.boot = boot;
-            disk.row.file = renamedTo.empty() ? file : renamedTo;
+            disk.row.boot    = boot;
+            disk.row.fsCheck = fsCheck;
+            disk.row.file    = renamedTo.empty() ? file : renamedTo;
         }
     }
 
-    m_boots.push_back ({ file, boot });
+    m_boots.push_back ({ file, boot, fsCheck });
     m_booted.insert (file);
     m_snapshot.revision++;
 }
@@ -620,10 +621,10 @@ bool FullSendStatus::HasBoot (const std::string & file) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::pair<std::string, std::string>> FullSendStatus::TakeBoots()
+std::vector<FullSendBoot> FullSendStatus::TakeBoots()
 {
-    std::lock_guard                                   lock (m_lock);
-    std::vector<std::pair<std::string, std::string>>  boots = std::move (m_boots);
+    std::lock_guard            lock (m_lock);
+    std::vector<FullSendBoot>  boots = std::move (m_boots);
 
 
 

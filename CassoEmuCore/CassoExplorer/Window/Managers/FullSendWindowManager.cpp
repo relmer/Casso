@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Managers/ExplorerProperties.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
@@ -10,6 +11,9 @@
 #include "CassoExplorer/WozPropertiesDialog.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Inspector/Repair/DiskRepair.h"
+#include "Devices/Disk/Inspector/Repair/RepairCopy.h"
+#include "Seams/Win32DiskFileIo.h"
 
 
 
@@ -360,6 +364,7 @@ void FullSendWindowManager::ShowConnectionWindow (const std::wstring & connectio
     }
 
     window->SetDiskAction ([this] (const std::string & file, FullSendDialog::DiskAction action) { RunFullSendDisk (file, action); });
+    window->SetCanRepair  ([this] (const std::string & file) { return CanRepair (file); });
     window->SetOnMoved ([this] (POINT topLeft)
     {
         m_context.prefs.fullSendWindow.x     = topLeft.x;
@@ -475,8 +480,38 @@ void FullSendWindowManager::RunFullSendDisk (const std::string & file, FullSendD
         case FullSendDialog::DiskAction::Open:       m_context.opener.OpenSelectedEntries();                                                         break;
         case FullSendDialog::DiskAction::Inspect:    m_context.opener.InspectSelected();                                                             break;
         case FullSendDialog::DiskAction::Properties: m_context.properties.ShowWozProperties ((std::filesystem::path (folder) / name).wstring(), WozPropertiesDialog::kInfoTab); break;
+        case FullSendDialog::DiskAction::Repair:     m_context.commandManager.RepairDiskImage ((std::filesystem::path (folder) / name).wstring());                    break;
         default:                                                                                                                                     break;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendWindowManager::CanRepair
+//
+//  Whether the inspector's repair has a plan for the image in the Full Send
+//  folder, as saved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendWindowManager::CanRepair (const std::string & file) const
+{
+    HRESULT          hr    = S_OK;
+    Win32DiskFileIo  fileIo;
+    RepairOptions    options;
+    RepairPlan       plan;
+    std::wstring     reason;
+    std::string      path  = TextEncoding::WideToUtf8 ((std::filesystem::path (GetFullSendFolder()) / TextEncoding::NarrowToWide (file)).wstring());
+
+
+
+    hr = RepairCopy::PlanFile (fileIo, path, options, plan, reason);
+
+    return SUCCEEDED (hr) && plan.canRepair;
 }
 
 

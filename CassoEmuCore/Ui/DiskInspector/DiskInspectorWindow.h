@@ -103,6 +103,10 @@ public:
     void     OpenRepair  (const std::set<std::wstring> & chosen) override;
     void     ShowFinding (int finding) override;
 
+    //  Repair's confirmation for every change, opened on the first frame
+    //  that has the disk, for a host that opens the window to repair it.
+    void     RequestRepair () { m_isRepairWanted = true; }
+
     //  After an Explorer window's file changes on disk, ReloadDisk requests a
     //  new copy. For a file that is gone, NoteFileGone adds a note and the
     //  last analysis stays (FR-074).
@@ -205,6 +209,7 @@ private:
     int                     m_flownSector       = -1;
     bool                    m_isFocusShown      = false;
     bool                    m_isFileGone        = false;
+    bool                    m_isRepairWanted    = false;
 
 
     double                                  m_zoom               = 1.0;

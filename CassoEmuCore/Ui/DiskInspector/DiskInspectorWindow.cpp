@@ -614,6 +614,15 @@ HRESULT DiskInspectorWindow::RenderFrame()
 
     Invalidate();
 
+    //  Repair reads the image file, so the copy is enough without its
+    //  analysis. The flag is cleared first, as the dialog is modal and
+    //  frames go on under it.
+    if (m_isRepairWanted && m_session.analysis.copy != nullptr)
+    {
+        m_isRepairWanted = false;
+        OpenRepair ({});
+    }
+
 Error:
     return hr;
 }

@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/FullSendDialog.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
+#include "Core/TextEncoding.h"
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"
@@ -240,6 +241,25 @@ public:
 
         row.boot = FullSendManifest::kBootDidNotBoot;
         Assert::AreEqual (std::wstring (L"Raw capture, did not boot"), FullSendPanel::DescribeStatus (row));
+
+        row.fsCheck = FullSendManifest::kCheckNone;
+        Assert::AreEqual (std::wstring (L"Raw capture, did not boot"), FullSendPanel::DescribeStatus (row), L"The status implies no standard file system");
+
+        row.status = FullSendManifest::kStatusSent;
+        Assert::AreEqual (std::wstring (L"3 unreadable sectors, did not boot, no standard file system"), FullSendPanel::DescribeStatus (row));
+
+        row.status  = FullSendManifest::kStatusSent;
+        row.boot    = FullSendManifest::kBootBooted;
+        row.fsCheck = FullSendManifest::kCheckBad;
+        Assert::AreEqual (std::wstring (L"3 unreadable sectors, boots, file system bad"), FullSendPanel::DescribeStatus (row));
+
+        row.unreadable = 0;
+        row.unreliable = 0;
+        row.fsCheck    = FullSendManifest::kCheckOk;
+        Assert::AreEqual (std::wstring (L"Sent, verified, boots, file system OK"), FullSendPanel::DescribeStatus (row));
+
+        row.fsCheck = FullSendManifest::kCheckSuspect;
+        Assert::AreEqual (std::wstring (L"Sent, verified, boots, file system suspect"), FullSendPanel::DescribeStatus (row));
 
         row.status      = FullSendManifest::kStatusDuplicate;
         row.duplicateOf = "0001 HELLO.dsk";
@@ -519,6 +539,29 @@ public:
         Assert::AreEqual (std::wstring (L"&Copy"), activity[0].command->label);
 
         Assert::AreEqual (std::wstring (L"10:00:01  0001.dsk was sent.\r\n10:02:15  0003 Archon.woz was sent.\r\n"), FullSendPanel::FormatActivity (view.snapshot));
+    }
+
+    //  Repair disk image is offered for a bad or suspect file system, and not
+    //  for one that is OK, has no standard file system or wasn't checked.
+    TEST_METHOD (Repair_IsOfferedForABadOrSuspectFileSystem)
+    {
+        FullSendRow  row;
+
+
+
+        row.file = "0001.dsk";
+
+        for (const char * check : { FullSendManifest::kCheckBad, FullSendManifest::kCheckSuspect })
+        {
+            row.fsCheck = check;
+            Assert::IsTrue (FullSendDialog::IsRepairOffered (row), TextEncoding::NarrowToWide (check).c_str());
+        }
+
+        for (const char * check : { FullSendManifest::kCheckOk, FullSendManifest::kCheckNone, "" })
+        {
+            row.fsCheck = check;
+            Assert::IsFalse (FullSendDialog::IsRepairOffered (row), TextEncoding::NarrowToWide (check).c_str());
+        }
     }
 
     //  With no session, the window has the folder's manifest's rows, newest

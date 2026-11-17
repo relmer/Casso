@@ -279,6 +279,35 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorWindowSet::Repair
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT InspectorWindowSet::Repair (HINSTANCE hInstance, HWND anchor, const std::wstring & path, const DxuiTheme & theme)
+{
+    HRESULT  hr    = S_OK;
+    Entry  * found = nullptr;
+
+
+
+    hr = Open (hInstance, anchor, path, theme);
+    CHR (hr);
+
+    found = Find (MakeKey (path));
+    CBRA (found != nullptr);
+
+    found->window->RequestRepair();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorWindowSet::SetTheme
 //
 //  The theme is copied as its most derived type, so a Casso theme's body

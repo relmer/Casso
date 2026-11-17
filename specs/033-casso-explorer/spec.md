@@ -3678,7 +3678,9 @@ as they arrive.
   MUST count as a failed capture for the failure sound, as a boot that failed
   does, and a disk row's menu MUST have Repair disk image when the inspector
   can repair it. A raw capture with no standard file system has the verdict
-  "No standard file system", which isn't a failure.
+  "No standard file system", which isn't a failure. The window's list leaves
+  that verdict out for a raw capture or a likely copy-protected disk, as the
+  status implies it and the column is narrow (2026-11-16).
 - **FR-291**: A disk that is write-protected when Full Send reads it MUST
   have a write-protected image: a WOZ with its INFO chunk's write-protect
   flag set, and a sector image with the file's read-only attribute, which

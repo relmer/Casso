@@ -6,13 +6,14 @@
 
 
 
-static constexpr std::string_view  s_kHeader  = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf,verification,recovered,unreliable,boot,marks,writeProtected";
-static constexpr std::string_view  s_kBootHeader  = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf,verification,recovered,unreliable,boot,marks";
-static constexpr std::string_view  s_kPriorHeader  = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf,verification,recovered,unreliable";
-static constexpr std::string_view  s_kLegacyHeader = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf";
-static constexpr std::string_view  s_kComment = "# Casso Full Send manifest. Do not edit, rename or move this file.\r\n"
-                                                "# Casso uses it to recognize disks already received in this folder.\r\n"
-                                                "# Changing it can make disks get skipped or read again.\r\n";
+static constexpr std::string_view  s_kHeader        = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf,verification,recovered,unreliable,boot,marks,writeProtected,fscheck";
+static constexpr std::string_view  s_kProtectHeader = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf,verification,recovered,unreliable,boot,marks,writeProtected";
+static constexpr std::string_view  s_kBootHeader    = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf,verification,recovered,unreliable,boot,marks";
+static constexpr std::string_view  s_kPriorHeader   = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf,verification,recovered,unreliable";
+static constexpr std::string_view  s_kLegacyHeader  = "sequence,file,drive,fingerprint,hash,time,unreadable,status,duplicateOf";
+static constexpr std::string_view  s_kComment       = "# Casso Full Send manifest. Do not edit, rename or move this file.\r\n"
+                                                      "# Casso uses it to recognize disks already received in this folder.\r\n"
+                                                      "# Changing it can make disks get skipped or read again.\r\n";
 
 
 
@@ -51,7 +52,7 @@ HRESULT FullSendManifest::Parse (std::span<const Byte> bytes)
     }
 
     end   = view.find_first_of ("\r\n", at);
-    whole = end != std::string_view::npos && (view.substr (at, end - at) == s_kHeader || view.substr (at, end - at) == s_kBootHeader || view.substr (at, end - at) == s_kPriorHeader || view.substr (at, end - at) == s_kLegacyHeader);
+    whole = end != std::string_view::npos && IsHeader (view.substr (at, end - at));
     CBREx (whole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     whole = TrySplitRow (view, at, cells);
@@ -72,6 +73,23 @@ HRESULT FullSendManifest::Parse (std::span<const Byte> bytes)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendManifest::IsHeader
+//
+//  This layout's header, or one of an earlier layout with fewer columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendManifest::IsHeader (std::string_view line)
+{
+    return line == s_kHeader || line == s_kProtectHeader || line == s_kBootHeader || line == s_kPriorHeader || line == s_kLegacyHeader;
 }
 
 
@@ -199,7 +217,7 @@ bool FullSendManifest::IsHexHash (const std::string & text)
 
 bool FullSendManifest::TryParseRow (const std::vector<std::string> & cells, FullSendRow & outRow)
 {
-    bool  valid = cells.size() == kColumns || cells.size() == kBootColumns || cells.size() == kPriorColumns || cells.size() == kLegacyColumns;
+    bool  valid = cells.size() == kColumns || cells.size() == kProtectColumns || cells.size() == kBootColumns || cells.size() == kPriorColumns || cells.size() == kLegacyColumns;
 
 
 
@@ -236,9 +254,14 @@ bool FullSendManifest::TryParseRow (const std::vector<std::string> & cells, Full
         outRow.marks = cells[13];
     }
 
-    if (valid && cells.size() == kColumns)
+    if (valid && cells.size() >= kProtectColumns)
     {
         outRow.writeProtected = cells[14] == "yes";
+    }
+
+    if (valid && cells.size() == kColumns)
+    {
+        outRow.fsCheck = cells[15];
     }
 
     return valid;
@@ -296,9 +319,9 @@ std::vector<Byte> FullSendManifest::Format() const
 
     for (const FullSendRow & row : m_rows)
     {
-        text += std::format ("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\r\n",
+        text += std::format ("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\r\n",
                              row.sequence, QuoteCell (row.file), row.drive, row.fingerprint, row.hash, row.time, row.unreadable, row.status, QuoteCell (row.duplicateOf),
-                             row.verification, row.recovered, row.unreliable, row.boot, QuoteCell (row.marks), row.writeProtected ? "yes" : "");
+                             row.verification, row.recovered, row.unreliable, row.boot, QuoteCell (row.marks), row.writeProtected ? "yes" : "", row.fsCheck);
     }
 
     return std::vector<Byte> (text.begin(), text.end());
@@ -391,7 +414,7 @@ const FullSendRow * FullSendManifest::FindImageByHash (const std::string & hash)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool FullSendManifest::SetBoot (const std::string & name, const std::string & boot)
+bool FullSendManifest::SetBoot (const std::string & name, const std::string & boot, const std::string & fsCheck)
 {
     bool  changed = false;
 
@@ -399,10 +422,11 @@ bool FullSendManifest::SetBoot (const std::string & name, const std::string & bo
 
     for (FullSendRow & row : m_rows)
     {
-        if (!row.file.empty() && _stricmp (row.file.c_str(), name.c_str()) == 0 && row.boot != boot)
+        if (!row.file.empty() && _stricmp (row.file.c_str(), name.c_str()) == 0 && (row.boot != boot || row.fsCheck != fsCheck))
         {
-            row.boot = boot;
-            changed  = true;
+            row.boot    = boot;
+            row.fsCheck = fsCheck;
+            changed     = true;
         }
     }
 

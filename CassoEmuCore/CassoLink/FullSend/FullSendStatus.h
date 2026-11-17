@@ -230,14 +230,14 @@ public:
 
     void  AddLine        (const std::string & text);
 
-    //  An image's boot result, as BootProbe::GetVerdictName has it, from the
-    //  thread that booted it: set in the image's row of the disks done.
-    //  TakeBoots returns each result since the last call, by file, for the
-    //  session's manifest. renamedTo is the file's name now, when its boot
-    //  renamed it.
-    void  SetBoot        (const std::string & file, const std::string & boot, const std::string & renamedTo = std::string());
+    //  An image's boot result, as BootProbe::GetVerdictName has it, and its
+    //  file-system verdict, from the thread that booted it: set in the
+    //  image's row of the disks done. TakeBoots returns each result since
+    //  the last call, by file, for the session's manifest. renamedTo is the
+    //  file's name now, when its boot renamed it.
+    void  SetBoot        (const std::string & file, const std::string & boot, const std::string & renamedTo = std::string(), const std::string & fsCheck = std::string());
 
-    std::vector<std::pair<std::string, std::string>>  TakeBoots ();
+    std::vector<FullSendBoot>  TakeBoots ();
 
     //  Whether a boot result has arrived for the file, under the name it
     //  was written with.
@@ -273,7 +273,7 @@ private:
     double                                            m_idleSeconds = 0.0;   // over every wait for the user that ended
     double                                            m_idleSince   = -1.0;  // when the wait for the user under way began; negative with none
     std::vector<Sample>                               m_samples;   // the sector images sent
-    std::vector<std::pair<std::string, std::string>>  m_boots;   // each boot result the session hasn't taken
+    std::vector<FullSendBoot>                         m_boots;   // each boot result the session hasn't taken
     std::set<std::string>                             m_booted;  // each file with a boot result
     std::array<int, 2>                                m_baseCount   = { 0, 0 };   // the tracks each drive's disk began with
     std::array<double, 2>                             m_lastMark    = { 0.0, 0.0 };   // when each drive's latest track or read was marked

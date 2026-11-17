@@ -145,9 +145,9 @@ public:
     //  The Full Send window's model of this connection's session.
     const FullSendStatus &  GetFullSendStatus () const { return m_fullSend.GetStatus(); }
 
-    //  An image's boot result, from the thread that booted it, with a line
-    //  for the Full Send window's activity list.
-    void  NoteBoot (const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo = std::string());
+    //  An image's boot result and file-system verdict, from the thread that
+    //  booted it, with a line for the Full Send window's activity list.
+    void  NoteBoot (const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo = std::string(), const std::string & fsCheck = std::string());
 
     //  Whether the drive has the link's boot disk, by its boot sector: a write
     //  over it, the Apple has no disk to start the link from.

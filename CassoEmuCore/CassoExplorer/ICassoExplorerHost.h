@@ -91,6 +91,10 @@ public:
     //  when it is open, a new one otherwise (FR-117).
     virtual void  CompareDiskImages (HWND hwnd, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme) { (void) hwnd; (void) pathA; (void) pathB; (void) theme; }
 
+    //  The image's disk inspector window, opened or brought to the front,
+    //  with Repair's confirmation over it.
+    virtual void  RepairDiskImage   (HWND hwnd, const std::wstring & path, const DxuiTheme & theme) { (void) hwnd; (void) path; (void) theme; }
+
     //  The theme the windows changed to, which the inspector windows follow
     //  (FR-078).
     virtual void  SetInspectorTheme (const DxuiTheme & theme) { (void) theme; }

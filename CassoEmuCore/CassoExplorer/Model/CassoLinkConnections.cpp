@@ -1668,7 +1668,7 @@ void CassoLinkConnections::ApplyVerify (Link & link) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkConnections::NoteBoot (const std::string & link, const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo)
+void CassoLinkConnections::NoteBoot (const std::string & link, const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo, const std::string & fsCheck)
 {
     Activity  entry;
 
@@ -1686,7 +1686,7 @@ void CassoLinkConnections::NoteBoot (const std::string & link, const std::string
 
         if (found != m_started.end() && (*found)->session != nullptr)
         {
-            (*found)->session->NoteBoot (file, boot, text, renamedTo);
+            (*found)->session->NoteBoot (file, boot, text, renamedTo, fsCheck);
         }
 
         m_activity.push_back (std::move (entry));

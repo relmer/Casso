@@ -387,24 +387,26 @@ public:
     //  A boot result arrives from another thread after its disk is done.
     TEST_METHOD (ABootResult_IsInItsDisksRow_AndTakenOnce)
     {
-        Rig                                               rig;
-        FullSendSnapshot                                  snapshot;
-        std::vector<std::pair<std::string, std::string>>  boots;
+        Rig                        rig;
+        FullSendSnapshot           snapshot;
+        std::vector<FullSendBoot>  boots;
 
 
 
         rig.status.Begin();
         rig.SendDisk (1, 1, false);
         rig.SendDisk (2, 2, false);
-        rig.status.SetBoot ("0001.dsk", FullSendManifest::kBootDidNotBoot);
+        rig.status.SetBoot ("0001.dsk", FullSendManifest::kBootDidNotBoot, std::string(), FullSendManifest::kCheckBad);
 
         snapshot = rig.status.GetSnapshot();
         boots    = rig.status.TakeBoots();
 
         Assert::AreEqual (std::string (FullSendManifest::kBootDidNotBoot), snapshot.disks[1].row.boot);
+        Assert::AreEqual (std::string (FullSendManifest::kCheckBad),       snapshot.disks[1].row.fsCheck);
         Assert::IsTrue (snapshot.disks[0].row.boot.empty(), L"the other disk's row is as it was");
         Assert::AreEqual ((size_t) 1, boots.size());
-        Assert::AreEqual (std::string ("0001.dsk"), boots[0].first);
+        Assert::AreEqual (std::string ("0001.dsk"), boots[0].file);
+        Assert::AreEqual (std::string (FullSendManifest::kCheckBad), boots[0].fsCheck);
         Assert::IsTrue (rig.status.TakeBoots().empty(), L"a result is taken once");
 
         rig.status.SetBoot ("0002.dsk", FullSendManifest::kBootBooted, "0002 Archon.dsk");

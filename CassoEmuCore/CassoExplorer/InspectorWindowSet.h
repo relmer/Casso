@@ -61,6 +61,10 @@ public:
         virtual void     CompareWith     (const std::wstring & pathB)          = 0;
         virtual void     ChangeTheme     (const DxuiTheme * theme)             = 0;
         virtual HWND     GetHwnd         () const                              = 0;
+
+        //  Repair's confirmation, once the window has the disk. A window
+        //  with no repair ignores it.
+        virtual void     RequestRepair   ()                                    {}
     };
 
     //  The functions for the window, the block mode window and the check
@@ -90,6 +94,10 @@ public:
 
     HRESULT  Open     (HINSTANCE hInstance, HWND anchor, const std::wstring & path, const DxuiTheme & theme);
     HRESULT  Compare  (HINSTANCE hInstance, HWND anchor, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme);
+
+    //  The file's window, opened or brought to the front, with Repair's
+    //  confirmation over it.
+    HRESULT  Repair   (HINSTANCE hInstance, HWND anchor, const std::wstring & path, const DxuiTheme & theme);
     void     SetTheme (const DxuiTheme & theme);
     void     CloseAll ();
     size_t   GetCount () const;

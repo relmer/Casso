@@ -240,11 +240,13 @@ public:
     using ActionFn   = std::function<void()>;
 
     //  The actions on a disk's row: a double-click selects its image in the
-    //  folder, and its menu has Open, Inspect disk image and Disk properties.
-    enum class DiskAction { Select, Open, Inspect, Properties };
+    //  folder, and its menu has Open, Inspect disk image, Disk properties and
+    //  Repair disk image.
+    enum class DiskAction { Select, Open, Inspect, Properties, Repair };
 
     using DiskActionFn = std::function<void (const std::string & file, DiskAction action)>;
     using MovedFn      = std::function<void (POINT topLeftPx)>;
+    using CanRepairFn  = std::function<bool (const std::string & file)>;
 
     //  The snapshot function returns false when no connection has a session
     //  to draw, and the view it was given is drawn as it is.
@@ -266,8 +268,16 @@ public:
     void  SetDiskAction (DiskActionFn action) { m_diskAction = std::move (action); }
     void  SetOnMoved    (MovedFn moved)       { m_onMoved = std::move (moved); }
 
+    //  Whether the inspector can repair a row's image, called when the menu
+    //  of a row whose file system is bad or suspect opens.
+    void  SetCanRepair  (CanRepairFn canRepair) { m_canRepair = std::move (canRepair); }
+
     //  The menu of a disk's row, or of the activity list for an empty file.
     std::vector<DxuiPopupMenuItem>  MakeMenu (const std::string & file);
+
+    //  Whether a row's menu offers Repair disk image, when the inspector can
+    //  repair its image: a bad or suspect file system.
+    static bool  IsRepairOffered (const FullSendRow & row);
 
     FullSendPanel  * GetPanel () const { return m_panel; }
 
@@ -292,6 +302,7 @@ private:
     int64_t                                      m_refreshedMs  = 0;
     DiskActionFn                                 m_diskAction;
     MovedFn                                      m_onMoved;
+    CanRepairFn                                  m_canRepair;
     POINT                                        m_lastTopLeft  = { LONG_MIN, LONG_MIN };
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;   // the open menu's commands
 };

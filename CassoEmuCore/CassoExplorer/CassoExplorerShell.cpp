@@ -160,11 +160,11 @@ void CassoExplorerShell::StartBootWorker()
 
         if (!result.source.empty() && result.renamedFrom.empty())
         {
-            m_links.NoteBoot (result.source, file, boot, ExplorerBootWorker::Describe (result));
+            m_links.NoteBoot (result.source, file, boot, ExplorerBootWorker::Describe (result), std::string(), result.fsCheck);
         }
         else if (!result.source.empty())
         {
-            m_links.NoteBoot (result.source, result.renamedFrom, boot, ExplorerBootWorker::Describe (result), file);
+            m_links.NoteBoot (result.source, result.renamedFrom, boot, ExplorerBootWorker::Describe (result), file, result.fsCheck);
         }
 
         if (!result.source.empty() && result.hasReport)
@@ -236,9 +236,10 @@ void CassoExplorerShell::QueueBoot (const std::wstring & path)
 //  CassoExplorerShell::PlayBootSound
 //
 //  The sound for an image a connection wrote, where Options has the PC
-//  for the sounds: the failure's for an image that did not boot or has
-//  unreadable sectors, and the success's for any other. A sound in progress,
-//  as a cassette bootstrap's is, isn't stopped for it.
+//  for the sounds: the failure's for an image that did not boot, has
+//  unreadable sectors or has a bad file system, and the success's for any
+//  other. A sound in progress, as a cassette bootstrap's is, isn't stopped
+//  for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1577,6 +1578,28 @@ void CassoExplorerShell::InspectDiskImages (HWND hwnd, const std::vector<std::ws
         {
             MessageBoxW (hwnd, std::format (L"The disk inspector could not open {} (0x{:08X}).", fs::path (path).filename().wstring(), (uint32_t) hr).c_str(), kAppName, MB_ICONWARNING);
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::RepairDiskImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::RepairDiskImage (HWND hwnd, const std::wstring & path, const DxuiTheme & theme)
+{
+    HRESULT  hr = (m_inspectors != nullptr) ? m_inspectors->Repair (m_instance, hwnd, path, theme) : E_UNEXPECTED;
+
+
+
+    if (FAILED (hr))
+    {
+        MessageBoxW (hwnd, std::format (L"The disk inspector could not open {} (0x{:08X}).", fs::path (path).filename().wstring(), (uint32_t) hr).c_str(), kAppName, MB_ICONWARNING);
     }
 }
 

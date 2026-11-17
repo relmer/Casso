@@ -381,9 +381,9 @@ std::shared_ptr<LinkOperation> CassoLinkSession::WriteDisk (int drive, const std
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkSession::NoteBoot (const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo)
+void CassoLinkSession::NoteBoot (const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo, const std::string & fsCheck)
 {
-    m_fullSend.GetStatus().SetBoot (file, boot, renamedTo);
+    m_fullSend.GetStatus().SetBoot (file, boot, renamedTo, fsCheck);
     m_fullSend.GetStatus().AddLine (text);
 }
 

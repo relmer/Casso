@@ -87,6 +87,24 @@ void ExplorerCommandManager::InspectDiskImages (const std::vector<std::wstring> 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerCommandManager::RepairDiskImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerCommandManager::RepairDiskImage (const std::wstring & path)
+{
+    if (m_context.app.host != nullptr && m_context.theme != nullptr)
+    {
+        m_context.app.host->RepairDiskImage (m_context.window.GetHwnd(), path, *m_context.theme);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerCommandManager::CompareSelectedDiskImages
 //
 //  A is the focused image, which is the one the menu was opened on, and B is

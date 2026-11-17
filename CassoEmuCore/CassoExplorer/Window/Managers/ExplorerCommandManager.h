@@ -73,6 +73,7 @@ public:
     bool                       TryDownloadBootDisk        (StockBootDisks::Which disk);
     void                       ExtractImageFiles          (const std::wstring & imagePath);
     void                       InspectDiskImages          (const std::vector<std::wstring> & paths);
+    void                       RepairDiskImage            (const std::wstring & path);
     void                       CompareSelectedDiskImages  ();
 
 private:

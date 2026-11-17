@@ -52,7 +52,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FullSendManifestFile::NoteBoot (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, const std::string & boot, FullSendRow & outRow)
+HRESULT FullSendManifestFile::NoteBoot (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, const std::string & boot, const std::string & fsCheck, FullSendRow & outRow)
 {
     HRESULT           hr      = S_OK;
     std::string       path    = folder + "\\" + FullSendManifest::kFileName;
@@ -74,7 +74,7 @@ HRESULT FullSendManifestFile::NoteBoot (IDiskFileIo & fileIo, const std::string 
         outRow = _stricmp (row.file.c_str(), name.c_str()) == 0 ? row : outRow;
     }
 
-    changed = manifest.SetBoot (name, boot);
+    changed = manifest.SetBoot (name, boot, fsCheck);
     BAIL_OUT_IF (!changed, S_OK);
 
     hr = Write (fileIo, path, manifest);
