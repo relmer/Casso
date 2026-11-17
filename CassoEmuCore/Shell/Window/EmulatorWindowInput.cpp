@@ -6,6 +6,7 @@
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
+#include "Shell/Layout/DriveLabel.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellSerialCard.h"
@@ -614,7 +615,8 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
         // A 3.5-inch drive or hard disk on the desk, or a Disk II in a stack,
         // has no name strip, so the drive under the pointer has its image's
-        // name on its front.
+        // name on its front. A 3.5-inch drive or hard disk also has a tip
+        // with the drive's name and size above the image's name.
         {
             const DeskSceneComposition  & comp       = m_scene->m_deskScene.Composition();
             int                           hoverExtra = -1;
@@ -637,6 +639,19 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
             if (m_scene->SetHoverDrive (hoverExtra, hoverDisk))
             {
                 m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+            }
+
+            if (tip.empty() && hoverExtra >= 0 && hoverExtra < comp.extraCount && hoverExtra < m_scene->m_deskScene.GetExtraCount())
+            {
+                const DeskDrive  & drive = m_scene->m_deskScene.GetExtraDrive (hoverExtra);
+                std::string        path  = m_scene->GetDriveImagePath (drive);
+
+                anchor = comp.extraRectPx[hoverExtra];
+                tip    = DriveLabel::GetTip (ShellDeskScene::GetDriveTitle (drive),
+                                             DriveLabel::GetDetail (drive.model, m_scene->GetDriveDiskBlocks (drive), m_scene->GetDriveCapacityBlocks (drive)),
+                                             path.empty() ? std::wstring() : std::filesystem::path (path).filename().wstring(),
+                                             ShellDeskScene::IsHardDisk (drive),
+                                             !path.empty() && m_scene->IsDriveWriteProtected (drive));
             }
         }
 
@@ -984,12 +999,21 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
 {
     int     delta   = GET_WHEEL_DELTA_WPARAM (wParam);
     POINT   pt      = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    POINT   onBar   = pt;
     bool    pinch   = (GET_KEYSTATE_WPARAM (wParam) & MK_CONTROL) != 0;
     bool    detent  = (delta % WHEEL_DELTA) == 0;
     float   notch   = 0.0f;
     float   factor  = 1.0f;
 
 
+
+    // Ctrl+wheel over the drive bar zooms the bar, in any theme, ahead of
+    // the scene, which would otherwise take it as a zoom of the desk.
+    if (pinch && !horizontal && delta != 0 && !m_paddleCaptured && m_hwnd != nullptr &&
+        ScreenToClient (m_hwnd, &onBar) && m_chrome->ZoomDriveBar (onBar, (float) delta / (float) WHEEL_DELTA))
+    {
+        return DxuiMessageResult::Handled;
+    }
 
     // Paddle capture owns the pointer: it is hidden and confined to the
     // window because someone is playing a game with it. Nothing about a wheel
@@ -1996,6 +2020,7 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         // menu; a drag that began there still turned the scene.
         if (still && StorageDeviceAt (x, y) >= 0)
         {
+            m_chrome->MarkDriveBarRecent (POINT { x, y });
             ShowStorageContextMenu (StorageDeviceAt (x, y), x, y);
             m_scene->m_sceneOrbitTapMs = 0;
             return DxuiMessageResult::Handled;
@@ -2036,6 +2061,7 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
         if (device >= 0)
         {
+            m_chrome->MarkDriveBarRecent (POINT { x, y });
             ShowStorageContextMenu (device, x, y);
             result = DxuiMessageResult::Handled;
         }

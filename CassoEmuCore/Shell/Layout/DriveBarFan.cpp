@@ -56,6 +56,54 @@ std::vector<std::vector<DeskDrive>> DriveBarFan::Group (const std::vector<DeskDr
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DriveBarFan::PutFirst
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DriveBarFan::PutFirst (std::vector<std::vector<DeskDrive>> & classes, const std::vector<DeskDrive> & recent)
+{
+    for (std::vector<DeskDrive> & drives : classes)
+    {
+        for (const DeskDrive & drive : recent)
+        {
+            auto  found = std::find (drives.begin(), drives.end(), drive);
+
+            if (found != drives.end())
+            {
+                std::rotate (drives.begin(), found, found + 1);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveBarFan::GetZoomAfterWheel
+//
+//  The zoom is rounded to a whole step, so a zoom saved off the steps lands
+//  back on them and 100% is always one of the stops.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DriveBarFan::GetZoomAfterWheel (float zoom, float notches)
+{
+    float  steps = (float) lroundf ((zoom + notches * kZoomStep) / kZoomStep);
+
+
+
+    return std::clamp (steps * kZoomStep, kMinZoom, kMaxZoom);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DriveBarFan::SetClasses
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,6 +131,60 @@ void DriveBarFan::SetClasses (std::vector<std::vector<DeskDrive>> classes)
 int DriveBarFan::GetRowWidth (int classCount, int slotWidthPx, int gapPx)
 {
     return (classCount <= 0) ? 0 : classCount * slotWidthPx + (classCount - 1) * gapPx;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveBarFan::GetFittingZoom
+//
+//  The boxes and their margins grow with the zoom; the edges and the gaps
+//  between the boxes do not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DriveBarFan::GetFittingZoom (int classCount, int boxWidthPx, int clientWidthPx, int edgePx, int minBoxGapPx)
+{
+    float  zoom = kMaxZoom;
+    int    room = clientWidthPx - 2 * edgePx - (classCount - 1) * minBoxGapPx;
+
+
+
+    if (classCount > 0 && boxWidthPx > 0)
+    {
+        zoom = std::max (0.0f, (float) room / (float) (classCount * boxWidthPx));
+    }
+
+    return zoom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveBarFan::GetFittingGap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DriveBarFan::GetFittingGap (int classCount, int slotWidthPx, int boxExtraPx, int gapPx, int clientWidthPx, int edgePx, int minBoxGapPx)
+{
+    int  gap  = gapPx;
+    int  room = 0;
+
+
+
+    if (classCount > 1)
+    {
+        room = clientWidthPx - 2 * edgePx - classCount * (slotWidthPx + boxExtraPx);
+        gap  = std::min (gapPx, std::max (minBoxGapPx, room / (classCount - 1)) + boxExtraPx);
+    }
+
+    return gap;
 }
 
 

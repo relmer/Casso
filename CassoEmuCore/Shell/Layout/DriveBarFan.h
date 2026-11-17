@@ -37,10 +37,35 @@ public:
     //  class with no drive on the bar has no list.
     static std::vector<std::vector<DeskDrive>>  Group (const std::vector<DeskDrivePlacement> & plan);
 
+    //  Moves each of the `recent` drives to the bottom of its class, the
+    //  slot drawn while the class is closed. A drive no longer on the bar
+    //  changes nothing.
+    static void  PutFirst (std::vector<std::vector<DeskDrive>> & classes, const std::vector<DeskDrive> & recent);
+
+    //  The bar's zoom after `notches` of Ctrl+wheel, kZoomStep a notch,
+    //  between kMinZoom and kMaxZoom.
+    static constexpr float  kMinZoom  = 0.8f;
+    static constexpr float  kMaxZoom  = 3.0f;
+    static constexpr float  kZoomStep = 0.1f;
+
+    static float  GetZoomAfterWheel (float zoom, float notches);
+
     void  SetClasses (std::vector<std::vector<DeskDrive>> classes);
 
     //  Width of a row of `classCount` widgets.
     static int  GetRowWidth (int classCount, int slotWidthPx, int gapPx);
+
+    //  The largest zoom at which `classCount` class boxes fit across
+    //  `clientWidthPx`, `edgePx` in from each side and `minBoxGapPx` apart,
+    //  given one box's width at a zoom of 100%: its widget, its margin on
+    //  both sides and its arrow. With no boxes, kMaxZoom.
+    static float  GetFittingZoom (int classCount, int boxWidthPx, int clientWidthPx, int edgePx, int minBoxGapPx);
+
+    //  The gap from one widget to the next that fits the row across
+    //  `clientWidthPx`: `gapPx` where there is room, narrowed as far as
+    //  `minBoxGapPx` between the boxes. `boxExtraPx` is a box's margin on
+    //  both sides and its arrow.
+    static int  GetFittingGap (int classCount, int slotWidthPx, int boxExtraPx, int gapPx, int clientWidthPx, int edgePx, int minBoxGapPx);
 
     //  Lays the widgets out in a row from (originX, rowTop) and each fan
     //  above its widget. `panelPadPx` is the box's margin round the drives,

@@ -7,7 +7,7 @@ from cad_floppy35 import build
 
 SNOW_WHITE = (0.905, 0.890, 0.835)
 
-m = build(SNOW_WHITE)
+m = build(SNOW_WHITE, unidisk=True)
 
 if __name__ == "__main__":
     out = os.path.dirname(os.path.abspath(__file__))
