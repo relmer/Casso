@@ -54,6 +54,35 @@ uint32_t FullSendPanel::GetColor (FullSendPositionMark mark, const IDxuiTheme & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendPanel::TryGetQuarterColor
+//
+//  A quarter track's stripe in its track's cell, by its quarter, 1 to 3: a
+//  quarter track read is a lighter blue toward the next track, and a weak or
+//  unstable one has its mark's color. One that wasn't read has no stripe.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendPanel::TryGetQuarterColor (FullSendPositionMark mark, int quarter, uint32_t & outColor)
+{
+    constexpr std::array<uint32_t, 3>  kShades = { 0xFF5B95D1, 0xFF7FAEE0, 0xFFA6C8EE };
+
+
+
+    switch (mark)
+    {
+        case FullSendPositionMark::Read:     outColor = kShades[(size_t) std::clamp (quarter, 1, 3) - 1]; return true;
+        case FullSendPositionMark::Weak:     outColor = 0xFFD29922;                                  return true;
+        case FullSendPositionMark::Unstable: outColor = 0xFFE07B39;                                  return true;
+        default:                                                                                     return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendPanel::FormatSeconds
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,7 +171,6 @@ std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int
         switch (drive.positions[(size_t) position])
         {
             case FullSendPositionMark::Read:     state = L"read";                                                        break;
-            case FullSendPositionMark::Skipped:  state = L"not read, the tracks beside it are complete";                 break;
             case FullSendPositionMark::Weak:     state = L"weak bits, which read differently every time, as on the disk"; break;
             case FullSendPositionMark::Unstable: state = L"the reads differ in length";                                  break;
             default:                                                                                                      break;
@@ -171,18 +199,26 @@ std::wstring FullSendPanel::DescribeCell (const FullSendDriveStatus & drive, int
 //
 //  FullSendPanel::DescribeTrack
 //
+//  The track's cell, and in a raw capture each of its quarter tracks that
+//  was read. Most disks have nothing between their tracks.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring FullSendPanel::DescribeTrack (const FullSendDriveStatus & drive, int track)
 {
     int           last = drive.positions.empty() ? track * 4 : std::min (track * 4 + 3, (int) drive.positions.size() - 1);
-    std::wstring  text;
+    std::wstring  text = DescribeCell (drive, track * 4);
 
 
 
-    for (int position = track * 4; position <= last; position++)
+    for (int position = track * 4 + 1; position <= last; position++)
     {
-        text += (text.empty() ? std::wstring() : std::wstring (L"\n")) + DescribeCell (drive, position);
+        FullSendPositionMark  mark = drive.positions[(size_t) position];
+
+        if (mark == FullSendPositionMark::Read || mark == FullSendPositionMark::Weak || mark == FullSendPositionMark::Unstable)
+        {
+            text += L"\n" + DescribeCell (drive, position);
+        }
     }
 
     return text;
@@ -772,8 +808,8 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 //
 //  FullSendPanel::PaintDrive
 //
-//  A drive's heading and state, its disk's title, the map of its tracks and
-//  in a raw capture its quarter tracks, its progress bar, and its times.
+//  A drive's heading and state, its disk's title, the map of its tracks with
+//  the quarter tracks of a raw capture, its progress bar, and its times.
 //  Returns the bottom.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -782,11 +818,11 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
 {
     float         lineH   = m_scaler.ToPxf (kLineDip);
     float         cellH   = m_scaler.ToPxf (kMapCellDip);
-    float         rawH    = m_scaler.ToPxf (kMapRawDip);
     float         barH    = m_scaler.ToPxf (kBarDip);
     float         space   = std::max (1.0f, std::floor (m_scaler.ToPxf (1.0f)));
     float         pitch   = std::floor (width / FullSendDriveStatus::kTracks);
-    float         quarter = pitch / 4.0f;
+    float         stripe  = (pitch - space) / 4.0f;
+    uint32_t      shade   = 0;
     bool          busy    = drive.state == FullSendDiskState::Sending || drive.state == FullSendDiskState::Capturing;
     std::wstring  title   = drive.title.empty() ? std::wstring (L"No disk") : TextEncoding::NarrowToWide (drive.title);
 
@@ -800,34 +836,27 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
     top += lineH + space * 2.0f;
 
     //  In a raw capture a track's cell is its whole-track read's, as the
-    //  sector read before it found the tracks unreadable. A track's tip covers
-    //  its column, the quarter tracks under it too, as those are too narrow
-    //  to point at.
+    //  sector read before it found the tracks unreadable, with a stripe for
+    //  each of its quarter tracks that was read. Most disks have nothing
+    //  between their tracks, and the cell is one color. A track's tip covers
+    //  its cell.
     for (int track = 0; track < FullSendDriveStatus::kTracks; track++)
     {
         uint32_t  color = drive.positions.empty() ? GetColor (drive.tracks[(size_t) track], theme) : GetColor (drive.positions[(size_t) track * 4], theme);
 
         painter.FillRect (left + track * pitch, top, pitch - space, cellH, color);
-        AddCell (left + track * pitch, top, pitch - space, cellH + space + rawH, number, track * 4);
-    }
+        AddCell (left + track * pitch, top, pitch - space, cellH, number, track * 4);
 
-    top += cellH + space;
-
-    //  A position between two tracks has a cell under its track only when it
-    //  was read. Most disks have nothing there, and the row is empty.
-    for (size_t position = 0; position < drive.positions.size(); position++)
-    {
-        FullSendPositionMark  mark = drive.positions[position];
-
-        if (position % 4 == 0 || mark == FullSendPositionMark::Unread || mark == FullSendPositionMark::Skipped)
+        for (int quarter = 1; quarter < 4 && (size_t) (track * 4 + quarter) < drive.positions.size(); quarter++)
         {
-            continue;
+            if (TryGetQuarterColor (drive.positions[(size_t) (track * 4 + quarter)], quarter, shade))
+            {
+                painter.FillRect (left + track * pitch + quarter * stripe, top, stripe, cellH, shade);
+            }
         }
-
-        painter.FillRect (left + position * quarter, top, std::max (1.0f, quarter - space), rawH, GetColor (mark, theme));
     }
 
-    top += rawH + space * 4.0f;
+    top += cellH + space * 4.0f;
 
     painter.FillRoundedRect (left, top, pitch * FullSendDriveStatus::kTracks - space, barH, barH * 0.5f, theme.BackgroundElevated());
 

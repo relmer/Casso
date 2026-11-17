@@ -133,7 +133,8 @@ public:
 
     //  A raw capture saved as a number, whose disk's fingerprint has the
     //  user's name for an earlier capture, is renamed to its number and that
-    //  name, in the folder and in its manifest row.
+    //  name, in the folder and in its manifest row. Its row has the sector
+    //  read's unreadable sectors, and it counts as complete all the same.
     TEST_METHOD (ARawCapture_TakesTheNameGivenToItsFingerprint)
     {
         std::filesystem::path       root        = std::filesystem::temp_directory_path() / std::format (L"CassoBootGiven{}", ::GetCurrentProcessId());
@@ -165,6 +166,7 @@ public:
         row.hash        = std::string (64, 'b');
         row.time        = "2026-11-14T10:00:00";
         row.status      = FullSendManifest::kStatusRawCapture;
+        row.unreadable  = 496;
         manifest.Add (row);
         text = manifest.Format();
 
@@ -188,6 +190,7 @@ public:
         }
 
         Assert::AreEqual (std::string ("0031.dsk"), result.renamedFrom);
+        Assert::IsTrue (result.isComplete, L"A raw capture has every track");
         Assert::IsTrue (std::filesystem::exists (root / L"0031 Archon.dsk"), L"Renamed in the folder");
 
         AssertSucceeded (FullSendManifestFile::FindFingerprint (io, root.string(), "0031 Archon.dsk", found, isRaw));

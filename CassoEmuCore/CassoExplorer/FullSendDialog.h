@@ -39,7 +39,6 @@ public:
     static constexpr float  kSectionGapDip  = 12.0f;
     static constexpr float  kColumnGapDip   = 20.0f;
     static constexpr float  kMapCellDip     = 14.0f;
-    static constexpr float  kMapRawDip      = 8.0f;
     static constexpr float  kBarDip         = 10.0f;
     static constexpr float  kSwatchDip      = 10.0f;
     static constexpr float  kFontDip        = 12.0f;
@@ -50,8 +49,9 @@ public:
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 
     //  The marks' colors, which don't change with the theme.
-    static uint32_t      GetColor (FullSendTrackMark mark, const IDxuiTheme & theme);
-    static uint32_t      GetColor (FullSendPositionMark mark, const IDxuiTheme & theme);
+    static uint32_t      GetColor           (FullSendTrackMark mark, const IDxuiTheme & theme);
+    static uint32_t      GetColor           (FullSendPositionMark mark, const IDxuiTheme & theme);
+    static bool          TryGetQuarterColor (FullSendPositionMark mark, int quarter, uint32_t & outColor);
 
     //  What the session is doing or what it waits for, as a sentence. The
     //  machine is the Apple's model, without its ROM in parentheses; with
@@ -76,8 +76,8 @@ public:
     //  The position is in quarter tracks.
     static std::wstring  DescribeCell     (const FullSendDriveStatus & drive, int position);
 
-    //  A track's tip: in a raw capture its four quarter tracks, one to a line;
-    //  otherwise the track's cell.
+    //  A track's tip: its cell, and in a raw capture each quarter track read,
+    //  one to a line.
     static std::wstring  DescribeTrack    (const FullSendDriveStatus & drive, int track);
 
     //  Seconds as 1:05, or 1:02:05 from an hour.

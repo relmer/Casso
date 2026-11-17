@@ -163,7 +163,7 @@ public:
 
 
 
-    TEST_METHOD (ATracksTip_InARawCapture_ListsItsFourQuarterTracks)
+    TEST_METHOD (ATracksTip_InARawCapture_ListsOnlyTheQuarterTracksRead)
     {
         FullSendDriveStatus  drive;
         std::wstring         lastTip;
@@ -177,15 +177,20 @@ public:
         drive.positions[48] = FullSendPositionMark::Read;
         drive.positions[49] = FullSendPositionMark::Weak;
         drive.positions[50] = FullSendPositionMark::Skipped;
+        drive.positions[51] = FullSendPositionMark::Unstable;
         Assert::AreEqual (std::wstring (L"Track 12: read\n"
                                         L"Track 12.25: weak bits, which read differently every time, as on the disk\n"
-                                        L"Track 12.50: not read, the tracks beside it are complete\n"
-                                        L"Track 12.75: not read yet"),
+                                        L"Track 12.75: the reads differ in length"),
                           FullSendPanel::DescribeTrack (drive, 12));
 
-        //  The last track has no quarter tracks past the end of the map.
+        //  A track with no quarter track read has one line, as the last track
+        //  does, with no quarter tracks past the end of the map.
+        drive.positions[52] = FullSendPositionMark::Read;
+        drive.positions[53] = FullSendPositionMark::Skipped;
+        Assert::AreEqual (std::wstring (L"Track 13: read"), FullSendPanel::DescribeTrack (drive, 13));
+
         lastTip = FullSendPanel::DescribeTrack (drive, FullSendDriveStatus::kTracks - 1);
-        Assert::AreEqual ((std::ptrdiff_t) (FullSendDriveStatus::kPositions - (FullSendDriveStatus::kTracks - 1) * 4), std::count (lastTip.begin(), lastTip.end(), L'\n') + 1);
+        Assert::AreEqual ((std::ptrdiff_t) 0, std::count (lastTip.begin(), lastTip.end(), L'\n'));
     }
 
 
@@ -338,9 +343,9 @@ public:
         }
     }
 
-    //  At 100% and 150%, a track's tip covers its cell and the quarter tracks
-    //  under it, which are too narrow to point at alone.
-    TEST_METHOD (ATracksTip_CoversItsQuarterTracks_At100And150Percent)
+    //  At 100% and 150%, a track's tip covers its whole cell, the stripes of
+    //  its quarter tracks too, which are too narrow to point at alone.
+    TEST_METHOD (ATracksTip_CoversItsCell_At100And150Percent)
     {
         for (UINT dpi : { 96u, 144u })
         {
@@ -380,9 +385,37 @@ public:
                 below++;
             }
 
-            Assert::IsTrue ((float) (below - top.y) >= scaler.ToPxf (FullSendPanel::kMapCellDip + FullSendPanel::kMapRawDip),
+            Assert::IsTrue ((float) (below - top.y) >= scaler.ToPxf (FullSendPanel::kMapCellDip) - 1.0f,
                             std::format (L"The column is {} px at {} dpi", below - top.y, dpi).c_str());
         }
+    }
+
+    //  A quarter track read is a lighter blue toward the next track, a weak
+    //  or unstable one has its mark's color, and one not read has no stripe.
+    TEST_METHOD (AQuarterTracksStripe_HasItsShadeOrMark)
+    {
+        MockDxuiTheme  theme;
+        uint32_t       first  = 0;
+        uint32_t       second = 0;
+        uint32_t       third  = 0;
+        uint32_t       color  = 0;
+
+
+
+        Assert::IsTrue (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Read, 1, first));
+        Assert::IsTrue (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Read, 2, second));
+        Assert::IsTrue (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Read, 3, third));
+        Assert::IsTrue (first != second && second != third && first != third);
+        Assert::IsTrue (first != FullSendPanel::GetColor (FullSendPositionMark::Read, theme), L"a stripe stands out from its track");
+
+        Assert::IsTrue (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Weak, 2, color));
+        Assert::AreEqual (FullSendPanel::GetColor (FullSendPositionMark::Weak, theme), color);
+
+        Assert::IsTrue (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Unstable, 3, color));
+        Assert::AreEqual (FullSendPanel::GetColor (FullSendPositionMark::Unstable, theme), color);
+
+        Assert::IsFalse (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Skipped, 1, color));
+        Assert::IsFalse (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Unread, 1, color));
     }
 
     //  A double-click on a disk's row opens it, and one click doesn't; a
