@@ -309,4 +309,41 @@ public:
         card.Read (0xC0D0);
         Assert::IsFalse (card.GetBus().GetReq());
     }
+
+    //  The card's IWM peeks as its reads return and a peek doesn't move a switch;
+    //  a peek of the slot page has the ROM's byte and doesn't select the
+    //  expansion ROM.
+    TEST_METHOD (Liron_PeeksChangeNothing)
+    {
+        constexpr int  kSlot = 5;
+
+        MemoryBus          bus;
+        LironCard          card (kSlot, bus);
+        std::vector<Byte>  rom (LironCard::kRomSize);
+        Byte               peeked = 0;
+
+
+
+        for (size_t i = 0; i < rom.size(); i++)
+        {
+            rom[i] = (Byte) (i >> 4);
+        }
+
+        Assert::AreEqual (S_OK, card.SetFirmware (rom));
+
+        Assert::IsTrue   (card.TryPeekIo (0xC0D8, peeked));
+        Assert::IsTrue   (card.TryPeekIo (0xC0D9, peeked));
+        Assert::IsFalse  (card.GetIwm().IsEnabled(), L"the peeks did not enable the IWM");
+
+        for (Word offset = 0; offset < 16; offset++)
+        {
+            Assert::IsTrue   (card.TryPeekIo ((Word) (0xC0D0 + offset), peeked), std::format (L"offset {}", offset).c_str());
+            Assert::AreEqual (card.Read ((Word) (0xC0D0 + offset)), peeked, std::format (L"offset {}", offset).c_str());
+        }
+
+        Assert::IsTrue   (card.TryPeekSlotPage (0xC5FF, peeked));
+        Assert::AreEqual (rom[0x5FF], peeked);
+        Assert::IsFalse  (card.IsExpansionRomSelected());
+    }
+
 };

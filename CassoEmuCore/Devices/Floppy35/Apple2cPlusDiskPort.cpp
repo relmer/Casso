@@ -72,6 +72,23 @@ Byte Apple2cPlusDiskPort::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryPeekIo
+//
+//  The IWM's byte for the switch, with the drives left where they are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2cPlusDiskPort::TryPeekIo (Word address, Byte & value)
+{
+    return m_port.TryPeekAccess (address & kSwitchMask, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Write
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,6 +157,52 @@ bool Apple2cPlusDiskPort::AreFloppiesEnabled()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PeekFloppiesEnabled
+//
+//  AreFloppiesEnabled's answer, without keeping it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2cPlusDiskPort::PeekFloppiesEnabled() const
+{
+    int   drive  = m_port.GetIwm().GetDrive();
+    bool  hasBus = m_port.GetDriveCount() > 0 && (m_port.GetBus().IsEnabledAt (0) || m_port.GetBus().IsReset());
+
+
+
+    return drive < m_floppyCount && IsDrivingBus (drive) && !hasBus;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryPeekIwmAccess
+//
+//  OnIwmAccess's result for a read: the IWM's byte, and whether the byte is
+//  the port's, from the switches as they are after the access.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2cPlusDiskPort::TryPeekIwmAccess (int offset, bool & outIsPorts, Byte & outValue) const
+{
+    Iwm::SwitchState  after = m_port.GetSwitchesAfter (offset);
+
+
+
+    outIsPorts = !PeekFloppiesEnabled() || after.q7;
+
+    return m_port.TryPeekAccess (offset, outValue);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetFloppy35EventSink
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -169,6 +232,29 @@ void Apple2cPlusDiskPort::SetFloppy35EventSink (IFloppy35EventSink * sink)
 bool Apple2cPlusDiskPort::IsInternal() const
 {
     return m_mig != nullptr && m_mig->IsInternalOn();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsDrivingBus
+//
+//  True when IWM drive `drive` (0 or 1) drives the SmartPort bus. This is
+//  the test GetDriven makes, without changing anything.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple2cPlusDiskPort::IsDrivingBus (int drive) const
+{
+    bool  isInternal = drive == kInternalDrive && IsInternal();
+    bool  isExternal = drive < m_externalCount && m_mig != nullptr && m_mig->IsSel35();
+
+
+
+    return !isInternal && !isExternal;
 }
 
 

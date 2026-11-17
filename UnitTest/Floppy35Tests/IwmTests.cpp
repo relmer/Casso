@@ -414,4 +414,140 @@ public:
         iwm.Access (kZeros, true, 0xF8, 0);
         Assert::IsFalse (iwm.IsIsmMode());
     }
+
+    //  A peek at the data register returns the byte a read returns, and
+    //  does not clear it: a read after any number of peeks gets it, and
+    //  clears it in the async mode.
+    TEST_METHOD (Peek_DataByteStaysFresh)
+    {
+        Iwm           iwm;
+        FakeDriveBus  drive;
+        Byte          peeked = 0;
+
+
+
+        AppendByte (drive.loop, 0xD5);
+        iwm.AttachDrive (0, &drive);
+        WriteMode (iwm, Iwm::kModeAsync);
+        iwm.Access (kMotorOn, false, 0, 0);
+        iwm.AdvanceTo (8 * FakeDriveBus::kCellNs);
+
+        Assert::IsTrue   (iwm.TryPeekAccess (kQ6Off, peeked));
+        Assert::AreEqual ((Byte) 0xD5, peeked);
+        Assert::IsTrue   (iwm.TryPeekAccess (kQ6Off, peeked));
+        Assert::AreEqual ((Byte) 0xD5, peeked, L"a second peek has the byte too");
+
+        Assert::AreEqual ((Byte) 0xD5, iwm.Access (kQ6Off, false, 0, 8 * FakeDriveBus::kCellNs));
+        Assert::IsTrue   (iwm.TryPeekAccess (kQ6Off, peeked));
+        Assert::AreEqual ((Byte) 0, peeked, L"the read cleared the byte");
+    }
+
+
+    //  Every switch's peek is the byte the read just after it returns, and
+    //  none of them moves a switch.
+    TEST_METHOD (Peek_EachSwitchIsTheByteItsReadReturns)
+    {
+        Iwm           iwm;
+        FakeDriveBus  drive;
+        Byte          peeked = 0;
+        Byte          read   = 0;
+
+
+
+        iwm.AttachDrive (0, &drive);
+        WriteMode (iwm, 0x0F);
+
+        for (int offset = 0; offset < 16; offset++)
+        {
+            Assert::IsTrue (iwm.TryPeekAccess (offset, peeked), std::format (L"offset {}", offset).c_str());
+
+            read = iwm.Access (offset, false, 0, 0);
+
+            Assert::AreEqual (read, peeked, std::format (L"offset {}", offset).c_str());
+        }
+    }
+
+
+    //  A status peek at the motor switch has the enable bit the switch sets,
+    //  and the enable is not set.
+    TEST_METHOD (Peek_StatusShowsTheSwitchWithoutThrowingIt)
+    {
+        Iwm           iwm;
+        FakeDriveBus  drive;
+        Byte          peeked = 0;
+
+
+
+        iwm.AttachDrive (0, &drive);
+        WriteMode (iwm, 0x0F);
+        iwm.Access (kQ6On, false, 0, 0);
+
+        Assert::IsTrue   (iwm.TryPeekAccess (kMotorOn, peeked));
+        Assert::AreEqual ((Byte) 0xAF, peeked, L"sense high, enabled, mode $0F");
+        Assert::IsFalse  (iwm.IsEnabled(),     L"the peek did not enable the IWM");
+        Assert::IsFalse  (drive.enabled,       L"the drive was not enabled");
+
+        Assert::IsTrue   (iwm.TryPeekAccess (kQ6Off, peeked));
+        Assert::IsTrue   (iwm.IsQ6(),          L"the peek did not clear Q6");
+    }
+
+
+    //  A status read at a phase switch returns the sense line of the phases
+    //  the switch sets, which a peek cannot work out without setting them.
+    TEST_METHOD (Peek_StatusAtAPhaseSwitchHasNoByte)
+    {
+        Iwm           iwm;
+        FakeDriveBus  drive;
+        Byte          peeked = 0;
+
+
+
+        iwm.AttachDrive (0, &drive);
+        iwm.Access (kQ6On, false, 0, 0);
+
+        Assert::IsFalse (iwm.TryPeekAccess (0x1, peeked), L"phase 0 on");
+        Assert::IsFalse (drive.phases[0],                 L"the phase was not set");
+        Assert::IsTrue  (iwm.TryPeekAccess (0x0, peeked), L"phase 0 is off already");
+    }
+
+
+    //  In the ISM mode a peek at the parameter RAM does not advance the
+    //  counter that a read advances.
+    TEST_METHOD (Peek_ParameterRamCounterStaysPut)
+    {
+        constexpr int  kParamWrite = 0x3;
+        constexpr int  kZeros      = 0x6;
+        constexpr int  kParamRead  = 0xB;
+
+        Iwm   iwm;
+        Byte  peeked = 0;
+
+
+
+        iwm.Access (kQ6On, false, 0, 0);
+        iwm.Access (kQ7On, true, 0x4F, 0);
+        iwm.Access (kQ7On, true, 0x0F, 0);
+        iwm.Access (kQ7On, true, 0x4F, 0);
+        iwm.Access (kQ7On, true, 0x4F, 0);
+        Assert::IsTrue (iwm.IsIsmMode());
+
+        iwm.Access (kZeros, true, 0, 0);
+
+        for (int i = 0; i < 16; i++)
+        {
+            iwm.Access (kParamWrite, true, (Byte) (i * 17), 0);
+        }
+
+        iwm.Access (kZeros, true, 0, 0);
+
+        Assert::IsTrue   (iwm.TryPeekAccess (kParamRead, peeked));
+        Assert::AreEqual ((Byte) 0, peeked);
+        Assert::IsTrue   (iwm.TryPeekAccess (kParamRead, peeked));
+        Assert::AreEqual ((Byte) 0, peeked, L"the counter did not move");
+
+        Assert::AreEqual ((Byte) 0, iwm.Access (kParamRead, false, 0, 0));
+        Assert::IsTrue   (iwm.TryPeekAccess (kParamRead, peeked));
+        Assert::AreEqual ((Byte) 17, peeked, L"the read moved it");
+    }
+
 };

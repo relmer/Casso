@@ -50,12 +50,13 @@ public:
 
     void  SetCycleSource (const uint64_t * cycles) { m_cycles = cycles; }
 
-    std::vector<Byte>  & GetRam   ()          { return m_ram; }
-    std::vector<Byte>  & GetRom   ()          { return m_rom; }
-    Sony35Drive        & GetDrive (int index) { return *m_drives[(size_t) index]; }
-    bool                 HasDrive (int index) const { return m_drives[(size_t) index] != nullptr; }
-    Iwm                & GetIwm   ()          { return m_iwm; }
-    bool                 IsLedOn  () const    { return m_led; }
+    std::vector<Byte>        & GetRam   ()          { return m_ram; }
+    const std::vector<Byte>  & GetRam   () const { return m_ram; }
+    std::vector<Byte>        & GetRom   ()          { return m_rom; }
+    Sony35Drive              & GetDrive (int index) { return *m_drives[(size_t) index]; }
+    bool                       HasDrive (int index) const { return m_drives[(size_t) index] != nullptr; }
+    Iwm                      & GetIwm   ()          { return m_iwm; }
+    bool                       IsLedOn  () const    { return m_led; }
 
     //  The RAM, the IWM, each drive and the LED, written into and read from
     //  the card's state section. The ROM is the card's firmware.

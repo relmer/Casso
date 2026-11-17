@@ -48,15 +48,18 @@ public:
     ~Apple2cPlusDiskPort() override;
 
     // MemoryDevice
-    Byte  Read     (Word address) override;
-    void  Write    (Word address, Byte value) override;
-    Word  GetStart () const override { return kIoStart; }
-    Word  GetEnd   () const override { return kIoEnd; }
-    void  Reset    () override { m_port.Reset(); }
+    Byte  Read      (Word address) override;
+    void  Write     (Word address, Byte value) override;
+    bool  TryPeekIo (Word address, Byte & value) override;
+    Word  GetStart  () const override { return kIoStart; }
+    Word  GetEnd    () const override { return kIoEnd; }
+    void  Reset     () override { m_port.Reset(); }
 
     // IDiskPortHook
-    bool  OnIwmAccess        (int offset, bool isWrite, Byte value, Byte & outValue) override;
-    bool  AreFloppiesEnabled () override;
+    bool  OnIwmAccess         (int offset, bool isWrite, Byte value, Byte & outValue) override;
+    bool  AreFloppiesEnabled  () override;
+    bool  PeekFloppiesEnabled () const override;
+    bool  TryPeekIwmAccess    (int offset, bool & outIsPorts, Byte & outValue) const override;
 
     // IFloppy35EventSource
     void  SetFloppy35EventSink (IFloppy35EventSink * sink) override;
@@ -124,10 +127,11 @@ private:
         IDiskDriveBus        * m_driven = nullptr;
     };
 
-    bool             IsInternal  () const;
-    IDiskDriveBus  & GetDriven   (int drive);
-    void             SyncHeads   ();
-    void             SyncEnables ();
+    bool             IsInternal   () const;
+    bool             IsDrivingBus (int drive) const;
+    IDiskDriveBus  & GetDriven    (int drive);
+    void             SyncHeads    ();
+    void             SyncEnables  ();
 
     SmartPortHost                          m_port;
     Sony35Drive                            m_internal      { 0 };

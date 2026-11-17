@@ -68,6 +68,27 @@ public:
     //  a read returns.
     Byte  Access (int offset, bool isWrite, Byte value, uint64_t nowNs);
 
+    //  The switches after an access to `offset`, as Access sets them, worked
+    //  out without changing anything.
+    struct SwitchState
+    {
+        bool  q6           = false;
+        bool  q7           = false;
+        bool  isEnabled    = false;
+        bool  isOffPending = false;
+        int   drive        = 0;
+        bool  isDriveMoved = false;
+    };
+
+    SwitchState  GetSwitchesAfter (int offset) const;
+
+    //  The byte a read of switch `offset` returns, as of the IWM's last
+    //  access or advance, without the read's changes: a data byte stays
+    //  fresh, the SWIM's parameter counter stays, no bits move. False where
+    //  the byte depends on a drive's lines the access changes: a status
+    //  read that selects another drive or moves a phase.
+    bool  TryPeekAccess (int offset, Byte & value) const;
+
     //  Moves bits up to `nowNs`.
     void  AdvanceTo (uint64_t nowNs);
 

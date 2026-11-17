@@ -40,6 +40,11 @@ public:
     // A read of $C800-$CEFF while selected.
     virtual Byte ReadExpansionRom       (Word address) = 0;
 
+    // The byte a read of $C800-$CEFF returns, without the read's side
+    // effects. False where there is no such peek and ReadExpansionRom is the
+    // only way to get the byte; the default is false.
+    virtual bool TryPeekExpansionRom    (Word address, Byte & value) const { (void) address; value = 0; return false; }
+
     virtual void DeselectExpansionRom   () = 0;
 
     virtual int  GetSlot                () const = 0;
