@@ -331,6 +331,12 @@
     <ClCompile Include="Debugger\WatchTable.cpp" />
     <ClCompile Include="Debugger\WinDbgFormatter.cpp" />
     <ClCompile Include="Debugger\DebugSession.cpp" />
+    <ClCompile Include="Debugger\BeamBreakMonitor.cpp" />
+    <ClCompile Include="Debugger\CallRecordKeeper.cpp" />
+    <ClCompile Include="Debugger\DebugHostFiles.cpp" />
+    <ClCompile Include="Debugger\DebugLineInterpreter.cpp" />
+    <ClCompile Include="Debugger\DebugProgramFiles.cpp" />
+    <ClCompile Include="Debugger\DebugStopMonitor.cpp" />
     <ClCompile Include="Debugger\DiskBreakpointMonitor.cpp" />
     <ClCompile Include="Debugger\DiskFieldTracker.cpp" />
     <ClCompile Include="Debugger\DiskLogicalMap.cpp" />
@@ -1856,6 +1862,12 @@
     <ClInclude Include="Debugger\WatchTable.h" />
     <ClInclude Include="Debugger\WinDbgFormatter.h" />
     <ClInclude Include="Debugger\DebugSession.h" />
+    <ClInclude Include="Debugger\BeamBreakMonitor.h" />
+    <ClInclude Include="Debugger\CallRecordKeeper.h" />
+    <ClInclude Include="Debugger\DebugHostFiles.h" />
+    <ClInclude Include="Debugger\DebugLineInterpreter.h" />
+    <ClInclude Include="Debugger\DebugProgramFiles.h" />
+    <ClInclude Include="Debugger\DebugStopMonitor.h" />
     <ClInclude Include="Debugger\DiskBreakpointMonitor.h" />
     <ClInclude Include="Debugger\DiskFieldTracker.h" />
     <ClInclude Include="Debugger\DiskLogicalMap.h" />
