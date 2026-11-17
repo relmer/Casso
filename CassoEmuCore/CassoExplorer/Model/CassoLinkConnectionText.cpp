@@ -148,7 +148,8 @@ std::wstring CassoLinkConnectionText::DescribeState (LinkState state, const Cass
     switch ((server || settings.IsSearch()) ? LinkState::Opening : state)
     {
         case LinkState::Closed:          text = std::format (L"Click {} to connect.", name);                     break;
-        case LinkState::Bootstrapping:   text = std::format (L"Typing the loader into {}...", name);              break;
+        case LinkState::Bootstrapping:   text = (settings.transport == LinkTransport::Cassette) ? std::format (L"Sending the program's tape to {}...", name)
+                                                                                                : std::format (L"Typing the loader into {}...", name);     break;
         case LinkState::LoadingProgram:  text = std::format (L"Loading Casso's program into {}...", name);        break;
         case LinkState::Ready:
         case LinkState::Busy:            text = L"Connected.";                                                     break;
@@ -181,6 +182,10 @@ std::wstring CassoLinkConnectionText::DescribeState (LinkState state, const Cass
                          ? std::wstring (L"Each Apple on this PC's network that boots a CassoLink disk on an Uthernet II is listed "
                                          L"when its announcement arrives.")
                          : std::format (L"Connecting to {}.\nBoot that Apple from a CassoLink disk saved from {}.", where, name);
+                    break;
+
+                case LinkTransport::Cassette:
+                    text = std::format (L"Waiting for the CassoLink program on {}.\nChoose Start from the tape from {}'s menu.", name, name);
                     break;
 
                 case LinkTransport::AdtProServer:

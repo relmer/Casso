@@ -636,35 +636,63 @@ void CassoLinkManager::SearchComPorts (const std::string & name)
 
 void CassoLinkManager::BootstrapConnection (const std::string & name)
 {
-    HRESULT       hr      = S_OK;
-    std::wstring  steps;
-    int           answer  = IDCANCEL;
+    constexpr double     kUsPerSecond = 1000000.0;
+    HRESULT              hr           = S_OK;
+    std::wstring         steps;
+    int                  answer       = IDCANCEL;
+    std::vector<double>  halves;
+    std::string          command;
+    double               seconds      = 0.0;
 
 
 
-    steps  = L"On the Apple, at the prompt, type:\n\n"
-             L"1. **IN#2** on a //c, or IN# and the Super Serial Card's slot, then press Return\n"
-             L"2. **Ctrl+A 14B**, then press Return\n\n"
-             L"The loader is then typed into the Apple, which takes about 40 seconds.";
-    answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, steps.c_str(), L"Bootstrap the Apple",
-                             MB_OKCANCEL | MB_ICONINFORMATION, { L"Bootstrap", L"Cancel" });
-
-    if (answer != IDOK)
+    if (IsCassetteConnection (name))
     {
-        return;
+        hr = LinkAudioBootstrap::BuildCassetteLinkRecord (halves, command);
+        CHR (hr);
+
+        command.pop_back();
+
+        for (double half : halves)
+        {
+            seconds += half / kUsPerSecond;
+        }
+
+        steps  = std::format (L"Connect this PC's sound output to the cassette input of the ][+ or //e, and the Apple's cassette output "
+                              L"to this PC's sound input. Turn the volume up most of the way.\n\n"
+                              L"On the Apple, at the prompt, type:\n\n"
+                              L"1. **CALL -151**, then press Return\n"
+                              L"2. **{}**, then press Return\n\n"
+                              L"Then choose Send. The tape takes about {} seconds.", TextEncoding::NarrowToWide (command), (int) ceil (seconds));
+        answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, steps.c_str(), L"Start from the tape",
+                                 MB_OKCANCEL | MB_ICONINFORMATION, { L"Send", L"Cancel" });
     }
+    else
+    {
+        steps  = L"On the Apple, at the prompt, type:\n\n"
+                 L"1. **IN#2** on a //c, or IN# and the Super Serial Card's slot, then press Return\n"
+                 L"2. **Ctrl+A 14B**, then press Return\n\n"
+                 L"The loader is then typed into the Apple, which takes about 40 seconds.";
+        answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, steps.c_str(), L"Bootstrap the Apple",
+                                 MB_OKCANCEL | MB_ICONINFORMATION, { L"Bootstrap", L"Cancel" });
+    }
+
+    BAIL_OUT_IF (answer != IDOK, S_OK);
 
     hr = m_context.app.links->Bootstrap (name, [] (const LinkOperation & operation) -> std::wstring
     {
         return FAILED (operation.result) ? CassoLinkConnectionText::DescribeFailure (operation) : std::wstring();
     });
+    CHR (hr);
 
+    HandleConnectionChanged();
+
+Error:
     if (FAILED (hr))
     {
         m_context.window.ShowMessage (L"CassoLink could not be started.", MB_ICONERROR);
+        HandleConnectionChanged();
     }
-
-    HandleConnectionChanged();
 }
 
 
@@ -1053,6 +1081,28 @@ bool CassoLinkManager::IsSerialConnection (const std::string & name) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkManager::IsCassetteConnection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkManager::IsCassetteConnection (const std::string & name) const
+{
+    const std::vector<CassoLinkSettings> &  links = m_context.app.links->GetLinks();
+
+
+
+    return std::any_of (links.begin(), links.end(), [&name] (const CassoLinkSettings & settings)
+    {
+        return settings.name == name && settings.transport == LinkTransport::Cassette;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkManager::CanBootstrapConnection
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1116,8 +1166,15 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
             m_context.menus.AddMenuCommand (items, L"&Search COM ports", [this, name]() { SearchComPorts (name); });
         }
 
+        //  An Apple on its cassette ports is started from the program's tape.
+        if (IsCassetteConnection (name))
+        {
+            m_context.menus.AddMenuCommand (items, L"Start from the &tape...", [this, name]() { BootstrapConnection (name); });
+            m_context.menus.AddMenuCommand (items, L"Save the program's ta&pe...", [this, name]() { SaveCassetteBootstrap (name); });
+        }
+
         //  Only an Apple on a serial card can be started from here.
-        if (CanBootstrapConnection (name))
+        if (CanBootstrapConnection (name) && !IsCassetteConnection (name))
         {
             m_context.menus.AddMenuCommand (items, L"&Bootstrap the Apple...", [this, name]() { BootstrapConnection (name); });
             m_context.menus.AddMenuCommand (items, L"Bootstrap from the c&assette input...", [this, name]() { PlayCassetteBootstrap (name); });
@@ -1127,7 +1184,10 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         //  A boot disk is built for its link: at its speed, a Wi-Fi modem's
         //  dialing this PC, and an Uthernet II's with the link's address for
         //  when no DHCP reply comes.
-        m_context.menus.AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { m_context.linkDrives.SaveLinkDiskImage (name); });
+        if (!IsCassetteConnection (name))
+        {
+            m_context.menus.AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { m_context.linkDrives.SaveLinkDiskImage (name); });
+        }
 
         //  The ProDOS disk's driver talks to a 6551, so only a serial link
         //  has its virtual drives.

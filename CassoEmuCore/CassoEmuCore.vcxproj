@@ -1571,6 +1571,7 @@
     <ClInclude Include="CassoExplorer\RawCopyDropHandler.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNamedControl.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNewDiskDialog.h" />
+    <ClInclude Include="CassoExplorer\CassetteLevelMeter.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerLinkDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerProperties.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerRawDialog.h" />

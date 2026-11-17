@@ -7,6 +7,7 @@
 #include "CassoExplorer/Model/CassoLinkConnectionText.h"
 #include "CassoExplorer/Model/CassoLinkShimBuilder.h"
 #include "CassoLink/LinkAudioBootstrap.h"
+#include "Devices/Tape/WavCodec.h"
 #include "CassoLink/CassoLinkProDosDisk.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "CassoExplorer/Model/DragPayload.h"
@@ -1734,9 +1735,26 @@ ActionsTypes::Outcome ActionsAppleDrive::SaveCassetteBootstrap (const std::wstri
 {
     ActionsTypes::Outcome  outcome;
     std::vector<Byte>      wav;
-    HRESULT                hr      = LinkAudioBootstrap::BuildWav (CassoLinkShimBuilder::MakeShimOptions (CassoLinkShimBuilder::GetPcName(), settings), wav, outCommand);
+    TapeAudio              audio;
+    HRESULT                hr      = S_OK;
 
 
+
+    //  A cassette link's tape is the program itself; a serial link's is the
+    //  shim, which loads the program over the card.
+    if (settings.transport == LinkTransport::Cassette)
+    {
+        hr = LinkAudioBootstrap::BuildCassetteLinkAudio (audio, outCommand);
+
+        if (SUCCEEDED (hr))
+        {
+            WavCodec::Encode (audio, wav);
+        }
+    }
+    else
+    {
+        hr = LinkAudioBootstrap::BuildWav (CassoLinkShimBuilder::MakeShimOptions (CassoLinkShimBuilder::GetPcName(), settings), wav, outCommand);
+    }
 
     if (SUCCEEDED (hr))
     {
