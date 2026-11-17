@@ -158,6 +158,8 @@
     <ClCompile Include="Core\DxuiFocusManager.cpp" />
     <ClCompile Include="Core\DxuiKeyMap.cpp" />
     <ClCompile Include="Core\DxuiPaneLayout.cpp" />
+    <ClCompile Include="Core\DxuiPaneLayoutArranger.cpp" />
+    <ClCompile Include="Core\DxuiPaneLayoutText.cpp" />
     <ClCompile Include="Core\DxuiPaneMetrics.cpp" />
     <ClCompile Include="Core\DxuiDockDropZones.cpp" />
     <ClCompile Include="Core\DxuiDockGuide.cpp" />
@@ -321,6 +323,8 @@
     <ClInclude Include="Core\DxuiFocusManager.h" />
     <ClInclude Include="Core\DxuiKeyMap.h" />
     <ClInclude Include="Core\DxuiPaneLayout.h" />
+    <ClInclude Include="Core\DxuiPaneLayoutArranger.h" />
+    <ClInclude Include="Core\DxuiPaneLayoutText.h" />
     <ClInclude Include="Core\DxuiDockDropZones.h" />
     <ClInclude Include="Core\DxuiDockGuide.h" />
     <ClInclude Include="Core\DxuiFormLayout.h" />

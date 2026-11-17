@@ -245,22 +245,8 @@ private:
     static int                      CountDocumentGroups (const Node * node, const GroupFn & isDocument);
     static Node                   * FindWell            (Node * node, const GroupFn & isDocument, int count);
     static bool                     RemoveFrom          (std::unique_ptr<Node> & slot, const std::wstring & pane);
-    static bool                     HasShown            (const Node * node, const ShownFn & shown);
-    static SIZE                     GetMinimum          (const Node * node, const ShownFn & shown, const MinSizeFn & minSize);
-    static void                   ArrangeNode  (const Node * node, const RECT & area, const ShownFn & shown,
-                                                const MinSizeFn & minSize, std::vector<GroupRect> & out);
-    static void                   ArrangeSplitsIn (const Node * node, const RECT & area, const ShownFn & shown,
-                                                   const MinSizeFn & minSize, const std::wstring & path,
-                                                   std::vector<SplitRect> & out);
-    static long                   GetSplitPosition (const Node * node, const RECT & area, const ShownFn & shown,
-                                                    const MinSizeFn & minSize);
-    static void                   DropUnknownIn (std::unique_ptr<Node> & slot,
-                                                 const std::function<bool (const std::wstring & pane)> & isKnown);
-    static void                         WriteNode   (const Node * node, std::wstring & out);
-    static std::unique_ptr<Node>        ReadNode    (const std::vector<std::wstring> & tokens, size_t & at);
-    static std::vector<std::wstring>    Tokenize    (const std::wstring & text);
-    static const wchar_t              * GetSideName (DxuiDockSide side);
-    static bool                         TryGetSide  (const std::wstring & name, DxuiDockSide & side);
+    static void                     DropUnknownIn       (std::unique_ptr<Node> & slot,
+                                                         const std::function<bool (const std::wstring & pane)> & isKnown);
 
     bool          Detach             (const std::wstring & pane);
     void          Split              (Node & group, std::unique_ptr<Node> added, DxuiDockSide side);
