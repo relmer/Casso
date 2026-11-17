@@ -311,17 +311,12 @@ void ShellDebugger::RunReverseCommand (
 
     if (result.outcome == ReverseOutcome::NoCaller)
     {
-        std::lock_guard<std::mutex>  held (m_debugViewMutex);
-
-        m_debugConsolePending.push_back (s_kNoCallerText);
+        m_mailbox.AddConsoleLine (s_kNoCallerText);
     }
 
     if (m_isLandingReplyDue.exchange (false, memory_order_acq_rel))
     {
-        std::string                  landing = GetLandingText (result.outcome);
-        std::lock_guard<std::mutex>  held (m_debugViewMutex);
-
-        m_debugConsolePending.push_back (landing);
+        m_mailbox.AddConsoleLine (GetLandingText (result.outcome));
     }
 
     if (m_debugSession != nullptr)

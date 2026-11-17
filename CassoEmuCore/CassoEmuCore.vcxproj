@@ -1551,6 +1551,8 @@
     <ClCompile Include="Shell\Components\ShellDeskScene.cpp" />
     <ClCompile Include="Shell\EmulatorShellCpuThread.cpp" />
     <ClCompile Include="Shell\ShellDebugger.cpp" />
+    <ClCompile Include="Shell\DebugViewRequests.cpp" />
+    <ClCompile Include="Shell\DebugWindowMailbox.cpp" />
     <ClCompile Include="Shell\EmulatorShellDebuggerHost.cpp" />
     <ClCompile Include="Shell\Components\ShellInput.cpp" />
     <ClCompile Include="Shell\Components\ShellControllers.cpp" />
@@ -2869,6 +2871,8 @@
     <ClInclude Include="D3DRenderer.h" />
     <ClInclude Include="Shell\EmulatorShell.h" />
     <ClInclude Include="Shell\ShellDebugger.h" />
+    <ClInclude Include="Shell\DebugViewRequests.h" />
+    <ClInclude Include="Shell\DebugWindowMailbox.h" />
     <ClInclude Include="Shell\ShellDebuggerPrefs.h" />
     <ClInclude Include="Shell\IDebuggerHost.h" />
     <ClInclude Include="Shell\EmulatorShellDebuggerHost.h" />

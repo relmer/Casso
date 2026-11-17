@@ -1209,13 +1209,6 @@ void ShellDebugger::AddConsoleLines (const std::vector<std::string> & lines)
         return;
     }
 
-    {
-        std::lock_guard<std::mutex>  lock (m_debugViewMutex);
-
-
-
-        m_debugConsolePending.insert (m_debugConsolePending.end(), lines.begin(), lines.end());
-    }
-
+    m_mailbox.AddConsoleLines (lines);
     m_isDebugViewDirty = true;
 }

@@ -16,6 +16,8 @@
 #include "Debugger/Reverse/ReverseOutcome.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/DebugEventLogs.h"
+#include "Shell/DebugViewRequests.h"
+#include "Shell/DebugWindowMailbox.h"
 #include "Shell/DebuggerSliceHooks.h"
 #include "Shell/ScratchCallReplayer.h"
 #include "Shell/ScratchHeatReplayer.h"
@@ -235,30 +237,30 @@ public:
     void    OpenDebugChannel     () override;
     void    CloseDebugChannel    (bool isDetach) override;
     void    PauseDebugRun        () override;
-    void    SetDebugFollowView   (int view) override;
-    void    CloseDebugCodeView   (int view) override;
-    void    OpenDebugCodeViewAt  (int view, Word top) override;
-    void    SetDebugCodeLines    (int lines, int view) override;
-    void    SetDebugCodeShown    (int lines, int view) override;
-    void    ShowDebugCode        (int view, std::optional<Word> address) override;
-    void    SetDebugMemoryWindow (int id, std::optional<Word> address) override;
-    void    SetDebugTraceView    (std::optional<uint64_t> first) override;
-    void    SetDebugEventLog     (DebugLogKind kind, const DebugLogRequest & request) override;
+    void    SetDebugFollowView   (int view) override                                 { m_viewRequests.SetFollowView (view); }
+    void    CloseDebugCodeView   (int view) override                                 { m_viewRequests.CloseCodeView (view); }
+    void    OpenDebugCodeViewAt  (int view, Word top) override                       { m_viewRequests.OpenCodeViewAt (view, top); }
+    void    SetDebugCodeLines    (int lines, int view) override                      { m_viewRequests.SetCodeLines (lines, view); }
+    void    SetDebugCodeShown    (int lines, int view) override                      { m_viewRequests.SetCodeShown (lines, view); }
+    void    ShowDebugCode        (int view, std::optional<Word> address) override    { m_viewRequests.ShowCode (view, address); }
+    void    SetDebugMemoryWindow (int id, std::optional<Word> address) override      { m_viewRequests.SetMemoryWindow (id, address); }
+    void    SetDebugTraceView    (std::optional<uint64_t> first) override            { m_viewRequests.SetTraceView (first); }
+    void    SetDebugEventLog     (DebugLogKind kind, const DebugLogRequest & request) override { m_eventLogs.ApplyRequest (kind, request); }
     void    GoToDebugMemory      (int window, const std::string & text) override;
-    void    SelectDebugCode      (int view, Word address) override;
-    void    ScrollDebugCode      (int lines, int view) override;
-    void    HoldDebugCode        (bool isHeld, int view) override;
+    void    SelectDebugCode      (int view, Word address) override                   { m_viewRequests.SelectCode (view, address); }
+    void    ScrollDebugCode      (int lines, int view) override                      { m_viewRequests.ScrollCode (lines, view); }
+    void    HoldDebugCode        (bool isHeld, int view) override                    { m_viewRequests.HoldCode (isHeld, view); }
     void    RunDebugActions      () override;
 
     // Whether the heat map pane is shown, and so recording.
-    void  SetDebugHeatMapShown     (bool shown) override;
-    void  SetDebugHeatColumnsShown (bool shown) override;
-    void  SetDebugTraceShown       (bool shown) override;
+    void  SetDebugHeatMapShown     (bool shown) override                             { m_viewRequests.SetHeatMapShown (shown); }
+    void  SetDebugHeatColumnsShown (bool shown) override                             { m_viewRequests.SetHeatColumnsShown (shown); }
+    void  SetDebugTraceShown       (bool shown) override                             { m_viewRequests.SetTraceShown (shown); }
     void  SetDebugSoundMuted       (int channel, bool isMuted) override;
-    void  SetDebugBasicShown       (bool isVisible) override;
-    void  SetDebugHeatMapOptions   (const HeatMapOptions & options) override;
+    void  SetDebugBasicShown       (bool isVisible) override                         { m_viewRequests.SetBasicShown (isVisible); }
+    void  SetDebugHeatMapOptions   (const HeatMapOptions & options) override         { m_viewRequests.SetHeatMapOptions (options); }
     void  ResetDebugHeatMap        () override;
-    void  SetDebugHeatMapHover     (std::optional<Word> address) override;
+    void  SetDebugHeatMapHover     (std::optional<Word> address) override            { m_viewRequests.SetHeatMapHover (address); }
     void  RunDebugHeatMapAccess    (const HeatAccessRequest & request) override;
     void  SetDebugHeatMapIgnore    (const std::vector<std::pair<Word, Word>> & spans) override;
 
@@ -271,7 +273,7 @@ public:
     void    GatherDebugView      (DebugViewInput & input, DebuggerViewSnapshot & live);
 
     // A built snapshot, for the UI thread to take. Any thread.
-    void    PublishDebugSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot);
+    void    PublishDebugSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot) { m_mailbox.PublishSnapshot (std::move (snapshot)); }
 
     // IDebuggerWindowHost, called by the window on the UI thread.
     void                RunDebuggerCommand          (const std::string & line) override;
@@ -289,7 +291,7 @@ public:
     void                SetDebuggerMemoryWindow     (int id, std::optional<Word> address) override;
     void                SetDebuggerTraceTop         (std::optional<uint64_t> first) override;
     void                SendDebuggerEventLogRequest (DebugLogKind kind, const DebugLogRequest & request) override;
-    void                TakeDebuggerEventLogs       (DebugLogDeltas & deltas) override;
+    void                TakeDebuggerEventLogs       (DebugLogDeltas & deltas) override { m_mailbox.TakeEventLogs (deltas); }
     std::string         GetDebuggerEventLogOptions  (DebugLogKind kind) override { return m_prefs.GetDebuggerEventLogOptions (kind); }
     void                SetDebuggerEventLogOptions  (DebugLogKind kind, const std::string & text) override { m_prefs.SetDebuggerEventLogOptions (kind, text); }
     void                SetDebuggerHeatMapShown     (bool shown) override;
@@ -400,7 +402,11 @@ public:
     // IDebuggerWindowHost: the window's next view and console lines, and a
     // file a console link opens.
     bool    TakeDebuggerUpdate (std::shared_ptr<const DebuggerViewSnapshot> & snapshot,
-                                std::vector<std::string>                     & consoleLines) override;
+                                std::vector<std::string>                     & consoleLines) override
+    {
+        return m_mailbox.TakeUpdate (snapshot, consoleLines);
+    }
+
     void    OpenDebuggerFile   (const std::wstring & path) override;
 
     // The console's line once a debug project loads: the word "project"
@@ -556,7 +562,7 @@ private:
 
     // The debugger window and what it is shown. The view state and the build
     // clock belong to the CPU thread; the snapshot and console lines cross to
-    // the UI thread under the mutex.
+    // the UI thread through the mailbox.
     std::unique_ptr<DebuggerWindow>  m_debuggerWindow;
     DebuggerViewState                m_debugViewState;
     ULONGLONG                        m_debugViewBuiltAt      = 0;
@@ -577,12 +583,7 @@ private:
 
     std::atomic<bool>                              m_isDebugWindowShown { false };
     bool                                           m_isDetachPending    = false;
-    std::mutex                                     m_debugViewMutex;
-    std::shared_ptr<const DebuggerViewSnapshot>    m_debugViewSnapshot;
-    bool                                           m_isDebugViewFresh   = false;
-    std::vector<std::string>                       m_debugConsolePending;
-    DebugLogDeltas                                 m_eventLogsPending;
-    std::vector<DebuggerAction>                    m_debugActionsPending;
+    DebugWindowMailbox                             m_mailbox;
 
     // The panes are built off the CPU thread from what it gathers each frame.
     // Each build holds the view state lock while it reads the view state, and
@@ -595,6 +596,7 @@ private:
     static constexpr size_t                        kDebugBuildQueueCapacity = 2;
     static constexpr DWORD                         kDebugBuildThreads       = 3;
     std::mutex                                     m_debugViewStateLock;
+    DebugViewRequests                              m_viewRequests       { m_debugViewState, m_debugViewStateLock, [this] { m_isDebugViewDirty = true; } };
     DebugSessionView                               m_debugSessionView;
     DebugViewPublisher                             m_debugViewPublisher { m_debugViewState, m_debugViewStateLock,
                                                                           [this] (std::shared_ptr<const DebuggerViewSnapshot> snapshot)
