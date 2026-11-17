@@ -98,7 +98,7 @@ Check:
    Monitor ///.
 4. Debugger, stopped in Business BASIC:
    - the registers pane lists E, B and Z with bit tips;
-   - a memory window on `2/3000` lists bank 2 whatever bank is switched in;
+   - a memory window on `2:3000` lists bank 2 whatever bank is switched in;
    - a breakpoint on a bank-qualified address stops only in that bank;
    - an indirect instruction through an enabled extension byte has its
      resolved address on the line;

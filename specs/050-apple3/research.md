@@ -42,8 +42,8 @@ encoding, timing, the keyboard codes, and every model dimension.
   zero page, and with the highest bank the upper half is undefined.
 - Apple's notation for a bank-switched address is `b:nnnn`, and for an
   extended address `8x:nnnn` (SOS Reference Manual 2.1.1 and 2.1.2). The
-  debugger's `bank/address` form was chosen before this was read; see the
-  open question in the plan.
+  debugger uses Apple's `b:nnnn`, with `/` in the two command modes where
+  `:` is the deposit command (R15).
 - Apple's Business BASIC and SOS source listings exist. They replace
   observation as the source for Business BASIC's internals (R19).
 
@@ -308,7 +308,9 @@ then the panes. A `Word` converts implicitly to a current-view
 `DebugAddress`, so each stage compiles and Apple II behavior is the same
 after each one.
 
-**Syntax**: `bank/address`, hex, for example `2/3000`; `S/` for the system
+**Syntax** (owner decision, 2026-11-17): Apple's `b:nnnn`, for example
+`2:3000`, everywhere it does not conflict; `b/nnnn` in the Apple II Monitor
+and GSSquared modes, where `addr:` starts a deposit; `S:` for the system
 bank where it has to be distinguished. See `contracts/debugger-addresses.md`.
 
 **Alternative not taken**: A flat 24-bit address with the bank in the high byte, as a IIgs

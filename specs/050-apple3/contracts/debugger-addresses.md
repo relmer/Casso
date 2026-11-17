@@ -3,21 +3,49 @@
 ## Text form
 
 ```
-address      := [ space "/" ] hex16
+address      := [ space separator ] hex16
 space        := bank | "S" | "R"
 bank         := hex digit            ; 0-E
+separator    := ":" | "/"            ; by mode, see below
 hex16        := 1 to 4 hex digits, with the mode's usual prefix rules
 ```
 
 | Text | Meaning |
 |---|---|
 | `3000` | `$3000` in the current view |
-| `2/3000` | `$3000` in bank 2 |
-| `S/A000` | `$A000` in the system bank |
-| `R/F000` | `$F000` in the ROM, whatever the environment register selects |
+| `2:3000` | `$3000` in bank 2 |
+| `S:A000` | `$A000` in the system bank |
+| `R:F000` | `$F000` in the ROM, whatever the environment register selects |
 
-- Accepted wherever an address is accepted, in all four command modes, the
-  Go to boxes, and every dialog field that takes an address.
+`b:nnnn` is Apple's notation for a bank-switched address (SOS Reference
+Manual 2.1.1). It is the form the debugger prints and the form every pane,
+Go to box, dialog field and JSON field accepts.
+
+### Separator by command mode
+
+| Mode | Accepts | Prints | Why |
+|---|---|---|---|
+| Casso | `:` | `:` | no existing use of `:` in an address |
+| WinDbg | `:` | `:` | the same |
+| Apple II Monitor | `/` | `/` | `addr: bytes` is the deposit command, so `2:30` already means "store `$30` at `$0002`" |
+| GSSquared | `/` | `/` | `addr:bytes` is its deposit command too, and `/` is its existing bank separator |
+
+Two other places use `:` today and have a rule each:
+
+- **Assembler prompt** (`addr:MNE operand` moves the assembly address): a
+  bank-qualified address is written `b:nnnn:MNE operand`. A single
+  `hex:` prefix is an address, as it is today.
+- **Range fields** (heat map ranges accept `start:end`, `start..end` and
+  `start,length`): with a bank on either end, the range is written with
+  `..` or `,`, for example `2:3000..2:3FFF`. `start:end` is accepted only
+  when neither end has a bank.
+
+To check when this is built: whether `/` or `:` is an operator in the Casso
+and WinDbg modes' address expressions. If either is, that mode's rule is
+revisited before the parser is changed.
+
+### Rules
+
 - A bank on an address outside `$2000-$9FFF` is an error: "illegal address",
   with the rule on the second line.
 - A bank beyond the installed memory is the same error.
@@ -29,9 +57,10 @@ hex16        := 1 to 4 hex digits, with the mode's usual prefix rules
 ## Printed form
 
 - An address outside the banked region prints as it does today.
-- An address in the banked region prints as `b/aaaa` when it came from a
-  specific bank (a stored breakpoint, a trace record, a resolved extended
-  access) and as `aaaa` when it is in the current view.
+- An address in the banked region prints as `b:aaaa` (`b/aaaa` in the
+  Monitor and GSSquared modes) when it came from a specific bank (a stored
+  breakpoint, a trace record, a resolved extended access) and as `aaaa` when
+  it is in the current view.
 - The disassembly, trace and memory panes have a bank column that is hidden
   on machines without banks.
 
@@ -51,7 +80,7 @@ the Casso mode's text form in every address field of their JSON.
 ## Extended access annotation
 
 ```
-1A/2040   B1 50      LDA ($50),Y     ; -> 3/4A10
+2:3040   B1 50      LDA ($50),Y     ; -> 3:4A10
 ```
 
 The annotation after `->` is the resolved address. It appears when the
@@ -61,8 +90,8 @@ absent in a static listing.
 ## SOS call
 
 ```
-2/3120   00 C8 40 31   SOS OPEN, $3140
+2:3120   00 C8 40 31   SOS OPEN, $3140
 ```
 
 The line contains the `BRK`, the call number and the parameter list
-address. The next line starts at `2/3124`.
+address. The next line starts at `2:3124`.
