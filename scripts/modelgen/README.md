@@ -21,7 +21,7 @@ without touching the loader.
 | `gen_duodisk.py` | `Resources/Models/DuoDisk/` | Apple DuoDisk A9M0106 (386×89×222) — meshkit, not yet migrated |
 | `cad_profile.py` | `Resources/Models/ProFile/` | Apple ProFile 5 MB and 10 MB (439×112×224) |
 | `cad_unidisk35.py` | `Resources/Models/UniDisk35/` | Apple UniDisk 3.5, the Apple 3.5 Drive's case in Snow White, on `cad_floppy35.py` |
-| `cad_apple35.py` | `Resources/Models/Apple35Drive/`, `Apple35Plus/` | Apple 3.5 Drive (121×210×57), on `cad_floppy35.py`; `--plus` for the //c Plus colors |
+| `cad_apple35.py` | `Resources/Models/Apple35Drive/` | Apple 3.5 Drive (121×210×57), on `cad_floppy35.py`; also drawn for the //c Plus's built-in drive |
 | `cad_badge.py` | (module) | The rainbow Apple badge from `CassoBranding.cpp`, shared by the models |
 | `cad_champ.py` | (module) | The 50-contact Centronics SCSI receptacle with bail locks, from SCSI-2 figure 7 |
 | `cad_iec.py` | (module) | The IEC C14 mains inlet from its standard sheet, shared by the models with a power inlet |

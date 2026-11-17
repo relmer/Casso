@@ -3638,8 +3638,8 @@ void ShellDeskScene::PlanDrives()
             case DeskDriveModel::HardDisk20SC: meshId = IDR_MODEL_HARDDISK20SC_MESH; break;
             case DeskDriveModel::ProFile:      meshId = IDR_MODEL_PROFILE_MESH;      break;
             case DeskDriveModel::UniDisk35:    meshId = IDR_MODEL_UNIDISK35_MESH;    break;
-            case DeskDriveModel::Apple35Drive: meshId = IDR_MODEL_APPLE35_MESH;      break;
-            case DeskDriveModel::Apple35Plus:  meshId = IDR_MODEL_APPLE35PLUS_MESH;  break;
+            case DeskDriveModel::Apple35Drive:
+            case DeskDriveModel::Apple35Plus:  meshId = IDR_MODEL_APPLE35_MESH;      break;
             default:                           break;
         }
 
