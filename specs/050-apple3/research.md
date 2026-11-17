@@ -37,8 +37,8 @@ consulted to confirm an assumption or settle the point. Limits:
   the documents have been searched for it.
 - Read for the fact, never for code. No code, table or comment is copied, and
   Casso's implementation is written from the fact alone.
-- Check the license header of each file before reading it and list the file,
-  its license and the fact taken in the row's **Checked** column as
+- Reading any emulator's source is allowed, GPL included. Copying it is not.
+  List the fact's source in the row's **Checked** column as
   `emulator: <project>, <file>`.
 - A fact taken from an emulator is confirmed by behavior where it can be: the
   ROM's diagnostics, the Confidence Test disk, or a SOS boot.
