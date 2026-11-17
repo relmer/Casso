@@ -55,6 +55,18 @@ public:
     //  Width of a row of `classCount` widgets.
     static int  GetRowWidth (int classCount, int slotWidthPx, int gapPx);
 
+    //  The largest zoom at which `classCount` class boxes fit across
+    //  `clientWidthPx`, `edgePx` in from each side and `minBoxGapPx` apart,
+    //  given one box's width at a zoom of 100%: its widget, its margin on
+    //  both sides and its arrow. With no boxes, kMaxZoom.
+    static float  GetFittingZoom (int classCount, int boxWidthPx, int clientWidthPx, int edgePx, int minBoxGapPx);
+
+    //  The gap from one widget to the next that fits the row across
+    //  `clientWidthPx`: `gapPx` where there is room, narrowed as far as
+    //  `minBoxGapPx` between the boxes. `boxExtraPx` is a box's margin on
+    //  both sides and its arrow.
+    static int  GetFittingGap (int classCount, int slotWidthPx, int boxExtraPx, int gapPx, int clientWidthPx, int edgePx, int minBoxGapPx);
+
     //  Lays the widgets out in a row from (originX, rowTop) and each fan
     //  above its widget. `panelPadPx` is the box's margin round the drives,
     //  and `arrowPx` the extra room at the right of a box whose fan is closed

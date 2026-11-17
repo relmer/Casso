@@ -139,6 +139,60 @@ int DriveBarFan::GetRowWidth (int classCount, int slotWidthPx, int gapPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DriveBarFan::GetFittingZoom
+//
+//  The boxes and their margins grow with the zoom; the edges and the gaps
+//  between the boxes do not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DriveBarFan::GetFittingZoom (int classCount, int boxWidthPx, int clientWidthPx, int edgePx, int minBoxGapPx)
+{
+    float  zoom = kMaxZoom;
+    int    room = clientWidthPx - 2 * edgePx - (classCount - 1) * minBoxGapPx;
+
+
+
+    if (classCount > 0 && boxWidthPx > 0)
+    {
+        zoom = std::max (0.0f, (float) room / (float) (classCount * boxWidthPx));
+    }
+
+    return zoom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveBarFan::GetFittingGap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DriveBarFan::GetFittingGap (int classCount, int slotWidthPx, int boxExtraPx, int gapPx, int clientWidthPx, int edgePx, int minBoxGapPx)
+{
+    int  gap  = gapPx;
+    int  room = 0;
+
+
+
+    if (classCount > 1)
+    {
+        room = clientWidthPx - 2 * edgePx - classCount * (slotWidthPx + boxExtraPx);
+        gap  = std::min (gapPx, std::max (minBoxGapPx, room / (classCount - 1)) + boxExtraPx);
+    }
+
+    return gap;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DriveBarFan::Layout
 //
 //  Only the inputs are stored: the slots and boxes follow the open fan and

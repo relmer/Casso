@@ -262,6 +262,25 @@ public:
     }
 
 
+    TEST_METHOD (GetFittingZoom_KeepsEveryBoxInTheWindow)
+    {
+        // Three 200 px boxes, 10 px in from each edge and 5 px apart, across
+        // 1000 px: 970 px of room for 600 px of boxes.
+        Assert::AreEqual (970.0f / 600.0f, DriveBarFan::GetFittingZoom (3, 200, 1000, 10, 5), 0.001f);
+        Assert::AreEqual (DriveBarFan::kMaxZoom, DriveBarFan::GetFittingZoom (0, 200, 1000, 10, 5), 0.001f, L"no boxes");
+    }
+
+
+    TEST_METHOD (GetFittingGap_NarrowsTheGapsBeforeTheZoom)
+    {
+        // Three 180 px widgets with 20 px of margin and arrow each.
+        Assert::AreEqual (300, DriveBarFan::GetFittingGap (3, 180, 20, 300, 2000, 10, 5), L"room for the full gap");
+        Assert::AreEqual (85,  DriveBarFan::GetFittingGap (3, 180, 20, 300, 750,  10, 5), L"the boxes 65 px apart");
+        Assert::AreEqual (25,  DriveBarFan::GetFittingGap (3, 180, 20, 300, 600,  10, 5), L"no closer than the minimum");
+        Assert::AreEqual (300, DriveBarFan::GetFittingGap (1, 180, 20, 300, 100,  10, 5), L"one widget has no gap");
+    }
+
+
     TEST_METHOD (GetZoomAfterWheel_StepsByANotchAndStopsAtTheLimits)
     {
         Assert::AreEqual (1.1f, DriveBarFan::GetZoomAfterWheel (1.0f, 1.0f), 0.001f);

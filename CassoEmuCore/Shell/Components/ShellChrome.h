@@ -131,6 +131,7 @@ public:
     // row stays centered. Returns false when the pointer is not on the bar.
     bool   ZoomDriveBar            (POINT pt, float notches);
     float  GetDriveBarZoom         () const;
+    float  GetDriveBarFitZoom      () const;
     bool   TickDriveBarZoomReadout (int64_t nowMs);
     bool   IsDriveBarZoomReadoutUp () const { return m_driveBarZoomReadoutEndMs != 0; }
 
@@ -275,6 +276,18 @@ private:
     bool                       m_driveBarRecentPending = false;
 
     static constexpr uint64_t  s_kDriveBarFanSlideMs = 160;
+
+    // A class's box round its widget: the margin on each side and the arrow's
+    // room at the right, at a zoom of 100%. The row starts this far in from
+    // the window's sides, with at least the minimum gap between boxes.
+    static constexpr int       s_kDriveBarPadDp       = 6;
+    static constexpr int       s_kDriveBarArrowDp     = 14;
+    static constexpr int       s_kDriveBarEdgeDp      = 8;
+    static constexpr int       s_kDriveBarMinBoxGapDp = 6;
+
+    // One class box's width at a zoom of 100%, measured at the last layout,
+    // which caps the zoom so every box fits in the window.
+    int                        m_driveBarBoxWidthPx   = 0;
 
     // The drive bar's label column, wide enough for two lines such as
     // "Drive 1 - Disk ][" and "3.5" (800K), 400K disk".
