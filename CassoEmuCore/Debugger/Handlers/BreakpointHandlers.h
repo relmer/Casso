@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/BreakpointTable.h"
+#include "Debugger/Handlers/BreakpointGroupHandlers.h"
 #include "Debugger/IDebugCommandHandler.h"
 #include "Debugger/WatchpointTable.h"
 
@@ -16,9 +17,10 @@ struct DebugFile;
 //
 //  BreakpointHandlers
 //
-//  Setting: BP, BPX, BPA, BPR, BPM, BPMR, BPMW, BPMV, BPIO, BRK, BRKOP,
-//  BRKINT, BRKUNINIT. BP, BPX, BPM, BPMR, BPMW and BPMV take a trailing IF expression.
-//  Managing: BPC, BPD, BPE, BPL, BPEDIT, BPCHANGE, BPNAME. Saving: BPSAVE,
+//  Setting: BP, BPX, BPA, BPR, BPM, BPMR, BPMW, BPMV, BPIO, and through
+//  BrkHandlers BRK, BRKOP, BRKINT, BRKUNINIT. BP, BPX, BPM, BPMR, BPMW and BPMV
+//  take a trailing IF expression. Managing: BPC, BPD, BPE, BPL, BPEDIT,
+//  BPCHANGE, BPNAME, and through BreakpointGroupHandlers BPGROUP. Saving: BPSAVE,
 //  whose script has no name in it, as AppleWin's SAVE has none.
 //
 //  Breakpoints and watchpoints share one numbering, so every command that
@@ -38,9 +40,9 @@ public:
     //  The breakpoint groups, in the order of the first breakpoint in each;
     //  the group a name matches without regard to case, empty for none; and
     //  a breakpoint or watchpoint put in a group, the name matched to one.
-    static std::vector<std::string>  GetGroups (DebugSession & session);
-    static std::string               FindGroup (DebugSession & session, const std::string & group);
-    static bool                      SetGroup  (DebugSession & session, int id, const std::string & group);
+    static std::vector<std::string>  GetGroups (DebugSession & session)                                   { return BreakpointGroupHandlers::GetGroups (session); }
+    static std::string               FindGroup (DebugSession & session, const std::string & group)         { return BreakpointGroupHandlers::FindGroup (session, group); }
+    static bool                      SetGroup  (DebugSession & session, int id, const std::string & group) { return BreakpointGroupHandlers::SetGroup (session, id, group); }
 
     // The command line that recreates an entry, and the script that
     // recreates the whole table, as BPSAVE writes them.
@@ -79,13 +81,11 @@ public:
     //  evaluated: an unknown symbol, or a read of an I/O address.
     static bool            TryValidateCondition (DebugSession & session, const Expression & condition, bool hasAccess, bool hasValue, Reply & reply);
 
-private:
-    static constexpr int   kOpcodeCount  = 256;
-    static constexpr int   kBrkSelector  = 0;
-    static constexpr int   kAllSelector  = -1;
-    static constexpr int   kMaxLength    = 3;
-    static constexpr Byte  kBrkOpcode    = 0x00;
+    //  An entry of either table by id, and the reply for an id in neither.
+    static bool  TryFindInfo (DebugSession & session, int id, BreakpointInfo & info);
+    static void  SetNoSuch   (const DebugSession & session, Reply & reply, int id);
 
+private:
     static void                SetAddress     (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void                SetSourceLine  (DebugSession & session, const DebugCommand & command, Reply & reply);
     static std::optional<int>  FindSourceFile (const DebugFile & file, const std::string & name);
@@ -93,12 +93,6 @@ private:
     static void                SetWatchpoint  (DebugSession & session, const DebugCommand & command, WatchAccess access, Reply & reply);
     static void                SetValue       (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void                SetBoth        (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void                SetBrk         (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void                SetOpcode      (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void                AddOpcodeEntry (DebugSession & session, Byte opcode, const Expression & condition, BreakpointListData & list);
-    static bool                TryFindOpcodes (DebugSession & session, const std::string & mnemonic, std::vector<Byte> & opcodes);
-    static void                SetInterrupt   (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void                SetUnwritten   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void                SetDisk        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void                Clear          (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void                Enable         (DebugSession & session, const DebugCommand & command, bool enabled, Reply & reply);
@@ -107,30 +101,12 @@ private:
     static void                SetName        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void                SetLog         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void                ListLogs       (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void                Group          (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void                ActOnGroup     (DebugSession & session, const std::vector<std::string> & words, Reply & reply);
-    static bool                TryParseIds    (DebugSession & session, const std::vector<std::string> & words, size_t first, std::vector<int> & ids, Reply & reply);
     static void                Save           (DebugSession & session, const DebugCommand & command, Reply & reply);
-
-    static std::vector<std::string>  SplitGroupWords (const std::string & text);
 
     //  A source line definition's line with code and the address ranges it
     //  produced; false with the reason in the reply.
     static bool  TryResolveSourceLine (DebugSession & session, const DebugCommand & command, int & target, std::vector<std::pair<Word, Word>> & ranges, Reply & reply);
 
-    static bool  TryParseBrkArguments (const std::string & text, int & selector, std::optional<bool> & isOn, std::string & error);
-    static void  AddInvalidOpcodes    (DebugSession & session, int length, BreakpointListData & added);
-    static void  RemoveInvalidOpcodes (DebugSession & session, int length);
-    static void  RemoveBrkOpcodes     (DebugSession & session);
-    static bool  IsInvalidOfLength    (DebugSession & session, Byte opcode, int length);
-    static int   GetInvalidLength     (const Microcode * set, Byte opcode);
-    static void  ReportBrk            (DebugSession & session, Reply & reply);
-    static bool  HasInterrupt         (DebugSession & session);
-    static void  ReportUnwritten      (DebugSession & session, Reply & reply);
-
-    static bool       TryFindInfo  (DebugSession & session, int id, BreakpointInfo & info);
     static bool       TryMakeEntry (const DebugCommand & definition, int id, const BreakpointInfo & old, Breakpoint & breakpoint, Watchpoint & watchpoint, bool & isWatchpoint);
-    static bool       IsBrkOn      (const std::string & text);
-    static void       SetNoSuch    (const DebugSession & session, Reply & reply, int id);
     static WatchMode  GetMode      (const DebugCommand & command);
 };

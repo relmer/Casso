@@ -365,6 +365,8 @@
     <ClCompile Include="Debugger\Handlers\MachineHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\StateFileHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\BreakpointHandlers.cpp" />
+    <ClCompile Include="Debugger\Handlers\BrkHandlers.cpp" />
+    <ClCompile Include="Debugger\Handlers\BreakpointGroupHandlers.cpp" />
     <ClCompile Include="Debugger\Handlers\MemoryHandlers.cpp" />
     <ClCompile Include="Debugger\DataBlockTable.cpp" />
     <ClCompile Include="Debugger\DebugFileData.cpp" />
@@ -1903,6 +1905,8 @@
     <ClInclude Include="Debugger\Handlers\MachineHandlers.h" />
     <ClInclude Include="Debugger\Handlers\StateFileHandlers.h" />
     <ClInclude Include="Debugger\Handlers\BreakpointHandlers.h" />
+    <ClInclude Include="Debugger\Handlers\BrkHandlers.h" />
+    <ClInclude Include="Debugger\Handlers\BreakpointGroupHandlers.h" />
     <ClInclude Include="Debugger\Handlers\MemoryHandlers.h" />
     <ClInclude Include="Debugger\DataBlockTable.h" />
     <ClInclude Include="Debugger\DebugFileData.h" />
