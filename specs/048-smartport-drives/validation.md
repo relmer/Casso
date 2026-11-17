@@ -102,6 +102,39 @@ the reference for T036:
 | `RunTests.ps1 -Filter Disk2` | 158 of 158 pass |
 | `RunTests.ps1 -Scenario` | 239 of 239 pass |
 
+### After the //c's drive moved to the shared IWM (T036)
+
+Run on 2026-11-16, with the //c's switches going to `Iwm` and its drives read
+and written a cell at a time:
+
+| Run | Result |
+|---|---|
+| `RunTests.ps1 -Filter Disk2` | 159 of 159 pass |
+| `RunTests.ps1 -Scenario` | 268 of 268 pass |
+
+The first scenario run failed one case, a //c Plus booting a 5.25-inch disk
+behind an empty UniDisk 3.5. While the SmartPort bus had the port, the bytes
+the ROM wrote to the bus also went to the 5.25-inch drives' IWM, which was
+disabled and took them as mode register writes. With the 5.25-inch drives not
+enabled, a write now changes only the switch.
+
+## Copy-protected 3.5-inch WOZ (T055)
+
+Troll Sports Math (1991, Troll Associates), from the woz-a-day collection on
+the Internet Archive, item `wozaday_Troll_Sports_Math_800K`, file
+`00playable.woz`, SHA-1 `4313B2CECAB98701FAC6C6724013FD2CC3908A06`. According
+to its notes, it requires a IIgs, a //c Plus, or a UniDisk 3.5 on a compatible
+card, and other 3.5-inch drives don't work because of its copy protection. `scripts/FetchStockDisks.ps1` fetches it outside the tree.
+
+| Setup | MAME 0.289 | Casso |
+|---|---|---|
+| //c Plus, the internal drive (`apple2cp`, `flop3`) | The name prompt after the title | The same screen |
+| Enhanced //e, a UniDisk 3.5 on the interface card | Not emulated | The name prompt |
+| Enhanced //e, the 3.5 controller card (`superdrive`) | The BASIC prompt under a screen of letters | The same screen |
+
+`Floppy35BootTests::TrollSportsMath_ProtectedWozRunsOnTheDrivesItSupports`
+checks all three, the name prompt by a hash of hi-res page 1.
+
 ## //c Plus external 5.25-inch drive (T070, T073)
 
 A Disk II controller in IWM mode at $C0E0, with the 3.5-inch port as its
