@@ -7,6 +7,7 @@
 #include "CassoLink/EmulatedCassetteAudio.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/Audio/AdtProAudioByteStream.h"
+#include "CassoLink/Audio/DualCassetteByteStream.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -45,15 +46,16 @@ public:
     {
         TestMachine                               machine;
         std::shared_ptr<EmulatedCassetteAudio>    audio;
-        std::shared_ptr<AdtProAudioByteStream>    stream;
+        std::shared_ptr<IByteStream>              stream;
         InMemoryCassoLinkFolder                   folder;
         std::unique_ptr<CassoLinkHost>            host;
         std::vector<Byte>                         adtPro;
         std::vector<Byte>                         dos33;
 
         //  ADTPro's disk in drive 1 and, in drive 2, the DOS 3.3 disk or a
-        //  second copy of ADTPro's.
-        explicit Rig (bool dos33InDrive2) :
+        //  second copy of ADTPro's; the link over an AdtProAudioByteStream or,
+        //  as a cassette connection opens, a DualCassetteByteStream.
+        Rig (bool dos33InDrive2, bool dual) :
             machine ("Apple2e")
         {
             FixtureProvider       fixtures;
@@ -80,7 +82,7 @@ public:
             Assert::IsTrue (Screen().find ("(S)END") != std::string::npos, TextEncoding::NarrowToWide (Screen()).c_str());
 
             audio  = std::make_shared<EmulatedCassetteAudio> (machine);
-            stream = std::make_shared<AdtProAudioByteStream> (audio);
+            stream = dual ? std::shared_ptr<IByteStream> (std::make_shared<DualCassetteByteStream> (audio)) : std::make_shared<AdtProAudioByteStream> (audio);
             host   = std::make_unique<CassoLinkHost> (stream, folder, [] () { return std::array<Byte, 4> {}; });
         }
 
@@ -155,9 +157,9 @@ public:
 
     //  Send: the client reads drive 2 and sends it as OUT, which is written
     //  in DOS order as OUT.dsk.
-    TEST_METHOD (TheAudioClient_SendsADiskToThePc)
+    static void  SendADisk (bool dual)
     {
-        Rig   rig (true);
+        Rig   rig (true, dual);
         bool  done = false;
 
 
@@ -172,12 +174,11 @@ public:
         Assert::IsTrue (rig.Screen().find ("COMPLETE") != std::string::npos, TextEncoding::NarrowToWide (rig.Screen()).c_str());
     }
 
-
     //  Receive: the client requests IN.DSK and writes it to drive 2, which
     //  had ADTPro's disk.
-    TEST_METHOD (TheAudioClient_ReceivesADiskFromThePc)
+    static void  ReceiveADisk (bool dual)
     {
-        Rig   rig (false);
+        Rig   rig (false, dual);
         bool  done = false;
 
 
@@ -191,5 +192,29 @@ public:
         done = rig.ServeUntil ([&rig] () { return rig.Screen().find ("COMPLETE") != std::string::npos; }, kDiskSeconds);
         Assert::IsTrue (done, TextEncoding::NarrowToWide (rig.Screen()).c_str());
         Assert::IsTrue (rig.ReadDrive2() == rig.dos33, L"drive 2 has the PC's image");
+    }
+
+
+    TEST_METHOD (TheAudioClient_SendsADiskToThePc)
+    {
+        SendADisk (false);
+    }
+
+
+    TEST_METHOD (TheAudioClient_ReceivesADiskFromThePc)
+    {
+        ReceiveADisk (false);
+    }
+
+
+    TEST_METHOD (TheAudioClient_SendsADisk_OverTheDualStream)
+    {
+        SendADisk (true);
+    }
+
+
+    TEST_METHOD (TheAudioClient_ReceivesADisk_OverTheDualStream)
+    {
+        ReceiveADisk (true);
     }
 };

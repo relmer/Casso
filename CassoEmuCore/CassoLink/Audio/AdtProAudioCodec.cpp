@@ -65,19 +65,18 @@ double AdtProAudioCodec::GetBurstUs (size_t count)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AdtProAudioCodec::GetPacket
+//  AdtProAudioCodec::HasTrailer
 //
-//  The packet in a burst from the client: the burst without its trailer
-//  when the check byte matches, or the burst as it came otherwise.
+//  Whether the burst ends in the client's trailer: its last byte is $FF
+//  exclusive-ORed with every byte before it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::span<const Byte> AdtProAudioCodec::GetPacket (std::span<const Byte> burst)
+bool AdtProAudioCodec::HasTrailer (std::span<const Byte> burst)
 {
     constexpr Byte  kCheckSeed = 0xFF;
     Byte            check      = kCheckSeed;
     size_t          length     = burst.size();
-    bool            trailed    = false;
 
 
 
@@ -86,9 +85,25 @@ std::span<const Byte> AdtProAudioCodec::GetPacket (std::span<const Byte> burst)
         check ^= burst[at];
     }
 
-    trailed = length > kTrailerBytes && check == burst[length - 1];
+    return length > kTrailerBytes && check == burst[length - 1];
+}
 
-    return trailed ? burst.first (length - kTrailerBytes) : burst;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdtProAudioCodec::GetPacket
+//
+//  The packet in a burst from the client: the burst without its trailer
+//  when it has one, or the burst as it came otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const Byte> AdtProAudioCodec::GetPacket (std::span<const Byte> burst)
+{
+    return HasTrailer (burst) ? burst.first (burst.size() - kTrailerBytes) : burst;
 }
 
 

@@ -46,10 +46,11 @@ public:
     //  The input's peak level, 0 to 1.
     float    GetInputLevel    () const { return m_decoder.GetLevel(); }
 
-private:
-    HRESULT  Flush   ();
-    HRESULT  Receive (DWORD timeoutMs);
-    HRESULT  Listen  (DWORD waitMs, double & outMs);
+protected:
+    virtual HRESULT  Flush       ();
+    virtual HRESULT  Listen      (DWORD waitMs, double & outMs);
+    virtual bool     IsReceiving () const { return m_decoder.IsInBurst(); }
+    HRESULT          Receive     (DWORD timeoutMs);
 
     std::shared_ptr<ICassetteAudio>  m_audio;
     CassetteDecoder                  m_decoder;

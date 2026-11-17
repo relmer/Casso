@@ -37,12 +37,13 @@ public:
     static constexpr int     kLeaderHalves  = 940;
 
     //  The decoder's limits. A tone half is from kToneLowUs to kToneHighUs,
+    //  which excludes the 500-microsecond halves of a 1 in Casso's encoding,
     //  and kToneMinimum of them in a row come before the sync, whose halves
     //  are each shorter than kSyncLimitUs. A cycle shorter than kBitLimitUs
     //  is a 0, and one shorter than kCycleLimitUs a 1; a longer one ends the
     //  burst.
-    static constexpr double  kToneLowUs     = 450.0;
-    static constexpr double  kToneHighUs    = 900.0;
+    static constexpr double  kToneLowUs     = 560.0;
+    static constexpr double  kToneHighUs    = 780.0;
     static constexpr int     kToneMinimum   = 64;
     static constexpr double  kSyncLimitUs   = 400.0;
     static constexpr double  kBitLimitUs    = 735.0;
@@ -56,6 +57,7 @@ public:
 
     static void                   AppendBurst (std::span<const Byte> bytes, std::vector<double> & inOutHalvesUs);
     static double                 GetBurstUs  (size_t count);
+    static bool                   HasTrailer  (std::span<const Byte> burst);
     static std::span<const Byte>  GetPacket   (std::span<const Byte> burst);
 };
 

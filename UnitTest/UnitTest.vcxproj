@@ -436,6 +436,7 @@
     <ClCompile Include="CassoExplorer\CassoExplorerFixtureTests.cpp" />
     <ClCompile Include="CassoLink\AdtProAudioCodecTests.cpp" />
     <ClCompile Include="CassoLink\CassetteCodecTests.cpp" />
+    <ClCompile Include="CassoLink\DualCassetteByteStreamTests.cpp" />
     <ClCompile Include="CassoLink\InProcessByteStreamTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkCodecTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHostTests.cpp" />
@@ -959,6 +960,7 @@
     <ClInclude Include="EmuTests\PartitionCard.h" />
     <ClInclude Include="CassoLink\CassoLinkCaptures.h" />
     <ClInclude Include="CassoLink\InMemoryCassoLinkFolder.h" />
+    <ClInclude Include="CassoLink\ScriptedCassetteAudio.h" />
     <ClInclude Include="CassoLink\FakeApple.h" />
     <ClInclude Include="CassoLink\FullSendTestDisks.h" />
     <ClInclude Include="CassoLink\ProgramRig.h" />
