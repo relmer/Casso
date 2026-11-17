@@ -2020,6 +2020,7 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
         // menu; a drag that began there still turned the scene.
         if (still && StorageDeviceAt (x, y) >= 0)
         {
+            m_chrome->MarkDriveBarRecent (POINT { x, y });
             ShowStorageContextMenu (StorageDeviceAt (x, y), x, y);
             m_scene->m_sceneOrbitTapMs = 0;
             return DxuiMessageResult::Handled;
@@ -2060,6 +2061,7 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
         if (device >= 0)
         {
+            m_chrome->MarkDriveBarRecent (POINT { x, y });
             ShowStorageContextMenu (device, x, y);
             result = DxuiMessageResult::Handled;
         }

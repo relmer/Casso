@@ -536,10 +536,7 @@ bool ShellChrome::HandleDriveBarClick (POINT pt)
     {
         const DeskDrive  drive = fan.GetDrive (c, entry);
 
-        std::erase_if (m_driveBarRecent, [&drive] (const DeskDrive & recent)
-                       { return DeskDrivePlan::GetClass (recent.model) == DeskDrivePlan::GetClass (drive.model); });
-        m_driveBarRecent.push_back (drive);
-        m_driveBarRecentPending = entry != 0;
+        MarkDriveBarRecent (pt);
 
         if (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
         {
@@ -559,6 +556,39 @@ bool ShellChrome::HandleDriveBarClick (POINT pt)
     }
 
     return took;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::MarkDriveBarRecent
+//
+//  The drive at `pt` becomes its class's last clicked drive, drawn in the
+//  class's widget once the class closes. A left click or a right click
+//  marks it. A point off the bar's drives changes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::MarkDriveBarRecent (POINT pt)
+{
+    const DriveBarFan  & fan   = m_driveBarFan.GetFan();
+    int                  c     = -1;
+    int                  entry = -1;
+
+
+
+    if (m_driveBarFan.IsVisible() && fan.HitTest (pt, c, entry))
+    {
+        const DeskDrive  drive = fan.GetDrive (c, entry);
+
+        std::erase_if (m_driveBarRecent, [&drive] (const DeskDrive & recent)
+                       { return DeskDrivePlan::GetClass (recent.model) == DeskDrivePlan::GetClass (drive.model); });
+        m_driveBarRecent.push_back (drive);
+        m_driveBarRecentPending = entry != 0;
+    }
 }
 
 

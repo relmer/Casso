@@ -116,6 +116,7 @@ public:
     void    HideDriveBar           ();
     bool    UpdateDriveBarHover    (POINT pt);
     bool    HandleDriveBarClick    (POINT pt);
+    void    MarkDriveBarRecent     (POINT pt);
     bool    SyncDriveBarViews      ();
     bool    AnimateDriveBarFan     ();
 
