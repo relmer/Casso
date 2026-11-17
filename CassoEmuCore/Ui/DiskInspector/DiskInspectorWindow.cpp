@@ -159,8 +159,8 @@ HRESULT DiskInspectorWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const 
 
     params.title                    = s_kpszWindowTitle;
     params.hInstance                = hInstance;
-    //  Not owned, so the main window can cover it; it opens centered over
-    //  the main window.
+    //  Not owned, so the main window can cover it. Windows chooses where it
+    //  opens, and it is sized to fit the main window's work area.
     params.ownerHwnd                = nullptr;
     params.placementAnchorHwnd      = hwndOwner;
     params.initialSizeDip           = { kOpeningWidthDip, kOpeningHeightDip };
@@ -170,7 +170,7 @@ HRESULT DiskInspectorWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const 
     params.captionStyle             = DxuiCaptionStyle::Standard;
     params.classNameOverride        = s_kpszClassName;
     params.createNoActivate         = !activate;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+    params.placement                = DxuiWindowPlacement::Default;
     params.fitToWorkArea            = true;
 
     //  Presented without waiting for vblank: RenderFrame runs in the main
@@ -1893,25 +1893,22 @@ void DiskInspectorWindow::GetPrefs (DiskInspectorPrefs & inOut) const
 //
 //  DiskInspectorWindow::ApplyPrefs
 //
-//  A saved placement is used only while it is on a monitor, so a window
-//  saved on a monitor since removed opens centered on Casso instead. It is
-//  set twice: a move onto a monitor of another DPI rescales the window, so
-//  the second call sets the saved size at that monitor's DPI.
+//  The saved size and whether the window was maximized, at the position
+//  Windows chose for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs)
 {
     WINDOWPLACEMENT  placement = { sizeof (WINDOWPLACEMENT) };
-    RECT             saved     = { prefs.x, prefs.y, prefs.x + prefs.w, prefs.y + prefs.h };
 
 
 
-    if (prefs.w > 0 && prefs.h > 0 && MonitorFromRect (&saved, MONITOR_DEFAULTTONULL) != nullptr && GetWindowPlacement (GetHwnd(), &placement))
+    if (prefs.w > 0 && prefs.h > 0 && GetWindowPlacement (GetHwnd(), &placement))
     {
-        placement.rcNormalPosition = saved;
-        placement.showCmd          = prefs.isMaximized ? SW_SHOWMAXIMIZED : (IsWindowVisible (GetHwnd()) ? SW_SHOWNOACTIVATE : SW_HIDE);
-        SetWindowPlacement (GetHwnd(), &placement);
+        placement.rcNormalPosition.right  = placement.rcNormalPosition.left + prefs.w;
+        placement.rcNormalPosition.bottom = placement.rcNormalPosition.top + prefs.h;
+        placement.showCmd                 = prefs.isMaximized ? SW_SHOWMAXIMIZED : (IsWindowVisible (GetHwnd()) ? SW_SHOWNOACTIVATE : SW_HIDE);
         SetWindowPlacement (GetHwnd(), &placement);
     }
 

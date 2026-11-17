@@ -81,7 +81,7 @@ HRESULT BlockInspectorWindow::Open (
     params.resizable                = true;
     params.insetContentBelowCaption = true;
     params.classNameOverride        = s_kpszClassName;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+    params.placement                = DxuiWindowPlacement::Default;
     params.fitToWorkArea            = true;
 
     hr = Create (params);
