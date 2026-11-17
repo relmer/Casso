@@ -268,5 +268,7 @@ public:
         Assert::AreEqual (0.9f, DriveBarFan::GetZoomAfterWheel (1.0f, -1.0f), 0.001f);
         Assert::AreEqual (DriveBarFan::kMaxZoom, DriveBarFan::GetZoomAfterWheel (DriveBarFan::kMaxZoom, 3.0f), 0.001f);
         Assert::AreEqual (DriveBarFan::kMinZoom, DriveBarFan::GetZoomAfterWheel (DriveBarFan::kMinZoom, -3.0f), 0.001f);
+        Assert::AreEqual (1.0f, DriveBarFan::GetZoomAfterWheel (0.9f, 1.0f), 0.001f, L"100% is one of the stops");
+        Assert::AreEqual (1.0f, DriveBarFan::GetZoomAfterWheel (1.04f, 0.0f), 0.001f, L"a zoom off the steps lands back on one");
     }
 };

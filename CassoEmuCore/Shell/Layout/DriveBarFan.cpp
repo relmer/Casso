@@ -84,11 +84,18 @@ void DriveBarFan::PutFirst (std::vector<std::vector<DeskDrive>> & classes, const
 //
 //  DriveBarFan::GetZoomAfterWheel
 //
+//  The zoom is rounded to a whole step, so a zoom saved off the steps lands
+//  back on them and 100% is always one of the stops.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 float DriveBarFan::GetZoomAfterWheel (float zoom, float notches)
 {
-    return std::clamp (zoom + notches * kZoomStep, kMinZoom, kMaxZoom);
+    float  steps = (float) lroundf ((zoom + notches * kZoomStep) / kZoomStep);
+
+
+
+    return std::clamp (steps * kZoomStep, kMinZoom, kMaxZoom);
 }
 
 

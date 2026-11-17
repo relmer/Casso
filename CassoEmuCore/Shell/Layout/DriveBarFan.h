@@ -44,7 +44,7 @@ public:
 
     //  The bar's zoom after `notches` of Ctrl+wheel, kZoomStep a notch,
     //  between kMinZoom and kMaxZoom.
-    static constexpr float  kMinZoom  = 0.75f;
+    static constexpr float  kMinZoom  = 0.8f;
     static constexpr float  kMaxZoom  = 3.0f;
     static constexpr float  kZoomStep = 0.1f;
 
