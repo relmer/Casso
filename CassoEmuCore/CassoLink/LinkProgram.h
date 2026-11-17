@@ -10,9 +10,11 @@
 //
 //  LinkChip
 //
-//  What the Apple side talks to the PC through: a 6551, the //c's own or a
-//  Super Serial Card's, or an Uthernet II's W5100. Each has its own build of
-//  the shim and of the program.
+//  What the Apple side talks to the PC through: a 6551, the //c's or a Super
+//  Serial Card's; an Uthernet II's W5100; or the cassette ports of a ][+ or
+//  //e. Each has a build of the program, and the 6551 and W5100 also have
+//  builds of the shim. The cassette build is loaded from tape by the
+//  monitor, with no shim.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,6 +22,7 @@ enum class LinkChip
 {
     Acia,
     W5100,
+    Cassette,
 };
 
 
@@ -120,8 +123,10 @@ public:
     //  The slot of the 6551 or the W5100: for a 6551 on a //c, the port.
     static constexpr size_t  kSlotOffset        = 0x38;
 
-    //  Set by the W5100 builds in Ready's shim version byte.
+    //  Set by the W5100 builds, and by the cassette build, in Ready's shim
+    //  version byte.
     static constexpr Byte    kW5100ReadyFlag    = 0x80;
+    static constexpr Byte    kCassetteReadyFlag = 0x40;
 
     //  The universal boot disk's payload: the first stage, which finds the
     //  machine's interfaces and waits for the PC on all of them, then each

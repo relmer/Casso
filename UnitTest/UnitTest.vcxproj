@@ -961,6 +961,7 @@
     <ClInclude Include="CassoLink\FakeApple.h" />
     <ClInclude Include="CassoLink\FullSendTestDisks.h" />
     <ClInclude Include="CassoLink\ProgramRig.h" />
+    <ClInclude Include="CassoLink\EmulatedCassetteAudio.h" />
     <ClInclude Include="CassoLink\SteppedByteStream.h" />
     <ClInclude Include="EmuTests\GoldenImage.h" />
     <ClInclude Include="CaptureTests\FakeHostDialogs.h" />

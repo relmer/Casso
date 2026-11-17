@@ -71,6 +71,22 @@ public:
     }
 
 
+    //  The cassette build, in its debug form too, ends below the shim's copy
+    //  of the zero page, as the other builds do.
+    TEST_METHOD (TheCassetteProgram_Assembles)
+    {
+        for (bool faults : { false, true })
+        {
+            std::vector<Byte>  bytes;
+            std::string        errors;
+            HRESULT            hr = LinkProgram::AssembleProgram (bytes, errors, LinkChip::Cassette, faults);
+
+            Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+            Assert::IsTrue (LinkProgram::kProgramAddress + bytes.size() <= LinkProgram::kZeroPageSave);
+        }
+    }
+
+
 
 
     //  CASSOLINK: the installer at $2000, the driver after it within its

@@ -90,6 +90,14 @@
 ; booted from the universal disk sends its announcement each second, so Casso
 ; Explorer finds it again. Set speed is acknowledged and
 ; changes nothing, and Exit disconnects the socket.
+;
+; The cassette build, for a ][+ or //e with no serial card, is loaded from
+; tape by the monitor and talks through the cassette ports in Casso's audio
+; encoding (R45). Its bytes to send go in TXBUF and are sent as one burst
+; before each wait for a byte, or once TXBUF is full; a burst received goes
+; into RXBUF whole, and the program reads it from there. Set speed is
+; acknowledged and changes nothing, Load program returns to the main loop, and
+; a Cancel is taken only when the program next waits for a byte.
 
         ifndef PROGVER
 PROGVER = 1
@@ -98,12 +106,17 @@ PROGVER = 1
 SHIMVER = 1
         endif
 
-; Ready's shim version: a W5100 build sets bit 7, so the host sends the
-; program built for the chip whatever the link it connected through.
+; Ready's shim version: a W5100 build sets bit 7 and a cassette build bit 6,
+; so the host sends the program built for the chip whatever the link it
+; connected through.
         ifdef W5100
 READYVER = SHIMVER + $80
         else
+        ifdef CASSETTE
+READYVER = SHIMVER + $40
+        else
 READYVER = SHIMVER
+        endif
         endif
 
 ; The 6551, through slotx: slot * 16, $20 for the //c's port 2.
@@ -144,6 +157,39 @@ IRSENT   = $18                  ; SEND_OK or TIMEOUT
 STUDP    = $22
 ANNREG   = $05                  ; socket 1's registers' page, for the announcements
 ANNTX    = $50                  ; and its transmit memory's page, for 4 KB
+        endif
+
+        ifdef CASSETTE
+; The cassette ports, and the buffers above the program's, where DOS would be.
+CASOUT   = $C020                ; any access toggles the output
+CASIN    = $C060                ; the input's level, in bit 7
+RXBUF    = $9600                ; a burst received, to $A7FF
+RXEND    = $A800
+TXBUF    = $A800                ; the bytes put, sent as a burst, to $B9FF
+TXEND    = $BA00
+; Casso's audio encoding, in cycles of the delay loops and rounds of the
+; edge loop (cedge, 14 cycles a round) at 1.0227 MHz. A bit is a full cycle,
+; 511 cycles for a 0 and 1,023 for a 1, a tone half 1,023, as
+; CassetteCodec has them in microseconds.
+TONES    = 64                   ; the tone's half cycles
+TONEX    = 200                  ; 5 * 200 + 22 cycles a tone half
+ZEROX    = 44                   ; 10 * 44 + 68 cycles a 0 cycle
+ONEX     = 95                   ; 10 * 95 + 69 cycles a 1 cycle
+CRPRE    = 5                    ; the rounds a cycle's code takes between edges
+CRTLO    = 55                   ; a tone half: 750 to 1,500 microseconds
+CRTHI    = 110
+CRMARK   = 46                   ; a half shorter than 625 microseconds ends the tone
+CRBIT    = 55                   ; a cycle of 750 microseconds or more is a 1
+CRCYC    = 110                  ; and one of 1,500 or more ends the burst
+CRSECOND = 285                  ; units of 256 rounds in a second
+        endif
+
+; The transports that send what they put when they next wait for a byte.
+        ifdef W5100
+BUFFERED = 1
+        endif
+        ifdef CASSETTE
+BUFFERED = 1
         endif
 
 ; The Disk II, through diskx: slot * 16, $60 for slot 6.
@@ -323,6 +369,17 @@ wnum     = $2E                  ; and $2F: putword's value
 wdig     = $30                  ; putword: the digit
 wlead    = $31                  ; putword: nonzero once a digit is drawn
         endif
+        ifdef CASSETTE
+rxptr    = $24                  ; and $25: the next byte of RXBUF to read
+rxn      = $26                  ; and $27: bytes in RXBUF not yet read
+txn      = $28                  ; and $29: bytes in TXBUF
+cptr     = $2A                  ; and $2B: a burst's next byte
+clen     = $2C                  ; and $2D: a burst's bytes left
+cbyte    = $2E                  ; the byte being sent or received
+cbits    = $2F                  ; its bits left
+clast    = $30                  ; the input's level at its last edge, in bit 7
+wsavy    = $31                  ; getbt and putb: Y as it came
+        endif
 
         .org $0800
 
@@ -340,6 +397,15 @@ entry:  sei
         lda #$20
         sta slotx
 slotok:
+        ifdef CASSETTE
+        lda #0
+        sta rxn
+        sta rxn+1
+        sta txn
+        sta txn+1
+        lda CASIN
+        sta clast
+        else
         ifdef W5100
         ora #<WZDATA            ; each write of the data is absolute, as an
         sta wzput+1             ; indexed store reads it first, which would
@@ -352,6 +418,7 @@ slotok:
         clc                     ; absolute for the same reason as putb's
         adc #1
         sta sdwait+1
+        endif
         endif
         lda #$60
         sta diskx
@@ -557,6 +624,9 @@ xlprim:
         lda Q7L,x
         lda Q6L,x
         jsr motoroff
+        ifdef CASSETTE
+        jmp lvbasic             ; no shim saved the machine's state
+        else
         ifdef W5100
         lda #CMDISCON           ; the PC's connection ended, then the socket
         jsr wzcmd               ; closed, after at most a few seconds
@@ -575,6 +645,7 @@ xlclose: lda #CMCLOSE
         ldx slotx
         lda #$0A                ; DTR off, as the shim set it otherwise
         sta ACIACMD,x
+        endif
         endif
         lda SHIMSAVED          ; 1 once the shim saved them; an older shim
         cmp #1                  ; has code there, which is left alone
@@ -643,7 +714,7 @@ tmloop: jsr findsector
         bcs tmdone
         lda #$A5
         jsr putb
-        ifdef W5100
+        ifdef BUFFERED
         jsr flush               ; sent at once, as the PC times its arrival
         endif
         dec revs
@@ -861,6 +932,9 @@ ggdone: rts
 ; speed the host sends the program at; and with the dial command marked as
 ; dialed, as a modem link is connected already. A W5100's connection is left open, with what
 ; was read given back and what was put sent.
+        ifdef CASSETTE
+doload: jmp main                ; the program came from the tape, with no shim
+        else
         ifdef W5100
 doload: jsr col40
         jsr flush
@@ -902,6 +976,7 @@ dlgo:   lda SHIMDIAL            ; the dial command marked as dialed, which the
         ora #$80
         sta SHIMDIAL
 dlnone: jmp SHIM
+        endif
         endif
 ; domodule: Load module. With no payload, the module's id and version in
 ; reply, or 0 and 0 with none loaded. With an offset into the module and
@@ -1097,8 +1172,8 @@ dospeed: lda #OPSPEED
         ldx #0
         ldy #0
         jsr sendack
-        ifdef W5100
-        jmp main                ; a W5100 has no speed to set
+        ifdef BUFFERED
+        jmp main                ; a W5100 or the cassette has no speed to set
         else
         ldx slotx
 spdwait: lda ACIASTAT,x
@@ -1805,7 +1880,7 @@ sddata: lda (dstp),y             ; the byte: the value << 2 | its two bits
         asl a
 sdora:  ora AUXA0,x             ; the third's array, set before each pass
         sta sbyte
-        ifdef W5100
+        ifdef BUFFERED
         jsr putb
         else
         ifdef FAULTS
@@ -2004,6 +2079,9 @@ gpfail: sec
 ; for only the packet's first byte, so any byte is taken as Cancel. A W5100
 ; takes the one byte the same way.
 pollcancel:
+        ifdef CASSETTE
+        rts
+        else
         ifdef W5100
         lda rxn
         ora rxn+1
@@ -2022,6 +2100,7 @@ pcany:  jsr getbtq
         beq pcdone
         lda ACIADATA,x
         jmp cancel
+        endif
         endif
 pcdone: rts
 
@@ -2077,6 +2156,305 @@ slfend: cpy #<progend
         sta readycrc+1
         rts
 
+        ifdef CASSETTE
+; getbt: a byte of the burst in RXBUF, or with none left, the bytes put sent
+; as a burst and the next burst received, waiting tmolen seconds for its tone.
+; The carry is set on a timeout or a damaged burst. X and Y are saved and
+; restored. getbtq waits a second for a burst, for a byte inside a packet
+; that came in more than one.
+getbt:  stx savex
+        sty wsavy
+        lda rxn
+        ora rxn+1
+        bne gbtake
+        jsr flush
+        lda tmolen
+gbrecv: jsr crecv
+        bcs gbnone
+gbtake: ldy #0
+        lda (rxptr),y
+        inc rxptr
+        bne gbcount
+        inc rxptr+1
+gbcount: pha
+        lda rxn
+        bne gbdec
+        dec rxn+1
+gbdec:  dec rxn
+        pla
+        ldx savex
+        ldy wsavy
+        clc
+        rts
+gbnone: ldx savex
+        ldy wsavy
+        sec
+        rts
+getbtq: stx savex
+        sty wsavy
+        lda rxn
+        ora rxn+1
+        bne gbtake
+        lda #1
+        bne gbrecv              ; always
+
+; putraw: A into TXBUF, sent with the next wait for a byte, or at once when
+; TXBUF is full. A, X and Y are saved and restored.
+putraw: stx savex
+        sty wsavy
+        pha
+        lda #<TXBUF
+        clc
+        adc txn
+        sta cptr
+        lda #>TXBUF
+        adc txn+1
+        sta cptr+1
+        pla
+        pha
+        ldy #0
+        sta (cptr),y
+        inc txn
+        bne txfull
+        inc txn+1
+txfull: lda txn+1
+        cmp #>(TXEND-TXBUF)
+        bcc txdone
+        jsr flush
+txdone: pla
+        ldx savex
+        ldy wsavy
+        rts
+
+; flush: TXBUF's bytes as a burst: the tone, a 0 as its mark, the count and
+; its complement, the bytes, and a 0 after them so the last bit ends at an
+; edge another follows. Every path from one toggle of the output to the next
+; is counted, so a cycle is the same length wherever it falls.
+flush:  lda txn
+        ora txn+1
+        bne flsend
+        rts
+flsend: ldy #TONES
+fltone: ldx #TONEX
+        jsr chalf
+        dey
+        bne fltone
+        clc
+        jsr cbit
+        lda txn
+        jsr csbyte
+        lda txn+1
+        jsr csbyte
+        lda txn
+        eor #$FF
+        jsr csbyte
+        lda txn+1
+        eor #$FF
+        jsr csbyte
+        lda #<TXBUF
+        sta cptr
+        lda #>TXBUF
+        sta cptr+1
+flbyte: ldy #0
+        lda (cptr),y
+        jsr csbyte
+        inc cptr
+        bne flcount
+        inc cptr+1
+flcount: lda txn
+        bne fldec
+        dec txn+1
+fldec:  dec txn
+        lda txn
+        ora txn+1
+        bne flbyte
+        clc
+        jmp cbit
+
+; csbyte: A's bits, most significant first.
+csbyte: sta cbyte
+        lda #8
+        sta cbits
+csbit:  asl cbyte
+        jsr cbit
+        dec cbits
+        bne csbit
+        rts
+
+; cbit: the bit in C as one cycle of two halves.
+cbit:   ldx #ZEROX
+        bcc cbgo
+        ldx #ONEX
+cbgo:   stx chx
+        jsr chalf
+        ldx chx
+        jsr chalf
+        rts
+
+; chalf: the output toggled, then X rounds of 5 cycles.
+chalf:  bit CASOUT
+chwait: dex
+        bne chwait
+        rts
+
+; crecv: a burst into RXBUF, rxptr at its start and rxn its count, waiting
+; A seconds for its tone. The carry is set on a timeout or a damaged burst.
+crecv:  tax
+        lda #0
+        sta climit
+        sta climit+1
+        sta tmo
+        sta tmo+1
+        sta tmo+2
+        sta ctones
+crsecs: lda climit
+        clc
+        adc #<CRSECOND
+        sta climit
+        lda climit+1
+        adc #>CRSECOND
+        sta climit+1
+        dex
+        bne crsecs
+        lda CASIN
+        sta clast
+crhunt: ldx #3
+        jsr cedge
+        php
+        txa
+        clc
+        adc tmo
+        sta tmo
+        bcc crclock
+        inc tmo+1
+        bne crclock
+        inc tmo+2
+crclock: lda tmo+2              ; tmo+1 and tmo+2 against the limit
+        cmp climit+1
+        bcc crlive
+        bne crtime
+        lda tmo+1
+        cmp climit
+        bcs crtime
+crlive: plp
+        bcs crreset             ; no edge for 3.5 ms
+        cpx #CRTLO
+        bcc crshort
+        cpx #CRTHI
+        bcs crreset
+        inc ctones
+        bne crhunt
+        dec ctones
+        jmp crhunt
+crtime: plp
+        sec
+        rts
+crreset: lda #0
+        sta ctones
+        jmp crhunt
+crshort: cpx #CRMARK            ; the mark's first half, after enough tone
+        bcs crreset
+        lda ctones
+        cmp #16
+        bcc crreset
+        jsr cedge               ; and its second, counted on from the first
+        bcs crreset
+        cpx #CRBIT
+        bcs crreset
+        jsr crbyte              ; the count and its complement
+        bcs crbad
+        sta clen
+        jsr crbyte
+        bcs crbad
+        sta clen+1
+        jsr crbyte
+        bcs crbad
+        eor clen
+        cmp #$FF
+        bne crbad
+        jsr crbyte
+        bcs crbad
+        eor clen+1
+        cmp #$FF
+        bne crbad
+        lda #<RXBUF
+        sta cptr
+        sta rxptr
+        lda #>RXBUF
+        sta cptr+1
+        sta rxptr+1
+        lda clen
+        sta rxn
+        ora clen+1
+        beq crbad
+        lda clen+1
+        sta rxn+1
+        cmp #>(RXEND-RXBUF)
+        bcc crdata
+        bne crbad
+        lda clen
+        bne crbad
+crdata: jsr crbyte
+        bcs crbad
+        ldy #0
+        sta (cptr),y
+        inc cptr
+        bne crcount
+        inc cptr+1
+crcount: lda clen
+        bne crdec
+        dec clen+1
+crdec:  dec clen
+        lda clen
+        ora clen+1
+        bne crdata
+        clc
+        rts
+crbad:  lda #0
+        sta rxn
+        sta rxn+1
+        sec
+        rts
+
+; crbyte: a byte in A, each bit a full cycle counted from CRPRE rounds. The
+; carry is set for a cycle too long, or no edge.
+crbyte: lda #8
+        sta cbits
+crbit:  ldx #CRPRE
+        jsr cedge
+        bcs crbyfail
+        jsr cedge
+        bcs crbyfail
+        cpx #CRCYC
+        bcs crbyfail
+        cpx #CRBIT
+        rol cbyte
+        dec cbits
+        bne crbit
+        lda cbyte
+        clc
+crbyfail: rts
+
+; cedge: the input watched until its level changes, X counting the rounds of
+; 14 cycles. The carry is set when X counts to 255 first, about 3.5 ms.
+cedge:  inx
+        beq cewrap
+        lda CASIN
+        eor clast
+        bpl cedge
+        eor clast
+        sta clast
+        clc
+        rts
+cewrap: dex
+        sec
+        rts
+
+chx:    .byte 0                 ; cbit: the half's rounds
+ctones: .byte 0                 ; crecv: tone halves in a row
+climit: .word 0                 ; and its limit, in units of 256 rounds
+
+        else
         ifdef W5100
 ; getbt: a byte from the W5100, waiting tmolen seconds; the bytes put are
 ; sent first. The carry is set on a timeout, after which a socket that has
@@ -2456,6 +2834,7 @@ pbsta:  sta ACIADATA
         rts
 
 txstuck: .byte 0                ; a byte was dropped, and the 6551 hasn't sent since
+        endif
         endif
 
 ; putb: a byte through the chip. In Debug builds, the fault armed for the
@@ -3834,6 +4213,9 @@ conndraw: lda #<conntext
         lda #>conntext
         sta ptr+1
         jsr puttext
+        ifdef CASSETTE
+        rts
+        else
         ifdef W5100
         lda slotx               ; the card and its slot, as UTHERNET II,
         lsr a                   ; SLOT 3; the port is in the address below
@@ -3885,7 +4267,12 @@ scfound: lda speeds+1,x
         sta ptr+1
         jmp puttext
         endif
+        endif
 
+        ifdef CASSETTE
+conntext: .text "Cassette ports"
+        .byte 0
+        else
         ifdef W5100
 conntext: .text "Uthernet II, slot "
         .byte 0
@@ -3940,6 +4327,7 @@ conncomma: .text ", "
 connnames: .byte <connssc, >connssc, <connsscm, >connsscm
         .byte <connport, >connport, <connportm, >connportm
         endif
+        endif
 
 
 ; showaddr: below the connection, where the link goes when it has an
@@ -3950,6 +4338,9 @@ connnames: .byte <connssc, >connssc, <connsscm, >connsscm
 ; first column. It is drawn after the connection, whose rows are cleared
 ; first.
 showaddr:
+        ifdef CASSETTE
+        rts
+        else
         ifdef W5100
         ldx #<ROW2
         lda #>ROW2
@@ -4019,6 +4410,7 @@ sacaps: jsr putch
         inx
         bne satext
 sadone: rts
+        endif
         endif
 
 pcend:  .byte 0                  ; the top row's column where the PC's blanks end
@@ -4756,7 +5148,7 @@ wkhost: jsr pollcancel
         bne wkpoll
         lda #0
         jsr sendkey
-        ifdef W5100
+        ifdef BUFFERED
         jsr flush
         endif
         jmp wksec
@@ -5676,7 +6068,7 @@ kpghdr: lda kproghdr,x
         jsr putpe
         lda peor
         jsr putb
-        ifdef W5100
+        ifdef BUFFERED
         jsr flush               ; at once, as nothing is read until the krunch ends
         endif
         rts

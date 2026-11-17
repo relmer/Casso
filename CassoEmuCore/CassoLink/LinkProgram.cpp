@@ -723,8 +723,9 @@ std::string LinkProgram::GetCommandLines()
 //
 //  The source starts with its own .org; the result must begin at `origin`,
 //  so a source edited to load elsewhere fails here rather than on the Apple.
-//  A W5100 build is given W5100 ahead of the source, and its source selects
-//  the W5100's code with ifdef; a build with faults is given FAULTS the same way.
+//  A W5100 build is given W5100 ahead of the source, and a cassette build
+//  CASSETTE, and the source selects each one's code with ifdef; a build with
+//  faults is given FAULTS the same way.
 //  The commands' numbers are given ahead of it too, from GetCommandLines.
 //  An error's line is the source's, after the lines put ahead of it.
 //
@@ -735,7 +736,7 @@ HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip
     HRESULT          hr        = S_OK;
     static const Cpu s_cpu;
     Assembler        assembler (InstructionSetProvider (s_cpu.GetInstructionSet()));
-    std::string      chipLine  = (chip == LinkChip::W5100) ? "W5100 = 1\n" : "ACIA = 1\n";
+    std::string      chipLine  = (chip == LinkChip::W5100) ? "W5100 = 1\n" : (chip == LinkChip::Cassette) ? "CASSETTE = 1\n" : "ACIA = 1\n";
     std::string      faultLine = faults ? "FAULTS = 1\n" : "";
     std::string      prefix    = std::format ("PROGVER = {}\nSHIMVER = {}\n", kProgramVersion, kShimVersion) + chipLine + faultLine + GetCommandLines();
     int              ahead     = (int) std::count (prefix.begin(), prefix.end(), '\n');

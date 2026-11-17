@@ -1348,7 +1348,10 @@ Error:
 
 void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
 {
-    LinkChip  chip = (packet.payload[2] & LinkProgram::kW5100ReadyFlag) != 0 ? LinkChip::W5100 : LinkChip::Acia;
+    Byte      flags = (Byte) (LinkProgram::kW5100ReadyFlag | LinkProgram::kCassetteReadyFlag);
+    LinkChip  chip  = (packet.payload[2] & LinkProgram::kW5100ReadyFlag) != 0    ? LinkChip::W5100
+                    : (packet.payload[2] & LinkProgram::kCassetteReadyFlag) != 0 ? LinkChip::Cassette
+                                                                                 : LinkChip::Acia;
 
 
 
@@ -1358,7 +1361,7 @@ void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
     }
 
     m_client.programVersion = (Word) (packet.payload[0] | (packet.payload[1] << 8));
-    m_client.shimVersion    = (Byte) (packet.payload[2] & ~LinkProgram::kW5100ReadyFlag);
+    m_client.shimVersion    = (Byte) (packet.payload[2] & ~flags);
     m_client.driveMap       = packet.payload[3];
     m_client.hasRomId       = packet.payload.size() >= 9;
     m_client.hasProgramCrc  = packet.payload.size() == 11;
