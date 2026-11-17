@@ -13,6 +13,7 @@
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
 #include "ProgramRig.h"
 
@@ -197,9 +198,123 @@ public:
         ThirteenSectorCodec::Denibblize (*rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0), onDisk, diskReport);
         Assert::IsTrue (onDisk == sectors, L"The drive's disk has the sectors written");
 
-        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
-        AssertSucceeded (CassoLinkThirteenSector::ReadDisk (*rig.host, 1, module, nullptr, nullptr, read, readReport));
+        AssertSucceeded (CassoLinkThirteenSector::ReadDisk (*rig.host, 1, nullptr, nullptr, read, readReport, status));
+        Assert::AreEqual ((Byte) 0, status.error);
         Assert::IsTrue (read == sectors, L"The sectors read back over the link");
+    }
+
+
+    //  The DOS 3.2 master read over the link: the sectors and tracks Casso
+    //  decodes from the image.
+    TEST_METHOD (TheDos32Master_IsReadOverTheLink_AsItDecodes)
+    {
+        FixtureProvider     fixtures;
+        ProgramRig          rig (LoadFixture());
+        std::vector<Byte>   woz;
+        std::vector<Byte>   module;
+        std::vector<Byte>   expected;
+        std::vector<Byte>   read;
+        SectorDecodeReport  expectedReport;
+        SectorDecodeReport  readReport;
+        CassoLinkStatus     status;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CiderPress/woz/dos32master_2.woz", woz));
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, woz));
+
+        ThirteenSectorCodec::Denibblize (*rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0), expected, expectedReport);
+
+        AssertSucceeded (LinkProgram::BuildNibbleModule (module));
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (CassoLinkThirteenSector::ReadDisk (*rig.host, 1, nullptr, nullptr, read, readReport, status));
+        Assert::AreEqual ((Byte) 0, status.error);
+        Assert::IsTrue (read == expected, L"The sectors read over the link");
+
+        for (int track = 0; track < ThirteenSectorCodec::kTrackCount; track++)
+        {
+            Assert::AreEqual ((int) expectedReport.GetOutcome (track), (int) readReport.GetOutcome (track), std::format (L"track {}", track).c_str());
+        }
+    }
+
+
+    //  A track with two sectors that have no data field, as on a track DOS
+    //  3.2's INIT formatted: the two are zeros in the read, and the track is
+    //  whole. The first two whole data fields in the stream are each self-sync
+    //  bytes of the same bits, as a longer track would overwrite its start.
+    TEST_METHOD (SectorsWithNoDataField_ReadAsZeros_OverTheLink)
+    {
+        static constexpr int     kTrack        = 5;
+        static constexpr size_t  kFieldNibbles = 3 + CassoLinkCodec::kThirteenField + 3;
+
+        ProgramRig          rig (LoadFixture());
+        std::vector<Byte>   module;
+        std::vector<Byte>   sectors (ThirteenSectorCodec::kImageByteSize);
+        std::vector<Byte>   expected;
+        std::vector<Byte>   stream;
+        std::vector<Byte>   read;
+        DiskImage           image;
+        SectorDecodeReport  report;
+        CassoLinkStatus     status;
+        int                 blanked = 0;
+
+
+
+        for (size_t at = 0; at < sectors.size(); at++)
+        {
+            sectors[at] = (Byte) (at * 5 + at / 256 + 1);
+        }
+
+        AssertSucceeded (LinkProgram::BuildNibbleModule (module));
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (CassoLinkThirteenSector::WriteDisk (*rig.host, 1, sectors, nullptr, nullptr, status));
+
+        AssertSucceeded (ThirteenSectorCodec::Nibblize (sectors, CassoLinkThirteenSector::kVolume, image));
+        CassoLinkThirteenSector::MakeStream (image, image.ResolveWholeTrack (kTrack), stream);
+
+        expected = sectors;
+
+        for (size_t at = 0; at + 9 < stream.size() && blanked < 2; at++)
+        {
+            Byte  sector = 0;
+            bool  erased = false;
+
+            if (stream[at] != 0xD5 || stream[at + 1] != 0xAA || stream[at + 2] != 0xB5)
+            {
+                continue;
+            }
+
+            sector = DiskFieldFormat::Decode44 (stream[at + 7], stream[at + 8]);
+
+            for (size_t data = at + 9; !erased && data + kFieldNibbles <= stream.size(); data++)
+            {
+                if (stream[data] == 0xD5 && stream[data + 1] == 0xAA && stream[data + 2] == 0xAD)
+                {
+                    stream.erase  (stream.begin() + (ptrdiff_t) data, stream.begin() + (ptrdiff_t) (data + kFieldNibbles));
+                    stream.insert (stream.begin() + (ptrdiff_t) data, kFieldNibbles * 8 / 10, (Byte) 0);
+                    erased = true;
+                }
+            }
+
+            if (!erased)
+            {
+                continue;
+            }
+
+            std::fill_n (expected.begin() + (ptrdiff_t) ((kTrack * ThirteenSectorCodec::kSectorsPerTrack + sector) * ThirteenSectorCodec::kSectorByteSize),
+                         ThirteenSectorCodec::kSectorByteSize, (Byte) 0);
+            blanked++;
+        }
+
+        Assert::AreEqual (2, blanked);
+
+        AssertSucceeded (rig.host->WriteNibbleTrack (1, (Byte) kTrack, stream, status));
+        Assert::AreEqual ((Byte) 0, status.error);
+
+        AssertSucceeded (CassoLinkThirteenSector::ReadDisk (*rig.host, 1, nullptr, nullptr, read, report, status));
+        Assert::AreEqual ((Byte) 0, status.error);
+        Assert::IsTrue (read == expected, L"The sectors with no data field are zeros");
+        Assert::AreEqual ((int) TrackDecodeOutcome::Complete, (int) report.GetOutcome (kTrack));
     }
 
 

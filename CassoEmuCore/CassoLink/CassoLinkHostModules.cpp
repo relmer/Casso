@@ -300,6 +300,88 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::ReadThirteenTrack
+//
+//  A sector whose packet fails its CRC is left out of outFields, so the
+//  caller requests it again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::ReadThirteenTrack (Byte drive, Byte track, Word requested, std::vector<std::vector<Byte>> & outFields, Word & outUnwritten, CassoLinkStatus & outStatus)
+{
+    HRESULT            hr      = S_OK;
+    CassoLinkPacket    packet;
+    std::vector<Byte>  request = { drive, track, (Byte) (requested & 0xFF), (Byte) (requested >> 8) };
+
+
+
+    outStatus    = {};
+    outUnwritten = 0;
+    outFields.assign (CassoLinkCodec::kThirteenSectors, std::vector<Byte>());
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kReadThirteenTrack, request);
+    CHR (hr);
+
+    for (;;)
+    {
+        Byte  sector = 0;
+        bool  valid  = false;
+
+        hr = ReadReply (packet);
+        CHR (hr);
+
+        if (packet.command == CassoLinkCodec::kStatus)
+        {
+            hr = ReadStatus (packet, outStatus);
+            CHR (hr);
+            break;
+        }
+
+        valid = packet.command == CassoLinkCodec::kThirteenData && !packet.payload.empty();
+        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        sector = (Byte) (packet.payload[0] & ~CassoLinkCodec::kNoDataField);
+        valid  = sector < CassoLinkCodec::kThirteenSectors;
+        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        if ((packet.payload[0] & CassoLinkCodec::kNoDataField) != 0)
+        {
+            valid = packet.payload.size() == 1;
+            CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+            outUnwritten = (Word) (outUnwritten | (1u << sector));
+        }
+        else
+        {
+            std::span<const Byte>  field;
+            Word                   crc = 0;
+
+            valid = packet.payload.size() == 1 + CassoLinkCodec::kThirteenField + 2;
+            CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+            field = std::span<const Byte> (packet.payload).subspan (1, CassoLinkCodec::kThirteenField);
+            crc   = (Word) (packet.payload[1 + CassoLinkCodec::kThirteenField] | (packet.payload[2 + CassoLinkCodec::kThirteenField] << 8));
+
+            if (CassoLinkCodec::ComputeCrc (field) == crc)
+            {
+                outFields[sector].assign (field.begin(), field.end());
+            }
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::BuildCaptureModule
 //
 ////////////////////////////////////////////////////////////////////////////////

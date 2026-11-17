@@ -3,10 +3,10 @@
 #include "CassoLink/Session/CassoLinkThirteenSector.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "Devices/Disk/DiskFieldFormat.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/ThirteenSectorCodec.h"
-#include "Machines/Apple2/Common/WozLoader.h"
 
 
 
@@ -18,24 +18,107 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkThirteenSector::ReadDisk (CassoLinkHost & host, Byte drive, std::span<const Byte> module, const CassoLinkCapture::ProgressFn & progress,
-                                           const CancelFn & cancel, std::vector<Byte> & outSectors, SectorDecodeReport & outReport)
+HRESULT CassoLinkThirteenSector::ReadDisk (CassoLinkHost & host, Byte drive, const ProgressFn & progress, const CancelFn & cancel,
+                                           std::vector<Byte> & outSectors, SectorDecodeReport & outReport, CassoLinkStatus & outStatus)
 {
-    HRESULT                   hr = S_OK;
-    CassoLinkCapture::Result  result;
-    DiskImage                 image;
+    HRESULT  hr = S_OK;
 
 
 
-    outSectors.clear();
+    outStatus = {};
+    outSectors.assign (ThirteenSectorCodec::kImageByteSize, 0);
+    outReport.Reset (ThirteenSectorCodec::kTrackCount);
 
-    hr = CassoLinkCapture::Capture (host, drive, module, std::string(), progress, result, CassoLinkCapture::kTracks - 1, cancel);
-    CHR (hr);
+    for (int track = 0; track < ThirteenSectorCodec::kTrackCount; track++)
+    {
+        bool                canceled = cancel && cancel();
+        Word                coverage = 0;
+        TrackDecodeOutcome  outcome  = TrackDecodeOutcome::Unformatted;
 
-    hr = WozLoader::Load (result.woz, image);
-    CHR (hr);
+        CBREx (!canceled, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
 
-    ThirteenSectorCodec::Denibblize (image, outSectors, outReport);
+        hr = ReadTrack (host, drive, track, outSectors, coverage, outStatus);
+        CHR (hr);
+        BAIL_OUT_IF (outStatus.error != CassoLinkHost::kErrorNone, S_OK);
+
+        if (coverage != 0)
+        {
+            outcome  = (coverage == s_kAllSectors) ? TrackDecodeOutcome::Complete : TrackDecodeOutcome::Partial;
+            coverage = (Word) (coverage | ThirteenSectorCodec::kUnusedCoverage);
+        }
+
+        outReport.SetOutcome (track, outcome, coverage, false);
+
+        if (progress)
+        {
+            progress (track);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkThirteenSector::ReadTrack
+//
+//  Each request is for the sectors not yet read. A sector with no data
+//  field, as on a track DOS 3.2's INIT formatted and never wrote, is taken
+//  as zeros.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkThirteenSector::ReadTrack (CassoLinkHost & host, Byte drive, int track, std::vector<Byte> & inOutSectors, Word & outCoverage, CassoLinkStatus & outStatus)
+{
+    HRESULT                         hr        = S_OK;
+    Word                            pending   = s_kAllSectors;
+    Word                            unwritten = 0;
+    std::vector<std::vector<Byte>>  fields;
+
+
+
+    outCoverage = 0;
+
+    for (int attempt = 0; attempt < s_kTrackTries && pending != 0; attempt++)
+    {
+        hr = host.ReadThirteenTrack (drive, (Byte) track, pending, fields, unwritten, outStatus);
+        CHR (hr);
+        BAIL_OUT_IF (outStatus.error != CassoLinkHost::kErrorNone, S_OK);
+
+        for (int sector = 0; sector < ThirteenSectorCodec::kSectorsPerTrack; sector++)
+        {
+            Word                       bit   = (Word) (1u << sector);
+            const std::vector<Byte>  & field = fields[(size_t) sector];
+            DataFieldDecode            decode;
+            size_t                     base  = ((size_t) track * ThirteenSectorCodec::kSectorsPerTrack + (size_t) sector) * ThirteenSectorCodec::kSectorByteSize;
+
+            if ((pending & bit) == 0 || (field.empty() && (unwritten & bit) == 0))
+            {
+                continue;
+            }
+
+            if (!field.empty())
+            {
+                DiskFieldFormat::DecodeData (DiskFieldKind::Thirteen, std::span<const Byte> (field).first (DiskFieldFormat::kBodyLength53),
+                                             field[DiskFieldFormat::kBodyLength53], decode);
+
+                if (!decode.isChecksumGood)
+                {
+                    continue;
+                }
+
+                std::copy (decode.bytes.begin(), decode.bytes.end(), inOutSectors.begin() + (ptrdiff_t) base);
+            }
+
+            pending     = (Word) (pending & ~bit);
+            outCoverage = (Word) (outCoverage | bit);
+        }
+    }
 
 Error:
     return hr;

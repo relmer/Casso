@@ -407,6 +407,13 @@ public:
     //  byte (CassoLinkCodec::kWriteNibbleTrack). A write-protected disk is the
     //  Status's error.
     HRESULT  WriteNibbleTrack    (Byte drive, Byte track, std::span<const Byte> stream, CassoLinkStatus & outStatus);
+
+    //  A 13-sector track's sectors in `requested`, a bit each, read by the
+    //  nibble module, which must be loaded (CassoLinkCodec::kReadThirteenTrack).
+    //  outFields has 13 entries, each a sector's data field nibbles, or empty
+    //  when it wasn't read or arrived damaged. outUnwritten has a bit for each
+    //  sector with no data field.
+    HRESULT  ReadThirteenTrack   (Byte drive, Byte track, Word requested, std::vector<std::vector<Byte>> & outFields, Word & outUnwritten, CassoLinkStatus & outStatus);
     HRESULT  BuildNibbleModule   (std::vector<Byte> & outModule) const;
 
     //  The block module's requests (Block.s), which must be loaded: each

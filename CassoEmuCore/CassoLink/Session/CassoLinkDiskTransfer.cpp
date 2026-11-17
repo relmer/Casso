@@ -724,16 +724,23 @@ HRESULT CassoLinkDiskTransfer::ReadThirteenSectorDisk (LinkOperation & operation
     std::vector<Byte>     sectors;
     SectorDecodeReport    report;
     CommitPlan::Progress  progress;
+    CassoLinkStatus       status;
     bool                  complete = true;
 
 
 
-    hr = m_session.m_host->BuildCaptureModule (module);
+    hr = m_session.m_host->BuildNibbleModule (module);
     CHR (hr);
 
-    hr = CassoLinkThirteenSector::ReadDisk (*m_session.m_host, (Byte) operation.drive, module,
-                                            [this, &operation] (const CassoLinkCapture::Progress & where) { ReportCapture (operation, where); },
-                                            [this] () { return m_session.m_canceled.load(); }, sectors, report);
+    hr = m_session.m_host->EnsureModule (module);
+    CHR (hr);
+
+    hr = CassoLinkThirteenSector::ReadDisk (*m_session.m_host, (Byte) operation.drive,
+                                            [this, &operation] (int track) { m_session.Report (operation, (track + 1) * 100 / ThirteenSectorCodec::kTrackCount); },
+                                            [this] () { return m_session.m_canceled.load(); }, sectors, report, status);
+    CHR (hr);
+
+    hr = CassoLinkSession::FromStatusError (status.error);
     CHR (hr);
 
     for (int track = 0; track < ThirteenSectorCodec::kTrackCount; track++)

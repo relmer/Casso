@@ -180,6 +180,18 @@ public:
     static constexpr Byte    kNibbleData       = 0xF4;
     static constexpr size_t  kMaxNibbleStream  = 0x3500;
 
+    //  The nibble module's Read 13-sector track: the drive, the track and
+    //  the sectors requested, a bit each, low byte first. The reply is a
+    //  13-sector data packet for each sector found, in physical order: the
+    //  sector, its data field's nibbles as the drive read them and their CRC;
+    //  or the sector with kNoDataField set alone, for one with no data field.
+    //  A Status ends it, its count the packets.
+    static constexpr Byte    kReadThirteenTrack = 0xF6;
+    static constexpr Byte    kThirteenData      = 0xF7;
+    static constexpr size_t  kThirteenSectors   = 13;
+    static constexpr size_t  kThirteenField     = 411;
+    static constexpr Byte    kNoDataField       = 0x80;
+
     //  The CassoLink ProDOS disk's block driver's request, from the Apple:
     //  the drive, the operation (kVirtualStatus, kVirtualRead or
     //  kVirtualWrite) and the block, low byte first, and for a write the
@@ -275,6 +287,8 @@ public:
         { kWriteBlocks,   "CMDBLKWRITE" },
         { kWriteNibbleTrack, "CMDWNIBS"  },
         { kNibbleData,    "CMDNIBDATA"  },
+        { kReadThirteenTrack, "CMDRD13" },
+        { kThirteenData,  "CMDSEC13"    },
         { kVirtualBlock,  "CMDVBLOCK"   },
     };
 
