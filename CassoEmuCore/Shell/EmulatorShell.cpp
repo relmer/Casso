@@ -266,7 +266,7 @@ EmulatorShell::~EmulatorShell()
 
     m_cpuManager.Stop();
 
-    m_diskInspector.reset();
+    m_diskInspectors.clear();
     // The printer panel holds no machine sinks -- just close its window.
     m_printer->ClosePrinterPanel();
 

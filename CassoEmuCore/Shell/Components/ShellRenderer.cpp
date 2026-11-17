@@ -1063,11 +1063,7 @@ bool ShellRenderer::TryPresentUiFrame()
     hr = m_shell.m_printer->RenderPanelFrame();
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    if (m_shell.m_diskInspector != nullptr)
-    {
-        hr = m_shell.m_diskInspector->RenderFrame();
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
+    m_shell.RenderDiskInspectors();
 
     if (m_shell.m_chrome->m_mainMenu.IsOpen())
     {

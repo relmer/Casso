@@ -47,6 +47,14 @@ public:
     //  running Casso's reply to a saved edit (FR-105).
     virtual bool          HandleCopyData (const COPYDATASTRUCT & data) { (void) data; return false; }
     virtual std::wstring  TakeHostNote   ()                            { return {}; }
+
+    //  UI thread, for a host that moves the window's disk between a drive
+    //  and its file: the drive to request the disk from, a count that
+    //  changes each time the disk is read from somewhere else, and the
+    //  machine and drive the disk is mounted in, or empty.
+    virtual int           GetWindowDrive      () const { return 0; }
+    virtual uint64_t      GetSourceGeneration () const { return 0; }
+    virtual std::wstring  GetMountDescription () const { return {}; }
 };
 
 

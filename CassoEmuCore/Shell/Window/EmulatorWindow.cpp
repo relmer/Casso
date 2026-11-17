@@ -1036,8 +1036,7 @@ int EmulatorShell::RunMessageLoop()
             // Keystrokes sent to the disk inspector, or a popup owned by it,
             // skip the main window's accelerators: Ctrl+0 there resets the
             // inspector's zoom, not the main window's size.
-            bool  inspectorTarget = (m_diskInspector != nullptr && m_diskInspector->GetHwnd() != nullptr && msg.hwnd != nullptr &&
-                                     GetAncestor (msg.hwnd, GA_ROOTOWNER) == m_diskInspector->GetHwnd());
+            bool  inspectorTarget = msg.hwnd != nullptr && IsDiskInspectorWindow (GetAncestor (msg.hwnd, GA_ROOTOWNER));
 
             if (settingsActive || inspectorTarget ||
                 m_window->m_accelTable == nullptr ||

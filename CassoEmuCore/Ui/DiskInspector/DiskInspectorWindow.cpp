@@ -204,6 +204,37 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskInspectorWindow::FollowHostDisk
+//
+//  When the host reads the window's disk from somewhere else, such as its
+//  file after an eject, the window requests a copy from there. The same
+//  file read again is a reload, so the unsaved edits follow it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::FollowHostDisk()
+{
+    uint64_t  generation = m_session.host->GetSourceGeneration();
+    bool      isWindowA  = m_session.IsWindowDiskA();
+
+
+
+    if (generation != m_sourceGeneration)
+    {
+        m_sourceGeneration         = generation;
+        m_session.drive            = m_session.host->GetWindowDrive();
+        m_session.sourceA          = isWindowA ? ComparisonSource { ComparisonSourceKind::DriveNow, m_session.drive } : m_session.sourceA;
+        m_session.requestedMediaId = UINT64_MAX;
+        m_hostLink->RequestCopy();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskInspectorWindow::ShowDrive
 //
 //  Starts over on the disk in the drive: the window asks for a copy and
@@ -218,10 +249,6 @@ HRESULT DiskInspectorWindow::ShowDrive (int drive)
 
 
     CBRA (drive >= 0);
-
-    //  The drive selector goes back to the window's drive when the user
-    //  cancels.
-    BAIL_OUT_IF (drive != m_session.drive && !ConfirmDiscardEdits (L"Switching to the other drive", [this, drive] () { (void) ShowDrive (drive); }), S_OK);
 
     //  Another drive's disk ends a comparison of this one.
     if (m_session.comparison.IsComparing())
@@ -526,6 +553,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
     m_zoomNote.SetTheme (*m_session.theme);
 
     m_hostLink->TakeReplies();
+    FollowHostDisk();
     m_hostLink->TakeResults();
 
     if (std::function<void()> action = m_editing->TakeDueAction(); action != nullptr)
@@ -861,13 +889,7 @@ void DiskInspectorWindow::BuildCommands()
     }
 
     //  Disk
-    for (int drive = 0; drive < m_session.host->GetDriveCount(); drive++)
-    {
-        c.drives.push_back (make (drive == 0 ? L"Drive &1" : L"Drive &2", drive == 0 ? L"Ctrl+1" : L"Ctrl+2", [this, drive] () { (void) ShowDrive (drive); }));
-        c.drives.back()->isChecked = [this, drive] () { return m_session.drive == drive; };
-    }
-
-    c.compareWith               = make (L"&Compare with...", L"", [this] () { m_comparisonPart->OpenCompare(); });
+    c.compareWith              = make (L"&Compare with...", L"", [this] () { m_comparisonPart->OpenCompare(); });
     c.compareWith->isEnabled    = [this] () { return m_session.context.hasDisk || m_session.comparison.IsComparing(); };
     c.compareWith->glyph        = kpszGlyphCompare;
     c.swapSides                 = make (L"&Swap A and B", L"", [this] () { m_comparisonPart->SwapSides(); });
@@ -924,15 +946,17 @@ bool DiskInspectorWindow::RunCommand (const InspectorCommands::Command & command
 //
 //  DiskInspectorWindow::UpdateTitle
 //
-//  "Disk inspector - " and the file's name, with a lock before it while the
-//  disk is write-protected (FR-007, FR-065), and a * just before the name
-//  while edits are pending.
+//  "Disk inspector - " and the file's path, with a lock before it while the
+//  disk is write-protected (FR-007, FR-065), a * just before the path while
+//  edits are pending, and the machine and drive while the disk is mounted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskInspectorWindow::UpdateTitle()
 {
     std::wstring  title = s_kpszWindowTitle;
+    std::wstring  mount = m_session.host->GetMountDescription();
+    std::wstring  path  = (m_session.analysis.copy != nullptr) ? TextEncoding::Utf8ToWide (m_session.analysis.copy->fileName) : std::wstring();
 
 
 
@@ -941,7 +965,8 @@ void DiskInspectorWindow::UpdateTitle()
         title += L" - ";
         title += m_session.IsWriteProtected() ? std::wstring (s_kpszLock) + L" " : std::wstring();
         title += m_session.edits.IsEmpty() ? L"" : L"*";
-        title += m_session.GetFileName();
+        title += path.empty() ? m_session.GetFileName() : path;
+        title += mount.empty() ? std::wstring() : L" (mounted in " + mount + L")";
     }
 
     if (title != m_title)
@@ -1471,11 +1496,6 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
         //  Ctrl with 0, + or - zooms the whole window (FR-154).
         SetZoom ((ev.vk == '0' || ev.vk == VK_NUMPAD0) ? 1.0 : DxuiZoomControl::StepZoom (m_zoom, (ev.vk == VK_OEM_PLUS || ev.vk == VK_ADD) ? 1 : -1));
         isHandled = true;
-    }
-    else if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && !ev.shift && ev.vk >= '1' && ev.vk < '1' + static_cast<WPARAM> (m_commands.drives.size()))
-    {
-        //  Ctrl+1 and Ctrl+2 choose the drive (FR-061).
-        isHandled = RunCommand (m_commands.drives[ev.vk - '1']);
     }
     else if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'S')
     {

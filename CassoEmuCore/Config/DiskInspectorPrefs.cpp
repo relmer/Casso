@@ -10,8 +10,8 @@
 //
 //  DiskInspectorPrefs::ToJson
 //
-//  Follow head, the last drive and whether the window was open at exit are
-//  written only for Casso (FR-080).
+//  Follow head and the drives with a window open at exit are written only
+//  for Casso (FR-080).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,8 +45,9 @@ JsonValue DiskInspectorPrefs::ToJson (bool hasDriveState) const
 
     if (hasDriveState)
     {
-        fields.emplace_back ("lastDrive", JsonValue ((double) lastDrive));
-        fields.emplace_back ("open",      JsonValue (isOpen));
+        fields.emplace_back ("lastDrive",  JsonValue ((double) lastDrive));
+        fields.emplace_back ("open",       JsonValue (isOpen));
+        fields.emplace_back ("openDrives", JsonValue ((double) openDrives));
     }
 
     fields.emplace_back ("walkthroughSeen", JsonValue (isWalkthroughSeen));
@@ -87,6 +88,7 @@ void DiskInspectorPrefs::FromJson (const JsonValue & obj)
     ReadNumber (obj, "tilt",            tilt);
     ReadInt    (obj, "lastDrive",       lastDrive);
     ReadBool   (obj, "open",            isOpen);
+    ReadInt    (obj, "openDrives",      openDrives);
     ReadBool   (obj, "walkthroughSeen", isWalkthroughSeen);
     ReadInt    (obj, "goToKind",        goToKind);
 

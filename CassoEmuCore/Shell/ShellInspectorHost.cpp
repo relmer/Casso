@@ -63,6 +63,78 @@ void ShellInspectorHost::TakeInspectorReplies (vector<InspectorReply> & outRepli
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellInspectorHost::TakeRepliesFor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInspectorHost::TakeRepliesFor (const std::function<bool (uint64_t)> & isMine, vector<InspectorReply> & outReplies)
+{
+    vector<InspectorReply>  arrived;
+
+
+
+    m_queue.TakeReplies (arrived);
+    std::move (arrived.begin(), arrived.end(), std::back_inserter (m_unclaimed));
+
+    outReplies.clear();
+
+    for (InspectorReply & reply : m_unclaimed)
+    {
+        if (isMine (reply.requestId))
+        {
+            outReplies.push_back (std::move (reply));
+            reply.requestId = 0;
+        }
+    }
+
+    std::erase_if (m_unclaimed, [] (const InspectorReply & reply) { return reply.requestId == 0; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInspectorHost::DropRepliesFor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInspectorHost::DropRepliesFor (const std::function<bool (uint64_t)> & isMine)
+{
+    std::erase_if (m_unclaimed, [&isMine] (const InspectorReply & reply) { return isMine (reply.requestId); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInspectorHost::SetHeadStateWantedBy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInspectorHost::SetHeadStateWantedBy (const void * window, bool isWanted)
+{
+    if (isWanted)
+    {
+        m_headWantedBy.insert (window);
+    }
+    else
+    {
+        m_headWantedBy.erase (window);
+    }
+
+    m_publisher.SetActive (!m_headWantedBy.empty());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellInspectorHost::Service
 //
 ////////////////////////////////////////////////////////////////////////////////

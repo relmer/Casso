@@ -166,12 +166,6 @@ vector<DxuiMenuBarItem> InspectorMenuBar::BuildItems (const InspectorCommands & 
     add (c.nextPane);
     menu (L"&Go");
 
-    for (const InspectorCommands::Command & drive : c.drives)
-    {
-        add (drive);
-    }
-
-    separator();
     add (c.compareWith);
     add (c.swapSides);
     add (c.bSettings);

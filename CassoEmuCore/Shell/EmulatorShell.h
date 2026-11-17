@@ -221,8 +221,8 @@ public:
     void  SoftReset  ();
     void  PowerCycle ();
 
-    // The disk inspector for a drive: created on first use, then shown and
-    // pointed at that drive.
+    // The disk inspector window for the disk in a drive: the window that
+    // inspects that disk, or a new one.
     void OpenDiskInspector (int drive);
 
     // The screen as it is now, as the thumbnail of the drive's image, marked
@@ -238,17 +238,33 @@ private:
     DxuiMessageResult  OnCommand       (WORD commandId) override;
     DxuiMessageResult  OnClose         () override;
 
-    //  True when nothing in the disk inspector's pending edits for `drive`
-    //  is discarded by `action`, or the user confirms that they are. A
-    //  drive of -1 matches either drive.
-    bool               ConfirmInspectorDiscard (int drive, const std::wstring & action, std::function<void()> afterSave);
+    //  One disk inspector window and the host for its disk.
+    struct DiskInspectorEntry
+    {
+        DiskInspectorEntry  ();
+        ~DiskInspectorEntry ();
 
-    //  Open the disk inspector on a drive, in the foreground only when
-    //  `activate`; save its state for the next launch; at launch, reopen it
-    //  when it was open at exit (FR-080).
-    void               ShowDiskInspector   (int drive, bool activate);
-    void               SaveInspectorPrefs  (bool isOpen);
-    void               ReopenDiskInspector ();
+        std::unique_ptr<class ShellInspectorWindowHost>  host;
+        std::unique_ptr<class DiskInspectorWindow>       window;
+        bool                                             isClosed = false;
+    };
+
+    //  True when no disk inspector window has unsaved changes, or the user
+    //  confirms quitting for each one that has them.
+    bool               ConfirmInspectorDiscard (std::function<void()> afterSave);
+
+    //  Open the disk inspector on a drive's disk, in the foreground only
+    //  when `activate`; save the windows' state for the next launch; at
+    //  launch, reopen a window for each drive that had one open at exit
+    //  (FR-080).
+    void                 ShowDiskInspector        (int drive, bool activate);
+    void                 SaveInspectorPrefs       (const DiskInspectorEntry * from);
+    void                 ReopenDiskInspector      ();
+    DiskInspectorEntry * FindDiskInspector        (int drive, const std::wstring & path);
+    int                  FindDiskDrive            (const std::wstring & path) const;
+    void                 RenderDiskInspectors     ();
+    bool                 IsDiskInspectorWindow    (HWND hwnd) const;
+    void                 ReleaseClosedInspectors  ();
 
     //  Whether an enabled Disk II card is in a slot other than 6.
     bool               HasOtherDiskController () const;
@@ -983,10 +999,10 @@ private:
     // (>= 0) every keydown is consumed so letters never leak to the //e.
     int             m_chromeFocusIndex      = -1;
 
-    // The disk inspector: one window, lazily created and reused, and the host
-    // that answers its requests on the CPU thread.
-    std::unique_ptr<class DiskInspectorWindow>  m_diskInspector;
-    ShellInspectorHost                          m_inspectorHost { m_cpuManager, m_machine };
+    // The disk inspector windows, one per disk, and the host through which
+    // the CPU thread services their requests.
+    vector<std::unique_ptr<DiskInspectorEntry>>  m_diskInspectors;
+    ShellInspectorHost                           m_inspectorHost { m_cpuManager, m_machine };
     // The host services the clipboard manager and the dialogs go through.
     // Declared ahead of the manager, which holds a reference to the clipboard.
     Win32Clipboard                            m_hostClipboard;

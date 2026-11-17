@@ -70,12 +70,11 @@ struct InspectorCommands
     Command  nextPane;
 
     //  Disk
-    vector<Command>  drives;
-    Command          compareWith;
-    Command          swapSides;
-    Command          bSettings;
-    Command          endComparison;
-    Command          decodeSettings;
+    Command  compareWith;
+    Command  swapSides;
+    Command  bSettings;
+    Command  endComparison;
+    Command  decodeSettings;
 
     //  Window
     Command  windowZoomIn;

@@ -58,8 +58,7 @@ class EditBar;
 //
 //  DiskInspectorWindow
 //
-//  The disk inspector: a toolbar with the drive tabs, the file name and the
-//  summary chips; the platter column on the left; and past the splitter the
+//  The disk inspector: a toolbar with the mode selector and the commands; the platter column on the left; and past the splitter the
 //  track column with its header, strip, sector row and tabs. It asks its
 //  host for a copy of the disk, analyzes the copy in the background, and
 //  shows each record as its analysis arrives. The host calls RenderFrame
@@ -149,9 +148,10 @@ private:
     bool                       OfferReply            (const InspectorReply & reply) override;
     void                       SetWindowZoom         (double zoom) override { SetZoom (zoom); }
 
-    void          BuildCommands ();
-    static bool   RunCommand    (const InspectorCommands::Command & command);
-    void          UpdateTitle   ();
+    void          BuildCommands  ();
+    static bool   RunCommand     (const InspectorCommands::Command & command);
+    void          UpdateTitle    ();
+    void          FollowHostDisk ();
 
 
 
@@ -204,4 +204,5 @@ private:
 
 
     double                                  m_zoom               = 1.0;
+    uint64_t                                m_sourceGeneration   = 0;
 };

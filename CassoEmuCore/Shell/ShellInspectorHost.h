@@ -50,6 +50,14 @@ public:
     std::shared_ptr<const DriveHeadState>  GetHeadState       (int drive) const override { return m_publisher.Get (drive); }
     void                                   SetHeadStateWanted (bool isWanted)  override { m_publisher.SetActive (isWanted); }
 
+    //  UI thread, for several windows sharing the host: the replies for
+    //  which `isMine` returns true, with the rest stored for the other
+    //  windows; dropping a closed window's replies; and publishing the heads
+    //  while any window has them turned on.
+    void      TakeRepliesFor       (const std::function<bool (uint64_t)> & isMine, vector<InspectorReply> & outReplies);
+    void      DropRepliesFor       (const std::function<bool (uint64_t)> & isMine);
+    void      SetHeadStateWantedBy (const void * window, bool isWanted);
+
     //  CPU thread only: answers the window's requests, and at the end of each
     //  frame publishes each drive's head and counts.
     void      Service       ();
@@ -75,4 +83,6 @@ private:
     std::function<void ()>                            m_onClosed;
     std::function<bool (int)>                         m_isAttached;
     std::function<bool ()>                            m_hasOther;
+    vector<InspectorReply>                            m_unclaimed;
+    std::set<const void *>                            m_headWantedBy;
 };

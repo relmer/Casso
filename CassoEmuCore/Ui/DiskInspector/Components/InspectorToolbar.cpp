@@ -51,26 +51,17 @@ void InspectorToolbar::Create()
 {
     DxuiPanel &                 parent = m_host.GetControlParent();
     vector<DxuiToolbar::Entry>  entries;
-    vector<std::wstring>        drives;
 
 
 
     m_driveCount = m_session.host->GetDriveCount();
 
-    for (int i = 0; i < m_driveCount; i++)
-    {
-        drives.push_back (std::format (L"Drive {}", i + 1));
-    }
-
-    m_drives     = parent.CreateChild<DxuiSegmentedControl>();
     m_modes      = parent.CreateChild<DxuiSegmentedControl>();
     m_rangeDown  = parent.CreateChild<DxuiButton> (s_kpszMinus);
     m_rangeUp    = parent.CreateChild<DxuiButton> (L"+");
     m_rangeLabel = parent.CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Center);
     m_tools      = parent.CreateChild<DxuiToolbar>();
 
-    m_drives->SetSegments  (std::move (drives));
-    m_drives->SetOnChange  ([this] (int index) { (void) m_host.ShowDrive (index); });
     m_modes->SetSegments   ({ L"Structure", L"Timing" });
     m_modes->SetOnChange   ([this] (int index) { SetTimingMode (index == 1); });
     m_rangeDown->SetOnClick ([this] () { StepRange (-1); });
@@ -137,12 +128,6 @@ void InspectorToolbar::Layout (const RECT & area, const DxuiDpiScaler & scaler)
 
     //  The selectors are about twice their labels' height, as iOS's compact
     //  segmented controls are, centered in the row.
-    if (IsDriveShown())
-    {
-        m_drives->Layout ({ x, selTop, x + m_driveCount * segment, selBot }, scaler);
-        x += m_driveCount * segment + 2 * margin;
-    }
-
     m_modes->Layout ({ x, selTop, x + 2 * segment, selBot }, scaler);
     x += 2 * segment + margin;
 
@@ -162,27 +147,10 @@ void InspectorToolbar::Layout (const RECT & area, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InspectorToolbar::IsDriveShown
-//
-//  The drive selector is offered only by a host with drives, as Casso is.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool InspectorToolbar::IsDriveShown() const
-{
-    return m_driveCount > 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  InspectorToolbar::Update
 //
-//  The selectors match the window's drive and mode, whatever changed them:
-//  a menu command, a key, or a drive switch the user canceled.
+//  The mode selector matches the window's mode, whatever changed it: a menu
+//  command or a key.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,8 +164,6 @@ void InspectorToolbar::Update()
 
     m_session.context.isTimingMode = isTiming;
 
-    m_drives->SetVisible   (IsDriveShown());
-    m_drives->SetSelected  (m_session.drive, true);
     m_modes->SetVisible    (hasDisk);
     m_modes->SetSegmentEnabled (1, hasTiming);
     m_modes->SetSelected   (isTiming ? 1 : 0, true);
@@ -222,8 +188,7 @@ void InspectorToolbar::Update()
 
 void InspectorToolbar::Tick (int64_t nowMs)
 {
-    m_drives->Tick (nowMs);
-    m_modes->Tick  (nowMs);
+    m_modes->Tick (nowMs);
 
     if (m_tools->WantsTick())
     {
@@ -294,14 +259,12 @@ bool InspectorToolbar::OnMouse (const DxuiMouseEvent & ev)
 //
 //  InspectorToolbar::GetTip
 //
-//  Only slot 6's drives are inspected (FR-060). The commands' tips come from
-//  the commands.
+//  The commands' tips come from the commands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring InspectorToolbar::GetTip (POINT pointPx, RECT & outAnchorPx) const
 {
-    RECT             drives = m_drives->GetBounds();
     RECT             modes  = m_modes->GetBounds();
     RECT             down   = m_rangeDown->GetBounds();
     RECT             up     = m_rangeUp->GetBounds();
@@ -311,12 +274,7 @@ std::wstring InspectorToolbar::GetTip (POINT pointPx, RECT & outAnchorPx) const
 
 
 
-    if (m_drives->IsVisible() && PtInRect (&drives, pointPx) && m_session.host->HasOtherDiskController())
-    {
-        tip         = L"Slot 6 drives only";
-        outAnchorPx = drives;
-    }
-    else if (m_modes->IsVisible() && PtInRect (&modes, pointPx))
+    if (m_modes->IsVisible() && PtInRect (&modes, pointPx))
     {
         int  segment = m_modes->HitTest (pointPx.x, pointPx.y);
 

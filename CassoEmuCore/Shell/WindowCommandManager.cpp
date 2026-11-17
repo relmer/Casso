@@ -1595,11 +1595,6 @@ void WindowCommandManager::OnDiskCommand (int id)
         case IDM_DISK_EJECT1:
         case IDM_DISK_EJECT2:
         {
-            if (!m_shell.ConfirmInspectorDiscard ((id == IDM_DISK_EJECT1) ? 0 : 1, L"Ejecting the disk", [hwnd = m_shell.m_hwnd, id] () { PostMessageW (hwnd, WM_COMMAND, id, 0); }))
-            {
-                break;
-            }
-
             m_shell.PostCommand (static_cast<WORD> (id));
             break;
         }

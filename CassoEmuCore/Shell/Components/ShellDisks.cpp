@@ -161,12 +161,6 @@ void ShellDisks::InstallMountReporting()
         {
             m_shell.m_chrome->PostNotice (text);
         });
-
-    m_diskManager->SetDiscardConfirmCallback (
-        [this] (int drive, const std::wstring & action, std::function<void()> afterSave)
-        {
-            return m_shell.ConfirmInspectorDiscard (drive, action, std::move (afterSave));
-        });
 }
 
 
@@ -643,14 +637,7 @@ void ShellDisks::BrowseForDisk (int drive, const RECT * anchorClientPx)
         return;
     }
 
-    //  Confirm before the picker opens. When the user cancels, the door does not move.
-    if (!m_shell.ConfirmInspectorDiscard (drive, L"Inserting another disk", [hwnd = m_shell.m_hwnd, drive] ()
-                                          { PostMessageW (hwnd, WM_COMMAND, (drive == 0) ? IDM_DISK_INSERT1 : IDM_DISK_INSERT2, 0); }))
-    {
-        return;
-    }
-
-    pSt = &m_driveWidgetState[drive];
+    pSt =&m_driveWidgetState[drive];
 
     // The time base MUST match DiskManager::GetNowMs (steady_clock ms):
     // TickDoorAnimation diffs the current frame time against

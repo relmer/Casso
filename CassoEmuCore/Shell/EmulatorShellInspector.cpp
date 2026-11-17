@@ -6,8 +6,10 @@
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellWindow.h"
+#include "Shell/ShellInspectorWindowHost.h"
 #include "Ui/DiskInspector/DiskInspectorWindow.h"
 #include "Ui/Chrome/ChromeMetrics.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskThumbnailCommand.h"
 #include "DiskCheck/ThumbnailStore.h"
 
@@ -17,21 +19,34 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::DiskInspectorEntry::DiskInspectorEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+EmulatorShell::DiskInspectorEntry::DiskInspectorEntry()  = default;
+EmulatorShell::DiskInspectorEntry::~DiskInspectorEntry() = default;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::OpenDiskInspector
 //
-//  Opens the disk inspector on a drive, creating the window the first time
-//  and reusing it after. The window asks for a copy of the drive's disk and
-//  fills in as the copy is analyzed. It takes the foreground only from Casso
-//  itself, so a command that reaches Casso while another program is in front
-//  does not take focus from it.
+//  Opens the disk inspector on the disk in a drive: the window that already
+//  inspects that disk, or a new one. The window requests a copy of the
+//  disk and fills in as the copy is analyzed. It is activated only when
+//  Casso or one of its windows is in front, so a command sent to Casso
+//  while another program is in front doesn't change the foreground.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::OpenDiskInspector (int drive)
 {
     HWND  foreground = GetForegroundWindow();
-    bool  activate   = foreground != nullptr && (GetAncestor (foreground, GA_ROOTOWNER) == m_hwnd ||
-                       (m_diskInspector != nullptr && GetAncestor (foreground, GA_ROOTOWNER) == m_diskInspector->GetHwnd()));
+    HWND  root       = (foreground != nullptr) ? GetAncestor (foreground, GA_ROOTOWNER) : nullptr;
+    bool  activate   = root != nullptr && (root == m_hwnd || IsDiskInspectorWindow (root));
 
 
 
@@ -85,49 +100,184 @@ Error:
 //
 //  EmulatorShell::ShowDiskInspector
 //
-//  The saved state is applied to a new window before ShowDrive (FR-080).
+//  A window for the drive's disk, or for the drive when it is empty, is
+//  brought forward. Otherwise a new window opens on it, with the saved
+//  state applied before ShowDrive (FR-080).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::ShowDiskInspector (int drive, bool activate)
 {
-    HRESULT    hr        = S_OK;
-    HINSTANCE  hInstance = nullptr;
+    HRESULT                              hr        = S_OK;
+    HINSTANCE                            hInstance = nullptr;
+    std::wstring                         path      = m_disks->GetMountedImagePath (drive);
+    DiskInspectorEntry                 * existing  = FindDiskInspector (drive, path);
+    std::unique_ptr<DiskInspectorEntry>  entry;
+    DiskInspectorEntry                 * created   = nullptr;
 
 
 
-    if (m_diskInspector == nullptr || m_diskInspector->GetHwnd() == nullptr)
+    if (existing != nullptr)
     {
-        hInstance       = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
-        m_diskInspector = std::make_unique<DiskInspectorWindow>();
+        existing->window->Show (activate);
+    }
+    else
+    {
+        hInstance    = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
+        entry        = std::make_unique<DiskInspectorEntry>();
+        created      = entry.get();
+        entry->host  = std::make_unique<ShellInspectorWindowHost> (m_inspectorHost, drive, path,
+                                                                   [this] (const std::wstring & file) { return FindDiskDrive (file); },
+                                                                   [this] () { return TextEncoding::Utf8ToWide (m_machine.GetConfig().name); });
+        entry->window = std::make_unique<DiskInspectorWindow>();
 
-        hr = m_diskInspector->Create (hInstance, m_hwnd, &m_chrome->GetTheme(), &m_inspectorHost, activate);
-        CHRF (hr, m_diskInspector.reset());
-
-        m_window->ApplyAppIconToWindow (m_diskInspector->GetHwnd());
-        m_inspectorHost.SetOnClosed ([this] () { SaveInspectorPrefs (false); });
         m_inspectorHost.SetDriveQueries ([this] (int index) { return index == 0 || m_disks->ShouldShowExternalDrive(); },
                                          [this] () { return HasOtherDiskController(); });
-        m_diskInspector->ApplyPrefs (m_settings->GetPrefs().diskInspector);
+
+        hr = entry->window->Create (hInstance, m_hwnd, &m_chrome->GetTheme(), entry->host.get(), activate);
+        CHR (hr);
+
+        m_window->ApplyAppIconToWindow (entry->window->GetHwnd());
+        entry->host->SetOnClosed ([this, created] () { created->isClosed = true; SaveInspectorPrefs (created); });
+        entry->window->ApplyPrefs (m_settings->GetPrefs().diskInspector);
 
         //  The walkthrough opens the first time the inspector does (FR-153).
         if (!m_settings->GetPrefs().diskInspector.isWalkthroughSeen)
         {
-            m_diskInspector->OpenWalkthrough();
+            entry->window->OpenWalkthrough();
             m_settings->GetPrefs().diskInspector.isWalkthroughSeen = true;
             m_settings->SaveGlobalPrefsDeferred();
         }
-    }
-    else
-    {
-        m_diskInspector->Show (activate);
-    }
 
-    hr = m_diskInspector->ShowDrive (drive);
-    CHR (hr);
+        hr = entry->window->ShowDrive (drive);
+        CHR (hr);
+
+        m_diskInspectors.push_back (std::move (entry));
+    }
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::FindDiskInspector
+//
+//  The open window that inspects a file, or for no file, the open window
+//  waiting on the empty drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+EmulatorShell::DiskInspectorEntry * EmulatorShell::FindDiskInspector (int drive, const std::wstring & path)
+{
+    for (std::unique_ptr<DiskInspectorEntry> & entry : m_diskInspectors)
+    {
+        const std::wstring &  inspected = entry->host->GetPath();
+        bool                  isMatch   = path.empty() ? (inspected.empty() && entry->host->GetDrive() == drive) : _wcsicmp (inspected.c_str(), path.c_str()) == 0;
+
+
+
+        if (!entry->isClosed && isMatch)
+        {
+            return entry.get();
+        }
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::FindDiskDrive
+//
+//  The slot 6 drive a file is mounted in, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::FindDiskDrive (const std::wstring & path) const
+{
+    int  found = -1;
+
+
+
+    for (int drive = 0; found < 0 && drive < ShellInspectorHost::kDriveCount; drive++)
+    {
+        const std::wstring &  mounted = m_disks->GetMountedImagePath (drive);
+
+        found = (!mounted.empty() && _wcsicmp (mounted.c_str(), path.c_str()) == 0) ? drive : -1;
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RenderDiskInspectors
+//
+//  One frame of every open window. A window the user closed is released
+//  here, outside the window's message handling.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RenderDiskInspectors()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    for (std::unique_ptr<DiskInspectorEntry> & entry : m_diskInspectors)
+    {
+        if (!entry->isClosed)
+        {
+            hr = entry->window->RenderFrame();
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+
+    ReleaseClosedInspectors();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ReleaseClosedInspectors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReleaseClosedInspectors()
+{
+    std::erase_if (m_diskInspectors, [] (const std::unique_ptr<DiskInspectorEntry> & entry) { return entry->isClosed; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::IsDiskInspectorWindow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::IsDiskInspectorWindow (HWND hwnd) const
+{
+    return hwnd != nullptr && std::any_of (m_diskInspectors.begin(), m_diskInspectors.end(),
+                                           [hwnd] (const std::unique_ptr<DiskInspectorEntry> & entry) { return entry->window->GetHwnd() == hwnd; });
 }
 
 
@@ -155,20 +305,20 @@ void EmulatorShell::ServiceInspectorRequests()
 //
 //  EmulatorShell::OnClose
 //
-//  With pending edits in the disk inspector, a confirmation comes first,
-//  and Casso stays open when the user cancels (FR-108).
+//  With unsaved changes in a disk inspector window, a confirmation comes
+//  first, and Casso stays open when the user cancels (FR-108).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult EmulatorShell::OnClose()
 {
-    bool  isGoingOn = ConfirmInspectorDiscard (-1, L"Quitting Casso", [hwnd = m_hwnd] () { PostMessageW (hwnd, WM_CLOSE, 0, 0); });
+    bool  isGoingOn = ConfirmInspectorDiscard ([hwnd = m_hwnd] () { PostMessageW (hwnd, WM_CLOSE, 0, 0); });
 
 
 
-    if (isGoingOn && m_diskInspector != nullptr && m_diskInspector->GetHwnd() != nullptr)
+    if (isGoingOn)
     {
-        SaveInspectorPrefs (IsWindowVisible (m_diskInspector->GetHwnd()) != FALSE);
+        SaveInspectorPrefs (nullptr);
     }
 
     return isGoingOn ? DxuiMessageResult::NotHandled : DxuiMessageResult::Handled;
@@ -182,20 +332,36 @@ DxuiMessageResult EmulatorShell::OnClose()
 //
 //  EmulatorShell::SaveInspectorPrefs
 //
+//  The layout comes from the window given, or else from the first open
+//  one. The drives of the open windows whose disks are in a drive are
+//  reopened at the next launch.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SaveInspectorPrefs (bool isOpen)
+void EmulatorShell::SaveInspectorPrefs (const DiskInspectorEntry * from)
 {
-    DiskInspectorPrefs &  prefs = m_settings->GetPrefs().diskInspector;
+    DiskInspectorPrefs        & prefs  = m_settings->GetPrefs().diskInspector;
+    const DiskInspectorEntry  * source = from;
+    int                         drives = 0;
+    bool                        isOpen = false;
 
 
 
-    if (m_diskInspector != nullptr && m_diskInspector->GetHwnd() != nullptr)
+    for (const std::unique_ptr<DiskInspectorEntry> & entry : m_diskInspectors)
     {
-        m_diskInspector->GetPrefs (prefs);
-        prefs.isOpen = isOpen;
-        m_settings->SaveGlobalPrefsDeferred();
+        isOpen = !entry->isClosed && entry->window->GetHwnd() != nullptr && IsWindowVisible (entry->window->GetHwnd());
+        drives = (isOpen && entry->host->IsInDrive()) ? (drives | (1 << entry->host->GetDrive())) : drives;
+        source = (source == nullptr && isOpen) ? entry.get() : source;
     }
+
+    if (source != nullptr && source->window->GetHwnd() != nullptr)
+    {
+        source->window->GetPrefs (prefs);
+    }
+
+    prefs.openDrives = drives;
+    prefs.isOpen     = drives != 0;
+    m_settings->SaveGlobalPrefsDeferred();
 }
 
 
@@ -206,20 +372,27 @@ void EmulatorShell::SaveInspectorPrefs (bool isOpen)
 //
 //  EmulatorShell::ReopenDiskInspector
 //
-//  At launch, the inspector on its last drive when it was open at exit,
-//  behind Casso's main window (FR-080).
+//  At launch, a window for each drive that had one open at exit, behind
+//  Casso's main window (FR-080). Prefs saved before Casso had a window per
+//  disk have the last drive and whether its window was open.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::ReopenDiskInspector()
 {
-    const DiskInspectorPrefs &  prefs = m_settings->GetPrefs().diskInspector;
+    const DiskInspectorPrefs &  prefs  = m_settings->GetPrefs().diskInspector;
+    int                         drives = (prefs.openDrives >= 0) ? prefs.openDrives
+                                       : prefs.isOpen            ? (1 << std::clamp (prefs.lastDrive, 0, ShellInspectorHost::kDriveCount - 1))
+                                                                 : 0;
 
 
 
-    if (prefs.isOpen)
+    for (int drive = 0; drive < ShellInspectorHost::kDriveCount; drive++)
     {
-        ShowDiskInspector (std::clamp (prefs.lastDrive, 0, ShellInspectorHost::kDriveCount - 1), false);
+        if ((drives & (1 << drive)) != 0)
+        {
+            ShowDiskInspector (drive, false);
+        }
     }
 }
 
@@ -231,20 +404,29 @@ void EmulatorShell::ReopenDiskInspector()
 //
 //  EmulatorShell::ConfirmInspectorDiscard
 //
-//  The confirmation dialog is modal, so it appears only on the UI thread.
-//  On any other thread the function returns true.
+//  ConfirmDiscardEdits is called on each window in turn. After a Save,
+//  afterSave runs, and the next window's confirmation follows. The confirmation dialog is modal,
+//  so it appears only on the UI thread. On any other thread the function
+//  returns true.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::ConfirmInspectorDiscard (int drive, const std::wstring & action, std::function<void()> afterSave)
+bool EmulatorShell::ConfirmInspectorDiscard (std::function<void()> afterSave)
 {
-    bool  isOpen    = m_diskInspector != nullptr && m_diskInspector->GetHwnd() != nullptr;
     bool  isUi      = m_hwnd != nullptr && GetWindowThreadProcessId (m_hwnd, nullptr) == GetCurrentThreadId();
-    bool  isMatched = isOpen && (drive < 0 || drive == m_diskInspector->GetDrive());
+    bool  isGoingOn = true;
 
 
 
-    return !isMatched || !isUi || m_diskInspector->ConfirmDiscardEdits (action, std::move (afterSave));
+    for (std::unique_ptr<DiskInspectorEntry> & entry : m_diskInspectors)
+    {
+        if (isUi && isGoingOn && !entry->isClosed && entry->window->GetHwnd() != nullptr)
+        {
+            isGoingOn = entry->window->ConfirmDiscardEdits (L"Quitting Casso", afterSave);
+        }
+    }
+
+    return isGoingOn;
 }
 
 
@@ -255,8 +437,7 @@ bool EmulatorShell::ConfirmInspectorDiscard (int drive, const std::wstring & act
 //
 //  EmulatorShell::HasOtherDiskController
 //
-//  Only slot 6's drives are inspected, and the drive selector's
-//  tooltip indicates so when another slot has a Disk II (FR-060).
+//  Only slot 6's drives are inspected (FR-060).
 //
 ////////////////////////////////////////////////////////////////////////////////
 

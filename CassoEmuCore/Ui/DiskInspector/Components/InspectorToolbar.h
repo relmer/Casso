@@ -16,8 +16,8 @@ class InspectorSession;
 //
 //  InspectorToolbar
 //
-//  The one toolbar row: in Casso the drive selector, the mode selector and,
-//  in Timing mode, the timing range on the left; at the right end the
+//  The one toolbar row: the mode selector and, in Timing mode, the timing
+//  range on the left; at the right end the
 //  common commands, Follow head in Casso, Go to and Find (FR-007, FR-023,
 //  FR-024, FR-061, FR-067). Timing is disabled on a disk with no flux
 //  tracks, and a choice of Timing made earlier applies again on a disk that
@@ -45,13 +45,11 @@ public:
     bool  CanStepRange  (int delta) const;
     void  SetTimingMode (bool isTiming);
     bool  HasTiming     () const;
-    bool  IsDriveShown  () const;
 
 private:
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;
     const InspectorCommands  & m_commands;
-    DxuiSegmentedControl     * m_drives         = nullptr;
     DxuiSegmentedControl     * m_modes          = nullptr;
     DxuiButton               * m_rangeDown      = nullptr;
     DxuiButton               * m_rangeUp        = nullptr;
