@@ -15,8 +15,9 @@
 //
 //  A leaf control that renders Direct3D 11 content of its own into its
 //  bounds, through IDxuiPainter::DrawCustom: over what the controls before it
-//  painted, under what the controls after it paint and under all text. The
-//  owner gives the draw; the control only places it.
+//  painted, under what the controls after it paint and under all text drawn
+//  since the last IDxuiPainter::FlushLayer. The owner provides the draw; the
+//  control only places it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1745,14 +1745,15 @@ Error:
 //  Forwards directly to ID2D1DeviceContext's clip stack. All drawing
 //  ops between Push and Pop are clipped to the rect's intersection
 //  with currently-active clips. Caller must balance pushes and pops
-//  within a single BeginDraw/EndDraw pair.
+//  within a single BeginDraw/EndDraw pair. Each push is also added to
+//  m_pushedClips, so FlushDeferred can push it again in a new command list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiTextRenderer::PushClipRect (float xDip, float yDip, float widthDip, float heightDip)
 {
-    HRESULT      hr   = S_OK;
-    D2D1_RECT_F  rect = {};
+    HRESULT      hr     = S_OK;
+    PushedClip   pushed = {};
 
 
 
@@ -1763,12 +1764,14 @@ HRESULT DxuiTextRenderer::PushClipRect (float xDip, float yDip, float widthDip, 
     CBRA (m_d2dContext);
     CBRA (m_drawing);
 
-    rect.left   = xDip;
-    rect.top    = yDip;
-    rect.right  = xDip + widthDip;
-    rect.bottom = yDip + heightDip;
+    pushed.rect.left   = xDip;
+    pushed.rect.top    = yDip;
+    pushed.rect.right  = xDip + widthDip;
+    pushed.rect.bottom = yDip + heightDip;
 
-    m_d2dContext->PushAxisAlignedClip (&rect, D2D1_ANTIALIAS_MODE_ALIASED);
+    m_d2dContext->GetTransform (&pushed.transform);
+    m_d2dContext->PushAxisAlignedClip (&pushed.rect, D2D1_ANTIALIAS_MODE_ALIASED);
+    m_pushedClips.push_back (pushed);
 
 Error:
     return hr;
@@ -1798,6 +1801,11 @@ HRESULT DxuiTextRenderer::PopClipRect()
     CBRA (m_drawing);
 
     m_d2dContext->PopAxisAlignedClip();
+
+    if (!m_pushedClips.empty())
+    {
+        m_pushedClips.pop_back();
+    }
 
 Error:
     return hr;

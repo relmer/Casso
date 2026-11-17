@@ -29,6 +29,7 @@ public:
 
     HRESULT  BeginDrawDeferred ();
     HRESULT  EndDrawDeferred   ();
+    HRESULT  FlushDeferred     ();
 
     HRESULT  BeginDrawOffscreen ();
     HRESULT  EndDrawComposite   ();
@@ -49,6 +50,14 @@ private:
     // EndDrawDeferred. A command list cannot be reopened once closed, so this
     // is a fresh one per frame rather than a cached resource.
     ComPtr<ID2D1CommandList>  m_cmdList;
+
+    // Set when the target is lost during a FlushDeferred. The rest of the pass
+    // goes into a command list that EndDrawDeferred discards, so the draws
+    // after the flush succeed and the rest of the frame's text is discarded.
+    bool                      m_isDiscardingPass = false;
+
+    HRESULT  StartRecording  ();
+    HRESULT  ReplayRecording (HRESULT hrEnd, bool & outIsTargetLost);
 
     // The text-as-texture target, and the D3D texture behind it that the
     // scene samples. Kept across calls and only recreated when a larger

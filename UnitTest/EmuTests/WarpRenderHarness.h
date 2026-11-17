@@ -33,12 +33,14 @@ class WarpRenderHarness
 {
 public:
 
-    WarpRenderHarness ()
+    //  D3D11_CREATE_DEVICE_BGRA_SUPPORT in `createFlags` is required for
+    //  Direct2D on the device, as in the text renderer tests.
+    explicit WarpRenderHarness (UINT createFlags = 0)
     {
         HRESULT  hr = D3D11CreateDevice (nullptr,
                                          D3D_DRIVER_TYPE_WARP,
                                          nullptr,
-                                         0,
+                                         createFlags,
                                          nullptr,
                                          0,
                                          D3D11_SDK_VERSION,
