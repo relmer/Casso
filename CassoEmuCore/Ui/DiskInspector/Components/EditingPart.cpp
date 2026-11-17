@@ -4,6 +4,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Devices/Disk/Inspector/DiskComparer.h"
+#include "Devices/Disk/Inspector/InspectorClipboard.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32HostDialogs.h"
@@ -398,6 +399,7 @@ bool EditingPart::HandleEditKey (const DxuiKeyEvent & ev)
 void EditingPart::PasteIntoEdit()
 {
     std::wstring  text;
+    vector<Byte>  values;
     int           overflow = 0;
     int           written  = 0;
 
@@ -406,10 +408,10 @@ void EditingPart::PasteIntoEdit()
     if (GetSelectedEdit() >= 0 && m_session.model.GetFirstByte() >= 0 && m_session.clipboard.GetText (m_host.GetOwnerHwnd(), text))
     {
         written            = m_session.edits.Paste (GetSelectedEdit(), m_session.model.GetFirstByte(), text, m_session.model.IsTextColumn(), overflow);
-        m_session.editNote = (written == 0)  ? std::wstring (m_session.model.IsTextColumn() ? L"Nothing to paste: the clipboard has no printable text"
-                                                                            : L"Nothing to paste: the clipboard has no pairs of hex digits")
-                   : (overflow > 0)  ? InspectorText::FormatCount (overflow, L"byte", L"bytes") + L" did not fit before the end of the sector"
-                                     : std::wstring();
+        m_session.editNote = (written == 0)  ? (m_session.model.IsTextColumn() ? std::wstring (L"Nothing to paste: the clipboard has no printable text")
+                                                                               : InspectorClipboard::GetHexPasteNote (InspectorClipboard::ParseHex (text, values)))
+                           : (overflow > 0)  ? InspectorText::FormatCount (overflow, L"byte", L"bytes") + L" did not fit before the end of the sector"
+                                             : std::wstring();
     }
 }
 

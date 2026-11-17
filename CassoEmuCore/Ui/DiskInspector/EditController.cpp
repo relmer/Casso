@@ -2,6 +2,8 @@
 
 #include "Ui/DiskInspector/EditController.h"
 
+#include "Devices/Disk/Inspector/InspectorClipboard.h"
+
 
 
 
@@ -300,16 +302,14 @@ bool EditController::TypeCharacter (int edit, int offset, wchar_t ch)
 //
 //  EditController::Paste
 //
-//  Hex text is read as pairs of digits, ignoring spaces. Each pasted
-//  character takes the high bit of the byte it replaces, as typing does.
+//  Hex text is read by InspectorClipboard::ParseHex. Each pasted character
+//  takes the high bit of the byte it replaces, as typing does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int EditController::Paste (int edit, int offset, const std::wstring & text, bool isTextColumn, int & outOverflow)
 {
     vector<Byte>  values;
-    int           high    = -1;
-    int           digit   = 0;
     bool          isValid = edit >= 0 && edit < static_cast<int> (m_edits.size()) && offset >= 0 && offset < DiskFieldFormat::kSectorBytes;
     int           room    = DiskFieldFormat::kSectorBytes - offset;
     int           written = 0;
@@ -318,33 +318,20 @@ int EditController::Paste (int edit, int offset, const std::wstring & text, bool
 
     outOverflow = 0;
 
-    for (wchar_t ch : isValid ? text : std::wstring())
+    if (!isTextColumn)
     {
-        if (isTextColumn)
-        {
-            if (ch >= 0x20 && ch < 0x7F)
-            {
-                values.push_back (static_cast<Byte> (ch & s_kLowBits));
-            }
-        }
-        else if (ch != L' ' && ch != L'\t' && ch != L'\r' && ch != L'\n')
-        {
-            digit   = GetHexValue (ch);
-            isValid = isValid && digit >= 0;
+        isValid = isValid && InspectorClipboard::ParseHex (text, values) == InspectorClipboard::HexParse::Bytes;
+    }
 
-            if (high < 0)
-            {
-                high = digit;
-            }
-            else
-            {
-                values.push_back (static_cast<Byte> ((high << 4) | digit));
-                high = -1;
-            }
+    for (wchar_t ch : (isValid && isTextColumn) ? text : std::wstring())
+    {
+        if (ch >= 0x20 && ch < 0x7F)
+        {
+            values.push_back (static_cast<Byte> (ch & s_kLowBits));
         }
     }
 
-    isValid = isValid && high < 0 && !values.empty();
+    isValid = isValid && !values.empty();
 
     if (isValid)
     {

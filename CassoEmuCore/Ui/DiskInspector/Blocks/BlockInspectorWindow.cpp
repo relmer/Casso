@@ -2,6 +2,7 @@
 
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/IDiskFileIo.h"
+#include "Devices/Disk/Inspector/InspectorClipboard.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Devices/Disk/PreservedCopy.h"
@@ -1229,6 +1230,7 @@ void BlockInspectorWindow::PasteIntoBlock()
     BlockHexView  * hex      = m_panel->GetHexView();
     bool            isText   = hex != nullptr && hex->GetActiveColumn() == DxuiHexView::Column::Text;
     std::wstring    text;
+    vector<Byte>    values;
     int             overflow = 0;
     int             written  = 0;
 
@@ -1240,7 +1242,7 @@ void BlockInspectorWindow::PasteIntoBlock()
     }
 
     written    = m_model.Paste ((int) hex->GetCaret(), text, isText, overflow);
-    m_editNote = (written == 0) ? std::wstring (isText ? L"Nothing to paste: the clipboard has no printable text" : L"Nothing to paste: the clipboard has no pairs of hex digits")
+    m_editNote = (written == 0) ? (isText ? std::wstring (L"Nothing to paste: the clipboard has no printable text") : InspectorClipboard::GetHexPasteNote (InspectorClipboard::ParseHex (text, values)))
                : (overflow > 0) ? InspectorText::FormatCount (overflow, L"byte", L"bytes") + L" did not fit before the end of the block"
                                 : std::wstring();
 

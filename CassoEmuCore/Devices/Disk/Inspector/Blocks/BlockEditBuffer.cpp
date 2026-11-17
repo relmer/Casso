@@ -2,6 +2,8 @@
 
 #include "Devices/Disk/Inspector/Blocks/BlockEditBuffer.h"
 
+#include "Devices/Disk/Inspector/InspectorClipboard.h"
+
 
 
 
@@ -212,8 +214,8 @@ bool BlockEditBuffer::SetBlock (uint32_t block, const Block & base, const Block 
 //
 //  BlockEditBuffer::Paste
 //
-//  Hex text is read as pairs of digits, ignoring spaces. Each pasted
-//  character takes the high bit of the byte it replaces, as typing does.
+//  Hex text is read by InspectorClipboard::ParseHex. Each pasted character
+//  takes the high bit of the byte it replaces, as typing does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -223,15 +225,11 @@ int BlockEditBuffer::Paste (uint32_t block, const Block & base, int offset, cons
     constexpr Byte     kLowBits        = 0x7F;
     constexpr wchar_t  kFirstPrintable = 0x20;
     constexpr wchar_t  kLastPrintable  = 0x7E;
-    constexpr int      kNibbleBits     = 4;
-    constexpr int      kDecimal        = 10;
 
 
 
     vector<Byte>  values;
     Block         current = base;
-    int           high    = -1;
-    int           digit   = -1;
     bool          isValid = offset >= 0 && offset < (int) kBlockBytes;
     int           room    = (int) kBlockBytes - offset;
     int           written = 0;
@@ -241,33 +239,20 @@ int BlockEditBuffer::Paste (uint32_t block, const Block & base, int offset, cons
 
     outOverflow = 0;
 
-    for (wchar_t ch : isValid ? text : std::wstring())
+    if (!isTextColumn)
     {
-        if (isTextColumn)
-        {
-            if (ch >= kFirstPrintable && ch <= kLastPrintable)
-            {
-                values.push_back ((Byte) (ch & kLowBits));
-            }
-        }
-        else if (ch != L' ' && ch != L'\t' && ch != L'\r' && ch != L'\n')
-        {
-            digit   = (ch >= L'0' && ch <= L'9') ? ch - L'0' : (ch >= L'a' && ch <= L'f') ? ch - L'a' + kDecimal : (ch >= L'A' && ch <= L'F') ? ch - L'A' + kDecimal : -1;
-            isValid = isValid && digit >= 0;
+        isValid = isValid && InspectorClipboard::ParseHex (text, values) == InspectorClipboard::HexParse::Bytes;
+    }
 
-            if (high < 0)
-            {
-                high = digit;
-            }
-            else
-            {
-                values.push_back ((Byte) ((high << kNibbleBits) | digit));
-                high = -1;
-            }
+    for (wchar_t ch : (isValid && isTextColumn) ? text : std::wstring())
+    {
+        if (ch >= kFirstPrintable && ch <= kLastPrintable)
+        {
+            values.push_back ((Byte) (ch & kLowBits));
         }
     }
 
-    isValid = isValid && high < 0 && !values.empty();
+    isValid = isValid && !values.empty();
 
     if (isValid)
     {

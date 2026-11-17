@@ -189,3 +189,150 @@ wchar_t InspectorClipboard::GetTextChar (Byte value)
 
     return (plain < s_kFirstPrinted || plain == s_kDelete) ? L'.' : static_cast<wchar_t> (plain);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorClipboard::ParseHex
+//
+//  Values are separated by spaces, tabs or line breaks. A value is pairs of
+//  hex digits, read in order, and may start with "$" or "0x". A value with a
+//  prefix may also be one digit. For any other text, the call returns an
+//  error and an empty byte list, so nothing is pasted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InspectorClipboard::HexParse InspectorClipboard::ParseHex (const std::wstring & text, vector<Byte> & outBytes)
+{
+    constexpr int  kNibbleBits = 4;
+
+
+
+    HexParse  result     = HexParse::Bytes;
+    size_t    i          = 0;
+    size_t    first      = 0;
+    size_t    count      = 0;
+    size_t    k          = 0;
+    bool      isPrefixed = false;
+
+
+
+    outBytes.clear();
+
+    while (result == HexParse::Bytes && i < text.size())
+    {
+        isPrefixed = text[i] == L'$' || (text[i] == L'0' && i + 1 < text.size() && (text[i + 1] == L'x' || text[i + 1] == L'X'));
+        i         += isPrefixed ? ((text[i] == L'$') ? 1 : 2) : 0;
+        first      = i;
+
+        while (i < text.size() && !IsSpace (text[i]) && GetHexValue (text[i]) >= 0)
+        {
+            i++;
+        }
+
+        count = i - first;
+
+        if (count == 0 && !isPrefixed)
+        {
+            //  A space between values, or a character that isn't hex.
+            result = IsSpace (text[i]) ? HexParse::Bytes : HexParse::NotHex;
+            i++;
+        }
+        else if ((i < text.size() && !IsSpace (text[i])) || count == 0)
+        {
+            result = HexParse::NotHex;
+        }
+        else if (count == 1 && isPrefixed)
+        {
+            outBytes.push_back (static_cast<Byte> (GetHexValue (text[first])));
+        }
+        else if (count % 2 != 0)
+        {
+            result = HexParse::OddDigits;
+        }
+        else
+        {
+            for (k = first; k < i; k += 2)
+            {
+                outBytes.push_back (static_cast<Byte> ((GetHexValue (text[k]) << kNibbleBits) | GetHexValue (text[k + 1])));
+            }
+        }
+    }
+
+    if (result == HexParse::Bytes && outBytes.empty())
+    {
+        result = HexParse::Empty;
+    }
+
+    if (result != HexParse::Bytes)
+    {
+        outBytes.clear();
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorClipboard::GetHexPasteNote
+//
+//  Why a hex paste wrote nothing, or empty after one that worked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorClipboard::GetHexPasteNote (HexParse result)
+{
+    switch (result)
+    {
+        case HexParse::Empty:      return L"Nothing to paste: the clipboard has no hex digits";
+        case HexParse::NotHex:     return L"Paste rejected because the clipboard contains non-hex characters";
+        case HexParse::OddDigits:  return L"Paste rejected because a hex value on the clipboard has an odd number of digits";
+        default:                   return std::wstring();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorClipboard::GetHexValue
+//
+//  The digit's value, or -1 for a character that isn't a hex digit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int InspectorClipboard::GetHexValue (wchar_t ch)
+{
+    constexpr int  kDecimal = 10;
+
+
+
+    return (ch >= L'0' && ch <= L'9') ? ch - L'0'
+         : (ch >= L'a' && ch <= L'f') ? ch - L'a' + kDecimal
+         : (ch >= L'A' && ch <= L'F') ? ch - L'A' + kDecimal
+                                      : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorClipboard::IsSpace
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorClipboard::IsSpace (wchar_t ch)
+{
+    return ch == L' ' || ch == L'\t' || ch == L'\r' || ch == L'\n';
+}
