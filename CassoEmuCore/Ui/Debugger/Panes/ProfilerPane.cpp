@@ -1582,7 +1582,7 @@ bool ProfilerPane::IsOverTimeline (POINT positionDip) const
 
 bool ProfilerPane::RouteEarlyMouse (const DxuiMouseEvent & ev)
 {
-    bool  isBackOrForward = ev.kind == DxuiMouseEventKind::Up && (ev.button == DxuiMouseButton::X1 || ev.button == DxuiMouseButton::X2);
+    bool  isBackOrForward = ev.kind == DxuiMouseEventKind::Up && (ev.button == DxuiMouseButton::Back || ev.button == DxuiMouseButton::Forward);
 
 
 
@@ -1597,7 +1597,7 @@ bool ProfilerPane::RouteEarlyMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    (void) ((ev.button == DxuiMouseButton::X1) ? GoBack() : GoForward());
+    (void) ((ev.button == DxuiMouseButton::Back) ? GoBack() : GoForward());
     return true;
 }
 

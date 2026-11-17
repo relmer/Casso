@@ -2,6 +2,7 @@
 
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Utils.h"
+#include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Devices/Disk/ChainWalkGuard.h"
@@ -21,6 +22,10 @@
 Dos33Volume::Dos33Volume (const vector<Byte> & sectors)
     : m_sectors (sectors)
 {
+    if (!Dos33Geometry::TryDetect (sectors, m_geometry))
+    {
+        m_geometry = Dos33Geometry::GetForSize (sectors.size());
+    }
 }
 
 
@@ -36,9 +41,9 @@ Dos33Volume::Dos33Volume (const vector<Byte> & sectors)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t Dos33Volume::ToUnit (int track, int sector)
+uint32_t Dos33Volume::ToUnit (int track, int sector) const
 {
-    return (uint32_t) (track * NibblizationLayer::kSectorsPerTrack + sector);
+    return m_geometry.ToUnit (track, sector);
 }
 
 
@@ -51,9 +56,9 @@ uint32_t Dos33Volume::ToUnit (int track, int sector)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Dos33Volume::GetTrack (uint32_t unit)
+int Dos33Volume::GetTrack (uint32_t unit) const
 {
-    return (int) (unit / (uint32_t) NibblizationLayer::kSectorsPerTrack);
+    return m_geometry.GetTrack (unit);
 }
 
 
@@ -66,9 +71,9 @@ int Dos33Volume::GetTrack (uint32_t unit)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Dos33Volume::GetSector (uint32_t unit)
+int Dos33Volume::GetSector (uint32_t unit) const
 {
-    return (int) (unit % (uint32_t) NibblizationLayer::kSectorsPerTrack);
+    return m_geometry.GetSector (unit);
 }
 
 
@@ -88,18 +93,18 @@ int Dos33Volume::GetSector (uint32_t unit)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Dos33Volume::GetAllocationTrack (int index)
+int Dos33Volume::GetAllocationTrack (int index) const
 {
-    constexpr int  kOutwardCount = NibblizationLayer::kTrackCount - Dos33Skeleton::kVtocTrack - 1;
+    int  outwardCount = m_geometry.tracks - Dos33Skeleton::kVtocTrack - 1;
 
 
 
-    if (index < kOutwardCount)
+    if (index < outwardCount)
     {
         return Dos33Skeleton::kVtocTrack + 1 + index;
     }
 
-    return Dos33Skeleton::kVtocTrack - 1 - (index - kOutwardCount);
+    return Dos33Skeleton::kVtocTrack - 1 - (index - outwardCount);
 }
 
 
@@ -112,32 +117,26 @@ int Dos33Volume::GetAllocationTrack (int index)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Dos33Volume::IsFreeInBitmap (const vector<Byte> & buffer, int track, int sector)
+bool Dos33Volume::IsFreeInBitmap (const vector<Byte> & buffer, int track, int sector) const
 {
-    size_t  at     = 0;
     size_t  byteAt = 0;
-    int     bit    = 0;
 
 
 
-    if (track < 0 || track >= NibblizationLayer::kTrackCount
-     || sector < 0 || sector >= NibblizationLayer::kSectorsPerTrack)
+    if (track < 0 || track >= m_geometry.tracks
+     || sector < 0 || sector >= m_geometry.sectorsPerTrack)
     {
         return false;
     }
 
-    at     = Dos33Skeleton::GetSectorOffset (Dos33Skeleton::kVtocTrack, 0)
-           + (size_t) Dos33Skeleton::kVtocOffFreeBitmap
-           + (size_t) track * kBitmapBytesPerTrack;
-    byteAt = (sector >= kBitmapSplitSector) ? at : at + 1;
-    bit    = (sector >= kBitmapSplitSector) ? (sector - kBitmapSplitSector) : sector;
+    byteAt = m_geometry.GetBitmapByteOffset (track, sector);
 
     if (byteAt >= buffer.size())
     {
         return false;
     }
 
-    return ((buffer[byteAt] >> bit) & 1) != 0;
+    return (buffer[byteAt] & m_geometry.GetBitmapMask (sector)) != 0;
 }
 
 
@@ -150,25 +149,21 @@ bool Dos33Volume::IsFreeInBitmap (const vector<Byte> & buffer, int track, int se
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Dos33Volume::SetFreeInBitmap (vector<Byte> & buffer, int track, int sector, bool isFree)
+void Dos33Volume::SetFreeInBitmap (vector<Byte> & buffer, int track, int sector, bool isFree) const
 {
-    size_t  at     = 0;
     size_t  byteAt = 0;
-    int     bit    = 0;
+    Byte    mask   = 0;
 
 
 
-    if (track < 0 || track >= NibblizationLayer::kTrackCount
-     || sector < 0 || sector >= NibblizationLayer::kSectorsPerTrack)
+    if (track < 0 || track >= m_geometry.tracks
+     || sector < 0 || sector >= m_geometry.sectorsPerTrack)
     {
         return;
     }
 
-    at     = Dos33Skeleton::GetSectorOffset (Dos33Skeleton::kVtocTrack, 0)
-           + (size_t) Dos33Skeleton::kVtocOffFreeBitmap
-           + (size_t) track * kBitmapBytesPerTrack;
-    byteAt = (sector >= kBitmapSplitSector) ? at : at + 1;
-    bit    = (sector >= kBitmapSplitSector) ? (sector - kBitmapSplitSector) : sector;
+    byteAt = m_geometry.GetBitmapByteOffset (track, sector);
+    mask   = m_geometry.GetBitmapMask (sector);
 
     if (byteAt >= buffer.size())
     {
@@ -177,11 +172,11 @@ void Dos33Volume::SetFreeInBitmap (vector<Byte> & buffer, int track, int sector,
 
     if (isFree)
     {
-        buffer[byteAt] = (Byte) (buffer[byteAt] | (1 << bit));
+        buffer[byteAt] = (Byte) (buffer[byteAt] | mask);
     }
     else
     {
-        buffer[byteAt] = (Byte) (buffer[byteAt] & ~(1 << bit));
+        buffer[byteAt] = (Byte) (buffer[byteAt] & ~mask);
     }
 }
 
@@ -199,19 +194,19 @@ void Dos33Volume::SetFreeInBitmap (vector<Byte> & buffer, int track, int sector,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Dos33Volume::WriteByteAt (vector<Byte> & buffer, int track, int sector, size_t offset, Byte value)
+void Dos33Volume::WriteByteAt (vector<Byte> & buffer, int track, int sector, size_t offset, Byte value) const
 {
     size_t  at = 0;
 
 
 
-    if (track < 0 || track >= NibblizationLayer::kTrackCount
-     || sector < 0 || sector >= NibblizationLayer::kSectorsPerTrack)
+    if (track < 0 || track >= m_geometry.tracks
+     || sector < 0 || sector >= m_geometry.sectorsPerTrack)
     {
         return;
     }
 
-    at = Dos33Skeleton::GetSectorOffset (track, sector) + offset;
+    at = m_geometry.GetSectorOffset (track, sector) + offset;
 
     if (at >= buffer.size())
     {
@@ -241,13 +236,13 @@ Byte Dos33Volume::ReadByte (int track, int sector, size_t offset) const
 
 
 
-    if (track < 0 || track >= NibblizationLayer::kTrackCount
-     || sector < 0 || sector >= NibblizationLayer::kSectorsPerTrack)
+    if (track < 0 || track >= m_geometry.tracks
+     || sector < 0 || sector >= m_geometry.sectorsPerTrack)
     {
         return 0;
     }
 
-    at = Dos33Skeleton::GetSectorOffset (track, sector) + offset;
+    at = m_geometry.GetSectorOffset (track, sector) + offset;
 
     if (at >= m_sectors.size())
     {
@@ -300,7 +295,7 @@ void Dos33Volume::CollectEntries (
     vector<std::string> & outDamage,
     bool                & outFullyParsed) const
 {
-    ChainWalkGuard  guard (kUnitCount);
+    ChainWalkGuard  guard (m_geometry.GetUnitCount());
     int             track  = 0;
     int             sector = 0;
     int             slot   = 0;
@@ -326,8 +321,8 @@ void Dos33Volume::CollectEntries (
             break;
         }
 
-        if (track >= NibblizationLayer::kTrackCount
-         || sector >= NibblizationLayer::kSectorsPerTrack)
+        if (track >= m_geometry.tracks
+         || sector >= m_geometry.sectorsPerTrack)
         {
             outDamage.push_back ("the catalog chain points to a sector outside the volume");
             outFullyParsed = false;
@@ -445,8 +440,8 @@ bool Dos33Volume::CollectDataSectors (
     {
         bool  stepOk = guard.TryVisit (ToUnit (listTrack, listSector));
 
-        if (!stepOk || listTrack >= NibblizationLayer::kTrackCount
-                    || listSector >= NibblizationLayer::kSectorsPerTrack)
+        if (!stepOk || listTrack >= m_geometry.tracks
+                    || listSector >= m_geometry.sectorsPerTrack)
         {
             ok = false;
             break;
@@ -469,8 +464,8 @@ bool Dos33Volume::CollectDataSectors (
                 continue;   // sparse hole -- reads as zeros
             }
 
-            if (dataT >= NibblizationLayer::kTrackCount
-             || dataS >= NibblizationLayer::kSectorsPerTrack)
+            if (dataT >= m_geometry.tracks
+             || dataS >= m_geometry.sectorsPerTrack)
             {
                 ok = false;
                 break;
@@ -586,6 +581,7 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
 {
     HRESULT           hr          = S_OK;
     size_t            bufferBytes = m_sectors.size();
+    size_t            imageBytes  = m_geometry.GetImageByteSize();
     vector<RawEntry>  entries;
     bool              fullyParsed = true;
     int               track       = 0;
@@ -594,14 +590,14 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
 
     outListing = VolumeListing();
 
     outListing.volumeNumber    = ReadByte (Dos33Skeleton::kVtocTrack, 0,
                                            Dos33Skeleton::kVtocOffVolumeNumber);
     outListing.hasVolumeNumber = true;
-    outListing.totalUnits      = kUnitCount;
+    outListing.totalUnits      = m_geometry.GetUnitCount();
 
     CollectEntries (entries, outListing.damage, fullyParsed);
 
@@ -620,7 +616,7 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
         //  so listing it costs a walk to the file's first data sector.
         if (listed.type == kTypeBinary)
         {
-            ChainWalkGuard    guard (kUnitCount);
+            ChainWalkGuard    guard (m_geometry.GetUnitCount());
             vector<uint32_t>  units;
             vector<uint32_t>  listUnits;
 
@@ -635,9 +631,9 @@ HRESULT Dos33Volume::Enumerate (VolumeListing & outListing) const
         outListing.entries.push_back (listed);
     }
 
-    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (track = 0; track < m_geometry.tracks; track++)
     {
-        for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+        for (sector = 0; sector < m_geometry.sectorsPerTrack; sector++)
         {
             bool  isFree = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
 
@@ -670,6 +666,7 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
 {
     HRESULT              hr          = S_OK;
     size_t               bufferBytes = m_sectors.size();
+    size_t               imageBytes  = m_geometry.GetImageByteSize();
     bool                 single      = path.IsSingleComponent();
     bool                 walked      = false;
     bool                 fullyParsed = true;
@@ -680,7 +677,7 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
     CBREx (single, E_INVALIDARG);
 
     CollectEntries (entries, damage, fullyParsed);
@@ -689,7 +686,7 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
     CHR (hr);
 
     {
-        ChainWalkGuard    guard (kUnitCount);
+        ChainWalkGuard    guard (m_geometry.GetUnitCount());
         vector<uint32_t>  listUnits;
 
         walked = CollectDataSectors (entries[owner], units, listUnits, guard);
@@ -740,14 +737,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Dos33Volume::ClaimVolumeStructures (VolumeIntegrityReport & outReport)
+void Dos33Volume::ClaimVolumeStructures (VolumeIntegrityReport & outReport) const
 {
     int  track  = 0;
     int  sector = 0;
 
 
 
-    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (track = 0; track < m_geometry.tracks; track++)
     {
         bool  reserved = track < Dos33Skeleton::kDosImageTracks
                       || track == Dos33Skeleton::kVtocTrack;
@@ -757,7 +754,7 @@ void Dos33Volume::ClaimVolumeStructures (VolumeIntegrityReport & outReport)
             continue;
         }
 
-        for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+        for (sector = 0; sector < m_geometry.sectorsPerTrack; sector++)
         {
             outReport.AddClaim (ToUnit (track, sector), VolumeIntegrityReport::kVolumeOwner);
         }
@@ -784,6 +781,7 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
 {
     HRESULT              hr          = S_OK;
     size_t               bufferBytes = m_sectors.size();
+    size_t               imageBytes  = m_geometry.GetImageByteSize();
     vector<RawEntry>     entries;
     vector<std::string>  damage;
     bool                 fullyParsed = true;
@@ -793,9 +791,9 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
 
-    outReport.Reset (kUnitCount);
+    outReport.Reset (m_geometry.GetUnitCount());
 
     CollectEntries (entries, damage, fullyParsed);
     outReport.SetCatalogFullyParsed (fullyParsed);
@@ -804,7 +802,7 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
 
     for (owner = 0; owner < (uint16_t) entries.size(); owner++)
     {
-        ChainWalkGuard    guard (kUnitCount);
+        ChainWalkGuard    guard (m_geometry.GetUnitCount());
         vector<uint32_t>  units;
         vector<uint32_t>  listUnits;
         bool              walked = CollectDataSectors (entries[owner], units, listUnits, guard);
@@ -830,9 +828,9 @@ HRESULT Dos33Volume::BuildIntegrityReport (VolumeIntegrityReport & outReport) co
     }
 
     // The free bitmap's view. A CLEAR bit means the sector is in use.
-    for (track = 0; track < NibblizationLayer::kTrackCount; track++)
+    for (track = 0; track < m_geometry.tracks; track++)
     {
-        for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+        for (sector = 0; sector < m_geometry.sectorsPerTrack; sector++)
         {
             bool  isFree = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
 
@@ -1087,7 +1085,7 @@ Error:
 
 bool Dos33Volume::TryFindFreeCatalogSlot (int & outTrack, int & outSector, size_t & outOffset) const
 {
-    ChainWalkGuard  guard (kUnitCount);
+    ChainWalkGuard  guard (m_geometry.GetUnitCount());
     int             track  = 0;
     int             sector = 0;
     int             slot   = 0;
@@ -1102,8 +1100,8 @@ bool Dos33Volume::TryFindFreeCatalogSlot (int & outTrack, int & outSector, size_
     {
         bool  stepOk = guard.TryVisit (ToUnit (track, sector));
 
-        if (!stepOk || track >= NibblizationLayer::kTrackCount
-                    || sector >= NibblizationLayer::kSectorsPerTrack)
+        if (!stepOk || track >= m_geometry.tracks
+                    || sector >= m_geometry.sectorsPerTrack)
         {
             break;
         }
@@ -1161,20 +1159,20 @@ bool Dos33Volume::TryAllocateUnits (
     size_t                         count,
     vector<uint32_t>             & outUnits) const
 {
-    constexpr int  kAllocatableTracks = NibblizationLayer::kTrackCount - 1;
-    int            slot               = 0;
-    size_t         taken              = 0;
+    int     allocatableTracks = m_geometry.tracks - 1;
+    int     slot              = 0;
+    size_t  taken             = 0;
 
 
 
     outUnits.clear();
 
-    for (slot = 0; slot < kAllocatableTracks && taken < count; slot++)
+    for (slot = 0; slot < allocatableTracks && taken < count; slot++)
     {
         int  track  = GetAllocationTrack (slot);
         int  sector = 0;
 
-        for (sector = NibblizationLayer::kSectorsPerTrack - 1; sector >= 0 && taken < count; sector--)
+        for (sector = m_geometry.sectorsPerTrack - 1; sector >= 0 && taken < count; sector--)
         {
             uint32_t  unit    = ToUnit (track, sector);
             bool      isFree  = IsFreeInBitmap (AccessSector (Dos33Skeleton::kVtocTrack, 0), track, sector);
@@ -1206,11 +1204,11 @@ bool Dos33Volume::TryAllocateUnits (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Dos33Volume::ZeroUnits (vector<Byte> & buffer, const vector<uint32_t> & units)
+void Dos33Volume::ZeroUnits (vector<Byte> & buffer, const vector<uint32_t> & units) const
 {
     for (uint32_t unit : units)
     {
-        size_t  at = Dos33Skeleton::GetSectorOffset (GetTrack (unit), GetSector (unit));
+        size_t  at = m_geometry.GetSectorOffset (GetTrack (unit), GetSector (unit));
 
         if (at + (size_t) NibblizationLayer::kSectorByteSize <= buffer.size())
         {
@@ -1243,7 +1241,7 @@ void Dos33Volume::PlaceFile (
     vector<Byte>            & buffer,
     const vector<uint32_t>  & units,
     size_t                    dataSectorCount,
-    const vector<Byte>      & stored)
+    const vector<Byte>      & stored) const
 {
     size_t  unitCount  = units.size();
     size_t  cursor     = 0;
@@ -1271,7 +1269,7 @@ void Dos33Volume::PlaceFile (
             uint32_t  dataUnit = units[cursor + k];
             size_t    pairAt   = kTsOffFirstPair + k * 2;
             size_t    from     = (placed + k) * (size_t) NibblizationLayer::kSectorByteSize;
-            size_t    to       = Dos33Skeleton::GetSectorOffset (GetTrack (dataUnit), GetSector (dataUnit));
+            size_t    to       = m_geometry.GetSectorOffset (GetTrack (dataUnit), GetSector (dataUnit));
             size_t    left     = (from < storedSize) ? storedSize - from : 0;
             size_t    copyable = std::min ((size_t) NibblizationLayer::kSectorByteSize, left);
 
@@ -1312,7 +1310,7 @@ void Dos33Volume::WriteCatalogEntry (
     uint32_t              listUnit,
     Byte                  typeByte,
     uint16_t              sectorCount,
-    const vector<Byte>  & nameBytes)
+    const vector<Byte>  & nameBytes) const
 {
     size_t  i = 0;
 
@@ -1499,6 +1497,7 @@ HRESULT Dos33Volume::Write (
 {
     HRESULT              hr          = S_OK;
     size_t               bufferBytes = m_sectors.size();
+    size_t               imageBytes  = m_geometry.GetImageByteSize();
     bool                 single      = path.IsSingleComponent();
     bool                 nameOk      = false;
     bool                 exists      = false;
@@ -1519,7 +1518,7 @@ HRESULT Dos33Volume::Write (
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
 
     nameOk = single && TryEncodeCatalogName (path.GetLeaf(), nameBytes);
     CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
@@ -1668,6 +1667,7 @@ HRESULT Dos33Volume::Delete (
 {
     HRESULT                hr          = S_OK;
     size_t                 bufferBytes = m_sectors.size();
+    size_t                 imageBytes  = m_geometry.GetImageByteSize();
     bool                   single      = path.IsSingleComponent();
     bool                   isLocked    = false;
     bool                   fullyParsed = true;
@@ -1679,7 +1679,7 @@ HRESULT Dos33Volume::Delete (
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
     CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
     CollectEntries (entries, damage, fullyParsed);
@@ -1767,7 +1767,7 @@ bool Dos33Volume::HasDosImage() const
 
     for (track = 0; track < Dos33Skeleton::kDosImageTracks; track++)
     {
-        for (sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+        for (sector = 0; sector < m_geometry.sectorsPerTrack; sector++)
         {
             for (i = 0; i < (size_t) NibblizationLayer::kSectorByteSize; i++)
             {
@@ -1813,7 +1813,9 @@ HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & ou
 {
     HRESULT                hr          = S_OK;
     size_t                 bufferBytes = m_sectors.size();
+    size_t                 imageBytes  = m_geometry.GetImageByteSize();
     bool                   single      = path.IsSingleComponent();
+    bool                   sixteen     = m_geometry.sectorsPerTrack == 16;
     bool                   hasDos      = false;
     bool                   fullyParsed = true;
     uint16_t               owner       = 0;
@@ -1825,8 +1827,12 @@ HRESULT Dos33Volume::SetStartupProgram (const FilePath & path, vector<Byte> & ou
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
     CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
+
+    //  The greeting's place is DOS 3.3's. DOS 3.2's image is laid out
+    //  differently.
+    CBREx (sixteen, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
     hasDos = HasDosImage();
     CBREx (hasDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
@@ -1918,6 +1924,7 @@ HRESULT Dos33Volume::Rename (
 {
     HRESULT                hr          = S_OK;
     size_t                 bufferBytes = m_sectors.size();
+    size_t                 imageBytes  = m_geometry.GetImageByteSize();
     bool                   single      = from.IsSingleComponent();
     bool                   nameOk      = false;
     bool                   taken       = false;
@@ -1934,7 +1941,7 @@ HRESULT Dos33Volume::Rename (
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (bufferBytes == imageBytes, E_INVALIDARG);
     CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
     nameOk = TryEncodeCatalogName (to, nameBytes);
@@ -1997,7 +2004,7 @@ HRESULT Dos33Volume::SetAttributes (
     HRESULT                hr          = S_OK;
     bool                   single      = path.IsSingleComponent();
     bool                   dated       = attributes.hasCreated || attributes.hasModified;
-    bool                   whole       = m_sectors.size() == (size_t) NibblizationLayer::kImageByteSize;
+    bool                   whole       = m_sectors.size() == m_geometry.GetImageByteSize();
     bool                   listed      = false;
     bool                   inImage     = false;
     bool                   fullyParsed = true;
@@ -2039,11 +2046,11 @@ HRESULT Dos33Volume::SetAttributes (
     {
         CBREx ((typeByte & ~kLockedBit) == kTypeBinary, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
-        pair   = Dos33Skeleton::GetSectorOffset (entries[owner].tsListTrack, entries[owner].tsListSector) + kTsOffFirstPair;
+        pair   = m_geometry.GetSectorOffset (entries[owner].tsListTrack, entries[owner].tsListSector) + kTsOffFirstPair;
         listed = pair + 1 < result.size() && result[pair] != 0;
         CBREx (listed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-        data    = Dos33Skeleton::GetSectorOffset (result[pair], result[pair + 1]);
+        data    = m_geometry.GetSectorOffset (result[pair], result[pair + 1]);
         inImage = data + 1 < result.size();
         CBREx (inImage, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 

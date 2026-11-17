@@ -52,6 +52,11 @@ public:
     // children, in pixels: a row, for a list of rows.
     void     SetLineStepPx       (int stepPx) { m_lineStepPx = std::max (stepPx, 1); }
 
+    // Whether the scrollbar is drawn and takes the mouse while the children
+    // don't fit; for a panel its owner scrolls by code, as a header that
+    // scrolls away above a list. On by default.
+    void     SetScrollbarShown   (bool isShown) { m_isBarShown = isShown; }
+
     bool     IsScrollable        () const { return m_isScrollable; }
     int      GetScrollPosPx      () const { return m_scrollPosPx; }
     int      GetMaxScrollPosPx   () const;
@@ -107,4 +112,5 @@ private:
     int                     m_insetPx      = 0;
     int                     m_scrollPosPx  = 0;
     bool                    m_isScrollable = false;
+    bool                    m_isBarShown   = true;
 };

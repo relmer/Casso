@@ -6,10 +6,18 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
+#include "CassoExplorer/Model/CopyOutConversion.h"
 #include "Core/AppleSingleCodec.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Devices/Disk/Archives/NuFxArchive.h"
+#include "Devices/Disk/FilePath.h"
+#include "Devices/Tape/OggVorbisCodec.h"
+#include "Devices/Tape/TapeRecordingVolume.h"
+#include "Update/ZipArchive.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -130,6 +138,74 @@ public:
         plan = CassoExplorerActions::PlanPut (L"NOTES.Text.txt", Bytes ("anything"), VolumeKind::ProDos);
         Assert::IsTrue   (plan.encoding == CassoExplorerActions::Encoding::Text);
         Assert::IsFalse  (plan.usePayload);
+    }
+
+
+    //  A conversion with an import row is put as the file its program
+    //  saves, under the name that file has on the target.
+    TEST_METHOD (PlanPut_ImportSuffixPutsTheAppleForm)
+    {
+        std::vector<Byte>              source = Bytes ("START LDA #$00 ;zero\n RTS\n");
+        CassoExplorerActions::PutPlan  plan;
+
+        plan = CassoExplorerActions::PlanPut (L"C:\\x\\DEMO.S.Merlin.txt", source, VolumeKind::ProDos);
+        Assert::IsTrue   (plan.usePayload);
+        Assert::IsTrue   (plan.namedItself);
+        Assert::IsTrue   (plan.importFormat == FileFormat::Merlin);
+        Assert::IsTrue   (plan.refusal.empty(), plan.refusal.c_str());
+        Assert::AreEqual (std::string ("DEMO.S"), plan.catalogName);
+        Assert::IsTrue   (plan.payload.type == ProDosVolume::kTypeText);
+        Assert::IsTrue   (!plan.payload.bytes.empty() && plan.payload.bytes.back() == 0x8D);
+        Assert::AreEqual (std::wstring (L"Merlin source"), CassoExplorerActions::DescribePlan (plan, VolumeKind::ProDos));
+
+        plan = CassoExplorerActions::PlanPut (L"DEMO.S.Merlin.txt", source, VolumeKind::Dos33);
+        Assert::IsTrue   (plan.usePayload);
+        Assert::AreEqual (std::string ("T.DEMO"), plan.catalogName);
+        Assert::IsTrue   (plan.payload.type == Dos33Volume::kTypeBinary);
+        Assert::IsTrue   (plan.payload.hasLoadAddress);
+
+        plan = CassoExplorerActions::PlanPut (L"HELLO.TEXT.Pascal text.txt", Bytes ("program hello;\nbegin\nend.\n"), VolumeKind::Pascal);
+        Assert::IsTrue   (plan.usePayload);
+        Assert::IsTrue   (plan.importFormat == FileFormat::PascalText);
+        Assert::AreEqual (std::string ("HELLO.TEXT"), plan.catalogName);
+        Assert::IsTrue   (plan.payload.type == PascalVolume::kKindText);
+        Assert::AreEqual (std::wstring (L"Pascal text"), CassoExplorerActions::DescribePlan (plan, VolumeKind::Pascal));
+    }
+
+
+    //  On a file system the import isn't for, the file is put as text. A
+    //  conversion with no import row is put by the content rule.
+    TEST_METHOD (PlanPut_ConversionWithNoImportHere_IsTextOrDecidedByContent)
+    {
+        std::vector<Byte>              picture (8192, 0x00);
+        CassoExplorerActions::PutPlan  plan;
+
+        plan = CassoExplorerActions::PlanPut (L"HELLO.TEXT.Pascal text.txt", Bytes ("program hello;\n"), VolumeKind::Dos33);
+        Assert::IsFalse  (plan.usePayload);
+        Assert::IsTrue   (plan.importFormat == FileFormat::None);
+        Assert::IsTrue   (plan.encoding == CassoExplorerActions::Encoding::Text);
+
+        plan = CassoExplorerActions::PlanPut (L"PIC.Super Hi-Res.png", picture, VolumeKind::ProDos);
+        Assert::IsTrue   (plan.importFormat == FileFormat::None);
+        Assert::IsFalse  (plan.encoding == CassoExplorerActions::Encoding::Text);
+    }
+
+
+    TEST_METHOD (PlanForced_ImportConversions_PutAnyHostFileAsTheAppleForm)
+    {
+        std::vector<Byte>              source = Bytes (" LDA #$00\n RTS\n");
+        CassoExplorerActions::PutPlan  plan;
+
+        plan = CassoExplorerActions::PlanForced (L"C:\\x\\demo.asm", source, VolumeKind::ProDos, CassoExplorerActions::Conversion::MerlinSource);
+        Assert::IsTrue   (plan.usePayload);
+        Assert::IsTrue   (plan.importFormat == FileFormat::Merlin);
+        Assert::IsTrue   (plan.payload.type == ProDosVolume::kTypeText);
+        Assert::IsTrue   (plan.catalogName.size() > 2 && plan.catalogName.substr (plan.catalogName.size() - 2) == ".S", TextEncoding::NarrowToWide (plan.catalogName).c_str());
+
+        plan = CassoExplorerActions::PlanForced (L"C:\\x\\hello.pas", Bytes ("program hello;\n"), VolumeKind::Pascal, CassoExplorerActions::Conversion::PascalText);
+        Assert::IsTrue   (plan.usePayload);
+        Assert::IsTrue   (plan.importFormat == FileFormat::PascalText);
+        Assert::AreEqual (std::string ("HELLO.TEXT"), plan.catalogName);
     }
 
 
@@ -388,6 +464,72 @@ public:
     }
 
 
+    TEST_METHOD (CompareDiskImages_IsOfferedForExactlyTwoImages)
+    {
+        Host                                     host;
+        std::vector<CassoExplorerActions::Verb>  verbs;
+        auto                                     has   = [&verbs] (CassoExplorerActions::Verb verb) { return std::find (verbs.begin(), verbs.end(), verb) != verbs.end(); };
+
+
+
+        host.SeedFixture ("CassoExplorer/dos33.dsk", L"C:\\Disks\\second.dsk");
+        host.SeedFixture ("CassoExplorer/dos33.dsk", L"C:\\Disks\\third.dsk");
+        host.OpenImage();
+        host.browser.GoUp();
+
+        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::InspectDiskImage));
+        Assert::IsFalse (has (CassoExplorerActions::Verb::CompareDiskImages), L"one image");
+
+        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"second.dsk") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::InspectDiskImage));
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::CompareDiskImages), L"two images");
+
+        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"second.dsk"), host.Find (L"third.dsk") });
+        verbs = host.actions.GetListVerbs();
+        Assert::IsTrue  (has (CassoExplorerActions::Verb::InspectDiskImage));
+        Assert::IsFalse (has (CassoExplorerActions::Verb::CompareDiskImages), L"three images");
+    }
+
+
+    TEST_METHOD (CanInspectAndCanCompare_FollowTheSelectionAndTheOpenImage)
+    {
+        Host  host;
+
+
+
+        host.SeedFixture ("CassoExplorer/dos33.dsk", L"C:\\Disks\\second.dsk");
+        host.SeedBytes   (Bytes ("hello"), L"C:\\Disks\\readme.txt");
+        host.OpenImage();
+        host.browser.GoUp();
+
+        host.browser.SetSelectedRows ({});
+        Assert::IsFalse (host.actions.CanInspect(), L"nothing selected");
+        Assert::IsFalse (host.actions.CanCompare());
+
+        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk") });
+        Assert::IsTrue  (host.actions.CanInspect(), L"one image");
+        Assert::IsFalse (host.actions.CanCompare());
+
+        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"second.dsk") });
+        Assert::IsTrue  (host.actions.CanInspect(), L"two images");
+        Assert::IsTrue  (host.actions.CanCompare());
+
+        host.browser.SetSelectedRows ({ host.Find (L"dos33.dsk"), host.Find (L"readme.txt") });
+        Assert::IsFalse (host.actions.CanInspect(), L"an image and a text file");
+        Assert::IsFalse (host.actions.CanCompare());
+
+        host.browser.OpenRow (host.Find (L"dos33.dsk"));
+        Assert::IsTrue  (host.actions.CanInspect(), L"the open image, with no selection");
+        Assert::IsFalse (host.actions.CanCompare());
+
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+        Assert::IsTrue  (host.actions.CanInspect(), L"the open image, with a file selected");
+    }
+
+
     TEST_METHOD (AHostFile_OpensInItsOwnProgram_AndEveryHostItemHasTheShellsMenu)
     {
         Host                                     host;
@@ -635,6 +777,134 @@ public:
     }
 
 
+    //  A file in a format of the table is written as that format's
+    //  conversion, under the conversion's name.
+    TEST_METHOD (Get_WritesAFormatsConversion)
+    {
+        Host         host;
+        std::string  text;
+
+        host.SeedBytes (Bytes ("START LDA #$00 ;zero\n RTS\n"), L"C:\\In\\DEMO.S.Merlin.txt");
+        host.OpenImage();
+
+        Assert::IsTrue      (host.actions.PutFiles ({ L"C:\\In\\DEMO.S.Merlin.txt" }).Succeeded());
+        Assert::AreNotEqual (-1, host.Find (L"T.DEMO"));
+        host.browser.SetSelectedRows ({ host.Find (L"T.DEMO") });
+
+        CassoExplorerActions::Outcome  outcome = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive);
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (1, outcome.written);
+        AssertSucceeded  (host.fs.ReadAllText (L"C:\\Out\\T.DEMO.Merlin.txt", text));
+        Assert::AreEqual (std::string ("\xEF\xBB\xBF"), text.substr (0, 3));
+        Assert::IsTrue   (text.find ("LDA") != std::string::npos);
+        Assert::IsTrue   (text.find ("\r\n") != std::string::npos);
+    }
+
+
+    //  A raw Get writes the file's bytes under its raw name.
+    TEST_METHOD (Get_OfARawCopy_HasNoConversion)
+    {
+        Host  host;
+
+        host.SeedBytes (Bytes ("START LDA #$00 ;zero\n RTS\n"), L"C:\\In\\DEMO.S.Merlin.txt");
+        host.OpenImage();
+
+        Assert::IsTrue (host.actions.PutFiles ({ L"C:\\In\\DEMO.S.Merlin.txt" }).Succeeded());
+        host.browser.SetSelectedRows ({ host.Find (L"T.DEMO") });
+
+        std::vector<FileEntry>  entries;
+
+        host.browser.GetSelectedEntries (entries);
+
+        bool                           converted = true;
+        std::wstring                   name      = DragPayload::GetHostName (entries[0], VolumeKind::Dos33, HostFileNaming::Style::Descriptive, converted, FileFormat::Merlin, true);
+        CassoExplorerActions::Outcome  outcome   = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive, nullptr, true);
+        std::string                    path      = "C:\\Out\\" + TextEncoding::WideToNarrow (name);
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (1, outcome.written);
+        Assert::IsFalse  (host.fs.Exists (L"C:\\Out\\T.DEMO.Merlin.txt"));
+        Assert::IsFalse  (converted);
+        Assert::IsTrue   (name.find (L"Merlin") == std::wstring::npos);
+        Assert::AreEqual ((size_t) 1, host.io.files.count (path), TextEncoding::NarrowToWide (path).c_str());
+        Assert::IsTrue   (std::find (host.io.files[path].begin(), host.io.files[path].end(), (Byte) 0x8D) != host.io.files[path].end(), L"the volume's carriage returns");
+    }
+
+
+    //  The AppleSingle style is a raw copy: the file's bytes, wrapped.
+    TEST_METHOD (Get_InTheAppleSingleStyle_HasNoConversion)
+    {
+        Host  host;
+        bool  converted = true;
+
+        host.SeedBytes (Bytes ("START LDA #$00 ;zero\n RTS\n"), L"C:\\In\\DEMO.S.Merlin.txt");
+        host.OpenImage();
+
+        Assert::IsTrue (host.actions.PutFiles ({ L"C:\\In\\DEMO.S.Merlin.txt" }).Succeeded());
+        host.browser.SetSelectedRows ({ host.Find (L"T.DEMO") });
+
+        std::vector<FileEntry>  entries;
+
+        host.browser.GetSelectedEntries (entries);
+
+        std::wstring  name = DragPayload::GetHostName (entries[0], VolumeKind::Dos33, HostFileNaming::Style::AppleSingle, converted, FileFormat::Merlin);
+
+        Assert::IsFalse (converted);
+        Assert::IsTrue  (name.find (L"Merlin") == std::wstring::npos);
+    }
+
+
+    //  A file that matches a format and fails to decode is skipped with the
+    //  decoder's reason, and the files after it are written.
+    TEST_METHOD (Get_SkipsAFileThatFailsToDecode)
+    {
+        Host                       host;
+        std::vector<DxuiTreeNode>  roots;
+        std::vector<Byte>          broken (64, 0xFF);
+
+        broken[0] = 0x66;
+
+        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes   (broken, L"C:\\In\\BAD#088066");
+        host.SeedBytes   (Bytes ("START LDA #$00 ;zero\n RTS\n"), L"C:\\In\\DEMO.S.Merlin.txt");
+
+        host.browser.GetTreeRoots (roots);
+        AssertSucceeded (host.browser.SelectTreeNode (host.browser.GetTreeChildren (roots[1].id)[0].id));
+        Assert::IsTrue  (host.browser.OpenRow (host.Find (L"prodos.po")));
+        Assert::IsTrue  (host.actions.PutFiles ({ L"C:\\In\\BAD#088066", L"C:\\In\\DEMO.S.Merlin.txt" }).Succeeded());
+
+        host.browser.SetSelectedRows ({ host.Find (L"BAD"), host.Find (L"DEMO.S") });
+
+        CassoExplorerActions::Outcome  outcome = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive);
+
+        Assert::IsFalse  (outcome.Succeeded());
+        Assert::IsTrue   (outcome.message.find (L"Unable to copy BAD: ") != std::wstring::npos, outcome.message.c_str());
+        Assert::AreEqual (1, outcome.written);
+        Assert::IsTrue   (host.fs.Exists (L"C:\\Out\\DEMO.S.Merlin.txt"));
+        Assert::IsFalse  (host.fs.Exists (L"C:\\Out\\BAD.LZ4FH.png"));
+    }
+
+
+    //  Apple text with a chosen character set is decoded in that set and
+    //  written as UTF-8; in Apple text it is read by its type.
+    TEST_METHOD (CopyOutConversion_AppliesToTextInAChosenCharset)
+    {
+        DecodeOptions  options;
+
+        Assert::IsFalse (CopyOutConversion::Applies (FileFormat::None, DiskOperations::Encoding::Text, options));
+        Assert::IsTrue  (CopyOutConversion::Applies (FileFormat::Merlin, DiskOperations::Encoding::Verbatim, options));
+
+        options.charset = Charset::Iso8859_1;
+        Assert::IsTrue  (CopyOutConversion::Applies (FileFormat::None, DiskOperations::Encoding::Text, options));
+        Assert::IsFalse (CopyOutConversion::Applies (FileFormat::None, DiskOperations::Encoding::Verbatim, options));
+        Assert::IsFalse (CopyOutConversion::Applies (FileFormat::None, DiskOperations::Encoding::Basic, options));
+
+        options.charset = Charset::AppleText;
+        Assert::IsFalse (CopyOutConversion::Applies (FileFormat::None, DiskOperations::Encoding::Text, options));
+    }
+
+
     //  Casso Explorer's own copy on the clipboard: two files, the second of
     //  whose contents cannot be read when `failSecond` is set.
     static DxuiDragDropSource * MakeCopy (bool failSecond, bool ours = true)
@@ -775,6 +1045,113 @@ public:
     }
 
 
+    //  A ShrinkIt disk of an image opens as the same volume, and a second
+    //  takes the next free name.
+    TEST_METHOD (MakeShrinkItDisk_PacksTheImageAsADiskRecord)
+    {
+        Host                           host;
+        std::wstring                   made;
+        std::wstring                   second;
+        std::vector<Byte>              original;
+        std::vector<Byte>              packed;
+        SectorDecodeReport             report;
+        CassoExplorerActions::Outcome  outcome = host.actions.MakeShrinkItDisk (L"C:\\Disks\\dos33.dsk", made);
+
+
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33.sdk"), made);
+
+        AssertSucceeded (VolumeImage::Load (host.io.files["C:\\Disks\\dos33.dsk"], "dos33.dsk", original, report));
+        AssertSucceeded (VolumeImage::Load (host.io.files["C:\\Disks\\dos33.sdk"], "dos33.sdk", packed, report));
+        Assert::IsTrue   (packed == original, L"The disk inside is the image's volume");
+        Assert::IsFalse  (ActionsArchive::CanMakeShrinkItDisk (made));
+        Assert::IsTrue   (ActionsArchive::CanMakeShrinkItDisk (L"C:\\Disks\\dos33.dsk"));
+
+        AssertSucceeded (host.fs.WriteAllText (made, "taken"));
+        outcome = host.actions.MakeShrinkItDisk (L"C:\\Disks\\dos33.dsk", second);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33 (2).sdk"), second);
+    }
+
+
+    //  HELLO, INTPROG and ODD as a recording that opens as a folder of the
+    //  same programs and binary, with NOTES left out and the sidecar beside
+    //  it. The recording is Ogg Vorbis by its extension.
+    TEST_METHOD (MakeTapeRecording_WritesTheProgramsAsTapeAudio)
+    {
+        Host                           host;
+        std::vector<FileEntry>         entries;
+        CassoExplorerActions::Outcome  outcome;
+        VolumeListing                  listing;
+        std::string                    sidecar;
+
+
+
+        host.OpenImage();
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO"), host.Find (L"NOTES"), host.Find (L"INTPROG"), host.Find (L"ODD") });
+        host.browser.GetSelectedEntries (entries);
+
+        Assert::IsTrue (Offers (host.actions.GetListVerbs(), CassoExplorerActions::Verb::ConvertToTapeAudio));
+
+        outcome = host.actions.MakeTapeRecording (L"C:\\Disks\\programs.ogg");
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (3, outcome.written);
+        Assert::IsTrue   (outcome.message.find (L"NOTES isn't a BASIC program or a binary") != std::wstring::npos, outcome.message.c_str());
+        Assert::IsTrue   (OggVorbisCodec::IsOgg (host.io.files["C:\\Disks\\programs.ogg"]));
+
+        sidecar.assign (host.io.files["C:\\Disks\\programs.tape.txt"].begin(), host.io.files["C:\\Disks\\programs.tape.txt"].end());
+        Assert::IsTrue (sidecar.starts_with ("00:00.5  HELLO  Applesoft"), TextEncoding::NarrowToWide (sidecar).c_str());
+
+        TapeRecordingVolume  tape (host.io.files["C:\\Disks\\programs.ogg"]);
+
+        AssertSucceeded  (tape.Enumerate (listing));
+        Assert::AreEqual ((size_t) 3, listing.entries.size());
+        Assert::IsTrue   (listing.damage.empty());
+        Assert::AreEqual (TapeRecordingVolume::kTypeApplesoft, listing.entries[0].type);
+        Assert::AreEqual (TapeRecordingVolume::kTypeInteger,   listing.entries[1].type);
+        Assert::AreEqual (TapeRecordingVolume::kTypeBinary,    listing.entries[2].type);
+
+        for (size_t i = 0; i < listing.entries.size(); i++)
+        {
+            FilePayload  original;
+            FilePayload  fromTape;
+            size_t       entry = (i == 0) ? 0 : i + 1;
+
+            AssertSucceeded (Dos33Volume (host.io.files["C:\\Disks\\dos33.dsk"]).Read (FilePath::Parse (entries[entry].name), original));
+            AssertSucceeded (tape.Read (FilePath::Parse (listing.entries[i].name), fromTape));
+            Assert::IsTrue  (fromTape.bytes == original.bytes, TextEncoding::NarrowToWide (entries[entry].name).c_str());
+        }
+
+        Assert::IsTrue (ActionsTape::GetFormat (L"x.MP3") == TapeRecordingFormat::Mp3);
+        Assert::IsTrue (ActionsTape::GetFormat (L"x.aiff") == TapeRecordingFormat::Wav);
+    }
+
+    //  The files selected go into a new archive with the first one's name,
+    //  each with the type a put sets.
+    TEST_METHOD (MakeArchive_PutsTheFilesIntoANewShrinkItArchive)
+    {
+        Host                           host;
+        std::wstring                   made;
+        CassoExplorerActions::Outcome  outcome;
+        NuFxArchive                    archive;
+        std::string                    error;
+
+
+
+        host.SeedBytes (std::vector<Byte> (300, 0x41), L"C:\\Drop\\NOTES.Text.txt");
+        host.SeedBytes (std::vector<Byte> (500, 0x07), L"C:\\Drop\\DATA.Binary.$2000.bin");
+
+        outcome = host.actions.MakeArchive ({ L"C:\\Drop\\NOTES.Text.txt", L"C:\\Drop\\DATA.Binary.$2000.bin" }, made);
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (std::wstring (L"C:\\Drop\\NOTES.Text.shk"), made);
+        AssertSucceeded  (NuFxArchive::Parse (host.io.files["C:\\Drop\\NOTES.Text.shk"], archive, error));
+        Assert::AreEqual ((size_t) 2, archive.records.size());
+        Assert::AreEqual ((uint32_t) 0x2000, archive.records[1].extraType);
+    }
+
+
     TEST_METHOD (ExtractImage_MakesAFolderForEachProDosDirectory)
     {
         Host          host;
@@ -795,6 +1172,57 @@ public:
         Assert::IsTrue (outcome.Succeeded(), outcome.message.c_str());
         Assert::IsTrue (host.fs.DirectoryExists (L"C:\\Disks\\prodos\\SUBDIR"));
         Assert::IsTrue (inside > 0, L"the directory's files are inside its folder");
+    }
+
+
+    //  A ZIP member dropped from its ZIP folder arrives without its
+    //  AppleDouble entry. The entry is read from the ZIP and written beside
+    //  the copy, and the put takes the Finder type it indicates: `TEXT` puts
+    //  bytes that read as binary as a text file.
+    TEST_METHOD (WriteZipSidecars_PutsAZipMemberWithItsFinderType)
+    {
+        static constexpr Byte  kEmptyZip[22] = { 0x50, 0x4B, 0x05, 0x06 };
+
+        Host                           host;
+        AppleSingleFile                single;
+        std::vector<Byte>              member;
+        std::vector<Byte>              sidecar;
+        std::vector<Byte>              one;
+        std::vector<Byte>              zip;
+        std::string                    written;
+        FilePayload                    back;
+        CassoExplorerActions::Outcome  outcome;
+        bool                           asked = false;
+
+
+
+        for (int i = 0; i < 300; i++)
+        {
+            member.push_back ((Byte) (i * 7));
+        }
+
+        single.finderInfo = { 'T', 'E', 'X', 'T', 't', 't', 'x', 't' };
+        single.finderInfo.resize (32, 0);
+
+        AppleSingleCodec::EncodeDouble (single, sidecar);
+        AssertSucceeded (ZipArchive::Replace (kEmptyZip, "GAMES/NOTES", member, one));
+        AssertSucceeded (ZipArchive::Replace (one, "__MACOSX/GAMES/._NOTES", sidecar, zip));
+
+        host.SeedBytes (zip, L"C:\\In\\set.zip");
+        host.SeedBytes (member, L"C:\\Drop\\NOTES");
+
+        host.actions.WriteZipSidecars ({ L"C:\\In\\set.zip\\GAMES\\NOTES" }, { L"C:\\Drop\\NOTES" });
+
+        AssertSucceeded (host.fs.ReadAllText (L"C:\\Drop\\._NOTES", written));
+        Assert::IsTrue  (std::vector<Byte> (written.begin(), written.end()) == sidecar, L"the AppleDouble entry is beside the copy");
+
+        host.OpenImage();
+        outcome = host.actions.PutFiles ({ L"C:\\Drop\\NOTES" }, [&asked] (const std::wstring &, Word, Word &) { asked = true; return false; });
+        Assert::IsTrue  (outcome.Succeeded(), outcome.message.c_str());
+        Assert::IsFalse (asked, L"a text file is put without a load address question");
+
+        AssertSucceeded (Dos33Volume (host.io.files["C:\\Disks\\dos33.dsk"]).Read (FilePath::Parse ("NOTES"), back));
+        Assert::AreEqual (Dos33Volume::kTypeText, back.type, L"the Finder type TEXT");
     }
 
 
@@ -1087,6 +1515,70 @@ public:
         Assert::IsFalse (CassoExplorerNewDiskChoices::GetChoicesForExtension (L"Games.txt", container, format));
         Assert::AreEqual (7, container);
         Assert::AreEqual (7, format);
+    }
+
+
+    //  DOS 3.2 and the 13-sector image are chosen together.
+    TEST_METHOD (NewDiskChoices_Dos32IsPairedWithTheThirteenSectorImage)
+    {
+        static constexpr int  kContainerD13 = 8;
+        static constexpr int  kContainerDsk = 1;
+
+
+
+        DiskOperations::NewDiskRequest  request   = CassoExplorerNewDiskChoices::MakeRequest (CassoExplorerNewDiskChoices::kFormatDos32, kContainerD13, L"77", true);
+        int                             container = 99;
+        int                             format    = 99;
+
+
+
+        Assert::AreEqual (std::string ("dos32"), request.formatName);
+        Assert::AreEqual (std::string ("d13"),   request.containerType);
+        Assert::AreEqual (std::string ("77"),    request.volumeName);
+        Assert::IsFalse  (request.bootable);
+
+        Assert::IsTrue (CassoExplorerNewDiskChoices::GetChoicesForExtension (L"Old.d13", container, format));
+        Assert::AreEqual (kContainerD13, container);
+        Assert::AreEqual (CassoExplorerNewDiskChoices::kFormatDos32, format);
+
+        Assert::IsTrue  (CassoExplorerNewDiskChoices::ValidateSize (CassoExplorerNewDiskChoices::kFormatDos32,  kContainerD13, 0).empty());
+        Assert::IsFalse (CassoExplorerNewDiskChoices::ValidateSize (CassoExplorerNewDiskChoices::kFormatDos32,  kContainerDsk, 0).empty());
+        Assert::IsFalse (CassoExplorerNewDiskChoices::ValidateSize (CassoExplorerNewDiskChoices::kFormatProDos, kContainerD13, 0).empty());
+
+        Assert::IsTrue  (CassoExplorerNewDiskChoices::ValidateVolume (CassoExplorerNewDiskChoices::kFormatDos32, L"254").empty());
+        Assert::IsFalse (CassoExplorerNewDiskChoices::ValidateVolume (CassoExplorerNewDiskChoices::kFormatDos32, L"255").empty());
+    }
+
+
+    //  HFS is 800K or larger, in a block container, with a name of up to 27
+    //  characters and no colon.
+    TEST_METHOD (NewDiskChoices_HfsIs800KOrLarger)
+    {
+        static constexpr int  kContainerDsk = 1;
+        static constexpr int  kContainerPo  = 2;
+        static constexpr int  kContainerHdv = 5;
+        static constexpr int  kSize800K     = 1;
+        static constexpr int  kSize32M      = 5;
+
+        using Choices = CassoExplorerNewDiskChoices;
+
+        DiskOperations::NewDiskRequest  request = Choices::MakeRequest (Choices::kFormatHfs, kContainerPo, L"Mac Disk", false, kSize800K);
+
+
+
+        Assert::AreEqual (std::string ("hfs"),      request.formatName);
+        Assert::AreEqual (std::string ("800k"),     request.sizeName);
+        Assert::AreEqual (std::string ("Mac Disk"), request.volumeName);
+
+        Assert::IsTrue  (Choices::ValidateSize (Choices::kFormatHfs, kContainerPo,  kSize800K).empty());
+        Assert::IsTrue  (Choices::ValidateSize (Choices::kFormatHfs, kContainerHdv, kSize32M).empty());
+        Assert::IsFalse (Choices::ValidateSize (Choices::kFormatHfs, kContainerPo,  0).empty());
+        Assert::IsFalse (Choices::ValidateSize (Choices::kFormatHfs, kContainerDsk, kSize800K).empty());
+
+        Assert::IsTrue  (Choices::ValidateVolume (Choices::kFormatHfs, L"Mac Disk").empty());
+        Assert::IsFalse (Choices::ValidateVolume (Choices::kFormatHfs, L"A:B").empty());
+        Assert::IsFalse (Choices::ValidateVolume (Choices::kFormatHfs, std::wstring (28, L'x')).empty());
+        Assert::AreEqual ((size_t) 27, Choices::GetVolumeMaxLength (Choices::kFormatHfs));
     }
 
 

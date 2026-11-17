@@ -1,9 +1,11 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/HostFileNaming.h"
+#include "FileTypes/FileFormatTable.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/RdosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Ui/FileBrowseModel.h"
 
@@ -202,10 +204,11 @@ void HostFileNaming::ConvertPayloadType (VolumeKind source, VolumeKind target, F
         return;
     }
 
-    proDos = (source == VolumeKind::Dos33)  ? MapDos33ToProDosType (inOutPayload.type)
-           : (source == VolumeKind::Pascal) ? MapPascalToProDosType (inOutPayload.type)
-           : (source == VolumeKind::Cpm)    ? (Byte) 0
-                                            : inOutPayload.type;
+    proDos = (source == VolumeKind::Dos33)                                  ? MapDos33ToProDosType (inOutPayload.type)
+           : (source == VolumeKind::Pascal)                                 ? MapPascalToProDosType (inOutPayload.type)
+           : (source == VolumeKind::Rdos)                                   ? RdosVolume::GetProDosType (inOutPayload.type)
+           : (source == VolumeKind::Cpm || source == VolumeKind::Gutenberg) ? (Byte) 0
+                                                                            : inOutPayload.type;
 
     if (target == VolumeKind::ProDos)
     {
@@ -526,6 +529,113 @@ std::wstring HostFileNaming::ForConverted (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HostFileNaming::ForConverted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HostFileNaming::ForConverted (const std::string & catalogName, FileFormat format)
+{
+    bool  substituted = false;
+
+
+
+    return MakeHostLegal (catalogName, substituted) + FileFormatTable::GetSuffix (format);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HostFileNaming::CanImport
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HostFileNaming::CanImport (FileFormat format, VolumeKind kind)
+{
+    if (format == FileFormat::Merlin)
+    {
+        return kind == VolumeKind::ProDos || kind == VolumeKind::Dos33;
+    }
+
+    return format == FileFormat::PascalText && (kind == VolumeKind::ProDos || kind == VolumeKind::Pascal);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HostFileNaming::MakePascalTextName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string HostFileNaming::MakePascalTextName (const std::string & catalogName)
+{
+    constexpr size_t  kMaxStem = 10;
+    size_t            dot      = catalogName.rfind ('.');
+
+
+
+    if (PascalVolume::GetKindFromName (catalogName) == PascalVolume::kKindText)
+    {
+        return catalogName;
+    }
+
+    return catalogName.substr (0, (std::min) ((dot == std::string::npos) ? catalogName.size() : dot, kMaxStem)) + ".TEXT";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HostFileNaming::MakeImportName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string HostFileNaming::MakeImportName (const std::string & catalogName, FileFormat format, VolumeKind kind)
+{
+    constexpr size_t  kMarkLength    = 2;
+    constexpr size_t  kProDosMaxStem = 13;
+    constexpr size_t  kDosMaxStem    = 28;
+    bool              hasPrefix      = catalogName.size() > kMarkLength && _strnicmp (catalogName.c_str(), "T.", kMarkLength) == 0;
+    bool              hasSuffix      = catalogName.size() > kMarkLength && _stricmp (catalogName.c_str() + catalogName.size() - kMarkLength, ".S") == 0;
+    std::string       stem           = catalogName;
+
+
+
+    if (format == FileFormat::PascalText && kind == VolumeKind::Pascal)
+    {
+        return MakePascalTextName (catalogName);
+    }
+
+    if (format != FileFormat::Merlin || (kind != VolumeKind::ProDos && kind != VolumeKind::Dos33))
+    {
+        return catalogName;
+    }
+
+    if (kind == VolumeKind::ProDos)
+    {
+        stem = hasPrefix ? stem.substr (kMarkLength) : stem;
+
+        return hasSuffix ? stem : stem.substr (0, kProDosMaxStem) + ".S";
+    }
+
+    stem = hasSuffix ? stem.substr (0, stem.size() - kMarkLength) : stem;
+
+    return hasPrefix ? stem : "T." + stem.substr (0, kDosMaxStem);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HostFileNaming::ForRaw
 //
 //  The descriptive form says what the file is in words; the CiderPress form
@@ -550,7 +660,8 @@ std::wstring HostFileNaming::ForRaw (
     bool          isFlatNamed = kind == VolumeKind::Pascal || kind == VolumeKind::Cpm;
     Byte          proDosType  = isDos ? MapDos33ToProDosType (type)
                               : (kind == VolumeKind::Pascal) ? MapPascalToProDosType (type)
-                              : (kind == VolumeKind::Cpm)    ? (Byte) 0 : type;
+                              : (kind == VolumeKind::Rdos) ? RdosVolume::GetProDosType (type)
+                              : (kind == VolumeKind::Cpm || kind == VolumeKind::Gutenberg) ? (Byte) 0 : type;
     Word          aux         = hasAddress ? address : 0;
     std::wstring  name        = MakeHostLegal (catalogName, substituted);
     char          letter      = GetDos33TypeLetter (type);
@@ -614,11 +725,12 @@ std::wstring HostFileNaming::ForRaw (
 bool HostFileNaming::Parse (const std::wstring & hostName, ParsedHostName & out)
 {
     std::vector<std::wstring>  parts;
-    size_t                     count = 0;
-    size_t                     hash  = 0;
-    unsigned                   type  = 0;
-    unsigned                   aux   = 0;
+    size_t                     count  = 0;
+    size_t                     hash   = 0;
+    unsigned                   type   = 0;
+    unsigned                   aux    = 0;
     std::wstring               stem;
+    FileFormat                 format = FileFormat::None;
 
 
 
@@ -645,6 +757,18 @@ bool HostFileNaming::Parse (const std::wstring & hostName, ParsedHostName & out)
     {
         out.catalogName = ToNarrow (hostName.substr (0, hostName.size() - wcslen (kTextSuffix)));
         out.converted   = ParsedHostName::ConvertedKind::Text;
+
+        return true;
+    }
+
+    //  A conversion of the file format table: NAME.<format>.<extension>
+    format = FileFormatTable::GetBySuffix (hostName);
+
+    if (format != FileFormat::None)
+    {
+        out.catalogName = ToNarrow (hostName.substr (0, hostName.size() - wcslen (FileFormatTable::GetSuffix (format))));
+        out.converted   = ParsedHostName::ConvertedKind::Format;
+        out.format      = format;
 
         return true;
     }

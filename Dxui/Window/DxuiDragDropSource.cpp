@@ -58,7 +58,8 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiDragDropSource::Begin (std::vector<Format> formats, DWORD allowedEffects, POINT startScreen,
-                                   DWORD & resultEffect, DWORD * outLogicalEffect, const DxuiIconImage * dragImage)
+                                   DWORD & resultEffect, DWORD * outLogicalEffect, const DxuiIconImage * dragImage,
+                                   const std::function<void (const DxuiDragDropSource & source)> & onEnd)
 {
     HRESULT                      hr      = S_OK;
     HRESULT                      hrImage = S_OK;
@@ -118,6 +119,11 @@ HRESULT DxuiDragDropSource::Begin (std::vector<Format> formats, DWORD allowedEff
     if (outLogicalEffect != nullptr)
     {
         *outLogicalEffect = source->GetStoredDword (CFSTR_LOGICALPERFORMEDDROPEFFECT, resultEffect);
+    }
+
+    if (onEnd)
+    {
+        onEnd (*source);
     }
 
 Error:
@@ -814,6 +820,32 @@ DWORD DxuiDragDropSource::GetStoredDword (const wchar_t * formatName, DWORD fall
     }
 
     return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDragDropSource::GetStoredBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDragDropSource::GetStoredBytes (const wchar_t * formatName, std::vector<uint8_t> & outBytes) const
+{
+    auto  found = m_stored.find ((CLIPFORMAT) RegisterClipboardFormatW (formatName));
+
+
+
+    outBytes.clear();
+
+    if (found != m_stored.end())
+    {
+        outBytes = found->second;
+    }
+
+    return found != m_stored.end();
 }
 
 

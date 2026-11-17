@@ -5,6 +5,7 @@
 #include "Core/MemoryBus.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Shell/MachineHost.h"
+#include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/Win32ImageWatcher.h"
@@ -550,7 +551,7 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
 
     controller = FindSlot6Controller();
     image      = m_diskStore.GetImage (6, drive);
-    inserted   = (change != BayChange::Ejected);
+    inserted   = (change == BayChange::Inserted || change == BayChange::Swapped);
 
     //  Insert and swap sounds are held during the cold-boot mount window and a
     //  programmatic remount (reset / power-cycle rebuild); an eject sound
@@ -571,8 +572,9 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
     }
 
     //  The debug event fires whichever way the disk went, and is not held at
-    //  cold boot: the debug log is not something a launch should hide.
-    if (controller != nullptr)
+    //  cold boot: the debug log is not something a launch should hide. A
+    //  restored state doesn't move a disk.
+    if (controller != nullptr && change != BayChange::Restored)
     {
         if (inserted)
         {
@@ -616,6 +618,9 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
 
             break;
 
+        case BayChange::Restored:
+            break;
+
         case BayChange::Swapped:
             if (!suppressFx)
             {
@@ -640,7 +645,9 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
 //  Re-reads every currently mounted slot-6 disk image from the host
 //  filesystem so that an external regeneration of the .dsk file (e.g.
 //  a developer iterating on a demo image) is picked up by the next
-//  boot. Used by the Reset and Power Cycle menu commands. Snapshots
+//  boot. Used by the Reset and Power Cycle menu commands. A power cycle
+//  reconnects the drives to their mounts without this call, so a disk
+//  with no file behind it is skipped and remains in its drive. Snapshots
 //  paths first because the re-mount path goes through Eject + Mount
 //  internally, which transiently blanks the source-path slot.
 //
@@ -702,7 +709,12 @@ HRESULT DiskManager::Mount (int slot, int drive, const std::wstring & path)
 
 
 
-    CBRAEx (slot == 6, E_INVALIDARG);
+    // Any other slot is a 3.5-inch drive's, inserted on the CPU thread.
+    if (slot != 6)
+    {
+        m_cpuManager.PostCommand (IDM_FLOPPY35_INSERT, std::format ("{} {} {}", slot, drive, TextEncoding::WideToUtf8 (path)));
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     CBRAEx (drive == 0 || drive == 1, E_INVALIDARG);
 
@@ -752,6 +764,10 @@ void DiskManager::Eject (int slot, int drive)
     {
         if      (drive == 0) { command = IDM_DISK_EJECT1; }
         else if (drive == 1) { command = IDM_DISK_EJECT2; }
+    }
+    else
+    {
+        m_cpuManager.PostCommand (IDM_FLOPPY35_EJECT, std::format ("{} {}", slot, drive));
     }
 
     if (command != 0)

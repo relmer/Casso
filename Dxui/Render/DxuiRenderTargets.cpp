@@ -4,6 +4,9 @@
 #include "Render/DxuiSvgPath.h"
 #include "DxuiTextRenderer.h"
 
+// CLSID_D2D1Morphology and CLSID_D2D1Shadow are exported by dxguid.lib.
+#pragma comment (lib, "dxguid.lib")
+
 
 
 
@@ -159,6 +162,149 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BeginShadowCapture
+//
+//  Points the renderer at a command list on a second context, so the next
+//  draws go into the list instead of the target. The second context is given
+//  the main context's transform, DPI and antialiasing, so the list's contents
+//  are placed where the main context would have drawn them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiRenderTargets::BeginShadowCapture()
+{
+    HRESULT                  hr        = S_OK;
+    ComPtr<ID2D1Device>      device;
+    D2D1_MATRIX_3X2_F        transform = {};
+    float                    dpiX      = 0.0f;
+    float                    dpiY      = 0.0f;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_renderer.m_d2dContext);
+    CBRA (m_renderer.m_drawing);
+    CBRA (m_shadowList == nullptr);
+
+    if (m_shadowContext == nullptr)
+    {
+        m_renderer.m_d2dContext->GetDevice (device.GetAddressOf());
+        CBRA (device);
+
+        hr = device->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE, m_shadowContext.GetAddressOf());
+        CHRA (hr);
+    }
+
+    hr = m_shadowContext->CreateCommandList (m_shadowList.GetAddressOf());
+    CHRA (hr);
+
+    m_renderer.m_d2dContext->GetTransform (&transform);
+    m_renderer.m_d2dContext->GetDpi (&dpiX, &dpiY);
+
+    m_shadowContext->SetTarget            (m_shadowList.Get());
+    m_shadowContext->SetDpi               (dpiX, dpiY);
+    m_shadowContext->SetTransform         (transform);
+    m_shadowContext->SetAntialiasMode     (m_renderer.m_d2dContext->GetAntialiasMode());
+    m_shadowContext->SetTextAntialiasMode (m_renderer.m_d2dContext->GetTextAntialiasMode());
+    m_shadowContext->BeginDraw();
+
+    m_shadowSavedContext     = m_renderer.m_d2dContext;
+    m_renderer.m_d2dContext  = m_shadowContext;
+
+Error:
+    if (FAILED (hr))
+    {
+        m_shadowList.Reset();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndShadowCapture
+//
+//  Puts the main context back and draws the list through two effects: a
+//  dilation that thickens the strokes, so the shadow is dark close to the
+//  ink rather than a faint smear, and the shadow effect, which blurs the
+//  thickened strokes and fills them with black. The list's contents are
+//  already transformed, so the list is drawn with the identity transform.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiRenderTargets::EndShadowCapture (float spreadDip, float blurDip, float opacity)
+{
+    HRESULT               hr        = S_OK;
+    ComPtr<ID2D1Effect>   dilate;
+    ComPtr<ID2D1Effect>   shadow;
+    D2D1_MATRIX_3X2_F     transform = {};
+    UINT                  kernel    = (UINT) std::clamp ((int) lroundf (spreadDip * 2.0f) + 1, 1, 99);
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_shadowList);
+    CBRA (m_shadowSavedContext);
+
+    hr = m_shadowContext->EndDraw();
+    m_shadowContext->SetTarget (nullptr);
+
+    m_renderer.m_d2dContext = m_shadowSavedContext;
+    m_shadowSavedContext.Reset();
+
+    CHRA (hr);
+
+    hr = m_shadowList->Close();
+    CHRA (hr);
+
+    hr = m_renderer.m_d2dContext->CreateEffect (CLSID_D2D1Morphology, dilate.GetAddressOf());
+    CHRA (hr);
+
+    dilate->SetInput (0, m_shadowList.Get());
+
+    hr = dilate->SetValue (D2D1_MORPHOLOGY_PROP_MODE, D2D1_MORPHOLOGY_MODE_DILATE);
+    CHRA (hr);
+
+    hr = dilate->SetValue (D2D1_MORPHOLOGY_PROP_WIDTH, kernel);
+    CHRA (hr);
+
+    hr = dilate->SetValue (D2D1_MORPHOLOGY_PROP_HEIGHT, kernel);
+    CHRA (hr);
+
+    hr = m_renderer.m_d2dContext->CreateEffect (CLSID_D2D1Shadow, shadow.GetAddressOf());
+    CHRA (hr);
+
+    shadow->SetInputEffect (0, dilate.Get());
+
+    hr = shadow->SetValue (D2D1_SHADOW_PROP_BLUR_STANDARD_DEVIATION, std::max (blurDip, 0.0f));
+    CHRA (hr);
+
+    hr = shadow->SetValue (D2D1_SHADOW_PROP_COLOR, D2D1::Vector4F (0.0f, 0.0f, 0.0f, std::clamp (opacity, 0.0f, 1.0f)));
+    CHRA (hr);
+
+    m_renderer.m_d2dContext->GetTransform (&transform);
+    m_renderer.m_d2dContext->SetTransform (D2D1::Matrix3x2F::Identity());
+    m_renderer.m_d2dContext->DrawImage    (shadow.Get());
+    m_renderer.m_d2dContext->SetTransform (transform);
+
+Error:
+    m_shadowList.Reset();
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetDrawToTextureSize
 //
 //  Reports the off-screen target's real dimensions, which is what a caller
@@ -205,22 +351,13 @@ HRESULT DxuiRenderTargets::BeginDrawDeferred()
     CBRA (m_renderer.m_d2dContext);
     CBRA (m_renderer.m_targetBound);
 
-    // A closed list cannot be reopened, so the pass gets its own.
-    m_cmdList.Reset();
+    m_isDiscardingPass = false;
+    m_renderer.m_pushedClips.clear();
 
-    hr = m_renderer.m_d2dContext->CreateCommandList (m_cmdList.GetAddressOf());
+    hr = StartRecording();
     CHRA (hr);
 
-    m_renderer.m_d2dContext->SetTarget (m_cmdList.Get());
-    m_renderer.m_d2dContext->BeginDraw();
-    m_renderer.m_drawing = true;
-
 Error:
-    if (FAILED (hr))
-    {
-        m_cmdList.Reset();
-    }
-
     return hr;
 }
 
@@ -255,16 +392,164 @@ HRESULT DxuiRenderTargets::EndDrawDeferred()
     CBRA (m_renderer.m_d2dContext);
     BAIL_OUT_IF (!m_renderer.m_drawing, S_OK);
 
-    hrEnd        = m_renderer.m_d2dContext->EndDraw();
-    m_renderer.m_drawing    = false;
-    isTargetLost = (hrEnd == D2DERR_RECREATE_TARGET);
+    hrEnd                = m_renderer.m_d2dContext->EndDraw();
+    m_renderer.m_drawing = false;
+
+    hr = ReplayRecording (hrEnd, isTargetLost);
+    CHRA (hr);
+
+Error:
+    m_isDiscardingPass = false;
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FlushDeferred
+//
+//  Replays the command list so far onto the back buffer and continues the
+//  pass in a new one. IDxuiPainter::FlushLayer calls this after drawing the
+//  queued fills, so the fills and text drawn after it cover both.
+//
+//  Direct2D requires an empty clip stack at EndDraw, so the clips pushed
+//  through PushClipRect are popped first and pushed again in the new
+//  command list, each under the transform it was pushed with. The transform
+//  in effect, which has the origin and any skew in it, is context state and
+//  is set again after the clips.
+//
+//  The pass continues even when the replay fails, so the draws after this
+//  call go into a new command list instead of asserting. After a lost
+//  target, EndDrawDeferred discards that list.
+//
+//  Does nothing outside a deferred pass, during a shadow capture (the context
+//  is swapped for the shadow context then), or after the target was lost
+//  earlier in the pass.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiRenderTargets::FlushDeferred()
+{
+    HRESULT            hr           = S_OK;
+    HRESULT            hrEnd        = S_OK;
+    HRESULT            hrReplay     = S_OK;
+    D2D1_MATRIX_3X2_F  transform    = {};
+    size_t             clipCount    = 0;
+    bool               isRecording  = false;
+    bool               isTargetLost = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_renderer.m_d2dContext);
+
+    isRecording = m_renderer.m_drawing && m_cmdList != nullptr && m_shadowSavedContext == nullptr && !m_isDiscardingPass;
+    BAIL_OUT_IF (!isRecording, S_OK);
+
+    m_renderer.m_d2dContext->GetTransform (&transform);
+
+    for (clipCount = m_renderer.m_pushedClips.size(); clipCount > 0; clipCount--)
+    {
+        m_renderer.m_d2dContext->PopAxisAlignedClip();
+    }
+
+    hrEnd                = m_renderer.m_d2dContext->EndDraw();
+    m_renderer.m_drawing = false;
+
+    hrReplay           = ReplayRecording (hrEnd, isTargetLost);
+    m_isDiscardingPass = isTargetLost;
+
+    hr = StartRecording();
+    CHRA (hr);
+
+    for (const DxuiTextRenderer::PushedClip & clip : m_renderer.m_pushedClips)
+    {
+        m_renderer.m_d2dContext->SetTransform        (clip.transform);
+        m_renderer.m_d2dContext->PushAxisAlignedClip (&clip.rect, D2D1_ANTIALIAS_MODE_ALIASED);
+    }
+
+    m_renderer.m_d2dContext->SetTransform (transform);
+
+    hr = hrReplay;
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartRecording
+//
+//  Points the context at a fresh command list and opens it. A closed list
+//  cannot be reopened, so every recording gets a new one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiRenderTargets::StartRecording()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    m_cmdList.Reset();
+
+    hr = m_renderer.m_d2dContext->CreateCommandList (m_cmdList.GetAddressOf());
+    CHRA (hr);
+
+    m_renderer.m_d2dContext->SetTarget (m_cmdList.Get());
+    m_renderer.m_d2dContext->BeginDraw();
+    m_renderer.m_drawing = true;
+
+Error:
+    if (FAILED (hr))
+    {
+        m_cmdList.Reset();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReplayRecording
+//
+//  Puts the back buffer back and draws the recording onto it, given what the
+//  EndDraw that closed the recording returned.
+//
+//  The command list is drawn under the identity transform. Every draw in it
+//  already has the transform that was in effect when it was drawn, so drawing
+//  the list under the origin as well would offset it twice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiRenderTargets::ReplayRecording (HRESULT hrEnd, bool & outIsTargetLost)
+{
+    HRESULT            hr        = S_OK;
+    D2D1_MATRIX_3X2_F  transform = {};
+
+
+
+    outIsTargetLost = (hrEnd == D2DERR_RECREATE_TARGET);
 
     // The target goes back FIRST and unconditionally. Leaving the context
     // aimed at a command list would strand every later pass on a recording
     // nothing replays.
     m_renderer.m_d2dContext->SetTarget (m_renderer.m_target.Get());
 
-    if (isTargetLost)
+    if (outIsTargetLost)
     {
         m_renderer.UnbindBackBuffer();
     }
@@ -272,7 +557,7 @@ HRESULT DxuiRenderTargets::EndDrawDeferred()
     // The recording is dropped rather than replayed when the pass that made
     // it failed: half a frame's text over a frame the caller may not have
     // finished is worse than none of it.
-    BAIL_OUT_IF (isTargetLost, S_OK);
+    BAIL_OUT_IF (outIsTargetLost || m_isDiscardingPass, S_OK);
 
     hr = hrEnd;
     CHRA (hr);
@@ -282,17 +567,23 @@ HRESULT DxuiRenderTargets::EndDrawDeferred()
     hr = m_cmdList->Close();
     CHRA (hr);
 
+    m_renderer.m_d2dContext->GetTransform (&transform);
+    m_renderer.m_d2dContext->SetTransform (D2D1::Matrix3x2F::Identity());
+
     m_renderer.m_d2dContext->BeginDraw();
     m_renderer.m_d2dContext->DrawImage (m_cmdList.Get());
-    hrEnd        = m_renderer.m_d2dContext->EndDraw();
-    isTargetLost = (hrEnd == D2DERR_RECREATE_TARGET);
+    hrEnd = m_renderer.m_d2dContext->EndDraw();
 
-    if (isTargetLost)
+    m_renderer.m_d2dContext->SetTransform (transform);
+
+    outIsTargetLost = (hrEnd == D2DERR_RECREATE_TARGET);
+
+    if (outIsTargetLost)
     {
         m_renderer.UnbindBackBuffer();
     }
 
-    BAIL_OUT_IF (isTargetLost, S_OK);
+    BAIL_OUT_IF (outIsTargetLost, S_OK);
 
     hr = hrEnd;
     CHRA (hr);

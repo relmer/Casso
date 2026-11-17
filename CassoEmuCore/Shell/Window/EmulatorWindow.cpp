@@ -13,6 +13,9 @@
 #include "Shell/WindowManager.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellDrivePickers.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Shell/DiskPortChainRule.h"
 #include "Shell/Components/ShellSerialCard.h"
 #include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/DiskManager.h"
@@ -29,6 +32,7 @@
 #include "Config/CrtResolver.h"
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
+#include "Ui/DiskInspector/DiskInspectorWindow.h"
 #include "Ui/PrinterPanel.h"
 #include "Core/PathResolver.h"
 #include "Version.h"
@@ -414,6 +418,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // of the Apple ][ framebuffer each frame. The title bar is NOT here:
     // the host owns the caption strip itself.
     m_chrome->AdoptMenuBar (m_host->GetRoot());
+
+    m_chrome->AdoptDriveBar (m_host->GetRoot());
+    m_chrome->HideDriveBar();
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
     m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
@@ -520,6 +527,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_VIEW_FRAME_RATE:         return m_settings->GetPrefs().showFrameRate;
             case IDM_VIEW_SCENE_VIEW:         return m_settings->GetPrefs().showSceneView;
             case IDM_VIEW_AUTOHIDE_DRIVES:    return m_settings->GetPrefs().autoHideDrives;
+            case IDM_VIEW_FLOPPIES_ON_DESK:   return m_scene->IsClassOnDesk (DeskDriveClass::Floppy);
+            case IDM_VIEW_HARD_DISKS_ON_DESK: return m_scene->IsClassOnDesk (DeskDriveClass::HardDisk);
+            case IDM_VIEW_FLOPPY_PAIR_BESIDE: return m_settings->GetPrefs().deskFloppyPairBeside;
 
             default:                          return false;
         }
@@ -548,18 +558,35 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         m_input->GetControllers().StartNewControllerProfile (unit);
     });
 
+    // A drive command is offered for the Disk II drive it acts on, and the
+    // //c Plus's built-in drive has only insert and eject.
     m_chrome->GetMainMenu().SetEnableQuery ([this] (WORD commandId) -> bool
     {
+        int   drive1  = m_disks->GetMenuDrive (0).diskIiDrive;
+        int   drive2  = m_disks->GetMenuDrive (1).diskIiDrive;
+        int   drive3  = m_disks->GetMenuDrive (2).diskIiDrive;
+        auto  isShown = [this] (int drive) { return drive == 0 || (drive == 1 && m_disks->ShouldShowExternalDrive()); };
+
         switch (commandId)
         {
-            case IDM_DISK_WP1:      return m_disks->IsWriteProtectToggleOffered (0);
-            case IDM_DISK_WP2:      return m_disks->IsWriteProtectToggleOffered (1);
-            case IDM_DISK_SALVAGE1: return m_disks->IsSalvageOffered (0);
-            case IDM_DISK_SALVAGE2: return m_disks->IsSalvageOffered (1);
+            case IDM_DISK_WP1:      return drive1 >= 0 && m_disks->IsWriteProtectToggleOffered (drive1);
+            case IDM_DISK_WP2:      return drive2 >= 0 && m_disks->IsWriteProtectToggleOffered (drive2);
+            case IDM_DISK_WP3:      return drive3 >= 0 && m_disks->IsWriteProtectToggleOffered (drive3);
+            case IDM_DISK_SALVAGE1: return drive1 >= 0 && m_disks->IsSalvageOffered (drive1);
+            case IDM_DISK_SALVAGE2: return drive2 >= 0 && m_disks->IsSalvageOffered (drive2);
+            case IDM_DISK_SALVAGE3: return drive3 >= 0 && m_disks->IsSalvageOffered (drive3);
+            case IDM_DISK_INSPECT1: return isShown (drive1) && m_disks->GetManager()->HasSlot6Controller();
+            case IDM_DISK_INSPECT2: return isShown (drive2) && m_disks->GetManager()->HasSlot6Controller();
+            case IDM_DISK_INSPECT3: return isShown (drive3) && m_disks->GetManager()->HasSlot6Controller();
+            case IDM_DISK_THUMBNAIL1: return isShown (drive1) && !m_disks->GetMountedImagePath (drive1).empty();
+            case IDM_DISK_THUMBNAIL2: return isShown (drive2) && !m_disks->GetMountedImagePath (drive2).empty();
+            case IDM_DISK_THUMBNAIL3: return isShown (drive3) && !m_disks->GetMountedImagePath (drive3).empty();
             case IDM_STORAGE_DRIVE2:   return m_disks->IsSecondDriveOffered();
             case IDM_STORAGE_RECORDER: return m_tapeDeck->MachineHasCassettePort();
-            case IDM_DISK_INSERT2:     return m_disks->ShouldShowExternalDrive();
-            case IDM_DISK_EJECT2:      return m_disks->ShouldShowExternalDrive();
+            case IDM_DISK_INSERT2:     return isShown (drive2);
+            case IDM_DISK_EJECT2:      return isShown (drive2);
+            case IDM_DISK_INSERT3:     return isShown (drive3);
+            case IDM_DISK_EJECT3:      return isShown (drive3);
             case IDM_TAPE_INSERT:      return m_tapeDeck->IsTapeRecorderShown();
             case IDM_TAPE_NEW:         return m_tapeDeck->IsTapeRecorderShown();
             case IDM_TAPE_PLAY:        return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,        m_tapeDeck->GetTapeView());
@@ -570,6 +597,52 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_VIEW_DRIVE_STRIP: return AreDrivesAutoHidden();
             default:           return true;
         }
+    });
+
+    m_chrome->GetMainMenu().SetVisibleQuery ([this] (WORD commandId) -> bool
+    {
+        const MachineConfig  & config    = m_machine.GetConfig();
+        bool                   visible   = true;
+        bool                   portChain = DiskPortChainRule::IsOffered (config);
+
+
+
+        switch (commandId)
+        {
+            case IDM_VIEW_FLOPPY_PAIR_BESIDE: visible = m_scene->IsFloppyPairBesideOffered();                                       break;
+
+            // The //c Plus's port drives are plugged in from the plug-in rows.
+            // Each row is visible only while the port has room for its kind.
+            case IDM_STORAGE_DRIVE2:          visible = !portChain;                                                                 break;
+            case IDM_STORAGE_ATTACH_APPLE35:  visible = portChain && DiskPortChainRule::CanPlugIn (config, kpszApple35DriveDevice); break;
+            case IDM_STORAGE_ATTACH_FLOPPY:   visible = portChain && DiskPortChainRule::CanPlugIn (config, kpszDiskIicDevice);      break;
+
+            // The drive 3 commands are for a //c Plus with two 5.25-inch
+            // drives on its port. Its built-in drive 1 has only insert and
+            // eject.
+            case IDM_DISK_INSERT3:
+            case IDM_DISK_EJECT3:
+            case IDM_DISK_WP3:
+            case IDM_DISK_SALVAGE3:
+            case IDM_DISK_INSPECT3:
+            case IDM_DISK_THUMBNAIL3:         visible = m_disks->GetMenuDrive (2).IsDiskIi();                                       break;
+            case IDM_DISK_WP1:
+            case IDM_DISK_SALVAGE1:
+            case IDM_DISK_INSPECT1:
+            case IDM_DISK_THUMBNAIL1:         visible = !m_disks->GetMenuDrive (0).isBuiltIn35;                                     break;
+
+            // A machine without a cassette port has no recorder rows.
+            case IDM_STORAGE_RECORDER:
+            case IDM_TAPE_INSERT:
+            case IDM_TAPE_PLAY:
+            case IDM_TAPE_STOP:
+            case IDM_TAPE_REWIND:
+            case IDM_TAPE_FASTFORWARD:
+            case IDM_TAPE_EJECT:              visible = m_tapeDeck->MachineHasCassettePort();                                       break;
+            default:                                                                                                                break;
+        }
+
+        return visible;
     });
 
     m_chrome->GetMainMenu().SetLabelQuery ([this] (WORD commandId) -> std::wstring
@@ -594,6 +667,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
             case IDM_DISK_WP1:
             case IDM_DISK_WP2:
+            case IDM_DISK_WP3:
             {
                 // Give the mounted image and the ACTION the click will take:
                 // write-enable when the WOZ flag or the read-only attribute
@@ -601,8 +675,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                 // preference is a different toggle and does not flip it. An
                 // empty return keeps the static "Write-protect disk N" label
                 // for an empty (disabled) drive.
-                int           drive = (commandId == IDM_DISK_WP1) ? 0 : 1;
-                DiskImage  *  image = m_machine.GetDiskStore().GetImage (6, drive);
+                int           drive = m_disks->GetMenuDrive ((commandId == IDM_DISK_WP1) ? 0 : ((commandId == IDM_DISK_WP3) ? 2 : 1)).diskIiDrive;
+                DiskImage  *  image = (drive >= 0) ? m_machine.GetDiskStore().GetImage (6, drive) : nullptr;
                 std::wstring  name;
 
                 if (image == nullptr)
@@ -661,17 +735,26 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
         (void) vr;                                        // dock side-effect: bands arranged
 
-        if (DeskSceneActive())
+        // The drive bar is in the desk theme's band, and in a compact theme's
+        // when the machine has drives other than its Disk II drives.
+        if (m_scene->AreDrivesOnBar())
         {
+            m_chrome->LayoutDriveBar (bottomInsetPx, clientW, clientH, dpi);
+            m_scene->SyncSceneDriveChrome();
+        }
+        else if (DeskSceneActive())
+        {
+            m_chrome->HideDriveBar();
             m_scene->SyncSceneDriveChrome();
         }
         else if (!AreDrivesOnStrip())
         {
+            m_chrome->HideDriveBar();
             m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, clientW, clientH, dpi, m_chrome->GetSceneScale(),
                                                       m_disks->ShouldShowExternalDrive() ? 2 : 1);
         }
 
-        m_chrome->LayoutDriveBandSurface (!DeskSceneActive() && !AreDrivesOnStrip(), RECT{ 0, driveRect.top, clientW, clientH });
+        m_chrome->LayoutDriveBandSurface ((!DeskSceneActive() || m_scene->AreDrivesOnBar()) && !AreDrivesOnStrip(), RECT{ 0, driveRect.top, clientW, clientH });
 
         m_chrome->LayoutSwitchBar (dpi);
     }
@@ -908,6 +991,10 @@ int EmulatorShell::RunMessageLoop()
             m_input->GetControllers().SyncPaddleSourceList();
         }
 
+        // A drive picker closes inside a message of its window, so it is
+        // released here, between messages.
+        m_drivePickers->ReleaseClosed();
+
         // Process pending messages, bounded by the drain deadline (see banner):
         // the deadline check gates the NEXT retrieval, so a message already
         // removed from the queue is always dispatched, never dropped.
@@ -949,7 +1036,16 @@ int EmulatorShell::RunMessageLoop()
             bool  settingsActive = (m_settings->GetSheet() != nullptr &&
                                     m_settings->GetSheet()->GetHwnd() == GetActiveWindow());
 
-            if (settingsActive ||
+            // Keystrokes sent to the disk inspector, or a popup owned by it,
+            // skip the main window's accelerators: Ctrl+0 there resets the
+            // inspector's zoom, not the main window's size.
+            bool  inspectorTarget = msg.hwnd != nullptr && IsDiskInspectorWindow (GetAncestor (msg.hwnd, GA_ROOTOWNER));
+
+            // Keystrokes in a drive picker are the picker's, as the
+            // inspector's are.
+            bool  pickerTarget = msg.hwnd != nullptr && m_drivePickers->IsPickerWindow (msg.hwnd);
+
+            if (settingsActive || inspectorTarget || pickerTarget ||
                 m_debugger->IsDebuggerMessage (msg) ||
                 !m_window->TranslateAcceleratorMessage (msg))
             {
@@ -1119,14 +1215,26 @@ DxuiMessageResult EmulatorShell::OnCommand (WORD commandId)
 //  OnClose
 //
 //  Every way out of Casso comes through here: the close box, Alt+F4, File >
-//  Exit and the updater's restart. For a command-line launch's machine, a
-//  prompt runs before the automatic state it did not resume is replaced; the
-//  window closes whatever the choice.
+//  Exit and the updater's restart. With unsaved changes in a disk inspector
+//  window, a confirmation comes first, and Casso stays open when the user
+//  cancels (FR-108). For a command-line launch's machine, a prompt runs
+//  before the automatic state it did not resume is replaced; the window
+//  closes whatever the choice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult EmulatorShell::OnClose()
 {
+    bool  isGoingOn = ConfirmInspectorDiscard ([hwnd = m_hwnd] () { PostMessageW (hwnd, WM_CLOSE, 0, 0); });
+
+
+
+    if (!isGoingOn)
+    {
+        return DxuiMessageResult::Handled;
+    }
+
+    SaveInspectorPrefs (nullptr);
     PromptToReplaceAutoState();
 
     return DxuiMessageResult::NotHandled;
@@ -1173,6 +1281,10 @@ void EmulatorShell::OnDestroy()
     // P6 -- revoke the IDropTarget before the HWND is destroyed.
     // RevokeDragDrop requires a valid window handle.
     m_window->ShutdownDragDrop();
+
+    // The pickers are owned by this window and insert in this machine's
+    // drives.
+    m_drivePickers->CloseAll();
 
     // Join the printer drain thread before teardown frees the card, and
     // persist the pending strip on clean exit (FR-026); empty clears any stale
@@ -1644,6 +1756,21 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
+    // A hard disk's new image attached on the CPU thread, saved with the
+    // machine here.
+    if (msg == (UINT) AppMessage::ShellHardDiskImage)
+    {
+        ShellDisks::HardDiskImageChange *  change = reinterpret_cast<ShellDisks::HardDiskImageChange *> (lParam);
+
+        if (change != nullptr)
+        {
+            SaveHardDiskImage (change->slot, change->drive, change->path);
+            delete change;
+        }
+
+        return DxuiMessageResult::Handled;
+    }
+
     // Game-port input submitted off the UI thread (the controller thread, or a
     // machine rebuild) waits here to be written: the device setters report
     // host input to their input event sink, which is UI-thread only. Going
@@ -1801,6 +1928,10 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
     if (msg == (UINT) AppMessage::ShellUpdateTitle)
     {
+        // The switched machine's drives are not the ones the open pickers
+        // were opened for.
+        m_drivePickers->CloseAll();
+
         m_window->UpdateWindowTitle();
         m_chrome->ReflowChromeForMachineChange();
 

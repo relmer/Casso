@@ -4,6 +4,7 @@
 
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/PicturePreview.h"
+#include "FileTypes/DecodedFile.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 
@@ -82,6 +83,31 @@ struct VariableArray
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ViewChoice
+//
+//  A view of a file the preview's View as offers: its default, or one of
+//  the others PreviewViewChoices lists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class ViewChoice
+{
+    Default,
+    Text,
+    Hex,
+    Disassembly,
+    HiRes,
+    DoubleHiRes,
+    LoRes,
+    ResourceFork,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewContent
 //
 //  What the preview pane shows for one entry, by kind. Text-shaped kinds
@@ -94,7 +120,9 @@ struct PreviewContent
 {
     //  Shell is Windows' own preview of a host file, which the window hosts.
     //  Variables is a VAR file's Applesoft variables.
-    enum class Kind { Listing, Text, Picture, Hex, Catalog, Details, Error, Shell, Variables };
+    //  Document is styled paragraphs, and Grid headings and rows, from a
+    //  format FileFormatTable decodes.
+    enum class Kind { Listing, Text, Picture, Hex, Catalog, Details, Error, Shell, Variables, Document, Grid };
 
     Kind                       kind   = Kind::Hex;
     std::vector<std::wstring>  lines;
@@ -110,6 +138,8 @@ struct PreviewContent
     int                        width  = 0;
     int                        height = 0;
     std::vector<CatalogRow>    rows;
+    std::vector<Paragraph>     paragraphs;
+    Grid                       grid;
 
     //  The rows are what an archive holds, shown as the file list shows a
     //  folder rather than as a catalog.
@@ -147,6 +177,10 @@ struct PreviewContent
     //  numbers.
     bool                       source = false;
 
+    //  Set for an assembler's source decoded from its Apple form, as Merlin
+    //  saves it, whose wrapped lines continue under the operand.
+    bool                       assembler = false;
+
     //  Set for a hex preview rendered as 6502 instructions in `lines`.
     bool                       disassembly = false;
 
@@ -164,6 +198,20 @@ struct PreviewContent
     //  A WOZ image, for Disk properties. Its catalog has the image's WOZ info
     //  and metadata in `details`, listed above it.
     std::wstring               wozPath;
+
+    //  The character set text was read in, Default when the preview has no
+    //  choice of one, and the record length a random-access text file was
+    //  split by, 0 for any other file. The sheet form is the one a
+    //  spreadsheet with formulas is listed in, None for any other file.
+    Charset                    charset      = Charset::Default;
+    size_t                     recordLength = 0;
+    SheetForm                  sheetForm    = SheetForm::None;
+
+    //  The views in View as besides the default, the current one, and the
+    //  default's name.
+    std::vector<ViewChoice>    viewChoices;
+    ViewChoice                 viewAs       = ViewChoice::Default;
+    std::wstring               defaultView;
 
     bool  operator== (const PreviewContent &) const = default;
 };
@@ -214,6 +262,8 @@ public:
 
     //  The whole preview for one file's payload. `bus` is handed to the video
     //  modes and never read; a test proves it with a bus that fails on read.
+    //  A format FileFormatTable identifies is decoded first; one that fails
+    //  to decode is rendered by its type, with the reason as the warning.
     static HRESULT  Render (const FileEntry    & entry,
                             VolumeKind           kind,
                             const FilePayload  & payload,
@@ -221,7 +271,20 @@ public:
                             MemoryBus          & bus,
                             PreviewContent     & outContent,
                             PicturePreview::Monitor  monitor    = PicturePreview::Monitor::Color,
-                            uint32_t                 customArgb = PicturePreview::kDefaultCustomArgb);
+                            uint32_t                 customArgb = PicturePreview::kDefaultCustomArgb,
+                            const DecodeOptions    & options    = DecodeOptions());
+
+    static HRESULT  RenderByType (const FileEntry    & entry,
+                                  VolumeKind           kind,
+                                  const FilePayload  & payload,
+                                  HexForm              hexForm,
+                                  MemoryBus          & bus,
+                                  PreviewContent     & outContent,
+                                  PicturePreview::Monitor  monitor,
+                                  uint32_t                 customArgb);
+
+    //  A decoded file as a preview.
+    static void  FromDecoded (const DecodedFile & decoded, PreviewContent & outContent);
 
     //  A disk image's catalog, for an image selected in the file list.
     static void  RenderCatalog (const VolumeListing & listing, VolumeKind kind, PreviewContent & outContent);
@@ -283,6 +346,9 @@ private:
 
     //  Where BASIC.SYSTEM loads and runs a CMD file.
     static constexpr Word    s_kCommandLoadAddress = 0x4000;
+
+    //  Hi-res page 1, where an unpacked LZ4FH picture is drawn from.
+    static constexpr Word    s_kHiResPage = 0x2000;
 
     //  The first address past the stack, and the I/O space's range.
     static constexpr Word    s_kFirstCodeAddress = 0x0200;

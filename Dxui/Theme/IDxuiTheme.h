@@ -427,6 +427,24 @@ public:
         return (WarningAccent() & 0x00FFFFFFu) | kBorderAlpha;
     }
 
+    //
+    //  Error severity: the theme's error color, tinted and edged as a
+    //  warning is, for a notice that something is damaged or failed.
+    //
+    virtual uint32_t  InfoBannerErrorBackground () const
+    {
+        constexpr uint32_t  kTintAlpha = 0x1Fu << 24;
+
+        return (ErrorForeground() & 0x00FFFFFFu) | kTintAlpha;
+    }
+
+    virtual uint32_t  InfoBannerErrorBorder () const
+    {
+        constexpr uint32_t  kBorderAlpha = 0xCCu << 24;
+
+        return (ErrorForeground() & 0x00FFFFFFu) | kBorderAlpha;
+    }
+
     // Typography. Returned handles are opaque to widgets.
     virtual DxuiFontHandle  BodyFont      () const = 0;
     virtual DxuiFontHandle  BodyBoldFont  () const = 0;

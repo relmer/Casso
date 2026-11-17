@@ -29,6 +29,8 @@ enum class AppTimerId : UINT_PTR
     ExplorerUpdateIndicator = 0x515A,
     ExplorerLinkTransfer = 0x515B,
     ExplorerCassette     = 0x515C,
+    ExplorerDeviceSoon   = 0x515D,
+    ExplorerDeviceLate   = 0x515E,
     PreviewHelperOwner   = 0x5160,
     ControllerRescanSoon = 0x5161,
     ControllerRescanLate = 0x5162,

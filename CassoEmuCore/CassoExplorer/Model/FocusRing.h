@@ -59,6 +59,10 @@ public:
                                                const std::vector<bool> & previewToolbarEnabled = {},
                                                const std::vector<bool> & commandBarEnabled     = {});
 
+    //  The stops of a tab whose preview fills it: the tab strip, the preview's
+    //  toolbar buttons and the preview.
+    static std::vector<FocusStop>  BuildExpandedStops (const std::vector<bool> & previewToolbarEnabled);
+
     //  The stop after `current`, or before it when moving backward, wrapping at
     //  either end. If `current` is not in `stops`, for example a button that was
     //  just disabled, the result is the first stop, or the last when moving

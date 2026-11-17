@@ -44,6 +44,30 @@ public:
         return rc;
     }
 
+    //  A tooltip in a popup has its host's DPI after a layout at a zoomed
+    //  scale, so a balloon that is up draws its text at the size it was
+    //  measured at. One drawn in its window follows the layout.
+    TEST_METHOD (ATooltipInAPopup_KeepsItsDpiThroughAZoomedLayout)
+    {
+        DxuiHwndSource  host;
+        DxuiTooltip     popupTip;
+        DxuiTooltip     windowTip;
+        DxuiDpiScaler   zoomed;
+
+
+
+        zoomed.SetDpi (204);
+
+        popupTip.SetDpi       (144);
+        popupTip.SetPopupHost (&host);
+        popupTip.Layout       (RECT { 0, 0, 100, 20 }, zoomed);
+
+        windowTip.Layout (RECT { 0, 0, 100, 20 }, zoomed);
+
+        Assert::AreEqual (144u, popupTip.GetDpi());
+        Assert::AreEqual (204u, windowTip.GetDpi());
+    }
+
     TEST_METHOD (Request_HiddenUntilDwellElapses)
     {
         DxuiTooltip  t;
@@ -75,6 +99,43 @@ public:
             L"DxuiTooltip must remain visible until the close-dwell elapses.");
 
         t.Tick (250);
+        Assert::IsFalse (t.IsVisible());
+    }
+
+    TEST_METHOD (HoverTip_StaysUntilThePointerLeaves)
+    {
+        static constexpr int64_t  kLongAfter = 1000000;
+
+        DxuiTooltip  t;
+
+        t.SetDwellOpenMs  (0);
+        t.SetDwellCloseMs (0);
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"x", 0);
+        t.Tick (0);
+
+        t.Tick (kLongAfter);
+        Assert::IsTrue (t.IsVisible(), L"no time limit");
+
+        t.RequestHide (kLongAfter);
+        t.Tick (kLongAfter);
+        Assert::IsFalse (t.IsVisible());
+    }
+
+    static bool  IsActiveForTest()   { return s_isActive; }
+
+    static inline bool  s_isActive = true;
+
+    TEST_METHOD (TimedNotice_IgnoresTheForeground)
+    {
+        DxuiTooltip  t;
+
+        s_isActive = false;
+        t.SetActiveTest (IsActiveForTest);
+        t.ShowTimed (MakeRect (0, 0, 50, 20), L"a notice", 0, 1000);
+        t.Tick (1);
+        Assert::IsTrue (t.IsVisible());
+
+        t.Tick (1000);
         Assert::IsFalse (t.IsVisible());
     }
 
@@ -208,6 +269,7 @@ public:
     TEST_METHOD (Visible_DismissesAfterMaxLifetime)
     {
         DxuiTooltip  t;
+        t.SetHasLifetime (true);
         t.SetDwellOpenMs (100);
         t.SetHasLifetime (true);
 
@@ -232,6 +294,7 @@ public:
     TEST_METHOD (Visible_RepeatedRequestDoesNotRenewLifetime)
     {
         DxuiTooltip  t;
+        t.SetHasLifetime (true);
         t.SetDwellOpenMs (100);
         t.SetHasLifetime (true);
 

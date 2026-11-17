@@ -26,6 +26,9 @@
 static constexpr Word  s_kScreenBlockMask     = 0x7F;
 static constexpr Word  s_kFirstScreenHoleByte = 0x78;
 
+// The soft switch page, the only one the I/O observer watches.
+static constexpr Word  s_kIoPage              = 0xC0;
+
 
 
 
@@ -131,6 +134,10 @@ Byte MemoryBus::ReadByte (Word address)
     {
         value = ReadWatchedPage (address);
     }
+    else if (m_ioObserver != nullptr && (address >> 8) == s_kIoPage && m_ioObserver->OnIoAccess (address, false, 0, value))
+    {
+        m_floatingBusValue = value;
+    }
     else
     {
         device = FindDevice (address);
@@ -168,10 +175,18 @@ Byte MemoryBus::ReadByte (Word address)
 
 Byte MemoryBus::ReadFromDevice (Word address)
 {
-    MemoryDevice *  device = FindDevice (address);
+    MemoryDevice *  device = nullptr;
     Byte            value  = 0;
 
 
+
+    if (m_ioObserver != nullptr && (address >> 8) == s_kIoPage && m_ioObserver->OnIoAccess (address, false, 0, value))
+    {
+        m_floatingBusValue = value;
+        return value;
+    }
+
+    device = FindDevice (address);
 
     if (device != nullptr)
     {
@@ -342,6 +357,12 @@ void MemoryBus::WriteByte (Word address, Byte value)
         return;
     }
 
+    if (IsIoObserved (address, value))
+    {
+        m_floatingBusValue = value;
+        return;
+    }
+
     device = FindDevice (address);
 
     if (device != nullptr)
@@ -355,6 +376,28 @@ void MemoryBus::WriteByte (Word address, Byte value)
     }
 
     m_floatingBusValue = value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsIoObserved
+//
+//  Whether the I/O observer took a write to the $C0xx page, so that no
+//  device sees it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryBus::IsIoObserved (Word address, Byte value)
+{
+    Byte  ignored = 0;
+
+
+
+    return m_ioObserver != nullptr && (address >> 8) == s_kIoPage && m_ioObserver->OnIoAccess (address, true, value, ignored);
 }
 
 
@@ -431,6 +474,10 @@ void MemoryBus::WriteWatchedPage (Word address, Byte value)
     {
         previous = page[address & 0xFF];
         StoreToPage (page, address, value);
+    }
+    else if (IsIoObserved (address, value))
+    {
+        m_floatingBusValue = value;
     }
     else
     {

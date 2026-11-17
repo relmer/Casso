@@ -52,19 +52,37 @@ struct DxuiIconImage;
 class DxuiTextView : public IDxuiControl, public IDxuiFindTarget
 {
 public:
-    //  A run of a cell's characters drawn in a color of their own.
+    //  A run of a cell's characters drawn in a color of their own, and bold,
+    //  italic or underlined. An inverse run is filled with its color and its
+    //  text drawn in the background color.
     struct Span
     {
         int       cell       = 0;
         int       start      = 0;
         int       length     = 0;
         uint32_t  argb       = 0;
-        uint32_t  background = 0;   // a fill behind the characters; with argb zero, their text color is the usual one
+        uint32_t  background = 0;       // a fill behind the characters; with argb zero, their text color is the usual one
         bool      isLink     = false;   // with argb zero, drawn in the theme's link color
+        bool      bold       = false;
+        bool      italic     = false;
+        bool      underline  = false;
+        bool      inverse    = false;
+    };
+
+    //  A picture in 32-bit BGRA pixels, drawn a pixel a DIP, or smaller to
+    //  fit the text's width.
+    struct Picture
+    {
+        std::vector<uint32_t>  bgra;
+        int                    width  = 0;
+        int                    height = 0;
     };
 
     //  A row's fill spans the view's width on every line it takes; its icon
-    //  is drawn in the gutter, on its first line.
+    //  is drawn in the gutter, on its first line. A row of one cell is
+    //  aligned in the text's width on each line it wraps onto; Justify draws
+    //  as Left. A row with a picture is the picture alone, on as many lines
+    //  as it is tall.
     struct Row
     {
         std::vector<std::wstring>              cells;
@@ -86,6 +104,9 @@ public:
         //  The fill of the gutter's band (SetGutterBand) on each line the
         //  row takes; zero for none.
         uint32_t                               gutterFill = 0;
+
+        DxuiTextHAlign                         alignment  = DxuiTextHAlign::Left;
+        std::shared_ptr<const Picture>         picture;
     };
 
     //  A character in a row's text, its cells joined by tabs.
@@ -194,6 +215,11 @@ public:
     void   SetZoom         (float zoom);
     float  GetZoom         () const               { return m_zoom; }
     void   SetTextStrength (float strength)       { m_textStrength = strength; }
+
+    //  The vertical bar neither drawn nor hit-tested, for a host that scrolls
+    //  the view with another bar; its strip stays reserved. Off by default.
+    void   SetVerticalScrollbarHidden (bool hidden) { m_vertBarHidden = hidden; }
+    int    GetLineHeightPx            () const      { return m_cellHeightPx; }
 
     //  A line's height as a multiple of the face's, the extra split above and
     //  below the text. 1 by default; ignored while the cell size is pinned.
@@ -372,8 +398,8 @@ public:
     bool  IsScrollbarVisible () const { return (int) m_lines.size() > GetLineCap(); }
 
     //  Whether a point is on the scrollbar, and the hover that widens it.
-    bool  IsOverScrollbar   (POINT pt) const override { return (IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y)) || (IsHorzScrollbarVisible() && m_horzScroll.HitTest (pt.x, pt.y)); }
-    bool  SetScrollbarHover (POINT pt)                { bool  vert = m_vertScroll.SetHover (IsScrollbarVisible() && m_vertScroll.HitTest (pt.x, pt.y), pt); return m_horzScroll.SetHover (IsHorzScrollbarVisible() && m_horzScroll.HitTest (pt.x, pt.y), pt) || vert; }
+    bool  IsOverScrollbar   (POINT pt) const override { return (IsScrollbarVisible() && !m_vertBarHidden && m_vertScroll.HitTest (pt.x, pt.y)) || (IsHorzScrollbarVisible() && m_horzScroll.HitTest (pt.x, pt.y)); }
+    bool  SetScrollbarHover (POINT pt)                { bool  vert = m_vertScroll.SetHover (IsScrollbarVisible() && !m_vertBarHidden && m_vertScroll.HitTest (pt.x, pt.y), pt); return m_horzScroll.SetHover (IsHorzScrollbarVisible() && m_horzScroll.HitTest (pt.x, pt.y), pt) || vert; }
     bool  TickScrollbars    (int64_t nowMs)           { bool  vert = m_vertScroll.Tick (nowMs); return m_horzScroll.Tick (nowMs) || vert; }
 
     //  Windows' scrollbar menu when the point is on one of the bars, in the
@@ -467,6 +493,19 @@ private:
     int           GetTextBaseLeft   () const;
     int           GetHorzBarPx      () const;
     void          PaintLineGutter   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, int lineIndex);
+    void          PaintPicture      (IDxuiTextRenderer & text, int lineIndex) const;
+    void          AddPictureLines   (int row, float widthPx);
+
+    //  Each character's style bits by the row's spans, empty for a row with
+    //  no styled span; and how far a line of an aligned row starts from the
+    //  text's left.
+    std::vector<uint8_t>  GetRowStyles (const Row & row) const;
+    float                 GetLineShift (int lineIndex) const;
+
+    static constexpr uint8_t  kStyleBold      = 0x01;
+    static constexpr uint8_t  kStyleItalic    = 0x02;
+    static constexpr uint8_t  kStyleUnderline = 0x04;
+    static constexpr uint8_t  kStyleInverse   = 0x08;
     bool          TryMoveFocusRow   (WPARAM vk, bool ctrl);
 
     //  A drawn line's height, a line's top counted from the first line shown,
@@ -510,38 +549,46 @@ private:
     bool                    m_cellPinned      = false;
     float                   m_zoom            = 1.0f;
     float                   m_textStrength    = 1.0f;
-    float                   m_lineSpacing     = 1.0f;
-    int                     m_textTopPx       = 0;
-    int                     m_gutterDip       = 0;
-    int                     m_gutterIconDip   = 0;
-    float                   m_glyphCenterDip  = 0.0f;
-    int                     m_bandLeftDip     = 0;
-    int                     m_bandWidthDip    = 0;
-    UINT                    m_measuredDpi     = 0;
-    int                     m_topLine         = 0;
-    bool                    m_followEnd       = false;
-    bool                    m_paneTextInset   = false;
-    bool                    m_atEnd           = true;
-    Position                m_anchor;
-    Position                m_caret;
-    bool                    m_scoped          = false;
-    Position                m_scopeStart;
-    Position                m_scopeEnd;
-    std::vector<FindMatch>  m_highlights;
-    Position                m_userAnchor;
-    Position                m_userCaret;
-    uint32_t                m_findMatchArgb   = 0;
-    uint32_t                m_findCurrentArgb = 0;
-    Position                m_lastClick;
-    int64_t                 m_lastClickMs     = 0;
-    int                     m_clicks          = 0;      // the clicks in a row on one spot, each within the double-click time
-    float                   m_wheelLines      = 0.0f;   // a touchpad's part notches, until they make a line
-    float                   m_wheelColumns    = 0.0f;   // and until they make a column
-    bool                    m_dragging        = false;
-    bool                    m_wordDrag        = false;
-    Position                m_wordFirst;
-    Position                m_wordLast;
-    HWND                    m_hwnd            = nullptr;
+    bool                    m_vertBarHidden   = false;
+
+    //  The line being painted: its shift for its row's alignment, each
+    //  character's style bits, and the painter an underline and an inverse
+    //  fill are drawn with.
+    mutable float                   m_paintShift      = 0.0f;
+    mutable std::vector<uint8_t>    m_paintStyles;
+    mutable IDxuiPainter          * m_paintPainter    = nullptr;
+    float                           m_lineSpacing     = 1.0f;
+    int                             m_textTopPx       = 0;
+    int                             m_gutterDip       = 0;
+    int                             m_gutterIconDip   = 0;
+    float                           m_glyphCenterDip  = 0.0f;
+    int                             m_bandLeftDip     = 0;
+    int                             m_bandWidthDip    = 0;
+    UINT                            m_measuredDpi     = 0;
+    int                             m_topLine         = 0;
+    bool                            m_followEnd       = false;
+    bool                            m_paneTextInset   = false;
+    bool                            m_atEnd           = true;
+    Position                        m_anchor;
+    Position                        m_caret;
+    bool                            m_scoped          = false;
+    Position                        m_scopeStart;
+    Position                        m_scopeEnd;
+    std::vector<FindMatch>          m_highlights;
+    Position                        m_userAnchor;
+    Position                        m_userCaret;
+    uint32_t                        m_findMatchArgb   = 0;
+    uint32_t                        m_findCurrentArgb = 0;
+    Position                        m_lastClick;
+    int64_t                         m_lastClickMs     = 0;
+    int                             m_clicks          = 0;   // the clicks in a row on one spot, each within the double-click time
+    float                           m_wheelLines      = 0.0f;   // a touchpad's part notches, until they make a line
+    float                           m_wheelColumns    = 0.0f;   // and until they make a column
+    bool                            m_dragging        = false;
+    bool                            m_wordDrag        = false;
+    Position                        m_wordFirst;
+    Position                        m_wordLast;
+    HWND                            m_hwnd            = nullptr;
     const wchar_t    * m_iconFace      = L"Segoe MDL2 Assets";
     ContextMenuFn      m_onContextMenu;
     LinkFn             m_onLink;

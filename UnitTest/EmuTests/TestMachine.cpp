@@ -4,11 +4,14 @@
 
 #include "Core/Prng.h"
 #include "Core/TextEncoding.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "EmbeddedMachineConfigs.h"
 
 #include "EmbeddedMachineJson.h"
 #include "FixtureProvider.h"
 #include "HResultAssert.h"
+#include "Machines/MachineDefinition.h"
+#include "Machines/MachineDefinitions.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -36,6 +39,22 @@ TestMachine::TestMachine (const std::string & machineId, Slots slots)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TestMachine::~TestMachine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TestMachine::~TestMachine()
+{
+    GetRefs() = {};
+    GetOwnedDevices().clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TestMachine::TestMachine (customized)
 //
 //  The builder copies its services when it is constructed, so they are
@@ -51,6 +70,99 @@ TestMachine::TestMachine (
       m_builder          (*this, m_nothingListening)
 {
     Construct (machineId, slots, customize);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::TestMachine (block cards)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TestMachine::TestMachine (
+    const std::string             & machineId,
+    Slots                           slots,
+    const std::vector<BlockCard>  & cards,
+    IDiskFileIo                   & fileIo)
+    : m_builder (*this, m_nothingListening)
+{
+    FixtureProvider  fixtures;
+    fs::path         root = fs::path (fixtures.GetRoot());
+
+
+
+    SetBlockMediaFileIo (&fileIo);
+    m_hasOwnBlockFiles = true;
+
+    Construct (machineId, slots, [&] (MachineConfig & config, MachineBuildServices &)
+    {
+        for (const BlockCard & card : cards)
+        {
+            const BlockCardSpec  * spec = BlockDeviceCatalog::FindCard (card.device);
+            SlotConfig             slot;
+
+
+
+            Assert::IsNotNull (spec, L"a block card the catalog lists");
+
+            slot.slot     = card.slot;
+            slot.device   = card.device;
+            slot.ports    = card.ports;
+            slot.firmware = spec->defaultFirmware;
+
+            std::erase_if (config.slots, [&card] (const SlotConfig & existing) { return existing.slot == card.slot; });
+
+            MachineConfigLoader::ResolveBlockCard (machineId, { root }, MakeFixtureResolver(), slot);
+            config.slots.push_back (slot);
+        }
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::TestMachine (machine ports)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TestMachine::TestMachine (
+    const std::string              & machineId,
+    const std::vector<PortConfig>  & ports,
+    IDiskFileIo                    & fileIo)
+    : m_builder (*this, m_nothingListening)
+{
+    FixtureProvider  fixtures;
+    fs::path         root = fs::path (fixtures.GetRoot());
+
+
+
+    SetBlockMediaFileIo (&fileIo);
+    m_hasOwnBlockFiles = true;
+
+    Construct (machineId, Slots::AsShipped, [&] (MachineConfig & config, MachineBuildServices &)
+    {
+        std::string  error;
+
+
+
+        for (const PortConfig & given : ports)
+        {
+            for (PortConfig & port : config.ports)
+            {
+                port = (port.name == given.name) ? given : port;
+            }
+        }
+
+        Assert::AreEqual (S_OK, MachineConfigLoader::ResolveDiskPortChains ({ root }, MakeFixtureResolver(), config.ports, error,
+                                                                           (size_t) MachineDefinitions::Find (machineId)->diskPortFloppyCount,
+                                                                           (size_t) MachineDefinitions::Find (machineId)->diskPortApple35Count));
+    });
 }
 
 
@@ -207,6 +319,13 @@ void TestMachine::BuildFrom (const std::string & machineId, const MachineConfig 
 
     SetPrng (std::make_unique<Prng> (kSeed));
     SetCurrentMachineName (wide);
+    SetStockImageFolder (kpszStockFolder);
+
+    if (!m_hasOwnBlockFiles)
+    {
+        SetBlockMediaFileIo (&m_blockFiles);
+    }
+
     GetConfig() = config;
 
     hr = m_builder.Build (config);
@@ -259,13 +378,7 @@ void TestMachine::LoadConfig (const std::string & machineId, MachineConfig & out
 
     jsonText = EmbeddedMachineJson::Load (resourceId);
 
-    auto  resolveFlat = [root] (const std::vector<fs::path> &,
-                                const fs::path & romRelPath) -> fs::path
-    {
-        fs::path  candidate = root / romRelPath.filename();
-
-        return (fs::exists (candidate) ? candidate : fs::path());
-    };
+    auto  resolveFlat = MakeFixtureResolver();
 
     hr = MachineConfigLoader::Load (jsonText,
                                     shippedId,
@@ -309,3 +422,38 @@ std::string TestMachine::GetShippedId (const std::string & machineId)
 
     return machineId;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::MakeFixtureResolver
+//
+//  Resolves a ROM by its file name in UnitTest/Fixtures, which keeps the
+//  ROMs flat.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MachineConfigLoader::FileResolver TestMachine::MakeFixtureResolver()
+{
+    FixtureProvider  fixtures;
+    fs::path         root = fs::path (fixtures.GetRoot());
+
+
+
+    return [root] (const std::vector<fs::path> &, const fs::path & romRelPath) -> fs::path
+    {
+        fs::path  candidate = root / romRelPath.filename();
+
+
+
+        return (fs::exists (candidate) ? candidate : fs::path());
+    };
+}
+
+
+
+
+

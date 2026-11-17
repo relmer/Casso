@@ -614,6 +614,11 @@ void EmulatorShell::RunCpuThreadFrame()
     ReportUthernetListenFailures();
 
     m_renderer->PublishFrameIfChanged();
+
+    //  Publish each drive's head and counts for a visible disk inspector, and
+    //  check any apply that waits for a safe point again.
+    m_inspectorHost.PublishStatus();
+    m_inspectorHost.ServiceWaiting();
 }
 
 
@@ -881,6 +886,7 @@ void EmulatorShell::ExecuteCpuSlices()
                                        sliceActual,
                                        m_machine.GetRefs().speaker->GetFrameInitialState(),
                                        numSamples,
+                                       cyclesPerSample,
                                        m_machine.GetCpu()->GetTotalCycles());
             IGNORE_RETURN_VALUE (hr, S_OK);
 

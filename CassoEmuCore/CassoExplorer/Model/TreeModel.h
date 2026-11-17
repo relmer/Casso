@@ -52,6 +52,42 @@ struct TreeNode
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StorageCardTreeEntry
+//
+//  A storage card with a partition Windows hasn't mounted, as the tree
+//  lists it under This PC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct StorageCardTreeEntry
+{
+    struct Partition
+    {
+        //  The partition's step, `#3.po`, and its label in the tree.
+        std::wstring  step;
+        std::wstring  label;
+    };
+
+    //  The card's path, `\\.\PhysicalDrive2`.
+    std::wstring            path;
+    std::wstring            label;
+
+    //  The card's Apple partitions, once it is open. A card that is not open
+    //  has no expander, as opening it raises the UAC prompt.
+    std::vector<Partition>  partitions;
+
+    //  The drive letters of the card's volumes that Windows can't read, as
+    //  "I:\". The card's node replaces them, and they are left out of
+    //  This PC and the tree's top level.
+    std::vector<std::wstring>  hiddenRoots;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkTreeEntry
 //
 //  An CassoLink as the tree lists it: a root with the link's name, and
@@ -68,6 +104,12 @@ struct LinkTreeEntry
         int           drive   = 1;
         bool          empty   = false;
         std::wstring  volume;
+
+        //  A block device or SmartPort unit: its unit and size, its drive the
+        //  session's number for it, from 3.
+        bool          isBlockDevice = false;
+        int           unit          = 0;
+        uint32_t      blocks        = 0;
 
         //  A ProDOS drive's top-level folders, once its catalog is read.
         std::vector<std::wstring>  folders;
@@ -123,6 +165,9 @@ public:
     void                         SetKnownFolders        (std::vector<std::wstring> folders);
     bool                         IsKnownFolder          (const std::wstring & path) const;
     void                         SetDrives              (std::vector<std::wstring> driveRoots);
+
+    //  The storage cards listed under This PC after its drives.
+    void                         SetStorageCards        (std::vector<StorageCardTreeEntry> cards);
     void                         SetDirectoryProbe      (DirectoryProbe probe) { m_directoryProbe = std::move (probe); }
     bool                         IsDirectory            (const std::wstring & path) const { return m_directoryProbe && m_directoryProbe (path); }
     void                         SetLocalizedNameLookup (LocalizedNameLookup lookup) { m_localizedName = std::move (lookup); }
@@ -173,6 +218,14 @@ public:
 
     void  SetNavPaneOptions  (const NavPaneOptions & options) { m_navOptions = options; }
 
+    //  With false the CassoLink root is not in the pane, as in a picker,
+    //  which has no connections.
+    void  SetCassoLinkShown  (bool shown) { m_showCassoLink = shown; }
+
+    //  True adds the "Stock disks" node under the Casso node.
+    void  SetStockDisksShown (bool shown) { m_showStockDisks = shown; m_children.erase (kCassoRootId); }
+    void  SetDemoDisksShown  (bool shown) { m_showDemoDisks  = shown; m_children.erase (kCassoRootId); }
+
     //  The CassoLink connections, each under CassoLink. Their drives are listed
     //  again on the next expand.
     void  SetLinks           (std::vector<LinkTreeEntry> links);
@@ -220,6 +273,10 @@ public:
     //  this browser reads.
     static constexpr const wchar_t *  kNoFilesystemText = L"can't be previewed because it doesn't have a recognized file system.";
 
+    //  What follows a partition's label when the partition ends past the end
+    //  of the image.
+    static constexpr const wchar_t *  kDamagedPartitionText = L"is damaged: it ends past the end of the image.";
+
     //  The id grammar. A root tag, then the host path, then for a directory
     //  inside an image the directory's name after a bar, and after another,
     //  for the second and later entries of the same name, which one it is.
@@ -254,6 +311,13 @@ public:
     //  linked Apple, with CassoLink.dsk and its help beside them in the list.
     static constexpr const wchar_t *  kCassoLinkRootId = L"cassolink:";
 
+    //  A picker's "Stock disks" node, the first child of the Casso node.
+    static constexpr const wchar_t *  kStockDisksId    = L"stock:";
+
+    //  A picker's "Demo disks" node, after "Stock disks": the disks in the
+    //  Apple2\Demos folder that comes with Casso.
+    static constexpr const wchar_t *  kDemoDisksId     = L"demo:";
+
     //  A folder listed where it is not on the disk, adtpro:<path>: an ADTPro
     //  server's under its connection, or a Full Send's under CassoLink,
     //  which lists the folder there rather than where the folder is.
@@ -262,6 +326,9 @@ public:
     //  The node that adds a CassoLink connection; selecting it opens the
     //  dialog, and the list stays where it was.
     static constexpr const wchar_t *  kAddLinkId       = L"addlink:";
+
+    //  A storage card under This PC: card:<its path>.
+    static constexpr const wchar_t *  kStorageCardTag  = L"card:";
 
     //  The copy of CassoLink's root after Casso, and of the links and drives
     //  under it: top:<id>, at the same location as the first.
@@ -276,6 +343,9 @@ public:
     //  "Slot 6, Drive 1", and the volume in parentheses after it when known.
     static std::wstring  GetLinkDriveLabel (int slot, int drive);
     static std::wstring  GetLinkDriveLabel (const LinkTreeEntry::Drive & drive);
+
+    //  A block device's: "Slot 5, Unit 1, 800K".
+    static std::wstring  GetBlockDeviceLabel (const LinkTreeEntry::Drive & drive);
 
     //  A drive of a link, by its id, as the tree labels it: its slot, its drive
     //  and its volume once known.
@@ -293,6 +363,7 @@ private:
     static constexpr wchar_t          kSeparator       = L'|';
 
     HRESULT  ListRoot        (bool underCasso, std::vector<TreeNode> & outNodes);
+    void     ListStorageCard (const std::wstring & path, std::vector<TreeNode> & outNodes) const;
     HRESULT  ListLink        (const std::wstring & name, std::vector<TreeNode> & outNodes);
     HRESULT  ListLinkFolders (const std::wstring & driveId, std::vector<TreeNode> & outNodes) const;
     void     AppendLinkRoots (std::vector<TreeNode> & outNodes, bool copy) const;
@@ -304,7 +375,8 @@ private:
     //  The node for an item of the shell's: a folder on a disk is a host
     //  folder, with all a host folder's children; anything else opens through
     //  the shell.
-    static TreeNode  MakeShellNode      (const IShellItemVerbs::ShellFolderItem & item);
+    TreeNode         MakeShellNode      (const IShellItemVerbs::ShellFolderItem & item) const;
+    bool             IsHiddenDrive      (const std::wstring & path) const;
     HRESULT          ListHostFolder     (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
     bool             HasTreeChildren    (const std::wstring & path);
     HRESULT          ListImage          (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
@@ -312,6 +384,16 @@ private:
 
     static void  ListDirectories (bool underCasso, const std::wstring & path, const std::vector<Byte> & sectors,
                                   const std::string & inner, std::vector<TreeNode> & outNodes);
+
+    //  A node for each partition of an image file. The list is empty for a
+    //  file with no partitions.
+    static void  ListPartitions (bool underCasso, const std::wstring & path, const std::vector<Byte> & fileBytes,
+                                 const std::string & name, std::vector<TreeNode> & outNodes);
+
+    //  An image's bytes, and the file name whose extension indicates their
+    //  format. `path` is a host file, or a container path to an image inside
+    //  another file.
+    HRESULT  ReadImage (const std::wstring & path, std::vector<Byte> & outBytes, std::string & outName);
 
     //  Reads and parses one image, producing either its directory children
     //  or the error on the node.
@@ -326,6 +408,7 @@ private:
     std::map<std::wstring, int>                      m_unseen;
     std::vector<std::wstring>                        m_knownFolders;
     std::vector<std::wstring>                        m_drives;
+    std::vector<StorageCardTreeEntry>                m_storageCards;
     DirectoryProbe                                   m_directoryProbe;
     mutable std::map<std::wstring, bool>             m_archiveExtensions;
     LocalizedNameLookup                              m_localizedName;
@@ -339,6 +422,9 @@ private:
     std::vector<IShellItemVerbs::ShellFolderItem>    m_navRoots;
     std::vector<IShellItemVerbs::ShellFolderItem>    m_pinned;
     NavPaneOptions                                   m_navOptions;
+    bool                                             m_showCassoLink = true;
+    bool                                             m_showStockDisks = false;
+    bool                                             m_showDemoDisks  = false;
     std::vector<LinkTreeEntry>                       m_links;
     std::wstring                                     m_fullSendFolder;
 };

@@ -93,6 +93,7 @@ DxuiLightTheme::DxuiLightTheme()
     dockGuideGlyph           = 0xFF006CBE;
     dockGuideArrow           = 0xFF1E1E1E;
     dockPreview              = 0x1E0078D4;
+    diskInspector            = DiskInspectorColors::MakeLight();
 }
 
 

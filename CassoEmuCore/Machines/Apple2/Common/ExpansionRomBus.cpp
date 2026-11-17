@@ -39,7 +39,7 @@ Byte ExpansionRomBus::Read (Word address)
 
     if (address >= kDeselectStart)
     {
-        DeselectAll();
+        DeselectAll (address);
     }
 
     for (IExpansionRomCard * card : m_cards)
@@ -97,18 +97,25 @@ bool ExpansionRomBus::TryPeekIo (Word address, Byte & value)
 //
 //  Write
 //
-//  The expansion ROM ignores writes; a write to $CF00-$CFFF deselects every
-//  card just as a read does.
+//  A write to $CF00-$CFFF deselects the cards just as a read does, and a
+//  write reaches a card that is still selected, for a card with RAM in its
+//  window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExpansionRomBus::Write (Word address, Byte value)
 {
-    (void) value;
-
     if (address >= kDeselectStart)
     {
-        DeselectAll();
+        DeselectAll (address);
+    }
+
+    for (IExpansionRomCard * card : m_cards)
+    {
+        if (card->IsExpansionRomSelected())
+        {
+            card->WriteExpansionRom (address, value);
+        }
     }
 }
 
@@ -176,14 +183,38 @@ int ExpansionRomBus::GetSelectedSlot() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeselectAllBut
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExpansionRomBus::DeselectAllBut (const IExpansionRomCard * card)
+{
+    for (IExpansionRomCard * other : m_cards)
+    {
+        if (other != card)
+        {
+            other->DeselectExpansionRom();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeselectAll
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExpansionRomBus::DeselectAll()
+void ExpansionRomBus::DeselectAll (Word address)
 {
     for (IExpansionRomCard * card : m_cards)
     {
-        card->DeselectExpansionRom();
+        if (address == kEnd || !card->UsesStrobePage())
+        {
+            card->DeselectExpansionRom();
+        }
     }
 }

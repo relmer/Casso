@@ -319,8 +319,10 @@ void DxuiStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
         std::wstring  shown;
 
         //  A field after flowing ones starts past their text, which is as
-        //  wide as it is rather than as wide as their rectangles.
-        left = (i > 0 && m_fields[i - 1].flow) ? (std::max) (left, flowX) : left;
+        //  wide as it is rather than as wide as their rectangles. A field
+        //  further right starts there too when their text runs past its left
+        //  edge, and the field's text is cut short to the room left.
+        left = (std::max) (left, flowX);
         boxW = (float) r.right - padPx - left;
 
         if (i > 0 && m_dividers)

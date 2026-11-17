@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Panes/ExplorerListColumns.h"
+#include "CassoExplorer/Window/Panes/ExplorerListBars.h"
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
 #include "CassoExplorer/Model/RefreshAnchor.h"
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
@@ -32,6 +33,7 @@ class ExplorerListPane
 {
 public:
     explicit ExplorerListPane (ExplorerContext & context);
+    ~ExplorerListPane ();
 
     static constexpr const wchar_t *  kNoSearchMatches = L"No items match your search.";
 
@@ -48,6 +50,7 @@ public:
     //  The columns and views, and the menus.
     ExplorerListColumns                    & GetColumns              () { return m_columns; }
     ExplorerListMenus                      & GetMenus                () { return m_menus; }
+    ExplorerListBars                       & GetBars                 () { return m_bars; }
     void                                     FillList                ();
     void                                     SetListSelection        (std::vector<int> rows);
     void                                     OnSelectionChanged      ();
@@ -63,6 +66,7 @@ public:
     void                                     HandleHomeRowAction     (int row, int action);
     static int                               GetIconBucketPx         (int iconPx);
     void                                     RefreshListIcons        ();
+    void                                     RefreshVolumeCells      ();
     void                                     RefreshContentDetails   ();
     void                                     StartLoaders            ();
     bool                                     TryApplyContentDetails  (int row, DxuiListView::Cell & name);
@@ -117,10 +121,9 @@ public:
 
     void  HandleShellListed           (const std::wstring & key);
     void  HandleIconsLoaded           ();
+    void  HandlePicturesReady         (WPARAM wParam);
     void  HandleContentDetailsArrived ();
-    bool  HandleCapturedMouse         (const DxuiMouseEvent & ev);
-    bool  HandleMouse                 (const DxuiMouseEvent & ev);
-    void  ClearHoverOutside           (const DxuiMouseEvent & ev);
+    bool  HandleMessageMouse          (const DxuiMouseEvent & ev);
     bool  HandleCharKey               (const DxuiKeyEvent & ev);
     bool  HandleShortcutKey           (const DxuiKeyEvent & ev);
     bool  HandleKey                   (const DxuiKeyEvent & ev) { return m_list->OnKey (ev); }
@@ -137,18 +140,18 @@ private:
         POINT  start   = {};
     };
 
-    //  The infobar above a search's results that reports a regular
-    //  expression that isn't valid, until it is closed for that search.
-    void  FillSearchBar ();
+    bool  HandleListMouse  (const DxuiMouseEvent & ev);
+    bool  HandleRightPress (const DxuiMouseEvent & ev);
+    void  PressRight       (POINT local, POINT point);
+
 
     ExplorerContext            & m_context;
     DxuiListView               * m_list            = nullptr;
     DxuiLabel                  * m_listMessage     = nullptr;
     bool                         m_listMessageTop  = false;   // a search's message, at the list's top
-    DxuiInfoBanner             * m_searchBar       = nullptr;
-    std::wstring                 m_searchBarClosed;   // the search whose infobar was closed
     RECT                         m_paneRect        = {};
     Win32ShellIcons              m_listIcons;
+    HWND                         m_picturesHwnd    = nullptr; // the window the disk pictures post to
     Win32ContentDetails          m_contentDetails;
     Win32PropertyColumns         m_propertyValues;
     ULONGLONG                    m_lastRearrangeMs = 0;
@@ -184,4 +187,5 @@ private:
     bool                       m_listTipActive = false;
     ExplorerListColumns        m_columns       { *this, m_context };
     ExplorerListMenus          m_menus         { *this, m_context };
+    ExplorerListBars           m_bars          { m_context };
 };

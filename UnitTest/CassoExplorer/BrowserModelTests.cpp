@@ -170,6 +170,25 @@ public:
 
 
 
+    //  An image inside a zip: the zip and its folders, then the image.
+    TEST_METHOD (Address_ImageInsideAnArchive_FollowsTheZipsFolders)
+    {
+        BrowserModel::AddressRoot                  root;
+        Location                                   image = Location::MakeDiskImage (L"C:\\Disks\\set.zip|disks/a.dsk");
+        std::vector<BrowserModel::AddressSegment>  segments;
+
+        root.isHostFolder = [] (const std::wstring & path) { return path == L"C:\\" || path == L"C:\\Disks"; };
+        segments          = BrowserModel::GetAddressSegments (image, root);
+
+        Assert::AreEqual ((size_t) 5, segments.size());
+        Assert::AreEqual (std::wstring (L"set.zip"), segments[2].label);
+        Assert::IsTrue   (segments[3].location == Location::MakeShellFolder (L"C:\\Disks\\set.zip\\disks", L"disks"));
+        Assert::AreEqual (std::wstring (L"a.dsk"), segments[4].label);
+        Assert::IsTrue   (segments[4].location == image);
+    }
+
+
+
     TEST_METHOD (Address_HomeAndShareRoots)
     {
         std::vector<BrowserModel::AddressSegment>  home  = BrowserModel::GetAddressSegments (Location());

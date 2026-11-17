@@ -57,6 +57,66 @@ bool DeskSceneHitTester::RayHitsBox (const float   origin[3],
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DeskSceneHitTester::TryGetRayEntry
+//
+//  Measured in world units, so devices whose models are scaled differently
+//  compare fairly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DeskSceneHitTester::TryGetRayEntry (const DeskSceneComposition & comp,
+                                         const float                  world[16],
+                                         const float                  boxMin[3],
+                                         const float                  boxMax[3],
+                                         float                        screenX,
+                                         float                        screenY,
+                                         float                      & outDistance)
+{
+    float  invViewProj[16] = {};
+    float  invWorld[16]    = {};
+    float  origin[3]       = {};
+    float  dir[3]          = {};
+    float  modelOrigin[3]  = {};
+    float  modelDir[3]     = {};
+    float  modelEntry[3]   = {};
+    float  worldEntry[3]   = {};
+    float  tNear           = 0.0f;
+    bool   isHit           = false;
+
+
+
+    isHit = SceneCamera::Inverse44 (comp.viewProj, invViewProj) &&
+            SceneCamera::ScreenRayFromPx (invViewProj, comp.viewportPx, screenX, screenY, origin, dir) &&
+            SceneCamera::Inverse44 (world, invWorld) &&
+            SceneCamera::TransformPoint (invWorld, origin, modelOrigin);
+
+    if (isHit)
+    {
+        SceneCamera::TransformVector (invWorld, dir, modelDir);
+        isHit = RayHitsBox (modelOrigin, modelDir, boxMin, boxMax, tNear);
+    }
+
+    for (int axis = 0; isHit && axis < 3; axis++)
+    {
+        modelEntry[axis] = modelOrigin[axis] + modelDir[axis] * tNear;
+    }
+
+    isHit = isHit && SceneCamera::TransformPoint (world, modelEntry, worldEntry);
+
+    if (isHit)
+    {
+        outDistance = std::hypot (worldEntry[0] - origin[0], worldEntry[1] - origin[1], worldEntry[2] - origin[2]);
+    }
+
+    return isHit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DeskSceneHitTester::Classify
 //
 //  The glass is tested first and outranks everything: it is the one surface

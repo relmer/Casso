@@ -402,14 +402,15 @@ public:
     //  Decides which entries still fit on the strip at this width and
     //  returns the band thickness (dp) the strip needs. Call BEFORE docking
     //  the chrome bands.
-    int   PlanForWidth     (int clientWidthPx, const DxuiDpiScaler & scaler);
-    int   GetBandDp        () const;
+    int   PlanForWidth      (int clientWidthPx, const DxuiDpiScaler & scaler);
+    int   GetPlannedWidthPx () const                    { return GetTotalWidthPx (m_labeledCount); }
+    int   GetBandDp         () const;
 
     //  A thickness of its own for a strip whose entries need more room than a
     //  button, such as pictures with text above and below; 0 for the usual.
-    void  SetBandDp        (int bandDp)                  { m_bandDp = bandDp; }
-    bool  IsLabeled        (int commandId) const;
-    bool  TryGetEntryRect  (int commandId, RECT & outRect) const;
+    void  SetBandDp         (int bandDp)                { m_bandDp = bandDp; }
+    bool  IsLabeled         (int commandId) const;
+    bool  TryGetEntryRect   (int commandId, RECT & outRect) const;
 
     //  Changes the icon an entry draws, as Explorer's View button shows the
     //  current view's.

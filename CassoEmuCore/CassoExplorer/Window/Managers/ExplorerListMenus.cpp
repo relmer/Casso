@@ -3,9 +3,12 @@
 #include "Seams/ShellItemId.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerListMenus.h"
+#include "CassoExplorer/Window/Managers/ExplorerOpen.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Model/CollectionQuery.h"
+#include "CassoExplorer/Window/Managers/ExplorerCollectionTools.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
@@ -23,6 +26,8 @@
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
 #include "CassoExplorer/WozPropertiesDialog.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Seams/IDiskPictures.h"
 
 
 
@@ -60,6 +65,7 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
     std::vector<DxuiListView::Column>  columns   = m_pane.GetColumns().GetListColumns();
     Location                           location  = m_context.browser.GetLocation();
     bool                               searching = SearchQuery::IsId (location.path);
+    bool                               results   = ExplorerListColumns::IsResultsList (location);
 
 
 
@@ -82,32 +88,25 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
 
     items.push_back (DxuiPopupMenuItem::ForSeparator());
 
-    for (size_t c = 0; c < columns.size() && c < m_pane.GetColumns().GetChosen().size(); c++)
+    //  In the order on screen, as File Explorer lists them.
+    for (size_t c : m_pane.GetListView()->GetColumnOrder())
     {
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
 
-        if (!ExplorerListColumns::IsListColumnOffered (c, location.kind, searching))
+        if (c >= columns.size() || c >= m_pane.GetColumns().GetChosen().size() || !ExplorerListColumns::IsListColumnOffered (c, location.kind, searching, results))
         {
             continue;
         }
 
         command->label     = columns[c].title;
-        command->isChecked = [this, c, location, searching]() { return ExplorerListColumns::IsListColumnShown (c, m_pane.GetColumns().GetChosen()[c], location.kind, searching); };
+        command->isChecked = [this, c, location, searching, results]() { return ExplorerListColumns::IsListColumnShown (c, m_pane.GetColumns().GetChosen()[c], location.kind, searching, results); };
         command->isEnabled = [c]() { return c != (size_t) CatalogModel::Column::Name; };
         command->dispatch  = [this, c]()
         {
             m_pane.GetColumns().GetChosen()[c] = !m_pane.GetColumns().GetChosen()[c];
 
             //  This folder's choice, and the one others without their own follow.
-            m_context.prefs.hiddenColumns.clear();
-
-            for (size_t each = 0; each < m_pane.GetColumns().GetChosen().size(); each++)
-            {
-                if (!m_pane.GetColumns().GetChosen()[each])
-                {
-                    m_context.prefs.hiddenColumns.push_back ((int) each);
-                }
-            }
+            m_pane.GetColumns().GetChoiceIds (m_context.prefs.hiddenColumns, m_context.prefs.shownColumns);
 
             m_pane.GetColumns().RememberFolderColumns();
             m_pane.FillList();
@@ -167,6 +166,12 @@ void ExplorerListMenus::ShowHomeItemMenu (int x, int y, int row)
     HWND                            hwnd = m_context.window.GetHwnd();
 
 
+
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
 
     if (row < 0 || (size_t) row >= m_context.browser.GetRows().size())
     {
@@ -391,6 +396,12 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
+
     //  Home's items have the shell's own menu: Add to Favorites, Remove from
     //  list and the rest are its commands.
     if (m_context.browser.IsHomeLocation() && group < 0 && m_context.browser.GetSelectedRows().size() == 1 && m_context.browser.GetRows()[(size_t) m_context.browser.GetSelectedRows()[0]].hostPath.empty())
@@ -448,12 +459,25 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         items.push_back (DxuiPopupMenuItem::ForSeparator());
     }
 
+    //  The list's background on a storage card, or on a drive letter's root,
+    //  offers the card, as the drive's row in This PC does.
+    if (m_context.browser.GetSelectedRows().empty() &&
+        (m_context.browser.GetLocation().kind == Location::Kind::HostFolder || PhysicalCards::IsCardPath (m_context.browser.GetLocation().path)))
+    {
+        m_context.opener.AddInitializeRow (items, m_context.browser.GetLocation().path);
+    }
+
     //  A folder or a disk image opens in a new tab, as Explorer's items do.
     if (m_context.browser.GetSelectedRows().size() == 1 && m_context.browser.TryGetRowLocation (m_context.browser.GetSelectedRows()[0], location))
     {
         browsable = true;
 
         m_context.menus.AddOpenRows (items, location, true);
+
+        if (location.kind == Location::Kind::HostFolder)
+        {
+            m_context.opener.AddInitializeRow (items, location.path);
+        }
 
         //  A folder's rows run on into Copy as path, as in File Explorer; an
         //  image's Casso commands follow in a group of their own.
@@ -667,6 +691,8 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         m_context.menus.GetMenuCommands().back()->menuSvg = m_context.menus.GetMenuSvg (known ? L"windows.unpinfromhome" : L"windows.pintohome");
     }
 
+    ExplorerCollectionTools::AddMenuRows (m_context, items);
+
     //  From the current folder's background: Properties, then the commands
     //  installed apps add there, such as Open in Terminal, then the shell's
     //  own background menu.
@@ -819,6 +845,20 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
             m_context.menus.AddMenuCommand (items, L"&Disk properties", [this, path]() { m_context.properties.ShowWozProperties (path, WozPropertiesDialog::kInfoTab); });
             m_context.menus.GetMenuCommands().back()->menuImage = m_context.shellIcons.GetForKind (IShellIcons::Kind::DiskImage);
+        }
+
+        //  Remove thumbnail removes the thumbnail the user set, or with none
+        //  set, the one made by booting.
+        if (selectedPaths.size() == 1 && m_context.app.pictures != nullptr && m_context.app.pictures->HasThumbnail (selectedPaths[0]))
+        {
+            std::wstring  path = selectedPaths[0];
+
+            m_context.menus.AddMenuCommand (items, L"Remove thum&bnail", [this, path]()
+            {
+                HRESULT  removed = m_context.app.pictures->RemoveThumbnail (path);
+
+                IGNORE_RETURN_VALUE (removed, S_OK);
+            });
         }
 
         if (m_context.browser.GetSelectedRows().size() > 1 && m_context.browser.IsVolumeLocation())
@@ -1234,7 +1274,7 @@ std::vector<DxuiPopupMenuItem> ExplorerListMenus::GetSortChoices (bool commandBa
         int                           id      = CassoExplorerCommands::kSortByColumn + (int) column;
         std::shared_ptr<DxuiCommand>  command;
 
-        if (!ExplorerListColumns::IsListColumnShown (column, chosen, m_context.browser.GetLocation().kind, SearchQuery::IsId (m_context.browser.GetLocation().path)))
+        if (!ExplorerListColumns::IsListColumnShown (column, chosen, m_context.browser.GetLocation().kind, SearchQuery::IsId (m_context.browser.GetLocation().path), ExplorerListColumns::IsResultsList (m_context.browser.GetLocation())))
         {
             continue;
         }
@@ -1889,7 +1929,8 @@ void ExplorerListMenus::AddViewMenus (std::vector<DxuiPopupMenuItem> & items)
 //
 //  The button row's Copy puts the selected files on the clipboard as real
 //  files, in the style the Options dialog sets, and Copy as offers each style
-//  for this copy alone. A paste into Explorer then writes them.
+//  for this copy alone. A paste into Explorer then writes them. Raw bytes is
+//  a copy with no conversion, in the Options dialog's style.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1903,6 +1944,7 @@ void ExplorerListMenus::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
     };
     std::vector<DxuiPopupMenuItem>  choices;
     std::shared_ptr<DxuiCommand>    parent = std::make_shared<DxuiCommand>();
+    std::shared_ptr<DxuiCommand>    raw    = std::make_shared<DxuiCommand>();
 
 
 
@@ -1917,6 +1959,13 @@ void ExplorerListMenus::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
         choices.push_back (DxuiPopupMenuItem::ForCommand (child));
         m_context.menus.GetMenuCommands().push_back (std::move (child));
     }
+
+    raw->label    = L"&Raw bytes";
+    raw->dispatch = [this]() { m_context.clipboard.CopyEntriesToClipboard (m_context.commandManager.GetNamingStyle(), true); };
+
+    choices.push_back (DxuiPopupMenuItem::ForSeparator());
+    choices.push_back (DxuiPopupMenuItem::ForCommand (raw));
+    m_context.menus.GetMenuCommands().push_back (std::move (raw));
 
     parent->label = L"Cop&y as";
     parent->menuGlyph = s_kpszMdl2Copy;

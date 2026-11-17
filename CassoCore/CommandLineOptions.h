@@ -55,7 +55,7 @@
 
 struct CommandLineOptions
 {
-    enum class Subcommand    { None, Run, Help, Version, As65, Merlin, Disk, Debug, Mcp };
+    enum class Subcommand    { None, Run, Help, Version, As65, Merlin, Disk, Debug, Mcp, Basic };
     enum class CpuTarget     { M6502, M65C02 };
 
     //  What the parser made of the command line itself, apart from anything
@@ -114,7 +114,8 @@ struct CommandLineOptions
         //  and the help request is not one of the things being described.
         enum class Command      { None, List, Get, Put, Delete, Boot, Create, Init,
                                   Mkdir, Rmdir, SectorRead, SectorWrite, BlockRead,
-                                  BlockWrite, Krunch, Help };
+                                  BlockWrite, Krunch, Test, Dupes, Search, Inspect,
+                                  Repair, SetThumbnail, GetThumbnail, RemoveThumbnail, Help };
 
         //  How a payload's bytes relate to the file on the host. Verbatim means
         //  no CHARACTER conversion -- length and header semantics still apply,
@@ -160,6 +161,9 @@ struct CommandLineOptions
         bool         force          = false;           // --force
         bool         yes            = false;           // --yes, -y
         std::string  hostFile;                         // source for put, --out for get
+        std::string  picturePath;                      // the picture `set-thumbnail` sets
+        bool         noFreeUnowned  = false;           // --no-free-unowned, for `repair`
+        bool         listOnly       = false;           // --list, for `repair`
         std::string  typeName;                         // --type, as the user wrote it
         Word         loadAddress    = 0;               // --load
         bool         hasLoadAddress = false;           // $0000 is a legal address
@@ -174,6 +178,7 @@ struct CommandLineOptions
         //  `init` takes the container as it finds it.
         //
         std::string  containerType;                    // --type: dsk, do, po, woz
+        std::string  sizeName;                         // --size: 140K, 800K, 5M, 10M, 20M, 32M
         std::string  formatName;                       // --format: dos33, prodos, none
         std::string  filesystem;                       // --filesystem: cpm, for an image with no recognized file system
         std::string  volumeName;                       // --volume: a DOS number or a ProDOS name
@@ -349,6 +354,19 @@ struct CommandLineOptions
         std::string  disk1;                            // --disk1 <image>
         std::string  disk2;                            // --disk2 <image>
         std::string  tape;                             // --tape <file>
+
+        //  An image for one unit of a block device card, or for one device
+        //  on a //c disk port chain, for this run only.
+        struct BlockAttachment
+        {
+            int          slot    = 0;                  // --hd: the card's slot
+            int          unit    = -1;                 // --hd: SCSI ID or drive; -1 for the card's first unit
+            int          chain   = 0;                  // --smartport: the position, from 1
+            std::string  image;
+        };
+
+        std::vector<BlockAttachment>  hdAttachments;        // --hd <slot>[.<unit>]=<image>
+        std::vector<BlockAttachment>  smartPortAttachments; // --smartport <n>=<image>
         std::string  explore;                          // --explore <image>: open it in Casso Explorer instead
         size_t       traceEntries = 0;                 // --trace [size]; 0 = off
 
@@ -478,6 +496,25 @@ struct CommandLineOptions
     };
 
     McpOptions    mcp;
+
+    //
+    //  The `basic` subcommand: a listing or a tokenized program in one file
+    //  on the host, and the result in another.
+    //
+    struct BasicOptions
+    {
+        enum class Command  { None, Tokenize, List, Renumber, Xref, Help };
+        enum class Dialect  { Unstated, Applesoft, Integer };
+
+        Command      command  = Command::None;
+        Dialect      dialect  = Dialect::Unstated;     // --applesoft or --integer
+        std::string  inputFile;
+        std::string  outputFile;
+        uint32_t     start    = 10;                    // --start
+        uint32_t     step     = 10;                    // --step
+    };
+
+    BasicOptions  basic;
 
     //
     //  What the invocation said about writing the object into a disk image.

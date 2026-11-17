@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "GuestSession.h"
 #include "TestMachine.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -15,8 +16,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  Phase11IntegrationTests
 //
 //  Phase 11 / User Story 2 (P1). Each scenario mounts a deterministic
-//  in-memory disk image through DiskImageStore (FR-023, FR-025), points
-//  the //e CPU at the slot 6 boot ROM, and asserts the controller's
+//  in-memory disk image through DiskImageStore (FR-023, FR-025), boots
+//  the //e through RESET to slot 6, and asserts the controller's
 //  nibble engine actually consumes bits from the mounted track. End-to-
 //  end "boots to Applesoft prompt" with copyrighted DOS 3.3 / ProDOS
 //  ROMs is intentionally out of scope for this suite — the tests prove
@@ -28,8 +29,6 @@ TEST_CLASS (Phase11IntegrationTests)
 {
 public:
 
-    static constexpr Word       kBootRomEntry        = 0xC600;
-    static constexpr Word       kIntCxRomOff         = 0xC006;
     static constexpr int        kSlot6               = 6;
     static constexpr int        kDrive1              = 0;
     static constexpr int        kDrive2              = 1;
@@ -91,12 +90,13 @@ public:
     ////////////////////////////////////////////////////////////////////////////
     //
     //  Build the //e + Disk II harness, mount the supplied bytes via the
-    //  store, and direct the CPU at the slot 6 boot ROM. Returns the
-    //  pointer to the store-owned DiskImage so tests can inspect it.
+    //  store, and put the CPU on the reset vector so RESET boots slot 6.
+    //  Returns the pointer to the store-owned DiskImage so tests can
+    //  inspect it.
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    DiskImage * MountAndJumpToSlot6Boot (
+    DiskImage * MountAndPowerOn (
         MachineHost   &  machine,
         const string   &  virtualPath,
         DiskFormat        fmt,
@@ -115,11 +115,8 @@ public:
         external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
 
-        // Ensure INTCXROM=0 so $C600 surfaces the Disk2.rom boot ROM
-        // (CxxxRomRouter unshadowed per audit C1).
-        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        GuestSession::StartFromPowerOn (machine);
 
-        machine.GetCpu()->SetPC (kBootRomEntry);
         return external;
     }
 
@@ -131,7 +128,7 @@ public:
         size_t         bitsBefore = 0;
         size_t         bitsAfter  = 0;
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "synthetic.dsk", DiskFormat::Dsk, raw);
 
         Assert::IsTrue (external->GetTrackBitCount (0) > 0,
@@ -157,7 +154,7 @@ public:
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "synthetic.po", DiskFormat::Po, raw);
 
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Po,
@@ -185,7 +182,7 @@ public:
         hr = BuildSyntheticWoz (kWozTrackBitCount, kWozTrackByteCount, woz);
         AssertSucceeded (hr, L"BuildSyntheticV2 must succeed");
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "synthetic.woz", DiskFormat::Woz, woz);
 
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Woz,
@@ -222,7 +219,7 @@ public:
         hr = BuildSyntheticWoz (kCpTrackBitCount, kCpTrackByteCount, woz);
         AssertSucceeded (hr, L"CP-style synthetic WOZ build must succeed");
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "copyprotected.woz", DiskFormat::Woz, woz);
 
         Assert::AreEqual (kCpTrackBitCount, external->GetTrackBitCount (0),

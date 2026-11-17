@@ -31,7 +31,7 @@
 class DxuiInfoTip : public IDxuiControl
 {
 public:
-    DxuiInfoTip  () { SetFocusable (true); m_tooltip.SetExpires (false); }
+    DxuiInfoTip  () { SetFocusable (true); }
     ~DxuiInfoTip () override;
 
     //  The pinned tip closed, if one is open; false when none was.
@@ -45,6 +45,8 @@ public:
     void  SetRect      (const RECT & rect)         { SetBounds (rect); }
     void  SetDpi       (UINT dpi)                  { m_scaler.SetDpi (dpi); m_tooltip.SetDpi (dpi); }
     void  SetPopupHost (DxuiHwndSource * host)     { m_tooltip.SetPopupHost (host); }
+    //  A grid under the text, one row of cells per row, its columns lined up.
+    void  SetTable     (const std::vector<std::vector<std::wstring>> & rows) { m_tableRows = rows; }
 
     const std::wstring  & GetText    () const { return m_text; }
     const DxuiTooltip   & GetTooltip () const { return m_tooltip; }
@@ -66,14 +68,16 @@ public:
 private:
     static int64_t  GetNowMs ();
 
-    void  Open  ();
-    void  Close ();
+    void          Open        ();
+    void          Close       ();
+    std::wstring  GetTipText  () const;
 
     static inline DxuiInfoTip * s_open = nullptr;
 
-    std::wstring   m_text;
-    DxuiTooltip    m_tooltip;
-    DxuiDpiScaler  m_scaler;
-    bool           m_isHovered = false;
-    bool           m_isFocused = false;
+    std::wstring                            m_text;
+    std::vector<std::vector<std::wstring>>  m_tableRows;
+    DxuiTooltip                             m_tooltip;
+    DxuiDpiScaler                           m_scaler;
+    bool                                    m_isHovered = false;
+    bool                                    m_isFocused = false;
 };

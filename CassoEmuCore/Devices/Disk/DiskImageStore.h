@@ -234,6 +234,15 @@ public:
     void          PowerCycle        ();
 
     DiskImage *   GetImage          (int slot, int drive);
+    uint64_t      GetViewerMediaId  (int slot, int drive) const;
+
+    //  A machine state was restored and a mounted disk's tracks may have
+    //  changed under it (FR-069): the bay gets a new media id and the sink
+    //  gets BayChange::Restored, so the drive's counts start over and a viewer
+    //  analyzes the disk as after a reload. The file's bytes as inserted are
+    //  left as they are, so "As inserted" is the disk as first inserted
+    //  (FR-117).
+    void          NoteStateRestored (int slot, int drive);
     bool          IsMounted         (int slot, int drive) const;
     const string &GetSourcePath     (int slot, int drive) const;
 
@@ -498,6 +507,11 @@ private:
 
         //  For a kept disk, the position at which it left its bay.
         uint64_t               retiredAt = 0;
+
+        //  Which disk this is, for a viewer that must tell one disk from the
+        //  next: a new number at every bay change and every reload from the
+        //  file, never reused in a session, and 0 while nothing has mounted.
+        uint64_t               mediaId = 0;
     };
 
     //  Moves a bay's disk into the kept list (or drops it without retention)
@@ -717,6 +731,7 @@ private:
     RescueSink               m_rescueSink;
     BayChangeSink            m_bayChangeSink;
     DecisionSink             m_decisionSink;
+    uint64_t                 m_lastMediaId = 0;
     std::function<int64_t ()>  m_clock;
     std::function<time_t ()>   m_timestamp;
     std::function<void ()>     m_mediaChangeListener;

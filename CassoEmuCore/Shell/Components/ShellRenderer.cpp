@@ -1,6 +1,8 @@
 #include "Pch.h"
 #include "Shell/Components/ShellInput.h"
 
+#include "Devices/BlockDevice/AppleScsiCard.h"
+#include "Devices/BlockDevice/ProFileCard.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/StateThumbnail.h"
 #include "Capture/CapturedImage.h"
@@ -30,6 +32,7 @@
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
+#include "Ui/DiskInspector/DiskInspectorWindow.h"
 #include "Core/PathResolver.h"
 #include "Version.h"
 #include "BuildInfo.h"
@@ -702,6 +705,13 @@ bool ShellRenderer::TryPresentUiFrame()
         }
     }
 
+    // Refresh the drive bar's labels and lamps, in the desk theme and in a
+    // compact one.
+    if (m_shell.m_chrome->TickDriveBar())
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
     // The 3D scene's drive visuals, recorder and labels.
     m_shell.m_scene->SyncDeviceVisuals (badgeMoved);
 
@@ -740,6 +750,8 @@ bool ShellRenderer::TryPresentUiFrame()
 
     hr = m_shell.m_printer->RenderPanelFrame();
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    m_shell.RenderDiskInspectors();
 
     if (m_shell.m_chrome->GetMainMenu().IsOpen())
     {

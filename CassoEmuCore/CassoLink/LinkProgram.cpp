@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/CassoLinkCodec.h"
 #include "Machines/Apple2/Common/DirectBootBuilder.h"
 #include "Assembler.h"
 #include "Cpu.h"
@@ -10,6 +11,10 @@
 #include "Program.s.h"
 #include "Universal.s.h"
 #include "SlotFinder.s.h"
+#include "Capture.s.h"
+#include "Block.s.h"
+#include "ThirteenSector.s.h"
+#include "VirtualDrive.s.h"
 
 
 
@@ -339,6 +344,195 @@ std::string LinkProgram::GetUniversalSource()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LinkProgram::GetCaptureModuleSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetCaptureModuleSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kCaptureModuleSource), sizeof (s_kCaptureModuleSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildCaptureModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildCaptureModule (std::vector<Byte> & outModule, LinkChip chip, bool faults)
+{
+    std::string  errors;
+
+
+
+    return AssembleModule (GetCaptureModuleSource(), outModule, errors, chip, faults);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetBlockModuleSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetBlockModuleSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kBlockModuleSource), sizeof (s_kBlockModuleSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildBlockModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildBlockModule (std::vector<Byte> & outModule, LinkChip chip, bool faults)
+{
+    std::string  errors;
+
+
+
+    return AssembleModule (GetBlockModuleSource(), outModule, errors, chip, faults);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetThirteenSectorModuleSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetThirteenSectorModuleSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kThirteenSectorModuleSource), sizeof (s_kThirteenSectorModuleSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildThirteenSectorModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildThirteenSectorModule (std::vector<Byte> & outModule, LinkChip chip, bool faults)
+{
+    std::string  errors;
+
+
+
+    return AssembleModule (GetThirteenSectorModuleSource(), outModule, errors, chip, faults);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetVirtualDriveSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetVirtualDriveSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kVirtualDriveSource), sizeof (s_kVirtualDriveSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildVirtualDrive
+//
+//  The driver is assembled a page apart, and a byte that differs is a high
+//  byte of one of its addresses, which the installer relocates.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildVirtualDrive (Byte speedControl, std::vector<Byte> & outFile, std::string & outErrors)
+{
+    HRESULT                                 hr      = S_OK;
+    std::string                             source  = GetVirtualDriveSource();
+    std::vector<Byte>                       driver;
+    std::vector<Byte>                       raised;
+    std::vector<Byte>                       installer;
+    std::vector<Byte>                       relocations;
+    std::unordered_map<std::string, Word>   symbols;
+    bool                                    sized   = false;
+    bool                                    fits    = false;
+    bool                                    shifted = true;
+    Word                                    slot    = 0;
+
+
+
+    outFile.clear();
+    outErrors.clear();
+
+    hr = Assemble (std::format ("DRIVER = 1\nDRVORG = ${:04X}\n", kDriverAddress) + source, kDriverAddress, LinkChip::Acia, driver, outErrors, false, &symbols);
+    CHR (hr);
+
+    hr = Assemble (std::format ("DRIVER = 1\nDRVORG = ${:04X}\n", kDriverAddress + 0x100) + source, (Word) (kDriverAddress + 0x100), LinkChip::Acia, raised, outErrors);
+    CHR (hr);
+
+    sized = driver.size() == raised.size();
+    CBREx (sized, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    fits = driver.size() <= kDriverLimit && symbols.contains ("sltx");
+    outErrors = fits ? "" : std::format ("The driver is {} bytes, past its {}, or has no sltx.", driver.size(), kDriverLimit);
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    for (size_t at = 0; at < driver.size(); at++)
+    {
+        if (driver[at] != raised[at])
+        {
+            shifted = shifted && raised[at] == (Byte) (driver[at] + 1);
+            relocations.push_back ((Byte) (at & 0xFF));
+            relocations.push_back ((Byte) (at >> 8));
+        }
+    }
+
+    outErrors = shifted ? "" : "A byte of the driver assembled a page higher isn't one more.";
+    CBREx (shifted, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    slot = (Word) (symbols["sltx"] - kDriverAddress);
+
+    hr = Assemble (std::format ("DRVLEN = {}\nRELOCN = {}\nSLTXOFF = {}\nSPEED = ${:02X}\n", driver.size(), relocations.size() / 2, slot, speedControl) + source,
+                   kInstallerAddress, LinkChip::Acia, installer, outErrors);
+    CHR (hr);
+
+    outFile = installer;
+    outFile.insert (outFile.end(), driver.begin(), driver.end());
+    outFile.insert (outFile.end(), relocations.begin(), relocations.end());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkProgram::GetSlotFinderSource
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -498,26 +692,55 @@ bool LinkProgram::GetSpeedControl (DWORD baud, Byte & outControl)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LinkProgram::GetCommandLines
+//
+//  An assignment for each command of CassoLinkCodec::kCommands with an
+//  assembler name, as CMDREADY = $D2.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetCommandLines()
+{
+    std::string  lines;
+
+
+
+    for (const CassoLinkCodec::Command & command : CassoLinkCodec::kCommands)
+    {
+        lines += (command.symbol != nullptr) ? std::format ("{} = ${:02X}\n", command.symbol, command.value) : std::string();
+    }
+
+    return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkProgram::Assemble
 //
 //  The source starts with its own .org; the result must begin at `origin`,
 //  so a source edited to load elsewhere fails here rather than on the Apple.
-//  A W5100 build is given W5100 ahead of the source, and its source selects
-//  the W5100's code with ifdef; a build with faults is given FAULTS the same way.
+//  A W5100 build is given W5100 ahead of the source, and a cassette build
+//  CASSETTE, and the source selects each one's code with ifdef; a build with
+//  faults is given FAULTS the same way.
+//  The commands' numbers are given ahead of it too, from GetCommandLines.
 //  An error's line is the source's, after the lines put ahead of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults)
+HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults, std::unordered_map<std::string, Word> * outSymbols)
 {
     HRESULT          hr        = S_OK;
     static const Cpu s_cpu;
     Assembler        assembler (InstructionSetProvider (s_cpu.GetInstructionSet()));
-    std::string      chipLine  = (chip == LinkChip::W5100) ? "W5100 = 1\n" : "ACIA = 1\n";
+    std::string      chipLine  = (chip == LinkChip::W5100) ? "W5100 = 1\n" : (chip == LinkChip::Cassette) ? "CASSETTE = 1\n" : "ACIA = 1\n";
     std::string      faultLine = faults ? "FAULTS = 1\n" : "";
-    std::string      text      = std::format ("PROGVER = {}\nSHIMVER = {}\n", kProgramVersion, kShimVersion) + chipLine + faultLine + source;
-    int              ahead     = faults ? 5 : 4;
-    AssemblyResult   result    = assembler.Assemble (text);
+    std::string      prefix    = std::format ("PROGVER = {}\nSHIMVER = {}\n", kProgramVersion, kShimVersion) + chipLine + faultLine + GetCommandLines();
+    int              ahead     = (int) std::count (prefix.begin(), prefix.end(), '\n');
+    AssemblyResult   result    = assembler.Assemble (prefix + source);
     bool             placed    = false;
 
 
@@ -536,6 +759,78 @@ HRESULT LinkProgram::Assemble (const std::string & source, Word origin, LinkChip
     CBREx (placed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     outBytes = result.bytes;
+
+    if (outSymbols != nullptr)
+    {
+        *outSymbols = result.symbols;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::AssembleModule
+//
+//  The program is assembled first for its symbols. The module's length in
+//  its header must be its size, and the CRC covers the bytes after the CRC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::AssembleModule (const std::string & source, std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip, bool faults)
+{
+    HRESULT                                 hr      = S_OK;
+    std::vector<Byte>                       program;
+    std::unordered_map<std::string, Word>   symbols;
+    std::vector<std::string>                exported;
+    std::string                             imports;
+    Word                                    crc     = 0;
+    bool                                    fits    = false;
+    bool                                    sized   = false;
+
+
+
+    outBytes.clear();
+
+    hr = Assemble (GetProgramSource(), kProgramAddress, chip, program, outErrors, faults, &symbols);
+    CHR (hr);
+
+    for (const auto & [name, value] : symbols)
+    {
+        bool  plain = !name.empty() && (isalpha ((unsigned char) name[0]) || name[0] == '_')
+                   && std::all_of (name.begin(), name.end(), [] (char c) { return isalnum ((unsigned char) c) || c == '_'; });
+
+        if (plain && name != "PROGVER" && name != "SHIMVER")
+        {
+            exported.push_back (name);
+        }
+    }
+
+    std::sort (exported.begin(), exported.end());
+
+    for (const std::string & name : exported)
+    {
+        imports += std::format ("p_{} = ${:04X}\n", name, symbols[name]);
+    }
+
+    hr = Assemble (imports + source, kModuleAddress, chip, outBytes, outErrors, faults);
+    CHR (hr);
+
+    fits  = outBytes.size() > kModuleCrcStart && outBytes.size() <= kModuleLimit;
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    sized = (size_t) (outBytes[kModuleLength] | (outBytes[kModuleLength + 1] << 8)) == outBytes.size();
+    CBREx (sized, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    crc = CassoLinkCodec::ComputeCrc (std::span<const Byte> (outBytes).subspan (kModuleCrcStart));
+
+    outBytes[kModuleCrcOffset]     = (Byte) (crc & 0xFF);
+    outBytes[kModuleCrcOffset + 1] = (Byte) (crc >> 8);
 
 Error:
     return hr;

@@ -51,6 +51,15 @@ public:
     //  The same audio as a 16-bit mono WAV file's bytes.
     static HRESULT  BuildWav   (const LinkShimOptions & options, std::vector<Byte> & outWav, std::string & outCommand);
 
+    //  The cassette link's start: the cassette build of the program as one
+    //  record, which the monitor reads to kProgramAddress and runs, and the
+    //  monitor command that does it, ending in a carriage return. The link
+    //  then runs over the cassette ports, with no serial card.
+    static HRESULT  BuildCassetteLinkAudio  (TapeAudio & outAudio, std::string & outCommand);
+
+    //  The same record as its half cycles, in microseconds.
+    static HRESULT  BuildCassetteLinkRecord (std::vector<double> & outHalfCyclesUs, std::string & outCommand);
+
     //  A WAV's length, in milliseconds; 0 for bytes that aren't one.
     static DWORD    GetLengthMs (std::span<const Byte> wav);
 

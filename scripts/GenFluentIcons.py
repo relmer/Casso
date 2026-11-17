@@ -13,6 +13,7 @@ Run after changing an icon or its tones:
 
     python scripts/GenFluentIcons.py
 """
+import math
 import re
 from pathlib import Path
 
@@ -117,6 +118,55 @@ def bars_path(count, left, right, pitch, thickness):
     return ''.join(rounded_rect(left, first + i * pitch - thickness / 2.0, right, first + i * pitch + thickness / 2.0, thickness / 2.0, True) for i in range(count))
 
 
+def circle(cx, cy, r, clockwise):
+    """One closed circle. A ring is an outer circle one way round and its
+    hole the other."""
+    n = lambda v: f'{v:g}'
+    sweep = 1 if clockwise else 0
+
+    return (f'M{n(cx - r)} {n(cy)}A{n(r)} {n(r)} 0 1 {sweep} {n(cx + r)} {n(cy)}'
+            f'A{n(r)} {n(r)} 0 1 {sweep} {n(cx - r)} {n(cy)}Z')
+
+
+def ring(cx, cy, r, thickness):
+    return circle(cx, cy, r, True) + circle(cx, cy, r - thickness, False)
+
+
+def track_arc(cx, cy, r, start, end, thickness):
+    """A run of a track with round ends: an arc `thickness` wide at radius
+    `r`, from `start` to `end` in degrees clockwise from 3 o'clock."""
+    n = lambda v: f'{v:.4g}'
+    h = thickness / 2.0
+    large = 1 if (end - start) > 180 else 0
+
+    def at(radius, degrees):
+        g = math.radians(degrees)
+        return f'{n(cx + radius * math.cos(g))} {n(cy + radius * math.sin(g))}'
+
+    return (f'M{at(r + h, start)}A{n(r + h)} {n(r + h)} 0 {large} 1 {at(r + h, end)}'
+            f'A{n(h)} {n(h)} 0 0 1 {at(r - h, end)}'
+            f'A{n(r - h)} {n(r - h)} 0 {large} 0 {at(r - h, start)}'
+            f'A{n(h)} {n(h)} 0 0 1 {at(r + h, start)}Z')
+
+
+def platter_path():
+    """A disk's surface as the disk inspector draws it: the edge, runs of
+    two tracks a sector or several sectors long, and the hub."""
+    return (ring(10.0, 10.0, 8.5, 1.0)
+            + track_arc(10.0, 10.0, 6.5, 200, 290, 0.9)
+            + track_arc(10.0, 10.0, 6.5, 20, 60, 0.9)
+            + track_arc(10.0, 10.0, 4.7, 80, 190, 0.9)
+            + track_arc(10.0, 10.0, 4.7, 250, 330, 0.9)
+            + ring(10.0, 10.0, 2.6, 1.0)
+            + circle(10.0, 10.0, 1.1, True))
+
+
+def platter_pair_path():
+    "Two platters side by side, for a comparison."
+    return (ring(5.0, 10.0, 4.5, 1.0) + circle(5.0, 10.0, 1.25, True)
+            + ring(15.0, 10.0, 4.5, 1.0) + circle(15.0, 10.0, 1.25, True))
+
+
 def path_of(name):
     svg = (SOURCE / f'ic_fluent_{name}.svg').read_text(encoding='utf-8')
     paths = re.findall(r'<path[^>]*\sd="([^"]+)"', svg)
@@ -197,7 +247,8 @@ def main():
     out('//')
     out("//  The command bar's and the View menu's icons: Microsoft's Fluent UI")
     out('//  System Icons, MIT licensed, in the two tones File Explorer gives them,')
-    out("//  and the three icon views' frames, which the script draws itself.")
+    out("//  and the three icon views' frames and the disk inspector's platters,")
+    out('//  which the script draws itself.')
     out('//')
     out(B)
     out('')
@@ -216,6 +267,12 @@ def main():
     #  and the right pane's outline. Fluent's outline is one path, so it is
     #  split here at the divider, each half closed along it.
     entries += [('Preview', 'panel_right_20_regular, split at the divider', PREVIEW_PATH, [([0, 1], False, 0, 0), ([2, 3], True, 0, 0)])]
+
+    #  The disk inspector's buttons. Fluent has no platter, so both are drawn
+    #  here: one platter with runs of its tracks in the accent, and two plain
+    #  platters side by side with the second in the accent.
+    entries += [('Inspect', 'drawn by this script', platter_path(), [([0, 1, 5, 6, 7, 8], False, 0, 0), ([2, 3, 4], True, 0, 0)])]
+    entries += [('Compare', 'drawn by this script', platter_pair_path(), [([0, 1, 2], False, 0, 0), ([3, 4, 5], True, 0, 0)])]
 
     for name, svg, d, layers in entries:
         if layers == ALL:

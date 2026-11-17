@@ -31,7 +31,6 @@ public:
     void                   Configure          ();
     void                   ApplyTheme         (const DxuiTheme & theme);
     void                   Layout             (const RECT & rect);
-    void                   ClearHoverOnLeave  (const DxuiMouseEvent & ev);
     IDxuiControl         * GetControl         () const { return m_tabs; }
     RECT                   GetBounds          () const { return m_tabs->GetBounds(); }
     int                    HitTest            (POINT client) const;
@@ -56,8 +55,6 @@ public:
     void                   ShowTabContextMenu (int x, int y, int index);
     void                   OpenInNewWindow    (const std::wstring & path);
 
-    bool  HandleCapturedMouse (const DxuiMouseEvent & ev);
-    bool  HandleMouse         (const DxuiMouseEvent & ev);
     bool  HandleEscapeKey     (const DxuiKeyEvent & ev);
     bool  HandleKey           (const DxuiKeyEvent & ev) { return m_tabs->OnKey (ev); }
     void  HandleFocusChanged  (bool focused) { m_tabs->OnFocusChanged (focused); }
@@ -66,6 +63,8 @@ public:
     void  HandleTabDragEnd    (int index, POINT client, bool tornOff);
 
 private:
+    bool  HandleTabsMouse (const DxuiMouseEvent & ev);
+
     ExplorerContext                                    & m_context;
     DxuiTabStrip                                       * m_tabs          = nullptr;
     int                                                  m_spinnerFrame  = -1;

@@ -6,9 +6,13 @@
 #include "Net/FirewallText.h"
 #include "CassoExplorer/CassoExplorerAbout.h"
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/ExplorerWindowFinder.h"
 #include "Core/TextEncoding.h"
 #include "resource.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
+#include "CassoExplorer/Picker/ExplorerPickerHost.h"
+#include "Seams/CassoHostDialogs.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/Model/IFolderWatcher.h"
 #include "CassoExplorer/Model/FolderWatch.h"
 #include "Core/AppTimerIds.h"
@@ -31,8 +35,68 @@ CassoExplorerWindow::CassoExplorerWindow (CassoExplorerBrowser & browser, CassoE
       m_actions  (actions),
       m_prefs    (prefs),
       m_context  (std::move (context)),
-      m_parts    (std::make_unique<ExplorerWindowParts> (*this, browser, actions, prefs, m_context, m_scaler, m_theme, ExplorerServices::CreateWin32()))
+      m_parts    (std::make_unique<ExplorerWindowParts> (*this, browser, actions, prefs, m_context, m_scaler, m_theme, MakeServices()))
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::MakeServices
+//
+//  A file manager window's image requests open a modal picker. A picker's
+//  window has Windows' dialogs alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ExplorerServices CassoExplorerWindow::MakeServices()
+{
+    ExplorerServices  services = ExplorerServices::CreateWin32();
+
+
+
+    if (m_context.picker == nullptr && m_context.fs != nullptr)
+    {
+        services.dialogs = std::make_unique<CassoHostDialogs> (std::move (services.dialogs), [this] (HWND owner, PickerRequest request, PickerOutcome & outOutcome)
+        {
+            return RunModalPicker (owner, std::move (request), outOutcome);
+        });
+    }
+
+    return services;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::RunModalPicker
+//
+//  The picker has a host apart from the app's windows: no session, no
+//  CassoLink connections, and a preferences file that is not this
+//  window's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerWindow::RunModalPicker (HWND owner, PickerRequest request, PickerOutcome & outOutcome)
+{
+    HRESULT             hr = S_OK;
+    ExplorerPickerHost  host (*m_context.fs, m_browser.GetFileIo(), m_context.baseDir);
+
+
+
+    host.Prepare (std::move (request), m_prefs.theme, (owner != nullptr) ? owner : GetHwnd(), false);
+
+    hr = host.RunModal (GetModuleHandleW (nullptr));
+
+    outOutcome = host.GetOutcome();
+
+    return hr;
 }
 
 
@@ -97,7 +161,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     params.minSizeDip               = { kMinWindowWidthDip, 400 };
     params.resizable                = true;
     params.insetContentBelowCaption = true;
-    params.classNameOverride        = CassoExplorerShell::kWindowClass;
+    params.classNameOverride        = ExplorerWindowFinder::GetWindowClass();
     params.appIconBig               = LoadIconW (instance, MAKEINTRESOURCEW (IDI_CASSO_EXPLORER));
     params.appIconSmall             = params.appIconBig;
     params.micaBackdrop             = true;
@@ -108,6 +172,15 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     //  after the last, so a page slides at one steady speed from its first
     //  frame rather than crawling until the queue fills.
     params.paceFrames               = true;
+
+    //  A picker has a class no Casso Explorer launch is forwarded to, and it
+    //  stays over the window that opened it.
+    if (m_context.picker != nullptr)
+    {
+        params.classNameOverride = ExplorerPickerHost::kWindowClass;
+        params.ownerHwnd         = m_context.request.owner;
+        params.initialSizeDip    = { ExplorerPickerHost::kDefaultWidthDip, ExplorerPickerHost::kDefaultHeightDip };
+    }
 
     hr = DxuiWindow::Create (params);
     CHR (hr);
@@ -185,6 +258,31 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
             {
                 showCommand = SW_SHOWMAXIMIZED;
             }
+        }
+    }
+
+    //  A picker with no saved place opens over the middle of the window
+    //  that opened it.
+    if (m_context.picker != nullptr && !saved.valid && m_context.request.owner != nullptr)
+    {
+        RECT  owner = {};
+        RECT  self  = {};
+
+        if (GetWindowRect (m_context.request.owner, &owner) && GetWindowRect (GetHwnd(), &self) && !IsIconic (m_context.request.owner))
+        {
+            int  x = owner.left + ((owner.right - owner.left) - (self.right - self.left)) / 2;
+            int  y = owner.top  + ((owner.bottom - owner.top) - (self.bottom - self.top)) / 2;
+
+            if (m_context.request.cascade)
+            {
+                int  step = MulDiv (kCascadeStepDip, (int) GetDpiForWindow (GetHwnd()), USER_DEFAULT_SCREEN_DPI);
+
+                x += step;
+                y += step;
+            }
+
+            result = SetWindowPos (GetHwnd(), nullptr, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            IGNORE_RETURN_VALUE (result, TRUE);
         }
     }
 
@@ -957,7 +1055,9 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     if (m_parts->input.HasCaretFocus())
     {
         ExplorerPane  focus   = m_parts->input.GetFocusPane();
-        bool          caretOn = (focus == ExplorerPane::LocationSearch) ? m_parts->addressBar.IsCaretOn() : m_parts->preview.GetFind().IsCaretOn (focus);
+        bool          caretOn = (focus == ExplorerPane::LocationSearch) ? m_parts->addressBar.IsCaretOn()
+                              : (focus == ExplorerPane::PickerName)     ? m_parts->pickerBar.IsCaretOn()
+                                                                        : m_parts->preview.GetFind().IsCaretOn (focus);
 
         if (caretOn != m_caretOn)
         {
@@ -1062,6 +1162,89 @@ CassoLinkManager & CassoExplorerWindow::GetCassoLinkManager()
 LPCWSTR CassoExplorerWindow::GetCursorForPoint (POINT clientPx) const
 {
     return m_parts->input.GetCursorForPoint (clientPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnLButtonUp
+//
+//  DxuiWindow releases the mouse, and it is captured again while the right
+//  button is down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult CassoExplorerWindow::OnLButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    if ((wParam & MK_RBUTTON) != 0)
+    {
+        SetCapture (GetHwnd());
+    }
+
+    return DxuiWindow::OnLButtonUp (wParam, lParam);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnRButtonDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult CassoExplorerWindow::OnRButtonDown (WPARAM wParam, LPARAM lParam)
+{
+    SetCapture (GetHwnd());
+
+    return DxuiWindow::OnRButtonDown (wParam, lParam);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnRButtonUp
+//
+//  The mouse is released before the release is routed, as DxuiWindow does
+//  for the left button, so a menu or a dialog it opens has the mouse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult CassoExplorerWindow::OnRButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    if ((wParam & MK_LBUTTON) == 0 && GetCapture() == GetHwnd())
+    {
+        ReleaseCapture();
+    }
+
+    return DxuiWindow::OnRButtonUp (wParam, lParam);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnCaptureChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult CassoExplorerWindow::OnCaptureChanged (HWND newCapture)
+{
+    if (newCapture != nullptr && newCapture != GetHwnd())
+    {
+        m_parts->input.ReleasePressed();
+    }
+
+    return DxuiMessageResult::NotHandled;
 }
 
 

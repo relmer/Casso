@@ -49,7 +49,10 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lfilesystem cpm        Read an image as CP/M when its file system is not recognized. It also applies to get, put, and delete\n",
         //  The columns still speak for themselves, and the paragraph says only
         //  what the rows cannot: where a directory goes, and the short forms.
-        "On a ProDOS disk, give a directory to list it instead of the volume directory. -r and -s are the same as --recurse.",
+        "A directory after the image lists that directory instead of the volume directory, on a ProDOS disk. -r and -s do what --recurse does."
+        " A folder in place of <image> lists every disk image in it and its subfolders as CSV: path, container, file system, volume name, file count,"
+        " free space, CRC-32 and SHA-256. Images in ZIP, gzip, ShrinkIt and Binary II files, in partitions and on other images are"
+        " listed too, with each container in the path.",
         "CassoCli disk list mydisk.dsk" 
     },
 
@@ -60,8 +63,10 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "CassoCli disk get <image> <name> [%Lindex <n>] [%Luser <n>] [%Lout <file>] [%Ltext | %Lbasic]",
         "  %Lindex <n>             Identifies a specific file from a set with duplicate names, as shown by the 'disk list' command\n"
         "  %Luser <n>              On CP/M, the user the file is in, 0 to 31\n"
-        "  %Lout <file>            Extract the file to <file>. By default, the file is written to stdout instead\n"
-        "  %Ltext                  Convert Apple high-ASCII encoding and line endings to standard ASCII with Windows line endings\n"
+        "  %Lout <file>            Extract the file to <file>. By default, the file is written to stdout instead."
+                                   " A <file> with a suffix Casso Explorer writes for a conversion, such as SOURCE.Merlin.txt,"
+                                   " is written as that conversion of the file\n"
+        "  %Ltext                  Convert text from the disk's file system\n"
         "  %Lbasic                 Convert tokenized Applesoft BASIC to readable text\n",
         "Applesoft BASIC programs are stored in a tokenized form on disk. Retrieving these with 'get' returns the raw tokenized file,"
         " so it can be copied losslessly to another disk. However, the tokenized format is not human-readable. Using the %Lbasic switch"
@@ -81,15 +86,15 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "                                   [%Ltext | %Lbasic] [%Lon-change <action>]",
         "  %Las <name>             Store the file as <name> on the disk. Without it, the file is stored under its host name;"
                                    " a name Casso Explorer writes, such as HELLO.Applesoft BASIC.txt, PROG.Binary.$6000.bin or PROG#062000,"
-                                   " is stored under the part before the suffix, with the type, load address and conversion in the suffix\n"
+                                   " is stored under the part before the suffix. The type, load address and conversion in such a suffix apply either way\n"
         "  %Ltype <t>              CassoCli detects a file's type automatically; this switch overrides that. For DOS 3.3 the types are"
                                    " T (text), I (Integer BASIC), A (Applesoft BASIC), B (binary) and R (relocatable); for ProDOS,"
-                                   " TXT, BIN, BAS and SYS; for Apple Pascal, BAD, CODE, TEXT, INFO, DATA, GRAF and FOTO; for CP/M, the attributes RO and SYS,"
+                                   " a type's abbreviation, such as TXT, BIN, BAS, INT, SYS or PNT, or its number, such as $C0; for Apple Pascal, BAD, CODE, TEXT, INFO, DATA, GRAF and FOTO; for CP/M, the attributes RO and SYS,"
                                    " with a comma for both. A file it cannot identify is stored as a binary\n"
         "  %Luser <n>              On CP/M, the user to store the file in, 0 to 15\n"
         "  %Lload $XXXX            Load address for a binary file, written as $6000 or 0x6000\n"
-        "  %Ltext                  Convert text to Apple high-ASCII and Apple line endings\n"
-        "  %Lbasic                 Convert readable text to the tokenized form Applesoft BASIC runs\n"
+        "  %Ltext                  Convert text to match the disk's file system\n"
+        "  %Lbasic                 Convert readable text to the tokenized form Applesoft BASIC runs, or Integer BASIC with a type of I or INT\n"
         "  %Lon-change <action>    What to do when a mounted disk file changes:"
                                    " reload inserts the changed disk, and reboot also restarts the machine\n",
         "To store a human-readable Applesoft BASIC program to disk, use the %Lbasic switch to tokenize the program into Applesoft BASIC's"
@@ -129,7 +134,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "CassoCli disk mkdir <image> <path>",
         nullptr,
         "Directories along the path are made as well when they are not there yet, so mkdir GAMES/CHESS/SAVES makes all three."
-        " ProDOS disks only: DOS 3.3, Apple Pascal, and CP/M have no directories.",
+        " ProDOS and HFS disks only: DOS 3.3, Apple Pascal, and CP/M have no directories.",
         "CassoCli disk mkdir mydisk.po GAMES/CHESS"
     },
 
@@ -143,7 +148,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lyes                   Answer the confirmation, for a script with nobody at the keyboard\n",
         "A directory holding anything needs %Lrecurse, and -r and -s do the same. Before removing a subtree, rmdir lists what"
         " would go, marks the locked entries and totals the blocks, then asks; %Lyes, or -y, answers it in advance."
-        " ProDOS disks only.",
+        " ProDOS and HFS disks only.",
         "CassoCli disk rmdir mydisk.po GAMES %Lrecurse %Lyes"
     },
 
@@ -151,18 +156,23 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         CommandLineOptions::DiskOptions::Command::Create,
         "create | new",
         "Make a new image file, formatted and ready to use",
-        "CassoCli disk create <image> [%Ltype <t>] [%Lformat <f>] [%Lvolume <v>]\n"
+        "CassoCli disk create <image> [%Ltype <t>] [%Lformat <f>] [%Lvolume <v>] [%Lsize <s>]\n"
         "                               [%Lbootable [<image>]] [%Lflux [<tracks>]]\n"
         "                               [%Lboot <file> [%Lload $XXXX] [%Lexec $XXXX]]",
         "  %Ltype <t>              The container type is taken from the name's extension by default; use this switch to override. "
                                    "If the name has no extension, the default extension for the type is appended. "
                                    "Valid types are: %C\n"
-        "  %Lformat <f>            The filesystem: dos33, prodos, pascal, cpm, or none. Defaults to dos33\n"
-        "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS or Apple Pascal, the volume name"
-                                   " (default NEWDISK). CP/M has no volume\n"
+        "  %Lformat <f>            The filesystem: dos33, prodos, sos, prodos+sos, pascal, cpm, hfs, or none. Defaults to dos33. sos is a ProDOS"
+                                   " volume that boots an Apple ///, and prodos+sos one that boots an Apple II and an Apple ///\n"
+        "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS, Apple Pascal or HFS, the volume name"
+                                   " (default NEWDISK, or Untitled for HFS). CP/M has no volume\n"
+        "  %Lsize <s>              The size of a ProDOS or HFS volume: 140K, 800K, 5M, 10M, 20M or 32M. Defaults to 140K, or 800K for HFS"
+                                   " or a .hdv, .2mg or .dc42 image. A larger size is written as a .po, .hdv, .2mg or .dc42 image, and .dc42 is"
+                                   " 800K only. HFS volumes are 800K or larger\n"
         "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
                                    " for the selected format, but this can be overridden by supplying an image of your own."
-                                   " For CP/M, the default is CP/AM 5.1, and softcard in place of <image> selects CP/M 2.23 for a Microsoft SoftCard\n"
+                                   " For CP/M, the default is CP/AM 5.1, and softcard in place of <image> selects CP/M 2.23 for a Microsoft SoftCard."
+                                   " For sos, the default is the Apple /// System Utilities disk; for prodos+sos, <image> is the ProDOS disk\n"
         "  %Lboot <file>           Loads and executes the binary <file> directly without copying or relying on operating system files\n"
         "  %Lload $XXXX            Where a %Lboot binary is loaded into memory. Valid addresses are $0900-$BFFF, inclusive\n"
         "  %Lexec $XXXX            Memory address to jump to after loading the %Lboot binary file. Defaults to the load"
@@ -177,12 +187,14 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "init | format",
         "Format an existing disk, erasing any existing files",
         "CassoCli disk init <image> [%Lformat <f>] [%Lvolume <v>] [%Lbootable [<image>]] [%Lflux [<tracks>]]",
-        "  %Lformat <f>            The filesystem: dos33, prodos, pascal, cpm, or none. Defaults to dos33\n"
-        "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS or Apple Pascal, the volume name"
-                                   " (default NEWDISK). CP/M has no volume\n"
+        "  %Lformat <f>            The filesystem: dos33, prodos, sos, prodos+sos, pascal, cpm, hfs, or none. Defaults to dos33. HFS is for 800K"
+                                   " and larger images. sos is a ProDOS volume that boots an Apple ///, and prodos+sos one that boots both\n"
+        "  %Lvolume <v>            For DOS 3.3, a volume number from 1 to 254 (default 254); for ProDOS, Apple Pascal or HFS, the volume name"
+                                   " (default NEWDISK, or Untitled for HFS). CP/M has no volume\n"
         "  %Lbootable [<image>]    Makes the disk bootable by copying operating system files to it. It automatically uses the master disk"
                                    " for the selected format, but this can be overridden by supplying an image of your own."
-                                   " For CP/M, the default is CP/AM 5.1, and softcard in place of <image> selects CP/M 2.23 for a Microsoft SoftCard\n"
+                                   " For CP/M, the default is CP/AM 5.1, and softcard in place of <image> selects CP/M 2.23 for a Microsoft SoftCard."
+                                   " For sos, the default is the Apple /// System Utilities disk; for prodos+sos, <image> is the ProDOS disk\n"
         "  %Lflux [<tracks>]       Stores tracks as flux rather than bits, in a WOZ image only. Every track by default, or only"
                                    " the whole tracks listed, such as 0-2,17. Without it, tracks already stored as flux stay flux\n",
         nullptr,
@@ -191,7 +203,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     {
         CommandLineOptions::DiskOptions::Command::SectorRead,
-        "sectorread",
+        "sectorread | read-sector",
         "Read sectors directly from the disk",
         "CassoCli disk sectorread <image> %Llogical|%Lphysical %Ltrack <n> %Lsector <n> [%Lcount <n>] [%Lout <file>]",
         "  %Llogical               Sector numbers are DOS logical: what catalogs, DOS tools and reference books use\n"
@@ -207,7 +219,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     {
         CommandLineOptions::DiskOptions::Command::SectorWrite,
-        "sectorwrite",
+        "sectorwrite | write-sector",
         "Write sectors directly to the disk",
         "CassoCli disk sectorwrite <image> <file> %Llogical|%Lphysical %Ltrack <n> %Lsector <n>",
         "  %Llogical               Sector numbers are DOS logical: what catalogs, DOS tools and reference books use\n"
@@ -222,7 +234,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     {
         CommandLineOptions::DiskOptions::Command::BlockRead,
-        "blockread",
+        "blockread | read-block",
         "Read 512-byte ProDOS blocks directly from the disk",
         "CassoCli disk blockread <image> %Lblock <n> [%Lcount <n>] [%Lout <file>]",
         "  %Lblock <n>             Block to start at, 0 to 279\n"
@@ -235,7 +247,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
 
     {
         CommandLineOptions::DiskOptions::Command::BlockWrite,
-        "blockwrite",
+        "blockwrite | write-block",
         "Write 512-byte ProDOS blocks directly to the disk",
         "CassoCli disk blockwrite <image> <file> %Lblock <n>",
         "  %Lblock <n>             Block to start at, 0 to 279. Continues to subsequent blocks if file is larger than one block\n",
@@ -253,7 +265,98 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "Moves the files toward the start of the volume in directory order, as the Filer's K command does. Apple Pascal disks only.",
         "CassoCli disk krunch apple1.dsk"
     },
-};
+
+    {
+        CommandLineOptions::DiskOptions::Command::Test,
+        "test",
+        "Check a disk image's or an archive's structure",
+        "CassoCli disk test <image>",
+        nullptr,
+        "Lists each problem found: blocks or sectors claimed twice or marked wrongly, catalog damage, and in a ShrinkIt archive each record whose data doesn't match its CRC.",
+        "CassoCli disk test games.shk"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::Dupes,
+        "dupes",
+        "Find disks and files duplicated in a folder",
+        "CassoCli disk dupes <folder>",
+        nullptr,
+        "Walks the disk images in <folder> and its subfolders as list does, and writes each set of duplicates as CSV: set, kind,"
+        " path, name and SHA-256. Disks are the same when their volume data is, whatever their containers, so a .dsk and a WOZ of"
+        " one disk match. Files are the same when their data and type are, on disks that differ.",
+        "CassoCli disk dupes D:\\Apple"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::Search,
+        "search",
+        "Find files inside disk images that contain text",
+        "CassoCli disk search <folder> <text>",
+        nullptr,
+        "Walks the disk images in <folder> and its subfolders as list does, and writes the path of each file whose text contains"
+        " <text>, ignoring case. BASIC programs are searched as their listings and text files as text. Binary files are not searched.",
+        "CassoCli disk search D:\\Apple SCORE"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::Inspect,
+        "inspect",
+        "Write the disk inspector's analysis of an image",
+        "CassoCli disk inspect <image>",
+        nullptr,
+        "Analyzes <image> as the disk inspector does. The first line is the summary the inspector's status bar has; each line"
+        " after it is one of its Issues, tab-separated: the track, the category, the sector, the cell and the finding. A field"
+        " the finding doesn't have is a hyphen.",
+        "CassoCli disk inspect Capture.woz"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::Repair,
+        "repair",
+        "Check a disk image's file system and write a repaired copy",
+        "CassoCli disk repair <image> [<copy>] [%Lno-free-unowned] [%Llist]",
+        "  %Lno-free-unowned       Keep sectors not in any file marked as used, for copy protection that stores data in them\n"
+        "  %Llist                  List the changes without writing the copy\n",
+        "Checks the file system of a DOS 3.3, ProDOS or Apple Pascal volume. Lists the verdict, the findings and each change,"
+        " then writes a repaired copy to <copy>, or beside <image> with \" (repaired)\" before its extension. The bitmap is set"
+        " from the files, the catalog's links and counts are corrected, and a DOS 3.3 VTOC header is restored to DOS's values."
+        " <image> isn't changed. A copy-protected disk, a volume with a file whose chain can't be followed, or a disk with no"
+        " standard file system can't be repaired, and the command exits with 1.",
+        "CassoCli disk repair Capture.dsk"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::SetThumbnail,
+        "set-thumbnail",
+        "Set a disk image's thumbnail from a picture",
+        "CassoCli disk set-thumbnail <image> <picture>",
+        nullptr,
+        "<picture>, a PNG, JPEG, BMP, GIF, or TIFF file to use as the custom thumbnail Casso Explorer draws for <image>."
+        " Replaces the thumbnail automatically captured by Casso Explorer.",
+        "CassoCli disk set-thumbnail Archon.woz title.png"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::GetThumbnail,
+        "get-thumbnail",
+        "Save a disk image's thumbnail as a PNG",
+        "CassoCli disk get-thumbnail <image> <file>",
+        nullptr,
+        "Saves the disk image's thumbnail to <file> as a PNG.",
+        "CassoCli disk get-thumbnail Archon.woz archon.png"
+    },
+
+    {
+        CommandLineOptions::DiskOptions::Command::RemoveThumbnail,
+        "remove-thumbnail",
+        "Remove a disk image's thumbnail",
+        "CassoCli disk remove-thumbnail <image>",
+        nullptr,
+        "Removes the disk image's custom thumbnail, or the automatically captured thumbnail if no custom thumbnail is"
+        " set.",
+        "CassoCli disk remove-thumbnail Archon.woz"
+    },};
 
 
 

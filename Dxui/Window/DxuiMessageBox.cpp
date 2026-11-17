@@ -10,6 +10,8 @@
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
 #include "Theme/DxuiColor.h"
+#include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiCheckbox.h"
 
 
 
@@ -271,7 +273,8 @@ private:
 //  The text wrapped at the width Paint draws it at, beside the glyph column
 //  when there is a glyph, measured as Paint lays it out: a message with
 //  semibold runs a word at a time, as PaintRuns draws it. The glyph row is
-//  the floor for a short message.
+//  the floor for a short message, and a checkbox adds its row and the gap
+//  above it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -378,7 +381,8 @@ public:
     struct ButtonSpec
     {
         std::wstring  label;
-        int           id    = 0;
+        int           id     = 0;
+        bool          danger = false;
     };
 
     // Rough (renderer-free) wrapped-line estimate for the window's first
@@ -426,7 +430,12 @@ protected:
 
         for (const ButtonSpec & b : m_buttons)
         {
-            AddDialogButton (b.label.c_str(), b.id);
+            DxuiButton  * button = AddDialogButton (b.label.c_str(), b.id);
+
+            if (b.danger && button != nullptr)
+            {
+                button->SetVariant (DxuiButton::Variant::Danger);
+            }
         }
     }
 
@@ -742,10 +751,13 @@ static std::wstring StripRunMarks (const std::wstring & text)
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, const wchar_t * caption, UINT uType,
-                    const std::vector<const wchar_t *> & buttonLabels)
+                    const std::vector<const wchar_t *> & buttonLabels, int dangerButton, const wchar_t * checkLabel, bool * ioChecked)
 {
     std::vector<DxuiMessageBoxButton>  buttons;
-    int                                defIndex = 0;
+    int                                defIndex  = 0;
+    std::wstring                       check     = (checkLabel != nullptr) ? checkLabel : L"";
+    bool                               isChecked = (ioChecked != nullptr) && *ioChecked;
+    int                                choice    = IDCANCEL;
 
 
 
@@ -769,6 +781,11 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
         }
     }
 
+    if (dangerButton >= 0 && dangerButton < (int) buttons.size())
+    {
+        buttons[(size_t) dangerButton].danger = true;
+    }
+
     defIndex = (int) ((uType & MB_DEFMASK) >> 8);
 
     if (defIndex < 0 || defIndex >= (int) buttons.size())
@@ -776,7 +793,15 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
         defIndex = 0;
     }
 
-    return DxuiMessageBoxWindow::Run (owner, theme, text, caption, uType, buttons, buttons[(size_t) defIndex].id, nullptr, nullptr);
+    choice = DxuiMessageBoxWindow::Run (owner, theme, text, caption, uType, buttons, buttons[(size_t) defIndex].id,
+                                        (checkLabel != nullptr) ? &check : nullptr, &isChecked);
+
+    if (ioChecked != nullptr)
+    {
+        *ioChecked = isChecked;
+    }
+
+    return choice;
 }
 
 
@@ -908,7 +933,7 @@ int DxuiMessageBoxWindow::Run (HWND                                      owner,
 
     for (const DxuiMessageBoxButton & button : buttons)
     {
-        specs.push_back ({ button.label, button.id });
+        specs.push_back ({ button.label, button.id, button.danger });
     }
 
     switch (uType & MB_ICONMASK)
@@ -997,6 +1022,11 @@ int DxuiMessageBoxWindow::Run (HWND                                      owner,
         {
             *ioChecked = dlg.IsChecked();
         }
+    }
+
+    if (ioChecked != nullptr && checkLabel != nullptr)
+    {
+        *ioChecked = dlg.IsChecked();
     }
 
     return choice;

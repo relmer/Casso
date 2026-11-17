@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "CassoExplorer/Model/CassoLinkConnectionText.h"
+#include "CassoExplorer/Model/CassoLinkShimBuilder.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IByteStreamFactory.h"
 #include "Net/FirewallMonitor.h"
@@ -968,7 +970,7 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
 
             entry.status = heldFor != m_heldFor.end()          ? std::format (L"{} is disconnected because {} is using its port.", entry.name, TextEncoding::NarrowToWide (heldFor->second))
                          : m_held.contains (settings.name)     ? std::format (L"{} is disconnected.", entry.name)
-                                                           : DescribeState (LinkState::Closed, settings, GetPcName());
+                                                           : CassoLinkConnectionText::DescribeState (LinkState::Closed, settings, CassoLinkShimBuilder::GetPcName());
         }
         else
         {
@@ -980,7 +982,7 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             entry.transferring = (*found)->sink->IsTransferring ((*found)->session->IsServingAdtPro());
             entry.fullSending  = (*found)->sink->IsFullSending();
             entry.model    = entry.replying ? (*found)->session->GetModelName() : std::wstring();
-            entry.status   = failure.empty() ? DescribeState (state, settings, GetPcName()) : TextEncoding::NarrowToWide (failure);
+            entry.status   = failure.empty() ? CassoLinkConnectionText::DescribeState (state, settings, CassoLinkShimBuilder::GetPcName()) : TextEncoding::NarrowToWide (failure);
         }
 
         AddFirewall (settings, entry);
@@ -1016,11 +1018,13 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             {
                 const VolumeListing  & listing = catalog->second->listing;
 
-                row.volume = (catalog->second->volumeKind == VolumeKind::Pascal) ? TextEncoding::NarrowToWide (listing.volumeName) + L":"
-                           : (catalog->second->volumeKind == VolumeKind::Cpm)    ? std::wstring (L"CP/M")
-                           : listing.hasVolumeName                               ? L"/" + TextEncoding::NarrowToWide (listing.volumeName)
-                           : listing.hasVolumeNumber                             ? std::format (L"DOS 3.3 volume {}", listing.volumeNumber)
-                                                                                 : std::wstring();
+                row.volume = (catalog->second->volumeKind == VolumeKind::Pascal)    ? TextEncoding::NarrowToWide (listing.volumeName) + L":"
+                           : (catalog->second->volumeKind == VolumeKind::Cpm)       ? std::wstring (L"CP/M")
+                           : (catalog->second->volumeKind == VolumeKind::Gutenberg) ? TextEncoding::NarrowToWide (listing.volumeName)
+                           : (catalog->second->volumeKind == VolumeKind::Rdos)      ? std::wstring (L"RDOS")
+                           : listing.hasVolumeName                                  ? L"/" + TextEncoding::NarrowToWide (listing.volumeName)
+                           : listing.hasVolumeNumber                                ? std::format (L"DOS 3.3 volume {}", listing.volumeNumber)
+                                                                                    : std::wstring();
 
                 for (const FileEntry & entry : listing.entries)
                 {
@@ -1038,6 +1042,11 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             entry.drives.push_back (row);
         }
 
+        if (entry.replying)
+        {
+            AddBlockDevices (**found, entry);
+        }
+
         if (entry.probing && entry.drives.empty())
         {
             entry.status = std::format (L"Reading the drives on {}...", entry.model.empty() ? std::wstring (L"the Apple") : entry.model);
@@ -1047,62 +1056,6 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
     }
 
     return entries;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::ProbeDrives
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoLinkConnections::ProbeDrives()
-{
-    std::lock_guard<std::mutex>  lock (m_lock);
-
-
-
-    for (const std::unique_ptr<Link> & link : m_started)
-    {
-        LinkState  state     = link->session->GetState();
-        Byte       map       = link->session->GetDriveMap();
-        bool       connected = state == LinkState::Ready || state == LinkState::Busy;
-        bool       again     = connected && !link->connected;
-
-        link->connected = connected;
-
-        //  A link connected again drops the reads that finished before:
-        //  they may have failed with the line, and the Apple's disks may
-        //  have changed while it was gone. A drive read then has its volume
-        //  again, for its row and Write image's confirmation.
-        if (again)
-        {
-            std::erase_if (link->requests, [] (const auto & request)
-            {
-                LinkOperationState  done = request.second->state;
-
-                return done != LinkOperationState::Queued && done != LinkOperationState::Running;
-            });
-        }
-
-        if (!connected)
-        {
-            continue;
-        }
-
-        for (int drive = 1; drive <= CassoLinkSessionTypes::kDriveCount; drive++)
-        {
-            std::string  key = MakeKey (drive, std::string(), false);
-
-            if ((map & (1 << (drive - 1))) != 0 && link->requests.find (key) == link->requests.end())
-            {
-                link->requests[key] = link->session->Enumerate (drive, FilePath());
-            }
-        }
-    }
 }
 
 
@@ -1399,304 +1352,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkConnections::DescribeJobs
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoLinkConnections::DescribeJobs (const std::vector<std::shared_ptr<LinkOperation>> & jobs)
-{
-    std::wstring  text;
-    std::wstring  what;
-
-
-
-    if (jobs.empty())
-    {
-        return text;
-    }
-
-    switch (jobs[0]->kind)
-    {
-        case LinkOperationKind::ReadFile:        what = L"Reading a file";    break;
-        case LinkOperationKind::WriteFile:       what = L"Writing a file";    break;
-        case LinkOperationKind::Delete:          what = L"Deleting";          break;
-        case LinkOperationKind::Rename:          what = L"Renaming";          break;
-        case LinkOperationKind::SetAttributes:   what = L"Changing";          break;
-        case LinkOperationKind::MakeDirectory:   what = L"Making a folder";   break;
-        case LinkOperationKind::RemoveDirectory: what = L"Deleting a folder"; break;
-        case LinkOperationKind::ReadDisk:        what = L"Reading the disk";  break;
-        case LinkOperationKind::WriteDisk:       what = L"Writing the disk";  break;
-        case LinkOperationKind::CheckLinkDisk:   what = L"Checking the disk"; break;
-        case LinkOperationKind::FullSend:        what = L"Full Send";         break;
-        case LinkOperationKind::Krunch:          what = L"Krunching";         break;
-        default:                                 what = L"Working";           break;
-    }
-
-    if (jobs[0]->kind == LinkOperationKind::FullSend && jobs[0]->fullSendWaiting)
-    {
-        text = L"Full Send: waiting for a disk on the Apple";
-    }
-    else if (jobs[0]->kind == LinkOperationKind::FullSend && jobs[0]->fullSendChecking)
-    {
-        text = std::format (L"Full Send: checking the disk in drive {}", jobs[0]->drive);
-    }
-    else if (jobs[0]->kind == LinkOperationKind::FullSend)
-    {
-        text = std::format (L"Full Send: sending the disk in drive {}: {}%", jobs[0]->drive, jobs[0]->progress.load());
-    }
-    else
-    {
-        text = std::format (L"{} in drive {}: {}%", what, jobs[0]->drive, jobs[0]->progress.load());
-    }
-
-    if (jobs.size() > 1)
-    {
-        text += std::format (L", {} more queued", jobs.size() - 1);
-    }
-
-    return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::DescribeDial
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoLinkConnections::DescribeDial (const std::wstring & pcName, const CassoLinkSettings & settings)
-{
-    CassoLinkSettings  modem = settings;
-
-
-
-    modem.transport = LinkTransport::WifiModem;
-
-    return std::format (L"Dial {} from the modem.", TextEncoding::NarrowToWide (MakeDialCommand (pcName, modem)));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::MakeDialCommand
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string CassoLinkConnections::MakeDialCommand (const std::wstring & pcName, const CassoLinkSettings & settings)
-{
-    size_t       colon = settings.address.rfind (':');
-    std::string  port  = colon == std::string::npos ? settings.address : settings.address.substr (colon + 1);
-    std::string  dial;
-
-
-
-    if (settings.transport == LinkTransport::WifiModem)
-    {
-        dial = std::format ("ATDT {}.local:{}", TextEncoding::WideToNarrow (pcName), port);
-    }
-
-    return dial;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::MakeShimOptions
-//
-//  For a link with no address or one that cannot be used, the shim's
-//  network is zeros; the link dialog accepts only an IPv4 address or none
-//  for an Uthernet II.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LinkShimOptions CassoLinkConnections::MakeShimOptions (const std::wstring & pcName, const CassoLinkSettings & settings)
-{
-    HRESULT                      hr       = S_OK;
-    LinkShimOptions              options;
-    std::vector<NetworkAdapter>  adapters;
-
-
-
-    options.baud = settings.baud;
-    options.slot = (settings.transport == LinkTransport::Uthernet) ? kUthernetSlot : options.slot;
-    options.dial = MakeDialCommand (pcName, settings);
-
-    BAIL_OUT_IF (settings.transport != LinkTransport::Uthernet, S_OK);
-
-    options.chip = LinkChip::W5100;
-
-    //  With no adapters listed, the defaults apply.
-    hr = Win32NetworkAdapters::List (adapters);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    hr = MakeNetworkConfig (settings, adapters, options.network);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-Error:
-    return options;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::MakeNetworkConfig
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT CassoLinkConnections::MakeNetworkConfig (const CassoLinkSettings & settings, const std::vector<NetworkAdapter> & adapters, LinkNetworkConfig & outConfig)
-{
-    constexpr std::array<Byte, 5>         kMacPrefix   = { 0x02, 'C', 'A', 'S', 'S' };   // locally administered, unicast
-    constexpr Byte                        kGatewayHost = 1;
-    HRESULT                               hr           = S_OK;
-    size_t                                colon        = settings.address.rfind (':');
-    std::string                           host         = settings.address.substr (0, colon);
-    std::string                           port         = (colon == std::string::npos) ? std::string() : settings.address.substr (colon + 1);
-    IN_ADDR                               parsed       = {};
-    int                                   converted    = 0;
-    unsigned                              number       = 0;
-    std::from_chars_result                read         = {};
-    bool                                  numeric      = false;
-    bool                                  sameSubnet   = false;
-
-
-
-    outConfig = LinkNetworkConfig();
-
-    converted = inet_pton (AF_INET, host.c_str(), &parsed);
-    CBREx (converted == 1, E_INVALIDARG);
-
-    std::memcpy (outConfig.address.data(), &parsed, outConfig.address.size());
-
-    if (!port.empty())
-    {
-        read    = std::from_chars (port.data(), port.data() + port.size(), number);
-        numeric = read.ec == std::errc() && read.ptr == port.data() + port.size() && number >= 1 && number <= UINT16_MAX;
-        CBREx (numeric, E_INVALIDARG);
-
-        outConfig.port = (uint16_t) number;
-    }
-
-    for (const NetworkAdapter & adapter : adapters)
-    {
-        sameSubnet = true;
-
-        for (size_t i = 0; i < outConfig.address.size(); i++)
-        {
-            sameSubnet = sameSubnet && (adapter.address[i] & adapter.mask[i]) == (outConfig.address[i] & adapter.mask[i]);
-        }
-
-        if (sameSubnet)
-        {
-            outConfig.mask    = adapter.mask;
-            outConfig.gateway = adapter.gateway;
-            break;
-        }
-    }
-
-    if (!sameSubnet)
-    {
-        for (size_t i = 0; i < outConfig.address.size(); i++)
-        {
-            outConfig.gateway[i] = (Byte) (outConfig.address[i] & outConfig.mask[i]);
-        }
-
-        outConfig.gateway.back() |= kGatewayHost;
-    }
-
-    std::copy (kMacPrefix.begin(), kMacPrefix.end(), outConfig.mac.begin());
-    outConfig.mac.back() = outConfig.address.back();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::GetPcName
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoLinkConnections::GetPcName()
-{
-    wchar_t  name[256] = {};
-    DWORD    size      = (DWORD) std::size (name);
-
-
-
-    if (!GetComputerNameExW (ComputerNameDnsHostname, name, &size))
-    {
-        size = 0;
-    }
-
-    return std::wstring (name, size);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::DescribeFailure
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoLinkConnections::DescribeFailure (const LinkOperation & operation)
-{
-    std::wstring  what = operation.path.IsEmpty() ? std::format (L"Drive {}", operation.drive) : TextEncoding::NarrowToWide (operation.path.ToString());
-    std::wstring  why;
-
-
-
-    if (!operation.message.empty())
-    {
-        return TextEncoding::NarrowToWide (operation.message);
-    }
-
-    switch (operation.result)
-    {
-        case HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT):    why = std::format (L"the disk in drive {} is write-protected.", operation.drive); break;
-        case HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND): why = L"the disk could not be read; it may be missing or unformatted.";              break;
-        case HRESULT_FROM_WIN32 (ERROR_CRC):              why = L"a sector on the disk is damaged.";                                         break;
-        case HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT):      why = L"a sector did not read back as written.";                                   break;
-        case HRESULT_FROM_WIN32 (ERROR_DISK_FULL):        why = L"there isn't enough free space on the disk.";                                break;
-        case HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE):   why = L"the file is too large for this disk.";                                     break;
-        case HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE):      why = L"the volume directory is full. ProDOS has room for 51 entries there.";      break;
-        case HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS):
-        case HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS):   why = L"an entry with that name is already there.";                                break;
-        case HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND):   why = L"it is not on the disk.";                                                   break;
-        case HRESULT_FROM_WIN32 (ERROR_CANCELLED):        why = L"it was canceled.";                                                         break;
-        case HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE):      why = L"the connection to the Apple closed.";                                      break;
-        case HRESULT_FROM_WIN32 (ERROR_TIMEOUT):          why = L"the Apple stopped answering.";                                             break;
-        case HRESULT_FROM_WIN32 (ERROR_INVALID_DATA):     why = L"replies from the Apple arrived damaged on every attempt. Check the cable and the port's speed."; break;
-        default:                                          why = std::format (L"the operation failed (error 0x{:08X}).", (uint32_t) operation.result); break;
-    }
-
-    return what + L": " + why;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoLinkConnections::SetChosenKind
 //
 //  The drive's catalog is read again by the next listing.
@@ -1835,143 +1490,6 @@ bool CassoLinkConnections::TakeChanged()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkConnections::DescribeState
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoLinkConnections::DescribeState (LinkState state, const CassoLinkSettings & settings, const std::wstring & pcName)
-{
-    std::wstring  name    = TextEncoding::NarrowToWide (settings.name);
-    std::wstring  address = TextEncoding::NarrowToWide (settings.address);
-    std::wstring  where   = NamesItsPort (name, address) ? name : std::format (L"{} at {}", name, address);
-    std::wstring  port    = TextEncoding::NarrowToWide (settings.port);
-    std::wstring  baud    = FormatBaud (settings.baud);
-    std::wstring  text;
-    bool          server  = settings.transport == LinkTransport::AdtProServer;
-
-
-
-    switch ((server || settings.IsSearch()) ? LinkState::Opening : state)
-    {
-        case LinkState::Closed:          text = std::format (L"Click {} to connect.", name);                     break;
-        case LinkState::Bootstrapping:   text = std::format (L"Typing the loader into {}...", name);              break;
-        case LinkState::LoadingProgram:  text = std::format (L"Loading Casso's program into {}...", name);        break;
-        case LinkState::Ready:
-        case LinkState::Busy:            text = L"Connected.";                                                     break;
-
-        case LinkState::Searching:
-            text = std::format (L"Searching the COM ports for {} at {} and {} baud.\nBoot a CassoLink disk on the Apple, "
-                                L"or choose Bootstrap the Apple from {}'s menu.", name, FormatBaud (settings.bootstrapBaud), baud, name);
-            break;
-
-        //  Opening, waiting for Ready, or no Apple yet: what to do on the Apple.
-        default:
-            switch (settings.transport)
-            {
-                case LinkTransport::Serial:
-                    text = std::format (L"Searching for {} on {} at {} baud.\nBoot a CassoLink disk on the Apple, or choose Bootstrap the Apple from {}'s menu.",
-                                        name, port.empty() ? std::wstring (L"the COM ports") : port, baud, name);
-                    break;
-
-                case LinkTransport::Emulated:
-                    text = std::format (L"Waiting for {}.\nBoot a CassoLink disk in that Casso to connect.", NamesItsPort (name, address) ? name : std::format (L"{} on {}", name, address));
-                    break;
-
-                case LinkTransport::WifiModem:
-                    text = std::format (L"Waiting for {} to dial {}.local:{}.\nBoot that Apple from a CassoLink disk saved from {}.",
-                                        name, pcName, address.substr (address.rfind (L':') + 1), name);
-                    break;
-
-                case LinkTransport::Uthernet:
-                    text = settings.IsSearch()
-                         ? std::wstring (L"Each Apple on this PC's network that boots a CassoLink disk on an Uthernet II is listed "
-                                         L"when its announcement arrives.")
-                         : std::format (L"Connecting to {}.\nBoot that Apple from a CassoLink disk saved from {}.", where, name);
-                    break;
-
-                case LinkTransport::AdtProServer:
-                    text = (state == LinkState::Closed)
-                         ? std::format (L"Click {} to serve ADTPro's client from {}.", name, settings.folder)
-                         : std::format (L"Serving ADTPro's client from {}.\nStart ADTPro's client on the Apple, and choose {} in its configuration.",
-                                        settings.folder, settings.IsComPort() ? port : address);
-                    break;
-
-                default:
-                    text = std::format (L"Connecting to {}.\nStart the CassoLink program on that machine.", where);
-                    break;
-            }
-
-            break;
-    }
-
-    return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::NamesItsPort
-//
-//  The port's digits standing alone in the name: "Uthernet II at
-//  127.0.0.1:6502" and "Casso on port 6502" say it, "My //c" and
-//  "Port 65020" do not.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool CassoLinkConnections::NamesItsPort (const std::wstring & name, const std::wstring & address)
-{
-    size_t        colon = address.rfind (L':');
-    std::wstring  port  = (colon == std::wstring::npos) ? std::wstring() : address.substr (colon + 1);
-    size_t        at    = port.empty() ? std::wstring::npos : name.find (port);
-    bool          found = false;
-
-
-
-    while (!found && at != std::wstring::npos)
-    {
-        bool  digitBefore = at > 0 && iswdigit (name[at - 1]);
-        bool  digitAfter  = at + port.size() < name.size() && iswdigit (name[at + port.size()]);
-
-        found = !digitBefore && !digitAfter;
-        at    = name.find (port, at + 1);
-    }
-
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkConnections::FormatBaud
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoLinkConnections::FormatBaud (DWORD baud)
-{
-    std::wstring  digits = std::to_wstring (baud);
-
-
-
-    for (int at = (int) digits.size() - 3; at > 0; at -= 3)
-    {
-        digits.insert ((size_t) at, L",");
-    }
-
-    return digits;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoLinkConnections::Sink::OnStateChanged
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2039,27 +1557,6 @@ bool CassoLinkConnections::Sink::IsFullSending() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkConnections::SetFullSendTarget
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoLinkConnections::SetFullSendTarget (const std::string & folder, const std::string & extension, MakeFolderFn makeFolder)
-{
-    std::lock_guard<std::mutex>  lock (m_lock);
-
-
-
-    m_fullSendFolder     = folder;
-    m_fullSendExtension  = extension;
-    m_makeFullSendFolder = std::move (makeFolder);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoLinkConnections::SetVerifyDefaults
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2107,28 +1604,43 @@ void CassoLinkConnections::ApplyVerify (Link & link) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkConnections::Sink::TryGetFullSendTarget
+//  CassoLinkConnections::NoteBoot
+//
+//  The lock is taken for the whole call, as the thread that booted the image
+//  isn't the one that starts and stops connections.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CassoLinkConnections::Sink::TryGetFullSendTarget (std::string & outFolder, std::string & outExtension)
+void CassoLinkConnections::NoteBoot (const std::string & link, const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo, const std::string & fsCheck)
 {
-    std::lock_guard<std::mutex>  lock (m_owner.m_lock);
-    bool                         ready = !m_owner.m_fullSendFolder.empty();
-    HRESULT                      made  = S_OK;
+    Activity  entry;
 
 
 
-    if (ready && m_owner.m_makeFullSendFolder)
+    GetLocalTime (&entry.time);
+    entry.connection = TextEncoding::NarrowToWide (link);
+    entry.text       = TextEncoding::NarrowToWide (text);
+
+    m_logFile.Append (link, CassoLinkLogFile::kActivity, text);
+
     {
-        made  = m_owner.m_makeFullSendFolder (m_owner.m_fullSendFolder);
-        ready = SUCCEEDED (made);
+        std::lock_guard<std::mutex>  lock (m_lock);
+        auto                         found = std::find_if (m_started.begin(), m_started.end(), [&link] (const std::unique_ptr<Link> & each) { return each->settings.name == link; });
+
+        if (found != m_started.end() && (*found)->session != nullptr)
+        {
+            (*found)->session->NoteBoot (file, boot, text, renamedTo, fsCheck);
+        }
+
+        m_activity.push_back (std::move (entry));
+
+        while (m_activity.size() > kLogLength)
+        {
+            m_activity.pop_front();
+        }
     }
 
-    outFolder    = m_owner.m_fullSendFolder;
-    outExtension = m_owner.m_fullSendExtension;
-
-    return ready;
+    Notify();
 }
 
 
@@ -2165,10 +1677,15 @@ void CassoLinkConnections::Sink::OnOperationQueued (const std::shared_ptr<LinkOp
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkConnections::Sink::OnDone (const std::shared_ptr<LinkOperation> &)
+void CassoLinkConnections::Sink::OnDone (const std::shared_ptr<LinkOperation> & operation)
 {
-    m_lastProgress = 0;
-    m_fullSending  = false;
+    //  An operation blocked while a Full Send runs never ran, so the Full
+    //  Send goes on.
+    if (!operation || !operation->isBlocked)
+    {
+        m_lastProgress = 0;
+        m_fullSending  = false;
+    }
 
     m_owner.Notify();
 }

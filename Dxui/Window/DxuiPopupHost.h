@@ -246,6 +246,14 @@ public:
     HRESULT  Show      (ShowParams params);
 
     //
+    //  Moves and resizes an open popup against a new anchor and repaints
+    //  it, without hiding it: for content that changes while it is up,
+    //  such as a tip that follows the pointer, where closing and showing
+    //  again would blink. The popup must be open.
+    //
+    HRESULT  Update    (const RECT & anchorRectScreen, SIZE sizeDip);
+
+    //
     //  Hide the popup HWND, release its content panel, and resolve
     //  the GetCompletion() future with resultCode. Idempotent.
     //
@@ -315,6 +323,10 @@ public:
     //  A reveal in progress for a test, whose popup has no window to reveal;
     //  the next AdvanceReveal ends it.
     void     SetRevealingForTest (bool isRevealing) { m_revealing = isRevealing; m_revealDurationMs = 1; }
+
+    //  True from BeginFadeOut until the popup opens again: it is fading out, or
+    //  open at zero opacity.
+    bool     IsFadingOut   () const { return m_revealOut; }
 
     //
     //  Measure the natural extent of `text` (in DIPs) through the
@@ -449,6 +461,7 @@ private:
 
     static RECT  GetWorkAreaForRect (const RECT & rectScreenPx);
     static RECT  PlaceOnEdge        (const RECT & anchor, DxuiPopupPlacement edge, SIZE popupSizePx);
+    static RECT  ClampVertically    (RECT placed, RECT monitorWorkAreaPx);
 
     static BOOL CALLBACK  CollectWorkArea (HMONITOR monitor, HDC dc, LPRECT rect, LPARAM param);
 

@@ -4,10 +4,13 @@
 #include "../CassoLink/FakeApple.h"
 #include "../CassoLink/InMemoryCassoLinkFolder.h"
 #include "../EmuTests/FakeDiskFileIo.h"
+#include "../EmuTests/GuestSession.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "CassoExplorer/Model/CassoLinkConnectionText.h"
+#include "CassoExplorer/Model/CassoLinkShimBuilder.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoLink/LinkProgram.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -586,9 +589,9 @@ public:
         first->drive    = 2;
         first->progress = 40;
 
-        Assert::AreEqual (std::wstring(), CassoLinkConnections::DescribeJobs ({}));
-        Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%"), CassoLinkConnections::DescribeJobs ({ first }));
-        Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%, 1 more queued"), CassoLinkConnections::DescribeJobs ({ first, second }));
+        Assert::AreEqual (std::wstring(), CassoLinkConnectionText::DescribeJobs ({}));
+        Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%"), CassoLinkConnectionText::DescribeJobs ({ first }));
+        Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%, 1 more queued"), CassoLinkConnectionText::DescribeJobs ({ first, second }));
     }
 
     TEST_METHOD (DescribeJobs_ForAFullSend_IsWaitingCheckingOrSending)
@@ -599,13 +602,13 @@ public:
         job->drive    = 2;
         job->progress = 20;
 
-        Assert::AreEqual (std::wstring (L"Full Send: sending the disk in drive 2: 20%"), CassoLinkConnections::DescribeJobs ({ job }));
+        Assert::AreEqual (std::wstring (L"Full Send: sending the disk in drive 2: 20%"), CassoLinkConnectionText::DescribeJobs ({ job }));
 
         job->fullSendChecking = true;
-        Assert::AreEqual (std::wstring (L"Full Send: checking the disk in drive 2"), CassoLinkConnections::DescribeJobs ({ job }));
+        Assert::AreEqual (std::wstring (L"Full Send: checking the disk in drive 2"), CassoLinkConnectionText::DescribeJobs ({ job }));
 
         job->fullSendWaiting = true;
-        Assert::AreEqual (std::wstring (L"Full Send: waiting for a disk on the Apple"), CassoLinkConnections::DescribeJobs ({ job }));
+        Assert::AreEqual (std::wstring (L"Full Send: waiting for a disk on the Apple"), CassoLinkConnectionText::DescribeJobs ({ job }));
     }
 
 
@@ -742,6 +745,37 @@ public:
 
 
 
+    //  The CassoLink ProDOS disk made from the ProDOS Users Disk has its
+    //  PRODOS and BASIC.SYSTEM, the installer and the STARTUP that runs it;
+    //  a ProDOS disk with neither is turned down with the reason.
+    TEST_METHOD (SaveLinkProDosDisk_WritesADiskWithTheUsersProDos)
+    {
+        Rig                rig;
+        CassoLinkSettings  serial;
+        std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  file;
+        Byte               fileType = 0;
+        Word               auxType  = 0;
+
+        rig.io.files["C:/Disks/Users.dsk"]  = GuestSession::RequireProDosUsersDisk();
+        rig.io.stamps["C:/Disks/Users.dsk"] = FileStamp { rig.io.files["C:/Disks/Users.dsk"].size(), 1 };
+
+        AssertSucceeded (rig.actions->SaveLinkProDosDisk (L"C:/Disks/Users.dsk", L"C:/Disks/Link.dsk", serial).hr);
+
+        for (const char * name : { "PRODOS", "BASIC.SYSTEM", "CASSOLINK", "STARTUP" })
+        {
+            AssertSucceeded (ProDosReader::ExtractFile (rig.io.files["C:/Disks/Link.dsk"], name, file, fileType, auxType));
+        }
+
+        AssertSucceeded (ProDosSkeleton::Write (blank, "EMPTY"));
+        rig.io.files["C:/Disks/Empty.dsk"]  = blank;
+        rig.io.stamps["C:/Disks/Empty.dsk"] = FileStamp { blank.size(), 1 };
+
+        Assert::IsFalse (rig.actions->SaveLinkProDosDisk (L"C:/Disks/Empty.dsk", L"C:/Disks/Link2.dsk", serial).Succeeded(), L"A disk without PRODOS is turned down");
+    }
+
+
+
     TEST_METHOD (AWifiModemLinksDisk_DialsThisPc)
     {
         Rig                rig;
@@ -752,10 +786,10 @@ public:
 
         modem.transport = LinkTransport::WifiModem;
         modem.address   = "0.0.0.0:6400";
-        dial            = CassoLinkConnections::MakeDialCommand (L"relmer-pc", modem);
+        dial            = CassoLinkShimBuilder::MakeDialCommand (L"relmer-pc", modem);
 
         Assert::AreEqual (std::string ("ATDT relmer-pc.local:6400"), dial);
-        Assert::AreEqual (std::string(), CassoLinkConnections::MakeDialCommand (L"relmer-pc", CassoLinkSettings()), L"a serial link dials nothing");
+        Assert::AreEqual (std::string(), CassoLinkShimBuilder::MakeDialCommand (L"relmer-pc", CassoLinkSettings()), L"a serial link dials nothing");
 
         AssertSucceeded (LinkProgram::BuildShim (115200, shim, dial));
         Assert::AreEqual (dial, std::string (reinterpret_cast<const char *> (shim.data() + LinkProgram::kDialOffset)), L"the command, ending in a zero byte");

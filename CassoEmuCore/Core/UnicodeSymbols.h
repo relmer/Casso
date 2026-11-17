@@ -24,8 +24,7 @@
 static constexpr wchar_t s_kchBullet         = L'\x2022';       // U+2022 BULLET (•)
 static constexpr wchar_t s_kchWhiteCircle    = L'\x25CB';       // U+25CB WHITE CIRCLE
 static constexpr wchar_t s_kchEmDash         = L'\x2014';       // U+2014 EM DASH (—)
-static constexpr wchar_t s_kchEnDash         = L'\x2013';       // U+2013 EN DASH, for ranges
-static constexpr wchar_t s_kchAlmostEqual    = L'\x2248';       // U+2248 ALMOST EQUAL TO (≈)
+static constexpr wchar_t s_kchEnDash         = L'\x2013';       // U+2013 EN DASH, for rangesstatic constexpr wchar_t s_kchAlmostEqual    = L'\x2248';       // U+2248 ALMOST EQUAL TO (≈)
 static constexpr wchar_t s_kchDegree         = L'\x00B0';       // U+00B0 DEGREE SIGN (°)
 static constexpr LPCWSTR s_kpszDegree        = L"\x00B0";       // U+00B0 DEGREE SIGN (°)
 static constexpr LPCWSTR s_kpszHeatBlock     = L"\x25A0";       // U+25A0 BLACK SQUARE, a heat column's byte
@@ -35,6 +34,15 @@ static constexpr LPCWSTR s_kpszChevronRight  = L"\x203A";       // U+203A SINGLE
 static constexpr LPCWSTR s_kpszSmallTriangleRight = L"\x25B8";   // U+25B8 BLACK RIGHT-POINTING SMALL TRIANGLE, a closed row
 static constexpr LPCWSTR s_kpszSmallTriangleDown  = L"\x25BE";   // U+25BE BLACK DOWN-POINTING SMALL TRIANGLE, an open row
 static constexpr LPCWSTR s_kpszIdenticalTo   = L"\x2261";       // U+2261 IDENTICAL TO (three bars), find in selection
+static constexpr LPCWSTR s_kpszMicro         = L"\x00B5";       // U+00B5 MICRO SIGN (µ)
+static constexpr LPCWSTR s_kpszBallotX       = L"\x2717";       // U+2717 BALLOT X (✗)
+static constexpr LPCWSTR s_kpszEmptySet      = L"\x2205";       // U+2205 EMPTY SET (∅)
+static constexpr LPCWSTR s_kpszBlackCircle   = L"\x25CF";       // U+25CF BLACK CIRCLE (●)
+static constexpr LPCWSTR s_kpszBlackDiamond  = L"\x25C6";       // U+25C6 BLACK DIAMOND (◆)
+static constexpr LPCWSTR s_kpszMinus        = L"\x2212";       // U+2212 MINUS SIGN
+static constexpr LPCWSTR s_kpszEmDash       = L"\x2014";       // U+2014 EM DASH
+static constexpr LPCWSTR s_kpszMiddleDot    = L"\x00B7";       // U+00B7 MIDDLE DOT
+static constexpr LPCWSTR s_kpszPlusMinus    = L"\x00B1";       // U+00B1 PLUS-MINUS SIGN
 static constexpr LPCWSTR s_kpszRightArrow    = L"\x2192";       // U+2192 RIGHTWARDS ARROW
 static constexpr LPCWSTR s_kpszUpArrow       = L"\x2191";       // U+2191 UPWARDS ARROW
 static constexpr LPCWSTR s_kpszDownArrow     = L"\x2193";       // U+2193 DOWNWARDS ARROW
@@ -46,6 +54,7 @@ static constexpr wchar_t s_kchThinSpace      = L'\x2009';       // U+2009 THIN S
 static constexpr LPCWSTR s_kpszGreenCheck    = L"\x2705";       // U+2705 WHITE HEAVY CHECK MARK (✅, green via color-emoji font)
 static constexpr LPCWSTR s_kpszRedCross      = L"\x274C";       // U+274C CROSS MARK (❌, red via color-emoji font)
 static constexpr LPCWSTR s_kpszGrayQuestion  = L"\x2754";       // U+2754 WHITE QUESTION MARK ORNAMENT (❔, gray via color-emoji font)
+static constexpr LPCWSTR s_kpszSkull         = L"\x2620";       // U+2620 SKULL AND CROSSBONES, a cursed Wizardry item
 
 // Segoe MDL2 Assets icon-font glyphs (private use area; render only with
 // the "Segoe MDL2 Assets" family).
@@ -81,6 +90,7 @@ static constexpr LPCWSTR s_kpszMdl2OpenInNewWindow = L"\xE8A7";       // U+E8A7 
 static constexpr LPCWSTR s_kpszMdl2Save            = L"\xE74E";       // U+E74E Save (a floppy disk)
 static constexpr LPCWSTR s_kpszMdl2HardDrive       = L"\xEDA2";       // U+EDA2 HardDrive
 static constexpr LPCWSTR s_kpszMdl2BackToWindow    = L"\xE73F";       // U+E73F BackToWindow (arrows pointing in), Krunch
+static constexpr LPCWSTR s_kpszMdl2FullScreen      = L"\xE740";       // U+E740 FullScreen (arrows pointing out)
 static constexpr LPCWSTR s_kpszMdl2Setting         = L"\xE713";       // U+E713 Setting (gear)
 static constexpr LPCWSTR s_kpszMdl2Edit            = L"\xE70F";       // U+E70F Edit (pencil)
 static constexpr LPCWSTR s_kpszMdl2SaveAs          = L"\xE792";       // U+E792 SaveAs (a floppy disk and a pencil)
@@ -133,3 +143,45 @@ static constexpr LPCWSTR s_kpszClosedApple   = L"\xE001";       // U+E001 closed
 // would steal them.
 static constexpr uint32_t s_kSymbolFontFirst = 0xE000;
 static constexpr uint32_t s_kSymbolFontLast  = 0xE001;
+
+
+
+//  MouseText's 32 characters, $40 to $5F in the alternate set, as Unicode:
+//  the Symbols for Legacy Computing block where Unicode 13 added them, and
+//  the nearest earlier character elsewhere. The two apples are U+1F34E and
+//  U+1F34F, since the block doesn't have them.
+static constexpr const wchar_t *  s_kpszMouseText[] =
+{
+    L"\xD83C\xDF4E",
+    L"\xD83C\xDF4F",
+    L"\xD83E\xDFB0",
+    L"\x231B",
+    L"\x2713",
+    L"\xD83E\xDFB1",
+    L"\xD83E\xDFB4",
+    L"\xD83E\xDF81",
+    L"\x2190",
+    L"\x2026",
+    L"\x2193",
+    L"\x2191",
+    L"\x2594",
+    L"\x21B2",
+    L"\x2589",
+    L"\xD83E\xDFB5",
+    L"\xD83E\xDFB6",
+    L"\xD83E\xDFB7",
+    L"\xD83E\xDFB8",
+    L"\x2500",
+    L"\xD83E\xDF7C",
+    L"\x2192",
+    L"\x2592",
+    L"\xD83E\xDF90",
+    L"\xD83E\xDFB9",
+    L"\xD83E\xDFBA",
+    L"\x2595",
+    L"\x25C6",
+    L"\xD83E\xDF80",
+    L"\xD83E\xDFBB",
+    L"\xD83E\xDFBC",
+    L"\x258F",
+};

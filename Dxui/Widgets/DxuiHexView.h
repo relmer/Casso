@@ -328,6 +328,10 @@ public:
     bool  IsHorzScrollbarVisible () const { return m_layout.GetContentWidthPx() > m_layout.GetViewWidthPx(); }
     int   GetLeftPx              () const { return m_scroll.GetLeftPx(); }
 
+    //  The width every column takes, once the view has measured its text at
+    //  its first paint; zero before then.
+    int   GetContentWidthPx      () const { return m_cellWidthDip > 0 ? m_layout.GetContentWidthPx() : 0; }
+
     //  Whether a point is on a scrollbar, and the hover that widens one.
     bool  IsOverScrollbar    (POINT pt) const override { return m_scroll.m_vertScroll.HitTest (pt.x, pt.y) || m_scroll.m_horzScroll.HitTest (pt.x, pt.y); }
     bool  SetScrollbarHover  (POINT pt)                { return ((int) m_scroll.m_vertScroll.SetHover (m_scroll.m_vertScroll.HitTest (pt.x, pt.y), pt) | (int) m_scroll.m_horzScroll.SetHover (m_scroll.m_horzScroll.HitTest (pt.x, pt.y), pt)) != 0; }

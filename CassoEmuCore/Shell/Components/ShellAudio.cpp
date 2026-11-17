@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Audio/Floppy35AudioSource.h"
+#include "Audio/HardDiskAudioSource.h"
 #include "Shell/Components/ShellAudio.h"
 #include "AssetBootstrap.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
@@ -46,6 +48,7 @@ ShellAudio::~ShellAudio() = default;
 void ShellAudio::BindBuildServices (MachineBuildServices & services)
 {
     services.diskAudioSources       = &m_diskAudioSources;
+    services.deviceAudioSources     = &m_deviceAudioSources;
     services.driveAudioMixer        = &m_driveAudioMixer;
     services.mockingboardAudioMixer = &m_mockingboardAudioMixer;
     services.printerAudio           = &m_printerAudio;
@@ -218,6 +221,24 @@ void ShellAudio::SetDriveAudioVolumes (float motor, float head, float door)
     for (auto & src : m_diskAudioSources)
     {
         src->SetVolumes (motor, head, door);
+    }
+
+    for (auto & src : m_deviceAudioSources)
+    {
+        Floppy35AudioSource  * floppy = dynamic_cast<Floppy35AudioSource *> (src.get());
+        HardDiskAudioSource  * disk   = dynamic_cast<HardDiskAudioSource *> (src.get());
+
+
+
+        if (floppy != nullptr)
+        {
+            floppy->SetVolumes (motor, head, door);
+        }
+
+        if (disk != nullptr)
+        {
+            disk->SetVolumes (motor, head, door);
+        }
     }
 }
 

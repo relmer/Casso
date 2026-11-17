@@ -608,6 +608,50 @@ void DxuiTooltip::MeasurePointerForPlacement()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetSwatches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::SetSwatches (const std::vector<DxuiTooltipSwatch> & swatches)
+{
+    std::vector<uint32_t>  argbs;
+
+
+
+    for (const DxuiTooltipSwatch & swatch : swatches)
+    {
+        if (swatch.line >= 0)
+        {
+            argbs.resize ((std::max) (argbs.size(), (size_t) swatch.line + 1), 0);
+            argbs[(size_t) swatch.line] = swatch.argb;
+        }
+    }
+
+    SetLineSwatches (std::move (argbs));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RequestShowNowBelowPointer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::RequestShowNowBelowPointer (POINT pointerPx, const std::wstring & text, int64_t nowMs)
+{
+    SetPlacement   (DxuiPopupPlacement::Below);
+    RequestShowNow (RECT { pointerPx.x, pointerPx.y, pointerPx.x + 1, pointerPx.y + 1 }, text, nowMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RequestShowNow
 //
 //  Shown on the request itself. A repeat for the same anchor and text keeps
@@ -1789,7 +1833,15 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 void DxuiTooltip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     SetBounds (boundsDip);
-    m_scaler.SetDpi (scaler.GetDpi());
+
+    //  A balloon in a popup is measured and drawn at its host's DPI, set by
+    //  ShowPopup. The scaler a layout passes can be a zoomed one; set while a
+    //  balloon is up, it would draw the text larger than the box it was
+    //  measured into.
+    if (m_popupHost == nullptr)
+    {
+        m_scaler.SetDpi (scaler.GetDpi());
+    }
 }
 
 

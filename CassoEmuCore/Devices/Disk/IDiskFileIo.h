@@ -71,6 +71,7 @@ public:
     //  there already and long enough to have them; for a drive served a block
     //  at a time, where rewriting the whole image for each block is too slow.
     virtual HRESULT  WriteAt       (const std::string & path, uint64_t offset, std::span<const Byte> bytes) = 0;
+    virtual HRESULT  ReadAt        (const std::string & path, uint64_t offset, std::span<Byte> outBytes) = 0;
 
     //  Size and modification time, for the read-then-commit staleness check.
     virtual HRESULT  Stat          (const std::string & path, FileStamp & outStamp) = 0;
@@ -80,6 +81,14 @@ public:
 
     //  The names of the files in a folder, without its subfolders.
     virtual HRESULT  ListFiles     (const std::string & folder, std::vector<std::string> & outNames) = 0;
+
+    //  The names of a folder's subfolders.
+    virtual HRESULT  ListFolders   (const std::string & folder, std::vector<std::string> & outNames) { (void) folder; outNames.clear(); return S_OK; }
+    virtual bool     IsFolder      (const std::string & path) { (void) path; return false; }
+
+    //  The file's read-only attribute, which Casso reads as a write-protected
+    //  disk; a store with no attributes takes it as done.
+    virtual HRESULT  SetReadOnly   (const std::string & path, bool readOnly) { (void) path; (void) readOnly; return S_OK; }
 
     //  Replaces the target with the temporary in one step, so an interrupted
     //  write cannot leave a half-written image behind.

@@ -49,6 +49,8 @@ void PreviewListingView::Create()
     list->SetAccessibleName (L"Preview");
     list->SetGdiTextMetrics (true);
     m_list = list;
+
+    m_context.window.SetMouseHandler (m_list, [this] (const DxuiMouseEvent & ev) { return HandleListMouse (ev); });
 }
 
 
@@ -172,6 +174,70 @@ bool PreviewListingView::TickScrollbars (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewListingView::GetContentHeightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewListingView::GetContentHeightPx() const
+{
+    return m_list->IsVisible() ? m_list->GetHeaderHeightPx() + m_list->GetRowCount() * m_context.scaler.ToPx (kRowHeightDip) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::IsAtTop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PreviewListingView::IsAtTop() const
+{
+    return !m_list->IsVisible() || m_list->GetTopRow() == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::GetScrollPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewListingView::GetScrollPx() const
+{
+    return m_list->GetTopRow() * m_context.scaler.ToPx (kRowHeightDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewListingView::SetScrollPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewListingView::SetScrollPx (int scrollPx)
+{
+    int  rowPx = (std::max) (1, m_context.scaler.ToPx (kRowHeightDip));
+
+
+
+    m_list->ScrollByRows ((scrollPx + rowPx / 2) / rowPx - m_list->GetTopRow());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewListingView::Fill
 //
 //  A catalog of any volume but DOS 3.3 or ProDOS arrives as rows under
@@ -201,6 +267,46 @@ void PreviewListingView::Fill (const PreviewContent & preview, bool columns)
     m_varRowCount = 0;
     m_list->SetGroups        ({});
     m_list->SetSortIndicator (-1, false);
+
+    //  A decoded grid: its headings, and each row's cells as they are.
+    if (columns && preview.kind == PreviewContent::Kind::Grid)
+    {
+        std::vector<DxuiListView::Column>  headings;
+
+        for (const std::wstring & heading : preview.grid.columns)
+        {
+            headings.push_back (DxuiListView::Column { heading, 0, false, DxuiTextHAlign::Left });
+        }
+
+        for (const std::vector<std::wstring> & row : preview.grid.rows)
+        {
+            std::vector<DxuiListView::Cell>  cells;
+
+            for (size_t at = 0; at < headings.size(); at++)
+            {
+                cells.push_back (DxuiListView::Cell { (at < row.size()) ? row[at] : std::wstring(), false });
+            }
+
+            rows.push_back (std::move (cells));
+        }
+
+        m_list->SetShowHeader          (true);
+        m_list->SetMonospace           (true);
+        m_list->SetExplorerDetails     (false);
+        m_list->SetKeyboardColumnNav   (false);
+        m_list->SetIconColumn          (-1);
+        ExplorerTextStyles::Apply (*m_list, ExplorerTextStyles::kListing);
+        m_list->SetRowHeightDip        (kRowHeightDip);
+        m_list->SetRowHeightPxFn       (nullptr);
+        m_list->SetColumns             (headings);
+        m_list->SetTextSelectionColors (true);
+        m_isArchive = false;
+        m_list->SetRows (std::move (rows));
+        m_list->ResetAutoFit();
+        m_list->UpdateAutoFitFromRows();
+        m_list->SetTopRow (0);
+        return;
+    }
 
     if (columns)
     {
@@ -796,41 +902,28 @@ void PreviewListingView::SetVisible (bool visible)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreviewListingView::HandleCapturedMouse
+//  PreviewListingView::HandleListMouse
 //
-//  A drag selecting lines keeps the pointer until the button comes up, as
-//  the file list's does.
+//  The listing's mouse handler. An archive's files have their menu and
+//  drags first, and the variables their arrays; a press moves focus to the
+//  preview. The value tip goes away once the pointer is off the listing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PreviewListingView::HandleCapturedMouse (const DxuiMouseEvent & ev)
+bool PreviewListingView::HandleListMouse (const DxuiMouseEvent & ev)
 {
-    if (!m_list->IsInteracting())
+    bool  inside = ev.kind != DxuiMouseEventKind::Leave && ExplorerLayout::Contains (m_list->GetBounds(), ev.positionDip);
+
+
+
+    if (m_isArchive && m_archive.HandleMouse (ev, ev.positionDip))
     {
-        return false;
+        return true;
     }
 
-    m_list->AsControl().OnMouse (ev);
-    m_context.window.Invalidate();
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PreviewListingView::HandleMouse
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool PreviewListingView::HandleMouse (const DxuiMouseEvent & ev)
-{
-    if (!m_list->IsVisible() || !ExplorerLayout::Contains (m_list->GetBounds(), ev.positionDip))
+    if (!inside && !m_list->IsInteracting())
     {
         m_valueTip.Hide();
-        return false;
     }
 
     if (ev.kind == DxuiMouseEventKind::Down)
@@ -838,15 +931,12 @@ bool PreviewListingView::HandleMouse (const DxuiMouseEvent & ev)
         m_context.input.SetFocusPane (ExplorerPane::Preview);
     }
 
-    if (m_isVariables && HandleVariablesMouse (ev))
+    if (m_isVariables && inside && !m_list->IsInteracting() && HandleVariablesMouse (ev))
     {
-        m_context.window.Invalidate();
         return true;
     }
 
-    m_list->AsControl().OnMouse (ev);
-    m_context.window.Invalidate();
-    return true;
+    return m_list->AsControl().OnMouse (ev) || ev.kind != DxuiMouseEventKind::Move;
 }
 
 
@@ -923,7 +1013,10 @@ LPCWSTR PreviewListingView::GetCursorForPoint (POINT clientPx) const
 
     cursor = m_list->AsControl().GetCursorForPoint (clientPx);
 
-    return (cursor != nullptr || m_list->IsOverScrollbar (local)) ? cursor : (arrow ? IDC_ARROW : IDC_IBEAM);
+    return cursor != nullptr               ? cursor
+         : m_list->IsOverScrollbar (local) ? IDC_ARROW
+         : arrow                           ? IDC_ARROW
+                                           : IDC_IBEAM;
 }
 
 

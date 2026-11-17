@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Machines/Apple2/Common/Dos33Geometry.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
@@ -29,6 +30,10 @@ class Dos33Skeleton
 public:
     //  Empty formatted volume (data-only). Buffer must be kImageByteSize.
     static HRESULT  Write (vector<Byte> & buffer, Byte volumeNumber);
+
+    //  The same for any geometry. The buffer is geometry.GetImageByteSize()
+    //  bytes.
+    static HRESULT  Write (vector<Byte> & buffer, Byte volumeNumber, const Dos33Geometry & geometry);
 
     //  Copies tracks 0-2 verbatim from the System Master image.
     static HRESULT  InstallDos (vector<Byte> & buffer, const vector<Byte> & masterSectors);
@@ -63,6 +68,7 @@ private:
     static constexpr int   kCatalogOffNextTrack   = 0x01;
     static constexpr int   kCatalogOffNextSector  = 0x02;
     static constexpr Byte  kDosRelease            = 3;
+    static constexpr Byte  kDos32Release          = 2;
     static constexpr int   kDosImageTracks        = 3;      // tracks 0-2 carry DOS
 
     friend class Dos33FileWriter;

@@ -106,7 +106,9 @@ specs/033-cassque/
 │   ├── intent-channel.md
 │   ├── host-file-names.md
 │   ├── dxui-additions.md
-│   └── cassolink.md        # section H wire contract and session interface
+│   ├── cassolink.md        # section H wire contract and session interface
+│   ├── file-types.md
+│   └── volumes-and-archives.md   # Stories 19 to 21 and 30 to 34
 ├── tasks.md              # /speckit-tasks output
 └── validation.md         # quickstart outcomes, written during the last phase
 ```
@@ -388,7 +390,45 @@ tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
 
 ### Full Send
 
-Story 17 and R34. F on the Apple sends an unprompted Key, and the session's idle loop queues the Full Send with the folder and format from the Full Send page in Options. `FullSendSession` is a pure class in the core: a state machine over injected drive reads, a clock and a file store, so every path runs in the unit tests with scripted disks. `CassoLinkManager` runs one session per Apple, through the queue FR-098 defines, and each whole-disk read reuses Read disk to image's path, its unreadable list included. The Apple-side program adds Session screen, Wait for key and Key (contract), and bumps its version so a running shim loads the new program. Files are written to a temporary name and renamed when complete, so FR-087's rule for a partial image applies. `FullSendManifest` is a separate pure class for parsing and writing the manifest.
+Story 17 and R34. F on the Apple sends an unprompted Key, and the session's idle loop queues the Full Send with the folder and format from the Full Send page in Options. `FullSendSession` is a pure class in the core: a state machine over injected drive reads, a clock and a file store, so every path runs in the unit tests with scripted disks. `CassoLinkManager` runs one session per Apple, through the queue FR-098 defines, and each whole-disk read reuses Read disk to image's path, its unreadable list included. The Apple-side program adds Session screen, Wait for key and Key (contract), and bumps its version so a running shim loads the new program. Files are written to a temporary name and renamed when complete, so FR-087's rule for a partial image applies. `FullSendManifest` is a separate pure class for parsing and writing the manifest. `FullSendSession` has the begin, round and pause loop. A drive's check and each drive's repeat and blank state are in `FullSendDriveCheck`. Reading, capturing, writing and booting one disk is in `FullSendDiskSend`. The manifest, the images and the search for renamed images are in `FullSendFolder`, and the Apple's screen is `FullSendScreen`.
+
+### File types
+
+Story 18, FR-156 to FR-171, research R35, contract
+[contracts/file-types.md](contracts/file-types.md). The decoders live in
+`CassoEmuCore/FileTypes/`, outside `CassoExplorer/`, because the
+command-line tool's get and put apply the same conversions (FR-170).
+Each format is one class with static `Check`, `Decode` and, for the import
+rows, `Encode`, over bytes, with no I/O. `FileFormatTable` matches a file
+to a format and calls it. A decoder produces a `DecodedFile` of one of four
+kinds: lines, a styled document, a grid, or a picture. `RtfWriter`,
+`CsvWriter` and `PngCodec` write the three converted forms, and lines are
+written as UTF-8 text.
+
+- **Preview**: `PreviewDecoder::Decide` calls `FileFormatTable::Identify`
+  first. `PreviewContent` gains `Kind::Document` with paragraphs of styled
+  runs, and `Kind::Grid` with columns and rows. `DxuiTextView`'s span gains
+  bold, italic and underline, and its row gains an alignment, for
+  documents. Grids are drawn in a `DxuiListView` in Details, as an archive's
+  rows are.
+- **Copy out**: `HostFileNaming::ConvertedKind` is replaced by `FileFormat`
+  plus the existing BASIC and text kinds, so `Make` and `Parse` cover every
+  suffix in the contract. The drag-out and Get paths in
+  `CassoExplorerActions` and `DiskCommandRunner`'s get call
+  `FileFormatTable::Export`. The right-drag menu and the Get dialog add the
+  raw choice (FR-168).
+- **Put**: a suffix from an import row selects `Encode`; the put dialog's
+  type choice lists the import rows the destination supports.
+- **Pictures**: super hi-res is decoded to BGRA in the core with each
+  line's palette, and never passes through the CRT pass. LZ4FH is
+  decompressed to an 8 KB hi-res page and drawn by `PicturePreview`, so the
+  Display page's monitor applies. Fonts and icons are drawn onto a sheet by
+  `GlyphSheet`, in the core.
+- **Gutenberg**: `GutenbergVolume`, read-only, behind `IVolume` beside the
+  other volume classes; `VolumeKind` gains `Gutenberg`. Writes fail with the
+  read-only error the other volume classes return for a locked disk.
+- **P-code**: `PCodeDisassembler` in CassoCore beside `Disassembler`, over
+  one opcode table for the p-code version Apple Pascal 1.1 to 1.3 compile.
 
 ### Component split
 
@@ -484,6 +524,200 @@ MAC Address has no canonical name. `Win32PropertyColumns::GetKey` takes the key'
 
 ## Phase 31: Full Send prefix, speed and folder row (Session 2026-11-01)
 
-`FullSendSession::ReadStableTrack` stops at the first whole read, and `RunRound` passes over the drive just sent unless its disk changed during the read. That is 36 track reads per DOS 3.3 disk on one drive, down from 42. The arm's moves between tracks 0 and 17 stay, as the fingerprint needs both before the read and the catalog track again after it.
+`FullSendDriveCheck::ReadStableTrack` stops at the first whole read, and `RunRound` passes over the drive just sent unless its disk changed during the read. That is 36 track reads per DOS 3.3 disk on one drive, down from 42. The arm's moves between tracks 0 and 17 stay, as the fingerprint needs both before the read and the catalog track again after it.
 
 The prefix follows the folder and extension from `CassoExplorerPrefs` to `LinkOperation::imagePrefix`. The Full Send row is an `adtpro:<path>` node under CassoLink's root, so it has the same path tip as an ADTPro server's folder.
+
+## Order of the remaining work
+
+The spec's Roadmap sets the order. Stories 19 to 21, large images, resource forks and archives, come before Phase 32, after the 040-disk-inspector merge. Phase 33 plans them with Stories 22 to 38.
+
+## Phase 32: File types (Session 2026-11-08, tasks.md Phase 35)
+
+Story 18, as in Design's File types. Order, each step with its tests:
+
+1. The contract's *notes* cells filled from CiderPress II's notes and the File Type Notes they cite; `FileFormatTable` with `Identify` and every row's match, and the fixtures: a file of each format saved by its program run in Casso, or taken from a disk image the owner has.
+2. `DecodedFile`, `RtfWriter`, `CsvWriter`, `GlyphSheet`; `PreviewContent`'s document and grid kinds; `DxuiTextView`'s styled spans and row alignment.
+3. Text and code: Pascal textfile both ways, random-access text, Merlin both ways, S-C Assembler, LISA in each version, Business BASIC.
+4. Code files: `PCodeDisassembler` and Pascal codefiles; OMF.
+5. Business: AppleWorks WP, DB and SS, AppleWorks GS WP, Teach, VisiCalc, Magic Window; `GutenbergVolume` and Gutenberg documents.
+6. Pictures and fonts: super hi-res plain, packed, Apple Preferred and Paintworks; 3200-color plain, DreamGrafix and `.3201`; IIgs animation first frames; LZ4FH; Print Shop and Print Shop GS clip art; Applesoft shape tables; IIgs icons; Apple II, Apple /// and Fontrix fonts; Print Shop fonts; IIgs bitmap fonts. Then the record length and character set choices in the preview (FR-160, FR-173).
+7. Copy out and put: `HostFileNaming`'s suffixes, the drag, Get and right-drag paths, the put dialog's type choice, `DiskCommandRunner`'s get and put.
+8. Validation: quickstart §7d, SC-047 to SC-049 in validation.md.
+
+Constitution re-check: I, EHM and class-static helpers in every decoder; II, every decoder is a pure function tested on fixture bytes, and no test opens a host file; V, a table of formats and no plugin layer (R35); VI, nothing is added to an executable. PASS.
+
+## Phase 33: Stories 19 to 38 (Session 2026-11-09, tasks.md Phases 36 on)
+
+Stories 19 to 38, FR-175 to FR-242, research R36 to R57, contracts
+[volumes-and-archives.md](contracts/volumes-and-archives.md),
+[cassolink.md](contracts/cassolink.md)'s Modules section and
+[file-types.md](contracts/file-types.md)'s added rows. The order is the
+Roadmap's. Each step is one or more commits, each with its tests, and each
+step ends with the unit suite, the scenario suites it touches and CheckStyle
+passing.
+
+### Technical context added
+
+**Dependencies**: bzip2 (BSD-style), libvorbis and libogg (BSD), vendored
+under `External/` with their license files, and Windows' Media Foundation MP3
+encoder. No GPL code. CiderPress II's notes (Apache 2.0), Apple's File Type
+Notes, Inside Macintosh: Files, the Z-Machine Standards Document and the
+programs' manuals are the format sources (FR-171).
+
+**Test targets outside Casso**: AppleWin, MAME, KEGS and GSplus, launched by
+scripts in `scripts/EmuTargets/`, each with its serial port or network card
+on TCP. Each is run manually for the stories that list it, and the results go in
+`validation.md`; the unit and scenario suites never start them.
+
+**Performance**: SC-054's 32 MB volume at 115,200 baud is about 47 minutes a
+direction, so resuming (R42) is part of the design rather than a refinement.
+SC-055's capture time is met by sending repeated reads only where they differ
+(R43). SC-064's walk of 5,000 images runs on a worker thread and lists rows as
+they are found.
+
+### Source layout added
+
+```text
+CassoEmuCore/
+├── Devices/Disk/
+│   ├── VolumeLayout.h                 # NEW: Dos140K, Dos13, Blocks (R36)
+│   ├── IBlockStore.h, FileBlockStore.h/.cpp, MemoryBlockStore.h/.cpp
+│   ├── Containers/                    # NEW: TwoImgContainer, DiskCopy42Container (R37)
+│   ├── Archives/                      # NEW: NuFxArchive, NuLzw, SqueezeDecoder, LzcDecoder,
+│   │                                  #      BinaryTwoArchive, GzipFile, ArchiveVolume, ContainerPath (R39)
+│   └── Partitions/                    # NEW: PartitionLayout and one class per layout (R50)
+├── Machines/Apple2/Common/
+│   ├── HfsVolume.h/.cpp, HfsBTree.h/.cpp        # NEW (R51)
+│   ├── SosVolume.h/.cpp, RdosVolume.h/.cpp      # NEW (R52)
+│   └── NibblizationLayer.cpp                    # 5-and-3 codec (R49)
+├── CassoLink/Apple/Modules/           # NEW: Block.s, Capture.s, Cassette.s, Scc.s,
+│                                      #      PascalFirmware.s, Cs8900a.s, Lan91c96.s,
+│                                      #      VirtualDrive.s, SosInterp.s (R40 to R48)
+├── CassoLink/Session/                 # CassoLinkBlockTransfer, CassoLinkCapture, CassoLinkResume
+├── Devices/Tape/TapeRecordingWriter.h/.cpp, TapeRecordingVolume.h/.cpp   # NEW (R46)
+├── Audio/WasapiCapture.h/.cpp         # NEW (R45)
+├── FileTypes/VisiCalcEvaluator, WizardryScenario, ZMachineStory          # NEW (R56, R57)
+├── CassoExplorer/Window/Managers/ExplorerPreviewManager.h/.cpp            # Expand, previous and next, View as (R53)
+├── CassoExplorer/Model/CollectionWalk, DiskIdentity, ResultsLocation     # NEW (R54)
+└── Seams/RawDevice/                   # NEW: RawDeviceServer (elevated), RawDeviceClient, IRawDevice (R50)
+CassoCore/
+├── IntegerBasicTokenizer.h/.cpp, BasicRenumber.h/.cpp, BasicCrossReference.h/.cpp   # NEW (R55)
+External/
+├── bzip2/, libogg/, libvorbis/        # NEW
+scripts/EmuTargets/                    # NEW: AppleWin, MAME, KEGS, GSplus launchers
+```
+
+### Order
+
+1. **Large volumes (Story 19)**: `VolumeLayout` threaded through
+   the volume classes and `GetBlockByteOffset`, so that today's volume tests
+   run as they are; `Blocks` loads and saves; `TwoImgContainer`,
+   `DiskCopy42Container`; the size checks; New disk's and `casso disk
+   create`'s sizes; the raw block dialogs at any size; `IBlockStore` and its
+   two implementations.
+2. **Resource forks (Story 20)**: storage type 5 in the reader and
+   writer; `FilePayload`'s forks; AppleSingle and AppleDouble with resource
+   forks; the Details columns; the copy rules of FR-182.
+3. **Archives (Story 21)**: `NuLzw`, `SqueezeDecoder`,
+   `LzcDecoder`, bzip2 and gzip; `NuFxArchive` and `BinaryTwoArchive`, read
+   then build; `ArchiveVolume`; `ContainerPath` and nested opening; Test
+   (FR-188). Before it, check what Casso Explorer does today with an image inside a
+   ZIP, as the Roadmap sets.
+4. **File types (Story 18)**: as Phase 32 plans it, then
+   `VisiCalcEvaluator` (Story 22).
+5. **Link modules and block devices (Story 23)**: Load module
+   and the module header; the block module; `CassoLinkBlockTransfer`;
+   `CassoLinkResume`; the device nodes. Tested in Casso once it has #101's
+   card, and in AppleWin and MAME by script until then (FR-194).
+6. **raw capture (Story 24)**: the capture module; the stream
+   builder and WOZ 2 writer with TMAP; Full Send's option; Archon on the
+   owner's //c.
+7. **virtual drives (Story 25)**: `CASSOLINK.SYSTEM`, the driver,
+   GETBUFR, the journal.
+8. **cassette disks (Story 26)**: `WasapiCapture`; the cassette
+   module; ADTPro's audio client served; `CassettePort` capture in the
+   scenario tests.
+9. **tape recordings (Story 27)**: `TapeRecordingWriter` for WAV,
+   MP3 and Ogg; `TapeRecordingVolume`; disk audio.
+10. **more interfaces (Story 28)**: the SCC module and IIgs
+    speed; the Pascal firmware module; the CS8900A and LAN91C96 modules with
+    their IP stack; the tests by script.
+11. **the Apple /// client (Story 29)**: `SOS.INTERP`; Make
+    CassoLink SOS disk; MAME's Apple /// socket bug checked first.
+12. **DOS 3.2 and large DOS 3.3 (Story 30)**: the 5-and-3 codec;
+    `.d13`; the VTOC's counts and the Basis 108 bitmap; 13-sector disks over
+    the link.
+13. **partitions (Story 31)**: `PartitionLayout` and each layout;
+    hybrids; copy and replace; `RawDeviceServer` and the elevated process.
+14. **HFS (Story 32)**, **SOS (Story 33)**, **Gutenberg writes and RDOS (Story 34)**.
+15. **the expanded preview (Story 35)**, **collection tools (Story
+    36)**, **BASIC tools and game data (Stories 37 and 38)**.
+
+### Constitution check for Phase 33
+
+| Principle | Status | Notes |
+|---|---|---|
+| I. Code Quality | PASS | EHM, VerbNoun, class-static helpers in every new class; the vendored libraries are compiled as they ship, outside CheckStyle, as `External/` is today. |
+| II. Testing Discipline | PASS | Containers, archives, codecs, volumes, layouts and decoders are pure classes tested on fixture bytes and `MemoryBlockStore`. Link modules run in `TestMachine` scenario tests on Casso's //c, Super Serial Card and Uthernet II, and cassette through `CassettePort`. `IRawDevice` is a seam, so no test opens a drive. The emulator targets are validation, not tests. |
+| III. UX Consistency | PASS | Archives, partitions, recordings and results are folders with the list, preview and context menu every folder has. |
+| IV. Performance | PASS | Paged stores above 32 MB; resume for long transfers; the collection walk on a worker thread. |
+| V. Simplicity | PASS with one entry | Link modules add a load step and an entry table. The alternative is a program that doesn't fit in memory (R40). |
+| VI. Thin Executable | PASS | The elevated `/rawdevice` mode is an entry in the core, selected by the command line. |
+
+Complexity Tracking: link modules, as V notes, for the reason in R40.
+
+Post-design re-check: PASS.
+
+## Phase 34: A boot check, a thumbnail and a name (Session 2026-11-13, tasks.md Phase 61)
+
+User Story 43, FR-274 to FR-287, SC-072 to SC-075, R59 to R63.
+
+**What exists.** `MachineHost` and `MachineBuilder` in `CassoEmuCore/Shell`
+build every shipped machine with no window; the unit tests' `TestMachine`
+is a thin wrapper over them, and the hardware test `AnImage_IsRunWithKeys`
+boots a WOZ on one and writes its text screen and hi-res pages. A machine's
+`MachineRefs::activeVideoMode` draws its screen into a pixel buffer, and
+`PicturePreview::EncodePng` makes a PNG of one. A Full Send's manifest has
+each image's content hash.
+
+**What is added, in the core, so the unit tests cover it.**
+
+- `CassoEmuCore/DiskCheck/BootProbe`: a machine with no window, a disk
+  image mounted in slot 6, run in slices to a limit. It samples the screen,
+  the drive's head and motor and the program counter, and returns a
+  verdict, the last frame as pixels and the text screen's rows (R59, R60).
+- `CassoEmuCore/DiskCheck/BootTitle`: the line of a text screen that reads
+  as a title, or none (R61).
+- `CassoEmuCore/DiskCheck/ThumbnailStore`: the cache folder, the alternate
+  data stream, and the record beside each picture: the verdict, whether the
+  user set it, and the image's size and time for finding its hash without
+  reading the file again (R62).
+- `CassoEmuCore/DiskCheck/GivenNames`: a name for each fingerprint, in the
+  cache folder (R63).
+
+**What is added in Casso Explorer.**
+
+- A worker thread with a queue of images to boot, one at a time, behind a
+  Full Send's reads. Full Send and Capture raw disk queue each image they
+  write; the list queues each image in view that has no thumbnail.
+- The boot result in the manifest (a column added at the end, read as
+  unknown from an older manifest), the Full Send window's list and
+  activity, and the Apple's screen at the next pause.
+- The thumbnail in the icon views and the preview pane; Remove thumbnail on
+  a disk image's menu; removal on delete; Clear thumbnails in Options.
+
+**What is added in Casso.** A command on the disk's menu that makes the
+screen the mounted image's thumbnail, through `ThumbnailStore`.
+
+**Order.** `BootProbe` and its verdict first, against the saved captures
+of 2026-11-13, as SC-072 is the outcome the owner required. Then the store,
+the Full Send hook and the window; then the list's thumbnails; then the
+name; then the commands.
+
+**Risks.** A machine's ROMs are the user's files: with none installed there
+is no boot, and the result is unclear with that reason. A boot costs
+seconds of one core, so a folder of hundreds is minutes of background work;
+the queue takes the images in view first. An alternate data stream changes
+a file's last write time unless it is restored, and the manifest's hash is
+of the unnamed stream alone, so the stream doesn't change it.

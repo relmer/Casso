@@ -24,6 +24,18 @@
     <CassoAppleSource Include="$(MSBuildThisFileDirectory)Universal.s">
       <Symbol>s_kUniversalSource</Symbol>
     </CassoAppleSource>
+    <CassoAppleSource Include="$(MSBuildThisFileDirectory)Modules\Capture.s">
+      <Symbol>s_kCaptureModuleSource</Symbol>
+    </CassoAppleSource>
+    <CassoAppleSource Include="$(MSBuildThisFileDirectory)Modules\Block.s">
+      <Symbol>s_kBlockModuleSource</Symbol>
+    </CassoAppleSource>
+    <CassoAppleSource Include="$(MSBuildThisFileDirectory)Modules\ThirteenSector.s">
+      <Symbol>s_kThirteenSectorModuleSource</Symbol>
+    </CassoAppleSource>
+    <CassoAppleSource Include="$(MSBuildThisFileDirectory)VirtualDrive.s">
+      <Symbol>s_kVirtualDriveSource</Symbol>
+    </CassoAppleSource>
     <CassoAppleSource Include="$(MSBuildThisFileDirectory)SlotFinder.s">
       <Symbol>s_kSlotFinderSource</Symbol>
     </CassoAppleSource>

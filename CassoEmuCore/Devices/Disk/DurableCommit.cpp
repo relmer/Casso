@@ -14,6 +14,11 @@
 //  once, at the single exit, from a record of the furthest step attempted,
 //  since a step that failed partway can still have left a temporary behind.
 //
+//  Copying the target's metadata is the one step whose failure does not stop
+//  the commit. The temporary is this commit's own file on the same volume,
+//  so the copy practically never fails, and the new bytes matter more than
+//  the old file's attributes, creation time and permissions.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DurableCommit::Commit (
@@ -24,9 +29,10 @@ HRESULT DurableCommit::Commit (
     CommitMode                mode,
     CommitPlan::Progress    & progress)
 {
-    HRESULT      hr       = S_OK;
-    HRESULT      removeHr = S_OK;
-    bool         isTaken  = fileIo.Exists (targetPath);
+    HRESULT      hr         = S_OK;
+    HRESULT      removeHr   = S_OK;
+    HRESULT      metadataHr = S_OK;
+    bool         isTaken    = fileIo.Exists (targetPath);
     std::string  tempPath;
 
 
@@ -48,8 +54,8 @@ HRESULT DurableCommit::Commit (
     {
         progress.furthestAttempted = CommitPlan::Step::CopyMetadata;
 
-        hr = fileIo.CopyFileMetadata (targetPath, tempPath);
-        CHR (hr);
+        metadataHr = fileIo.CopyFileMetadata (targetPath, tempPath);
+        IGNORE_RETURN_VALUE (metadataHr, S_OK);
     }
 
     progress.furthestAttempted = CommitPlan::Step::FlushTemporary;

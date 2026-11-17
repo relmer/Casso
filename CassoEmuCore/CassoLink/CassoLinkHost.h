@@ -4,10 +4,12 @@
 
 #include "CassoLink/Host/CassoLinkAdtProServer.h"
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/CassoLinkClient.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkFault.h"
 
 class IByteStream;
+class CassoLinkVirtualDrives;
 
 
 
@@ -49,43 +51,66 @@ public:
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkClient
-//
-//  Casso's client as its last Ready packet reported it, and the Status packet
-//  that ends each of its operations. A shim with no program loaded reports
-//  program version 0.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct CassoLinkClient
-{
-    Word  programVersion = 0;
-    Byte  shimVersion    = 0;
-    Byte  driveMap       = 0;
-
-    //  The program's Ready has the ROM's identification bytes: $FBB3,
-    //  $FBC0, $FBBF, $FB1E, and 1 for a IIgs. The shim's has none.
-    bool                 hasRomId = false;
-    std::array<Byte, 5>  romId    = {};
-
-    //  The CRC-16/XMODEM the program computed over itself as loaded, which
-    //  the host compares with the image it sent. Earlier programs sent none.
-    bool                 hasProgramCrc = false;
-    Word                 programCrc    = 0;
-
-    //  The model the bytes identify, as Apple //c (ROM 4); empty without them.
-    std::wstring  GetModelName () const;
-};
-
 struct CassoLinkStatus
 {
-    Byte  operation = 0;
-    Byte  drive     = 0;
-    Byte  track     = 0;
-    Byte  done      = 0;
-    Byte  error     = 0;
+    Byte  operation      = 0;
+    Byte  drive          = 0;
+    Byte  track          = 0;
+    Byte  done           = 0;
+    Byte  error          = 0;
+    bool  writeProtected = false;   // the drive's disk, as the program sensed it at the operation's start
+};
+
+//  A ProDOS block device or SmartPort unit, as the block module lists it:
+//  its slot; its unit, a SmartPort unit's number or a ProDOS drive, 1 or 2;
+//  its blocks; its kind, a SmartPort unit's type or kNoKind; and its volume
+//  name, empty when block 2 isn't a ProDOS volume header.
+struct CassoLinkBlockDevice
+{
+    static constexpr Byte  kNoKind = 0xFF;
+
+    Byte          slot        = 0;
+    Byte          unit        = 0;
+    bool          isSmartPort = false;
+    uint32_t      blocks      = 0;
+    Byte          kind        = kNoKind;
+    std::string   volume;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ICassoLinkBlockIo
+//
+//  A block device's blocks read and written: CassoLinkHost through the
+//  block module, and a fake in tests.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ICassoLinkBlockIo
+{
+public:
+    virtual ~ICassoLinkBlockIo () = default;
+
+    virtual HRESULT  ReadBlocks  (const CassoLinkBlockDevice & device, uint32_t first, Byte count, bool verify, std::vector<Byte> & outData, CassoLinkStatus & outStatus) = 0;
+    virtual HRESULT  WriteBlocks (const CassoLinkBlockDevice & device, uint32_t first, std::span<const Byte> data, bool verify, CassoLinkStatus & outStatus)          = 0;
+};
+
+
+
+
+
+//  A capture read's times: from its request to its first packet, which is
+//  mostly the arm's step and the read, and from its first packet to its
+//  Status, which is mostly the line; and the bytes of the encoding.
+struct CaptureTiming
+{
+    double  diskMs    = 0.0;
+    double  lineMs    = 0.0;
+    size_t  sentBytes = 0;
 };
 
 
@@ -121,7 +146,7 @@ struct CassoLinkStatus
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class CassoLinkHost : public CassoLinkHostTypes
+class CassoLinkHost : public CassoLinkHostTypes, public ICassoLinkBlockIo
 {
 public:
 
@@ -130,6 +155,16 @@ public:
     //  Loads in a row of a program whose CRC differs from the image, after
     //  which the link fails with HRESULT_FROM_WIN32 (ERROR_CRC).
     static constexpr int     kMaxProgramReloads  = 2;
+
+    //  The time after the last packet sent or decoded at which the client's
+    //  Readies are stale (AwaitReady), as it sends one a second, and the
+    //  reads of the line that drop them.
+    static constexpr DWORD   kStaleReadyMs       = 1500;
+    static constexpr int     kDiscardReads       = 64;
+
+    //  How long a wait for the client's Ready lasts before the wait observer
+    //  is called.
+    static constexpr DWORD   kWaitNoticeMs       = 3000;
 
     //  A request the client did not take: it sent Ready again, idle, in
     //  place of a reply. HRESULT_FROM_WIN32 (ERROR_RETRY).
@@ -168,7 +203,12 @@ public:
     //  ADTPro's defaults until set.
     void     SetVirtualDrive (int drive, const std::string & name) { m_adtProServer.SetVirtualDrive (drive, name); }
     void     SetClients      (Clients clients) { m_adtProServer.m_clients = clients; }
-    void     SetReplyTimeout (DWORD timeoutMs) { m_adtProServer.m_replyTimeoutMs = timeoutMs; }
+
+    //  The drives the CassoLink ProDOS disk's block driver reads and writes
+    //  (CassoLinkCodec::kVirtualBlock). With none set, each request's reply
+    //  is ProDOS's no-device error.
+    void     SetVirtualDrives (CassoLinkVirtualDrives * drives) { m_virtualDrives = drives; }
+    void     SetReplyTimeout  (DWORD timeoutMs) { m_adtProServer.m_replyTimeoutMs = timeoutMs; }
 
     //  How long an operation for Casso's client waits for each packet, and an
     //  ADTPro transfer for the client's next packet. The default allows for a
@@ -184,10 +224,20 @@ public:
     bool             HasAdtProClient () const { return m_adtProServer.m_adtProClient; }
     CassoLinkClient  GetClient       () const { return m_client; }
 
+    //  Whether the disk in a drive, 1 or 2, was write-protected at the start
+    //  of the latest operation on it; false before one.
+    bool             IsWriteProtected (Byte drive) const { return drive >= 1 && drive <= 2 && m_writeProtected[drive - 1]; }
+
+    //  A character of text for the Apple's screen: ? for one outside
+    //  printable ASCII, and a capital for inverse text or an Apple with no
+    //  small letters.
+    Byte             ToAppleChar     (char ch, bool isInverse) const;
+
     //  How long since the last byte arrived from the Apple.
     DWORD    GetSilenceMs () const;
 
     void     SetActivitySink (ActivityFn sink) { m_adtProServer.m_activity = std::move (sink); }
+    void     ReportActivity  (const std::string & text) { if (m_adtProServer.m_activity) { m_adtProServer.m_activity (text); } }
 
     //  Each packet sent and received, as CassoLinkPacketText describes it, for
     //  a log; sent is false for one received. A pause's report of no key, once
@@ -242,6 +292,19 @@ public:
     //  the Status's error, when the track has no sector 0 to time.
     HRESULT  TimeDrive    (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);
 
+    //  On the track before `track`, sector 0 found, the arm stepped to `track`,
+    //  and the nibbles counted to its sector 0 and on through a turn, with
+    //  that address field's volume. On track 0 fromStep is 0. Zeros, with the
+    //  Status's error, when a track has no sector 0.
+    struct TrackMeasure
+    {
+        Word  fromStep = 0;
+        Word  turn     = 0;
+        Byte  volume   = 0;
+    };
+
+    HRESULT  MeasureTrack (Byte drive, Byte track, TrackMeasure & outMeasure, CassoLinkStatus & outStatus);
+
     //  The Apple Pascal volume in the drive krunched on the Apple, after it
     //  checks that its directory's CRC is `directoryCrc`, the CRC of the
     //  directory the host checked. `progress` is called with the percentage
@@ -267,6 +330,10 @@ public:
     //  sets them, as the bar has a cell for each track.
     void     SetProgress    (Byte start, Byte end) { m_progressStart = start; m_progressEnd = end; }
     Byte     GetProgressEnd () const                { return m_progressEnd; }
+
+    //  Called with true once a wait for the client's Ready has lasted
+    //  noticeMs, and with false when that wait ends.
+    void     SetWaitObserver (std::function<void (bool)> observer, DWORD noticeMs = kWaitNoticeMs) { m_waitObserver = std::move (observer); m_waitNoticeMs = noticeMs; }
 
     //  Whether the reads that follow are checks the PC reports itself, such as
     //  its read of each drive's catalog when it connects. Their requests set
@@ -295,11 +362,83 @@ public:
     //  Ready is sent again.
     HRESULT  PromptReady  () { return SendPacket (CassoLinkCodec::kIdle, {}); }
 
+    //  The program's next Ready, within timeoutMs, and an Idle with a byte sent
+    //  after it: the PC is at work between an operation's requests, so the
+    //  operation's label and the drive's motor stay on, and the PC isn't
+    //  counted as gone. S_OK with nothing sent when no Ready arrives.
+    HRESULT  AnswerBusy   (DWORD timeoutMs);
+
     //  A Full Send's screen, in the Session screen packet: whether the session
     //  is active, its tone, and its rows' text. Not active clears the rows and
     //  ends the session.
     //  80 columns where the Apple has them, or 40. The screen is drawn again.
     HRESULT  SetColumns        (bool wide);
+
+    //  The module the program has loaded, 0 and 0 for none; and a module
+    //  loaded, chunk by chunk, then checked. EnsureModule loads it when the
+    //  program has another, or none, as a disk operation overwrites it.
+    HRESULT  QueryModule       (Byte & outId, Byte & outVersion);
+    HRESULT  LoadModule        (std::span<const Byte> module);
+    HRESULT  EnsureModule      (std::span<const Byte> module);
+
+    //  A raw read of a quarter-track position by the capture module, which
+    //  must be loaded: the bytes as the Apple stored them, a sync byte with
+    //  its top bit clear. A packet that fails its CRC, arrives out of order
+    //  or doesn't decode fails the read. The delay is the second read of each
+    //  byte's: 0 for 8 cycles, 1 for 12, with kRecalibrate added to take
+    //  the arm to track 0 first. With a position to wait on, not kNoSync,
+    //  the read starts a fixed time after the marker passes there
+    //  (Capture.s); a marker that doesn't pass is the Status's error.
+    static constexpr Byte  kNoSync      = 0xFF;
+    static constexpr Byte  kRecalibrate = 0x80;
+
+    //  A capture's Status's count of sectors done when the disk is
+    //  write-protected.
+    static constexpr Byte  kCaptureProtected = 1;
+
+    HRESULT  CaptureQuarterTrack (Byte drive, Byte position, Byte delay, Byte startPercent, Byte endPercent, Byte syncPosition, std::span<const Byte> marker,
+                                  std::vector<Byte> & outBytes, CassoLinkStatus & outStatus, CaptureTiming & outTiming);
+
+    //  The capture module for the program this host loads.
+    HRESULT  BuildCaptureModule  (std::vector<Byte> & outModule) const;
+
+    //  A track written from a stream by the 13-sector module, which must be
+    //  loaded: each byte with its top bit set a nibble, each 0 a self-sync
+    //  byte (CassoLinkCodec::kWriteNibbleTrack). A write-protected disk is the
+    //  Status's error.
+    HRESULT  WriteNibbleTrack    (Byte drive, Byte track, std::span<const Byte> stream, CassoLinkStatus & outStatus);
+
+    //  A 13-sector track's sectors in `requested`, a bit each, read by the
+    //  13-sector module, which must be loaded (CassoLinkCodec::kReadThirteenTrack).
+    //  outFields has 13 entries, each a sector's data field nibbles, or empty
+    //  when it wasn't read or arrived damaged. outUnwritten has a bit for each
+    //  sector with no data field.
+    HRESULT  ReadThirteenTrack         (Byte drive, Byte track, Word requested, std::vector<std::vector<Byte>> & outFields, Word & outUnwritten, CassoLinkStatus & outStatus);
+    HRESULT  BuildThirteenSectorModule (std::vector<Byte> & outModule) const;
+
+    //  The block module's requests (Block.s), which must be loaded: each
+    //  block device and SmartPort unit the Apple has; `count` blocks read
+    //  from `first`, 512 bytes each in outData, as far as the Status's count
+    //  of blocks done; and data's blocks written from `first`. With verify,
+    //  each block is read again and compared on the Apple. A device's error
+    //  is the Status's error, a firmware code below or kErrorVerify, with
+    //  the block it failed on `first` plus the Status's count.
+    static constexpr Byte    kBlockIoError       = 0x27;
+    static constexpr Byte    kBlockNoDevice      = 0x28;
+    static constexpr Byte    kBlockWriteProtect  = 0x2B;
+    static constexpr Byte    kBlockOffline       = 0x2F;
+    static constexpr size_t  kMaxBlocksARequest  = 255;
+
+    HRESULT  ListBlockDevices    (std::vector<CassoLinkBlockDevice> & outDevices);
+    HRESULT  ReadBlocks          (const CassoLinkBlockDevice & device, uint32_t first, Byte count, bool verify, std::vector<Byte> & outData, CassoLinkStatus & outStatus) override;
+    HRESULT  WriteBlocks         (const CassoLinkBlockDevice & device, uint32_t first, std::span<const Byte> data, bool verify, CassoLinkStatus & outStatus) override;
+    HRESULT  BuildBlockModule    (std::vector<Byte> & outModule) const;
+
+    //  A block device's error as words for the user, with the block.
+    static std::string  DescribeBlockError (Byte error, uint32_t block);
+
+    //  A request of the module loaded, and the first packet in reply.
+    HRESULT  RequestModule     (Byte command, std::span<const Byte> payload, CassoLinkPacket & outReply);
 
     HRESULT  SendSessionScreen (bool active, Byte tone, const std::vector<std::string> & rows);
 
@@ -330,6 +469,7 @@ public:
 
 private:
     HRESULT  Fill            (size_t count, DWORD timeoutMs, bool & outFilled);
+    HRESULT  DiscardReceived ();
     void     Consume         (size_t count);
     HRESULT  ReadPacket      (DWORD timeoutMs, CassoLinkPacket & outPacket);
     void     TraceReceived   (const CassoLinkPacket & packet);
@@ -338,6 +478,7 @@ private:
     HRESULT  SendByte        (Byte value);
 
     HRESULT  ServeReady        (const CassoLinkPacket & packet);
+    HRESULT  ServeVirtualBlock (const CassoLinkPacket & packet);
     void     ReadClient        (const CassoLinkPacket & packet);
     HRESULT  CheckProgramCrc   (bool & outIntact);
     HRESULT  AssembleProgram   ();
@@ -350,6 +491,7 @@ private:
     HRESULT  ReadCrcsOnce      (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Word> & outCrcs, std::vector<bool> & outRead, CassoLinkStatus & outStatus);
     HRESULT  FormatTrackOnce   (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap);
     HRESULT  TimeDriveOnce     (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);
+    HRESULT  MeasureTrackOnce  (Byte drive, Byte track, TrackMeasure & outMeasure, CassoLinkStatus & outStatus);
     HRESULT  KrunchOnce        (Byte drive, Word directoryCrc, const KrunchProgressFn & progress, CassoLinkStatus & outStatus, bool & outTaken);
     HRESULT  SendSectorsOnce   (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
                                 std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer);
@@ -389,6 +531,8 @@ private:
     }
 
     HRESULT  ReadStatus        (const CassoLinkPacket & packet, CassoLinkStatus & outStatus);
+    void     MakeBlockRequest  (const CassoLinkBlockDevice & device, uint32_t first, Byte count, bool verify, std::vector<Byte> & outRequest) const;
+    HRESULT  SendBlock         (uint32_t block, std::span<const Byte> data);
     HRESULT  SendPacket        (Byte command, std::span<const Byte> payload);
     HRESULT  LoadProgram       ();
     HRESULT  SendSectors       (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
@@ -396,6 +540,7 @@ private:
 
     std::shared_ptr<IByteStream>    m_stream;
     ICassoLinkFolder              & m_folder;
+    CassoLinkVirtualDrives        * m_virtualDrives   = nullptr;
     ClockFn                         m_clock;
     bool                            m_hasClient       = false;
     CassoLinkClient                 m_client;
@@ -411,8 +556,12 @@ private:
     bool                            m_verifyToggle    = false;
     bool                            m_awaitingKey     = false;
     std::atomic<uint64_t>           m_lastHeardMs     { GetTickCount64() };
+    std::atomic<uint64_t>           m_lastPacketMs    { 0 };   // the last packet sent or decoded
     Byte                            m_progressStart   = 0;
     Byte                            m_progressEnd     = 0;
+    std::function<void (bool)>      m_waitObserver;
+    std::array<bool, 2>             m_writeProtected  = { false, false };
+    DWORD                           m_waitNoticeMs    = kWaitNoticeMs;
     bool                            m_quiet           = false;
     TraceFn                         m_trace;
     std::string                     m_tracedReady;     // text of the last Ready traced

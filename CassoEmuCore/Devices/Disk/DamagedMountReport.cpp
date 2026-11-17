@@ -133,6 +133,11 @@ vector<int> DamagedMountReport::GetDamagedQuarterTracks (const DiskImage & image
         }
     }
 
+    for (const DamagedQuarterTrack & entry : image.GetDamagedQuarterTrackEntries())
+    {
+        result.push_back (entry.quarterTrack);
+    }
+
     sort (result.begin(), result.end());
     result.erase (unique (result.begin(), result.end()), result.end());
 

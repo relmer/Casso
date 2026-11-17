@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "IDxuiTheme.h"
+#include "DiskInspectorColors.h"
 
 
 
@@ -143,6 +144,9 @@ struct DxuiTheme : public IDxuiTheme
     //  What marks the pane the user is working in. A zero value takes the
     //  accent, or its complement where the panel shares its hue.
     uint32_t  focusAccent              = 0;
+
+    //  The disk inspector's colors; zero ones fall back by surface.
+    DiskInspectorColors  diskInspector;
 
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
@@ -310,6 +314,7 @@ struct DxuiTheme : public IDxuiTheme
         theme.tooltipText               = 0xFFF0F0F0;
         theme.errorText                     = 0xFFFF6666;
         theme.resultText                = 0xFF4EC9E0;
+        theme.diskInspector                 = DiskInspectorColors::MakeDark();
         return theme;
     }
 
@@ -356,6 +361,7 @@ struct DxuiTheme : public IDxuiTheme
         theme.tooltipText               = 0xFF1A1A1A;
         theme.errorText                     = 0xFFC02020;
         theme.resultText                = 0xFF00727D;
+        theme.diskInspector                 = DiskInspectorColors::MakeLight();
         return theme;
     }
 };

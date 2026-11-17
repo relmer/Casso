@@ -250,7 +250,7 @@ public:
 
         AssertSucceeded (host->ReadSectors (2, kCatalogTrack, sector, data, status));
         Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, L"drive 2's catalog over the bootstrapped link");
-        Assert::IsTrue (rig.Screen().starts_with ("CASSOLINK"), L"the program's status screen");
+        Assert::IsTrue (rig.Screen().starts_with ("CassoLink"), L"the program's status screen");
     }
 
 
@@ -277,7 +277,7 @@ public:
 
         rig.machine.GetRefs().iieKeyboard->PressKey (0x1B);
         rig.machine.RunCycles (2 * kClockHz);
-        Assert::AreEqual (std::string::npos, rig.Screen().find ("CASSOLINK"), L"Escape ended CassoLink");
+        Assert::AreEqual (std::string::npos, rig.Screen().find ("CassoLink"), L"Escape ended CassoLink");
 
         after = ReadPortHoles (rig.machine);
 

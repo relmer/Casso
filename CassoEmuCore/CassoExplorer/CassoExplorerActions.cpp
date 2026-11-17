@@ -1,8 +1,12 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerActions.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
+#include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/Model/BasicConversion.h"
 #include "CassoExplorer/Model/ContentSniffer.h"
+#include "CassoExplorer/Model/CopyOutConversion.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Core/TextEncoding.h"
@@ -11,6 +15,7 @@
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "FileTypes/FileFormatTable.h"
 
 
 
@@ -44,16 +49,40 @@ CassoExplorerActions::CassoExplorerActions (CassoExplorerBrowser & browser, IFil
 
 std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 {
-    std::vector<Verb>       verbs;
-    std::vector<FileEntry>  entries;
-    size_t                  selected = m_browser.GetSelectedRows().size();
-    Location                location = m_browser.GetLocation();
-    bool                    nested   = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
-    bool                    onDisk   = location.kind == Location::Kind::HostFolder || m_browser.AreSelectedRowsSearchFiles();
+    std::vector<Verb>          verbs;
+    std::vector<FileEntry>     entries;
+    std::vector<std::wstring>  imagePaths;
+    size_t                     selected    = m_browser.GetSelectedRows().size();
+    Location                   location    = m_browser.GetLocation();
+    bool                       nested      = location.kind == Location::Kind::DiskDirectory && !location.innerPath.empty();
+    bool                       onDisk      = location.kind == Location::Kind::HostFolder || m_browser.AreSelectedRowsSearchFiles();
+    std::wstring               partition;
+    bool                       isPartition = m_partitions.TryGetTarget (partition);
 
 
 
-    if (m_browser.IsImageLocation())
+    if (m_browser.IsPartitionListLocation())
+    {
+        if (isPartition)
+        {
+            verbs.push_back (Verb::Open);
+
+            //  A partition, of a card image or of a card in a reader, opens
+            //  in the disk inspector's block mode.
+            if (InspectorWindowSet::CanInspect (partition))
+            {
+                verbs.push_back (Verb::InspectDiskImage);
+            }
+
+            verbs.push_back (Verb::CopyPartitionToImage);
+
+            if (!m_browser.IsWriteProtected())
+            {
+                verbs.push_back (Verb::ReplacePartition);
+            }
+        }
+    }
+    else if (m_browser.IsImageLocation())
     {
         bool  writable = !m_browser.IsWriteProtected();
 
@@ -105,15 +134,32 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
             verbs.push_back (Verb::Put);
         }
 
+        //  On the list's background, Inspect opens the image whose contents
+        //  are listed, at any depth (FR-073).
+        if (entries.empty() && InspectorWindowSet::CanInspect (location.path))
+        {
+            verbs.push_back (Verb::InspectDiskImage);
+        }
+
         //  Formatting takes the whole disk, which is not what a subdirectory
         //  shows.
-        if (!nested && writable)
+        if (!nested && writable && !isPartition)
         {
             verbs.push_back (Verb::Format);
+        }
 
-            if (m_browser.GetVolumeKind() == VolumeKind::Pascal)
+        if (!nested && writable && m_browser.GetVolumeKind() == VolumeKind::Pascal)
+        {
+            verbs.push_back (Verb::Krunch);
+        }
+
+        if (isPartition)
+        {
+            verbs.push_back (Verb::CopyPartitionToImage);
+
+            if (writable)
             {
-                verbs.push_back (Verb::Krunch);
+                verbs.push_back (Verb::ReplacePartition);
             }
         }
     }
@@ -141,12 +187,41 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
         verbs.push_back (Verb::InsertDrive1);
         verbs.push_back (Verb::InsertDrive2);
         verbs.push_back (Verb::OpenInNewCasso);
+
+        if (CanInspectSelected())
+        {
+            verbs.push_back (Verb::InspectDiskImage);
+        }
+
         verbs.push_back (Verb::ExtractFiles);
         verbs.push_back (Verb::Format);
 
         if (IsTargetPascal())
         {
             verbs.push_back (Verb::Krunch);
+        }
+
+        m_browser.GetSelectedHostPaths (imagePaths);
+
+        if (imagePaths.size() == 1 && ActionsArchive::CanMakeShrinkItDisk (imagePaths[0]))
+        {
+            verbs.push_back (Verb::MakeShrinkItDisk);
+        }
+
+        if (imagePaths.size() == 1 && m_a2retroNet.CanAdd (imagePaths[0]))
+        {
+            verbs.push_back (Verb::AddToA2retroNet);
+        }
+
+        verbs.push_back (Verb::Test);
+    }
+    else if (m_browser.AreSelectedRowsImages() && CanInspectSelected())
+    {
+        verbs.push_back (Verb::InspectDiskImage);
+
+        if (selected == 2)
+        {
+            verbs.push_back (Verb::CompareDiskImages);
         }
     }
 
@@ -194,6 +269,11 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
 
         //  Rename takes the focused item, so any selection offers it.
         verbs.push_back (Verb::Rename);
+
+        if (location.kind == Location::Kind::HostFolder)
+        {
+            verbs.push_back (Verb::MakeArchive);
+        }
 
         //  The share sheet takes files, not folders.
         if (!row.isDirectory)
@@ -275,6 +355,71 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
     verbs.push_back (Verb::Refresh);
 
     return verbs;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::CanInspectSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::CanInspectSelected() const
+{
+    std::vector<std::wstring>  paths;
+
+
+
+    m_browser.GetSelectedHostPaths (paths);
+
+    return !paths.empty() && std::all_of (paths.begin(), paths.end(), [] (const std::wstring & path) { return InspectorWindowSet::CanInspect (path); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::CanInspect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::CanInspect() const
+{
+    std::wstring  partition;
+
+
+
+    if (m_browser.IsPartitionListLocation())
+    {
+        return m_partitions.TryGetTarget (partition) && InspectorWindowSet::CanInspect (partition);
+    }
+
+    if (m_browser.IsImageLocation())
+    {
+        return InspectorWindowSet::CanInspect (m_browser.GetLocation().path);
+    }
+
+    return !m_browser.IsAppleDriveLocation() && m_browser.AreSelectedRowsImages() && CanInspectSelected();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::CanCompare
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::CanCompare() const
+{
+    return !m_browser.IsImageLocation() && m_browser.GetSelectedRows().size() == 2 && CanInspect();
 }
 
 
@@ -659,17 +804,12 @@ std::string CassoExplorerActions::SanitizeCpmName (const std::wstring & stem)
 
 ActionsTypes::PutPlan CassoExplorerActions::AdaptPlanToVolume (PutPlan plan, VolumeKind kind)
 {
-    constexpr size_t  kMaxStem = 10;
-    size_t            dot      = 0;
-
-
-
     if (kind != VolumeKind::Pascal && kind != VolumeKind::Cpm)
     {
         return plan;
     }
 
-    if (plan.usePayload)
+    if (plan.usePayload && plan.importFormat == FileFormat::None)
     {
         plan.payload.type           = (kind == VolumeKind::Pascal) ? HostFileNaming::MapProDosToPascalKind (plan.payload.type) : (Byte) 0;
         plan.payload.hasAuxType     = false;
@@ -686,10 +826,9 @@ ActionsTypes::PutPlan CassoExplorerActions::AdaptPlanToVolume (PutPlan plan, Vol
         plan.encoding = Encoding::Verbatim;
     }
 
-    if (kind == VolumeKind::Pascal && plan.encoding == Encoding::Text && PascalVolume::GetKindFromName (plan.catalogName) != PascalVolume::kKindText)
+    if (kind == VolumeKind::Pascal && plan.encoding == Encoding::Text)
     {
-        dot              = plan.catalogName.rfind ('.');
-        plan.catalogName = plan.catalogName.substr (0, (std::min) ((dot == std::string::npos) ? plan.catalogName.size() : dot, kMaxStem)) + ".TEXT";
+        plan.catalogName = HostFileNaming::MakePascalTextName (plan.catalogName);
     }
 
     return plan;
@@ -771,8 +910,10 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanForced (const std::wstring & hos
 ActionsTypes::PutPlan CassoExplorerActions::PlanForcedConversion (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion)
 {
     PutPlan                  plan;
+    ParsedHostName           parsed;
     Word                     suggested = 0;
     ContentSniffer::Verdict  verdict   = ContentSniffer::Classify (std::span<const Byte> (bytes.data(), bytes.size()), suggested);
+    bool                     isImport  = conversion == Conversion::PascalText || conversion == Conversion::MerlinSource;
 
 
 
@@ -780,8 +921,23 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanForcedConversion (const std::wst
 
     plan.catalogName = MakeCatalogName (hostName, kind);
 
+    //  An import of a file that has a conversion's name goes in under the
+    //  name the conversion was made from.
+    if (isImport && HostFileNaming::Parse (GetLeafName (hostName), parsed) && parsed.converted != ParsedHostName::ConvertedKind::None)
+    {
+        plan.catalogName = SanitizeCatalogName (TextEncoding::NarrowToWide (parsed.catalogName), kind);
+    }
+
     switch (conversion)
     {
+        case Conversion::PascalText:
+            PlanImport (plan, FileFormat::PascalText, bytes, kind);
+            break;
+
+        case Conversion::MerlinSource:
+            PlanImport (plan, FileFormat::Merlin, bytes, kind);
+            break;
+
         case Conversion::Text:
             plan.encoding = Encoding::Text;
             break;
@@ -893,6 +1049,16 @@ std::wstring CassoExplorerActions::DescribePlan (const PutPlan & plan, VolumeKin
         return std::wstring();
     }
 
+    if (plan.importFormat == FileFormat::Merlin)
+    {
+        return L"Merlin source";
+    }
+
+    if (plan.importFormat == FileFormat::PascalText)
+    {
+        return L"Pascal text";
+    }
+
     if (plan.usePayload)
     {
         swprintf_s (address, L" $%04X", (unsigned) plan.payload.auxType);
@@ -967,6 +1133,10 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanAppleSingle (const std::wstring 
         SetTypedPayload (plan, file.data, ProDosVolume::kTypeBinary, true, load, isDos);
     }
 
+    plan.payload.resourceFork    = file.resourceFork;
+    plan.payload.finderInfo      = file.finderInfo;
+    plan.payload.hasResourceFork = file.hasResourceFork;
+
     return plan;
 }
 
@@ -1035,7 +1205,20 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanPutByContent (const std::wstring
             return plan;
         }
 
-        if (parsed.converted != ParsedHostName::ConvertedKind::None)
+        if (parsed.converted == ParsedHostName::ConvertedKind::Format && FileFormatTable::GetImportBySuffix (GetLeafName (hostName)) != FileFormat::None)
+        {
+            PlanImport (plan, parsed.format, bytes, kind);
+            plan.namedItself = true;
+            return plan;
+        }
+
+        //  A conversion with no way back, such as a picture's PNG, is a host
+        //  file like any other.
+        if (parsed.converted == ParsedHostName::ConvertedKind::Format)
+        {
+            plan.catalogName = MakeCatalogName (hostName, kind);
+        }
+        else if (parsed.converted != ParsedHostName::ConvertedKind::None)
         {
             plan.encoding    = Encoding::Text;
             plan.namedItself = true;
@@ -1076,6 +1259,45 @@ ActionsTypes::PutPlan CassoExplorerActions::PlanPutByContent (const std::wstring
     }
 
     return plan;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::PlanImport
+//
+//  A host file through the import of a row of the file format table, as the
+//  payload and under the catalog name that format has on the volume. On a
+//  file system the format isn't written to, the file goes in as text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerActions::PlanImport (PutPlan & inOutPlan, FileFormat format, const std::vector<Byte> & bytes, VolumeKind kind)
+{
+    HRESULT       hr    = S_OK;
+    std::wstring  error;
+
+
+
+    if (!HostFileNaming::CanImport (format, kind))
+    {
+        inOutPlan.encoding = Encoding::Text;
+        return;
+    }
+
+    inOutPlan.catalogName  = SanitizeCatalogName (TextEncoding::NarrowToWide (HostFileNaming::MakeImportName (inOutPlan.catalogName, format, kind)), kind);
+    inOutPlan.usePayload   = true;
+    inOutPlan.importFormat = format;
+
+    hr = FileFormatTable::Import (format, kind, std::span<const Byte> (bytes.data(), bytes.size()), inOutPlan.payload, error);
+
+    if (FAILED (hr))
+    {
+        inOutPlan.refusal = error.empty() ? std::wstring (L"The file could not be converted.") : error;
+    }
 }
 
 
@@ -1153,17 +1375,21 @@ void CassoExplorerActions::FinishWrite (const std::wstring & imagePath)
 //  CassoExplorerActions::GetSelected
 //
 //  Directories are skipped: a directory copies out through a drag, which
-//  walks it. A file of the same name in the folder is replaced, skipped or
-//  kept beside the copy, by the choice `collision` returns.
+//  walks it. A file of the same name in the folder is replaced or skipped,
+//  or the copy gets a numbered name, by the choice `collision` returns. A
+//  raw copy has each file's bytes as they are on the volume, under its raw
+//  name.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision)
+ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision, bool raw)
 {
     Outcome                    outcome;
     std::vector<FileEntry>     entries;
     std::vector<std::wstring>  hostNames;
+    std::vector<FileFormat>    formats;
     std::string                image     = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
+    VolumeKind                 kind      = m_browser.GetVolumeKind();
     bool                       converted = false;
     int                        index     = 0;
     int                        count     = 0;
@@ -1180,7 +1406,9 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
 
     for (const FileEntry & entry : entries)
     {
-        hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, m_browser.GetVolumeKind(), style, converted));
+        formats.push_back ((raw || style == HostFileNaming::Style::AppleSingle) ? FileFormat::None
+                                                                                : CopyOutConversion::Find (m_browser.GetOperations(), image, m_browser.GetEntryPath (entry), entry, kind));
+        hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, kind, style, converted, formats.back(), raw));
     }
 
     count = m_copier.CountCollisions (hostFolder, hostNames);
@@ -1209,8 +1437,8 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
             continue;
         }
 
-        Append (outcome, m_browser.GetOperations().Get (image, m_browser.GetEntryPath (entry), GetEncoding (entry, m_browser.GetVolumeKind()),
-                                                        TextEncoding::WideToNarrow (hostPath), entry.catalogIndex));
+        Append (outcome, CopyOutConversion::GetToFile (m_browser.GetOperations(), m_fs, m_browser.GetDecodeOptions (m_browser.GetLocation().path, m_browser.GetEntryPath (entry)),
+                                                       image, m_browser.GetEntryPath (entry), entry, kind, formats[at], raw ? Encoding::Verbatim : GetEncoding (entry, kind), hostPath));
     }
 
     return outcome;
@@ -1684,8 +1912,9 @@ ActionsTypes::Outcome CassoExplorerActions::RenameSelected (const std::wstring &
 //
 //  CassoExplorerActions::AddFileVerbs
 //
-//  Lock when an entry is unlocked, Unlock when one is locked, and Convert to
-//  for one BASIC program or text file.
+//  Lock when an entry is unlocked, Unlock when one is locked, Convert to for
+//  one BASIC program or text file, and Convert to tape audio for BASIC
+//  programs and binaries on an image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1704,6 +1933,11 @@ void CassoExplorerActions::AddFileVerbs (const std::vector<FileEntry> & entries,
     if (entries.size() == 1 && !entries[0].isDirectory && BasicConversion::GetKind (m_browser.GetVolumeKind(), entries[0].type) != BasicConversion::Kind::None)
     {
         inOutVerbs.push_back (Verb::ConvertTo);
+    }
+
+    if (!m_browser.IsAppleDriveLocation() && ActionsTape::CanMakeRecording (m_browser.GetVolumeKind(), entries))
+    {
+        inOutVerbs.push_back (Verb::ConvertToTapeAudio);
     }
 }
 
@@ -2067,6 +2301,43 @@ CassoExplorerActions::ImageFacts & CassoExplorerActions::GetImageFacts (const st
     }
 
     return *facts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::GetTargetBlockCount
+//
+//  The blocks the image a raw block read or write goes to has: 280 for a
+//  floppy, and the volume's blocks for a larger image. An image that can't be
+//  read is taken as a floppy, which the read or write then reports.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerActions::GetTargetBlockCount() const
+{
+    HRESULT             hr     = S_OK;
+    std::string         target = TextEncoding::WideToNarrow (GetFormatTarget());
+    int                 blocks = ProDosSkeleton::kTotalBlocks;
+    vector<Byte>        bytes;
+    vector<Byte>        sectors;
+    SectorDecodeReport  report;
+
+
+
+    hr = m_browser.GetOperations().GetFileIo().ReadAllBytes (target, bytes);
+    CHR (hr);
+
+    hr = VolumeImage::Load (bytes, target, sectors, report);
+    CHR (hr);
+
+    blocks = ProDosSkeleton::GetBlockCount (sectors.size());
+
+Error:
+    return blocks;
 }
 
 

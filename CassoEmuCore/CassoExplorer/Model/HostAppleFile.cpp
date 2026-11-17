@@ -222,3 +222,34 @@ int32_t HostAppleFile::FromProDosDate (Word date, Word time)
 
     return (int32_t) (duration_cast<std::chrono::seconds> (offset).count() + ((time >> 8) & 0x1F) * 3600 + (time & 0x3F) * 60);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HostAppleFile::SetHostDates
+//
+//  A ProDOS date is the wall clock where it was written, so the PC's UTC
+//  time is converted to local time first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HostAppleFile::SetHostDates (int64_t unixSeconds, FilePayload & inOutPayload)
+{
+    static constexpr int64_t  kUnixSecondsAt2000 = 946684800;
+    __time64_t                when               = (__time64_t) unixSeconds;
+    tm                        local              = {};
+
+
+
+    if (unixSeconds > 0 && _localtime64_s (&local, &when) == 0)
+    {
+        ToProDosDate ((int32_t) (_mkgmtime64 (&local) - kUnixSecondsAt2000), inOutPayload.modifiedDate, inOutPayload.modifiedTime);
+
+        inOutPayload.createdDate = inOutPayload.modifiedDate;
+        inOutPayload.createdTime = inOutPayload.modifiedTime;
+        inOutPayload.hasDates    = inOutPayload.modifiedDate != 0;
+    }
+}

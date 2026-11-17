@@ -29,6 +29,15 @@ class DxuiPopupHost;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+//  A square of a color beside one line of a tip, for a tip about colors.
+struct DxuiTooltipSwatch
+{
+    int       line = 0;
+    uint32_t  argb = 0;
+};
+
+
+
 class DxuiTooltip : public IDxuiControl
 {
 public:
@@ -139,6 +148,10 @@ public:
     //  table. Set before the request it goes with, as the line colors are.
     void  SetLineSwatches (std::vector<uint32_t> argbs) { m_lineSwatches = std::move (argbs); }
 
+    //  The same squares, each with the line it is beside; with an empty list,
+    //  no squares are drawn.
+    void  SetSwatches     (const std::vector<DxuiTooltipSwatch> & swatches);
+
     //  A color scale before each of the given lines, from its first color on
     //  the left to its last, for a key to scales drawn elsewhere: one for each
     //  line from the top, none for a line without one. A line with a scale is
@@ -179,6 +192,7 @@ public:
     static constexpr float  kDefaultMaxTextWidthDip = 340.0f;
     void  SetMaxTextWidthDip (float dip) { m_maxTextWidthDip = dip; }
     void  SetDpi             (UINT dpi) { m_scaler.SetDpi (dpi); }
+    UINT  GetDpi             () const   { return m_scaler.GetDpi(); }
     void  SetViewportSize    (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
     void  SetTheme           (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
 
@@ -248,6 +262,12 @@ public:
     // as RequestShow's does, and from then the tip follows the pointer.
     void  RequestShowFollowing (const RECT & anchor, const std::wstring & text, int64_t nowMs);
 
+    // Put the tip up at once, as RequestShowNow does, under the pointer's
+    // image at pointerPx, in client pixels. Each request with the pointer
+    // elsewhere moves the tip, so it follows the pointer, as over a magnified
+    // map whose cells are where a tip beside the pointer would be.
+    void  RequestShowNowBelowPointer (POINT pointerPx, const std::wstring & text, int64_t nowMs);
+
     // Shows immediately (no open dwell) and auto-hides after durationMs.
     // For transient notices where no pointer-leave will arrive to dismiss
     // it -- e.g. entering paddle mode captures the mouse, so the hover that
@@ -270,6 +290,10 @@ public:
     bool  IsOnPopup       (POINT screenPt) const;
 
     bool                 IsVisible () const { return m_visible; }
+    bool                 IsPending () const { return m_pending; }
+
+    //  Up and drawn: visible, and in a popup when the tip has a popup host.
+    bool                 IsShown   () const { return m_visible && (m_popupHost == nullptr || m_activePopup != nullptr); }
 
     //  How many times a balloon window has been raised. A tip that follows
     //  the pointer raises one and then moves it.

@@ -237,7 +237,6 @@ namespace Disk2State
             m_busySinceIdleCallback   = (seed & 0x01) == 0;
             m_motorSpindownCycles     = kSpindownBase + seed;
             m_motorSpinupRemaining    = kSpinupBase + seed;
-            m_iwmModeReg              = static_cast<Byte> (seed + 5);
             m_cyclesSinceIdleCallback = kIdleBase + seed;
             m_lastCpuSync             = kSyncBase + seed;
 
@@ -315,7 +314,6 @@ namespace Disk2State
             Assert::AreEqual (m_busySinceIdleCallback,   other.m_busySinceIdleCallback,   L"busy since idle callback");
             Assert::AreEqual (m_motorSpindownCycles,     other.m_motorSpindownCycles,     L"spindown cycles");
             Assert::AreEqual (m_motorSpinupRemaining,    other.m_motorSpinupRemaining,    L"spin-up remaining");
-            Assert::AreEqual (m_iwmModeReg,              other.m_iwmModeReg,              L"IWM mode register");
             Assert::AreEqual (m_cyclesSinceIdleCallback, other.m_cyclesSinceIdleCallback, L"cycles since idle callback");
             Assert::AreEqual (m_lastCpuSync,             other.m_lastCpuSync,             L"last CPU sync");
 

@@ -1,0 +1,174 @@
+#pragma once
+
+#include "Pch.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileFormat
+//
+//  The rows of contracts/file-types.md, each a format FileFormatTable
+//  identifies and decodes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class FileFormat
+{
+    None, PascalText, RandomText, Merlin, ScAssembler, Lisa,
+    BusinessBasic, PascalCode, Omf, AppleWorksWp, AppleWorksDb,
+    AppleWorksSs, AppleWorksGsWp, Teach, VisiCalc, Gutenberg,
+    MagicWindow, SuperHiRes, PackedSuperHiRes, Paintworks,
+    SuperHiRes3200, DreamGrafix, SuperHiRes3201, IigsAnimation,
+    Lz4fh, PrintShopGraphic, PrintShopGsClipArt, ShapeTable,
+    IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
+    IigsFont, WizardryScenario, InfocomStory,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Charset
+//
+//  The character set text is read in: Apple text, ASCII with the high bit
+//  set or clear; Mac OS Roman, as the IIgs writes; or ISO 8859-1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class Charset { Default, AppleText, MacOsRoman, Iso8859_1 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SheetForm
+//
+//  A spreadsheet's cells as the values the program draws or as the formulas
+//  typed, None for a file that has no such choice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class SheetForm { None, Values, Formulas };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DecodeOptions
+//
+//  Chosen in a file's preview while its tab is open: the record length
+//  that replaces the one found, 0 for the one found, and the character set,
+//  Default for Mac OS Roman in a IIgs format and Apple text otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DecodeOptions
+{
+    size_t   recordLength = 0;
+    Charset  charset      = Charset::Default;
+    bool     formulas     = false;      // a spreadsheet's formulas as typed, not their values
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Run, Paragraph and Grid
+//
+//  A document's text in styled runs, a tab a character of the text, and a
+//  grid's headings and rows of cell strings.
+//
+//  A run's color is a role, drawn in the theme's color for it on screen and
+//  in a fixed color in a copy out. A paragraph with a picture is the
+//  picture alone, in 32-bit BGRA pixels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class RunColor { Text, Good, Bad, Muted };
+
+
+
+struct Run
+{
+    std::wstring  text;
+    bool          bold      = false;
+    bool          italic    = false;
+    bool          underline = false;
+    RunColor      color     = RunColor::Text;
+
+    bool  operator== (const Run &) const = default;
+};
+
+
+
+enum class Alignment { Left, Center, Right, Justified };
+
+
+
+struct Paragraph
+{
+    Alignment              alignment = Alignment::Left;
+    std::vector<Run>       runs;
+    std::vector<uint32_t>  picture;
+    int                    width     = 0;
+    int                    height    = 0;
+
+    bool  operator== (const Paragraph &) const = default;
+};
+
+
+
+struct Grid
+{
+    std::vector<std::wstring>               columns;
+    std::vector<std::vector<std::wstring>>  rows;
+
+    bool  operator== (const Grid &) const = default;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DecodedFile
+//
+//  A file decoded whole, as lines, a document, a grid or a picture. The
+//  notes list what the decoder couldn't represent, such as a feature of a
+//  later version or the missing lines of a short picture. The character set
+//  is the one the text was read in, Default for a format that has one fixed
+//  set, and the record length the one a random-access text file was split
+//  by. The sheet form is the one a spreadsheet with formulas was decoded
+//  in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DecodedFile
+{
+    enum class Kind { Lines, Document, Grid, Picture };
+
+    FileFormat                 format       = FileFormat::None;
+    Kind                       kind         = Kind::Lines;
+    std::vector<std::wstring>  lines;
+    std::vector<Paragraph>     paragraphs;
+    Grid                       grid;
+    std::vector<uint32_t>      bgra;
+    int                        width        = 0;
+    int                        height       = 0;
+    std::vector<std::wstring>  notes;
+    Charset                    charset      = Charset::Default;
+    size_t                     recordLength = 0;
+    SheetForm                  sheetForm    = SheetForm::None;
+};

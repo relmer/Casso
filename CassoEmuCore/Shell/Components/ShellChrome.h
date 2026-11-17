@@ -9,8 +9,10 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/ChromeBand.h"
+#include "Ui/Chrome/DriveBarFanControl.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/Chrome/VolumeFlyout.h"
+#include "Ui/Scene/DeskSceneLayout.h"
 
 
 
@@ -62,6 +64,7 @@ public:
     // under the drive row; the frame rate readout after it; the toolbar and
     // the //c switch bar; and last the capture bar and the notices.
     void                     AdoptMenuBar        (DxuiPanel & root);
+    void                     AdoptDriveBar       (DxuiPanel & root);
     ShellFrameRateReadout  & GetFrameRateReadout () { return m_frameRate; }
     void                     AdoptToolbar        (DxuiPanel & root);
     void                     AdoptBanners        (DxuiPanel & root);
@@ -185,6 +188,24 @@ public:
         float                         sceneScale,
         int                           visibleCount);
 
+    // The drive bar under the desk scene: a widget per class the desk plan
+    // puts on the bar, the class's other drives fanned out above it on hover.
+    // The Disk II widgets are placed in their drives' slots.
+    void    LayoutDriveBar         (int bottomInsetPx, int clientW, int clientH, UINT dpi);
+    void    HideDriveBar           ();
+    bool    UpdateDriveBarHover    (POINT pt);
+    bool    HandleDriveBarClick    (POINT pt);
+    bool    SyncDriveBarViews      ();
+    bool    AnimateDriveBarFan     ();
+
+    const DriveBarFanControl &  GetDriveBarFan () const { return m_driveBarFan; }
+
+    // With the drives auto-hidden, the bar rides the slide: it is laid out
+    // again at the slide's progress. The slide remains up while the pointer
+    // is on the bar or on its fan.
+    void    SlideDriveBar          (float progress);
+    bool    IsPointOnDriveBar      (POINT pt) const;
+
     void    LayoutSwitchBar        (UINT dpi);
     void    SyncSwitchBarState     ();
     void    HandleSwitchBarClick   (Apple2cSwitchBar::Part part);
@@ -212,9 +233,19 @@ public:
     // The desk's slide: how far the devices have risen, the rect the pointer
     // stays in to leave them up, and the top of the zone that raises them.
     // See m_deskSlideProgress and m_deskSlideRevealTopPx.
-    float   GetDeskSlideProgress    () const { return m_deskSlideProgress; }
+    float  GetDeskSlideProgress     () const { return m_deskSlideProgress; }
+    float  GetDriveBarSlideProgress () const { return m_driveBarSlideProgress; }
+
+    // Animates the drive bar's fan and refreshes its labels and lamps while
+    // the bar shows; true when the bar changed.
+    bool    TickDriveBar            ();
     RECT    GetDeskSlideCoverPx     () const { return m_deskSlideCoverPx; }
     LONG    GetDeskSlideRevealTopPx () const { return m_deskSlideRevealTopPx; }
+
+    // Eases the dock's magnification in while the pointer is over the risen
+    // dock, and out once it is off it. Returns whether the desk changed.
+    bool    UpdateDockHover      (POINT cursor, bool isOverDock, int64_t nowMs);
+    void    RecomposeDeskSlide   ();
 
     // Fullscreen presentation (FR-014): every chrome element collapses to
     // nothing -- host caption, menu bar, toolbar, joystick row, drive band,
@@ -238,6 +269,10 @@ public:
     void            ShowNotice (const std::wstring & text);
     void            PostNotice (const std::wstring & text);
     ShellNotices  & GetNotices () { return m_notifications; }
+
+    //  Takes down every tip, before a modal such as a file dialog opens over
+    //  the window: a tip is a topmost popup and would be drawn over it.
+    void  HideTooltips ();
 
     // The lowest edge of whatever chrome is docked (or, in fullscreen,
     // revealed) at the top of the client, which is where an overlay that
@@ -295,6 +330,30 @@ private:
     // whole scene zooms together when the window resizes. 1.0 for compact
     // themes and at the 100%-zoom default window size.
     float                      m_chromeSceneScale = 1.0f;
+
+    // The drive bar under the desk scene, and the DPI its slots were laid out
+    // at, which the Disk II widgets placed in them are laid out at too.
+    DriveBarFanControl         m_driveBarFan;
+    UINT                       m_driveBarDpi           = 96;
+    int                        m_driveBarInsetPx       = 0;
+    int                        m_driveBarClientW       = 0;
+    int                        m_driveBarClientH       = 0;
+    uint64_t                   m_driveBarFanStartMs    = 0;
+    float                      m_driveBarSlideProgress = 0.0f;
+    int                        m_driveBarHoverClass    = -1;
+    int                        m_driveBarHoverEntry    = -1;
+
+    static constexpr uint64_t  s_kDriveBarFanSlideMs = 160;
+
+    // The drive bar's label column, wide enough for two lines such as
+    // "Drive 1 - Disk ][" and "3.5" (800K), 400K disk".
+    static constexpr int       s_kDriveBarCaptionDip = 118;
+
+    // The views from the last sync, so a repaint is requested only on a change.
+    std::vector<std::vector<DriveBarEntryView>>  m_driveBarViews;
+
+    void    PlaceDriveBarWidgets ();
+    void    SetDiskIiBarCaptions (bool onBar);
 
     // The client area's one tooltip, for the toolbar's buttons, the //c switch
     // bar's parts and the drives, and its tip service. The drive tip's text,
@@ -396,6 +455,13 @@ private:
     RECT                     m_deskSlideBox        = {};
     float                    m_deskSlideProgress   = 0.0f;
     RECT                     m_deskSlideCoverPx    = {};
+
+    // The dock's magnification under the pointer, and its strength easing in
+    // and out over s_kDockEaseMs.
+    static constexpr int64_t  s_kDockEaseMs = 120;
+
+    DeskDockHover            m_dockHover;
+    DxuiMagnifiedRow         m_dockFade            { s_kDockEaseMs };
 
     // The top of the zone that reveals the drives: see
     // FullscreenStripState::GetRevealTopPx. Written by UpdateViewportLayout

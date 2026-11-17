@@ -20,10 +20,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 CassoLinkSession::CassoLinkSession (IByteStreamFactory & factory, ICassoLinkFolder & folder, IDiskFileIo & fileIo, ICassoLinkSessionSink & sink) :
-    m_factory (factory),
-    m_folder  (folder),
-    m_fileIo  (fileIo),
-    m_sink    (sink)
+    m_factory       (factory),
+    m_folder        (folder),
+    m_fileIo        (fileIo),
+    m_sink          (sink),
+    m_virtualDrives (fileIo)
 {
     for (int i = 0; i < kDriveCount; i++)
     {
@@ -73,6 +74,9 @@ HRESULT CassoLinkSession::Start (const CassoLinkSettings & settings)
 
     m_settings           = settings;
     m_connector.m_port   = TextEncoding::NarrowToWide (settings.port);
+
+    m_virtualDrives.SetImage (1, TextEncoding::WideToNarrow (settings.virtualDrives.drive1));
+    m_virtualDrives.SetImage (2, TextEncoding::WideToNarrow (settings.virtualDrives.drive2));
     m_stopping           = false;
     m_connector.m_thread = std::jthread ([this] (std::stop_token stop) { Run (stop); });
 
@@ -129,6 +133,7 @@ void CassoLinkSession::Cancel()
 
     if (m_running && m_host)
     {
+        m_canceled = true;
         m_fullSend.RequestCancel();
         m_host->Cancel();
     }
@@ -308,6 +313,67 @@ std::shared_ptr<LinkOperation> CassoLinkSession::Krunch (int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkSession::ListBlockDevices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> CassoLinkSession::ListBlockDevices()
+{
+    return Queue (LinkOperationKind::ListBlockDevices, 0, FilePath());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::ReadBlockDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> CassoLinkSession::ReadBlockDevice (int drive, const std::string & imagePath, bool resume, bool forceVerify)
+{
+    std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
+
+
+
+    operation->imagePath   = imagePath;
+    operation->resume      = resume;
+    operation->verifyReads = forceVerify || m_verifyReads;
+
+    return Queue (LinkOperationKind::ReadDisk, drive, FilePath(), operation);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::WriteBlockDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> CassoLinkSession::WriteBlockDevice (int drive, const std::string & imagePath, bool resume, bool forceVerify)
+{
+    std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
+
+
+
+    operation->imagePath    = imagePath;
+    operation->resume       = resume;
+    operation->verifyWrites = forceVerify || m_verifyWrites;
+
+    return Queue (LinkOperationKind::WriteDisk, drive, FilePath(), operation);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkSession::ReadDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -324,6 +390,27 @@ std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std:
     operation->autoVerify      = m_autoVerify;
 
     return Queue (LinkOperationKind::ReadDisk, drive, FilePath(), operation);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::CaptureDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> CassoLinkSession::CaptureDisk (int drive, const std::string & imagePath)
+{
+    std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
+
+
+
+    operation->imagePath = imagePath;
+
+    return Queue (LinkOperationKind::CaptureDisk, drive, FilePath(), operation);
 }
 
 
@@ -355,6 +442,22 @@ std::shared_ptr<LinkOperation> CassoLinkSession::WriteDisk (int drive, const std
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkSession::NoteBoot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkSession::NoteBoot (const std::string & file, const std::string & boot, const std::string & text, const std::string & renamedTo, const std::string & fsCheck)
+{
+    m_fullSend.GetStatus().SetBoot (file, boot, renamedTo, fsCheck);
+    m_fullSend.GetStatus().AddLine (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkSession::FullSend
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -370,6 +473,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::FullSend (const std::string & f
     operation->imagePrefix = prefix;
     operation->verifyReads = m_verifyReads;
     operation->autoVerify  = m_autoVerify;
+    operation->protection  = m_sink.GetFullSendProtection();
 
     return Queue (LinkOperationKind::FullSend, 1, FilePath(), operation);
 }
@@ -386,7 +490,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::FullSend (const std::string & f
 
 LinkChip CassoLinkSession::GetLinkChip (LinkTransport transport)
 {
-    return (transport == LinkTransport::Uthernet) ? LinkChip::W5100 : LinkChip::Acia;
+    return (transport == LinkTransport::Uthernet) ? LinkChip::W5100 : (transport == LinkTransport::Cassette) ? LinkChip::Cassette : LinkChip::Acia;
 }
 
 
@@ -596,13 +700,49 @@ std::shared_ptr<LinkOperation> CassoLinkSession::Queue (LinkOperationKind kind, 
     {
         std::lock_guard<std::mutex>  lock (m_connector.m_lock);
 
-        operation->id = m_connector.m_nextId++;
-        m_connector.m_queue.push_back (operation);
+        operation->id        = m_connector.m_nextId++;
+        operation->isBlocked = kind != LinkOperationKind::FullSend && m_running && m_running->kind == LinkOperationKind::FullSend;
+
+        if (!operation->isBlocked)
+        {
+            m_connector.m_queue.push_back (operation);
+        }
     }
 
-    m_connector.m_wake.notify_all();
+    //  A Full Send has the drives until it ends, so nothing else waits behind
+    //  it.
+    if (operation->isBlocked)
+    {
+        operation->result  = HRESULT_FROM_WIN32 (ERROR_BUSY);
+        operation->message = kFullSendBusy;
+        operation->state   = LinkOperationState::Failed;
+        m_sink.OnDone (operation);
+    }
+    else
+    {
+        m_connector.m_wake.notify_all();
+    }
 
     return operation;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::IsFullSendRunning
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkSession::IsFullSendRunning() const
+{
+    std::lock_guard<std::mutex>  lock (m_connector.m_lock);
+
+
+
+    return m_running && m_running->kind == LinkOperationKind::FullSend;
 }
 
 
@@ -637,7 +777,8 @@ void CassoLinkSession::Run (std::stop_token stop)
     }
     else if (m_connector.m_bootstrap)
     {
-        hr = m_connector.RunBootstrap (stop, *m_connector.m_bootstrap);
+        hr = (m_settings.transport == LinkTransport::Cassette) ? m_connector.RunCassetteBootstrap (stop, *m_connector.m_bootstrap)
+                                                               : m_connector.RunBootstrap (stop, *m_connector.m_bootstrap);
         m_sink.OnDone (m_connector.m_bootstrap);
         m_connector.m_bootstrap.reset();
     }
@@ -682,7 +823,8 @@ void CassoLinkSession::Run (std::stop_token stop)
             {
                 operation = m_connector.m_queue.front();
                 m_connector.m_queue.pop_front();
-                m_running = operation;
+                m_running  = operation;
+                m_canceled = false;
             }
         }
 
@@ -733,9 +875,14 @@ void CassoLinkSession::Run (std::stop_token stop)
         operation->result   = hr;
         operation->progress = 100;
 
+        //  A Full Send ended on the Apple, with Q, isn't a failure: its message
+        //  has the disks sent.
         if (operation->kind != LinkOperationKind::Enumerate && operation->kind != LinkOperationKind::CheckLinkDisk)
         {
+            bool  isEnded = operation->kind == LinkOperationKind::FullSend && hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED) && !operation->message.empty();
+
             m_sink.OnFinished (*operation, SUCCEEDED (hr) ? std::format ("{}: done", DescribeOperation (*operation))
+                                         : isEnded        ? operation->message
                                                           : std::format ("{}: failed (error 0x{:08X}){}{}", DescribeOperation (*operation), (uint32_t) hr,
                                                                          operation->message.empty() ? "" : ": ", operation->message));
         }
@@ -754,8 +901,10 @@ void CassoLinkSession::Run (std::stop_token stop)
             //  A Full Send's summary fills a history line, so it has no OK.
             status  = (SUCCEEDED (hr) || (operation->kind == LinkOperationKind::FullSend && hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))) ? "OK " : "ERR";
             summary = operation->kind == LinkOperationKind::FullSend && !operation->fullSendSummary.empty() && status[0] == 'O';
-            logged  = m_connector.LogOnApple (summary ? DescribeOperation (*operation, std::nullopt, true)
-                                                      : std::format ("{} {}", status, DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr) || operation->kind == LinkOperationKind::FullSend)));
+            logged  = m_connector.LogOnApple (FitToApple (*operation,
+                                                          summary ? DescribeOperation (*operation, std::nullopt, true)
+                                                                  : std::format ("{} {}", status, DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr) || operation->kind == LinkOperationKind::FullSend)),
+                                                          CassoLinkCodec::kLogLength));
             IGNORE_RETURN_VALUE (logged, S_OK);
         }
 
@@ -816,7 +965,7 @@ void CassoLinkSession::StartFullSendFromApple()
     }
     else
     {
-        logged = m_connector.LogOnApple ("ERR FULL SEND: NO FOLDER ON THE PC");
+        logged = m_connector.LogOnApple ("ERR Full Send: no folder on the PC");
         IGNORE_RETURN_VALUE (logged, S_OK);
     }
 }
@@ -847,6 +996,8 @@ void CassoLinkSession::Disconnect()
         m_host.reset();
         m_connector.m_stream.reset();
     }
+
+    m_blockDevices.Clear();
 
     SetState (LinkState::Disconnected);
 }
@@ -917,28 +1068,63 @@ std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation
 
     switch (operation.kind)
     {
-        case LinkOperationKind::Enumerate:       text = path.empty() ? std::format ("{} THE CATALOG OF {}", finished ? "READ" : "READING", drive)
-                                                                     : std::format ("{} {}", finished ? "LISTED" : "LISTING", path);       break;
-        case LinkOperationKind::ReadFile:        text = std::format ("{} {} FROM {}", finished ? "COPIED" : "COPYING", path, drive);         break;
-        case LinkOperationKind::WriteFile:       text = std::format ("{} {} TO {}", finished ? "COPIED" : "COPYING", path, drive);           break;
-        case LinkOperationKind::Delete:          text = std::format ("{} {}", finished ? "DELETED" : "DELETING", path);                     break;
-        case LinkOperationKind::Rename:          text = std::format ("{} {} TO {}", finished ? "RENAMED" : "RENAMING", path, operation.newName); break;
-        case LinkOperationKind::SetAttributes:   text = std::format ("{} {}", finished ? "CHANGED" : "CHANGING", path);                     break;
-        case LinkOperationKind::MakeDirectory:   text = std::format ("{} FOLDER {}", finished ? "MADE" : "MAKING", path);                   break;
-        case LinkOperationKind::RemoveDirectory: text = std::format ("{} FOLDER {}", finished ? "DELETED" : "DELETING", path);              break;
-        case LinkOperationKind::ReadDisk:        text = std::format ("{} {} TO PC", finished ? "SENT" : "SENDING", drive);                  break;
+        case LinkOperationKind::Enumerate:       text = path.empty() ? std::format ("{} the catalog of {}", finished ? "Read" : "Reading", drive)
+                                                                     : std::format ("{} {}", finished ? "Listed" : "Listing", path);       break;
+        case LinkOperationKind::ReadFile:        text = std::format ("{} {} from {}", finished ? "Copied" : "Copying", path, drive);         break;
+        case LinkOperationKind::WriteFile:       text = std::format ("{} {} to {}", finished ? "Copied" : "Copying", path, drive);           break;
+        case LinkOperationKind::Delete:          text = std::format ("{} {}", finished ? "Deleted" : "Deleting", path);                     break;
+        case LinkOperationKind::Rename:          text = std::format ("{} {} to {}", finished ? "Renamed" : "Renaming", path, operation.newName); break;
+        case LinkOperationKind::SetAttributes:   text = std::format ("{} {}", finished ? "Changed" : "Changing", path);                     break;
+        case LinkOperationKind::MakeDirectory:   text = std::format ("{} folder {}", finished ? "Made" : "Making", path);                   break;
+        case LinkOperationKind::RemoveDirectory: text = std::format ("{} folder {}", finished ? "Deleted" : "Deleting", path);              break;
+        case LinkOperationKind::ReadDisk:        text = std::format ("{} {} to PC", finished ? "Sent" : "Sending", drive);                  break;
         case LinkOperationKind::WriteDisk:       text = !operation.formatted.empty()
-                                                          ? std::format ("{} {} IN D{}", finished ? "FORMATTED" : "FORMATTING", operation.formatted, operation.drive)
-                                                          : std::format ("{} IMAGE {} TO D{}", finished ? "WROTE" : "WRITING", image, operation.drive); break;
-        case LinkOperationKind::CheckLinkDisk:   text = std::format ("{} THE DISK IN {}", finished ? "CHECKED" : "CHECKING", drive);        break;
-        case LinkOperationKind::FullSend:        text = !finished                         ? std::string ("FULL SEND TO PC")
-                                                      : operation.fullSendSummary.empty() ? std::string ("FULL SEND DONE")
-                                                                                          : "FULL SEND: " + operation.fullSendSummary; break;
-        case LinkOperationKind::Krunch:          text = std::format ("{} {}", finished ? "KRUNCHED" : "KRUNCHING", drive);                 break;
-        default:                                 text = "WORKING";                                                                          break;
+                                                          ? std::format ("{} {} in D{}", finished ? "Formatted" : "Formatting", operation.formatted, operation.drive)
+                                                          : std::format ("{} image {} to D{}", finished ? "Wrote" : "Writing", image, operation.drive); break;
+        case LinkOperationKind::CheckLinkDisk:   text = std::format ("{} the disk in {}", finished ? "Checked" : "Checking", drive);        break;
+        case LinkOperationKind::FullSend:        text = !finished                         ? std::string ("Full Send to PC")
+                                                      : operation.fullSendSummary.empty() ? std::string ("Full Send done")
+                                                                                          : operation.fullSendSummary; break;
+        case LinkOperationKind::Krunch:          text = std::format ("{} {}", finished ? "Krunched" : "Krunching", drive);                 break;
+        case LinkOperationKind::CaptureDisk:     text = std::format ("{} {} to PC", finished ? "Captured" : "Capturing", drive);            break;
+        case LinkOperationKind::ListBlockDevices: text = std::format ("{} the block devices", finished ? "Listed" : "Listing");         break;
+        default:                                 text = "Working";                                                                          break;
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::FitToApple
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkSession::FitToApple (const LinkOperation & operation, const std::string & text, size_t limit)
+{
+    static constexpr std::string_view  s_kCut = "...";
+    std::string                        image  = std::filesystem::path (operation.imagePath).filename().string();
+    std::string                        name   = !image.empty() && text.find (image) != std::string::npos ? image : operation.path.ToString();
+    size_t                             at     = name.empty() ? std::string::npos : text.find (name);
+    size_t                             excess = text.size() > limit ? text.size() - limit : 0;
+    std::string                        fitted = text;
+
+
+
+    if (excess != 0 && at != std::string::npos && name.size() > excess + s_kCut.size())
+    {
+        fitted = text.substr (0, at) + name.substr (0, name.size() - excess - s_kCut.size()) + std::string (s_kCut) + text.substr (at + name.size());
+    }
+    else if (excess != 0)
+    {
+        fitted = text.substr (0, limit - s_kCut.size()) + std::string (s_kCut);
+    }
+
+    return fitted;
 }
 
 
@@ -1020,6 +1206,15 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
 
 
 
+    //  A block device's operations, and the list of them, are the block
+    //  module's.
+    if (operation.kind == LinkOperationKind::ListBlockDevices || operation.drive >= CassoLinkBlockDevices::kFirstDrive)
+    {
+        hr = operation.kind == LinkOperationKind::ListBlockDevices ? m_blockDevices.List (operation) : m_blockDevices.Execute (operation);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     present = operation.drive >= 1 && operation.drive <= kDriveCount && (m_connector.m_driveMap & (1 << index)) != 0;
     CBREx (present, HRESULT_FROM_WIN32 (ERROR_INVALID_DRIVE));
 
@@ -1032,7 +1227,7 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
         m_listings[index].reset();
     }
 
-    hr = m_host->SendLabel (DescribeOperation (operation, m_listings[index]));
+    hr = m_host->SendLabel (FitToApple (operation, DescribeOperation (operation, m_listings[index]), CassoLinkCodec::kLabelLength));
     CHR (hr);
 
     ArmNextFault();
@@ -1041,7 +1236,8 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
     //  listing, so no error is drawn on the Apple for them.
     m_host->SetQuiet (operation.kind == LinkOperationKind::Enumerate || operation.kind == LinkOperationKind::CheckLinkDisk);
 
-    if (operation.kind != LinkOperationKind::ReadDisk && operation.kind != LinkOperationKind::WriteDisk && operation.kind != LinkOperationKind::CheckLinkDisk && operation.kind != LinkOperationKind::FullSend)
+    if (operation.kind != LinkOperationKind::ReadDisk && operation.kind != LinkOperationKind::WriteDisk && operation.kind != LinkOperationKind::CheckLinkDisk && operation.kind != LinkOperationKind::FullSend
+     && operation.kind != LinkOperationKind::CaptureDisk)
     {
         hr = Revalidate (operation.drive);
         CHR (hr);
@@ -1095,6 +1291,10 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
 
         case LinkOperationKind::ReadDisk:
             hr = m_diskTransfer.ReadWholeDisk (operation);
+            break;
+
+        case LinkOperationKind::CaptureDisk:
+            hr = m_diskTransfer.CaptureWholeDisk (operation);
             break;
 
         case LinkOperationKind::WriteDisk:
@@ -1159,9 +1359,25 @@ HRESULT CassoLinkSession::Revalidate (int drive)
 
 
 
-    BAIL_OUT_IF (disk.GetKind() == VolumeKind::Unknown, S_OK);
+    if (disk.GetKind() == VolumeKind::Unknown)
+    {
+        //  A disk with no recognized file system has the sectors it was
+        //  probed with: the VTOC and the volume directory's key block read
+        //  again find a disk put in its place, such as a DOS 3.3 disk where
+        //  the CassoLink disk was.
+        for (size_t mark : { (size_t) Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack,
+                             ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, 0) / LinkedDisk::kSectorSize,
+                             ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, LinkedDisk::kSectorSize) / LinkedDisk::kSectorSize })
+        {
+            if (disk.IsPresent (mark))
+            {
+                marks.push_back (mark);
+            }
+        }
 
-    if (disk.GetKind() == VolumeKind::Dos33)
+        BAIL_OUT_IF (marks.empty(), S_OK);
+    }
+    else if (disk.GetKind() == VolumeKind::Dos33)
     {
         marks.push_back ((size_t) Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack);
     }

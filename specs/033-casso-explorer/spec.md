@@ -577,6 +577,93 @@ hardware.
 - Q: How is a fault armed on real hardware? -> A: From a Debug-only menu in Casso Explorer, for the next operation, or with `--link-faults` at launch, for a list of them. Release builds have neither, and their program has no Fault command.
 - Q: What is on the Apple's screen after an operation fails? -> A: The drive's bar stays where it stopped, with FAILED over it, until the next operation on that drive.
 
+### Session 2026-11-08
+
+- Q: Are the file type conversions a separate feature? -> A: No. They are User Story 18 of this feature, on the same branch, after Casso Explorer's merge to master.
+- Q: Are the IIgs formats in scope? -> A: Yes: AppleWorks GS, OMF, super hi-res in each form, IIgs icons and IIgs bitmap fonts. A 65816 disassembly is not.
+- Q: Is a Pascal codefile's p-code disassembled? -> A: Yes, into p-code mnemonics with their operands, beside the segment and procedure dictionaries.
+- Q: Does the list go past the owner's first one? -> A: Yes, to every converter CiderPress II has except the Macintosh formats: Applesoft shape tables, Paintworks, DreamGrafix and `.3201` pictures, IIgs animation files, Fontrix fonts, Apple /// hi-res fonts, Print Shop GS clip art in color, a record length chosen in the preview, and text character sets.
+- Q: In what order is the rest built? -> A: The Roadmap at the end of this spec. ShrinkIt is read and written in one story, since one without the other is half a feature. 040-disk-inspector merges into this branch first, for its sector editor. Devices the owner has no real Apple for are tested in other emulators: MAME, AppleWin, KEGS and GSplus.
+- Q: Are Gutenberg disks written? -> A: Not yet. A Gutenberg volume is read-only, as in CiderPress II, since its free-space map's format is undocumented. Writing is a later item, after the map is worked out from disks Gutenberg saves in Casso.
+
+### Session 2026-11-09
+
+- Q: Is the rest of the Roadmap specified now? -> A: Yes. Every item not yet a story is specified as Stories 22 to 38, before planning starts. Language servers are cut, as editor support rather than disk management. The emulator work in the Roadmap's Elsewhere list is part of other specs.
+- Q: Are CassoLink virtual drives in this spec now? -> A: Yes, as Story 25, which replaces the Session 2026-10-23 answer that left them out.
+- Q: When the link drops partway through a block device's read or write, does it resume? -> A: Yes. The partial image and the last verified block are saved beside it, and the next read or write of that device offers to continue from that block.
+- Q: Where do Disk list's and Find duplicates' results appear? -> A: In a tab, as a results folder: a row for each disk or file, duplicates grouped by set, with the usual context menu. Save as CSV is on its toolbar.
+- Q: Do the collection tools look inside archives? -> A: Yes, at any depth Story 21 opens, with the archive and the image inside it in the row's path.
+- Q: How long may a raw capture of a 5.25" disk take on a //c at 115,200 baud? -> A: Under 5 minutes, so a quarter track with no data is read once, and a repeated read is sent only where it differs from the first.
+
+### Session 2026-11-13
+
+- Q: Is the cassette audio link (Story 26) checked on a real Apple? -> A: No. The owner has no Apple with a cassette jack, so it is tested on Casso's emulated ][+ and //e only, as stated in the phase's header in tasks.md.
+- Q: Is A2Pico support dropped with its hardware check? -> A: No. Only the check on an A2Pico is dropped, since the owner doesn't have one. The A2retroNET firmware was researched from its README and source (R58), and support is built and checked against that and in Casso (T668).
+- Q: Where are virtual drives (Story 25) checked first? -> A: In Casso, on an emulated //c. The run on the owner's //c comes only after that passes (T585).
+- Q: Where do the commercial disks the scenario tests download go? -> A: Outside the tree, in `Downloads\Casso\TestDisks` or the folder `CASSO_TEST_DISKS` is set to, so they can't be committed: Gutenberg, Jr., the Wizardry I to III scenario disks and Zork I. Kermit and Apple's disks stay in the gitignored `Disks` folders.
+- Q: Casso doesn't boot Zork I, release 88, which MAME boots. Who fixes that? -> A: A separate session in a separate worktree, branch `zork-boot`, started 2026-11-13. The owner called it a major problem because of Zork's popularity. T652's check of the Infocom viewer against the running game waits on it.
+- Q: How are Wizardry maze levels shown? -> A: As text maps in the scenario's one text output, for now. A level as a picture with a PNG copy out requires a decode with several outputs, which the owner hasn't decided on (T649). DiskBrowser and WizardryApp are being surveyed, by behavior only since they are GPL, for the game data feature list and its cost.
+- Q: Does Initialize card make an A2Pico card? -> A: Yes, planned as Story 41 (T688): an A2Pico adapter that writes one FAT32 partition and a starter A2retroNET.txt. The owner agreed on 2026-11-13.
+- Q: An A2Pico card and a CFFA card are different layouts. How is a card's kind tracked, and how do copies and moves stay within what its adapter reads? -> A: The kind is read from the card's content at each open and never saved: a FAT volume with A2retroNET.txt is an A2Pico card, and a raw card of ProDOS partitions is a CFFA card. On an A2Pico card, a copied image is offered as a .po when the firmware can't read its form, and a rename, move or delete of a drive's image updates A2retroNET.txt (Story 41, FR-258 to FR-263). A CFFA card's partitions are volumes, so files copy into them as into any ProDOS volume and no settings file exists.
+- Q: Is a Wizardry scenario a saved game? -> A: It is both. The scenario disk has the game's fixed data (maze levels, monsters, items) and the player's roster of characters, which the game saves to the same disk. The roster is the part that differs from one player's disk to another. The owner's use for the viewer is the saved game: which characters a disk has and their state. A reference to the game's fixed data doesn't fit Casso Explorer, so the output is the roster and the party's place in the maze (T695, T696).
+- Q: Which parts of DiskBrowser's and WizardryApp's Wizardry views does Casso Explorer take? -> A: The saved game only (owner, 2026-11-13). The roster with a list of each character's inventory, and one map: the level the party is on, with its square marked. Not taken: detail pages for monsters and items, rewards, encounters, a map of every level, and WizardryApp's walk through the maze with a 3D view, since mapping the whole game isn't a use for Casso Explorer. Inventory is per character in the game's records, eight items each, so it is listed under each character.
+- Q: How is the Wizardry saved game laid out? -> A: As a styled document (owner, 2026-11-14). The header is the game's number in Roman numerals and its title, as "Wizardry I: Proving Grounds of the Mad Overlord". Each character is a short block that reads in a narrow pane, with its inventory under it: a green check for an item equipped, a red skull for one cursed, and a question mark and the unknown name in gray italics for one not identified. The map is a picture, not text, and the copy out is one RTF file with the map in it, so the document gains a color for each run and a picture paragraph. Wizardry IV and V save their games in other layouts and are tracked in relmer/Casso#186.
+- Q: What is in an Infocom save summary? -> A: The game's release, the room, and the score and moves, or the time on a 12-hour clock for a timed story, under the save's position, the number entered at the game's POSITION prompt to restore it (owner, 2026-11-14). The serial number, the date the story was compiled, is left out. A built-in table of every version 1 to 3 story by release and serial number, from Paul David Doherty's Infocom Fact Sheet, adds the game's title and maximum score, as in "Zork I (release 88): Kitchen, score 10 of 350, 4 moves". For a story missing from the table, only the release is written (owner, 2026-11-14).
+- Q: Which Infocom views does Casso Explorer take? -> A: None beyond what the story listing has. DiskBrowser's grammar, globals and Z-code disassembly are outside Casso Explorer's scope. The owner asked for a summary of a saved game where it identifies the save for the user (FR-264, T697). Neither DiskBrowser nor WizardryApp reads an Infocom save.
+- Q: Does Casso get a SmartPort or hard drive card for these checks? -> A: Not in 033 (owner, 2026-11-13). It is a separate spec, begun the same day in a worktree cut from 033, with specific drives the owner picks, each rendered as a realistic 3D model in the desk scene. It runs real firmware, as Casso does elsewhere: Apple's ROM for the Apple II SCSI Card, and A2retroNET's SmartPort firmware, which is MIT licensed, for an A2Pico. Until then, block devices and images larger than 140K are booted in MAME, scripted, on Apple's SCSI card and a CFFA 2.0, each with its ROM.
+- Q: What does the A2Pico do with the card's files that aren't set as drives? -> A: Nothing. ProDOS on the Apple reads only the eight drives' images, as volumes. The firmware's configuration utility on the Apple lists the card's folders and the .po, .hdv and .2mg files in them, for setting a drive, and hides every other file. With the A2retroNET-Link firmware the A2Pico is also a card reader for a PC or a phone over USB, which lists every file. So other files on the card are storage, such as images to switch to.
+- Q: What does an A2Pico card contain, and what are its size limits? -> A: Loose files on one FAT12, FAT16, FAT32 or exFAT volume: `A2retroNET.txt` in the root, and ProDOS block images of up to 32 MB each (65,535 blocks) in the root or in folders, with long file names. Up to eight are drives at one time, and the card can have any number more. The firmware's FatFs build has exFAT and 64-bit block addresses on (`ffconf.h` in FarLeftLane/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico, which its CMakeLists.txt fetches), so the card's size isn't limited by the firmware. It mounts the first volume on the card, so the card has one partition.
+- Q: Is Full Send's raw capture of a likely copy-protected disk a setting in Options? -> A: No. It always happens, and the setting first built for it is removed. A protected disk's sector image rarely runs, so a Full Send without the capture writes an image nobody can use, and a raw capture of a damaged disk assessed alike has more of it than a sector image. The capture's minutes are the cost. The Full Send page's intro is rewritten: many protections are detected and imaged, and Capture raw disk is for the rest.
+- Q: Is an image an A2Pico can't read converted as it is copied to the card? -> A: Yes, after a question (owner, 2026-11-13): "A2Pico doesn't support users.dsk. Would you like to convert it to users.po?" On a yes the copy on the card is replaced by the .po, and the file it was copied from isn't touched. The question follows a copy, paste or drop in Casso Explorer once Windows has finished writing the file. An image copied in File Explorer, or left after a no, has the Write as .po infobar, which writes the .po beside it.
+- Q: Why did the buttons in the infobars above the list take no clicks, and how is that prevented? -> A: Casso Explorer's window routes the mouse to each pane in ExplorerInput::HandleMouse, one line of code per pane, and a control with no line there was offered nothing. A control made with the window's CreateChild is now offered the mouse where it is, with nothing more written, and a pane that routes its controls makes them with CreatePaneRoutedChild (owner, 2026-11-13). Moving each pane's routing into its controls waits on DxuiListView, which takes its events relative to its origin where other controls take the window's coordinates. Changing that compiles on every branch with a list view and breaks its clicks without an error, so it isn't done on 033 (owner, 2026-11-13). It is a change for master, with the entry point renamed so a caller that translates the event fails to compile, and the panes are converted after it. Master took the change (`903227701`), and the panes' controls were converted after 033 merged it: a pane sets a mouse handler for each of its controls, which ExplorerInput calls in place of the control's OnMouse (owner, 2026-11-13). The window's bars followed in T718, with mouse capture: while a bar has a menu open, or the rename box a rename, ExplorerInput offers it every event first, and an event it doesn't take goes on to the control under the pointer, as Windows' capture does for a popup that closes on a click outside it (owner, 2026-11-13).
+- Q: Does Initialize card's adapter list have "I'm not sure"? -> A: No (owner, 2026-11-13). It listed every adapter's support at once, which wasn't useful. The list starts on the adapter chosen last, or CFFA3000 the first time.
+- Q: Where is a Full Send's progress on the PC? -> A: In a Full Send window, since one line in the status bar can't list both drives, the disks done and the time left. It opens without taking focus when a session starts, and closing it doesn't end the session. It has a state line with what the session is doing or what it waits for, a panel per drive with the disk's title, a track map, a progress bar, the time elapsed and the time left, the session's totals, a list of the disks done, and an activity list with each event's time. The status bar has a one-line summary, and a click on it opens the window.
+- Q: Is a boot check, a thumbnail and a name for each captured image part of 033? -> A: Yes. On 2026-11-13 the owner called it critical: without it the captured images aren't useful. It had been deferred as T713 and T720 an hour earlier; it is Story 43 now, for every disk image Casso Explorer lists and not Full Send's alone.
+- Q: Where is a thumbnail stored? -> A: In a cache under the user's local application data, a PNG whose file name is the image's content hash, with a copy in an alternate data stream of the image file. The owner chose the stream so a thumbnail travels with a moved or copied file; OneDrive, a zip, email and a FAT volume drop streams, so the cache restores it. A chunk inside a WOZ was set aside: it changes the file, whose hash the manifest has, and covers WOZ alone.
+- Q: How are orphaned thumbnails removed? -> A: The owner chose removal when the image is deleted in Casso Explorer, and nothing timed. An image deleted elsewhere has an orphan, which stays in the cache; the command in Options that cleared the cache was built and removed (owner, 2026-11-14), as its pictures are small and the user can delete the folder.
+- Q: What counts as booted? -> A: The screen changed from its power-on state and the drive stopped seeking. Did not boot: the screen never changed, the machine stopped in the monitor or at a BASIC prompt with an error, or the drive sought without end. Anything else is unclear (the owner's choice of three, 2026-11-13; a verdict from any change of the screen would pass a loader that draws a logo and stops).
+- Q: Which machine is an image booted on? -> A: An enhanced //e with 128K, and once more on a ][+ when it did not boot there, so an older title that fails on a //e isn't reported as bad (the owner's choice, 2026-11-13).
+- Q: Where is a thumbnail the user set stored? -> A: In the cache and the image file's alternate data stream, as every thumbnail is, marked as set by the user; no picture file beside the image and no folder of pictures (the owner, 2026-11-13). A file beside the image was set aside: a capture is a bare number until its thumbnail is seen, and a second file with that number would be one more file to rename. The cost accepted: a thumbnail the user set is gone when the stream is dropped and the image is opened on another PC, where a new one is made by booting.
+- Q: What happens when the ROMs the boot check uses aren't installed? -> A: Casso Explorer offers them in the dialog Casso has for a machine's missing ROMs (the owner, 2026-11-13). Once in a run, not for each image; a Full Send goes on while the dialog is open; the images that waited are booted when the ROMs arrive.
+- Q: Is the enhanced //e the first machine an image is booted on? -> A: Not for a capture. On 2026-11-13 One-on-One, captured from the owner's //c, drew its title on an emulated //c and a screen of lo-res garbage on an emulated enhanced //e. The model the disk was captured from is first, then the enhanced //e, then the ][+. Proposed to the owner, whose reply was to continue; whether the title fails on a real enhanced //e or Casso's //e is at fault isn't known.
+- Q: Does a boot result of booted mean the image is good? -> A: No. The first bad image of One-on-One from 2026-11-13 boots to its title; its bad sector is on track 27, read later. An image's capture marks go with its boot result (FR-289), proposed to the owner the same day.
+- Q: Is a separate rename feature built for captures saved as numbers? -> A: No. With the thumbnail beside the file, rename is F2.
+
+### Session 2026-11-14
+
+- Q: When two connections have a Full Send at once, is there one window for both? -> A: No. Each connection with a session has a separate Full Send window, with the connection's name in its title and an End session for that session (owner, 2026-11-14). A section per connection in one window was built and removed: the window would be crowded, and End session would apply to one connection only. The status bar's summary has the connection's name, and has each session's summary when two run.
+- Q: Is the Apple's screen text in capitals? -> A: Only for an Apple with no small letters, the ][ and ][+, and for inverse text, whose characters have no small letters (owner, 2026-11-14). The PC writes the text in sentence case and sends it as written to a //e, a //c or a IIgs, by the ROM identification in the program's Ready.
+
+### Session 2026-11-15
+
+- Q: Does block mode look in free blocks for text and code left by deleted files? -> A: No. The search, its overlay and map mark, its legend line and field line, and Save as file are removed (owner, 2026-11-15). It was a partial data and deleted-file recovery feature that isn't offered on every medium Casso supports. A free block is drawn as free.
+- Q: How are numbers written on screen? -> A: With the user's regional settings in Windows, through one helper for all of Casso: the thousands separator and grouping, the decimal separator and the negative sign (owner, 2026-11-15). Nothing overrides the settings, and a number typed with separators, as in Go to, is parsed.
+- Q: How does a user find a file or a structure on a volume of tens of thousands of files in block mode? -> A: The grid of blocks stays on the left, always the whole volume, with the selection's blocks highlighted. The right side is a drill-down with a breadcrumb, Back and Forward: Card (only for a card), Volume (where block mode opens), Files, File and Block (owner, 2026-11-15). Files is a tree and a list as in Casso Explorer, with a search over the whole volume.
+- Q: Can a user get from the card, volume, directory or file level to the blocks that store each item there? -> A: Yes. Each item stored in blocks steps to its block when clicked: a partition to its first block, the volume header to block 2, the bitmap to its blocks, a directory to its blocks, and a file to its key block (owner, 2026-11-15).
+- Q: Why does Full Send's sector image of the Wizardry I boot disk hang when every sector read cleanly? -> A: Its copy protection measures the rotation between sector 0 of track 10 and sector 0 of track 9: a 6502 routine finds the first, steps the head, and counts disk bytes to the second. The owner's raw captures return 4664 and about 1468, to within a byte or two across captures; a sector image, laid out by Casso with sector 0 in the same place on every track, returns 4559 and Wizardry crashes into a BRK. Every block of the raw capture decodes identically to the sector image, and its address fields have volume 0. A sector image booted with volume 0 hangs the same way. No layout check can see this protection: every disk has some rotation between tracks, and whether it matters depends on the program on the disk.
+- Q: How does a sector copy choose what to record? -> A: By the image type selected (owner, 2026-11-15). With WOZ, and with NIB or NB2, the sector pass also measures each track's sector-0 rotation from the previous track and the address fields' volume, and the image is built from the sectors with both. With DSK, DO or PO it is a plain sector copy. A raw capture is always a WOZ: only WOZ has the bits and their timing. Update, 2026-11-15: NIB and NB2 are plain sector copies too, as a NIB track has a fixed count of nibbles (see the measurements entry below).
+- Q: When does Full Send capture a disk raw in place of a sector copy? -> A: When a condition checked in a Copy-protected disks section of the Full Send options turns up (owner, 2026-11-15): sectors that can't be read; a file system that isn't recognized, apart from a blank disk; a program outside the operating system that accesses the disk drive directly; boot code other than the DOS 3.3, ProDOS or Apple Pascal loader. A choice in the section either captures the disk raw or saves the sector copy marked likely copy-protected. Sectors marked in use that aren't part of any file aren't a condition: interrupted writes and stale free-space maps cause it on ordinary disks.
+- Q: Do those conditions switch a manual Create image to a raw capture? -> A: No (owner, 2026-11-15). The save dialog's file type is an explicit choice of container. When a condition turns up, a question after the copy offers a raw capture, in the owner's words: "This disk may be copy-protected and may not boot successfully as a .dsk image. Would you like to capture in raw mode, which is compatible with copy protection?" A Capture as submenu was considered and dropped: the save dialog's file types cover it.
+- Q: What happens to a disk whose address fields have a volume that a sector image can't reproduce? -> A: A separate rule, outside the copy protection section (owner, 2026-11-15): a volume other than 254, or other than a DOS 3.3 catalog's volume, is saved in a WOZ built from the sectors, without a raw capture. A sector image has no place for the volume.
+- Q: Which measurements make a WOZ built from a sector copy pass Wizardry I's check? -> A: Each track's sector-0 position, its bits in a turn and its nibbles in a turn, as measured on 2026-11-15 by building a WOZ from the sector image and the owner's raw capture, which boots to the title. Rotation alone fails, as Casso's standard layout has 2% fewer nibbles in a turn than the real disk and the counts come out 2.3% low. Wizardry accepts track lengths from 0.5% short to 1% long, and sector-0 offsets about 20 nibbles early to 40 late. A NIB has 6,656 nibbles in every track, 5% over the disk's, so NIB and NB2 aren't built to measurements.
+- Q: Is an image whose screen ends nearly blank booted? -> A: No, unclear. Wizardry's sector image ends on a blank screen with a cursor, with the drive stopped, and was judged booted.
+
+
+### Session 2026-11-16
+
+- Q: What is block mode's window called? -> A: Block inspector (owner, 2026-11-16: "let's call it that"). Its title is "Block inspector - " and the image's name, with a dot in the error color after the name while edits are unsaved, as the disk inspector has (040's FR-007).
+- Q: Does Ctrl+V paste in the block inspector? -> A: Yes, as the disk inspector pastes (040's FR-097): hex values, optionally after $ or 0x, in the hex column, or text in the text column, over the block from the caret, as one undoable action. A paste with anything else in it pastes nothing.
+- Q: What does Save do when the image changed outside Casso Explorer since it was read? -> A: It saves to a preserved copy beside the image, with the edits written into a copy of the image as it is now, and the image is not written; the window then reads the changed image again (owner: "use DI's behavior to save alongside in BI"). A card partition is saved in place.
+- Q: What do Undo save and Redo save do in the block inspector? -> A: As in the disk inspector (040's FR-107): Undo save writes the blocks back and makes the saved edits unsaved again; Redo save writes them again. Neither has a confirmation.
+- Q: How is block mode laid out, now that it's built? -> A: A tree, then the list for the selected place with the current block's hex and fields under it, then the map of the whole volume, divided by splitters, under an address bar with the place's path, Back and Forward, the search and Go to (FR-298, FR-300). The levels Card, Volume, Files and File are what the list has at each place, and the Block level is the hex and fields under the list. HFS folders are in the tree; Pascal volumes have no directories.
+- Q: Is there a confirmation before the block inspector edits an image a running machine has mounted? -> A: The same as in the disk inspector, only for a disk in a drive of a running machine (owner: "BI would deal with mounted block devices exactly as DI does"). Casso Explorer has no machine and Casso has no block inspector, so no confirmation comes up today.
+
+### Session 2026-11-17
+
+- Q: Which audio encoding does Casso's cassette link use? -> A: An encoding designed in Casso, and ADTPro's audio client is served besides by ADTPro's encoding (owner, 2026-11-17: "go with option 2"). ADTPro's protocol document has nothing on its audio encoding, so that encoding comes from recordings of ADTPro 2.1.0's audio client and server, never from ADTPro's source (FR-096). Casso's encoding doesn't wait on that work, and an error in ADTPro's affects ADTPro's client alone.
+- Q: Is a failed track sent again whole, or only its failed sectors? -> A: Only its failed sectors (owner, 2026-11-17: "per-sector retries are fine"). A track is about 15 seconds of audio, so each sector has a CRC in the track's packet, and the reply lists those that failed.
+- Q: What does Casso's audio encoding have to tolerate? -> A: Each bit is one full cycle, 500 microseconds for a 0 and 1,000 for a 1, as the monitor's tape format has, so an offset comparator, an inverted cable and resampling at 44.1 or 48 kHz don't change a bit; a turn starts with a tone and a mark that data can't contain; and the Apple's side is half duplex, sending what it has put when it next waits for a byte. The scenario tests run each direction through resampling, filtering, noise, inverted polarity, an offset threshold and jitter.
+
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
 
@@ -1230,6 +1317,995 @@ source and read the manifest. Repeat on a real //c with real floppies.
    **Then** the session starts when that operation ends.
 
 ---
+
+### User Story 18 - Read and convert every common Apple II file type (Priority: P2)
+
+Each document, program source, picture and font on a disk is drawn as it
+was meant to be read: an AppleWorks letter as
+formatted text, a spreadsheet as a grid, Merlin source in its columns, a
+super hi-res picture in color, a font as a sheet of its characters. Dragging
+the file to a PC folder writes a file a PC program opens: rich text, CSV,
+plain text or PNG. Pascal text and Merlin source go back onto a disk from
+the PC as files the Apple programs open.
+
+**Why this priority**: These are the files a collection consists of. A hex
+dump of an AppleWorks file, or a raw binary of a picture, means opening
+another program for every file, and Casso Explorer exists to remove that
+step.
+
+**Independent Test**: For each type in FR-156, preview a sample file on a
+disk image and compare it with the program that made it, run in Casso. Drag
+it out and open the result in a PC program: Word or WordPad for rich text,
+Excel for CSV, Notepad for text, Photos for PNG. Put a Pascal text file and
+a Merlin source file back onto an image, and open each in Apple Pascal's
+editor and in Merlin, run in Casso.
+
+**Acceptance Scenarios**:
+
+1. **Given** an AppleWorks or AppleWorks GS word processor document, or a
+   Teach document, **When** it is selected, **Then** its text is drawn with
+   its paragraphs, tabs, bold, italic, underline and alignment; **When** it
+   is dragged out, **Then** it is written as rich text with the same styles.
+2. **Given** a Gutenberg or Magic Window document, **When** it is selected or
+   dragged out, **Then** its text is drawn or written as plain text, with
+   the program's formatting commands removed.
+3. **Given** an AppleWorks database, an AppleWorks spreadsheet or a VisiCalc
+   file, **When** it is selected, **Then** it is drawn as a grid of rows and
+   columns; **When** it is dragged out, **Then** it is written as CSV with
+   one row of the grid on each line.
+4. **Given** a random-access text file, **When** it is selected or dragged
+   out, **Then** each record is one row, drawn as a grid or written as CSV.
+5. **Given** a Pascal textfile, **When** it is selected or dragged out,
+   **Then** its text is drawn or written with its indentation expanded;
+   **When** a text file from the PC is dropped onto a Pascal volume,
+   **Then** it is put as a Pascal textfile that Apple Pascal's editor opens.
+6. **Given** a Merlin source file, **When** it is selected, **Then** its
+   lines are drawn in label, opcode, operand and comment columns; **When**
+   it is dragged out and later dropped back onto an image, **Then** the file
+   on the image is identical to the original.
+7. **Given** an S-C Assembler, LISA or Business BASIC file, **When** it is
+   selected or dragged out, **Then** its listing is drawn or written as text,
+   for each version of LISA's tokens.
+8. **Given** a Pascal codefile or an OMF file, **When** it is selected or
+   dragged out, **Then** its segments are listed with their headers and
+   contents.
+9. **Given** a super hi-res, 3200-color, IIgs animation, LZ4FH or Print
+   Shop picture, a IIgs icon file or an Applesoft shape table, **When** it is selected, **Then** the
+   picture or each icon is drawn; **When** it is dragged out, **Then** it is
+   written as PNG.
+10. **Given** an Apple II or Apple /// hi-res font, a Fontrix font, a Print
+    Shop font or a IIgs bitmap font, **When** it is selected, **Then** every character it has is drawn
+    on a sheet with the font's name and size; **When** it is dragged out,
+    **Then** the sheet is written as PNG.
+11. **Given** any of these files, **When** the user right-drags it out,
+    **Then** the menu offers the conversion and a raw copy.
+12. **Given** a file whose type matches one of these formats but whose
+    contents don't decode, **When** it is selected, **Then** the reason is
+    drawn above its bytes; **When** it is copied out, **Then** that file is
+    skipped with the reason reported, and the others in the copy complete.
+13. **Given** a multiple selection, **When** the user picks Convert to
+    folder from its context menu, **Then** each file is written to the
+    chosen folder with its conversion, and the files that fail are listed
+    after the rest are written.
+
+---
+
+### User Story 19 - 800K and hard disk images (Priority: P1)
+
+A user opens an 800K 3.5" ProDOS disk, a 32 MB hard disk image or a Disk
+Copy 4.2 image in Casso Explorer and works with it as with a 140K floppy:
+browsing, previews, copies in and out, renames, deletes and new folders. They
+create a new 800K or hard disk image from the New disk dialog or the
+command line.
+
+**Why this priority**: IIgs software, hard disk collections and most
+downloads from the archives are larger than 140K, and ShrinkIt disk
+archives (Story 21) usually contain 800K disks. Nothing larger than a floppy
+opens today.
+
+**Independent Test**: Open an 800K `.po`, a 32 MB `.hdv`, an 800K 2IMG and a
+Disk Copy 4.2 image made by CiderPress II. Copy a file into each and out
+again, and create a folder. Open each image in CiderPress II and run its
+Test; open the 800K image in MAME's //c Plus and catalog it from ProDOS.
+
+**Acceptance Scenarios**:
+
+1. **Given** a ProDOS image of any size up to 32 MB, **When** it is opened,
+   **Then** it is browsed and changed as a 140K ProDOS image is.
+2. **Given** a 2IMG image, **When** it is opened, **Then** its DOS-order,
+   ProDOS-order or nibble data is read by its header, and the header's
+   comment, creator and flags are listed in Properties and written back
+   as read on every write.
+3. **Given** a Disk Copy 4.2 image of 400K or 800K, **When** it is opened,
+   **Then** its data checksum is checked, and **When** it is written,
+   **Then** the checksum is updated and its tag bytes are written back.
+4. **Given** the New disk dialog or `casso disk create`, **When** an 800K or
+   hard disk size is picked, **Then** a formatted ProDOS image of that size
+   is created.
+
+---
+
+### User Story 20 - Files with resource forks (Priority: P1)
+
+On a IIgs disk, each file with a resource fork is listed with both fork
+lengths. The user copies one to another ProDOS disk with both forks, and to
+the PC without losing the resource fork.
+
+**Why this priority**: Most IIgs files have a resource fork: AppleWorks GS
+and Teach documents, icons, applications. A file read without its fork
+breaks, and the Teach decoder in Story 18 reads its styles from the fork.
+
+**Independent Test**: On an 800K IIgs disk from CiderPress II, list a Teach
+document, copy it to another ProDOS image and to a PC folder in each host
+name style, and put the PC copy back. Compare both forks and the Finder
+information with the original, and run CiderPress II's Test on the image.
+
+**Acceptance Scenarios**:
+
+1. **Given** a ProDOS file with a resource fork, **When** its folder is
+   listed, **Then** its data fork length, resource fork length and total
+   size have columns, as do its full access flags.
+2. **Given** such a file, **When** it is copied between ProDOS volumes,
+   **Then** both forks and its Finder information are copied.
+3. **Given** such a file, **When** it is copied to the PC, **Then** the
+   resource fork and Finder information are written with it, and **When**
+   that copy is put back, **Then** the file is identical to the original.
+4. **Given** such a file, **When** it is copied to a DOS 3.3, Pascal or CP/M
+   volume, **Then** only its data fork is written, and a message reports that the
+   resource fork was not copied.
+
+---
+
+### User Story 21 - ShrinkIt and Binary II archives (Priority: P1)
+
+A user opens a ShrinkIt archive from a download as a folder, copies files out
+of it, opens a disk inside it as a disk image, adds and removes files, and
+creates new archives, including one from a disk image. Binary II files, and
+archives inside disk images, ZIP files and gzip files, open the same way.
+
+**Why this priority**: ShrinkIt and Binary II are how Apple II software is
+distributed, and Story 18's sample files are in a ShrinkIt disk archive. An
+archive that opens but can't be changed or made is half a feature.
+
+**Independent Test**: Open CiderPress II's `test-files.sdk` and
+`dos-files.do.gz`, copy every file out, and compare them with CiderPress II's
+extraction. Create an archive of several files with resource forks, and
+an `.sdk` of an 800K disk, and run CiderPress II's Test and NuLib2's test on
+each. Open an archive stored on a ProDOS disk inside a ZIP file.
+
+**Acceptance Scenarios**:
+
+1. **Given** a `.shk`, `.bxy`, `.sea` or `.sdk` file, **When** it is opened,
+   **Then** its records are listed with name, file type, aux type, dates,
+   access and fork lengths, and a disk record opens as a disk image.
+2. **Given** an archive, **When** a file is added, deleted or renamed,
+   **Then** the archive is written with the change, and **When** a new
+   archive is created from files or from a disk image, **Then** it opens in
+   CiderPress II with no errors.
+3. **Given** a Binary II file, `.bny` or `.bqy`, **When** it is opened,
+   **Then** its files are listed and copied as an archive's are, and **When**
+   files are added, **Then** it is written as Binary II.
+4. **Given** an archive or disk image inside a ZIP file, a gzip file, a disk
+   image or another archive, **When** it is opened, **Then** it opens in
+   place, at any depth.
+5. **Given** an archive whose record fails its CRC, **When** it is opened or
+   tested, **Then** that record is reported, and the rest are readable.
+
+---
+### User Story 22 - VisiCalc sheets with their values (Priority: P3)
+
+A user selects a VisiCalc file and finds every cell with its value, as
+VisiCalc draws it after a recalculation, and drags it out as CSV with those
+values.
+
+**Why this priority**: VisiCalc saves each formula without its result, so
+Story 18 draws a sheet of formulas. A sheet of formulas is not what its
+author read.
+
+**Independent Test**: Load each sample VisiCalc file in VisiCalc, run in
+Casso, recalculate it and note every cell. Preview the same file in Casso
+Explorer and compare each cell, and compare the CSV a drag out writes.
+
+**Acceptance Scenarios**:
+
+1. **Given** a VisiCalc file, **When** it is selected, **Then** each formula
+   cell is drawn with the value VisiCalc computes for it, in the file's
+   recalculation order and with its column widths and formats.
+2. **Given** a formula that refers to itself through other cells, or one
+   VisiCalc evaluates to ERROR or NA, **When** the sheet is drawn, **Then**
+   the cell has ERROR or NA as VisiCalc draws it.
+3. **Given** a recalculated sheet, **When** it is dragged out, **Then** the
+   CSV has each cell's value, and a choice in the preview writes formulas
+   instead.
+
+---
+
+### User Story 23 - Block devices on a real Apple (Priority: P2)
+
+A user with a UniDisk 3.5, a //c Plus or a //c's 3.5" port, or a hard drive
+on a card, connects the Apple and finds each of those drives in Casso
+Explorer's tree beside its 5.25" drives. They browse an 800K disk or a hard
+drive's volume, copy files both ways, and read and write whole volumes as
+images.
+
+**Why this priority**: IIgs and late Apple II collections are on 3.5" disks
+and hard drives, and the link reads and writes only 5.25" drives today. ADTPro reads
+any device ProDOS can, so this closes ADTPro's largest lead.
+
+**Independent Test**: The owner has no 3.5" drive or hard drive, so this is
+tested in emulators run as the link's target: in Casso once it has a
+SmartPort hard disk card, in AppleWin with a hard disk card and a Super
+Serial Card on TCP until then, and in MAME, scripted, for a UniDisk 3.5 on a
+//c with ROM 4 and for a //c Plus. List each device, copy a file each way,
+and read each volume to an image and compare it with the image the emulator
+mounted.
+
+**Acceptance Scenarios**:
+
+1. **Given** the link is running on an Apple with ProDOS block devices,
+   **When** Casso Explorer connects, **Then** each device is a node under
+   the Apple with its slot, unit and size, and the volume on it.
+2. **Given** an 800K or hard drive volume on the Apple, **When** it is
+   browsed or files are copied either way, **Then** it works as in Story 14 for a 5.25" disk.
+3. **Given** a block device, **When** Read disk to image is chosen, **Then**
+   every block is read into a `.po`, `.hdv` or 2IMG image; **When** Write
+   image to disk is chosen and confirmed, **Then** every block is written
+   and read back to verify.
+4. **Given** a drive with no disk, or a device that reports an error,
+   **When** it is listed or read, **Then** the node or the operation reports
+   the device's error in words.
+5. **Given** a transfer to or from a block device, **When** the Apple's
+   screen is looked at, **Then** it displays the device, the block and the
+   progress.
+
+---
+
+### User Story 24 - Capture copy-protected disks (Priority: P2)
+
+A user archiving a box of floppies finds one that Full Send flags as likely
+copy-protected. They read it again as a raw capture, and the WOZ image that
+results boots in Casso as the floppy boots on the Apple.
+
+**Why this priority**: Full Send flags a protected disk but saves only its
+standard sectors, which don't boot. Commercial software is most of a typical
+collection, and most of it is protected.
+
+**Independent Test**: On the owner's //c, capture Archon, whose WOZ from
+4am's collection is the reference, and boot the capture in Casso. Capture
+each protected test disk in an emulated //c in Casso from WOZ images, and
+compare each capture's tracks with the source image's.
+
+**Acceptance Scenarios**:
+
+1. **Given** a drive is selected on a linked Apple, **When** Capture raw
+   disk is chosen, **Then** every quarter track from 0 to 35 is read as its
+   nibble stream with the timing of its sync bytes, and written as a WOZ 2
+   image.
+2. **Given** a track read several times, **When** the reads differ in the
+   same region, **Then** the region is written as WOZ's random bits, and the
+   capture's report lists the track.
+3. **Given** Full Send flags a disk as likely protected, **When** Capture
+   raw on protected disks is on in Options, **Then** that disk is captured
+   raw instead of read by sectors.
+4. **Given** a capture, **When** it finishes, **Then** the WOZ image's INFO
+   chunk lists Casso Explorer as its creator and the drive it was read
+   from, and it is edited in the Disk properties window FR-133 sets.
+
+---
+
+### User Story 25 - Virtual drives over CassoLink (Priority: P3)
+
+A user boots a CassoLink ProDOS disk on the Apple and finds disk images from
+a folder on the PC as ProDOS volumes, in a slot with no card. Programs on
+the Apple read and write them as if they were real drives, and each block
+written lands in the image on the PC at once.
+
+**Why this priority**: ADTPro's VSDrive does this today against Casso's
+ADTPro-compatible server, with ADTPro's software on the Apple. A CassoLink
+version uses the link already running, with nothing of ADTPro's.
+
+**Independent Test**: In an emulated //c in Casso, boot the CassoLink
+ProDOS disk made from the user's ProDOS, catalog both virtual drives from
+BASIC.SYSTEM, save a file to each, and compare the images on the PC. Repeat
+on the owner's //c over serial.
+
+**Acceptance Scenarios**:
+
+1. **Given** the user's ProDOS disk, **When** Make CassoLink ProDOS disk is
+   chosen, **Then** a disk is written with the user's ProDOS and the link's
+   block driver. No part of ProDOS is shipped with Casso.
+2. **Given** that disk boots with the link connected, **When** ProDOS lists
+   its volumes, **Then** the two images set in the connection's virtual
+   drives are volumes in a free slot.
+3. **Given** a program writes a block to a virtual drive, **When** the
+   write returns, **Then** the block is in the image on the PC, at its
+   offset in the file.
+4. **Given** the link drops during a block write, **When** ProDOS gets the
+   result, **Then** it is an I/O error, and the image has the block whole
+   or not at all.
+
+---
+
+### User Story 26 - Whole disks over cassette audio (Priority: P3)
+
+A user with a ][+ or //e and no serial card connects the Apple's cassette
+ports to the PC's audio, and sends a disk from the Apple to the PC, or an
+image from the PC onto a disk, as audio.
+
+**Why this priority**: A cassette port is all some Apples have for talking
+to a PC. Casso Explorer already starts the link through the cassette input,
+and ADTPro moves whole disks that way.
+
+**Independent Test**: The owner's //c has no cassette port, so this is
+tested in Casso, on an emulated ][+ and //e with their cassette input fed
+from Casso Explorer's audio and their output recorded. Send a 140K disk
+each way and compare the images. Serve ADTPro's audio client the same way.
+
+**Acceptance Scenarios**:
+
+1. **Given** the link started over cassette, **When** Read disk to image is
+   chosen, **Then** each track is sent from the Apple's cassette output,
+   and Casso Explorer decodes the PC's audio input into the image.
+2. **Given** a damaged stretch of audio, **When** a sector's checksum fails,
+   **Then** that sector is requested again, as a serial reply is.
+3. **Given** an image on the PC, **When** Write image to disk is chosen,
+   **Then** each track is played into the Apple's cassette input, written,
+   and read back to verify.
+4. **Given** ADTPro's audio client on the Apple, **When** it sends or
+   receives a disk, **Then** Casso Explorer serves it as ADTPro's host does.
+
+---
+
+### User Story 27 - Files and disks as tape audio (Priority: P3)
+
+A user turns Apple files into tape audio, WAV, MP3 or Ogg, to play into an
+Apple's cassette input from any player, and turns a tape recording back into
+files. A disk image becomes a recording too, played into the link's
+cassette disk write.
+
+**Why this priority**: Tape recordings are part of the earliest Apple II
+collections, and an audio file is the only way some users can reach a
+machine with a cassette port.
+
+**Independent Test**: Convert a BASIC program and a binary file to each
+audio format, load each in an emulated ][+ in Casso from the file, and run
+them. Convert a recording with several files back, and compare each file.
+Play a disk's recording into the link's cassette write in Casso, and compare
+the disk with the image.
+
+**Acceptance Scenarios**:
+
+1. **Given** Applesoft, Integer BASIC or binary files, **When** Convert to
+   tape audio is chosen, **Then** one recording is written with each file
+   in the monitor's tape format and a gap between them, with a sidecar text
+   file that lists each file's start time, load address and the command
+   that loads it.
+2. **Given** a tape recording in WAV, MP3 or Ogg, **When** it is opened,
+   **Then** each file in it is listed as a folder entry, with its checksum
+   checked, and copied out as a file.
+3. **Given** a disk image, **When** Convert to disk audio is chosen,
+   **Then** a recording is written that the link's cassette write in Story
+   26 takes as it takes Casso Explorer's live audio.
+
+---
+
+### User Story 28 - More Apples and interfaces (Priority: P3)
+
+A user with a IIgs, a serial card other than a Super Serial Card, or an
+Ethernet card other than an Uthernet II starts the link and works as a //c
+user does.
+
+**Why this priority**: ADTPro runs on these machines and cards, and the link runs only on the //c's ports, the Super Serial Card and the Uthernet II.
+
+**Independent Test**: The owner doesn't have any of these, so each is tested in an
+emulator run as the link's target: the IIgs's ports in KEGS, GSplus or MAME,
+whichever connects over TCP; a IIgs with a Super Serial Card and a Laser 128
+in MAME, scripted; Pascal-firmware cards in Casso's Super Serial Card, used through its Pascal entry points; the original Uthernet in AppleWin; and the LANceGS in MAME, scripted.
+On each, run Story 14's scenarios.
+
+**Acceptance Scenarios**:
+
+1. **Given** a IIgs, **When** the link runs on its modem or printer port,
+   **Then** Story 14's scenarios work, with the machine at 1 MHz while a
+   5.25" drive is read or written.
+2. **Given** a serial card with Pascal 1.1 firmware entry points that the
+   link doesn't match by its ID bytes, **When** the link starts, **Then** it
+   uses the card through those entry points.
+3. **Given** an original Uthernet, or a LANceGS, **When** the link runs over
+   it, **Then** transfers work as over an Uthernet II, and its announcement
+   is listed.
+4. **Given** a IIgs with a Super Serial Card, or a compatible such as a
+   Laser 128, **When** the link runs, **Then** Story 14's scenarios work.
+
+---
+
+### User Story 29 - An Apple /// client (Priority: P3)
+
+A user with an Apple /// boots a CassoLink SOS disk and works with the
+Apple ///'s drives from Casso Explorer as with an Apple II's.
+
+**Why this priority**: ADTPro has an Apple /// client, and Apple /// software
+is the rarest to find on a PC.
+
+**Independent Test**: The owner has no Apple ///, so this is tested in
+MAME's Apple ///, scripted, with its serial port on TCP. MAME's Apple ///
+socket connection has a reported bug, so it is checked first. Boot the
+CassoLink SOS disk made from the user's SOS disk, list the built-in and
+external drives, copy files both ways and read and write each disk.
+
+**Acceptance Scenarios**:
+
+1. **Given** the user's SOS boot disk, **When** Make CassoLink SOS disk is
+   chosen, **Then** a disk is written with the user's SOS kernel and the
+   link's SOS program. No part of SOS is shipped with Casso.
+2. **Given** that disk boots, **When** Casso Explorer connects over the
+   Apple ///'s serial port, **Then** the Apple /// is a root with its
+   built-in drive, its external drives and any block device SOS lists.
+3. **Given** an SOS or ProDOS disk on the Apple ///, **When** it is browsed,
+   copied or read and written whole, **Then** it works as in Story 14.
+
+---
+
+### User Story 30 - DOS 3.2 and large DOS 3.3 disks (Priority: P3)
+
+A user opens a 13-sector DOS 3.2 disk, from an image or over the link, and a DOS 3.3 disk of 40, 50 or 80 tracks, and works with each as with a 140K DOS 3.3
+disk.
+
+**Why this priority**: The earliest Apple II software is on 13-sector disks,
+and preservation collections have them as they were made.
+
+**Independent Test**: Open CiderPress II's DOS 3.2 sample images and a 40-
+and an 80-track DOS 3.3 image, copy files each way, and run CiderPress II's
+Test on each. On the owner's //c, read a 13-sector disk written in Casso to
+an image and compare it.
+
+**Acceptance Scenarios**:
+
+1. **Given** a `.d13` image, or a `.nib` or `.woz` image of a 13-sector
+   disk, **When** it is opened, **Then** its DOS 3.2 catalog is listed and
+   its files are read and written.
+2. **Given** a 13-sector disk in a linked Apple's drive, **When** it is
+   read, written or browsed, **Then** it works as a 16-sector disk does.
+3. **Given** a DOS 3.3 image of 40, 50 or 80 tracks, or of 32 sectors a track, **When** it is opened, **Then** it is
+   browsed and changed as a 140K image is.
+4. **Given** the New disk dialog, **When** DOS 3.2 is chosen, **Then** a
+   13-sector image is created, in `.d13`, `.nib` or `.woz`.
+
+---
+
+### User Story 31 - Partitions and hybrid disks (Priority: P3)
+
+A user opens a CFFA card's image, or the card itself plugged into the PC,
+and finds each partition as a volume. A ProDOS hard disk with DOS.MASTER
+volumes, an 800K disk split by AmDOS, OzDOS or UniDOS, and a floppy with
+DOS 3.3 beside ProDOS or Pascal all open as their volumes.
+
+**Why this priority**: CFFA and similar cards are how most Apple II users
+keep their software today, and a hard disk image of one is a set of
+volumes, not one.
+
+**Independent Test**: Open sample CFFA, FocusDrive, MicroDrive, DOS.MASTER,
+AmDOS, OzDOS, UniDOS, hybrid and Pascal ProFile Manager images, browse each
+volume, and copy a file into each and out. Copy a partition out and replace
+one, and run CiderPress II's Test. Write a CFFA image to a CF card in a
+USB reader and read it back.
+
+**Acceptance Scenarios**:
+
+1. **Given** an image with a partition layout, **When** it is opened,
+   **Then** each partition is a node with its number, size and volume, and
+   each volume is browsed and changed as an image is.
+2. **Given** a partition, **When** Copy partition to image is chosen,
+   **Then** its blocks are written as an image; **When** Replace partition
+   is chosen with an image no larger than it and confirmed, **Then** its
+   blocks are replaced.
+3. **Given** a floppy with DOS 3.3 and ProDOS or Pascal on it, **When** it
+   is opened, **Then** each file system is a volume, and neither write
+   touches the other's blocks.
+4. **Given** a CF or SD card in a reader on the PC, **When** Open physical
+   card is chosen and Windows grants administrator access, **Then** the
+   card opens as an image does; only removable drives are offered, and
+   every write is confirmed with the drive's model and size.
+
+---
+
+### User Story 32 - HFS volumes (Priority: P3)
+
+A user opens a IIgs hard disk or 3.5" disk formatted with HFS and works with
+it as with a ProDOS volume, both forks of each file included.
+
+**Why this priority**: GS/OS reads and writes HFS, and many IIgs hard disks
+and CD-ROMs are formatted with it.
+
+**Independent Test**: Open HFS images made by GS/OS in KEGS or GSplus,
+copy files with resource forks each way, create folders, and run CiderPress
+II's Test; boot GS/OS on the changed image and open each file.
+
+**Acceptance Scenarios**:
+
+1. **Given** an HFS image of any size the containers in FR-175 allow, **When**
+   it is opened, **Then** its folders and files are listed with their Mac
+   OS Roman names, types, creators, both fork lengths and dates.
+2. **Given** an HFS volume, **When** files are copied in or out, renamed,
+   deleted or put in new folders, **Then** both forks and the Finder
+   information are written, and GS/OS opens the volume after the change.
+3. **Given** a file copied between HFS and ProDOS, **When** it arrives,
+   **Then** its type is mapped as GS/OS maps ProDOS types to HFS types and
+   creators.
+4. **Given** the New disk dialog, **When** HFS is chosen, **Then** a
+   formatted HFS image is created at an 800K or hard disk size.
+
+---
+
+### User Story 33 - SOS volumes (Priority: P3)
+
+A user opens an Apple /// disk or ProFile image and works with it as with a
+ProDOS volume, which it is: SOS and ProDOS share one file system, and a disk
+differs only in the computers it starts.
+
+**Why this priority**: Apple /// software is on SOS volumes, and Story 29's
+client sends them whole.
+
+**Independent Test**: Open Apple's SOS disks, list and read every file, write
+a file, and copy files each way; make a disk that starts an Apple /// and one
+that starts an Apple II and an Apple ///, and boot them and a changed SOS disk
+in MAME's Apple /// and the dual disk in Casso's //e, scripted.
+
+**Acceptance Scenarios**:
+
+1. **Given** an SOS image, **When** it is opened, **Then** its directories
+   and files are listed with their types, its files are read and written,
+   and the status bar's tip lists the Apple /// among the computers the
+   volume starts.
+2. **Given** a file copied between SOS and ProDOS, **When** it arrives,
+   **Then** it has the type and aux type it had, since the two share one
+   table of file types.
+3. **Given** the New disk dialog or `casso disk create`, **When** SOS, or
+   ProDOS and SOS, is chosen with Bootable, **Then** the disk starts an
+   Apple ///, or an Apple II and an Apple ///, from the user's system disks.
+
+---
+
+### User Story 34 - Gutenberg writes and RDOS (Priority: P3)
+
+A user copies documents onto a Gutenberg disk, and pulls files off an SSI
+game's RDOS disk.
+
+**Why this priority**: Gutenberg volumes opened read-only before this story, and RDOS is
+the last Apple II file system CiderPress II reads that Casso Explorer
+doesn't.
+
+**Independent Test**: Write a document to a Gutenberg disk in Casso
+Explorer, open it in Gutenberg run in Casso, and edit and save it. Open SSI
+disks with RDOS 2.1 and 3.3 in CiderPress II's samples and compare each file
+copied out with CiderPress II's.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Gutenberg volume, **When** a file is copied in, renamed or
+   deleted, **Then** the volume's free-space map is updated as Gutenberg
+   updates it, and Gutenberg opens the file.
+2. **Given** an RDOS disk, **When** it is opened, **Then** its catalog is
+   listed and each file is copied out; the volume is read-only.
+
+---
+
+### User Story 35 - An expanded preview (Priority: P3)
+
+A user expands the preview pane to fill the tab and steps through the
+folder's files with previous and next, as Windows' Photos steps through a
+folder of pictures. A tab torn off into a window, with its preview
+expanded, is a viewer beside the main window. Docked or expanded, the
+preview displays a file in any of the views that apply to it, and saves or
+copies the view on screen.
+
+**Why this priority**: The preview pane is narrow. Looking through a disk of
+pictures or documents one file at a time is what a viewer is for, and a
+file whose default view is the wrong one, such as a binary file that is a
+picture, has to be displayed another way.
+
+**Independent Test**: Expand the preview on a picture on a disk of
+pictures, step forward past a text file and a BASIC program to the end and
+back to the start, view a binary file as a hi-res picture, save one as PNG,
+and collapse the preview: the list's selection is on the last file
+displayed.
+
+**Acceptance Scenarios**:
+
+1. **Given** a previewed file, **When** Expand is clicked on the preview
+   pane, Alt+Shift+P is pressed, or Enter is pressed with Enter set to
+   expand the preview in Options, **Then** the preview fills the tab's area
+   below the tab strip.
+2. **Given** an expanded preview, **When** previous or next is clicked, or
+   Left or Right is pressed, **Then** the list's selection moves to the
+   previous or next file, in the list's sort order, folders skipped, and
+   the preview displays it. The arrows are disabled at each end. With several
+   files selected, the steps go through the selected files.
+3. **Given** a previewed file, **When** View as is opened, **Then** it lists
+   the views that apply to the file, the default first and marked
+   "(default)", and the resource fork when the file has one; choosing one
+   displays the file that way. The next file opens in its default view.
+4. **Given** a previewed file, **When** Save as is chosen, **Then** a save
+   dialog offers each conversion Get offers for the file as a file type, the
+   current view's first, and the file is written in the type chosen. Copy,
+   or Ctrl+C in the pane, puts the current view on the clipboard.
+5. **Given** the file's folder changes while the preview is expanded,
+   **When** next is pressed, **Then** the next file is taken from the folder
+   as it is now.
+6. **Given** an expanded preview, **When** Esc is pressed or Collapse is
+   clicked, **Then** the tab's panes are back as they were, and the list's
+   selection is on the file last displayed.
+
+---
+
+### User Story 36 - Collection tools (Priority: P3)
+
+A user with thousands of disk images finds what they have: a list of every
+disk with its checksums, the disks and files duplicated across the
+collection, and every file inside the images that contains a word,
+detokenized BASIC included.
+
+**Why this priority**: A collection read from shoeboxes and downloads is
+full of copies, and the files inside images are invisible to Windows'
+search.
+
+**Independent Test**: Run each tool over a folder of a few thousand images
+with known duplicates, in several containers, and a known word inside a
+BASIC program and a text file, and compare the results with the known
+list.
+
+**Acceptance Scenarios**:
+
+1. **Given** a folder, **When** Disk list is chosen, **Then** every disk
+   image in its subtree is listed with its container, file system, volume
+   name, file count, free space, CRC-32 and SHA-256, in a results tab that
+   saves as CSV.
+2. **Given** a folder, **When** Find duplicates is chosen, **Then** disks
+   with the same volume data are grouped, whatever their containers, and
+   files with the same data and type across different disks are grouped.
+3. **Given** a search with File contents on, **When** its folder has a disk image, **Then** each file inside it is searched as its conversion
+   writes it: BASIC detokenized, Apple text as text.
+4. **Given** each tool, **When** it is run from `casso disk`, **Then** it
+   writes the same results.
+
+---
+
+### User Story 37 - BASIC language tools (Priority: P3)
+
+A developer puts an Applesoft or Integer BASIC listing from the PC onto a
+disk as a program, and renumbers and cross-references a BASIC program from
+Casso Explorer or the command line.
+
+**Why this priority**: An Integer BASIC listing put onto a disk is text
+today, and renumbering a program on the Apple is slow and breaks easily.
+
+**Independent Test**: Tokenize a listing of each BASIC and compare it with
+the program BASIC saves from the same lines in Casso. Renumber a program
+with GOTO, GOSUB, ON and THEN targets, run both in Casso, and compare.
+
+**Acceptance Scenarios**:
+
+1. **Given** an Applesoft or Integer BASIC listing, **When** it is put onto
+   an image or tokenized from `casso basic`, **Then** the program is the
+   one BASIC saves from those lines.
+2. **Given** a BASIC program, **When** Renumber is chosen with a start and
+   a step, **Then** every line and every line reference is renumbered.
+3. **Given** a BASIC program, **When** Cross-reference is chosen, **Then**
+   each variable, line reference, CALL, PEEK and POKE address is listed
+   with the lines it is on.
+
+---
+
+### User Story 38 - Game data viewers (Priority: P3)
+
+A user selects a Wizardry scenario disk's files and finds the saved game:
+the roster of characters, each one's inventory, and where the party is in
+the maze. An Infocom story file lists its header, dictionary, objects and
+text, and an Infocom saved game is summarized.
+
+**Why this priority**: These two are the game data collectors open most,
+and DiskBrowser is the only tool that reads them.
+
+**Independent Test**: Preview the Wizardry I to III scenario disks and
+compare each list and map with the game, run in Casso. Preview Infocom
+story files of each version and compare the dictionary and text with an
+interpreter's.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Wizardry scenario file, **When** it is selected, **Then**
+   its roster is listed, each character with the items in that character's
+   inventory, and the maze level the party is on is drawn as one map with
+   the party's square marked.
+2. **Given** an Infocom story file, **When** it is selected, **Then** its
+   header, abbreviations, dictionary, object tree and decoded strings are
+   listed.
+3. **Given** either, **When** it is dragged out, **Then** the lists are
+   written as text and the map as PNG.
+4. **Given** an Infocom saved game, **When** it is selected, **Then** the
+   story's release and serial number, the score, the moves and the room are
+   listed.
+
+---
+
+### User Story 39 - Volumes read and written by the block (Priority: P2)
+
+A user opens a 32 MB ProDOS volume on a storage card, a hard drive image or
+a CassoLink drive, and its catalog appears at once, however full the
+volume is. Copying one file onto it writes that file's blocks, not the
+volume.
+
+**Why this priority**: Every volume is read whole into memory before
+anything is listed, and every write builds a new image of the whole
+volume. That costs nothing for a floppy, seconds for a full volume on a
+card, minutes over a CassoLink connection, and rules out HFS volumes of a
+gigabyte or more.
+
+**Independent Test**: Open a full 32 MB volume on a card, a hard drive
+image and a CassoLink drive, and count the blocks read to list the root:
+about the directory and bitmap, not the volume. Copy one file to each and
+count the blocks written. Repeat on a 1 GB HFS volume.
+
+**Acceptance Scenarios**:
+
+1. **Given** a full 32 MB ProDOS volume on a storage card, **When** it is
+   opened, **Then** the root lists after reading its directory and bitmap
+   blocks only, and a subdirectory's blocks are read when it is opened.
+2. **Given** a file copied to that volume, **When** the copy ends, **Then**
+   only the blocks of the file, its directory entry and the bitmap are
+   written, in one commit. After a failure before the commit, the volume
+   is as it was.
+3. **Given** a 1 GB HFS volume, **When** it is opened, **Then** its root
+   lists without reading the volume whole.
+4. **Given** a DOS 3.3, Pascal or CP/M disk, **When** it is opened,
+   **Then** it reads as it does today.
+
+---
+
+### User Story 40 - Block mode in the disk inspector (Priority: P2)
+
+A user opens a ProDOS, HFS, Pascal or SOS block image, an 800K disk, a hard
+drive image or a partition on a card in the disk inspector, and steps
+through its blocks: each one in hex and text, its structure annotated, the
+blocks colored by what uses them, and a block number in an index block, a
+directory link or a B-tree link followed by a click.
+
+**Why this priority**: The inspector reads Disk II tracks, so a block image
+can't be opened in it at all, and a damaged hard drive image or card has no
+tool in Casso to look inside it.
+
+**Independent Test**: Open CiderPress II's 800K ProDOS, 2IMG, HFS and
+partitioned images and a CFFA card's partition in the inspector. Step to
+the volume directory, an index block and an HFS catalog leaf node, check
+the annotations against the volume's catalog, follow a pointer and come
+back, and edit a byte and see it written.
+
+**Acceptance Scenarios**:
+
+1. **Given** a block image, **When** it is opened in the inspector,
+   **Then** its blocks are listed by number, with a block's 512 bytes in
+   hex and text, and a byte can be edited and written as a sector can.
+2. **Given** a ProDOS volume, **When** a block is selected, **Then** it is
+   annotated as what it is: boot loader, volume or subdirectory header and
+   entries, bitmap, seedling, sapling or tree index block, an extended
+   file's fork block, or a file's data, with the owning file's path.
+3. **Given** an HFS volume, **When** a block is selected, **Then** the boot
+   blocks, master directory block and its copy, volume bitmap and B-tree
+   header, index, leaf and map nodes are annotated, and the allocation
+   blocks are marked where they start.
+4. **Given** any block volume, **When** the block map is open, **Then**
+   each block is colored as free, a file's data, an index block, a
+   directory, the bitmap or boot, and blocks marked used with no file,
+   and blocks in two files, each have a separate color.
+5. **Given** a block number in an index block, a directory link or a
+   B-tree link, **When** it is clicked, **Then** the inspector steps to
+   that block, and Back and Forward return as in a browser. Highlight file's
+   blocks marks every block of the file under the cursor.
+6. **Given** an image with partitions, **When** it is opened, **Then** each
+   partition is a band over its blocks: an Apple Partition Map's driver
+   descriptor and entries, CFFA slices, MicroDrive and FocusDrive.
+7. **Given** a 2MG or Disk Copy 4.2 container, **When** it is opened,
+   **Then** its header is annotated, and Disk Copy's checksums and tag
+   bytes are listed.
+8. **Given** two block images, **When** they are compared, **Then** the
+   blocks that differ are listed and stepped through, as Compare does for
+   tracks.
+9. **Given** a volume inside another, as the two DOS 3.3 volumes of a
+   UniDOS, AmDOS or OzDOS 800K disk, or a ProDOS volume inside a DOS 3.3
+   hybrid, **When** a block of it is selected, **Then** the block is also
+   addressed in the inner volume's terms, track and sector for DOS 3.3, and
+   annotated by the inner volume's structure.
+10. **Given** a volume, **When** it is opened in block mode, **Then** the
+    grid of the whole volume is on the left, and the right side has the
+    Volume level: the header's fields, the boot blocks and their loader, the
+    volume directory and the bitmap, the space used and free, the file
+    system verdict's findings with Repair, and a container's header.
+11. **Given** a card, **When** it is opened, **Then** the Card level lists
+    its partitions as bands and in a table of number, file system, name,
+    size, space used and verdict, and a partition opens at its Volume level.
+12. **Given** a volume of tens of thousands of files, **When** the Files
+    level is open, **Then** a tree of its directories and a list of the
+    selected directory's files, with Name, Type, Aux, Blocks, EOF, Storage,
+    Key block and Modified, find a file by browsing or by a search of the
+    whole volume, and the selected file's blocks are highlighted on the grid.
+13. **Given** a selected file, **When** Enter is pressed, **Then** the File
+    level has its directory entry, its key block, index blocks and data runs,
+    its fragmentation and its blocks, and a block opens at the Block level.
+14. **Given** an item at the Card, Volume, Files or File level that is
+    stored in blocks, **When** it is clicked, **Then** block mode steps to
+    its first block, and Back returns to the level it came from. The
+    breadcrumb has each level from the card or the volume down.
+
+---
+
+### User Story 41 - A2Pico cards (Priority: P3)
+
+A user puts an A2Pico's micro SD card or USB drive in the PC. Casso Explorer
+lists it as an A2Pico card, with the image of each A2retroNET drive, and
+the user sets, clears and reorders the drives there. Initialize card for
+Apple makes a new card for an A2Pico. An image copied to the card is
+converted to a form the firmware reads, and renaming, moving or deleting a
+drive's image in Casso Explorer updates the card's `A2retroNET.txt`.
+
+**Why this priority**: An A2Pico with the A2retroNET firmware is a current,
+inexpensive hard drive card. Its card is a FAT volume of image files and a
+settings file edited in a text editor, and a CR LF line end or a DOS-order
+image results in an empty drive with no message on the Apple.
+
+**Independent Test**: Initialize a card image for an A2Pico, copy a ProDOS
+`.po`, a DOS-order `.dsk` with a ProDOS volume and a DOS 3.3 disk to it, set
+drives, rename and delete an image, and read `A2retroNET.txt` after each
+step. Mount each drive's image in Casso as a SmartPort drive and boot it.
+The owner has no A2Pico, so nothing is checked on the hardware.
+
+**Acceptance Scenarios**:
+
+1. **Given** a FAT volume with `A2retroNET.txt` in its root, **When** it is
+   listed, **Then** it is labeled as an A2Pico card, and its drives are
+   listed with their number, image and size, and write-protected for a
+   read-only file. A CFFA card is a raw card of ProDOS partitions and is
+   never listed this way. The card's kind is read from its content at each
+   open and isn't saved on the PC.
+2. **Given** a drive whose image is missing or isn't a form the firmware
+   reads, or a settings file with CR LF line ends, **When** the drives are
+   listed, **Then** the problem is listed with the drive, and Repair
+   rewrites the file with LF line ends.
+3. **Given** a disk image copied to an A2Pico card, **When** a drive is
+   free, **Then** Casso Explorer offers to set it as that drive. **When** it
+   has a block volume in a form the firmware doesn't read, as a ProDOS
+   volume in a DOS-order `.dsk` or a `.2mg` with a longer header, **Then**
+   Casso Explorer offers to write it as a `.po`. An image with no block
+   volume, as a DOS 3.3 disk or a WOZ, is copied as it is and can't be set
+   as a drive.
+4. **Given** an image set as a drive, **When** it is renamed or moved on
+   the card in Casso Explorer, **Then** the drive's path is updated.
+   **When** it is deleted, **Then** the confirmation lists the drive, and
+   the drive is cleared.
+5. **Given** an A2Pico card, **When** A2retroNET drives is opened, **Then**
+   an image is set for a drive, a drive is cleared, drives are reordered, a
+   drive is switched to one of its commented-out images, and the number of
+   drives and the boot delay are set. Comment lines remain in the file.
+   **When** the Edit button is chosen, labeled with the program Windows
+   opens text files in, as "Edit in Notepad...", **Then** the file opens in
+   that program, and the dialog reads it again after it is saved.
+6. **Given** a storage card, **When** Initialize card for Apple is run with
+   the A2Pico adapter, **Then** the card is one FAT32 partition with an
+   `A2retroNET.txt` of the firmware's defaults and no drives set.
+
+---
+### User Story 42 - A Full Send status window (Priority: P2)
+
+A user feeding a box of floppies to the Apple glances at the PC and reads,
+in one window, what each drive is doing, how long the disk in progress has
+left, how many disks are done, and whether the session waits for them.
+
+**Why this priority**: A Full Send runs for an hour or more with nobody at
+the PC's keyboard. One line in the status bar has room for one drive's
+track number. A raw capture of a protected disk takes minutes, pauses
+between its passes, and until now looked the same as a stalled session.
+
+**Independent Test**: Start a Full Send on a //c with a DOS 3.3 disk, a
+duplicate of it and a copy-protected disk. Read the window through each
+disk: the drive panels, the time left, the totals, the list of disks done
+and the activity list. Close the window during a disk, reopen it from the
+status bar, and compare the list with the manifest when the session ends.
+
+**Acceptance Scenarios**:
+
+1. **Given** Casso Explorer is open, **When** F and Space on the Apple
+   start a Full Send, **Then** the Full Send window opens without taking
+   the keyboard focus, and its state line reads that the disk in drive 1 is
+   being sent.
+2. **Given** a disk is being sent, **When** the window is read, **Then**
+   that drive's panel has the disk's title once the catalog is read, a
+   track map with each track marked as it is read, a progress bar, the time
+   elapsed and the time left.
+3. **Given** a likely copy-protected disk, **When** its raw capture starts,
+   **Then** the drive's panel reads that the disk is likely copy-protected
+   and is being captured raw, with the pass, the quarter track, the reads
+   done and the time left, and the track map has a mark for each track
+   position read and each one skipped.
+4. **Given** neither drive has a new disk, **When** the session pauses,
+   **Then** the state line reads that the session waits for a new disk in
+   either drive and that Space on the Apple sends the disks anyway.
+5. **Given** the Apple stops replying, **When** the PC waits for it,
+   **Then** the state line reads that the PC waits for the Apple and for
+   how long, and the activity list gets a line when the Apple replies again.
+6. **Given** several disks are done, **When** the list of disks is read,
+   **Then** each has its sequence number, file name, file system, status
+   and the time it took, as in the manifest, and a double-click on a row
+   opens the Full Send folder with that image selected.
+7. **Given** a session in progress, **When** the window is closed,
+   **Then** the session goes on, the status bar has a one-line summary, and
+   a click on the summary or Open on the Full Send row's menu opens the
+   window again with everything since the session began.
+8. **Given** a session in progress, **When** End session in the window is
+   clicked and confirmed, **Then** the session ends as Cancel ends it, and
+   the window has the session's totals until it is closed.
+
+### User Story 43 - A boot check, a thumbnail and a name for a disk image (Priority: P1)
+
+A user who has fed a box of floppies to the Apple opens the Full Send
+folder and finds, for each image, a picture of what the disk draws when it
+starts, a mark for an image that didn't start, and a name in place of a
+bare number wherever the disk had one to offer.
+
+**Why this priority**: A raw capture has no catalog, so it is saved as a
+number, and a folder of numbered files can't be used without booting each
+one to find out what it is. A capture can also be wrong with nothing in its
+map marked: on 2026-11-13 two Full Sends of One-on-One produced images that
+didn't boot, and each was found only by booting it in the emulator. That
+day the owner required this for 033: without it the images captured aren't
+useful.
+
+**Independent Test**: Full Send a text adventure, a hi-res game, a cracked
+copy and a disk that doesn't boot. In the Full Send folder each image has
+its thumbnail in place of the stock icon; the text adventure has its title
+as its name; the disk that doesn't boot is marked. Rename an image, move it
+to another folder and copy it: each has the thumbnail. Open a folder of
+disk images that Casso Explorer has never listed, and read the thumbnails
+as they arrive.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Full Send has saved an image, **When** the image is
+   written, **Then** it is booted with no window, its result is written
+   as booted, did not boot or unclear, and a picture of its screen is saved
+   as its thumbnail, while the session goes on to the next disk.
+2. **Given** an image that did not boot, **When** the Full Send window, the
+   manifest and the folder are read, **Then** each has that result, and the
+   Apple's screen has it at the next pause, so the disk can be sent again
+   before it is put away.
+3. **Given** a raw capture saved as a bare number, **When** its booted text
+   screen has a title, **Then** the image is renamed to its number and that
+   title, and the manifest has the new name.
+4. **Given** an image with a thumbnail, **When** its folder is listed in
+   Casso Explorer, **Then** the thumbnail is drawn in place of the stock
+   disk image icon in the views with large icons, and in the preview pane
+   with the boot result beside it.
+5. **Given** a folder of disk images with no thumbnails, **When** it is
+   listed, **Then** the list is drawn at once with stock icons, each image
+   in view is booted in the background, and each thumbnail replaces its
+   icon as it is made.
+6. **Given** an image with a thumbnail, **When** it is renamed, moved to
+   another folder or copied, **Then** each file has the thumbnail with no
+   boot.
+7. **Given** an image whose copy of the thumbnail was dropped on the way
+   through a cloud folder, a zip or a FAT volume, **When** it is listed on
+   the PC that made the thumbnail, **Then** the thumbnail is drawn and its
+   copy is written to the file again.
+8. **Given** a disk mounted in Casso, **When** the command that sets the
+   disk's thumbnail is chosen, **Then** the screen as it is at that moment
+   is the image's thumbnail, in place of the one made by booting.
+9. **Given** an image whose thumbnail the user set, **When** Remove
+   thumbnail is chosen in Casso Explorer, **Then** the image has the
+   thumbnail made by booting again.
+10. **Given** an image with a name from the user, **When** another copy of that title
+    is captured later, **Then** the new image has that name with a new
+    number.
+11. **Given** an image is deleted in Casso Explorer, **When** the delete is
+    done, **Then** its thumbnail is removed with it.
+
 ### Edge Cases
 
 - **A picture on a monochrome monitor**: green, amber and white show a
@@ -1372,6 +2448,114 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **A Full Send when the link drops**: the session ends with the reason, the
   images already written and the manifest remain on the PC, and the partial
   image is discarded.
+- **An AppleWorks file from a later version**: a document from AppleWorks
+  4 or 5, with features 3.0 lacks, is drawn with what the 3.0 format
+  defines, and the rest is listed as unsupported rather than dropped
+  silently.
+- **A spreadsheet formula with no stored value**: the cell's formula is
+  written as entered, as VisiCalc saves formulas with no results.
+- **A CSV field with a comma, a quote or a line break**: the field is quoted,
+  and a quote inside it is doubled.
+- **A super hi-res picture shorter than a full screen, or a packed one that
+  ends early**: the lines read are drawn and the rest is black, and the preview
+  reports how many lines are missing.
+- **A Pascal text file dropped onto a ProDOS or DOS 3.3 image**: on ProDOS it
+  is put as a Pascal textfile, type $03, and on DOS 3.3, which has no such
+  type, as plain text.
+- **A Merlin source line longer than Merlin accepts**: the put fails
+  with the line number.
+- **A font with characters missing from its range**: the missing ones are
+  left blank on the sheet.
+- **A random-access text file on DOS 3.3**: the record length isn't stored,
+  so it is taken from the spacing of its entries; a file with one record is
+  drawn as sequential text. A length found wrongly is replaced in the
+  preview.
+- **An animation file**: only its first frame is drawn, and the preview
+  reports the number of frames.
+- **A shape table with a shape of no vectors**: its cell is left blank,
+  with its number.
+- **A VisiCalc function the manual doesn't list, from a later VisiCalc**:
+  the cell is drawn as ERROR, and the preview lists the function as
+  unsupported.
+- **A block device that reports a size larger than ProDOS allows**: it is
+  listed with its size, and only its first 65,535 blocks are read, with a
+  message.
+- **A SmartPort unit that is a printer or a modem**: it isn't listed as a
+  drive.
+- **A resumed transfer whose device has changed**: when the device's volume directory blocks differ from the partial image's, the
+  offer to continue is withdrawn and the transfer starts over.
+- **A capture of an unprotected disk**: it is written as WOZ as any capture
+  is, and its report doesn't list a differing track.
+- **A track with no sync bytes at all**: it is written as it read, and the
+  report lists it.
+- **A virtual drive's image that is opened in Casso Explorer while the
+  Apple writes it**: the write is applied, and the open view is refreshed,
+  as for any image changed outside the window.
+- **Audio input too quiet or clipped**: the level is drawn in red, and the
+  operation doesn't start until it is in range or the user starts it
+  anyway.
+- **A tape recording with no file found**: it opens as an empty folder,
+  with a message that no tape header was found.
+- **A IIgs with an accelerator, or a //c Plus at 4 MHz**: the link sets
+  the machine to its standard speed while a 5.25" drive is read or written,
+  where the firmware allows.
+- **A 13-sector disk with 16-sector tracks on it**: each track is read in
+  the encoding its address fields have.
+- **A partition marker that points past the end of the image**: the
+  partition is listed as damaged and not opened.
+- **A CF card removed while open**: the operation fails with the reason, and
+  the card's node is removed.
+- **An HFS name with a slash or a colon**: it is copied to the PC with the
+  character replaced as FR-017 sets for any host-illegal character.
+- **An HFS volume larger than 2 GB**: it opens read-only, with the reason.
+- **A Gutenberg volume whose map marks a file's sector free**: the integrity
+  check reports it, and a write doesn't allocate the sector.
+- **The viewer at the last file when Right is pressed**: the file stays, and
+  the next arrow is disabled.
+- **Two disks of the same data in different containers, one with a WOZ
+  track the other lacks**: they are listed as duplicates by their sector
+  data, and the WOZ one is marked as having more.
+- **A BASIC line too long for BASIC's input buffer**: tokenizing writes it
+  as BASIC would store it, with a warning that BASIC can't enter it.
+- **A Wizardry or Infocom file from a version the decoder doesn't decode**: it
+  falls to hex, with the reason.
+- **A Full Send window with no session**: opened from the Full Send row
+  with no session in progress, it has the last session's totals and disks
+  from the folder's manifest, and its state line reads how a session starts
+  on the Apple.
+- **Two connections in Full Send at once**: the window has one section per
+  connection, each with its drives, and the totals and the list of disks
+  cover both, as both write to one folder.
+- **A time left before anything is measured**: the first disk of a session
+  has no estimate until two tracks are read, and the field is blank until
+  then rather than a guess.
+
+- **A disk that boots to a prompt for a second disk**: it booted. The
+  thumbnail is the prompt, and the result is booted.
+- **A data disk with no boot code**: a disk with a recognized file system
+  and no boot code has no boot to check. Its result is not bootable, which
+  isn't a failure, and its thumbnail is its catalog as text.
+- **A title drawn as a picture**: no name is taken from a hi-res screen.
+  The image stays a number until the user renames it with the thumbnail in
+  view.
+- **A text screen that is a page of prose**: a title is taken only from a
+  line that reads as one, such as a line with a copyright notice below it;
+  otherwise no name is taken.
+- **Two copies of one image in two folders**: they share one thumbnail. A
+  thumbnail the user set for one is the other's too.
+- **An image that is edited**: a saved game changes the image, and with it
+  the thumbnail's key. An image Casso or Casso Explorer writes takes its
+  thumbnail along; one changed by another program gets a new one.
+- **A boot that never settles**: an animated title is captured after a set
+  time, not when the screen stops changing.
+- **No ROMs installed**: the dialog Casso has for missing ROMs is offered
+  once. Declined, each image's result is unclear with that reason, and the
+  thumbnails wait; no image is reported as did not boot because a ROM is missing.
+- **A blank or unformatted disk**: no image is saved, so there is nothing
+  to boot (FR-273 and the blank disk rule of the Full Send).
+- **Many images at once**: boots in the background are limited so the list
+  scrolls and the Full Send's reads go on at their pace.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -2198,6 +3382,746 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **FR-150**: After an operation fails, FAILED MUST be drawn over that drive's bar on the Apple's screen until the next operation on the drive.
 - **FR-151**: A cassette bootstrap read that fails the monitor's checksum MUST NOT run. The monitor's command reads the tape and runs it on one line, so the monitor alone prints ERR and runs what it read. The Apple MUST read the tape again with nothing typed, and Casso Explorer MUST send the audio again while the shim hasn't sent Ready, up to five times, then report that the Apple didn't start.
 
+**File types**
+
+- **FR-156**: Casso Explorer MUST preview and convert each of these formats:
+  Pascal textfiles; random-access text; Merlin source; S-C Assembler source;
+  LISA source, in each version of its tokens; Business BASIC; Pascal
+  codefiles; OMF; AppleWorks word processor, database and spreadsheet
+  files; AppleWorks GS word processor files; VisiCalc; Teach; Gutenberg, from a
+  Gutenberg volume; Magic Window; super hi-res pictures, plain,
+  packed, Apple Preferred and Paintworks; 3200-color pictures, plain,
+  DreamGrafix and `.3201`; the first frame of IIgs animation files; LZ4FH
+  pictures; Print Shop and Print Shop GS clip art, in color and monochrome;
+  Applesoft shape tables; IIgs icons; Apple II and Apple /// hi-res fonts;
+  Fontrix fonts; Print Shop fonts; IIgs bitmap fonts. A 65816 disassembly and
+  the Macintosh formats are out of scope.
+- **FR-157**: A format MUST be identified by its ProDOS file type and aux
+  type where it has them, and on DOS 3.3 and Pascal volumes by the file
+  type, name prefix and size it is saved with. The contents MUST pass the
+  format's checks before the file is converted; a file that fails them falls
+  to the existing rules, as hex and a raw copy.
+- **FR-158**: AppleWorks and AppleWorks GS word processor files and Teach
+  files MUST be drawn as styled text: paragraphs, tabs, bold, italic,
+  underline and alignment. A copy out MUST write rich text,
+  `NAME.AppleWorks WP.rtf`, `NAME.AppleWorks GS WP.rtf` or `NAME.Teach.rtf`.
+  Gutenberg and Magic Window files MUST be drawn and written as plain text,
+  `NAME.Gutenberg.txt` or `NAME.Magic Window.txt`, with their formatting
+  commands removed.
+- **FR-159**: AppleWorks databases, AppleWorks spreadsheets and VisiCalc
+  files MUST be drawn as a grid, and a copy out MUST write CSV in UTF-8,
+  quoted as RFC 4180 specifies: `NAME.AppleWorks DB.csv`,
+  `NAME.AppleWorks SS.csv` or `NAME.VisiCalc.csv`. The first row MUST
+  be a database's categories. A spreadsheet cell MUST be written as its
+  stored value, or its formula as entered when the file has no value for it.
+- **FR-160**: A random-access text file MUST be drawn as a grid and written as
+  CSV, `NAME.Random text.csv`, one record on each row and one field of the
+  record, split at its carriage returns, in each column. The record length
+  MUST come from the aux type on ProDOS and from the spacing of its entries
+  on DOS 3.3. The preview MUST offer a record length to replace the one
+  found, which then applies to the preview and to a copy out of that file.
+- **FR-161**: A Pascal textfile MUST be drawn and written as text,
+  `NAME.Pascal text.txt`, with each indentation code expanded to spaces. A
+  text file put onto a Pascal volume MUST be written as a textfile Apple
+  Pascal's editor opens, with `.TEXT` added to its catalog name when it has
+  no such suffix. A file with the `.Pascal text.txt` suffix put onto a
+  ProDOS volume MUST be written as type $03.
+- **FR-162**: Merlin source MUST be drawn in label, opcode, operand and
+  comment columns, and written as text, `NAME.Merlin.txt`, with the fields
+  separated by spaces. A file with that suffix, or one the put dialog sets to
+  Merlin source, MUST be put as the file Merlin saves on that file system:
+  a TXT file ending `.S` on ProDOS, a binary file whose name starts with
+  `T.` on DOS 3.3. A Merlin file copied out and put back MUST be identical
+  to the original.
+- **FR-163**: S-C Assembler source, LISA source and Business BASIC MUST be
+  drawn and written as listings, `NAME.S-C Assembler.txt`, `NAME.LISA.txt`
+  and `NAME.Business BASIC.txt`. LISA MUST be decoded in each version of its
+  tokens. These three convert out only.
+- **FR-164**: A Pascal codefile MUST list its segment dictionary: each
+  segment's name, kind, size and machine type, and each segment's procedure
+  dictionary. Each p-code procedure MUST be disassembled into p-code
+  mnemonics with their operands, and a segment of 6502 code MUST be
+  disassembled. A copy out MUST
+  write the listing, `NAME.Pascal code.txt`.
+- **FR-165**: An OMF file MUST list each segment's header: its name, load
+  name, kind, sizes, alignment and bank. Each record MUST be listed by its
+  opcode, with code and data bytes in hex. A copy out MUST write the
+  listing, `NAME.OMF.txt`.
+- **FR-166**: Super hi-res pictures in each form in FR-156, 3200-color
+  pictures in each form, the first frame of an animation file, LZ4FH
+  pictures, Print Shop and Print Shop GS clip art and IIgs icons MUST be
+  drawn, and a copy out MUST write PNG: `NAME.Super Hi-Res.png`,
+  `NAME.3200 Color.png`, `NAME.Animation.png`, `NAME.LZ4FH.png`,
+  `NAME.Print Shop.png` or `NAME.IIgs Icons.png`. Color clip art MUST be
+  drawn in its colors, and monochrome clip art black on white. A super
+  hi-res picture MUST be drawn in the colors of its palettes, at 320 or 640
+  pixels as each line's mode sets, and MUST NOT take the Display page's
+  monitor, since a IIgs's monitor is RGB. An LZ4FH picture is a hi-res
+  picture and MUST be drawn as US9 draws one. An icon file MUST be drawn
+  with each icon and its mask beside its name.
+- **FR-167**: Apple II and Apple /// hi-res fonts, of 96 or 128
+  characters, Fontrix fonts, Print Shop fonts and IIgs bitmap fonts MUST be
+  drawn as a sheet of every character the font has, in rows of
+  sixteen, with the font's name, family, style and size where the format
+  stores them. A copy out MUST write the sheet as PNG, `NAME.Font.png`.
+- **FR-172**: An Applesoft shape table MUST be drawn as a sheet of its
+  shapes, in rows of eight, each at scale 1 and rotation 0 with its number
+  under it, and a copy out MUST write the sheet as PNG,
+  `NAME.Shape table.png`. A shape whose vectors extend past the sheet's cell MUST
+  be clipped to the cell.
+- **FR-173**: The preview of text, and a text copy out, MUST offer the
+  character set the bytes are read in: Apple text, in which high and low
+  ASCII are one character set, Mac OS Roman, or ISO 8859-1. The default MUST
+  be Mac OS Roman for a IIgs format's text and Apple text otherwise. The
+  choice MUST apply to that file's preview and copy out.
+- **FR-168**: Each of these conversions MUST be the default for a drag or
+  Get out, as the BASIC and text conversions are. A right-drag out MUST
+  offer the conversion and a raw copy, and Get MUST offer the same choice.
+  A raw copy's name MUST follow FR-017 and FR-017a.
+- **FR-169**: A file that matches a format's type but fails to decode MUST
+  be previewed with the decoder's reason above its bytes. A copy out MUST
+  skip that file and report the reason, as FR-018a does, and complete the rest.
+- **FR-170**: The command-line tool's get and put MUST apply the same
+  conversions.
+- **FR-171**: Each format MUST be implemented from published documentation:
+  Apple's File Type Notes, the programs' manuals and format descriptions
+  published under a license that allows it. Source code under the GPL MAY
+  be read for a format's behavior, and MUST NOT be copied or
+  paraphrased into Casso.
+- **FR-174**: A multiple selection's context menu MUST offer Convert to
+  folder, which writes each file with its conversion to a folder the user
+  picks. A file that fails MUST be skipped, and every failure listed when
+  the rest are written.
+
+**Large volumes**
+
+- **FR-175**: ProDOS volumes of any size up to 65,535 blocks MUST be read
+  and written in raw block images, `.po`, `.hdv`, `.img` and `.iso`, in
+  2IMG, `.2mg` and `.2img`, and in Disk Copy 4.2, `.dc`, `.dc42` and
+  `.image`. Every operation available on a 140K ProDOS image MUST be
+  available on them, the raw block dialogs included.
+  Apple Pascal volumes of 800K, as Apple Pascal 1.3 writes them, MUST be
+  read and written in the same containers.
+- **FR-176**: A 2IMG image MUST be read by its header: DOS order, ProDOS
+  order or nibbles, at any size the format allows. Its comment, creator,
+  flags and creator data MUST be listed in Properties and written back on
+  every write.
+- **FR-177**: A Disk Copy 4.2 image's data checksum MUST be checked when it
+  is opened and updated when it is written. Its tag bytes MUST be written
+  back with it.
+- **FR-178**: The New disk dialog and `casso disk create` MUST offer 800K and
+  hard disk sizes for ProDOS, up to 32 MB, in each container FR-175 lists.
+
+**Resource forks**
+
+- **FR-179**: ProDOS extended files, storage type 5, MUST be listed, read,
+  written, renamed and deleted, and a copy between ProDOS volumes MUST copy
+  both forks and the Finder information.
+- **FR-180**: Details MUST offer data fork length, resource fork length,
+  total size and access flags columns. Access flags MUST list each of
+  destroy, rename, backup, invisible, write and read.
+- **FR-181**: A copy to the PC MUST write the resource fork and Finder
+  information: inside the file in the AppleSingle style, and in an
+  AppleDouble file, `._NAME`, beside the data fork in the Descriptive and
+  CiderPress styles. A put of a data fork with its AppleDouble file, or of an
+  AppleSingle file with a resource fork, MUST create an extended file
+  identical to the original.
+- **FR-182**: A copy of a file with a resource fork to a DOS 3.3, Pascal or
+  CP/M volume MUST write its data fork alone and report that the resource
+  fork was not copied.
+
+**Archives**
+
+- **FR-183**: NuFX archives, `.shk`, `.sdk`, `.bxy` and `.sea`, MUST be
+  browsed as folders. Each record MUST be listed with its name, file type,
+  aux type, dates, access and fork lengths, and a disk record MUST open as
+  a disk image of its volume, a 140K disk's block order converted for the
+  140K volume classes.
+- **FR-184**: Every NuFX compression MUST be read: none, Squeeze, LZW/1,
+  LZW/2, LZC 12 and 16, Deflate and bzip2. Each thread's CRC MUST be
+  checked, and a record that fails MUST be reported while the rest are
+  readable.
+- **FR-185**: NuFX archives MUST be written: created from files or from a
+  disk image, and records added, deleted and renamed. New records MUST be
+  compressed with LZW/2, the compression ShrinkIt reads in every version.
+- **FR-186**: Binary II files, `.bny` and `.bqy`, MUST be read and written,
+  and a Binary II file wrapping a NuFX archive, `.bxy`, MUST open as the
+  archive.
+- **FR-187**: An archive or disk image MUST open in place inside a ZIP file,
+  a gzip file, a disk image or another archive, at any depth. A ZIP member
+  stored with Apple file type information in an AppleDouble entry, as
+  CiderPress II writes them, MUST be read with its type, aux type and
+  resource fork.
+- **FR-188**: Test MUST check a disk image's structure with
+  `VolumeIntegrityReport` and an archive's CRCs, from Casso Explorer's
+  context menu and `casso disk test`, and report each problem found.
+- **FR-189**: The archive formats MUST be implemented from published
+  documentation, by the rule FR-171 sets: CiderPress II's NuFX, LZW,
+  Squeeze and LZC notes, and the NuFX and Binary II specifications from
+  Apple's File Type Notes.
+
+**VisiCalc recalculation**
+
+- **FR-190**: A VisiCalc file's formulas MUST be evaluated as VisiCalc
+  evaluates them: every function and operator its manual lists, in the
+  file's recalculation order, by rows or by columns, with one pass for each
+  recalculation, so that a circular reference has the value VisiCalc
+  draws. Each cell MUST be drawn with its format and column width, and as
+  ERROR or NA where VisiCalc has them. For VisiCalc, this replaces FR-159's
+  rule: a copy out MUST write each cell's computed value, and the preview
+  MUST offer to write formulas instead.
+
+**Block devices on the Apple**
+
+- **FR-191**: The link program MUST find each ProDOS block device and each
+  SmartPort unit by its slot firmware's signature bytes, on a ][+, //e,
+  //c, //c Plus and IIgs, and MUST read and write blocks through the
+  firmware's entry points. Each unit MUST be a node under the Apple with
+  its slot, unit, size and volume.
+- **FR-192**: Every operation of Story 14 MUST work on a block device: a
+  ProDOS volume of any size FR-175 allows is browsed and changed, Read disk
+  to image writes `.po`, `.hdv` or 2IMG, and Write image to disk writes and
+  reads back every block. Verified reads and writes MUST apply to blocks as they apply to sectors.
+  When the link drops during either, the partial image and the last
+  verified block MUST be saved beside it, in `NAME.partial`, and the next
+  read or write of the same device, matched by its slot, unit, size and
+  volume, MUST offer to continue from that block.
+- **FR-193**: A device error MUST be reported in words: no disk, write
+  protected, device offline and I/O error, with the block number.
+- **FR-194**: Block devices MUST be tested in scenario tests on Casso's
+  emulated machines once Casso has a SmartPort card, and until then on
+  AppleWin with a hard disk card and on MAME, launched from a script, with
+  a UniDisk 3.5 on a //c with ROM 4 and on a //c Plus.
+
+**Raw capture**
+
+- **FR-195**: Capture raw disk MUST read each quarter track from track 0 to 34, and to 35 when the drive can step to it, as its nibble stream over at least two
+  revolutions, with the time between bytes measured so that sync bytes are
+  written with their extra zero bits. The capture MUST be written as a WOZ 2 image with a bit stream for each quarter track that has data, and its TMAP MUST map each quarter track to the stream read there.
+- **FR-196**: Each track MUST be read at least three times. A region that
+  differs between reads MUST be written as a run of zero bits that WOZ
+  readers read as random bits, and the capture's report MUST list each such track. A quarter track with
+  no data on its first read MUST NOT be read again, and a later read MUST
+  be sent only where it differs from the first.
+- **FR-197**: In a Full Send, a disk assessed as likely copy-protected MUST
+  be captured raw, with no setting to turn it off, its image MUST be the
+  WOZ, and its manifest row MUST indicate a raw capture. A protected disk's
+  sector image rarely runs, and a raw capture of a damaged disk assessed
+  alike has more of it than a sector image. A disk whose protection isn't
+  detected is captured with Capture raw disk on its drive's menu.
+- **FR-265**: Casso Explorer MUST have a Full Send window. It MUST open
+  when a Full Send session starts, without taking the keyboard focus, and
+  MUST reopen where the user last put it. Closing it MUST NOT end the
+  session. Open on the Full Send row's menu and a click on the status bar's
+  Full Send summary MUST open it, with every event since the session began.
+- **FR-266**: The window MUST have a state line with what the session is
+  doing or what it waits for, in a sentence: a disk being sent and its
+  drive, a raw capture, a new disk in either drive and Space on the Apple,
+  the Apple's reply and for how long, a prefix being typed on the Apple, or
+  the session's end and its reason.
+- **FR-267**: Each connection in a session MUST have a separate window, with
+  the connection's name in its title. The window MUST have a panel for each
+  drive of its connection, with the drive's state, the disk's title and
+  file system once read, a track map, a progress bar, the time elapsed and
+  the time left. The track map MUST mark each track as not yet read, read,
+  verified, read with unreliable sectors, or unreadable. In a raw capture
+  it MUST have a cell per quarter track, marked as read, skipped as beside a
+  standard track, weak or unstable, and the panel MUST have the pass, the
+  reads done and the capture's two times, on the disk and on the line.
+- **FR-268**: The time left for a sector image MUST come from the rate of
+  the tracks read so far on this disk, and before two tracks are read, from
+  the session's average for a disk read the same way, verified or not. The
+  time left for a raw capture MUST come from the capture's count of reads
+  left. With neither, the field MUST be blank.
+- **FR-269**: The window MUST have the session's totals: disks sent,
+  duplicates skipped, raw captures, disks with unreadable or unreliable
+  sectors, the time elapsed, the average time for a disk, and the bytes
+  written to the folder.
+- **FR-270**: The window MUST list the disks done, newest first, each with
+  its sequence number, file name, file system, status and the time it took,
+  matching the manifest's row. A double-click on a row MUST open the Full
+  Send folder in Casso Explorer with that image selected, and a row's menu
+  MUST have Open, Inspect and Disk properties as the image's menu in the
+  folder has them.
+- **FR-271**: The window MUST have an activity list with a line and a time
+  for each event of the session: a disk recognized, sent, skipped as a
+  duplicate or captured raw, a pause and its end, a time the Apple didn't
+  reply and its return, verification turned on or off on the Apple, and an
+  error with its reason. Copy on the list's menu MUST copy the selected
+  lines as text.
+- **FR-272**: The window MUST have End session, which ends the session as
+  Cancel does after a confirmation, and Open folder. After a session ends,
+  the window MUST have that session's totals, disks and activity until it
+  is closed or another session starts.
+- **FR-273**: During a Full Send the status bar MUST have a one-line
+  summary for each session: its connection, the drive, the disk's sequence number, the percentage, the time
+  left and the count of disks done. The detail that the status bar had for
+  a raw capture moves to the window.
+
+**A boot check, a thumbnail and a name**
+
+- **FR-274**: After a Full Send writes an image or a raw capture, and after
+  Capture raw disk writes one, the image MUST be booted with no window and
+  its result written as booted, did not boot, not bootable or unclear.
+  The session MUST NOT wait for the boot. An image booted when its screen
+  changed from the screen at power-on and its drive stopped seeking. It did
+  not boot when the screen never changed, when the machine stopped in the
+  monitor or at a BASIC prompt with an error, or when the drive went on
+  seeking to the end of the time allowed. Any other end is unclear.
+- **FR-275**: The boot MUST use the model of Apple the disk was captured
+  from, when a Full Send or a raw capture has it and Casso has that
+  machine; then an enhanced //e with 128K; then a ][+. A machine after the
+  first is used only when the result before it is did not boot or unclear,
+  and the result written is the best of them.
+- **FR-289**: An image whose capture marked a weak track, a track whose
+  reads differ in length, or a sector taken from another read MUST have
+  that with its boot result, in the manifest, the Full Send window and the
+  preview pane, as a boot reads only the sectors a title starts from.
+- **FR-290**: Each image a Full Send saves, a sector image or the sectors a
+  raw capture decodes to, MUST have the disk inspector's file-system check
+  (040, FR-166): its verdict in the manifest's `fscheck` column, after the
+  status in the Full Send window's list, and with the image's boot result in
+  the activity list, with its first finding of damage. A Bad verdict
+  MUST count as a failed capture for the failure sound, as a boot that failed
+  does, and a disk row's menu MUST have Repair disk image when the inspector
+  can repair it. A raw capture with no standard file system has the verdict
+  "No standard file system", which isn't a failure. The window's list leaves
+  that verdict out for a raw capture or a likely copy-protected disk, as the
+  status implies it and the column is narrow (2026-11-16).
+- **FR-291**: A disk that is write-protected when Full Send reads it MUST
+  have a write-protected image: a WOZ with its INFO chunk's write-protect
+  flag set, and a sector image with the file's read-only attribute, which
+  Casso mounts as write-protected. The manifest's `writeProtected` column
+  MUST have it too, as the attribute doesn't survive a zip or a checkout.
+  A title that tests for a copy by writing to its disk, as Wizardry I's boot
+  disk does, runs only from a write-protected image (owner, 2026-11-14).
+  Update 2026-11-15: Wizardry I's boot disk also measures the rotation
+  between tracks, so its sector image doesn't run either way (FR-293).
+- **FR-292**: A boot check whose final screen is blank apart from a few
+  characters' worth of lit pixels MUST judge the image unclear, not booted.
+- **FR-293**: With WOZ selected, a Full Send's sector pass and Create image
+  MUST measure each track's sector-0 rotation from the previous track, its
+  nibbles in one turn and the address fields' volume, and MUST build the
+  WOZ from the sectors to those measurements and the drive's bits in a turn,
+  so a title that measures the time between tracks, as Wizardry I does, runs
+  from it. With DSK, DO, PO, NIB or NB2 selected, the copy is a plain sector
+  copy: a NIB or NB2 has a fixed count of nibbles in a track.
+- **FR-294**: The Full Send options MUST have a Copy-protected disks section:
+  a note that a copy-protected disk has to be captured raw, which is always
+  a WOZ whatever image type is selected; a checkbox for each condition (sectors
+  that can't be read; a file system that isn't recognized, apart from a blank
+  disk; a program outside the operating system that accesses the disk drive
+  directly; boot code other than the DOS 3.3, ProDOS or Apple Pascal loader);
+  and a choice of capturing the disk raw or saving the sector copy marked
+  likely copy-protected when a checked condition turns up.
+- **FR-295**: A manual Create image MUST save the container its save dialog
+  specifies. When a condition of FR-294 turns up in a .dsk, .do or .po it
+  saved, a question MUST offer a raw capture; Yes opens Capture raw disk with
+  the image's name as a .woz, beside the sector image.
+- **FR-296**: Separately from FR-294, a disk whose address fields have a
+  volume other than 254, or other than its DOS 3.3 catalog's volume, MUST be
+  saved in a WOZ built from its sectors with that volume, whatever image type
+  is selected.
+- **FR-288**: When an image is first to be booted and the ROMs of the enhanced //e
+  or the ][+ aren't installed, Casso Explorer MUST offer them in the dialog
+  Casso has for a machine's missing ROMs, once in a run of the program,
+  with the missing ROMs of both machines in the one dialog. A
+  Full Send in progress MUST NOT wait for the answer. Until the ROMs are
+  installed, an image's result is unclear, with the missing ROMs as its
+  reason, and each such image is booted once they are.
+- **FR-276**: A Full Send's manifest, its window's list of disks done and
+  its activity list MUST have each image's boot result, and the Apple's
+  screen MUST have a result of did not boot at the next pause.
+- **FR-277**: The screen at the end of the boot MUST be saved as the
+  image's thumbnail, drawn as Casso draws that screen: text, lo-res,
+  hi-res or double hi-res, in color.
+- **FR-278**: A thumbnail MUST be found by the image's content, not by its
+  path or name, so that a renamed, moved or copied image has it.
+- **FR-279**: A copy of the thumbnail MUST travel with the image file
+  through a move or a copy on an NTFS volume. Where the copy is gone and
+  the PC has the thumbnail, the copy MUST be written again; where neither
+  exists, the image MUST be booted again.
+- **FR-280**: Casso Explorer MUST draw an image's thumbnail in place of the
+  stock disk image icon in its views with large icons, and in the preview
+  pane with the boot result, for every disk image format it lists.
+- **FR-281**: An image with no thumbnail MUST be listed at once with the
+  stock icon and booted in the background when it comes into view. The
+  boots MUST be limited so the list and a Full Send in progress aren't
+  slowed.
+- **FR-282**: When a raw capture is saved as a bare number and its booted
+  text screen has a line that reads as a title, the image MUST be renamed
+  to its number and that title, and the manifest updated. No name is taken
+  from a graphics screen.
+- **FR-283**: A name from the user for an image MUST be stored with the
+  disk's fingerprint, and a later capture with that fingerprint MUST get
+  that name with a new number.
+- **FR-284**: Casso MUST have a command that makes the mounted disk's
+  screen, as it is when the command is chosen, the image's thumbnail. It
+  MUST be stored as every other thumbnail is, in the cache and in the
+  image file's stream, marked as set by the user, with no other file
+  written.
+- **FR-285**: Casso Explorer MUST have Remove thumbnail on the menu of a
+  disk image with a thumbnail. It removes a thumbnail the user set and
+  restores the one made by booting; with none set, it removes the one made
+  by booting, as `disk remove-thumbnail` does, since automatic thumbnails
+  can be turned off (owner, 2026-11-14).
+- **FR-286**: Deleting an image in Casso Explorer MUST remove its
+  thumbnail. The cache has no command to clear it: its pictures are small,
+  and the user can delete its folder (owner, 2026-11-14).
+- **FR-287**: An image written by Casso or Casso Explorer, such as a disk
+  with a saved game, MUST have the thumbnail it had before the write.
+- **FR-198**: A capture's INFO chunk MUST list Casso Explorer and its
+  version as the creator, and its META chunk the capture's date and the
+  drive. The image MUST open in the Disk properties window of FR-133.
+
+**Virtual drives**
+
+- **FR-199**: Make CassoLink ProDOS disk MUST write a bootable disk from the
+  ProDOS on a disk image the user picks, with the link program and its
+  block driver. No part of ProDOS MUST ship with Casso.
+- **FR-200**: On that disk's boot, the block driver MUST be installed for
+  two drives in a free slot's entries in ProDOS's device table, and each
+  block read or written MUST go to the image set for that drive in the
+  connection's settings, written in place at its offset in the file. The
+  driver MUST lower HIMEM by no more than 1 KB beside BASIC.SYSTEM.
+- **FR-201**: A block write the link doesn't complete MUST return ProDOS's
+  I/O error, and the image MUST have that block whole or not at all.
+
+**Cassette disks**
+
+- **FR-202**: On a ][+ or //e whose link started over cassette, Read disk to
+  image MUST receive each track from the Apple's cassette output through the
+  PC's audio input, and Write image to disk MUST send each track as audio into the
+  Apple's cassette input, write it and read it back to verify. The
+  connection's settings MUST pick the audio input and output devices and
+  draw the input level.
+- **FR-203**: Each sector of a track sent as audio MUST have a checksum, and
+  the sectors that fail MUST be sent again, up to five times, as FR-144 sets
+  for serial.
+- **FR-204**: ADTPro's audio client MUST be served by its published
+  protocol, by the rule the Assumptions set for ADTPro compatibility.
+
+**Tape audio**
+
+- **FR-205**: Convert to tape audio MUST write one recording of the
+  selected Applesoft, Integer BASIC and binary files in the monitor's tape
+  format, a BASIC program with the length record BASIC's SAVE writes, a gap
+  of two seconds between files, as WAV, MP3 or Ogg Vorbis, at 44.1 kHz and
+  in mono. A sidecar, `NAME.tape.txt`, MUST list each file's start time,
+  length, load address and the command that loads it.
+- **FR-206**: A recording in WAV, MP3 or Ogg MUST open as a folder of the
+  files found in it, each with its checksum checked, a BASIC program
+  recognized by its length record, and each copied out by the conversion
+  rules of its type. A file that fails its checksum MUST be listed with
+  that reason.
+- **FR-207**: Convert to disk audio MUST write an image's tracks as the audio FR-202 sends, so that the recording played from any player is
+  written to disk by the link.
+
+**More Apples and interfaces**
+
+- **FR-208**: The link MUST run on a IIgs's modem and printer ports, and
+  MUST set the IIgs to 1 MHz while a 5.25" drive is read or written and
+  restore its speed after.
+- **FR-209**: A serial card with Pascal 1.1 firmware signature bytes and no
+  driver matched by its ID bytes MUST be used through its init, read, write
+  and status entry points.
+- **FR-210**: The link MUST run over an original Uthernet and a LANceGS as
+  over an Uthernet II, with the same announcement.
+- **FR-211**: The link program MUST run on a IIgs with a Super Serial Card
+  and on compatibles whose serial and disk hardware match an Apple's, such
+  as the Laser 128. These and FR-208 to FR-210 MUST be tested in KEGS,
+  GSplus, MAME or AppleWin as Story 28 lists, MAME launched from a script.
+
+**Apple ///**
+
+- **FR-212**: Make CassoLink SOS disk MUST write a bootable disk from the
+  SOS kernel and drivers on a disk image the user picks, with the link's
+  SOS program as its interpreter. No part of SOS MUST ship with Casso.
+- **FR-213**: The SOS program MUST connect over the Apple ///'s built-in
+  serial port, MUST list the built-in drive, the external drives and each
+  block device SOS has a driver for, and MUST read and write them through
+  SOS's block calls.
+- **FR-214**: Every operation of Story 14 MUST work on the Apple ///, and its
+  SOS volumes MUST be browsed by Story 33's file system.
+
+**DOS 3.2 and large DOS 3.3 disks**
+
+- **FR-215**: 13-sector disks MUST be read and written in `.d13`, `.nib` and
+  `.woz`, in the 5-and-3 encoding, with DOS 3.2's catalog, and created from
+  the New disk dialog and `casso disk create`.
+- **FR-216**: The link MUST read, write and browse 13-sector disks, and Read
+  disk to image MUST offer `.d13` and `.woz` for them.
+- **FR-217**: DOS 3.3 volumes MUST be read and written with any track and
+  sector count the VTOC allows, up to 50 tracks of 32 sectors, and 80-track disks of 16 sectors in the Basis 108's layout, whose VTOC has two bytes for each track. CiderPress II's DOS notes document the layout.
+
+**Partitions and hybrid disks**
+
+- **FR-218**: These layouts MUST be found by their published markers and
+  opened as a node per partition, with its number, size and volume:
+  FocusDrive and MicroDrive partition maps; DOS.MASTER volumes inside a
+  ProDOS volume; AmDOS, OzDOS and UniDOS 800K disks; DOS 3.3 hybrids with
+  ProDOS or Pascal; and Pascal ProFile Manager volumes. A CFFA card has no
+  map: its partitions are consecutive 32 MB slices, found by the volume
+  directory at the start of each, as firmware 1.2 and 2.x both read them.
+  After the fourth slice, the HFS partitions of up to 1 GB that the CFFA's
+  GS/OS driver for firmware 1.2 adds MUST also be opened.
+- **FR-219**: Copy partition to image MUST write a partition's blocks as an
+  image, and Replace partition MUST write an image no larger than the
+  partition over it, after a confirmation that lists both.
+- **FR-220**: On a hybrid disk, a write to one file system MUST NOT
+  allocate or change a block of another's.
+- **FR-221**: A storage card MUST be detected when it is inserted, and its
+  partition table read without administrator access. A partition Windows
+  mounts MUST appear under This PC by its drive letter, and every other
+  partition, or a card with no table, MUST appear as a storage card node.
+  Administrator access MUST be requested only when the user first opens a
+  storage card node, and once per Casso Explorer session. A tab restored at
+  launch MUST NOT request it. Each command that writes to a card MUST be
+  confirmed once, with the drive's model and size.
+- **FR-243**: Raw access MUST run in a separate elevated broker program that
+  opens only storage cards: removable media on a USB, SD or MMC bus, with no
+  Windows, boot, page file, hibernation or BitLocker volume. Hard disks,
+  SSDs and NVMe drives MUST NOT be opened. The broker MUST make each check
+  itself at every open, MUST accept a write only inside an Apple partition
+  it detects, and MUST fail a write that overlaps a mounted Windows volume.
+  The pipe MUST admit elevated administrators only. Casso Explorer MUST
+  accept only the broker process it started, and the broker MUST accept only
+  the Casso Explorer in its folder, signed with the broker's certificate
+  when the broker is signed. The broker MUST exit when the pipe closes.
+- **FR-244**: Initialize card for Apple MUST erase a storage card and write
+  a new Apple layout, after a confirmation that lists the card's model,
+  size and each volume erased with its drive letter and label. It MUST be
+  the only command that writes outside an Apple partition.
+- **FR-245**: Initialize card for Apple MUST offer Quick format, checked by
+  default, which writes each ProDOS volume's boot blocks, directory and
+  bitmap only. Unchecked, every block of each volume MUST be zeroed.
+- **FR-246**: The storage card broker MUST log, for each card it opens, the
+  bytes read and written and the time spent in the device, so a slow card
+  and a slow connection can be distinguished.
+
+**Volumes read by the block**
+
+- **FR-247**: ProDOS and HFS volumes MUST read blocks on demand from the
+  file, card, hard drive image or CassoLink drive they are on, through a
+  cache, rather than from a copy of the whole volume in memory.
+- **FR-248**: A write to a volume on a storage card MUST send only the
+  blocks it changes, committed together. An image file MUST be rewritten
+  whole through a temporary file that replaces it, so that after a failure
+  partway through, the image is as it was.
+- **FR-249**: DOS 3.3, Pascal and CP/M volumes MAY be read whole through
+  the same block interface.
+
+**Block mode in the disk inspector**
+
+- **FR-250**: The disk inspector MUST open block images, 800K disks, hard
+  drive images and card partitions in a block mode: block number, hex and
+  text panes of one 512-byte block, and editing written as the sector
+  editor writes. Its window MUST be titled "Block inspector - " and the
+  image's name, with a dot in the error color after the name while edits
+  are unsaved (040's FR-007). Ctrl+V MUST paste as the sector editor pastes
+  (040's FR-097). Undo save MUST make the saved edits unsaved again. When the
+  image changed outside the window since it was read, Save MUST write the
+  edits to a preserved copy beside it and MUST NOT write the image.
+- **FR-251**: Block mode MUST annotate ProDOS, SOS, Pascal and HFS blocks by
+  their structure, and 2MG and Disk Copy 4.2 headers, from the formats'
+  published documentation.
+- **FR-252**: Block mode MUST color each block by its use from the volume's
+  integrity report, with distinct colors for blocks marked used with no
+  file and for blocks in two files, and the owning file's path MUST appear
+  on hover.
+- **FR-253**: A block number in an index block, directory link or B-tree
+  link MUST step to that block when clicked, with Back and Forward.
+- **FR-254**: Each partition MUST be drawn as a band over its blocks.
+- **FR-255**: Block mode MUST compare two block images block by block.
+- **FR-256**: A volume inside another MUST be addressed and annotated by
+  its file system over the outer volume's blocks: the DOS 3.3 volumes of
+  UniDOS, AmDOS and OzDOS disks by track and sector, and a hybrid disk's
+  second file system.
+- **FR-298**: In block mode, the window MUST have, from the left, a tree of
+  the card's partitions and the volume's directories; the list for the
+  selected place, with the current block's hex and fields under it; and the
+  map of the whole volume, with the selection's blocks highlighted: a file, a
+  directory and the files under it, a structure, or a finding's blocks. The
+  parts MUST be divided by splitters. Above them, an address bar MUST have
+  the place's path (card, volume, each directory and the file), with Back
+  and Forward, a search over the volume and Go to. A card opens at its
+  partitions, and a volume at its root.
+- **FR-299**: The Volume level MUST have the volume header's fields, the boot
+  blocks and their loader, the volume directory, the bitmap, the space used
+  and free, the file system verdict's findings with Repair, and the 2MG or
+  Disk Copy 4.2 header where there is one.
+- **FR-300**: A directory's list MUST have the blocks the directory is in, then
+  its directories and files, with the selection, sorting and keys of Casso
+  Explorer's list, and the columns Name, Type, Aux, Blocks, EOF, Storage,
+  Key block and Modified. The tree MUST have the volume's directories,
+  including an HFS volume's folders; a Pascal volume doesn't have any. The list
+  MUST stay responsive on a 1 GB HFS volume of about 2.1 million blocks and
+  on a volume of tens of thousands of files, building each row only when it
+  is first drawn.
+- **FR-301**: The File level MUST have the file's directory entry, its
+  storage as key block, index blocks and data runs, its fragmentation, and
+  its blocks.
+- **FR-302**: Every item at the Card, Volume, Files and File levels that is
+  stored in blocks MUST step to its first block when clicked: a partition to
+  its first block, the volume header to its block, the bitmap and a
+  directory to their blocks, and a file to its key block.
+- **FR-303**: Every number Casso writes on screen MUST use the user's
+  regional settings in Windows, the same way everywhere: thousands
+  separator, grouping, decimal separator and negative sign. A number typed with
+  separators MUST be parsed.
+
+**HFS**
+
+- **FR-222**: HFS volumes MUST be read and written in every container
+  FR-175 lists, up to 2 GB: both forks, Finder information, Mac OS Roman
+  names of up to 31 characters, and dates. A file copied to the PC MUST
+  follow FR-181.
+- **FR-223**: A copy between HFS and ProDOS MUST map types and creators as
+  Apple's File Type Notes specify for GS/OS, and a name with a character
+  the target can't store MUST be reported, as FR-017 does.
+- **FR-224**: The New disk dialog and `casso disk create` MUST create HFS
+  images at 800K and hard disk sizes.
+
+**SOS**
+
+- **FR-225**: SOS volumes MUST be read and written on 140K disks and ProFile
+  images as the ProDOS volumes they are, including directories with fewer
+  than 13 entries a block, and the listing and the status bar's tip MUST
+  list the computers a volume starts.
+- **FR-226**: The New disk dialog and `casso disk create` MUST make a disk
+  that starts an Apple ///, or an Apple II and an Apple ///, by copying the
+  loaders and system files from the user's ProDOS and SOS disks.
+
+**Gutenberg writes and RDOS**
+
+- **FR-227**: Gutenberg volumes MUST be written. The free-space map's format,
+  worked out from disks Gutenberg saved in Casso, is documented in the
+  feature's contracts. A file copied in, renamed or deleted MUST update the
+  map as Gutenberg does.
+- **FR-228**: RDOS volumes MUST be read, read-only, with each file listed
+  and copied out.
+
+**Expanded preview**
+
+- **FR-229**: The preview pane MUST have an Expand button, and Alt+Shift+P,
+  that make it fill the tab's area below the tab strip, and Collapse and Esc
+  MUST put the tab's panes back as they were. The expanded state MUST be
+  per tab, and MUST stay with a tab torn off into a window. Enter MUST
+  expand the preview when Options sets Enter to do so.
+- **FR-230**: The expanded preview MUST step to the previous and next file
+  of its folder, in the list's sort order as it is when the step is taken,
+  by arrows on the pane and by Left and Right, skipping folders and
+  stopping at each end, by moving the list's selection. With more than one
+  file selected, the steps MUST go through the selected files.
+- **FR-231**: The preview MUST offer Save as and Copy, and pictures MUST be
+  zoomed with Ctrl and the mouse wheel. Save as MUST offer, as the save
+  dialog's file types, each conversion Get offers for the file, the current
+  view's first, and MUST write a picture at its original resolution at any
+  zoom. Copy MUST put the current view on the clipboard, a document as both
+  plain and formatted text.
+- **FR-257**: The preview MUST have a View as list of the views that apply
+  to the file: its default view first, marked "(default)", then the other
+  conversions the file's type and contents allow, text and hex, and its
+  resource fork when it has one. Each file MUST open in its default view.
+
+**A2Pico cards**
+
+- **FR-258**: A FAT or exFAT volume with `A2retroNET.txt` in its root MUST be listed
+  as an A2Pico card. The card's kind MUST be read from its content at each
+  open and MUST NOT be saved on the PC, so a card initialized again for
+  another adapter is listed as what it now is.
+- **FR-259**: An A2Pico card's drives MUST be listed, in an infobar at the
+  card's root and in A2retroNET drives, with their number,
+  image, size and write protection, and with the problem of a drive the
+  firmware can't open: a missing image, an extension other than `.po`,
+  `.hdv` and `.2mg`, a `.2mg` in DOS order or with blocks that don't start
+  at byte 64, more than 65,535 blocks, or a path that ends in a CR.
+- **FR-260**: `A2retroNET.txt` MUST be written with LF line ends, and a
+  change MUST rewrite only the lines it changes: comment lines, such as a
+  drive's other images commented out with `#`, and lines Casso Explorer
+  doesn't read MUST remain in place, unlike the firmware's configuration
+  utility, which writes the file again without them. A2retroNET drives, a
+  dialog, MUST list the number of drives and the boot delay first, then the
+  eight drives, the drives past the number in use disabled and not
+  configured. It MUST set a drive's image from the card, list a drive's `sd:` or
+  `usb:` path, which may be on the Drive firmware's other device, without
+  changing it, clear a drive, reorder by dragging
+  the drives, switch a drive to one of its commented-out images, and set
+  the number of drives (2, 4, 6 or 8) and the boot delay (0 to 9 seconds).
+  An Edit button MUST open the file in the program Windows opens `.txt`
+  files in, with that program in its label, as "Edit in Notepad...", and
+  the drives MUST be read again when it is saved.
+- **FR-261**: A copy, paste or drop in Casso Explorer of a disk image to
+  an A2Pico card, with a block volume in a form the firmware can't read,
+  MUST be followed by a question about converting it, and on a yes MUST replace the copy on the
+  card with a `.po`. An image in that form that is on the card already, as
+  after a copy in File Explorer or a no, MUST be offered as a `.po` beside
+  it, in an infobar in its folder. An image with no block volume MUST be
+  copied as it is, and MUST NOT be offered as a drive.
+- **FR-262**: Renaming or moving a drive's image on the card in Casso
+  Explorer, by dragging too, MUST update the drive's path, and deleting it MUST clear the
+  drive after a confirmation that lists the drive.
+- **FR-263**: Initialize card for Apple MUST offer an A2Pico adapter: one
+  FAT32 partition labeled A2PICO and an `A2retroNET.txt` of the firmware's
+  defaults, with the adapter's row in the compatibility grid. The adapter
+  list MUST have only adapters, with no entry for an adapter that isn't
+  known.
+
+**Collection tools**
+
+- **FR-232**: Disk list MUST list each disk image in a folder's subtree with
+  its path, container, file system, volume name, file count, free space,
+  CRC-32 and SHA-256. Images inside ZIP, gzip, NuFX and Binary II files
+  and inside other images MUST be listed too, at any depth FR-187 opens,
+  with the archive and the image inside it in the path. Find duplicates
+  MUST search the same set.
+- **FR-233**: Find duplicates MUST group disks whose volume data is the same,
+  whatever their containers, and files whose data and type are the same
+  across different disks.
+- **FR-233a**: Both tools MUST open their results in a tab as a results
+  folder, as a search does: a row for each disk or file, each duplicate set
+  a group, and the context menu a row has in any folder. The results
+  toolbar MUST offer Save as CSV.
+- **FR-234**: A search with File contents on MUST search each file inside a
+  disk image as its conversion writes it: BASIC detokenized, Apple text as
+  text, and binary files not at all.
+- **FR-235**: `casso disk list`, `casso disk dupes` and `casso disk search`
+  MUST write the same results as the window.
+
+**Language tools**
+
+- **FR-236**: Applesoft and Integer BASIC listings MUST be tokenized into the
+  program BASIC saves from the same lines, on a put and from `casso basic
+  tokenize`, and detokenized from `casso basic list`.
+- **FR-237**: Renumber MUST renumber a BASIC program's lines from a start and
+  a step, with each GOTO, GOSUB, ON, THEN, LIST, RUN and DEL target, and
+  MUST fail with the line when a number would pass 63999 in Applesoft or
+  32767 in Integer BASIC.
+- **FR-238**: Cross-reference MUST list each variable, line reference, and
+  CALL, PEEK and POKE address of a BASIC program with the lines it is on,
+  in Casso Explorer's preview and from `casso basic xref`.
+- **FR-239**: Removed: language servers are cut.
+
+**Game data**
+
+- **FR-240**: Wizardry I, II and III scenario files MUST be drawn as the
+  saved game: the roster, each character with class, level, status, hit
+  points, gold, experience and a list of the items in that character's
+  inventory, and one map of the maze level the party is on with the
+  party's square marked, when characters are in the maze. The game's fixed
+  data MUST NOT be listed: monsters, items and the other maze levels. A
+  copy out MUST write the saved game as one RTF file, with the map as a
+  picture in it.
+- **FR-241**: Infocom story files of each Z-machine version MUST list their
+  header, abbreviations, dictionary, object tree and decoded strings, and a
+  copy out MUST write the listing as text.
+- **FR-264**: An Infocom saved game MUST be summarized where its layout
+  allows: the story's release and serial number, the score, the moves and
+  the room, read from the saved memory's header, globals and objects. The
+  story's grammar, globals and Z-code MUST NOT be listed.
+- **FR-242**: Every format and protocol in FR-190 to FR-241 MUST be
+  implemented by the rule FR-171 sets.
+
 ### Key Entities
 
 - **Known folder**: a host folder the user has opened a disk from; path,
@@ -2255,6 +4179,27 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **Full Send session**: one run of alternating disk reads from a linked
   Apple: its destination folder, image format, sequence number, the
   fingerprints and hashes of its disks, and its manifest.
+- **Block device**: one ProDOS block device or SmartPort unit on a linked
+  Apple: its slot, unit, size and volume.
+- **Raw capture**: a WOZ 2 image read as nibble streams from a linked
+  Apple's drive, with the tracks whose reads differ.
+- **Virtual drive**: one of the two drives the CassoLink ProDOS disk's block
+  driver installs, and the image on the PC it reads and writes.
+- **Tape recording**: an audio file of one or more files in the monitor's
+  tape format, with its sidecar.
+- **Partition**: one volume inside an image or card with a partition
+  layout: its number, its first block, its size and its file system.
+- **Disk list**: one row for each disk image in a folder's subtree, with its
+  checksums, saved as CSV.
+- **Viewer**: a window with one file's preview, its folder and the list's
+  sort order.
+
+- **Boot result**: what booting an image with no window found: booted, did
+  not boot, not bootable or unclear.
+- **Thumbnail**: a picture of an image's screen at the end of its boot, or
+  one the user set, found by the image's content.
+- **Given name**: a name from the user for an image, stored with the disk's
+  fingerprint for later captures of that title.
 
 ## Success Criteria *(mandatory)*
 
@@ -2380,6 +4325,99 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - **SC-044**: A search of C:\Windows with File contents off returns the same files as the Windows search folder for the same name condition, in no more than a quarter of its time.
 - **SC-045**: A search with File contents on lists its first result within 2 seconds of its folder being walked, and finds a word in a .txt, a .md, a UTF-16 .log and a .docx, but not in a .dll.
 - **SC-046**: Each fault kind recovers, or fails with a message in words, in its scenario test, and the same fault armed on a real //c over serial has the same result.
+- **SC-047**: For each format in FR-156, a sample file previews with the same
+  text, values or pixels as the program that made it draws in Casso, and its
+  converted copy opens in Word, Excel, Notepad or Photos with the same
+  content.
+- **SC-048**: A Merlin source file copied out and put back is identical byte
+  for byte, and a Pascal text file put onto a Pascal volume opens in Apple
+  Pascal's editor with the same text.
+- **SC-049**: A file of any of these formats, up to 64 KB, is previewed
+  within half a second of being selected.
+- **SC-050**: An 800K and a 32 MB image changed in Casso Explorer pass
+  CiderPress II's Test, and the 800K image catalogs in ProDOS on MAME's //c
+  Plus.
+- **SC-051**: A file with a resource fork copied to the PC and put back is
+  identical in both forks and its Finder information.
+- **SC-052**: Every file in CiderPress II's `test-files.sdk` copied out of
+  Casso Explorer is identical to CiderPress II's extraction of it, and an
+  archive Casso Explorer creates passes CiderPress II's Test and NuLib2's.
+- **SC-053**: Every cell of each sample VisiCalc sheet has the value
+  VisiCalc draws after a recalculation in Casso.
+- **SC-054**: On each emulator in FR-194, an 800K and a 32 MB volume read
+  through the link are identical to the images the emulator mounted, and a
+  file put through the link opens on the Apple.
+- **SC-055**: A raw capture of Archon on the owner's //c boots in Casso, and
+  a capture of each protected test image in an emulated //c boots as its
+  source does. A capture on a //c at 115,200 baud takes under 5 minutes.
+- **SC-056**: A file saved on a CassoLink virtual drive from BASIC.SYSTEM is
+  in the image on the PC when the save returns, on an emulated //c and on
+  the owner's //c.
+- **SC-057**: A 140K disk sent each way over cassette audio in Casso is
+  identical to its source.
+- **SC-058**: Each file in a tape recording Casso Explorer writes loads and
+  runs in an emulated ][+, and each file read back from it is identical to
+  the original.
+- **SC-059**: Story 14's scenarios pass on each machine and interface in
+  Story 28's test list, and on MAME's Apple ///.
+- **SC-060**: Images in DOS 3.2, 40-, 50- and 80-track DOS 3.3, each
+  partition layout in FR-218, HFS, SOS and RDOS, changed in Casso Explorer
+  where they can be written, pass CiderPress II's Test, and each file copied
+  out is identical to CiderPress II's extraction.
+- **SC-061**: An HFS image changed in Casso Explorer boots GS/OS in KEGS or
+  GSplus and opens each changed file.
+- **SC-062**: A Gutenberg document written by Casso Explorer opens in
+  Gutenberg in Casso and saves again.
+- **SC-063**: The expanded preview steps to the next file within half a second for
+  files up to 64 KB.
+- **SC-064**: Disk list and Find duplicates over 5,000 images finish within
+  five minutes, and find every known duplicate in the test set with no
+  false matches.
+- **SC-065**: A tokenized listing of each sample BASIC program is identical
+  to the program BASIC saves in Casso, and a renumbered program runs with
+  the same output.
+- **SC-066**: Each sample Wizardry and Infocom file lists the same
+  monsters, items, words and text as the game or an interpreter has.
+- **SC-067**: Listing the root of a full 32 MB ProDOS volume reads fewer
+  than 64 blocks, and copying a 10 KB file onto it writes fewer than 64.
+- **SC-068**: Quick format initializes a 1 GB card with 13 volumes in
+  under 5 seconds.
+- **SC-069**: Every block of CiderPress II's ProDOS and HFS sample images is
+  annotated with its use in the catalog, and a step to a block on a 32 MB
+  volume or a card's partition takes under 100 ms.
+- **SC-070**: Every drive of a card initialized for an A2Pico and filled
+  through Casso Explorer passes `A2retroNetConfig::CheckImage`, and a 140K
+  image boots from a Disk II in Casso, which has no SmartPort card.
+
+- **SC-071**: Through a Full Send of a DOS 3.3 disk, a duplicate and a
+  copy-protected disk on a //c, the Full Send window's state line is
+  correct at every pause and wait, the time left for each disk after its
+  first quarter is within 20% of the time it then takes, and the list of
+  disks matches the manifest row for row.
+
+- **SC-072**: Of the six titles captured on the owner's //c through
+  2026-11-13 (Wizardry I, Archon, Arcticfox, The Witness, One-on-One and
+  the cracked Spy vs. Spy), every image that boots when started in Casso
+  has the result booted; of the two bad images of One-on-One from that day,
+  the second has did not boot, and the first, which boots to its title and
+  is bad on track 27, has booted with its capture's marks (FR-289).
+- **SC-073**: A Full Send's time for a disk is no more than 2 seconds
+  longer with the boot check than without it.
+- **SC-074**: A folder of 200 disk images with no thumbnails is listed in
+  the time it takes without thumbnails, and every image in view has its
+  thumbnail within 30 seconds.
+- **SC-075**: An image renamed, moved and copied on an NTFS volume has its
+  thumbnail in all three places with no boot.
+- **SC-076**: A Full Send of a disk with planted bookkeeping damage has
+  the verdict Bad in the manifest and the window, sounds the failure, and
+  its row's Repair disk image writes a copy with the verdict OK; a Full Send
+  of a copy-protected disk has "No standard file system" and sounds success
+  when it boots.
+- **SC-077**: On a volume of 20,000 entries, a search at the Files level
+  selects a file and highlights its blocks within one second, and the
+  window's thread doesn't stall for more than 100 ms while the level fills.
+- **SC-078**: With the region set to German (Germany), block 47790 is
+  written as 47.790 and a Go to of 47.790 steps to it.
 
 ## Assumptions
 
@@ -2398,7 +4436,7 @@ source and read the manifest. Repeat on a real //c with real floppies.
 - Conversion rules on get, put and drag are the command-line tool's rules,
   plus an Integer BASIC detokenizer this feature adds for preview and Get.
   The tree detokenizes Applesoft only today. No Integer BASIC tokenizer:
-  an Integer listing dragged in is put as text.
+  an Integer listing dragged in is put as text until Story 37 adds one.
 - Preview and Get show what a decoder can decode and mark where it
   stopped, since the Apple saves programs without validating them and a
   type A or I file may hold anything.
@@ -2446,19 +4484,19 @@ source and read the manifest. Repeat on a real //c with real floppies.
   expected of Casso Explorer either.
 - Quick access is read from and written through the shell, not kept by
   Casso Explorer, so the two programs share one list.
-- Search inside disk images matches by entry name only; the files' contents
-  are not indexed.
+- Search inside disk images matches by entry name only, and the files'
+  contents are not indexed, until Story 36 searches them.
 
 - ADTPro compatibility means its published protocol as of release 2.1.0,
   the version on the owner's machine.
 - The Apple-side program runs on a ][+, //e or //c with 64 KB, with no DOS
   in memory, and reads DOS 3.3 and ProDOS disks itself. 13-sector DOS 3.2
-  disks are out of scope.
+  disks are Story 30.
 - The link reads and writes 5.25-inch drives. ProDOS block devices, such as a
-  UniDisk 3.5 or a hard drive, are a later feature.
-- Copy-protected disks, and capturing raw nibbles, bit streams or flux as
-  WOZ images, are a follow-on feature built on this link; here a protected
-  disk reads only as far as its standard sectors allow.
+  UniDisk 3.5 or a hard drive, are Story 23.
+- Capturing copy-protected disks as WOZ images from nibble reads is Story
+  24, and flux capture is out of scope. Every other link operation reads a
+  protected disk only as far as its standard sectors allow.
 - Casso's emulation of the Super Serial Card and of the Uthernet II are two
   separate features. Each lands in Casso on its own and is merged into this
   branch when the link's work on that card starts; the link's scenarios on
@@ -2470,3 +4508,110 @@ source and read the manifest. Repeat on a real //c with real floppies.
   later feature; here the Apple side is a server with a status screen.
 - The link is used from Casso Explorer only; there is no command-line
   entry for it beside `casso disk`.
+
+## Roadmap
+
+The order in which Casso Explorer's remaining work is built, from GitHub
+issue #181 checked against CiderPress II, ADTPro, a2kit, AppleCommander,
+DiskBrowser and DiskM8 (Session 2026-11-08). Each step is specified in full
+before it is built. VisiCalc recalculation in 2.3 is Story 22; 3.1 to 3.5
+are Stories 23 to 27; 3.6, 3.7, 3.9 and 3.10 are Story 28; 3.8 is Story
+29; 4.1 to 4.4 are Stories 30 to 33; 4.5 and 4.6 are Story 34; and 5.1 to
+5.4 are Stories 35 to 38. Effort is for agent-driven work:
+S is a day or two, M up to a week, L several weeks.
+
+**Done on this branch**: DOS 3.3, ProDOS, Apple Pascal and CP/M read and
+write; Full Send; verified reads and writes; the cassette bootstrap.
+
+**1. Foundations**
+
+1. Merge `040-disk-inspector` into this branch, with its session: the sector
+   and block editor, and the Pascal and CP/M file maps. It changes the
+   volume layer, which step 2 changes too, so it goes first.
+2. 800K and hard disk images, 2IMG and Disk Copy 4.2: Story 19 (M).
+3. Files with resource forks, AppleDouble, and the fork and access columns:
+   Story 20 (M).
+4. ShrinkIt and Binary II, reading and writing, nested archives, gzip, ZIP
+   with Apple file types, and Test: Story 21 (M to L). First, check what
+   Casso Explorer does today with a disk image inside a ZIP file.
+
+**2. File types**: Story 18, in this order, the most used first in each group.
+
+1. RTF and CSV writers, and Convert to folder (FR-174).
+2. Text: Pascal textfiles, random-access text.
+3. Business: AppleWorks Classic, then AppleWorks GS, Teach, VisiCalc,
+   Gutenberg and Magic Window. VisiCalc recalculation, as DiskBrowser does
+   it, is added here as a later step (M).
+4. Code: Merlin and S-C first, then LISA, Business BASIC, Pascal codefiles
+   and OMF.
+5. Pictures, then fonts and shape tables.
+
+**3. CassoLink**
+
+The owner's only real Apple is a //c, so the devices it lacks are tested in
+emulators run as targets of the link, never as sources of code:
+
+- Casso first: once Casso has its SmartPort hard disk card, #101, and 3.5"
+  drives, #163, block devices are tested as the //c's serial port is now,
+  in the scenario tests on Casso's emulated machines.
+- AppleWin until then, for a hard drive through its hard disk card, with its
+  Super Serial Card over TCP.
+- MAME only where nothing else emulates the machine: the Apple ///, and the
+  UniDisk 3.5 on a //c with ROM 4 or a //c Plus, for any test that
+  comes before #163. MAME is launched from a script with the disk and its null modem on
+  TCP, and its Lua scripting types at the machine, so its UI is never used.
+  Its Apple /// socket connection has a reported bug, so it is checked
+  first.
+- KEGS, GSplus or MAME for the IIgs serial ports, whichever connects over
+  TCP.
+
+1. Block devices on the Apple: a UniDisk 3.5, a //c's 3.5" port and a hard
+   drive, through their firmware (M), after step 1.2.
+2. Raw capture of copy-protected disks, with Archon as the test disk (L).
+3. Virtual drives, #178.
+4. Whole disks over cassette audio, as ADTPro sends them (M).
+5. Files and disks to tape audio and back, in WAV, MP3 and Ogg (S to M).
+6. Serial cards through Pascal firmware entry points, for third-party cards
+   (M).
+7. The IIgs serial ports (M).
+8. An Apple /// client under SOS (L).
+9. LANceGS and the original Uthernet, the Ethernet cards ADTPro supports
+   besides the Uthernet II (S to M each).
+10. Tests on machines the link program may already run on: a IIgs with a
+    Super Serial Card, and compatibles such as the Laser 128 (S).
+
+**4. File systems and layouts**
+
+1. DOS 3.2 13-sector disks, and 40- and 80-track DOS 3.3 disks (M), with
+   #164.
+2. Partition layouts, partition copy and replace, and raw access to a CF
+   card: CFFA, DOS.MASTER, DOS hybrids, AmDOS, OzDOS, UniDOS, FocusDrive,
+   MicroDrive and Pascal ProFile Manager (M to L), after step 1.2.
+3. HFS, the Mac's Hierarchical File System, which GS/OS reads and writes on
+   IIgs 3.5" and hard disks, read and write (M to L).
+4. SOS, the Apple ///'s file system, read and write (M), with step 3.8.
+5. Gutenberg writes, from `feedback-backlog.md`.
+6. RDOS, read-only (S).
+
+**5. Tools**
+
+1. A viewer window with previous and next arrows (S to M).
+2. Collection tools, from DiskBrowser and DiskM8: a disk list with
+   checksums, duplicates across many disks by whole disk and by file, and a
+   search inside disk images that includes detokenized BASIC (M).
+3. Language tools, from a2kit: tokenizing, detokenizing and renumbering
+   Applesoft and Integer BASIC, a BASIC cross-reference of variables, calls
+   and jumps as DiskBrowser lists them (S to M).
+4. Game data viewers, from DiskBrowser: Wizardry scenarios and Infocom story
+   files (M each).
+
+**Elsewhere**: Casso's hard disk card, #101, built beside step 1.2 so that
+Casso boots what Casso Explorer writes; 3.5" drive emulation, #163; the
+UniDisk 3.5 on the //c's SmartPort bus, #93, which shares #101's block core;
+the Z-RAM card, #65, so that Casso runs the CP/M disks Casso Explorer reads
+and writes.
+
+**Cut**: the Macintosh formats (MFS, DART, MOOF, MacBinary, Mac TS, Apple
+Partition Map, MacPaint), Trackstar, AppleLink PE, ADTPro's DOS ADT client
+and half tracks, floppy drives attached to the PC, language servers, and
+65816 disassembly.

@@ -105,6 +105,7 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
     }
 
     m_rowData = std::move (rows);
+    m_rows.InvalidateRowHeights();
 
     //  NOT RE-MEASURED HERE, unless asked. Measuring walks every cell of every
     //  row through the text renderer, and a folder of a few thousand files paid
@@ -494,6 +495,8 @@ void DxuiListView::AppendRows (std::vector<std::vector<Cell>> rows)
     m_rowSource   = nullptr;
     m_rowProvider = nullptr;
 
+    m_rows.InvalidateRowHeights();
+
     m_rowData.insert (m_rowData.end(),
                                   std::make_move_iterator (rows.begin()),
                                   std::make_move_iterator (rows.end()));
@@ -857,7 +860,7 @@ void DxuiListView::EnsureVisible (int row)
     }
     else if (line >= m_topRow + cap)
     {
-        m_scrollbars.SetTopRow (line - cap + 1);
+        m_scrollbars.SetTopRow (m_rows.IsWrapped() ? m_rows.GetTopRowEndingAt (line, m_scrollbars.ComputeScrollLayout().bodyH) : (line - cap + 1));
     }
 }
 
@@ -954,6 +957,14 @@ int DxuiListView::HitTestRow (int xPx, int yPx) const
 
     line = m_grouping.HitTestLine (xPx, yPx);
 
+    //  Wrapped rows are found by their heights.
+    if (m_rows.IsWrapped())
+    {
+        int  visible = m_rows.FindVisibleRow (yPx - (m_showHeader ? GetHeaderBarPx() + GetHeaderGapPx() : 0));
+
+        line = (visible < 0) ? -1 : m_topRow + visible;
+    }
+
     //  Past the last column is empty space, as in Explorer's Details view: a
     //  click there selects nothing and gives the folder's own menu. The last
     //  column ends where it is drawn, a stretch column's fill included.
@@ -1014,6 +1025,47 @@ DxuiListView::Palette DxuiListView::MakePalette() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetClippedCellText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::GetClippedCellText (int xPx, int yPx, std::wstring & outText) const
+{
+    int               row     = HitTestRow (xPx, yPx);
+    ScrollLayout      layout  = m_scrollbars.ComputeScrollLayout();
+    int               xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
+    bool              isCut   = false;
+    std::vector<int>  colXPx;
+    std::vector<int>  colWPx;
+
+
+
+    if (row >= 0)
+    {
+        m_columnSizing.ComputeColumnLayout ((float) layout.viewportW, colXPx, colWPx);
+
+        for (size_t c = 0; !isCut && c < m_columns.size() && c < colXPx.size() && c < colWPx.size(); ++c)
+        {
+            bool  isOver = m_columns[c].visible && xAdj >= colXPx[c] && xAdj < colXPx[c] + colWPx[c];
+
+            isCut = isOver && m_rows.IsCellClipped (row, c);
+
+            if (isCut)
+            {
+                outText = GetRowCells (row)[c].text;
+            }
+        }
+    }
+
+    return isCut;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Paint
 //
 //  Paints the background, optional bold header row (with sort glyph,
@@ -1025,7 +1077,7 @@ DxuiListView::Palette DxuiListView::MakePalette() const
 void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     HRESULT          hr         = S_OK;
-    ScrollLayout     layout     = m_scrollbars.ComputeScrollLayout();
+    ScrollLayout     layout     = m_rows.MeasureForPaint (text);
     float            x          = (float) m_boundsDip.left;
     float            y          = (float) m_boundsDip.top;
     float            fullW      = (float) (m_boundsDip.right - m_boundsDip.left);
@@ -1033,7 +1085,7 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     int              visibleCap = layout.rowCap;
     int              totalRows  = m_grouping.GetLineCount();
     int              firstRow   = m_topRow;
-    int              lastRow    = std::min (totalRows, m_topRow + (visibleCap > 0 ? m_scrollbars.GetShownRowCount() : totalRows));
+    int              lastRow    = std::min (totalRows, m_topRow + (visibleCap > 0 ? m_scrollbars.GetShownRowCount() + (m_rows.IsWrapped() ? 1 : 0) : totalRows));
     int              rowH       = GetRowHeightPx();
     int              slidePx    = IsItemsView() ? 0 : m_items.GetPageSlidePx();
     float            barW       = layout.vBar ? (float) GetScrollbarWidthPx() : 0.0f;
@@ -1802,7 +1854,7 @@ std::vector<DxuiPopupMenuItem> DxuiListView::GetScrollbarMenu (POINT pt)
     });
     m_scrollbars.m_horzScroll.SetOnScroll ([this] (int, int pos) { m_scrollbars.SetLeftPx (pos); });
 
-    if (m_scrollbars.m_vertScroll.GetMetrics().visible && IsOverBar (m_scrollbars.m_vertScroll, pt))
+    if (!m_vertBarHidden && m_scrollbars.m_vertScroll.GetMetrics().visible && IsOverBar (m_scrollbars.m_vertScroll, pt))
     {
         barPt = GetBarPoint (m_scrollbars.m_vertScroll, pt);
         return m_scrollbars.m_vertScroll.BuildContextMenu (barPt.x, barPt.y);

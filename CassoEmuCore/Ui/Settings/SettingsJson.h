@@ -103,4 +103,7 @@ public:
     // A machine with no definition is left untouched -- its document is the
     // only description of it there is.
     static void  AddDefinedDevices (const std::string & machineName, JsonValue & doc);
+
+    static JsonValue  MakePortArray     (const HardwareEntry & staged);
+    static bool       IsCardSpecificKey (const std::string & key);
 };

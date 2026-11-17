@@ -149,6 +149,59 @@ public:
         //  kShowDisassembly.
         kShowBytes,
 
+        //  The character set a text preview is read in, a choice of one, and
+        //  the record length a random-access text file is split by.
+        kCharsetAppleText,
+        kCharsetMacOsRoman,
+        kCharsetIso8859,
+        kRecordLength,
+
+        //  A spreadsheet's cells as values or as formulas, a choice of one.
+        kSheetValues,
+        kSheetFormulas,
+
+        //  A BASIC program's cross-reference in place of its listing.
+        kCrossReference,
+
+        //  The disk inspector on the selected disk images or the open one,
+        //  and two selected images compared in it. On the File menu, and on
+        //  the command bar while they apply.
+        kInspectDiskImage,
+        kCompareDiskImages,
+
+        //  The preview over the whole tab, and its steps to the previous and
+        //  next file.
+        kExpandPreview,
+        kPreviousFile,
+        kNextFile,
+
+        //  The preview's View as, and its choices, in ViewChoice's order.
+        kViewAs,
+        kViewAsDefault,
+        kViewAsText,
+        kViewAsHex,
+        kViewAsDisassembly,
+        kViewAsHiRes,
+        kViewAsDoubleHiRes,
+        kViewAsLoRes,
+        kViewAsResourceFork,
+
+        //  The preview's Copy and Save as.
+        kCopyPreview,
+        kSavePreviewAs,
+
+        //  Disk list's and Find duplicates' results written to a CSV file, on
+        //  the command bar only there.
+        kSaveResultsCsv,
+
+        //  Disk list and Find duplicates on the folder row selected, or on
+        //  the folder open in the list, from their context menus.
+        kDiskList,
+        kFindDuplicates,
+
+        //  The Full Send window, on the View menu.
+        kFullSendStatus,
+
         //  kSortByColumn + the column's index, one per list column.
         kSortByColumn = 400,
 
@@ -158,6 +211,12 @@ public:
         //  kGroupByField + a RowGrouping::Field, None included.
         kGroupByField = 600,
         kGroupByLast  = 699,
+
+        //  Initialize card for Apple on the card open in the list, or on the
+        //  card of the drive letter open in it. Not on a menu: the rows on a
+        //  card's and a drive's context menus run it, and ExplorerRunCommand
+        //  with this id opens its dialog.
+        kInitializeCard = 700,
     };
 
     enum class Menu { File, Edit, View, Go, Help, Count };
@@ -183,7 +242,7 @@ public:
     //  preview pane's toggle.
     std::vector<DxuiToolbar::Entry>  BuildToolbarEntries() const;
     //  The buttons a location adds to the command bar, after View.
-    enum class CommandBarExtra { None, RecycleBin, Archive, AppleDrive, Search };
+    enum class CommandBarExtra { None, RecycleBin, Archive, AppleDrive, Search, DiskImage, DiskImagePair, Results };
 
     std::vector<DxuiToolbar::Entry>  BuildCommandBarEntries (CommandBarExtra extra = CommandBarExtra::None) const;
 
@@ -214,8 +273,18 @@ public:
     //  A VAR file's variables: the search box, which filters them.
     static constexpr int  kPreviewBarVariables = 6;
 
-    std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries  (int bar, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
-    static std::vector<int>          GetPreviewToolbarCommandIds (int bar);
+    //  Text with a choice of character set, and a random-access text file,
+    //  which has the record length as well.
+    static constexpr int  kPreviewBarText    = 7;
+    static constexpr int  kPreviewBarRecords = 8;
+
+    //  A spreadsheet with formulas: Values and Formulas.
+    static constexpr int  kPreviewBarSheet   = 9;
+
+    //  Expand is on every bar, and previous and next on every bar of an
+    //  expanded preview.
+    std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries  (int bar, bool expanded, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
+    static std::vector<int>          GetPreviewToolbarCommandIds (int bar, bool expanded = false);
     static int                       GetPreviewBar               (int id);
     static bool                      IsOnPreviewBar              (int id, int bar);
 
@@ -244,6 +313,14 @@ public:
     static DxuiStandardCommand  GetStandardCommand (int id);
 
     static const wchar_t *  GetMenuTitle (Menu menu);
+
+    //  Whether a picker has the command: the ones that move through folders
+    //  and change the list's view, and New folder in a save form. Every
+    //  other command is disabled there, by every route.
+    static bool              IsAllowedInPicker (int id, bool isSaveForm);
+
+    //  Every command id in the table, for a sweep.
+    static std::vector<int>  GetAllIds ();
 
 private:
     struct Row
@@ -289,6 +366,9 @@ private:
         { kNewTab,            Menu::File, L"&New tab",            L"Ctrl+T",   false },
         { kCloseTab,          Menu::File, L"&Close tab",          L"Ctrl+W",   false },
         { kSeparator,         Menu::File, nullptr,                nullptr,     false },
+        { kInspectDiskImage,  Menu::File, L"&Inspect disk image", nullptr,     false },
+        { kCompareDiskImages, Menu::File, L"Co&mpare disk images", nullptr,    false },
+        { kSeparator,         Menu::File, nullptr,                nullptr,     false },
         { kExit,              Menu::File, L"E&xit",               nullptr,     false },
         { kUndo,              Menu::Edit, L"&Undo",                L"Ctrl+Z",  false },
         { kSeparator,         Menu::Edit, nullptr,                 nullptr,    false },
@@ -311,6 +391,7 @@ private:
         { kRefresh,           Menu::View, L"&Refresh",            L"F5",       false },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kTogglePreview,     Menu::View, L"&Preview pane",       L"Alt+P",    true  },
+        { kExpandPreview,     Menu::View, L"E&xpand preview",     L"Alt+Shift+P", true },
         { kShowDisassembly,   Menu::View, L"&Disassembly",        nullptr,     true  },
         { kShowBytes,         Menu::View, L"&Bytes",              nullptr,     true  },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
@@ -327,6 +408,7 @@ private:
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
         { kLineAddresses,     Menu::View, L"Show &address",           nullptr,  true },
         { kSeparator,         Menu::View, nullptr,                nullptr,     false },
+        { kFullSendStatus,    Menu::View, L"&Full Send status",   nullptr,     false },
         { kOptions,           Menu::View, L"&Options...",         nullptr,     false },
 
         //  The command bar's buttons and the rows of its drop-downs.
@@ -383,6 +465,29 @@ private:
         { kAddLink,           Menu::Count, L"Add a CassoLink connection...", nullptr, false },
         { kSavePicture,       Menu::Count, L"&Save picture as...", nullptr,     false },
         { kEditWozMetadata,   Menu::Count, L"&Edit metadata...",   nullptr,     false },
+        { kCharsetAppleText,  Menu::Count, L"&Apple text",         nullptr,     true  },
+        { kCharsetMacOsRoman, Menu::Count, L"&Mac OS Roman",       nullptr,     true  },
+        { kCharsetIso8859,    Menu::Count, L"&ISO 8859-1",         nullptr,     true  },
+        { kRecordLength,      Menu::Count, L"&Record length...",   nullptr,     false },
+        { kSheetValues,       Menu::Count, L"&Values",             nullptr,     true  },
+        { kSheetFormulas,     Menu::Count, L"&Formulas",           nullptr,     true  },
+        { kCrossReference,    Menu::Count, L"&Cross-reference",    nullptr,     true  },
+        { kPreviousFile,      Menu::Count, L"&Previous file",      L"Left",     false },
+        { kNextFile,          Menu::Count, L"&Next file",          L"Right",    false },
+        { kViewAs,            Menu::Count, L"View as",             nullptr,     false },
+        { kViewAsDefault,     Menu::Count, L"Default",             nullptr,     true  },
+        { kViewAsText,        Menu::Count, L"&Text",               nullptr,     true  },
+        { kViewAsHex,         Menu::Count, L"&Hex",                nullptr,     true  },
+        { kViewAsDisassembly, Menu::Count, L"&Disassembly",        nullptr,     true  },
+        { kViewAsHiRes,       Menu::Count, L"Hi-res &picture",     nullptr,     true  },
+        { kViewAsDoubleHiRes, Menu::Count, L"D&ouble hi-res picture", nullptr,  true  },
+        { kViewAsLoRes,       Menu::Count, L"&Lo-res picture",     nullptr,     true  },
+        { kViewAsResourceFork, Menu::Count, L"&Resource fork",     nullptr,     true  },
+        { kCopyPreview,       Menu::Count, L"&Copy",               nullptr,     false },
+        { kSavePreviewAs,     Menu::Count, L"&Save as...",         nullptr,     false },
+        { kSaveResultsCsv,    Menu::Count, L"Save as CSV...",      nullptr,     false },
+        { kDiskList,          Menu::Count, L"Dis&k list",          nullptr,     false },
+        { kFindDuplicates,    Menu::Count, L"Find d&uplicates",    nullptr,     false },
 
         //  The hex view's own choices are on its context menu, and nowhere
         //  else at the top of the window.
@@ -440,6 +545,13 @@ private:
         { kCloseSearch,   DxuiToolbar::Kind::Command,  5, s_kpszMdl2Cancel,  L"Close search",   L"Close search"   },
     };
 
+    //  Disk list's and Find duplicates' button, after View while their
+    //  results are open.
+    static constexpr ToolbarRow  kResultsRows[] =
+    {
+        { kSaveResultsCsv, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Save, L"Save as CSV", L"Save as CSV" },
+    };
+
     static constexpr ToolbarRow  kRecycleBinRows[] =
     {
         { kEmptyRecycleBin, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Delete,  L"Empty Recycle Bin", L"Empty Recycle Bin" },
@@ -451,6 +563,19 @@ private:
     static constexpr ToolbarRow  kArchiveRows[] =
     {
         { kExtractAll, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Extract all", L"Extract all" },
+    };
+
+    //  The disk inspector's buttons, after View while disk images are
+    //  selected or one is open. Compare is there for two selected images.
+    static constexpr ToolbarRow  kDiskImageRows[] =
+    {
+        { kInspectDiskImage, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Search, L"Inspect", L"Inspect disk image" },
+    };
+
+    static constexpr ToolbarRow  kDiskImagePairRows[] =
+    {
+        { kInspectDiskImage,  DxuiToolbar::Kind::Command, 5, s_kpszMdl2Search, L"Inspect", L"Inspect disk image"  },
+        { kCompareDiskImages, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Copy,   L"Compare", L"Compare disk images" },
     };
 
     //  A linked Apple's buttons, after View while the list is on the machine or
@@ -471,7 +596,11 @@ private:
 
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
     {
+        { kPreviousFile,      DxuiToolbar::Kind::Command, 8, s_kpszMdl2ChevronLeft,  L"Previous",  L"Previous file (Left)",                                    true },
+        { kNextFile,          DxuiToolbar::Kind::Command, 8, s_kpszMdl2ChevronRight, L"Next",      L"Next file (Right)",                                       true },
+        { kViewAs,            DxuiToolbar::Kind::DropDown, 7, s_kpszMdl2List,     L"View as",       L"Choose how the file is displayed"                      },
         { kLineAddresses,     DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Tag,       L"Show address",  L"Show where each line starts in memory"                   },
+        { kCrossReference,    DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Cross-reference", L"List the program's variables, line references and addresses" },
         { kShowDisassembly,   DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Disassembly",   L"Show disassembly",                                       true },
         { kShowBytes,         DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Bytes",         L"Show bytes",                                             true },
         //  The Go to and search boxes, which the host supplies as custom entries.
@@ -479,8 +608,16 @@ private:
         { kFind,              DxuiToolbar::Kind::Command, 1, nullptr,             L"Search",        L"",                                                       false, true },
         { kPictureMonochrome, DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Contrast,  L"Monochrome",    L"Draw the picture as its bits, on a monochrome monitor" },
         { kPictureColor,      DxuiToolbar::Kind::Toggle,  0, s_kpszMdl2Palette,   L"Color",         L"Draw the picture in color, on the color monitor"      },
-        { kSavePicture,       DxuiToolbar::Kind::Command, 1, s_kpszMdl2SaveAs,    L"Save as PNG",   L"Save the picture as a PNG file"                      },
         { kEditWozMetadata,   DxuiToolbar::Kind::Command, 0, s_kpszMdl2Edit,      L"Edit metadata", L"Edit the image's title, publisher and other metadata" },
+        { kCharsetAppleText,  DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Apple text",    L"Read the text as Apple II text"                        },
+        { kCharsetMacOsRoman, DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Mac OS Roman",  L"Read the text as Mac OS Roman, the Apple IIgs set"     },
+        { kCharsetIso8859,    DxuiToolbar::Kind::Toggle,  0, nullptr,             L"ISO 8859-1",    L"Read the text as ISO 8859-1"                           },
+        { kRecordLength,      DxuiToolbar::Kind::Command, 1, nullptr,             L"Record length", L"Set the length the file is split into records by"      },
+        { kSheetValues,       DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Values",        L"List each cell's value, as VisiCalc draws it"          },
+        { kSheetFormulas,     DxuiToolbar::Kind::Toggle,  0, nullptr,             L"Formulas",      L"List each cell's formula, as it was typed"             },
+        { kCopyPreview,       DxuiToolbar::Kind::Command, 9, s_kpszMdl2Copy,      L"Copy",          L"Copy the preview",                                     true, true },
+        { kSavePreviewAs,     DxuiToolbar::Kind::Command, 9, s_kpszMdl2SaveAs,    L"Save as",       L"Save the file as a picture, text or its original bytes", true, true },
+        { kExpandPreview,     DxuiToolbar::Kind::Toggle,  9, s_kpszMdl2FullScreen, L"Expand",       L"Expand the preview to fill the tab (Alt+Shift+P)",     true, true },
     };
 
     static constexpr Key  kKeys[] =
@@ -488,6 +625,7 @@ private:
         { VK_F1,    false, false, false, kAbout         },
         { VK_F5,    false, false, false, kRefresh       },
         { 'P',      false, true,  false, kTogglePreview },
+        { 'P',      false, true,  true,  kExpandPreview },
         { VK_LEFT,  false, true,  false, kBack          },
         { VK_RIGHT, false, true,  false, kForward       },
         { VK_UP,    false, true,  false, kUp            },

@@ -7,13 +7,21 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/ExplorerBootWorker.h"
 #include "CassoExplorer/ICassoExplorerHost.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "CassoExplorer/Model/DiskImagePictures.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoExplorer/Model/CassoExplorerSession.h"
 #include "Config/Win32FileSystem.h"
+#include "DiskCheck/GivenNames.h"
+#include "Devices/Disk/Win32ImageWatcher.h"
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32DiskFileIo.h"
+#include "Devices/Disk/Archives/ContainerDiskFileIo.h"
+#include "Devices/Disk/Partitions/PhysicalCardFileIo.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Seams/RawDevice/Win32PhysicalCardHost.h"
 #include "Seams/Win32LinkAnnouncements.h"
 #include "Seams/Win32NetworkChanges.h"
 #include "Seams/Win32HostFirewall.h"
@@ -52,6 +60,7 @@ struct CassoExplorerLaunchOptions
     std::wstring            selectPath;              // /select,<file>: the file to select in its folder
     std::wstring            refusal;
     std::vector<LinkFault>  linkFaults;              // --link-faults: a Debug build's alone
+    bool                    saveReads     = false;   // --full-send-save-reads: a raw capture's reads are saved beside its image
 };
 
 
@@ -85,6 +94,7 @@ struct CassoExplorerLaunchOptions
 ////////////////////////////////////////////////////////////////////////////////
 
 class ExplorerUpdaterHost;
+class InspectorWindowSet;
 
 class CassoExplorerShell : public ICassoExplorerHost
 {
@@ -140,9 +150,6 @@ public:
     //  right from `from`, the window it was opened over.
     static CassoExplorerWindowRequest  PlanForwardedLaunch (const CassoExplorerLaunchOptions & options, const CassoExplorerPrefs::Placement & from);
 
-    //  The window already serving `owner`, or null.
-    static HWND  FindWindowForOwner (HWND owner);
-
     //  Restores a minimized window and brings it forward.
     static void  FrontWindow (HWND hwnd);
 
@@ -162,13 +169,13 @@ public:
     //  passes its build identity, which follows a [Debug] tag as in Casso's.
     static std::wstring  ComposeTitle (const std::wstring & titlePrefix, const std::wstring & buildInfo);
 
-    //  The host's drive roots, such as C:\, in drive-letter order.
-    static std::vector<std::wstring>  GetDriveRoots();
 
-    //  The name a folder's desktop.ini gives it, such as "Camera Roll", or
-    //  empty for none.
-    static std::wstring  GetLocalizedFolderName (const std::wstring & path);
-    static std::wstring  GetPlainFolderName     (const std::wstring & path);
+
+    bool                 ConfirmCardWrite       (const PhysicalDrive & drive);
+    bool                 ConfirmElevation       (const PhysicalDrive & drive);
+    static void CALLBACK EndCardConfirmation    (HWND, UINT, UINT_PTR id, DWORD);
+
+    static inline PhysicalCards * s_confirmedCards = nullptr;
 
     //  EHM hooks for a process with no dialog host of its own.
     static void  NotifyUser      (const wchar_t * message);
@@ -188,9 +195,13 @@ public:
     void                   RunLaunch           (const std::wstring & arguments) override;
     void                   CheckForUpdates     (HWND hwnd) override;
     bool                   OfferMouseToUpdater (HWND hwnd, const DxuiMouseEvent & ev) override;
+    void                   InspectDiskImages   (HWND hwnd, const std::vector<std::wstring> & paths, const DxuiTheme & theme) override;
+    void                   CompareDiskImages   (HWND hwnd, const std::wstring & pathA, const std::wstring & pathB, const DxuiTheme & theme) override;
+    void                   RepairDiskImage     (HWND hwnd, const std::wstring & path, const DxuiTheme & theme) override;
+    void                   SetInspectorTheme   (const DxuiTheme & theme) override;
+    void                   SelectInFolder      (const std::wstring & path) override;
+    void                   OfferBootRoms       (HWND hwnd, const DxuiTheme * theme) override;
 
-    static constexpr const wchar_t *  kWindowClass   = L"CassoExplorerWindow";
-    static constexpr const wchar_t *  kOwnerProperty = L"CassoExplorerOwner";
     static constexpr const wchar_t *  kAppName       = L"Casso Explorer";
     static constexpr const char *     kFaultLogName  = "Fault injection";
 
@@ -204,6 +215,10 @@ private:
 
     void                                     ConfigureBrowser     (CassoExplorerBrowser & browser);
     void                                     StartLinkFaults      ();
+    void                                     StartBootWorker      ();
+    void                                     QueueBoot            (const std::wstring & path);
+    void                                     PlayBootSound        (const ExplorerBootWorker::Result & result);
+    void                                     NoteUnbooted         (const ExplorerBootWorker::Result & result, const std::string & model);
     void                                     ReleaseClosedWindows ();
     static void                              CloseDialogs         ();
     static BOOL CALLBACK                     CloseDialog          (HWND hwnd, LPARAM param);
@@ -215,9 +230,34 @@ private:
 
     Win32FileSystem                           m_fs;
     Win32DiskFileIo                           m_fileIo;
+    Win32PhysicalCardHost                     m_cardHost;
+    PhysicalCards                             m_cards          { m_cardHost };
+    PhysicalCardFileIo                        m_cardIo         { m_fileIo, m_cards };
+    ContainerDiskFileIo                       m_containerIo    { m_cardIo };
+    DWORD                                     m_uiThread       = GetCurrentThreadId();
     Win32ByteStreamFactory                    m_streams;
     CassoLinkFolder                           m_linkFolder;
     CassoLinkConnections                      m_links;
+    ThumbnailStore                            m_thumbnails     { ThumbnailStore::GetDefaultFolder() };
+    GivenNames                                m_givenNames     { ThumbnailStore::GetDefaultFolder() };
+    std::unique_ptr<ExplorerBootWorker>       m_bootWorker;
+    std::vector<Byte>                         m_bootedSound;     // each as a WAV file, computed once
+    std::vector<Byte>                         m_notBootedSound;
+
+    //  The images that couldn't be booted for a machine's missing ROMs, for
+    //  the boot again once the ROMs are installed.
+    struct Unbooted
+    {
+        std::wstring  path;
+        std::string   source;
+    };
+
+    std::mutex                                m_unbootedLock;
+    std::vector<Unbooted>                     m_unbooted;
+    std::atomic<bool>                         m_romsWanted     { false };
+    bool                                      m_romsOffered    = false;
+    DiskImagePictures                         m_pictures       { m_thumbnails, [this] (const std::wstring & path) { QueueBoot (path); } };
+    Win32ImageWatcher                         m_cacheWatcher;
     Win32ProcessProbe                         m_processProbe;
     RunningCassoRegistry                      m_running;
     Win32NetworkChanges                       m_networkChanges;
@@ -236,4 +276,6 @@ private:
     CassoExplorerLaunchOptions                m_options;
     CassoExplorerPrefs                        m_prefs;
     std::wstring                              m_baseDir;
+    Win32ImageWatcher                         m_imageWatcher;
+    std::unique_ptr<InspectorWindowSet>       m_inspectors;
 };

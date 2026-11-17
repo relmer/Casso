@@ -64,6 +64,7 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.useInitialWindowRectPx = params.useInitialWindowRectPx;
     hostParams.initialWindowRectPx    = params.initialWindowRectPx;
     hostParams.insetRootBelowCaption  = params.insetContentBelowCaption;
+    hostParams.fitToWorkArea          = params.fitToWorkArea;
     hostParams.appIconBig             = params.appIconBig;
     hostParams.appIconSmall           = params.appIconSmall;
     hostParams.presentSyncInterval    = params.presentSyncInterval;
@@ -461,7 +462,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::ShowModelessDialog (int defaultButtonId)
+void DxuiWindow::ShowModelessDialog (int defaultButtonId, bool activate)
 {
     if (m_source != nullptr)
     {
@@ -470,7 +471,7 @@ void DxuiWindow::ShowModelessDialog (int defaultButtonId)
         m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
 
         OnDialogShowing();
-        Show();
+        Show (activate);
     }
 }
 
@@ -678,13 +679,16 @@ void DxuiWindow::SetTheme (const IDxuiTheme * theme)
 //
 //  SetTitle
 //
+//  markAt is the position in the title of the unsaved-changes dot, or npos
+//  for none.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::SetTitle (const std::wstring & title)
+void DxuiWindow::SetTitle (const std::wstring & title, size_t markAt)
 {
     if (m_source != nullptr)
     {
-        m_source->SetTitle (title);
+        m_source->SetTitle (title, markAt);
     }
 }
 
@@ -877,7 +881,7 @@ DxuiMessageResult DxuiWindow::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
 DxuiMessageResult DxuiWindow::OnXButtonUp (WPARAM wParam, LPARAM lParam)
 {
-    DxuiMouseButton  button = (GET_XBUTTON_WPARAM (wParam) == XBUTTON1) ? DxuiMouseButton::X1 : DxuiMouseButton::X2;
+    DxuiMouseButton  button = (GET_XBUTTON_WPARAM (wParam) == XBUTTON1) ? DxuiMouseButton::Back : DxuiMouseButton::Forward;
 
 
 

@@ -41,4 +41,17 @@ public:
 
         return ConnectTcp (host, port, outStream);
     }
+
+    //  The cassette link on this PC's sound devices, an output to the Apple's
+    //  cassette input and an input from its cassette output, each an endpoint
+    //  id or empty for the default. A factory with no sound devices doesn't
+    //  override it.
+    virtual HRESULT  OpenCassette (const std::wstring & outputId, const std::wstring & inputId, std::unique_ptr<IByteStream> & outStream)
+    {
+        (void) outputId;
+        (void) inputId;
+        (void) outStream;
+
+        return E_NOTIMPL;
+    }
 };

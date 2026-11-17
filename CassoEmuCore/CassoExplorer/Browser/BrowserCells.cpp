@@ -5,6 +5,8 @@
 #include "CassoExplorer/Model/SearchExpression.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/ImageClassifier.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -110,18 +112,22 @@ void BrowserCells::UpdateStatus()
 
     if (m_browser.m_selectedRows.size() == 1)
     {
-        const CatalogRow &  row = m_browser.m_rows[m_browser.m_selectedRows[0]];
+        const CatalogRow &  row    = m_browser.m_rows[m_browser.m_selectedRows[0]];
+        std::wstring      & detail = m_browser.m_status.detail;
+        bool                sized  = !row.isDirectory && !(m_browser.IsHomeLocation() && row.hostPath.empty()) && !(row.isStockDisk && !row.stockDownloaded);
 
-        m_browser.m_status.detail = row.typeText;
+        //  The type, size and address that the row has, with a comma between
+        //  each two. A stock disk has no type.
+        detail = row.typeText;
 
-        if (!row.isDirectory)
+        if (sized)
         {
-            m_browser.m_status.detail += (m_browser.IsHomeLocation() && row.hostPath.empty()) ? std::wstring() : L", " + FormatSize (row.sizeBytes);
+            detail += (detail.empty() ? L"" : L", ") + FormatSize (row.sizeBytes);
         }
 
         if (!row.addressText.empty())
         {
-            m_browser.m_status.detail += L", " + row.addressText;
+            detail += (detail.empty() ? L"" : L", ") + row.addressText;
         }
     }
 
@@ -177,6 +183,11 @@ void BrowserCells::DescribeVolumeSpace (const std::wstring & imagePath, const Vo
     else if (kind == VolumeKind::ProDos && !listing.volumeName.empty())
     {
         outStatus.freeSpaceTip += L", ProDOS volume /" + TextEncoding::NarrowToWide (listing.volumeName);
+
+        if (listing.startup.appleIII)
+        {
+            outStatus.freeSpaceTip += listing.startup.appleII ? L", starts an Apple II and an Apple ///" : L", starts an Apple ///";
+        }
     }
     else if (kind == VolumeKind::Pascal)
     {
@@ -185,6 +196,22 @@ void BrowserCells::DescribeVolumeSpace (const std::wstring & imagePath, const Vo
     else if (kind == VolumeKind::Cpm)
     {
         outStatus.freeSpaceTip += L", CP/M volume";
+    }
+    else if (kind == VolumeKind::Gutenberg)
+    {
+        outStatus.freeSpaceTip += L", Gutenberg volume " + TextEncoding::NarrowToWide (listing.volumeName);
+    }
+    else if (kind == VolumeKind::Rdos)
+    {
+        outStatus.freeSpaceTip += L", RDOS volume";
+    }
+    else if (kind == VolumeKind::Infocom)
+    {
+        outStatus.freeSpaceTip += L", Infocom disk";
+    }
+    else if (kind == VolumeKind::Tape)
+    {
+        outStatus.freeSpaceTip += L", tape recording";
     }
 }
 
@@ -215,6 +242,19 @@ std::vector<DxuiListView::Column> BrowserCells::GetColumns()
     columns.push_back (DxuiListView::Column { L"Original location", kOriginalColumnDip, false, DxuiTextHAlign::Left });
     columns.push_back (DxuiListView::Column { L"Date deleted",  kDeletedColumnDip,  false, DxuiTextHAlign::Left  });
     columns.push_back (DxuiListView::Column { L"Folder",        kOriginalColumnDip, false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Data fork",     kForkColumnDip,     false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Resource fork", kForkColumnDip,     false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Total size",    kForkColumnDip,     false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Access",        kAccessColumnDip,   false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"File system",   kForkColumnDip,     false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Volume name",   kTypeColumnDip,     false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Files",         kAccessColumnDip,   false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Free space",    kForkColumnDip,     false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"CRC-32",        kForkColumnDip,     false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"SHA-256",       kOriginalColumnDip, false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Form factor",   kTypeColumnDip,     false, DxuiTextHAlign::Left  });
+    columns.push_back (DxuiListView::Column { L"Formatted size", kSizeColumnDip,    false, DxuiTextHAlign::Right });
+    columns.push_back (DxuiListView::Column { L"Last used",     kModifiedColumnDip, false, DxuiTextHAlign::Left  });
 
     return columns;
 }
@@ -270,7 +310,7 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCatalogPreviewCells (const Catal
     //  A folder has no size of its own, except in the Recycle Bin, which adds up
     //  what each deleted folder held, as Explorer shows; nor does a shell item
     //  that is not a file, such as a computer on the network.
-    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty()) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
+    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty()) || (row.isStockDisk && !row.stockDownloaded) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
 
     return cells;
 }
@@ -348,12 +388,28 @@ std::vector<DxuiListView::Cell> BrowserCells::ToCells (const CatalogRow & row, c
     //  A folder has no size of its own, except in the Recycle Bin, which adds up
     //  what each deleted folder held, as Explorer shows; nor does a shell item
     //  that is not a file, such as a computer on the network.
-    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty() && row.sizeBytes == 0) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
+    cells.push_back (DxuiListView::Cell { (row.isDirectory && row.recycledId.empty()) || (!row.shellId.empty() && row.hostPath.empty() && row.imagePath.empty() && row.sizeBytes == 0) || (row.isStockDisk && !row.stockDownloaded) ? std::wstring() : FormatSizeColumn (row.sizeBytes), false });
     cells.push_back (DxuiListView::Cell { row.addressText, false });
     cells.push_back (DxuiListView::Cell { row.locked ? L"Yes" : L"", false });
     cells.push_back (DxuiListView::Cell { row.originalFolder, false });
     cells.push_back (DxuiListView::Cell { row.hasDeleted ? FormatModified (row.deletedUnix, false) : std::wstring(), false });
     cells.push_back (DxuiListView::Cell { CatalogModel::GetFolderColumnText (row.folderShown.empty() ? row.folderPath : row.folderShown), false });
+    cells.push_back (DxuiListView::Cell { row.hasForks ? FormatSizeColumn (row.dataForkBytes) : std::wstring(), false });
+    cells.push_back (DxuiListView::Cell { row.hasResourceFork ? FormatSizeColumn (row.resourceForkBytes) : std::wstring(), false });
+    cells.push_back (DxuiListView::Cell { row.hasForks ? FormatSizeColumn (row.dataForkBytes + row.resourceForkBytes) : std::wstring(), false });
+    cells.push_back (DxuiListView::Cell { row.accessText, false });
+    cells.push_back (DxuiListView::Cell { row.collection.fileSystem, false });
+    cells.push_back (DxuiListView::Cell { row.collection.volumeName, false });
+    cells.push_back (DxuiListView::Cell { row.collection.isDisk ? std::to_wstring (row.collection.files) : std::wstring(), false });
+    cells.push_back (DxuiListView::Cell { row.collection.isDisk && !row.collection.fileSystem.empty() ? FormatSizeColumn (row.collection.freeBytes) : std::wstring(), false });
+    cells.push_back (DxuiListView::Cell { row.collection.crc32, false });
+    cells.push_back (DxuiListView::Cell { row.collection.sha256, false });
+    cells.push_back (DxuiListView::Cell { ImageClassifier::FormatFormFactor (row.imageClass), false });
+    cells.push_back (DxuiListView::Cell { ImageClassifier::FormatSize (row.imageClass), false });
+    cells.push_back (DxuiListView::Cell { (row.isStockDisk && !row.stockDownloaded) ? std::wstring (L"Not downloaded")
+                                        : !row.inDrive.empty()    ? L"In " + row.inDrive
+                                        : (row.lastUsedUnix != 0) ? FormatModified (row.lastUsedUnix, false)
+                                                                  : std::wstring(), false });
 
     if (icons != nullptr && !cells.empty())
     {
@@ -825,9 +881,11 @@ std::wstring BrowserCells::FormatSelection (size_t selected, size_t total)
 
 std::wstring BrowserCells::GetLocationLabel (const Location & location)
 {
-    std::wstring  path  = location.path;
-    size_t        slash = 0;
-    std::string   inner = location.innerPath;
+    std::wstring  path      = location.path;
+    size_t        slash     = 0;
+    std::string   inner     = location.innerPath;
+    int           drive     = 0;
+    int           partition = 0;
 
 
 
@@ -865,6 +923,17 @@ std::wstring BrowserCells::GetLocationLabel (const Location & location)
             break;
     }
 
+    //  A storage card's path is the device's, which means nothing to the user.
+    if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (path), drive, partition) == PhysicalCards::PathKind::Card)
+    {
+        return L"Storage card";
+    }
+
+    if (partition > 0)
+    {
+        return std::format (L"Partition {}", partition);
+    }
+
     while (path.size() > 3 && path.back() == L'\\')
     {
         path.pop_back();
@@ -875,7 +944,9 @@ std::wstring BrowserCells::GetLocationLabel (const Location & location)
         return path;
     }
 
-    slash = path.rfind (L'\\');
+    //  An image in a ZIP is labeled with the part of its path after the ZIP's
+    //  path and its folders in the ZIP.
+    slash = path.find_last_of (L"\\|/");
 
     return (slash == std::wstring::npos) ? path : path.substr (slash + 1);
 }
@@ -923,8 +994,15 @@ std::shared_ptr<const DxuiIconImage> BrowserCells::GetRowIcon (const CatalogRow 
 
 
 
-    //  A disk image has Casso's floppy wherever it is listed, one inside a zip
-    //  too, as does a linked Apple's drive.
+    //  A disk image in a folder has the picture of its screen once booted,
+    //  where the icons are drawn as thumbnails.
+    if (row.isDiskImage && !row.isDirectory && at.kind == Location::Kind::HostFolder)
+    {
+        return icons.GetForDiskImage (CassoExplorerBrowser::JoinPath (at.path, row.name));
+    }
+
+    //  A disk image has Casso's floppy wherever else it is listed, one inside
+    //  a zip too, as does a linked Apple's drive.
     if (row.isDiskImage || (TreeModel::TryParseLinkId (row.hostPath, link, slot, drive) && drive != 0)
         || (at.kind == Location::Kind::ShellFolder && !row.isDirectory && !CatalogModel::GetDiskImageTypeName (row.name).empty()))
     {

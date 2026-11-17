@@ -30,6 +30,40 @@ struct FullSendRow
     std::string  verification = "none";
     int          recovered  = 0;
     int          unreliable = 0;
+
+    //  The image's boot result, as BootProbe::GetVerdictName has it, empty
+    //  before the boot or for a row from before the check; and what its
+    //  raw capture marked, as weak 3, 11; replaced 1.3, empty with nothing
+    //  marked.
+    std::string  boot;
+    std::string  marks;
+
+    //  Whether the disk was write-protected, as its image is.
+    bool         writeProtected = false;
+
+    //  The image's file-system verdict: ok, suspect, bad or none, empty
+    //  before the check or for a row from before it.
+    std::string  fsCheck;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendBoot
+//
+//  An image's boot result and file-system verdict, by its file, as the
+//  manifest's columns have them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct FullSendBoot
+{
+    std::string  file;
+    std::string  boot;
+    std::string  fsCheck;
 };
 
 
@@ -76,12 +110,21 @@ public:
     static constexpr const char *  kStatusSent      = "sent";
     static constexpr const char *  kStatusDuplicate = "duplicate";
     static constexpr const char *  kStatusProtected = "likely-copy-protected";
+    static constexpr const char *  kStatusRawCapture = "raw-capture";     // likely copy-protected, and its image a raw capture
     static constexpr const char *  kStatusDamaged   = "likely-damaged";
     static constexpr const char *  kStatusUnclear   = "unclear";
     static constexpr const char *  kStatusLegacyProtected = "possibly-protected";
     static constexpr const char *  kVerifyNone      = "none";
     static constexpr const char *  kVerifyFull      = "verified";
     static constexpr const char *  kVerifyPartial   = "partly-verified";
+    static constexpr const char *  kBootBooted      = "booted";
+    static constexpr const char *  kBootDidNotBoot  = "did-not-boot";
+    static constexpr const char *  kBootNotBootable = "not-bootable";
+    static constexpr const char *  kBootUnclear     = "unclear";
+    static constexpr const char *  kCheckOk         = "ok";
+    static constexpr const char *  kCheckSuspect    = "suspect";
+    static constexpr const char *  kCheckBad        = "bad";
+    static constexpr const char *  kCheckNone       = "none";       // no standard file system
 
     //  ERROR_INVALID_DATA for anything but a whole manifest, with no rows then.
     HRESULT            Parse           (std::span<const Byte> bytes);
@@ -105,6 +148,10 @@ public:
     //  set to the new one. False when no row has the old name.
     bool                 RenameImage       (const std::string & oldName, const std::string & newName);
 
+    //  The boot result and file-system verdict of the row with the file.
+    //  False when no row has it, or the row has them.
+    bool                 SetBoot           (const std::string & name, const std::string & boot, const std::string & fsCheck = std::string());
+
     //  An image deleted from the folder: its row is removed, and the rows that
     //  repeat it are changed or removed, as in RemoveImage's comment. What was
     //  removed and changed is returned so RestoreRows can put it back.
@@ -116,10 +163,14 @@ public:
     void                 RestoreRows       (const FullSendRemoval & removal);
 
 private:
-    static constexpr size_t  kColumns       = 12;
-    static constexpr size_t  kLegacyColumns = 9;
-    static constexpr size_t  kHashChars     = 64;
+    static constexpr size_t  kColumns        = 16;
+    static constexpr size_t  kProtectColumns = 15;     // before the file-system check
+    static constexpr size_t  kBootColumns    = 14;     // before write-protect
+    static constexpr size_t  kPriorColumns   = 12;     // before the boot result and the capture's marks
+    static constexpr size_t  kLegacyColumns  = 9;
+    static constexpr size_t  kHashChars      = 64;
 
+    static bool         IsHeader    (std::string_view line);
     static bool         TrySplitRow (std::string_view text, size_t & ioAt, std::vector<std::string> & outCells);
     static bool         TryParseInt (const std::string & text, int & outValue);
     static bool         IsHexHash   (const std::string & text);

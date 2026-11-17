@@ -24,6 +24,7 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
     { "disk",   CommandLineOptions::Subcommand::Disk   },
     { "debug",  CommandLineOptions::Subcommand::Debug  },
     { "mcp",    CommandLineOptions::Subcommand::Mcp    },
+    { "basic",  CommandLineOptions::Subcommand::Basic  },
 };
 
 
@@ -45,32 +46,44 @@ static constexpr CommandLineParser::SubcommandName  s_kSubcommands[] =
 //
 static constexpr CommandLineParser::DiskCommandName  s_kDiskCommands[] =
 {
-    { "list",        CommandLineOptions::DiskOptions::Command::List        },
-    { "ls",          CommandLineOptions::DiskOptions::Command::List        },
-    { "dir",         CommandLineOptions::DiskOptions::Command::List        },
-    { "cat",         CommandLineOptions::DiskOptions::Command::List        },
-    { "catalog",     CommandLineOptions::DiskOptions::Command::List        },
-    { "get",         CommandLineOptions::DiskOptions::Command::Get         },
-    { "read",        CommandLineOptions::DiskOptions::Command::Get         },
-    { "put",         CommandLineOptions::DiskOptions::Command::Put         },
-    { "write",       CommandLineOptions::DiskOptions::Command::Put         },
-    { "delete",      CommandLineOptions::DiskOptions::Command::Delete      },
-    { "rm",          CommandLineOptions::DiskOptions::Command::Delete      },
-    { "del",         CommandLineOptions::DiskOptions::Command::Delete      },
-    { "boot",        CommandLineOptions::DiskOptions::Command::Boot        },
-    { "mkdir",       CommandLineOptions::DiskOptions::Command::Mkdir       },
-    { "md",          CommandLineOptions::DiskOptions::Command::Mkdir       },
-    { "rmdir",       CommandLineOptions::DiskOptions::Command::Rmdir       },
-    { "rd",          CommandLineOptions::DiskOptions::Command::Rmdir       },
-    { "create",      CommandLineOptions::DiskOptions::Command::Create      },
-    { "new",         CommandLineOptions::DiskOptions::Command::Create      },
-    { "init",        CommandLineOptions::DiskOptions::Command::Init        },
-    { "format",      CommandLineOptions::DiskOptions::Command::Init        },
-    { "sectorread",  CommandLineOptions::DiskOptions::Command::SectorRead  },
-    { "sectorwrite", CommandLineOptions::DiskOptions::Command::SectorWrite },
-    { "blockread",   CommandLineOptions::DiskOptions::Command::BlockRead   },
-    { "blockwrite",  CommandLineOptions::DiskOptions::Command::BlockWrite  },
-    { "krunch",      CommandLineOptions::DiskOptions::Command::Krunch      },
+    { "list",             CommandLineOptions::DiskOptions::Command::List            },
+    { "ls",               CommandLineOptions::DiskOptions::Command::List            },
+    { "dir",              CommandLineOptions::DiskOptions::Command::List            },
+    { "cat",              CommandLineOptions::DiskOptions::Command::List            },
+    { "catalog",          CommandLineOptions::DiskOptions::Command::List            },
+    { "get",              CommandLineOptions::DiskOptions::Command::Get             },
+    { "read",             CommandLineOptions::DiskOptions::Command::Get             },
+    { "put",              CommandLineOptions::DiskOptions::Command::Put             },
+    { "write",            CommandLineOptions::DiskOptions::Command::Put             },
+    { "delete",           CommandLineOptions::DiskOptions::Command::Delete          },
+    { "rm",               CommandLineOptions::DiskOptions::Command::Delete          },
+    { "del",              CommandLineOptions::DiskOptions::Command::Delete          },
+    { "boot",             CommandLineOptions::DiskOptions::Command::Boot            },
+    { "mkdir",            CommandLineOptions::DiskOptions::Command::Mkdir           },
+    { "md",               CommandLineOptions::DiskOptions::Command::Mkdir           },
+    { "rmdir",            CommandLineOptions::DiskOptions::Command::Rmdir           },
+    { "rd",               CommandLineOptions::DiskOptions::Command::Rmdir           },
+    { "create",           CommandLineOptions::DiskOptions::Command::Create          },
+    { "new",              CommandLineOptions::DiskOptions::Command::Create          },
+    { "init",             CommandLineOptions::DiskOptions::Command::Init            },
+    { "format",           CommandLineOptions::DiskOptions::Command::Init            },
+    { "sectorread",       CommandLineOptions::DiskOptions::Command::SectorRead      },
+    { "read-sector",      CommandLineOptions::DiskOptions::Command::SectorRead      },
+    { "sectorwrite",      CommandLineOptions::DiskOptions::Command::SectorWrite     },
+    { "write-sector",     CommandLineOptions::DiskOptions::Command::SectorWrite     },
+    { "blockread",        CommandLineOptions::DiskOptions::Command::BlockRead       },
+    { "read-block",       CommandLineOptions::DiskOptions::Command::BlockRead       },
+    { "blockwrite",       CommandLineOptions::DiskOptions::Command::BlockWrite      },
+    { "write-block",      CommandLineOptions::DiskOptions::Command::BlockWrite      },
+    { "krunch",           CommandLineOptions::DiskOptions::Command::Krunch          },
+    { "test",             CommandLineOptions::DiskOptions::Command::Test            },
+    { "dupes",            CommandLineOptions::DiskOptions::Command::Dupes           },
+    { "search",           CommandLineOptions::DiskOptions::Command::Search          },
+    { "inspect",          CommandLineOptions::DiskOptions::Command::Inspect         },
+    { "repair",           CommandLineOptions::DiskOptions::Command::Repair          },
+    { "set-thumbnail",    CommandLineOptions::DiskOptions::Command::SetThumbnail    },
+    { "get-thumbnail",    CommandLineOptions::DiskOptions::Command::GetThumbnail    },
+    { "remove-thumbnail", CommandLineOptions::DiskOptions::Command::RemoveThumbnail },
 };
 
 
@@ -250,6 +263,7 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "format",
     "filesystem",
     "volume",
+    "size",
     "bootable",
     "boot",
     "flux",
@@ -266,6 +280,8 @@ static constexpr const char *  s_kpszDiskOptions[] =
     "recurse",
     "force",
     "yes",
+    "no-free-unowned",
+    "list",
 
     //  Here so `/on-change` is matched as one word rather than shredded into
     //  the single-character flags -o -n -c -h ...
@@ -320,6 +336,8 @@ static constexpr const char *  s_kpszEmulatorOptions[] =
     "machine",
     "disk1",
     "disk2",
+    "hd",
+    "smartport",
     "tape",
     "trace",
     "debugger",
@@ -357,6 +375,8 @@ static constexpr CommandLineParser::EmulatorRelaunchRule  s_kEmulatorRelaunchRul
     { "machine",        CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "disk1",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "disk2",          CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "hd",             CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
+    { "smartport",      CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "tape",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
     { "trace",          CommandLineParser::OptionValue::OptionalSize, CommandLineParser::RelaunchRule::Repeat },
     { "seed",           CommandLineParser::OptionValue::Required,     CommandLineParser::RelaunchRule::Drop   },
@@ -384,6 +404,13 @@ static constexpr CommandLineParser::EmulatorFlag  s_kEmulatorFlags[] =
     { "--machine", " <name>",  "Which machine to boot, such as Apple2e." },
     { "--disk1",   " <image>", "Insert this image into drive 1." },
     { "--disk2",   " <image>", "Insert this image into drive 2." },
+    { "--hd",      " <slot>[.<unit>]=<image>",
+                               "Attach this image to the hard disk or UniDisk 3.5 card "
+                               "in the slot, for this run. The unit is a SCSI ID or a "
+                               "drive number." },
+    { "--smartport", " <n>=<image>",
+                               "Attach this image to the nth drive on the //c disk port, "
+                               "for this run." },
     { "--tape",    " <file>",  "Insert this WAV, AIFF, MP3, or FLAC recording into the cassette recorder." },
     { "--trace",   " [size]",  "Record a CPU execution trace, written to the desktop "
                               "by Debug > Save CPU trace or on a crash. A size takes "
@@ -643,7 +670,8 @@ int CommandLineParser::GetExitCodeForRefusal (CommandLineOptions::Subcommand mod
 {
     bool  startedNothing = mode == CommandLineOptions::Subcommand::Run  ||
                            mode == CommandLineOptions::Subcommand::Disk ||
-                           mode == CommandLineOptions::Subcommand::Debug;
+                           mode == CommandLineOptions::Subcommand::Debug ||
+                           mode == CommandLineOptions::Subcommand::Basic;
 
 
 
@@ -1048,6 +1076,10 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::SectorRead:
         case CommandLineOptions::DiskOptions::Command::BlockRead:
         case CommandLineOptions::DiskOptions::Command::Krunch:
+        case CommandLineOptions::DiskOptions::Command::Test:
+        case CommandLineOptions::DiskOptions::Command::Dupes:
+        case CommandLineOptions::DiskOptions::Command::Inspect:
+        case CommandLineOptions::DiskOptions::Command::RemoveThumbnail:
             count = 1;
             break;
 
@@ -1062,6 +1094,10 @@ int CommandLineParser::GetDiskOperandCount (CommandLineOptions::DiskOptions::Com
         case CommandLineOptions::DiskOptions::Command::Rmdir:
         case CommandLineOptions::DiskOptions::Command::SectorWrite:
         case CommandLineOptions::DiskOptions::Command::BlockWrite:
+        case CommandLineOptions::DiskOptions::Command::Search:
+        case CommandLineOptions::DiskOptions::Command::Repair:
+        case CommandLineOptions::DiskOptions::Command::SetThumbnail:
+        case CommandLineOptions::DiskOptions::Command::GetThumbnail:
             count = 2;
             break;
 
@@ -1391,6 +1427,18 @@ void CommandLineParser::ParseDiskOptions (
             continue;
         }
 
+        if (arg == "--no-free-unowned")
+        {
+            options.disk.noFreeUnowned = true;
+            continue;
+        }
+
+        if (arg == "--list")
+        {
+            options.disk.listOnly = true;
+            continue;
+        }
+
         if (arg == "--basic")
         {
             options.disk.encoding = CommandLineOptions::DiskOptions::Encoding::Basic;
@@ -1504,6 +1552,14 @@ void CommandLineParser::ParseDiskOptions (
             {
                 options.disk.typeName = argv[i + 1];
             }
+
+            i++;
+            continue;
+        }
+
+        if (arg == "--size" && hasValue)
+        {
+            options.disk.sizeName = argv[i + 1];
 
             i++;
             continue;
@@ -1760,9 +1816,15 @@ void CommandLineParser::ParseDiskOptions (
             // they write to may have no filesystem to hold a name in.
             if (options.disk.command == CommandLineOptions::DiskOptions::Command::Put
              || options.disk.command == CommandLineOptions::DiskOptions::Command::SectorWrite
-             || options.disk.command == CommandLineOptions::DiskOptions::Command::BlockWrite)
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::BlockWrite
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::GetThumbnail
+             || options.disk.command == CommandLineOptions::DiskOptions::Command::Repair)
             {
                 options.disk.hostFile = arg;
+            }
+            else if (options.disk.command == CommandLineOptions::DiskOptions::Command::SetThumbnail)
+            {
+                options.disk.picturePath = arg;
             }
             else
             {
@@ -4752,6 +4814,10 @@ CommandLineOptions CommandLineParser::Parse (int argc, char * argv[], const File
     {
         ParseMcpOptions (argc, argv, 2, options);
     }
+    else if (named == CommandLineOptions::Subcommand::Basic)
+    {
+        ParseBasicOptions (argc, argv, 2, options);
+    }
 
 Error:
     return options;
@@ -4902,6 +4968,8 @@ CommandLineOptions::EmulatorOptions CommandLineParser::ParseEmulator (int argc, 
         else if (arg == "--disk1"   && hasValue) { parsed.disk1   = argv[++i]; }
         else if (arg == "--disk2"   && hasValue) { parsed.disk2   = argv[++i]; }
         else if (arg == "--tape"    && hasValue) { parsed.tape    = argv[++i]; }
+        else if (arg == "--hd"        && hasValue) { ApplyBlockAttachment (argv[++i], false, parsed); }
+        else if (arg == "--smartport" && hasValue) { ApplyBlockAttachment (argv[++i], true,  parsed); }
         else if (arg == "--explore" && hasValue) { parsed.explore = argv[++i]; }
         else if (arg == "--trace")
         {
@@ -5059,7 +5127,8 @@ void CommandLineParser::RefuseEmulatorArgument (const std::string               
     else if (canonical == "--machine" || canonical == "--disk1"
           || canonical == "--disk2"   || canonical == "--title"
           || canonical == "--tape"    || canonical == "--seed"
-          || canonical == "--cleanup-old")
+          || canonical == "--cleanup-old" || canonical == "--hd"
+          || canonical == "--smartport")
     {
         parsed.refusalMessage = "Error: missing value for " + raw;
     }
@@ -5376,6 +5445,95 @@ void CommandLineParser::ApplySeed (const std::string                   & text,
     {
         parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
         parsed.refusalMessage = "Error: invalid seed " + text;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandLineParser::ApplyBlockAttachment
+//
+//  An --hd value is <slot>=<image> or <slot>.<unit>=<image>, with a slot
+//  from 1 to 7 and a unit from 0 to 6; a --smartport value is <n>=<image>,
+//  with n from 1 to 4. Anything else refuses the command line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandLineParser::ApplyBlockAttachment (const std::string                   & text,
+                                              bool                                  isSmartPort,
+                                              CommandLineOptions::EmulatorOptions & parsed)
+{
+    constexpr int                                         kMaxSlot   = 7;
+    constexpr int                                         kMaxUnit   = 6;
+    constexpr int                                         kMaxChain  = 4;
+    size_t                                                equals     = text.find ('=');
+    std::string                                           target     = text.substr (0, std::min (equals, text.size()));
+    size_t                                                dot        = target.find ('.');
+    int                                                   first      = 0;
+    int                                                   second     = -1;
+    bool                                                  isValid    = equals != std::string::npos && equals + 1 < text.size() && !target.empty();
+    CommandLineOptions::EmulatorOptions::BlockAttachment  attachment;
+
+
+
+    if (isValid)
+    {
+        std::string            head   = target.substr (0, std::min (dot, target.size()));
+        std::from_chars_result result = std::from_chars (head.data(), head.data() + head.size(), first);
+
+
+
+        isValid = result.ec == std::errc() && result.ptr == head.data() + head.size();
+
+        if (isValid && dot != std::string::npos)
+        {
+            std::string  tail = target.substr (dot + 1);
+
+
+
+            result  = std::from_chars (tail.data(), tail.data() + tail.size(), second);
+            isValid = !isSmartPort && !tail.empty() && result.ec == std::errc() && result.ptr == tail.data() + tail.size();
+        }
+    }
+
+    if (isValid)
+    {
+        isValid = isSmartPort ? (first >= 1 && first <= kMaxChain)
+                              : (first >= 1 && first <= kMaxSlot && second >= -1 && second <= kMaxUnit);
+    }
+
+    if (!isValid)
+    {
+        if (parsed.verdict == CommandLineOptions::EmulatorOptions::Verdict::Clean)
+        {
+            parsed.verdict        = CommandLineOptions::EmulatorOptions::Verdict::Refused;
+            parsed.refusalMessage = isSmartPort
+                ? "Error: illegal --smartport value " + text + "\n"
+                  "       The value is <n>=<image>, where n is a drive's position on\n"
+                  "       the disk port, from 1 to 4."
+                : "Error: illegal --hd value " + text + "\n"
+                  "       The value is <slot>=<image> or <slot>.<unit>=<image>, with a\n"
+                  "       slot from 1 to 7 and a unit from 0 to 6.";
+        }
+
+        return;
+    }
+
+    attachment.image = text.substr (equals + 1);
+
+    if (isSmartPort)
+    {
+        attachment.chain = first;
+        parsed.smartPortAttachments.push_back (attachment);
+    }
+    else
+    {
+        attachment.slot = first;
+        attachment.unit = second;
+        parsed.hdAttachments.push_back (attachment);
     }
 }
 

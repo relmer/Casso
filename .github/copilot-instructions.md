@@ -652,8 +652,9 @@ above that reduce to a mechanical test: empty-paren spacing, anonymous
 namespaces, American spelling, angle-bracket includes, `Pch.h`-first, bare
 `goto Error`, cast spacing, producing `S_FALSE`, Claude attribution in commit
 messages, lookup tables in an executable (CS0021), strings converted by
-copying an iterator range (CS0024), the banner/blank-line structure rules
-(CS0014–CS0017), and
+copying an iterator range (CS0024), a `.cpp` over 2,000 lines (CS0026; the
+files over it when the rule arrived are listed in the script, and the list
+only shrinks), the banner/blank-line structure rules (CS0014–CS0017), and
 declaration-run column alignment (CS0019, flags only runs that
 `scripts/FixDeclAlign.ps1 -Apply` can mechanically repair; late declarations
 have a companion fixer in `scripts/FixLateDecls.ps1`). Commit subjects on
@@ -1012,7 +1013,7 @@ in conversation.
   verifies the fixture set before it runs anything, so on a machine without them
   the suite refuses to start and NOTHING can be validated -- not one test, not a
   filtered run. Fetch them with `scripts/FetchRoms.ps1 -Fixtures`. It downloads
-  only the eleven ROM images the fixtures call for, writes them under
+  only the ROM images the fixtures call for, writes them under
   `UnitTest/Fixtures/`, and that path is already gitignored, so nothing it
   fetches can reach a commit. This widens nothing else: no other script may
   fetch a binary, and a ROM is still never committed.

@@ -38,6 +38,20 @@ public:
     void  SetItemsEnabled (const std::vector<bool> & enabled);
     bool  IsItemEnabled   (int index) const;
 
+    // Optional commentary drawn under each item in the open list, smaller and
+    // muted, wrapped at the list's width, index for index with the items; an
+    // empty string, or an item past the end, is drawn without it. A row is as
+    // tall as its commentary wraps. SetItems clears them, so set them after
+    // the items.
+    void  SetItemDescriptions (const std::vector<std::wstring> & descriptions);
+
+    // Whether each item is a heading that divides the list, index for index
+    // with the items: drawn as a section label under a separator rule, never
+    // highlighted or chosen, and passed over by the keyboard. SetItems clears
+    // them, so set them after the items.
+    void  SetItemHeadings (const std::vector<bool> & headings);
+    bool  IsItemHeading   (int index) const;
+
     // How the closed box fits a selected item too long for it: None, the
     // default, draws it whole and lets it run under the arrow; Middle keeps
     // both ends, so the end of a long label stays visible.
@@ -157,9 +171,29 @@ private:
         uint32_t  edge;
         uint32_t  edgeDisabled;
         uint32_t  focus;
+        uint32_t  textMuted;        // an item's commentary
+        uint32_t  heading;          // a heading row's label
+        uint32_t  separator;        // the rule above a heading row
+    };
+
+    //  A row of the open list, in pixels from the top of the first visible row.
+    struct RowSpan
+    {
+        int  top    = 0;
+        int  height = 0;
     };
 
     void            Commit          (int index);
+
+    bool            IsItemChoosable (int index) const { return IsItemEnabled (index) && !IsItemHeading (index); }
+    bool            HasRichRows     () const          { return !m_descriptions.empty() || !m_headings.empty(); }
+    void            MeasureRows     ();
+    int             GetRowHeightDip (int index) const;
+    RowSpan         GetRowSpan      (int index) const;
+    int             GetRowAtPx      (int yPx) const;
+    int             GetMenuHeightPx () const;
+    void            PaintRow        (IDxuiTextRenderer & text, int index, const RECT & row, float fontPx, const ResolvedColors & c) const;
+
     int             StepHighlight   (int from, int step) const;
     void            EnsureHighlightVisible ();
     void            RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
@@ -177,6 +211,9 @@ private:
     std::vector<std::wstring>    m_items;
     std::vector<std::wstring>    m_glyphs;
     std::vector<bool>            m_itemsEnabled;
+    std::vector<std::wstring>    m_descriptions;
+    std::vector<bool>            m_headings;
+    std::vector<int>             m_rowHeightsDip;     // each row's, as measured when the list opened
     DxuiElide                    m_elide           = DxuiElide::None;
     SelectFn                     m_select;
     SelectFn                     m_highlightChange;

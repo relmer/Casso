@@ -36,6 +36,9 @@ static constexpr UINT_PTR  s_kModalLoopTimerId = 0xDCE1;
 static constexpr UINT_PTR  s_kCaptionTipTimerId = 0xDCE2;
 static constexpr UINT      s_kCaptionTipTickMs  = 16;
 
+// The mark in the window text for unsaved changes: U+25CF BLACK CIRCLE.
+static constexpr LPCWSTR   s_kpszUnsavedMark    = L"\x25CF";
+
 
 
 
@@ -848,6 +851,18 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     CWRA (m_hwnd);
     m_ownsHwnd = true;
 
+    //  Over a backdrop the caption is see-through, and Windows draws its
+    //  caption buttons under it for a window with the system menu style. The
+    //  host draws the buttons, so the style is dropped before the window
+    //  appears. GetSystemMenu returns null for a window created without the
+    //  style, so the window is created with it, the menu is taken first, and
+    //  the host opens it.
+    if (IsSystemMenuDropped())
+    {
+        m_systemMenu = DropSystemMenuStyle (m_hwnd);
+        CWRA (m_systemMenu);
+    }
+
     // The NOACTIVATE bit exists only to keep CreateWindowEx from activating
     // the newborn window (stealing focus mid-keystroke); strip it now so the
     // window activates normally from here on (clicks, an activating Show()).
@@ -1443,6 +1458,71 @@ bool DxuiHwndSource::TryGetPlacementForSize (const SIZE & windowSizePx, POINT & 
     }
 
     return placed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::RestoreInitialPlacement
+//
+//  The size the window was created at, at the DPI of the monitor it is on
+//  and fitted to that monitor's work area, about the window's center and
+//  inside the work area, on the same monitor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHwndSource::RestoreInitialPlacement()
+{
+    HRESULT  hr       = S_OK;
+    UINT     dpi      = 0;
+    SIZE     sizePx   = {};
+    RECT     workArea = {};
+    RECT     windowPx = {};
+    POINT    topLeft  = {};
+    BOOL     isRead   = FALSE;
+    BOOL     isPlaced = FALSE;
+    bool     isWork   = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    BAIL_OUT_IF (m_hwnd == nullptr, S_OK);
+
+    if (IsZoomed (m_hwnd))
+    {
+        ShowWindow (m_hwnd, SW_RESTORE);
+    }
+
+    dpi    = GetDpiForWindow (m_hwnd);
+    dpi    = (dpi != 0) ? dpi : s_kDefaultDpi;
+    sizePx = { MulDiv (m_params.initialSizeDip.cx, (int) dpi, (int) s_kDefaultDpi), MulDiv (m_params.initialSizeDip.cy, (int) dpi, (int) s_kDefaultDpi) };
+    isWork = TryGetAnchorWorkArea (m_hwnd, workArea);
+
+    if (m_params.fitToWorkArea && isWork)
+    {
+        sizePx = FitSizeToWorkArea (sizePx, workArea);
+    }
+
+    isRead = GetWindowRect (m_hwnd, &windowPx);
+    CWRA (isRead);
+
+    topLeft = { (windowPx.left + windowPx.right - sizePx.cx) / 2, (windowPx.top + windowPx.bottom - sizePx.cy) / 2 };
+
+    if (isWork)
+    {
+        topLeft.x = std::clamp (topLeft.x, workArea.left, std::max (workArea.left, workArea.right  - sizePx.cx));
+        topLeft.y = std::clamp (topLeft.y, workArea.top,  std::max (workArea.top,  workArea.bottom - sizePx.cy));
+    }
+
+    isPlaced = SetWindowPos (m_hwnd, nullptr, topLeft.x, topLeft.y, sizePx.cx, sizePx.cy, SWP_NOZORDER | SWP_NOACTIVATE);
+    CWRA (isPlaced);
+
+Error:
+    return hr;
 }
 
 
@@ -2831,7 +2911,13 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     // the ordering too and pays a full-screen clear and a full-screen blit
     // every frame for it, which is the window-area cost GH #131 is about.
     // Recording pays neither.
-    hr = m_painter->Begin (widthPx, heightPx);
+    //
+    // A control that has to cover text drawn earlier in the pass calls
+    // IDxuiPainter::FlushLayer, which draws the queued fills and then calls
+    // this flush to replay the text drawn so far.
+    m_painter->SetTextFlush ([this]() { return m_textRenderer->FlushDeferred(); });
+
+    hr = m_painter->Begin (widthPx, heightPx, target);
     CHRA (hr);
     painterBegun = true;
 
@@ -3432,6 +3518,21 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
 
             break;
 
+        //  Windows opens no system menu for a right-click on a caption the
+        //  window draws itself, so the host opens it.
+        case WM_NCRBUTTONUP:
+            isHandled = wp == HTCAPTION && ((GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_SYSMENU) != 0 || IsSystemMenuDropped());
+
+            if (isHandled)
+            {
+                HRESULT  hrMenu = ShowSystemMenu (ptScreen);
+
+                IGNORE_RETURN_VALUE (hrMenu, S_OK);
+            }
+
+            result = 0;
+            break;
+
         case WM_DPICHANGED:
             HandleDpiChanged (wp, lp);
 
@@ -3478,7 +3579,21 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
                 break;
             }
 
-            isHandled = false;
+            // A command the client added to the system menu.
+            isHandled = m_client != nullptr && (wp & 0xFFF0) < SC_SIZE &&
+                        m_client->OnSysCommand ((UINT) (wp & 0xFFF0)) == DxuiMessageResult::Handled;
+
+            // Alt+Space. Windows opens the system menu for it only on a window
+            // with the system menu style.
+            if (!isHandled && (wp & 0xFFF0) == SC_KEYMENU && lp == VK_SPACE && IsSystemMenuDropped())
+            {
+                HRESULT  hrMenu = ShowSystemMenu (GetSystemMenuPoint());
+
+                IGNORE_RETURN_VALUE (hrMenu, S_OK);
+                isHandled = true;
+            }
+
+            result    = 0;
             break;
 
         case WM_ENTERSIZEMOVE:
@@ -3936,13 +4051,49 @@ LRESULT DxuiHwndSource::HandleNcCalcSize (WPARAM wp, LPARAM lp)
 
         // A non-zero result means DefWindowProc asked for special client
         // handling; leave its rects alone in that case.
+        //
+        // A maximized window extends past the monitor by its frame on every
+        // side. DefWindowProc insets the other three edges by it, and the top
+        // is inset by the same frame here. Without it the caption's top was
+        // off the screen, and its buttons were drawn above the ones Windows
+        // draws.
         if (defResult == 0)
         {
-            pParams->rgrc[0].top = originalTop;
+            pParams->rgrc[0].top = originalTop + GetMaximizedFramePx();
         }
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMaximizedFramePx
+//
+//  How far a maximized window extends past each edge of its monitor, at the
+//  window's DPI; 0 for a window that isn't maximized.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetMaximizedFramePx() const
+{
+    UINT  dpi = 0;
+
+
+
+    if (m_hwnd == nullptr || ::IsZoomed (m_hwnd) == FALSE)
+    {
+        return 0;
+    }
+
+    dpi = GetDpiForWindow (m_hwnd);
+    dpi = (dpi != 0) ? dpi : s_kDefaultDpi;
+
+    return GetSystemMetricsForDpi (SM_CYFRAME, dpi) + GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
 }
 
 
@@ -4017,8 +4168,11 @@ LRESULT DxuiHwndSource::HandleNcHitTest (LPARAM lp)
 
     // Convert client-pixel point to client-DIP before running the
     // classifier — controls store bounds in DIPs.
-    ptClient.x = MulDiv (ptClient.x, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
-    ptClient.y = MulDiv (ptClient.y, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+    //
+    // The point rounds down, not to the nearest DIP. Rounded, the last pixel
+    // at 125% landed on the client's right edge, past the resize band.
+    ptClient.x = ptClient.x * (int) s_kDefaultDpi / (int) m_scaler.GetDpi();
+    ptClient.y = ptClient.y * (int) s_kDefaultDpi / (int) m_scaler.GetDpi();
     rcClient.right  = MulDiv (rcClient.right,  (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
     rcClient.bottom = MulDiv (rcClient.bottom, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
 
@@ -4744,24 +4898,30 @@ void DxuiHwndSource::LayoutCaption (const RECT & clientDip)
 //  SetTitle
 //
 //  SetWindowText-style title update: drives the Win32 window text (so
-//  Alt-Tab / taskbar stay correct) and the host-owned caption glyph.
+//  Alt-Tab / taskbar stay correct) and the host-owned caption glyph. At
+//  markAt, the window text has a black circle and the caption a dot in the
+//  error color, which indicate unsaved changes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::SetTitle (const std::wstring & title)
+void DxuiHwndSource::SetTitle (const std::wstring & title, size_t markAt)
 {
+    std::wstring  text = (markAt <= title.size()) ? title.substr (0, markAt) + L" " + s_kpszUnsavedMark + title.substr (markAt) : title;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    m_params.title = title;
+    m_params.title = text;
 
     if (m_hwnd != nullptr)
     {
-        SetWindowTextW (m_hwnd, title.c_str());
+        SetWindowTextW (m_hwnd, text.c_str());
     }
 
     if (m_caption)
     {
-        m_caption->SetTitle (title);
+        m_caption->SetTitle (title, markAt);
         if (m_hwnd != nullptr)
         {
             InvalidateRect (m_hwnd, nullptr, FALSE);
@@ -4900,6 +5060,53 @@ void DxuiHwndSource::RelayoutCaptionNow()
 int DxuiHwndSource::GetCaptionHeightPx() const
 {
     return (m_caption && m_captionVisible) ? m_caption->GetPreferredHeightPx (m_scaler) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetResizeBorderPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetResizeBorderPx() const
+{
+    return HasResizeBand() ? MulDiv (GetResizeBorderDip(), (int) m_scaler.GetDpi(), (int) s_kDefaultDpi) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasResizeBand
+//
+//  A maximized window can't be resized, so its edges are content.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::HasResizeBand() const
+{
+    return m_params.resizable && (m_hwnd == nullptr || ::IsZoomed (m_hwnd) == FALSE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetResizeBorderDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetResizeBorderDip() const
+{
+    return (std::max) ((int) m_params.resizeBorderDip, s_kMinResizeBorderPx);
 }
 
 
@@ -5307,15 +5514,10 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
     //  client pixels; only the resize bands and the caption here are measured
     //  in DIPs. Content controls are asked in pixels, which match DIPs only at
     //  96 DPI.
-    borderPx = (int) m_params.resizeBorderDip;
-
-    if (borderPx < s_kMinResizeBorderPx)
-    {
-        borderPx = s_kMinResizeBorderPx;
-    }
+    borderPx = GetResizeBorderDip();
 
     // Resize edges win outright.
-    if (m_params.resizable)
+    if (HasResizeBand())
     {
         kind    = ClassifyResizeEdge (clientDip, clientBoundsDip, borderPx);
         claimed = kind != DxuiHitTestKind::None;
@@ -5491,6 +5693,135 @@ DxuiHitTestKind DxuiHwndSource::ClassifyResizeEdge (POINT clientDip,
     else if (right)             { kind = DxuiHitTestKind::ResizeEdgeRight;  }
 
     return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::ShowSystemMenu
+//
+//  The window's system menu at a point on the screen, its items enabled as
+//  Windows enables them for the window's state, and the chosen command
+//  posted as WM_SYSCOMMAND.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiHwndSource::ShowSystemMenu (POINT ptScreen)
+{
+    HRESULT  hr        = S_OK;
+    HMENU    menu      = GetWindowSystemMenu();
+    bool     isMax     = ::IsZoomed (m_hwnd) != FALSE;
+    bool     isSizable = (GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_THICKFRAME) != 0;
+    UINT     command   = 0;
+    BOOL     isPosted  = FALSE;
+
+
+
+    CWRA (menu);
+
+    EnableMenuItem (menu, SC_RESTORE,  MF_BYCOMMAND | (isMax ? MF_ENABLED : MF_GRAYED));
+    EnableMenuItem (menu, SC_MOVE,     MF_BYCOMMAND | (isMax ? MF_GRAYED  : MF_ENABLED));
+    EnableMenuItem (menu, SC_SIZE,     MF_BYCOMMAND | (isMax || !isSizable ? MF_GRAYED : MF_ENABLED));
+    EnableMenuItem (menu, SC_MAXIMIZE, MF_BYCOMMAND | (isMax || !isSizable ? MF_GRAYED : MF_ENABLED));
+    EnableMenuItem (menu, SC_MINIMIZE, MF_BYCOMMAND | MF_ENABLED);
+    SetMenuDefaultItem (menu, SC_CLOSE, FALSE);
+
+    command = static_cast<UINT> (TrackPopupMenu (menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, ptScreen.x, ptScreen.y, 0, m_hwnd, nullptr));
+    BAIL_OUT_IF (command == 0, S_OK);
+
+    isPosted = PostMessageW (m_hwnd, WM_SYSCOMMAND, command, 0);
+    CWRA (isPosted);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::IsSystemMenuDropped
+//
+//  Whether the window is created without the system menu style. Without it,
+//  Windows doesn't draw its caption buttons under a see-through caption.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::IsSystemMenuDropped() const
+{
+    return m_params.borderless && m_params.drawOverBackdrop && !m_params.composited;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::GetWindowSystemMenu
+//
+//  The window's system menu: the one taken when the style was dropped, or
+//  the one GetSystemMenu returns for the window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HMENU DxuiHwndSource::GetWindowSystemMenu() const
+{
+    return m_systemMenu != nullptr ? m_systemMenu : GetSystemMenu (m_hwnd, FALSE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::DropSystemMenuStyle
+//
+//  Removes the system menu style from a window and returns its system menu,
+//  taken while the window has the style; null when the window has no menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HMENU DxuiHwndSource::DropSystemMenuStyle (HWND hwnd)
+{
+    HMENU  menu = GetSystemMenu (hwnd, FALSE);
+
+
+
+    SetWindowLongPtrW (hwnd, GWL_STYLE, GetWindowLongPtrW (hwnd, GWL_STYLE) & ~(LONG_PTR) WS_SYSMENU);
+    (void) SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+
+    return menu;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::GetSystemMenuPoint
+//
+//  Where Alt+Space opens the system menu: the client area's left edge, under
+//  the caption, as Windows opens it under a window's icon.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT DxuiHwndSource::GetSystemMenuPoint() const
+{
+    POINT  point = { 0, GetCaptionHeightPx() };
+
+
+
+    (void) ClientToScreen (m_hwnd, &point);
+
+    return point;
 }
 
 

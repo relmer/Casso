@@ -38,7 +38,10 @@ public:
 private:
     static constexpr SHORT  kDownBit = static_cast<SHORT> (0x8000);
 
-    static inline KeyReader     s_readKey;
-    static inline KeyReader     s_readAsyncKey;
-    static inline CursorReader  s_readCursor;
+    //  Defined in DxuiInputState.cpp, not inline here: an inline one is
+    //  constructed in every object that includes this header, so a program
+    //  that links any of those objects links them all.
+    static KeyReader     s_readKey;
+    static KeyReader     s_readAsyncKey;
+    static CursorReader  s_readCursor;
 };

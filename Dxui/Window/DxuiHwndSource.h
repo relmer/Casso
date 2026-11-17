@@ -274,6 +274,12 @@ public:
         // the owner rather than the owner's whole frame. Ignored by every
         // other mode.
         RECT                     placementAnchorRectPx    = {};
+
+        // Shrink the initial size to the work area of the monitor the window
+        // opens on, so a tall dialog on a small or scaled display keeps its
+        // bottom edge above the taskbar. Only for content that can scroll or
+        // reflow into less room. Ignored when useInitialWindowRectPx is set.
+        bool                     fitToWorkArea            = false;
     };
 
 
@@ -461,6 +467,10 @@ public:
     //  will not say where the anchor or its monitor is.
     bool  TryGetPlacementForSize (const SIZE & windowSizePx, POINT & outTopLeft) const;
 
+    //  The window returned to the size it was created at, about its center on
+    //  the monitor it is on, for a "Default size" command.
+    HRESULT  RestoreInitialPlacement();
+
     //  The rect of the system button (minimize, maximize, close) under a
     //  screen point, in client pixels -- the space a tooltip anchor takes.
     //  False when the point is over no system button.
@@ -483,9 +493,14 @@ public:
     //  top-strip height in physical pixels (0 when no host caption) so
     //  the consumer can lay its own content out beneath it.
     //
-    void  SetTitle           (const std::wstring & title);
+    void  SetTitle           (const std::wstring & title, size_t markAt = std::wstring::npos);
     void  SetCaptionIcon     (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
     int   GetCaptionHeightPx () const;
+
+    //  The width in pixels of the resize band along each edge of the client
+    //  area. Lay a scrollbar out past it. 0 for a window that isn't resizable
+    //  or is maximized.
+    int   GetResizeBorderPx  () const;
 
     // Hides the host-owned caption strip outright (fullscreen
     // presentations): it stops painting, reserves no height, and routes no
@@ -789,7 +804,12 @@ public:
     //  unit tests can assert the final NC return without instantiating
     //  the full WndProc dispatch.
     //
-    static LRESULT  KindToHt  (DxuiHitTestKind kind);
+    static LRESULT  KindToHt            (DxuiHitTestKind kind);
+    HRESULT         ShowSystemMenu      (POINT ptScreen);
+    bool            IsSystemMenuDropped () const;
+    POINT           GetSystemMenuPoint  () const;
+    HMENU           GetWindowSystemMenu () const;
+    static HMENU    DropSystemMenuStyle (HWND hwnd);
 
     //
     //  The extended window style Create gives a window of these params.
@@ -892,6 +912,7 @@ private:
     bool  IsClaimed             (DxuiMessageResult clientResult, RepaintOnClaim repaint);
 
     LRESULT      HandleNcCalcSize            (WPARAM wp, LPARAM lp);
+    int          GetMaximizedFramePx         () const;
     LRESULT      HandleNcHitTest             (LPARAM lp);
     LRESULT      HandleNcMouse               (UINT msg, WPARAM wp, LPARAM lp);
     void         UpdateCaptionTip            (UINT msg, WPARAM wp, LPARAM lp);
@@ -913,6 +934,8 @@ private:
     bool         RouteCaptionNcMouse         (UINT msg, WPARAM wp, LPARAM lp);
 
     DxuiHitTestKind    ClassifyHitInternal          (POINT clientDip, RECT clientBoundsDip) const;
+    bool               HasResizeBand                () const;
+    int                GetResizeBorderDip           () const;
     IDxuiControl     * FindNcSystemControlAt        (POINT clientDip) const;
     void               NotifySystemButtonsMaximized (bool maximized);
     void               InitializePooledPopup        (DxuiPopupHost * popup);
@@ -994,6 +1017,7 @@ private:
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;
     std::unique_ptr<DxuiPopupMenu>    m_contextMenu;
+    HMENU                             m_systemMenu         = nullptr;   // taken before the system menu style is dropped
 
     bool  m_ownsHwnd                = false;
     bool  m_ownsPaintPump           = false;

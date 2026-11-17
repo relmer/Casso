@@ -340,3 +340,53 @@ HRESULT DxuiDialogWindow::ResizeHeightBy (int deltaPx)
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDialogWindow::ResizeWidthBy
+//
+//  The window wider or narrower by deltaPx, keeping its center where the
+//  caller put it. The work area's width is the ceiling.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiDialogWindow::ResizeWidthBy (int deltaPx)
+{
+    HRESULT      hr      = S_OK;
+    HWND         hwnd    = GetHwnd();
+    RECT         window  = {};
+    int          widthPx = 0;
+    int          left    = 0;
+    bool         ok      = false;
+    HMONITOR     monitor = nullptr;
+    MONITORINFO  mi      = { sizeof (mi) };
+
+
+
+    CBR (hwnd != nullptr);
+    BAIL_OUT_IF (deltaPx == 0, S_OK);
+
+    ok = GetWindowRect (hwnd, &window) != FALSE;
+    CBR (ok);
+
+    widthPx = (window.right - window.left) + deltaPx;
+    left    = window.left - deltaPx / 2;
+    monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+
+    if (monitor != nullptr && GetMonitorInfoW (monitor, &mi))
+    {
+        widthPx = std::min (widthPx, (int) (mi.rcWork.right - mi.rcWork.left));
+        left    = std::clamp (left, (int) mi.rcWork.left, (int) mi.rcWork.right - widthPx);
+    }
+
+    ok = SetWindowPos (hwnd, nullptr, left, window.top, widthPx, window.bottom - window.top,
+                       SWP_NOZORDER | SWP_NOACTIVATE) != FALSE;
+    CBR (ok);
+
+Error:
+    return hr;
+}

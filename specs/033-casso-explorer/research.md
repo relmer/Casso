@@ -964,3 +964,316 @@ files as they are fails SC-037.
 
 - **The write-protect line as a swap signal.** It changes as a disk slides past the sensor, but only a polled, selected drive reports it, and polling would spin a drive during a swap. It is a possible later refinement after a test on real drives.
 - **Labels typed on the Apple.** The keyboard has a one-character latch that cannot be polled during a disk read. The owner ruled this out.
+
+## R35. File type decoders and converters (User Story 18)
+
+**Finding**: CiderPress II's format notes (`ndocs/formatdoc` in fadden/CiderPress2, Apache License 2.0) cover every format in FR-156 except VisiCalc. Each note cites the primary documents it was written from: Apple's File Type Notes and IIgs Technical Notes, the programs' manuals, and disassemblies. LZ4FH ($08/$8066) is documented by fhpack, its author's packer. Gutenberg documents are on disks in Gutenberg's file system, which Casso has no volume class for. Business BASIC is the Apple ///'s, found on ProDOS volumes as type $09.
+
+**Decision**:
+
+- **Sources**: the formats are written from the File Type Notes, the IIgs Technical Notes and the manuals first, and from CiderPress II's notes where those are silent. Its code is Apache-licensed and may be read; it is not copied, so Casso has no license notice to add. GPL code, such as ADTPro's and the original CiderPress's converters, may be read for a format's behavior and is never copied or paraphrased.
+- **VisiCalc**: the storage chapter of the 1982 VisiCalc User's Guide on bitsavers, and files saved by VisiCalc run in Casso as the fixtures. A saved sheet is a DOS text file of entries, as replayed by a load. Each entry's coordinate and contents are read, and formulas are written as entered, since the file has no computed values.
+- **Gutenberg**: a read-only `GutenbergVolume` behind `IVolume`, from CiderPress II's Gutenberg notes. Writing to a Gutenberg disk is out of scope.
+- **Identification**: one table of formats, matched on the volume kind, ProDOS type and aux type, DOS 3.3 type, name prefix or suffix and size, followed by each format's content check. This is the table in [contracts/file-types.md](contracts/file-types.md).
+- **P-code**: Apple Pascal's p-machine opcodes, from the Apple Pascal Operating System Reference Manual and the p-System's published instruction set, for the p-code version a codefile's segment dictionary has. A segment of another version is listed with its bytes in hex and the version reported.
+- **OMF**: versions 1, 2.0 and 2.1, from the Apple IIgs Programmer's Workshop Reference and its OMF appendix.
+- **Super hi-res**: $C1/0000 unpacked, $C0/0001 PackBytes, $C0/0002 Apple Preferred, $C0/0000 Paintworks, and 3200-color as $C1/0002, DreamGrafix $C0/8005 and `.3201`, drawn with each line's palette and 320 or 640 mode bit, and IIgs TN #63's color values.
+- **Outputs**: RTF 1.5 with only `\b`, `\i`, `\ul`, `\ql`, `\qc`, `\qr`, `\qj`, `\tab` and `\par`, which Word and WordPad both open; CSV as RFC 4180 specifies, in UTF-8 with a byte order mark so Excel reads it as UTF-8; PNG through `PngCodec`.
+- **Character sets**: Apple text, Mac OS Roman and ISO 8859-1, as CiderPress II offers. A IIgs format defaults to Mac OS Roman, the IIgs's character set. and the IIgs's Mac-style characters are mapped to Unicode by one table in `UnicodeSymbols.h`.
+
+**Rationale**: with one table of formats, identification is in one place and tested alone, and the decoders are pure functions over bytes, as `PreviewDecoder`'s are. RTF is the smallest styled format both PC programs read.
+
+**Alternatives considered**:
+
+- **DOCX or XLSX output**: a zip and XML writer for formatting that RTF and CSV already cover. Not adopted.
+- **A plugin interface per format**: a plugin layer is contrary to the constitution's simplicity principle, and a table of function pointers is enough.
+- **Leaving Gutenberg out**: FR-156 lists it, and with no volume class its documents never appear.
+
+## R36. Volumes larger than 140K (Story 19)
+
+**Finding**: every volume class addresses one 143,360-byte buffer in DOS logical sector order. ProDOS, Pascal and CP/M access a block through `ProDosSkeleton::GetBlockByteOffset`, which pairs two DOS sectors per block. `DiskImage::kDos33ImageSize`, `BlankDiskBuilder`, `MountDiagnosis` and the ADTPro server also test for that size. Writes return the whole buffer, which `VolumeImage::Save` renders back into the container.
+
+**Decision**:
+
+- **Layout**: a `VolumeLayout` value is passed with each buffer: `Dos140K`, the order of today's buffers, or `Blocks`, a linear run of 512-byte blocks with its count. `GetBlockByteOffset` takes the layout, and returns today's pairing for `Dos140K` and `block * 512 + offset` for `Blocks`. A 140K image stays `Dos140K`, so the sector editor, the nibble layer and every test of today's volumes see the bytes they see now.
+- **Size**: a ProDOS volume of up to 65,535 blocks is loaded whole, at most 32 MB, and written back whole, as a 140K volume is. Copying 32 MB on each write is about 10 ms.
+- **Paged store**: HFS volumes and physical cards can be larger than is reasonable to copy on each write, so they are read through an `IBlockStore` with `ReadBlocks`, `WriteBlocks` and `Commit`. `FileBlockStore` reads pages of 64 KB from the file on demand and writes dirty pages on `Commit`. `MemoryBlockStore` serves the unit tests. A partition of 32 MB or less is copied out of the store into a `Blocks` buffer and opened with the volume classes as they are, so CFFA, DOS.MASTER and the other layouts use the ProDOS classes with no paging.
+- **Size checks**: the checks for 143,360 bytes become checks of the layout, and the ADTPro server serves any `Blocks` image for its virtual drives.
+
+**Rationale**: with one value passed beside the buffer, every reader of today's 140K images reads the same bytes, and a 32 MB copy costs less than reading the file.
+
+**Alternatives considered**:
+
+- **Converting 140K images to block order too.** The sector editor, the nibble layer and Casso's mount all work in DOS order, and the change would alter every test. Not adopted.
+- **Paging every volume.** It changes the write path of every volume class for a size that fits in memory. Not adopted.
+
+## R37. 2IMG and Disk Copy 4.2 (Story 19)
+
+**Finding**: 2IMG has a 64-byte header with a creator, a format of DOS order, ProDOS order or nibbles, offsets and lengths of the data, the comment and the creator data, and flags with a write-protect bit and a DOS volume number. Disk Copy 4.2 has an 84-byte header with a Pascal-string name, data and tag sizes, a checksum of each, a disk format and a format byte, followed by the data and then the tags. Both are documented in Apple's and CiderPress II's format notes.
+
+**Decision**: `TwoImgContainer` and `DiskCopy42Container`, each with `Parse` into a header value and a payload, and `Build` from a header and a changed payload. `DiskFormat` gains `TwoImg`, `DiskCopy42` and `Blocks` (`.hdv`, `.img`, `.iso`, and `.po` larger than 140K). The checksum is the rotate-and-add sum Disk Copy 4.2 defines, over 16-bit big-endian words. A 2IMG nibble image is passed to the nibble layer as a `.nib` is.
+
+**Rationale**: a container is a header and a payload, and the payload is an image the layer reads today.
+
+**Alternatives considered**: reading the containers in `VolumeImage::Load` with no class for each. The header is written back on every save, so it is better as a value with separate tests.
+
+## R38. Extended files and AppleDouble (Story 20)
+
+**Finding**: a ProDOS extended file, storage type 5, has a key block with a mini-entry for the data fork and one for the resource fork, each with its storage type, key block, blocks used and EOF, and two 18-byte Finder information entries. AppleSingle and AppleDouble share one format: entry 1 is the data fork, entry 2 the resource fork, entry 9 Finder information, entry 11 ProDOS file information. `AppleSingleCodec` reads and writes data-fork files today.
+
+**Decision**: `FilePayload` gains `resourceFork` and `finderInfo`, and `FileEntry` gains `resourceForkBytes`. `ProDosVolume` reads and writes storage type 5 through its writer, with the forks' trees written as for any file. `AppleSingleCodec` writes entries 2 and 9, and gains an AppleDouble form with no entry 1. Which is written follows the host-name style, as FR-181 sets. A copy to a volume with no forks writes the data fork and returns `S_FALSE` with the reason FR-182 reports.
+
+**Rationale**: the forks are two files' trees under one entry, so the writer that writes a tree writes both.
+
+**Alternatives considered**: NTFS alternate data streams for the resource fork. They are lost when a file is copied to FAT, zipped or uploaded. Not adopted.
+
+## R39. NuFX, Binary II and nested containers (Story 21)
+
+**Finding**: NuFX (Apple File Type Note $E0/8002) is a master header and records, each with threads: data, resource and disk forks, a file name, comments. Thread formats are uncompressed, Squeeze, LZW/1, LZW/2, LZC 12 and 16, Deflate and bzip2. Each thread has a CRC. Binary II (File Type Note $E0/0000) is 128-byte headers before each file's data. Each method is documented in CiderPress II's NuFX, LZW, Squeeze and LZC notes. `Update/Inflate.cpp` decodes Deflate; Casso has no bzip2 decoder.
+
+**Decision**:
+
+- **Codecs**: `NuFxArchive` (read, build), `NuLzw` (LZW/1 and LZW/2, both ways), `SqueezeDecoder`, `LzcDecoder`, `BinaryTwoArchive`, `GzipFile` over `Inflate`. bzip2 threads use the reference bzip2 library, vendored under `External/`. Its license is BSD-style, which the clean-room rule allows, as it forbids GPL code only.
+- **Browsing**: `ArchiveVolume` implements `IVolume` over a parsed archive, so the list, preview, Get, put, rename and delete paths are the ones an image has. A write returns the rebuilt archive's bytes, written as an image's are.
+- **Nesting**: a location's path is a list of steps, each a container: a host file, a ZIP member, a gzip file, a disk image's file or an archive's record. Opening a step reads its bytes from the step before. A write goes back up the list, rebuilding each container in turn, and the host file is replaced last, through a temporary file.
+- **Disk records**: a disk record is a volume, opened by `VolumeImage` from its bytes. An 800K record is a `Blocks` buffer (R36).
+
+**Before ContainerPath** (T547, read from the code on 2026-11-09): a ZIP is a shell folder, listed by the Windows ZIP folder. Its members have no file system path, since `SIGDN_FILESYSPATH` fails for them, so a disk image in a ZIP is listed with an empty `hostPath`, and `isDiskImage` is false. The image is listed as an ordinary file with the shell's type text, and the preview pane has no catalog for it. A double-click calls `OpenShellItem`: the ZIP folder extracts the image to a temporary folder and starts the program associated with its extension, and a change made there isn't written back into the ZIP. A file on the image can't be copied out and one can't be put in, because the image never opens as a volume. Dragging the image out of the ZIP copies it, through the shell.
+
+**Rationale**: an archive as an `IVolume` gets every operation the window has without a second set of paths, and the step list handles any depth with one rule.
+
+**Alternatives considered**: NufxLib, now BSD-licensed. It is C with separate file I/O and allocation, and wrapping it is not smaller than LZW/2 and the record format. It is the test reference beside CiderPress II.
+
+## R40. Link modules for new devices (Stories 23 to 29)
+
+**Finding**: the link program loads at $0800 and must end before $3A00, below the shim's copy of the zero page; the program is several thousand lines. Block devices, raw capture, cassette transfers, the IIgs's SCC, Pascal firmware cards, the CS8900A and the LAN91C96 do not all fit there beside today's code. Each Apple has at most a few of them.
+
+**Decision**: modules. A module is a separately assembled 6502 block that loads at $4000 to $7FFF, with a header of its version, its entry table and its size. After Ready, the PC sends the modules a connection uses with a new Load module request, verified by CRC as the program is. The program's request table dispatches the new requests to the module's entry table. The program's version and each module's are compared on each connection, as the program's is today. Modules: block devices, raw capture, cassette, SCC, Pascal firmware, CS8900A, LAN91C96, and the virtual drive driver's installer.
+
+**Rationale**: memory above $4000 is free while the link runs, and loading over the link already exists for the program. A module that a machine does not use costs nothing.
+
+**Alternatives considered**: one larger program. It overruns hi-res page 1 and the space under BASIC on every machine. Not adopted.
+
+**Revised (2026-11-11, T566)**: $4000 to $7FFF is not free: the program's CRC and nibble tables are at $4000 to $42FF and its request payload at $4900, and DOS or BASIC.SYSTEM, which the program returns to, is above $9600. A module loads at $5000 to $8FFF, on the 5.25" disk buffers. A request that uses those buffers marks the module overwritten, and before each module request the PC sends a query of the module the program has, and loads it again if that isn't the module. A module is assembled against the program's build, given each of its symbols with a `p_` prefix, and its header has the PROGVER it was built for, which the program checks with the CRC. The header: `CM`, id, version, PROGVER, length, CRC-16/XMODEM of the bytes from offset 10, the request count and each request's command and entry.
+
+## R41. Block devices through firmware (Story 23)
+
+**Finding**: a ProDOS block device's firmware has $20, $00 and $03 at $Cn01, $Cn03 and $Cn05, and its entry at $Cn00 plus the byte at $CnFF. A SmartPort device also has $00 at $Cn07, and its dispatch is three bytes past the ProDOS entry. SmartPort STATUS lists the units and each unit's size and type. The //c's 3.5" port, the //c Plus, a UniDisk 3.5 and hard disk cards all answer this way, and the IIgs's slot 5 is a SmartPort.
+
+**Decision**: the block module scans slots 1 to 7 for the signature, calls SmartPort STATUS for each unit where the firmware has it, and reads and writes 512-byte blocks through READ BLOCK and WRITE BLOCK. Each read is sent with a CRC, as sectors are. A whole-volume transfer uses Read disk to image's queue and progress. The partial image and its resume record are written as in R42. Verified writes read each block back and compare CRCs.
+
+**Rationale**: the firmware drives each device the Apple has, so one module covers them all.
+
+## R42. Resuming a long transfer (Story 23, Session 2026-11-09)
+
+**Decision**: a transfer of a block device writes `NAME.partial` and `NAME.partial.json`, the device's slot, unit, block count, volume name, a SHA-256 of its volume directory blocks and the last block verified, after every 64 blocks. A later transfer of a device with the same values offers to continue. The image is renamed to its final name when the last block is verified.
+
+## R43. Raw capture (Story 24)
+
+**Finding**: the Disk II's data latch has a byte each 32 cycles, and a sync byte with its two zero bits takes 40. The Apple can count cycles between bytes in a timed loop. The head moves in quarter tracks by phase steps, so the link can read at quarter-track positions. A revolution is about 200 ms. WOZ 2 has a quarter-track map (TMAP) and bit streams (TRKS); a long run of zero bits is read by emulators as random bits.
+
+**Decision**: the capture module reads at each quarter-track position from 0 to 34, and to 35 where the drive steps there, two revolutions per read, timing each byte. A position with no valid byte on its first read is reported empty and not read again. Reads two and three are compared on the Apple with the first, and only the differing ranges are sent. The PC builds each stream from the bytes and timings, inserting two zero bits after each sync byte, cuts one revolution where the stream repeats, and writes WOZ 2 with TMAP pointing the neighboring quarter tracks at a stream, as WOZ's reference specifies. A range that differs between reads is written as zero bits.
+
+**Rationale**: comparisons on the Apple send most tracks once, which is how SC-055's five minutes is met: 141 positions times two revolutions is about 60 s of reading, and most positions are empty.
+
+**Revised (2026-11-11)**: the module has $5000 to $8FFF (R40's revision), so two revolutions fit once, and there's no room for a second read beside the first to compare on the Apple. The timing is read from the data latch rather than counted: by Sather's Table 9.5, a finished byte is in the latch for about 8 cycles, and 4 more for each zero bit after it. The capture loop reads the latch again 8 cycles after it finds a byte; when the latch has the same byte then, zero bits followed it, and the byte is stored with its top bit clear, which a disk byte never has, so one byte of the buffer is one byte of the disk. The PC writes two zero bits after each byte both revolutions of the read mark, since a mark is now and then set on a byte that isn't a sync byte. The loop is one copy per page of the buffer, so no page crossing adds cycles to a byte. The buffer is sent page by page, each page with its CRC. The PC compares each whole track's reads aligned by rotation, writes a range that differs as zero bits, and maps a quarter track whose first read matches a neighbor's stream to that stream in TMAP without reading it again.
+
+**Measured (2026-11-11)**: in Casso's drive, a mark at 8 cycles is on a byte followed by no zero bit about 1% of the time and by one about 45% of the time, so a 13-sector disk's 9-bit sync bytes, FF and one zero bit, can't be counted from two revolutions. A whole track is read at 8, 12 and 8 cycles, and up to four more times at 8 while an FF byte is uncertain; each run of FF is split into stretches of one count by the likeliest sequence of counts. Captures of CiderPress II's DOS 3.2 master and an RDOS disk decode to their sources' sectors, each track within a few sync bits of its source. Casso's drive steps by half tracks, so a quarter track a real drive steps to with two phases on can't be tested in Casso.
+
+**Measured on a real //c (2026-11-12)**, from the raw reads of Wizardry I (Apple Pascal, 16 sectors):
+
+- A revolution of a real track isn't byte for byte the same on each pass. The partial bytes of each write splice, between a data field's epilogue and the sync bytes after it, are framed differently each time, so one pass has a byte more or fewer than the next until the sync bytes realign it. A read whose revolution is found by an exact repeat fails, or finds two revolutions. The PC now starts a revolution where 64 bytes with eight or more values repeat exactly, once in the revolution and in three windows further on. It aligns every other revolution of every read to that one with bytes more or fewer allowed (a banded edit distance, 24 bytes either way, at most one byte in 50 differing), taking each revolution's best alignment. A byte is weak only where two alignments put it in a stretch of differences longer than 8 bytes.
+- A byte stays in the //c's IWM data register longer than in a Disk II's latch. At 8 cycles a byte with no zero bits after it is marked about one time in four, where Casso's drive marks it about one time in a hundred; at 12 cycles it is never marked, and a run of sync bytes is marked now and then. With the fixed chances measured in Casso, sync bytes were counted wrongly and nearly every track was read the most times. The PC now measures each track's baseline on its bytes that aren't FF and counts each run of FF against it, and the extra reads are gone.
+- A track between two standard tracks isn't read. With the two changes above, 34 of the 35 whole tracks are standard, every sector decodes, and a capture is 105 reads plus the gaps beside the one other track.
+- The first encoding, with a count before each run of literal bytes, cost about 275 cycles a literal byte on the Apple, 3.8 KB/s, slower than the 130 cycles of sending bytes raw. The encoding is now escaped (0 begins a token), with the CRC from the program's tables inline.
+
+**Track alignment (2026-11-12)**: Wizardry I checks where data on one track is relative to the track before. A reference WOZ made by Applesauce, whose drive has an index sensor, boots in Casso; turning its track 13 or 14 half a revolution stops the boot on track 14, as the unsynchronized capture stops. The //c's drive has no index sensor, so each track's first read waits on a marker, an address field of the track before, and steps and starts the read a fixed number of cycles after it, as a nibble copier's synchronized tracks do. The PC turns each track's stream so that a bit's place is the same angle on every track, from the marker's place on the track before and that delay, 50,400 cycles, measured on Casso's //c: six tracks of a DOS 3.3 disk captured there come out at the same angle within a bit. The WOZ's INFO chunk is marked synchronized. A capture of the reference image on Casso's //c boots, and so does a capture of the owner's disk.
+
+**Measured on a real //c (2026-11-12, continued)**: synchronized captures of Archon from either drive place each track about 1/16 of a revolution later than the one before; Archon's Applesauce reference has sector 0 at one angle on every track, and its boot fails with our tracks 1 and 2 together but not with either alone, so the offset between those two tracks breaks the boot. Casso's //c places tracks within a bit with the same 50,400 cycles, so the real timing from the marker to the read differs from the emulated by about 13,000 cycles; the cause isn't known yet (T679). A wait for the disk to come up to speed after the motor starts didn't change it. Wizardry I boots from its synchronized capture regardless, so its check allows about a sector. While the PC analyzes a track, the client's Readies pile up in the PC's buffer, and a request sent on an old one never arrives, as the client's serial chip drops bytes that arrive while it sends; the host drops them after 1.5 seconds without sending and waits for a fresh one.
+
+**Alternatives considered**: flux capture. The Disk II has no access to flux, and Applesauce exists for it. Out of scope.
+
+## R44. Virtual drives (Story 25)
+
+**Finding**: ProDOS's device table at $BF10 has an entry per slot and drive, and a slot's entries are free when no card is in the slot. BASIC.SYSTEM's GETBUFR call ($BEF5) allocates pages below HIMEM and lowers HIMEM by that amount. ProDOS starts the first `.SYSTEM` file on the boot volume.
+
+**Decision**: Make CassoLink ProDOS disk copies the user's `PRODOS` and `BASIC.SYSTEM` onto a new 140K ProDOS image with `CASSOLINK.SYSTEM` before them. `CASSOLINK.SYSTEM` loads the shim's serial code and the driver, installs the driver for drive 1 and 2 of the first free slot from 7 down, allocates its pages through GETBUFR (four pages, FR-200), and starts `BASIC.SYSTEM`. The driver's requests are new link requests, read block and write block; the PC writes each block to a one-block journal beside the image, then at its offset in the image, then clears the journal, each flushed before the reply. A journal left by a crash is applied when the image is next opened, so a block is in the image whole or not at all (FR-201).
+
+**Rationale**: GETBUFR is the documented way to take memory beside BASIC.SYSTEM, and a free slot's entries are where ProDOS looks for a device.
+
+**Update (2026-11-17)**: BASIC.SYSTEM has no startup pathname for a file it runs at its start: the copy on the fixture disk begins with code, not a JMP and $EE $EE. So a `.SYSTEM` file ahead of it can't run code once BASIC.SYSTEM has started, and GETBUFR is BASIC.SYSTEM's. The disk has BASIC.SYSTEM as its first system file instead, and a STARTUP that runs `CASSOLINK`, a binary file at $2000: the installer, then the driver, then the driver's relocation list. GETBUFR's four pages at boot are $9600 to $99FF, where BASIC.SYSTEM's buffers were, so the driver can't be assembled where it runs; the PC assembles it at $9200 and $9300, and each byte that differs is a high byte the installer raises by GETBUFR's page. The driver is in the first two pages and the CRC tables in the other two. The driver's request is Virtual block ($F5, contracts/cassolink.md); a reply that doesn't arrive in about three seconds is requested again, four times in all, then the call returns ProDOS's I/O error. On an emulated //c, the drives are in slot 7, and BASIC.SYSTEM catalogs and saves to both (`CassoLinkVirtualDriveScenarioTests`).
+
+## R45. Disks over cassette audio (Story 26)
+
+**Finding**: the ][+ and //e toggle the cassette output at $C020 and read the input at $C060. Casso Explorer bootstraps the link through the cassette input today (`LinkAudioBootstrap`). ADTPro's audio client sends and receives disks with a separate encoding, published on adtpro.com. `WasapiAudio` renders audio; Casso has no capture from the PC's input.
+
+**Decision**: the cassette module uses ADTPro's published audio encoding, so one decoder on the PC reads both clients. Each track is a packet with a CRC; a failed track is requested again. The PC captures its input through WASAPI shared-mode capture, added beside `WasapiAudio`, and decodes with the same edge timing `TapeSignalDecoder` uses. The connection's settings pick the devices and draw a level meter. In the scenario tests, Casso's cassette input is fed from the PC side's audio and its output is captured, through `CassettePort`.
+
+**Rationale**: one encoding and one decoder for both clients.
+
+**Update (2026-11-17)**: ADTPro's protocol document has nothing on its audio encoding: no tones, timing or framing. FR-096 rules out its source, so its encoding comes only from recordings. The cassette link has an encoding designed in Casso instead (spec Clarifications, 2026-11-17), and ADTPro's audio client is served from recordings of its client in Casso's emulated //e and of ADTPro 2.1.0's server, captured from the PC's output. Casso's encoding: a bit is one full cycle, 500 microseconds for a 0 and 1,000 for a 1, most significant bit first. A burst is a tone of 1,000-microsecond half cycles, one 0 bit as its mark, the count of bytes and its complement, then the bytes. The Apple's transport puts bytes in a buffer and sends them as a burst when it next waits for one, as the W5100's transport sends its buffer; it receives a whole burst into a buffer before the program reads a byte of it. The PC's side is an `IByteStream`, so `CassoLinkHost` runs over audio as it runs over serial. A track's packet has a CRC for each sector, and the reply lists the sectors to send again.
+
+## R46. Tape recordings as files (Story 27)
+
+**Finding**: Casso decodes WAV and, through Media Foundation, MP3 (`MfTapeAudioDecoder`), and Ogg through stb_vorbis, which decodes only. Windows' Media Foundation has an MP3 encoder. `TapeRecordScanner` finds records in a recording.
+
+**Decision**: `TapeRecordingWriter` writes the monitor's format: a 10-second header tone, the sync bit, the bytes and the checksum, with a BASIC program's length record ahead of it, as SAVE writes. WAV through `WavCodec`, MP3 through Media Foundation's encoder, Ogg Vorbis through libvorbis and libogg, vendored under `External/`, both BSD-licensed. `TapeRecordingVolume` implements `IVolume` read-only over `TapeRecordScanner`'s records. Disk audio is the cassette module's stream written to a file.
+
+## R47. More interfaces (Story 28)
+
+**Finding**: the IIgs's ports are a Zilog 8530 SCC at $C038 to $C03B. Bit 7 of $C036 sets the IIgs's speed. A Pascal 1.1 firmware card has $38, $18 and $01 at $Cn05, $Cn07 and $Cn0B, and its init, read, write and status offsets at $Cn0D to $Cn10. The original Uthernet is a CS8900A accessed through its PacketPage registers in the slot's I/O space; the LANceGS is an SMSC LAN91C96 with banked registers, at $C0x0 with x = 8 + slot. ADTPro's ip65 drives both, as the Contiki port does.
+
+**Decision**: an SCC module, a Pascal firmware module and two Ethernet modules, each with the transport entries the program calls today: open, send, receive and close. The Ethernet modules implement in software the UDP and TCP the Uthernet II implements in hardware, as a minimal stack of ARP, IPv4, UDP and TCP with one connection. The program sets the IIgs to normal speed around each 5.25" read and write and restores $C036 after. Test targets are scripted: KEGS or GSplus for the SCC, MAME for a IIgs with a Super Serial Card, the Laser 128 and the LANceGS, AppleWin for the Uthernet.
+
+## R48. The Apple /// client (Story 29)
+
+**Finding**: SOS boots `SOS.KERNEL`, `SOS.DRIVER` and `SOS.INTERP` from a disk. Drivers are configured into `SOS.DRIVER` with the System Configuration Program. `.RS232` is the serial driver and `.D1` to `.D4` and `.PROFILE` the block drivers. An interpreter calls SOS through BRK with a call number.
+
+**Decision**: the link's SOS program is assembled as `SOS.INTERP`, from the shared 6502 source with an SOS transport and SOS block calls in place of the Apple II's. Make CassoLink SOS disk copies the user's `SOS.KERNEL` and `SOS.DRIVER` onto a new disk with it. The PC side treats the Apple /// as an Apple with block devices, as Story 23 does.
+
+## R49. DOS 3.2 and large DOS 3.3 (Story 30)
+
+**Finding**: 13-sector disks use 5-and-3 encoding: the address prolog is D5 AA B5, a data field is 410 nibbles plus a checksum. A `.d13` file is 35 tracks of 13 sectors, 116,480 bytes. CiderPress II's DOS notes document 40- and 50-track and 32-sector volumes, and the Basis 108's 80-track layout with two bitmap bytes per track.
+
+**Decision**: `NibblizationLayer` gains the 5-and-3 codec, and `VolumeImage` loads `.d13` and 13-sector nibble and WOZ images into a `Dos13` layout. `Dos33Volume` reads the track and sector counts from the VTOC, so 40-, 50- and 80-track and 32-sector volumes are one class. Over the link, a 13-sector track is read by the capture module's track read and decoded on the PC, and written as nibbles the PC encodes, as Sector nibbles writes 6-and-2 today.
+
+**Update (2026-11-17)**: the read isn't a capture. The capture module's track read framed a 13-sector track's sync bytes differently on each pass, so six tracks of 35 had no revolution in the read, and a full raw capture, three timed reads of each track, was slow and measured sync bits that don't affect the sectors' data. The 13-sector module's Read 13-sector track reads each sector's address and data fields as DOS 3.2's RWTS does, sends each data field's nibbles as the drive read them, and the PC decodes the 5-and-3 and requests any sector that failed again, up to four times. A sector whose address field has no data field after it, as on a track DOS 3.2's INIT formatted and never wrote, is zeros. Write nibble track is in the 13-sector module, `ThirteenSector.s`, not the capture module, as the capture module's code fits in the space below the copies of its read loop, and those copies and its buffer fill the module area to $9000.
+
+## R50. Partitions and physical cards (Story 31)
+
+**Finding**: CFFA cards are consecutive 32 MB slices (FR-218), with the HFS partitions of firmware 1.2's GS/OS driver after the fourth. FocusDrive and MicroDrive have partition maps in block 0. DOS.MASTER puts DOS 3.3 volumes in the last blocks of a ProDOS volume. AmDOS, OzDOS and UniDOS split an 800K disk into two 400K DOS volumes, interleaved by block or by half. Hybrids put DOS 3.3 tracks beside a ProDOS or Pascal volume on a 140K disk, each file system marking the other's blocks used. Each is documented in CiderPress II's notes. Windows opens a disk as `\\.\PhysicalDriveN` for administrators only.
+
+**Decision**: one `PartitionLayout` class per layout, each with `Detect` over an `IBlockStore` and a list of `Partition` values. Hybrids open each file system on the same buffer, and a write fails when it would allocate a block the other's map has as used. Physical cards: Casso Explorer starts CassoExplorer.exe again, elevated, with `/rawdevice` and a pipe name, through ShellExecuteEx with `runas`; that process opens the drive and serves block reads and writes over the pipe, and exits when the pipe closes. Removable drives are those `IOCTL_STORAGE_QUERY_PROPERTY` reports as removable media or on a USB or SD bus.
+
+**Rationale**: with elevation for that operation alone, the window runs unelevated, and drag and drop with File Explorer works.
+
+## R51. HFS (Story 32)
+
+**Finding**: HFS has a master directory block at block 2, a volume bitmap, an extents overflow B-tree and a catalog B-tree, names of up to 31 Mac OS Roman characters, and two forks per file. Apple's File Type Note for ProDOS files on HFS maps a ProDOS type to the HFS type `p` + type + aux type, creator `pdos`, and lists the pairs for TEXT, BINA and others.
+
+**Decision**: `HfsVolume` implements `IVolume` over an `IBlockStore`, with `HfsBTree` for both trees, read and write, splitting and merging nodes as Inside Macintosh: Files specifies. The type mapping is a table from the File Type Note. Formatting writes the structures for the volume's size, as Inside Macintosh specifies for an initialized volume.
+
+## R52. SOS, Gutenberg writes and RDOS (Stories 33 and 34)
+
+**Decision**:
+
+- **SOS**: no separate volume. SOS's directory format is ProDOS's, and Apple's SOS disks read as ProDOS volumes, as CiderPress II reads them. Two differences were found on Apple's disks and in MAME's Apple ///: the boot blocks, where an SOS disk has the SOS loader in block 0 and a ProDOS disk has the Apple II loader in block 0 and the same SOS loader in block 1, so an Apple /// starts from either; and directories of 12 entries a block, which the shared reader and writer now take from each directory's header. SOS also reads a case word's high byte as a file's minimum version, so an upper-case name has no case word. Which computers a volume starts is detected from the boot blocks and the system files, and a disk that starts an Apple /// is made by copying the loader and SOS.KERNEL, SOS.DRIVER and SOS.INTERP from the user's SOS disk.
+- **Gutenberg**: the free-space map was worked out from disks Gutenberg, Jr. formatted and wrote in Casso on a //e: blank, after one document, after a long document, after a delete, and after a sixteenth file. It is one byte for each pair of sectors in tracks 3 to 34, bit 7 for the even sector and bit 0 for the odd one, and Gutenberg allocates the lowest free sector. The format is in [contracts/file-types.md](contracts/file-types.md), and `GutenbergVolume` writes, renames, deletes and locks as Gutenberg does. A scenario case has Gutenberg format a disk, Casso copy a document to it, and Gutenberg write a second document beside it and open, edit and save Casso's.
+- **RDOS**: `RdosVolume`, read-only, for RDOS 2.1, 3.2 and 3.3, from CiderPress II's RDOS notes.
+
+## R53. The expanded preview (Story 35)
+
+**Decision**: An expanded state of the preview pane, per tab, in place of a separate viewer window. Expanded, `ExplorerLayout` lays the preview over the command bar, address bar, body and status bar, below the tab strip. The tree, list and splitter widths stay in the preferences for the collapse. Previous and next move the list's selection, so the list, the status bar and a collapse all match the file on screen. A tab torn off into a window, with its preview expanded, is a viewer beside the main window.
+
+View as, Save as and Copy are on the preview pane, docked or expanded. View as resets to the default view on each file.
+
+**Alternatives considered**: A separate top-level viewer window, one per Casso Explorer window, reused for each file. It duplicated the preview pane, and its file had to follow the list.
+
+CiderPress II's file viewer, from its GUI manual, was compared feature by feature. Taken from it: previous and next through the selected files, or the whole list when one file is selected; a list of the conversions that apply, the best first; export of the current conversion, a picture at its original resolution; Copy, with formatted text as plain and formatted; and the resource fork as a view. Left out: saving the conversion options as defaults, control characters drawn as symbols, and opening PDF and RTF files in their Windows applications. Its character sets, hex dump, text search and DOS 3.3 sector view are in the preview and the disk inspector already.
+
+## R54. Collection tools (Story 36, Session 2026-11-09)
+
+**Decision**:
+
+- **Results**: a results location, `results:<id>`, as a search's is, so the list, groups and context menu are the ones a search has. Save as CSV writes the columns in [data-model.md](data-model.md).
+- **Walk**: a worker thread walks the folder and descends into every container the step list of R39 opens, reporting rows as they are found. An image with partitions is listed as a disk too, unless the partitions fill it, as on a CFFA card or a MicroDrive. A file set has members on disks whose data differs, so two copies of one disk don't form file sets.
+- **Identity**: a disk's identity is the SHA-256 of its decoded volume buffer, so `.dsk`, `.do`, `.po`, 2IMG and a WOZ of the same disk match. The CRC-32 is of the same buffer. A WOZ track with data its sectors don't decode, such as a protection track, sets `hasMore`. A file's identity is the SHA-256 of its data fork and its type.
+- **Content search**: the search walker passes each file inside an image through `FileFormatTable::Export` and searches the text.
+
+## R55. BASIC tools (Story 37)
+
+**Decision**: `IntegerBasicTokenizer` beside `ApplesoftTokenizer` in CassoCore, from the Integer BASIC token table its detokenizer has. `BasicRenumber` and `BasicCrossReference` work on token lists of either BASIC. `casso basic` gains `tokenize`, `list`, `renumber` and `xref`.
+
+## R56. Game data (Story 38)
+
+**Finding**: Wizardry I to III scenarios are Pascal files on Pascal disks; Infocom story files are Z-machine images, specified by the Z-Machine Standards Document 1.1.
+
+**Decision**: `WizardryScenario` and `ZMachineStory` decoders in `FileTypes/`. The Wizardry layout is the record types of Thomas William Ewers' re-engineered Pascal source of Wizardry I, from the Asimov archive, which reproduces WIZARDRY.CODE exactly; I to III have the same record sizes. The lists and a text map of each level are Lines; a level as a Picture is open, since a decode has one output. A real Zork I, release 88, has its story in the inverse of the physical-to-DOS sector order, one of the orders `InfocomVolume` reads; MAME boots that disk, and Casso doesn't yet. DiskBrowser's source is read for behavior only, under FR-171.
+
+## R57. VisiCalc recalculation (Story 22)
+
+**Decision**: `VisiCalcEvaluator` parses each formula into a tree and evaluates the sheet in the file's order, one pass per recalculation, with the functions in the VisiCalc User's Guide's reference section. Values are formatted as VisiCalc formats them: general, integer, dollars and cents, left, right and the graph format.
+
+## R58. A2Pico and A2retroNET (T668)
+
+**Finding**: The A2retroNET firmware (oliverschmidt/a2retronet, MIT license; its README, `config.c` and `hdd.c`) is a SmartPort controller of up to eight drives, set by `A2retroNET.txt` in the card's root: `[settings]` with `bootdelay=0` to `9`, and `[drives]` with `number=2`, `4`, `6` or `8` and `n=path` for drives 1 to 8, the path from the root. A line starting with `#` is a comment. The firmware removes only the `\n` ending a line, so in a file with CR LF line ends each path ends in a CR and no image opens. It reads `.po`, `.hdv` and `.2mg` images of ProDOS blocks; a `.2mg` is read from a fixed offset of 64, without its header's fields, and the block count is the bytes after that over 512, at most 65,535. A read-only file is a write-protected drive.
+
+**Decision**: `A2retroNetConfig` reads and writes the file as the firmware does, with LF line ends, and checks an image as the firmware opens it. Casso Explorer's Add to A2retroNET drives sets the selected image as the first drive without one, on a card whose root has the file. The ProDOS images `casso disk create` and Casso Explorer make at 140K, 800K, 5M, 10M, 20M and 32M, as `.po`, `.hdv` and `.2mg`, are already in the form the firmware reads: a `.2mg`'s blocks start at 64, with nothing after them, and 32M is 65,535 blocks. Nothing is checked on an A2Pico, since the owner doesn't have one.
+
+**Update 2026-11-13**: Story 41 plans the rest of the support: a card listed by its content, its drives listed with their problems, A2retroNET drives, conversion on a copy to the card, updates on rename, move and delete, and an A2Pico adapter in Initialize card. The FAT variants the firmware's FatFs build reads weren't found in its repository, which has no `ffconf.h`, so Initialize card writes FAT32, which every FatFs build reads. A card's kind isn't saved anywhere: `A2retroNET.txt` in a FAT volume's root is the test, since the firmware requires the file there.
+
+**Update 2026-11-13, FAT**: The firmware's CMakeLists.txt fetches FatFs from FarLeftLane/no-OS-FatFS-SD-SDIO-SPI-RPi-Pico, branch main. Its `src/include/ffconf.h` has `FF_FS_EXFAT 1`, `FF_LBA64 1`, `FF_USE_LFN 3`, `FF_MULTI_PARTITION 0`, `FF_MAX_SS 512` and code page 437. So the card is FAT12, FAT16, FAT32 or exFAT of any size, long file names are read, and the first volume on the card is the one mounted. This replaces the sentence above about the FAT variants not being found. Initialize card writes FAT32 since Casso has that writer, and a card the user formatted as exFAT is listed too.
+
+**Update 2026-11-13, editing**: The README lists every setting: `bootdelay` (0 to 9 seconds, default 3) in `[settings]`, and `number` (2, 4, 6 or 8, default 8) and drives `1` to `8` in `[drives]`. A drive's path is from the root, or starts with `sd:` or `usb:` to select the device on the Drive firmware, which reads both a micro SD card and a USB drive. The README suggests commenting out a drive's other images with `#` to switch between them, but the firmware's configuration utility on the Apple writes the file again without comments. On the Link firmware the A2Pico is a card reader for the PC over USB while it is in the Apple, and the Apple reads a changed file or image at once.
+
+## R59. Booting an image with no window (Story 43)
+
+- **Decision**: `BootProbe` builds a machine through `MachineBuilder` with
+  build services that have no audio mixer, no printer thread and no window,
+  as the unit tests' `TestMachine` does, and runs it on the caller's
+  thread. The enhanced //e first; the ][+ when the //e's verdict is did not
+  boot (FR-275).
+- **Rationale**: one wiring of each machine, the shell's. A second copy of
+  the wiring drifted once already (`HeadlessHost`).
+- **Alternatives**: start Casso with a flag and read a file it writes: a
+  process for each image and no verdict from inside the machine.
+
+## R60. The verdict (Story 43, FR-274)
+
+- **Decision**: the machine runs in slices of 1,000,000 cycles to a limit
+  of 120,000,000, about two minutes of an Apple's time and a few seconds of
+  the PC's. After each slice: a hash of the frame, the drive's quarter
+  track and motor, and the program counter. Booted: the frame differs from
+  the frame at power-on, and the head has not moved for 20 slices in a row.
+  Did not boot: the frame never differed; or the program counter is in the
+  monitor's or BASIC's input loop with `ERR` or the monitor's `*` prompt on
+  the text screen; or the head is moving at the limit. Not bootable: the
+  image has a file system and its boot sector is not boot code. Anything
+  else is unclear. The run ends early once booted is true for 60 slices.
+- **Rationale**: the two bad images of One-on-One on 2026-11-13 stopped
+  with the frame at its power-on pattern; a good image's head stops once
+  its title is drawn.
+- **Alternatives**: a verdict from any change of the frame, which passes a
+  loader that draws and stops.
+
+## R61. A title from the text screen (Story 43, FR-282)
+
+- **Decision**: a line is a title when the screen is in text mode and the
+  line is followed within three lines by one with `COPYRIGHT` or `(C)`, or
+  it is the one line of the screen's first four that isn't blank; its
+  punctuation at the ends is dropped and its letters are as drawn.
+  With no such line, no name.
+- **Rationale**: The Witness's title is ten lines down a page of prose,
+  with its copyright under it.
+
+## R62. Where a thumbnail is stored (Story 43, FR-278, FR-279, FR-284)
+
+- **Decision**: `%LOCALAPPDATA%\Casso\Thumbnails\<sha256>.png` and a
+  record `<sha256>.json` with the verdict, the machine, the title found and
+  whether the user set it; a copy of the PNG in the image file's alternate
+  data stream `casso.thumbnail`, with the file's last write time restored
+  after the write. An index of path, size and last write time to hash
+  saves reading a file again when neither has changed.
+- **Rationale**: the owner's choices of 2026-11-13. The hash is the
+  manifest's, of the file's unnamed stream.
+
+## R63. A name for a fingerprint (Story 43, FR-283)
+
+- **Decision**: `given.json` in the cache folder: the Full Send fingerprint
+  of a disk to the name its image has from the user, written when an image
+  with a manifest row is renamed in Casso Explorer.
+
+## R64. One number formatter for all of Casso (FR-303)
+
+- **Decision**: `NumberFormat` in `CassoEmuCore/Core` writes every number
+  on screen with `GetNumberFormatEx` and the user's `LOCALE_STHOUSAND`,
+  `LOCALE_SGROUPING`, `LOCALE_SDECIMAL`, `LOCALE_INEGNUMBER` and
+  `LOCALE_ILZERO`. `InspectorFormat::FormatCount`, Wizardry's and
+  AppleWorks' digit grouping and the CassoLink baud formatter, each of which
+  put a comma every three digits, are removed and call it. Parsing removes
+  a comma or the user's separator first.
+- **Rationale**: the owner, 2026-11-15: one helper, using the regional
+  settings, with no case that overrides them. A quarter track such as 17.25
+  is a track name, not a quantity, and is written with a period.
+- **Alternatives**: `std::format` with `{:L}` and a C++ locale. Not used:
+  a C++ locale's facets aren't the user's Windows settings.

@@ -9,9 +9,9 @@
 //  AppleSingleFile
 //
 //  What an AppleSingle container carries that matters here: the data fork,
-//  the real name, the file dates, and the ProDOS file info entry when the file
-//  has one. The resource fork and the other entries are read past and not
-//  kept.
+//  the resource fork and Finder information, the real name, the file dates,
+//  and the ProDOS file info entry when the file has one. The other entries are
+//  read past and not kept.
 //
 //  A date is seconds from 2000-01-01 00:00 UTC, negative before it. Each is
 //  empty when the file has no dates entry or the entry marks that date
@@ -22,11 +22,14 @@
 struct AppleSingleFile
 {
     std::vector<Byte>  data;
+    std::vector<Byte>  resourceFork;
+    std::vector<Byte>  finderInfo;   // FInfo, then FXInfo; empty for none
+    bool               hasResourceFork = false;
     std::string        realName;
-    bool               hasProDosInfo = false;
-    Word               access        = 0;
-    Word               fileType      = 0;
-    uint32_t           auxType       = 0;
+    bool               hasProDosInfo   = false;
+    Word               access          = 0;
+    Word               fileType        = 0;
+    uint32_t           auxType         = 0;
 
     //  The file has an entry Decode skips, such as a resource fork, so a
     //  rewrite through Encode would drop it.
@@ -62,12 +65,18 @@ class AppleSingleCodec
 {
 public:
     static constexpr uint32_t  kMagic          = 0x00051600;
+    static constexpr uint32_t  kDoubleMagic    = 0x00051607;
     static constexpr uint32_t  kVersion1       = 0x00010000;
     static constexpr uint32_t  kVersion2       = 0x00020000;
 
     static bool     IsAppleSingle (std::span<const Byte> bytes);
+    static bool     IsAppleDouble (std::span<const Byte> bytes);
     static HRESULT  Decode        (std::span<const Byte> bytes, AppleSingleFile & file, std::string & error);
     static void     Encode        (const AppleSingleFile & file, std::vector<Byte> & bytes);
+
+    //  The AppleDouble form: every entry but the data fork, which is the file
+    //  beside it.
+    static void     EncodeDouble  (const AppleSingleFile & file, std::vector<Byte> & bytes);
 
 private:
     static constexpr size_t    kHeaderSize     = 26;      // magic, version, 16 filler bytes, entry count
@@ -76,16 +85,21 @@ private:
     static constexpr size_t    kProDosInfoSize = 8;
     static constexpr size_t    kFileDatesSize  = 16;      // create, modify, backup, access
     static constexpr uint32_t  kDataForkId     = 1;
+    static constexpr uint32_t  kResourceForkId = 2;
     static constexpr uint32_t  kRealNameId     = 3;
     static constexpr uint32_t  kFileDatesId    = 8;
+    static constexpr uint32_t  kFinderInfoId   = 9;
+    static constexpr size_t    kFinderInfoSize = 32;
     static constexpr uint32_t  kProDosInfoId   = 11;
     static constexpr uint32_t  kCassoNameSetId = 0x43534E4D;   // "CSNM", empty: the marker for nameSetByUser
     static constexpr uint32_t  kUnknownDate    = 0x80000000;
 
-    static uint32_t  ReadBigEndian32 (std::span<const Byte> bytes, size_t at);
-    static Word      ReadBigEndian16 (std::span<const Byte> bytes, size_t at);
+    static uint32_t  ReadBigEndian32  (std::span<const Byte> bytes, size_t at);
+    static Word      ReadBigEndian16  (std::span<const Byte> bytes, size_t at);
     static void      WriteBigEndian32 (std::vector<Byte> & bytes, uint32_t value);
     static void      WriteBigEndian16 (std::vector<Byte> & bytes, Word value);
+
+    static void  EncodeEntries (const AppleSingleFile & file, uint32_t magic, bool withData, std::vector<Byte> & bytes);
 
     static std::optional<int32_t>  ReadDate  (std::span<const Byte> bytes, size_t at);
     static void                    WriteDate (std::vector<Byte> & bytes, std::optional<int32_t> date);

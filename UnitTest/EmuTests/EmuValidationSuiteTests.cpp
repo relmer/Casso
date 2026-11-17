@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "GuestSession.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
 #include "KeystrokeInjector.h"
@@ -57,8 +58,6 @@ public:
 
     static constexpr int        kSlot6               = 6;
     static constexpr int        kDrive1              = 0;
-    static constexpr Word       kBootRomEntry        = 0xC600;
-    static constexpr Word       kIntCxRomOff         = 0xC006;
     static constexpr size_t     kSentinelOffset      = 0x10;
     static constexpr Byte       kSentinelByte        = 0x5A;
     static constexpr size_t     kWozTrackBitCount    = 51200;
@@ -178,14 +177,14 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  MountAndJumpToSlot6Boot — Phase 11 helper, replicated here. Mounts
-    //  the supplied bytes through DiskImageStore, points the //e at the
-    //  slot 6 boot ROM, returns the store-owned DiskImage so callers can
-    //  inspect track state.
+    //  MountAndPowerOn: the Phase 11 helper, replicated here. Mounts the
+    //  supplied bytes through DiskImageStore, puts the //e's processor on
+    //  its reset vector so RESET boots slot 6, and returns the store-owned
+    //  DiskImage so callers can inspect track state.
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    DiskImage * MountAndJumpToSlot6Boot (
+    DiskImage * MountAndPowerOn (
         MachineHost  &  machine,
         const string  &  virtualPath,
         DiskFormat       fmt,
@@ -204,8 +203,7 @@ public:
         external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
 
-        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
-        machine.GetCpu()->SetPC (kBootRomEntry);
+        GuestSession::StartFromPowerOn (machine);
 
         return external;
     }
@@ -493,7 +491,7 @@ public:
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "synthetic.dsk", DiskFormat::Dsk, raw);
 
         Assert::IsTrue (external->GetTrackBitCount (0) > 0,
@@ -545,7 +543,7 @@ public:
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "synthetic.po", DiskFormat::Po, raw);
 
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Po,
@@ -602,7 +600,7 @@ public:
         hr = BuildSyntheticWoz (kWozTrackBitCount, kWozTrackByteCount, woz);
         AssertSucceeded (hr, L"BuildSyntheticV2 must succeed");
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "sample.woz", DiskFormat::Woz, woz);
 
         Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Woz,
@@ -642,7 +640,7 @@ public:
         hr = BuildSyntheticWoz (kCpTrackBitCount, kCpTrackByteCount, woz);
         AssertSucceeded (hr, L"CP-style synthetic WOZ build must succeed");
 
-        external = MountAndJumpToSlot6Boot (machine,
+        external = MountAndPowerOn (machine,
             "copyprotected.woz", DiskFormat::Woz, woz);
 
         Assert::AreEqual (kCpTrackBitCount, external->GetTrackBitCount (0),

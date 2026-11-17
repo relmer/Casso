@@ -72,7 +72,12 @@ public:
     ActionsTypes::Outcome  WriteBlocks  (int block, const std::wstring & hostPath);
 
     ActionsTypes::Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, ActionsTypes::UnreadableFn onUnreadable);
-    ActionsTypes::Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, ActionsTypes::UnreadableFn onUnreadable);
+    ActionsTypes::Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, bool forceVerify, ActionsTypes::UnreadableFn onUnreadable,
+                                             std::function<void ()> onRead = nullptr);
+
+    //  A raw capture of a linked drive's disk into a WOZ, for a copy-protected
+    //  disk; `report` is called with the tracks whose reads differ, if any.
+    ActionsTypes::Outcome  CaptureDisk      (const std::string & link, int drive, const std::wstring & imagePath, std::function<void (const std::wstring & report)> report);
     ActionsTypes::Outcome  WriteImageToDisk (const std::wstring & imagePath);
 
     ActionsTypes::Outcome  WriteImageToAppleDrive (const std::string & link, int drive, const std::wstring & imagePath, bool forceVerify = false);
@@ -101,6 +106,10 @@ public:
     ActionsTypes::Outcome  KrunchAppleDrive (const std::string & link, int drive, std::shared_ptr<LinkOperation> * outOperation = nullptr);
 
     ActionsTypes::Outcome  SaveLinkDiskImage (const std::wstring & imagePath, const CassoLinkSettings & settings);
+
+    //  The CassoLink ProDOS disk (CassoLinkProDosDisk), from the user's ProDOS
+    //  disk at usersDisk, for the link's speed.
+    ActionsTypes::Outcome  SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings);
 
     ActionsTypes::Outcome  SaveCassetteBootstrap (const std::wstring & wavPath, const CassoLinkSettings & settings, std::string & outCommand);
 
