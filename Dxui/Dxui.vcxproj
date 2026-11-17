@@ -238,6 +238,7 @@
     <ClCompile Include="Widgets\DxuiTextView.cpp" />
     <ClCompile Include="Widgets\DxuiToolbarEditBox.cpp" />
     <ClCompile Include="Widgets\DxuiImageStrip.cpp" />
+    <ClCompile Include="Widgets\DxuiImageStripPreview.cpp" />
     <ClCompile Include="Widgets\DxuiShimmer.cpp" />
     <ClCompile Include="Widgets\DxuiTabDragModel.cpp" />
     <ClCompile Include="Widgets\DxuiReorderStack.cpp" />
@@ -419,6 +420,8 @@
     <ClInclude Include="Widgets\DxuiToolbarEditBox.h" />
     <ClInclude Include="Widgets\DxuiImageStrip.h" />
     <ClInclude Include="Widgets\IDxuiImageStripSource.h" />
+    <ClInclude Include="Widgets\DxuiImageStripPreview.h" />
+    <ClInclude Include="Widgets\IDxuiImageStripPreviewHost.h" />
     <ClInclude Include="Widgets\DxuiShimmer.h" />
     <ClInclude Include="Widgets\DxuiTabDragModel.h" />
     <ClInclude Include="Widgets\DxuiReorderStack.h" />
