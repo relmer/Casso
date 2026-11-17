@@ -66,7 +66,7 @@ BAIL_PATH       = [(0.0, 3.0, 0.0), (2.0, 3.0, 1.0), (5.0, 6.2, 2.0), (17.5, 0.0
 BAIL_OPEN       = 12.0         # degrees the open bail is swung out, away from the panel
 
 METAL           = (0.760, 0.760, 0.770)
-INSERT          = (0.110, 0.110, 0.115)
+INSERT          = (0.085, 0.085, 0.090)
 SLOT            = (0.030, 0.030, 0.035)
 GOLD            = (0.800, 0.660, 0.300)
 WIRE            = (0.800, 0.800, 0.810)

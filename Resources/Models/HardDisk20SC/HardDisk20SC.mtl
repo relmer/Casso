@@ -230,7 +230,7 @@ d 1
 
 newmtl scsi_upper_insert
 Ka 0 0 0 
-Kd 0.11 0.11 0.115
+Kd 0.085 0.085 0.09
 d 1
 
 newmtl scsi_upper_slot
@@ -255,7 +255,7 @@ d 1
 
 newmtl scsi_lower_insert
 Ka 0 0 0 
-Kd 0.11 0.11 0.115
+Kd 0.085 0.085 0.09
 d 1
 
 newmtl scsi_lower_slot
@@ -320,7 +320,7 @@ d 1
 
 newmtl iec_body
 Ka 0 0 0 
-Kd 0.12 0.12 0.125
+Kd 0.09 0.09 0.095
 d 1
 
 newmtl iec_floor

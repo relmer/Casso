@@ -475,7 +475,7 @@ d 1
 
 newmtl iec_body
 Ka 0 0 0 
-Kd 0.12 0.12 0.125
+Kd 0.09 0.09 0.095
 d 1
 
 newmtl iec_floor

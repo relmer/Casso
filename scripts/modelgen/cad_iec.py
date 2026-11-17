@@ -37,7 +37,7 @@ PIN_LEN         = 12.25
 PIN_BEVEL       = 0.6
 BODY_BACK       = 3.0          # the body's floor, behind the recess
 
-BODY            = (0.120, 0.120, 0.125)
+BODY            = (0.090, 0.090, 0.095)
 FLOOR           = (0.050, 0.050, 0.055)
 PIN             = (0.760, 0.765, 0.780)
 
