@@ -66,6 +66,8 @@ documents.
 - Q: How is a bank-qualified address written in the debugger? → A: `bank/address` in every command mode, for example `2/3000`.
 - Q: Is Business BASIC source-level debugging in scope? → A: Yes (User Story 14).
 - Q: Can the user choose color or a monochrome style on the Monitor ///? → A: Yes, as on the other monitors. Green is the default (FR-021).
+- Q: Is memory beyond 256K offered? → A: No. The Apple /// has 128K or 256K and the Apple /// Plus has 256K.
+- Q: Is the Silentype printer in scope? → A: No.
 
 ## User Scenarios & Testing *(mandatory)*
 
