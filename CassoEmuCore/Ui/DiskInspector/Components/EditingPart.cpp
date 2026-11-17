@@ -1244,8 +1244,9 @@ bool EditingPart::IsLiveEditConfirmed()
     if (!m_isLiveEditConfirmed && m_session.host->GetDriveCount() > 0)
     {
         m_isLiveEditConfirmed = m_host.Confirm (L"Edit a disk in use",
-                                                { L"This disk is in a drive of a running machine. DOS or ProDOS may have parts of it in memory and write them back over your changes, "
-                                                  L"and a wrong byte in a catalog, directory or bitmap can damage its files.",
+                                                { L"This disk is in a drive of a running machine. The program running there can write to the disk at any time, "
+                                                  L"over your changes, and may not expect the disk to change under it. "
+                                                  L"A wrong byte in a catalog, directory or bitmap can damage the disk's files.",
                                                   L"Edit it anyway?" }, L"Edit");
     }
 
