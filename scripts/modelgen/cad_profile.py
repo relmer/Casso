@@ -50,6 +50,7 @@ drive-lamp color; `front_anchor` is the front plane the scene lines devices
 up on.
 """
 
+import math
 import os
 
 import cadquery as cq
@@ -472,19 +473,33 @@ back_add("db25_back", d_shape(37.3, 6.84, DB_R - 0.04, 0.4).translate((DB_CX, DB
 # the panel.
 c14(m, "iec", lambda solid: back(solid.translate((IEC_CX, FACE, IEC_CZ))), earth_up = False, proud = IEC_PROUD)
 
-# The rocker switch: a black bezel, and the rocker with ON at the top and
-# OFF at the bottom printed on it, turned to read upward.
+# The rocker switch: a black bezel, and a flat rocker with ON at the top and
+# OFF at the bottom printed on it, turned to read upward. The rocker pivots
+# about its middle and is switched on: the ON end is flush with the bezel
+# and the OFF end is ROCK_OUT mm proud of it.
 SW_X0, SW_Z0 = BX(SWITCH[0]), BZ(SWITCH[3])
-bezel        = rrect(BX(SWITCH[2]) - SW_X0, BZ(SWITCH[1]) - SW_Z0, 0.8, 4.0).translate((SW_X0, FACE - 2.0, SW_Z0))
+BEZEL_Y      = FACE + 2.0
+bezel        = rrect(BX(SWITCH[2]) - SW_X0, BZ(SWITCH[1]) - SW_Z0, 0.8, 4.0).translate((SW_X0, BEZEL_Y - 4.0, SW_Z0))
 bezel        = bezel.cut(back_box(1740, 430, 1787, 544, FACE - 1.0, 4.0))
 back_add("switch_bezel", bezel, DARK)
 
-ROCK_Y = FACE + 1.6
-rocker = back_box(1742, 432, 1785, 542, FACE - 1.0, ROCK_Y - FACE + 1.0)
-rocker = rocker.cut(back_box(1742, 432, 1785, 456, ROCK_Y - 0.8, 1.0))
-back_add("switch_rocker", rocker, (0.170, 0.170, 0.175))
-back_text("ON", 2.2, 1765, 472, LABEL, "switch_on", ROCK_Y, kind="bold", turn=90)
-back_text("OFF", 2.2, 1765, 516, LABEL, "switch_off", ROCK_Y, kind="bold", turn=90)
+ROCK_OUT   = 3.5
+ROCK_LEN   = BZ(432) - BZ(542)
+ROCK_MID   = (BZ(432) + BZ(542)) * 0.5
+ROCK_Y     = BEZEL_Y + ROCK_OUT * 0.5        # the face at the pivot
+ROCK_TILT  = math.degrees(math.asin(ROCK_OUT / ROCK_LEN))
+
+
+def rocked(solid):
+    # Turn the bottom out and the top in about the pivot's horizontal axis.
+    return solid.rotate(cq.Vector(0, ROCK_Y, ROCK_MID), cq.Vector(1, ROCK_Y, ROCK_MID), ROCK_TILT)
+
+
+back_add("switch_rocker", rocked(back_box(1742, 432, 1785, 542, ROCK_Y - 6.0, 6.0)), (0.170, 0.170, 0.175))
+
+for word, py in (("ON", 472), ("OFF", 516)):
+    g = glyphs(word, 2.2 / 0.716, kind="bold").rotate(cq.Vector(0, 0, 0), cq.Vector(0, 0, 1), 90)
+    back_add(f"switch_{word.lower()}", rocked(flat(g, BX(1765), BZ(py), ROCK_Y + 0.15)), LABEL)
 
 # ------------------------------------------------------------- the anchors
 
