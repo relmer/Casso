@@ -287,6 +287,43 @@ sw_cut  = pbox(*SWITCH, PANEL_Y - 8.0, 9.0)
 panel   = panel.cut(sw_cut)
 cut_case(sw_cut)
 
+# The | and O beside it, engraved MARK_DEEP into the panel and centered on
+# one line.
+MARK_DEEP = 0.8
+MARK_X    = BX(1424)
+panel     = panel.cut(cq.Workplane("XY").box(0.9, MARK_DEEP + 1.0, BZ(662) - BZ(682), centered=(True, False, False))
+                      .translate((MARK_X, PANEL_Y - MARK_DEEP, BZ(682))))
+panel     = panel.cut(cq.Workplane("XZ").circle(2.4).circle(1.8).extrude(-(MARK_DEEP + 1.0))
+                      .translate((MARK_X, PANEL_Y - MARK_DEEP, BZ(732))))
+
+# The ~ over the inlet, centered on its earth pin, engraved the same way.
+panel     = panel.cut(lettering("~", 6.0, IEC_AT[0], BZ(635), PANEL_Y - MARK_DEEP, depth=MARK_DEEP + 1.0))
+
+# The lock loop sits centered in the plain area at the lower left, below
+# the upper vents and left of the lower ones, with a chain of two links
+# engraved over it. The loop and the chain are centered as a group.
+VOID_X0, VOID_X1 = BX(128), BX(155 + 3 * VENT_PITCH)
+VOID_Z0, VOID_Z1 = BZ(790), BZ(645)
+LOOP_W, LOOP_H   = 11.0, 12.0
+CHAIN_H, CHAIN_GAP = 6.0, 2.5
+LOOP_CX          = (VOID_X0 + VOID_X1) * 0.5
+LOOP_Z0          = (VOID_Z0 + VOID_Z1 - (LOOP_H + CHAIN_GAP + CHAIN_H)) * 0.5
+CHAIN_CZ         = LOOP_Z0 + LOOP_H + CHAIN_GAP + CHAIN_H * 0.5
+
+
+def link(cz):
+    # One link of the chain: a rounded ring, its stroke cut into the panel.
+    w, h, t = 3.4, 4.0, 0.6
+    ring    = (cq.Workplane("XZ").rect(w, h).extrude(-(MARK_DEEP + 1.0)).edges("|Y").fillet(w * 0.5 - 0.01)
+               .cut(cq.Workplane("XZ").rect(w - 2 * t, h - 2 * t).extrude(-(MARK_DEEP + 1.0)).edges("|Y")
+                    .fillet(w * 0.5 - t - 0.01)))
+
+    return ring.translate((LOOP_CX, PANEL_Y - MARK_DEEP, cz))
+
+
+for cz in (CHAIN_CZ - 1.25, CHAIN_CZ + 1.25):
+    panel = panel.cut(link(cz))
+
 back_add("back_panel", panel, CASE)
 
 # The two SCSI connectors on the plate, their bails lying open over the
@@ -311,9 +348,19 @@ def scsi_icon(cx, cz):
 for k, py in enumerate((545, 650)):
     back_add(f"scsi_icon{k}", scsi_icon(BX(1012), BZ(py)), CASE)
 
-# The lock loop at the lower left, standing out from the panel.
-loop = pbox(165, 715, 257, 785, PANEL_Y - 0.5, 10.5).edges("|Y").fillet(2.0)
-loop = loop.cut(pbox(185, 730, 237, 772, PANEL_Y - 1.0, 12.0).edges("|Y").fillet(1.0))
+# The lock loop: a tab standing out from the panel, its outer face rounded
+# over at the top and bottom and at the sides, with an opening through it
+# from side to side, between the panel and the outer face, for a lock's
+# cable.
+LOOP_OUT  = 6.5
+LOOP_HOLE = 4.0          # the opening's depth out from the panel
+loop      = (cq.Workplane("XY").box(LOOP_W, LOOP_OUT + 0.5, LOOP_H, centered=(True, False, False))
+             .translate((LOOP_CX, PANEL_Y - 0.5, LOOP_Z0)))
+loop      = loop.edges("|X").edges(">Y").fillet(2.8)
+loop      = loop.edges("|Z").edges(">Y").fillet(1.8)
+loop      = loop.cut(cq.Workplane("XY").box(LOOP_W + 2.0, LOOP_HOLE + 0.6, LOOP_H - 5.0, centered=(True, False, False))
+                     .edges("|X").fillet(0.8)
+                     .translate((LOOP_CX, PANEL_Y - 0.6, LOOP_Z0 + 2.5)))
 back_add("lock_loop", loop, CASE)
 
 # The barcode label, with the serial number in Code 39 and printed under it.
@@ -352,32 +399,36 @@ back_add("scsi_id_selector", pbox(902, 712, 930, 738, PANEL_Y, 0.6), BACK_DARK)
 back_add("scsi_id_window", pbox(909, 718, 923, 731, PANEL_Y + 0.6, 0.1), (0.85, 0.85, 0.85))
 back_add("scsi_id_hole", cq.Workplane("XZ").circle(0.9).extrude(-0.1).translate((BX(912), PANEL_Y + 0.05, BZ(755))), BACK_DARK)
 
-# The IEC inlet's parts, with the ~ over it.
+# The IEC inlet's parts.
 c14(m, "iec", lambda solid: back(solid.translate(IEC_AT)), proud = 0.5)
-back_add("mains_mark", lettering("~", 6.0, BX(1176), BZ(635), PANEL_Y, depth=0.3), CASE)
 
-# The power rocker in its black bezel, switched off: the O end is pressed
-# in and the | end stands out. The | and O are raised on the panel beside it.
+# The power rocker in its black bezel, the bezel's face SW_SINK inside the
+# panel's. The rocker's face is two flat halves meeting at its middle in a
+# gentle hollow, ROCK_ANGLE degrees between them. It is switched off:
+# rocked ROCK_TURN degrees so the O half lies level and set in, and the |
+# half rises from it to the top, which stands out.
+SW_SINK      = 2.0
+SW_FACE      = PANEL_Y - SW_SINK
 SW_X0, SW_Z0 = BX(SWITCH[0]), BZ(SWITCH[3])
-bezel        = (cq.Workplane("XY").box(BX(SWITCH[2]) - SW_X0, 9.0, BZ(SWITCH[1]) - SW_Z0, centered=(False, False, False))
-                .edges("|Y").fillet(0.8).translate((SW_X0, PANEL_Y - 8.0, SW_Z0)))
-bezel        = bezel.cut(pbox(1313, 663, 1384, 734, PANEL_Y - 7.0, 9.0))
+bezel        = (cq.Workplane("XY").box(BX(SWITCH[2]) - SW_X0, 6.0, BZ(SWITCH[1]) - SW_Z0, centered=(False, False, False))
+                .edges("|Y").fillet(0.8).translate((SW_X0, SW_FACE - 6.0, SW_Z0)))
+bezel        = bezel.cut(pbox(1313, 663, 1384, 734, SW_FACE - 5.0, 6.0))
 back_add("switch_bezel", bezel, BACK_DARK)
 
-ROCK_OUT  = 3.0
-ROCK_LEN  = BZ(665) - BZ(730)
-ROCK_MID  = (BZ(665) + BZ(730)) * 0.5
-ROCK_Y    = PANEL_Y + 1.0 + ROCK_OUT * 0.5
-ROCK_TILT = math.degrees(math.asin(ROCK_OUT / ROCK_LEN))
-rocker    = pbox(1315, 665, 1382, 730, ROCK_Y - 6.0, 6.0)
-back_add("switch_rocker",
-         rocker.rotate(cq.Vector(0, ROCK_Y, ROCK_MID), cq.Vector(1, ROCK_Y, ROCK_MID), -ROCK_TILT),
-         ROCKER)
-
-back_add("switch_on_mark", pbox(1426, 662, 1431, 682, PANEL_Y, 0.3), CASE)
-back_add("switch_off_mark",
-         cq.Workplane("XZ").circle(2.4).circle(1.8).extrude(-0.3).translate((BX(1417), PANEL_Y, BZ(732))),
-         CASE)
+ROCK_ANGLE = 150.0
+ROCK_TURN  = (180.0 - ROCK_ANGLE) * 0.5
+ROCK_HALF  = (BZ(665) - BZ(730)) * 0.5
+ROCK_MID   = (BZ(665) + BZ(730)) * 0.5
+ROCK_CREST = ROCK_HALF * math.tan(math.radians(ROCK_TURN))
+ROCK_Y     = SW_FACE + 0.3 - ROCK_HALF * math.sin(math.radians(ROCK_TURN))    # the pivot
+rocker     = (cq.Workplane("YZ")
+              .polyline([(ROCK_Y - 6.0, ROCK_MID - ROCK_HALF), (ROCK_Y, ROCK_MID - ROCK_HALF),
+                         (ROCK_Y - ROCK_CREST, ROCK_MID), (ROCK_Y, ROCK_MID + ROCK_HALF),
+                         (ROCK_Y - 6.0, ROCK_MID + ROCK_HALF)]).close()
+              .extrude(BX(1382) - BX(1315)).translate((BX(1315), 0, 0)))
+rocker     = (rocker.edges("|X").filter(lambda e: abs(e.Center().y - (ROCK_Y - ROCK_CREST)) < 0.01).fillet(4.0)
+              .rotate(cq.Vector(0, ROCK_Y, ROCK_MID), cq.Vector(1, ROCK_Y, ROCK_MID), -ROCK_TURN))
+back_add("switch_rocker", rocker, ROCKER)
 
 # ---------------------------------------------------------------- the bottom
 #

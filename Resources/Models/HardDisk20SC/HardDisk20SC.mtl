@@ -343,11 +343,6 @@ Ka 0 0 0
 Kd 0.76 0.765 0.78
 d 1
 
-newmtl mains_mark
-Ka 0 0 0 
-Kd 0.835 0.815 0.76
-d 1
-
 newmtl switch_bezel
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
@@ -356,16 +351,6 @@ d 1
 newmtl switch_rocker
 Ka 0 0 0 
 Kd 0.17 0.17 0.175
-d 1
-
-newmtl switch_on_mark
-Ka 0 0 0 
-Kd 0.835 0.815 0.76
-d 1
-
-newmtl switch_off_mark
-Ka 0 0 0 
-Kd 0.835 0.815 0.76
 d 1
 
 newmtl case_lid
