@@ -49,11 +49,13 @@ public:
     static bool  IsSync (Byte stored) { return (stored & s_kTopBit) == 0; }
 
     //  The capture module's encoding of `count` stored bytes (Capture.s): the
-    //  revolution's length, low byte first, then each byte as itself but 0,
-    //  which begins a token: 0 for a 0, 1 to 127 for a copy of 3 to 129 bytes
-    //  a revolution earlier, $80 and up for a repeat of 3 to 130 of the next
-    //  byte. Bytes past the last are padding. False when the tokens decode to
-    //  more or fewer bytes, or copy from before the first.
+    //  revolution's length, low byte first; then each byte's value, with its
+    //  top bit set, as itself, and 0 to begin a token: 1 to 127 for a copy of
+    //  3 to 129 values a revolution earlier, $80 and up for a repeat of 3 to
+    //  130 of the next value; then the marks, a bit for each byte, the first
+    //  byte's in the top bit of the first, and 0 to clear the byte's top bit.
+    //  Bytes past the last are padding. False when the tokens decode to more
+    //  or fewer values, copy from before the first, or the marks are short.
     static bool  Decode (std::span<const Byte> encoded, size_t count, std::vector<Byte> & outBytes);
 
 private:
@@ -64,4 +66,5 @@ private:
     static constexpr Byte    s_kCountMask     = 0x7F;
     static constexpr size_t  s_kCopyBase      = 2;
     static constexpr size_t  s_kRepeatBase    = 3;
+    static constexpr size_t  s_kMarksPerByte  = 8;
 };

@@ -140,23 +140,81 @@ public:
     }
 
 
-    //  Each token: bytes as they are, a repeat, and a copy of a revolution
-    //  before, with the padding after the last ignored.
-    TEST_METHOD (Decode_TokensGiveTheBytes)
+    //  Each token: values as they are, a repeat, and a copy of a revolution
+    //  before, then the marks, with the padding after the last ignored. The
+    //  copy's values are the same, and its marks aren't.
+    TEST_METHOD (Decode_TokensGiveTheValues_AndTheMarksTheTopBits)
     {
-        const Byte         encoded[]  = { 3, 0, 0xD5, 0xAA, 0x96, 0x00, 0x81, 0x7F, 0x00, 0x02, 0x00, 0x00 };
-        const Byte         expected[] = { 0xD5, 0xAA, 0x96, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x7F, 0x00 };
+        const Byte         encoded[]  = { 3, 0, 0xD5, 0xAA, 0x96, 0x00, 0x81, 0xFF, 0x00, 0x02, 0xEF, 0x60, 0x00, 0x00 };
+        const Byte         expected[] = { 0xD5, 0xAA, 0x96, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0xFF };
         std::vector<Byte>  bytes;
 
 
 
         Assert::IsTrue  (CaptureStream::Decode (encoded, std::size (expected), bytes));
         Assert::IsTrue  (bytes == std::vector<Byte> (std::begin (expected), std::end (expected)));
-        Assert::IsFalse (CaptureStream::Decode (encoded, std::size (expected) + 3, bytes), L"Too few bytes");
+        Assert::IsFalse (CaptureStream::Decode (encoded, std::size (expected) + 3, bytes), L"Too few values");
 
         const Byte         early[] = { 3, 0, 0x00, 0x01 };
 
-        Assert::IsFalse (CaptureStream::Decode (early, 3, bytes), L"A copy from before the first byte");
+        Assert::IsFalse (CaptureStream::Decode (early, 3, bytes), L"A copy from before the first value");
+
+        const Byte         noMarks[] = { 3, 0, 0xD5, 0xAA };
+
+        Assert::IsFalse (CaptureStream::Decode (noMarks, 2, bytes), L"No marks");
+    }
+
+
+    //  The module fits below the loop's copies, which capbuild writes from
+    //  CAPCODE.
+    TEST_METHOD (TheCaptureModule_FitsBelowItsLoopsCopies)
+    {
+        static constexpr size_t  kRoom = 0x5470 - 0x5000;
+
+        std::vector<Byte>  module;
+
+
+
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        Assert::IsTrue (module.size() <= kRoom, std::format (L"{} bytes", module.size()).c_str());
+    }
+
+
+    //  A whole track read at 8 cycles, whose revolutions mark different
+    //  bytes, as a read that finds each byte at another moment in each
+    //  revolution does: after the first revolution, the values are copies, so
+    //  the encoding is the first revolution, the marks and a few tokens.
+    TEST_METHOD (ARead_WhoseMarksDifferFromTheRevolutionBefore_IsSentAsCopies)
+    {
+        static constexpr size_t  kTokenBytes = 512;
+
+        ProgramRig         rig (LoadFixture());
+        std::vector<Byte>  module;
+        std::vector<Byte>  bytes;
+        CassoLinkStatus    status;
+        CaptureTiming      timing;
+        size_t             length   = 0;
+        size_t             differ   = 0;
+        size_t             limit    = 0;
+
+
+
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (rig.host->CaptureQuarterTrack (1, 0, 0, 0, 100, CassoLinkHost::kNoSync, {}, bytes, status, timing));
+        Assert::IsTrue  (CaptureStream::FindRevolution (bytes, length), L"The read repeats");
+
+        for (size_t at = 0; at + length < bytes.size(); at++)
+        {
+            differ += (CaptureStream::IsSync (bytes[at]) != CaptureStream::IsSync (bytes[at + length])) ? 1 : 0;
+        }
+
+        limit = length + bytes.size() / 8 + kTokenBytes;
+
+        Logger::WriteMessage (std::format ("{} bytes stored, {} sent, revolution {}, {} marks differ from the revolution before\n", bytes.size(), timing.sentBytes, length, differ).c_str());
+
+        Assert::IsTrue (differ > 0, L"The revolutions mark different bytes");
+        Assert::IsTrue (timing.sentBytes <= limit, std::format (L"{} sent, at most {}", timing.sentBytes, limit).c_str());
     }
 
 
