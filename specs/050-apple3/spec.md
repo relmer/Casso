@@ -47,8 +47,14 @@ The emulation is written from Apple's published Apple /// documentation: the
 Apple /// Owner's Guide, the SOS Reference Manual, the SOS Device Driver
 Writer's Guide, the Apple /// Service Reference Manual, the Standard Device
 Drivers Manual, the Apple /// Plus Owner's Guide, and the data sheets of the
-6502, 6522, 6551 and MM58167. No GPL emulator source is read, MAME's included.
-MAME is used only as a running program, for comparing output on the same disk.
+6502, 6522, 6551 and MM58167.
+
+Where those documents are silent or ambiguous, an existing emulator with
+Apple /// support can be consulted to confirm an assumption or settle the
+point (owner decision, 2026-11-17). It is read for the fact only: no code,
+table or comment is copied, and each fact taken this way is listed with its
+source file and that file's license. MAME is also run as a program, for
+comparing output on the same disk.
 
 Where an address or a bit assignment appears in this spec, the documents above are
 the authority. The plan cites the document and page for each one, and a
@@ -68,6 +74,8 @@ documents.
 - Q: Can the user choose color or a monochrome style on the Monitor ///? → A: Yes, as on the other monitors. Green is the default (FR-021).
 - Q: Is memory beyond 256K offered? → A: No. The Apple /// has 128K or 256K and the Apple /// Plus has 256K.
 - Q: Is the Silentype printer in scope? → A: No.
+- Q: Is the Apple /// CPU a new CPU or a change to the existing 6502? → A: A variant of the existing NMOS 6502, as the 65C02 is: one added addressing mode that only the Apple /// variant executes (FR-007).
+- Q: Can existing Apple /// emulators be consulted? → A: Yes, to confirm an assumption or settle a point Apple's documents do not cover. Facts only, no code copied.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -575,7 +583,8 @@ and check that the mark moves.
 
 **CPU**
 
-- **FR-007**: The CPU MUST be Casso's 6502 with the Apple ///'s extended
+- **FR-007**: The CPU MUST be Casso's NMOS 6502, as a variant and not a
+  separate CPU implementation, with the Apple ///'s extended
   addressing: with the zero page moved, the indirect addressing modes MUST
   read the extension byte for the pointer from the extension page and, when
   the byte enables it, MUST access the bank and address the byte and pointer

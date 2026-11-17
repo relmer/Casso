@@ -22,7 +22,7 @@ runs once, in the last phase. New UI strings come from
 ## Phase 1: Setup
 
 - [ ] T001 Collect the Apple documents listed in research.md R1 into `%USERPROFILE%\Downloads\Casso\apple3\docs` and list each file with its source URL in `specs/050-apple3/research.md` under R1
-- [ ] T002 Check every row of `specs/050-apple3/contracts/hardware-map.md` against the documents: fill **Checked** with document and page, correct rows the documents contradict, and add the rows marked as missing (every VIA port line, drive select, character set loading, smooth scroll, color encoding, timing)
+- [ ] T002 Check every row of `specs/050-apple3/contracts/hardware-map.md` against the documents: fill **Checked** with document and page, correct rows the documents contradict, settle rows the documents do not cover by consulting an existing emulator under the limits in research.md R1, and add the rows marked as missing (every VIA port line, drive select, character set loading, smooth scroll, color encoding, timing)
 - [ ] T003 Update `specs/050-apple3/spec.md`, `data-model.md` and `research.md` wherever T002 changed a fact a requirement or decision depended on, and list the changes for the owner
 - [ ] T004 [P] Add `Apple3.rom` (each accepted revision with size and CRC) to the ROM catalog and to `scripts/FetchRoms.ps1 -Fixtures`
 - [ ] T005 [P] Add the Business BASIC, System Utilities, Confidence Test and Apple II Emulation disks to `scripts/FetchStockDisks.ps1` and to `.gitignore`'s existing fetched-disk entries under `Disks/Apple/`
@@ -47,15 +47,15 @@ machine definition and the debugger's address type.
 
 ### Implementation
 
-- [ ] T014 Add the indirect access extension pointer to `CassoCore/Cpu.h` and test it in the indirect fetch functions of `CassoCore/Cpu.cpp`; null on every existing machine
-- [ ] T015 Run `scripts/RunDormannTest.ps1`, `scripts/RunHarteTests.ps1 -SkipGenerate` at full depth and the per-instruction timing comparison from `docs/testing.md` before and after T014; store the numbers in `specs/050-apple3/research.md` under R4
+- [ ] T014 Add the extended zero-page indirect Y mode to `CassoCore/GlobalAddressingModes.h` and its fetch case to `CassoCore/Cpu.cpp`, and implement `Cpu6502Apple3` (derived from `MemoryBusCpu`; the affected opcodes' table entries changed to the new mode; the mapping restored after each instruction in `Step`) in `CassoEmuCore/Machines/Apple3/Cpu6502Apple3.h` and `.cpp`, created by `CassoEmuCore/Core/CpuFactory.cpp`
+- [ ] T015 Run Dormann and full-depth Harte against `Cpu6502Apple3` with extended addressing inactive and against the existing cores (`scripts/RunDormannTest.ps1`, `scripts/RunHarteTests.ps1 -SkipGenerate`), and the per-instruction timing comparison from `docs/testing.md` for the existing cores before and after T014; store the results in `specs/050-apple3/research.md` under R4
 - [ ] T016 Implement `Apple3Mmu` (RAM for 128K and 256K, the three registers, page table mapping through `MemoryBus::SetReadPage` and `SetWritePage`, ROM, I/O, write protection, zero page and stack pages, `IMachineState`) in `CassoEmuCore/Machines/Apple3/Apple3Mmu.h` and `.cpp`
-- [ ] T017 Implement the indirect access extension in `Apple3Mmu` (extension byte lookup, bank pair resolution, the `$8F` case with the RAM under the VIAs) in `CassoEmuCore/Machines/Apple3/Apple3Mmu.cpp`
+- [ ] T017 Implement extended access resolution in `Apple3Mmu` (extension byte lookup, the one-page remap from the bank pair for the rest of the instruction, the `$8F` case with the RAM under the VIAs, the restore, and the resolved `DebugAddress`) in `CassoEmuCore/Machines/Apple3/Apple3Mmu.cpp`
 - [ ] T018 Implement the tick time base (cycle cost by environment bit 7 and the documented slowing; device clocks derived from ticks) in `CassoEmuCore/Machines/Apple3/Apple3TimeBase.h` and `.cpp`, wired through `ICycleSink`
 - [ ] T019 Implement `Apple3SystemVias` (two `Via6522` at `$FFD0-$FFEF`, output change detection, calls into `Apple3Mmu`, input line setters, interrupt wiring) in `CassoEmuCore/Machines/Apple3/Apple3SystemVias.h` and `.cpp`
 - [ ] T020 Add `GetBuiltInDriveCount` and `HasBankedMemory` to `CassoEmuCore/Machines/IMachine.h` with Apple ][ defaults, and implement `Apple3` in `CassoEmuCore/Machines/Apple3/Apple3.h`
 - [ ] T021 Register `Apple3` in `CassoEmuCore/Machines/MachineDefinitions.cpp` and add `Resources/Machines/Apple3/Apple3.json` per `contracts/machine-config.md`, with the new keys parsed and validated in `CassoEmuCore/Core/MachineConfig.h` and its loader, and the version step in `CassoEmuCore/Core/MachineConfigUpgrade.cpp`
-- [ ] T022 Factor an `Apple3MachineBuilder` class out of the build path (`CassoEmuCore/Shell/Apple3MachineBuilder.h` and `.cpp`), called from `CassoEmuCore/Shell/MachineBuilder.cpp` for the Apple /// family: create the MMU, VIAs, CPU with the extension, and the bus wiring
+- [ ] T022 Factor an `Apple3MachineBuilder` class out of the build path (`CassoEmuCore/Shell/Apple3MachineBuilder.h` and `.cpp`), called from `CassoEmuCore/Shell/MachineBuilder.cpp` for the Apple /// family: create the MMU, VIAs, `Cpu6502Apple3` and the bus wiring
 - [ ] T023 Implement `DebugAddress` (address, space, bank; implicit conversion from `Word`; parse and print) in `CassoEmuCore/Debugger/DebugAddress.h` and `.cpp`
 - [ ] T024 Add the `DebugAddress` forms of `TryPeek`, `TryPoke`, `TryPatch` and `GetRegion`, and the current-view resolver, to `CassoEmuCore/Debugger/IDebugTarget.h`, with Apple II implementations in `CassoEmuCore/Debugger/MachineDebugTarget.cpp` and `DebugMemoryView.cpp` that accept the current view only
 
@@ -368,7 +368,9 @@ says otherwise.
 
 ## Notes
 
-- Never read GPL emulator source. Never commit Apple's software.
+- Apple's documents come first. An existing emulator is consulted only for a
+  point the documents do not settle, for the fact and never for code, under
+  the limits in research.md R1. Never commit Apple's software.
 - Ask the owner before launching Casso or MAME on screen; every Casso launch
   has `--title`.
 - A test that cannot find its ROM or disk fails.

@@ -41,7 +41,8 @@ for SOS boots, Dormann and full-depth Harte for the CPU change,
 **Performance Goals**: the Apple /// runs at real speed at 2 MHz with the
 debugger's history on; Apple II emulation speed does not change (SC-011)
 
-**Constraints**: clean-room from Apple's documents; no GPL source read; no
+**Constraints**: written from Apple's documents, with existing emulators consulted only for
+facts the documents lack and no code copied (research R1); no
 Apple software committed; every new UI string approved by the owner; merges
 from `035-debugger` only
 
@@ -58,7 +59,7 @@ dialect in the debugger, three new 3D models and a new desk arrangement
 | I. Code Quality | Pass | New code follows `.github/copilot-instructions.md`: EHM, formatting, verb-first function names, no anonymous namespaces |
 | II. Testing Discipline | Pass | Each device is unit-tested with synthetic inputs; SOS boots are scenario tests; a test that cannot find its disk or ROM fails |
 | III. User Experience Consistency | Pass | The Apple /// uses the existing machine list, settings pages, drive widgets and debugger panes; new strings are in `contracts/ui-strings.md` for approval |
-| IV. Performance Requirements | Pass, with a measurement | The CPU's one new null test is measured per instruction before and after (research R4) |
+| IV. Performance Requirements | Pass | The Apple II CPU cores get no new member and no new test; the new addressing mode is a case only `Cpu6502Apple3` executes (research R4) |
 | V. Simplicity & Maintainability | Pass, see Complexity Tracking | The debugger address migration is large and is justified below |
 | VI. Thin Executable, Testable Core | Pass | Everything is in `CassoEmuCore` and `CassoCore`; `Casso` gets resource lines for the new models and machine files only |
 
@@ -89,13 +90,14 @@ specs/050-apple3/
 
 ```text
 CassoCore/
-├── Cpu.h, Cpu.cpp                      indirect access extension pointer
+├── GlobalAddressingModes.h, Cpu.cpp    one new addressing mode and its fetch case
 └── Disassembler.h, .cpp                machine helper: resolved access, inline calls
 
 CassoEmuCore/
 ├── Machines/Apple3/                    new
 │   ├── Apple3.h, Apple3Plus.h          IMachine
 │   ├── Apple3Mmu                       banks, registers, extended addressing, lockout
+│   ├── Cpu6502Apple3                   the NMOS 6502 with the extended indirect mode
 │   ├── Apple3SystemVias                two Via6522 and their wiring
 │   ├── Apple3Keyboard, Apple3Sound, Apple3AnalogInputs, Apple3Slots
 │   ├── Apple3DiskController            four drives over the Disk II engine
@@ -149,7 +151,7 @@ checked.
    `contracts/hardware-map.md` and the dimension tables of
    `contracts/desk-models.md`. Rows that the documents contradict are
    corrected, and the spec is updated where a requirement depended on them.
-2. **Memory and CPU**: `Apple3Mmu`, the indirect access extension, Dormann,
+2. **Memory and CPU**: `Apple3Mmu`, `Cpu6502Apple3`, Dormann,
    Harte at full depth and the per-instruction timing comparison.
 3. **To the diagnostics screen**: the VIAs, the character set, the text
    modes, the keyboard, the machine definition and the builder. Check: the
@@ -191,5 +193,5 @@ checked.
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |---|---|---|
 | A new address type across the debugger | A 16-bit address cannot identify a location on a banked machine (FR-036 to FR-047) | With a bank field added only to breakpoints, the trace, heat map, symbols and panes report the wrong bank's bytes |
-| A hook in the shared CPU core | Extended addressing changes where an indirect access goes | A separate CPU class for the Apple /// would duplicate the 6502 and its validation |
+| A CPU variant class, `Cpu6502Apple3` | Extended addressing changes where an indirect access goes, and with an instruction-level core the bus cannot do that alone | A wholly separate CPU would duplicate the 6502 and its validation; a hook in the shared core would add a member and a test to every machine |
 | A tick-based time base for one machine | The CPU changes speed inside a frame and the devices do not | With the clock speed setting changed on a switch, devices count the wrong elapsed time |

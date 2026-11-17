@@ -29,8 +29,23 @@ Apple II Emulation manual; the ProFile Owner's Manual; data sheets for the
 6502A, 6522, 6551 and MM58167A. The apple2.org.za Documentation Project
 mirror, already used for the ROM and SOS disks, and archive.org have them.
 
-**Alternative not taken**: Reading MAME's `apple3` driver for the same facts. It is GPL and
-the clean-room rule forbids it.
+**Existing emulators** (owner decision, 2026-11-17): where Apple's documents
+are silent or ambiguous, an existing emulator with Apple /// support can be
+consulted to confirm an assumption or settle the point. Limits:
+
+- Apple's documents come first. An emulator is consulted for a row only after
+  the documents have been searched for it.
+- Read for the fact, never for code. No code, table or comment is copied, and
+  Casso's implementation is written from the fact alone.
+- Check the license header of each file before reading it and list the file,
+  its license and the fact taken in the row's **Checked** column as
+  `emulator: <project>, <file>`.
+- A fact taken from an emulator is confirmed by behavior where it can be: the
+  ROM's diagnostics, the Confidence Test disk, or a SOS boot.
+
+Candidates: MAME's `apple3` driver, and any other open-source Apple ///
+emulator found during T001. MAME is also run as a program for the frame
+comparisons.
 
 ## R2. Machine family
 
@@ -79,17 +94,51 @@ an absent bank, and what `$A000-$BFFF` and `$0000-$1FFF` map to.
 
 ## R4. Extended addressing in the CPU
 
-**Decision**: `Cpu` gets one pointer member, an indirect access extension,
-null on every Apple II machine. `FetchOperandZeroPageIndirectY` (and the
-other indirect modes if the documents include them) tests it; when present it
-returns the host memory cell the access goes to. `Apple3Mmu` implements it:
-it reads the extension byte, and for `$80-$8E` resolves the pointer against
-the bank pair, for `$8F` against bank 0 with the RAM under the VIA registers
-visible, and otherwise the access is an ordinary one.
+**Background**: the Apple ///'s processor is a stock NMOS 6502. Extended
+addressing is done by logic outside the chip, which recognizes the indirect
+opcodes as they are fetched and changes the memory mapping for the data
+access of that instruction. So the Apple /// does not have a new CPU; it has
+a 6502 with machine-specific address decoding around it.
 
-**Rationale**: The cost on an Apple II is one predictable null test in the
-fetch of the indirect modes only. A virtual fetch would cost every
-instruction.
+**Decision**: a `Cpu6502Apple3` class in `CassoEmuCore/Machines/Apple3/`,
+derived from `MemoryBusCpu` as `Cpu65C02` is. It is the existing NMOS 6502
+with two differences:
+
+1. Its constructor changes the addressing mode of the affected opcodes in its
+   instruction table to a new `GlobalAddressingMode` value, extended
+   zero-page indirect Y. The shared fetch switch in `Cpu.cpp` gets one case
+   for it. This is how `Cpu65C02` adds its modes, and `Microcode.h` already
+   documents that a mode added to the shared enum costs the other cores
+   nothing at run time.
+2. The new mode's fetch function computes the effective address as the
+   ordinary mode does, then calls `Apple3Mmu` to resolve it against the
+   extension byte. For `$80-$8E` the MMU maps the one page the access touches
+   from the bank pair for the rest of the instruction; for `$8F` from bank 0
+   with the RAM under the VIA registers visible; otherwise it does nothing.
+   `Cpu6502Apple3::Step` restores the mapping after the instruction. The
+   instruction's read or write then goes through the normal bus path, so
+   watch pages, data breakpoints, the heat map and the trace observe it.
+
+`CpuFactory` creates it for the CPU type the Apple /// machines return.
+`Cpu.h` and the Apple II cores get no new member and no new test.
+
+**Rationale**: it follows the hardware (a remap for one access, outside the
+chip) and the code base's precedent for a CPU variant. The Apple II cores
+never execute the new case, so their speed and their Dormann and Harte
+results cannot change. The 6502 itself is not duplicated.
+
+**Alternatives not taken**:
+
+- A null-tested extension pointer in the shared indirect fetch (this plan's
+  first draft). It works, but it adds a member and a test to every machine's
+  CPU for one machine's benefit.
+- A wholly separate Apple /// CPU class. It would duplicate the 6502 and its
+  validation.
+- Doing it all in the bus, as the hardware does, by watching opcode fetches.
+  Casso's core runs an instruction at a time, not a cycle at a time, so the
+  bus cannot identify the data access of an indirect instruction by itself.
+- Modifying the 65C02. The Apple /// is NMOS; its undocumented opcodes and
+  its `JMP (indirect)` page-wrap behavior are the NMOS ones.
 
 **To verify**: the extension byte's exact address (in the article it is the
 pointer's page XOR `$0C`; which of the pointer's two bytes is unverified),
@@ -97,8 +146,9 @@ whether `(zp,X)` and the 65C02's `(zp)` are affected, behavior when bank
 `n+1` is past the installed memory, and whether the extension byte fetch
 costs a cycle.
 
-**Validation**: Dormann and full-depth Harte before and after, and the
-per-instruction timing run from the testing docs, to prove SC-011.
+**Validation**: Dormann and full-depth Harte run against `Cpu6502Apple3`
+with extended addressing inactive, which must match the plain 6502 exactly,
+and against the existing cores to prove they did not change (SC-011, SC-012).
 
 ## R5. Clock rates
 

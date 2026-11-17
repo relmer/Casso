@@ -54,9 +54,11 @@ for the debugger: system bank, bank `n`, ROM, I/O, write-protected RAM.
 - With the lockout set, the mapping is the 48K Apple ][+ layout and writes
   to the three registers do not change it.
 
-**Indirect access extension**: given a zero page pointer offset and the
-pointer's value plus Y, returns the memory cell and its `DebugAddress`, or
-"ordinary access".
+**Extended access resolution**, called by `Cpu6502Apple3`: given a zero
+page pointer offset and the effective address, maps the page the access
+touches from the bank the extension byte selects until the instruction ends,
+and returns the resolved `DebugAddress`; or does nothing for an ordinary
+access.
 
 All of it is saved and loaded through `IMachineState`, and the RAM is
 registered with the bus for history's page diffs.
