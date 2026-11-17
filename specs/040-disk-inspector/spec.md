@@ -179,6 +179,16 @@ comparing two quarter tracks of one disk.
 ### Session 2026-11-14
 
 - Q: Does the inspector repair a damaged file system, or only report it? -> A: It repairs the bookkeeping, now rather than later, since the inspector hasn't shipped yet (owner, 2026-11-14). The checks and repairs follow the published Repair_DSK series by Michael Heilemann (norsewanderer.com, parts 4 and 5) and Beneath Apple DOS's "Emergency Repairs": a repaired copy beside the image, never the image itself; the bitmap made from the files; the catalog relinked first; nothing done to a file's data or chain; and no repair of a disk without a standard file system. Full Send runs the same check on each image (033, FR-290).
+
+
+### Session 2026-11-16
+
+- Q: How many inspector windows does Casso have, and which disk is in each? -> A: One per disk, as Casso Explorer has one per image (owner, 2026-11-16: "DI should actually be associated with a single disk/image only. To inspect another drive, open another instance of DI on that drive"). "Inspect disk 1..." brings forward the window on drive 1's disk, or opens one; a window opened on an empty drive is bound to the first disk put in it. The drive selector and Disk > "Drive 1"/"Drive 2" are removed.
+- Q: What happens to a window and its unsaved changes when its disk is ejected or replaced? -> A: The window has the same disk afterward, read from its image file the way Casso Explorer reads it, and the unsaved changes remain; Save writes the file. Putting the file in a drive again makes the window live again, and the changes follow their sectors. No confirmation comes up on an eject, an insert or a machine change. The only one is on quitting Casso, once for each window with unsaved changes (owner: only for windows Casso opened, not Explorer's).
+- Q: What is in the title? -> A: The image's path, then "(mounted in <machine> drive <n>)" while the disk is in a drive. Unsaved changes are a red dot after the path in place of a *. A title too long for the caption is cut in the middle, never at the end, and the dot always has its room (owner).
+- Q: Should editing a disk in a running machine be allowed? -> A: Yes, after a confirmation, once per window (owner: "the guest is a live, running machine and could be doing anything to the disk"): "Edit a disk in use" / "This disk is in a drive of a running machine. The program running there can write to the disk at any time, over your changes, and may not expect the disk to change under it. A wrong byte in a catalog, directory or bitmap can damage the disk's files." / "Edit it anyway?" with Edit and Cancel. It replaces the note before the first save.
+- Q: What does a paste with characters other than hex digits do? -> A: Nothing is pasted. Values are separated by spaces, tabs or line breaks, are pairs of hex digits, and may start with $ or 0x; a prefixed value may be one digit. With a malformed prefix, any other character, or an odd digit count, nothing is pasted, and the note is "Paste rejected because the clipboard contains non-hex characters" or "Paste rejected because a hex value on the clipboard has an odd number of digits" (owner, approved).
+- Q: What do Undo save and Redo save restore, and when does a guest write block them? -> A: Undo save puts the disk back and makes the saved changes unsaved again; Redo save writes them again (owner: "the state previous to the save was a bunch of unsaved data, so that must be restored during an undo as well"). After a guest write, both put back only the bytes the save changed, over the disk as it is now, and are blocked only when the guest wrote one of those bytes. While the guest writes a sector with unsaved changes, its other bytes are updated to the guest's values at once; a byte both changed is a conflict, marked in the error color, and Save lists it and writes the user's value.
 ## Scope
 
 **Image formats.** Every 5.25" disk image format Casso mounts in a Disk II
@@ -200,7 +210,7 @@ small preview in Explorer's preview pane:
    menu, it opens the inspector window for that file. With exactly two disk
    images selected, "Compare disk images" on the same menu opens one window
    comparing them. Here an applied edit is saved to the file.
-3. **Casso**: the same window, attached to drive 1 or drive 2. Here it also
+3. **Casso**: the same window, one per disk, opened on drive 1 or drive 2. Here it also
    follows the head, shows the platter turning under the emulated head, and
    analyzes again the tracks the drive writes. An applied edit reaches the
    disk in the drive and its file, and the disk can be compared with itself as
@@ -1761,10 +1771,14 @@ was planted.
   MUST accept each value in the base it is shown in, and gaps (FR-017) MUST
   be given in nibbles.
 - **FR-007**: The window's title bar MUST read "Disk inspector - " followed,
-  when the disk is write-protected, by a lock (FR-065), then the file name,
-  or "Disk inspector" alone with no disk. Under the title bar MUST be the
-  menu bar (FR-158), and under it one toolbar row with, from the left, in
-  Casso the drive selector (FR-061), then the mode selector (FR-023) and in
+  when the disk is write-protected, by a lock (FR-065), then the image's
+  path, and in Casso, while the disk is in a drive, "(mounted in <machine>
+  drive <n>)", or "Disk inspector" alone with no disk. While changes are
+  unsaved, a dot in the error color MUST follow the path. A title too long
+  for the title bar MUST be cut in the middle with an ellipsis, first before
+  the dot and then after it, and the dot MUST always be drawn. Under the
+  title bar MUST be the menu bar (FR-158), and under it one toolbar row with,
+  from the left, the mode selector (FR-023) and in
   Timing mode the timing range; and at the right end icon buttons, each with
   a tooltip with its name and shortcut: in Casso "Follow head" (FR-067),
   then "Go to" and "Find". While comparing, a comparison bar MUST lie under
@@ -2385,17 +2399,19 @@ was planted.
   salvage item. The same items MUST appear on each drive's right-click menu in
   the drive band, the fullscreen strip and the desk scene. They MUST be
   available with or without a disk inserted, drive 2's only while drive 2 is
-  attached, and neither when the machine has no Disk II in slot 6. The
-  inspector MUST show only slot 6's drives; on a machine that also has a
-  Disk II in slot 5, the drive selector's tooltip MUST show "Slot 6 drives
-  only". The drive selector MUST be a segmented control (FR-159) of "Drive 1"
-  and "Drive 2", with Disk > "Drive 1" (Ctrl+1) and "Drive 2" (Ctrl+2).
-- **FR-061**: Casso MUST have at most one inspector window. Opening it for a
-  drive MUST switch it to that drive and bring it to the front. Its "Drive
-  1" and "Drive 2" selector MUST switch drives, which resets the zoom and the
-  selection and shows the other drive's disk. With no disk in the drive, the
-  platter MUST show "No disk in drive 1" (or 2) over a dashed outline of the
-  disk and hub, with no chips, an empty strip and empty text panes.
+  attached, and neither when the machine has no Disk II in slot 6. Only slot
+  6's drives MUST be inspected.
+- **FR-061**: Casso MUST have one inspector window per disk. Opening it for a
+  drive MUST bring forward the window on that drive's disk, or open a new
+  one. A window opened on an empty drive MUST display "No disk in drive 1"
+  (or 2) over a dashed outline of the disk and hub, with no chips, an empty
+  strip and empty text panes, until a disk is put in that drive, and MUST
+  then be bound to that disk. A window's disk MUST NOT change. When the disk
+  is ejected or replaced, it MUST be read from its image file, as in Explorer
+  (FR-001), with no head and no guest writes, and its unsaved changes MUST
+  remain; Save MUST then write the file as in Explorer (FR-105). When the
+  file is put in a drive again, the window MUST display that drive's disk and
+  the unsaved changes MUST follow their sectors (FR-108).
 - **FR-062**: Casso MUST make available to the inspector, for each drive, once
   per frame and as one consistent record: the head's quarter track, the track
   record under it, the angle as a fraction of one turn, whether the motor is
@@ -2539,9 +2555,9 @@ was planted.
   differ by color alone; each MUST also differ in symbol or pattern.
 - **FR-080**: Each host MUST save, separately from the other, the window's
   placement and size, the mode and the timing range; the selected view is
-  not saved (FR-160). Casso MUST also save Follow head, the last drive and whether
-  the window was open, and at launch MUST reopen the window on the last drive
-  if it was open at exit. "Show deleted files", which overlays are on, the
+  not saved (FR-160). Casso MUST also save Follow head and the drives whose
+  disks had a window open at exit, and at launch MUST reopen a window on each
+  of those drives. "Show deleted files", which overlays are on, the
   tilt of the tilted view (FR-151) and whether the walkthrough has been seen
   (FR-153) MUST be saved with the rest of this state. The zoom, the pan, the selection and
   the decode settings MUST last only while the window shows the same disk.
@@ -2794,7 +2810,11 @@ was planted.
   the high bit that byte had. Pasting MUST accept hex text in the hex column
   and text in the text column, MUST overwrite from the start of the selection
   for as many bytes as were pasted, MUST stop at offset $FF, and MUST show how
-  many bytes did not fit. Changes MUST be pending edits, which change
+  many bytes did not fit. Hex text MUST be values separated by spaces, tabs or
+  line breaks, each pairs of hex digits, optionally after "$" or "0x"; a
+  value after a prefix MAY be one digit. With any other character, a prefix
+  with no digits, or an odd count of digits, nothing MUST be pasted, and a
+  note MUST indicate the reason. Changes MUST be pending edits, which change
   nothing until applied and can span several sectors and tracks. Changed bytes
   MUST be marked by color and symbol in the hex and text columns, each sector
   with pending edits MUST be marked in the sector row, the Tracks tab and the
@@ -2875,8 +2895,9 @@ was planted.
   afterward. While an apply waits, pending edits MUST NOT change, and a guest
   write to a track the apply changes MUST end the wait, check the pending
   edits on that track again (FR-108) and show the confirmation again. Before
-  the first apply on a disk, the window MUST show a note that DOS or ProDOS
-  may have the sector in memory and write its own copy back over the edit.
+  the first edit in a window whose disk is in a drive, a confirmation, "Edit
+  a disk in use", MUST come first, since the program running in the machine
+  can write to the disk at any time and may rely on its contents.
 - **FR-104**: In Casso, applying MUST save the disk to its file at once,
   through Casso's usual save and its checks and durably (FR-116), before the
   machine runs again, and MUST show the result: saved; saved to a preserved
@@ -2935,18 +2956,25 @@ was planted.
   with the reason shown, once the guest has written to a track record the undo
   restored, or in Explorer once the file has changed outside the window. Both
   MUST be unavailable while any cause in FR-102 applies, with each cause shown.
-  A new apply MUST clear the redo history. The history MUST last until the
-  disk is ejected, replaced or reloaded, a state restore changes it (FR-069),
-  or the window closes.
-- **FR-108**: Pending edits MUST last while the window shows the disk.
-  Switching drives, closing the window, quitting Casso or Explorer, a machine
-  change that removes or replaces the disk, "Compare disk images" on an image
-  whose window has pending edits (FR-117), and a change of decode settings
-  after which a sector with pending edits no longer decodes MUST need the
-  user's confirmation, which shows that those pending edits will be discarded.
-  A machine change that keeps the same disk in the drive MUST keep the pending
-  edits. When the user ejects or replaces the disk outside this window, the
-  pending edits MUST be discarded, and the window MUST show that they were.
+  A new apply MUST clear the redo history. "Undo applied edit" MUST make the
+  edits it undoes pending again, and "Redo applied edit" MUST apply them again;
+  either MUST be unavailable while other edits are pending. After a guest
+  write, each MUST change only the bytes the apply changed, over the disk as
+  it is now, and MUST be unavailable only when the guest wrote one of those
+  bytes. The history MUST last until the disk is reloaded, a state restore
+  changes it (FR-069), the window reads the disk from somewhere else
+  (FR-061), or the window closes.
+- **FR-108**: Pending edits MUST last while the disk is in the window, which
+  in Casso includes after the disk is ejected (FR-061). Closing the window,
+  quitting Casso (once for each window with pending edits) or Explorer,
+  "Compare disk images" on an image whose window has pending edits (FR-117),
+  and a change of decode settings MUST have a confirmation first, with Save,
+  Discard and Cancel; with Save, the edits are saved before the action. An
+  eject, an insert and a machine change MUST NOT have a confirmation. When
+  the guest writes a sector with pending edits, the bytes the user did not
+  change MUST be updated to the guest's values at once, and a byte both
+  changed MUST retain the user's value, be marked as a conflict, and be
+  listed when saving.
   When the guest writes to a track record that has pending edits, when an
   undo or redo changes it, or when the disk is reloaded because its file
   changed (in Casso by Casso, in Explorer by the window, FR-074) or a state

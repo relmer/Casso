@@ -641,6 +641,15 @@ hardware.
 - Q: How does a user find a file or a structure on a volume of tens of thousands of files in block mode? -> A: The grid of blocks stays on the left, always the whole volume, with the selection's blocks highlighted. The right side is a drill-down with a breadcrumb, Back and Forward: Card (only for a card), Volume (where block mode opens), Files, File and Block (owner, 2026-11-15). Files is a tree and a list as in Casso Explorer, with a search over the whole volume.
 - Q: Can a user get from the card, volume, directory or file level to the blocks that store each item there? -> A: Yes. Each item stored in blocks steps to its block when clicked: a partition to its first block, the volume header to block 2, the bitmap to its blocks, a directory to its blocks, and a file to its key block (owner, 2026-11-15).
 
+
+### Session 2026-11-16
+
+- Q: What is block mode's window called? -> A: Block inspector (owner, 2026-11-16: "let's call it that"). Its title is "Block inspector - " and the image's name, with a dot in the error color after the name while edits are unsaved, as the disk inspector has (040's FR-007).
+- Q: Does Ctrl+V paste in the block inspector? -> A: Yes, as the disk inspector pastes (040's FR-097): hex values, optionally after $ or 0x, in the hex column, or text in the text column, over the block from the caret, as one undoable action. A paste with anything else in it pastes nothing.
+- Q: What does Save do when the image changed outside Casso Explorer since it was read? -> A: It saves to a preserved copy beside the image, with the edits written into a copy of the image as it is now, and the image is not written; the window then reads the changed image again (owner: "use DI's behavior to save alongside in BI"). A card partition is saved in place.
+- Q: What do Undo save and Redo save do in the block inspector? -> A: As in the disk inspector (040's FR-107): Undo save writes the blocks back and makes the saved edits unsaved again; Redo save writes them again. Neither has a confirmation.
+- Q: Is there a confirmation before the block inspector edits an image a running machine has mounted? -> A: The same as in the disk inspector, only for a disk in a drive of a running machine (owner: "BI would deal with mounted block devices exactly as DI does"). Casso Explorer has no machine and Casso has no block inspector, so no confirmation comes up today.
+
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
 
@@ -3863,7 +3872,12 @@ as they arrive.
 - **FR-250**: The disk inspector MUST open block images, 800K disks, hard
   drive images and card partitions in a block mode: block number, hex and
   text panes of one 512-byte block, and editing written as the sector
-  editor writes.
+  editor writes. Its window MUST be titled "Block inspector - " and the
+  image's name, with a dot in the error color after the name while edits
+  are unsaved (040's FR-007). Ctrl+V MUST paste as the sector editor pastes
+  (040's FR-097). Undo save MUST make the saved edits unsaved again. When the
+  image changed outside the window since it was read, Save MUST write the
+  edits to a preserved copy beside it and MUST NOT write the image.
 - **FR-251**: Block mode MUST annotate ProDOS, SOS, Pascal and HFS blocks by
   their structure, and 2MG and Disk Copy 4.2 headers, from the formats'
   published documentation.
