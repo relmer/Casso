@@ -6,10 +6,13 @@
 #include "Core/DxuiKeyMap.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/IDxuiHostClient.h"
+#include "Window/IDxuiDialogHost.h"
+#include "Window/DxuiDialogMode.h"
+#include "Window/DxuiInputFilters.h"
+#include "Window/DxuiPointerTracker.h"
 #include "Core/DxuiEvents.h"
 
 
-class DxuiButton;
 class DxuiTextInput;
 
 
@@ -48,7 +51,7 @@ class DxuiTextInput;
 ////////////////////////////////////////////////////////////////////////////////
 
 
-class DxuiWindow : public DxuiPanel, private IDxuiHostClient
+class DxuiWindow : public DxuiPanel, private IDxuiHostClient, private IDxuiDialogHost
 {
 public:
     struct CreateParams
@@ -173,7 +176,7 @@ public:
     //  button without a custom SetOnClick auto-closes via EndDialog(its
     //  command id), so plain OK / Cancel / Yes / No need no wiring.
     //
-    int      ShowModalDialog  (int defaultButtonId);
+    int      ShowModalDialog  (int defaultButtonId) { return m_dialog.ShowModal (defaultButtonId); }
 
     //
     //  Modeless show. Applies the same dialog behaviors as
@@ -190,8 +193,8 @@ public:
     //  call did not block). Use for a live overlay whose backdrop must
     //  keep animating (e.g. Settings over the running emulator).
     //
-    void  ShowModelessDialog (int defaultButtonId, bool activate = true);
-    void  EndDialog          (int result);
+    void  ShowModelessDialog (int defaultButtonId, bool activate = true) { m_dialog.ShowModeless (defaultButtonId, activate); }
+    void  EndDialog          (int result)                                { m_dialog.End (result); }
 
     //
     //  Window-level translucency for a composited window (CreateParams::
@@ -209,7 +212,7 @@ public:
     //  (Tab/Shift+Tab, Enter, Escape) for this window, leaving normal text
     //  input and all other messages to the standard dispatch path.
     //
-    bool     ProcessDialogMessage (const MSG & msg);
+    bool     ProcessDialogMessage (const MSG & msg) { return m_dialog.ProcessMessage (msg); }
 
     //
     //  Modeless close callback: invoked by EndDialog() with the result
@@ -217,7 +220,7 @@ public:
     //  content code). The modal path returns the code from
     //  ShowModalDialog instead, so this fires only in the modeless case.
     //
-    void     SetOnDialogEnd (std::function<void (int)> fn) { m_onDialogEnd = std::move (fn); }
+    void     SetOnDialogEnd (std::function<void (int)> fn) { m_dialog.SetOnEnd (std::move (fn)); }
 
     //
     //  Keep-alive callback fired on every OS modal move / size loop tick
@@ -242,15 +245,10 @@ public:
     //  none, and of WM_CANCELMODE, with the message. One filter per key;
     //  adding a key again replaces its filter. Any handler may be empty.
     //
-    struct InputFilter
-    {
-        std::function<bool (const DxuiMouseEvent & ev)>  onMouse;
-        std::function<bool (WPARAM vk)>                  onKeyDown;
-        std::function<void (UINT message)>               onMouseLost;
-    };
+    using InputFilter = DxuiInputFilters::Filter;
 
-    void     AddInputFilter     (const void * key, InputFilter filter);
-    void     RemoveInputFilter  (const void * key);
+    void     AddInputFilter     (const void * key, InputFilter filter) { m_inputFilters.Add (key, std::move (filter)); }
+    void     RemoveInputFilter  (const void * key)                     { m_inputFilters.Remove (key); }
 
     //
     //  Control to focus when the dialog is first shown (e.g. a picker's
@@ -258,7 +256,7 @@ public:
     //  nothing, so Enter hits the default button. Call before
     //  ShowModalDialog / ShowModelessDialog.
     //
-    void     SetInitialFocus (IDxuiControl * ctl) { m_initialFocus = ctl; }
+    void     SetInitialFocus (IDxuiControl * ctl) { m_dialog.SetInitialFocus (ctl); }
 
     //  Moves the dialog's keyboard focus to `ctl` right now (both sides get
     //  their OnFocusChanged), so a host can implement click-to-focus: the
@@ -365,9 +363,9 @@ protected:
     //  the window, is sent a move to kNowherePx and a
     //  DxuiMouseEventKind::Leave event, so a hover can't outlast the pointer,
     //  however the window routes its input.
-    static constexpr int  kNowherePx = -32768;
+    static constexpr int  kNowherePx = DxuiPointerTracker::kNowherePx;
 
-    void  UpdatePointerPath (POINT clientPx, bool leftWindow);
+    void  UpdatePointerPath (POINT clientPx, bool leftWindow) { if (m_pointer.Update (clientPx, leftWindow)) { Invalidate(); } }
 
     //
     //  THE TAB ORDER IS A SNAPSHOT of the visible, enabled subtree, taken when
@@ -527,9 +525,9 @@ protected:
     //  blink; a poller (e.g. download progress) sets a faster interval.
     //  Set while a dialog is showing, it takes effect at once.
     //
-    static constexpr UINT  kDefaultDialogTickMs = 250;
+    static constexpr UINT  kDefaultDialogTickMs = DxuiDialogMode::kDefaultTickMs;
 
-    void  SetDialogTickIntervalMs (UINT ms);
+    void  SetDialogTickIntervalMs (UINT ms) { m_dialog.SetTickIntervalMs (ms); }
 
     //
     //  Tear down the backend (HWND + swap chain). Safe to call from a
@@ -583,32 +581,27 @@ private:
                                       float              wheelDelta,
                                       bool               wheelHorizontal = false);
     DxuiMessageResult  DispatchKey       (DxuiKeyEventKind kind, WPARAM code);
-    bool               RunMouseFilters   (const DxuiMouseEvent & ev);
-    bool               RunKeyFilters     (WPARAM vk);
-    void               RunMouseLost      (UINT message);
-    DxuiMessageResult  DispatchDialogKey (WPARAM vk);
     void               ResizeToMaxSize   (bool growOnly);
 
-    static bool        ShowScrollbarMenuIn (IDxuiControl & control, HWND hwnd, POINT clientPx);
+    static void        SetTextInputsWindowActive (IDxuiControl * node, bool active);
 
-    static void  CollectPathAt     (const IDxuiControl & control, POINT clientPx, std::vector<IDxuiControl *> & outPath);
-    static bool  IsInTree          (const IDxuiControl & root, const IDxuiControl * control);
-    static void  SendPointerAway   (IDxuiControl & control);
-
-    //
-    //  Dialog support: enter dialog mode (wire buttons, attach/rebuild
-    //  focus, seed initial focus), route a key to the focused control,
-    //  and find / fire a button by command id. The button walks are
-    //  recursive over the panel tree so buttons may live in a nested
-    //  button-row panel.
-    //
-    void                 BeginDialogMode           (int defaultButtonId, bool modal);
-    void                 WireDialogButtons         ();
-    bool                 RouteKeyToFocused         (WPARAM vk, bool shift);
-    bool                 IsTriggerButtonById       (int commandId);
-    static DxuiButton  * FindButtonById            (IDxuiControl * node, int commandId);
-    static void          ForEachButton             (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn);
-    static void          SetTextInputsWindowActive (IDxuiControl * node, bool active);
+    //  IDxuiDialogHost: the window and its hooks, for the dialog mode.
+    bool                IsDialogHostCreated    () const override                 { return m_source != nullptr; }
+    HWND                GetDialogHwnd          () const override                 { return GetHwnd(); }
+    HWND                GetDialogOwnerHwnd     () const override                 { return m_ownerHwnd; }
+    DxuiPanel         & GetDialogRoot          () override                       { return *this; }
+    DxuiFocusManager  & GetDialogFocus         () override                       { return m_focus; }
+    const IDxuiTheme  * GetDialogTheme         () const override                 { return m_theme; }
+    void                SetDialogTimer         (UINT ms) override;
+    void                KillDialogTimer        () override;
+    void                ShowDialogWindow       (bool activate) override          { Show (activate); }
+    void                HideDialogWindow       () override                       { Hide(); }
+    void                InvalidateDialog       () override                       { Invalidate(); }
+    bool                HasDialogOverlay       () const override                 { return HasModalOverlay(); }
+    void                SendDialogOverlayKey   (WPARAM vk) override              { (void) OnOverlayKey (vk); }
+    void                NotifyDialogShowing    () override                       { OnDialogShowing(); }
+    bool                TrySwitchDialogTab     (bool backward) override          { return OnDialogTabSwitch (backward); }
+    void                NotifyDialogKeyHandled (IDxuiControl * focused) override { OnDialogKeyHandled (focused); }
 
 
     std::unique_ptr<DxuiHwndSource>    m_source;
@@ -620,19 +613,12 @@ private:
     bool                               m_inSizeMove      = false;
     HWND                               m_ownerHwnd       = nullptr;
     const IDxuiTheme                 * m_theme           = nullptr;
-    IDxuiControl                     * m_initialFocus    = nullptr;
     const DxuiKeyMap                 * m_keyMap          = nullptr;
     std::optional<DxuiKeyStroke>       m_keyPrefix;                // the first key of a two-key chord, while it waits
     DxuiFocusManager                   m_focus;
-    bool                               m_dialogActive    = false;   // dialog behaviors on (modal or modeless)
-    bool                               m_modal           = false;   // blocking-modal (owner disabled + private loop)
-    bool                               m_modalDone       = false;
     bool                               m_wheelCtrl       = false;   // Ctrl, by the flags of the wheel message being dispatched
-    int                                m_modalResult     = 0;
-    int                                m_defaultButtonId = 0;
-    UINT                               m_dialogTickMs    = kDefaultDialogTickMs;   // dialog repaint / tick cadence (caret-blink default)
-    std::function<void (int)>        m_onDialogEnd;            // modeless close callback
-    std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
-    std::vector<std::pair<const void *, InputFilter>>  m_inputFilters;
-    std::vector<IDxuiControl *>                        m_pointerPath;   // the controls under the pointer, outermost first
+    std::function<void ()>             m_onModalLoopTick;           // OS size/move-loop keep-alive tick
+    DxuiDialogMode                     m_dialog          { *this };
+    DxuiInputFilters                   m_inputFilters;
+    DxuiPointerTracker                 m_pointer         { *this };
 };

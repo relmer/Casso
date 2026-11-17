@@ -302,6 +302,9 @@
     <ClCompile Include="Window\DxuiPropertyPage.cpp" />
     <ClCompile Include="Window\DxuiPropertySheet.cpp" />
     <ClCompile Include="Window\DxuiWindow.cpp" />
+    <ClCompile Include="Window\DxuiDialogMode.cpp" />
+    <ClCompile Include="Window\DxuiInputFilters.cpp" />
+    <ClCompile Include="Window\DxuiPointerTracker.cpp" />
     <ClCompile Include="Window\DxuiPopupHost.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -491,6 +494,10 @@
     <ClInclude Include="Window\DxuiButtonRow.h" />
     <ClInclude Include="Window\DxuiPropertySheet.h" />
     <ClInclude Include="Window\DxuiWindow.h" />
+    <ClInclude Include="Window\DxuiDialogMode.h" />
+    <ClInclude Include="Window\IDxuiDialogHost.h" />
+    <ClInclude Include="Window\DxuiInputFilters.h" />
+    <ClInclude Include="Window\DxuiPointerTracker.h" />
     <ClInclude Include="Window\IDxuiHostClient.h" />
     <ClInclude Include="Window\DxuiPopupHost.h" />
     <ClInclude Include="Window\DxuiWinRt.h" />

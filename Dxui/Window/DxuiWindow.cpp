@@ -4,11 +4,11 @@
 
 #include "Core/DxuiEvents.h"
 #include "Core/DxuiWindowFrame.h"
-#include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiInfoTip.h"
 #include "Widgets/DxuiPopupMenu.h"
 #include "Widgets/DxuiContextMenu.h"
 #include "Widgets/DxuiTextInput.h"
+#include "Window/DxuiDialogMode.h"
 
 
 static constexpr UINT_PTR  s_kDialogTimerId   = 1;      // dialog caret-blink / poll timer id
@@ -344,239 +344,6 @@ void DxuiWindow::Hide()
 void DxuiWindow::Close()
 {
     DestroyBackend();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShowModalDialog
-//
-//  Modal show: emphasize + auto-wire the command buttons, attach the
-//  focus manager, disable the owner, and run a private message pump
-//  until EndDialog() resolves a result (a command button click, Enter
-//  on the default button, or Escape / close-box on IDCANCEL). Re-enables
-//  the owner and returns the result. Mirrors Win32 DialogBox / EndDialog.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiWindow::ShowModalDialog (int defaultButtonId)
-{
-    HRESULT  hr            = S_OK;
-    MSG      msg           = {};
-    BOOL     gotMessage    = FALSE;
-    bool     ownerDisabled = false;
-    int      result        = IDCANCEL;
-
-
-
-    CBRA (m_source != nullptr);
-
-    BeginDialogMode (defaultButtonId, true);
-
-    m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
-
-    if (m_ownerHwnd != nullptr)
-    {
-        EnableWindow (m_ownerHwnd, FALSE);
-        ownerDisabled = true;
-    }
-
-    OnDialogShowing();
-    Show();
-
-    while (!m_modalDone)
-    {
-        gotMessage = GetMessageW (&msg, nullptr, 0, 0);
-
-        if (gotMessage == 0)
-        {
-            PostQuitMessage ((int) msg.wParam);
-            break;
-        }
-
-        CWRA (gotMessage != -1);
-
-        if (!ProcessDialogMessage (msg))
-        {
-            TranslateMessage (&msg);
-            DispatchMessageW  (&msg);
-        }
-    }
-
-    result = m_modalResult;
-
-Error:
-    if (ownerDisabled)
-    {
-        EnableWindow (m_ownerHwnd, TRUE);
-
-        //  When the active dialog is hidden, Windows chooses the next active
-        //  window, which after an Alt+Tab away and back can be another
-        //  program's. The owner is activated first, as DialogBox does.
-        if (GetActiveWindow() == GetHwnd())
-        {
-            SetActiveWindow (m_ownerHwnd);
-        }
-    }
-
-    //  The owner is activated before the dialog hides; otherwise Windows
-    //  activates whatever window was active before the dialog, which can be
-    //  another program the user switched to and back from.
-    if (m_ownerHwnd != nullptr && GetForegroundWindow() == GetHwnd())
-    {
-        SetForegroundWindow (m_ownerHwnd);
-    }
-
-    if (m_source != nullptr)
-    {
-        m_source->KillTimer (s_kDialogTimerId);
-    }
-
-    m_dialogActive = false;
-    m_modal        = false;
-    Hide();
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShowModelessDialog
-//
-//  Modeless show: applies the same dialog behaviors as ShowModalDialog
-//  (button wiring, focus-manager Tab traversal, default-button emphasis,
-//  periodic tick) but does NOT disable the owner and does NOT run a
-//  private loop -- it shows the window and returns immediately. The
-//  host's own message loop drives it; dialog-key nav flows through this
-//  window's WndProc (all controls live in this one HWND, so no
-//  IsDialogMessage pump is needed). Close via EndDialog(), which hides
-//  the window and fires the SetOnDialogEnd callback. Mirrors Win32
-//  CreateDialog.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::ShowModelessDialog (int defaultButtonId, bool activate)
-{
-    if (m_source != nullptr)
-    {
-        BeginDialogMode (defaultButtonId, false);
-
-        m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
-
-        OnDialogShowing();
-        Show (activate);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ProcessDialogMessage
-//
-//  Dxui's IsDialogMessage analog for modeless dialogs. Intercepts only
-//  the dialog-navigation keys for this window (Tab/Shift+Tab, Enter,
-//  Escape) before TranslateMessage can manufacture a WM_CHAR or the
-//  normal dispatch path can bypass the focus manager. Everything else
-//  falls through to the host's standard Translate/Dispatch path.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiWindow::ProcessDialogMessage (const MSG & msg)
-{
-    bool  isHandled = false;
-    HWND  hwnd      = GetHwnd();
-
-
-
-    // Only intercept the dialog-navigation keys while a dialog is active and
-    // the message targets THIS window; otherwise fall through to normal
-    // dispatch. A message aimed at a sibling window must not be swallowed.
-    bool  isOurs = m_dialogActive && hwnd != nullptr && msg.hwnd == hwnd;
-
-    if (isOurs)
-    {
-        switch (msg.message)
-        {
-            case WM_KEYDOWN:
-            case WM_SYSKEYDOWN:
-                if (msg.wParam == VK_TAB || msg.wParam == VK_RETURN || msg.wParam == VK_ESCAPE)
-                {
-                    isHandled = (DispatchDialogKey (msg.wParam) == DxuiMessageResult::Handled);
-                }
-
-                break;
-        }
-    }
-
-    return isHandled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EndDialog
-//
-//  Resolves an open dialog. Modal: records the result once and flags the
-//  private pump to exit (posts a no-op so a blocked GetMessage re-checks
-//  the done flag) -- ShowModalDialog returns the result. Modeless: no
-//  loop to break, so it deactivates the dialog behaviors, hides the
-//  window, and fires the SetOnDialogEnd callback with the result. A
-//  command button, Enter / Escape, or content code calls this. Mirrors
-//  Win32 EndDialog.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::EndDialog (int result)
-{
-    HWND  hwnd = GetHwnd();
-
-
-
-    if (m_dialogActive)
-    {
-        if (m_modal)
-        {
-            if (!m_modalDone)
-            {
-                m_modalResult = result;
-                m_modalDone   = true;
-
-                if (hwnd != nullptr)
-                {
-                    PostMessageW (hwnd, WM_NULL, 0, 0);
-                }
-            }
-        }
-        else
-        {
-            m_dialogActive = false;
-
-            if (m_source != nullptr)
-            {
-                m_source->KillTimer (s_kDialogTimerId);
-            }
-
-            Hide();
-
-            if (m_onDialogEnd)
-            {
-                m_onDialogEnd (result);
-            }
-        }
-    }
 }
 
 
@@ -1030,7 +797,7 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
     // overlay's own return is discarded on purpose: handled or not, the key
     // stops here. A filter that keeps a key, such as Escape canceling a drag
     // under way, comes before all of it.
-    if (RunKeyFilters (vk))
+    if (m_inputFilters.RunKey (vk))
     {
         result = DxuiMessageResult::Handled;
     }
@@ -1048,8 +815,8 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
     }
     else
     {
-        result = m_dialogActive ? DispatchDialogKey (vk)
-                                : DispatchKey (DxuiKeyEventKind::Down, vk);
+        result = m_dialog.IsActive() ? m_dialog.DispatchKey (vk)
+                                     : DispatchKey (DxuiKeyEventKind::Down, vk);
     }
 
     return result;
@@ -1096,7 +863,7 @@ DxuiMessageResult DxuiWindow::OnChar (WPARAM ch, LPARAM lParam)
         (void) OnOverlayChar ((wchar_t) ch);
         result = DxuiMessageResult::Handled;
     }
-    else if (m_dialogActive)
+    else if (m_dialog.IsActive())
     {
         // Dialog text entry goes to the focused control only -- there is no
         // fanout, so an unfocused dialog reports NotHandled.
@@ -1174,7 +941,7 @@ DxuiMessageResult DxuiWindow::OnKillFocus()
 
 DxuiMessageResult DxuiWindow::OnCancelMode()
 {
-    RunMouseLost (WM_CANCELMODE);
+    m_inputFilters.RunMouseLost (WM_CANCELMODE);
     return DxuiMessageResult::NotHandled;
 }
 
@@ -1194,7 +961,7 @@ DxuiMessageResult DxuiWindow::OnCaptureChanged (HWND newCapture)
 {
     if (newCapture != GetHwnd())
     {
-        RunMouseLost (WM_CAPTURECHANGED);
+        m_inputFilters.RunMouseLost (WM_CAPTURECHANGED);
     }
 
     return DxuiMessageResult::NotHandled;
@@ -1553,7 +1320,7 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
 
 
 
-    if (m_dialogActive && timerId == s_kDialogTimerId)
+    if (m_dialog.IsActive() && timerId == s_kDialogTimerId)
     {
         OnDialogTick();
         Invalidate();
@@ -1677,24 +1444,45 @@ void DxuiWindow::OnExitSizeMove()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetDialogTickIntervalMs
+//  SetDialogTimer
 //
-//  Re-arming a timer under the same id replaces it, so a dialog already
-//  showing moves to the new cadence at once.
+//  The timer behind a dialog's tick. Re-arming a timer under the same id
+//  replaces it, so a dialog already showing moves to a new cadence at once.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::SetDialogTickIntervalMs (UINT ms)
+void DxuiWindow::SetDialogTimer (UINT ms)
 {
     HRESULT  hr = S_OK;
 
 
 
-    m_dialogTickMs = ms;
-
-    if (m_dialogActive && m_source != nullptr)
+    if (m_source != nullptr)
     {
-        hr = m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
+        hr = m_source->SetTimer (s_kDialogTimerId, ms);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KillDialogTimer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::KillDialogTimer()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_source != nullptr)
+    {
+        hr = m_source->KillTimer (s_kDialogTimerId);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
@@ -1804,11 +1592,11 @@ DxuiMessageResult DxuiWindow::OnDropFiles (HDROP drop)
 
 DxuiMessageResult DxuiWindow::OnClose()
 {
-    if (m_dialogActive)
+    if (m_dialog.IsActive())
     {
-        if (!IsTriggerButtonById (IDCANCEL))
+        if (!m_dialog.TryTriggerButton (IDCANCEL))
         {
-            EndDialog (IDCANCEL);
+            m_dialog.End (IDCANCEL);
         }
     }
     else
@@ -1887,7 +1675,7 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
             DxuiInfoTip::CloseOpenOutside (ev.positionDip);
         }
 
-        if (kind == DxuiMouseEventKind::Down && m_dialogActive && m_focus.FocusAtPoint (POINT { x, y }))
+        if (kind == DxuiMouseEventKind::Down && m_dialog.IsActive() && m_focus.FocusAtPoint (POINT { x, y }))
         {
             Invalidate();
         }
@@ -1906,11 +1694,11 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
 
         //  A right-press on a scrollbar opens the bar's own menu, as Windows'
         //  bars do, before the control or the window has the press.
-        if (kind == DxuiMouseEventKind::Down && button == DxuiMouseButton::Right && ShowScrollbarMenuIn (*this, GetHwnd(), POINT { x, y }))
+        if (kind == DxuiMouseEventKind::Down && button == DxuiMouseButton::Right && DxuiPointerTracker::ShowScrollbarMenuIn (*this, GetHwnd(), POINT { x, y }))
         {
             result = DxuiMessageResult::Handled;
         }
-        else if ((kind == DxuiMouseEventKind::Down && button == DxuiMouseButton::Right && TryShowTextBoxMenu (ev.positionDip)) || RunMouseFilters (ev) || OnMouse (ev))
+        else if ((kind == DxuiMouseEventKind::Down && button == DxuiMouseButton::Right && TryShowTextBoxMenu (ev.positionDip)) || m_inputFilters.RunMouse (ev) || OnMouse (ev))
         {
             // Repaint immediately when a control consumes the event so drags
             // (slider thumbs, scrubbing) and hover states track the cursor every
@@ -1923,7 +1711,7 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
 
         //  A context menu open in a dialog is ticked from here; otherwise only
         //  an application window ticks one.
-        if (m_dialogActive && m_source != nullptr && m_source->GetContextMenu().IsVisible())
+        if (m_dialog.IsActive() && m_source != nullptr && m_source->GetContextMenu().IsVisible())
         {
             HRESULT  hr = m_source->SetTimer (s_kMenuTimerId, s_kMenuTickMs);
 
@@ -1932,296 +1720,6 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
     }
 
     return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AddInputFilter
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::AddInputFilter (const void * key, InputFilter filter)
-{
-    RemoveInputFilter (key);
-    m_inputFilters.emplace_back (key, std::move (filter));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RemoveInputFilter
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::RemoveInputFilter (const void * key)
-{
-    std::erase_if (m_inputFilters, [key] (const auto & filter) { return filter.first == key; });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RunMouseFilters
-//
-//  True once a filter keeps the event; the rest do not see it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiWindow::RunMouseFilters (const DxuiMouseEvent & ev)
-{
-    for (const auto & filter : m_inputFilters)
-    {
-        if (filter.second.onMouse && filter.second.onMouse (ev))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RunKeyFilters
-//
-//  True once a filter keeps the key; the rest do not see it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiWindow::RunKeyFilters (WPARAM vk)
-{
-    for (const auto & filter : m_inputFilters)
-    {
-        if (filter.second.onKeyDown && filter.second.onKeyDown (vk))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdatePointerPath
-//
-//  The controls under the pointer found again, and each control on the old
-//  path that isn't on the new one sent the pointer away. A control removed
-//  from the tree since is skipped, as it may be gone.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::UpdatePointerPath (POINT clientPx, bool leftWindow)
-{
-    std::vector<IDxuiControl *>  path;
-    bool                         sent = false;
-
-
-
-    if (!leftWindow)
-    {
-        CollectPathAt (*this, clientPx, path);
-    }
-
-    for (IDxuiControl * control : m_pointerPath)
-    {
-        bool  stays = std::find (path.begin(), path.end(), control) != path.end();
-
-        if (!stays && IsInTree (*this, control))
-        {
-            SendPointerAway (*control);
-            sent = true;
-        }
-    }
-
-    m_pointerPath = std::move (path);
-
-    if (sent)
-    {
-        Invalidate();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RunMouseLost
-//
-//  Every filter hears it. A copy is walked, since a handler that ends a drag
-//  may remove filters.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::RunMouseLost (UINT message)
-{
-    std::vector<std::pair<const void *, InputFilter>>  filters = m_inputFilters;
-
-
-
-    for (const auto & filter : filters)
-    {
-        if (filter.second.onMouseLost)
-        {
-            filter.second.onMouseLost (message);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CollectPathAt
-//
-//  The topmost visible child under the point, then its topmost child there,
-//  and so on down. The last-added child is drawn on top, as in OnMouse. A
-//  container that clips its children at the point isn't searched further.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::CollectPathAt (const IDxuiControl & control, POINT clientPx, std::vector<IDxuiControl *> & outPath)
-{
-    const IDxuiControl  * node  = &control;
-    bool                  found = true;
-
-
-
-    while (found && !node->IsPointClipped (clientPx))
-    {
-        size_t  count = node->GetChildCount();
-
-        found = false;
-
-        for (size_t i = count; !found && i > 0; i--)
-        {
-            IDxuiControl  * child = node->GetChild (i - 1);
-            RECT            rc    = (child != nullptr) ? child->GetBounds() : RECT {};
-
-            if (child != nullptr && child->IsVisible() && PtInRect (&rc, clientPx))
-            {
-                outPath.push_back (child);
-                node  = child;
-                found = true;
-            }
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsInTree
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiWindow::IsInTree (const IDxuiControl & root, const IDxuiControl * control)
-{
-    size_t  count = root.GetChildCount();
-    bool    found = false;
-
-
-
-    for (size_t i = 0; !found && i < count; i++)
-    {
-        const IDxuiControl  * child = root.GetChild (i);
-
-        found = child != nullptr && (child == control || IsInTree (*child, control));
-    }
-
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SendPointerAway
-//
-//  A move to a point outside every control, which clears a hover set from
-//  the pointer's position, then a DxuiMouseEventKind::Leave event, which
-//  clears one set otherwise.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::SendPointerAway (IDxuiControl & control)
-{
-    DxuiMouseEvent  ev;
-    bool            took = false;
-
-
-
-    ev.kind        = DxuiMouseEventKind::Move;
-    ev.button      = DxuiMouseButton::None;
-    ev.positionDip = { kNowherePx, kNowherePx };
-    took           = control.OnMouse (ev);
-    IGNORE_RETURN_VALUE (took, false);
-
-    ev.kind = DxuiMouseEventKind::Leave;
-    took    = control.OnMouse (ev);
-    IGNORE_RETURN_VALUE (took, false);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShowScrollbarMenuIn
-//
-//  The control itself first, then the visible child under the point, down
-//  to the control whose bar it is on. A container that clips its children
-//  there, as a scrolled page does, is not searched below.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiWindow::ShowScrollbarMenuIn (IDxuiControl & control, HWND hwnd, POINT clientPx)
-{
-    bool    shown = control.ShowScrollbarMenu (hwnd, clientPx);
-    size_t  count = control.GetChildCount();
-
-
-
-    for (size_t i = 0; !shown && !control.IsPointClipped (clientPx) && i < count; i++)
-    {
-        IDxuiControl  * child = control.GetChild (i);
-        RECT            rc    = (child != nullptr) ? child->GetBounds() : RECT {};
-
-        if (child != nullptr && child->IsVisible() && PtInRect (&rc, clientPx))
-        {
-            shown = ShowScrollbarMenuIn (*child, hwnd, clientPx);
-        }
-    }
-
-    return shown;
 }
 
 
@@ -2334,113 +1832,12 @@ bool DxuiWindow::RouteMappedKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DispatchDialogKey
-//
-//  Dialog key routing (modal or modeless): Tab / Shift+Tab move focus;
-//  Escape fires the IDCANCEL button (or resolves IDCANCEL directly);
-//  Enter lets the focused control claim it first, else fires the default
-//  button; any other key routes to the focused control.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
-{
-    DxuiMessageResult  result    = DxuiMessageResult::NotHandled;
-    bool               shift     = DxuiInputState::IsKeyDown (VK_SHIFT);
-    bool               isHandled = false;
-
-
-
-    // A modal overlay owns every key, Tab / Enter / Escape included. The
-    // modeless pre-translate path (ProcessDialogMessage) arrives here without
-    // passing through OnKeyDown, so the check has to live here too, or Tab
-    // walks the focus of the page hidden behind the overlay.
-    if (HasModalOverlay())
-    {
-        (void) OnOverlayKey (vk);
-        return DxuiMessageResult::Handled;
-    }
-
-    switch (vk)
-    {
-        case VK_TAB:
-            // Ctrl(+Shift)+Tab cycles a tabbed window's pages (e.g.
-            // DxuiPropertySheet); plain Tab traverses focus within the page.
-            if (DxuiInputState::IsKeyDown (VK_CONTROL) && OnDialogTabSwitch (shift))
-            {
-                isHandled = true;
-                break;
-            }
-
-            // The focused control receives Tab FIRST, as it already receives
-            // Enter. A control with internal stops, such as a hex view's two
-            // columns, returns true while it has another stop and false after
-            // the last, and the focus manager then moves focus to the next
-            // control.
-            isHandled = RouteKeyToFocused (vk, shift)
-                     || m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
-            break;
-
-        case VK_ESCAPE:
-            // The focused control gets Escape first, so an open drop-down
-            // closes rather than the dialog, and then an open info tip does.
-            // Escape cancels the dialog only when neither of those consumes it.
-            if (RouteKeyToFocused (vk, shift) || DxuiInfoTip::CloseOpen())
-            {
-                isHandled = true;
-                Invalidate();
-                break;
-            }
-
-            if (!IsTriggerButtonById (IDCANCEL))
-            {
-                EndDialog (IDCANCEL);
-            }
-
-            isHandled = true;
-            break;
-
-        case VK_RETURN:
-            isHandled = RouteKeyToFocused (vk, shift) || IsTriggerButtonById (m_defaultButtonId);
-            break;
-
-        default:
-            // An arrow key is the keyboard in use, so a control focused by a
-            // click shows its focus rectangle from here on.
-            if ((vk == VK_LEFT || vk == VK_RIGHT || vk == VK_UP || vk == VK_DOWN) && m_focus.GetFocusedControl() != nullptr)
-            {
-                m_focus.GetFocusedControl()->SetFocusCueVisible (true);
-            }
-
-            isHandled = RouteKeyToFocused (vk, shift);
-            break;
-    }
-
-    // Any consumed dialog key (Tab focus move, arrow-key slider nudge, etc.)
-    // repaints so the change shows at once rather than on the next tick.
-    if (isHandled)
-    {
-        OnDialogKeyHandled (m_focus.GetFocusedControl());
-        Invalidate();
-    }
-
-    result = isHandled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  RefreshFocusOrder
 //
 //  Re-walks the visible tree for Tab traversal, and rescues focus if it was
 //  left on something that has just become invisible.
 //
-//  BeginDialogMode builds the order once, which is right for a dialog whose
+//  DxuiDialogMode::Begin builds the order once, which is right for a dialog whose
 //  contents never change shape. It is wrong the moment part of the tree is
 //  shown or hidden afterwards: the hidden controls stay in the order and the
 //  newly shown ones are absent from it, so Tab reaches what cannot be seen
@@ -2466,229 +1863,4 @@ void DxuiWindow::RefreshFocusOrder (IDxuiControl * fallback)
     {
         m_focus.SetFocused (fallback);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BeginDialogMode
-//
-//  Shared setup for modal and modeless dialogs: remember the default
-//  button, clear any stale modal result, wire the buttons, and attach /
-//  rebuild the focus manager so Tab traversal, Enter, and Escape all
-//  run through the dialog contract.
-//
-//  The order it builds is a SNAPSHOT; a subclass that later shows or hides
-//  part of the tree calls RefreshFocusOrder above.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::BeginDialogMode (int defaultButtonId, bool modal)
-{
-    m_defaultButtonId = defaultButtonId;
-    m_modalResult     = IDCANCEL;
-    m_modalDone       = false;
-    m_modal           = modal;
-    m_dialogActive    = true;
-
-    WireDialogButtons();
-
-    m_focus.SetTheme (m_theme);
-    m_focus.Attach   (this);
-    m_focus.Rebuild();
-
-    if (m_initialFocus != nullptr)
-    {
-        m_focus.SetFocused (m_initialFocus);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  WireDialogButtons
-//
-//  Walks the panel tree: emphasizes the default-id command button and,
-//  for every command button (nonzero id) lacking a custom click handler,
-//  installs a click that calls EndDialog(its id). Buttons that must stay
-//  open (Download, Apply) carry their own SetOnClick and are left alone.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::WireDialogButtons()
-{
-    int  defaultId = m_defaultButtonId;
-
-
-
-    ForEachButton (this, [this, defaultId] (DxuiButton * button)
-    {
-        int  id = button->GetCommandId();
-
-
-        button->SetEmphasis (id != 0 && id == defaultId);
-
-        if (id != 0 && !button->HasClickHandler())
-        {
-            button->SetOnClick ([this, id] () { EndDialog (id); });
-        }
-    });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RouteKeyToFocused
-//
-//  Forwards a key-down to the focused control as a DxuiKeyEvent, with the
-//  Ctrl and Alt keys as they are now. Returns true iff a control has focus
-//  and consumed the key.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiWindow::RouteKeyToFocused (WPARAM vk, bool shift)
-{
-    HRESULT         hr        = S_OK;
-    bool            isHandled = false;
-    IDxuiControl *  focused   = m_focus.GetFocusedControl();
-    DxuiKeyEvent    ke        = MakeKeyEvent (DxuiKeyEventKind::Down, vk);
-
-
-
-    BAIL_OUT_IF (focused == nullptr, S_OK);
-
-    ke.shift  = shift;
-    isHandled = focused->OnKey (ke);
-
-Error:
-    return isHandled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsTriggerButtonById
-//
-//  Finds and clicks the enabled / visible button with the given command
-//  id. Returns true iff such a button exists and was fired.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiWindow::IsTriggerButtonById (int commandId)
-{
-    bool          fired  = false;
-    DxuiButton *  button = FindButtonById (this, commandId);
-
-
-
-    if (button != nullptr && button->IsEnabled() && button->IsVisible())
-    {
-        button->Click();
-        fired = true;
-    }
-
-    return fired;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FindButtonById
-//
-//  Recursively returns the first button in the tree whose command id
-//  matches, or null. A zero commandId never matches (0 = not a command
-//  button).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiButton * DxuiWindow::FindButtonById (IDxuiControl * node, int commandId)
-{
-    HRESULT       hr    = S_OK;
-    DxuiButton *  found = nullptr;
-    DxuiButton *  self  = nullptr;
-    size_t        count = 0;
-    size_t        i     = 0;
-
-
-
-    BAIL_OUT_IF (node == nullptr || commandId == 0, S_OK);
-
-    self = dynamic_cast<DxuiButton *> (node);
-
-    if (self != nullptr && self->GetCommandId() == commandId)
-    {
-        found = self;
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    count = node->GetChildCount();
-
-    for (i = 0; i < count; ++i)
-    {
-        found = FindButtonById (node->GetChild (i), commandId);
-
-        if (found != nullptr)
-        {
-            break;
-        }
-    }
-
-Error:
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ForEachButton
-//
-//  Recursively invokes fn for every DxuiButton in the tree rooted at node.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiWindow::ForEachButton (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn)
-{
-    HRESULT       hr    = S_OK;
-    DxuiButton *  self  = nullptr;
-    size_t        count = 0;
-    size_t        i     = 0;
-
-
-
-    BAIL_OUT_IF (node == nullptr, S_OK);
-
-    self = dynamic_cast<DxuiButton *> (node);
-
-    if (self != nullptr)
-    {
-        fn (self);
-    }
-
-    count = node->GetChildCount();
-
-    for (i = 0; i < count; ++i)
-    {
-        ForEachButton (node->GetChild (i), fn);
-    }
-
-Error:
-    return;
 }
