@@ -705,7 +705,7 @@ HRESULT DiskManager::Mount (int slot, int drive, const std::wstring & path)
 
     command = (drive == 0) ? IDM_DISK_INSERT1 : IDM_DISK_INSERT2;
 
-    BAIL_OUT_IF (m_confirmDiscard && !m_confirmDiscard (drive, L"Inserting another disk"), S_OK);
+    BAIL_OUT_IF (m_confirmDiscard && !m_confirmDiscard (drive, L"Inserting another disk", [this, slot, drive, path] () { (void) Mount (slot, drive, path); }), S_OK);
 
     m_cpuManager.PostCommand (command, fs::path (path).string());
 
@@ -753,7 +753,7 @@ void DiskManager::Eject (int slot, int drive)
         else if (drive == 1) { command = IDM_DISK_EJECT2; }
     }
 
-    if (command != 0 && m_confirmDiscard && !m_confirmDiscard (drive, L"Ejecting the disk"))
+    if (command != 0 && m_confirmDiscard && !m_confirmDiscard (drive, L"Ejecting the disk", [this, slot, drive] () { Eject (slot, drive); }))
     {
         command = 0;
     }

@@ -162,15 +162,17 @@ public:
 
     //  Called on the UI thread with the drive and the action before an
     //  insert or eject; false cancels it. The shell confirms there that
-    //  pending disk inspector edits may be discarded.
-    void     SetDiscardConfirmCallback (std::function<bool (int, const std::wstring &)> cb)
+    //  pending disk inspector edits may be discarded. The function is
+    //  called after a Save in that confirmation, to run the insert or eject
+    //  again.
+    void     SetDiscardConfirmCallback (std::function<bool (int, const std::wstring &, std::function<void()>)> cb)
     {
         m_confirmDiscard = std::move (cb);
     }
 
     std::function<void (int, const std::string &, HRESULT, const MountDiagnosis &)>  m_onMountCompleted;
     std::function<void (const std::wstring &)>                                        m_onWriteProtectChanged;
-    std::function<bool (int, const std::wstring &)>                                   m_confirmDiscard;
+    std::function<bool (int, const std::wstring &, std::function<void()>)>            m_confirmDiscard;
 
     // Probes whether the host file at `path` can be written back. Sets
     // outReadOnly when the file carries the read-only attribute and

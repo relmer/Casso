@@ -163,9 +163,9 @@ void ShellDisks::InstallMountReporting()
         });
 
     m_diskManager->SetDiscardConfirmCallback (
-        [this] (int drive, const std::wstring & action)
+        [this] (int drive, const std::wstring & action, std::function<void()> afterSave)
         {
-            return m_shell.ConfirmInspectorDiscard (drive, action, {});
+            return m_shell.ConfirmInspectorDiscard (drive, action, std::move (afterSave));
         });
 }
 
