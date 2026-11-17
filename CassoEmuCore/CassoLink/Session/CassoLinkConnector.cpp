@@ -732,6 +732,7 @@ HRESULT CassoLinkConnector::OpenStream (DWORD baud, std::stop_token stop)
         m_session.m_host->SetProgramChip (CassoLinkSession::GetLinkChip (m_session.m_settings.transport));
         m_session.m_host->SetFaultProgram (LinkFaults::IsEnabled());
         m_session.m_host->SetClients (m_session.m_settings.transport == LinkTransport::AdtProServer ? CassoLinkHost::Clients::AdtPro : CassoLinkHost::Clients::Casso);
+        m_session.m_host->SetVirtualDrives (&m_session.m_virtualDrives);
         m_openBaud = baud;
         m_prompted = false;
 

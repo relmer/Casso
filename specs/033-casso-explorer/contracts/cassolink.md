@@ -397,7 +397,7 @@ request table when its module is built, and this table is updated then.
 | Write blocks ($F2) | host | as Read blocks; the client requests each block with an Acknowledge of its index, the host replies with its Block data, a NAK requests it again; the client writes each, reads it back when verify is on, and replies Status, whose count is the blocks done |
 | Read quarter track | host | drive (1), position (1, 0 to 140), revolutions (1), reads (1); the client replies with the first read's bytes and timings, then per later read the ranges that differ, then Status. An empty position is one byte, $00 |
 | Write nibble track ($F3) | host | drive (1), track (1), the stream's length (2); the client requests the stream with an Acknowledge, the host replies with Nibble data ($F4): the stream, each byte with its top bit set a nibble and each 0 a self-sync byte, and its CRC (2), a NAK requests it again; the client writes it in one pass and replies Status |
-| Virtual block | client | drive (1), read or write (1), block (2), and for a write the block and its CRC; the host replies with the block for a read, or a status byte |
+| Virtual block ($F5) | client | drive (1), operation (1: 0 status, 1 read, 2 write), block (2), and for a write the block and its CRC (2); the host replies with Virtual block: ProDOS's error (1), then for a status the drive's blocks (2) and for a read the block and its CRC (2). A request of the wrong length, or a write that fails its CRC, has no reply |
 | Audio track | either | over cassette audio: track (1), the track's 16 sectors, CRC (2), in ADTPro's published audio encoding |
 
 Modules and the requests they serve:

@@ -20,10 +20,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 CassoLinkSession::CassoLinkSession (IByteStreamFactory & factory, ICassoLinkFolder & folder, IDiskFileIo & fileIo, ICassoLinkSessionSink & sink) :
-    m_factory (factory),
-    m_folder  (folder),
-    m_fileIo  (fileIo),
-    m_sink    (sink)
+    m_factory       (factory),
+    m_folder        (folder),
+    m_fileIo        (fileIo),
+    m_sink          (sink),
+    m_virtualDrives (fileIo)
 {
     for (int i = 0; i < kDriveCount; i++)
     {

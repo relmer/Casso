@@ -180,6 +180,16 @@ public:
     static constexpr Byte    kNibbleData       = 0xF4;
     static constexpr size_t  kMaxNibbleStream  = 0x3500;
 
+    //  The CassoLink ProDOS disk's block driver's request, from the Apple:
+    //  the drive, the operation (kVirtualStatus, kVirtualRead or
+    //  kVirtualWrite) and the block, low byte first, and for a write the
+    //  block and its CRC. The reply has ProDOS's error, then for a status the
+    //  drive's blocks and for a read the block and its CRC.
+    static constexpr Byte    kVirtualBlock     = 0xF5;
+    static constexpr Byte    kVirtualStatus    = 0x00;
+    static constexpr Byte    kVirtualRead      = 0x01;
+    static constexpr Byte    kVirtualWrite     = 0x02;
+
     //  The longest row on the Session screen.
     static constexpr size_t  kSessionRowLength = 80;
 
@@ -265,6 +275,7 @@ public:
         { kWriteBlocks,   "CMDBLKWRITE" },
         { kWriteNibbleTrack, "CMDWNIBS"  },
         { kNibbleData,    "CMDNIBDATA"  },
+        { kVirtualBlock,  "CMDVBLOCK"   },
     };
 
     static HRESULT   Encode            (Byte command, std::span<const Byte> payload, std::vector<Byte> & out);

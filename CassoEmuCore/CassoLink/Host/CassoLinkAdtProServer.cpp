@@ -379,7 +379,7 @@ Error:
 HRESULT CassoLinkAdtProServer::ServePacket (const CassoLinkPacket & packet)
 {
     HRESULT  hr     = S_OK;
-    bool     casso  = packet.command == CassoLinkCodec::kReady;
+    bool     casso  = packet.command == CassoLinkCodec::kReady || packet.command == CassoLinkCodec::kVirtualBlock;
     bool     served = casso ? m_clients != CassoLinkHostTypes::Clients::AdtPro : m_clients != CassoLinkHostTypes::Clients::Casso;
 
 
@@ -408,6 +408,10 @@ HRESULT CassoLinkAdtProServer::ServePacket (const CassoLinkPacket & packet)
 
         case CassoLinkCodec::kReady:
             hr = m_host.ServeReady (packet);
+            break;
+
+        case CassoLinkCodec::kVirtualBlock:
+            hr = m_host.ServeVirtualBlock (packet);
             break;
 
         default:

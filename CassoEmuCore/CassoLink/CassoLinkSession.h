@@ -7,6 +7,7 @@
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/Session/CassoLinkFullSend.h"
 #include "CassoLink/CassoLinkHost.h"
+#include "CassoLink/Host/CassoLinkVirtualDrives.h"
 #include "Seams/ByteStreamSettings.h"
 #include "CassoLink/CassoLinkSettings.h"
 
@@ -230,6 +231,7 @@ private:
     ICassoLinkFolder                             & m_folder;
     IDiskFileIo                                  & m_fileIo;
     ICassoLinkSessionSink                        & m_sink;
+    CassoLinkVirtualDrives                         m_virtualDrives;
     CassoLinkSettings                              m_settings;
     std::unique_ptr<CassoLinkHost>                 m_host;
     std::array<std::unique_ptr<DriveSource>, 2>    m_sources;

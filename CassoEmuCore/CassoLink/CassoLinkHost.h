@@ -9,6 +9,7 @@
 #include "CassoLink/LinkFault.h"
 
 class IByteStream;
+class CassoLinkVirtualDrives;
 
 
 
@@ -202,6 +203,11 @@ public:
     //  ADTPro's defaults until set.
     void     SetVirtualDrive (int drive, const std::string & name) { m_adtProServer.SetVirtualDrive (drive, name); }
     void     SetClients      (Clients clients) { m_adtProServer.m_clients = clients; }
+
+    //  The drives the CassoLink ProDOS disk's block driver reads and writes
+    //  (CassoLinkCodec::kVirtualBlock). With none set, each request's reply
+    //  is ProDOS's no-device error.
+    void     SetVirtualDrives (CassoLinkVirtualDrives * drives) { m_virtualDrives = drives; }
     void     SetReplyTimeout (DWORD timeoutMs) { m_adtProServer.m_replyTimeoutMs = timeoutMs; }
 
     //  How long an operation for Casso's client waits for each packet, and an
@@ -465,6 +471,7 @@ private:
     HRESULT  SendByte        (Byte value);
 
     HRESULT  ServeReady        (const CassoLinkPacket & packet);
+    HRESULT  ServeVirtualBlock (const CassoLinkPacket & packet);
     void     ReadClient        (const CassoLinkPacket & packet);
     HRESULT  CheckProgramCrc   (bool & outIntact);
     HRESULT  AssembleProgram   ();
@@ -526,6 +533,7 @@ private:
 
     std::shared_ptr<IByteStream>    m_stream;
     ICassoLinkFolder              & m_folder;
+    CassoLinkVirtualDrives        * m_virtualDrives   = nullptr;
     ClockFn                         m_clock;
     bool                            m_hasClient       = false;
     CassoLinkClient                 m_client;

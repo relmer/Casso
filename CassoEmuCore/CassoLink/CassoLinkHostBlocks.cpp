@@ -3,6 +3,7 @@
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/Host/CassoLinkVirtualDrives.h"
 
 
 
@@ -284,4 +285,91 @@ std::string CassoLinkHost::DescribeBlockError (Byte error, uint32_t block)
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::ServeVirtualBlock
+//
+//  A request whose size doesn't match its operation, or a write whose block
+//  fails its CRC, has no reply, so the driver sends it again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::ServeVirtualBlock (const CassoLinkPacket & packet)
+{
+    HRESULT                hr        = S_OK;
+    std::span<const Byte>  payload   = packet.payload;
+    std::vector<Byte>      reply;
+    std::vector<Byte>      data (CassoLinkVirtualDrives::kBlockSize, 0);
+    int                    drive     = 0;
+    Byte                   operation = 0;
+    uint32_t               block     = 0;
+    uint32_t               blocks    = 0;
+    Byte                   error     = CassoLinkVirtualDrives::kNoDevice;
+    bool                   sized     = false;
+    Word                   crc       = 0;
+
+
+
+    sized = payload.size() >= 4;
+    BAIL_OUT_IF (!sized, S_OK);
+
+    drive     = payload[0];
+    operation = payload[1];
+    block     = (uint32_t) payload[2] | ((uint32_t) payload[3] << 8);
+    sized     = payload.size() == ((operation == CassoLinkCodec::kVirtualWrite) ? 4 + CassoLinkVirtualDrives::kBlockSize + 2 : 4);
+    BAIL_OUT_IF (!sized, S_OK);
+
+    if (operation == CassoLinkCodec::kVirtualWrite)
+    {
+        std::span<const Byte>  written = payload.subspan (4, CassoLinkVirtualDrives::kBlockSize);
+        bool                   intact  = false;
+
+        crc    = (Word) (payload[4 + CassoLinkVirtualDrives::kBlockSize] | (payload[5 + CassoLinkVirtualDrives::kBlockSize] << 8));
+        intact = CassoLinkCodec::ComputeCrc (written) == crc;
+        BAIL_OUT_IF (!intact, S_OK);
+
+        if (m_virtualDrives != nullptr)
+        {
+            error = m_virtualDrives->WriteBlock (drive, block, written);
+        }
+
+        reply.push_back (error);
+    }
+    else if (operation == CassoLinkCodec::kVirtualRead)
+    {
+        if (m_virtualDrives != nullptr)
+        {
+            error = m_virtualDrives->ReadBlock (drive, block, data);
+        }
+
+        crc = CassoLinkCodec::ComputeCrc (data);
+
+        reply.push_back (error);
+        reply.insert (reply.end(), data.begin(), data.end());
+        reply.push_back ((Byte) (crc & 0xFF));
+        reply.push_back ((Byte) (crc >> 8));
+    }
+    else
+    {
+        if (m_virtualDrives != nullptr)
+        {
+            error = m_virtualDrives->GetBlocks (drive, blocks);
+        }
+
+        reply.push_back (error);
+        reply.push_back ((Byte) (blocks & 0xFF));
+        reply.push_back ((Byte) (blocks >> 8));
+    }
+
+    hr = SendPacket (CassoLinkCodec::kVirtualBlock, reply);
+    CHR (hr);
+
+Error:
+    return hr;
 }

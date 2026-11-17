@@ -1856,7 +1856,7 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 - [ ] T581 [US25] Write `CassoLink/Apple/Modules/VirtualDrive.s` and `CASSOLINK.SYSTEM`: load the serial code and driver, allocate four pages through BASIC.SYSTEM's GETBUFR, install the driver for drives 1 and 2 of the first free slot from 7 down, and start `BASIC.SYSTEM` (R44, FR-200)
 - [ ] T582 [US25] Add Make CassoLink ProDOS disk: a 140K ProDOS image with `CASSOLINK.SYSTEM`, the user's `PRODOS` and `BASIC.SYSTEM`, from an image the user picks (FR-199)
-- [ ] T583 [US25] Serve Virtual block on the PC: each write to a one-block journal beside the image, then the image, then the journal cleared, each flushed before the reply, and a leftover journal applied on the next open (FR-201). Tests with a crash between each step
+- [X] T583 [US25] Serve Virtual block on the PC: each write to a one-block journal beside the image, then the image, then the journal cleared, each flushed before the reply, and a leftover journal applied on the next open (FR-201). Tests with a crash between each step
 - [ ] T584 [US25] Add `VirtualDriveSettings` to a link's saved settings, "`drive1` and `drive2`, each an image path or empty", and the connection page's two image pickers
 - [ ] T585 [US25] Scenario test in `ScenarioTests/CassoLinkVirtualDriveTests.cpp` on an emulated //c: SAVE a file to each drive from BASIC.SYSTEM and compare the images. Only once that passes in Casso, repeat it on the owner's //c and record SC-056
 
