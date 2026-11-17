@@ -163,6 +163,7 @@ public:
     bool                     Undo          ()                 { return m_edits.Undo(); }
     bool                     Redo          ()                 { return m_edits.Redo(); }
     void                     DiscardEdits  ()                 { m_edits.DiscardAll(); }
+    void                     ClearEdits    ()                 { m_edits = BlockEditBuffer(); }
     void                     DiscardBlock  (uint32_t block)   { m_edits.DiscardBlock (block); }
     const BlockEditBuffer  & GetEdits      () const           { return m_edits; }
 

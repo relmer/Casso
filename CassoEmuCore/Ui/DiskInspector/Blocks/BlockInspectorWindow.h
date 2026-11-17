@@ -102,33 +102,35 @@ private:
 
     using WriteFn = std::function<HRESULT (BlockInspectorModel & model, std::wstring & outError, BlockJobProgress & progress)>;
 
-    void                                  BuildCommands  ();
-    static bool                           RunCommand     (const InspectorCommands::Command & command);
-    void                                  QueueOpen      ();
-    void                                  Save           ();
-    void                                  QueueSave      ();
-    void                                  UndoApplied    ();
-    void                                  RedoApplied    ();
-    void                                  QueueWrite     (const std::wstring & label, const std::wstring & done, WriteFn write);
-    void                                  SaveEditedCopy ();
-    void                                  InitEditBar    ();
-    void                                  UpdateEditing  ();
-    void                                  UpdateTitle    ();
-    bool                                  HandleEditKey  (const DxuiKeyEvent & ev);
-    void                                  Discard        ();
-    void                                  CopyBlock      ();
-    void                                  PasteIntoBlock ();
-    void                                  GoToBlock      ();
-    void                                  ShowLevel      (BlockPlace::Kind kind);
-    void                                  UpdateTooltip  (POINT pointPx);
-    void                                  StepDifference (bool isForward);
-    void                                  SetZoom        (double zoom);
-    vector<InspectorStatusBar::LeadItem>  BuildLead      () const;
-    bool                                  ConfirmClose   ();
-    void                                  CloseWindow    ();
-    void                                  ShowMessage    (const std::wstring & text);
-    std::wstring                          GetFileName    () const { return m_displayName.empty() ? fs::path (m_path).filename().wstring() : m_displayName; }
-    bool                                  IsOnCard       () const;
+    void                                  BuildCommands       ();
+    static bool                           RunCommand          (const InspectorCommands::Command & command);
+    void                                  QueueOpen           ();
+    void                                  Save                ();
+    void                                  QueueSave           ();
+    void                                  StartSave           ();
+    void                                  SaveToPreservedCopy ();
+    void                                  UndoApplied         ();
+    void                                  RedoApplied         ();
+    void                                  QueueWrite          (const std::wstring & label, const std::wstring & done, WriteFn write);
+    void                                  SaveEditedCopy      ();
+    void                                  InitEditBar         ();
+    void                                  UpdateEditing       ();
+    void                                  UpdateTitle         ();
+    bool                                  HandleEditKey       (const DxuiKeyEvent & ev);
+    void                                  Discard             ();
+    void                                  CopyBlock           ();
+    void                                  PasteIntoBlock      ();
+    void                                  GoToBlock           ();
+    void                                  ShowLevel           (BlockPlace::Kind kind);
+    void                                  UpdateTooltip       (POINT pointPx);
+    void                                  StepDifference      (bool isForward);
+    void                                  SetZoom             (double zoom);
+    vector<InspectorStatusBar::LeadItem>  BuildLead           () const;
+    bool                                  ConfirmClose        ();
+    void                                  CloseWindow         ();
+    void                                  ShowMessage         (const std::wstring & text);
+    std::wstring                          GetFileName         () const { return m_displayName.empty() ? fs::path (m_path).filename().wstring() : m_displayName; }
+    bool                                  IsOnCard            () const;
 
     //  m_worker follows m_model, so it is destroyed first and its thread
     //  ends before the model goes away.

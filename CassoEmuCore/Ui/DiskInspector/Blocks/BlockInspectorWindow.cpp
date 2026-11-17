@@ -4,6 +4,7 @@
 #include "Devices/Disk/IDiskFileIo.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
+#include "Devices/Disk/PreservedCopy.h"
 #include "Ui/DiskInspector/Blocks/BlockGoToDialog.h"
 #include "Ui/DiskInspector/Blocks/BlockHexView.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorPanel.h"
@@ -25,6 +26,7 @@ static constexpr LPCWSTR  s_kpszGlyphGoTo = L"\xE8AD";
 static constexpr LPCWSTR  s_kpszGlyphCopy = L"\xE8C8";
 static constexpr LPCWSTR  s_kpszGlyphEdit = L"\xE70F";
 static constexpr LPCWSTR  s_kpszClassName = L"CassoBlockInspector";
+static constexpr LPCWSTR  s_kpszFileChangedNote = L" (the file changed; save or discard to read it again)";
 
 
 
@@ -741,8 +743,113 @@ void BlockInspectorWindow::Save()
 {
     if (!m_worker.IsBusy() && m_model.IsOpen() && !m_model.GetEdits().IsEmpty())
     {
+        StartSave();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::StartSave
+//
+//  When an image file changed outside Casso after it was opened, the edits
+//  go to a preserved copy beside it, as the disk inspector saves them, and
+//  the file is left as it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::StartSave()
+{
+    if (!IsOnCard() && !m_model.GetFile().IsFileUnchanged())
+    {
+        SaveToPreservedCopy();
+    }
+    else
+    {
         QueueSave();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::SaveToPreservedCopy
+//
+//  A copy of the file as it is now, with the edited blocks written into it.
+//  The edits are then saved, so the window reads the changed file again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::SaveToPreservedCopy()
+{
+    auto                   result = std::make_shared<JobResult>();
+    BlockInspectorModel  * model  = &m_model;
+    IDiskFileIo          * fileIo = m_fileIo;
+    fs::path               image  = m_path;
+    std::string            stamp  = PreservedCopy::MakeStamp (time (nullptr));
+    fs::path               target;
+    fs::path               candidate;
+    std::error_code        error;
+
+
+
+    for (int attempt = 0; attempt < PreservedCopy::kMaxAttempts && target.empty(); attempt++)
+    {
+        candidate = TextEncoding::Utf8ToWide (PreservedCopy::MakePath (TextEncoding::WideToUtf8 (image.wstring()), stamp, attempt));
+        target    = fs::exists (candidate, error) ? fs::path() : candidate;
+    }
+
+    if (target.empty())
+    {
+        m_isCloseAfterSave = false;
+        m_editNote         = L"Not saved: the file changed outside Casso, and a preserved copy can't be named.";
+        m_panel->Refresh();
+        return;
+    }
+
+    m_editNote = L"Saving...";
+    m_panel->SetEditing (false);
+
+    m_panel->QueueJob ({ L"Saving a preserved copy", false,
+                         [result, model, fileIo, image, target] (BlockJobProgress & progress)
+                         {
+                             (void) progress;
+
+                             if (!CopyFileW (image.c_str(), target.c_str(), TRUE))
+                             {
+                                 result->hr = HRESULT_FROM_WIN32 (GetLastError());
+                                 return;
+                             }
+
+                             result->hr = model->WriteEditsTo (*fileIo, TextEncoding::WideToUtf8 (target.wstring()), result->message);
+                         },
+                         [this, result, target] ()
+                         {
+                             bool  isClosing = m_isCloseAfterSave && SUCCEEDED (result->hr);
+
+                             m_isCloseAfterSave = false;
+                             m_editNote         = SUCCEEDED (result->hr) ? L"Saved to a preserved copy, since the file changed outside Casso: " + target.filename().wstring()
+                                                                         : L"Not saved: the copy could not be written to " + target.filename().wstring();
+
+                             if (SUCCEEDED (result->hr))
+                             {
+                                 m_model.ClearEdits();
+                                 Reload();
+                             }
+
+                             m_panel->Refresh();
+
+                             if (isClosing)
+                             {
+                                 CloseWindow();
+                             }
+                         } });
 }
 
 
@@ -1284,7 +1391,7 @@ bool BlockInspectorWindow::ConfirmClose()
         if (choice == kSave)
         {
             m_isCloseAfterSave = true;
-            QueueSave();
+            StartSave();
         }
 
         isClosing = choice == kDiscard;
@@ -1419,9 +1526,14 @@ void BlockInspectorWindow::Reload()
                          },
                          [this, outcome] ()
                          {
-                             if (*outcome == Outcome::EditsPending)
+                             if (*outcome == Outcome::Reopened && m_titleNote == s_kpszFileChangedNote)
                              {
-                                 m_titleNote = L" (the file changed; save or discard to read it again)";
+                                 m_titleNote.clear();
+                                 UpdateTitle();
+                             }
+                             else if (*outcome == Outcome::EditsPending)
+                             {
+                                 m_titleNote = s_kpszFileChangedNote;
                                  UpdateTitle();
                              }
                              else if (*outcome == Outcome::Gone)
