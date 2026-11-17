@@ -101,7 +101,9 @@ private:
     static constexpr int      kButtonWidthDip   = 46;
     static constexpr wchar_t  kTitleFamily[]    = L"Segoe UI";
 
-    void  PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & areaPx, float fontPx);
+    void                 PaintTitle   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & areaPx, float fontPx);
+    static float         MeasureTitle (IDxuiTextRenderer & text, const std::wstring & value, float fontPx);
+    static std::wstring  FitTitle     (IDxuiTextRenderer & text, const std::wstring & value, float fontPx, float roomPx);
 
     bool                                 m_renderCaption     = false;
     Buttons                              m_buttons           = Buttons::None;
