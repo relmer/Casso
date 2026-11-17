@@ -416,7 +416,7 @@ namespace DebuggerWatchAddRowTests
             Assert::IsTrue (grid->GetCellTextRectPx (last, 2, cell), L"the add row's cell is in view");
 
             click.button      = DxuiMouseButton::Left;
-            click.positionDip = { (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 };
+            click.positionDip = { grid->GetBounds().left + (cell.left + cell.right) / 2, grid->GetBounds().top + (cell.top + cell.bottom) / 2 };
             click.kind        = DxuiMouseEventKind::Down;
             (void) grid->OnMouse (click);
             click.kind        = DxuiMouseEventKind::Up;

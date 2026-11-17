@@ -84,7 +84,7 @@ bool StepFiltersPanel::OnMouse (const DxuiMouseEvent & ev)
         m_pressed (ev, m_grid->HitTestRow (local.positionDip.x, local.positionDip.y));
     }
 
-    return m_grid->OnMouse (local) || isOver;
+    return m_grid->OnMouse (ev) || isOver;
 }
 
 
@@ -108,7 +108,7 @@ LPCWSTR StepFiltersPanel::GetCursorForPoint (POINT clientPx) const
         return nullptr;
     }
 
-    return m_grid->GetCursorForPoint (POINT { clientPx.x - bounds.left, clientPx.y - bounds.top });
+    return m_grid->GetCursorForPoint (clientPx);
 }
 
 

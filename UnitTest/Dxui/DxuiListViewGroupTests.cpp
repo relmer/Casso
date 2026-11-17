@@ -259,11 +259,11 @@ public:
         ConfigureList (list, 6);
         list.SetGroups ({ { L"A", 0 }, { L"B", 3 } });
 
-        list.OnMouse (Press (15, 125));
+        list.AsControl().OnMouse (Press (15, 125));
         Assert::IsTrue   (list.IsGroupCollapsed (1));
         Assert::AreEqual (1, list.GetFocusedGroup());
 
-        list.OnMouse (Press (200, 5));
+        list.AsControl().OnMouse (Press (200, 5));
         Assert::IsFalse  (list.IsGroupCollapsed (0));
         Assert::AreEqual (0, list.GetFocusedGroup());
         Assert::AreEqual ((size_t) 3, list.GetSelectedRows().size());
@@ -308,21 +308,21 @@ public:
 
         ConfigureList (list, 6);
         list.SetGroups ({ { L"A", 0 }, { L"B", 3 } });
-        list.OnMouse (Press (200, 125));
+        list.AsControl().OnMouse (Press (200, 125));
 
         ev.ctrl = true;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
         ev.kind = DxuiMouseEventKind::Up;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         Assert::IsFalse  (list.IsRowSelected (3));
         Assert::IsTrue   (list.IsRowSelected (4) && list.IsRowSelected (5));
 
         ev = Press (200, 185);
         ev.ctrl = true;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
         ev.kind = DxuiMouseEventKind::Up;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         Assert::IsFalse  (list.IsRowSelected (4), L"Ctrl took the row off");
         Assert::IsTrue   (list.IsRowSelected (5), L"and the last one stayed");
@@ -341,7 +341,7 @@ public:
         list.SetKeyboardColumnNav (true);
         list.OnFocusChanged (true);
         list.SetGroups ({ { L"A", 0 }, { L"B", 3 } });
-        list.OnMouse (Press (200, 125));
+        list.AsControl().OnMouse (Press (200, 125));
 
         up.ctrl    = true;
         space.ctrl = true;

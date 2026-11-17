@@ -705,19 +705,13 @@ bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
 //
 //  DebuggerWindow::ForwardToList
 //
-//  A list takes coordinates relative to itself.
+//  A list takes the window's coordinates, through IDxuiControl.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebuggerWindow::ForwardToList (DxuiListView * list, const DxuiMouseEvent & ev)
 {
-    DxuiMouseEvent  local  = ev;
-    RECT            bounds = list->GetBounds();
-
-
-
-    local.positionDip = { ev.positionDip.x - bounds.left, ev.positionDip.y - bounds.top };
-    return list->OnMouse (local);
+    return list->AsControl().OnMouse (ev);
 }
 
 
@@ -2025,9 +2019,7 @@ LPCWSTR DebuggerWindow::GetCursorForPoint (POINT clientPx) const
             continue;
         }
 
-        RECT     bounds = list->GetBounds();
-        POINT    local  = { clientPx.x - bounds.left, clientPx.y - bounds.top };
-        LPCWSTR  cursor = list->GetCursorForPoint (local);
+        LPCWSTR  cursor = list->AsControl().GetCursorForPoint (clientPx);
 
         if (cursor != nullptr)
         {

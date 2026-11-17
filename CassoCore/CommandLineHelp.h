@@ -8,6 +8,25 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandLineHelpRow
+//
+//  One row of the emulator's option table: the switch as the reader types it,
+//  with its value, and what it does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct CommandLineHelpRow
+{
+    std::string  option;
+    std::string  description;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandLineHelp
 //
 //  The usage text more than one page needs: what each mode is for, how to reach
@@ -101,6 +120,13 @@ public:
     //  The emulator GUI's usage text: how the command line is written, then
     //  every option it takes, composed from the parser's own table.
     static std::string  BuildEmulatorHelp (char flagPrefix);
+
+    //  The emulator's usage line, without a heading.
+    static constexpr const char *  kEmulatorUsage = "Casso [options]";
+
+    //  Every option the emulator takes, one row each, in the parser's order,
+    //  with the switch written in the prefix the reader typed.
+    static std::vector<CommandLineHelpRow>  GetEmulatorRows (char flagPrefix);
 
     //  `text` broken at spaces so no line exceeds `columns`, each continuation
     //  carrying `indent`. A word longer than the budget takes a line of its own

@@ -122,7 +122,7 @@ public:
         list.ClickRow (3, false, false);
 
         Assert::IsTrue (list.GetCheckRectPx (0, 0, box));
-        Assert::IsTrue (list.OnMouse (MakePress (Center (box))));
+        Assert::IsTrue (list.AsControl().OnMouse (MakePress (Center (box))));
 
         Assert::AreEqual ((size_t) 1, toggles.size());
         Assert::AreEqual (0, toggles[0].row);
@@ -141,7 +141,7 @@ public:
         list.SetOnCheckToggled ([&] (int row, size_t column, bool checked) { toggles.push_back ({ row, column, checked }); });
 
         Assert::IsTrue (list.GetCellTextRectPx (2, 0, text));
-        list.OnMouse (MakePress (POINT { text.left + 4, (text.top + text.bottom) / 2 }));
+        list.AsControl().OnMouse (MakePress (POINT { text.left + 4, (text.top + text.bottom) / 2 }));
 
         Assert::IsTrue (toggles.empty());
         Assert::AreEqual (2, list.GetSelectedRow());

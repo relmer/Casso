@@ -78,10 +78,10 @@ public:
         ev.kind        = DxuiMouseEventKind::Down;
         ev.button      = DxuiMouseButton::Left;
         ev.positionDip = POINT { x, y };
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
 
         ev.kind = DxuiMouseEventKind::Up;
-        list.OnMouse (ev);
+        list.AsControl().OnMouse (ev);
     }
 
 

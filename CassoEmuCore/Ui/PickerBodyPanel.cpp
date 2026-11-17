@@ -69,17 +69,13 @@ void PickerBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scale
 
 bool PickerBodyPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    DxuiMouseEvent  listEv  = ev;
-    bool            handled = false;
+    bool  handled = false;
 
 
 
     if (m_list != nullptr)
     {
-        RECT  lb = m_list->GetBounds();
-
-        listEv.positionDip = { ev.positionDip.x - lb.left, ev.positionDip.y - lb.top };
-        handled            = m_list->OnMouse (listEv);
+        handled = m_list->AsControl().OnMouse (ev);
     }
 
     if (!handled && m_search != nullptr)
@@ -108,10 +104,7 @@ LPCWSTR PickerBodyPanel::GetCursorForPoint (POINT clientPx) const
 
     if (m_list != nullptr)
     {
-        RECT   lb    = m_list->GetBounds();
-        POINT  local = { clientPx.x - lb.left, clientPx.y - lb.top };
-
-        cursor = m_list->GetCursorForPoint (local);
+        cursor = m_list->AsControl().GetCursorForPoint (clientPx);
     }
 
     return cursor;

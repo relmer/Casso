@@ -140,7 +140,7 @@ public:
     void     Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     OnMouse           (const DxuiMouseEvent & ev) override;
-    LPCWSTR  GetCursorForPoint (POINT localPx) const override;
+    LPCWSTR  GetCursorForPoint (POINT client) const override;
     bool     OnKey             (const DxuiKeyEvent & ev) override;
     bool     OnChar            (wchar_t ch) override;
     void     OnFocusChanged    (bool focused) override;

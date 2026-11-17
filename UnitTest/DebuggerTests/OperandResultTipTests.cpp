@@ -1374,7 +1374,7 @@ namespace OperandResultTipTests
             bounds = list->GetBounds();
             Assert::IsTrue (list->GetCellTextRectPx (0, DisassemblyCells::kInstructionColumn, code));
             at    = POINT { bounds.left + code.left + 1, bounds.top + (code.top + code.bottom) / 2 };
-            local = POINT { at.x - bounds.left, at.y - bounds.top };
+            local = at;
 
             Send (window, DxuiMouseEventKind::Move, at);
             Assert::IsFalse (window.GetOperandTips().HasTip(), L"the row fits");
@@ -1451,11 +1451,11 @@ namespace OperandResultTipTests
             Assert::IsTrue (window.GetOperandTips().HasTip(), L"the operand out of view has no tip");
             Assert::IsTrue (window.GetOperandTips().GetLayout().hasSymbol);
 
-            Assert::IsTrue (list->TryGetTip (POINT { label.left + 1, (label.top + label.bottom) / 2 }, tip) && tip.text.starts_with (L"w_outer = $6100"),
+            Assert::IsTrue (list->TryGetTip (POINT { bounds.left + label.left + 1, bounds.top + (label.top + label.bottom) / 2 }, tip) && tip.text.starts_with (L"w_outer = $6100"),
                             L"the label's symbol tip doesn't come up");
 
             tip = DxuiTip();
-            Assert::IsFalse (list->TryGetTip (POINT { at.x - bounds.left, at.y - bounds.top }, tip) && tip.text.find (L"w_inner = ") != std::wstring::npos,
+            Assert::IsFalse (list->TryGetTip (at, tip) && tip.text.find (L"w_inner = ") != std::wstring::npos,
                              L"the operand's symbol tip over the in-place tip");
         }
 

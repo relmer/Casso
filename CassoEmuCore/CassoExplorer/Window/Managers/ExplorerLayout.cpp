@@ -460,7 +460,7 @@ bool ExplorerLayout::Contains (const RECT & rect, POINT point)
 //
 //  ExplorerLayout::ToLocal
 //
-//  List views take their events relative to their own origin.
+//  A list view's HitTest* helpers take a point relative to its top-left.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

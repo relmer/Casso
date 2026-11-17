@@ -1114,12 +1114,9 @@ bool DxuiEditableGrid::RouteEditorMouse (const DxuiMouseEvent & ev)
     RECT            bounds = GetBounds();
     RECT            box    = m_editor.GetBounds();
     DxuiMouseEvent  local  = ev;
-    bool            inside = ev.positionDip.x >= 0 && ev.positionDip.y >= 0 &&
-                             ev.positionDip.x < bounds.right - bounds.left && ev.positionDip.y < bounds.bottom - bounds.top;
+    bool            inside = PtInRect (&bounds, ev.positionDip) != FALSE;
 
 
-
-    local.positionDip = { ev.positionDip.x + bounds.left, ev.positionDip.y + bounds.top };
 
     if (PtInRect (&box, local.positionDip) || ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Up)
     {
@@ -1157,9 +1154,9 @@ bool DxuiEditableGrid::RouteEditorMouse (const DxuiMouseEvent & ev)
 
 bool DxuiEditableGrid::OnMouse (const DxuiMouseEvent & ev)
 {
-    int   lx      = ev.positionDip.x;
-    int   ly      = ev.positionDip.y;
     RECT  bounds  = GetBounds();
+    int   lx      = ev.positionDip.x - bounds.left;
+    int   ly      = ev.positionDip.y - bounds.top;
     bool  inside  = lx >= 0 && ly >= 0 && lx < bounds.right - bounds.left && ly < bounds.bottom - bounds.top;
     bool  isLeft  = ev.button == DxuiMouseButton::Left;
     bool  handled = false;
@@ -1250,18 +1247,18 @@ bool DxuiEditableGrid::OnMouse (const DxuiMouseEvent & ev)
 //
 //  DxuiEditableGrid::GetCursorForPoint
 //
-//  The point is relative to the grid, as the list takes it. Over a gripper,
+//  The point is in the parent's coordinates, as the list takes it. Over a gripper,
 //  and while a row is dragged, the cursor is the up-and-down arrow; over the
 //  box of a cell being edited, or the row a new entry is typed into, the
 //  I-beam.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT localPx) const
+LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT client) const
 {
-    int    row    = HitTestRow (localPx.x, localPx.y);
-    RECT   bounds = GetBounds();
-    POINT  client = { localPx.x + bounds.left, localPx.y + bounds.top };
+    RECT   bounds  = GetBounds();
+    POINT  localPx = { client.x - bounds.left, client.y - bounds.top };
+    int    row     = HitTestRow (localPx.x, localPx.y);
 
 
 
@@ -1280,7 +1277,7 @@ LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT localPx) const
         return IDC_SIZENS;
     }
 
-    return DxuiListView::GetCursorForPoint (localPx);
+    return DxuiListView::GetCursorForPoint (client);
 }
 
 

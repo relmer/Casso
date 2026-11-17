@@ -896,25 +896,27 @@ void DxuiListView::CenterOnRow (int row)
 //
 //  GetCursorForPoint  (IDxuiControl override)
 //
-//  Advertises the horizontal resize cursor when the point (in list-local
-//  px, as the hosting panel translates for OnMouse) is over a column
-//  divider; otherwise no preference. Uses the same grab tolerance as the
-//  resize-drag hit test so the cursor and the drag agree.
+//  Advertises the horizontal resize cursor when the point (in the parent's
+//  coordinates, as OnMouse takes it) is over a column divider; otherwise no
+//  preference. Uses the same grab tolerance as the resize-drag hit test so
+//  the cursor matches the drag.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR DxuiListView::GetCursorForPoint (POINT localPx) const
+LPCWSTR DxuiListView::GetCursorForPoint (POINT clientPx) const
 {
     LPCWSTR  cursor  = nullptr;
     int      grabTol = m_scaler.ToPx (s_kResizeGrabDip);
+    int      lx      = clientPx.x - m_boundsDip.left;
+    int      ly      = clientPx.y - m_boundsDip.top;
 
 
 
-    if (m_header.HitTestColumnResize (localPx.x, localPx.y, grabTol) >= 0)
+    if (m_header.HitTestColumnResize (lx, ly, grabTol) >= 0)
     {
         cursor = IDC_SIZEWE;
     }
-    else if (m_textSelect.IsEnabled() && m_textSelect.IsOverCellText (localPx))
+    else if (m_textSelect.IsEnabled() && m_textSelect.IsOverCellText (POINT { lx, ly }))
     {
         cursor = IDC_IBEAM;
     }
@@ -1404,18 +1406,18 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //
 //  DxuiListView::OnMouse  (IDxuiControl override)
 //
-//  Self-contained mouse handling. ev.positionDip is widget-relative (the
-//  host subtracts the list's own origin first, matching the 0-based
-//  hit-test accessors), so the coordinates pass straight through.
-//  Dispatches by event kind and returns true when the list consumed it.
+//  Self-contained mouse handling. ev.positionDip is in the parent's
+//  coordinates, as for every control; the list subtracts its bounds to get
+//  the 0-based point its hit-test accessors take. Dispatches by event kind
+//  and returns true when the list consumed it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiListView::OnMouse (const DxuiMouseEvent & ev)
 {
     bool  handled  = false;
-    int   lx       = ev.positionDip.x;
-    int   ly       = ev.positionDip.y;
+    int   lx       = ev.positionDip.x - m_boundsDip.left;
+    int   ly       = ev.positionDip.y - m_boundsDip.top;
     int   widthPx  = m_boundsDip.right  - m_boundsDip.left;
     int   heightPx = m_boundsDip.bottom - m_boundsDip.top;
     bool  inside   = (lx >= 0 && lx < widthPx && ly >= 0 && ly < heightPx);
@@ -2058,26 +2060,33 @@ void DxuiListView::ShowNewRow (const std::vector<std::wstring> & keys)
 //  TryGetTip  (IDxuiControl override)
 //
 //  What the host computes for the row under the point first, as a Win32
-//  list's LVN_GETINFOTIP, then what the cells have.
+//  list's LVN_GETINFOTIP, then what the cells have. The point and the
+//  anchor are in the parent's coordinates, as OnMouse takes them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiListView::TryGetTip (POINT pointPx, DxuiTip & tip) const
 {
-    RECT  local  = { 0, 0, m_boundsDip.right - m_boundsDip.left, m_boundsDip.bottom - m_boundsDip.top };
-    bool  isOver = false;
+    POINT  local  = { pointPx.x - m_boundsDip.left, pointPx.y - m_boundsDip.top };
+    bool   isOver = false;
 
 
 
-    isOver = IsVisible() && PtInRect (&local, pointPx) != FALSE && !IsOverScrollbar (pointPx);
+    isOver = IsVisible() && PtInRect (&m_boundsDip, pointPx) != FALSE && !IsOverScrollbar (local);
 
     if (!isOver)
     {
         return false;
     }
 
-    if (TryGetTipFromFn (pointPx, tip) || m_tips.TryGetCellTip (pointPx, tip))
+    if (TryGetTipFromFn (pointPx, tip))
     {
+        return true;
+    }
+
+    if (m_tips.TryGetCellTip (local, tip))
+    {
+        OffsetRect (&tip.anchor, m_boundsDip.left, m_boundsDip.top);
         return true;
     }
 

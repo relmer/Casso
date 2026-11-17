@@ -145,9 +145,10 @@ bool PreviewArchiveView::HandleMouse (const DxuiMouseEvent & ev, POINT point)
 
         //  The list lets go first, or it would take the move as extending
         //  the selection once the drag is over.
-        release.kind   = DxuiMouseEventKind::Up;
-        release.button = DxuiMouseButton::Left;
-        m_listing.GetList()->OnMouse (release);
+        release.kind        = DxuiMouseEventKind::Up;
+        release.button      = DxuiMouseButton::Left;
+        release.positionDip = POINT { bounds.left, bounds.top };
+        m_listing.GetList()->AsControl().OnMouse (release);
 
         if (!ids.empty())
         {

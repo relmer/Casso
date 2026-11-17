@@ -869,6 +869,8 @@
     <ClCompile Include="UiTests\AutoMountTests.cpp" />
     <ClCompile Include="UiTests\SettingsPanelStateTests.cpp" />
     <ClCompile Include="UiTests\SerialCardNoticeTests.cpp" />
+    <ClCompile Include="UiTests\CommandLineHelpLayoutTests.cpp" />
+    <ClCompile Include="UiTests\CommandLineHelpPanelTests.cpp" />
     <ClCompile Include="UiTests\SerialCardPageTests.cpp" />
     <ClCompile Include="UiTests\SscSettingsModelTests.cpp" />
     <ClCompile Include="UiTests\ColorUtilTests.cpp" />
@@ -1034,6 +1036,7 @@
     <ClCompile Include="Dxui\DxuiKeyMapEveryChordTextTests.cpp" />
     <ClCompile Include="EmuTests\HeldHostInputReleaseTests.cpp" />
     <ClCompile Include="DebuggerTests\ReverseKeyPlusModifierTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewPanelRoutingTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarEdgeGrabTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewTypeAheadTests.cpp" />
     <ClCompile Include="Dxui\DxuiListViewCheckBoxTests.cpp" />
