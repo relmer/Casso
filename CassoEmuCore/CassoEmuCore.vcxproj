@@ -280,6 +280,7 @@
     <ClCompile Include="CassoLink\Session\CassoLinkDiskTransfer.cpp" />
     <ClCompile Include="CassoLink\Session\TrackVerifier.cpp" />
     <ClCompile Include="CassoLink\Session\CaptureStream.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkBlockDevices.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkBlockTransfer.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkCapture.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkCaptureStream.cpp" />
@@ -1913,6 +1914,7 @@
     <ClInclude Include="CassoLink\Session\CassoLinkDiskTransfer.h" />
     <ClInclude Include="CassoLink\Session\TrackVerifier.h" />
     <ClInclude Include="CassoLink\Session\CaptureStream.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkBlockDevices.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkBlockTransfer.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkCapture.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkResume.h" />

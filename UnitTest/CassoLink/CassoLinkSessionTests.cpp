@@ -450,6 +450,68 @@ public:
 
 
 
+    //  An 800K ProDOS volume with a file, as a block device's disk.
+    static std::vector<Byte>  BuildBlockVolume()
+    {
+        std::vector<Byte>  buffer (1600 * 512, 0);
+        std::vector<Byte>  next;
+
+        AssertSucceeded (ProDosSkeleton::Write (buffer, "BIGDISK"));
+        AssertSucceeded (ProDosVolume (buffer).Write (FilePath::Parse ("HELLO"), Binary (ProDosVolume::kTypeBinary, 3000, 3), next));
+
+        return next;
+    }
+
+
+
+
+    //  A block device is listed as a drive from kFirstDrive, its catalog
+    //  read, a file written to it and read back, and the whole device read
+    //  to an image, with the device and the block on the Apple's label.
+    TEST_METHOD (ABlockDevice_IsListedBrowsedWritten_AndReadToAnImage)
+    {
+        static constexpr const char *  kImage = "C:\\Images\\BigDisk.po";
+
+        Rig          rig;
+        FilePayload  payload = Binary (ProDosVolume::kTypeBinary, 2500, 9);
+        int          drive   = CassoLinkBlockDevices::kFirstDrive;
+
+        rig.apple.blockDisk = BuildBlockVolume();
+        rig.Start();
+
+        AssertSucceeded (rig.Finish (rig.session->ListBlockDevices())->result);
+
+        std::vector<CassoLinkBlockDevice>  devices = rig.session->GetBlockDevices();
+
+        Assert::AreEqual ((size_t) 1, devices.size());
+        Assert::AreEqual ((Byte) 7, devices[0].slot);
+        Assert::AreEqual ((uint32_t) 1600, devices[0].blocks);
+        Assert::AreEqual (std::string ("BIGDISK"), devices[0].volume);
+
+        auto  listing = rig.Finish (rig.session->Enumerate (drive, FilePath()));
+
+        AssertSucceeded (listing->result);
+        Assert::IsTrue  (Names (listing->listing) == std::vector<std::string> { "HELLO" });
+
+        AssertSucceeded (rig.Finish (rig.session->WriteFile (drive, FilePath::Parse ("NEWFILE"), payload))->result);
+
+        auto  read = rig.Finish (rig.session->ReadFile (drive, FilePath::Parse ("NEWFILE")));
+
+        AssertSucceeded (read->result);
+        Assert::IsTrue  (read->file.bytes == payload.bytes, L"the file written is read back");
+
+        AssertSucceeded (rig.Finish (rig.session->ReadBlockDevice (drive, kImage, false))->result);
+
+        std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+        Assert::IsTrue (rig.fileIo.files[kImage] == rig.apple.blockDisk, L"the image is the device");
+        Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "READ S7,U1 BLOCK 1600 OF 1600") != rig.apple.labels.end(), L"the label has the device and the block");
+        Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "CATALOG S7,U1 (/BIGDISK)") != rig.apple.labels.end(), L"and the catalog's label, its volume");
+    }
+
+
+
+
     TEST_METHOD (WriteFile_ThenReadFile_OnBothDrives)
     {
         Rig          rig;

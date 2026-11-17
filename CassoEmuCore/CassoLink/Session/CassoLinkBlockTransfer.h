@@ -58,13 +58,19 @@ public:
     //  from, for the offer to continue; false with none to continue.
     static bool     FindResume  (ICassoLinkBlockIo & blocks, IDiskFileIo & io, const CassoLinkBlockDevice & device, const std::string & imagePath, bool isRead, uint32_t & outNext);
 
+    //  As FindResume, from the record's slot, unit, blocks, volume and
+    //  direction alone, with no read of the device, for the offer from the
+    //  window's thread. The transfer checks the directory's hash when it
+    //  runs, and starts over when it differs.
+    static bool     FindRecord  (IDiskFileIo & io, const CassoLinkBlockDevice & device, const std::string & imagePath, bool isRead, uint32_t & outNext);
+
     //  An image file's blocks: a 2IMG's payload, or the file as it is.
     static HRESULT  LoadImage   (IDiskFileIo & io, const std::string & imagePath, std::vector<Byte> & outBlocks);
 
 private:
     static HRESULT  HashDevice     (ICassoLinkBlockIo & blocks, const CassoLinkBlockDevice & device, std::string & outHex);
     static HRESULT  HashImage      (std::span<const Byte> image, std::string & outHex);
-    static int64_t  FindRecord     (IDiskFileIo & io, const std::string & recordFor, const CassoLinkBlockDevice & device, const std::string & hash, const char * direction);
+    static int64_t  FindLastBlock  (IDiskFileIo & io, const std::string & recordFor, const CassoLinkBlockDevice & device, const std::string & hash, const char * direction);
     static HRESULT  WriteRecord    (IDiskFileIo & io, const std::string & recordFor, const CassoLinkResumeRecord & record);
     static HRESULT  FinishRead     (IDiskFileIo & io, const std::string & imagePath, uint32_t blockCount);
     static bool     IsTwoImg       (const std::string & imagePath);

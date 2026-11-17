@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoLink/Session/CassoLinkBlockDevices.h"
 #include "CassoLink/Session/CassoLinkConnector.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/Session/CassoLinkFullSend.h"
@@ -159,6 +160,18 @@ public:
     //  effect after the file being moved.
     std::shared_ptr<LinkOperation>  Krunch        (int drive);
 
+    //  The Apple's block devices and SmartPort units, by the block module: from
+    //  then on drives from CassoLinkBlockDevices::kFirstDrive, which the
+    //  operations above take. A block device's Read disk and Write disk are a
+    //  whole device to or from an image, continued from a record of one the
+    //  link cut short when `resume` is set.
+    std::shared_ptr<LinkOperation>  ListBlockDevices ();
+    std::shared_ptr<LinkOperation>  ReadBlockDevice  (int drive, const std::string & imagePath, bool resume);
+    std::shared_ptr<LinkOperation>  WriteBlockDevice (int drive, const std::string & imagePath, bool resume);
+
+    //  The devices the last list found, by drive from kFirstDrive; any thread.
+    std::vector<CassoLinkBlockDevice>  GetBlockDevices () const { return m_blockDevices.GetDevices(); }
+
     //  The chip the Apple side talks through on a transport: the W5100 for
     //  an Uthernet II, a 6551 for the rest.
     static LinkChip  GetLinkChip (LinkTransport transport);
@@ -231,9 +244,11 @@ private:
     friend class CassoLinkConnector;
     friend class CassoLinkDiskTransfer;
     friend class CassoLinkFullSend;
+    friend class CassoLinkBlockDevices;
     friend class CassoLinkSessionTypes::DriveSource;
     CassoLinkConnector     m_connector    { *this };
     CassoLinkDiskTransfer  m_diskTransfer { *this };
     CassoLinkFullSend      m_fullSend     { *this };
+    CassoLinkBlockDevices  m_blockDevices { *this };
 };
 

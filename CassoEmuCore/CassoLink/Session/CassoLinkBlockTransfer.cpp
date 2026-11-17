@@ -52,7 +52,7 @@ HRESULT CassoLinkBlockTransfer::ReadDevice (ICassoLinkBlockIo & blocks, IDiskFil
     hr = HashDevice (blocks, device, record.directoryHash);
     CHR (hr);
 
-    last = resume ? FindRecord (io, imagePath, device, record.directoryHash, CassoLinkResumeRecord::kRead) : -1;
+    last = resume ? FindLastBlock (io, imagePath, device, record.directoryHash, CassoLinkResumeRecord::kRead) : -1;
     next = (last >= 0 && IsPartialWhole (io, partial, device.blocks)) ? (uint32_t) (last + 1) : 0;
 
     //  The partial image is its whole size from the start, as a write at an
@@ -169,7 +169,7 @@ HRESULT CassoLinkBlockTransfer::WriteDevice (ICassoLinkBlockIo & blocks, IDiskFi
     hr = HashImage (image, record.directoryHash);
     CHR (hr);
 
-    last = resume ? FindRecord (io, imagePath, device, record.directoryHash, CassoLinkResumeRecord::kWrite) : -1;
+    last = resume ? FindLastBlock (io, imagePath, device, record.directoryHash, CassoLinkResumeRecord::kWrite) : -1;
     next = (last >= 0) ? (uint32_t) (last + 1) : 0;
 
     outResult.firstBlock = next;
@@ -261,10 +261,48 @@ bool CassoLinkBlockTransfer::FindResume (ICassoLinkBlockIo & blocks, IDiskFileIo
 
     CHR (hr);
 
-    last = FindRecord (io, imagePath, device, hash, isRead ? CassoLinkResumeRecord::kRead : CassoLinkResumeRecord::kWrite);
+    last = FindLastBlock (io, imagePath, device, hash, isRead ? CassoLinkResumeRecord::kRead : CassoLinkResumeRecord::kWrite);
     BAIL_OUT_IF (last < 0 || (isRead && !IsPartialWhole (io, CassoLinkResume::GetPartialPath (imagePath), device.blocks)), S_OK);
 
     outNext = (uint32_t) (last + 1);
+
+Error:
+    return outNext > 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkBlockTransfer::FindRecord
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkBlockTransfer::FindRecord (IDiskFileIo & io, const CassoLinkBlockDevice & device, const std::string & imagePath, bool isRead, uint32_t & outNext)
+{
+    HRESULT                hr      = S_OK;
+    std::vector<Byte>      bytes;
+    CassoLinkResumeRecord  record;
+    bool                   matches = false;
+
+
+
+    outNext = 0;
+    BAIL_OUT_IF (!io.Exists (CassoLinkResume::GetRecordPath (imagePath)), S_OK);
+
+    hr = io.ReadAllBytes (CassoLinkResume::GetRecordPath (imagePath), bytes);
+    CHR (hr);
+
+    hr = CassoLinkResume::Parse (std::string (bytes.begin(), bytes.end()), record);
+    CHR (hr);
+
+    matches = CassoLinkResume::Matches (record, device, record.directoryHash, isRead ? CassoLinkResumeRecord::kRead : CassoLinkResumeRecord::kWrite)
+           && (!isRead || IsPartialWhole (io, CassoLinkResume::GetPartialPath (imagePath), device.blocks));
+    BAIL_OUT_IF (!matches, S_OK);
+
+    outNext = (uint32_t) (record.lastVerifiedBlock + 1);
 
 Error:
     return outNext > 0;
@@ -377,13 +415,13 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkBlockTransfer::FindRecord
+//  CassoLinkBlockTransfer::FindLastBlock
 //
 //  The record's last block for a record that matches, -1 for none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int64_t CassoLinkBlockTransfer::FindRecord (IDiskFileIo & io, const std::string & recordFor, const CassoLinkBlockDevice & device, const std::string & hash, const char * direction)
+int64_t CassoLinkBlockTransfer::FindLastBlock (IDiskFileIo & io, const std::string & recordFor, const CassoLinkBlockDevice & device, const std::string & hash, const char * direction)
 {
     HRESULT                hr    = S_OK;
     std::vector<Byte>      bytes;

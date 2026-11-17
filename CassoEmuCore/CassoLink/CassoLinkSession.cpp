@@ -309,6 +309,67 @@ std::shared_ptr<LinkOperation> CassoLinkSession::Krunch (int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkSession::ListBlockDevices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> CassoLinkSession::ListBlockDevices()
+{
+    return Queue (LinkOperationKind::ListBlockDevices, 0, FilePath());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::ReadBlockDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> CassoLinkSession::ReadBlockDevice (int drive, const std::string & imagePath, bool resume)
+{
+    std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
+
+
+
+    operation->imagePath   = imagePath;
+    operation->resume      = resume;
+    operation->verifyReads = m_verifyReads;
+
+    return Queue (LinkOperationKind::ReadDisk, drive, FilePath(), operation);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::WriteBlockDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<LinkOperation> CassoLinkSession::WriteBlockDevice (int drive, const std::string & imagePath, bool resume)
+{
+    std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
+
+
+
+    operation->imagePath    = imagePath;
+    operation->resume       = resume;
+    operation->verifyWrites = m_verifyWrites;
+
+    return Queue (LinkOperationKind::WriteDisk, drive, FilePath(), operation);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkSession::ReadDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -931,6 +992,8 @@ void CassoLinkSession::Disconnect()
         m_connector.m_stream.reset();
     }
 
+    m_blockDevices.Clear();
+
     SetState (LinkState::Disconnected);
 }
 
@@ -1019,6 +1082,7 @@ std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation
                                                                                           : operation.fullSendSummary; break;
         case LinkOperationKind::Krunch:          text = std::format ("{} {}", finished ? "Krunched" : "Krunching", drive);                 break;
         case LinkOperationKind::CaptureDisk:     text = std::format ("{} {} to PC", finished ? "Captured" : "Capturing", drive);            break;
+        case LinkOperationKind::ListBlockDevices: text = std::format ("{} the block devices", finished ? "Listed" : "Listing");         break;
         default:                                 text = "Working";                                                                          break;
     }
 
@@ -1136,6 +1200,15 @@ HRESULT CassoLinkSession::Execute (LinkOperation & operation)
     LinkedDisk  * disk    = nullptr;
 
 
+
+    //  A block device's operations, and the list of them, are the block
+    //  module's.
+    if (operation.kind == LinkOperationKind::ListBlockDevices || operation.drive >= CassoLinkBlockDevices::kFirstDrive)
+    {
+        hr = operation.kind == LinkOperationKind::ListBlockDevices ? m_blockDevices.List (operation) : m_blockDevices.Execute (operation);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     present = operation.drive >= 1 && operation.drive <= kDriveCount && (m_connector.m_driveMap & (1 << index)) != 0;
     CBREx (present, HRESULT_FROM_WIN32 (ERROR_INVALID_DRIVE));
