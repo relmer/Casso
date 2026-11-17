@@ -1278,8 +1278,10 @@ HRESULT CassoLinkHost::ServeReady (const CassoLinkPacket & packet)
     }
 
     //  A program that fails again after it is loaded again points to the
-    //  Apple's memory, which another load would not fix.
+    //  Apple's memory, which another load would not fix. The cassette build
+    //  came from the tape, so the tape is started again instead.
     CBREx (m_badProgramLoads <= kMaxProgramReloads, HRESULT_FROM_WIN32 (ERROR_CRC));
+    CBREx (intact || m_programChip != LinkChip::Cassette, HRESULT_FROM_WIN32 (ERROR_CRC));
 
     if (intact)
     {

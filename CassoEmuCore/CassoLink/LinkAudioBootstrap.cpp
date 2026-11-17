@@ -52,6 +52,40 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LinkAudioBootstrap::BuildCassetteLinkAudio
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkAudioBootstrap::BuildCassetteLinkAudio (TapeAudio & outAudio, std::string & outCommand)
+{
+    HRESULT              hr     = S_OK;
+    std::vector<Byte>    program;
+    std::vector<double>  halfCycles;
+    std::string          errors;
+    Word                 start  = LinkProgram::kProgramAddress;
+
+
+
+    outCommand.clear();
+
+    hr = LinkProgram::AssembleProgram (program, errors, LinkChip::Cassette);
+    CHR (hr);
+
+    AppendRecord (program, halfCycles);
+    Render (halfCycles, outAudio);
+
+    outCommand = std::format ("{:04X}.{:04X}R {:04X}G\r", start, start + program.size() - 1, start);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkAudioBootstrap::BuildWav
 //
 ////////////////////////////////////////////////////////////////////////////////
