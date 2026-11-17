@@ -163,6 +163,18 @@ public:
     static HRESULT      BuildBlockModule   (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
     static HRESULT      BuildNibbleModule  (std::vector<Byte> & outModule, LinkChip chip = LinkChip::Acia, bool faults = false);
 
+    //  The CassoLink ProDOS disk's CASSOLINK file, loaded and run at
+    //  kInstallerAddress: the installer, then the driver as assembled at
+    //  kDriverAddress, then the offset of each of its bytes with a high byte
+    //  in it, two bytes each, low first. speedControl is the 6551's control
+    //  byte for the connection's speed (GetSpeedControl). outErrors has the
+    //  assembler's errors.
+    static HRESULT      BuildVirtualDrive  (Byte speedControl, std::vector<Byte> & outFile, std::string & outErrors);
+
+    static constexpr Word    kInstallerAddress = 0x2000;
+    static constexpr Word    kDriverAddress    = 0x9200;
+    static constexpr size_t  kDriverLimit      = 0x200;
+
     static constexpr Word    kModuleAddress   = 0x5000;
     static constexpr size_t  kModuleLimit     = 0x4000;
     static constexpr size_t  kModuleCrcOffset = 8;
@@ -205,6 +217,7 @@ public:
     static std::string  GetCaptureModuleSource ();
     static std::string  GetBlockModuleSource   ();
     static std::string  GetNibbleModuleSource  ();
+    static std::string  GetVirtualDriveSource  ();
 
     //  The 6551 control byte for a speed: 8 data bits, 1 stop bit and the
     //  rate. False for a speed the //c's port does not have.

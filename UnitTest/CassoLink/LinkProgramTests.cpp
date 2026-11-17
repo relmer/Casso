@@ -73,6 +73,23 @@ public:
 
 
 
+    //  CASSOLINK: the installer at $2000, the driver after it within its
+    //  two pages, and the relocation list after the driver.
+    TEST_METHOD (TheVirtualDrive_Assembles_WithTheDriverInItsTwoPages)
+    {
+        std::vector<Byte>  file;
+        std::string        errors;
+        Byte               control = 0;
+        HRESULT            hr      = S_OK;
+
+        Assert::IsTrue (LinkProgram::GetSpeedControl (115200, control));
+
+        hr = LinkProgram::BuildVirtualDrive (control, file, errors);
+        Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
+        Assert::IsTrue (file.size() > LinkProgram::kDriverLimit);
+    }
+
+
     TEST_METHOD (Shim_ReadyHasNoProgramAndTheCoreShimVersion)
     {
         std::vector<Byte>  bytes;

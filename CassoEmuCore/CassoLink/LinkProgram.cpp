@@ -14,6 +14,7 @@
 #include "Capture.s.h"
 #include "Block.s.h"
 #include "Nibble.s.h"
+#include "VirtualDrive.s.h"
 
 
 
@@ -437,6 +438,93 @@ HRESULT LinkProgram::BuildNibbleModule (std::vector<Byte> & outModule, LinkChip 
 
 
     return AssembleModule (GetNibbleModuleSource(), outModule, errors, chip, faults);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetVirtualDriveSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetVirtualDriveSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kVirtualDriveSource), sizeof (s_kVirtualDriveSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildVirtualDrive
+//
+//  The driver is assembled a page apart, and a byte that differs is a high
+//  byte of one of its addresses, which the installer relocates.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildVirtualDrive (Byte speedControl, std::vector<Byte> & outFile, std::string & outErrors)
+{
+    HRESULT                                 hr      = S_OK;
+    std::string                             source  = GetVirtualDriveSource();
+    std::vector<Byte>                       driver;
+    std::vector<Byte>                       raised;
+    std::vector<Byte>                       installer;
+    std::vector<Byte>                       relocations;
+    std::unordered_map<std::string, Word>   symbols;
+    bool                                    sized   = false;
+    bool                                    fits    = false;
+    bool                                    shifted = true;
+    Word                                    slot    = 0;
+
+
+
+    outFile.clear();
+    outErrors.clear();
+
+    hr = Assemble (std::format ("DRIVER = 1\nDRVORG = ${:04X}\n", kDriverAddress) + source, kDriverAddress, LinkChip::Acia, driver, outErrors, false, &symbols);
+    CHR (hr);
+
+    hr = Assemble (std::format ("DRIVER = 1\nDRVORG = ${:04X}\n", kDriverAddress + 0x100) + source, (Word) (kDriverAddress + 0x100), LinkChip::Acia, raised, outErrors);
+    CHR (hr);
+
+    sized = driver.size() == raised.size();
+    CBREx (sized, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    fits = driver.size() <= kDriverLimit && symbols.contains ("sltx");
+    outErrors = fits ? "" : std::format ("The driver is {} bytes, past its {}, or has no sltx.", driver.size(), kDriverLimit);
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    for (size_t at = 0; at < driver.size(); at++)
+    {
+        if (driver[at] != raised[at])
+        {
+            shifted = shifted && raised[at] == (Byte) (driver[at] + 1);
+            relocations.push_back ((Byte) (at & 0xFF));
+            relocations.push_back ((Byte) (at >> 8));
+        }
+    }
+
+    outErrors = shifted ? "" : "A byte of the driver assembled a page higher isn't one more.";
+    CBREx (shifted, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    slot = (Word) (symbols["sltx"] - kDriverAddress);
+
+    hr = Assemble (std::format ("DRVLEN = {}\nRELOCN = {}\nSLTXOFF = {}\nSPEED = ${:02X}\n", driver.size(), relocations.size() / 2, slot, speedControl) + source,
+                   kInstallerAddress, LinkChip::Acia, installer, outErrors);
+    CHR (hr);
+
+    outFile = installer;
+    outFile.insert (outFile.end(), driver.begin(), driver.end());
+    outFile.insert (outFile.end(), relocations.begin(), relocations.end());
+
+Error:
+    return hr;
 }
 
 

@@ -273,6 +273,7 @@
     <ClCompile Include="CassoLink\CassoLinkPacketText.cpp" />
     <ClCompile Include="CassoLink\Host\CassoLinkAdtProServer.cpp" />
     <ClCompile Include="CassoLink\Host\CassoLinkVirtualDrives.cpp" />
+    <ClCompile Include="CassoLink\CassoLinkProDosDisk.cpp" />
     <ClCompile Include="CassoLink\LinkProgram.cpp" />
     <ClCompile Include="CassoLink\LinkedDisk.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSession.cpp" />
@@ -1910,6 +1911,7 @@
     <ClInclude Include="CassoLink\CassoLinkPacketText.h" />
     <ClInclude Include="CassoLink\Host\CassoLinkAdtProServer.h" />
     <ClInclude Include="CassoLink\Host\CassoLinkVirtualDrives.h" />
+    <ClInclude Include="CassoLink\CassoLinkProDosDisk.h" />
     <ClInclude Include="CassoLink\Host\CassoLinkHostTypes.h" />
     <ClInclude Include="CassoLink\LinkProgram.h" />
     <ClInclude Include="CassoLink\LinkedDisk.h" />
@@ -2364,6 +2366,7 @@
     <None Include="CassoLink\Apple\SlotFinder.s" />
     <None Include="CassoLink\Apple\Modules\Block.s" />
     <None Include="CassoLink\Apple\Modules\Nibble.s" />
+    <None Include="CassoLink\Apple\VirtualDrive.s" />
     <None Include="CassoLink\Apple\Modules\Capture.s" />
     <None Include="CassoLink\Apple\AppleSources.targets" />
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />

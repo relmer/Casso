@@ -1101,6 +1101,8 @@ files as they are fails SC-037.
 
 **Rationale**: GETBUFR is the documented way to take memory beside BASIC.SYSTEM, and a free slot's entries are where ProDOS looks for a device.
 
+**Update (2026-11-17)**: BASIC.SYSTEM has no startup pathname for a file it runs at its start: the copy on the fixture disk begins with code, not a JMP and $EE $EE. So a `.SYSTEM` file ahead of it can't run code once BASIC.SYSTEM has started, and GETBUFR is BASIC.SYSTEM's. The disk has BASIC.SYSTEM as its first system file instead, and a STARTUP that runs `CASSOLINK`, a binary file at $2000: the installer, then the driver, then the driver's relocation list. GETBUFR's four pages at boot are $9600 to $99FF, where BASIC.SYSTEM's buffers were, so the driver can't be assembled where it runs; the PC assembles it at $9200 and $9300, and each byte that differs is a high byte the installer raises by GETBUFR's page. The driver is in the first two pages and the CRC tables in the other two. The driver's request is Virtual block ($F5, contracts/cassolink.md); a reply that doesn't arrive in about three seconds is requested again, four times in all, then the call returns ProDOS's I/O error. On an emulated //c, the drives are in slot 7, and BASIC.SYSTEM catalogs and saves to both (`CassoLinkVirtualDriveScenarioTests`).
+
 ## R45. Disks over cassette audio (Story 26)
 
 **Finding**: the ][+ and //e toggle the cassette output at $C020 and read the input at $C060. Casso Explorer bootstraps the link through the cassette input today (`LinkAudioBootstrap`). ADTPro's audio client sends and receives disks with a separate encoding, published on adtpro.com. `WasapiAudio` renders audio; Casso has no capture from the PC's input.
