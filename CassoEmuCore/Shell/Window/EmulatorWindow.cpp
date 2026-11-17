@@ -708,6 +708,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         {
             case IDM_VIEW_FLOPPY_PAIR_BESIDE: visible = m_scene->IsFloppyPairBesideOffered();                                       break;
 
+            // A place row is for a class the machine has drives of.
+            case IDM_VIEW_FLOPPIES_ON_DESK:   visible = m_scene->HasDriveClass (DeskDriveClass::Floppy);                            break;
+            case IDM_VIEW_HARD_DISKS_ON_DESK: visible = m_scene->HasDriveClass (DeskDriveClass::HardDisk);                          break;
+
             // The //c Plus's port drives are plugged in from the plug-in rows.
             // Each row is visible only while the port has room for its kind.
             case IDM_STORAGE_DRIVE2:          visible = !portChain;                                                                 break;
