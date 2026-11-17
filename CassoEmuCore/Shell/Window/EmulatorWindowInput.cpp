@@ -6,6 +6,7 @@
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
+#include "Shell/Layout/DriveLabel.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellSerialCard.h"
@@ -614,7 +615,8 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
         // A 3.5-inch drive or hard disk on the desk, or a Disk II in a stack,
         // has no name strip, so the drive under the pointer has its image's
-        // name on its front.
+        // name on its front. A 3.5-inch drive or hard disk also has a tip
+        // with the drive's name and size above the image's name.
         {
             const DeskSceneComposition  & comp       = m_scene->m_deskScene.Composition();
             int                           hoverExtra = -1;
@@ -637,6 +639,19 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
             if (m_scene->SetHoverDrive (hoverExtra, hoverDisk))
             {
                 m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+            }
+
+            if (tip.empty() && hoverExtra >= 0 && hoverExtra < comp.extraCount && hoverExtra < m_scene->m_deskScene.GetExtraCount())
+            {
+                const DeskDrive  & drive = m_scene->m_deskScene.GetExtraDrive (hoverExtra);
+                std::string        path  = m_scene->GetDriveImagePath (drive);
+
+                anchor = comp.extraRectPx[hoverExtra];
+                tip    = DriveLabel::GetTip (ShellDeskScene::GetDriveTitle (drive),
+                                             DriveLabel::GetDetail (drive.model, m_scene->GetDriveDiskBlocks (drive), m_scene->GetDriveCapacityBlocks (drive)),
+                                             path.empty() ? std::wstring() : std::filesystem::path (path).filename().wstring(),
+                                             ShellDeskScene::IsHardDisk (drive),
+                                             !path.empty() && m_scene->IsDriveWriteProtected (drive));
             }
         }
 
