@@ -3,24 +3,39 @@ Ka 0 0 0
 Kd 0.88 0.85 0.76
 d 1
 
-newmtl vent_shadow_263
+newmtl vent_shadow_198
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl vent_shadow_20
+newmtl vent_shadow_1005
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl pocket_1497
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl pocket_1727
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
 newmtl logo_plate
 Ka 0 0 0 
-Kd 0.42 0.385 0.34
+Kd 0.215 0.205 0.195
 d 1
 
 newmtl name_plate
 Ka 0 0 0 
-Kd 0.42 0.385 0.34
+Kd 0.215 0.205 0.195
+d 1
+
+newmtl ready_plate
+Ka 0 0 0 
+Kd 0.215 0.205 0.195
 d 1
 
 newmtl badge0
@@ -55,12 +70,7 @@ d 1
 
 newmtl name_lettering
 Ka 0 0 0 
-Kd 0.7 0.68 0.64
-d 1
-
-newmtl ready_plate
-Ka 0 0 0 
-Kd 0.42 0.385 0.34
+Kd 0.64 0.65 0.69
 d 1
 
 newmtl ready_lettering
@@ -73,32 +83,32 @@ Ka 0 0 0
 Kd 0.9 0.12 0.1
 d 1
 
-newmtl back_panel_16
+newmtl back_panel_0
 Ka 0 0 0 
-Kd 0.33 0.29 0.25
+Kd 0.4 0.37 0.32
 d 1
 
-newmtl screw_21
+newmtl back_panel_1
 Ka 0 0 0 
-Kd 0.65 0.65 0.65
+Kd 0.4 0.37 0.32
 d 1
 
-newmtl screw_171
-Ka 0 0 0 
-Kd 0.65 0.65 0.65
-d 1
-
-newmtl back_panel_202
-Ka 0 0 0 
-Kd 0.33 0.29 0.25
-d 1
-
-newmtl screw_207
+newmtl screw_0
 Ka 0 0 0 
 Kd 0.65 0.65 0.65
 d 1
 
-newmtl screw_414
+newmtl screw_1
+Ka 0 0 0 
+Kd 0.65 0.65 0.65
+d 1
+
+newmtl screw_2
+Ka 0 0 0 
+Kd 0.65 0.65 0.65
+d 1
+
+newmtl screw_3
 Ka 0 0 0 
 Kd 0.65 0.65 0.65
 d 1
@@ -193,6 +203,21 @@ Ka 0 0 0
 Kd 0.06 0.06 0.06
 d 1
 
+newmtl left_vent18
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent19
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl left_vent20
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
 newmtl right_vent0
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
@@ -263,19 +288,79 @@ Ka 0 0 0
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_name
+newmtl right_vent14
 Ka 0 0 0 
-Kd 0.95 0.945 0.925
+Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_apple
+newmtl right_vent15
 Ka 0 0 0 
-Kd 0.95 0.945 0.925
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl right_vent16
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
 d 1
 
 newmtl model_label
 Ka 0 0 0 
+Kd 0.9 0.87 0.78
+d 1
+
+newmtl model_band
+Ka 0 0 0 
+Kd 0.33 0.31 0.29
+d 1
+
+newmtl model_logotype
+Ka 0 0 0 
 Kd 0.95 0.945 0.925
+d 1
+
+newmtl back_badge0
+Ka 0 0 0 
+Kd 0.78 0.78 0.8
+d 1
+
+newmtl back_badge1
+Ka 0 0 0 
+Kd 0.78 0.78 0.8
+d 1
+
+newmtl back_badge2
+Ka 0 0 0 
+Kd 0.78 0.78 0.8
+d 1
+
+newmtl back_badge3
+Ka 0 0 0 
+Kd 0.78 0.78 0.8
+d 1
+
+newmtl back_badge4
+Ka 0 0 0 
+Kd 0.78 0.78 0.8
+d 1
+
+newmtl back_badge5
+Ka 0 0 0 
+Kd 0.78 0.78 0.8
+d 1
+
+newmtl serial_sticker
+Ka 0 0 0 
+Kd 0.94 0.91 0.82
+d 1
+
+newmtl serial_text
+Ka 0 0 0 
+Kd 0.08 0.08 0.085
+d 1
+
+newmtl model_caption
+Ka 0 0 0 
+Kd 0.08 0.08 0.085
 d 1
 
 newmtl model_text
@@ -283,39 +368,64 @@ Ka 0 0 0
 Kd 0.08 0.08 0.085
 d 1
 
-newmtl maker_text
+newmtl model_rule
 Ka 0 0 0 
 Kd 0.08 0.08 0.085
 d 1
 
-newmtl db25_shell
+newmtl maker_text0
 Ka 0 0 0 
-Kd 0.76 0.66 0.4
+Kd 0.08 0.08 0.085
 d 1
 
-newmtl db25_insert
+newmtl maker_text1
 Ka 0 0 0 
-Kd 0.15 0.15 0.155
+Kd 0.08 0.08 0.085
 d 1
 
-newmtl voltage_label
+newmtl maker_text2
 Ka 0 0 0 
-Kd 0.95 0.945 0.925
+Kd 0.08 0.08 0.085
 d 1
 
-newmtl voltage_text
+newmtl model_part
 Ka 0 0 0 
 Kd 0.08 0.08 0.085
 d 1
 
 newmtl caution_label
 Ka 0 0 0 
-Kd 0.95 0.945 0.925
+Kd 0.85 0.86 0.81
 d 1
 
 newmtl caution_band
 Ka 0 0 0 
-Kd 0.33 0.29 0.25
+Kd 0.33 0.31 0.29
+d 1
+
+newmtl caution_text
+Ka 0 0 0 
+Kd 0.95 0.72 0.1
+d 1
+
+newmtl caution_divider
+Ka 0 0 0 
+Kd 0.08 0.08 0.085
+d 1
+
+newmtl caution_rule
+Ka 0 0 0 
+Kd 0.08 0.08 0.085
+d 1
+
+newmtl caution_triangle
+Ka 0 0 0 
+Kd 0.95 0.72 0.1
+d 1
+
+newmtl caution_part
+Ka 0 0 0 
+Kd 0.08 0.08 0.085
 d 1
 
 newmtl caution_line0
@@ -343,44 +453,59 @@ Ka 0 0 0
 Kd 0.08 0.08 0.085
 d 1
 
-newmtl caution_text
+newmtl db25_flange
 Ka 0 0 0 
-Kd 0.95 0.78 0.15
+Kd 0.65 0.65 0.65
 d 1
 
-newmtl caution_triangle
+newmtl db25_insert
 Ka 0 0 0 
-Kd 0.95 0.78 0.15
+Kd 0.15 0.15 0.155
 d 1
 
-newmtl iec_inlet
+newmtl db25_cutout
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl iec_pin_l
+newmtl db25_back
 Ka 0 0 0 
-Kd 0.65 0.65 0.65
+Kd 0.06 0.06 0.06
 d 1
 
-newmtl iec_pin_n
+newmtl iec_body
 Ka 0 0 0 
-Kd 0.65 0.65 0.65
+Kd 0.12 0.12 0.125
 d 1
 
-newmtl iec_pin_e
+newmtl iec_floor
 Ka 0 0 0 
-Kd 0.65 0.65 0.65
+Kd 0.05 0.05 0.055
 d 1
 
-newmtl switch_frame
+newmtl iec_pin_line
+Ka 0 0 0 
+Kd 0.76 0.765 0.78
+d 1
+
+newmtl iec_pin_neutral
+Ka 0 0 0 
+Kd 0.76 0.765 0.78
+d 1
+
+newmtl iec_pin_earth
+Ka 0 0 0 
+Kd 0.76 0.765 0.78
+d 1
+
+newmtl switch_bezel
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
 newmtl switch_rocker
 Ka 0 0 0 
-Kd 0.2 0.2 0.2
+Kd 0.17 0.17 0.175
 d 1
 
 newmtl switch_on

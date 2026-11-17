@@ -35,6 +35,7 @@ import re
 
 import cadquery as cq
 from cadkit import KD, Model
+from cad_iec import c14, c14_cut
 
 # ---------------------------------------------------------------- dimensions
 
@@ -232,11 +233,11 @@ for name, z0 in (("scsi_upper", H * 0.36), ("scsi_lower", H * 0.18)):
 
 back_box("scsi_id_selector", W * 0.575, W * 0.60, H * 0.12, H * 0.20, 1.5, BACK_DARK)
 back_box("barcode_label",    W * 0.31,  W * 0.55, H * 0.03, H * 0.13, 0.3, BACK_LABEL)
-back_box("iec_inlet",        W * 0.64,  W * 0.74, H * 0.10, H * 0.30, 2.0, BACK_DARK)
 
-# The inlet's three pins: line and neutral side by side, earth above.
-for pin, px, pz in (("l", W * 0.665, H * 0.16), ("n", W * 0.705, H * 0.16), ("e", W * 0.685, H * 0.22)):
-    back_box(f"iec_pin_{pin}", px, px + 1.6, pz, pz + 3.5, 4.0, BACK_METAL, y = 2.0)
+# The IEC inlet, earth pin at the top, its face flush with the back.
+IEC_AT = (W * 0.69, D, H * 0.20)
+bottom = bottom.cut(c14_cut().translate(IEC_AT).mirror("YZ", (W * 0.5, 0, 0)))
+c14(m, "iec", lambda solid: solid.translate(IEC_AT).mirror("YZ", (W * 0.5, 0, 0)))
 back_box("power_switch",     W * 0.83,  W * 0.88, H * 0.12, H * 0.30, 2.0, BACK_DARK)
 back_box("power_rocker",     W * 0.84,  W * 0.87, H * 0.15, H * 0.24, 1.0, (0.20, 0.20, 0.20), y = 2.0)
 

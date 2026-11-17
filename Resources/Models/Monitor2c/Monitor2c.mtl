@@ -1,19 +1,24 @@
-newmtl ac_liner
+newmtl ac_body
 Ka 0 0 0 
-Kd 0.2 0.2 0.22
+Kd 0.12 0.12 0.125
 d 1
 
-newmtl acpin-6
+newmtl ac_floor
+Ka 0 0 0 
+Kd 0.05 0.05 0.055
+d 1
+
+newmtl ac_pin_line
 Ka 0 0 0 
 Kd 0.76 0.765 0.78
 d 1
 
-newmtl acpin0
+newmtl ac_pin_neutral
 Ka 0 0 0 
 Kd 0.76 0.765 0.78
 d 1
 
-newmtl acpin6
+newmtl ac_pin_earth
 Ka 0 0 0 
 Kd 0.76 0.765 0.78
 d 1
