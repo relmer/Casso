@@ -13,7 +13,7 @@
 //
 //  MachineHardwareIdentity::Get
 //
-//  Each slot in the order the config lists it, then the machine's own ports.
+//  Each slot in the config's order, then the machine's ports.
 //  A slot's ROM file isn't hashed here: the ROM identity has the ROMs' bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////

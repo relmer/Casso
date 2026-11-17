@@ -55,6 +55,11 @@ public:
     // Matches AppleWin attributing the disk update to the exact bus cycle.
     uint64_t *                    GetBusCyclePtr     ()       { return &m_busCycle; }
 
+    // Sets the bus cycle to the instruction boundary, for a device that reads
+    // the time between instructions: there it is otherwise the cycle of the
+    // last access that went through the bus, which a watch on a page moves.
+    void                          SyncBusCycle       ()       { m_busCycle = m_totalCycles; }
+
     // I6502DebugInfo
     Cpu6502Registers              GetRegisters     () const override;
     void                          SetRegisters     (const Cpu6502Registers & regs) override;

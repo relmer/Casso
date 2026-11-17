@@ -77,8 +77,8 @@ public:
 
     //  The blocks written since the media was attached, as each was written,
     //  for a machine state; a keyframe shares the block buffers. A load puts
-    //  them back and gives a block written since the save its content before
-    //  the first write. A state saved with other media doesn't load.
+    //  them back, and a block written since the save gets its content from
+    //  before the first write. A state saved with other media doesn't load.
     void     SaveState (StateWriter & writer) const;
     HRESULT  LoadState (StateReader & reader);
 

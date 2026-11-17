@@ -172,6 +172,29 @@ public:
     //  A state taken on other hardware doesn't load, though the machine and
     //  its ROMs are the same: here the Mockingboard, which has no ROM, is
     //  turned off, and then the Disk II's second drive is unplugged.
+    //  A loaded state may change a mounted disk's tracks under it, so the
+    //  disk gets a new viewer media id and a viewer analyzes it again. A
+    //  rewind loads a keyframe through the same path.
+    TEST_METHOD (ALoadedStateHasTheViewerAnalyzeEachDiskAgain)
+    {
+        TestMachine        machine ("Apple2e");
+        std::vector<Byte>  saved;
+        uint64_t           before  = 0;
+        HRESULT            hr      = S_OK;
+
+
+
+        MountPatternDisk (machine);
+
+        saved  = Save (machine);
+        before = machine.GetDiskStore().GetViewerMediaId (s_kDiskSlot, s_kDiskDrive);
+
+        hr = Load (machine, saved);
+        AssertSucceeded (hr, L"the state loads");
+
+        Assert::AreNotEqual (before, machine.GetDiskStore().GetViewerMediaId (s_kDiskSlot, s_kDiskDrive), L"the disk gets a new viewer media id");
+    }
+
     TEST_METHOD (AStateFromOtherHardwareDoesNotLoad)
     {
         auto               noBoard  = [] (MachineConfig & config, MachineBuildServices &)

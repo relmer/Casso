@@ -78,7 +78,7 @@ public:
     int                  GetSlot       () const override { return m_slot; }
 
     //  IMachineState: the card's CPU, RAM, IWM and drives, the bank, the
-    //  expansion ROM's selection and the time kept against the Apple's.
+    //  expansion ROM's selection and the card's clock against the Apple's.
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
     bool     HasMedia  () const override { return true; }

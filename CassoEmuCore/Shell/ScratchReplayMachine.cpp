@@ -130,7 +130,7 @@ Error:
 //
 //  Each bay holds the medium given for it, mounted from its image only when
 //  a different one is there, with as many track slots as the medium has,
-//  and bays the list leaves out are emptied. Each hard disk, ProFile and
+//  and bays not on the list are emptied. Each hard disk, ProFile and
 //  3.5-inch drive gets its copy of the running machine's disk.
 //
 ////////////////////////////////////////////////////////////////////////////////

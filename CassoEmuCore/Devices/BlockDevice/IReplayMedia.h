@@ -12,8 +12,8 @@
 //
 //  ReplayBlockMedia
 //
-//  A hard disk, ProFile or 3.5-inch disk as a replay on a second machine
-//  needs it: its path, its write protection and its content as it was when
+//  A hard disk, ProFile or 3.5-inch disk for a replay on a second machine:
+//  its path, its write protection and its content as it was when
 //  it was attached, shared by every copy and never written. A machine state
 //  has the blocks written since then. A 3.5-inch WOZ image's content is the
 //  image's file; its state has every track. An empty drive has no content.
@@ -39,7 +39,7 @@ struct ReplayBlockMedia
 //  A drive whose disk a replay on a second machine copies. CopyForReplay is
 //  called on the thread that runs the first machine. MountReplayCopy is
 //  called on the second machine's matching drive: the copy's writes stay in
-//  memory, and the file isn't claimed, opened or written.
+//  memory, and the file isn't attached, opened or written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

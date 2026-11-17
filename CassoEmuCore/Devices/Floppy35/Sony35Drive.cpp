@@ -754,7 +754,7 @@ HRESULT Sony35Drive::FlushWoz()
     hr = m_woz->Serialize (bytes);
     CHR (hr);
 
-    //  A replay's copy writes no file.
+    //  A replay's copy doesn't write a file.
     BAIL_OUT_IF (m_wozIo == nullptr, S_OK);
 
     hr = DurableCommit::Commit (*m_wozIo, m_wozPath, bytes, 0, CommitMode::Replace, progress);
@@ -867,7 +867,7 @@ Error:
 //  Sony35Drive::LoadState
 //
 //  The tracks not written since the disk last flushed are encoded again
-//  from the disk as the head reaches them.
+//  from the disk when the head is over them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -999,8 +999,8 @@ Error:
 //
 //  Sony35Drive::MountReplayCopy
 //
-//  The disk in the drive is ejected first. A copy with no content leaves the
-//  drive empty.
+//  The disk in the drive is ejected first. After a copy with no content,
+//  the drive is empty.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

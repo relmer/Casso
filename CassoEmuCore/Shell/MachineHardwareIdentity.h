@@ -15,7 +15,7 @@ struct PortConfig;
 //
 //  A hash of the hardware a machine is built with: each slot's card and
 //  whether it is enabled, and each port's device and image, the //c's
-//  machine ports and a disk port's chain included. A saved state carries it,
+//  machine ports and a disk port's chain included. A saved state has it,
 //  and a state saved on other hardware doesn't load, since its parts would
 //  be laid onto devices that are not the ones it was taken from.
 //

@@ -533,7 +533,7 @@ std::string BlockDeviceMedia::NormalizePath (const std::string & path)
 //  GetClaimKey
 //
 //  The path, and the file system it is on unless that is the host's: the
-//  same path on two file systems kept in memory is two files.
+//  same path on two file systems in memory is two files.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -777,7 +777,7 @@ Error:
 //
 //  BlockDeviceMedia::MountReplayCopy
 //
-//  A copy with no content leaves the drive empty.
+//  After a copy with no content, the drive is empty.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

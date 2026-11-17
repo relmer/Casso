@@ -794,9 +794,9 @@ private:
 
         store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
 
-        store.SetBayChangeSink ([&machine] (int slot, int drive, BayChange)
+        store.SetBayChangeSink ([&machine] (int slot, int drive, BayChange change)
         {
-            if (slot == ReverseSessionRig::kDiskSlot)
+            if (slot == ReverseSessionRig::kDiskSlot && change != BayChange::Restored)
             {
                 machine.GetRefs().diskController->SetExternalDisk (drive, machine.GetDiskStore().GetImage (slot, drive));
             }
@@ -842,7 +842,7 @@ private:
 
         store.SetBayChangeSink ([&machine, &sounds] (int slot, int changedDrive, BayChange change)
         {
-            if (slot != ReverseSessionRig::kDiskSlot)
+            if (slot != ReverseSessionRig::kDiskSlot || change == BayChange::Restored)
             {
                 return;
             }

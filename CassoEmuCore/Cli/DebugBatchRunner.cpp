@@ -297,13 +297,13 @@ void DebugBatchRunner::RouteDiskIo (bool writeThrough)
 
 void DebugBatchRunner::FollowBays()
 {
-    m_host->GetDiskStore().SetBayChangeSink ([this] (int slot, int drive, BayChange)
+    m_host->GetDiskStore().SetBayChangeSink ([this] (int slot, int drive, BayChange change)
     {
         Disk2Controller * controller = m_host->GetRefs().diskController;
 
 
 
-        if (slot == kDiskSlot && controller != nullptr)
+        if (slot == kDiskSlot && controller != nullptr && change != BayChange::Restored)
         {
             controller->SetExternalDisk (drive, m_host->GetDiskStore().GetImage (slot, drive));
         }

@@ -81,10 +81,15 @@ MachineHost::MachineHost() :
     m_diskStore->SetMediaChangeListener ([this] () { OnMediaChanged(); });
 
     //  The store frees an image on an eject or a remount, so the controller
-    //  is re-pointed on every bay change rather than by each caller.
-    m_diskStore->SetBayChangeSink ([this] (int slot, int drive, BayChange)
+    //  is re-pointed on every bay change rather than by each caller. After a
+    //  restored state, the bay has the same image and the controller has its
+    //  restored state.
+    m_diskStore->SetBayChangeSink ([this] (int slot, int drive, BayChange change)
     {
-        ConnectDiskToController (slot, drive);
+        if (change != BayChange::Restored)
+        {
+            ConnectDiskToController (slot, drive);
+        }
     });
 }
 
@@ -1086,6 +1091,7 @@ Byte MachineHost::FinishStep()
 
     if ((historyCycles >> kCatchUpShift) != ((historyCycles - cycles) >> kCatchUpShift))
     {
+        m_cpu->SyncBusCycle();
         CatchUpCards();
     }
 
@@ -1143,8 +1149,8 @@ Byte MachineHost::FinishStep()
 //  Cards with separate processors run up to the Apple's time, so their
 //  firmware's timers run while the guest doesn't access them. FinishStep
 //  calls it each time the history's cycle count crosses a multiple of
-//  2^kCatchUpShift, so a run reaches the same state however it is cut into
-//  slices.
+//  2^kCatchUpShift, so the state at a position is the same however the run is
+//  cut into slices.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1976,6 +1982,8 @@ HRESULT MachineHost::LoadStateSeating (StateReader & reader, bool isOverMounted)
     uint16_t  version    = 0;
     uint32_t  savedParts = 0;
     size_t    partCount  = 0;
+    int       slot       = 0;
+    int       drive      = 0;
 
 
 
@@ -2001,6 +2009,16 @@ HRESULT MachineHost::LoadStateSeating (StateReader & reader, bool isOverMounted)
 
     hr = reader.EndSection();
     CHR (hr);
+
+    //  Each mounted disk's tracks may have changed under it, so a viewer
+    //  analyzes it again.
+    for (slot = 0; slot < DiskImageStore::kSlotCount; slot++)
+    {
+        for (drive = 0; drive < DiskImageStore::kDriveCount; drive++)
+        {
+            m_diskStore->NoteStateRestored (slot, drive);
+        }
+    }
 
 Error:
     return hr;
@@ -2147,8 +2165,8 @@ Error:
 //
 //  The header as CheckStateHeader reads it, holding the state to the same
 //  machine and ROM set, with the drive bays and the Prng left alone. The
-//  hardware isn't held to the machine's: the picture is taken from the parts
-//  whose tags match.
+//  hardware may differ from the machine's: the picture is taken from the
+//  parts whose tags match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

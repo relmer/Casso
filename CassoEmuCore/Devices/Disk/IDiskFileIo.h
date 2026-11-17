@@ -117,8 +117,8 @@ public:
     //  above on why this belongs to the seam rather than to the caller.
     virtual HRESULT  WritePayloadToStandardOutput (const std::vector<Byte> & bytes) = 0;
 
-    //  The file system the paths are on, for a drive's claim on a path: zero
-    //  for the host's, which every instance shares. A file system kept in
-    //  memory is a different one from each other.
+    //  The file system the paths are on, so a path is attached to one drive
+    //  at a time on each file system: zero for the host's, which every
+    //  instance shares. Each file system in memory is a different one.
     virtual uintptr_t  GetFileSystemId () const { return 0; }
 };

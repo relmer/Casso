@@ -106,8 +106,8 @@ private:
         uint64_t  GetQuietUntil () const override;
         void      SetEnabled    (bool isEnabled) override;
 
-        //  The drive the phases were last set on, as an ID the state section
-        //  keeps: none, the internal drive, an external drive or the chain.
+        //  The drive the phases were last set on, as an ID in the state
+        //  section: none, the internal drive, an external drive or the chain.
         Byte     GetDrivenId () const;
         HRESULT  SetDrivenId (Byte id);
 
