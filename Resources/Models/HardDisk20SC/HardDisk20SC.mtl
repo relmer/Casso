@@ -1,8 +1,3 @@
-newmtl case_lid
-Ka 0 0 0 
-Kd 0.835 0.815 0.76
-d 1
-
 newmtl seam
 Ka 0 0 0 
 Kd 0.52 0.505 0.47
@@ -43,704 +38,269 @@ Ka 0 0 0
 Kd 0 0.615686 0.862745
 d 1
 
-newmtl back_vent_left0
+newmtl vent_floor0
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_left1
+newmtl vent_floor1
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_left2
+newmtl vent_floor2
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_left3
+newmtl vent_floor3
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_left4
+newmtl vent_floor4
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_left5
+newmtl vent_floor5
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_left6
+newmtl vent_floor6
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_left7
+newmtl vent_floor7
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_left8
+newmtl vent_floor8
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_left9
+newmtl vent_floor9
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_left10
+newmtl vent_floor10
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_left11
+newmtl vent_floor11
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right0
+newmtl vent_floor12
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right1
+newmtl vent_floor13
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right2
+newmtl vent_floor14
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right3
+newmtl vent_floor15
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right4
+newmtl vent_floor16
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right5
+newmtl vent_floor17
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right6
+newmtl vent_floor18
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right7
+newmtl vent_floor19
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right8
+newmtl vent_floor20
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right9
+newmtl vent_floor21
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right10
+newmtl vent_floor22
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right11
+newmtl vent_floor23
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right12
+newmtl vent_floor24
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right13
+newmtl vent_floor25
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right14
+newmtl vent_floor26
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right15
+newmtl vent_floor27
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right16
+newmtl vent_floor28
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right17
+newmtl vent_floor29
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right18
+newmtl vent_floor30
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl back_vent_right19
+newmtl vent_floor31
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl scsi_upper_shell
+newmtl vent_floor32
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl vent_floor33
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl vent_floor34
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
+d 1
+
+newmtl connector_plate
 Ka 0 0 0 
 Kd 0.72 0.72 0.72
+d 1
+
+newmtl back_panel
+Ka 0 0 0 
+Kd 0.835 0.815 0.76
+d 1
+
+newmtl scsi_upper_flange
+Ka 0 0 0 
+Kd 0.76 0.76 0.77
 d 1
 
 newmtl scsi_upper_insert
 Ka 0 0 0 
-Kd 0.06 0.06 0.06
+Kd 0.11 0.11 0.115
 d 1
 
-newmtl scsi_upper_contact0_0
+newmtl scsi_upper_slot
 Ka 0 0 0 
-Kd 0.8 0.68 0.38
+Kd 0.03 0.03 0.035
 d 1
 
-newmtl scsi_upper_contact0_1
+newmtl scsi_upper_contacts
 Ka 0 0 0 
-Kd 0.8 0.68 0.38
+Kd 0.8 0.66 0.3
 d 1
 
-newmtl scsi_upper_contact0_2
+newmtl scsi_upper_bails
 Ka 0 0 0 
-Kd 0.8 0.68 0.38
+Kd 0.8 0.8 0.81
 d 1
 
-newmtl scsi_upper_contact0_3
+newmtl scsi_lower_flange
 Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_4
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_5
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_6
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_7
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_8
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_9
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_10
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_11
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_12
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_13
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_14
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_15
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_16
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_17
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_18
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_19
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_20
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_21
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_22
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_23
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact0_24
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_0
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_1
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_2
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_3
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_4
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_5
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_6
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_7
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_8
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_9
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_10
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_11
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_12
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_13
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_14
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_15
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_16
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_17
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_18
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_19
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_20
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_21
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_22
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_23
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_contact1_24
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_upper_bail_l
-Ka 0 0 0 
-Kd 0.72 0.72 0.72
-d 1
-
-newmtl scsi_upper_bail_r
-Ka 0 0 0 
-Kd 0.72 0.72 0.72
-d 1
-
-newmtl scsi_lower_shell
-Ka 0 0 0 
-Kd 0.72 0.72 0.72
+Kd 0.76 0.76 0.77
 d 1
 
 newmtl scsi_lower_insert
 Ka 0 0 0 
-Kd 0.06 0.06 0.06
+Kd 0.11 0.11 0.115
 d 1
 
-newmtl scsi_lower_contact0_0
+newmtl scsi_lower_slot
 Ka 0 0 0 
-Kd 0.8 0.68 0.38
+Kd 0.03 0.03 0.035
 d 1
 
-newmtl scsi_lower_contact0_1
+newmtl scsi_lower_contacts
 Ka 0 0 0 
-Kd 0.8 0.68 0.38
+Kd 0.8 0.66 0.3
 d 1
 
-newmtl scsi_lower_contact0_2
+newmtl scsi_lower_bails
 Ka 0 0 0 
-Kd 0.8 0.68 0.38
+Kd 0.8 0.8 0.81
 d 1
 
-newmtl scsi_lower_contact0_3
+newmtl scsi_icon0
 Ka 0 0 0 
-Kd 0.8 0.68 0.38
+Kd 0.835 0.815 0.76
 d 1
 
-newmtl scsi_lower_contact0_4
+newmtl scsi_icon1
 Ka 0 0 0 
-Kd 0.8 0.68 0.38
+Kd 0.835 0.815 0.76
 d 1
 
-newmtl scsi_lower_contact0_5
+newmtl lock_loop
 Ka 0 0 0 
-Kd 0.8 0.68 0.38
+Kd 0.835 0.815 0.76
 d 1
 
-newmtl scsi_lower_contact0_6
+newmtl barcode_label
 Ka 0 0 0 
-Kd 0.8 0.68 0.38
+Kd 0.95 0.945 0.93
 d 1
 
-newmtl scsi_lower_contact0_7
+newmtl barcode
 Ka 0 0 0 
-Kd 0.8 0.68 0.38
+Kd 0.08 0.08 0.085
 d 1
 
-newmtl scsi_lower_contact0_8
+newmtl barcode_text
 Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_9
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_10
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_11
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_12
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_13
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_14
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_15
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_16
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_17
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_18
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_19
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_20
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_21
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_22
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_23
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact0_24
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_0
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_1
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_2
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_3
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_4
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_5
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_6
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_7
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_8
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_9
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_10
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_11
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_12
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_13
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_14
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_15
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_16
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_17
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_18
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_19
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_20
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_21
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_22
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_23
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_contact1_24
-Ka 0 0 0 
-Kd 0.8 0.68 0.38
-d 1
-
-newmtl scsi_lower_bail_l
-Ka 0 0 0 
-Kd 0.72 0.72 0.72
-d 1
-
-newmtl scsi_lower_bail_r
-Ka 0 0 0 
-Kd 0.72 0.72 0.72
+Kd 0.08 0.08 0.085
 d 1
 
 newmtl scsi_id_selector
@@ -748,9 +308,14 @@ Ka 0 0 0
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl barcode_label
+newmtl scsi_id_window
 Ka 0 0 0 
-Kd 0.95 0.945 0.93
+Kd 0.85 0.85 0.85
+d 1
+
+newmtl scsi_id_hole
+Ka 0 0 0 
+Kd 0.06 0.06 0.06
 d 1
 
 newmtl iec_body
@@ -778,14 +343,34 @@ Ka 0 0 0
 Kd 0.76 0.765 0.78
 d 1
 
-newmtl power_switch
+newmtl mains_mark
+Ka 0 0 0 
+Kd 0.835 0.815 0.76
+d 1
+
+newmtl switch_bezel
 Ka 0 0 0 
 Kd 0.06 0.06 0.06
 d 1
 
-newmtl power_rocker
+newmtl switch_rocker
 Ka 0 0 0 
-Kd 0.2 0.2 0.2
+Kd 0.17 0.17 0.175
+d 1
+
+newmtl switch_on_mark
+Ka 0 0 0 
+Kd 0.835 0.815 0.76
+d 1
+
+newmtl switch_off_mark
+Ka 0 0 0 
+Kd 0.835 0.815 0.76
+d 1
+
+newmtl case_lid
+Ka 0 0 0 
+Kd 0.835 0.815 0.76
 d 1
 
 newmtl case_bottom
