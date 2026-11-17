@@ -21,7 +21,7 @@ runs once, in the last phase. New UI strings come from
 
 ## Phase 1: Setup
 
-- [ ] T001 Collect the Apple documents listed in research.md R1 into `%USERPROFILE%\Downloads\Casso\apple3\docs` and list each file with its source URL in `specs/050-apple3/research.md` under R1
+- [x] T001 Collect the Apple documents listed in research.md R1 into `%USERPROFILE%\Downloads\Casso\apple3\docs` and list each file with its source URL in `specs/050-apple3/research.md` under R1
 - [ ] T002 Check every row of `specs/050-apple3/contracts/hardware-map.md` against the documents: fill **Checked** with document and page, correct rows the documents contradict, settle rows the documents do not cover by consulting an existing emulator under the limits in research.md R1, and add the rows marked as missing (every VIA port line, drive select, character set loading, smooth scroll, color encoding, timing)
 - [ ] T003 Update `specs/050-apple3/spec.md`, `data-model.md` and `research.md` wherever T002 changed a fact a requirement or decision depended on, and list the changes for the owner
 - [ ] T004 [P] Add `Apple3.rom` (each accepted revision with size and CRC) to the ROM catalog and to `scripts/FetchRoms.ps1 -Fixtures`
@@ -47,7 +47,7 @@ machine definition and the debugger's address type.
 
 ### Implementation
 
-- [ ] T014 Add the extended zero-page indirect Y mode to `CassoCore/GlobalAddressingModes.h` and its fetch case to `CassoCore/Cpu.cpp`, and implement `Cpu6502Apple3` (derived from `MemoryBusCpu`; the affected opcodes' table entries changed to the new mode; the mapping restored after each instruction in `Step`) in `CassoEmuCore/Machines/Apple3/Cpu6502Apple3.h` and `.cpp`, created by `CassoEmuCore/Core/CpuFactory.cpp`
+- [ ] T014 Add the extended zero-page indirect Y and zero-page X indirect modes to `CassoCore/GlobalAddressingModes.h` and their fetch cases to `CassoCore/Cpu.cpp`, and implement `Cpu6502Apple3` (derived from `MemoryBusCpu`; the affected opcodes' table entries changed to the new mode; the mapping restored after each instruction in `Step`) in `CassoEmuCore/Machines/Apple3/Cpu6502Apple3.h` and `.cpp`, created by `CassoEmuCore/Core/CpuFactory.cpp`
 - [ ] T015 Run Dormann and full-depth Harte against `Cpu6502Apple3` with extended addressing inactive and against the existing cores (`scripts/RunDormannTest.ps1`, `scripts/RunHarteTests.ps1 -SkipGenerate`), and the per-instruction timing comparison from `docs/testing.md` for the existing cores before and after T014; store the results in `specs/050-apple3/research.md` under R4
 - [ ] T016 Implement `Apple3Mmu` (RAM for 128K and 256K, the three registers, page table mapping through `MemoryBus::SetReadPage` and `SetWritePage`, ROM, I/O, write protection, zero page and stack pages, `IMachineState`) in `CassoEmuCore/Machines/Apple3/Apple3Mmu.h` and `.cpp`
 - [ ] T017 Implement extended access resolution in `Apple3Mmu` (extension byte lookup, the one-page remap from the bank pair for the rest of the instruction, the `$8F` case with the RAM under the VIAs, the restore, and the resolved `DebugAddress`) in `CassoEmuCore/Machines/Apple3/Apple3Mmu.cpp`
@@ -286,7 +286,7 @@ Phases 3 to 11; can start after T001.
 
 Depends on Phase 7.
 
-- [ ] T123 [US14] Find the interpreter's pointers for each Business BASIC release on the fetched disks by observing it in Casso's debugger; write the releases, signatures and pointers in `specs/050-apple3/research.md` under R19
+- [ ] T123 [US14] Find the interpreter's pointers from Apple's Business BASIC source listing in the docs folder, and match each release on the fetched disks to it by signature and by observing it in Casso's debugger; write the releases, signatures and pointers in `specs/050-apple3/research.md` under R19
 - [ ] T124 [US14] Factor the interface the BASIC panes and `BasicStopMonitor` use out of `ApplesoftProgram` in `CassoEmuCore/Debugger/Basic/`, if they use the class directly, with the Applesoft tests passing as they were
 - [ ] T125 [P] [US14] Write Business BASIC tests (listing as `LIST` prints it, every variable type including long integers, arrays, GOSUB and FOR frames, an unknown release reported) from captured memory images in `UnitTest/DebuggerTests/BusinessBasicProgramTests.cpp`
 - [ ] T126 [US14] Implement `BusinessBasicProgram` (token table from the Reference Manual, release identification, lines, variables, arrays, frames) in `CassoEmuCore/Debugger/Basic/BusinessBasicProgram.h` and `.cpp`

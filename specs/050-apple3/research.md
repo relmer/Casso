@@ -12,13 +12,40 @@ check every row of `contracts/hardware-map.md` against them, adding the
 document and page to each row. No device code is written from an unchecked
 row.
 
-**Status on 2026-11-17**: No Apple primary document has been read for this
-plan. The asimov mirror paths found by search returned 404. The rows in the
-hardware map come from two Softalk articles by John Jeppson, hosted on
-apple3.org ("Bank Switch Razzle-Dazzle", August 1982, and "Guided Tour of
-Highway III", May 1983), from Apple's specification sheet as quoted in search
-results, and from memory. Rows are marked `article`, `spec sheet` or
-`unverified` accordingly.
+**Status on 2026-11-17**: 36 documents are in the docs folder, downloaded
+from `mirrors.apple2.org.za/ftp.apple.asimov.net/documentation/apple3/` and,
+for the Service Reference Manual, from the Apple II Documentation Project
+folder on the same mirror. Text was extracted from those with a text layer.
+The hardware map's **Checked** column is filled for what these confirmed:
+the SOS Reference Manual volume 1 (memory, banks, enhanced indirect
+addressing, zero pages and stacks, speeds), Apple's SOS 1.3, console driver
+and RS-232 driver source listings (register and I/O addresses, drive
+selection, the sound port, VIA initialization), and Apple's specifications
+sheet (video modes, connectors, keyboard, CPU type).
+
+**Not yet read**: the scanned documents with no text layer, which have to be
+read page by page: the Service Reference Manual, the schematics, the SOS
+Device Driver Writer's Guide, the Standard Device Drivers Manual, the
+Owner's Guides and the Monitor /// manual. They are the source for the
+environment register's bits, each VIA line, video mode switches and color
+encoding, timing, the keyboard codes, and every model dimension.
+
+**Corrections the documents made to the first draft**:
+
+- Enhanced indirect addressing applies to both the X and the Y indirect
+  forms, not `(zp),Y` alone.
+- The extension byte is enabled by bit 7 alone, with bits 4-6 unused; the
+  article's "outside `$80-$8F`" is narrower than Apple's rule.
+- The highest bank is 2 for 128K and 6 for 256K. The article's 3 and 7 are
+  wrong.
+- An extended address whose low part is `$0000-$00FF` goes to the current
+  zero page, and with the highest bank the upper half is undefined.
+- Apple's notation for a bank-switched address is `b:nnnn`, and for an
+  extended address `8x:nnnn` (SOS Reference Manual 2.1.1 and 2.1.2). The
+  debugger's `bank/address` form was chosen before this was read; see the
+  open question in the plan.
+- Apple's Business BASIC and SOS source listings exist. They replace
+  observation as the source for Business BASIC's internals (R19).
 
 **Documents to collect**: Apple /// Owner's Guide; SOS Reference Manual
 volumes 1 and 2 (chapter 2 of volume 1 has bank-switched and enhanced indirect
@@ -88,9 +115,11 @@ not changed for relocation.
 addition to every zero page and stack access on every machine, and it is not
 what the hardware does if the substitution above is confirmed.
 
-**To verify**: the bank count for 128K (in the article bank 3 is the
-highest; 128K less a 32K system bank is three banks, 0 to 2), the behavior of
-an absent bank, and what `$A000-$BFFF` and `$0000-$1FFF` map to.
+**Confirmed** (SOS Reference Manual 2.1.1): the S-bank is `$0000-$1FFF` and
+`$A000-$FFFF`; the highest bank is 2 for 128K and 6 for 256K.
+
+**To verify**: the behavior of an absent bank, and the substitution rule
+above.
 
 ## R4. Extended addressing in the CPU
 
@@ -105,9 +134,9 @@ derived from `MemoryBusCpu` as `Cpu65C02` is. It is the existing NMOS 6502
 with two differences:
 
 1. Its constructor changes the addressing mode of the affected opcodes in its
-   instruction table to a new `GlobalAddressingMode` value, extended
-   zero-page indirect Y. The shared fetch switch in `Cpu.cpp` gets one case
-   for it. This is how `Cpu65C02` adds its modes, and `Microcode.h` already
+   instruction table to two new `GlobalAddressingMode` values, the extended forms of
+   zero-page indirect Y and zero-page X indirect (Apple's rule covers both).
+   The shared fetch switch in `Cpu.cpp` gets a case for each. This is how `Cpu65C02` adds its modes, and `Microcode.h` already
    documents that a mode added to the shared enum costs the other cores
    nothing at run time.
 2. The new mode's fetch function computes the effective address as the
@@ -140,11 +169,15 @@ results cannot change. The 6502 itself is not duplicated.
 - Modifying the 65C02. The Apple /// is NMOS; its undocumented opcodes and
   its `JMP (indirect)` page-wrap behavior are the NMOS ones.
 
-**To verify**: the extension byte's exact address (in the article it is the
-pointer's page XOR `$0C`; which of the pointer's two bytes is unverified),
-whether `(zp,X)` and the 65C02's `(zp)` are affected, behavior when bank
-`n+1` is past the installed memory, and whether the extension byte fetch
-costs a cycle.
+**Confirmed** (SOS Reference Manual 2.1.2 and 2.4.2.2): both indirect forms
+are affected; the extension byte is at the extension page offset of the
+pointer's high byte; bit 7 alone enables it; a low part of `$0000-$00FF`
+goes to the current zero page; past the highest bank the result is
+undefined.
+
+**To verify**: whether the extension byte fetch costs a cycle, and what the
+hardware does in the undefined cases (an existing emulator may settle the
+second).
 
 **Validation**: Dormann and full-depth Harte run against `Cpu6502Apple3`
 with extended addressing inactive, which must match the plain 6502 exactly,
@@ -319,13 +352,14 @@ interface the BASIC panes and `BasicStopMonitor` use. If the panes use
 release in memory is identified by a signature of the interpreter's code; an
 unknown signature is reported as not supported.
 
-**Clean-room note**: the token table and the documented data types come from
-the Business BASIC Reference Manual. The interpreter's pointers (program
-start, variable tables, the current line, the GOSUB and FOR stack) are found
-by observing the interpreter run in Casso's debugger. No third-party
-disassembly is used.
+**Sources**: the token table and data types come from the Business BASIC
+Reference Manual. The interpreter's pointers (program start, variable tables,
+the current line, the GOSUB and FOR stack) come from Apple's Business BASIC
+source listing in the docs folder, checked by observing the interpreter run
+in Casso's debugger.
 
-**Risk**: this is the least documented part of the feature. It is scheduled
+**Risk**: the listing is of one release; the other releases on the fetched
+disks are matched to it by signature and observation. The work is scheduled
 after the debugger's bank work, which it depends on.
 
 ## R20. 3D models and the desk scene
