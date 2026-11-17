@@ -74,6 +74,19 @@ INSERT     = (0.180, 0.180, 0.190)     # clear of the desk scene's finish marker
 
 SEAM_W     = 0.7
 
+# THE UNIDISK 3.5, from straight-on photographs of its front (eBay listing
+# 168671211616, image 4, and bigmessowires.com's unidisk3.5.jpg), measured
+# at 0.133 mm a pixel from the 4 3/4 in width: its front is 0.418 of its
+# width high. The lid comes down the front to the top of the slot, so the
+# slot opens along the seam. At the slot's left the lower half rises in a
+# block to the activity light, a strip under the lid, and the seam steps up
+# round it. The eject button stands out from the lid's lower right corner,
+# and the manual eject hole is under it, right of the slot.
+UNIDISK_H     = 50.6
+UNIDISK_FRONT = dict(slot_x=(14.6, 105.4), slot_z=(31.6, 36.5), block_x1=14.2, block_z1=44.6,
+                     hole=(113.4, 34.5), lamp=(1.3, 13.9, 41.1, 44.2), eject=(106.7, 40.0, 44.5), eject_out=3.0,
+                     badge=(15.2, 5.3, 9.3))
+
 
 def seam_cut(case, seam_z):
     # The seam, level all the way round: front, back and both sides.
@@ -102,16 +115,37 @@ def back_box(x0, x1, z0, z1, y0, y1):
             .translate((back_x(x1), y0, z0)))
 
 
-WELL_X0, WELL_X1, WELL_Z0, WELL_Z1 = 14.6, 66.2, 6.0, 20.9
-WELL_DEPTH                         = 5.0
-WELL_R                             = 2.5
+WELL_DEPTH = 5.0
+WELL_R     = 2.5
+
+# The back's layout, as seen from behind: the socket's well (x0, x1, z0,
+# z1), the socket's center and its screw posts' x. The Apple 3.5 Drive's is
+# from the iFixit teardown's photograph; the UniDisk 3.5's from a
+# straight-on photograph of its back (eBay listing 168671211616, image 3),
+# measured at 0.12 mm a pixel from the 50.6 mm height.
+APPLE35_BACK = dict(well=(14.6, 66.2, 6.0, 20.9), db=(40.4, 13.4), posts=(21.8, 59.0))
+UNIDISK_BACK = dict(well=(16.3, 68.1, 8.0, 23.5), db=(42.1, 17.0), posts=(22.3, 61.8))
+
+# The UniDisk 3.5's vent slots across the back, under the lid: seventeen,
+# 2.2 mm wide on a 5.2 mm pitch from 15.1 mm, between 27.7 and 39.2 mm up.
+UNIDISK_VENTS = dict(count=17, x0=15.1, pitch=5.2, w=2.2, z0=27.7, z1=39.2)
 
 
-def back_cuts(case):
+def back_cuts(case, layout, unidisk):
     # The socket's well, recessed into the back with rounded corners.
-    well = (back_box(WELL_X0, WELL_X1, WELL_Z0, WELL_Z1, D - WELL_DEPTH, D + 1.0)
+    wx0, wx1, wz0, wz1 = layout["well"]
+    well = (back_box(wx0, wx1, wz0, wz1, D - WELL_DEPTH, D + 1.0)
             .edges("|Y").fillet(WELL_R))
     case = case.cut(well)
+
+    if unidisk:
+        v = UNIDISK_VENTS
+
+        for i in range(v["count"]):
+            x = v["x0"] + i * v["pitch"]
+            case = case.cut(back_box(x, x + v["w"], v["z0"], v["z1"], D - 6.0, D + 1.0))
+
+        return case
 
     # The floppy disk mark above the well, recessed: the disk's outline, its
     # shutter at the top and its label at the bottom.
@@ -125,17 +159,18 @@ def back_cuts(case):
     return case
 
 
-def back_parts(m, case_rgb):
+def back_parts(m, case_rgb, layout, unidisk):
     wall = D - WELL_DEPTH              # the well's back wall, where the socket mounts
 
+    db_cx, db_cz       = layout["db"]
+
     # The socket's metal flange, with the D shell protruding from it.
-    flange_x0, flange_x1, flange_z0, flange_z1 = 18.6, 62.6, 8.4, 18.6
+    flange_x0, flange_x1, flange_z0, flange_z1 = db_cx - 22.0, db_cx + 22.0, db_cz - 5.0, db_cz + 5.2
     m.add("db19_flange",
           back_box(flange_x0, flange_x1, flange_z0, flange_z1, wall, wall + 0.8)
             .edges("|Y").fillet(1.2),
           METAL)
 
-    db_cx, db_cz       = 40.4, 13.4
     db_top             = 30.0
     db_h               = 7.7
     db_out             = 3.4
@@ -178,12 +213,21 @@ def back_parts(m, case_rgb):
     m.add("db19_back", d_shape(insert_r - 0.1, wall + 0.8, wall + 1.6), DARK)
 
     # The hex screw posts each side of the shell, with their threaded holes.
-    for px in (21.8, 59.0):
+    for px in layout["posts"]:
         post = (cq.Workplane("XZ").polygon(6, 4.6).extrude(-3.6)
                 .translate((back_x(px), wall + 0.8, db_cz)))
         post = post.cut(cq.Workplane("XZ").circle(0.9).extrude(-2.0)
                         .translate((back_x(px), wall + 3.0, db_cz)))
         m.add(f"db19_post_{px:.0f}", post, METAL)
+
+    if unidisk:
+        v = UNIDISK_VENTS
+
+        for i in range(v["count"]):
+            x = v["x0"] + i * v["pitch"]
+            m.add(f"vent_floor{i}", back_box(x - 0.5, x + v["w"] + 0.5, v["z0"] - 0.5, v["z1"] + 0.5, D - 6.2, D - 5.9), DARK)
+
+        return
 
     # The lock bracket: a hollow loop protruding from the back, its opening
     # on top for the lock's cable, with a chain link recessed into its back
@@ -211,9 +255,17 @@ def back_parts(m, case_rgb):
     m.add("lock_loop", loop, case_rgb)
 
 
-def build(case_rgb, seam_frac=0.88, slot_top_frac=0.74):
+def build(case_rgb, seam_frac=0.88, slot_top_frac=0.74, unidisk=False):
+    # `unidisk` builds the UniDisk 3.5's front, back and label in place of
+    # the Apple 3.5 Drive's, and its height.
+    global H
+
+    if unidisk:
+        H = UNIDISK_H
+
     m       = Model()
-    seam_z  = H * seam_frac            # the lid's lower edge, level all round
+    seam_z  = UNIDISK_FRONT["slot_z"][1] if unidisk else H * seam_frac    # the lid's lower edge, level all round
+    layout  = UNIDISK_BACK if unidisk else APPLE35_BACK
 
     case = (cq.Workplane("XY")
             .box(W, D, H, centered=(False, False, False))
@@ -222,7 +274,7 @@ def build(case_rgb, seam_frac=0.88, slot_top_frac=0.74):
             .edges("<Z").fillet(EDGE_R * 0.5))
 
     case = seam_cut(case, seam_z)
-    case = back_cuts(case)
+    case = back_cuts(case, layout, unidisk)
 
     # Top: ten grooves front to back, 10 mm in from the sides, 12 mm from
     # the front, 8 mm from the back.
@@ -242,10 +294,23 @@ def build(case_rgb, seam_frac=0.88, slot_top_frac=0.74):
                         .box(1.6, D * 0.62, 1.8, centered=(False, False, False))
                         .translate((x, D * 0.20, -0.8)))
 
-    # Front: the slot under the seam.
-    slot_x0, slot_x1 = W * 0.11, W * 0.83
-    slot_h           = 5.0
-    slot_z0          = H * slot_top_frac - slot_h
+    # Front: the slot under the seam. On the UniDisk 3.5 the slot's top is
+    # the seam, which steps up round the block at the slot's left.
+    if unidisk:
+        u                = UNIDISK_FRONT
+        slot_x0, slot_x1 = u["slot_x"]
+        slot_z0, slot_z1 = u["slot_z"]
+        slot_h           = slot_z1 - slot_z0
+        bx1, bz1         = u["block_x1"], u["block_z1"]
+        case = case.cut(cq.Workplane("XY").box(SEAM_W, 1.4, bz1 - seam_z, centered=(False, False, False))
+                        .translate((bx1 - SEAM_W * 0.5, -0.8, seam_z)))
+        case = case.cut(cq.Workplane("XY").box(bx1 + 1.0, 1.4, SEAM_W, centered=(False, False, False))
+                        .translate((-1.0, -0.8, bz1)))
+    else:
+        slot_x0, slot_x1 = W * 0.11, W * 0.83
+        slot_h           = 5.0
+        slot_z0          = H * slot_top_frac - slot_h
+
     case = case.cut(cq.Workplane("XY")
                     .box(slot_x1 - slot_x0, 8.0, slot_h, centered=(False, False, False))
                     .translate((slot_x0, -1.0, slot_z0)))
@@ -256,25 +321,47 @@ def build(case_rgb, seam_frac=0.88, slot_top_frac=0.74):
             .translate((slot_x0, 6.5, slot_z0)),
           DARK)
 
-    # The eject button: a rectangle as tall as the slot, to its right.
-    m.add("eject",
-          cq.Workplane("XY").box(W * 0.085, 1.0, slot_h, centered=(False, False, False))
-            .translate((W * 0.85, -0.5, slot_z0)),
-          case_rgb)
-    m.add("eject_hole",
-          cq.Workplane("XZ").circle(0.55).extrude(0.3)
-            .translate((W * 0.8925, -0.6, slot_z0 + slot_h * 0.5)),
-          DARK)
+    if unidisk:
+        # The manual eject hole to the slot's right; the activity light
+        # across the top of the left block, under the lid; and the eject
+        # button standing out from the lid's lower right corner.
+        m.add("eject_hole",
+              cq.Workplane("XZ").circle(0.8).extrude(0.3)
+                .translate((u["hole"][0], -0.6, u["hole"][1])),
+              DARK)
+        lx0, lx1, lz0, lz1 = u["lamp"]
+        m.add("lamp",
+              cq.Workplane("XY").box(lx1 - lx0, 0.6, lz1 - lz0, centered=(False, False, False))
+                .translate((lx0, -0.4, lz0)),
+              KD["drive_lamp"])
+        ex0, ez0, ez1 = u["eject"]
+        out           = u["eject_out"]
+        m.add("eject",
+              cq.Workplane("XY").box(W - 0.6 - ex0, out + 1.0, ez1 - ez0, centered=(False, False, False))
+                .edges("|Y").fillet(0.5).faces("<Y").edges().fillet(0.4)
+                .translate((ex0, -out, ez0)),
+              case_rgb)
+        badge(m, *u["badge"])
+    else:
+        # The eject button: a rectangle as tall as the slot, to its right.
+        m.add("eject",
+              cq.Workplane("XY").box(W * 0.085, 1.0, slot_h, centered=(False, False, False))
+                .translate((W * 0.85, -0.5, slot_z0)),
+              case_rgb)
+        m.add("eject_hole",
+              cq.Workplane("XZ").circle(0.55).extrude(0.3)
+                .translate((W * 0.8925, -0.6, slot_z0 + slot_h * 0.5)),
+              DARK)
 
-    # The activity LED, in line with the slot at its left.
-    m.add("lamp",
-          cq.Workplane("XY").box(3.5, 0.5, 2.0, centered=(False, False, False))
-            .translate((W * 0.05, -0.3, slot_z0 + slot_h * 0.5 - 1.0)),
-          KD["drive_lamp"])
+        # The activity LED, in line with the slot at its left.
+        m.add("lamp",
+              cq.Workplane("XY").box(3.5, 0.5, 2.0, centered=(False, False, False))
+                .translate((W * 0.05, -0.3, slot_z0 + slot_h * 0.5 - 1.0)),
+              KD["drive_lamp"])
 
-    badge(m, W * 0.11, H * 0.10, 9.0)
+        badge(m, W * 0.11, H * 0.10, 9.0)
 
-    back_parts(m, case_rgb)
+    back_parts(m, case_rgb, layout, unidisk)
 
     # Bottom: the label, the felt pads, the screws, and the back panel.
     m.add("bottom_label",
@@ -282,7 +369,8 @@ def build(case_rgb, seam_frac=0.88, slot_top_frac=0.74):
             .translate((W * 0.08, D * 0.02, -0.25)),
           LABEL)
     m.add("bottom_label_text",
-          cq.Workplane("XY").text("Apple 3.5 Drive", 4.0, 0.2, font="Times New Roman", halign="left", valign="center")
+          cq.Workplane("XY").text("UniDisk 3.5" if unidisk else "Apple 3.5 Drive", 4.0, 0.2, font="Times New Roman",
+                                  halign="left", valign="center")
             .mirror("XZ")
             .translate((W * 0.36, D * 0.08, -0.45)),
           INK)
