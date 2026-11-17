@@ -253,4 +253,75 @@ public:
 
         Assert::AreEqual ((Byte) 3, card.ReadExpansionRom (0xCB10));
     }
+
+    //  A peek of the drive's data has the byte the next read takes, in a
+    //  handshake and in a block. A peek advances nothing.
+    TEST_METHOD (PeekDataTakesNoByte)
+    {
+        FakeDiskFileIo  io;
+        ProFileDrive    drive (5, 9728);
+
+
+
+        Attach (io, drive);
+
+        drive.StartHandshake();
+        Assert::AreEqual (ProFileDrive::kStateCommand, drive.PeekData());
+        Assert::AreEqual (ProFileDrive::kStateCommand, drive.PeekData());
+        Assert::AreEqual (ProFileDrive::kStateCommand, drive.ReadData());
+        drive.WriteData (ProFileDrive::kAck);
+        drive.EndHandshake();
+
+        SendCommand (drive, 0, 7);
+        Assert::AreEqual (ProFileDrive::kStateRead, Handshake (drive));
+
+        for (int i = 0; i < 4; i++)
+        {
+            Assert::AreEqual ((Byte) 0, drive.ReadData(), L"status is zero for success");
+        }
+
+        for (size_t i = 0; i < kBlock; i++)
+        {
+            Assert::AreEqual ((Byte) 7, drive.PeekData());
+        }
+
+        for (size_t i = 0; i < kBlock; i++)
+        {
+            Assert::AreEqual ((Byte) 7, drive.ReadData(), L"the peeks took no byte of the block");
+        }
+    }
+
+
+    //  The card's peeks have what its reads return, and a peek of the slot
+    //  page doesn't set a handshake line or select the expansion ROM.
+    TEST_METHOD (CardPeeksSetNothing)
+    {
+        constexpr Word     kIo = 0xC0D0;
+
+        MemoryBus          bus;
+        ProFileCard        card (5, bus);
+        std::vector<Byte>  rom (ProFileCard::kRomSize);
+        Byte               peeked = 0;
+
+
+
+        for (size_t i = 0; i < rom.size(); i++)
+        {
+            rom[i] = (Byte) (i >> 8);
+        }
+
+        Assert::AreEqual (S_OK, card.SetFirmware (rom));
+
+        for (Word offset : { (Word) 1, (Word) 2 })
+        {
+            Assert::IsTrue   (card.TryPeekIo ((Word) (kIo + offset), peeked));
+            Assert::AreEqual (card.Read ((Word) (kIo + offset)), peeked, std::format (L"offset {}", offset).c_str());
+        }
+
+        Assert::IsTrue   (card.TryPeekSlotPage (0xC507, peeked));
+        Assert::AreEqual ((Byte) 7, peeked, L"the page is the ROM's last");
+        Assert::AreEqual ((Byte) 0, card.GetLines(), L"no handshake line was set");
+        Assert::IsFalse  (card.IsExpansionRomSelected());
+    }
+
 };

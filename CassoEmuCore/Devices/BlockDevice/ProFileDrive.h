@@ -66,6 +66,7 @@ public:
     void  EndHandshake   ();
     void  WriteData      (Byte value);
     Byte  ReadData       ();
+    Byte  PeekData       () const;
 
     bool  IsBusy         () const { return m_busy && GetNow() >= m_readyCycle; }
     bool  IsPresent      () const { return true; }

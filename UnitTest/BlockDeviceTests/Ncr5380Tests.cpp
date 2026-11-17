@@ -307,4 +307,88 @@ public:
 
         Assert::AreEqual ((Byte) 0, rig.chip.ReadRegister (kRegMode));
     }
+
+    //  With ARBITRATE set, each register's peek is the byte its read returns.
+    TEST_METHOD (Peek_EachRegisterIsTheByteItsReadReturns)
+    {
+        Rig  rig;
+
+
+
+        rig.chip.WriteRegister (kRegData, (Byte) (1 << kOwnId));
+        rig.chip.WriteRegister (kRegMode, Ncr5380::kModeArbitrate);
+
+        Assert::AreEqual ((Byte) Ncr5380::kIcrAip, rig.chip.PeekRegister (kRegIcr), L"arbitration in progress");
+        Assert::AreEqual ((Byte) Ncr5380::kBusBsy, rig.chip.PeekRegister (kRegStatus), L"BSY is on the bus");
+        Assert::AreEqual ((Byte) (1 << kOwnId),    rig.chip.PeekRegister (kRegData),   L"the chip's ID is on the data lines");
+
+        for (int reg = kRegData; reg <= kRegIdr; reg++)
+        {
+            Byte  peeked = rig.chip.PeekRegister (reg);
+
+
+
+            Assert::AreEqual (rig.chip.ReadRegister (reg), peeked, std::format (L"register {}", reg).c_str());
+        }
+    }
+
+
+    //  A peek of the bus and status register has the interrupt and busy
+    //  error a read sets, and sets neither. Register 7 peeks as 0 and
+    //  clears nothing.
+    TEST_METHOD (Peek_InterruptIsShownNotSetOrCleared)
+    {
+        Rig   rig;
+        Byte  peeked = 0;
+
+
+
+        rig.chip.WriteRegister (kRegMode, Ncr5380::kModeMonitorBsy);
+
+        peeked = rig.chip.PeekRegister (kRegBsr);
+        Assert::AreEqual ((Byte) (Ncr5380::kBsrIrq | Ncr5380::kBsrBusyError), (Byte) (peeked & (Ncr5380::kBsrIrq | Ncr5380::kBsrBusyError)));
+        Assert::IsFalse  (rig.chip.IsIrq(), L"the peek set no interrupt");
+
+        Assert::AreEqual (peeked, rig.chip.ReadRegister (kRegBsr));
+        Assert::IsTrue   (rig.chip.IsIrq(), L"the read set it");
+
+        Assert::AreEqual ((Byte) 0, rig.chip.PeekRegister (kRegReset));
+        Assert::IsTrue   (rig.chip.IsIrq(), L"the peek of register 7 cleared nothing");
+
+        rig.chip.ReadRegister (kRegReset);
+        Assert::IsFalse  (rig.chip.IsIrq(), L"the read cleared it");
+    }
+
+
+    //  A peek of the DMA port returns the byte on the bus and doesn't take it
+    //  off it: the whole block comes through the port a byte at a time.
+    TEST_METHOD (Peek_DmaByteIsNotTaken)
+    {
+        Rig    rig;
+        size_t count = 0;
+
+
+
+        Assert::IsTrue (Select (rig.chip, kTargetId));
+        SendCommand (rig.chip, { 0x08, 0, 0, 5, 1, 0 });
+
+        rig.chip.WriteRegister (kRegTcr,   kPhaseDataIn);
+        rig.chip.WriteRegister (kRegMode,  Ncr5380::kModeDma);
+        rig.chip.WriteRegister (kRegReset, 0);
+
+        for (int i = 0; i < 4; i++)
+        {
+            Assert::IsTrue   (rig.chip.PeekDrq());
+            Assert::AreEqual ((Byte) 5, rig.chip.PeekDma());
+        }
+
+        while (rig.chip.IsDrq())
+        {
+            Assert::AreEqual ((Byte) 5, rig.chip.ReadDma());
+            count++;
+        }
+
+        Assert::AreEqual (kBlock, count, L"the peeks took no byte of the block");
+    }
+
 };

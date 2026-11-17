@@ -84,7 +84,14 @@ public:
     void  WriteDma (Byte value);
 
     bool  IsDrq  ();
-    bool  IsIrq  () const { return m_irq; }
+
+    //  What ReadRegister, ReadDma and IsDrq return, worked out without their
+    //  changes: arbitration isn't taken, the interrupt and busy error aren't
+    //  set or cleared, no byte is taken off the bus.
+    Byte  PeekRegister (int reg) const;
+    Byte  PeekDma      () const;
+    bool  PeekDrq      () const;
+    bool  IsIrq        () const { return m_irq; }
 
     //  The chip's reset input.
     void  Reset ();
@@ -106,6 +113,8 @@ private:
     bool  IsPhaseMatch       () const;
     Byte  GetBusStatus       () const;
     Byte  GetBusAndStatus    ();
+    Byte  PeekBusAndStatus   () const;
+    bool  WouldTakeBus       () const;
     void  CheckPhaseMismatch ();
     void  PulseAck           ();
 

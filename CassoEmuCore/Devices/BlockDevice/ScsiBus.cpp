@@ -130,11 +130,25 @@ void ScsiBus::SetInitiatorLines (const ScsiInitiatorLines & lines)
 Byte ScsiBus::GetData() const
 {
     Byte  initiator = m_initiator.driveData ? m_initiator.data : (Byte) 0;
-    Byte  target    = (m_targetBsy && m_io) ? m_targetData : (Byte) 0;
 
 
 
-    return (Byte) (initiator | target);
+    return (Byte) (initiator | GetTargetData());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTargetData
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte ScsiBus::GetTargetData() const
+{
+    return (m_targetBsy && m_io) ? m_targetData : (Byte) 0;
 }
 
 
