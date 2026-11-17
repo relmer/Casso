@@ -434,6 +434,7 @@
     <ClCompile Include="EmuTests\GoldenImage.cpp" />
     <ClCompile Include="EmuTests\FixtureProviderTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerFixtureTests.cpp" />
+    <ClCompile Include="CassoLink\AdtProAudioCodecTests.cpp" />
     <ClCompile Include="CassoLink\CassetteCodecTests.cpp" />
     <ClCompile Include="CassoLink\InProcessByteStreamTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkCodecTests.cpp" />

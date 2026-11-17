@@ -313,6 +313,8 @@
     <ClCompile Include="CassoLink\CassoLinkSearch.cpp" />
     <ClCompile Include="CassoLink\RunningCassoRegistry.cpp" />
     <ClCompile Include="CassoLink\LinkAnnouncement.cpp" />
+    <ClCompile Include="CassoLink\Audio\AdtProAudioByteStream.cpp" />
+    <ClCompile Include="CassoLink\Audio\AdtProAudioCodec.cpp" />
     <ClCompile Include="CassoLink\Audio\CassetteByteStream.cpp" />
     <ClCompile Include="CassoLink\Audio\CassetteCodec.cpp" />
     <ClCompile Include="CassoLink\Audio\WasapiCassetteAudio.cpp" />
@@ -1956,6 +1958,8 @@
     <ClInclude Include="CassoLink\CassoLinkSearch.h" />
     <ClInclude Include="CassoLink\RunningCassoRegistry.h" />
     <ClInclude Include="CassoLink\LinkAnnouncement.h" />
+    <ClInclude Include="CassoLink\Audio\AdtProAudioByteStream.h" />
+    <ClInclude Include="CassoLink\Audio\AdtProAudioCodec.h" />
     <ClInclude Include="CassoLink\Audio\CassetteByteStream.h" />
     <ClInclude Include="CassoLink\Audio\CassetteCodec.h" />
     <ClInclude Include="CassoLink\Audio\ICassetteAudio.h" />
