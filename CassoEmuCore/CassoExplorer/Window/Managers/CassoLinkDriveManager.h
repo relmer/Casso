@@ -43,6 +43,7 @@ public:
     void  FormatAppleDisk         (const Location & location);
     void  KrunchAppleDisk         (const Location & location);
     void  SaveLinkDiskImage       (const std::string & name);
+    void  SaveLinkProDosDisk      (const std::string & name);
 
 private:
     void  OfferRawCapture         (const Location & drive, const std::filesystem::path & image);

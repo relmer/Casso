@@ -1129,6 +1129,13 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
         //  when no DHCP reply comes.
         m_context.menus.AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { m_context.linkDrives.SaveLinkDiskImage (name); });
 
+        //  The ProDOS disk's driver talks to a 6551, so only a serial link
+        //  has its virtual drives.
+        if (IsSerialConnection (name))
+        {
+            m_context.menus.AddMenuCommand (items, L"Make CassoLink &ProDOS disk...", [this, name]() { m_context.linkDrives.SaveLinkProDosDisk (name); });
+        }
+
         if (saved)
         {
             m_context.menus.AddMenuCommand (items, L"Re&move connection", [this, name]() { RemoveConnection (name); });

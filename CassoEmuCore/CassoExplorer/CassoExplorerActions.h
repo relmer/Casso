@@ -261,6 +261,7 @@ public:
     //  write to a disk some other way. A Wi-Fi modem link's disk dials this
     //  PC before its first Ready.
     Outcome  SaveLinkDiskImage (const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkDiskImage (imagePath, settings); }
+    Outcome  SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkProDosDisk (usersDisk, imagePath, settings); }
 
     //  The cassette bootstrap for a link as a WAV file on the PC, to send into
     //  a ][+ or //e's cassette input from another device, or to insert in

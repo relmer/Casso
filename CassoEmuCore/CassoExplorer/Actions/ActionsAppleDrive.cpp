@@ -7,6 +7,7 @@
 #include "CassoExplorer/Model/CassoLinkConnectionText.h"
 #include "CassoExplorer/Model/CassoLinkShimBuilder.h"
 #include "CassoLink/LinkAudioBootstrap.h"
+#include "CassoLink/CassoLinkProDosDisk.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "Core/TextEncoding.h"
@@ -1663,6 +1664,53 @@ ActionsTypes::Outcome ActionsAppleDrive::SaveLinkDiskImage (const std::wstring &
     if (FAILED (hr))
     {
         ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink disk could not be saved.");
+    }
+    else
+    {
+        outcome.written++;
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ActionsAppleDrive::SaveLinkProDosDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ActionsTypes::Outcome ActionsAppleDrive::SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings)
+{
+    ActionsTypes::Outcome  outcome;
+    IDiskFileIo          & io      = m_actions.m_browser.GetOperations().GetFileIo();
+    std::string            source  = TextEncoding::WideToNarrow (usersDisk);
+    std::vector<Byte>      users;
+    std::vector<Byte>      disk;
+    HRESULT                hr      = io.ReadAllBytes (source, users);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        hr = CassoLinkProDosDisk::Make (users, source, settings.baud, disk);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        hr = io.WriteAllBytes (TextEncoding::WideToNarrow (imagePath), disk);
+    }
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) || hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink ProDOS disk could not be made. The disk chosen must be a 140K ProDOS disk with PRODOS and BASIC.SYSTEM.");
+    }
+    else if (FAILED (hr))
+    {
+        ActionsCopy::AppendMessage (outcome, hr, L"The CassoLink ProDOS disk could not be saved.");
     }
     else
     {

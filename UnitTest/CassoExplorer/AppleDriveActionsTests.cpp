@@ -4,6 +4,7 @@
 #include "../CassoLink/FakeApple.h"
 #include "../CassoLink/InMemoryCassoLinkFolder.h"
 #include "../EmuTests/FakeDiskFileIo.h"
+#include "../EmuTests/GuestSession.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
@@ -740,6 +741,37 @@ public:
         AssertSucceeded (rig.actions->SaveLinkDiskImage (L"C:\\Disks\\link.dsk", serial).hr);
 
         Assert::IsTrue (rig.io.files["C:\\Disks\\link.dsk"] == disk);
+    }
+
+
+
+    //  The CassoLink ProDOS disk made from the ProDOS Users Disk has its
+    //  PRODOS and BASIC.SYSTEM, the installer and the STARTUP that runs it;
+    //  a ProDOS disk with neither is turned down with the reason.
+    TEST_METHOD (SaveLinkProDosDisk_WritesADiskWithTheUsersProDos)
+    {
+        Rig                rig;
+        CassoLinkSettings  serial;
+        std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
+        std::vector<Byte>  file;
+        Byte               fileType = 0;
+        Word               auxType  = 0;
+
+        rig.io.files["C:/Disks/Users.dsk"]  = GuestSession::RequireProDosUsersDisk();
+        rig.io.stamps["C:/Disks/Users.dsk"] = FileStamp { rig.io.files["C:/Disks/Users.dsk"].size(), 1 };
+
+        AssertSucceeded (rig.actions->SaveLinkProDosDisk (L"C:/Disks/Users.dsk", L"C:/Disks/Link.dsk", serial).hr);
+
+        for (const char * name : { "PRODOS", "BASIC.SYSTEM", "CASSOLINK", "STARTUP" })
+        {
+            AssertSucceeded (ProDosReader::ExtractFile (rig.io.files["C:/Disks/Link.dsk"], name, file, fileType, auxType));
+        }
+
+        AssertSucceeded (ProDosSkeleton::Write (blank, "EMPTY"));
+        rig.io.files["C:/Disks/Empty.dsk"]  = blank;
+        rig.io.stamps["C:/Disks/Empty.dsk"] = FileStamp { blank.size(), 1 };
+
+        Assert::IsFalse (rig.actions->SaveLinkProDosDisk (L"C:/Disks/Empty.dsk", L"C:/Disks/Link2.dsk", serial).Succeeded(), L"A disk without PRODOS is turned down");
     }
 
 
