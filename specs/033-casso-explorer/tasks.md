@@ -1898,10 +1898,10 @@ Runs after Phase 35. **Goal**: VisiCalc cells have computed values. **Independen
 
 **Goal**: the link under SOS. **Independent test**: quickstart §7f step 6.
 
-- [ ] T603 [US29] Check MAME's Apple /// serial-over-socket connection, and record the result in research.md R48
-- [ ] T604 [US29] Assemble the program as `SOS.INTERP` with an SOS transport over `.RS232` and the Block module's requests through SOS's block calls, in `CassoLink/Apple/SosInterp.s` (FR-213)
-- [ ] T605 [US29] Add Make CassoLink SOS disk: a disk with the user's `SOS.KERNEL` and `SOS.DRIVER` and the interpreter (FR-212)
-- [ ] T606 [US29] List the Apple /// as a root with its built-in, external and block drives, and run every Story 14 operation on it (FR-214). Record SC-059 on MAME's Apple /// in `validation.md`
+- [X] T603 [US29] Check MAME's Apple /// serial-over-socket connection, and record the result in research.md R48. Done: MAME 0.289's `apple3` connects its null modem to a listening socket at `127.0.0.1` and at `localhost`, and the failure in MAME's bug 08740 didn't happen. Bytes cross both ways at the null modem's default 9,600 baud
+- [X] T604 [US29] Assemble the program as `SOS.INTERP` with an SOS transport over `.RS232` and the Block module's requests through SOS's block calls, in `CassoLink/Apple/SosInterp.s` (FR-213). Done: a separate source, not branches in `Program.s` (R48), assembled by `LinkProgram::AssembleProgram` for `LinkChip::Sos` and written as SOS.INTERP by `LinkProgram::BuildSosInterpreter`. Blocks are read and written by D_READ and D_WRITE, and devices listed by D_INFO. Its Ready has `kSosReadyFlag`, and the model is Apple ///. `TheSosProgram_ComputesTheCrcTheHostDoes` runs its startup on Casso's 6502 core
+- [ ] T605 [US29] Add Make CassoLink SOS disk: a disk with the user's `SOS.KERNEL` and `SOS.DRIVER` and the interpreter (FR-212). Done: `CassoLinkSosDisk::Make`, with `ProDosStartup::InstallSosKernel`. The user's SOS.DRIVER must have .RS232: Apple's System Demo disk has it, and System Utilities doesn't. The disk is made for 19,200 baud or slower. Open: the menu item on a connection's menu, in `CassoLinkManager.cpp`, which another session has open
+- [X] T606 [US29] List the Apple /// as a root with its built-in, external and block drives, and run every Story 14 operation on it (FR-214). Record SC-059 on MAME's Apple /// in `validation.md`. Done: each device SOS has a block driver for is listed by its SOS name, as `.D1, 140K`. A 140K device is read in DOS order through `DosOrderBlockStore`, as the volume layer reads a 140K volume. `CassoLinkAppleIIITests` runs Story 14's operations in MAME (validation.md section 18)
 
 ## Phase 47: DOS 3.2 and large DOS 3.3 disks (User Story 30)
 
