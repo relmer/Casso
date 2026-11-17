@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/ExplorerBlockInspectorWindow.h"
 #include "Ui/DiskInspector/Blocks/BlockInspectorWindow.h"
+#include "Ui/DiskInspector/InspectorPlacement.h"
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
 
 
@@ -83,6 +84,38 @@ HRESULT ExplorerBlockInspectorWindow::Create (HINSTANCE hInstance, HWND anchor, 
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBlockInspectorWindow::ApplyPrefs
+//
+//  Only the placement, which the inspector windows share.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBlockInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs, bool isPositioned)
+{
+    InspectorPlacement::Apply (GetHwnd(), prefs, isPositioned);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerBlockInspectorWindow::GetPrefs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerBlockInspectorWindow::GetPrefs (DiskInspectorPrefs & inOut) const
+{
+    InspectorPlacement::Get (GetHwnd(), inOut);
 }
 
 

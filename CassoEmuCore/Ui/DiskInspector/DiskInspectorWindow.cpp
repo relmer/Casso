@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/DiskInspectorWindow.h"
+#include "Ui/DiskInspector/InspectorPlacement.h"
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/DiskComparer.h"
@@ -159,8 +160,8 @@ HRESULT DiskInspectorWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const 
 
     params.title                    = s_kpszWindowTitle;
     params.hInstance                = hInstance;
-    //  Not owned, so the main window can cover it; it opens centered over
-    //  the main window.
+    //  Not owned, so the main window can cover it. Windows chooses where it
+    //  opens, and it is sized to fit the main window's work area.
     params.ownerHwnd                = nullptr;
     params.placementAnchorHwnd      = hwndOwner;
     params.initialSizeDip           = { kOpeningWidthDip, kOpeningHeightDip };
@@ -170,7 +171,7 @@ HRESULT DiskInspectorWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const 
     params.captionStyle             = DxuiCaptionStyle::Standard;
     params.classNameOverride        = s_kpszClassName;
     params.createNoActivate         = !activate;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+    params.placement                = DxuiWindowPlacement::Default;
     params.fitToWorkArea            = true;
 
     //  Presented without waiting for vblank: RenderFrame runs in the main
@@ -1863,26 +1864,11 @@ bool DiskInspectorWindow::Confirm (const std::wstring & title, const vector<std:
 //
 //  DiskInspectorWindow::GetPrefs
 //
-//  The placement is the restored one, in the workspace coordinates
-//  SetWindowPlacement takes back, so a maximized window comes back to the
-//  size it had before.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskInspectorWindow::GetPrefs (DiskInspectorPrefs & inOut) const
 {
-    WINDOWPLACEMENT  placement = { sizeof (WINDOWPLACEMENT) };
-
-
-
-    if (GetHwnd() != nullptr && GetWindowPlacement (GetHwnd(), &placement))
-    {
-        inOut.x           = placement.rcNormalPosition.left;
-        inOut.y           = placement.rcNormalPosition.top;
-        inOut.w           = placement.rcNormalPosition.right - placement.rcNormalPosition.left;
-        inOut.h           = placement.rcNormalPosition.bottom - placement.rcNormalPosition.top;
-        inOut.isMaximized = placement.showCmd == SW_SHOWMAXIMIZED || IsZoomed (GetHwnd());
-    }
+    InspectorPlacement::Get (GetHwnd(), inOut);
 
     inOut.zoom         = m_zoom;
     inOut.tilt          = m_session.model.GetTilt();
@@ -1902,27 +1888,14 @@ void DiskInspectorWindow::GetPrefs (DiskInspectorPrefs & inOut) const
 //
 //  DiskInspectorWindow::ApplyPrefs
 //
-//  A saved placement is used only while it is on a monitor, so a window
-//  saved on a monitor since removed opens centered on Casso instead. It is
-//  set twice: a move onto a monitor of another DPI rescales the window, so
-//  the second call sets the saved size at that monitor's DPI.
+//  The saved position only with isPositioned, for the first inspector
+//  window open (InspectorPlacement).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs)
+void DiskInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs, bool isPositioned)
 {
-    WINDOWPLACEMENT  placement = { sizeof (WINDOWPLACEMENT) };
-    RECT             saved     = { prefs.x, prefs.y, prefs.x + prefs.w, prefs.y + prefs.h };
-
-
-
-    if (prefs.w > 0 && prefs.h > 0 && MonitorFromRect (&saved, MONITOR_DEFAULTTONULL) != nullptr && GetWindowPlacement (GetHwnd(), &placement))
-    {
-        placement.rcNormalPosition = saved;
-        placement.showCmd          = prefs.isMaximized ? SW_SHOWMAXIMIZED : (IsWindowVisible (GetHwnd()) ? SW_SHOWNOACTIVATE : SW_HIDE);
-        SetWindowPlacement (GetHwnd(), &placement);
-        SetWindowPlacement (GetHwnd(), &placement);
-    }
+    InspectorPlacement::Apply (GetHwnd(), prefs, isPositioned);
 
     for (IInspectorComponent * component : m_components)
     {

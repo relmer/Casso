@@ -91,9 +91,10 @@ public:
     bool     ConfirmDiscardEdits (const std::wstring & action, std::function<void()> afterSave) override;
 
     //  The window's state to save, and the saved state applied to a new
-    //  window before ShowDrive (FR-080). The host sets `isOpen`.
+    //  window before ShowDrive (FR-080). The host sets `isOpen`, and
+    //  `isPositioned` for the first inspector window open.
     void     GetPrefs    (DiskInspectorPrefs & inOut) const;
-    void     ApplyPrefs  (const DiskInspectorPrefs & prefs);
+    void     ApplyPrefs  (const DiskInspectorPrefs & prefs, bool isPositioned);
 
     //  The walkthrough from its first step (FR-153).
     void     OpenWalkthrough () override;

@@ -50,21 +50,21 @@ public:
         virtual ~Window() = default;
 
         virtual HRESULT  Create          (HINSTANCE hInstance, HWND anchor, const DxuiTheme * theme, IDiskInspectorHost * host) = 0;
-        virtual void     Front           ()                                    = 0;
-        virtual void     ApplyPrefs      (const DiskInspectorPrefs & prefs)    = 0;
-        virtual void     GetPrefs        (DiskInspectorPrefs & inOut) const    = 0;
-        virtual void     OpenWalkthrough ()                                    = 0;
-        virtual HRESULT  ShowDisk        ()                                    = 0;
-        virtual HRESULT  RenderFrame     ()                                    = 0;
-        virtual void     ReloadDisk      ()                                    = 0;
-        virtual void     NoteFileGone    ()                                    = 0;
-        virtual void     CompareWith     (const std::wstring & pathB)          = 0;
-        virtual void     ChangeTheme     (const DxuiTheme * theme)             = 0;
-        virtual HWND     GetHwnd         () const                              = 0;
+        virtual void     Front           ()                                                                                     = 0;
+        virtual void     ApplyPrefs      (const DiskInspectorPrefs & prefs, bool isPositioned)                                  = 0;
+        virtual void     GetPrefs        (DiskInspectorPrefs & inOut) const                                                     = 0;
+        virtual void     OpenWalkthrough ()                                                                                     = 0;
+        virtual HRESULT  ShowDisk        ()                                                                                     = 0;
+        virtual HRESULT  RenderFrame     ()                                                                                     = 0;
+        virtual void     ReloadDisk      ()                                                                                     = 0;
+        virtual void     NoteFileGone    ()                                                                                     = 0;
+        virtual void     CompareWith     (const std::wstring & pathB)                                                           = 0;
+        virtual void     ChangeTheme     (const DxuiTheme * theme)                                                              = 0;
+        virtual HWND     GetHwnd         () const                                                                               = 0;
 
         //  Repair's confirmation, once the window has the disk. A window
         //  with no repair ignores it.
-        virtual void     RequestRepair   ()                                    {}
+        virtual void     RequestRepair   ()                                                                                     {}
     };
 
     //  The functions for the window, the block mode window and the check

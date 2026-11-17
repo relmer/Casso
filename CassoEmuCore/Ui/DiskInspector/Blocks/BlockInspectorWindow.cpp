@@ -81,7 +81,7 @@ HRESULT BlockInspectorWindow::Open (
     params.resizable                = true;
     params.insetContentBelowCaption = true;
     params.classNameOverride        = s_kpszClassName;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+    params.placement                = DxuiWindowPlacement::Default;
     params.fitToWorkArea            = true;
 
     hr = Create (params);
@@ -1389,7 +1389,7 @@ bool BlockInspectorWindow::ConfirmClose()
     if (blocks > 0)
     {
         choice = InspectorDialogs::ShowChoice (GetHwnd(), m_theme, L"Unsaved changes",
-                                               { L"There are unsaved changes to " + InspectorText::FormatCount (blocks, L"block", L"blocks") + L"." },
+                                               { L"There are unsaved changes to " + InspectorText::FormatCount (blocks, L"block", L"blocks") + L" in " + GetFileName() + L"." },
                                                { { L"Save", kSave, true, false }, { L"Discard", kDiscard, false, false }, { L"Cancel", kCancel, false, true } });
 
         //  The window closes once the save succeeds.

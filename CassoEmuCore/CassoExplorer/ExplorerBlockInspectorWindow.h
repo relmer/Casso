@@ -29,8 +29,8 @@ public:
 
     HRESULT  Create          (HINSTANCE hInstance, HWND anchor, const DxuiTheme * theme, IDiskInspectorHost * host) override;
     void     Front           () override;
-    void     ApplyPrefs      (const DiskInspectorPrefs & prefs) override { (void) prefs; }
-    void     GetPrefs        (DiskInspectorPrefs & inOut) const override { (void) inOut; }
+    void     ApplyPrefs      (const DiskInspectorPrefs & prefs, bool isPositioned) override;
+    void     GetPrefs        (DiskInspectorPrefs & inOut) const override;
     void     OpenWalkthrough () override {}
     HRESULT  ShowDisk        () override { return S_OK; }
     HRESULT  RenderFrame     () override;

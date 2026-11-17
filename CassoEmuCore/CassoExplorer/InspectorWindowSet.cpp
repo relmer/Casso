@@ -217,7 +217,9 @@ HRESULT InspectorWindowSet::Open (HINSTANCE hInstance, HWND anchor, const std::w
         raw->isClosed = true;
     });
 
-    entry->window->ApplyPrefs (m_prefs);
+    //  The first window open takes the saved position, and the others are
+    //  placed by Windows.
+    entry->window->ApplyPrefs (m_prefs, GetCount() == 0);
 
     if (!m_prefs.isWalkthroughSeen && !isBlock)
     {

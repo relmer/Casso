@@ -139,7 +139,10 @@ void EmulatorShell::ShowDiskInspector (int drive, bool activate)
 
         m_window->ApplyAppIconToWindow (entry->window->GetHwnd());
         entry->host->SetOnClosed ([this, created] () { created->isClosed = true; SaveInspectorPrefs (created); });
-        entry->window->ApplyPrefs (m_settings->GetPrefs().diskInspector);
+        //  The first window open takes the saved position, and the others
+        //  are placed by Windows.
+        entry->window->ApplyPrefs (m_settings->GetPrefs().diskInspector, !std::any_of (m_diskInspectors.begin(), m_diskInspectors.end(),
+                                                                                       [] (const std::unique_ptr<DiskInspectorEntry> & open) { return !open->isClosed; }));
 
         //  The walkthrough opens the first time the inspector does (FR-153).
         if (!m_settings->GetPrefs().diskInspector.isWalkthroughSeen)
