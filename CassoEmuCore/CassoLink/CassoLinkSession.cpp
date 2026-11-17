@@ -74,6 +74,9 @@ HRESULT CassoLinkSession::Start (const CassoLinkSettings & settings)
 
     m_settings           = settings;
     m_connector.m_port   = TextEncoding::NarrowToWide (settings.port);
+
+    m_virtualDrives.SetImage (1, TextEncoding::WideToNarrow (settings.virtualDrives.drive1));
+    m_virtualDrives.SetImage (2, TextEncoding::WideToNarrow (settings.virtualDrives.drive2));
     m_stopping           = false;
     m_connector.m_thread = std::jthread ([this] (std::stop_token stop) { Run (stop); });
 

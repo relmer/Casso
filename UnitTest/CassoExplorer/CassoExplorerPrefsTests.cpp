@@ -402,6 +402,7 @@ public:
         serial.port              = "COM3";
         serial.baud              = 19200;
         serial.hardwareHandshake = true;
+        serial.virtualDrives     = { L"C:\\Disks\\One.po", L"" };
         serial.name              = CassoLinkSettings::MakeName (serial);
 
         server.transport         = LinkTransport::AdtProServer;

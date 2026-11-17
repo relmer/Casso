@@ -491,6 +491,27 @@ void CassoLinkManager::EditConnection (const std::string & name)
         }
 
         return SUCCEEDED (result) && chosen;
+    },
+    [this] (HWND owner, std::wstring & inOutImage) -> bool
+    {
+        std::filesystem::path  picked;
+        bool                   chosen = false;
+        FileDialogSpec         spec;
+        HRESULT                result = S_OK;
+
+        spec.filters = { FileDialogFilter { L"ProDOS images (*.po, *.dsk, *.hdv, *.2mg)", L"*.po;*.dsk;*.hdv;*.2mg" },
+                         FileDialogFilter { L"All files (*.*)", L"*.*" } };
+        spec.title   = L"Choose a virtual drive's image";
+        spec.content = FileDialogContent::Images;
+
+        result = m_context.dialogs.PickFileToOpen (owner, spec, picked, chosen);
+
+        if (SUCCEEDED (result) && chosen)
+        {
+            inOutImage = picked.wstring();
+        }
+
+        return SUCCEEDED (result) && chosen;
     });
 
     if (!outcome.confirmed)

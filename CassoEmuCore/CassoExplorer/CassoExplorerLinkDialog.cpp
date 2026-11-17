@@ -466,6 +466,8 @@ void CassoExplorerLinkPanel::Init (const Children & children)
              children.speedLabel, children.speed,
              children.handshakeLabel, children.handshakeTip, children.handshake, children.columnsLabel, children.columns, children.verifyLabel, children.verify,
              children.folderNote, children.folderLabel, children.folder, children.browse,
+             children.drivesNote, children.drive1Label, children.drive1, children.browse1,
+             children.drive2Label, children.drive2, children.browse2,
              children.duplicate })
     {
         Adopt (*control);
@@ -558,6 +560,9 @@ int CassoExplorerLinkPanel::ArrangeRows (const RECT & bounds, const DxuiDpiScale
     y = PlaceRow  (bounds, y, m_kids.verifyLabel,    m_kids.verify,    nullptr,             scaler, place);
     y = PlaceNote (bounds, y, m_kids.folderNote,                                            scaler, place);
     y = PlaceRow  (bounds, y, m_kids.folderLabel,    m_kids.folder,    nullptr,             scaler, place, nullptr, m_kids.browse);
+    y = PlaceNote (bounds, y, m_kids.drivesNote,                                            scaler, place);
+    y = PlaceRow  (bounds, y, m_kids.drive1Label,    m_kids.drive1,    nullptr,             scaler, place, nullptr, m_kids.browse1);
+    y = PlaceRow  (bounds, y, m_kids.drive2Label,    m_kids.drive2,    nullptr,             scaler, place, nullptr, m_kids.browse2);
 
     err = GetErrorHeightPx (*m_kids.duplicate, fieldW, scaler);
 
@@ -755,7 +760,7 @@ int CassoExplorerLinkPanel::GetNoteHeightPx (const DxuiLabel & note, int widthPx
 bool CassoExplorerLinkPanel::OnMouse (const DxuiMouseEvent & ev)
 {
     IDxuiControl *  fields[] = { m_kids.transport, m_kids.port, m_kids.speed, m_kids.bootstrap, m_kids.address, m_kids.handshake, m_kids.columns, m_kids.verify,
-                                 m_kids.folder, m_kids.browse, m_kids.handshakeTip };
+                                 m_kids.folder, m_kids.browse, m_kids.drive1, m_kids.browse1, m_kids.drive2, m_kids.browse2, m_kids.handshakeTip };
     bool            press    = ev.kind == DxuiMouseEventKind::Down;
     bool            handled  = false;
 
@@ -807,7 +812,8 @@ void CassoExplorerLinkDialog::OnCreate()
 
 
 
-    for (DxuiLabel * label : { &m_transportLabel, &m_portLabel, &m_addressLabel, &m_bootstrapLabel, &m_speedLabel, &m_handshakeLabel, &m_columnsLabel, &m_verifyLabel, &m_folderLabel })
+    for (DxuiLabel * label : { &m_transportLabel, &m_portLabel, &m_addressLabel, &m_bootstrapLabel, &m_speedLabel, &m_handshakeLabel, &m_columnsLabel, &m_verifyLabel, &m_folderLabel,
+                              &m_drive1Label, &m_drive2Label })
     {
         ExplorerTextStyles::Apply (*label, ExplorerTextStyles::kFormLabel);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
@@ -822,8 +828,10 @@ void CassoExplorerLinkDialog::OnCreate()
     m_columnsLabel.SetText   (L"Apple screen:");
     m_verifyLabel.SetText    (L"Verified transfers:");
     m_folderLabel.SetText    (L"Folder:");
+    m_drive1Label.SetText    (L"Virtual drive 1:");
+    m_drive2Label.SetText    (L"Virtual drive 2:");
 
-    for (DxuiLabel * note : { &m_note, &m_portNote, &m_bootstrapNote, &m_folderNote })
+    for (DxuiLabel * note : { &m_note, &m_portNote, &m_bootstrapNote, &m_folderNote, &m_drivesNote })
     {
         ExplorerTextStyles::Apply (*note, ExplorerTextStyles::kFormNote);
         note->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
@@ -832,11 +840,12 @@ void CassoExplorerLinkDialog::OnCreate()
     m_portNote.SetText      (Choices::kPortNote);
     m_bootstrapNote.SetText (Choices::kBootstrapNote);
     m_folderNote.SetText    (Choices::kFolderNote);
+    m_drivesNote.SetText    (Choices::kDrivesNote);
 
     m_handshakeTip.SetText      (Choices::kHandshakeTip);
     m_handshakeTip.SetPopupHost (GetPopupHost());
 
-    for (DxuiTextInput * input : { &m_address, &m_folder })
+    for (DxuiTextInput * input : { &m_address, &m_folder, &m_drive1, &m_drive2 })
     {
         input->SetTheme        (m_theme);
         input->SetHwnd         (GetHwnd());
@@ -846,6 +855,8 @@ void CassoExplorerLinkDialog::OnCreate()
 
     m_address.SetText (TextEncoding::NarrowToWide (m_initial.transport == LinkTransport::WifiModem ? std::string() : m_initial.address));
     m_folder.SetText  (m_initial.folder);
+    m_drive1.SetText  (m_initial.virtualDrives.drive1);
+    m_drive2.SetText  (m_initial.virtualDrives.drive2);
     m_shownTransport = m_initial.transport;
 
     for (DxuiComboBox * combo : { &m_transport, &m_port, &m_speed, &m_bootstrap, &m_verify })
@@ -882,6 +893,9 @@ void CassoExplorerLinkDialog::OnCreate()
         }
     });
 
+    m_browse1.SetOnClick ([this]() { BrowseImage (m_drive1); });
+    m_browse2.SetOnClick ([this]() { BrowseImage (m_drive2); });
+
     kids.transportLabel = &m_transportLabel;
     kids.transport      = &m_transport;
     kids.note           = &m_note;
@@ -907,6 +921,13 @@ void CassoExplorerLinkDialog::OnCreate()
     kids.folderLabel    = &m_folderLabel;
     kids.folder         = &m_folder;
     kids.browse         = &m_browse;
+    kids.drivesNote     = &m_drivesNote;
+    kids.drive1Label    = &m_drive1Label;
+    kids.drive1         = &m_drive1;
+    kids.browse1        = &m_browse1;
+    kids.drive2Label    = &m_drive2Label;
+    kids.drive2         = &m_drive2;
+    kids.browse2        = &m_browse2;
     kids.duplicate      = &m_duplicate;
 
     m_body = CreateDialogContent<CassoExplorerLinkPanel>();
@@ -962,7 +983,7 @@ void CassoExplorerLinkDialog::OnCreate()
 
 CassoExplorerLinkDialog::Outcome CassoExplorerLinkDialog::Ask (HWND owner, const IDxuiTheme * theme, const CassoLinkSettings & initial,
                                                                const std::vector<std::wstring> & otherNames, const std::vector<std::wstring> & comPorts,
-                                                               bool adding, BrowseFn browse)
+                                                               bool adding, BrowseFn browse, BrowseImageFn browseImage)
 {
     HRESULT                   hr     = S_OK;
     CassoExplorerLinkDialog   dialog;
@@ -976,6 +997,7 @@ CassoExplorerLinkDialog::Outcome CassoExplorerLinkDialog::Ask (HWND owner, const
     dialog.m_comPorts     = comPorts;
     dialog.m_adding       = adding;
     dialog.m_browseFolder = std::move (browse);
+    dialog.m_browseImage  = std::move (browseImage);
 
     params.title                    = adding ? L"Add a CassoLink connection" : L"Edit the CassoLink connection";
     params.hInstance                = GetModuleHandleW (nullptr);
@@ -1019,6 +1041,11 @@ CassoLinkSettings CassoExplorerLinkDialog::MakeChosen() const
 
     settings.use40  = settings.transport != LinkTransport::AdtProServer && m_columns.IsChecked();
     settings.verify = settings.transport != LinkTransport::AdtProServer ? m_verify.GetSelectedIndex() : CassoLinkSettings::kVerifyDefault;
+
+    if (CassoExplorerLinkChoices::UsesDrives (settings.transport))
+    {
+        settings.virtualDrives = { m_drive1.GetText(), m_drive2.GetText() };
+    }
 
     return settings;
 }
@@ -1112,6 +1139,34 @@ void CassoExplorerLinkDialog::ShowTransportRows()
     m_folderLabel.SetVisible    (Choices::UsesFolder (transport));
     m_folder.SetVisible         (Choices::UsesFolder (transport));
     m_browse.SetVisible         (Choices::UsesFolder (transport));
+
+    for (IDxuiControl * control : std::initializer_list<IDxuiControl *> { &m_drivesNote, &m_drive1Label, &m_drive1, &m_browse1, &m_drive2Label, &m_drive2, &m_browse2 })
+    {
+        control->SetVisible (Choices::UsesDrives (transport));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerLinkDialog::BrowseImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerLinkDialog::BrowseImage (DxuiTextInput & field)
+{
+    std::wstring  image = field.GetText();
+
+
+
+    if (m_browseImage && m_browseImage (GetHwnd(), image))
+    {
+        field.SetText (image);
+        Revalidate();
+    }
 }
 
 

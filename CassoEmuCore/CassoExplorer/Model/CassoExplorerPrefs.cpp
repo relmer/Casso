@@ -318,6 +318,15 @@ JsonValue CassoExplorerPrefs::LinkToJson (const CassoLinkSettings & link)
         fields.emplace_back ("folder",        JsonValue (TextEncoding::WideToNarrow (link.folder)));
     }
 
+    if (!link.virtualDrives.drive1.empty() || !link.virtualDrives.drive2.empty())
+    {
+        std::vector<std::pair<std::string, JsonValue>>  drives;
+
+        drives.emplace_back ("drive1", JsonValue (TextEncoding::WideToNarrow (link.virtualDrives.drive1)));
+        drives.emplace_back ("drive2", JsonValue (TextEncoding::WideToNarrow (link.virtualDrives.drive2)));
+        fields.emplace_back ("virtualDrives", JsonValue (std::move (drives)));
+    }
+
     if (link.verify != CassoLinkSettings::kVerifyDefault)
     {
         fields.emplace_back ("verify",        JsonValue ((double) link.verify));
@@ -362,10 +371,11 @@ JsonValue CassoExplorerPrefs::LinkToJson (const CassoLinkSettings & link)
 
 bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSettings & outLink)
 {
-    std::string  transport;
-    std::string  folder;
-    int          baud      = 0;
-    bool         usable    = false;
+    std::string        transport;
+    std::string        folder;
+    int                baud   = 0;
+    const JsonValue  * drives = nullptr;
+    bool               usable = false;
 
 
 
@@ -399,6 +409,19 @@ bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSett
         if (value.HasString ("folder", folder))
         {
             outLink.folder = TextEncoding::NarrowToWide (folder);
+        }
+
+        if (value.HasObject ("virtualDrives", drives))
+        {
+            if (drives->HasString ("drive1", folder))
+            {
+                outLink.virtualDrives.drive1 = TextEncoding::NarrowToWide (folder);
+            }
+
+            if (drives->HasString ("drive2", folder))
+            {
+                outLink.virtualDrives.drive2 = TextEncoding::NarrowToWide (folder);
+            }
         }
 
         //  A Wi-Fi modem listens on the one port its boot disk dials.

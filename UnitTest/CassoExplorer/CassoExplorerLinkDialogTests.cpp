@@ -134,6 +134,8 @@ public:
         Assert::IsFalse (CassoExplorerLinkChoices::UsesAddress   (LinkTransport::AdtProServer, 1));
         Assert::IsFalse (CassoExplorerLinkChoices::UsesAddress   (LinkTransport::WifiModem, 0), L"the modem's port is fixed");
         Assert::IsTrue  (CassoExplorerLinkChoices::UsesFolder    (LinkTransport::AdtProServer));
+        Assert::IsTrue  (CassoExplorerLinkChoices::UsesDrives    (LinkTransport::Serial), L"a serial link's virtual drives");
+        Assert::IsFalse (CassoExplorerLinkChoices::UsesDrives    (LinkTransport::AdtProServer));
     }
 
 

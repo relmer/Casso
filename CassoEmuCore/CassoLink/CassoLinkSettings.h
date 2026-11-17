@@ -23,6 +23,16 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+//  The images the CassoLink ProDOS disk's virtual drives 1 and 2 read and
+//  write, each a path or empty.
+struct VirtualDriveSettings
+{
+    std::wstring  drive1;
+    std::wstring  drive2;
+
+    bool  operator== (const VirtualDriveSettings &) const = default;
+};
+
 struct CassoLinkSettings
 {
     std::string    name;
@@ -35,6 +45,9 @@ struct CassoLinkSettings
     bool           use40             = false;    // 40 columns on the Apple even where it has 80
     int            verify            = kVerifyDefault;
     std::wstring   folder;
+
+    //  The CassoLink ProDOS disk's drives, for a serial connection.
+    VirtualDriveSettings  virtualDrives;
 
     //  Whether the user disconnected it, which outlasts a restart; the port an
     //  any-port connection last connected to an Apple on; and when it was last
