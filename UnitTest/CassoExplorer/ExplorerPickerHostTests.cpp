@@ -133,6 +133,25 @@ public:
 
 
 
+    //  A drive's picker lists every image under the Casso node, so the node
+    //  starts closed.
+    TEST_METHOD (DrivePicker_HasTheCassoNodeClosed)
+    {
+        InMemoryFileSystem  fs;
+        FakeDiskFileIo      io;
+        ExplorerPickerHost  host (fs, io, kBaseDir);
+
+
+
+        SeedCassoExplorerFiles (fs);
+
+        host.Prepare (MakeDriveRequest(), CassoExplorerPrefs::kThemeDark, nullptr, false);
+
+        Assert::IsFalse (host.GetPrefs().treeCassoOpen);
+    }
+
+
+
     TEST_METHOD (SavingTheView_WritesOnlyThePickersFile)
     {
         InMemoryFileSystem  fs;
