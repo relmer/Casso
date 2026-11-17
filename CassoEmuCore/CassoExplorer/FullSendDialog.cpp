@@ -83,6 +83,53 @@ bool FullSendPanel::TryGetQuarterColor (FullSendPositionMark mark, int quarter, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FullSendPanel::GetCellColor
+//
+//  In a raw capture a track's cell has its whole-track read's color, as the
+//  sector read before it found the tracks unreadable; otherwise the track's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t FullSendPanel::GetCellColor (const FullSendDriveStatus & drive, int track, const IDxuiTheme & theme)
+{
+    return drive.positions.empty() ? GetColor (drive.tracks[(size_t) track], theme) : GetColor (drive.positions[(size_t) track * 4], theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::GetTrackSwatches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTooltipSwatch> FullSendPanel::GetTrackSwatches (const FullSendDriveStatus & drive, int track, const IDxuiTheme & theme)
+{
+    std::vector<DxuiTooltipSwatch>  swatches = { { 0, GetCellColor (drive, track, theme) } };
+    int                             last     = drive.positions.empty() ? track * 4 : std::min (track * 4 + 3, (int) drive.positions.size() - 1);
+    uint32_t                        color    = 0;
+
+
+
+    for (int position = track * 4 + 1; position <= last; position++)
+    {
+        if (TryGetQuarterColor (drive.positions[(size_t) position], position - track * 4, color))
+        {
+            swatches.push_back ({ (int) swatches.size(), color });
+        }
+    }
+
+    return swatches;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FullSendPanel::FormatSeconds
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -282,17 +329,23 @@ bool FullSendPanel::TryGetTrackAt (POINT pointPx, int & outDrive, int & outTrack
 //
 //  FullSendPanel::OnMouse
 //
-//  The map cell under the pointer has a tip; anywhere else, none.
+//  A map is magnified while the pointer is over it, or over where its
+//  magnified cells are, and the track under the pointer has a tip at once.
+//  The track is found on the map at rest, so it is the same one while the
+//  map grows under the pointer. A move that changes the magnification is
+//  taken, so the window is drawn again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool FullSendPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    int64_t  now    = (int64_t) GetTickCount64();
-    POINT    pt     = { ev.positionDip.x, ev.positionDip.y };
-    int      drive  = 0;
-    int      track  = 0;
-    RECT     bounds = {};
+    int64_t   now       = (int64_t) GetTickCount64();
+    POINT     pt        = { ev.positionDip.x, ev.positionDip.y };
+    bool      isMove    = ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Enter;
+    bool      wasActive = m_magnifier.IsActive (now);
+    int       drive     = isMove ? FindMapAt (pt) : -1;
+    int       track     = -1;
+    MapItems  items     = {};
 
 
 
@@ -301,20 +354,131 @@ bool FullSendPanel::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (m_tooltip == nullptr)
+    if (drive >= 0)
     {
-        return false;
+        MakeMapItems (m_maps[(size_t) drive], items);
+
+        track      = DxuiMagnifiedRow::FindItemAt (items, (float) pt.x);
+        m_hotDrive = drive;
+        m_pointerX = (float) pt.x;
     }
 
-    if ((ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Enter) && TryGetTrackAt (pt, drive, track, &bounds))
+    m_magnifier.SetNear (drive >= 0, now);
+    UpdateTip (drive, track, pt, now);
+
+    return wasActive || drive >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::UpdateTip
+//
+//  The track's tip is under the pointer, clear of the magnified cells above
+//  it, and follows the pointer. Each line has its color mark.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendPanel::UpdateTip (int drive, int track, POINT pointPx, int64_t nowMs)
+{
+    if (m_tooltip != nullptr && drive >= 0 && track >= 0 && m_theme != nullptr)
     {
-        m_tooltip->RequestShow (bounds, DescribeTrack (m_view.snapshot.drives[(size_t) drive - 1], track), now);
-        return false;
+        const FullSendDriveStatus  & status = m_view.snapshot.drives[(size_t) drive];
+
+        m_tooltip->SetSwatches (GetTrackSwatches (status, track, *m_theme));
+        m_tooltip->RequestShowNowBelowPointer (pointPx, DescribeTrack (status, track), nowMs);
+    }
+    else if (m_tooltip != nullptr)
+    {
+        m_tooltip->RequestHide (nowMs);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::FindMapAt
+//
+//  The drive, from 0, whose map is under a point: over its cells at rest,
+//  or, once it is magnified, above them where its magnified cells are, so
+//  the line above a map can be pointed at without magnifying it. -1 for
+//  none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FullSendPanel::FindMapAt (POINT pointPx) const
+{
+    int  found = -1;
+
+
+
+    for (size_t i = 0; i < m_maps.size(); i++)
+    {
+        const Map  & map   = m_maps[i];
+        float        x     = (float) pointPx.x;
+        float        y     = (float) pointPx.y;
+        float        right = map.left + map.pitch * (FullSendDriveStatus::kTracks - 1) + map.cellW;
+        float        top   = (m_magnifier.IsNear() && (int) i == m_hotDrive) ? map.top - (kMagnifyMax - 1.0f) * map.cellH : map.top;
+
+        if (map.isPainted && x >= map.left && x < right && y >= top && y < map.top + map.cellH)
+        {
+            found = (int) i;
+        }
     }
 
-    m_tooltip->RequestHide (now);
+    return found;
+}
 
-    return false;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::MakeMapItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendPanel::MakeMapItems (const Map & map, MapItems & outItems)
+{
+    for (size_t track = 0; track < outItems.size(); track++)
+    {
+        outItems[track] = { map.left + (float) track * map.pitch, map.cellW, kMagnifyMax };
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::LayMap
+//
+//  A drive's map magnified about a pointer at a strength, spreading past
+//  the ends of the map at rest, with the point under the pointer under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendPanel::LayMap (int drive, float pointer, float strength, MapSpans & outSpans) const
+{
+    MapItems                   items = {};
+    DxuiMagnifiedRow::Options  options;
+
+
+
+    MakeMapItems (m_maps[(size_t) drive], items);
+
+    options.reach  = m_maps[(size_t) drive].pitch * kMagnifyReachTracks;
+    options.anchor = DxuiMagnifiedRow::Anchor::Pointer;
+
+    DxuiMagnifiedRow::Lay (items, pointer, strength, options, outSpans);
 }
 
 
@@ -744,15 +908,17 @@ void FullSendPanel::DrawLine (IDxuiTextRenderer & text, const std::wstring & lin
 
 void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    RECT   bounds  = GetBounds();
-    float  left    = (float) bounds.left;
-    float  width   = (float) (bounds.right - bounds.left);
-    float  gap     = m_scaler.ToPxf (kColumnGapDip);
-    float  section = m_scaler.ToPxf (kSectionGapDip);
-    float  column  = (width - gap) * 0.5f;
-    float  top     = (float) bounds.top;
-    float  first   = 0.0f;
-    float  second  = 0.0f;
+    RECT      bounds  = GetBounds();
+    float     left    = (float) bounds.left;
+    float     width   = (float) (bounds.right - bounds.left);
+    float     gap     = m_scaler.ToPxf (kColumnGapDip);
+    float     section = m_scaler.ToPxf (kSectionGapDip);
+    float     column  = (width - gap) * 0.5f;
+    float     top     = (float) bounds.top;
+    float     first   = 0.0f;
+    float     second  = 0.0f;
+    float     gain    = m_magnifier.GetStrength ((int64_t) GetTickCount64());
+    MapSpans  spans   = {};
 
 
 
@@ -764,6 +930,11 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     m_cells.clear();
     m_rows.clear();
     m_activity = {};
+    m_theme    = &theme;
+
+    UpdateCover (gain);
+
+    m_maps = {};
 
     DrawLine (text, DescribeActivity (m_view.snapshot, m_view.machine), left, top, width, theme.Foreground(), true);
 
@@ -786,6 +957,17 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
     if (m_view.snapshot.present[1])
     {
         second = PaintDrive (painter, text, theme, 2, m_view.snapshot.drives[1], m_view.snapshot.present[0] ? left + column + gap : left, top, column);
+    }
+
+    //  A magnified map is drawn over the maps near it, on an opaque cover
+    //  from its drive's heading down. Text is drawn over every fill, so the
+    //  headings and titles there are drawn over the magnified cells.
+    if (m_cover.right > m_cover.left && m_hotDrive >= 0 && m_maps[(size_t) m_hotDrive].isPainted)
+    {
+        LayMap (m_hotDrive, m_pointerX, gain, spans);
+
+        painter.FillRect ((float) m_cover.left, (float) m_cover.top, (float) (m_cover.right - m_cover.left), (float) (m_cover.bottom - m_cover.top), theme.Background());
+        PaintCells (painter, theme, m_view.snapshot.drives[(size_t) m_hotDrive], m_maps[(size_t) m_hotDrive], spans);
     }
 
     top = std::max (first, second) + section * 0.5f;
@@ -821,48 +1003,38 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
     float         barH    = m_scaler.ToPxf (kBarDip);
     float         space   = std::max (1.0f, std::floor (m_scaler.ToPxf (1.0f)));
     float         pitch   = std::floor (width / FullSendDriveStatus::kTracks);
-    float         stripe  = (pitch - space) / 4.0f;
-    uint32_t      shade   = 0;
+    float         heading = m_scaler.ToPxf (kHeadingDip);
+    MapSpans      spans   = {};
     bool          busy    = drive.state == FullSendDiskState::Sending || drive.state == FullSendDiskState::Capturing;
     std::wstring  title   = drive.title.empty() ? std::wstring (L"No disk") : TextEncoding::NarrowToWide (drive.title);
+    float         header  = top;
 
 
 
     DrawLine (text, std::format (L"Drive {}", number), left, top, width, theme.HeadingForeground(), true);
     DrawLine (text, DescribeDrive (drive), left, top, width, theme.ForegroundMuted(), false, DxuiTextHAlign::Right);
-    top += m_scaler.ToPxf (kHeadingDip);
+    top += heading;
 
     DrawLine (text, title, left, top, width, theme.Foreground());
     top += lineH + space * 2.0f;
 
-    //  In a raw capture a track's cell is its whole-track read's, as the
-    //  sector read before it found the tracks unreadable, with a stripe for
-    //  each of its quarter tracks that was read. Most disks have nothing
-    //  between their tracks, and the cell is one color. A track's tip covers
-    //  its cell.
+    //  The map at rest; Paint draws a magnified map over it.
+    m_maps[(size_t) number - 1] = { true, left, top, pitch, pitch - space, cellH, header, width };
+    LayMap (number - 1, 0.0f, 0.0f, spans);
+    PaintCells (painter, theme, drive, m_maps[(size_t) number - 1], spans);
+
     for (int track = 0; track < FullSendDriveStatus::kTracks; track++)
     {
-        uint32_t  color = drive.positions.empty() ? GetColor (drive.tracks[(size_t) track], theme) : GetColor (drive.positions[(size_t) track * 4], theme);
-
-        painter.FillRect (left + track * pitch, top, pitch - space, cellH, color);
         AddCell (left + track * pitch, top, pitch - space, cellH, number, track * 4);
-
-        for (int quarter = 1; quarter < 4 && (size_t) (track * 4 + quarter) < drive.positions.size(); quarter++)
-        {
-            if (TryGetQuarterColor (drive.positions[(size_t) (track * 4 + quarter)], quarter, shade))
-            {
-                painter.FillRect (left + track * pitch + quarter * stripe, top, stripe, cellH, shade);
-            }
-        }
     }
 
     top += cellH + space * 4.0f;
 
-    painter.FillRoundedRect (left, top, pitch * FullSendDriveStatus::kTracks - space, barH, barH * 0.5f, theme.BackgroundElevated());
+    painter.FillRect (left, top, pitch * FullSendDriveStatus::kTracks - space, barH, theme.BackgroundElevated());
 
     if (busy || drive.state == FullSendDiskState::Sent)
     {
-        painter.FillRoundedRect (left, top, (pitch * FullSendDriveStatus::kTracks - space) * (float) std::clamp (drive.percent, 0, 100) / 100.0f, barH, barH * 0.5f, theme.Accent());
+        PaintProgress (painter, left, top, (pitch * FullSendDriveStatus::kTracks - space) * (float) std::clamp (drive.percent, 0, 100) / 100.0f, barH, busy);
     }
 
     top += barH + space * 2.0f;
@@ -873,6 +1045,111 @@ float FullSendPanel::PaintDrive (IDxuiPainter & painter, IDxuiTextRenderer & tex
     DrawLine (text, DescribeCapture (drive), left, top, width, theme.ForegroundMuted());
 
     return top + lineH;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::PaintCells
+//
+//  A map's cells as laid out. In a raw capture a track's cell has a stripe
+//  for each of its quarter tracks that was read; most disks have nothing
+//  between their tracks, and the cell is one color. A magnified cell grows
+//  up from the map's bottom edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendPanel::PaintCells (IDxuiPainter & painter, const IDxuiTheme & theme, const FullSendDriveStatus & drive, const Map & map, const MapSpans & spans) const
+{
+    uint32_t  shade = 0;
+
+
+
+    for (int track = 0; track < FullSendDriveStatus::kTracks; track++)
+    {
+        const DxuiMagnifiedSpan  & span    = spans[(size_t) track];
+        float                      height  = map.cellH * span.scale;
+        float                      cellTop = map.top + map.cellH - height;
+        float                      stripe  = span.width / 4.0f;
+
+        painter.FillRect (span.left, cellTop, span.width, height, GetCellColor (drive, track, theme));
+
+        for (int quarter = 1; quarter < 4 && (size_t) (track * 4 + quarter) < drive.positions.size(); quarter++)
+        {
+            if (TryGetQuarterColor (drive.positions[(size_t) (track * 4 + quarter)], quarter, shade))
+            {
+                painter.FillRect (span.left + quarter * stripe, cellTop, stripe, height, shade);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::UpdateCover
+//
+//  What a magnified map covers, from the maps as last painted: from its
+//  drive's heading down to the map's bottom edge, across its drive's column
+//  and as far as its cells spread past it. Empty with no map magnified.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendPanel::UpdateCover (float strength) const
+{
+    MapSpans  spans = {};
+
+
+
+    m_cover = {};
+
+    if (strength > 0.0f && m_hotDrive >= 0 && m_maps[(size_t) m_hotDrive].isPainted)
+    {
+        const Map  & map = m_maps[(size_t) m_hotDrive];
+
+        LayMap (m_hotDrive, m_pointerX, strength, spans);
+
+        m_cover = { (LONG) std::floor (std::min (map.left, spans.front().left)),
+                    (LONG) std::floor (map.header),
+                    (LONG) std::ceil  (std::max (map.left + map.width, spans.back().left + spans.back().width)),
+                    (LONG) std::ceil  (map.top + map.cellH) };
+    }
+}
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendPanel::PaintProgress
+//
+//  A thin green line. While it grows, its last kBarGlowDip brighten toward
+//  the end, drawn a pixel at a time, as the painter's gradients are
+//  vertical.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendPanel::PaintProgress (IDxuiPainter & painter, float left, float top, float width, float height, bool isGrowing) const
+{
+    float  glow = isGrowing ? std::min (width, m_scaler.ToPxf (kBarGlowDip)) : 0.0f;
+    float  step = std::max (1.0f, std::floor (m_scaler.ToPxf (1.0f)));
+
+
+
+    painter.FillRect (left, top, width - glow, height, kBarArgb);
+
+    for (float x = 0.0f; x < glow; x += step)
+    {
+        painter.FillRect (left + width - glow + x, top, std::min (step, glow - x), height, DxuiColor::Mix (kBarArgb, kBarTipArgb, (x + step) / glow));
+    }
 }
 
 
@@ -1198,11 +1475,23 @@ void FullSendDialog::OnCreate()
 
 void FullSendDialog::OnDialogTick()
 {
-    m_tooltip.Tick ((int64_t) GetTickCount64());
+    int64_t  now    = (int64_t) GetTickCount64();
+    UINT     tickMs = m_panel->IsMagnifying (now) ? kFrameMs : kTipTickMs;
+
+
+
+    m_tooltip.Tick (now);
     NoteMoved();
 
-    if (m_ticks++ % (kTickMs / kTipTickMs) == 0)
+    if (tickMs != m_tickMs)
     {
+        m_tickMs = tickMs;
+        SetDialogTickIntervalMs (tickMs);
+    }
+
+    if (now - m_refreshedMs >= (int64_t) kTickMs)
+    {
+        m_refreshedMs = now;
         Refresh();
     }
 }

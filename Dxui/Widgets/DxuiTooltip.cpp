@@ -225,7 +225,7 @@ RECT DxuiTooltip::GetPlacementAnchor() const
 
 
 
-    if (m_isPointerTip && m_pfnLocatePointer != nullptr && m_pfnLocatePointer (owner, pointer))
+    if (m_isPointerTip && !m_isBelowPointer && m_pfnLocatePointer != nullptr && m_pfnLocatePointer (owner, pointer))
     {
         anchor = { pointer.x, pointer.y, pointer.x + 1, pointer.y + 1 };
     }
@@ -296,6 +296,42 @@ bool DxuiTooltip::IsAppActive()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsAllowed
+//
+//  Whether a hover tip may be up: while a window of this app is in the
+//  foreground, as the system's tips are. A tip below the pointer, such as a
+//  map cell's, is also allowed while the pointer is over its owner window,
+//  so pointing at the window without clicking it first has the tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiTooltip::IsAllowed (bool isBelowPointer) const
+{
+    POINT  cursor = {};
+    HWND   under  = nullptr;
+    HWND   owner  = (m_popupHost != nullptr) ? GetAncestor (m_popupHost->GetHwnd(), GA_ROOT) : nullptr;
+
+
+
+    if (m_pfnIsActive == nullptr || m_pfnIsActive())
+    {
+        return true;
+    }
+
+    if (isBelowPointer && owner != nullptr && GetCursorPos (&cursor))
+    {
+        under = WindowFromPoint (cursor);
+    }
+
+    return under != nullptr && GetAncestor (under, GA_ROOT) == owner;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetSystemVisibleMs
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -325,9 +361,10 @@ int DxuiTooltip::GetSystemVisibleMs()
 
 void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, int64_t nowMs)
 {
-    m_isInstant    = false;
-    m_isPointerTip = true;
-    m_placement    = DxuiPopupPlacement::Below;
+    m_isInstant     = false;
+    m_isPointerTip  = true;
+    m_isBelowPointer = false;
+    m_placement     = DxuiPopupPlacement::Below;
 
     if (m_visible)
     {
@@ -394,34 +431,66 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 //
 //  RequestShowNow
 //
-//  Shown on the request itself. A repeat for the same anchor and text keeps
-//  the tip and its deadline, as RequestShow's does; a new one swaps in at
-//  once and starts its own lifetime.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text, int64_t nowMs)
 {
-    bool  isSame = IsShown() && !m_fadingOut && !m_isSwatchChanged && text == m_text && EqualRect (&anchor, &m_anchor) != FALSE;
+    ShowNow (anchor, text, nowMs, false);
+}
 
 
 
-    if (isSame)
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RequestShowNowBelowPointer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::RequestShowNowBelowPointer (POINT pointerPx, const std::wstring & text, int64_t nowMs)
+{
+    ShowNow (RECT { pointerPx.x, pointerPx.y, pointerPx.x + 1, pointerPx.y + 1 }, text, nowMs, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowNow
+//
+//  The tip is put up on the request itself. A repeat for the same anchor,
+//  text and placement has no effect, so the tip and its deadline stay, as
+//  with RequestShow; a new request replaces the tip at once and starts a new
+//  lifetime. A tip that isn't allowed, as Tick would hide it, isn't put up:
+//  put up again at each move, the tip blinked on and off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTooltip::ShowNow (const RECT & anchor, const std::wstring & text, int64_t nowMs, bool isBelowPointer)
+{
+    bool  isSame     = IsShown() && !m_fadingOut && !m_isSwatchChanged && isBelowPointer == m_isBelowPointer && text == m_text && EqualRect (&anchor, &m_anchor) != FALSE;
+    bool  isAllowed  = IsAllowed (isBelowPointer);
+
+
+
+    if (!isSame && isAllowed)
     {
-        return;
+        m_anchor        = anchor;
+        m_text          = text;
+        m_pending       = false;
+        m_visible       = true;
+        m_fadingOut     = false;
+        m_isInstant     = true;
+        m_isPointerTip  = true;
+        m_isBelowPointer = isBelowPointer;
+        m_placement     = DxuiPopupPlacement::Below;
+        m_hideAtMs      = GetHideAtMs (nowMs);
+
+        UpdatePopup();
     }
-
-    m_anchor    = anchor;
-    m_text      = text;
-    m_pending   = false;
-    m_visible   = true;
-    m_fadingOut = false;
-    m_isInstant    = true;
-    m_isPointerTip = true;
-    m_placement    = DxuiPopupPlacement::Below;
-    m_hideAtMs     = GetHideAtMs (nowMs);
-
-    UpdatePopup();
 }
 
 
@@ -449,9 +518,10 @@ void DxuiTooltip::ShowTimed (const RECT & anchor, const std::wstring & text, int
     m_text      = text;
     m_pending   = false;
     m_visible   = true;
-    m_isInstant    = false;
-    m_isPointerTip = false;
-    m_hideAtMs     = nowMs + (int64_t) durationMs;
+    m_isInstant     = false;
+    m_isPointerTip  = false;
+    m_isBelowPointer = false;
+    m_hideAtMs      = nowMs + (int64_t) durationMs;
 
     if (m_popupHost != nullptr && (changed || m_isSwatchChanged || m_activePopup == nullptr))
     {
@@ -497,7 +567,7 @@ void DxuiTooltip::Tick (int64_t nowMs)
     //  A hover tip is hidden when another app is in the foreground, since the
     //  app's windows then get no pointer messages to dismiss it. A timed notice
     //  ends at its set time.
-    if (m_isPointerTip && (m_pending || m_visible) && m_pfnIsActive != nullptr && !m_pfnIsActive())
+    if (m_isPointerTip && (m_pending || m_visible) && !IsAllowed (m_isBelowPointer))
     {
         m_pending = false;
         FinishHide();
@@ -654,7 +724,7 @@ void DxuiTooltip::ShowPopup()
         //  An anchor as wide as the tip, centered on the pointer and spanning
         //  the pointer's height, so above it the tip clears the pointer's
         //  tip and below it clears the arrow. The host keeps it on the monitor.
-        if (m_followPointer && m_isPointerTip)
+        if (m_followPointer && m_isPointerTip && !m_isBelowPointer)
         {
             POINT  pointer = {};
             int    boxWPx  = MulDiv (showParams.sizeDip.cx, (int) m_scaler.GetDpi(), (int) DxuiDpiScaler::kBaseDpi);
@@ -837,6 +907,7 @@ void DxuiTooltip::MeasureBox (RECT & outAnchorScreen, SIZE & outSizeDip)
 
     dpi = (dpi == 0) ? (UINT) DxuiDpiScaler::kBaseDpi : dpi;
 
+
     // MEASURED IN THE PIXELS IT WILL BE DRAWN IN, not in DIPs. RenderPopup
     // draws at the DPI-scaled font, and a string's width at that size is
     // not its width at 96 DPI scaled up -- hinting rounds each glyph. A
@@ -885,6 +956,15 @@ void DxuiTooltip::MeasureBox (RECT & outAnchorScreen, SIZE & outSizeDip)
     ClientToScreen (owner, &botRight);
 
     outAnchorScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
+
+    //  A tip below the pointer is centered on it, as wide as the tip.
+    if (m_isBelowPointer)
+    {
+        LONG  boxW = (LONG) std::ceil (boxWPx);
+
+        outAnchorScreen.left  = (topLeft.x + botRight.x) / 2 - boxW / 2;
+        outAnchorScreen.right = outAnchorScreen.left + boxW;
+    }
 
     // Show scales these back up by the owner DPI, so the trip into DIPs
     // rounds UP -- rounding down here would hand back the pixel the
