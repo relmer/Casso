@@ -655,7 +655,7 @@ hardware.
 - Q: Does Ctrl+V paste in the block inspector? -> A: Yes, as the disk inspector pastes (040's FR-097): hex values, optionally after $ or 0x, in the hex column, or text in the text column, over the block from the caret, as one undoable action. A paste with anything else in it pastes nothing.
 - Q: What does Save do when the image changed outside Casso Explorer since it was read? -> A: It saves to a preserved copy beside the image, with the edits written into a copy of the image as it is now, and the image is not written; the window then reads the changed image again (owner: "use DI's behavior to save alongside in BI"). A card partition is saved in place.
 - Q: What do Undo save and Redo save do in the block inspector? -> A: As in the disk inspector (040's FR-107): Undo save writes the blocks back and makes the saved edits unsaved again; Redo save writes them again. Neither has a confirmation.
-- Q: How is block mode laid out, now that it's built? -> A: A tree, then the list for the selected place with the current block's hex and fields under it, then the map of the whole volume, divided by splitters, under an address bar with the place's path, Back and Forward, the search and Go to (FR-292, FR-294). The levels Card, Volume, Files and File are what the list has at each place, and the Block level is the hex and fields under the list. HFS folders are in the tree; Pascal volumes have no directories.
+- Q: How is block mode laid out, now that it's built? -> A: A tree, then the list for the selected place with the current block's hex and fields under it, then the map of the whole volume, divided by splitters, under an address bar with the place's path, Back and Forward, the search and Go to (FR-298, FR-300). The levels Card, Volume, Files and File are what the list has at each place, and the Block level is the hex and fields under the list. HFS folders are in the tree; Pascal volumes have no directories.
 - Q: Is there a confirmation before the block inspector edits an image a running machine has mounted? -> A: The same as in the disk inspector, only for a disk in a drive of a running machine (owner: "BI would deal with mounted block devices exactly as DI does"). Casso Explorer has no machine and Casso has no block inspector, so no confirmation comes up today.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -3928,7 +3928,7 @@ as they arrive.
   its file system over the outer volume's blocks: the DOS 3.3 volumes of
   UniDOS, AmDOS and OzDOS disks by track and sector, and a hybrid disk's
   second file system.
-- **FR-292**: In block mode, the window MUST have, from the left, a tree of
+- **FR-298**: In block mode, the window MUST have, from the left, a tree of
   the card's partitions and the volume's directories; the list for the
   selected place, with the current block's hex and fields under it; and the
   map of the whole volume, with the selection's blocks highlighted: a file, a
@@ -3937,11 +3937,11 @@ as they arrive.
   the place's path (card, volume, each directory and the file), with Back
   and Forward, a search over the volume and Go to. A card opens at its
   partitions, and a volume at its root.
-- **FR-293**: The Volume level MUST have the volume header's fields, the boot
+- **FR-299**: The Volume level MUST have the volume header's fields, the boot
   blocks and their loader, the volume directory, the bitmap, the space used
   and free, the file system verdict's findings with Repair, and the 2MG or
   Disk Copy 4.2 header where there is one.
-- **FR-294**: A directory's list MUST have the blocks the directory is in, then
+- **FR-300**: A directory's list MUST have the blocks the directory is in, then
   its directories and files, with the selection, sorting and keys of Casso
   Explorer's list, and the columns Name, Type, Aux, Blocks, EOF, Storage,
   Key block and Modified. The tree MUST have the volume's directories,
@@ -3949,14 +3949,14 @@ as they arrive.
   MUST stay responsive on a 1 GB HFS volume of about 2.1 million blocks and
   on a volume of tens of thousands of files, building each row only when it
   is first drawn.
-- **FR-295**: The File level MUST have the file's directory entry, its
+- **FR-301**: The File level MUST have the file's directory entry, its
   storage as key block, index blocks and data runs, its fragmentation, and
   its blocks.
-- **FR-296**: Every item at the Card, Volume, Files and File levels that is
+- **FR-302**: Every item at the Card, Volume, Files and File levels that is
   stored in blocks MUST step to its first block when clicked: a partition to
   its first block, the volume header to its block, the bitmap and a
   directory to their blocks, and a file to its key block.
-- **FR-297**: Every number Casso writes on screen MUST use the user's
+- **FR-303**: Every number Casso writes on screen MUST use the user's
   regional settings in Windows, the same way everywhere: thousands
   separator, grouping, decimal separator and negative sign. A number typed with
   separators MUST be parsed.
