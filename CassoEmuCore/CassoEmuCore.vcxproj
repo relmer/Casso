@@ -552,6 +552,7 @@
     <ClCompile Include="CassoExplorer\Model\TreeModel.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeModelImages.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnections.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CassoLinkConnectionsProbe.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnectionText.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkFullSendOptions.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkShimBuilder.cpp" />
