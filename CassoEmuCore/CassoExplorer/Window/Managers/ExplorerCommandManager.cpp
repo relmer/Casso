@@ -1462,6 +1462,7 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
         }
 
         case CassoExplorerActions::Verb::ConvertToTapeAudio:
+        case CassoExplorerActions::Verb::ConvertToDiskAudio:
         case CassoExplorerActions::Verb::AddToA2retroNet:
             m_context.opener.RunFileVerb (verb);
             break;

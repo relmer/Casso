@@ -7,10 +7,14 @@
 #include "CassoLink/EmulatedCassetteAudio.h"
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "CassoLink/Audio/CassetteByteStream.h"
+#include "CassoLink/Audio/DiskAudioRecording.h"
 #include "CassoLink/Audio/WasapiCassetteAudio.h"
 #include "CassoLink/CassoLinkHost.h"
 #include "CassoLink/LinkAudioBootstrap.h"
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/Session/CassoLinkThirteenSector.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "FakeDiskFileIo.h"
 #include "Core/TextEncoding.h"
@@ -369,6 +373,69 @@ public:
         Assert::IsTrue (sink.WaitForState (LinkState::Ready, kWaitMs), L"the link is ready");
 
         session.reset();
+    }
+
+
+    //  A 13-sector disk written over the cassette ports of a //e: each
+    //  track's stream is longer than a burst, so it arrives in two, the
+    //  second after the Apple stores the first.
+    TEST_METHOD (AThirteenSectorDisk_IsWrittenOverTheCassettePorts)
+    {
+        Rig                 rig ("Apple2e");
+        std::vector<Byte>   module;
+        std::vector<Byte>   sectors (ThirteenSectorCodec::kImageByteSize, 0x5A);
+        CassoLinkStatus     status;
+        std::vector<Byte>   onDisk;
+        SectorDecodeReport  report;
+
+
+
+        AssertSucceeded (LinkProgram::BuildThirteenSectorModule (module, LinkChip::Cassette));
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (CassoLinkThirteenSector::WriteDisk (*rig.host, 1, sectors, nullptr, nullptr, status));
+        Assert::AreEqual ((Byte) 0, status.error);
+        ThirteenSectorCodec::Denibblize (*rig.machine.GetDiskStore().GetImage (kDiskSlot, 0), onDisk, report);
+        Assert::IsTrue (onDisk == sectors, L"the drive's disk has the sectors written");
+    }
+
+
+    //  Convert to disk audio's recording, sent into a //e at the monitor
+    //  with its read command typed and no PC answering, writes the disk in
+    //  drive 1.
+    TEST_METHOD (ADiskRecording_WritesTheDisk_WithNoPcAnswering)
+    {
+        static constexpr uint32_t  kRate = 44100;
+
+        Rig                 rig ("Apple2e", EmulatedCassetteAudio::Faults(), kRate, Start::AtPrompt);
+        std::vector<Byte>   sectors (NibblizationLayer::kImageByteSize);
+        std::vector<float>  samples;
+        std::vector<float>  heard;
+        std::vector<Byte>   written;
+        std::string         command;
+        double              ms      = 0.0;
+
+
+
+        for (size_t at = 0; at < sectors.size(); at++)
+        {
+            sectors[at] = (Byte) (at * 11 + at / 256 + 3);
+        }
+
+        AssertSucceeded (DiskAudioRecording::Build (sectors, kRate, samples, command));
+
+        rig.Type ("CALL -151\r");
+        rig.Type (command.c_str());
+
+        AssertSucceeded (rig.audio->Play (samples));
+        ms = (double) samples.size() * 1000.0 / kRate;
+
+        for (double played = 0.0; played < ms; played += 1000.0)
+        {
+            AssertSucceeded (rig.audio->Capture (1000, heard));
+        }
+
+        AssertSucceeded (NibblizationLayer::Denibblize (*rig.machine.GetDiskStore().GetImage (kDiskSlot, 0), DiskFormat::Dsk, written));
+        Assert::IsTrue (written == sectors, TextEncoding::NarrowToWide (rig.Screen()).c_str());
     }
 
 

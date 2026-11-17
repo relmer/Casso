@@ -208,6 +208,11 @@ std::vector<ActionsTypes::Verb> CassoExplorerActions::GetListVerbs() const
             verbs.push_back (Verb::MakeShrinkItDisk);
         }
 
+        if (imagePaths.size() == 1 && ActionsTape::CanMakeDiskRecording (imagePaths[0]))
+        {
+            verbs.push_back (Verb::ConvertToDiskAudio);
+        }
+
         if (imagePaths.size() == 1 && m_a2retroNet.CanAdd (imagePaths[0]))
         {
             verbs.push_back (Verb::AddToA2retroNet);
