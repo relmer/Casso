@@ -76,6 +76,10 @@ public:
     //  The position is in quarter tracks.
     static std::wstring  DescribeCell     (const FullSendDriveStatus & drive, int position);
 
+    //  A track's tip: in a raw capture its four quarter tracks, one to a line;
+    //  otherwise the track's cell.
+    static std::wstring  DescribeTrack    (const FullSendDriveStatus & drive, int track);
+
     //  Seconds as 1:05, or 1:02:05 from an hour.
     static std::wstring  FormatSeconds    (double seconds);
 
@@ -104,6 +108,10 @@ public:
     //  none, or for a duplicate's row, which has no image.
     bool  TryGetDiskAt   (POINT pointPx, std::string & outFile) const;
     bool  IsOverActivity (POINT pointPx) const;
+
+    //  The drive, counted from 1, and track of the map column under a point,
+    //  as last painted. A column has the track's cell and its quarter tracks.
+    bool  TryGetTrackAt  (POINT pointPx, int & outDrive, int & outTrack, RECT * outBounds = nullptr) const;
 
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 

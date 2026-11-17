@@ -4,9 +4,11 @@
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
+#include "CassoLink/FullSend/FullSendLink.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "CassoLink/FullSend/FullSendManifestFile.h"
 #include "CassoLink/FullSend/FullSendProtection.h"
+#include "CassoLink/FullSend/FullSendScreen.h"
 #include "CassoLink/FullSend/FullSendSession.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkProgram.h"
@@ -741,9 +743,11 @@ public:
         auto  session = rig.Run();
 
         Assert::IsTrue (rig.link.captures == std::vector<int> { 1 }, L"Only the second read is captured");
-        Assert::IsTrue (rig.link.readsVerified == std::vector<bool> ({ false, false }), L"Neither read is verified");
+        Assert::IsTrue (rig.link.readsVerified == std::vector<bool> ({ false }), L"The raw capture comes with no second sector read");
         Assert::AreEqual (std::string (FullSendManifest::kStatusProtected),  session->GetManifest().GetRows()[0].status);
         Assert::AreEqual (std::string (FullSendManifest::kStatusRawCapture), session->GetManifest().GetRows()[1].status);
+        Assert::AreEqual (session->GetManifest().GetRows()[0].hash,       session->GetManifest().GetRows()[1].hash);
+        Assert::AreEqual (session->GetManifest().GetRows()[0].unreadable, session->GetManifest().GetRows()[1].unreadable);
         Assert::IsTrue (rig.io.files.contains ("C:\\Box\\0001.dsk") && rig.io.files.contains ("C:\\Box\\0002.woz"));
         Assert::IsFalse (rig.link.verifying);
     }
@@ -766,7 +770,7 @@ public:
 
         Assert::AreEqual (std::string (FullSendManifest::kStatusUnclear), session->GetManifest().GetRows()[0].status);
         Assert::IsTrue (rig.link.captures == std::vector<int> { 1 }, L"Only the second read is captured");
-        Assert::IsTrue (rig.link.readsVerified == std::vector<bool> ({ false, false }), L"Neither read is verified");
+        Assert::IsTrue (rig.link.readsVerified == std::vector<bool> ({ false }), L"The raw capture comes with no second sector read");
         Assert::AreEqual (std::string (FullSendManifest::kStatusRawCapture), session->GetManifest().GetRows()[1].status);
     }
 

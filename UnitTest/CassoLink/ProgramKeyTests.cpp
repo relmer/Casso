@@ -3,7 +3,7 @@
 #include "../EhmTestHelper.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "CassoLink/CassoLinkCodec.h"
-#include "CassoLink/FullSend/FullSendSession.h"
+#include "CassoLink/FullSend/FullSendScreen.h"
 #include "Core/TextEncoding.h"
 #include "Devices/RamDevice.h"
 #include "ProgramRig.h"

@@ -163,6 +163,33 @@ public:
 
 
 
+    TEST_METHOD (ATracksTip_InARawCapture_ListsItsFourQuarterTracks)
+    {
+        FullSendDriveStatus  drive;
+        std::wstring         lastTip;
+
+
+
+        drive.tracks[12] = FullSendTrackMark::Verified;
+        Assert::AreEqual (std::wstring (L"Track 12: read and verified"), FullSendPanel::DescribeTrack (drive, 12));
+
+        drive.positions.assign (FullSendDriveStatus::kPositions, FullSendPositionMark::Unread);
+        drive.positions[48] = FullSendPositionMark::Read;
+        drive.positions[49] = FullSendPositionMark::Weak;
+        drive.positions[50] = FullSendPositionMark::Skipped;
+        Assert::AreEqual (std::wstring (L"Track 12: read\n"
+                                        L"Track 12.25: weak bits, which read differently every time, as on the disk\n"
+                                        L"Track 12.50: not read, the tracks beside it are complete\n"
+                                        L"Track 12.75: not read yet"),
+                          FullSendPanel::DescribeTrack (drive, 12));
+
+        //  The last track has no quarter tracks past the end of the map.
+        lastTip = FullSendPanel::DescribeTrack (drive, FullSendDriveStatus::kTracks - 1);
+        Assert::AreEqual ((std::ptrdiff_t) (FullSendDriveStatus::kPositions - (FullSendDriveStatus::kTracks - 1) * 4), std::count (lastTip.begin(), lastTip.end(), L'\n') + 1);
+    }
+
+
+
     TEST_METHOD (TheTotals_HaveTheAverageAndSizeOnceADiskIsSent)
     {
         FullSendTotals  totals;
@@ -308,6 +335,53 @@ public:
 
             Assert::IsTrue  (panel.IsOverActivity (POINT { 10, (LONG) (FindTextTop (text, L"10:00:01") + lineH / 2.0f) }));
             Assert::IsFalse (panel.IsOverActivity (POINT { 10, (LONG) (archon + lineH / 2.0f) }));
+        }
+    }
+
+    //  At 100% and 150%, a track's tip covers its cell and the quarter tracks
+    //  under it, which are too narrow to point at alone.
+    TEST_METHOD (ATracksTip_CoversItsQuarterTracks_At100And150Percent)
+    {
+        for (UINT dpi : { 96u, 144u })
+        {
+            FullSendPanel         panel;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            DxuiDpiScaler         scaler;
+            POINT                 top   = { -1, -1 };
+            LONG                  below = 0;
+            int                   drive = 0;
+            int                   track = 0;
+
+
+
+            scaler.SetDpi (dpi);
+
+            panel.Layout  (RECT { 0, 0, scaler.ToPx (FullSendDialog::kWidthDip), scaler.ToPx (FullSendDialog::kHeightDip) }, scaler);
+            panel.SetView (MakeView());
+            panel.Paint   (painter, text, theme);
+
+            //  The top of drive 1's track 5 column, then its bottom.
+            for (LONG y = 0; y < scaler.ToPx (FullSendDialog::kHeightDip) && top.y < 0; y++)
+            {
+                for (LONG x = 0; x < scaler.ToPx (FullSendDialog::kWidthDip) && top.y < 0; x++)
+                {
+                    top = (panel.TryGetTrackAt (POINT { x, y }, drive, track) && drive == 1 && track == 5) ? POINT { x, y } : top;
+                }
+            }
+
+            Assert::IsTrue (top.y >= 0, std::format (L"Track 5 has a column at {} dpi", dpi).c_str());
+
+            below = top.y;
+
+            while (panel.TryGetTrackAt (POINT { top.x, below }, drive, track) && track == 5)
+            {
+                below++;
+            }
+
+            Assert::IsTrue ((float) (below - top.y) >= scaler.ToPxf (FullSendPanel::kMapCellDip + FullSendPanel::kMapRawDip),
+                            std::format (L"The column is {} px at {} dpi", below - top.y, dpi).c_str());
         }
     }
 

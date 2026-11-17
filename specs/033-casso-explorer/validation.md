@@ -1086,3 +1086,33 @@ Casso Explorer boots each image a Full Send saves on the machines of FR-275 in
 order: the model it was captured from, then the enhanced //e, then the ][ plus.
 `BootCheckTests::TheMachines_BeginWithTheModelCapturedFrom` tests the order, and
 the Wizardry I images of 2026-11-15 were checked that way after their Full Send.
+
+## Full Send timing on an emulated //c (T707, T739, 2026-11-16)
+
+Casso Explorer ran a Full Send against a Debug build of Casso emulating a //c,
+with the CassoLink program on its drive 1. The images are in
+`Downloads\Wizardry Full Send\Timing test`.
+
+| Disk | Time left on screen | Time taken |
+|---|---|---|
+| DOS 3.3 System Master | 0:16 at 0:10, 0:26 in all | 0:28 |
+| Archon as sectors, 496 unreadable | 0:29 at 0:22, 0:51 in all | 0:49 |
+| Archon again, raw capture | 4:29 at 1:14, 4:35 at 3:00 | 5:43 |
+
+A sector read's time left is within 2 seconds of the time taken, unreadable
+sectors included. A raw capture's runs about 20% low: its raw phase read
+"1:24 on the disk, 1:59 on the line", 3:23 in all, and took 4:54.
+
+The boot check added 6 seconds to each sector image and 9 to the raw capture.
+The check for a duplicate of an earlier image took 3 seconds. The raw capture
+of Archon boots, and its sector image doesn't.
+
+Found and fixed: Space on a likely copy-protected disk whose image didn't boot
+read the whole disk as sectors again, 49 seconds, before its raw capture. The
+raw capture now begins at once, with the first read's hash and counts.
+
+Found and left as is: the Drive 2 row reads "No disk" until its drive is read,
+whether or not a disk is in it, since the drive isn't checked before then. The
+Apple's line read "Bad 0" while the window counted 1 disk with bad sectors.
+
+The walk on the owner's //c remains for both tasks.
