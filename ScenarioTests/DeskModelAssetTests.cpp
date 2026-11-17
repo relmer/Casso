@@ -38,7 +38,6 @@ public:
         {
             { "UniDisk35",    true  },
             { "Apple35Drive", true  },
-            { "Apple35Plus",  true  },
             { "HardDisk20SC", false },
             { "ProFile",      false },
         };
@@ -70,7 +69,7 @@ public:
     //  kKdEpsilon on a channel, so no part takes a finish by drifting near it.
     TEST_METHOD (EveryModelColor_IsAFinishOrClearOfOne)
     {
-        constexpr const char *  kModels[]   = { "UniDisk35", "Apple35Drive", "Apple35Plus", "HardDisk20SC", "ProFile" };
+        constexpr const char *  kModels[]   = { "UniDisk35", "Apple35Drive", "HardDisk20SC", "ProFile" };
         constexpr float         kExactly    = 0.001f;
         const float           * kFinishes[] = { DeskSceneModel::kPlatePebbledKd, DeskSceneModel::kPlateRecessKd };
         std::wstring            drifted;

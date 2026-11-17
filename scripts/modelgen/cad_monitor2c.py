@@ -37,6 +37,7 @@ import math
 
 import cadquery as cq
 from cadkit import KD, Model, round_rect_wire, sag_sheet
+from cad_iec import c14, c14_cut
 
 # ---------------------------------------------------------------- dimensions
 
@@ -512,7 +513,6 @@ KNOB_PROUD         = 10.0               # off the bay floor, still inside the ba
 # the same machine. The blades are plated steel; the receptacle is lined dark
 # the way a molded socket insert is.
 KEYCAP  = (0.700, 0.692, 0.668)
-SILVER  = (0.760, 0.765, 0.780)
 SOCKET  = (0.200, 0.200, 0.220)
 
 CTRL_Z  = PANEL_Z0 + 30.0               # the control row's center line
@@ -552,61 +552,13 @@ shell = shell.cut(
       .translate((PANEL_X0, PANEL_Y, REAR_Z0 - 5.0))
       .edges("|Y").fillet(3.0))
 
-# THE MAINS INLET: the receptacle profile drawn as it is -- a rounded
-# rectangle whose top two corners are clipped at forty-five degrees -- and
-# cut eight millimeters into the bay floor.
-AC_W, AC_H, AC_CLIP, AC_DEEP = 24.0, 17.0, 5.0, 8.0
-
-_acx0, _acx1 = AC_CX - AC_W * 0.5, AC_CX + AC_W * 0.5
-_acz0, _acz1 = CTRL_Z - AC_H * 0.5, CTRL_Z + AC_H * 0.5
-
-_ac_face = cq.Face.makeFromWires(cq.Wire.makePolygon([
-    cq.Vector(_acx0, PANEL_Y + 0.5, _acz0),
-    cq.Vector(_acx1, PANEL_Y + 0.5, _acz0),
-    cq.Vector(_acx1, PANEL_Y + 0.5, _acz1 - AC_CLIP),
-    cq.Vector(_acx1 - AC_CLIP, PANEL_Y + 0.5, _acz1),
-    cq.Vector(_acx0 + AC_CLIP, PANEL_Y + 0.5, _acz1),
-    cq.Vector(_acx0, PANEL_Y + 0.5, _acz1 - AC_CLIP),
-    cq.Vector(_acx0, PANEL_Y + 0.5, _acz0),
-]))
-
-shell = shell.cut(cq.Workplane(obj=cq.Solid.extrudeLinear(
-    _ac_face, cq.Vector(0.0, -(AC_DEEP + 0.5), 0.0))))
+# THE MAINS INLET: the shared IEC C14 inlet (cad_iec.py), earth pin at the
+# top, its face flush with the bay floor.
+AC_AT = (AC_CX, PANEL_Y, CTRL_Z)
+shell = shell.cut(c14_cut().translate(AC_AT))
 
 
-def ac_profile(inset, y):
-    """The receptacle profile drawn `inset` inside the cavity, at depth y."""
-    return cq.Wire.makePolygon([
-        cq.Vector(_acx0 + inset, y, _acz0 + inset),
-        cq.Vector(_acx1 - inset, y, _acz0 + inset),
-        cq.Vector(_acx1 - inset, y, _acz1 - AC_CLIP - inset * 0.41),
-        cq.Vector(_acx1 - AC_CLIP - inset * 0.41, y, _acz1 - inset),
-        cq.Vector(_acx0 + AC_CLIP + inset * 0.41, y, _acz1 - inset),
-        cq.Vector(_acx0 + inset, y, _acz1 - AC_CLIP - inset * 0.41),
-        cq.Vector(_acx0 + inset, y, _acz0 + inset),
-    ])
-
-
-# THE SOCKET INSERT: a dark open-fronted liner in the cavity -- walls and
-# back, mouth open -- so the receptacle reads as the dark molded socket it
-# is instead of a cream hole in cream plastic.
-m.add("ac_liner",
-      cq.Workplane(obj=cq.Solid.extrudeLinear(
-          cq.Face.makeFromWires(ac_profile(0.25, PANEL_Y - 0.2)),
-          cq.Vector(0.0, -(AC_DEEP - 0.4), 0.0)))
-        .cut(cq.Workplane(obj=cq.Solid.extrudeLinear(
-            cq.Face.makeFromWires(ac_profile(1.2, PANEL_Y + 0.3)),
-            cq.Vector(0.0, -(AC_DEEP - 1.4), 0.0)))),
-      SOCKET)
-
-# Its three blades, standing up from the receptacle's back wall: LOW, HIGH,
-# LOW, which is the earth pin above the pair of line blades.
-for dx, dz in ((-6.0, -2.5), (0.0, 3.0), (6.0, -2.5)):
-    m.add(f"acpin{int(dx)}",
-          cq.Workplane("XY")
-            .box(2.0, 5.0, 4.5, centered=(True, False, False))
-            .translate((AC_CX + dx, PANEL_Y - AC_DEEP, CTRL_Z + dz - 2.25)),
-          SILVER)
+c14(m, "ac", lambda solid: solid.translate(AC_AT))
 
 # THE THREE KNOBS: size, position, brightness. Each stands out of its own
 # shallow counterbore -- the round recess the shaft bushing sits in -- and

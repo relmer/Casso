@@ -366,11 +366,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_chrome->m_mainMenu);
     m_host->GetRoot().Adopt (m_chrome->m_driveBandSurface);
 
-    // Behind the Disk II widgets, which are placed on its fan's panel.
-    m_host->GetRoot().Adopt (m_chrome->m_driveBarFan);
-    m_chrome->HideDriveBar();
-    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
-    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
     m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
     m_host->GetRoot().Adopt (m_chrome->m_fpsReadout);
     m_host->GetRoot().Adopt (m_scene->m_sceneViewReadout);
@@ -464,6 +459,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     });
     m_host->GetRoot().Adopt (m_chrome->m_toolbar);
     m_host->GetRoot().Adopt (m_chrome->m_switchBar);
+
+    // The drive bar is behind the Disk II widgets, which are placed on its
+    // fan's panel. Both go after the //c's switch strip, so an open stack
+    // of drives is drawn over the strip. The bar's zoom readout is drawn
+    // over the bar.
+    m_host->GetRoot().Adopt (m_chrome->m_driveBarFan);
+    m_chrome->HideDriveBar();
+    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
+    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
+    m_host->GetRoot().Adopt (m_chrome->m_driveBarZoomReadout);
     m_host->GetRoot().Adopt (m_disks->GetChangeBanner());
     m_host->GetRoot().Adopt (m_serialCard->GetBanner());
     m_host->GetRoot().Adopt (m_networkCard->GetBanner());
@@ -624,8 +629,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_VIEW_FRAME_RATE:         return m_settings->GetPrefs().showFrameRate;
             case IDM_VIEW_SCENE_VIEW:         return m_settings->GetPrefs().showSceneView;
             case IDM_VIEW_AUTOHIDE_DRIVES:    return m_settings->GetPrefs().autoHideDrives;
-            case IDM_VIEW_FLOPPIES_ON_DESK:   return m_scene->IsClassOnDesk (DeskDriveClass::Floppy);
-            case IDM_VIEW_HARD_DISKS_ON_DESK: return m_scene->IsClassOnDesk (DeskDriveClass::HardDisk);
             case IDM_VIEW_FLOPPY_PAIR_BESIDE: return m_settings->GetPrefs().deskFloppyPairBeside;
 
             default:                          return false;
@@ -708,6 +711,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         {
             case IDM_VIEW_FLOPPY_PAIR_BESIDE: visible = m_scene->IsFloppyPairBesideOffered();                                       break;
 
+            // A place row is for a class the machine has drives of.
+            case IDM_VIEW_FLOPPIES_ON_DESK:   visible = m_scene->HasDriveClass (DeskDriveClass::Floppy);                            break;
+            case IDM_VIEW_HARD_DISKS_ON_DESK: visible = m_scene->HasDriveClass (DeskDriveClass::HardDisk);                          break;
+
             // The //c Plus's port drives are plugged in from the plug-in rows.
             // Each row is visible only while the port has room for its kind.
             case IDM_STORAGE_DRIVE2:          visible = !portChain;                                                                 break;
@@ -760,6 +767,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             {
                 return m_tapeDeck->IsTapeRecorderShown() ? std::wstring (L"Detach ca&ssette recorder")
                                                          : std::wstring (L"Attach ca&ssette recorder");
+            }
+
+            case IDM_VIEW_FLOPPIES_ON_DESK:
+            {
+                return EmulatorCommands::GetDrivePlaceLabel (false, m_scene->IsClassOnDesk (DeskDriveClass::Floppy));
+            }
+
+            case IDM_VIEW_HARD_DISKS_ON_DESK:
+            {
+                return EmulatorCommands::GetDrivePlaceLabel (true, m_scene->IsClassOnDesk (DeskDriveClass::HardDisk));
             }
 
             case IDM_DISK_WP1:
@@ -1060,6 +1077,10 @@ int EmulatorShell::RunMessageLoop()
     // drive-audio door-close (FR-013).
     m_disks->GetManager()->SetColdBootMountWindow (false);
 
+    // The shell's roots are read now, so the first drive picker opens
+    // without waiting on the shell for them.
+    m_drivePickers->ReadShellRootsAhead();
+
     // UI thread loop: process messages, present latest framebuffer with vsync
     while (m_cpuManager.IsRunning())
     {
@@ -1223,6 +1244,7 @@ void EmulatorShell::WaitForFrameOrMessage()
 
     if (m_chrome->m_switchBarTooltip.WantsTick() ||
         m_chrome->m_driveTooltip.WantsTick()     ||
+        m_chrome->IsDriveBarZoomReadoutUp()      ||
         m_chrome->m_captionTooltip.WantsTick()   ||
         m_scene->m_sceneCompass.WantsTick()     ||
         m_scene->m_compassHintOpacity != (m_scene->m_sceneCompass.IsHovered() ? 1.0f : 0.0f) ||
