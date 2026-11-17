@@ -262,21 +262,36 @@ least 500 microseconds, starts the ramp and times it until `$C066` goes low
 | Size 17.5 by 18.2 by 4.8 inches (44.45 by 46.23 by 12.19 cm); 26 pounds; cast aluminum base, molded plastic cover | POG appendix D; SPEC |
 | CPU: 6502B with outside circuitry for extended addressing | SPEC; POG appendix D |
 
-## Open rows
+## Settled from an existing emulator
 
-No Apple document read so far settles these. Each is settled from the
-schematics, the gearshift and video PROM listings in SVC chapters 6 and 17,
-or an existing emulator, before the code that depends on it is written.
+Apple's documents do not settle these rows. Each fact below was read from
+MAME's Apple /// driver (`src/mame/apple/apple3_m.cpp` and `apple3_v.cpp`,
+BSD-3-Clause, read 2026-11-17). No code or table was copied. Each is
+confirmed by behavior (the ROM diagnostics, the Confidence Test disk, a SOS
+boot) when the device is built.
+
+| Item | Fact | Consistent with |
+|---|---|---|
+| Apple II lockout | E VIA port A bit 6 (`AII SW`) is driven as an output. While it is low, `$FFD0-$FFEF` no longer addresses the VIAs, so the environment, bank and zero page registers cannot be changed, and color text is off. A reset of the VIAs returns the line to an input, which reads high | SVC 3.14 (the signal); SVC 10.1 ("only reset will exit"); with environment bit 4 clear the reset key is ignored, which is SVC 8.5 |
+| Slot interrupt inputs | E VIA port A bit 4 is slot 4 and bit 5 is slot 3. `$C064` bit 7 is slot 2 and `$C065` bit 7 is slot 1, each 0 while the slot requests an interrupt | SVC 3.14 figure; SOS `SLOT1`, `SLOT2` |
+| ROM select | Environment bit 0 turns the ROM on at `$F000-$FFFF`. Bit 1 selects the primary ROM; the machine has one ROM, so bit 1 is 1 whenever bit 0 is | SVC 3.13; J83 |
+| Clock chip | An MM58167 with a 32.768 kHz crystal. Any address `$C070-$C07F` reads or writes the chip register selected by D VIA port B | SVC 3.15; SVC 2.30 |
+| Smooth scroll | With `$C0D9` on, each 8-line group of the display is offset by 0 to 7 lines. The offset's three bits are the latches at `$C0E0/1`, `$C0E2/3` and `$C0E4/5`, which are also the disk controller's first three phase lines | SOS and CON use of `$C0D8` |
+| Character cell | 7 dots by 8 rows, bit 0 leftmost. A character with bit 7 clear is inverse; bit 7 of each glyph row selects steady inverse (0) or flashing (1) for it | SVC 6.2 (inverse and flashing); SVC 6.6 (7 of 8 bits displayed) |
+| Flash rate | about 2 per second | |
+| Extension byte | Read in the same cycle as the zero page pointer byte, from the S-bank at the pointer byte's address XOR `$0C00`, with no added cycle. It applies to accesses at `$0100` and above until the next opcode fetch | SVC 2.10 ("the sister fetched data byte"); SRM 2.1.2 |
+| `$8F` | `$0000-$1FFF` and `$A000-$FFFF` are the S-bank, `$2000-$9FFF` is bank 0, and `$FFD0-$FFEF` is the RAM under the VIAs | SRM 2.1.2; J82 |
+| Absent bank | The bank number wraps modulo the number of banks installed | not confirmed elsewhere |
+| Zero page in the banked region | A zero page register value of `$20-$9F` selects a page of the current bank, and `$A0` and above a page of the S-bank | SVC 2.10 |
+| Keyboard reset | Control with Reset is a CPU reset; Reset alone is an NMI; both only while environment bit 4 is set | SVC 8.5, 8.8 |
+| Beeper | `$C040-$C04D`. `$C04E/F` is a character RAM enable that software does not rely on | SVC 10.3 |
+| CPU and VIA clocks | CPU nominal clock is 14.31818 MHz / 7; the VIAs run at 14.31818 MHz / 14; the 6551 has a 1.8432 MHz clock | SVC 5.1, 3.10 |
+
+## Open rows
 
 | Item | What is missing |
 |---|---|
-| Apple II lockout | Which signal sets it. `AII SW` on E VIA port A bit 6 is in the figure and unexplained; the text beside it calls it an Apple key. How emulation is left ("only reset" in SVC 10.1 against SVC 8.5) |
-| Slot interrupt inputs | Which slots are on E VIA port A bits 4 and 5, and what `$C064`, `$C065` read |
-| CPU speed | The exact conditions for a 1 MHz cycle, to reproduce the 1.4 and 1.8 MHz averages |
-| ROM select | The meaning of each of the four values of environment bits 0-1 |
-| Clock chip | How port B and `$C07x` address its registers |
-| Smooth scroll | What the hardware does when `$C0D9` is on |
-| Character cell | Dot columns per character and which bit is leftmost in a glyph row |
-| Extended access cycle cost | Whether the extension byte fetch adds a cycle |
-| Absent bank | What a 128K machine reads from banks 3 and above |
-| `ENSEL`, `ENSIO` | Their effect on the port A serial lines |
+| CPU speed | The exact conditions for a 1 MHz cycle. The emulator read above runs at 1 MHz across the displayed part of each of the 192 lines when video is on and at 2 MHz otherwise, and cites a logic analyzer measurement of 1.905 MHz at full speed with the screen off. That does not reproduce Apple's 1.4 MHz average exactly. The gearshift PROM's listing (SVC chapter 17) settles it |
+| E VIA port B bit 6 | In SVC 3.17 it is the slots' I/O count line; the emulator read above drives it from horizontal blanking. The schematic (`Sound-Serial Logic.jpg`) settles it |
+| Color values | The RGB value of each of the 16 colors and of each gray level, and whether the two gray entries are in a different order in text and in graphics. Measured from the resistor weights on the schematic (`Video Logic.jpg`) and SVC 10.2 |
+| `ENSEL`, `ENSIO` | Their effect on the port A serial lines. Used only by the Silentype, which is out of scope; the switches are accepted and do nothing |

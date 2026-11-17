@@ -21,11 +21,11 @@ block the model's generator.
 | Depth of the whole machine, keyboard included | 462.3 mm (18.2 in) | the same |
 | Construction | cast aluminum base, molded plastic cover | the same |
 | Text interlace switch (Plus) | left side, about halfway back, just above the bottom of the cover | Apple /// Plus Owner's Guide p. 16 |
-| Depth of the modeled body (front of the upper body to the back) | | |
-| Top surface: flat area, edge radii, vent slots | | |
-| Drive bay: position, opening, door, latch, lamp | | |
-| Badge: position and size, Apple /// and Apple /// Plus | | |
-| Feet and the body's height off the desk | | |
+| Depth of the modeled body (front of the upper body to the back) | about 0.56 of the whole depth, about 257 mm | first estimate, measured on the patent's side view (Des. 268,584, Fig. 4) |
+| Top surface | flat for about 220 mm back from the front slope, then a ribbed band about 30 mm deep at the rear; the front face slopes back | first estimate, patent Fig. 2 and Fig. 4 |
+| Drive bay | right half of the front face, the slot centered about 0.79 of the width from the left; door, latch and lamp positions not yet measured | first estimate, patent Fig. 3 |
+| Badge | lower left of the front face, about 0.10 to 0.19 of the width from the left; size not yet measured | first estimate, patent Fig. 3 |
+| Feet | four, near the corners of the base; height not yet measured | patent Fig. 7 |
 
 The model ends at the front of the upper body. The sloped keyboard section
 is not modeled; the cut face is closed with a plain surface in the case
@@ -39,16 +39,16 @@ panel, viewed from behind.
 
 | Item | Form | Position | Source |
 |---|---|---|---|
-| Power switch | rocker | | |
-| Power inlet | 3-pin | | |
-| Black and white video | RCA jack | | |
-| Color video | DB-15 | | |
-| Audio | 3.5 mm jack | | |
-| Joystick port A | DB-9 | | |
-| Joystick port B | DB-9 | | |
-| RS-232-C | DB-25 | | |
-| External floppy | 26-pin header | | |
-| Slot openings 1 to 4 | rectangular cutouts | | |
+| Power switch | rocker | about 0.86 to 0.93 of the width, in a separate right-hand section | first estimate, patent Fig. 6 |
+| Power inlet | 3-pin | about 0.76 to 0.82 of the width | first estimate, patent Fig. 6 |
+| Black and white video | RCA jack | about 143 mm right of the disk connector's center | first estimate, main board photograph |
+| Color video | DB-15 | about 115 mm right of the disk connector's center | first estimate, main board photograph |
+| Audio | miniature phone jack | between the black and white jack and the serial connector | order only, Plus Owner's Guide Figure 2-1 |
+| Port A | DB-9 | about 44 mm right of the disk connector's center | first estimate, main board photograph |
+| Port B | DB-9 | about 77 mm right of the disk connector's center | first estimate, main board photograph |
+| RS-232-C | DB-25 female | about 180 mm right of the disk connector's center | first estimate, main board photograph |
+| Disk drive | a D connector on the Plus (a 26-pin header behind it on the board); far left, its center about 0.13 of the width from the left edge | first estimate, main board photograph and patent Fig. 6 |
+| Slot openings 1 to 4 | vertical cutouts in the finned upper section, above the connector strip | about 0.38 to 0.62 of the width; the slots' pitch is about 24 mm | first estimate, patent Fig. 6 and main board photograph |
 | ProFile interface card | the card's cable connector in its slot opening | | |
 
 Order, from the rear, left to right: disk drive connector, port A, port B,
@@ -61,6 +61,36 @@ positions come from the Service Reference Manual's assembly drawings
 The Monitor /// weighs 16.5 pounds and rests directly on the Apple ///
 (Monitor III Owner's Manual p. 4, p. 6). Its 436.6 mm width is 7.9 mm
 narrower than the body's 444.5 mm.
+
+### How the first estimates were made, and what they are worth
+
+No dimensioned drawing of the case has been found. The estimates above are
+read by eye from two sources, and are good to a few millimeters at best:
+
+- **The design patent's orthographic views** (`Apple 3 Design Patent
+  Case.pdf`, Des. 268,584: top, front, both sides, rear, bottom), as
+  fractions of the overall width or depth.
+- **A photograph of the Apple /// Plus main board** (`AppleIIIPlusBoardRear.jpg`),
+  scaled by the standard mounting hole spacing of its D connectors
+  (47.04 mm for a 25-pin shell, 33.32 mm for 15 pins, 24.99 mm for 9 pins).
+
+**The patent drawings and Apple's stated size disagree.** Apple gives 17.5 by
+18.2 by 4.8 inches. In the patent's front view the height is about 0.35 of
+the width, which is about 6.1 inches at a 17.5 inch width, and in its side
+view the depth is about 0.91 of the width, against 1.04 from Apple's
+figures. The patent was filed in November 1980 and may be of an earlier
+case, or Apple's 4.8 inches may be measured somewhere other than the top of
+the rear body. A model built from either alone would be wrong by an inch in
+height. This has to be resolved before `cad_apple3.py` is written, from a
+measured real unit, a dimensioned Apple drawing (the Service Reference
+Manual's chapter 16 has assembly drawings that have not been read), or
+front and side photographs taken square-on.
+
+Each estimate is replaced by a value measured in pixels by a script, with
+the script and the source image listed in the model's README, before the
+generator uses it. SC-010's 1 mm tolerance applies to the documented
+dimensions; a measured dimension is listed with the tolerance its source
+supports.
 
 ### Apple Monitor /// (`Monitor3`, `cad_monitor3.py`)
 

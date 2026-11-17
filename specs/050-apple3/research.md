@@ -40,6 +40,30 @@ Diagrams.zip`, not yet opened), the PROM listings in chapters 6 and 17 of
 the Service Reference Manual, or an existing emulator. No emulator source
 has been read yet.
 
+**Third pass, 2026-11-17**: MAME's Apple /// driver (BSD-3-Clause) was read
+for the rows Apple's documents do not settle; the facts taken are in the
+hardware map's "Settled from an existing emulator" table. The main ones:
+
+- The Apple II lockout is E VIA port A bit 6 driven low, which removes the
+  VIAs from `$FFD0-$FFEF`. That is why the three registers cannot change
+  afterward, and why only a reset of the VIAs ends it.
+- The extension byte is read in the same cycle as the pointer byte, with no
+  added cycle, and applies until the next opcode fetch. R4's remap therefore
+  ends at the instruction boundary, as planned.
+- Smooth scroll takes its three-bit line offset from the disk controller's
+  first three phase latches.
+- The clock chip's register is selected by the zero page register's value.
+- A character is 7 dots by 8 rows; bit 7 of a glyph row selects flashing.
+
+Four rows stay open: the exact 1 MHz rule, E VIA port B bit 6, the color
+values, and `ENSEL`/`ENSIO` (not needed without the Silentype).
+
+**Case dimensions**: no dimensioned drawing has been found. First estimates
+from the design patent's views and a main board photograph are in
+`contracts/desk-models.md`, with a discrepancy that blocks the body model:
+the patent's proportions give a height near 6.1 inches at a 17.5 inch width,
+against Apple's stated 4.8 inches.
+
 **Not yet read**: the Apple /// Owner's Guide (page images), the schematics,
 the Service Reference Manual's chapters 7, 11 to 17, and its assembly
 drawings, which are the source for the body's and back panel's dimensions.
