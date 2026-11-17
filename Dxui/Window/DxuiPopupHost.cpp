@@ -707,6 +707,11 @@ HRESULT DxuiPopupHost::Update (const RECT & anchorRectScreen, SIZE sizeDip)
     hr = ResizeSwapChain (windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
     CHRA (hr);
 
+    //  The composition's visuals are sized with the swap chain. Left at the
+    //  old size, a tip updated in place to a longer string had its new text
+    //  clipped at the old width.
+    SetCompositionSize (windowRect.right - windowRect.left, windowRect.bottom - windowRect.top);
+
     SetWindowPos (m_hwnd, HWND_TOPMOST, windowRect.left, windowRect.top, windowRect.right - windowRect.left, windowRect.bottom - windowRect.top,
                   SWP_NOACTIVATE);
 
