@@ -418,6 +418,45 @@ public:
         Assert::IsFalse (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Unread, 1, color));
     }
 
+    //  Each line of a track's tip has a color mark: the cell's color, then
+    //  each quarter track's stripe color.
+    TEST_METHOD (ATracksTip_HasAColorMarkForEachLine)
+    {
+        MockDxuiTheme                   theme;
+        FullSendDriveStatus             drive;
+        std::vector<DxuiTooltipSwatch>  swatches;
+        std::wstring                    tip;
+        uint32_t                        color = 0;
+
+
+
+        drive.tracks[12] = FullSendTrackMark::Verified;
+        swatches = FullSendPanel::GetTrackSwatches (drive, 12, theme);
+        Assert::AreEqual ((size_t) 1, swatches.size());
+        Assert::AreEqual (FullSendPanel::GetColor (FullSendTrackMark::Verified, theme), swatches[0].argb);
+
+        drive.positions.assign (FullSendDriveStatus::kPositions, FullSendPositionMark::Unread);
+        drive.positions[48] = FullSendPositionMark::Read;
+        drive.positions[49] = FullSendPositionMark::Weak;
+        drive.positions[50] = FullSendPositionMark::Skipped;
+        drive.positions[51] = FullSendPositionMark::Read;
+        swatches = FullSendPanel::GetTrackSwatches (drive, 12, theme);
+        tip      = FullSendPanel::DescribeTrack (drive, 12);
+
+        Assert::AreEqual ((size_t) 3, swatches.size());
+        Assert::AreEqual ((std::ptrdiff_t) swatches.size() - 1, std::count (tip.begin(), tip.end(), L'\n'));
+
+        Assert::AreEqual (0, swatches[0].line);
+        Assert::AreEqual (FullSendPanel::GetColor (FullSendPositionMark::Read, theme), swatches[0].argb);
+
+        Assert::AreEqual (1, swatches[1].line);
+        Assert::AreEqual (FullSendPanel::GetColor (FullSendPositionMark::Weak, theme), swatches[1].argb);
+
+        Assert::IsTrue  (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Read, 3, color));
+        Assert::AreEqual (2, swatches[2].line);
+        Assert::AreEqual (color, swatches[2].argb);
+    }
+
     //  A double-click on a disk's row opens it, and one click doesn't; a
     //  right press on a row or on the activity list opens its menu.
     TEST_METHOD (ADisksRow_TakesADoubleClickAndARightClick)

@@ -19,8 +19,9 @@ class DxuiTooltip;
 //  or waits for, a panel for each drive with its disk's title, a map of its
 //  tracks, a progress bar and its times, the map's legend, the session's
 //  totals, the disks done, newest first, and the latest activity lines.
-//  In a raw capture a drive's map has a second row, a cell for each
-//  position between two tracks that was read.
+//  In a raw capture a track's cell in the map has a stripe for each of its
+//  quarter tracks that was read. The map is magnified around the pointer,
+//  and the track under the pointer has a tip under the pointer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,12 +40,23 @@ public:
     static constexpr float  kSectionGapDip  = 12.0f;
     static constexpr float  kColumnGapDip   = 20.0f;
     static constexpr float  kMapCellDip     = 14.0f;
-    static constexpr float  kBarDip         = 10.0f;
+    static constexpr float  kBarDip         = 3.0f;
     static constexpr float  kSwatchDip      = 10.0f;
     static constexpr float  kFontDip        = 12.0f;
     static constexpr float  kHeadingFontDip = 14.0f;
     static constexpr int    kDiskRows       = 6;
     static constexpr int    kActivityRows   = 6;
+
+    //  A map cell's largest size, under the pointer, and the range in tracks
+    //  either side over which cells are magnified.
+    static constexpr float  kMagnifyMax          = 3.0f;
+    static constexpr float  kMagnifyReachTracks  = 3.5f;
+
+    //  The progress bar's green, and the brighter green its growing end
+    //  brightens to over kBarGlowDip.
+    static constexpr uint32_t  kBarArgb     = 0xFF26A641;
+    static constexpr uint32_t  kBarTipArgb  = 0xFFAFF5B4;
+    static constexpr float     kBarGlowDip  = 48.0f;
 
     static constexpr const wchar_t *  s_kpszFont = L"Segoe UI";
 
@@ -52,6 +64,10 @@ public:
     static uint32_t      GetColor           (FullSendTrackMark mark, const IDxuiTheme & theme);
     static uint32_t      GetColor           (FullSendPositionMark mark, const IDxuiTheme & theme);
     static bool          TryGetQuarterColor (FullSendPositionMark mark, int quarter, uint32_t & outColor);
+
+    //  A track's tip's color marks: its cell's color on the first line, and
+    //  each quarter track's stripe on its line, as DescribeTrack lists them.
+    static std::vector<DxuiTooltipSwatch>  GetTrackSwatches (const FullSendDriveStatus & drive, int track, const IDxuiTheme & theme);
 
     //  What the session is doing or what it waits for, as a sentence. The
     //  machine is the Apple's model, without its ROM in parentheses; with
@@ -113,6 +129,10 @@ public:
     //  as last painted. A column has the track's cell and its quarter tracks.
     bool  TryGetTrackAt  (POINT pointPx, int & outDrive, int & outTrack, RECT * outBounds = nullptr) const;
 
+    //  Whether a map's magnification is easing in or out, so the window is
+    //  drawn each frame until it settles.
+    bool  IsMagnifying   (int64_t nowMs) const { return m_magnifier.IsEasing (nowMs); }
+
     bool  OnMouse (const DxuiMouseEvent & ev) override;
 
     void  Layout  (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
@@ -124,6 +144,7 @@ private:
     float  PaintDisks    (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
     float  PaintActivity (IDxuiTextRenderer & text, const IDxuiTheme & theme, float top) const;
     void   DrawLine      (IDxuiTextRenderer & text, const std::wstring & line, float left, float top, float width, uint32_t color, bool heading = false, DxuiTextHAlign align = DxuiTextHAlign::Left) const;
+    void   PaintProgress (IDxuiPainter & painter, float left, float top, float width, float height, bool isGrowing) const;
 
     //  A map cell as it was last painted: its drive's index and its position
     //  in quarter tracks.
@@ -134,8 +155,35 @@ private:
         int   position = 0;
     };
 
+    //  A drive's map at rest, as it was last painted: its cells' left, top,
+    //  pitch, width and height, and the top and width of its drive's
+    //  heading and title above it.
+    struct Map
+    {
+        bool   isPainted = false;
+        float  left      = 0.0f;
+        float  top       = 0.0f;
+        float  pitch     = 0.0f;
+        float  cellW     = 0.0f;
+        float  cellH     = 0.0f;
+        float  header    = 0.0f;
+        float  width     = 0.0f;
+    };
+
+    using Maps     = std::array<Map, 2>;
+    using MapItems = std::array<DxuiMagnifiedItem, FullSendDriveStatus::kTracks>;
+    using MapSpans = std::array<DxuiMagnifiedSpan, FullSendDriveStatus::kTracks>;
+
     void   AddCell       (float left, float top, float width, float height, int number, int position) const;
     bool   HandleClick   (const DxuiMouseEvent & ev);
+    void   UpdateTip     (int drive, int track, POINT pointPx, int64_t nowMs);
+    int    FindMapAt     (POINT pointPx) const;
+    void   LayMap        (int drive, float pointer, float strength, MapSpans & outSpans) const;
+    void   UpdateCover   (float strength) const;
+    void   PaintCells    (IDxuiPainter & painter, const IDxuiTheme & theme, const FullSendDriveStatus & drive, const Map & map, const MapSpans & spans) const;
+
+    static void      MakeMapItems (const Map & map, MapItems & outItems);
+    static uint32_t  GetCellColor (const FullSendDriveStatus & drive, int track, const IDxuiTheme & theme);
 
     //  A disk's row as it was last painted.
     struct Row
@@ -150,6 +198,12 @@ private:
     mutable std::vector<Cell>  m_cells;
     mutable std::vector<Row>   m_rows;
     mutable RECT               m_activity    = {};
+    mutable Maps               m_maps        = {};
+    mutable const IDxuiTheme * m_theme       = nullptr;     // as last painted with, for the tip's color marks
+    mutable RECT               m_cover       = {};          // what a magnified map covers, from its drive's heading down; empty with none
+    DxuiMagnifiedRow           m_magnifier;
+    int                        m_hotDrive    = -1;          // the drive whose map is magnified, from 0
+    float                      m_pointerX    = 0.0f;
     DiskFn                     m_onOpen;
     MenuFn                     m_onMenu;
     std::string                m_lastClicked;
@@ -180,6 +234,7 @@ public:
     static constexpr int   kFolderId  = 1002;
     static constexpr UINT  kTickMs    = 250;
     static constexpr UINT  kTipTickMs = 50;     // the tooltip's timer; the view is drawn again every kTickMs
+    static constexpr UINT  kFrameMs   = 16;     // the timer while a map's magnification eases in or out
 
     using SnapshotFn = std::function<bool (FullSendPanel::View & outView)>;
     using ActionFn   = std::function<void()>;
@@ -233,7 +288,8 @@ private:
     FullSendPanel                              * m_panel        = nullptr;
     DxuiButton                                 * m_endButton    = nullptr;
     DxuiTooltip                                  m_tooltip;
-    UINT                                         m_ticks        = 0;
+    UINT                                         m_tickMs       = kTipTickMs;
+    int64_t                                      m_refreshedMs  = 0;
     DiskActionFn                                 m_diskAction;
     MovedFn                                      m_onMoved;
     POINT                                        m_lastTopLeft  = { LONG_MIN, LONG_MIN };

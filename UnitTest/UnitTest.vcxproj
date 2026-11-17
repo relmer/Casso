@@ -849,6 +849,7 @@
     <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiNoticeStackTests.cpp" />
     <ClCompile Include="Dxui\DxuiSlideTests.cpp" />
+    <ClCompile Include="Dxui\DxuiMagnifiedRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiButtonRowTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollPanelTests.cpp" />

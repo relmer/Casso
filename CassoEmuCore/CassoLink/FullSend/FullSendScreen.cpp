@@ -167,7 +167,7 @@ const char * FullSendScreen::GetQuipText (Byte quip)
         "Me want disk! Nom nom nom",
         "Hit me again, dealer",
         "One disk is never enough",
-        "Just one more, you said",
+        "Just one more, you said...",
     };
 
 

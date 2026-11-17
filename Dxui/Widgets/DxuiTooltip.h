@@ -160,6 +160,12 @@ public:
     // as it always does.
     void  RequestShowNow  (const RECT & anchor, const std::wstring & text, int64_t nowMs);
 
+    // Put the tip up at once, as RequestShowNow does, centered under the
+    // pointer's image at pointerPx, in client pixels. Each request with the
+    // pointer elsewhere moves the tip, so it follows the pointer, as over a
+    // magnified map whose cells are where a tip beside the pointer would be.
+    void  RequestShowNowBelowPointer (POINT pointerPx, const std::wstring & text, int64_t nowMs);
+
     // Shows immediately (no open dwell) and auto-hides after durationMs.
     // For transient notices where no pointer-leave will arrive to dismiss
     // it -- e.g. entering paddle mode captures the mouse, so the hover that
@@ -212,12 +218,17 @@ private:
     //  a tooltip control's auto-pop delay.
     static int  GetSystemVisibleMs ();
 
+    bool  IsAllowed (bool isBelowPointer) const;
+
     //
     //  Acquire + size + show the popup balloon for the current
     //  anchor/text. No-op without a wired host or when a popup is
     //  already up. Releases the popup on Show failure.
     //
     void  ShowPopup          ();
+
+    //  The body of RequestShowNow and RequestShowNowBelowPointer.
+    void  ShowNow            (const RECT & anchor, const std::wstring & text, int64_t nowMs, bool isBelowPointer);
 
     //
     //  Apply the current text, anchor and swatch to the balloon already up,
@@ -285,4 +296,5 @@ private:
     PointerMeasurer                           m_pfnMeasurePointer = MeasurePointerExtent;
     PointerLocator                            m_pfnLocatePointer  = LocatePointer;
     bool                                      m_isPointerTip      = true;
+    bool                                      m_isBelowPointer    = false;
 };
