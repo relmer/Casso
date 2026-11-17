@@ -959,13 +959,14 @@ void FullSendPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
         second = PaintDrive (painter, text, theme, 2, m_view.snapshot.drives[1], m_view.snapshot.present[0] ? left + column + gap : left, top, column);
     }
 
-    //  A magnified map is drawn over the maps near it, on an opaque cover
-    //  from its drive's heading down. Text is drawn over every fill, so the
-    //  headings and titles there are drawn over the magnified cells.
+    //  A magnified map is drawn over everything near it, on an opaque cover
+    //  from its drive's heading down: the text drawn so far is flushed
+    //  first, so the cover hides the headings and titles under it.
     if (m_cover.right > m_cover.left && m_hotDrive >= 0 && m_maps[(size_t) m_hotDrive].isPainted)
     {
         LayMap (m_hotDrive, m_pointerX, gain, spans);
 
+        painter.FlushLayer();
         painter.FillRect ((float) m_cover.left, (float) m_cover.top, (float) (m_cover.right - m_cover.left), (float) (m_cover.bottom - m_cover.top), theme.Background());
         PaintCells (painter, theme, m_view.snapshot.drives[(size_t) m_hotDrive], m_maps[(size_t) m_hotDrive], spans);
     }
