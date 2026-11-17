@@ -6,6 +6,7 @@
 #include "CassoLink/CassoLinkSession.h"
 #include "Devices/Disk/BlockBuffer.h"
 #include "Machines/Apple2/Common/HfsVolume.h"
+#include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 
 
@@ -221,11 +222,13 @@ void CassoLinkBlockDevices::Clear()
 //
 //  CassoLinkBlockDevices::DescribeDevice
 //
+//  "S5,U1", or an Apple ///'s device by its SOS name, as ".D1".
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string CassoLinkBlockDevices::DescribeDevice (const CassoLinkBlockDevice & device)
 {
-    std::string  text = std::format ("S{},U{}", device.slot, device.unit);
+    std::string  text = device.device.empty() ? std::format ("S{},U{}", device.slot, device.unit) : device.device;
 
 
 
@@ -302,7 +305,9 @@ Error:
 //  HFS first, as BlockVolumeOpener has it: a ProDOS volume header's storage
 //  type byte is part of an HFS volume's creation date. A fresh open reads
 //  the device again; any other opens the volume over the cached blocks, as
-//  after a change, which a volume made before it doesn't see.
+//  after a change, which a volume made before it doesn't see. A 140K
+//  device's blocks are read in DOS order, as the volume layer reads a 140K
+//  volume in that order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -311,6 +316,7 @@ HRESULT CassoLinkBlockDevices::OpenVolume (Unit & unit, bool isFresh, VolumeKind
     HRESULT  hr       = S_OK;
     bool     isHfs    = false;
     bool     isProDos = false;
+    size_t   header   = 0;
 
 
 
@@ -322,16 +328,25 @@ HRESULT CassoLinkBlockDevices::OpenVolume (Unit & unit, bool isFresh, VolumeKind
 
     if (isFresh || unit.cache == nullptr)
     {
+        unit.order.reset();
         unit.cache.reset();
 
         unit.store = std::make_unique<LinkStore> (*m_session.m_host, unit.device);
         unit.cache = std::make_unique<CachingBlockStore> (*unit.store);
+        unit.view  = unit.cache.get();
+
+        if (DosOrderBlockStore::IsDosOrderSize (unit.device.blocks))
+        {
+            unit.order = std::make_unique<DosOrderBlockStore> (*unit.cache);
+            unit.view  = unit.order.get();
+        }
     }
 
-    unit.image = std::make_unique<BlockImage> (*unit.cache);
+    unit.image = std::make_unique<BlockImage> (*unit.view);
 
+    header   = ProDosSkeleton::GetBlockByteOffset (unit.image->size(), (int) (s_kVolumeHeaderAt / s_kBlock), s_kVolumeHeaderAt % s_kBlock);
     isHfs    = HfsVolume::IsFound (*unit.image);
-    isProDos = !isHfs && unit.device.blocks > s_kVolumeHeaderAt / s_kBlock && ((*unit.image)[s_kVolumeHeaderAt] & 0xF0) == s_kVolumeHeaderType;
+    isProDos = !isHfs && unit.device.blocks > s_kVolumeHeaderAt / s_kBlock && ((*unit.image)[header] & 0xF0) == s_kVolumeHeaderType;
 
     if (!unit.store->GetError().empty())
     {
@@ -379,11 +394,11 @@ HRESULT CassoLinkBlockDevices::RunChange (Unit & unit, const ChangeFn & change)
 
     for (const auto & [block, bytes] : buffer.GetTouchedBlocks())
     {
-        hr = unit.cache->WriteBlocks (block, bytes);
+        hr = unit.view->WriteBlocks (block, bytes);
         CHR (hr);
     }
 
-    hr = unit.cache->Commit();
+    hr = unit.view->Commit();
     CHR (hr);
 
     hr = OpenVolume (unit, false, kind);

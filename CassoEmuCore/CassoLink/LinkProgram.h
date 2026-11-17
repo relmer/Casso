@@ -11,10 +11,11 @@
 //  LinkChip
 //
 //  What the Apple side talks to the PC through: a 6551, the //c's or a Super
-//  Serial Card's; an Uthernet II's W5100; or the cassette ports of a ][+ or
-//  //e. Each has a build of the program, and the 6551 and W5100 also have
-//  builds of the shim. The cassette build is loaded from tape by the
-//  monitor, with no shim.
+//  Serial Card's; an Uthernet II's W5100; the cassette ports of a ][+ or
+//  //e; or an Apple ///'s serial port, through SOS's .RS232 driver. Each has
+//  a build of the program, and the 6551 and W5100 also have builds of the
+//  shim. The cassette build is loaded from tape by the monitor, with no
+//  shim, and the SOS build is SOS.INTERP on the CassoLink SOS disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +24,7 @@ enum class LinkChip
     Acia,
     W5100,
     Cassette,
+    Sos,
 };
 
 
@@ -123,10 +125,23 @@ public:
     //  The slot of the 6551 or the W5100: for a 6551 on a //c, the port.
     static constexpr size_t  kSlotOffset        = 0x38;
 
-    //  Set by the W5100 builds, and by the cassette build, in Ready's shim
-    //  version byte.
+    //  Set by the W5100 builds, the cassette build and the SOS build in
+    //  Ready's shim version byte.
     static constexpr Byte    kW5100ReadyFlag    = 0x80;
     static constexpr Byte    kCassetteReadyFlag = 0x40;
+    static constexpr Byte    kSosReadyFlag      = 0x20;
+
+    //  The SOS build: its code from kSosAddress, then the 6551 control byte
+    //  for the link's speed, then its buffers from kSosBufferBase to kSosEnd,
+    //  all in the bytes SOS.INTERP loads.
+    static constexpr Word    kSosAddress        = 0x8000;
+    static constexpr Word    kSosBufferBase     = 0x9000;
+    static constexpr Word    kSosEnd            = 0x9E00;
+
+    //  The block module's id and version in its header. The SOS build
+    //  reports them as loaded, as the block requests are in it.
+    static constexpr Byte    kBlockModuleId      = 2;
+    static constexpr Byte    kBlockModuleVersion = 1;
 
     //  The universal boot disk's payload: the first stage, which finds the
     //  machine's interfaces and waits for the PC on all of them, then each
@@ -176,6 +191,13 @@ public:
     //  assembler's errors.
     static HRESULT      BuildVirtualDrive  (Byte speedControl, std::vector<Byte> & outFile, std::string & outErrors);
 
+    //  The CassoLink SOS disk's SOS.INTERP, as SOS loads it: the header
+    //  Apple's SOS Reference Manual specifies, then the SOS build, its speed
+    //  and its buffers. speedControl is the 6551's control byte for the
+    //  link's speed; ERROR_NOT_SUPPORTED for the external clock's rate,
+    //  which .RS232 doesn't have.
+    static HRESULT      BuildSosInterpreter (Byte speedControl, std::vector<Byte> & outFile, std::string & outErrors);
+
     static constexpr Word    kInstallerAddress = 0x2000;
     static constexpr Word    kDriverAddress    = 0x9200;
     static constexpr size_t  kDriverLimit      = 0x200;
@@ -223,12 +245,15 @@ public:
     static std::string  GetBlockModuleSource          ();
     static std::string  GetThirteenSectorModuleSource ();
     static std::string  GetVirtualDriveSource         ();
+    static std::string  GetSosInterpSource            ();
 
     //  The 6551 control byte for a speed: 8 data bits, 1 stop bit and the
     //  rate. False for a speed the //c's port does not have.
     static bool         GetSpeedControl  (DWORD baud, Byte & outControl);
 
 private:
-    static std::string  GetCommandLines ();
-    static HRESULT      Assemble        (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults = false, std::unordered_map<std::string, Word> * outSymbols = nullptr);
+    static std::string  GetCommandLines    ();
+    static std::string  GetChipLines       (LinkChip chip);
+    static void         MakeSosBlockModule (std::vector<Byte> & outModule);
+    static HRESULT      Assemble           (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults = false, std::unordered_map<std::string, Word> * outSymbols = nullptr);
 };

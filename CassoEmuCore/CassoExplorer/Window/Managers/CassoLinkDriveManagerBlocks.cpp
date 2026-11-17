@@ -32,15 +32,22 @@ void CassoLinkDriveManager::ReadBlockDeviceToImage (const Location & drive, cons
     CassoLinkBlockDevice   device;
     FileDialogSpec         spec;
     std::wstring           title  = m_context.browser.GetTreeModel().GetLinkDriveTitle (drive.path);
+    std::wstring           stem;
 
 
 
     BAIL_OUT_IF (!TryGetBlockDevice (link, number, device), S_OK);
 
+    //  With no volume, an Apple ///'s device by its SOS name without the
+    //  period, as D1, and an Apple II's by its slot and unit.
+    stem = !device.volume.empty() ? TextEncoding::NarrowToWide (device.volume)
+         : !device.device.empty() ? TextEncoding::NarrowToWide (device.device.starts_with ('.') ? device.device.substr (1) : device.device)
+                                  : std::format (L"Slot {} unit {}", device.slot, device.unit);
+
     spec.filters          = { FileDialogFilter { L"Block images (*.po, *.hdv, *.2mg)", L"*.po;*.hdv;*.2mg" },
                               FileDialogFilter { L"All files (*.*)", L"*.*" } };
     spec.clientGuid       = s_kLinkDiskPickerGuid;
-    spec.defaultFileName  = device.volume.empty() ? std::format (L"Slot {} unit {}.po", device.slot, device.unit) : TextEncoding::NarrowToWide (device.volume) + L".po";
+    spec.defaultFileName  = stem + L".po";
     spec.defaultExtension = L"po";
     spec.title            = std::format (L"Create image from {}", title);
     spec.content          = FileDialogContent::Images;

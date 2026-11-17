@@ -28,6 +28,8 @@
 //  As a shim, it reports program version 0 and loads the program it is
 //  sent before answering as the program.
 //
+//  As an Apple /// (appleIII), its replies are the SOS program's.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class FakeApple
@@ -41,6 +43,14 @@ public:
     //  As an Apple whose Ready went out before the line was open: silent
     //  until the host sends it something.
     std::atomic<bool>                 readySentEarly { false };
+
+    //  As the SOS program on an Apple ///: Ready with the SOS flag, no
+    //  drives and the SOS build's CRC; the block module reported as loaded,
+    //  and a chunk of one NAKed; the block device listed as SOS device 1,
+    //  unit 0, with its name, .D1; and Set speed NAKed for the external
+    //  clock's rate.
+    std::atomic<bool>                 appleIII       { false };
+    std::atomic<int>                  moduleChunks   { 0 };   // chunks of a module sent to the Apple ///
 
     //  As a boot disk still starting when the host prompts: that many of the
     //  first prompts are lost, and it stays silent through them.
@@ -373,7 +383,7 @@ private:
 
             if (!silent)
             {
-                SendPacket (line, CassoLinkCodec::kReady, { (Byte) (version & 0xFF), (Byte) (version >> 8), LinkProgram::kShimVersion, 0x03 });
+                SendPacket (line, CassoLinkCodec::kReady, appleIII ? MakeSosReady() : std::vector<Byte> { (Byte) (version & 0xFF), (Byte) (version >> 8), LinkProgram::kShimVersion, 0x03 });
             }
 
             silent = false;
@@ -414,7 +424,7 @@ private:
                 //  is silent at the new speed.
                 case CassoLinkCodec::kSetSpeed:
                     speedSet = true;
-                    SendPacket (line, CassoLinkCodec::kAcknowledge, { CassoLinkCodec::kAck, 0, 0 });
+                    SendPacket (line, CassoLinkCodec::kAcknowledge, { (appleIII && (packet.payload.at (0) & 0x0F) == 0) ? CassoLinkCodec::kNak : CassoLinkCodec::kAck, 0, 0 });
                     break;
 
                 case CassoLinkCodec::kReadSectors:
@@ -519,11 +529,44 @@ private:
         }
     }
 
+    //  The SOS program's Ready, with the CRC of the SOS build as the host
+    //  assembles it.
+    static std::vector<Byte>  MakeSosReady()
+    {
+        std::vector<Byte>  program;
+        std::string        errors;
+        Word               crc     = 0;
+
+        AssertSucceeded (LinkProgram::AssembleProgram (program, errors, LinkChip::Sos));
+
+        crc = CassoLinkCodec::ComputeCrc (program);
+
+        return { (Byte) (LinkProgram::kProgramVersion & 0xFF), (Byte) (LinkProgram::kProgramVersion >> 8), LinkProgram::kSosReadyFlag, 0,
+                 0, 0, 0, 0, 0, (Byte) (crc & 0xFF), (Byte) (crc >> 8) };
+    }
+
     //  Load module: its id and version, a chunk at its offset, or the check.
     void  LoadModule (Line & line, const std::vector<Byte> & payload)
     {
         std::lock_guard<std::mutex>  guard (lock);
         size_t                       at    = payload.size() >= 2 ? (size_t) (payload[0] | (payload[1] << 8)) : 0;
+
+        if (appleIII)
+        {
+            bool  query = payload.empty() || (payload.size() == 2 && payload[0] == 0xFF && payload[1] == 0xFF);
+
+            if (query)
+            {
+                SendPacket (line, CassoLinkCodec::kLoadModule, { LinkProgram::kBlockModuleId, LinkProgram::kBlockModuleVersion });
+            }
+            else
+            {
+                moduleChunks++;
+                SendPacket (line, CassoLinkCodec::kAcknowledge, { CassoLinkCodec::kNak, payload[0], payload[1] });
+            }
+
+            return;
+        }
 
         if (payload.size() == 2 && payload[0] == 0xFF && payload[1] == 0xFF)
         {
@@ -549,7 +592,15 @@ private:
         std::vector<Byte>            reply  = { (Byte) (blockDisk.empty() ? 0 : 1) };
         uint32_t                     blocks = (uint32_t) (blockDisk.size() / CassoLinkCodec::kBlockSize);
 
-        if (!blockDisk.empty())
+        if (!blockDisk.empty() && appleIII)
+        {
+            static constexpr Byte  kDevice[16] = { 3, '.', 'D', '1' };
+
+            reply.insert (reply.end(), { 1, 0, 0, (Byte) blocks, (Byte) (blocks >> 8), 0, 0xFF, (Byte) (blockDisk[2 * 512 + 4] & 0x0F) });
+            reply.insert (reply.end(), blockDisk.begin() + 2 * 512 + 5, blockDisk.begin() + 2 * 512 + 20);
+            reply.insert (reply.end(), std::begin (kDevice), std::end (kDevice));
+        }
+        else if (!blockDisk.empty())
         {
             reply.insert (reply.end(), { 7, 1, 1, (Byte) blocks, (Byte) (blocks >> 8), (Byte) (blocks >> 16), 2, (Byte) (blockDisk[2 * 512 + 4] & 0x0F) });
             reply.insert (reply.end(), blockDisk.begin() + 2 * 512 + 5, blockDisk.begin() + 2 * 512 + 20);

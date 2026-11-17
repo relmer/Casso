@@ -419,6 +419,12 @@ public:
         Assert::AreEqual (std::wstring (L"Apple //c (ROM 4)"),  client.GetModelName());
         client.romId    = { 0x06, 0x00, 0x05, 0x00, 0 };
         Assert::AreEqual (std::wstring (L"Apple //c Plus"),     client.GetModelName());
+
+        //  The SOS program sends zeros for the bytes.
+        client.isSos    = true;
+        client.romId    = { 0, 0, 0, 0, 0 };
+        Assert::AreEqual (std::wstring (L"Apple ///"),          client.GetModelName());
+        Assert::IsTrue (client.HasLowercase(), L"the Apple ///'s console has small letters");
     }
 
 

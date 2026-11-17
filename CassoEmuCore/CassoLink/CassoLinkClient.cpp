@@ -10,7 +10,8 @@
 //
 //  CassoLinkClient::HasLowercase
 //
-//  $FBB3 is 6 on a //e, a //c and a IIgs, and $38 on a ][ and a ][+.
+//  $FBB3 is 6 on a //e, a //c and a IIgs, and $38 on a ][ and a ][+. The
+//  Apple ///'s console has small letters.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,7 +21,7 @@ bool CassoLinkClient::HasLowercase() const
 
 
 
-    return hasRomId && romId[0] == kFamilyIIe;
+    return isSos || (hasRomId && romId[0] == kFamilyIIe);
 }
 
 
@@ -32,7 +33,7 @@ bool CassoLinkClient::HasLowercase() const
 //  CassoLinkClient::GetModelName
 //
 //  From the identification bytes Apple's technical notes list for each
-//  model.
+//  model. The SOS program sends zeros in their place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +44,11 @@ std::wstring CassoLinkClient::GetModelName() const
     Byte  release = romId[2];
 
 
+
+    if (isSos)
+    {
+        return L"Apple ///";
+    }
 
     if (!hasRomId)
     {

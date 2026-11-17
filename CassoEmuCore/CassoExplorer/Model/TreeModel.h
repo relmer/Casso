@@ -106,10 +106,12 @@ struct LinkTreeEntry
         std::wstring  volume;
 
         //  A block device or SmartPort unit: its unit and size, its drive the
-        //  session's number for it, from 3.
+        //  session's number for it, from 3, and an Apple ///'s SOS device
+        //  name, as .D1.
         bool          isBlockDevice = false;
         int           unit          = 0;
         uint32_t      blocks        = 0;
+        std::wstring  device;
 
         //  A ProDOS drive's top-level folders, once its catalog is read.
         std::vector<std::wstring>  folders;
