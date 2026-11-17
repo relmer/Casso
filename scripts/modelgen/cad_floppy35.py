@@ -343,14 +343,18 @@ def build(case_rgb, seam_frac=0.88, slot_top_frac=0.74, unidisk=False):
               case_rgb)
         badge(m, *u["badge"])
     else:
-        # The eject button: a rectangle as tall as the slot, to its right.
+        # The eject button: a rectangle as tall as the slot, to its right,
+        # standing out as far as the UniDisk 3.5's, with the manual eject
+        # hole in its face.
+        out = UNIDISK_FRONT["eject_out"]
         m.add("eject",
-              cq.Workplane("XY").box(W * 0.085, 1.0, slot_h, centered=(False, False, False))
-                .translate((W * 0.85, -0.5, slot_z0)),
+              cq.Workplane("XY").box(W * 0.085, out + 1.0, slot_h, centered=(False, False, False))
+                .edges("|Y").fillet(0.5).faces("<Y").edges().fillet(0.4)
+                .translate((W * 0.85, -out, slot_z0)),
               case_rgb)
         m.add("eject_hole",
               cq.Workplane("XZ").circle(0.55).extrude(0.3)
-                .translate((W * 0.8925, -0.6, slot_z0 + slot_h * 0.5)),
+                .translate((W * 0.8925, -out - 0.1, slot_z0 + slot_h * 0.5)),
               DARK)
 
         # The activity LED, in line with the slot at its left.
