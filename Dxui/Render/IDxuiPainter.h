@@ -181,4 +181,13 @@ public:
     // called where the painter has no render target to share, as in a popup;
     // defaulted to a no-op so a mock compiles unchanged.
     virtual void   DrawCustom (const RECT & rectPx, const DxuiCustomDraw & draw) { (void) rectPx; (void) draw; }
+
+    // Draws the fills queued so far and then the text drawn so far, so the
+    // fills and text drawn after this call cover both. Without it, all text
+    // in a pass is drawn over all of its fills, whatever the order of the
+    // calls. A control calls it before an opaque fill that has to cover text
+    // drawn earlier in the pass. Like DrawCustom, it does nothing where the
+    // painter has no render target to share, as in a popup; defaulted to a
+    // no-op so a mock does not have to implement it.
+    virtual void   FlushLayer () {}
 };

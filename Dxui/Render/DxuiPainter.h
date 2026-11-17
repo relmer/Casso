@@ -40,8 +40,8 @@ public:
     HRESULT OnDeviceRestored (ID3D11Device         * pDevice,
                               ID3D11DeviceContext  * pContext);
 
-    //  A target given here is the one DrawCustom shares; without one,
-    //  DrawCustom does nothing.
+    //  A target given here is the one DrawCustom and FlushLayer draw into;
+    //  without one, both do nothing.
     HRESULT Begin            (int viewportWidthPx,
                               int viewportHeightPx,
                               ID3D11RenderTargetView * pCustomTarget = nullptr);
@@ -103,6 +103,11 @@ public:
 
     HRESULT End            (ID3D11RenderTargetView * pRtv);
     void    DrawCustom     (const RECT & rectPx, const DxuiCustomDraw & draw) override;
+    void    FlushLayer     ()                                                 override;
+
+    //  The host's text flush, which FlushLayer calls after drawing the queued
+    //  fills. Without one, FlushLayer draws only the fills.
+    void    SetTextFlush   (std::function<HRESULT()> flush) { m_textFlush = std::move (flush); }
 
     // Global alpha multiplier applied to every vertex's alpha channel.
     // Used by the Settings panel's live-preview state machine to fade
@@ -231,4 +236,6 @@ private:
 
     std::vector<Vertex>               m_vertices;
     std::vector<D2D1_RECT_F>          m_clips;     // pushed clips, in origin-applied pixels, each within the one before
+
+    std::function<HRESULT()>          m_textFlush;
 };

@@ -2457,6 +2457,12 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     // the ordering too and pays a full-screen clear and a full-screen blit
     // every frame for it, which is the window-area cost GH #131 is about.
     // Recording pays neither.
+    //
+    // A control that has to cover text drawn earlier in the pass calls
+    // IDxuiPainter::FlushLayer, which draws the queued fills and then calls
+    // this flush to replay the text drawn so far.
+    m_painter->SetTextFlush ([this]() { return m_textRenderer->FlushDeferred(); });
+
     hr = m_painter->Begin (widthPx, heightPx, target);
     CHRA (hr);
     painterBegun = true;

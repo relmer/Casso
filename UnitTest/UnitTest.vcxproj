@@ -779,6 +779,7 @@
     <ClCompile Include="UiTests\Win11DwmHelpersTests.cpp" />
     <ClCompile Include="UiTests\HitTesterTests.cpp" />
     <ClCompile Include="UiTests\AnimationSyncTests.cpp" />
+    <ClCompile Include="Dxui\DxuiLayerFlushTests.cpp" />
     <ClCompile Include="Dxui\DxuiPainterTests.cpp" />
     <ClCompile Include="Dxui\DxuiCommandTests.cpp" />
     <ClCompile Include="Dxui\DxuiFrameRateTests.cpp" />
