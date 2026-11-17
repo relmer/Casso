@@ -258,6 +258,7 @@
     <ClCompile Include="Widgets\DxuiSelectableText.cpp" />
     <ClCompile Include="Widgets\DxuiSuggestionList.cpp" />
     <ClCompile Include="Widgets\DxuiTooltip.cpp" />
+    <ClCompile Include="Widgets\DxuiTooltipBody.cpp" />
     <ClCompile Include="Widgets\DxuiFieldError.cpp" />
     <ClCompile Include="Widgets\DxuiTreeView.cpp" />
     <ClCompile Include="Widgets\DxuiSplitter.cpp" />
@@ -440,6 +441,7 @@
     <ClInclude Include="Widgets\DxuiSelectableText.h" />
     <ClInclude Include="Widgets\DxuiSuggestionList.h" />
     <ClInclude Include="Widgets\DxuiTooltip.h" />
+    <ClInclude Include="Widgets\DxuiTooltipBody.h" />
     <ClInclude Include="Widgets\DxuiFieldError.h" />
     <ClInclude Include="Render\DxuiStroke.h" />
     <ClInclude Include="Widgets\DxuiTreeView.h" />
