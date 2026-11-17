@@ -6,6 +6,7 @@
 #include "ApplesoftTokenizer.h"
 #include "IntegerBasicDetokenizer.h"
 #include "Core/TextEncoding.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 
 
 
@@ -85,7 +86,7 @@ HRESULT BasicConversion::Convert (const FilePayload & source, VolumeKind volume,
 
         CHR (hr);
 
-        hr = AppleTextCodec::Encode (text, AppleTextConvention::HighAscii, outPayload.bytes, badOffset);
+        hr = AppleTextCodec::Encode (text, VolumeImage::GetTextConvention (volume), outPayload.bytes, badOffset);
         CHR (hr);
 
         outPayload.type = proDos ? kProDosText : kDos33Text;

@@ -843,6 +843,21 @@ const char * VolumeImage::GetSystemName (VolumeKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  VolumeImage::GetTextConvention
+//
+////////////////////////////////////////////////////////////////////////////////
+
+AppleTextConvention VolumeImage::GetTextConvention (VolumeKind kind)
+{
+    return (kind == VolumeKind::ProDos || kind == VolumeKind::Hfs) ? AppleTextConvention::PlainAscii : AppleTextConvention::HighAscii;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  VolumeImage::DetectFilesystem
 //
 //  DOS 3.3 is tested first because its VTOC offers more independent fields to

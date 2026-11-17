@@ -2290,7 +2290,7 @@ HRESULT DiskCommandRunner::BuildPutPayload (
             else
             {
                 hr = (kind == VolumeKind::Pascal) ? PascalVolume::EncodeText (hostText, outPayload.bytes, badOffset)
-                                                  : AppleTextCodec::Encode (hostText, AppleTextConvention::HighAscii, outPayload.bytes, badOffset);
+                                                  : AppleTextCodec::Encode (hostText, VolumeImage::GetTextConvention (kind), outPayload.bytes, badOffset);
             }
 
             if (FAILED (hr))

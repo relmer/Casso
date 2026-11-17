@@ -145,7 +145,8 @@ bool CrossVolumeCopy::TryEncodeText (const std::string & text, VolumeKind target
 
         case VolumeKind::Dos33:
         case VolumeKind::ProDos:
-            hr = AppleTextCodec::Encode (text, AppleTextConvention::HighAscii, encoded, badOffset);
+        case VolumeKind::Hfs:
+            hr = AppleTextCodec::Encode (text, VolumeImage::GetTextConvention (target), encoded, badOffset);
             inOutPayload.type     = (target == VolumeKind::Dos33) ? Dos33Volume::kTypeText : ProDosVolume::kTypeText;
             inOutPayload.textForm = PayloadTextForm::AppleHighAscii;
             break;
