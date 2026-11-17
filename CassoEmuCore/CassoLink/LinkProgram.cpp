@@ -13,6 +13,7 @@
 #include "SlotFinder.s.h"
 #include "Capture.s.h"
 #include "Block.s.h"
+#include "Nibble.s.h"
 
 
 
@@ -402,6 +403,40 @@ HRESULT LinkProgram::BuildBlockModule (std::vector<Byte> & outModule, LinkChip c
 
 
     return AssembleModule (GetBlockModuleSource(), outModule, errors, chip, faults);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetNibbleModuleSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetNibbleModuleSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kNibbleModuleSource), sizeof (s_kNibbleModuleSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildNibbleModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildNibbleModule (std::vector<Byte> & outModule, LinkChip chip, bool faults)
+{
+    std::string  errors;
+
+
+
+    return AssembleModule (GetNibbleModuleSource(), outModule, errors, chip, faults);
 }
 
 

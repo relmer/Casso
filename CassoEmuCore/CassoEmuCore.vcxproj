@@ -286,6 +286,7 @@
     <ClCompile Include="CassoLink\Session\CassoLinkCaptureStream.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkFullSend.cpp" />
     <ClCompile Include="CassoLink\Session\CassoLinkResume.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkThirteenSector.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStore.cpp" />
     <ClCompile Include="DiskCheck\GivenNames.cpp" />
     <ClCompile Include="DiskCheck\BootCheck.cpp" />
@@ -1920,6 +1921,7 @@
     <ClInclude Include="CassoLink\Session\CassoLinkBlockTransfer.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkCapture.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkResume.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkThirteenSector.h" />
     <ClInclude Include="CassoLink\Session\CassoLinkFullSend.h" />
     <ClInclude Include="DiskCheck\ThumbnailStore.h" />
     <ClInclude Include="DiskCheck\GivenNames.h" />
@@ -2359,6 +2361,7 @@
     <None Include="CassoLink\Apple\Universal.s" />
     <None Include="CassoLink\Apple\SlotFinder.s" />
     <None Include="CassoLink\Apple\Modules\Block.s" />
+    <None Include="CassoLink\Apple\Modules\Nibble.s" />
     <None Include="CassoLink\Apple\Modules\Capture.s" />
     <None Include="CassoLink\Apple\AppleSources.targets" />
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />

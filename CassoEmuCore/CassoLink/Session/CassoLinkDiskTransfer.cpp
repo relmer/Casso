@@ -2,6 +2,7 @@
 
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
+#include "CassoLink/Session/CassoLinkThirteenSector.h"
 #include "CassoLink/Session/TrackMeasures.h"
 #include "CassoLink/Session/TrackVerifier.h"
 #include "CassoLink/CassoLinkCodec.h"
@@ -12,6 +13,7 @@
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 
 
 
@@ -221,6 +223,13 @@ HRESULT CassoLinkDiskTransfer::ReadWholeDisk (LinkOperation & operation)
     int                                       bitsPerTurn = 0;
 
 
+
+    if (_stricmp (std::filesystem::path (operation.imagePath).extension().string().c_str(), ".d13") == 0)
+    {
+        hr = ReadThirteenSectorDisk (operation);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     hr = DiskImageStore::GetSourceFormatByExtension (operation.imagePath, format);
     CHR (hr);
@@ -701,6 +710,102 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkDiskTransfer::ReadThirteenSectorDisk
+//
+//  As ReadWholeDisk, the image is written only once every track is read; a
+//  sector that didn't decode fails the read unless it is blanked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::ReadThirteenSectorDisk (LinkOperation & operation)
+{
+    HRESULT               hr       = S_OK;
+    std::vector<Byte>     module;
+    std::vector<Byte>     sectors;
+    SectorDecodeReport    report;
+    CommitPlan::Progress  progress;
+    bool                  complete = true;
+
+
+
+    hr = m_session.m_host->BuildCaptureModule (module);
+    CHR (hr);
+
+    hr = CassoLinkThirteenSector::ReadDisk (*m_session.m_host, (Byte) operation.drive, module,
+                                            [this, &operation] (const CassoLinkCapture::Progress & where) { ReportCapture (operation, where); },
+                                            [this] () { return m_session.m_canceled.load(); }, sectors, report);
+    CHR (hr);
+
+    for (int track = 0; track < ThirteenSectorCodec::kTrackCount; track++)
+    {
+        complete = complete && report.GetOutcome (track) == TrackDecodeOutcome::Complete;
+    }
+
+    if (!complete && !operation.blankUnreadable)
+    {
+        operation.message = std::format ("Some sectors of the 13-sector disk in drive {} couldn't be read, so no image was written.", operation.drive);
+    }
+
+    CBREx (complete || operation.blankUnreadable, HRESULT_FROM_WIN32 (ERROR_CRC));
+
+    hr = DurableCommit::Commit (m_session.m_fileIo, operation.imagePath, sectors, m_commitTag++, CommitMode::Replace, progress);
+    CHR (hr);
+
+    m_session.m_sink.OnImageWritten (operation.imagePath, TextEncoding::WideToNarrow (m_session.GetModelName()));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkDiskTransfer::WriteThirteenSectorDisk
+//
+//  The drive's sectors and listing are dropped after, as the disk is another
+//  one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkDiskTransfer::WriteThirteenSectorDisk (LinkOperation & operation, const std::vector<Byte> & sectors)
+{
+    HRESULT            hr     = S_OK;
+    size_t             index  = (size_t) operation.drive - 1;
+    std::vector<Byte>  module;
+    CassoLinkStatus    status;
+
+
+
+    hr = m_session.m_host->BuildNibbleModule (module);
+    CHR (hr);
+
+    hr = m_session.m_host->EnsureModule (module);
+    CHR (hr);
+
+    hr = CassoLinkThirteenSector::WriteDisk (*m_session.m_host, (Byte) operation.drive, sectors,
+                                             [this, &operation] (int track) { m_session.Report (operation, (track + 1) * 100 / ThirteenSectorCodec::kTrackCount); },
+                                             [this] () { return m_session.m_canceled.load(); }, status);
+    CHR (hr);
+
+    hr = CassoLinkSession::FromStatusError (status.error);
+    CHR (hr);
+
+    m_session.m_disks[index]->Clear();
+    m_session.m_listings[index].reset();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkDiskTransfer::WriteWholeDisk
 //
 //  The image is decoded first, and nothing is written if any track is not
@@ -735,6 +840,13 @@ HRESULT CassoLinkDiskTransfer::WriteWholeDisk (LinkOperation & operation)
 
     hr = VolumeImage::Load (fileBytes, operation.imagePath, sectors, report);
     CHR (hr);
+
+    if (sectors.size() == ThirteenSectorCodec::kImageByteSize)
+    {
+        hr = WriteThirteenSectorDisk (operation, sectors);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     for (int track = 0; track < report.GetTrackCount(); track++)
     {

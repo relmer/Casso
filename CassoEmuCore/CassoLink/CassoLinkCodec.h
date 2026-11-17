@@ -172,6 +172,14 @@ public:
     static constexpr Byte    kWriteBlocks     = 0xF2;
     static constexpr size_t  kBlockSize       = 512;
 
+    //  The nibble module's Write nibble track: the drive, the track and the
+    //  stream's length; an Acknowledge requests the stream, in a Nibble data
+    //  packet with its CRC, and a Status ends it. In the stream, a byte with
+    //  its top bit set is a nibble and a 0 a self-sync byte.
+    static constexpr Byte    kWriteNibbleTrack = 0xF3;
+    static constexpr Byte    kNibbleData       = 0xF4;
+    static constexpr size_t  kMaxNibbleStream  = 0x3500;
+
     //  The longest row on the Session screen.
     static constexpr size_t  kSessionRowLength = 80;
 
@@ -255,6 +263,8 @@ public:
         { kReadBlocks,    "CMDBLKREAD"  },
         { kBlockData,     "CMDBLKDATA"  },
         { kWriteBlocks,   "CMDBLKWRITE" },
+        { kWriteNibbleTrack, "CMDWNIBS"  },
+        { kNibbleData,    "CMDNIBDATA"  },
     };
 
     static HRESULT   Encode            (Byte command, std::span<const Byte> payload, std::vector<Byte> & out);

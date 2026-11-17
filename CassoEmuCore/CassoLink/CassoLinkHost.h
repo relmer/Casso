@@ -396,6 +396,13 @@ public:
     //  The capture module for the program this host loads.
     HRESULT  BuildCaptureModule  (std::vector<Byte> & outModule) const;
 
+    //  A track written from a stream by the nibble module, which must be
+    //  loaded: each byte with its top bit set a nibble, each 0 a self-sync
+    //  byte (CassoLinkCodec::kWriteNibbleTrack). A write-protected disk is the
+    //  Status's error.
+    HRESULT  WriteNibbleTrack    (Byte drive, Byte track, std::span<const Byte> stream, CassoLinkStatus & outStatus);
+    HRESULT  BuildNibbleModule   (std::vector<Byte> & outModule) const;
+
     //  The block module's requests (Block.s), which must be loaded: each
     //  block device and SmartPort unit the Apple has; `count` blocks read
     //  from `first`, 512 bytes each in outData, as far as the Status's count

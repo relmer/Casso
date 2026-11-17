@@ -241,6 +241,65 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::WriteNibbleTrack
+//
+//  The Apple requests the stream with an Acknowledge, and requests it again
+//  with a NAK when it arrived damaged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::WriteNibbleTrack (Byte drive, Byte track, std::span<const Byte> stream, CassoLinkStatus & outStatus)
+{
+    HRESULT            hr      = S_OK;
+    CassoLinkPacket    packet;
+    std::vector<Byte>  payload (stream.begin(), stream.end());
+    std::vector<Byte>  request = { drive, track, (Byte) (stream.size() & 0xFF), (Byte) (stream.size() >> 8) };
+    Word               crc     = CassoLinkCodec::ComputeCrc (stream);
+    bool               valid   = !stream.empty() && stream.size() <= CassoLinkCodec::kMaxNibbleStream;
+
+
+
+    outStatus = {};
+    CBRAEx (valid, E_INVALIDARG);
+
+    payload.push_back ((Byte) (crc & 0xFF));
+    payload.push_back ((Byte) (crc >> 8));
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kWriteNibbleTrack, request);
+    CHR (hr);
+
+    for (;;)
+    {
+        hr = ReadReply (packet);
+        CHR (hr);
+
+        if (packet.command == CassoLinkCodec::kStatus)
+        {
+            hr = ReadStatus (packet, outStatus);
+            CHR (hr);
+            break;
+        }
+
+        valid = packet.command == CassoLinkCodec::kAcknowledge && packet.payload.size() == 3;
+        CBREx (valid, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        hr = SendPacket (CassoLinkCodec::kNibbleData, payload);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::BuildCaptureModule
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -248,6 +307,21 @@ Error:
 HRESULT CassoLinkHost::BuildCaptureModule (std::vector<Byte> & outModule) const
 {
     return LinkProgram::BuildCaptureModule (outModule, m_programChip, m_faultProgram);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::BuildNibbleModule
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::BuildNibbleModule (std::vector<Byte> & outModule) const
+{
+    return LinkProgram::BuildNibbleModule (outModule, m_programChip, m_faultProgram);
 }
 
 

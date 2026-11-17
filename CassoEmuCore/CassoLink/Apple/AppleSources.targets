@@ -30,6 +30,9 @@
     <CassoAppleSource Include="$(MSBuildThisFileDirectory)Modules\Block.s">
       <Symbol>s_kBlockModuleSource</Symbol>
     </CassoAppleSource>
+    <CassoAppleSource Include="$(MSBuildThisFileDirectory)Modules\Nibble.s">
+      <Symbol>s_kNibbleModuleSource</Symbol>
+    </CassoAppleSource>
     <CassoAppleSource Include="$(MSBuildThisFileDirectory)SlotFinder.s">
       <Symbol>s_kSlotFinderSource</Symbol>
     </CassoAppleSource>

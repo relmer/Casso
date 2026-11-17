@@ -7,6 +7,9 @@
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/Session/CaptureStream.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
+#include "CassoLink/Session/CassoLinkThirteenSector.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/ThirteenSectorCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
@@ -165,6 +168,41 @@ public:
     }
 
 
+    //  A 13-sector disk written over the link by Write nibble track, track by
+    //  track: the emulated drive's disk decodes to its sectors, and read
+    //  back over the link, it has them too.
+    TEST_METHOD (AThirteenSectorDisk_IsWrittenAndReadBack_OverTheLink)
+    {
+        ProgramRig          rig (LoadFixture());
+        std::vector<Byte>   module;
+        std::vector<Byte>   sectors (ThirteenSectorCodec::kImageByteSize);
+        std::vector<Byte>   onDisk;
+        std::vector<Byte>   read;
+        SectorDecodeReport  diskReport;
+        SectorDecodeReport  readReport;
+        CassoLinkStatus     status;
+
+
+
+        for (size_t at = 0; at < sectors.size(); at++)
+        {
+            sectors[at] = (Byte) (at * 7 + at / 256);
+        }
+
+        AssertSucceeded (LinkProgram::BuildNibbleModule (module));
+        AssertSucceeded (rig.host->EnsureModule (module));
+        AssertSucceeded (CassoLinkThirteenSector::WriteDisk (*rig.host, 1, sectors, nullptr, nullptr, status));
+        Assert::AreEqual ((Byte) 0, status.error);
+
+        ThirteenSectorCodec::Denibblize (*rig.machine.GetDiskStore().GetImage (ProgramRig::kSlot, 0), onDisk, diskReport);
+        Assert::IsTrue (onDisk == sectors, L"The drive's disk has the sectors written");
+
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (CassoLinkThirteenSector::ReadDisk (*rig.host, 1, module, nullptr, nullptr, read, readReport));
+        Assert::IsTrue (read == sectors, L"The sectors read back over the link");
+    }
+
+
     //  The module fits below the loop's copies, which capbuild writes from
     //  CAPCODE.
     TEST_METHOD (TheCaptureModule_FitsBelowItsLoopsCopies)
@@ -172,10 +210,13 @@ public:
         static constexpr size_t  kRoom = 0x5470 - 0x5000;
 
         std::vector<Byte>  module;
+        std::string        errors;
+        HRESULT            hr     = S_OK;
 
 
 
-        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        hr = LinkProgram::AssembleModule (LinkProgram::GetCaptureModuleSource(), module, errors);
+        Assert::IsTrue (SUCCEEDED (hr), TextEncoding::NarrowToWide (errors).c_str());
         Assert::IsTrue (module.size() <= kRoom, std::format (L"{} bytes", module.size()).c_str());
     }
 

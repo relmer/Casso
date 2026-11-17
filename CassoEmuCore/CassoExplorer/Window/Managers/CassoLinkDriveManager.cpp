@@ -79,7 +79,7 @@ void CassoLinkDriveManager::ReadDiskToImage (const Location & drive, bool forceV
         BAIL_OUT_IF (true, S_OK);
     }
 
-    spec.filters          = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib, *.nb2)", L"*.dsk;*.do;*.po;*.woz;*.nib;*.nb2" },
+    spec.filters          = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.d13, *.woz, *.nib, *.nb2)", L"*.dsk;*.do;*.po;*.d13;*.woz;*.nib;*.nb2" },
                               FileDialogFilter { L"All files (*.*)", L"*.*" } };
     spec.clientGuid       = s_kLinkDiskPickerGuid;
     spec.defaultFileName  = ActionsAppleDrive::GetDriveImageName (m_context.browser.GetLinks(), TextEncoding::WideToNarrow (link), 6, number);
@@ -277,7 +277,7 @@ void CassoLinkDriveManager::WriteImageToDisk (const Location & drive, bool force
         BAIL_OUT_IF (true, S_OK);
     }
 
-    spec.filters        = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib, *.nb2)", L"*.dsk;*.do;*.po;*.woz;*.nib;*.nb2" },
+    spec.filters        = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.d13, *.woz, *.nib, *.nb2)", L"*.dsk;*.do;*.po;*.d13;*.woz;*.nib;*.nb2" },
                             FileDialogFilter { L"All files (*.*)", L"*.*" } };
     spec.clientGuid     = s_kLinkDiskPickerGuid;
     spec.title          = std::format (L"Write image to {}", m_context.browser.GetTreeModel().GetLinkDriveTitle (target.path));
