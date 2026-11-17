@@ -467,4 +467,84 @@ public:
         Assert::IsFalse  (edits.CanUndo(), L"no pending change is left to undo");
         Assert::IsFalse  (edits.CanRedo());
     }
+
+
+
+    TEST_METHOD (AGuestWriteShowsTheGuestsBytesAndMarksAConflict)
+    {
+        DiskAnalysis                    analysis;
+        EditController                  edits;
+        std::wstring                    reason;
+        vector<PendingEdit>             discarded;
+        std::shared_ptr<TrackAnalysis>  guestWrote;
+        Byte                            mine = 0;
+        int                             edit = -1;
+        int                             slot = 0;
+        int                             s    = 0;
+
+
+
+        AnalyzePlanted (analysis);
+        slot = analysis.entries[20].slot;
+        s    = GetSectorIndex (GetTrack (analysis), 2);
+        edit = edits.Begin (GetTrack (analysis), 20, s, reason);
+        Assert::IsTrue (edits.TypeHexDigit (edit, 0x10, true, L'9'));
+        mine = edits.GetEdit (edit).bytes[0x10];
+
+        guestWrote = std::make_shared<TrackAnalysis> (GetTrack (analysis));
+        guestWrote->guestWriteCount++;
+        guestWrote->fields[guestWrote->sectors[s].dataField].data.bytes[0x20] ^= 0xFF;
+        guestWrote->fields[guestWrote->sectors[s].dataField].data.bytes[0x10] = static_cast<Byte> (mine ^ 0x01);
+        analysis.tracks[slot] = guestWrote;
+        edits.Follow (analysis, discarded);
+
+        Assert::AreEqual (guestWrote->fields[guestWrote->sectors[s].dataField].data.bytes[0x20], edits.GetEdit (edit).bytes[0x20], L"a byte the user didn't change shows the guest's value");
+        Assert::AreEqual (mine, edits.GetEdit (edit).bytes[0x10], L"the user's byte is kept");
+        Assert::IsTrue   (edits.GetEdit (edit).IsConflict (0x10), L"the guest also wrote it");
+        Assert::IsFalse  (edits.GetEdit (edit).IsConflict (0x20));
+        Assert::IsFalse  (edits.GetEdit (edit).isOutOfDate, L"the edit is over the guest's bytes now");
+        Assert::IsFalse  (edits.CanUndo());
+    }
+
+
+
+    TEST_METHOD (AnUndoAfterAGuestWritePutsBackOnlyTheChangedBytes)
+    {
+        DiskAnalysis                    analysis;
+        EditController                  edits;
+        EditController                  reverse;
+        std::wstring                    reason;
+        std::shared_ptr<TrackAnalysis>  saved;
+        vector<SectorWrite>             writes;
+        Byte                            before = 0;
+        int                             edit   = -1;
+        int                             slot   = 0;
+        int                             s      = 0;
+
+
+
+        AnalyzePlanted (analysis);
+        slot   = analysis.entries[20].slot;
+        s      = GetSectorIndex (GetTrack (analysis), 2);
+        edit   = edits.Begin (GetTrack (analysis), 20, s, reason);
+        before = edits.GetEdit (edit).bytes[0x10];
+        Assert::IsTrue (edits.TypeHexDigit (edit, 0x10, true, L'9'));
+
+        //  The save wrote the edit, then the guest wrote byte $20.
+        saved = std::make_shared<TrackAnalysis> (GetTrack (analysis));
+        saved->fields[saved->sectors[s].dataField].data.bytes        = edits.GetEdit (edit).bytes;
+        saved->fields[saved->sectors[s].dataField].data.bytes[0x20] ^= 0xFF;
+        analysis.tracks[slot] = saved;
+
+        Assert::IsTrue (edits.IsCurrentIn (analysis), L"the saved byte is unchanged");
+
+        reverse = edits.MakeOverCurrent (true);
+        writes  = reverse.BuildWrites (analysis);
+        Assert::AreEqual (static_cast<size_t> (1), writes.size());
+        Assert::AreEqual (before, writes[0].bytes[0x10], L"the changed byte is put back");
+        Assert::AreEqual (saved->fields[saved->sectors[s].dataField].data.bytes[0x20], writes[0].bytes[0x20], L"the guest's byte is kept");
+
+        saved->fields[saved->sectors[s].dataField].data.bytes[0x10] ^= 0x01;
+        Assert::IsFalse (edits.IsCurrentIn (analysis), L"the guest wrote the saved byte, so the save can't be undone");
+    }
 };

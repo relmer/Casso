@@ -494,9 +494,10 @@ void EditingPart::UpdateEditBar()
     state.isMachinePaused  = m_isApplyPaused;
     state.canUseB          = reason.empty() && GetBSectorBytes (paired);
     state.canUndoApplied   = m_historyAt > 0 && m_applyRequest == 0 && state.applyBlocked.empty() && m_session.edits.IsEmpty() &&
-                             IsHistoryCurrent (m_history[m_historyAt - 1].countsAfter);
+                             (IsHistoryCurrent (m_history[m_historyAt - 1].countsAfter) || m_history[m_historyAt - 1].edits.IsCurrentIn (m_session.analysis));
     state.canRedoApplied   = m_historyAt < static_cast<int> (m_history.size()) && m_applyRequest == 0 && state.applyBlocked.empty() &&
-                             m_session.edits.HasSameChanges (m_history[m_historyAt].edits) && IsHistoryCurrent (m_history[m_historyAt].countsUndone);
+                             m_session.edits.HasSameChanges (m_history[m_historyAt].edits) &&
+                             (IsHistoryCurrent (m_history[m_historyAt].countsUndone) || m_history[m_historyAt].edits.MakeOverCurrent (true).IsCurrentIn (m_session.analysis));
     state.note             = !m_session.editNote.empty() ? m_session.editNote : (m_session.model.GetSector() != nullptr && !reason.empty()) ? L"Cannot edit: " + reason : std::wstring();
 
     //  A change of the bar's rows moves the bytes under it.
@@ -621,7 +622,9 @@ void EditingPart::ApplyEdits()
             }
         }
 
-        warnings  = edit.isOutOfDate ? L": changed since editing began, so only the bytes you changed are written" : L"";
+        warnings  = edit.conflicts.any() ? L": the guest also wrote " + InspectorText::FormatCount (static_cast<int> (edit.conflicts.count()), L"byte you changed", L"bytes you changed") + L", and your values are saved"
+                  : edit.isOutOfDate     ? L": changed since editing began, so only the bytes you changed are written"
+                                         : L"";
         warnings += m_session.analysis.entries[readers.empty() ? 0 : readers.front()].isFromFluxMap ? L"; only the flux record changes, and the bit record is left as it was" : L"";
         warnings += (isNib && m_session.writtenSlots.contains (edit.slot)) ? L"; the guest also wrote this track, so Casso rebuilds it when saving" : L"";
 
@@ -645,12 +648,6 @@ void EditingPart::ApplyEdits()
     if (isWoz1)
     {
         lines.push_back (L"This disk is a WOZ 1 image. Casso saves it as WOZ 2.");
-    }
-
-    //  Only a disk in a drive is read by a running DOS or ProDOS (FR-103).
-    if (!m_isFirstApplyDone && m_session.host->GetDriveCount() > 0)
-    {
-        lines.push_back (L"DOS or ProDOS may have one of these sectors in memory and write its own copy back over the edit.");
     }
 
     if (lines.size() == 1 || m_host.Confirm (L"Save", lines, L"Save"))
@@ -740,7 +737,8 @@ void EditingPart::CancelApply()
 //
 //  Undo puts the tracks back as they were before the last save, and its
 //  edits become unsaved changes again; redo saves those edits again
-//  (FR-107).
+//  (FR-107). After the guest wrote one of the tracks, only the bytes the
+//  save changed are written back, over the sectors' current bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -756,9 +754,18 @@ void EditingPart::UndoApplied()
     request.kind           = InspectorRequestKind::Apply;
     request.drive          = m_session.drive;
     request.mediaId        = m_session.analysis.mediaId;
-    request.applyKind      = ApplyKind::Undo;
-    request.restore        = m_history[m_historyAt - 1].before;
-    request.expectedCounts = m_history[m_historyAt - 1].countsAfter;
+    request.applyKind = ApplyKind::Undo;
+
+    if (IsHistoryCurrent (m_history[m_historyAt - 1].countsAfter))
+    {
+        request.restore        = m_history[m_historyAt - 1].before;
+        request.expectedCounts = m_history[m_historyAt - 1].countsAfter;
+    }
+    else
+    {
+        request.writes         = m_history[m_historyAt - 1].edits.MakeOverCurrent (true).BuildWrites (m_session.analysis);
+        request.expectedCounts = GetCurrentCounts (request.writes);
+    }
 
     PostApply (request);
 
@@ -788,9 +795,18 @@ void EditingPart::RedoApplied()
     request.kind           = InspectorRequestKind::Apply;
     request.drive          = m_session.drive;
     request.mediaId        = m_session.analysis.mediaId;
-    request.applyKind      = ApplyKind::Redo;
-    request.restore        = m_history[m_historyAt].after;
-    request.expectedCounts = m_history[m_historyAt].countsUndone;
+    request.applyKind = ApplyKind::Redo;
+
+    if (IsHistoryCurrent (m_history[m_historyAt].countsUndone))
+    {
+        request.restore        = m_history[m_historyAt].after;
+        request.expectedCounts = m_history[m_historyAt].countsUndone;
+    }
+    else
+    {
+        request.writes         = m_history[m_historyAt].edits.MakeOverCurrent (false).BuildWrites (m_session.analysis);
+        request.expectedCounts = GetCurrentCounts (request.writes);
+    }
 
     PostApply (request);
 
@@ -852,7 +868,6 @@ void EditingPart::TakeApplyReply (const InspectorReply & reply)
             m_history.push_back ({ reply.before, reply.after, reply.countsAfter, {}, reply.savedPath, m_session.edits });
             m_historyAt        = static_cast<int> (m_history.size());
             m_session.edits    = EditController();
-            m_isFirstApplyDone = true;
             m_sectorsView.SetEditing (false);
         }
         else if (reply.applyKind == ApplyKind::Undo)
@@ -860,6 +875,11 @@ void EditingPart::TakeApplyReply (const InspectorReply & reply)
             m_historyAt--;
             m_history[m_historyAt].countsUndone = reply.countsAfter;
             m_session.edits                     = m_history[m_historyAt].edits;
+
+            for (const RecordWriteCount & count : reply.countsAfter)
+            {
+                m_session.edits.SetWriteCount (count.slot, count.guestWriteCount);
+            }
         }
         else
         {
@@ -1175,3 +1195,34 @@ std::function<void()> EditingPart::TakeDueAction()
 {
     return std::exchange (m_dueAction, nullptr);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::GetCurrentCounts
+//
+//  The guest write count the window has for each record the writes change,
+//  so a guest write before they are made stops them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<RecordWriteCount> EditingPart::GetCurrentCounts (const vector<SectorWrite> & writes) const
+{
+    vector<RecordWriteCount>  counts;
+
+
+
+    for (const SectorWrite & write : writes)
+    {
+        if (write.slot >= 0 && write.slot < static_cast<int> (m_session.writeCounts.size()))
+        {
+            counts.push_back ({ write.slot, m_session.writeCounts[write.slot] });
+        }
+    }
+
+    return counts;
+}
+

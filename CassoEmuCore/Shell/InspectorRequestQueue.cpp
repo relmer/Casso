@@ -379,7 +379,8 @@ bool InspectorRequestQueue::TryApply (uint64_t id, const InspectorRequest & requ
             outReply.before.push_back (TrackCopy::MakeFromImage (*image, slot));
         }
 
-        if (request.applyKind == ApplyKind::Apply)
+        //  An undo or redo after a guest write comes as writes too.
+        if (request.applyKind == ApplyKind::Apply || !request.writes.empty())
         {
             hr = SectorFieldWriter::Write (*image, request.writes, SectorWritePolicy::Editor, errors);
         }

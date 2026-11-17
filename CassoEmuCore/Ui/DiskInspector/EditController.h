@@ -18,7 +18,10 @@
 //  changes the field it was made on, not the first with the same number.
 //  `bytesAtStart` has the sector as decoded when editing began; a byte is
 //  changed where `bytes` differs from it. `isOutOfDate` is set when the
-//  sector's decoded bytes no longer match `bytesAtStart` (FR-108).
+//  sector's decoded bytes differ from `bytesAtStart` (FR-108). When the
+//  guest writes the sector, the bytes the user didn't change take the
+//  guest's values, and `conflicts` marks each changed byte the guest also
+//  wrote.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +40,10 @@ struct PendingEdit
     ChecksumMode   checksumMode      = ChecksumMode::Recompute;
     bool           isOutOfDate       = false;
 
+    std::bitset<DiskFieldFormat::kSectorBytes>  conflicts;
+
     bool  IsChanged    (int offset) const { return bytes[offset] != bytesAtStart[offset]; }
+    bool  IsConflict   (int offset) const { return conflicts.test (static_cast<size_t> (offset)); }
     int   CountChanged () const;
 };
 
@@ -116,6 +122,19 @@ public:
     //  edit writes only the bytes the user changed over the sector's current
     //  contents (FR-108).
     vector<SectorWrite>  BuildWrites (const DiskAnalysis & analysis) const;
+
+    //  Edits that write these edits' changed bytes over each sector's current
+    //  bytes, or with `isReverse` the bytes they replaced, for undoing or
+    //  redoing a save after the guest wrote the track.
+    EditController       MakeOverCurrent (bool isReverse) const;
+
+    //  Whether each changed byte has its edited value in the sectors as now
+    //  decoded.
+    bool                 IsCurrentIn (const DiskAnalysis & analysis) const;
+
+    //  The guest write count of each edit on a record, from the count a save
+    //  or undo left.
+    void                 SetWriteCount (int slot, uint64_t count);
 
     //  Whether a sector of a record has changed bytes pending, and how many
     //  of a record's sectors do, for the marks in other views (FR-097).

@@ -301,7 +301,7 @@ void SectorsView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
     for (size_t i = 0; edit >= 0 && i < changed.size(); i++)
     {
-        changed[i] = m_context.edits->GetEdit (edit).IsChanged (static_cast<int> (i)) ? 1 : 0;
+        changed[i] = m_context.edits->GetEdit (edit).IsConflict (static_cast<int> (i)) ? 2 : m_context.edits->GetEdit (edit).IsChanged (static_cast<int> (i)) ? 1 : 0;
     }
 
     m_grid = grid;
@@ -335,7 +335,8 @@ void SectorsView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 //  the other side's is tinted and underlined, so it shows without color;
 //  with no other side, nothing is marked. A byte of a find hit is tinted
 //  and outlined in both columns. A byte a pending edit changed is drawn in
-//  the edit color with a corner mark in both columns (FR-097).
+//  the edit color with a corner mark in both columns (FR-097), and the mark
+//  is in the failure color where the guest also wrote the byte.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -394,7 +395,7 @@ void SectorsView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
         if (i < changed.size() && changed[i] != 0)
         {
-            color = m_context.palette.colors.pendingEdit;
+            color = (changed[i] == 2) ? m_context.palette.colors.failedChecksum : m_context.palette.colors.pendingEdit;
             painter.FillConvexQuad (hx, rowTop, hx + mark, rowTop, hx, rowTop + mark, hx, rowTop + mark, color);
             painter.FillConvexQuad (tx, rowTop, tx + mark, rowTop, tx, rowTop + mark, tx, rowTop + mark, color);
         }

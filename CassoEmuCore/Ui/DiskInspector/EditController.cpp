@@ -511,15 +511,19 @@ bool EditController::SetSector (int edit, const PendingEdit::Sector & bytes)
 //  EditController::Follow
 //
 //  The undo stack refers to edits by index, so it is cleared when an edit
-//  is dropped; the edits themselves move with their fields.
+//  is dropped or the guest's bytes are taken in; the edits themselves move
+//  with their fields. After a guest write to a record, each byte the user
+//  didn't change takes the guest's value, and a changed byte the guest also
+//  wrote is marked as a conflict and has the user's value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EditController::Follow (const DiskAnalysis & analysis, vector<PendingEdit> & outDiscarded)
 {
     vector<PendingEdit>  remaining;
-    int                  field  = -1;
-    int                  sector = -1;
+    int                  field     = -1;
+    int                  sector    = -1;
+    bool                 isRebased = false;
 
 
 
@@ -545,8 +549,27 @@ void EditController::Follow (const DiskAnalysis & analysis, vector<PendingEdit> 
 
         if (track != nullptr && sector >= 0 && GetUneditableReason (*track, sector).empty())
         {
+            const PendingEdit::Sector &  now = track->fields[field].data.bytes;
+
             edit.fieldStartCell = track->fields[field].startCell;
-            edit.isOutOfDate    = edit.isOutOfDate || track->fields[field].data.bytes != edit.bytesAtStart;
+
+            if (track->guestWriteCount != edit.writeCountAtStart && now != edit.bytesAtStart)
+            {
+                isRebased = true;
+
+                for (size_t i = 0; i < now.size(); i++)
+                {
+                    bool  isChanged = edit.IsChanged (static_cast<int> (i));
+
+                    edit.conflicts[i]    = edit.conflicts[i] || (isChanged && now[i] != edit.bytesAtStart[i]);
+                    edit.bytes[i]        = isChanged ? edit.bytes[i] : now[i];
+                    edit.bytesAtStart[i] = now[i];
+                    edit.conflicts[i]    = edit.conflicts[i] && edit.bytes[i] != now[i];
+                }
+            }
+
+            edit.writeCountAtStart = track->guestWriteCount;
+            edit.isOutOfDate       = edit.isOutOfDate || now != edit.bytesAtStart;
             remaining.push_back (edit);
         }
         else
@@ -555,7 +578,7 @@ void EditController::Follow (const DiskAnalysis & analysis, vector<PendingEdit> 
         }
     }
 
-    if (remaining.size() != m_edits.size())
+    if (remaining.size() != m_edits.size() || isRebased)
     {
         m_actions.clear();
         m_undoAt = 0;
@@ -666,6 +689,98 @@ EditController::Counts EditController::GetCounts() const
     }
 
     return counts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditController::MakeOverCurrent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+EditController EditController::MakeOverCurrent (bool isReverse) const
+{
+    EditController  result;
+
+
+
+    for (const PendingEdit & edit : m_edits)
+    {
+        if (edit.CountChanged() > 0)
+        {
+            PendingEdit  over = edit;
+
+            if (isReverse)
+            {
+                std::swap (over.bytes, over.bytesAtStart);
+            }
+
+            over.isOutOfDate = true;
+            over.conflicts.reset();
+            result.m_edits.push_back (over);
+        }
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditController::IsCurrentIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditController::IsCurrentIn (const DiskAnalysis & analysis) const
+{
+    bool  isCurrent = true;
+    int   field     = -1;
+
+
+
+    for (const PendingEdit & edit : m_edits)
+    {
+        const TrackAnalysis *  track = (edit.slot >= 0 && edit.slot < static_cast<int> (analysis.tracks.size())) ? analysis.tracks[edit.slot].get() : nullptr;
+
+        if (!isCurrent || edit.CountChanged() == 0)
+        {
+            continue;
+        }
+
+        field     = (track != nullptr) ? FindField (*track, edit.sectorNumber, edit.fieldKind, edit.fieldStartCell) : -1;
+        isCurrent = field >= 0;
+
+        for (int i = 0; isCurrent && i < DiskFieldFormat::kSectorBytes; i++)
+        {
+            isCurrent = !edit.IsChanged (i) || track->fields[field].data.bytes[i] == edit.bytes[i];
+        }
+    }
+
+    return isCurrent;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditController::SetWriteCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EditController::SetWriteCount (int slot, uint64_t count)
+{
+    for (PendingEdit & edit : m_edits)
+    {
+        edit.writeCountAtStart = (edit.slot == slot) ? count : edit.writeCountAtStart;
+    }
 }
 
 
