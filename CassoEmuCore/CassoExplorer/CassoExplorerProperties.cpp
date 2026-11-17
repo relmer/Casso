@@ -82,6 +82,8 @@ std::wstring CassoExplorerProperties::FormatBytes (uint64_t bytes)
     std::wstring  exact   = NumberFormat::FormatInteger (bytes) + ((bytes == 1) ? L" byte" : L" bytes");
     std::wstring  rounded = BrowserCells::FormatSize (bytes);
 
+
+
     //  A size under a kilobyte is exact already.
     return (rounded == exact) ? exact : rounded + L" (" + exact + L")";
 }
