@@ -39,6 +39,10 @@ public:
     bool     IsClosed         () const override { return m_closed; }
     void     Close            () override       { m_closed = true; }
 
+    //  Half cycles sent through the output as they are, after the bytes
+    //  written, as the monitor's tape record that starts the link.
+    HRESULT  PlayHalves       (std::span<const double> halvesUs);
+
     //  The input's peak level, 0 to 1.
     float    GetInputLevel    () const { return m_decoder.GetLevel(); }
 

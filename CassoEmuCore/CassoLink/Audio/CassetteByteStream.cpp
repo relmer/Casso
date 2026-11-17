@@ -114,6 +114,37 @@ size_t CassetteByteStream::GetReadableCount()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassetteByteStream::PlayHalves
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassetteByteStream::PlayHalves (std::span<const double> halvesUs)
+{
+    HRESULT             hr = S_OK;
+    std::vector<float>  samples;
+
+
+
+    CBREx (!m_closed, HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE));
+
+    hr = Flush();
+    CHR (hr);
+
+    CassetteCodec::Render (halvesUs, m_audio->GetSampleRate(), kAmplitude, samples);
+
+    hr = m_audio->Play (samples);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassetteByteStream::Flush
 //
 //  Each burst after the first follows a gap, so the Apple has stored the

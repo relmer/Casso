@@ -33,6 +33,17 @@ struct VirtualDriveSettings
     bool  operator== (const VirtualDriveSettings &) const = default;
 };
 
+//  The sound devices of a cassette link: the output cabled to the Apple's
+//  cassette input and the input cabled to its cassette output, each an
+//  endpoint id, or empty for Windows' default.
+struct CassetteAudioSettings
+{
+    std::wstring  output;
+    std::wstring  input;
+
+    bool  operator== (const CassetteAudioSettings &) const = default;
+};
+
 struct CassoLinkSettings
 {
     std::string    name;
@@ -48,6 +59,9 @@ struct CassoLinkSettings
 
     //  The CassoLink ProDOS disk's drives, for a serial connection.
     VirtualDriveSettings  virtualDrives;
+
+    //  The sound devices, for a cassette link.
+    CassetteAudioSettings  cassetteAudio;
 
     //  Whether the user disconnected it, which outlasts a restart; the port an
     //  any-port connection last connected to an Apple on; and when it was last
@@ -72,8 +86,8 @@ struct CassoLinkSettings
     //  port)" or the COM port, "TCP" and the address, "Wi-Fi modem on port
     //  6400", "Uthernet II at" and the address or "Uthernet II (any
     //  address)", "ADTPro server on" the COM
-    //  port or "at" the address, and for a running Casso, "Casso on port" and
-    //  its TCP port. Two connections with the same settings have the same
+    //  port or "at" the address, "Cassette ports", and for a running Casso,
+    //  "Casso on port" and its TCP port. Two connections with the same settings have the same
     //  name.
     static std::string   MakeName          (const CassoLinkSettings & settings);
 

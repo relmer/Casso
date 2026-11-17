@@ -490,7 +490,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::FullSend (const std::string & f
 
 LinkChip CassoLinkSession::GetLinkChip (LinkTransport transport)
 {
-    return (transport == LinkTransport::Uthernet) ? LinkChip::W5100 : LinkChip::Acia;
+    return (transport == LinkTransport::Uthernet) ? LinkChip::W5100 : (transport == LinkTransport::Cassette) ? LinkChip::Cassette : LinkChip::Acia;
 }
 
 
@@ -777,7 +777,8 @@ void CassoLinkSession::Run (std::stop_token stop)
     }
     else if (m_connector.m_bootstrap)
     {
-        hr = m_connector.RunBootstrap (stop, *m_connector.m_bootstrap);
+        hr = (m_settings.transport == LinkTransport::Cassette) ? m_connector.RunCassetteBootstrap (stop, *m_connector.m_bootstrap)
+                                                               : m_connector.RunBootstrap (stop, *m_connector.m_bootstrap);
         m_sink.OnDone (m_connector.m_bootstrap);
         m_connector.m_bootstrap.reset();
     }

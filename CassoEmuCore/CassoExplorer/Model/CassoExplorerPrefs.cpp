@@ -327,6 +327,15 @@ JsonValue CassoExplorerPrefs::LinkToJson (const CassoLinkSettings & link)
         fields.emplace_back ("virtualDrives", JsonValue (std::move (drives)));
     }
 
+    if (!link.cassetteAudio.output.empty() || !link.cassetteAudio.input.empty())
+    {
+        std::vector<std::pair<std::string, JsonValue>>  audio;
+
+        audio.emplace_back ("output", JsonValue (TextEncoding::WideToNarrow (link.cassetteAudio.output)));
+        audio.emplace_back ("input",  JsonValue (TextEncoding::WideToNarrow (link.cassetteAudio.input)));
+        fields.emplace_back ("cassetteAudio", JsonValue (std::move (audio)));
+    }
+
     if (link.verify != CassoLinkSettings::kVerifyDefault)
     {
         fields.emplace_back ("verify",        JsonValue ((double) link.verify));
@@ -421,6 +430,19 @@ bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSett
             if (drives->HasString ("drive2", folder))
             {
                 outLink.virtualDrives.drive2 = TextEncoding::NarrowToWide (folder);
+            }
+        }
+
+        if (value.HasObject ("cassetteAudio", drives))
+        {
+            if (drives->HasString ("output", folder))
+            {
+                outLink.cassetteAudio.output = TextEncoding::NarrowToWide (folder);
+            }
+
+            if (drives->HasString ("input", folder))
+            {
+                outLink.cassetteAudio.input = TextEncoding::NarrowToWide (folder);
             }
         }
 
