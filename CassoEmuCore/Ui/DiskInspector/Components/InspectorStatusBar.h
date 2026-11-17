@@ -33,7 +33,9 @@ public:
         Selection
     };
 
-    //  One thing drawn at the band's left end, and where it goes.
+    //  One thing drawn at the band's left end, and where it goes. A linked
+    //  chip is drawn in the accent, unless it's bad, and is tinted while the
+    //  pointer is on it.
     struct LeadItem
     {
         std::wstring  text;
@@ -41,6 +43,7 @@ public:
         float         x        = 0;
         float         w        = 0;
         bool          isPlaced = false;
+        bool          isLinked = false;
     };
 
     using ZoomFn = std::function<void (double zoom)>;
@@ -63,6 +66,11 @@ public:
     bool  IsOverHelp     (POINT p) const { return m_hasHelp && PtInRect (&m_helpPx, p) != FALSE; }
     RECT  GetHelpRect    () const { return m_helpPx; }
 
+    //  The linked chip under a point, as the band was last drawn, or null;
+    //  and whether the pointer is on one.
+    const LeadItem  * GetLinkedChipAt (POINT p) const;
+    void              SetLinkHot      (bool isHot) { m_isLinkHot = isHot; }
+
 private:
     enum Field : size_t
     {
@@ -84,5 +92,7 @@ private:
     RECT               m_helpPx      = {};
     RECT               m_chipsPx     = {};
     std::wstring       m_hint;
+    vector<LeadItem>   m_placed;
     bool               m_hasHelp     = true;
+    bool               m_isLinkHot   = false;
 };

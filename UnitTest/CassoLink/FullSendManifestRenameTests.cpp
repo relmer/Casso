@@ -4,8 +4,10 @@
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
+#include "CassoLink/FullSend/FullSendLink.h"
 #include "CassoLink/FullSend/FullSendManifest.h"
 #include "CassoLink/FullSend/FullSendManifestFile.h"
+#include "CassoLink/FullSend/FullSendScreen.h"
 #include "CassoLink/FullSend/FullSendSession.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkProgram.h"
@@ -149,25 +151,25 @@ public:
     }
 
 
-    //  A boot result is written to the image's row, and the row's status is
-    //  returned; for a file with no row, the status is empty.
-    TEST_METHOD (NoteBoot_WritesTheResult_AndReturnsTheRowsStatus)
+    //  A boot result is written to the image's row, and the row is returned;
+    //  for a file with no row, the row returned has no file.
+    TEST_METHOD (NoteBoot_WritesTheResult_AndReturnsTheRow)
     {
         FakeDiskFileIo     io;
         std::vector<Byte>  bytes;
         FullSendManifest   read;
-        std::string        status;
+        FullSendRow        row;
 
         AssertSucceeded (io.WriteAllBytes (ManifestPath(), MakeManifest().Format()));
-        AssertSucceeded (FullSendManifestFile::NoteBoot (io, kFolder, "disk 001.DSK", FullSendManifest::kBootBooted, status));
+        AssertSucceeded (FullSendManifestFile::NoteBoot (io, kFolder, "disk 001.DSK", FullSendManifest::kBootBooted, row));
         AssertSucceeded (io.ReadAllBytes (ManifestPath(), bytes));
         AssertSucceeded (read.Parse (bytes));
 
-        Assert::AreEqual (std::string (FullSendManifest::kStatusSent), status);
+        Assert::AreEqual (std::string (FullSendManifest::kStatusSent), row.status);
         Assert::AreEqual (std::string (FullSendManifest::kBootBooted), read.GetRows()[0].boot);
 
-        AssertSucceeded (FullSendManifestFile::NoteBoot (io, kFolder, "Other.dsk", FullSendManifest::kBootBooted, status));
-        Assert::IsTrue (status.empty());
+        AssertSucceeded (FullSendManifestFile::NoteBoot (io, kFolder, "Other.dsk", FullSendManifest::kBootBooted, row));
+        Assert::IsTrue (row.file.empty());
     }
 
 

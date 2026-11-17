@@ -8,6 +8,7 @@
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerTransferPrompts.h"
@@ -73,6 +74,12 @@ void ExplorerDragDrop::BeginTreeDrag (const Location & location)
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
+
     m_context.treePane.ReleasePress();
 
     //  A disk image has Casso's floppy, which the shell has no icon for.
@@ -112,6 +119,12 @@ void ExplorerDragDrop::BeginDiskDrag (const std::wstring & driveId)
     BOOL                                     got     = FALSE;
 
 
+
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
 
     if (formats.empty())
     {
@@ -715,6 +728,12 @@ DWORD ExplorerDragDrop::GetDropEffect (IDataObject * data, int tag, POINT screen
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return DROPEFFECT_NONE;
+    }
+
     if (tag == CassoExplorerWindow::kDropTagTabs)
     {
         HoverDropTab (screen);
@@ -1254,6 +1273,12 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
+
     //  Back onto the folder the files came from, or onto one of them: nothing
     //  to do.
     if (TryGetHostDropFolder (tag, screen, hostFolder)
@@ -1349,7 +1374,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
 
         if (image)
         {
-            m_context.cassoLinkManager.StartImageWrite (location, source.hostPaths[0]);
+            m_context.linkDrives.StartImageWrite (location, source.hostPaths[0]);
             return;
         }
 
@@ -1515,6 +1540,21 @@ void ExplorerDragDrop::BeginDragOut()
 
     m_context.listPane.ReleasePress();
 
+    //  A picker's drag is a copy of files on the disk, as an image dragged to
+    //  one of the emulator's drives is. Nothing is moved, and no entry of an
+    //  image is dragged out.
+    if (m_context.IsPicker())
+    {
+        if (m_context.browser.TryGetSelectedShellIds (shellIds))
+        {
+            hr = m_context.shellVerbs.DragItems (shellIds, DROPEFFECT_COPY, icon.get());
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        m_context.window.Invalidate();
+        return;
+    }
+
     //  Casso's own icon goes with a drag of disk images and of files with no
     //  file of their own, which the shell has no image for.
     for (int row : m_context.browser.GetSelectedRows())
@@ -1526,7 +1566,7 @@ void ExplorerDragDrop::BeginDragOut()
 
     //  Dragging a linked machine's drive drags its whole disk, as dragging its
     //  node in the tree does.
-    if (m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive))
+    if (m_context.linkDrives.TryGetSelectedLinkDrive (drive))
     {
         BeginDiskDrag (drive.path);
         return;

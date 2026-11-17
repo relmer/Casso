@@ -287,6 +287,7 @@
     <ClCompile Include="EmuTests\ContainerIntegrityTests.cpp" />
     <ClCompile Include="EmuTests\NibbleImageCodecTests.cpp" />
     <ClCompile Include="EmuTests\NibblizationTests.cpp" />
+    <ClCompile Include="EmuTests\TrackLayoutWriterTests.cpp" />
     <ClCompile Include="AppleTextCodecTests.cpp" />
     <ClCompile Include="ApplesoftTokenizerTests.cpp" />
     <ClCompile Include="BasicCorpusTests.cpp" />
@@ -328,6 +329,7 @@
     <ClCompile Include="EmuTests\BlockMapTests.cpp" />
     <ClCompile Include="EmuTests\BlankDiskBuilderTests.cpp" />
     <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />
+    <ClCompile Include="EmuTests\StockDisk800KTests.cpp" />
     <ClCompile Include="EmuTests\LargeVolumeTests.cpp" />
     <ClCompile Include="EmuTests\HfsBTreeEditorTests.cpp" />
     <ClCompile Include="EmuTests\HfsVolumeTests.cpp" />
@@ -369,6 +371,10 @@
     <ClCompile Include="EmuTests\ComparisonTestImages.cpp" />
     <ClCompile Include="EmuTests\DiskComparisonTests.cpp" />
     <ClCompile Include="EmuTests\FileMapTestImages.cpp" />
+    <ClCompile Include="Inspector\DiskRepairCommandTests.cpp" />
+    <ClCompile Include="Inspector\DiskRepairTests.cpp" />
+    <ClCompile Include="Inspector\RepairFixtures.cpp" />
+    <ClCompile Include="Inspector\RepairWindowPartsTests.cpp" />
     <ClCompile Include="EmuTests\FileMapTests.cpp" />
     <ClCompile Include="EmuTests\FluxViewTests.cpp" />
     <ClCompile Include="EmuTests\InspectorClipboardTests.cpp" />
@@ -408,6 +414,10 @@
     <ClCompile Include="EmuTests\FluxSectorAccessTests.cpp" />
     <ClCompile Include="EmuTests\DamagedDiskMountTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
+    <ClCompile Include="EmuTests\BootDriveRuleTests.cpp" />
+    <ClCompile Include="EmuTests\DiskMenuRuleTests.cpp" />
+    <ClCompile Include="EmuTests\DropRuleTests.cpp" />
+    <ClCompile Include="EmuTests\DrivePickersTests.cpp" />
     <ClCompile Include="EmuTests\ImageIdentityTests.cpp" />
     <ClCompile Include="EmuTests\ExternalChangePolicyTests.cpp" />
     <ClCompile Include="EmuTests\SharedImageTests.cpp" />
@@ -434,6 +444,9 @@
     <ClCompile Include="CassoLink\CassoLinkResendTests.cpp" />
     <ClCompile Include="CassoLink\LinkFaultTests.cpp" />
     <ClCompile Include="CassoLink\CassoLinkTraceTests.cpp" />
+    <ClCompile Include="CassoLink\FullSendDiskTests.cpp" />
+    <ClCompile Include="CassoLink\FullSendFolderTests.cpp" />
+    <ClCompile Include="CassoLink\FullSendScreenTests.cpp" />
     <ClCompile Include="CassoLink\FullSendTests.cpp" />
     <ClCompile Include="DiskCheck\ThumbnailStoreTests.cpp" />
     <ClCompile Include="DiskCheck\GivenNamesTests.cpp" />
@@ -445,7 +458,9 @@
     <ClCompile Include="DiskCheck\BootSoundsTests.cpp" />
     <ClCompile Include="DiskCheck\BootProbeTests.cpp" />
     <ClCompile Include="CassoLink\FullSendManifestRenameTests.cpp" />
+    <ClCompile Include="CassoLink\FullSendProtectionTests.cpp" />
     <ClCompile Include="CassoLink\FullSendStatusTests.cpp" />
+    <ClCompile Include="CassoLink\TrackMeasuresTests.cpp" />
     <ClCompile Include="CassoLink\TrackVerifierTests.cpp" />
     <ClCompile Include="CassoLink\LinkedDiskTests.cpp" />
     <ClCompile Include="CassoLink\AdtProServerSessionTests.cpp" />
@@ -491,6 +506,7 @@
     <ClCompile Include="CassoExplorer\PreviewSaveChoicesTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewStepsTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewViewChoicesTests.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerPreviewPaneTests.cpp" />
     <ClCompile Include="CassoExplorer\ExplorerWindowPartsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommandsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerActionsTests.cpp" />
@@ -509,6 +525,17 @@
     <ClCompile Include="CassoExplorer\HostFileNamingTests.cpp" />
     <ClCompile Include="CassoExplorer\ContentSnifferTests.cpp" />
     <ClCompile Include="CassoExplorer\CatalogModelTests.cpp" />
+    <ClCompile Include="CassoExplorer\PickerColumnTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoImagesListingTests.cpp" />
+    <ClCompile Include="CassoExplorer\ImageVolumeFactsTests.cpp" />
+    <ClCompile Include="CassoExplorer\FileMaskSetTests.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerPickerHostTests.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerPickerWindowTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoHostDialogsTests.cpp" />
+    <ClCompile Include="CassoExplorer\PickerSaveFormTests.cpp" />
+    <ClCompile Include="CassoExplorer\PickerScopeTests.cpp" />
+    <ClCompile Include="CassoExplorer\ExplorerTreePaneTests.cpp" />
+    <ClCompile Include="CassoExplorer\StockDisksListingTests.cpp" />
     <ClCompile Include="CassoExplorer\ApplesoftVariablesTests.cpp" />
     <ClCompile Include="CassoExplorer\PreviewDecoderTests.cpp" />
     <ClCompile Include="CassoExplorer\RawCopyDropHandlerTests.cpp" />
@@ -542,6 +569,7 @@
     <ClInclude Include="CassoExplorer\FakeExplorerWindow.h" />
     <ClInclude Include="CassoExplorer\FakeRecycleBin.h" />
     <ClInclude Include="CassoExplorer\RecordingExplorerServices.h" />
+    <ClInclude Include="CassoExplorer\ExplorerWindowPartsRig.h" />
     <ClInclude Include="CassoExplorer\FakeFolderWatcher.h" />
     <ClInclude Include="CassoExplorer\FakeDiskPictures.h" />
     <ClCompile Include="CassoExplorer\CassoTargetingTests.cpp" />
@@ -553,6 +581,7 @@
     <ClCompile Include="EmuTests\ProDosModifiedDateTests.cpp" />
     <ClCompile Include="EmuTests\FrameClockTests.cpp" />
     <ClCompile Include="EmuTests\OpenAppleResetTests.cpp" />
+    <ClCompile Include="EmuTests\AcceleratorTableTests.cpp" />
     <ClCompile Include="EmuTests\CpuCommandDispatcherTests.cpp" />
     <ClCompile Include="EmuTests\GuestSession.cpp" />
     <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
@@ -611,6 +640,9 @@
     <ClCompile Include="Devices\Disk2ControllerAudioTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerIdleTests.cpp" />
     <ClCompile Include="Devices\DiskFieldFormatTests.cpp" />
+    <ClCompile Include="Devices\ImageClassifierTests.cpp" />
+    <ClCompile Include="Devices\ImageClassCacheTests.cpp" />
+    <ClCompile Include="Devices\DriveImageRuleTests.cpp" />
     <ClCompile Include="Devices\DiskMarkPatternTests.cpp" />
     <ClCompile Include="Devices\Disk2EventRingTests.cpp" />
     <ClCompile Include="Devices\Disk2AddressMarkWatcherTests.cpp" />
@@ -709,6 +741,7 @@
     <ClCompile Include="UiTests\MainMenuDropdownTests.cpp" />
     <ClCompile Include="UiTests\AutoMountTests.cpp" />
     <ClCompile Include="UiTests\SettingsPanelStateTests.cpp" />
+    <ClCompile Include="UiTests\DiskPortChainEditTests.cpp" />
     <ClCompile Include="UiTests\SerialCardNoticeTests.cpp" />
     <ClCompile Include="UiTests\CommandLineHelpLayoutTests.cpp" />
     <ClCompile Include="UiTests\CommandLineHelpPanelTests.cpp" />
@@ -769,6 +802,7 @@
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiComboBoxFitTests.cpp" />
     <ClCompile Include="Dxui\DxuiComboBoxItemEnabledTests.cpp" />
+    <ClCompile Include="Dxui\DxuiComboBoxRichRowsTests.cpp" />
     <ClCompile Include="Dxui\DxuiComboBoxScrollTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiPanelTests.cpp" />
@@ -847,6 +881,8 @@
     <ClCompile Include="EmuTests\ShellKeyRoutingTests.cpp" />
     <ClCompile Include="EmuTests\ShellKeyWiringTests.cpp" />
     <ClCompile Include="EmuTests\DriveRowLayoutTests.cpp" />
+    <ClCompile Include="EmuTests\DriveBarFanTests.cpp" />
+    <ClCompile Include="EmuTests\DriveLabelTests.cpp" />
     <ClCompile Include="NetworkTests\FakeHostSocket.cpp" />
     <ClCompile Include="NetworkTests\FirewallCheckTests.cpp" />
     <ClCompile Include="NetworkTests\FirewallMonitorTests.cpp" />
@@ -872,6 +908,29 @@
     <ClCompile Include="NetworkTests\MacAddressTests.cpp" />
     <ClCompile Include="NetworkTests\NetworkCardSettingsTests.cpp" />
     <ClCompile Include="UiTests\NetworkPageTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\BlockDeviceEventRingTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\BlockDeviceMediaTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\DriveRuleMountAgreementTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\Ncr5380Tests.cpp" />
+    <ClCompile Include="BlockDeviceTests\ScsiHardDiskTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\AppleScsiCardTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\BlockDeviceAttachmentsTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\StockHardDiskImageTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\ProFileTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\HardDiskAttachTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Floppy35AttachTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Gcr35TrackTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Sony35DriveTests.cpp" />
+    <ClCompile Include="Floppy35Tests\IwmTests.cpp" />
+    <ClCompile Include="Floppy35Tests\Apple35ControllerCardTests.cpp" />
+    <ClCompile Include="Floppy35Tests\SmartPortBusTests.cpp" />
+    <ClCompile Include="Floppy35Tests\DiskPortChainTests.cpp" />
+    <ClCompile Include="BlockDeviceTests\DefaultCardsTests.cpp" />
+    <ClCompile Include="EmuTests\Apple2cPlusDeviceTests.cpp" />
+    <ClCompile Include="Audio\DeviceAudioSourceTests.cpp" />
+    <ClCompile Include="UiTests\SlotCardsTests.cpp" />
+    <ClCompile Include="EmuTests\IdleDevicePerformanceTests.cpp" />
+    <ClCompile Include="UiTests\DeskDrivePlanTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
@@ -895,6 +954,7 @@
     <ClInclude Include="CassoLink\CassoLinkCaptures.h" />
     <ClInclude Include="CassoLink\InMemoryCassoLinkFolder.h" />
     <ClInclude Include="CassoLink\FakeApple.h" />
+    <ClInclude Include="CassoLink\FullSendTestDisks.h" />
     <ClInclude Include="CassoLink\ProgramRig.h" />
     <ClInclude Include="CassoLink\SteppedByteStream.h" />
     <ClInclude Include="EmuTests\GoldenImage.h" />
@@ -931,6 +991,9 @@
     <ClInclude Include="NetworkTests\UthernetRig.h" />
     <ClInclude Include="NetworkTests\DhcpTestPackets.h" />
     <ClInclude Include="NetworkTests\RecordingPacketSink.h" />
+    <ClInclude Include="UiTests\SettingsRecordingSink.h" />
+    <ClInclude Include="EmuTests\Woz35Builder.h" />
+    <ClInclude Include="Devices\ImageHeadBuilder.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ehm\Ehm.vcxproj">

@@ -6,9 +6,12 @@
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Devices/Floppy35/IDiskDriveBus.h"
+#include "Devices/Floppy35/Iwm.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
 #include "Machines/Apple2/Common/DiskAccessLog.h"
+#include "Machines/Apple2/Common/IDiskPortHook.h"
 
 
 class IDriveAudioSink;
@@ -114,15 +117,19 @@ public:
     // address-mark / data-mark events through the same sink.
     void          SetEventSink (IDisk2EventSink * sink) noexcept;
 
-    // Apple //c IWM mode. The //c's built-in drive is an Integrated Woz
-    // Machine, not a Disk II card, so it adds a write-only MODE register and a
-    // read-only STATUS register selected by Q6=1/Q7 with the motor off:
-    //   Q6H + Q7H + motor off + write -> load MODE register
-    //   Q6H + Q7L + read            -> STATUS register (low 5 bits = MODE)
-    // The //c reset firmware writes the mode register then reads it back via
-    // status to confirm the IWM is present. Off by default so a real Disk II
-    // card (the //e) is byte-for-byte unchanged.
+    // Apple //c IWM mode. The //c's disk port is an Integrated Woz Machine,
+    // not a Disk II card: the switches go to an `Iwm`, whose two drives are
+    // this controller's drives, read and written a cell at a time. Off by
+    // default, for a Disk II card.
     void   SetIwmMode (bool v) { m_iwmMode = v; }
+    bool   IsIwmMode  () const { return m_iwmMode; }
+    Iwm  & GetIwm     ()       { return m_iwm; }
+
+    //  A SmartPort chain on the //c's disk port. Each access to the IWM's
+    //  switches goes to it after the controller, and its byte replaces the
+    //  controller's for drive 2 while it has the bus. On the //c Plus it
+    //  also enables the drives (IDiskPortHook). Caller-owned.
+    void   SetPortHook (IDiskPortHook * hook) { m_portHook = hook; }
 
     // Motor-idle auto-flush hook. Invoked on the CPU thread at the exact
     // moment the motor spins down (the true->false transition in Tick) --
@@ -188,6 +195,7 @@ public:
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
 private:
+    bool  PollFloppyEnable      ();
     void  HandleSwitch          (int offset);
     void  HandlePhase           (int phase, bool on);
     void  OnLatchLoad           ();
@@ -195,6 +203,7 @@ private:
     void  UpdateEngineWriteMode ();
     Byte  HandleReadDispatch    ();
     void  CatchUpToCpu          ();
+    void  AdvanceEngine         (uint32_t cycles);
 
     // Offers the idle callback a turn, at most once per emulated frame.
     void   PumpIdleCallback (uint32_t cpuCycles);
@@ -237,10 +246,45 @@ private:
     bool                 m_q6           = false;
     bool                 m_q7           = false;
 
-    // Apple //c IWM (see SetIwmMode). m_iwmMode gates the extra register
-    // behavior; m_iwmModeReg holds the last-written MODE register value.
-    bool                 m_iwmMode      = false;
-    Byte                 m_iwmModeReg   = 0;
+    // One of the //c IWM's two drives: its phases step the drive's head,
+    // its cells are the drive's engine, and its enable runs the motor.
+    class IwmDrive : public IDiskDriveBus
+    {
+    public:
+        IwmDrive (Disk2Controller & controller, int drive) : m_controller (controller), m_drive (drive) {}
+
+        void      SetPhases  (bool ph0, bool ph1, bool ph2, bool ph3) override;
+        bool      GetSense   () const override;
+        Byte      ReadCell   (uint64_t cellEndNs) override;
+        void      WriteCell  (Byte bit, uint64_t cellEndNs) override;
+        void      Advance    (uint64_t elapsedNs) override { (void) elapsedNs; }
+        uint32_t  GetCellNs  () const override { return kIwmCellNs; }
+        void      SetEnabled (bool isEnabled) override;
+
+    private:
+        Disk2Controller  & m_controller;
+        int                m_drive = 0;
+    };
+
+    // The IWM's time is the CPU's cycles at a thousand nanoseconds a cycle,
+    // near enough to real time at the //c's 1.02 MHz for its one-second
+    // motor timer. A cell is four cycles, as a Disk II card's is.
+    static constexpr uint64_t  kIwmNsPerCycle = 1000;
+    static constexpr uint32_t  kIwmCellNs     = Disk2NibbleEngine::kCyclesPerBit * kIwmNsPerCycle;
+
+    Byte      AccessIwm    (int offset, bool isWrite, Byte value);
+    uint64_t  GetIwmNow    ();
+    void      OnIwmPhases  (int drive, uint8_t phases);
+    void      OnIwmEnable  (int drive, bool isEnabled);
+    void      SyncIwmMotor ();
+    void      TickIwm      (uint32_t cpuCycles);
+
+    bool                               m_iwmMode    = false;
+    IDiskPortHook                    * m_portHook   = nullptr;
+    Iwm                                m_iwm;
+    std::array<IwmDrive, kDriveCount>  m_iwmDrives  { IwmDrive { *this, 0 }, IwmDrive { *this, 1 } };
+    std::array<bool, kDriveCount>      m_iwmEnabled = {};
+    uint64_t                           m_iwmCycles  = 0;
 
     DiskImage            m_disks[kDriveCount];
     DiskImage *          m_activeDisk[kDriveCount] = { nullptr, nullptr };

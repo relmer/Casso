@@ -1053,6 +1053,7 @@ void EditingPart::TakeSaveCopyReply (const InspectorReply & reply)
 
     extension             = (m_session.analysis.copy != nullptr && m_session.analysis.copy->format == DiskFormat::Woz) ? std::wstring (L"woz") : extension;
     spec.filters          = { { L"Disk images", L"*." + extension } };
+    spec.content = FileDialogContent::Images;
     spec.defaultExtension = extension;
     spec.defaultFileName  = image.stem().wstring() + L" edited." + extension;
     spec.initialFolder    = image.parent_path();

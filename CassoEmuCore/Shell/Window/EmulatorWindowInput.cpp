@@ -455,6 +455,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         }
     }
 
+    // The drive bar's fan opens over a class's widget and closes when the
+    // pointer moves off it and its panel.
+    if (m_chrome->UpdateDriveBarHover (pointer))
+    {
+        m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+    }
+
     // A fresh hover over a drive widget replays its basename marquee, so
     // the full filename can be re-read on demand. The same pass notes a
     // write-protected drive under the pointer so the WP tooltip can show.
@@ -605,6 +612,34 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
             }
         }
 
+        // A 3.5-inch drive or hard disk on the desk, or a Disk II in a stack,
+        // has no name strip, so the drive under the pointer has its image's
+        // name on its front.
+        {
+            const DeskSceneComposition  & comp       = m_scene->m_deskScene.Composition();
+            int                           hoverExtra = -1;
+            int                           hoverDisk  = -1;
+            bool                          isOnDesk   = DeskSceneActive() && !AreDrivesOnStrip();
+            float                         extraT     = 0.0f;
+
+
+
+            if (isOnDesk)
+            {
+                hoverExtra = m_scene->GetExtraAt (pointer.x, pointer.y, extraT);
+            }
+
+            for (int i = 0; isOnDesk && hoverExtra < 0 && i < comp.driveCount && i < 2 && m_scene->AreDiskIiStacked() && hoverDisk < 0; i++)
+            {
+                hoverDisk = PtInRect (&comp.driveRectPx[i], pointer) ? i : -1;
+            }
+
+            if (m_scene->SetHoverDrive (hoverExtra, hoverDisk))
+            {
+                m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+            }
+        }
+
         if (tip.empty() && !DeskSceneActive() && wpDrive != nullptr)
         {
             std::wstring  imageName = std::filesystem::path (
@@ -660,10 +695,16 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
         drive.UpdateMarqueeHover (false, false, nowMs);
     }
 
+    if (m_chrome->UpdateDriveBarHover (POINT { INT_MIN / 2, INT_MIN / 2 }))
+    {
+        m_renderer->m_d3dRenderer.MarkRedrawNeeded();
+    }
+
     // Off every control, so the recorder's magnified controls ease back down
     // and the desk's scrolling name returns to its start.
     m_tapeDeck->GetWidget().UpdateHover (INT_MIN / 2, INT_MIN / 2);
     m_scene->m_recorderHoverKey = -1;
+    m_scene->SetHoverDrive (-1, -1);
 
     if (m_scene->UpdateSceneLabelHover (INT_MIN / 2, INT_MIN / 2, nowMs))
     {
@@ -1499,7 +1540,8 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     {
         SceneHitResult  hit    = m_scene->DeskSceneHit (x, y);
         bool            onDoor = hit.target == SceneHitResult::Target::Drive
-                                 && hit.region == DriveWidgetRegion::Eject;
+                                 && hit.region == DriveWidgetRegion::Eject
+                                 && m_scene->GetExtraUnder (hit, x, y) < 0;
 
         if (!onDoor && hit.target != SceneHitResult::Target::BezelTilt)
         {
@@ -1727,6 +1769,12 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     BAIL_OUT_IF (wasSuppressed, S_OK);
 
+    // The drive bar under the desk scene or a compact theme's picture, whose
+    // drives are not scene objects.
+    driveTook = m_scene->AreDrivesOnBar() && m_chrome->HandleDriveBarClick (POINT { x, y });
+
+    BAIL_OUT_IF (driveTook, S_OK);
+
     // Drive clicks. Scene active: the 3D drives resolve through the hit
     // tester with the same region semantics (slot = eject + browse, body =
     // browse); otherwise the 2D widget walk. Either way the actions route
@@ -1739,6 +1787,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                                   m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
                                   PtInRect (&m_scene->m_stripRectPx, pt);
         SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
+        int             extra    = inStrip ? -1 : m_scene->GetExtraUnder (sceneHit, x, y);
+
+        // A 3.5-inch drive or hard disk in front of the Disk II takes the
+        // click, below.
+        if (extra >= 0)
+        {
+            sceneHit = SceneHitResult {};
+        }
 
         // ONLY THE DOOR ACTS. The body region stays for hover -- the
         // tooltip that names the disk -- but a click there does nothing:
@@ -1749,13 +1805,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         {
             m_disks->Eject (6, sceneHit.driveIndex);
 
-            // A browse opened from the strip pins it (the FSM must not
-            // auto-hide under the dialog).
-            m_scene->m_stripBrowseOpen = inStrip || IsDeskSlideActive();
-            m_disks->BrowseForDisk (sceneHit.driveIndex,
-                                    inStrip ? &m_scene->m_stripComp.driveRectPx[sceneHit.driveIndex]
-                                            : &m_scene->m_deskScene.Composition().driveRectPx[sceneHit.driveIndex]);
-            m_scene->m_stripBrowseOpen = false;
+            m_disks->BrowseForDisk (sceneHit.driveIndex);
 
             driveTook = true;
         }
@@ -1792,6 +1842,15 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
             driveTook = true;
         }
 
+        // A 3.5-inch drive or hard disk on the desk picks an image for itself.
+        else if (extra >= 0 && !driveTook &&
+                 (ShellDeskScene::IsFloppy35 (m_scene->m_deskScene.GetExtraDrive (extra)) ||
+                  ShellDeskScene::IsHardDisk (m_scene->m_deskScene.GetExtraDrive (extra))))
+        {
+            m_scene->BrowseExtraDrive (extra);
+            driveTook = true;
+        }
+
         m_scene->m_stripBrowseOpen = false;
     }
     else
@@ -1815,14 +1874,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
                     m_disks->Eject (6, drive.GetDrive());
                 }
 
-                // When the widget is on the overlay strip (fullscreen or
-                // auto-hide), a browse opened from it pins the strip, so the
-                // FSM doesn't hide it under the dialog.
-                RECT  driveRect = drive.GetOuterRect();
-
-                m_scene->m_stripBrowseOpen = AreDrivesOnStrip();
-                m_disks->BrowseForDisk (drive.GetDrive(), &driveRect);
-                m_scene->m_stripBrowseOpen = false;
+                m_disks->BrowseForDisk (drive.GetDrive());
 
                 driveTook = true;
                 break;
@@ -2010,9 +2062,23 @@ DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 
 int EmulatorShell::StorageDeviceAt (int x, int y) const
 {
-    POINT  pt = { x, y };
+    POINT                 pt    = { x, y };
+    const DriveBarFan   & fan   = m_chrome->m_driveBarFan.GetFan();
+    int                   c     = -1;
+    int                   entry = -1;
 
 
+
+    // The drive bar first, in every theme: it is drawn over the scene and
+    // the flat drive widgets.
+    if (m_chrome->m_driveBarFan.IsVisible() && fan.HitTest (pt, c, entry))
+    {
+        const DeskDrive  & drive = fan.GetDrive (c, entry);
+
+        return (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
+               ? drive.drive
+               : kStorageMenuBar + c * ShellDeskScene::kBarDropClassStride + entry;
+    }
 
     if (DeskSceneActive())
     {
@@ -2020,6 +2086,16 @@ int EmulatorShell::StorageDeviceAt (int x, int y) const
                                    m_scene->m_stripRectPx.bottom > m_scene->m_stripRectPx.top &&
                                    PtInRect (&m_scene->m_stripRectPx, pt);
         SceneHitResult  sceneHit = inStrip ? m_scene->StripHit (x, y) : m_scene->DeskSceneHit (x, y);
+        int             extra    = inStrip ? -1 : m_scene->GetExtraUnder (sceneHit, x, y);
+
+
+
+        // A 3.5-inch drive or hard disk in front of the Disk II takes the
+        // click, as a left click does.
+        if (extra >= 0)
+        {
+            return kStorageMenuDeskExtra + extra;
+        }
 
         if (sceneHit.target == SceneHitResult::Target::Drive)
         {

@@ -45,6 +45,8 @@ void DxuiSegmentedControl::SetSegments (std::vector<std::wstring> labels)
 {
     m_labels    = std::move (labels);
     m_isSegmentEnabled.assign (m_labels.size(), true);
+    m_badges.assign (m_labels.size(), std::wstring());
+    m_badgeSeverities.assign (m_labels.size(), DxuiSeverity::Info);
     m_selected  = m_labels.empty() ? -1 : 0;
     m_hover     = -1;
     m_pressed   = -1;
@@ -479,6 +481,12 @@ void DxuiSegmentedControl::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
                             : (i == m_selected || i == m_hover) ? theme.Foreground()
                             : theme.ForegroundMuted();
 
+            if (i < static_cast<int> (m_badges.size()) && !m_badges[static_cast<size_t> (i)].empty())
+            {
+                PaintBadgedLabel (painter, text, theme, i, left + inset + segment * static_cast<float> (i), top, segment, height, color, fontPx);
+                continue;
+            }
+
             hr = text.DrawString (m_labels[static_cast<size_t> (i)].c_str(),
                                   left + inset + segment * static_cast<float> (i), top,
                                   segment, height,
@@ -492,6 +500,71 @@ void DxuiSegmentedControl::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
             painter.OutlineRoundedRect (left - ringGap, top - ringGap, width + 2.0f * ringGap, height + 2.0f * ringGap,
                                         height / 2.0f + ringGap, m_scaler.ToPxf (s_kRingDip), theme.FocusRing());
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiSegmentedControl::PaintBadgedLabel
+//
+//  The label, a gap, and the count badge, centered together in the segment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiSegmentedControl::PaintBadgedLabel (
+    IDxuiPainter       & painter,
+    IDxuiTextRenderer  & text,
+    const IDxuiTheme   & theme,
+    int                  index,
+    float                left,
+    float                top,
+    float                width,
+    float                height,
+    uint32_t             color,
+    float                fontPx)
+{
+    HRESULT               hr      = S_OK;
+    const std::wstring  & label   = m_labels[static_cast<size_t> (index)];
+    const std::wstring  & count   = m_badges[static_cast<size_t> (index)];
+    float                 badgeH  = m_scaler.ToPxf (s_kBadgeDip);
+    float                 gap     = m_scaler.ToPxf (s_kBadgeGapDip);
+    float                 labelW  = 0.0f;
+    float                 labelH  = 0.0f;
+    float                 badgeW  = DxuiSeverityBadge::GetCountWidth (text, count, badgeH);
+    float                 start   = 0.0f;
+
+
+
+    text.MeasureString (label.c_str(), fontPx, DxuiTheme::kBodyFace, labelW, labelH);
+    start = left + (std::max) (0.0f, (width - labelW - gap - badgeW) / 2.0f);
+
+    hr = text.DrawString (label.c_str(), start, top, labelW + 1.0f, height, color, fontPx, DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    DxuiSeverityBadge::DrawCount (painter, text, m_badgeSeverities[static_cast<size_t> (index)], count, start + labelW + gap, top + height / 2.0f, badgeH, theme, m_badgeErrorArgb);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiSegmentedControl::SetBadge
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiSegmentedControl::SetBadge (int index, const std::wstring & count, DxuiSeverity severity, uint32_t errorArgb)
+{
+    if (index >= 0 && index < static_cast<int> (m_badges.size()))
+    {
+        m_badges[static_cast<size_t> (index)]          = count;
+        m_badgeSeverities[static_cast<size_t> (index)] = severity;
+        m_badgeErrorArgb                               = errorArgb;
     }
 }
 

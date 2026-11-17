@@ -2,10 +2,13 @@
 
 #include "CassoExplorer/Browser/BrowserLoader.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/CassoImagesListing.h"
+#include "CassoExplorer/Model/StockDisksListing.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/A2retroNetConfig.h"
+#include "Devices/Disk/ImageClassifier.h"
 #include "Devices/Disk/Partitions/PartitionAccess.h"
 #include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Devices/Tape/TapeImageLoader.h"
@@ -93,6 +96,16 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
         m_browser.m_rows.push_back (CatalogModel::FromHostEntry (entry, isImage, index));
         m_browser.m_rows.back().isArchive = !entry.isFolder && !isImage && m_browser.m_tree.IsArchive (CassoExplorerBrowser::JoinPath (path, entry.name));
 
+        //  An image's form factor and formatted size, from its first bytes, and
+        //  read once while its length and time stay the same.
+        if (!entry.isFolder && ImageClassifier::IsImageExtension (std::filesystem::path (entry.name).extension().wstring()))
+        {
+            m_browser.m_rows.back().imageClass = m_browser.m_imageClasses.Get (m_browser.m_fileIo,
+                                                                               TextEncoding::WideToUtf8 (CassoExplorerBrowser::JoinPath (path, entry.name)),
+                                                                               entry.sizeBytes,
+                                                                               entry.modifiedUnix);
+        }
+
         //  A folder is listed by the name in its desktop.ini, as in the tree,
         //  read only for a read-only or system folder on this computer.
         if (entry.isFolder && (entry.isReadOnly || entry.isSystem) && !PathResolver::IsNetworkPath (path) && m_browser.m_tree.GetLocalizedNameLookup())
@@ -112,6 +125,8 @@ HRESULT BrowserLoader::LoadHostFolder (const std::wstring & path)
             }
         }
     }
+
+    m_browser.QueueVolumeFacts (path);
 
     return hr;
 }
@@ -503,6 +518,32 @@ HRESULT BrowserLoader::LoadRoot (const std::wstring & id)
         m_browser.m_tree.SetLinks (m_browser.m_links->BuildTreeEntries());
     }
 
+    //  A picker's stock disks and demo disks, which have no folder.
+    if (id == TreeModel::kStockDisksId || id == TreeModel::kDemoDisksId)
+    {
+        std::vector<CatalogRow>  stock;
+
+        m_rootChildren.clear();
+        StockDisksListing::Build ((id == TreeModel::kStockDisksId) ? m_browser.m_stockDisks : m_browser.m_demoDisks, stock);
+
+        for (CatalogRow & row : stock)
+        {
+            row.sourceIndex = m_browser.m_rows.size();
+            m_browser.m_rows.push_back (std::move (row));
+        }
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    //  The Casso node lists its folders' images; its folders are in the tree.
+    if (id == TreeModel::kCassoRootId)
+    {
+        hr = LoadCassoImages();
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     hr = m_browser.m_tree.GetChildren (id, m_rootChildren);
     CHR (hr);
 
@@ -572,6 +613,62 @@ HRESULT BrowserLoader::LoadRoot (const std::wstring & id)
     {
         AddAdtProHelpItem();
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserLoader::LoadCassoImages
+//
+//  The images of the Casso node's folders, as CassoImagesListing builds
+//  them. The root's children are left empty, so a row opens its own file
+//  rather than a folder of the root.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BrowserLoader::LoadCassoImages()
+{
+    HRESULT                      hr = S_OK;
+    std::vector<TreeNode>        nodes;
+    std::vector<std::wstring>    folders;
+    std::vector<DiskMru::Entry>  recent;
+    std::vector<CatalogRow>      rows;
+
+
+
+    m_rootChildren.clear();
+
+    hr = m_browser.m_tree.GetChildren (TreeModel::kCassoRootId, nodes);
+    CHR (hr);
+
+    for (const TreeNode & node : nodes)
+    {
+        if (!node.missing && node.location.kind == Location::Kind::HostFolder && !node.location.path.empty())
+        {
+            folders.push_back (node.location.path);
+        }
+    }
+
+    if (m_browser.m_recentLoads)
+    {
+        recent = m_browser.m_recentLoads();
+    }
+
+    CassoImagesListing::Build (m_browser.m_fs, m_browser.m_fileIo, m_browser.m_imageClasses, folders, recent, rows);
+
+    for (CatalogRow & row : rows)
+    {
+        row.sourceIndex = m_browser.m_rows.size();
+        m_browser.m_rows.push_back (std::move (row));
+    }
+
+    m_browser.QueueVolumeFacts (std::wstring());
 
 Error:
     return hr;

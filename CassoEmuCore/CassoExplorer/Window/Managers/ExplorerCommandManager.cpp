@@ -1,12 +1,12 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/Managers/ExplorerCollectionTools.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "AssetBootstrap.h"
 #include "CassoExplorer/CassoExplorerRawDialog.h"
-#include "Machines/Apple2/Common/StockBootDisks.h"
 #include "CassoExplorer/CassoExplorerOptionsDialog.h"
 #include "CassoExplorer/CassoExplorerPromptDialog.h"
 #include "CassoExplorer/CassoExplorerShell.h"
@@ -15,7 +15,6 @@
 #include "Config/FileAssociations.h"
 #include "Seams/Win32UserClasses.h"
 #include "Update/Win32InstallEnvironment.h"
-#include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
 #include "Core/AppTimerIds.h"
 #include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
@@ -39,6 +38,8 @@
 #include "Seams/IHostDialogs.h"
 #include "Seams/Win32HostDialogs.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/CassoLinkDriveManager.h"
+#include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerThemes.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
@@ -410,6 +411,12 @@ bool ExplorerCommandManager::IsEnabled (int id) const
 
 
 
+    //  A picker has only the commands on its list.
+    if (IsBlockedInPicker (id))
+    {
+        return false;
+    }
+
     //  A standard command row is enabled when the focused control reports it
     //  available, and grayed when no control handles it.
     if (standard != DxuiStandardCommand::None)
@@ -479,8 +486,8 @@ bool ExplorerCommandManager::IsEnabled (int id) const
         case CassoExplorerCommands::kCompareDiskImages: return m_context.actions.CanCompare();
         case CassoExplorerCommands::kInitializeCard:    return m_context.app.cards != nullptr;
         case CassoExplorerCommands::kReadDiskToImage:
-        case CassoExplorerCommands::kWriteImageToDisk:  return m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive);
-        case CassoExplorerCommands::kCancelLinkOperation: return (m_context.browser.IsAppleDriveOpen() || m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive)) && m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
+        case CassoExplorerCommands::kWriteImageToDisk:  return m_context.browser.IsAppleDriveOpen() || m_context.linkDrives.TryGetSelectedLinkDrive (drive);
+        case CassoExplorerCommands::kCancelLinkOperation: return (m_context.browser.IsAppleDriveOpen() || m_context.linkDrives.TryGetSelectedLinkDrive (drive)) && m_context.app.links != nullptr && !m_context.app.links->GetPendingJobs().empty();
         case CassoExplorerCommands::kDeleteItems:       return m_context.listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Delete);
         case CassoExplorerCommands::kCloseSearch:
         case CassoExplorerCommands::kSearchOptions:     return true;
@@ -598,10 +605,17 @@ void ExplorerCommandManager::Dispatch (int id)
 {
     HRESULT  hr     = S_OK;
     bool     refill = false;
-    bool     routed = DxuiCommandRouter::Invoke (m_context.input.GetFocusedControl(),
-                                                  CassoExplorerCommands::GetStandardCommand (id));
+    bool     routed = false;
 
 
+
+    //  A picker has only the commands on its list, whatever sent this one.
+    if (IsBlockedInPicker (id))
+    {
+        return;
+    }
+
+    routed = DxuiCommandRouter::Invoke (m_context.input.GetFocusedControl(), CassoExplorerCommands::GetStandardCommand (id));
 
     //  A standard command belongs to whatever has focus, so it is routed
     //  rather than decided here.
@@ -698,8 +712,8 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kInspectDiskImage:  RunVerb (CassoExplorerActions::Verb::InspectDiskImage);  break;
         case CassoExplorerCommands::kCompareDiskImages: RunVerb (CassoExplorerActions::Verb::CompareDiskImages); break;
         case CassoExplorerCommands::kInitializeCard:    m_context.opener.InitializeShownCard();                   break;
-        case CassoExplorerCommands::kReadDiskToImage:     m_context.cassoLinkManager.ReadDiskToImage();                   break;
-        case CassoExplorerCommands::kWriteImageToDisk:    m_context.cassoLinkManager.WriteImageToDisk();                  break;
+        case CassoExplorerCommands::kReadDiskToImage:     m_context.linkDrives.ReadDiskToImage();                         break;
+        case CassoExplorerCommands::kWriteImageToDisk:    m_context.linkDrives.WriteImageToDisk();                        break;
         case CassoExplorerCommands::kCancelLinkOperation: m_context.actions.CancelLinkOperation();     break;
         case CassoExplorerCommands::kDeleteItems:  RunVerb (CassoExplorerActions::Verb::Delete); break;
         case CassoExplorerCommands::kCloseSearch:     m_context.addressBar.CloseSearch(); break;
@@ -870,7 +884,7 @@ void ExplorerCommandManager::Dispatch (int id)
         case CassoExplorerCommands::kGroup8: m_context.preview.GetHex().SetGrouping (8); break;
 
         case CassoExplorerCommands::kOptions:           ShowOptions(); break;
-        case CassoExplorerCommands::kFullSendStatus:    m_context.cassoLinkManager.ShowFullSendWindow (true); break;
+        case CassoExplorerCommands::kFullSendStatus:    m_context.fullSendWindows.ShowFullSendWindow (true); break;
 
         case CassoExplorerCommands::kBack:    refill = m_context.browser.GoBack();    break;
         case CassoExplorerCommands::kForward: refill = m_context.browser.GoForward(); break;
@@ -980,30 +994,6 @@ void ExplorerCommandManager::ChooseCharset (Charset charset)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerCommandManager::CreateDisk
-//
-//  Create an empty disk in the listed folder, whatever is selected, as File
-//  Explorer's New does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerCommandManager::CreateDisk (const CassoExplorerNewDiskDialog::Outcome & newDisk)
-{
-    CassoExplorerActions::Outcome  outcome = m_context.actions.CreateImage (m_context.browser.GetLocation().path, newDisk.fileName, newDisk.request);
-
-
-
-    ReportOutcome (outcome, L"New disk");
-    m_context.folderSync.RefreshAfterHostChange();
-    m_context.listPane.SelectRowNamed (newDisk.fileName);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerCommandManager::ShowOptions
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1038,12 +1028,13 @@ void ExplorerCommandManager::ShowOptions()
     choices.autoPreview  = m_context.prefs.autoPreview;
     choices.enterExpands = m_context.prefs.enterExpandsPreview;
     choices.autoThumbnails = m_context.prefs.autoThumbnails;
-    choices.fullSendFolder    = m_context.prefs.fullSendFolder.empty() ? CassoLinkManager::GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
+    choices.fullSendFolder    = m_context.prefs.fullSendFolder.empty() ? FullSendWindowManager::GetDefaultFullSendFolder() : m_context.prefs.fullSendFolder;
     choices.fullSendExtension = m_context.prefs.fullSendExtension;
     choices.bootSoundPlace    = m_context.prefs.bootSoundPlace;
     choices.verifyReads       = m_context.prefs.verifyReads;
     choices.verifyWrites      = m_context.prefs.verifyWrites;
     choices.autoVerify        = m_context.prefs.autoVerify;
+    choices.fullSendProtection = m_context.prefs.fullSendProtection;
 
     choices.monitor      = (int) m_context.preview.GetPicture().GetMonitor();
     choices.customArgb   = m_context.prefs.previewCustomArgb;
@@ -1090,13 +1081,14 @@ void ExplorerCommandManager::ShowOptions()
     m_context.prefs.enterExpandsPreview = choices.enterExpands;
     m_context.prefs.autoThumbnails      = choices.autoThumbnails;
     m_context.prefs.rawCopyMenu         = choices.rawCopyMenu;
-    m_context.prefs.fullSendFolder    = choices.fullSendFolder == CassoLinkManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
+    m_context.prefs.fullSendFolder    = choices.fullSendFolder == FullSendWindowManager::GetDefaultFullSendFolder() ? std::wstring() : choices.fullSendFolder;
     m_context.prefs.fullSendExtension = choices.fullSendExtension;
     m_context.prefs.bootSoundPlace    = choices.bootSoundPlace;
     m_context.prefs.verifyReads       = choices.verifyReads;
     m_context.prefs.verifyWrites      = choices.verifyWrites;
     m_context.prefs.autoVerify        = choices.autoVerify;
-    m_context.cassoLinkManager.ApplyFullSendPrefs();
+    m_context.prefs.fullSendProtection = choices.fullSendProtection;
+    m_context.fullSendWindows.ApplyFullSendPrefs();
     m_context.cassoLinkManager.ApplyVerifyPrefs();
 
 
@@ -1286,7 +1278,7 @@ std::wstring ExplorerCommandManager::GetCommandLabel (int id) const
     {
         title = m_context.actions.DescribeAppleDrive();
     }
-    else if (m_context.cassoLinkManager.TryGetSelectedLinkDrive (drive))
+    else if (m_context.linkDrives.TryGetSelectedLinkDrive (drive))
     {
         title = m_context.browser.GetTreeModel().GetLinkDriveTitle (drive.path);
     }

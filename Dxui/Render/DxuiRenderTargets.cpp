@@ -4,6 +4,9 @@
 #include "Render/DxuiSvgPath.h"
 #include "DxuiTextRenderer.h"
 
+// CLSID_D2D1Morphology and CLSID_D2D1Shadow are exported by dxguid.lib.
+#pragma comment (lib, "dxguid.lib")
+
 
 
 
@@ -150,6 +153,149 @@ HRESULT DxuiRenderTargets::EndDrawToTexture (ID3D11ShaderResourceView ** outSrv)
     *outSrv = m_textureSrv.Get();
 
 Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginShadowCapture
+//
+//  Points the renderer at a command list on a second context, so the next
+//  draws go into the list instead of the target. The second context is given
+//  the main context's transform, DPI and antialiasing, so the list's contents
+//  are placed where the main context would have drawn them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiRenderTargets::BeginShadowCapture()
+{
+    HRESULT                  hr        = S_OK;
+    ComPtr<ID2D1Device>      device;
+    D2D1_MATRIX_3X2_F        transform = {};
+    float                    dpiX      = 0.0f;
+    float                    dpiY      = 0.0f;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_renderer.m_d2dContext);
+    CBRA (m_renderer.m_drawing);
+    CBRA (m_shadowList == nullptr);
+
+    if (m_shadowContext == nullptr)
+    {
+        m_renderer.m_d2dContext->GetDevice (device.GetAddressOf());
+        CBRA (device);
+
+        hr = device->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE, m_shadowContext.GetAddressOf());
+        CHRA (hr);
+    }
+
+    hr = m_shadowContext->CreateCommandList (m_shadowList.GetAddressOf());
+    CHRA (hr);
+
+    m_renderer.m_d2dContext->GetTransform (&transform);
+    m_renderer.m_d2dContext->GetDpi (&dpiX, &dpiY);
+
+    m_shadowContext->SetTarget            (m_shadowList.Get());
+    m_shadowContext->SetDpi               (dpiX, dpiY);
+    m_shadowContext->SetTransform         (transform);
+    m_shadowContext->SetAntialiasMode     (m_renderer.m_d2dContext->GetAntialiasMode());
+    m_shadowContext->SetTextAntialiasMode (m_renderer.m_d2dContext->GetTextAntialiasMode());
+    m_shadowContext->BeginDraw();
+
+    m_shadowSavedContext     = m_renderer.m_d2dContext;
+    m_renderer.m_d2dContext  = m_shadowContext;
+
+Error:
+    if (FAILED (hr))
+    {
+        m_shadowList.Reset();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EndShadowCapture
+//
+//  Puts the main context back and draws the list through two effects: a
+//  dilation that thickens the strokes, so the shadow is dark close to the
+//  ink rather than a faint smear, and the shadow effect, which blurs the
+//  thickened strokes and fills them with black. The list's contents are
+//  already transformed, so the list is drawn with the identity transform.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiRenderTargets::EndShadowCapture (float spreadDip, float blurDip, float opacity)
+{
+    HRESULT               hr        = S_OK;
+    ComPtr<ID2D1Effect>   dilate;
+    ComPtr<ID2D1Effect>   shadow;
+    D2D1_MATRIX_3X2_F     transform = {};
+    UINT                  kernel    = (UINT) std::clamp ((int) lroundf (spreadDip * 2.0f) + 1, 1, 99);
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    CBRA (m_shadowList);
+    CBRA (m_shadowSavedContext);
+
+    hr = m_shadowContext->EndDraw();
+    m_shadowContext->SetTarget (nullptr);
+
+    m_renderer.m_d2dContext = m_shadowSavedContext;
+    m_shadowSavedContext.Reset();
+
+    CHRA (hr);
+
+    hr = m_shadowList->Close();
+    CHRA (hr);
+
+    hr = m_renderer.m_d2dContext->CreateEffect (CLSID_D2D1Morphology, dilate.GetAddressOf());
+    CHRA (hr);
+
+    dilate->SetInput (0, m_shadowList.Get());
+
+    hr = dilate->SetValue (D2D1_MORPHOLOGY_PROP_MODE, D2D1_MORPHOLOGY_MODE_DILATE);
+    CHRA (hr);
+
+    hr = dilate->SetValue (D2D1_MORPHOLOGY_PROP_WIDTH, kernel);
+    CHRA (hr);
+
+    hr = dilate->SetValue (D2D1_MORPHOLOGY_PROP_HEIGHT, kernel);
+    CHRA (hr);
+
+    hr = m_renderer.m_d2dContext->CreateEffect (CLSID_D2D1Shadow, shadow.GetAddressOf());
+    CHRA (hr);
+
+    shadow->SetInputEffect (0, dilate.Get());
+
+    hr = shadow->SetValue (D2D1_SHADOW_PROP_BLUR_STANDARD_DEVIATION, std::max (blurDip, 0.0f));
+    CHRA (hr);
+
+    hr = shadow->SetValue (D2D1_SHADOW_PROP_COLOR, D2D1::Vector4F (0.0f, 0.0f, 0.0f, std::clamp (opacity, 0.0f, 1.0f)));
+    CHRA (hr);
+
+    m_renderer.m_d2dContext->GetTransform (&transform);
+    m_renderer.m_d2dContext->SetTransform (D2D1::Matrix3x2F::Identity());
+    m_renderer.m_d2dContext->DrawImage    (shadow.Get());
+    m_renderer.m_d2dContext->SetTransform (transform);
+
+Error:
+    m_shadowList.Reset();
+
     return hr;
 }
 

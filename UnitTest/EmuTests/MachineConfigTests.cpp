@@ -813,6 +813,128 @@ public:
     }
 
 
+    //  Machine JSON with one slot entry after the minimal fields.
+    static std::string JsonWithSlot (const std::string & slotEntry)
+    {
+        std::string  json = MinimalJson();
+        size_t       at   = json.rfind ('}');
+
+
+
+        json.insert (at, ", \"slots\": [ " + slotEntry + " ]");
+
+        return json;
+    }
+
+
+    //  A SCSI CARD'S PORTS ARE ITS IDS, each an image, a free ID, or real
+    //  timing; its ROM resolves under Devices/AppleScsiCard and is its whole
+    //  firmware, not a slot page.
+    TEST_METHOD (Load_ScsiCard_PortsImagesAndFirmware)
+    {
+        MachineConfig          config;
+        std::string            error;
+        std::vector<fs::path>  paths = { "/mock" };
+        std::string            json  = JsonWithSlot (R"({ "slot": 7, "device": "apple-scsi-card", "rom": "341-0437-A.rom",
+            "ports": [ "", "", "", "", "", { "device": "hd20sc", "image": "C:/a.hdv", "realTiming": true },
+                       { "device": "hd20sc", "image": "stock" } ] })");
+        HRESULT                hr    = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll, config, error);
+
+
+
+        AssertSucceeded (hr, TextEncoding::NarrowToWide (error).c_str());
+        Assert::AreEqual (size_t (7), config.slots[0].ports.size());
+        Assert::IsTrue   (config.slots[0].ports[0].device.empty());
+        Assert::AreEqual (std::string ("C:/a.hdv"), config.slots[0].ports[5].image);
+        Assert::IsTrue   (config.slots[0].ports[5].realTiming);
+        Assert::IsFalse  (config.slots[0].ports[6].realTiming, L"real timing is off unless the entry turns it on");
+        Assert::AreEqual (std::string ("stock"), config.slots[0].ports[6].image);
+        Assert::IsTrue   (config.slots[0].rom.empty(), L"the card's ROM is not a 256-byte slot page");
+        Assert::AreEqual ((int) SlotFirmwareStatus::Present, (int) config.slots[0].firmwareStatus);
+        Assert::IsTrue   (config.slots[0].firmwarePath.find ("341-0437-A.rom") != std::string::npos);
+    }
+
+
+    //  A CARD WITH NO `rom` USES ITS DEFAULT FIRMWARE, and a missing file
+    //  leaves the load working, with the folder searched in the status.
+    TEST_METHOD (Load_BlockCard_MissingFirmwareDoesNotFailTheLoad)
+    {
+        MachineConfig          config;
+        std::string            error;
+        std::vector<fs::path>  paths = { "/mock" };
+        std::string            json  = JsonWithSlot (R"({ "slot": 5, "device": "liron-card" })");
+        HRESULT                hr    = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveSystemRomOnly, config, error);
+
+
+
+        AssertSucceeded (hr, TextEncoding::NarrowToWide (error).c_str());
+        Assert::AreEqual (std::string ("Liron.rom"), config.slots[0].firmware);
+        Assert::AreEqual ((int) SlotFirmwareStatus::Missing, (int) config.slots[0].firmwareStatus);
+        Assert::IsTrue   (config.slots[0].firmwarePath.find ("LironCard") != std::string::npos);
+    }
+
+
+    //  A CARD THE MACHINE CANNOT HOST IS LEFT OUT, with the machines that
+    //  accept it in the problem text, and the rest of the machine loads.
+    TEST_METHOD (Load_BlockCard_OnAMachineThatCannotHostIt)
+    {
+        MachineConfig          config;
+        std::string            error;
+        std::vector<fs::path>  paths = { "/mock" };
+        std::string            json  = JsonWithSlot (R"({ "slot": 5, "device": "apple35-card" })");
+        HRESULT                hr    = MachineConfigLoader::Load (json, "Apple2Plus", paths, MockResolveAll, config, error);
+
+
+
+        AssertSucceeded (hr, TextEncoding::NarrowToWide (error).c_str());
+        Assert::IsTrue (config.slots[0].device.empty(), L"the slot is empty");
+        Assert::IsTrue (config.slots[0].deviceProblem.find ("Apple //e") != std::string::npos,
+                        L"the problem lists the machines that accept the card");
+    }
+
+
+    //  A DRIVE THE CARD DOES NOT ACCEPT IS REMOVED FROM ITS PORT.
+    TEST_METHOD (Load_BlockCard_RejectsADriveItDoesNotAccept)
+    {
+        MachineConfig          config;
+        std::string            error;
+        std::vector<fs::path>  paths = { "/mock" };
+        std::string            json  = JsonWithSlot (R"({ "slot": 7, "device": "apple-scsi-card",
+            "ports": [ { "device": "unidisk35", "image": "x.po" } ] })");
+        HRESULT                hr    = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll, config, error);
+
+
+
+        AssertSucceeded (hr, TextEncoding::NarrowToWide (error).c_str());
+        Assert::IsTrue (config.slots[0].ports[0].device.empty());
+        Assert::IsTrue (config.slots[0].ports[0].image.empty());
+        Assert::IsFalse (config.slots[0].deviceProblem.empty());
+    }
+
+
+    //  A //C DISK PORT HAS A CHAIN of drives, each with its image.
+    TEST_METHOD (Load_DiskPortChain_Parsed)
+    {
+        MachineConfig          config;
+        std::string            error;
+        std::vector<fs::path>  paths = { "/mock" };
+        std::string            json  = MinimalJson();
+        HRESULT                hr    = S_OK;
+
+
+
+        json.insert (json.rfind ('}'), R"(, "ports": [ { "name": "disk", "chain": [
+            { "device": "unidisk35", "image": "a.po" }, "disk-iic" ] } ])");
+
+        hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll, config, error);
+
+        AssertSucceeded (hr, TextEncoding::NarrowToWide (error).c_str());
+        Assert::AreEqual (size_t (2), config.ports[0].chain.size());
+        Assert::AreEqual (std::string ("a.po"),     config.ports[0].chain[0].image);
+        Assert::AreEqual (std::string ("disk-iic"), config.ports[0].chain[1].device);
+    }
+
+
     //
     //  A missing `ports` key must leave the vector EMPTY, which callers read
     //  as "this machine's default" -- never as "no connectors". Every config
@@ -1096,6 +1218,22 @@ private:
         {
             expectedSize = 32768;   // //c ROM 4: two 16K banks
         }
+        else if (filename == "341-0437-A.rom")
+        {
+            expectedSize = 16384;
+        }
+        else if (filename == "Liron.rom")
+        {
+            expectedSize = 4096;
+        }
+        else if (filename == "341-0438-A.rom")
+        {
+            expectedSize = 32768;
+        }
+        else if (filename == "341-0271-A.rom" || filename == "341-0299-B.rom")
+        {
+            expectedSize = 2048;
+        }
         else
         {
             expectedSize = 256;  // default
@@ -1128,6 +1266,17 @@ private:
         }
 
         return tempPath;
+    }
+
+    static fs::path MockResolveSystemRomOnly (
+        const std::vector<fs::path> & searchPaths,
+        const fs::path              & relativePath)
+    {
+        bool  isCard = relativePath.string().find ("Devices") != std::string::npos;
+
+
+
+        return isCard ? fs::path() : MockResolveAll (searchPaths, relativePath);
     }
 
     static fs::path MockResolveNone (

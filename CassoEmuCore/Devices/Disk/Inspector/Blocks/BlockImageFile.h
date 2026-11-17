@@ -87,19 +87,32 @@ public:
     //  or last committed.
     bool     IsFileUnchanged ();
 
+    //  Whether a Disk Copy 4.2 image's stored data checksum matches its data;
+    //  true for any other container.
+    HRESULT  IsDataChecksumValid (bool & outValid);
+
     static uint32_t  ReadLittleLong (std::span<const Byte> bytes, size_t at);
     static uint32_t  ReadBigLong    (std::span<const Byte> bytes, size_t at);
 
-private:
+    //  The 2IMG and Disk Copy 4.2 headers' fields, for a reader of the
+    //  container's first bytes, such as the image classifier.
     static constexpr size_t    kTwoImgHeader     = 64;
     static constexpr size_t    kTwoImgFormat     = 0x0C;
     static constexpr size_t    kTwoImgBlocks     = 0x14;
     static constexpr size_t    kTwoImgDataOffset = 0x18;
     static constexpr size_t    kTwoImgDataLength = 0x1C;
+    static constexpr uint32_t  kTwoImgDos        = 0;
     static constexpr uint32_t  kTwoImgProDos     = 1;
+    static constexpr uint32_t  kTwoImgNibble     = 2;
     static constexpr size_t    kDcHeader         = 84;
     static constexpr size_t    kDcDataSize       = 64;
     static constexpr size_t    kDcTagSize        = 68;
+
+    static bool  IsTwoImgHeader    (std::span<const Byte> header);
+    static bool  IsDiskCopyHeader  (std::span<const Byte> header, uint64_t fileBytes);
+    static bool  IsBlockExtension  (const std::string & path);
+
+private:
     static constexpr size_t    kDcDataSum        = 72;
     static constexpr size_t    kDcTagSum         = 76;
     static constexpr size_t    kDcPrivate        = 82;
@@ -108,10 +121,6 @@ private:
     static constexpr size_t    kDcTagSumSkip     = 12;
 
     BlockImageFile (IDiskFileIo & fileIo, std::string path) : m_fileIo (fileIo), m_path (std::move (path)) {}
-
-    static bool  IsTwoImgHeader    (std::span<const Byte> header);
-    static bool  IsDiskCopyHeader  (std::span<const Byte> header, uint64_t fileBytes);
-    static bool  IsBlockExtension  (const std::string & path);
 
     HRESULT  ComputeDataChecksum (uint32_t & outSum);
     HRESULT  ComputeTagChecksum  (uint32_t & outSum);

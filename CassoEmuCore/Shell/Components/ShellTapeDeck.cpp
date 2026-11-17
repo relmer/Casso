@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/Components/ShellTapeDeck.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Core/JsonValue.h"
 #include "Devices/Tape/TapeImageLoader.h"
@@ -628,7 +629,9 @@ void ShellTapeDeck::BrowseForTape()
 
 
 
-    spec.filters = { { L"Tape recordings", L"*.wav;*.aif;*.aiff;*.aifc;*.mp3;*.flac" }, { L"All files", L"*.*" } };
+    spec.filters        = { { L"Tape recordings", L"*.wav;*.aif;*.aiff;*.aifc;*.mp3;*.flac" }, { L"All files", L"*.*" } };
+    spec.content        = FileDialogContent::Images;
+    spec.receivingDrive = ReceivingDrive { ReceivingDriveKind::Recorder, 0 };
 
     spec.initialFolder = m_shell.m_windowCommandManager->GetDiskCreateFolder();
 
@@ -658,9 +661,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellTapeDeck::CreateBlankTape()
+bool ShellTapeDeck::CreateBlankTape()
 {
     HRESULT                hr        = S_OK;
+    bool                   isCreated = false;
     FileDialogSpec         spec;
     std::filesystem::path  picked;
     std::u8string          folderUtf8;
@@ -668,7 +672,9 @@ void ShellTapeDeck::CreateBlankTape()
 
 
 
+    spec.title            = L"New blank tape";
     spec.filters          = { { L"WAV recordings", L"*.wav" } };
+    spec.content          = FileDialogContent::Images;
     spec.defaultExtension = L"wav";
     spec.defaultFileName  = L"New tape.wav";
     spec.initialFolder    = m_shell.m_windowCommandManager->GetDiskCreateFolder();
@@ -688,8 +694,10 @@ void ShellTapeDeck::CreateBlankTape()
     m_tapeManager->CreateBlank (picked.string());
     m_shell.m_disks->RecordRecentDisk (picked.wstring(), S_OK);
 
+    isCreated = true;
+
 Error:
-    return;
+    return isCreated;
 }
 
 
@@ -700,29 +708,13 @@ Error:
 //
 //  PickTape
 //
-//  The disk picker, choosing a tape, anchored under the tape widget.
+//  Opens the recorder's picker, or brings it to the front when it is open.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellTapeDeck::PickTape()
 {
-    HRESULT       hr       = S_OK;
-    RECT          anchor   = m_tapeChrome.GetNameRect();
-    const RECT  * pAnchor  = nullptr;
-
-
-
-    if (!IsRectEmpty (&anchor))
-    {
-        MapWindowPoints (m_shell.m_hwnd, HWND_DESKTOP, reinterpret_cast<POINT *> (&anchor), 2);
-        pAnchor = &anchor;
-    }
-
-    m_shell.m_host->BeginModalKeepAlive();
-    hr = m_shell.m_windowCommandManager->PromptInsertTapeMru (pAnchor);
-    m_shell.m_host->EndModalKeepAlive();
-
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    m_shell.m_drivePickers->OpenForRecorder();
 }
 
 

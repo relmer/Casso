@@ -7,6 +7,7 @@
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 #include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/PlatterGeometry.h"
 #include "Core/NumberFormat.h"
@@ -162,6 +163,47 @@ vector<SummaryChip> InspectorText::BuildBlockChips (const BlockInspectorModel & 
     if (crossed > 0)
     {
         chips.push_back ({ SummaryChipKind::CrossLinked, FormatCount (crossed, L"cross-linked block", L"cross-linked blocks"), true });
+    }
+
+    return chips;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::BuildChips
+//
+//  The same with the file-system verdict after the format, in the
+//  error color for Bad; a disk with nothing recorded doesn't get one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<SummaryChip> InspectorText::BuildChips (const DiskSummary & summary, FileSystemVerdict verdict)
+{
+    vector<SummaryChip>  chips = BuildChips (summary);
+    std::wstring         text  = L"File system: " + FileSystemCheck::FormatVerdict (verdict);
+
+
+
+    //  The chip is short: no file system as it is, and possible
+    //  inconsistencies as the one word.
+    if (verdict == FileSystemVerdict::None)
+    {
+        text = FileSystemCheck::FormatVerdict (verdict);
+    }
+    else if (verdict == FileSystemVerdict::Suspect)
+    {
+        text = L"Inconsistencies";
+    }
+
+
+
+    if (summary.tracksWithData > 0)
+    {
+        chips.insert (chips.begin() + 1, { SummaryChipKind::FileSystem, text, verdict == FileSystemVerdict::Bad });
     }
 
     return chips;

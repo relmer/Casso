@@ -361,6 +361,35 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockImageFile::IsDataChecksumValid
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT BlockImageFile::IsDataChecksumValid (bool & outValid)
+{
+    HRESULT   hr       = S_OK;
+    uint32_t  computed = 0;
+
+
+
+    outValid = true;
+    BAIL_OUT_IF (m_kind != BlockContainerKind::DiskCopy42, S_OK);
+
+    hr = ComputeDataChecksum (computed);
+    CHR (hr);
+
+    outValid = computed == ReadBigLong (m_header, kDcDataSum);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockImageFile::ComputeTagChecksum
 //
 //  The tag checksum starts after the first block's 12 tag bytes.

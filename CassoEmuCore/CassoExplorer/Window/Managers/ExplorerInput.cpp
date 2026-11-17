@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Model/FocusRing.h"
@@ -64,6 +66,7 @@ void ExplorerInput::SetFocusPane (ExplorerPane pane)
     m_context.listPane.HandleFocusChanged     (pane == ExplorerPane::List);
     m_context.tabManager.HandleFocusChanged     (pane == ExplorerPane::Tabs);
     m_context.addressBar.HandleFocusChanged   (pane);
+    m_context.pickerBar.HandleFocusChanged    (pane == ExplorerPane::PickerName);
     m_context.toolbars.GetNavToolbar().SetFocusIndex      (pane == ExplorerPane::Toolbar ? m_toolbarFocus : -1);
     m_context.toolbars.GetCommandBar().SetFocusIndex   (pane == ExplorerPane::CommandBar ? m_commandBarFocus : -1);
     m_context.preview.HandleFocusChanged  (pane);
@@ -562,6 +565,14 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  The wheel over a disk image's preview scrolls its thumbnail away
+    //  before the catalog under it.
+    if (m_context.preview.HandleWheel (ev))
+    {
+        m_context.window.Invalidate();
+        return true;
+    }
+
     //  A right-click on a scrollbar opens the bar's menu, as Windows' bars
     //  do.
     if (press && ev.button == DxuiMouseButton::Right && m_context.menus.ShowScrollbarMenu (ev))
@@ -690,6 +701,18 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         }
     }
 
+    //  A save form's file name box, as the search box above.
+    if (m_focus == ExplorerPane::PickerName)
+    {
+        handled = m_context.pickerBar.HandleNameKey (ev);
+
+        if (handled || ev.kind != DxuiKeyEventKind::Down)
+        {
+            m_context.window.Invalidate();
+            return handled;
+        }
+    }
+
     if (m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo)
     {
         handled = m_context.preview.GetFind().HandleBoxKey (m_focus, ev);
@@ -716,7 +739,7 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
     }
 
     //  Enter on a file expands its preview, when Options sets it to.
-    if (m_focus == ExplorerPane::List && m_context.preview.HandleEnterKey (ev))
+    if (m_focus == ExplorerPane::List && !m_context.IsPicker() && m_context.preview.HandleEnterKey (ev))
     {
         m_context.window.Invalidate();
         return true;
@@ -749,7 +772,7 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
     //  Ctrl+Z on the files undoes the last file operation; in a text box it is
     //  the box's own, which has the keys before this.
-    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_focus == ExplorerPane::List || m_focus == ExplorerPane::Tree) && !m_context.rename.IsRenaming())
+    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_focus == ExplorerPane::List || m_focus == ExplorerPane::Tree) && !m_context.rename.IsRenaming() && !m_context.IsPicker())
     {
         m_context.undo.UndoLast();
         return true;
@@ -760,6 +783,12 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
     if (command != 0)
     {
         m_context.commandManager.Dispatch (command);
+        return true;
+    }
+
+    //  Esc closes a picker, once nothing above had a use for it.
+    if (m_context.pickerMode.HandleKey (ev))
+    {
         return true;
     }
 
@@ -814,6 +843,7 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         case ExplorerPane::GoTo:                                                 break;
         case ExplorerPane::Address: handled = m_context.addressBar.HandleKey (ev); break;
         case ExplorerPane::LocationSearch: handled = m_context.addressBar.HandleFindBoxKey (ev);  break;
+        case ExplorerPane::PickerName:                                           break;
         case ExplorerPane::Tabs:    handled = m_context.tabManager.HandleKey (ev); break;
         case ExplorerPane::Tree:    handled = m_context.treePane.HandleKey (ev); break;
         case ExplorerPane::List:    handled = m_context.listPane.HandleKey (ev); break;

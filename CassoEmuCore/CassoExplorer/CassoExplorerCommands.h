@@ -314,6 +314,14 @@ public:
 
     static const wchar_t *  GetMenuTitle (Menu menu);
 
+    //  Whether a picker has the command: the ones that move through folders
+    //  and change the list's view, and New folder in a save form. Every
+    //  other command is disabled there, by every route.
+    static bool              IsAllowedInPicker (int id, bool isSaveForm);
+
+    //  Every command id in the table, for a sweep.
+    static std::vector<int>  GetAllIds ();
+
 private:
     struct Row
     {

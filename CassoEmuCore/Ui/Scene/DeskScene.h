@@ -53,6 +53,10 @@ public:
                          std::span<const uint8_t>   driveMesh,
                          std::span<const uint8_t>   recorderMesh = {});
 
+    // The model for the hard disks or 3.5-inch drives of `model`; LoadModels
+    // drops every one loaded before.
+    HRESULT  LoadExtraModel (DeskDriveModel model, std::span<const uint8_t> mesh);
+
     // Share another scene's parsed models rather than parsing the same text
     // again. The data is pure CPU vertex arrays, so a scene on a different
     // device can take it as-is -- which is what keeps a second scene (the
@@ -115,8 +119,18 @@ public:
     // Loaded follows the machine's cassette port; shown follows whether it
     // is attached, and flips without reloading anything.
     bool                    HasRecorder      () const { return m_hasRecorder && m_recorderShown; }
-    bool                    IsRecorderLoaded () const { return m_hasRecorder; }
-    void                    SetRecorderShown (bool shown);
+
+    // The drives other than the Disk II pair, from the drive plan: the ones
+    // on the desk in plan order, each with its lamp, for a 3.5-inch drive
+    // the disk in its slot, and for an HD20SC its size label ("20SC"); and
+    // the Disk II pair's spot and levels.
+    void               SetDrivePlan    (const std::vector<DeskDrivePlacement> & plan);
+    int                GetExtraCount   () const { return (int) m_extras.size(); }
+    const DeskDrive  & GetExtraDrive   (int index) const { return m_extras[(size_t) index].drive; }
+    void               SetExtraVisuals (int index, bool lampOn, bool hasDisk, const std::wstring & label);
+
+    bool  IsRecorderLoaded   () const { return m_hasRecorder; }
+    void  SetRecorderShown   (bool shown);
 
     // THE MOUNTED IMAGE'S NAME, as a surface in the scene rather than as
     // chrome laid over it.
@@ -140,16 +154,21 @@ public:
     // texture is grown rather than resized, so even a lone label rarely
     // covers all of it.
     // The baked labels the scene draws: the drives' names, the recorder's,
-    // and the info icon after each drive's name (see
-    // EmulatorShell::s_kSceneLabelCount).
-    static constexpr int  kLabelCount = 8;
+    // the name of the drive under the pointer, and the info icon after each
+    // drive's name (see ShellDeskScene::s_kSceneLabelCount).
+    static constexpr int  kLabelCount = 9;
     // The name of the recorder key under the pointer. A tip rather than a
     // decal, so it is drawn over everything, and the recorder's own front
     // lip never cuts through it.
     static constexpr int  kTipLabel   = 4;
 
+    // `alpha` fades the label: a drive's hover name fades as its face turns
+    // away from the viewer.
     void  SetDiskLabel (int drive, ID3D11ShaderResourceView * srv, const float corners[4][3],
-                        const float uv[4]);
+                        const float uv[4], float alpha = 1.0f);
+
+    // A desk extra drive's model bounds; false when its model isn't loaded.
+    bool  GetExtraModelBounds (int index, float outMin[3], float outMax[3]) const;
 
     // The measured metrics DeskSceneLayout composes with.
     DeskSceneMetrics  Metrics () const;
@@ -511,19 +530,20 @@ public:
     static constexpr float  kDoorProgressEps = 1.0f / 256.0f;
 
 private:
-    void     RebuildGlassUvs  (const CrtUvRect & displayUv, int displayW, int displayH);
-    void     RebuildLampVerts ();
+    void     RebuildGlassUvs      (const CrtUvRect & displayUv, int displayW, int displayH);
+    void     RebuildLampVerts     ();
     void     BuildDerivedGeometry ();
-    void     BuildGlassSheen  (const CurvedDisplaySurface & surface, float tiltRad);
-    HRESULT  DrawDrives       (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
-    HRESULT  DrawRecorder     (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    void     BuildGlassSheen      (const CurvedDisplaySurface & surface, float tiltRad);
+    HRESULT  DrawDrives           (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    HRESULT  DrawRecorder         (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    HRESULT  DrawExtras           (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
 
     // Appends `in` turned by `angleRad` about the model's left-right axis
     // through (pivotY, pivotZ), positive turning the front (low Y) down.
     // The chrome's reflection: the scene captured into a cube map around
     // the recorder's handle, and one face of it drawn.
-    HRESULT  RenderEnvironment   (const DeskSceneComposition & comp);
-    HRESULT  DrawEnvironmentFace (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
+    HRESULT  RenderEnvironment    (const DeskSceneComposition & comp);
+    HRESULT  DrawEnvironmentFace  (const DeskSceneComposition & comp, const D3D11_VIEWPORT & viewport);
     void     BuildEnvironmentRoom (const float center[3]);
 
     // Where the camera stands in the world, from its view matrix.
@@ -656,6 +676,27 @@ private:
     DeskSceneModel          m_recorder;
     bool                    m_hasRecorder   = false;
     bool                    m_recorderShown = true;
+
+    // One drive other than the Disk II pair, on the desk.
+    struct ExtraDrive
+    {
+        DeskDrive                            drive;
+        DeskDriveSpot                        spot    = DeskDriveSpot::LeftStack;
+        int                                  level   = 0;
+        bool                                 lampOn  = false;
+        bool                                 hasDisk = false;
+        std::wstring                         label;
+        std::vector<Dxui3DRenderer::Vertex>  labelVerts;
+    };
+
+    static constexpr int  kModelKinds = (int) DeskDriveModel::ProFile + 1;
+
+    std::vector<ExtraDrive>                  m_extras;
+    DeskDriveSpot                            m_driveSpot     = DeskDriveSpot::UnderMonitor;
+    int                                      m_driveLevel[2] = {};
+    std::array<DeskSceneModel, kModelKinds>  m_extraModels;
+    std::array<bool, kModelKinds>            m_hasExtraModel = {};
+
     DeskSceneComposition    m_comp;
     bool                    m_modelsLoaded  = false;
 
@@ -684,6 +725,11 @@ private:
     std::vector<Dxui3DRenderer::Vertex>   m_monitorShadowVerts;
     std::vector<Dxui3DRenderer::Vertex>   m_driveShadowVerts;
     std::vector<Dxui3DRenderer::Vertex>   m_recorderShadowVerts;
+
+    std::array<std::vector<Dxui3DRenderer::Vertex>, kModelKinds>                 m_extraShadowVerts;
+    std::array<std::array<std::vector<Dxui3DRenderer::Vertex>, 2>, kModelKinds>  m_extraLampVerts;   // [model][lit]
+    std::array<std::vector<Dxui3DRenderer::Vertex>, kModelKinds>                 m_extraDiskVerts;   // a disk in the slot
+
     bool                                  m_powerLampOn     = false;
     bool                                  m_driveActive[2]  = {};
     bool                                  m_lampsDirty      = true;
@@ -728,6 +774,13 @@ private:
     Dxui3DRenderer::StaticMesh            m_monitorOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_driveOpaqueMesh;
     Dxui3DRenderer::StaticMesh            m_recorderOpaqueMesh;
+
+    std::array<Dxui3DRenderer::StaticMesh, kModelKinds>                 m_extraOpaqueMesh;
+    std::array<Dxui3DRenderer::StaticMesh, kModelKinds>                 m_extraShadowMesh;
+    std::array<Dxui3DRenderer::StaticMesh, kModelKinds>                 m_extraDiskMesh;
+    std::array<std::array<Dxui3DRenderer::StaticMesh, 2>, kModelKinds>  m_extraLampMesh;
+    std::array<Dxui3DRenderer::StaticMesh, kMaxDeskExtras>              m_extraLabelMesh;
+
     Dxui3DRenderer::StaticMesh            m_padlockMesh;
 
     // The mounted image's name: its quad in WORLD space, and the texture the

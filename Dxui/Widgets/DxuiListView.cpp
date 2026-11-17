@@ -1607,7 +1607,7 @@ std::vector<DxuiPopupMenuItem> DxuiListView::GetScrollbarMenu (POINT pt)
     m_scrollbars.m_vertScroll.SetOnScroll ([this] (int, int pos) { m_scrollbars.SetTopRow (pos); });
     m_scrollbars.m_horzScroll.SetOnScroll ([this] (int, int pos) { m_scrollbars.SetLeftPx (pos); });
 
-    if (m_scrollbars.m_vertScroll.GetMetrics().visible && IsOverBar (m_scrollbars.m_vertScroll, pt))
+    if (!m_vertBarHidden && m_scrollbars.m_vertScroll.GetMetrics().visible && IsOverBar (m_scrollbars.m_vertScroll, pt))
     {
         barPt = GetBarPoint (m_scrollbars.m_vertScroll, pt);
         return m_scrollbars.m_vertScroll.BuildContextMenu (barPt.x, barPt.y);

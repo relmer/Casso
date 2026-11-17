@@ -54,8 +54,8 @@
 ; as the read stored it.
 ; ---------------------------------------------------------------------------
 
-CMDCAPTURE = $EA
-CMDCAPDATA = $EB
+; CMDCAPTURE and CMDCAPDATA are assigned ahead of this source by
+; LinkProgram, from CassoLinkCodec::kCommands.
 CAPBUF     = $5900
 CAPEND     = $9000
 CAPPAGES   = (CAPEND - CAPBUF) / 256

@@ -1,6 +1,14 @@
 #include "Pch.h"
 
+#include "Devices/BlockDevice/AppleScsiCard.h"
+#include "Devices/BlockDevice/ProFileCard.h"
+#include "Devices/BlockDevice/ScsiHardDisk.h"
+#include "Devices/Floppy35/Apple2cPlusDiskPort.h"
+#include "Devices/Floppy35/Apple2cSmartPort.h"
+#include "Devices/Floppy35/Apple35ControllerCard.h"
+#include "Devices/Floppy35/LironCard.h"
 #include "Shell/Components/ShellDeskScene.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Capture/ScreenshotMetadata.h"
@@ -67,6 +75,7 @@
 #include "Seams/Win32IntentChannel.h"
 #include "Devices/Disk/PreservedCopy.h"
 #include "Core/TextEncoding.h"
+#include "Shell/Layout/DriveLamp.h"
 
 
 
@@ -191,14 +200,14 @@ HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
     // //c's drives are part of the machine rather than of what it is plugged
     // into.
     HRESULT                    hr          = S_OK;
-    bool                       isC         = m_shell.m_disks->MachineHasBuiltInDrive();
+    bool                       isC         = m_shell.m_disks->HasDiskIicDrives();
     const MonitorSpec &        monitor     = m_shell.m_renderer->ResolveMonitorForCurrentMachine();
     std::span<const uint8_t>   monitorMesh = PrinterPanel::LoadBinaryResource (monitor.meshResourceId);
     std::span<const uint8_t>   driveMesh   = PrinterPanel::LoadBinaryResource (isC ? IDR_MODEL_DISK2C_MESH
                                                                                    : IDR_MODEL_DISKII_MESH);
-    std::span<const uint8_t>   recorderMesh;
-    bool                       haveMeshes  = false;
-    bool                       haveTape    = false;
+    std::span<const uint8_t>  recorderMesh;
+    bool                      haveMeshes   = false;
+    bool                      haveTape     = false;
 
 
 
@@ -218,6 +227,9 @@ HRESULT ShellDeskScene::LoadDeskSceneModelsForMachine()
     CHRA (hr);
 
     m_deskSceneMachineIsC = isC;
+
+    // The plan is made from the monitor's width, so after the models load.
+    PlanDrives();
 
     // The monitor that just loaded brings its own tilt with it.
     ApplySavedBezelTilt();
@@ -399,6 +411,14 @@ void ShellDeskScene::ApplyChromeThemeByName (const std::string & themeName)
 
 
     m_shell.m_chrome->GetTheme() = CassoTheme::MakeByName (themeName, !m_deskSceneFailed);
+
+    // A compact theme plans the drives for its drive band, so the plan
+    // follows the theme, before the chrome is laid out for it.
+    if (m_deskSceneReady)
+    {
+        PlanDrives();
+    }
+
     m_shell.m_chrome->ApplyThemeToChrome (m_shell.m_chrome->GetTheme());
 
     if (needsDeskScene && m_deskSceneFailed)
@@ -540,6 +560,85 @@ SceneHitResult ShellDeskScene::DeskSceneHit (int xPx, int yPx) const
                                          m_deskScene.HasRecorder() ? recHi : nullptr,
                                          m_deskScene.HasRecorder() ? m_deskScene.RecorderModel().KeyBoxes() : nullptr,
                                          DeskSceneModel::kRecorderKeyCount);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetExtraAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDeskScene::GetExtraAt (int xPx, int yPx, float & outDistance) const
+{
+    const DeskSceneComposition  & comp  = m_deskScene.Composition();
+    int                           front = -1;
+
+
+
+    outDistance = FLT_MAX;
+
+    for (int i = 0; i < comp.extraCount && i < m_deskScene.GetExtraCount(); i++)
+    {
+        float  boundsMin[3] = {};
+        float  boundsMax[3] = {};
+        float  distance     = 0.0f;
+
+        if (comp.IsExtraShown (i) && m_deskScene.GetExtraModelBounds (i, boundsMin, boundsMax) &&
+            DeskSceneHitTester::TryGetRayEntry (comp, comp.extraWorld[i], boundsMin, boundsMax, (float) xPx, (float) yPx, distance) &&
+            distance < outDistance)
+        {
+            outDistance = distance;
+            front       = i;
+        }
+    }
+
+    return front;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetExtraUnder
+//
+//  The Disk II hit test covers only the Disk IIs and the monitor, and its
+//  door target extends past the case, so a click on a drive stacked on top
+//  went to the drive below. The drive whose body is nearer along the ray is
+//  returned; a ray that misses the Disk II's body and enters only its padded
+//  door target is given to any extra drive it enters.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDeskScene::GetExtraUnder (const SceneHitResult & hit, int xPx, int yPx) const
+{
+    const DeskSceneComposition  & comp        = m_deskScene.Composition();
+    float                         driveMin[3] = {};
+    float                         driveMax[3] = {};
+    float                         extraT      = FLT_MAX;
+    float                         driveT      = FLT_MAX;
+    int                           extra       = GetExtraAt (xPx, yPx, extraT);
+
+
+
+    if (extra >= 0 && hit.target == SceneHitResult::Target::Drive && hit.driveIndex >= 0 && hit.driveIndex < comp.driveCount)
+    {
+        m_deskScene.DriveModel().BoundsMin (driveMin);
+        m_deskScene.DriveModel().BoundsMax (driveMax);
+
+        if (DeskSceneHitTester::TryGetRayEntry (comp, comp.driveWorld[hit.driveIndex], driveMin, driveMax, (float) xPx, (float) yPx, driveT) &&
+            driveT < extraT)
+        {
+            extra = -1;
+        }
+    }
+
+    return extra;
 }
 
 
@@ -996,7 +1095,7 @@ void ShellDeskScene::ResetSceneView()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int ShellDeskScene::DeskSceneDriveCount() const
+int ShellDeskScene::CountDiskIiDrives() const
 {
     bool  hasDisk = (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
 
@@ -1009,15 +1108,51 @@ int ShellDeskScene::DeskSceneDriveCount() const
 
     // The //c's drives are not carded -- one is soldered in and the second
     // hangs off the back-panel disk port -- so its slot list says nothing
-    // about them and the internal drive is always there.
+    // about them and the internal drive is always there. The //c Plus's
+    // are the ones its disk port's chain lists.
     if (m_shell.m_machine.GetConfig().slots.empty())
     {
-        return m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1;
+        return m_shell.m_disks->MachineHasBuiltInDrive() ? (m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1)
+                                                         : m_shell.m_machine.GetConfig().CountDiskPortFloppies();
     }
 
     // A card with every port empty reports zero, which is the point of being
     // able to detach a drive at all.
     return m_shell.m_machine.GetConfig().AttachedDiskIiDriveCount();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::DeskSceneDriveCount
+//
+//  The Disk II drives on the desk: none while the floppies are on the drive
+//  bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDeskScene::DeskSceneDriveCount() const
+{
+    bool  onBar = false;
+
+
+
+    for (const DeskDrivePlacement & placed : m_drivePlan)
+    {
+        bool  isDiskII = placed.drive.model == DeskDriveModel::DiskII || placed.drive.model == DeskDriveModel::Disk2c;
+
+
+
+        if (isDiskII && placed.spot == DeskDriveSpot::DriveBar)
+        {
+            onBar = true;
+        }
+    }
+
+    return onBar ? 0 : CountDiskIiDrives();
 }
 
 
@@ -1044,6 +1179,25 @@ int ShellDeskScene::GetDeskCompositionDriveCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDeskScene::HasDockedExtra
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::HasDockedExtra() const
+{
+    DeskSceneMetrics  metrics = m_deskScene.Metrics();
+
+
+
+    return std::any_of (metrics.extras, metrics.extras + metrics.extraCount, DeskSceneLayout::IsDockedExtra);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDeskScene::GetDeskCompositionMetrics
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1051,12 +1205,25 @@ int ShellDeskScene::GetDeskCompositionDriveCount() const
 DeskSceneMetrics ShellDeskScene::GetDeskCompositionMetrics() const
 {
     DeskSceneMetrics  metrics = m_deskScene.Metrics();
+    int               kept    = 0;
 
 
 
+    // Auto-hidden, the docked devices slide up in front of the monitor and
+    // take no part in the framing. The hard disks stay on the desk.
     if (m_shell.AreDrivesAutoHidden())
     {
         metrics.hasRecorder = false;
+
+        for (int i = 0; i < metrics.extraCount; i++)
+        {
+            if (!DeskSceneLayout::IsDockedExtra (metrics.extras[i]))
+            {
+                metrics.extras[kept++] = metrics.extras[i];
+            }
+        }
+
+        metrics.extraCount = kept;
     }
 
     return metrics;
@@ -1335,18 +1502,67 @@ void ShellDeskScene::SyncSceneDriveChrome()
     // visible panel with empty bounds is one stray Layout away from painting:
     // a resize arranges the docked bands before this runs, so the retired 2D
     // widgets flashed along the bottom edge for a frame under the 3D drives.
-    m_shell.m_disks->GetDriveChrome()[0].SetVisible (false);
-    m_shell.m_disks->GetDriveChrome()[1].SetVisible (false);
-    m_shell.m_disks->GetDriveChrome()[0].Hide();
-    m_shell.m_disks->GetDriveChrome()[1].Hide();
-
+    //
+    // With the floppies on the drive bar, the 2D widgets on the bar are the
+    // drives, and their bodies are the drop targets.
     m_shell.m_uiShell.GetHitTester().Clear();
+
+    if (AreDrivesOnBar())
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            const DriveWidget  & widget = m_shell.m_disks->GetDriveChrome()[(size_t) i];
+            RECT                 body   = widget.GetBodyRect();
+
+
+
+            if (widget.IsVisible() && !IsRectEmpty (&body))
+            {
+                m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { body, DxuiHitSlot::Custom, i });
+            }
+        }
+    }
+    else
+    {
+        m_shell.m_disks->GetDriveChrome()[0].SetVisible (false);
+        m_shell.m_disks->GetDriveChrome()[1].SetVisible (false);
+        m_shell.m_disks->GetDriveChrome()[0].Hide();
+        m_shell.m_disks->GetDriveChrome()[1].Hide();
+    }
 
     for (int i = 0; i < comp.driveCount; i++)
     {
         if (comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
             m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { comp.driveRectPx[i], DxuiHitSlot::Custom, i });
+        }
+    }
+
+    for (int i = 0; i < comp.extraCount && i < m_deskScene.GetExtraCount(); i++)
+    {
+        if (TakesImage (m_deskScene.GetExtraDrive (i)) && !IsRectEmpty (&comp.extraRectPx[i]))
+        {
+            m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { comp.extraRectPx[i], DxuiHitSlot::Custom, kExtraDropTagBase + i });
+        }
+    }
+
+    // The drive bar's 3.5-inch drives and hard disks that are showing.
+    if (m_shell.m_chrome->GetDriveBarFan().IsVisible())
+    {
+        const DriveBarFan  & fan = m_shell.m_chrome->GetDriveBarFan().GetFan();
+
+
+
+        for (int c = 0; c < fan.GetClassCount(); c++)
+        {
+            for (int i = 0; i < fan.GetEntryCount (c); i++)
+            {
+                if (fan.IsSlotShown (c, i) && TakesImage (fan.GetDrive (c, i)))
+                {
+                    m_shell.m_uiShell.GetHitTester().Register (DxuiHitRect { fan.GetSlotRect (c, i), DxuiHitSlot::Custom,
+                                                                             kBarDropTagBase + c * kBarDropClassStride + i });
+                }
+            }
         }
     }
 
@@ -1429,7 +1645,7 @@ void ShellDeskScene::SyncSceneDriveLabels()
         RECT            iconHit  = {};
         bool            showIcon = false;
 
-        if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
+        if (visible && (onStrip || !AreDiskIiStacked()) && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
             name = std::filesystem::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, i)).filename().wstring();
 
@@ -1553,6 +1769,13 @@ void ShellDeskScene::SyncSceneDriveLabels()
         {
             fullNames[s_kSceneKeyCell] = FormatTapeVolumeTip (m_shell.m_audio->GetTapeSource().GetVolume());
         }
+    }
+
+    // The drive under the pointer that has no name strip has its name on its
+    // face.
+    if (inScene)
+    {
+        fullNames[s_kSceneHoverCell] = GetHoverLabelText();
     }
 
     SyncStripTapeLabels (comp, onStrip, fullNames);
@@ -1741,13 +1964,17 @@ bool ShellDeskScene::UpdateSceneLabelHover (int x, int y, int64_t nowMs)
 
 float ShellDeskScene::GetSceneLabelScrollPx (int drive, int64_t nowMs)
 {
-    float    period   = m_sceneDiskLabelPeriod[(size_t) drive];
-    float    speed    = (float) m_shell.m_scaler.ToPx (1) * s_kSceneLabelScrollDipPerSec;
-    int64_t  scrollMs = 0;
+    // The hover label is on the drive under the pointer, so it scrolls from
+    // when the pointer moved onto that drive.
+    float      period   = m_sceneDiskLabelPeriod[(size_t) drive];
+    float      speed    = (float) m_shell.m_scaler.ToPx (1) * s_kSceneLabelScrollDipPerSec;
+    int64_t    scrollMs = 0;
+    bool       isHover  = drive == s_kSceneHoverCell;
+    int64_t  & startMs  = isHover ? m_hoverLabelMs : m_sceneLabelHoverMs;
 
 
 
-    if (drive != m_sceneLabelHover || period <= 0.0f || speed <= 0.0f)
+    if ((!isHover && drive != m_sceneLabelHover) || period <= 0.0f || speed <= 0.0f)
     {
         return 0.0f;
     }
@@ -1755,12 +1982,12 @@ float ShellDeskScene::GetSceneLabelScrollPx (int drive, int64_t nowMs)
     // Finished and still under the pointer: go again after the hold.
     scrollMs = (int64_t) (period / speed * 1000.0f);
 
-    if (nowMs - (m_sceneLabelHoverMs + scrollMs) >= s_kSceneLabelScrollHoldMs)
+    if (nowMs - (startMs + scrollMs) >= s_kSceneLabelScrollHoldMs)
     {
-        m_sceneLabelHoverMs = nowMs;
+        startMs = nowMs;
     }
 
-    return TapeDeckWidget::GetMarqueeOffset (nowMs, m_sceneLabelHoverMs, period, speed);
+    return TapeDeckWidget::GetMarqueeOffset (nowMs, startMs, period, speed);
 }
 
 
@@ -2067,6 +2294,10 @@ bool ShellDeskScene::GetRecorderLabelAnchor (const DeskSceneComposition & comp, 
 //  small scene -- a narrow window, the fullscreen strip -- cannot run one
 //  name into the next. What no longer fits scrolls under the pointer.
 //
+//  Stacked drives on the desk have no labels under them, so they count for
+//  nothing here: their labels share one x, and counting them collapsed every
+//  label to its margin, leaving only a padlock visible.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int ShellDeskScene::GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp)
@@ -2079,7 +2310,7 @@ int ShellDeskScene::GetSceneLabelHalfWidthPx (const DeskSceneComposition & comp)
 
 
 
-    for (int i = 0; i < comp.driveCount; i++)
+    for (int i = 0; i < comp.driveCount && (&comp == &m_stripComp || !AreDiskIiStacked()); i++)
     {
         centers.push_back ((float) comp.driveLabelPx[i].x);
     }
@@ -2137,6 +2368,11 @@ bool ShellDeskScene::TryMakeSceneLabelQuad (const DeskSceneComposition & comp, i
     if (cell == s_kSceneCassetteCell)
     {
         return TryMakeCassetteTitleQuad (comp, cellPx, corners);
+    }
+
+    if (cell == s_kSceneHoverCell)
+    {
+        return TryMakeHoverLabelQuad (comp, cellPx, corners);
     }
 
     if (comp.hasRecorder == 0 ||
@@ -2199,6 +2435,160 @@ bool ShellDeskScene::TryMakeCassetteTitleQuad (const DeskSceneComposition & comp
     }
 
     return isMade;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::TryMakeHoverLabelQuad
+//
+//  The hover label lies on the drive's front, a little proud of it, so it
+//  turns with the drive, and the drive's case and anything in front of it
+//  cover it. It fades out as the front turns edge-on and is not drawn from
+//  behind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::TryMakeHoverLabelQuad (const DeskSceneComposition & comp, const SIZE & cellPx, float corners[4][3])
+{
+    float          boundsMin[3] = {};
+    float          boundsMax[3] = {};
+    float          normal[3]    = {};
+    float          center[3]    = {};
+    float          topPx[2]     = {};
+    float          bottomPx[2]  = {};
+    const float *  world        = nullptr;
+    LONG           cellW        = GetSceneLabelCellWidthPx  (s_kSceneHoverCell, cellPx);
+    LONG           cellH        = GetSceneLabelCellHeightPx (s_kSceneHoverCell, cellPx);
+    float          aspect       = (cellH > 0) ? (float) cellW / (float) cellH : 0.0f;
+    bool           isMade       = false;
+
+
+
+    m_hoverLabelAlpha = 0.0f;
+
+    if (comp.IsExtraShown (m_hoverExtra) && m_deskScene.GetExtraModelBounds (m_hoverExtra, boundsMin, boundsMax))
+    {
+        world = comp.extraWorld[m_hoverExtra];
+    }
+    else if (m_hoverDiskIi >= 0 && m_hoverDiskIi < comp.driveCount)
+    {
+        m_deskScene.DriveModel().BoundsMin (boundsMin);
+        m_deskScene.DriveModel().BoundsMax (boundsMax);
+        world = comp.driveWorld[m_hoverDiskIi];
+    }
+
+    isMade = world != nullptr && DeskSceneLayout::TryMakeFaceLabelQuad (world, boundsMin, boundsMax, aspect, corners, normal);
+
+    for (int axis = 0; isMade && axis < 3; axis++)
+    {
+        center[axis] = (corners[0][axis] + corners[3][axis]) * 0.5f;
+    }
+
+    // The quad is scaled in its plane until the name is as tall on screen as
+    // it was baked, so every drive's name is the same size: fitted to the
+    // face, a wider drive or a shorter name drew larger text, and a small
+    // drive, such as one slid up in front of the monitor, too small to read.
+    if (isMade && SceneCamera::ProjectToScreen (comp.viewProj, corners[0], comp.viewportPx, topPx) &&
+                  SceneCamera::ProjectToScreen (comp.viewProj, corners[2], comp.viewportPx, bottomPx))
+    {
+        float  heightPx = std::hypot (bottomPx[0] - topPx[0], bottomPx[1] - topPx[1]);
+        float  grow     = (heightPx > 0.0f) ? (float) cellH / heightPx : 1.0f;
+
+        for (int corner = 0; corner < 4; corner++)
+        {
+            for (int axis = 0; axis < 3; axis++)
+            {
+                corners[corner][axis] = center[axis] + (corners[corner][axis] - center[axis]) * grow;
+            }
+        }
+    }
+
+    if (isMade)
+    {
+        m_hoverLabelAlpha = DeskSceneLayout::GetFaceLabelAlpha (DeskSceneLayout::GetFacing (comp.viewProj, center, normal));
+    }
+
+    return isMade && m_hoverLabelAlpha > 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetHoverLabelText
+//
+//  The mounted image's file name, with a lock ahead of it when the drive is
+//  write-protected, or the drive's title when it is empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ShellDeskScene::GetHoverLabelText() const
+{
+    std::wstring  text;
+    std::string   path;
+    bool          isLocked = false;
+
+
+
+    if (m_hoverExtra >= 0 && m_hoverExtra < m_deskScene.GetExtraCount())
+    {
+        const DeskDrive  & drive = m_deskScene.GetExtraDrive (m_hoverExtra);
+
+        path     = GetDriveImagePath (drive);
+        isLocked = IsDriveWriteProtected (drive);
+        text     = path.empty() ? GetDriveTitle (drive) : fs::path (path).filename().wstring();
+    }
+    else if (m_hoverDiskIi >= 0 && m_hoverDiskIi < 2)
+    {
+        DeskDrive  drive = GetDiskIiDrive (m_hoverDiskIi);
+
+        path     = m_shell.m_machine.GetDiskStore().GetSourcePath (6, m_hoverDiskIi);
+        isLocked = !path.empty() && m_shell.m_disks->GetDriveWidgetState()[(size_t) m_hoverDiskIi].writeProtect.Any();
+        text     = path.empty() ? GetDriveTitle (drive) : fs::path (path).filename().wstring();
+    }
+
+    if (isLocked && !path.empty())
+    {
+        text = std::wstring (s_kpszLock) + L" " + text;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::SetHoverDrive
+//
+//  -1 for both clears it. Returns whether the drive changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::SetHoverDrive (int extraIndex, int diskIi)
+{
+    bool  isChanged = extraIndex != m_hoverExtra || diskIi != m_hoverDiskIi;
+
+
+
+    if (isChanged)
+    {
+        m_hoverExtra   = extraIndex;
+        m_hoverDiskIi  = diskIi;
+        m_hoverLabelMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        SyncSceneDriveLabels();
+    }
+
+    return isChanged;
 }
 
 
@@ -2287,7 +2677,7 @@ void ShellDeskScene::SyncSceneDiskLabelQuads (const std::array<std::wstring, s_k
             uv[3] = (top + height)                / (float) texH;
         }
 
-        m_deskScene.SetDiskLabel (i, m_sceneDiskLabelSrv, corners, uv);
+        m_deskScene.SetDiskLabel (i, m_sceneDiskLabelSrv, corners, uv, (i == s_kSceneHoverCell) ? m_hoverLabelAlpha : 1.0f);
     }
 }
 
@@ -3196,4 +3586,714 @@ void ShellDeskScene::UpdateSceneOrbit (int x, int y)
         -s_kOrbitPitchLimit, s_kOrbitPitchLimit);
 
     InvalidateSceneComposition();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::PlanDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::PlanDrives()
+{
+    const GlobalUserPrefs   & prefs     = m_shell.m_settings->GetPrefs();
+    float                     lo[3]     = {};
+    float                     hi[3]     = {};
+    float                     monitor   = 0.0f;
+    std::vector<DeskDrive>    drives;
+    DeskClassPlace            floppies  = DeskDrivePlan::ParsePlace (prefs.deskFloppies);
+    DeskClassPlace            hardDisks = DeskDrivePlan::ParsePlace (prefs.deskHardDisks);
+
+
+
+    m_deskScene.MonitorModel().BoundsMin (lo);
+    m_deskScene.MonitorModel().BoundsMax (hi);
+    monitor = hi[0] - lo[0];
+
+    m_plannedDiskIiCount = CountDiskIiDrives();
+    drives               = DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), m_plannedDiskIiCount, m_shell.m_disks->HasDiskIicDrives());
+    m_plannedDrives      = drives;
+
+    // A compact theme's drive band has the Disk II widgets or the drive bar.
+    if (m_shell.m_chrome->GetTheme().compactDrives)
+    {
+        DeskDrivePlan::GetCompactPlaces (drives, floppies, hardDisks);
+    }
+
+    m_drivePlan         = DeskDrivePlan::Place (drives, floppies, hardDisks, monitor, prefs.deskFloppyPairBeside);
+    m_floppyPairMovable = DeskDrivePlan::HasDiskIiPairUnderMonitor (DeskDrivePlan::Place (drives, floppies, hardDisks, monitor, false));
+
+    for (const DeskDrivePlacement & placed : m_drivePlan)
+    {
+        int  meshId = 0;
+
+
+
+        switch (placed.drive.model)
+        {
+            case DeskDriveModel::HardDisk20SC: meshId = IDR_MODEL_HARDDISK20SC_MESH; break;
+            case DeskDriveModel::ProFile:      meshId = IDR_MODEL_PROFILE_MESH;      break;
+            case DeskDriveModel::UniDisk35:    meshId = IDR_MODEL_UNIDISK35_MESH;    break;
+            case DeskDriveModel::Apple35Drive: meshId = IDR_MODEL_APPLE35_MESH;      break;
+            case DeskDriveModel::Apple35Plus:  meshId = IDR_MODEL_APPLE35PLUS_MESH;  break;
+            default:                           break;
+        }
+
+        if (meshId != 0 && placed.spot != DeskDriveSpot::DriveBar)
+        {
+            HRESULT  hr = m_deskScene.LoadExtraModel (placed.drive.model, PrinterPanel::LoadBinaryResource (meshId));
+
+
+
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+
+    m_deskScene.SetDrivePlan (m_drivePlan);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::ReplanIfDrivesChanged
+//
+//  The plan is made when the machine's models load, which at startup is
+//  ahead of the //c's external drive being connected from its saved state.
+//  Planned for one drive, the pair stacked beside the monitor. A machine
+//  rebuilt with the same monitor doesn't load its models again, so a drive
+//  plugged into the //c Plus's disk port is found here too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::ReplanIfDrivesChanged()
+{
+    int  diskIiCount = CountDiskIiDrives();
+
+
+
+    if (m_deskSceneReady &&
+        (diskIiCount != m_plannedDiskIiCount ||
+         DeskDrivePlan::Collect (m_shell.m_machine.GetConfig(), diskIiCount, m_shell.m_disks->HasDiskIicDrives()) != m_plannedDrives))
+    {
+        PlanDrives();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsClassOnDesk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsClassOnDesk (DeskDriveClass driveClass) const
+{
+    bool  onDesk = false;
+
+
+
+    for (const DeskDrivePlacement & placed : m_drivePlan)
+    {
+        if (DeskDrivePlan::GetClass (placed.drive.model) == driveClass && placed.spot != DeskDriveSpot::DriveBar)
+        {
+            onDesk = true;
+        }
+    }
+
+    return onDesk;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::ToggleClassOnDesk
+//
+//  Saves the class's new place and lays the window out again, as the
+//  auto-hide switch does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::ToggleClassOnDesk (DeskDriveClass driveClass)
+{
+    GlobalUserPrefs  & prefs    = m_shell.m_settings->GetPrefs();
+    const char       * place    = DeskDrivePlan::FormatPlace (IsClassOnDesk (driveClass) ? DeskClassPlace::Bar : DeskClassPlace::Desk);
+    RECT               rcClient = {};
+
+
+
+    (driveClass == DeskDriveClass::Floppy ? prefs.deskFloppies : prefs.deskHardDisks) = place;
+    m_shell.m_settings->SaveGlobalPrefs();
+
+    PlanDrives();
+
+    if (m_shell.m_hwnd != nullptr && GetClientRect (m_shell.m_hwnd, &rcClient))
+    {
+        (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left), (UINT) (rcClient.bottom - rcClient.top));
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsFloppyPairBesideOffered
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsFloppyPairBesideOffered() const
+{
+    return m_shell.m_settings->GetPrefs().deskFloppyPairBeside || (m_floppyPairMovable && !m_shell.AreDrivesAutoHidden());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::ToggleFloppyPairBeside
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::ToggleFloppyPairBeside()
+{
+    GlobalUserPrefs  & prefs    = m_shell.m_settings->GetPrefs();
+    RECT               rcClient = {};
+
+
+
+    prefs.deskFloppyPairBeside = !prefs.deskFloppyPairBeside;
+    m_shell.m_settings->SaveGlobalPrefs();
+
+    PlanDrives();
+
+    if (m_shell.m_hwnd != nullptr && GetClientRect (m_shell.m_hwnd, &rcClient))
+    {
+        (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left), (UINT) (rcClient.bottom - rcClient.top));
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsFloppy35
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsFloppy35 (const DeskDrive & drive)
+{
+    return drive.model == DeskDriveModel::UniDisk35 || drive.model == DeskDriveModel::Apple35Drive || drive.model == DeskDriveModel::Apple35Plus;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsHardDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsHardDisk (const DeskDrive & drive)
+{
+    return DeskDrivePlan::GetClass (drive.model) == DeskDriveClass::HardDisk;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::TakesImage
+//
+//  A 3.5-inch drive, which mounts the image, or a hard disk, which attaches
+//  it after a confirmed restart.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::TakesImage (const DeskDrive & drive)
+{
+    return IsFloppy35 (drive) || IsHardDisk (drive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsDriveBusy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsDriveBusy (const DeskDrive & drive, uint64_t now, uint64_t windowCycles) const
+{
+    const MachineRefs  & refs = m_shell.m_machine.GetRefs();
+    bool                 busy = false;
+    uint64_t             last = 0;
+    Sony35Drive        * sony = nullptr;
+
+
+
+    switch (drive.model)
+    {
+        case DeskDriveModel::HardDisk20SC:
+            for (AppleScsiCard * card : refs.scsiCards)
+            {
+                last = card->GetTarget (drive.drive).GetLastActivityCycle();
+                busy = busy || DriveLamp::IsLit (last, now, windowCycles);
+            }
+
+            break;
+
+        case DeskDriveModel::ProFile:
+            for (ProFileCard * card : refs.proFileCards)
+            {
+                last = card->GetDrive().GetLastActivityCycle();
+                busy = busy || DriveLamp::IsLit (last, now, windowCycles);
+            }
+
+            break;
+
+        case DeskDriveModel::UniDisk35:
+        case DeskDriveModel::Apple35Drive:
+        case DeskDriveModel::Apple35Plus:
+            sony = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+            busy = sony != nullptr && sony->IsMotorOn();
+            break;
+
+        default:
+            break;
+    }
+
+    return busy;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::HasDiskIn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::HasDiskIn (const DeskDrive & drive) const
+{
+    Sony35Drive  * sony     = nullptr;
+    bool           hasDisk  = false;
+
+
+
+    if (drive.model == DeskDriveModel::UniDisk35 || drive.model == DeskDriveModel::Apple35Drive || drive.model == DeskDriveModel::Apple35Plus)
+    {
+        sony    = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+        hasDisk = sony != nullptr && sony->HasDisk();
+    }
+
+    return hasDisk;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetDriveImagePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ShellDeskScene::GetDriveImagePath (const DeskDrive & drive) const
+{
+    const MachineRefs  & refs = m_shell.m_machine.GetRefs();
+    std::string          path;
+    Sony35Drive        * sony = nullptr;
+
+
+
+    switch (drive.model)
+    {
+        case DeskDriveModel::HardDisk20SC:
+            for (AppleScsiCard * card : refs.scsiCards)
+            {
+                if (card->GetSlot() == drive.slot)
+                {
+                    path = card->GetTarget (drive.drive).GetMedia().GetPath();
+                }
+            }
+
+            break;
+
+        case DeskDriveModel::ProFile:
+            for (ProFileCard * card : refs.proFileCards)
+            {
+                if (path.empty())
+                {
+                    path = card->GetDrive().GetMedia().GetPath();
+                }
+            }
+
+            break;
+
+        case DeskDriveModel::UniDisk35:
+        case DeskDriveModel::Apple35Drive:
+        case DeskDriveModel::Apple35Plus:
+            sony = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+
+            if (sony != nullptr && sony->HasDisk())
+            {
+                path = sony->GetImagePath();
+            }
+
+            break;
+
+        default:
+            break;
+    }
+
+    return path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetDriveTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ShellDeskScene::GetDriveTitle (const DeskDrive & drive)
+{
+    std::wstring  title;
+
+
+
+    switch (drive.model)
+    {
+        case DeskDriveModel::DiskII:        title = std::format (L"Disk II, drive {}", drive.drive + 1);  break;
+        case DeskDriveModel::Disk2c:        title = drive.onPort ? std::format (L"Disk IIc, slot 6 drive {}", drive.drive + 1) : std::format (L"//c drive {}", drive.drive + 1); break;
+        case DeskDriveModel::UniDisk35:     title = L"UniDisk 3.5";                                       break;
+        case DeskDriveModel::Apple35Drive:  title = L"Apple 3.5 Drive";                                   break;
+        case DeskDriveModel::Apple35Plus:   title = L"Built-in 3.5 drive";                                break;
+        case DeskDriveModel::HardDisk20SC:  title = std::format (L"Hard Disk 20SC, SCSI ID {}", drive.drive); break;
+        case DeskDriveModel::ProFile:       title = L"ProFile";                                           break;
+    }
+
+    return title;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetDiskIiDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DeskDrive ShellDeskScene::GetDiskIiDrive (int drive) const
+{
+    DeskDrive  out = { m_deskSceneMachineIsC ? DeskDriveModel::Disk2c : DeskDriveModel::DiskII, 6, drive };
+
+
+
+    for (const DeskDrive & planned : m_plannedDrives)
+    {
+        if (planned.slot == 6 && planned.drive == drive)
+        {
+            out = planned;
+        }
+    }
+
+    return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetDriveDiskBlocks
+//
+//  A 3.5-inch disk's size follows its sides: one side is 400K, two 800K.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t ShellDeskScene::GetDriveDiskBlocks (const DeskDrive & drive) const
+{
+    constexpr uint32_t   kBlocksPerSide = 800;
+    const MachineRefs  & refs           = m_shell.m_machine.GetRefs();
+    uint32_t             blocks         = 0;
+    Sony35Drive        * sony           = nullptr;
+
+
+
+    switch (drive.model)
+    {
+        case DeskDriveModel::HardDisk20SC:
+            for (AppleScsiCard * card : refs.scsiCards)
+            {
+                if (card->GetSlot() == drive.slot && card->GetTarget (drive.drive).GetMedia().IsAttached())
+                {
+                    blocks = card->GetTarget (drive.drive).GetMedia().GetBlockCount();
+                }
+            }
+
+            break;
+
+        case DeskDriveModel::ProFile:
+            for (ProFileCard * card : refs.proFileCards)
+            {
+                if (blocks == 0 && card->GetDrive().GetMedia().IsAttached())
+                {
+                    blocks = card->GetDrive().GetMedia().GetBlockCount();
+                }
+            }
+
+            break;
+
+        case DeskDriveModel::UniDisk35:
+        case DeskDriveModel::Apple35Drive:
+        case DeskDriveModel::Apple35Plus:
+            sony = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+
+            if (sony != nullptr && sony->HasDisk())
+            {
+                blocks = (uint32_t) sony->GetSides() * kBlocksPerSide;
+            }
+
+            break;
+
+        default:
+            break;
+    }
+
+    return blocks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::GetDriveCapacityBlocks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t ShellDeskScene::GetDriveCapacityBlocks (const DeskDrive & drive) const
+{
+    uint32_t  blocks = 0;
+
+
+
+    if (drive.model == DeskDriveModel::ProFile)
+    {
+        for (ProFileCard * card : m_shell.m_machine.GetRefs().proFileCards)
+        {
+            blocks = (blocks == 0) ? card->GetDrive().GetCapacity() : blocks;
+        }
+    }
+
+    return blocks;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::IsDriveWriteProtected
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::IsDriveWriteProtected (const DeskDrive & drive) const
+{
+    const MachineRefs  & refs      = m_shell.m_machine.GetRefs();
+    bool                 protect   = false;
+    Sony35Drive        * sony      = nullptr;
+
+
+
+    switch (drive.model)
+    {
+        case DeskDriveModel::HardDisk20SC:
+            for (AppleScsiCard * card : refs.scsiCards)
+            {
+                protect = protect || (card->GetSlot() == drive.slot && card->GetTarget (drive.drive).GetMedia().IsWriteProtected());
+            }
+
+            break;
+
+        case DeskDriveModel::ProFile:
+            for (ProFileCard * card : refs.proFileCards)
+            {
+                protect = protect || card->GetDrive().GetMedia().IsWriteProtected();
+            }
+
+            break;
+
+        case DeskDriveModel::UniDisk35:
+        case DeskDriveModel::Apple35Drive:
+        case DeskDriveModel::Apple35Plus:
+            sony    = m_shell.m_machine.FindFloppy35 (drive.slot, drive.drive);
+            protect = sony != nullptr && sony->HasDisk() && sony->IsWriteProtected();
+            break;
+
+        default:
+            break;
+    }
+
+    return protect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::AreDiskIiStacked
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::AreDiskIiStacked() const
+{
+    bool  stacked = false;
+
+
+
+    for (const DeskDrivePlacement & placement : m_drivePlan)
+    {
+        bool  isDiskIi = placement.drive.model == DeskDriveModel::DiskII || placement.drive.model == DeskDriveModel::Disk2c;
+
+        stacked = stacked || (isDiskIi && (placement.spot == DeskDriveSpot::LeftStack || placement.spot == DeskDriveSpot::RightStack));
+    }
+
+    return stacked;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::AreDrivesOnBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDeskScene::AreDrivesOnBar() const
+{
+    bool  onBar = false;
+
+
+
+    for (const DeskDrivePlacement & placement : m_drivePlan)
+    {
+        onBar = onBar || placement.spot == DeskDriveSpot::DriveBar;
+    }
+
+    return onBar;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::BrowseExtraDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::BrowseExtraDrive (int index)
+{
+    if (index >= 0 && index < m_deskScene.GetExtraCount() && IsHardDisk (m_deskScene.GetExtraDrive (index)))
+    {
+        m_shell.BrowseHardDisk (m_deskScene.GetExtraDrive (index));
+    }
+    else if (index >= 0 && index < m_deskScene.GetExtraCount())
+    {
+        BrowseDeskDrive (m_deskScene.GetExtraDrive (index));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::BrowseDeskDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::BrowseDeskDrive (const DeskDrive & drive)
+{
+    if (TakesImage (drive))
+    {
+        m_shell.m_drivePickers->OpenForDeskDrive (drive);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDeskScene::InsertInExtraDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDeskScene::InsertInExtraDrive (int index, const std::wstring & path)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (index < 0 || index >= m_deskScene.GetExtraCount(), S_OK);
+
+    if (IsHardDisk (m_deskScene.GetExtraDrive (index)))
+    {
+        m_shell.ChangeHardDiskImage (m_deskScene.GetExtraDrive (index), path);
+    }
+    else if (IsFloppy35 (m_deskScene.GetExtraDrive (index)))
+    {
+        hr = m_shell.m_disks->Mount (m_deskScene.GetExtraDrive (index).slot, m_deskScene.GetExtraDrive (index).drive, path);
+        CHR (hr);
+    }
+
+Error:
+    return;
 }

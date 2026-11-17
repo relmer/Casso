@@ -71,6 +71,9 @@ public:
     //  Apple's, and the switches for IN# and Ctrl-A commands.
     static void  ConfigureCard (MachineConfig & config, bool firmware)
     {
+        // The //e's default card in slot 5 is taken out for this one.
+        std::erase_if (config.slots, [] (const SlotConfig & slot) { return slot.slot == kSlot && slot.device != kpszSuperSerialCardDevice; });
+
         for (SlotConfig & slot : config.slots)
         {
             if (slot.device == kpszSuperSerialCardDevice)
@@ -359,7 +362,7 @@ public:
         Assert::IsTrue (data == pattern, L"a sector written over the card reads back");
 
         rig.machine.RunCycles (kBootCycles / 40);
-        Assert::IsTrue (rig.Screen()[1].find ("SSC, SLOT 5, 115200") != std::string::npos, TextEncoding::NarrowToWide (rig.Screen()[1]).c_str());
+        Assert::IsTrue (rig.Screen()[1].find ("SSC, slot 5, 115200") != std::string::npos, TextEncoding::NarrowToWide (rig.Screen()[1]).c_str());
         Assert::AreEqual<Byte> (0x50, rig.machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is slot 5's");
     }
 
@@ -409,7 +412,7 @@ public:
         rig.Bootstrap();
 
         Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog over the bootstrapped link");
-        Assert::IsTrue (rig.Screen()[0].starts_with ("CASSOLINK"), TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
+        Assert::IsTrue (rig.Screen()[0].starts_with ("CassoLink"), TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
     }
 
 
@@ -448,7 +451,7 @@ public:
 
         rig.machine.GetRefs().iieKeyboard->PressKey (0x1B);
         rig.machine.RunCycles (2 * kClockHz);
-        Assert::IsFalse (rig.Screen()[0].starts_with ("CASSOLINK"), L"Escape ended CassoLink");
+        Assert::IsFalse (rig.Screen()[0].starts_with ("CassoLink"), L"Escape ended CassoLink");
 
         after = ReadScreenHoles (rig.machine);
 

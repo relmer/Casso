@@ -95,6 +95,10 @@ public:
     //  (FR-078).
     virtual void  SetInspectorTheme (const DxuiTheme & theme) { (void) theme; }
 
+    //  A file selected in its folder's tab of the first open window, such as
+    //  a repaired copy the inspector wrote.
+    virtual void  SelectInFolder    (const std::wstring & path) { (void) path; }
+
     //  Called by a window when a disk image has been booted, or couldn't be
     //  for a machine's missing ROMs: those ROMs are offered once in a run,
     //  in a dialog on the window.

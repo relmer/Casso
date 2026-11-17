@@ -8,6 +8,7 @@ class CassoExplorerActions;
 class CassoExplorerBrowser;
 class CassoExplorerCommands;
 class CassoLinkConnections;
+class CassoLinkDriveManager;
 class CassoLinkManager;
 class GivenNames;
 class IDiskPictures;
@@ -36,6 +37,7 @@ class ExplorerTips;
 class ExplorerToolbars;
 class ExplorerTreePane;
 class FirewallMonitor;
+class FullSendWindowManager;
 class IExplorerWindow;
 class IFolderWatcher;
 class IHostDialogs;
@@ -47,6 +49,10 @@ class PhysicalCards;
 class RunningCassoRegistry;
 struct CassoExplorerPrefs;
 struct FolderOptions;
+struct PickerRequest;
+struct PickerOutcome;
+class ExplorerPickerMode;
+class ExplorerPickerBar;
 
 
 
@@ -77,6 +83,8 @@ public:
     PhysicalCards              * cards       = nullptr;   // without it, no card can be opened
     IDiskPictures              * pictures    = nullptr;   // without it, a disk image has the floppy icon in every view
     GivenNames                 * givenNames  = nullptr;   // without it, a renamed image's name isn't stored for its disk's fingerprint
+    const PickerRequest        * picker      = nullptr;   // with it, the window is a picker for this request
+    PickerOutcome              * outcome     = nullptr;   // where a picker's confirm puts the path
 };
 
 
@@ -112,6 +120,8 @@ public:
     ExplorerListPane            & listPane;
     ExplorerFolderSync          & folderSync;
     CassoLinkManager            & cassoLinkManager;
+    CassoLinkDriveManager       & linkDrives;
+    FullSendWindowManager       & fullSendWindows;
     ExplorerDragDrop            & dragDrop;
     ExplorerTabManager          & tabManager;
     ExplorerPreviewManager      & preview;
@@ -133,4 +143,10 @@ public:
     ExplorerStatusBar           & statusBar;
     ExplorerToolbars            & toolbars;
     ExplorerTreePane            & treePane;
+    ExplorerPickerMode          & pickerMode;
+    ExplorerPickerBar           & pickerBar;
+
+    //  Whether the window is a picker, which lists and chooses and changes
+    //  no file.
+    bool  IsPicker () const { return app.picker != nullptr; }
 };

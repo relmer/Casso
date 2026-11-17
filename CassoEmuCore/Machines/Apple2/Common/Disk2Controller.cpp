@@ -8,6 +8,13 @@
 
 
 
+//  The drive select, Q6 and Q7: the switches the IWM has whatever drive is
+//  enabled.
+static constexpr int  s_kFirstSelectSwitch = 0xA;
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -58,6 +65,8 @@ Disk2Controller::Disk2Controller (int slot)
     m_activeDisk[1] = &m_disks[1];
     m_engine[0].SetDiskImage (m_activeDisk[0]);
     m_engine[1].SetDiskImage (m_activeDisk[1]);
+    m_iwm.AttachDrive (0, &m_iwmDrives[0]);
+    m_iwm.AttachDrive (1, &m_iwmDrives[1]);
 }
 
 
@@ -69,20 +78,46 @@ Disk2Controller::Disk2Controller (int slot)
 //  Read
 //
 //  Apply soft-switch side effects then dispatch the data path per Q6/Q7.
+//  With the drives not enabled, only the drive select, Q6 and Q7 change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte Disk2Controller::Read (Word address)
 {
-    int   offset = (address - m_ioStart) & 0x0F;
+    int   offset  = (address - m_ioStart) & 0x0F;
+    Byte  value   = 0;
+    Byte  port    = 0;
+    bool  enabled = false;
 
 
 
-    CatchUpToCpu();
+    if (m_iwmMode)
+    {
+        value = AccessIwm (offset, false, 0);
+    }
+    else
+    {
+        CatchUpToCpu();
 
-    HandleSwitch (offset);
+        enabled = PollFloppyEnable();
 
-    return HandleReadDispatch();
+        if (enabled || offset >= s_kFirstSelectSwitch)
+        {
+            HandleSwitch (offset);
+        }
+
+        if (enabled)
+        {
+            value = HandleReadDispatch();
+        }
+    }
+
+    if (m_portHook != nullptr && m_portHook->OnIwmAccess (offset, false, 0, port))
+    {
+        value = port;
+    }
+
+    return value;
 }
 
 
@@ -100,35 +135,390 @@ Byte Disk2Controller::Read (Word address)
 
 void Disk2Controller::Write (Word address, Byte value)
 {
-    int   offset = (address - m_ioStart) & 0x0F;
+    int   offset  = (address - m_ioStart) & 0x0F;
+    bool  enabled = false;
 
 
 
-    CatchUpToCpu();
-
-    HandleSwitch (offset);
-
-    if (m_q7 && m_q6)
+    if (m_iwmMode)
     {
-        // IWM (//c): Q6H + Q7H with the motor off loads the MODE register
-        // instead of the write latch; with the motor on it is the data-field
-        // write path, same as a Disk II card.
-        //
-        // "Off" is the motor COMMAND, as it is for the status flag. The //c
-        // reset routine turns the motor off, writes the mode register and
-        // reads it back until the two agree; judged by the spin-down instead,
-        // the write was refused for a second and the machine sat in that
-        // loop at every reset, power cycle and launch.
-        if (m_iwmMode && !(m_motorOn && m_motorSpindownCycles == 0))
+        (void) AccessIwm (offset, true, value);
+    }
+    else
+    {
+        CatchUpToCpu();
+
+        enabled = PollFloppyEnable();
+
+        if (enabled || offset >= s_kFirstSelectSwitch)
         {
-            m_iwmModeReg = value;
+            HandleSwitch (offset);
         }
-        else
+
+        if (enabled && m_q7 && m_q6)
         {
             m_engine[m_activeDrive].WriteLatch (value);
             OnLatchLoad();
         }
     }
+
+    if (m_portHook != nullptr)
+    {
+        Byte  ignored = 0;
+
+
+
+        m_portHook->OnIwmAccess (offset, true, value, ignored);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AccessIwm
+//
+//  An access to the //c's IWM. With the drives not enabled, only the drive
+//  select, Q6 and Q7 change, and a read returns 0. A write then goes to the
+//  device that has the port, so it doesn't load the mode register. A byte
+//  the IWM finished reading goes to the address mark watcher and the access
+//  log.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Disk2Controller::AccessIwm (int offset, bool isWrite, Byte value)
+{
+    bool  enabled = m_portHook == nullptr || m_portHook->AreFloppiesEnabled();
+    Byte  result  = 0;
+    Byte  fresh   = 0;
+
+
+
+    if (!enabled && m_iwm.IsEnabled())
+    {
+        m_iwm.Disable();
+    }
+
+    if (enabled)
+    {
+        result = m_iwm.Access (offset, isWrite, value, GetIwmNow());
+    }
+    else if (offset >= s_kFirstSelectSwitch)
+    {
+        (void) m_iwm.Access (offset, false, 0, GetIwmNow());
+    }
+
+    m_activeDrive = m_iwm.GetDrive();
+    m_q6          = m_iwm.IsQ6();
+    m_q7          = m_iwm.IsWriting();
+
+    if (enabled && m_eventSink != nullptr)
+    {
+        if (offset == 0x8)
+        {
+            m_eventSink->OnMotorCommandOff();
+        }
+        else if (offset == 0x9)
+        {
+            m_eventSink->OnMotorCommandOn();
+        }
+        else if (offset == 0xA || offset == 0xB)
+        {
+            m_eventSink->OnDriveSelect (m_activeDrive);
+        }
+    }
+
+    SyncIwmMotor();
+
+    if (enabled && isWrite && m_q6 && m_q7 && m_iwm.IsMotorSwitchOn())
+    {
+        m_engine[m_activeDrive].WriteLatch (value);
+        OnLatchLoad();
+    }
+
+    if (enabled && !isWrite && !m_q6 && !m_q7 && m_iwm.ConsumeFreshByte (fresh))
+    {
+        m_engine[m_activeDrive].CountReadNibble();
+        m_addrMarkWatcher.ObserveNibble (fresh);
+        m_access[m_activeDrive].ObserveRead (m_quarterTrack[m_activeDrive], fresh, static_cast<uint32_t> (m_engine[m_activeDrive].GetBitPosition()),
+                                             static_cast<uint32_t> (m_engine[m_activeDrive].GetCurrentTrackBits()));
+    }
+
+    return enabled ? result : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetIwmNow
+//
+//  The IWM's time, moved on by the CPU's cycles since the last access. With
+//  no cycle source, Tick moves it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t Disk2Controller::GetIwmNow()
+{
+    uint64_t  now = 0;
+
+
+
+    if (m_cpuCycleSource != nullptr)
+    {
+        now = *m_cpuCycleSource;
+
+        if (now > m_lastCpuSync)
+        {
+            m_iwmCycles += now - m_lastCpuSync;
+        }
+
+        m_lastCpuSync = now;
+    }
+
+    return m_iwmCycles * kIwmNsPerCycle;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TickIwm
+//
+//  While a drive is enabled, its cells move with the CPU, so its motor stops
+//  when the IWM's timer runs out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::TickIwm (uint32_t cpuCycles)
+{
+    if (m_cpuCycleSource == nullptr)
+    {
+        m_iwmCycles += cpuCycles;
+    }
+
+    if (m_iwm.IsEnabled())
+    {
+        m_iwm.AdvanceTo (GetIwmNow());
+        SyncIwmMotor();
+    }
+
+    PumpIdleCallback (cpuCycles);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnIwmPhases
+//
+//  Each phase line that changed steps the drive's head.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::OnIwmPhases (int drive, uint8_t phases)
+{
+    uint8_t  changed = static_cast<uint8_t> (phases ^ m_phases);
+
+
+
+    m_activeDrive = drive;
+
+    for (int phase = 0; phase < kPhaseCount; phase++)
+    {
+        if ((changed & (1 << phase)) != 0)
+        {
+            HandlePhase (phase, (phases & (1 << phase)) != 0);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnIwmEnable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::OnIwmEnable (int drive, bool isEnabled)
+{
+    m_iwmEnabled[(size_t) drive] = isEnabled;
+    m_engine[drive].SetMotorOn (isEnabled);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncIwmMotor
+//
+//  The motor runs while either drive is enabled. Checked after an access
+//  rather than at each enable, since a drive select disables one drive
+//  before it enables the other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::SyncIwmMotor()
+{
+    bool  isOn = m_iwmEnabled[0] || m_iwmEnabled[1];
+
+
+
+    if (isOn && !m_motorOn)
+    {
+        m_motorOn = true;
+
+        if (m_audioSink != nullptr)
+        {
+            m_audioSink->OnMotorEngaged();
+        }
+
+        if (m_eventSink != nullptr)
+        {
+            m_eventSink->OnMotorEngaged();
+        }
+    }
+    else if (!isOn && m_motorOn)
+    {
+        m_motorOn = false;
+        m_access[0].EndRead();
+        m_access[1].EndRead();
+
+        if (m_audioSink != nullptr)
+        {
+            m_audioSink->OnMotorDisengaged();
+        }
+
+        if (m_eventSink != nullptr)
+        {
+            m_eventSink->OnMotorDisengaged();
+        }
+
+        if (m_motorOffFlushCallback)
+        {
+            m_motorOffFlushCallback();
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IwmDrive::SetPhases
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::IwmDrive::SetPhases (bool ph0, bool ph1, bool ph2, bool ph3)
+{
+    m_controller.OnIwmPhases (m_drive, static_cast<uint8_t> ((ph0 ? 1 : 0) | (ph1 ? 2 : 0) | (ph2 ? 4 : 0) | (ph3 ? 8 : 0)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IwmDrive::GetSense
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2Controller::IwmDrive::GetSense() const
+{
+    return m_controller.m_activeDisk[m_drive]->IsWriteProtected();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IwmDrive::ReadCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Disk2Controller::IwmDrive::ReadCell (uint64_t cellEndNs)
+{
+    UNREFERENCED_PARAMETER (cellEndNs);
+
+    return m_controller.m_engine[m_drive].StepCell (false, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IwmDrive::WriteCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::IwmDrive::WriteCell (Byte bit, uint64_t cellEndNs)
+{
+    UNREFERENCED_PARAMETER (cellEndNs);
+
+    (void) m_controller.m_engine[m_drive].StepCell (true, bit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IwmDrive::SetEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::IwmDrive::SetEnabled (bool isEnabled)
+{
+    m_controller.OnIwmEnable (m_drive, isEnabled);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PollFloppyEnable
+//
+//  Whether the drives are enabled for this access: always, with no port
+//  hook. A drive whose enable drops stops at the next tick, without the
+//  spin-down a motor-off command starts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2Controller::PollFloppyEnable()
+{
+    bool  enabled = m_portHook == nullptr || m_portHook->AreFloppiesEnabled();
+
+
+
+    if (!enabled && m_motorOn)
+    {
+        m_motorSpindownCycles = 1;
+    }
+
+    return enabled;
 }
 
 
@@ -338,26 +728,8 @@ Byte Disk2Controller::HandleReadDispatch()
     }
     else if (m_q6 && !m_q7)
     {
-        sense = m_activeDisk[m_activeDrive]->IsWriteProtected() ? 0x80 : 0x00;
-
-        // IWM (//c): Q6H + Q7L reads the STATUS register. Bit 7 is the sense
-        // input (write protect here), bit 5 is the motor-on flag, and bits
-        // 4-0 mirror the MODE register the firmware just wrote -- the reset
-        // code writes the mode register then reads it back to confirm.
-        // A plain Disk II has no status register, so it reports sense alone.
-        //
-        // Bit 5 follows the motor COMMAND, not the spin-down. After $C0E8 the
-        // disk keeps turning for the timer's second so a read in that window
-        // still finds nibbles, but the flag the firmware polls drops at once.
-        // The //c reset routine strobes the motor on and off and then waits
-        // for this bit to clear before it goes on; reported from the
-        // spin-down it held the machine for a full second at every reset,
-        // power cycle and launch, and a real //c comes up at once.
-        result = m_iwmMode
-                     ? static_cast<Byte> (sense
-                                          | ((m_motorOn && m_motorSpindownCycles == 0) ? 0x20 : 0x00)
-                                          | (m_iwmModeReg & 0x1F))
-                     : sense;
+        sense  = m_activeDisk[m_activeDrive]->IsWriteProtected() ? 0x80 : 0x00;
+        result = sense;
     }
 
     return result;
@@ -525,22 +897,14 @@ void Disk2Controller::UpdateEngineSelection()
 //  UpdateEngineWriteMode
 //
 //  Whether the selected drive takes the cells the data latch shifts out: Q7
-//  high, and on the //c's IWM the motor commanded on as well. The IWM keeps
-//  the disk turning through the spin-down after $C0E8 but writes nothing to
-//  it then; with Q6 and Q7 high in that window it loads the mode register
-//  instead. A Disk II card keeps its drive enabled through the spin-down, so
-//  it writes there.
+//  high. A Disk II card's drive is enabled through the spin-down, so it
+//  writes there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2Controller::UpdateEngineWriteMode()
 {
-    bool  isMotorCommandedOn = m_motorOn && m_motorSpindownCycles == 0;
-    bool  isWriting          = m_q7 && (!m_iwmMode || isMotorCommandedOn);
-
-
-
-    m_engine[m_activeDrive].SetWriteMode (isWriting);
+    m_engine[m_activeDrive].SetWriteMode (m_q7);
 }
 
 
@@ -558,6 +922,12 @@ void Disk2Controller::UpdateEngineWriteMode()
 
 void Disk2Controller::Tick (uint32_t cpuCycles)
 {
+    if (m_iwmMode)
+    {
+        TickIwm (cpuCycles);
+        return;
+    }
+
     // Issue #67 deliverable 1: drain the spin-up counter before any
     // other state advances. The bit cursor inside the per-drive
     // engine still ticks normally (rotational position must be
@@ -626,7 +996,7 @@ void Disk2Controller::Tick (uint32_t cpuCycles)
     // sub-instruction precision.
     if (m_cpuCycleSource == nullptr)
     {
-        m_engine[m_activeDrive].Tick (cpuCycles);
+        AdvanceEngine (cpuCycles);
     }
 
     PumpIdleCallback (cpuCycles);
@@ -742,9 +1112,28 @@ void Disk2Controller::CatchUpToCpu()
             delta         = now - m_lastCpuSync;
             m_lastCpuSync = now;
 
-            m_engine[m_activeDrive].Tick (static_cast<uint32_t> (delta));
+            AdvanceEngine (static_cast<uint32_t> (delta));
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdvanceEngine
+//
+//  Moves the active drive's engine on by `cycles`, and with it the time
+//  since the CPU last loaded the write latch, which the IWM's HANDSHAKE
+//  register reports.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::AdvanceEngine (uint32_t cycles)
+{
+    m_engine[m_activeDrive].Tick (cycles);
 }
 
 
@@ -1034,6 +1423,8 @@ void Disk2Controller::Reset()
     m_activeDrive  = 0;
     m_q6           = false;
     m_q7           = false;
+    m_iwmEnabled.fill (false);
+    m_iwm.Reset();
 
     for (i = 0; i < kDriveCount; i++)
     {

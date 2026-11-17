@@ -39,6 +39,87 @@ std::wstring FindingFormatter::Format (const Finding & finding)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FindingFormatter::GetSeverity
+//
+//  File-system damage, a sector whose checksum fails or that is missing, and
+//  an image-file record that is damaged or doesn't match its checksum are
+//  errors; signs of copy protection and file-system findings that aren't
+//  damage are information; every other track, field and image-file finding
+//  is a warning.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FindingSeverity FindingFormatter::GetSeverity (const Finding & finding)
+{
+    FindingSeverity  severity = FindingSeverity::Warning;
+
+
+
+    switch (finding.category)
+    {
+        case FindingCategory::FileSystem:
+            severity = (finding.weight == FindingWeight::Damage) ? FindingSeverity::Error : FindingSeverity::Info;
+            break;
+
+        case FindingCategory::Protection:
+            severity = FindingSeverity::Info;
+            break;
+
+        default:
+            switch (finding.kind)
+            {
+                case FindingKind::AddressChecksumFailed:
+                case FindingKind::DataChecksumFailed:
+                case FindingKind::SectorsMissing:
+                case FindingKind::DamagedRecord:
+                case FindingKind::DamagedMapEntry:
+                case FindingKind::ChecksumMismatch:
+                case FindingKind::MapEntryToEmptyRecord:
+                    severity = FindingSeverity::Error;
+                    break;
+
+                default:
+                    break;
+            }
+
+            break;
+    }
+
+    return severity;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindingFormatter::FormatSeverity
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FindingFormatter::FormatSeverity (FindingSeverity severity)
+{
+    std::wstring  text;
+
+
+
+    switch (severity)
+    {
+        case FindingSeverity::Error:   text = L"Error";   break;
+        case FindingSeverity::Warning: text = L"Warning"; break;
+        case FindingSeverity::Info:    text = L"Info";    break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FindingFormatter::FormatCategory
 //
 ////////////////////////////////////////////////////////////////////////////////

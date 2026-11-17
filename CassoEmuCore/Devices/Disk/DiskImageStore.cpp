@@ -280,6 +280,9 @@ Error:
 //  controller attached to the old image reads freed memory after a failed
 //  remount.
 //
+//  A WOZ image of any disk but a 5.25-inch one is refused before the bay is
+//  touched, as a file in another bay is: the bay keeps its disk.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImageStore::LoadIntoBay (
@@ -290,8 +293,10 @@ HRESULT DiskImageStore::LoadIntoBay (
     const vector<Byte>  &  bytes,
     MountDiagnosis      &  outDiagnosis)
 {
-    HRESULT   hr         = S_OK;
-    bool      wasMounted = false;
+    HRESULT                 hr         = S_OK;
+    bool                    wasMounted = false;
+    bool                    is525      = true;
+    WozLoader::Description  about;
 
 
 
@@ -300,6 +305,16 @@ HRESULT DiskImageStore::LoadIntoBay (
     outDiagnosis.fileByteSize = bytes.size();
 
     CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
+
+    if (fmt == DiskFormat::Woz)
+    {
+        WozLoader::Describe (bytes, about);
+
+        //  A file that isn't a WOZ at all fails in the loader, with its reason.
+        is525 = !about.isWoz || about.diskType == WozLoader::kDiskType525;
+    }
+
+    CBRFEx (is525, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT), outDiagnosis.failure = MountFailure::WozNot525);
 
     {
         Entry &   entry = GetEntry (slot, drive);

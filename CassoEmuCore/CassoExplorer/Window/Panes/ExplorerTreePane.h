@@ -6,6 +6,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
 
 struct ExplorerContext;
+struct PickerRequest;
 
 
 
@@ -28,10 +29,17 @@ class ExplorerTreePane
 public:
     explicit ExplorerTreePane (ExplorerContext & context);
 
-    //  The tips of Casso's folders node and of a folder on a removable drive
-    //  that is not connected.
-    static constexpr const wchar_t *  kCassoNodeTip   = L"Folders Casso has opened disk images from, most recently used first";
-    static constexpr const wchar_t *  kMissingNodeTip = L"This folder is on a removable drive which is not currently connected.";
+    //  The tips of Casso's folders node: in the file manager, in a disk
+    //  drive's picker and in the recorder's picker. Then the tip of a folder
+    //  on a removable drive that is not connected.
+    static constexpr const wchar_t *  kCassoNodeTip     = L"Disk and tape images in the folders Casso has used, most recently used first";
+    static constexpr const wchar_t *  kCassoNodeDiskTip = L"Disk images in the folders Casso has used, most recently used first";
+    static constexpr const wchar_t *  kCassoNodeTapeTip = L"Tape images in the folders Casso has used, most recently used first";
+    static constexpr const wchar_t *  kMissingNodeTip   = L"This folder is on a removable drive which is not currently connected.";
+
+    //  The Casso node's tip for the images the picker lists; with no picker
+    //  or a picker for no drive, every image.
+    static const wchar_t *            GetCassoNodeTip      (const PickerRequest * picker);
 
     //  A rename box runs to this far in from the tree's right edge.
     static constexpr int     kRenameEdgeDip   = 8;

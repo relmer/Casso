@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "SettingsSheet.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "SettingsSheetSize.h"
 
 #include "Shell/EmulatorShell.h"
@@ -643,6 +644,47 @@ HRESULT SettingsSheet::OpenModeless (
     // reported, and both are synced to it.
     m_printingPage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
     m_hardwarePage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
+    m_hardwarePage->SetOnCardChosen ([this] (const std::string & device) { m_pendingCardDevice = device; });
+    m_hardwarePage->SetOnBrowseImage ([this] (const std::string & device, std::string & inOutPath) -> bool
+    {
+        FileDialogSpec          spec;
+        fs::path                picked;
+        bool                    isPicked = false;
+        HRESULT                 hr       = S_OK;
+        const BlockDriveSpec  * drive    = BlockDeviceCatalog::FindDrive (device);
+
+
+
+        spec.filters = { { L"Disk images", L"*.po;*.hdv;*.2mg;*.2img;*.dsk;*.dc;*.dc42;*.image;*.woz" }, { L"All files", L"*.*" } };
+        spec.content = FileDialogContent::Images;
+
+        //  The picker lists what the port's drive accepts: a hard disk up to
+        //  its capacity, or a 3.5-inch drive's disks.
+        if (drive != nullptr)
+        {
+            bool  isUniDisk = device == kpszUniDisk35Device;
+            bool  isApple35 = device == kpszApple35DriveDevice;
+
+            spec.receivingDrive = ReceivingDrive { isUniDisk ? ReceivingDriveKind::UniDisk35 : isApple35 ? ReceivingDriveKind::Apple35 : ReceivingDriveKind::HardDisk,
+                                                   (isUniDisk || isApple35) ? 0 : drive->maxBlocks };
+            spec.driveLabel     = TextEncoding::Utf8ToWide (drive->label);
+        }
+
+        if (!inOutPath.empty())
+        {
+            spec.initialFolder   = fs::path (TextEncoding::Utf8ToWide (inOutPath)).parent_path();
+            spec.defaultFileName = fs::path (TextEncoding::Utf8ToWide (inOutPath)).filename().wstring();
+        }
+
+        hr = m_emuShell->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, picked, isPicked);
+
+        if (SUCCEEDED (hr) && isPicked)
+        {
+            inOutPath = TextEncoding::WideToUtf8 (picked.wstring());
+        }
+
+        return SUCCEEDED (hr) && isPicked;
+    });
 
     // Serial card page: the staged slot entry, the firmware's status in the
     // running machine's config, the shell's download, and the file pickers.
@@ -1046,6 +1088,7 @@ void SettingsSheet::OnDialogTick()
     UpdateTabSparkles();
     UpdateTickInterval();
     ShowPendingNotice();
+    OfferCardFirmware();
 
     // The Machine tab's tree, a machine switch and Cancel all change the
     // staged card behind the Network page, and the connectors the printer
@@ -1239,7 +1282,7 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
 
     // The machine can change under a staged pick, and the desk wears what the
     // machine wore.
-    if (m_emuShell != nullptr && m_emuShell->GetDisks().MachineHasBuiltInDrive() != m_previewSceneIsC)
+    if (m_emuShell != nullptr && m_emuShell->GetDisks().HasDiskIicDrives() != m_previewSceneIsC)
     {
         hr = LoadPreviewSceneModels();
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1314,7 +1357,7 @@ void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int w
 HRESULT SettingsSheet::LoadPreviewSceneModels()
 {
     HRESULT  hr  = S_OK;
-    bool     isC = (m_emuShell != nullptr) && m_emuShell->GetDisks().MachineHasBuiltInDrive();
+    bool     isC = (m_emuShell != nullptr) && m_emuShell->GetDisks().HasDiskIicDrives();
 
 
 
@@ -1953,6 +1996,61 @@ void SettingsSheet::ShowPendingNotice()
     {
         DxuiMessageBox (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), notice.c_str(), L"Settings", MB_OK | MB_ICONINFORMATION);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OfferCardFirmware
+//
+//  On the tick after a card is put in a slot, so the drop-down the card was
+//  picked from is closed first. Without its firmware the machine runs
+//  without the card, so the card stays in the slot after a canceled or
+//  failed download.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::OfferCardFirmware()
+{
+    HRESULT                hr          = S_OK;
+    std::string            device      = std::move (m_pendingCardDevice);
+    std::vector<fs::path>  searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory());
+    const BlockCardSpec  * card        = nullptr;
+    std::string            rom;
+    std::string            error;
+    std::wstring           label;
+    std::wstring           intro;
+    std::wstring           message;
+    bool                   downloaded  = false;
+
+
+
+    m_pendingCardDevice.clear();
+    BAIL_OUT_IF (device.empty(), S_OK);
+
+    card = BlockDeviceCatalog::FindCard (device);
+    rom  = AssetBootstrap::GetMissingCardRom (device, searchPaths);
+    BAIL_OUT_IF (card == nullptr || rom.empty(), S_OK);
+
+    label = TextEncoding::NarrowToWide (card->label);
+    intro = std::format (L"The {} runs firmware that is not installed. Click Download to fetch it, or Cancel to "
+                         L"download it later. Until then, the machine runs without the card.", label);
+
+    hr = AssetBootstrap::OfferOptionalRomDownload (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), rom,
+                                                   label + L" firmware", intro, downloaded, error);
+
+    if (FAILED (hr) || !error.empty())
+    {
+        message = std::format (L"The {} firmware could not be downloaded. {}", label, TextEncoding::NarrowToWide (error));
+
+        DxuiMessageBox (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), message.c_str(), label.c_str(), MB_OK | MB_ICONWARNING);
+    }
+
+Error:
+    return;
 }
 
 

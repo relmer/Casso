@@ -20,6 +20,11 @@
 #include "Core/MachineScanner.h"
 #include "Shell/DiskMru.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
+#include "CassoExplorer/Picker/StartupDiskPicker.h"
+#include "Machines/MachineDefinitions.h"
+#include "Shell/BootDriveRule.h"
+#include "Shell/Layout/DriveLabel.h"
+#include "Ui/Settings/SettingsPanelState.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Dialogs/CommandLineHelpDialog.h"
 #include "Shell/Components/ShellWindow.h"
@@ -208,6 +213,110 @@ static void ShowCommandLineDialog (HINSTANCE hInstance, const CommandLineOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RunStartupForm
+//
+//  The startup form, for the drive BootDriveRule finds, when no disk was
+//  given on the command line. A saved disk for drive 1 that no longer
+//  exists is cleared first. A pick for slot 6's Disk II is returned as
+//  drive 1's disk; a pick for another drive is put on its port in `config`
+//  and in the machine's saved settings, as Settings' Hardware page puts it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT RunStartupForm (
+    HINSTANCE           hInstance,
+    HWND                hwndParent,
+    const wstring     & machineName,
+    const JsonValue   & defaultJson,
+    wstring           & inoutDisk1Path,
+    bool              & outUserExited,
+    MachineConfig     & config)
+{
+    HRESULT                    hr          = S_OK;
+    HRESULT                    hrSaved     = S_OK;
+    HRESULT                    hrPrefs     = S_OK;
+    HRESULT                    hrEdit      = S_OK;
+    Win32FileSystem            fs_io;
+    UserConfigStore            store (AssetBootstrap::GetAssetBaseDirectory().wstring());
+    GlobalUserPrefs            prefs;
+    wstring                    savedDisk;
+    wstring                    picked;
+    wstring                    label;
+    string                     image;
+    BootDrive                  boot;
+    ReceivingDrive             receiving;
+    bool                       userClosed  = false;
+    bool                       found       = false;
+    const MachineDefinition  * definition  = MachineDefinitions::Find (config.machineId);
+
+
+
+    outUserExited = false;
+
+    BAIL_OUT_IF (!inoutDisk1Path.empty(), S_OK);
+
+    hrSaved = DiskSettings::ReadSavedDiskPath (store, fs_io, 0, machineName, savedDisk);
+    IGNORE_RETURN_VALUE (hrSaved, S_OK);
+
+    if (!savedDisk.empty() && !fs::exists (fs::path (savedDisk)))
+    {
+        hrSaved = DiskSettings::WriteSavedDiskPath (store, fs_io, 0, machineName, wstring());
+        IGNORE_RETURN_VALUE (hrSaved, S_OK);
+        savedDisk.clear();
+    }
+
+    found = BootDriveRule::TryFindDriveToFill (config, definition != nullptr && definition->hasBuiltInDrive, !savedDisk.empty(), boot);
+    BAIL_OUT_IF (!found, S_OK);
+
+    hrPrefs = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(), fs_io);
+    IGNORE_RETURN_VALUE (hrPrefs, S_OK);
+
+    receiving.kind = DeskDrivePlan::GetReceivingKind (boot.drive.model);
+    label          = boot.IsDiskIi() ? wstring (L"Drive 1") : DriveLabel::GetTitle (boot.drive, true);
+
+    hr = StartupDiskPicker::Run (hInstance, hwndParent, AssetBootstrap::GetEmbeddedDisplayName (hInstance, machineName), receiving, label,
+                                 prefs.activeTheme, picked, userClosed);
+    CHRN (hr, L"The boot disk picker could not be opened.");
+
+    // Closing the picker is a clean shutdown request, as choosing Exit in
+    // the download dialog is.
+    outUserExited = userClosed;
+    BAIL_OUT_IF (userClosed || picked.empty(), S_OK);
+
+    if (boot.IsDiskIi())
+    {
+        inoutDisk1Path = picked;
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    image = TextEncoding::WideToUtf8 (picked);
+    BootDriveRule::SetImage (config, boot, image);
+
+    hrEdit = SettingsPanelState::EditSaved (store, fs_io, fs::path (machineName).string(), defaultJson, [&boot, &image] (SettingsPanelState & state)
+    {
+        int  index = SlotCards::FindSlot (state.GetHardware(), boot.drive.slot);
+
+
+
+        if (!boot.portName.empty())
+        {
+            return state.SetMachinePortImage (boot.portName, image);
+        }
+
+        return (index < 0) ? HRESULT_FROM_WIN32 (ERROR_NOT_FOUND) : state.SetPortImage ((size_t) index, (size_t) boot.drive.drive, image);
+    });
+    IGNORE_RETURN_VALUE (hrEdit, S_OK);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LoadMachineConfig
 //
 //  Everything that has to happen before a machine can be built: find its
@@ -263,9 +372,8 @@ static HRESULT LoadMachineConfig (
     vector<fs::path>    romSearchPaths;
     fs::path            romDir;
     fs::path            diskDir;
-    wstring             savedDisk;
-    HRESULT             hrSaved        = S_OK;
     bool                foundConfig    = false;
+    JsonValue           defaultJson;
     string              error;
 
 
@@ -342,96 +450,6 @@ static HRESULT LoadMachineConfig (
         BAIL_OUT_IF (outUserExited, S_OK);
     }
 
-    // Boot-disk pre-flight: if the user didn't pass --disk1 and there's
-    // no remembered disk for this machine in UserPrefs (or the
-    // remembered path no longer points at a real file), and the
-    // machine has a Disk ][ controller, offer to download a stock
-    // Apple system master disk. Without this the user just stares at
-    // a spinning drive forever after first launch.
-    if (inoutDisk1Path.empty())
-    {
-        Win32FileSystem  fs_io;
-        UserConfigStore  store (AssetBootstrap::GetAssetBaseDirectory().wstring());
-
-        hrSaved = DiskSettings::ReadSavedDiskPath (store, fs_io, 0, machineName, savedDisk);
-        IGNORE_RETURN_VALUE (hrSaved, S_OK);
-
-        // Treat a remembered-but-missing disk the same as "no
-        // remembered disk", and clear the stale value so we don't keep
-        // tripping over it on every launch.
-        if (!savedDisk.empty() && !fs::exists (fs::path (savedDisk)))
-        {
-            HRESULT hrClear = DiskSettings::WriteSavedDiskPath (
-                store, fs_io, 0, machineName, wstring());
-            IGNORE_RETURN_VALUE (hrClear, S_OK);
-            savedDisk.clear();
-        }
-
-        if (savedDisk.empty())
-        {
-            wstring                downloaded;
-            GlobalUserPrefs        prefs;
-            Win32FileSystem        fs_prefs;
-            DiskMru                mru;
-            vector<DiskMru::Entry> mruPruned;
-            vector<DiskMru::Entry> mruExisting;
-            HRESULT                hrPrefs    = S_OK;
-            bool                   userClosed = false;
-
-            diskDir = AssetBootstrap::GetDiskDirectory();
-
-            hrPrefs = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(), fs_prefs);
-            IGNORE_RETURN_VALUE (hrPrefs, S_OK);
-
-            mru       = DiskMru::FromUtf8 (prefs.recentDisks, prefs.recentDiskLoadedAt);
-            mruExisting = mru.Prune ([] (const fs::path & p)
-                                     {
-                                         return fs::exists (p)
-                                                && !AssetBootstrap::IsForeignCheckoutDisk (p);
-                                     });
-
-            // The recent list holds tapes too; a boot disk is a disk.
-            mruPruned = mru.Prune ([] (const fs::path & p)
-                                   {
-                                       return fs::exists (p)
-                                              && !AssetBootstrap::IsForeignCheckoutDisk (p)
-                                              && IsSupportedDiskImageExtension (p.wstring());
-                                   });
-
-            AssetBootstrap::AppendSiblingDisksFromFolders (
-                KnownFolderStore::LoadPickerFolders (fs_prefs, AssetBootstrap::GetAssetBaseDirectory().wstring(),
-                                                     mruExisting,
-                                                     (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
-                                                         std::chrono::system_clock::now().time_since_epoch()).count()),
-                mruPruned,
-                IsSupportedDiskImageExtension);
-
-            AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned, mruExisting, IsSupportedDiskImageExtension);
-            AssetBootstrap::AppendBundledDemoDisks (mruPruned, IsSupportedDiskImageExtension);
-
-            hr = AssetBootstrap::PromptBootDiskMru (
-                hInstance, hwndParent, machineName, mruPruned, diskDir, prefs.activeTheme, downloaded, userClosed, error);
-
-            // A failed download is shown by the picker itself, which then
-            // comes back; what reaches here is a machine whose embedded
-            // config could not be read.
-            CHRN (hr, format (L"Boot disk picker failed:\n{}",
-                              TextEncoding::NarrowToWide (error)).c_str());
-
-            // Closing the boot-disk picker is the same clean-shutdown
-            // request as choosing Exit above.
-            outUserExited = userClosed;
-            BAIL_OUT_IF (userClosed, S_OK);
-
-            if (!downloaded.empty())
-            {
-                inoutDisk1Path = downloaded;
-            }
-
-            hr = S_OK;
-        }
-    }
-
     // Now load the on-disk config file and parse it
     configFile.open (configPath);
     configGood = configFile.good();
@@ -448,7 +466,6 @@ static HRESULT LoadMachineConfig (
     // in-session reboot. Falls back to the base text on any merge failure.
     {
         Win32FileSystem  fsMerge;
-        JsonValue        defaultJson;
         JsonValue        mergedJson;
         JsonParseError   parseErr;
         HRESULT          hrParse     = S_OK;
@@ -478,6 +495,12 @@ static HRESULT LoadMachineConfig (
                                     error);
     CHRN (hr, format (L"Failed to load machine config:\n{}",
                       TextEncoding::NarrowToWide (error)).c_str());
+
+    //  The startup form, for the drive the machine boots from, when that drive
+    //  has no image and none was given on the command line.
+    hr = RunStartupForm (hInstance, hwndParent, machineName, defaultJson, inoutDisk1Path, outUserExited, outConfig);
+    CHR (hr);
+    BAIL_OUT_IF (outUserExited, S_OK);
 
     // Validate disk images
     if (!inoutDisk1Path.empty())
@@ -849,6 +872,7 @@ extern "C" int WINAPI wCassoMain (
     // --title: set before the window exists, so the first caption the shell
     // composes already carries the launcher's label.
     shell->SetWindowTitlePrefix (titlePrefix);
+    shell->SetRunBlockAttachments (parsed.hdAttachments, parsed.smartPortAttachments);
 
     // --serial-log: opened before the machine is built, so the bridges built
     // with it write to the file from the first byte.

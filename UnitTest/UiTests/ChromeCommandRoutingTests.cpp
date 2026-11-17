@@ -144,6 +144,14 @@ public:
         { L"IDM_MOUSE_DISCONNECT",          IDM_MOUSE_DISCONNECT          },
         { L"IDM_STORAGE_DRIVE2",            IDM_STORAGE_DRIVE2            },
         { L"IDM_STORAGE_RECORDER",          IDM_STORAGE_RECORDER          },
+        { L"IDM_STORAGE_ATTACH_APPLE35",    IDM_STORAGE_ATTACH_APPLE35    },
+        { L"IDM_STORAGE_ATTACH_FLOPPY",     IDM_STORAGE_ATTACH_FLOPPY     },
+        { L"IDM_DISK_INSERT3",              IDM_DISK_INSERT3              },
+        { L"IDM_DISK_EJECT3",               IDM_DISK_EJECT3               },
+        { L"IDM_DISK_WP3",                  IDM_DISK_WP3                  },
+        { L"IDM_DISK_SALVAGE3",             IDM_DISK_SALVAGE3             },
+        { L"IDM_DISK_INSPECT3",             IDM_DISK_INSPECT3             },
+        { L"IDM_DISK_THUMBNAIL3",           IDM_DISK_THUMBNAIL3           },
 
         { L"IDM_PRINTER_DISCARD",           IDM_PRINTER_DISCARD           },
         { L"IDM_PRINTER_COPY",              IDM_PRINTER_COPY              },
@@ -156,6 +164,9 @@ public:
         { L"IDM_VIEW_FRAME_RATE",           IDM_VIEW_FRAME_RATE           },
         { L"IDM_VIEW_SCENE_VIEW",           IDM_VIEW_SCENE_VIEW           },
         { L"IDM_VIEW_AUTOHIDE_DRIVES",      IDM_VIEW_AUTOHIDE_DRIVES      },
+        { L"IDM_VIEW_FLOPPIES_ON_DESK",     IDM_VIEW_FLOPPIES_ON_DESK     },
+        { L"IDM_VIEW_HARD_DISKS_ON_DESK",   IDM_VIEW_HARD_DISKS_ON_DESK   },
+        { L"IDM_VIEW_FLOPPY_PAIR_BESIDE",   IDM_VIEW_FLOPPY_PAIR_BESIDE   },
         { L"IDM_VIEW_CONTROLLER_SETTINGS",  IDM_VIEW_CONTROLLER_SETTINGS  },
         { L"IDM_DEBUG_SAVE_TRACE",          IDM_DEBUG_SAVE_TRACE          },
         { L"IDM_HELP_KEYMAP",              IDM_HELP_KEYMAP               },
@@ -408,10 +419,23 @@ public:
     }
 
 
-    // The Storage menu's labels in table order, with the second-drive row's
-    // label replaced by `drive2Label` when one is given, as the live label
-    // query replaces it.
-    static std::vector<std::wstring> GetStorageLabels (const std::wstring & drive2Label)
+    // The rows EmulatorWindow's visible query hides on a machine with slot 6
+    // drives and a cassette port, and on the //c Plus, whose drive 1 is its
+    // built-in 3.5-inch drive and which has no cassette port. A row hidden in
+    // one of them may share a letter with a row visible only there.
+    static constexpr WORD  kHiddenOnSlot6[]    = { IDM_STORAGE_ATTACH_APPLE35, IDM_STORAGE_ATTACH_FLOPPY,
+                                                   IDM_DISK_INSERT3, IDM_DISK_EJECT3, IDM_DISK_WP3,
+                                                   IDM_DISK_SALVAGE3, IDM_DISK_INSPECT3, IDM_DISK_THUMBNAIL3 };
+    static constexpr WORD  kHiddenOnTheCPlus[] = { IDM_STORAGE_DRIVE2, IDM_STORAGE_RECORDER, IDM_TAPE_INSERT,
+                                                   IDM_TAPE_PLAY, IDM_TAPE_STOP, IDM_TAPE_REWIND,
+                                                   IDM_TAPE_FASTFORWARD, IDM_TAPE_EJECT, IDM_DISK_WP1,
+                                                   IDM_DISK_SALVAGE1, IDM_DISK_INSPECT1, IDM_DISK_THUMBNAIL1 };
+
+
+    // The Storage menu's labels in table order, less the rows in `hidden`,
+    // with the second-drive row's label replaced by `drive2Label` when one is
+    // given, as the live label query replaces it.
+    static std::vector<std::wstring> GetStorageLabels (const std::wstring & drive2Label, std::span<const WORD> hidden = kHiddenOnSlot6)
     {
         std::vector<std::wstring>  labels;
 
@@ -421,7 +445,8 @@ public:
         {
             bool  isReplaced = (e.commandId == IDM_STORAGE_DRIVE2 && !drive2Label.empty());
 
-            if (EmulatorCommands::IsSeparator (e) || e.menu != MainMenuId::Disk)
+            if (EmulatorCommands::IsSeparator (e) || e.menu != MainMenuId::Disk ||
+                std::ranges::find (hidden, e.commandId) != hidden.end())
             {
                 continue;
             }
@@ -471,6 +496,7 @@ public:
     TEST_METHOD (Storage_Menu_Rows_Each_Have_Their_Own_Letter)
     {
         AssertEveryRowHasItsOwnLetter (GetStorageLabels (L""));
+        AssertEveryRowHasItsOwnLetter (GetStorageLabels (L"", kHiddenOnTheCPlus));
     }
 
 

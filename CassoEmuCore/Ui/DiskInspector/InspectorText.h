@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/DiskAnalysis.h"
+#include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Devices/Disk/IDiskImage.h"
 
 class BlockInspectorModel;
@@ -38,6 +39,7 @@ enum class SummaryChipKind
     BlocksUsed,
     Files,
     CrossLinked,
+    FileSystem,
 };
 
 
@@ -82,6 +84,7 @@ public:
     static vector<SummaryChip>  BuildChips          (const DiskSummary & summary);
     static vector<SummaryChip>  BuildBlockChips     (const BlockInspectorModel & model);
     static std::wstring         FormatFileSystem    (BlockFileSystem fileSystem);
+    static vector<SummaryChip>  BuildChips          (const DiskSummary & summary, FileSystemVerdict verdict);
     static std::wstring         FormatDiskFormat    (DiskFormatClass format);
     static std::wstring         FormatOrdinal       (int n);
     static std::wstring         FormatCount         (int count, LPCWSTR singular, LPCWSTR plural);

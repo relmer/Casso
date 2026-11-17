@@ -163,6 +163,38 @@ public:
 
 
 
+    TEST_METHOD (ATracksTip_InARawCapture_ListsOnlyTheQuarterTracksRead)
+    {
+        FullSendDriveStatus  drive;
+        std::wstring         lastTip;
+
+
+
+        drive.tracks[12] = FullSendTrackMark::Verified;
+        Assert::AreEqual (std::wstring (L"Track 12: read and verified"), FullSendPanel::DescribeTrack (drive, 12));
+
+        drive.positions.assign (FullSendDriveStatus::kPositions, FullSendPositionMark::Unread);
+        drive.positions[48] = FullSendPositionMark::Read;
+        drive.positions[49] = FullSendPositionMark::Weak;
+        drive.positions[50] = FullSendPositionMark::Skipped;
+        drive.positions[51] = FullSendPositionMark::Unstable;
+        Assert::AreEqual (std::wstring (L"Track 12: read\n"
+                                        L"Track 12.25: weak bits, which read differently every time, as on the disk\n"
+                                        L"Track 12.75: the reads differ in length"),
+                          FullSendPanel::DescribeTrack (drive, 12));
+
+        //  A track with no quarter track read has one line, as the last track
+        //  does, with no quarter tracks past the end of the map.
+        drive.positions[52] = FullSendPositionMark::Read;
+        drive.positions[53] = FullSendPositionMark::Skipped;
+        Assert::AreEqual (std::wstring (L"Track 13: read"), FullSendPanel::DescribeTrack (drive, 13));
+
+        lastTip = FullSendPanel::DescribeTrack (drive, FullSendDriveStatus::kTracks - 1);
+        Assert::AreEqual ((std::ptrdiff_t) 0, std::count (lastTip.begin(), lastTip.end(), L'\n'));
+    }
+
+
+
     TEST_METHOD (TheTotals_HaveTheAverageAndSizeOnceADiskIsSent)
     {
         FullSendTotals  totals;
@@ -177,7 +209,7 @@ public:
         totals.rawCaptures = 1;
         totals.average     = 26.0;
         totals.bytes       = 2 * 143360;
-        Assert::AreEqual (std::wstring (L"2 sent, 1 duplicate, 0 blank, 1 raw capture, 0 with bad sectors    1:05 active, 0:00 idle, 0:26 a disk, 0.3 MB"), FullSendPanel::DescribeTotals (totals));
+        Assert::AreEqual (std::wstring (L"2 sent, 1 duplicate, 0 blank, 1 raw capture, 0 with bad sectors    1:05 active, 0:00 idle, average 0:26 per disk, 0.3 MB"), FullSendPanel::DescribeTotals (totals));
     }
 
 
@@ -309,6 +341,81 @@ public:
             Assert::IsTrue  (panel.IsOverActivity (POINT { 10, (LONG) (FindTextTop (text, L"10:00:01") + lineH / 2.0f) }));
             Assert::IsFalse (panel.IsOverActivity (POINT { 10, (LONG) (archon + lineH / 2.0f) }));
         }
+    }
+
+    //  At 100% and 150%, a track's tip covers its whole cell, the stripes of
+    //  its quarter tracks too, which are too narrow to point at alone.
+    TEST_METHOD (ATracksTip_CoversItsCell_At100And150Percent)
+    {
+        for (UINT dpi : { 96u, 144u })
+        {
+            FullSendPanel         panel;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            DxuiDpiScaler         scaler;
+            POINT                 top   = { -1, -1 };
+            LONG                  below = 0;
+            int                   drive = 0;
+            int                   track = 0;
+
+
+
+            scaler.SetDpi (dpi);
+
+            panel.Layout  (RECT { 0, 0, scaler.ToPx (FullSendDialog::kWidthDip), scaler.ToPx (FullSendDialog::kHeightDip) }, scaler);
+            panel.SetView (MakeView());
+            panel.Paint   (painter, text, theme);
+
+            //  The top of drive 1's track 5 column, then its bottom.
+            for (LONG y = 0; y < scaler.ToPx (FullSendDialog::kHeightDip) && top.y < 0; y++)
+            {
+                for (LONG x = 0; x < scaler.ToPx (FullSendDialog::kWidthDip) && top.y < 0; x++)
+                {
+                    top = (panel.TryGetTrackAt (POINT { x, y }, drive, track) && drive == 1 && track == 5) ? POINT { x, y } : top;
+                }
+            }
+
+            Assert::IsTrue (top.y >= 0, std::format (L"Track 5 has a column at {} dpi", dpi).c_str());
+
+            below = top.y;
+
+            while (panel.TryGetTrackAt (POINT { top.x, below }, drive, track) && track == 5)
+            {
+                below++;
+            }
+
+            Assert::IsTrue ((float) (below - top.y) >= scaler.ToPxf (FullSendPanel::kMapCellDip) - 1.0f,
+                            std::format (L"The column is {} px at {} dpi", below - top.y, dpi).c_str());
+        }
+    }
+
+    //  A quarter track read is a lighter blue toward the next track, a weak
+    //  or unstable one has its mark's color, and one not read has no stripe.
+    TEST_METHOD (AQuarterTracksStripe_HasItsShadeOrMark)
+    {
+        MockDxuiTheme  theme;
+        uint32_t       first  = 0;
+        uint32_t       second = 0;
+        uint32_t       third  = 0;
+        uint32_t       color  = 0;
+
+
+
+        Assert::IsTrue (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Read, 1, first));
+        Assert::IsTrue (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Read, 2, second));
+        Assert::IsTrue (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Read, 3, third));
+        Assert::IsTrue (first != second && second != third && first != third);
+        Assert::IsTrue (first != FullSendPanel::GetColor (FullSendPositionMark::Read, theme), L"a stripe stands out from its track");
+
+        Assert::IsTrue (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Weak, 2, color));
+        Assert::AreEqual (FullSendPanel::GetColor (FullSendPositionMark::Weak, theme), color);
+
+        Assert::IsTrue (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Unstable, 3, color));
+        Assert::AreEqual (FullSendPanel::GetColor (FullSendPositionMark::Unstable, theme), color);
+
+        Assert::IsFalse (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Skipped, 1, color));
+        Assert::IsFalse (FullSendPanel::TryGetQuarterColor (FullSendPositionMark::Unread, 1, color));
     }
 
     //  A double-click on a disk's row opens it, and one click doesn't; a

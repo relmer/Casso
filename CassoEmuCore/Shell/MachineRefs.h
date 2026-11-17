@@ -51,6 +51,20 @@ struct MachineRefs
     // follows the CPU clock.
     std::vector<class Acia6551 *> serialChips;
 
+    // Every SmartPort, SCSI and ProFile device, and every 3.5-inch mechanism,
+    // for MachineHost::AttachObservers to point at the observers' sinks.
+    std::vector<class IBlockDeviceEventSource *>  blockDeviceSources;
+    std::vector<class IFloppy35EventSource *>     floppy35Sources;
+
+    // The SCSI cards, given the CPU's cycle count once the CPU exists.
+    std::vector<class AppleScsiCard *>            scsiCards;
+    std::vector<class ProFileCard *>              proFileCards;
+    std::vector<class Apple35ControllerCard *>    apple35Cards;
+    std::vector<class LironCard *>                lironCards;
+    class Apple2cSmartPort                      * apple2cSmartPort    = nullptr;
+    class Apple2cPlusDiskPort                   * apple2cPlusDiskPort = nullptr;
+    class MigChip                               * migChip             = nullptr;
+
     // The $D000 bank split every Apple II has. Resolved once by
     // WireLanguageCard, which is the only code that knows which owned device
     // it is -- everything downstream reads this rather than casting its way

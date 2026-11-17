@@ -35,6 +35,11 @@ public:
     void                  Hide                 () override;
     bool                  UpdateScrollbarHover (POINT at) override;
     bool                  TickScrollbars       (int64_t nowMs) override;
+    int                   GetContentHeightPx   () const override;
+    bool                  IsAtTop              () const override;
+    int                   GetScrollPx          () const override;
+    void                  SetScrollPx          (int scrollPx) override;
+    void                  SetScrollbarHidden   (bool isHidden) override { m_list->SetVerticalScrollbarHidden (isHidden); }
     void                  Fill                 (const PreviewContent & preview, bool columns);
     void                  SetVisible           (bool visible);
     LPCWSTR               GetCursorForPoint    (POINT clientPx) const;

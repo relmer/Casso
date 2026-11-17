@@ -114,6 +114,13 @@ public:
     // worth keeping: the glow stays an edge treatment on a dense display
     // rather than one that grows with the display.
     static constexpr int    kGlowReachPx     = 10;
+
+    // The blurred shadow's growth of the ink, and its blur's standard
+    // deviation, as shares of kGlowReachPx: together the shadow fades out at
+    // about that distance from the ink.
+    static constexpr float  kShadowSpreadOfReach = 0.25f;
+    static constexpr float  kShadowBlurOfReach   = 0.30f;
+
     static constexpr float  kFontDip         = 13.0f;
 
     // Samples per ring. EIGHT, flat, which is the count the original drew and

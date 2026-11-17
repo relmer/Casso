@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkSettings.h"
+#include "CassoLink/FullSend/FullSendProtection.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "CassoExplorer/Model/FolderViews.h"
 #include "CassoExplorer/Model/Location.h"
@@ -68,6 +69,9 @@ struct CassoExplorerPrefs
     //  .po on ProDOS and .dsk otherwise.
     std::wstring           fullSendFolder;
     std::string            fullSendExtension;
+
+    //  The Full Send options' Copy-protected disks section.
+    FullSendProtectionChoices  fullSendProtection;
 
     //  When each CassoLink receiving folder was last listed, in file time ticks.
     //  Files newer than this are counted on its tree row.
@@ -204,6 +208,10 @@ struct CassoExplorerPrefs
     //  a file that exists and will not parse.
     HRESULT  Load (const std::wstring & baseDir, IFileSystem & fs);
     HRESULT  Save (const std::wstring & baseDir, IFileSystem & fs) const;
+
+    //  The same for a file at a path. An absent file is the defaults.
+    HRESULT  LoadFile (const std::wstring & path, IFileSystem & fs);
+    HRESULT  SaveFile (const std::wstring & path, IFileSystem & fs) const;
 
     JsonValue  ToJson   () const;
     HRESULT    FromJson (const JsonValue & root);

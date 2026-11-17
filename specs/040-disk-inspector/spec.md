@@ -1450,10 +1450,10 @@ was planted.
    tree, and a directory whose file count disagrees with its entries, **When**
    it is repaired, **Then** the copy's bitmap and file count match the
    tree.
-10. **Given** a disk with sectors marked used that no file owns, **When** the
-    user turns on "Don't free sectors that no file uses" in Repair's
-    confirmation and repairs it, **Then** those sectors are marked used in
-    the copy, for a protection that hides data in them.
+10. **Given** a disk with sectors marked used that aren't in any file, **When**
+    the user turns on "Keep sectors not in any file marked as used" in
+    Repair's confirmation and repairs it, **Then** those sectors are marked
+    used in the copy, for copy protection that stores data in them.
 11. **Given** any image, **When** it is checked from the command line with
     `CassoCli disk repair <image>`, **Then** the same verdict, findings and
     repairs are reported, and the copy is written as in Casso Explorer.
@@ -3598,8 +3598,9 @@ release (Delivery). The first release MUST NOT depend on them.
   chain that loops or doesn't end, a file whose sectors reachable by its chain
   differ by more than one from its catalog count, a sector a file uses that
   the bitmap marks free, a sector two files use, a VTOC or volume directory
-  that couldn't be read, a file that is one repeated byte throughout, or an
-  image almost all blank); Suspect for a finding that is only worth a look;
+  that couldn't be read, or an image almost all blank); Suspect for a finding
+  that is only worth a look, such as a file that is one repeated byte
+  throughout;
   OK for none; and "No standard file system" for a disk with none. The verdict
   MUST be drawn with the File map and in the summary, and returned by
   `CassoCli disk test`.
@@ -3628,39 +3629,114 @@ release (Delivery). The first release MUST NOT depend on them.
   exists, in the image's format, and MUST NOT change the image. It MUST be
   offered only for a volume whose catalog and every file's chain could be
   followed to their ends after the catalog repair of FR-173, and never for
-  a disk with no standard file system.
+  a disk with no standard file system, a disk with more than one volume, or
+  a copy-protected disk. A disk is copy-protected when its tracks have a
+  nonstandard track, 13-sector fields beside 16-sector ones, an epilogue,
+  address-field track or volume that a standard format doesn't write, an
+  address field with no data field, a repeated or out-of-range sector,
+  nibbles outside the table, a stray field mark, a track record between or
+  across whole tracks, or random bits or an odd track length on at least a
+  quarter of the tracks with data. A sector image is never copy-protected.
 - **FR-172**: Repair MUST match the bitmap to the files: a sector a
   file uses marked used, and a sector no file uses marked free, except tracks
   0 to 2 and track 17 on DOS 3.3, and the boot blocks, the directory and the
-  bitmap itself on ProDOS. With "Don't free sectors that no file uses"
-  turned on, a sector marked used that no file uses MUST be marked used in
+  bitmap itself on ProDOS. The VTOC and the catalog's sectors on DOS 3.3,
+  and the bitmap's bits for blocks past the end of a ProDOS volume, MUST be
+  marked used. With "Keep sectors not in any file marked as used" turned
+  on, a sector marked used that isn't in any file MUST be marked used in
   the copy.
 - **FR-173**: Repair MUST first relink a DOS 3.3 catalog whose chain loops,
   points off the disk or ends early, when its sectors on track 17 are linked
   as DOS's INIT links them, from sector $F down, through every such sector
   with believable entries. The bitmap is then made from the relinked catalog.
-- **FR-174**: Repair MUST set a DOS 3.3 VTOC header that differs from DOS's
-  standard values back to them when the catalog on track 17 has at least four
-  sectors linked as INIT links them with believable entries, and MUST NOT
-  change a header on a disk that otherwise reads as DOS 3.3 or that has no
-  DOS on tracks 0 to 2. A next-track hint off the disk MUST be set to track 17,
-  moving up.
+- **FR-174**: Repair MUST set a DOS 3.3 VTOC header that DOS can't read the
+  catalog through back to DOS's standard values, when tracks 0 to 2 have DOS
+  and the catalog on track 17 has at least four sectors linked as INIT links
+  them with believable entries. A header that DOS can read the catalog
+  through MUST NOT be changed, even where its values differ from DOS's,
+  because a modified DOS can set some of them deliberately. A next-track hint off the disk,
+  or a direction other than up or down, MUST be set to track 17, moving up.
 - **FR-175**: Repair MUST set the catalog sector count of a file on DOS
-  3.3, and the file count of a directory on ProDOS or Apple Pascal, to the
-  count of the chain or of the entries, when they differ.
+  3.3, the blocks-used count of a file and the file count of a directory on
+  ProDOS, and the file count of the directory on Apple Pascal, to the count
+  of the chain or of the entries, when they differ; and on ProDOS a file
+  entry's pointer to its directory's key block, and a subdirectory header's
+  parent block, parent entry number and parent entry length, to the values
+  in the directory tree.
 - **FR-176**: Repair MUST NOT change a file's data or its chain: a file with a
   chain off the disk, a loop, or a sector another file uses is reported, and
   Repair is unavailable for its volume, with the reason.
-- **FR-177**: Before Repair writes, its confirmation MUST list the changes,
-  each as a line (for example "Mark 3 sectors HELLO uses as used in the
-  bitmap"), and after it writes, the copy MUST be selected in Casso
-  Explorer.
+- **FR-177**: Before Repair writes, its confirmation MUST list every change
+  the volume can have, each with a check box (for example "Mark 3 sectors of
+  HELLO as used in the bitmap"), and write one copy with the checked
+  changes; Repair is unavailable, with the reason, while the checked
+  changes can't be made. For a volume that is only Suspect, the
+  confirmation MUST have a caution that its findings can be normal on a disk made by
+  another DOS or by a program that uses the VTOC or catalog differently,
+  and that such a disk is best repaired only when it doesn't work. After
+  it writes, the copy MUST be selected in
+  Casso Explorer, and an inspector window opened from Casso Explorer MUST
+  have the copy open in the image's place with the same selection.
+- **FR-180**: The checks MUST also report a file that uses a volume's
+  bookkeeping (the VTOC, a catalog sector or the boot sector on DOS 3.3; a
+  boot block, a volume directory block or the bitmap on ProDOS; a boot
+  block or a directory block on Apple Pascal) as damage; on DOS 3.3, the
+  VTOC or a catalog sector marked free, as damage; on ProDOS, a directory
+  pointer or parent field that differs, bitmap bits past the end of the
+  volume marked free, and an invalid file name, as worth a look, and an
+  end of file past what a seedling or sapling file addresses, as damage; on
+  Apple Pascal, a last block byte count outside 1 to 512 and an invalid file
+  name, as worth a look; and on CP/M, a missing extent, a last record with
+  no block and a file block in the directory, as damage, and blocks past an
+  extent's record count, as a note. Findings MUST be worded in plain
+  speech, with "Expected X, but found Y" only for a value that differs from
+  a known one.
 - **FR-179**: Casso Explorer's preview pane MUST have a disk image's
-  file-system verdict with the inspector's other details: Bad as a warning
-  banner at the top of the pane, in the theme's error color, with the first
-  finding of damage and Repair disk image when the volume can be repaired;
-  Suspect as a line with its first finding; and nothing more for OK or for a
-  disk with no standard file system.
+  file-system verdict with the inspector's other details: Bad as an error
+  infobar at the top of the pane, with the first finding of damage and
+  Repair disk image when the volume can be repaired;
+  Suspect as an info infobar, "Possible inconsistencies found.", with its
+  first suspect finding and Inspect disk image, since a suspect finding can
+  be normal for the disk; the action under the text in a narrow pane;
+  and nothing more for OK or for a disk with no standard file system. The
+  infobar's text MUST wrap within it at any width. The thumbnail and the
+  catalog under it MUST scroll as one: the wheel scrolls the thumbnail away
+  before the catalog, and the catalog back to its top before the thumbnail,
+  and one scrollbar down the pane's right edge, from the thumbnail's top,
+  MUST scroll both.
+- **FR-183**: Casso Explorer's preview pane MUST NOT repair an image: its infobar has no button, and ends, after a blank
+  line, with "Inspect for more details.", and an Inspect... button at the
+  platter area's bottom right opens the inspector, where the findings and
+  Repair are. The Issues tab MUST have one Repair disk image... button,
+  in the accent, centered under the list, with no Repair button on a row.
+  An error's icon and the Issues tab's count MUST be in the bad sector
+  color. The report after a repair MUST be titled Repair complete, have a
+  check mark on each fix with the fix's wrapped lines after the mark, be as
+  wide as its widest line up to 560 DIP, and have only OK, which opens the
+  copy. A link MUST have the hand cursor and no underline.
+- **FR-182**: Each finding MUST have a severity: an error for file-system
+  damage, a sector whose checksum fails or that is missing, and an image
+  record that is damaged or doesn't match its checksum; information for
+  signs of copy protection and file-system findings that aren't damage;
+  and a warning for the rest. The Issues tab MUST list the severity as an
+  icon (red for an error, yellow for a warning, blue for information), then
+  the finding's whole text wrapped to its column, then the category, track,
+  sector and cell, and the Repair button last, most severe first. The
+  Issues tab's label MUST have the count of findings in the most severe
+  one's color, and a new disk with findings MUST open on the Issues tab. A
+  selection made from an error finding MUST be outlined on the platter in
+  marching red and white dashes. Each repair change in the confirmation
+  MUST have the problem it sets right as its label, with the repair on the line under
+  it, and after the copy is written a dialog MUST list the fixes applied
+  and, on OK, open the copy in an inspector window opened from Casso
+  Explorer.
+- **FR-181**: The inspector's Issues tab MUST have a Repair button on each
+  finding a repair change sets right, which opens Repair's confirmation
+  with those changes checked, and Repair disk image above the list, which
+  opens it with every change checked. The verdict on the File map tab and
+  the file-system chip in the status band MUST, for a Bad or Suspect
+  volume, open the Issues tab with the verdict's finding selected, focused
+  and scrolled into view.
 - **FR-178**: `CassoCli disk repair <image> [<copy>]` MUST report the verdict,
   the findings and the changes, write the copy as Repair does, take
   `--no-free-unowned` for "Don't free sectors that no file uses" and `--list` to report the

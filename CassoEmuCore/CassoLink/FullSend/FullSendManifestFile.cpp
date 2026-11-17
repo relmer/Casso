@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/FullSend/FullSendManifestFile.h"
-#include "CassoLink/FullSend/FullSendSession.h"
+#include "CassoLink/FullSend/FullSendFolder.h"
 #include "Devices/Disk/DurableCommit.h"
 
 
@@ -24,7 +24,7 @@ HRESULT FullSendManifestFile::NoteRename (IDiskFileIo & fileIo, const std::strin
     FullSendManifest  manifest;
     bool              exists  = false;
     bool              changed = false;
-    std::lock_guard   lock (FullSendSession::GetFolderLock (folder));
+    std::lock_guard   lock (FullSendFolder::GetLock (folder));
 
 
 
@@ -52,18 +52,18 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT FullSendManifestFile::NoteBoot (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, const std::string & boot, std::string & outStatus)
+HRESULT FullSendManifestFile::NoteBoot (IDiskFileIo & fileIo, const std::string & folder, const std::string & name, const std::string & boot, FullSendRow & outRow)
 {
     HRESULT           hr      = S_OK;
     std::string       path    = folder + "\\" + FullSendManifest::kFileName;
     FullSendManifest  manifest;
     bool              exists  = false;
     bool              changed = false;
-    std::lock_guard   lock (FullSendSession::GetFolderLock (folder));
+    std::lock_guard   lock (FullSendFolder::GetLock (folder));
 
 
 
-    outStatus.clear();
+    outRow = FullSendRow();
 
     hr = Read (fileIo, path, manifest, exists);
     CHR (hr);
@@ -71,7 +71,7 @@ HRESULT FullSendManifestFile::NoteBoot (IDiskFileIo & fileIo, const std::string 
 
     for (const FullSendRow & row : manifest.GetRows())
     {
-        outStatus = _stricmp (row.file.c_str(), name.c_str()) == 0 ? row.status : outStatus;
+        outRow = _stricmp (row.file.c_str(), name.c_str()) == 0 ? row : outRow;
     }
 
     changed = manifest.SetBoot (name, boot);
@@ -104,7 +104,7 @@ HRESULT FullSendManifestFile::RenameCapture (IDiskFileIo & fileIo, const std::st
     FullSendManifest  manifest;
     bool              exists   = false;
     bool              isListed = false;
-    std::lock_guard   lock (FullSendSession::GetFolderLock (folder));
+    std::lock_guard   lock (FullSendFolder::GetLock (folder));
 
 
 
@@ -157,7 +157,7 @@ HRESULT FullSendManifestFile::NoteDelete (IDiskFileIo & fileIo, const std::strin
     std::string       path    = folder + "\\" + FullSendManifest::kFileName;
     FullSendManifest  manifest;
     bool              exists  = false;
-    std::lock_guard   lock (FullSendSession::GetFolderLock (folder));
+    std::lock_guard   lock (FullSendFolder::GetLock (folder));
 
 
 
@@ -195,7 +195,7 @@ HRESULT FullSendManifestFile::NoteRestore (IDiskFileIo & fileIo, const std::stri
     std::string       path    = folder + "\\" + FullSendManifest::kFileName;
     FullSendManifest  manifest;
     bool              exists  = false;
-    std::lock_guard   lock (FullSendSession::GetFolderLock (folder));
+    std::lock_guard   lock (FullSendFolder::GetLock (folder));
 
 
 
@@ -229,7 +229,7 @@ HRESULT FullSendManifestFile::FindFingerprint (IDiskFileIo & fileIo, const std::
     std::string       path    = folder + "\\" + FullSendManifest::kFileName;
     FullSendManifest  manifest;
     bool              exists  = false;
-    std::lock_guard   lock (FullSendSession::GetFolderLock (folder));
+    std::lock_guard   lock (FullSendFolder::GetLock (folder));
 
 
 

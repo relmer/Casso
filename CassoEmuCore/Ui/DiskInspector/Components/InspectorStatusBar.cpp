@@ -11,7 +11,9 @@ static constexpr float  s_kChipPadDip    = 8.0f;
 static constexpr float  s_kChipGapDip    = 6.0f;
 static constexpr float  s_kChipHeightDip = 20.0f;
 static constexpr float  s_kChipTextDip   = 12.0f;
-static constexpr float  s_kHintTextDip   = 12.0f;
+static constexpr float     s_kHintTextDip   = 12.0f;
+static constexpr uint32_t  s_kRgbMask       = 0x00FFFFFFu;
+static constexpr uint32_t  s_kHotTintAlpha  = 0x4C000000u;   // a linked chip's fill under the pointer, its color at 30%
 
 
 
@@ -179,6 +181,36 @@ void InspectorStatusBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text
     {
         PaintHelp (text, theme);
     }
+
+    m_placed = std::move (items);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorStatusBar::GetLinkedChipAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const InspectorStatusBar::LeadItem * InspectorStatusBar::GetLinkedChipAt (POINT p) const
+{
+    float             chipH = m_scaler.ToPxf (s_kChipHeightDip);
+    float             top   = (m_chipsPx.top + m_chipsPx.bottom - chipH) / 2.0f;
+    const LeadItem  * found = nullptr;
+
+
+
+    for (const LeadItem & item : m_placed)
+    {
+        bool  isOver = item.isLinked && item.isPlaced && p.x >= item.x && p.x < item.x + item.w && p.y >= top && p.y < top + chipH;
+
+        found = (found == nullptr && isOver) ? &item : found;
+    }
+
+    return found;
 }
 
 
@@ -275,12 +307,22 @@ void InspectorStatusBar::PaintLead (IDxuiPainter & painter, IDxuiTextRenderer & 
 
             case LeadKind::Chip:
             case LeadKind::BadChip:
-                painter.FillRoundedRect    (item.x, y, item.w, chipH, chipH / 2, theme.ButtonIdle());
+            {
+                uint32_t  ink = (item.kind == LeadKind::BadChip) ? badColor : (item.isLinked ? theme.Accent() : theme.Foreground());
+
+                painter.FillRoundedRect (item.x, y, item.w, chipH, chipH / 2, theme.ButtonIdle());
+
+                if (item.isLinked && m_isLinkHot)
+                {
+                    painter.FillRoundedRect (item.x, y, item.w, chipH, chipH / 2, (ink & s_kRgbMask) | s_kHotTintAlpha);
+                }
+
                 painter.OutlineRoundedRect (item.x, y, item.w, chipH, chipH / 2, m_scaler.ToPxf (1.0f),
-                                            item.kind == LeadKind::BadChip ? badColor : theme.ButtonBorder());
-                text.DrawString (item.text.c_str(), item.x, y, item.w, chipH, item.kind == LeadKind::BadChip ? badColor : theme.Foreground(), textPx,
+                                            (item.kind == LeadKind::BadChip || item.isLinked) ? ink : theme.ButtonBorder());
+                text.DrawString (item.text.c_str(), item.x, y, item.w, chipH, ink, textPx,
                                  DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
                 break;
+            }
 
             case LeadKind::Note:
                 text.DrawString (item.text.c_str(), item.x, y, item.w + 1.0f, chipH, theme.ForegroundMuted(), textPx, DxuiTheme::kBodyFace,

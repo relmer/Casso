@@ -8,6 +8,8 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "CassoExplorer/Model/CassoLinkConnectionText.h"
+#include "CassoExplorer/Model/CassoLinkShimBuilder.h"
 #include "CassoExplorer/Model/DragPayload.h"
 #include "CassoLink/LinkProgram.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -586,9 +588,9 @@ public:
         first->drive    = 2;
         first->progress = 40;
 
-        Assert::AreEqual (std::wstring(), CassoLinkConnections::DescribeJobs ({}));
-        Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%"), CassoLinkConnections::DescribeJobs ({ first }));
-        Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%, 1 more queued"), CassoLinkConnections::DescribeJobs ({ first, second }));
+        Assert::AreEqual (std::wstring(), CassoLinkConnectionText::DescribeJobs ({}));
+        Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%"), CassoLinkConnectionText::DescribeJobs ({ first }));
+        Assert::AreEqual (std::wstring (L"Reading the disk in drive 2: 40%, 1 more queued"), CassoLinkConnectionText::DescribeJobs ({ first, second }));
     }
 
     TEST_METHOD (DescribeJobs_ForAFullSend_IsWaitingCheckingOrSending)
@@ -599,13 +601,13 @@ public:
         job->drive    = 2;
         job->progress = 20;
 
-        Assert::AreEqual (std::wstring (L"Full Send: sending the disk in drive 2: 20%"), CassoLinkConnections::DescribeJobs ({ job }));
+        Assert::AreEqual (std::wstring (L"Full Send: sending the disk in drive 2: 20%"), CassoLinkConnectionText::DescribeJobs ({ job }));
 
         job->fullSendChecking = true;
-        Assert::AreEqual (std::wstring (L"Full Send: checking the disk in drive 2"), CassoLinkConnections::DescribeJobs ({ job }));
+        Assert::AreEqual (std::wstring (L"Full Send: checking the disk in drive 2"), CassoLinkConnectionText::DescribeJobs ({ job }));
 
         job->fullSendWaiting = true;
-        Assert::AreEqual (std::wstring (L"Full Send: waiting for a disk on the Apple"), CassoLinkConnections::DescribeJobs ({ job }));
+        Assert::AreEqual (std::wstring (L"Full Send: waiting for a disk on the Apple"), CassoLinkConnectionText::DescribeJobs ({ job }));
     }
 
 
@@ -752,10 +754,10 @@ public:
 
         modem.transport = LinkTransport::WifiModem;
         modem.address   = "0.0.0.0:6400";
-        dial            = CassoLinkConnections::MakeDialCommand (L"relmer-pc", modem);
+        dial            = CassoLinkShimBuilder::MakeDialCommand (L"relmer-pc", modem);
 
         Assert::AreEqual (std::string ("ATDT relmer-pc.local:6400"), dial);
-        Assert::AreEqual (std::string(), CassoLinkConnections::MakeDialCommand (L"relmer-pc", CassoLinkSettings()), L"a serial link dials nothing");
+        Assert::AreEqual (std::string(), CassoLinkShimBuilder::MakeDialCommand (L"relmer-pc", CassoLinkSettings()), L"a serial link dials nothing");
 
         AssertSucceeded (LinkProgram::BuildShim (115200, shim, dial));
         Assert::AreEqual (dial, std::string (reinterpret_cast<const char *> (shim.data() + LinkProgram::kDialOffset)), L"the command, ending in a zero byte");

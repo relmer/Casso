@@ -10,6 +10,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Model/TreeModel.h"
+#include "CassoExplorer/Picker/PickerRequest.h"
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
@@ -22,6 +23,7 @@
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "CassoExplorer/Window/Managers/ExplorerTips.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
@@ -874,6 +876,12 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
+
     m_context.menus.GetMenuCommands().clear();
 
     //  A known folder that is not there offers only its removal; every other
@@ -915,9 +923,9 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
     }
 
     //  The Full Send folder's row under CassoLink opens the Full Send window.
-    if (hasLocation && TreeModel::StripLinkCopy (id).starts_with (TreeModel::kAdtProId) && _wcsicmp (location.path.c_str(), m_context.cassoLinkManager.GetFullSendFolder().c_str()) == 0)
+    if (hasLocation && TreeModel::StripLinkCopy (id).starts_with (TreeModel::kAdtProId) && _wcsicmp (location.path.c_str(), m_context.fullSendWindows.GetFullSendFolder().c_str()) == 0)
     {
-        m_context.menus.AddMenuCommand (items, L"Full Send &status", [this]() { m_context.cassoLinkManager.ShowFullSendWindow (true); });
+        m_context.menus.AddMenuCommand (items, L"Full Send &status", [this]() { m_context.fullSendWindows.ShowFullSendWindow (true); });
     }
 
     //  A storage card is erased and given an Apple layout. It doesn't have a
@@ -1300,6 +1308,12 @@ void ExplorerTreePane::ShowTreeEmptyMenu (int x, int y)
 
 
 
+    //  A picker changes no file and opens no menu of file commands.
+    if (m_context.IsPicker())
+    {
+        return;
+    }
+
     m_context.menus.GetMenuCommands().clear();
 
     AddNavPaneToggle (items, L"Show This &PC",          &CassoExplorerPrefs::navShowThisPc);
@@ -1520,7 +1534,27 @@ void ExplorerTreePane::UpdateTip (const DxuiMouseEvent & ev, POINT point)
     m_context.tips.ShowHoverTip (ExplorerTips::TipOwner::Tree, anchor, adtPro       ? TreeModel::StripLinkCopy (node->id).substr (wcslen (TreeModel::kAdtProId)).c_str()
                                         : problem      ? m_treeTipText.c_str()
                                         : node->dimmed ? kMissingNodeTip
-                                        : !fullPath.empty() ? fullPath.c_str() : kCassoNodeTip);
+                                        : !fullPath.empty() ? fullPath.c_str() : GetCassoNodeTip (m_context.app.picker));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTreePane::GetCassoNodeTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * ExplorerTreePane::GetCassoNodeTip (const PickerRequest * picker)
+{
+    if (picker == nullptr || !picker->IsForDrive())
+    {
+        return kCassoNodeTip;
+    }
+
+    return (picker->receivingDrive->kind == ReceivingDriveKind::Recorder) ? kCassoNodeTapeTip : kCassoNodeDiskTip;
 }
 
 

@@ -129,6 +129,18 @@ $assets = @(
        Sha1      = '8B6BF2E62A935A07DE3E4FDFE809EFAA10594F1D'
        Desc      = 'Gutenberg, Jr. side A' },
 
+    #  Troll Sports Math (1991), a copy-protected 800K WOZ disk from the
+    #  woz-a-day collection, for the 3.5-inch drives' protected boot. It is a
+    #  third party's, so it is fetched outside the tree.
+    @{ RepoName  = 'TrollSportsMath.woz'
+       Outside   = $true
+       CacheName = $null
+       BaseUrl   = 'https://archive.org'
+       UrlPath   = '/download/wozaday_Troll_Sports_Math_800K/00playable.woz'
+       Size      = 1296307
+       Sha1      = '4313B2CECAB98701FAC6C6724013FD2CC3908A06'
+       Desc      = 'Troll Sports Math 800K (woz-a-day)' },
+
     #  The Wizardry I to III scenario disks and Zork I, for the game data
     #  viewers' scenario cases. They are third parties', so they are fetched
     #  outside the tree.

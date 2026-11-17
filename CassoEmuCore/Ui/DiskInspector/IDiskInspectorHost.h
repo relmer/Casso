@@ -55,6 +55,11 @@ public:
     virtual int           GetWindowDrive      () const { return 0; }
     virtual uint64_t      GetSourceGeneration () const { return 0; }
     virtual std::wstring  GetMountDescription () const { return {}; }
+    //  UI thread: Repair wrote a copy of the window's image there, which
+    //  Casso Explorer opens in the window and selects. Whether the host opens
+    //  the copy, so the confirmation offers it.
+    virtual void  OnRepairedCopyWritten (const std::wstring & path) { (void) path; }
+    virtual bool  CanOpenRepairedCopy   () const                     { return false; }
 };
 
 

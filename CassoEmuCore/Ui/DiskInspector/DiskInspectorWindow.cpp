@@ -30,6 +30,7 @@
 #include "Ui/DiskInspector/Components/ScreenNotes.h"
 #include "Ui/DiskInspector/Components/WalkthroughPart.h"
 #include "Ui/DiskInspector/Components/InspectorDialogs.h"
+#include "Ui/DiskInspector/Components/InspectorTooltips.h"
 #include "Ui/DiskInspector/Components/SelectionPart.h"
 #include "Ui/DiskInspector/Components/ViewTables.h"
 #include "Ui/DiskInspector/Components/InspectorMenus.h"
@@ -275,6 +276,43 @@ void DiskInspectorWindow::Relayout()
 void DiskInspectorWindow::OpenWalkthrough()
 {
     m_walkthrough->Open();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OpenRepair
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::OpenRepair (const std::set<std::wstring> & chosen)
+{
+    m_dialogs->OpenRepair (chosen);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ShowFinding
+//
+//  The Issues tab, with the finding selected as a click selects it, and the
+//  keys on the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ShowFinding (int finding)
+{
+    ShowDiskTab (kTabFindings);
+
+    m_session.keyTarget = KeyTarget::Findings;
+    m_session.views.issues->ShowFinding (finding);
+    Invalidate();
 }
 
 
@@ -634,6 +672,7 @@ void DiskInspectorWindow::OnCreate()
     m_session.views.image->SetColumns   (InspectorTables::GetImageColumns());
     m_session.views.tracks->SetOnSelect   ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
     m_session.views.issues->SetOnSelect ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
+    m_session.views.issues->SetOnRepair ([this] (const std::set<std::wstring> & chosen) { OpenRepair (chosen); });
     m_session.views.image->SetGrouped   (true);
     m_session.views.image->SetWrapsText (true);
     m_session.views.image->SetOnSelect  ([this] (const TableRow & row) { m_tables->SelectFromRow (row); });
@@ -649,6 +688,8 @@ void DiskInspectorWindow::OnCreate()
     m_menus->Create();
 
     m_components = { m_hostLink.get(), m_menus.get(), m_toolbar.get(), m_corners.get(), m_trackColumn.get(), m_stripControls.get(), m_dialogs.get(), m_files.get(), m_editing.get(), m_comparisonPart.get(), m_findPart.get(), m_statusBand.get() };
+
+    m_tooltips = std::make_unique<InspectorTooltips> (m_session, m_tooltip, InspectorTooltips::Sources { m_corners.get(), m_files.get(), m_copySector, &m_components });
 
     m_tooltip.SetPopupHost  (GetPopupHost());
     m_zoomNote.SetPopupHost (GetPopupHost());
@@ -870,6 +911,8 @@ void DiskInspectorWindow::BuildCommands()
     c.decodeSettings            = make (L"&Decode settings...", L"", [this] () { m_dialogs->OpenDecodeSettings(); });
     c.decodeSettings->isEnabled = hasDisk;
     c.decodeSettings->glyph     = kpszGlyphSettings;
+    c.repair                    = make (L"&Repair disk image...", L"", [this] () { OpenRepair ({}); });
+    c.repair->isEnabled         = [this] () { return m_session.repairPlan.canRepair; };
 
     //  Window
     c.windowZoomIn           = make (L"Zoom &in", L"Ctrl++", [this] () { SetZoom (DxuiZoomControl::StepZoom (m_zoom, 1)); });
@@ -1294,7 +1337,7 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
         m_isFocusShown            = m_isFocusShown && ev.kind != DxuiMouseEventKind::Down;
         m_session.context.hoverPx = POINT { SHRT_MIN, SHRT_MIN };
         m_tooltip.RequestHide (static_cast<int64_t> (GetTickCount64()));
-        m_tooltipText.clear();
+        m_tooltips->ClearText();
 
         return true;
     }
@@ -1382,14 +1425,14 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
     if (ev.kind == DxuiMouseEventKind::Move)
     {
-        UpdateTooltip (p);
+        m_tooltips->Update (p);
         m_statusBand->SetHint (!m_session.context.hasDisk ? m_session.statusNote : (IsInside (m_session.layout.platterArea, p) && !m_corners->Contains (p)) ? s_kpszHint
                                : IsInside (m_session.layout.stripArea, p) ? s_kpszStripHint : m_session.statusNote);
     }
     else if (ev.kind == DxuiMouseEventKind::Down || (ev.kind == DxuiMouseEventKind::Wheel && !ev.ctrl && !m_statusBand->IsOverZoom (p)) || ev.kind == DxuiMouseEventKind::Leave)
     {
         m_tooltip.RequestHide (static_cast<int64_t> (GetTickCount64()));
-        m_tooltipText.clear();
+        m_tooltips->ClearText();
     }
 
     return isHandled;
@@ -1610,6 +1653,15 @@ LPCWSTR DiskInspectorWindow::GetCursorForPoint (POINT clientPx) const
     {
         cursor = IDC_SIZEALL;
     }
+    else if (m_statusBand->IsOverLink (clientPx))
+    {
+        cursor = IDC_HAND;
+    }
+    else if (DxuiWindow::GetCursorForPoint (clientPx) != nullptr)
+    {
+        //  A child's cursor: the hand over a link, a column's resize arrows.
+        cursor = DxuiWindow::GetCursorForPoint (clientPx);
+    }
 
     return cursor;
 }
@@ -1715,74 +1767,6 @@ void DiskInspectorWindow::ShowTrackTab (int tab)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::UpdateTooltip
-//
-//  The first view with a tooltip for the point supplies it; over the file
-//  name, the tip has the name in full. Over the platter, the strips and the
-//  File map grid, the tip appears at once and follows the pointer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
-{
-    std::wstring                          tip;
-    RECT                                  anchor    = {};
-    int64_t                               now       = static_cast<int64_t> (GetTickCount64());
-    vector<DxuiTooltipSwatch>             swatches;
-    vector<uint32_t>                      lineColors;
-    bool                                  isInstant = false;
-    const std::array<InspectorView *, 13> views     = { m_session.views.platter, m_session.views.strip, m_session.views.stripB, m_session.views.sectorRow, m_session.views.sectors, m_session.views.nibbles, m_session.views.flux, m_session.views.header, m_session.views.image, m_session.views.tracks, m_session.views.issues, m_session.views.diffs, m_session.views.findResults };
-
-
-
-    for (InspectorView * view : views)
-    {
-        if (tip.empty() && view != nullptr && view->IsVisible() && IsInside (view->GetBounds(), pointPx) && !(view == m_session.views.platter && m_corners->Contains (pointPx)) &&
-            view->GetTooltip (pointPx, tip, anchor))
-        {
-            view->GetTooltipSwatches   (pointPx, swatches);
-            view->GetTooltipLineColors (pointPx, lineColors);
-            isInstant = view == m_session.views.platter || view == m_session.views.strip || view == m_session.views.stripB;
-        }
-    }
-
-    //  The File map grid's tip appears at once, as the platter's does.
-    if (tip.empty() && m_files->GetGridTip (pointPx, tip, anchor, swatches))
-    {
-        isInstant = true;
-    }
-
-    if (tip.empty() && m_session.context.hasDisk)
-    {
-        tip = GetButtonTip (pointPx, anchor);
-    }
-
-    for (IInspectorComponent * component : m_components)
-    {
-        tip = tip.empty() ? component->GetTip (pointPx, anchor) : tip;
-    }
-
-    if (tip.empty())
-    {
-        m_tooltip.RequestHide (now);
-    }
-    else if (isInstant || tip != m_tooltipText || (!m_tooltip.IsShown() && !m_tooltip.IsPending()))
-    {
-        m_tooltip.SetSwatches   (swatches);
-        m_tooltip.SetLineColors (lineColors);
-
-        isInstant ? m_tooltip.RequestShowNow (anchor, tip, now) : m_tooltip.RequestShow (anchor, tip, now);
-    }
-
-    m_tooltipText = tip;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskInspectorWindow::IsInside
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1860,51 +1844,6 @@ void DiskInspectorWindow::ShowTabContent()
 bool DiskInspectorWindow::Confirm (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action)
 {
     return m_dialogs->Confirm (title, lines, action);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::GetButtonTip
-//
-//  Every button's tooltip (FR-059), with the key that does the same, or
-//  for one that is unavailable, why.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorPx) const
-{
-    //  Each control's tip, and for one that can be unavailable, why it is.
-    struct ButtonTip
-    {
-        const IDxuiControl  * control;
-        LPCWSTR               text;
-        LPCWSTR               whyUnavailable;
-    };
-
-    const ButtonTip  tips[] =
-    {
-        { m_copySector,      L"Copy the whole sector as a hex dump (Ctrl+Shift+C)",              L"The selected sector has no data field to copy" },
-    };
-
-
-    std::wstring  tip;
-
-
-
-    for (const ButtonTip & entry : tips)
-    {
-        if (tip.empty() && entry.control != nullptr && entry.control->IsVisible() && IsInside (entry.control->GetBounds(), pointPx))
-        {
-            tip         = (entry.control->IsEnabled() || entry.whyUnavailable == nullptr) ? entry.text : entry.whyUnavailable;
-            outAnchorPx = entry.control->GetBounds();
-        }
-    }
-
-    return tip;
 }
 
 

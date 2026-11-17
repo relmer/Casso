@@ -49,6 +49,35 @@ public:
     }
 
 
+    TEST_METHOD (UnderTheDeskScene_DrivesOnTheBar_GetABandAtTheWindowScale)
+    {
+        ChromeBandInputs  inputs = Typical();
+
+        inputs.crtMonitorActive    = true;
+        inputs.drivesOnBar         = true;
+        inputs.hasDiskController   = false;
+        inputs.driveBarThicknessDp = 180;
+        inputs.chromeSceneScale    = 0.4f;
+
+        Assert::AreEqual (180, ChromeBandLayout::DriveBandDp (inputs),
+                          L"hard disks alone get the bar, at the window's scale, not the zoomed-out scene's");
+    }
+
+
+    TEST_METHOD (CompactTheme_DrivesOnTheBar_GetABandWithNoDiskController)
+    {
+        ChromeBandInputs  inputs = Typical();
+
+        inputs.crtMonitorActive    = false;
+        inputs.drivesOnBar         = true;
+        inputs.hasDiskController   = false;
+        inputs.driveBarThicknessDp = 180;
+
+        Assert::AreEqual (180, ChromeBandLayout::DriveBandDp (inputs),
+                          L"a //c Plus's drives on the bar get a band without a Disk ][ controller");
+    }
+
+
     TEST_METHOD (WithAutoHideOnTheDriveBandCollapses)
     {
         ChromeBandInputs  inputs = Typical();

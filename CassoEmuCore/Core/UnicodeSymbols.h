@@ -23,8 +23,7 @@
 
 static constexpr wchar_t s_kchBullet         = L'\x2022';       // U+2022 BULLET (•)
 static constexpr wchar_t s_kchEmDash         = L'\x2014';       // U+2014 EM DASH (—)
-static constexpr wchar_t s_kchEnDash         = L'\x2013';       // U+2013 EN DASH, for ranges
-static constexpr wchar_t s_kchAlmostEqual    = L'\x2248';       // U+2248 ALMOST EQUAL TO (≈)
+static constexpr wchar_t s_kchEnDash         = L'\x2013';       // U+2013 EN DASH, for rangesstatic constexpr wchar_t s_kchAlmostEqual    = L'\x2248';       // U+2248 ALMOST EQUAL TO (≈)
 static constexpr wchar_t s_kchDegree         = L'\x00B0';       // U+00B0 DEGREE SIGN (°)
 static constexpr LPCWSTR s_kpszDegree        = L"\x00B0";       // U+00B0 DEGREE SIGN (°)
 static constexpr LPCWSTR s_kpszEnDash        = L"\x2013";       // U+2013 EN DASH, for ranges

@@ -596,6 +596,12 @@ private:
                                          const std::string & canonical,
                                          CommandLineOptions::EmulatorOptions & parsed);
 
+    //  Records an --hd or --smartport value, or refuses the command line over
+    //  a bad one.
+    static void  ApplyBlockAttachment    (const std::string & text,
+                                          bool                isSmartPort,
+                                          CommandLineOptions::EmulatorOptions & parsed);
+
     //  Records a --seed value, or refuses the command line over a bad one.
     static void  ApplySeed               (const std::string & text,
                                           CommandLineOptions::EmulatorOptions & parsed);

@@ -822,7 +822,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
 
     m_container.SetPopupHost (GetPopupHost());
     m_container.SetItems     (CassoExplorerNewDiskChoices::GetContainerLabels());
-    m_container.SetSelected  (0);
+    m_container.SetSelected  (m_containerIndex);
     m_container.SetSelect    ([this] (int) { Revalidate(); });
 
     m_format.SetPopupHost (GetPopupHost());
@@ -844,7 +844,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
 
     m_size.SetPopupHost (GetPopupHost());
     m_size.SetItems     (CassoExplorerNewDiskChoices::GetSizeLabels());
-    m_size.SetSelected  (0);
+    m_size.SetSelected  (m_sizeIndex);
     m_size.SetSelect    ([this] (int) { Revalidate(); });
 
     m_bootable.SetSingleLineLabel (true);
@@ -968,7 +968,8 @@ void CassoExplorerNewDiskDialog::OnCreate()
 ////////////////////////////////////////////////////////////////////////////////
 
 CassoExplorerNewDiskDialog::Outcome CassoExplorerNewDiskDialog::Ask (HWND owner, const IDxuiTheme * theme, bool formatMode, const ExistsFn & exists,
-                                                                     int formatIndex, const std::wstring & target, bool appleDrive)
+                                                                     int formatIndex, const std::wstring & target, bool appleDrive,
+                                                                     int containerIndex, int sizeIndex)
 {
     HRESULT                     hr     = S_OK;
     CassoExplorerNewDiskDialog  dialog;
@@ -983,6 +984,8 @@ CassoExplorerNewDiskDialog::Outcome CassoExplorerNewDiskDialog::Ask (HWND owner,
     dialog.m_formatIndex = formatIndex;
     dialog.m_target      = target;
     dialog.m_appleDrive  = appleDrive;
+    dialog.m_containerIndex = containerIndex;
+    dialog.m_sizeIndex      = sizeIndex;
 
     params.title                    = appleDrive ? L"Format disk" : formatMode ? L"Format disk image" : L"New disk image";
     params.hInstance                = GetModuleHandleW (nullptr);

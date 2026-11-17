@@ -101,7 +101,7 @@ HRESULT Win32VolumeFormat::FormatFirstPartition (int number, const WriteProgress
     outDone = true;
 
 Error:
-    if (volume != INVALID_HANDLE_VALUE)
+    if (volume != INVALID_HANDLE_VALUE && volume != nullptr)
     {
         CloseHandle (volume);
     }

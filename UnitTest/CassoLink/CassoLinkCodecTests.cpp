@@ -2,6 +2,7 @@
 
 #include "CassoLinkCaptures.h"
 #include "CassoLink/CassoLinkCodec.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -43,6 +44,27 @@ public:
         HRESULT          hr       = S_OK;
         CassoLinkPacket  packet;
     };
+
+    //  The one list of commands has each byte once, and each assembler name
+    //  once, so a new command can't take a byte a module's command has, as
+    //  Measure track's first bytes did the capture module's.
+    TEST_METHOD (Commands_HaveDifferentBytesAndNames)
+    {
+        std::set<Byte>         bytes;
+        std::set<std::string>  symbols;
+
+
+
+        for (const CassoLinkCodec::Command & command : CassoLinkCodec::kCommands)
+        {
+            Assert::IsTrue (bytes.insert (command.value).second, std::format (L"{:02X} is in the list twice", command.value).c_str());
+
+            if (command.symbol != nullptr)
+            {
+                Assert::IsTrue (symbols.insert (command.symbol).second, std::format (L"{} is in the list twice", TextEncoding::NarrowToWide (command.symbol)).c_str());
+            }
+        }
+    }
 
     //  Every framed packet in a stream. Bytes that do not start one -- the
     //  host's unframed one-byte and three-byte replies -- are stepped over.

@@ -5,8 +5,10 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/ChromeBand.h"
+#include "Ui/Chrome/DriveBarFanControl.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/Chrome/VolumeFlyout.h"
+#include "Ui/Scene/DeskSceneLayout.h"
 
 
 
@@ -107,6 +109,24 @@ public:
         float                         sceneScale,
         int                           visibleCount);
 
+    // The drive bar under the desk scene: a widget per class the desk plan
+    // puts on the bar, the class's other drives fanned out above it on hover.
+    // The Disk II widgets are placed in their drives' slots.
+    void    LayoutDriveBar         (int bottomInsetPx, int clientW, int clientH, UINT dpi);
+    void    HideDriveBar           ();
+    bool    UpdateDriveBarHover    (POINT pt);
+    bool    HandleDriveBarClick    (POINT pt);
+    bool    SyncDriveBarViews      ();
+    bool    AnimateDriveBarFan     ();
+
+    const DriveBarFanControl &  GetDriveBarFan () const { return m_driveBarFan; }
+
+    // With the drives auto-hidden, the bar rides the slide: it is laid out
+    // again at the slide's progress. The slide remains up while the pointer
+    // is on the bar or on its fan.
+    void    SlideDriveBar          (float progress);
+    bool    IsPointOnDriveBar      (POINT pt) const;
+
     void    LayoutSwitchBar        (UINT dpi);
     void    SyncSwitchBarState     ();
     void    HandleSwitchBarClick   (Apple2cSwitchBar::Part part);
@@ -130,6 +150,11 @@ public:
 
     // Re-solves the desk with the drives risen by `progress` (0 to 1).
     void    ComposeDeskSlide     (float progress);
+
+    // Eases the dock's magnification in while the pointer is over the risen
+    // dock, and out once it is off it. Returns whether the desk changed.
+    bool    UpdateDockHover      (POINT cursor, bool isOverDock, int64_t nowMs);
+    void    RecomposeDeskSlide   ();
 
     // Fullscreen presentation (FR-014): every chrome element collapses to
     // nothing -- host caption, menu bar, toolbar, joystick row, drive band,
@@ -161,6 +186,10 @@ public:
     void  ShowNotice   (const std::wstring & text);
     void  PostNotice   (const std::wstring & text);
     void  SyncNotice   ();
+
+    //  Takes down every tip, before a modal such as a file dialog opens over
+    //  the window: a tip is a topmost popup and would be drawn over it.
+    void  HideTooltips ();
 
     // The lowest edge of whatever chrome is docked (or, in fullscreen,
     // revealed) at the top of the client, which is where an overlay that
@@ -216,6 +245,30 @@ private:
     // whole scene zooms together when the window resizes. 1.0 for compact
     // themes and at the 100%-zoom default window size.
     float                      m_chromeSceneScale = 1.0f;
+
+    // The drive bar under the desk scene, and the DPI its slots were laid out
+    // at, which the Disk II widgets placed in them are laid out at too.
+    DriveBarFanControl         m_driveBarFan;
+    UINT                       m_driveBarDpi           = 96;
+    int                        m_driveBarInsetPx       = 0;
+    int                        m_driveBarClientW       = 0;
+    int                        m_driveBarClientH       = 0;
+    uint64_t                   m_driveBarFanStartMs    = 0;
+    float                      m_driveBarSlideProgress = 0.0f;
+    int                        m_driveBarHoverClass    = -1;
+    int                        m_driveBarHoverEntry    = -1;
+
+    static constexpr uint64_t  s_kDriveBarFanSlideMs = 160;
+
+    // The drive bar's label column, wide enough for two lines such as
+    // "Drive 1 - Disk ][" and "3.5" (800K), 400K disk".
+    static constexpr int       s_kDriveBarCaptionDip = 118;
+
+    // The views from the last sync, so a repaint is requested only on a change.
+    std::vector<std::vector<DriveBarEntryView>>  m_driveBarViews;
+
+    void    PlaceDriveBarWidgets ();
+    void    SetDiskIiBarCaptions (bool onBar);
 
     DxuiTooltip          m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 
@@ -349,6 +402,10 @@ private:
     RECT                     m_deskSlideBox        = {};
     float                    m_deskSlideProgress   = 0.0f;
     RECT                     m_deskSlideCoverPx    = {};
+
+    // The dock's magnification under the pointer, and when it last eased.
+    DeskDockHover            m_dockHover;
+    int64_t                  m_dockHoverMs         = 0;
 
     // The top of the zone that reveals the drives: see
     // FullscreenStripState::GetRevealTopPx. Written by UpdateViewportLayout

@@ -613,6 +613,18 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     CWRA (m_hwnd);
     m_ownsHwnd = true;
 
+    //  Over a backdrop the caption is see-through, and Windows draws its
+    //  caption buttons under it for a window with the system menu style. The
+    //  host draws the buttons, so the style is dropped before the window
+    //  appears. GetSystemMenu returns null for a window created without the
+    //  style, so the window is created with it, the menu is taken first, and
+    //  the host opens it.
+    if (IsSystemMenuDropped())
+    {
+        m_systemMenu = DropSystemMenuStyle (m_hwnd);
+        CWRA (m_systemMenu);
+    }
+
     // The NOACTIVATE bit exists only to keep CreateWindowEx from activating
     // the newborn window (stealing focus mid-keystroke); strip it now so the
     // window activates normally from here on (clicks, an activating Show()).
@@ -2881,7 +2893,7 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
         //  Windows opens no system menu for a right-click on a caption the
         //  window draws itself, so the host opens it.
         case WM_NCRBUTTONUP:
-            isHandled = wp == HTCAPTION && (GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_SYSMENU) != 0;
+            isHandled = wp == HTCAPTION && ((GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_SYSMENU) != 0 || IsSystemMenuDropped());
 
             if (isHandled)
             {
@@ -2930,6 +2942,17 @@ bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESUL
             // A command the client added to the system menu.
             isHandled = m_client != nullptr && (wp & 0xFFF0) < SC_SIZE &&
                         m_client->OnSysCommand ((UINT) (wp & 0xFFF0)) == DxuiMessageResult::Handled;
+
+            // Alt+Space. Windows opens the system menu for it only on a window
+            // with the system menu style.
+            if (!isHandled && (wp & 0xFFF0) == SC_KEYMENU && lp == VK_SPACE && IsSystemMenuDropped())
+            {
+                HRESULT  hrMenu = ShowSystemMenu (GetSystemMenuPoint());
+
+                IGNORE_RETURN_VALUE (hrMenu, S_OK);
+                isHandled = true;
+            }
+
             result    = 0;
             break;
 
@@ -3356,13 +3379,49 @@ LRESULT DxuiHwndSource::HandleNcCalcSize (WPARAM wp, LPARAM lp)
 
         // A non-zero result means DefWindowProc asked for special client
         // handling; leave its rects alone in that case.
+        //
+        // A maximized window extends past the monitor by its frame on every
+        // side. DefWindowProc insets the other three edges by it, and the top
+        // is inset by the same frame here. Without it the caption's top was
+        // off the screen, and its buttons were drawn above the ones Windows
+        // draws.
         if (defResult == 0)
         {
-            pParams->rgrc[0].top = originalTop;
+            pParams->rgrc[0].top = originalTop + GetMaximizedFramePx();
         }
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetMaximizedFramePx
+//
+//  How far a maximized window extends past each edge of its monitor, at the
+//  window's DPI; 0 for a window that isn't maximized.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetMaximizedFramePx() const
+{
+    UINT  dpi = 0;
+
+
+
+    if (m_hwnd == nullptr || ::IsZoomed (m_hwnd) == FALSE)
+    {
+        return 0;
+    }
+
+    dpi = GetDpiForWindow (m_hwnd);
+    dpi = (dpi != 0) ? dpi : s_kDefaultDpi;
+
+    return GetSystemMetricsForDpi (SM_CYFRAME, dpi) + GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
 }
 
 
@@ -3417,8 +3476,11 @@ LRESULT DxuiHwndSource::HandleNcHitTest (LPARAM lp)
 
     // Convert client-pixel point to client-DIP before running the
     // classifier — controls store bounds in DIPs.
-    ptClient.x = MulDiv (ptClient.x, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
-    ptClient.y = MulDiv (ptClient.y, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
+    //
+    // The point rounds down, not to the nearest DIP. Rounded, the last pixel
+    // at 125% landed on the client's right edge, past the resize band.
+    ptClient.x = ptClient.x * (int) s_kDefaultDpi / (int) m_scaler.GetDpi();
+    ptClient.y = ptClient.y * (int) s_kDefaultDpi / (int) m_scaler.GetDpi();
     rcClient.right  = MulDiv (rcClient.right,  (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
     rcClient.bottom = MulDiv (rcClient.bottom, (int) s_kDefaultDpi, (int) m_scaler.GetDpi());
 
@@ -4223,6 +4285,53 @@ int DxuiHwndSource::GetCaptionHeightPx() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetResizeBorderPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetResizeBorderPx() const
+{
+    return HasResizeBand() ? MulDiv (GetResizeBorderDip(), (int) m_scaler.GetDpi(), (int) s_kDefaultDpi) : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasResizeBand
+//
+//  A maximized window can't be resized, so its edges are content.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::HasResizeBand() const
+{
+    return m_params.resizable && (m_hwnd == nullptr || ::IsZoomed (m_hwnd) == FALSE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetResizeBorderDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetResizeBorderDip() const
+{
+    return (std::max) ((int) m_params.resizeBorderDip, s_kMinResizeBorderPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RenderCaption
 //
 //  Adopt-mode paint hook: the consumer calls this from its own paint
@@ -4622,26 +4731,21 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
     //  client pixels; only the resize bands and the caption here are measured
     //  in DIPs. Content controls are asked in pixels, which match DIPs only at
     //  96 DPI.
-    borderPx = (int) m_params.resizeBorderDip;
-
-    if (borderPx < s_kMinResizeBorderPx)
-    {
-        borderPx = s_kMinResizeBorderPx;
-    }
+    borderPx = GetResizeBorderDip();
 
     // Resize edges win outright.
-    if (m_params.resizable)
+    if (HasResizeBand())
     {
         kind    = ClassifyResizeEdge (clientDip, clientBoundsDip, borderPx);
         claimed = kind != DxuiHitTestKind::None;
         result  = claimed ? kind : result;
     }
 
-    //  A scrollbar at the window's edge keeps the pointer over a straight
-    //  resize edge, whose band would otherwise cover most of it. The corners
-    //  still resize.
-    if (claimed && (kind == DxuiHitTestKind::ResizeEdgeLeft || kind == DxuiHitTestKind::ResizeEdgeRight
-                 || kind == DxuiHitTestKind::ResizeEdgeTop  || kind == DxuiHitTestKind::ResizeEdgeBottom))
+    //  Lay scrollbars out past the band (GetResizeBorderPx). Where a bar is
+    //  inside the band anyway, a point over it goes to the bar in the inner
+    //  half of a straight resize edge's band. The outer half and the corners
+    //  resize, so the edge can be grabbed beside the bar.
+    if (claimed && GetEdgeDistance (kind, clientDip, clientBoundsDip) >= borderPx / 2)
     {
         n =(GetRootPanel() != nullptr) ? GetRootPanel()->GetChildCount() : 0;
 
@@ -4734,6 +4838,34 @@ bool DxuiHwndSource::NcMouseMayHitSystemButton (bool resizable, WPARAM hitTest)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetEdgeDistance
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiHwndSource::GetEdgeDistance (DxuiHitTestKind kind, POINT clientDip, RECT clientBoundsDip)
+{
+    int  distance = -1;
+
+
+
+    switch (kind)
+    {
+        case DxuiHitTestKind::ResizeEdgeLeft:   distance = clientDip.x - clientBoundsDip.left;        break;
+        case DxuiHitTestKind::ResizeEdgeRight:  distance = clientBoundsDip.right - 1 - clientDip.x;   break;
+        case DxuiHitTestKind::ResizeEdgeTop:    distance = clientDip.y - clientBoundsDip.top;         break;
+        case DxuiHitTestKind::ResizeEdgeBottom: distance = clientBoundsDip.bottom - 1 - clientDip.y;  break;
+        default:                                                                                      break;
+    }
+
+    return distance;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ClassifyResizeEdge
 //
 //  Eight-edge resize hit test inside the client rect. Corners use a
@@ -4799,7 +4931,7 @@ DxuiHitTestKind DxuiHwndSource::ClassifyResizeEdge (POINT clientDip,
 HRESULT DxuiHwndSource::ShowSystemMenu (POINT ptScreen)
 {
     HRESULT  hr        = S_OK;
-    HMENU    menu      = GetSystemMenu (m_hwnd, FALSE);
+    HMENU    menu      = GetWindowSystemMenu();
     bool     isMax     = ::IsZoomed (m_hwnd) != FALSE;
     bool     isSizable = (GetWindowLongPtrW (m_hwnd, GWL_STYLE) & WS_THICKFRAME) != 0;
     UINT     command   = 0;
@@ -4824,6 +4956,91 @@ HRESULT DxuiHwndSource::ShowSystemMenu (POINT ptScreen)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::IsSystemMenuDropped
+//
+//  Whether the window is created without the system menu style. Without it,
+//  Windows doesn't draw its caption buttons under a see-through caption.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::IsSystemMenuDropped() const
+{
+    return m_params.borderless && m_params.drawOverBackdrop && !m_params.composited;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::GetWindowSystemMenu
+//
+//  The window's system menu: the one taken when the style was dropped, or
+//  the one GetSystemMenu returns for the window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HMENU DxuiHwndSource::GetWindowSystemMenu() const
+{
+    return m_systemMenu != nullptr ? m_systemMenu : GetSystemMenu (m_hwnd, FALSE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::DropSystemMenuStyle
+//
+//  Removes the system menu style from a window and returns its system menu,
+//  taken while the window has the style; null when the window has no menu.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HMENU DxuiHwndSource::DropSystemMenuStyle (HWND hwnd)
+{
+    HMENU  menu = GetSystemMenu (hwnd, FALSE);
+
+
+
+    SetWindowLongPtrW (hwnd, GWL_STYLE, GetWindowLongPtrW (hwnd, GWL_STYLE) & ~(LONG_PTR) WS_SYSMENU);
+    (void) SetWindowPos (hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+
+    return menu;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::GetSystemMenuPoint
+//
+//  Where Alt+Space opens the system menu: the client area's left edge, under
+//  the caption, as Windows opens it under a window's icon.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT DxuiHwndSource::GetSystemMenuPoint() const
+{
+    POINT  point = { 0, GetCaptionHeightPx() };
+
+
+
+    (void) ClientToScreen (m_hwnd, &point);
+
+    return point;
 }
 
 

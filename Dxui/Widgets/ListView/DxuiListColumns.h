@@ -61,6 +61,7 @@ public:
     int   GetContentWidthPx        () const;
 
     bool  GetCellTextRectPx   (int row, size_t column, RECT & outRect) const;
+    bool  GetCellRectPx       (int row, size_t column, RECT & outRect) const;
     static constexpr float  s_kExplorerIconPadDip       = 4.67f;    // the name's icon, into its column
     static constexpr float  s_kExplorerCellPadDip       = 6.67f;    // every other column's text
     static constexpr float  s_kExplorerNameTitleDip     = 16.67f;   // the name column's title

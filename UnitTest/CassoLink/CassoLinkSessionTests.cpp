@@ -7,6 +7,7 @@
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/LinkBootstrap.h"
 #include "CassoLink/LinkFault.h"
+#include "CassoLink/Session/TrackMeasures.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -17,6 +18,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/TrackLayoutWriter.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -868,6 +870,33 @@ public:
 
 
 
+    //  A WOZ is built to each track's layout as Measure track measured it,
+    //  and no other image type measures.
+    TEST_METHOD (ReadDisk_ToAWoz_BuildsItToEachTracksMeasuredLayout)
+    {
+        Rig                                       rig;
+        std::vector<CassoLinkHost::TrackMeasure>  measures;
+        std::vector<Byte>                         built;
+
+        rig.Start();
+
+        AssertSucceeded (rig.Finish (rig.session->ReadDisk (2, "out.dsk", false))->result);
+        Assert::AreEqual (0, rig.apple.measuredTracks.load(), L"a .dsk isn't measured");
+
+        AssertSucceeded (rig.Finish (rig.session->ReadDisk (2, "out.woz", false))->result);
+        Assert::AreEqual (NibblizationLayer::kTrackCount, rig.apple.measuredTracks.load());
+
+        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            measures.push_back (FakeApple::GetMeasure (track));
+        }
+
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (rig.Drive (2), TrackMeasures::ToLayouts (measures, TrackLayoutWriter::kDefaultBits), built));
+        Assert::IsTrue (rig.fileIo.files["out.woz"] == built, L"the WOZ is built to the measured layouts");
+    }
+
+
+
 
     TEST_METHOD (ReadDisk_WithUnreadableSectors_FailsOrWritesThemBlank)
     {
@@ -1356,7 +1385,8 @@ public:
 
     TEST_METHOD (FullSend_CancelDuringThePause_EndsTheSession)
     {
-        Rig  rig;
+        Rig                       rig;
+        std::vector<std::string>  logs;
 
         rig.apple.drives[1].clear();
         rig.Start();
@@ -1376,6 +1406,18 @@ public:
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
         Assert::AreEqual (1, rig.apple.cancels.load());
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready), L"the link goes on");
+
+        for (int polls = 0; polls < 400 && logs.empty(); polls++)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            logs = rig.apple.logs;
+        }
+
+        Assert::IsFalse (logs.empty(), L"the Apple's history has the session");
+        Assert::IsTrue (logs.back().starts_with ("ENDED ON PC: "), L"how it ended, in capitals: the rig's Ready has no ROM bytes");
     }
 
 

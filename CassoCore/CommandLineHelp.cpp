@@ -397,6 +397,34 @@ std::string CommandLineHelp::BuildEmulatorHelp (char flagPrefix)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CommandLineHelp::GetEmulatorRows
+//
+//  The emulator's option table as rows, for the help dialog's two columns.
+//  Composed from the parser's table, as BuildEmulatorHelp is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<CommandLineHelpRow> CommandLineHelp::GetEmulatorRows (char flagPrefix)
+{
+    std::vector<CommandLineHelpRow>  rows;
+
+
+
+    for (const CommandLineParser::EmulatorFlag & flag : CommandLineParser::GetEmulatorFlags())
+    {
+        rows.push_back ({ CommandLineParser::FormatLongOption (flag.option, flagPrefix) + flag.valueName,
+                          flag.description });
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CommandLineHelp::BuildBasicHelp
 //
 //  The page of the `basic` subcommand: the usage line, the commands and the
@@ -436,32 +464,4 @@ std::string CommandLineHelp::BuildBasicHelp (const std::string & banner, char fl
     text += "  2  Nothing was written\n";
 
     return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CommandLineHelp::GetEmulatorRows
-//
-//  The emulator's option table as rows, for the help dialog's two columns.
-//  Composed from the parser's table, as BuildEmulatorHelp is.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<CommandLineHelpRow> CommandLineHelp::GetEmulatorRows (char flagPrefix)
-{
-    std::vector<CommandLineHelpRow>  rows;
-
-
-
-    for (const CommandLineParser::EmulatorFlag & flag : CommandLineParser::GetEmulatorFlags())
-    {
-        rows.push_back ({ CommandLineParser::FormatLongOption (flag.option, flagPrefix) + flag.valueName,
-                          flag.description });
-    }
-
-    return rows;
 }

@@ -2,15 +2,18 @@
 
 
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/Model/HostFolderNames.h"
 #include "DiskCheck/BootSounds.h"
 #include "AssetBootstrap.h"
 #include "BuildInfo.h"
 #include "Core/TextEncoding.h"
 #include "Core/PathResolver.h"
 #include "CassoExplorer/ExplorerUpdaterHost.h"
+#include "CassoExplorer/ExplorerWindowFinder.h"
 #include "CassoExplorer/InspectorWindowSet.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
+#include "CassoExplorer/Model/CassoImagesListing.h"
 #include "Seams/Win32FolderWatcher.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Seams/Win32IntentChannel.h"
@@ -108,7 +111,7 @@ CassoExplorerShell::~CassoExplorerShell()
     //  worker's thread calls into m_links, so the windows go, then the worker.
     m_windows.clear();
 
-    m_links.SetImageHandler (nullptr);
+    m_links.GetFullSendOptions().SetImageHandler (nullptr);
     m_bootWorker.reset();
 
     if (m_oleInitialized)
@@ -185,7 +188,7 @@ void CassoExplorerShell::StartBootWorker()
         }
     });
 
-    m_links.SetImageHandler ([this] (const std::string & link, const std::string & path, const std::string & model)
+    m_links.GetFullSendOptions().SetImageHandler ([this] (const std::string & link, const std::string & path, const std::string & model)
     {
         m_bootWorker->Queue (TextEncoding::NarrowToWide (path), model, link);
     });
@@ -651,57 +654,6 @@ CassoExplorerWindowRequest CassoExplorerShell::PlanForwardedLaunch (const CassoE
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerShell::GetWindowClass
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const wchar_t * CassoExplorerShell::GetWindowClass()
-{
-    return PathResolver::IsProfileFolderSet() ? kTestCopyClass : kWindowClass;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerShell::FindWindowForOwner
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HWND CassoExplorerShell::FindWindowForOwner (HWND owner)
-{
-    HWND  found = nullptr;
-    HWND  next  = nullptr;
-
-
-
-    if (owner == nullptr)
-    {
-        return nullptr;
-    }
-
-    do
-    {
-        next = FindWindowExW (nullptr, next, GetWindowClass(), nullptr);
-
-        if (next != nullptr && (HWND) GetPropW (next, kOwnerProperty) == owner)
-        {
-            found = next;
-        }
-    }
-    while (next != nullptr && found == nullptr);
-
-    return found;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerShell::FrontWindow
 //
 //  A process launched by the emulator's menu item holds the foreground
@@ -865,115 +817,6 @@ void CassoExplorerShell::ReportAssertion (const wchar_t * message)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerShell::GetPlainFolderName
-//
-//  The LocalizedResourceName of a folder's desktop.ini when it is text rather
-//  than a reference to a module's string, which starts with an at sign.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoExplorerShell::GetPlainFolderName (const std::wstring & path)
-{
-    wchar_t       text[MAX_PATH] = {};
-    std::wstring  ini            = path + L"\\desktop.ini";
-    DWORD         length         = GetPrivateProfileStringW (L".ShellClassInfo", L"LocalizedResourceName", L"", text, ARRAYSIZE (text), ini.c_str());
-
-
-
-    return (length > 0 && text[0] != L'@') ? std::wstring (text, length) : std::wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerShell::GetLocalizedFolderName
-//
-//  SHGetLocalizedName returns the module and string id the desktop.ini
-//  refers to; the string is loaded from that module as data, never run. A
-//  desktop.ini whose name is plain text, as iCloud's is, has no module, and
-//  its text is the name.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoExplorerShell::GetLocalizedFolderName (const std::wstring & path)
-{
-    HRESULT       hr                 = S_OK;
-    wchar_t       module[MAX_PATH]   = {};
-    wchar_t       expanded[MAX_PATH] = {};
-    wchar_t       text[MAX_PATH]     = {};
-    int           id                 = 0;
-    HMODULE       library            = nullptr;
-    int           length             = 0;
-    std::wstring  name;
-
-
-
-    hr = SHGetLocalizedName (path.c_str(), module, ARRAYSIZE (module), &id);
-    BAIL_OUT_IF (FAILED (hr), S_OK);
-
-    BAIL_OUT_IF (ExpandEnvironmentStringsW (module, expanded, ARRAYSIZE (expanded)) == 0, S_OK);
-
-    library = LoadLibraryExW (expanded, nullptr, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE);
-    BAIL_OUT_IF (library == nullptr, S_OK);
-
-    length = LoadStringW (library, (UINT) id, text, ARRAYSIZE (text));
-
-    if (length > 0)
-    {
-        name.assign (text, (size_t) length);
-    }
-
-Error:
-    if (library != nullptr)
-    {
-        FreeLibrary (library);
-    }
-
-    return name.empty() ? GetPlainFolderName (path) : name;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerShell::GetDriveRoots
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::wstring> CassoExplorerShell::GetDriveRoots()
-{
-    std::vector<std::wstring>  roots;
-    wchar_t                    buffer[512] = {};
-    DWORD                      length      = GetLogicalDriveStringsW (ARRAYSIZE (buffer), buffer);
-    const wchar_t *            root        = buffer;
-
-
-
-    if (length == 0 || length > ARRAYSIZE (buffer))
-    {
-        return roots;
-    }
-
-    while (*root != L'\0')
-    {
-        roots.push_back (root);
-        root += wcslen (root) + 1;
-    }
-
-    return roots;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerShell::StartLinkFaults
 //
 //  A Debug build's fault injection: the Apple's program is built with the
@@ -1021,7 +864,7 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
     m_instance    = instance;
     m_showCommand = showCommand;
     m_baseDir     = AssetBootstrap::GetAssetBaseDirectory().wstring();
-    m_inspectors  = std::make_unique<InspectorWindowSet> (m_imageWatcher, m_prefs.diskInspector, InspectorWindowSet::Seams { .fileIo = &m_containerIo, .describePath = [this] (const std::wstring & path) { return m_cards.DescribePartition (path); } });
+    m_inspectors  = std::make_unique<InspectorWindowSet> (m_imageWatcher, m_prefs.diskInspector, InspectorWindowSet::Seams { .fileIo = &m_containerIo, .explorer = this, .describePath = [this] (const std::wstring & path) { return m_cards.DescribePartition (path); } });
 
 #if defined (_DEBUG)
     StartLinkFaults();
@@ -1093,9 +936,11 @@ Error:
 void CassoExplorerShell::ConfigureBrowser (CassoExplorerBrowser & browser)
 {
     browser.GetTreeModel().SetKnownFolders (m_knownFolders);
-    browser.GetTreeModel().SetDrives (GetDriveRoots());
-    browser.GetTreeModel().SetLocalizedNameLookup (&CassoExplorerShell::GetLocalizedFolderName);
+    browser.GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
+    browser.GetTreeModel().SetLocalizedNameLookup (&HostFolderNames::GetLocalizedFolderName);
     browser.SetPhysicalCards (&m_cards);
+
+    browser.SetRecentLoads ([this] () { return CassoImagesListing::LoadRecent (m_fs, m_baseDir); });
     browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring & path)
     {
         DWORD  attributes = GetFileAttributesW (path.c_str());
@@ -1147,7 +992,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
 
     //  For finding why a raw capture's image doesn't boot: the reads can be
     //  made into the image again (RealReads_BuildAWoz).
-    m_links.SetFullSendReads (m_options.saveReads);
+    m_links.GetFullSendOptions().SetSavingReads (m_options.saveReads);
     context.running     = &m_running;
     context.announced   = &m_announcements;
     context.firewall    = &m_firewall;
@@ -1168,7 +1013,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
 
     if (owner != 0)
     {
-        marked = SetPropW (slot->window->GetHwnd(), kOwnerProperty, (HANDLE) owner);
+        marked = SetPropW (slot->window->GetHwnd(), ExplorerWindowFinder::kOwnerProperty, (HANDLE) owner);
         CWR (marked);
     }
 
@@ -1237,6 +1082,33 @@ void CassoExplorerShell::ForEachWindow (const std::function<void (CassoExplorerW
         if (!slot->closed)
         {
             fn (*slot->window);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::SelectInFolder
+//
+//  The first open window, drawn again, since a tab opened from outside its
+//  input isn't otherwise drawn until it next has input. The window isn't
+//  brought to the front.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::SelectInFolder (const std::wstring & path)
+{
+    for (const std::unique_ptr<WindowSlot> & slot : m_windows)
+    {
+        if (!slot->closed)
+        {
+            slot->window->SelectInFolder (path);
+            slot->window->Invalidate();
+            break;
         }
     }
 }
@@ -1391,7 +1263,7 @@ BOOL CALLBACK CassoExplorerShell::CloseDialog (HWND hwnd, LPARAM)
 
     GetClassNameW (hwnd, className, (int) std::size (className));
 
-    if (IsWindowVisible (hwnd) && wcscmp (className, GetWindowClass()) != 0)
+    if (IsWindowVisible (hwnd) && wcscmp (className, ExplorerWindowFinder::GetWindowClass()) != 0)
     {
         PostMessageW (hwnd, WM_CLOSE, 0, 0);
     }
@@ -1617,7 +1489,7 @@ void CassoExplorerShell::ReleaseClosedWindows()
     {
         if (slot->closed && slot->window != nullptr && slot->window->GetHwnd() != nullptr)
         {
-            RemovePropW (slot->window->GetHwnd(), kOwnerProperty);
+            RemovePropW (slot->window->GetHwnd(), ExplorerWindowFinder::kOwnerProperty);
         }
     }
 

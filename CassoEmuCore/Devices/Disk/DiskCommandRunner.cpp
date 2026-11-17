@@ -44,6 +44,7 @@
 #include "Devices/Disk/BlockVolumeOpener.h"
 #include "Devices/Disk/DiskCollectionCommands.h"
 #include "Devices/Disk/DiskInspectCommand.h"
+#include "Devices/Disk/DiskRepairCommand.h"
 #include "Devices/Disk/DiskThumbnailCommand.h"
 #include "DiskCheck/ThumbnailStore.h"
 #include "Machines/Apple2/Common/HfsWriter.h"
@@ -1669,6 +1670,11 @@ void DiskCommandRunner::RunTest (const CommandLineOptions & options, DiskCommand
 
     result.exitStatus = problems.empty() ? DiskCommandResult::kClean : DiskCommandResult::kWithComplaints;
 
+    if (opened.kind != VolumeKind::Archive)
+    {
+        DiskRepairCommand::AddVerdict (m_fileIo, options.disk.imagePath, result);
+    }
+
 Error:
     return;
 }
@@ -3215,6 +3221,10 @@ DiskCommandResult DiskCommandRunner::Run (const CommandLineOptions & options)
 
         case CommandLineOptions::DiskOptions::Command::Inspect:
             DiskInspectCommand::Run (m_fileIo, options.disk.imagePath, result);
+            break;
+
+        case CommandLineOptions::DiskOptions::Command::Repair:
+            DiskRepairCommand::Run (m_fileIo, options, result);
             break;
 
         case CommandLineOptions::DiskOptions::Command::SetThumbnail:

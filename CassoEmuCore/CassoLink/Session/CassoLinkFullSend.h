@@ -2,7 +2,9 @@
 
 #include "Pch.h"
 
-#include "CassoLink/FullSend/FullSendSession.h"
+#include "CassoLink/FullSend/FullSendLink.h"
+#include "CassoLink/FullSend/FullSendScreen.h"
+#include "CassoLink/FullSend/FullSendStatus.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
 
@@ -33,6 +35,8 @@ public:
     bool         HasDrive         (int drive) override;
     HRESULT      ReadTrack        (int drive, int track, std::vector<Byte> & ioImage, bool & outHasDisk, bool & outWhole) override;
     HRESULT      ReadDisk         (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport) override;
+    void         SetMeasuring     (bool measuring) override { m_measuring = measuring; }
+    HRESULT      MeasureLayouts   (int drive, int tracks, std::vector<TrackLayout> & outLayouts) override;
     HRESULT      ShowScreen       (const FullSendScreen & screen) override;
     HRESULT      WaitForKey       (const std::vector<std::string> & lines, FullSendKey & outKey) override;
     HRESULT      WaitForAnyKey    (const std::vector<std::string> & lines, Byte & outCode) override;
@@ -69,6 +73,7 @@ private:
     LinkOperation      * m_operation = nullptr;
     std::atomic<bool>    m_canceled  { false };
     bool                 m_verifying = false;
+    bool                 m_measuring = false;
     bool                 m_barFull   = false;   // the next request draws the drive's bar full
     FullSendScreen       m_lastScreen;
     FullSendStatus       m_status    { GetSeconds, GetClockTime };

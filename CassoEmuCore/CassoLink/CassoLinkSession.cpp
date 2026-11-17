@@ -129,6 +129,7 @@ void CassoLinkSession::Cancel()
 
     if (m_running && m_host)
     {
+        m_canceled = true;
         m_fullSend.RequestCancel();
         m_host->Cancel();
     }
@@ -407,6 +408,7 @@ std::shared_ptr<LinkOperation> CassoLinkSession::FullSend (const std::string & f
     operation->imagePrefix = prefix;
     operation->verifyReads = m_verifyReads;
     operation->autoVerify  = m_autoVerify;
+    operation->protection  = m_sink.GetFullSendProtection();
 
     return Queue (LinkOperationKind::FullSend, 1, FilePath(), operation);
 }
@@ -755,7 +757,8 @@ void CassoLinkSession::Run (std::stop_token stop)
             {
                 operation = m_connector.m_queue.front();
                 m_connector.m_queue.pop_front();
-                m_running = operation;
+                m_running  = operation;
+                m_canceled = false;
             }
         }
 
@@ -1013,7 +1016,7 @@ std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation
         case LinkOperationKind::CheckLinkDisk:   text = std::format ("{} the disk in {}", finished ? "Checked" : "Checking", drive);        break;
         case LinkOperationKind::FullSend:        text = !finished                         ? std::string ("Full Send to PC")
                                                       : operation.fullSendSummary.empty() ? std::string ("Full Send done")
-                                                                                          : "Full Send: " + operation.fullSendSummary; break;
+                                                                                          : operation.fullSendSummary; break;
         case LinkOperationKind::Krunch:          text = std::format ("{} {}", finished ? "Krunched" : "Krunching", drive);                 break;
         case LinkOperationKind::CaptureDisk:     text = std::format ("{} {} to PC", finished ? "Captured" : "Capturing", drive);            break;
         default:                                 text = "Working";                                                                          break;

@@ -11,6 +11,29 @@ class Prng;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IIoAccessObserver
+//
+//  Something that watches the $C000-$C0FF soft switches ahead of the devices
+//  that answer them, as the //c Plus accelerator watches the speaker, the
+//  slots and the accelerator's registers. Returns true to take the access:
+//  a read returns `outValue` and a write doesn't go to a device.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IIoAccessObserver
+{
+public:
+    virtual ~IIoAccessObserver() = default;
+
+    virtual bool  OnIoAccess (Word address, bool isWrite, Byte value, Byte & outValue) = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BusEntry
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,6 +112,10 @@ public:
     using FloatingBusFn = function<Byte ()>;
     void SetFloatingBusSource (FloatingBusFn fn) { m_floatingBusSource = move (fn); }
 
+    //  The observer of the $C000-$C0FF soft switches; caller-owned, null for
+    //  none.
+    void SetIoObserver (IIoAccessObserver * observer) { m_ioObserver = observer; }
+
     // Page table for fast $0000-$BFFF access. Each page (256 bytes) maps to
     // a host buffer; null = read-only / writes ignored. Only used for RAM
     // pages -- the I/O range ($C000+) always goes through the device list.
@@ -139,6 +166,7 @@ public:
     }
 
 private:
+    IIoAccessObserver *     m_ioObserver = nullptr;
     MemoryDevice * FindDevice (Word address) const;
 
     // Rebuild the I/O dispatch map from the current device list. Called from

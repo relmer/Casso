@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "MachineBuilder.h"
+#include "StorageCardWiring.h"
 
 #include "Audio/DriveAudioMixer.h"
 #include "Audio/PrinterAudioSource.h"
@@ -49,6 +50,19 @@
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Machines/Apple2/Common/SscSwitches.h"
 #include "Machines/Apple2/Common/SuperSerialCard.h"
+#include "Devices/BlockDevice/AppleScsiCard.h"
+#include "Devices/BlockDevice/ProFileCard.h"
+#include "Devices/Floppy35/Apple35ControllerCard.h"
+#include "Audio/Floppy35AudioSource.h"
+#include "Audio/HardDiskAudioSource.h"
+#include "Devices/Floppy35/Apple2cPlusDiskPort.h"
+#include "Devices/Floppy35/Apple2cSmartPort.h"
+#include "Machines/Apple2/Apple2cPlus/Apple2cPlusAccelerator.h"
+#include "Machines/Apple2/Apple2cPlus/MigChip.h"
+#include "Devices/Floppy35/LironCard.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
+#include "Devices/BlockDevice/ScsiHardDisk.h"
+#include "Devices/BlockDevice/StockHardDiskImage.h"
 #include "Print/PrintJobStore.h"
 #include "Print/PrinterWorker.h"
 #include "WasapiAudio.h"
@@ -94,6 +108,7 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
     //  `continue`. The machine that needs the factories is the one being
     //  built, and this is where it is built.
     ComponentRegistry::RegisterBuiltinDevices (m_host.GetRegistry());
+    m_host.GetBlockMediaProblems().clear();
 
     hr = CreateMemoryDevices (config);
     CHR (hr);
@@ -106,6 +121,10 @@ HRESULT MachineBuilder::Build (const MachineConfig & config)
     // so $C800 floats and the firmware derails to a garbage screen. No-op for
     // non-banked machines (romBankSize == 0).
     WireBankedRom();
+
+    // //c Plus: the MIG is in the internal ROM window, so it goes in
+    // after the bank coordinator it consults.
+    StorageCardWiring (*this, m_host, m_services).WireMig();
 
     CreateVideoModes();
 
@@ -452,6 +471,22 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
                 {
                     WireSuperSerialCard (slot, *static_cast<SuperSerialCard *> (raw));
                 }
+                else if (slot.device == kpszAppleScsiCardDevice)
+                {
+                    StorageCardWiring (*this, m_host, m_services).WireAppleScsiCard (slot, *static_cast<AppleScsiCard *> (raw));
+                }
+                else if (slot.device == kpszProFileCardDevice)
+                {
+                    StorageCardWiring (*this, m_host, m_services).WireProFileCard (slot, *static_cast<ProFileCard *> (raw));
+                }
+                else if (slot.device == kpszApple35CardDevice)
+                {
+                    StorageCardWiring (*this, m_host, m_services).WireApple35Card (slot, *static_cast<Apple35ControllerCard *> (raw));
+                }
+                else if (slot.device == kpszLironCardDevice)
+                {
+                    StorageCardWiring (*this, m_host, m_services).WireLironCard (slot, *static_cast<LironCard *> (raw));
+                }
             }
         }
 
@@ -547,10 +582,39 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
 
     if (m_host.GetConfig().systemRom.romBankSize != 0)
     {
-        auto iwm = std::make_unique<Disk2Controller> (6);
-        iwm->SetIwmMode (true);
-        m_host.GetMemoryBus().AddDevice (iwm.get());
-        m_host.GetOwnedDevices().push_back (std::move (iwm));
+        if (m_host.GetCurrentMachineName() == L"Apple2cPlus")
+        {
+            auto port = std::make_unique<Apple2cPlusDiskPort>();
+
+            StorageCardWiring (*this, m_host, m_services).WireApple2cPlusDrives (*port);
+
+            // 5.25-inch drives at the end of the disk port's chain are a
+            // Disk II controller's, in IWM mode at $C0E0, with the port as
+            // its hook.
+            if (port->GetFloppyCount() > 0)
+            {
+                auto floppies = std::make_unique<Disk2Controller> (6);
+
+                floppies->SetIwmMode (true);
+                floppies->SetPortHook (port.get());
+                m_host.GetMemoryBus().AddDevice (floppies.get());
+                m_host.GetOwnedDevices().push_back (std::move (floppies));
+            }
+            else
+            {
+                m_host.GetMemoryBus().AddDevice (port.get());
+            }
+
+            m_host.GetOwnedDevices().push_back (std::move (port));
+        }
+        else
+        {
+            auto iwm = std::make_unique<Disk2Controller> (6);
+            iwm->SetIwmMode (true);
+            StorageCardWiring (*this, m_host, m_services).WireDiskPortChain (*iwm);
+            m_host.GetMemoryBus().AddDevice (iwm.get());
+            m_host.GetOwnedDevices().push_back (std::move (iwm));
+        }
 
         // //c built-in IOU mouse: not a bus device -- the keyboard
         // ($C048 ack, $C063 button) and soft-switch bank ($C015/$C017/$C019
@@ -718,6 +782,8 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         {
             m_host.GetRefs().diskController->SetAudioSink ((*m_services.diskAudioSources)[0].get());
         }
+
+        StorageCardWiring (*this, m_host, m_services).WireDeviceAudio();
     }
 
     // Bytes from the last machine that were never drained are not this
@@ -1632,6 +1698,37 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
     // owns both the EmuCpu and the device list, so this is the right
     // wiring point -- the controller is cached into the refs' diskController
     // just above in AddDevices.
+    for (AppleScsiCard * scsiCard : m_host.GetRefs().scsiCards)
+    {
+        scsiCard->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
+    }
+
+    for (ProFileCard * proFileCard : m_host.GetRefs().proFileCards)
+    {
+        proFileCard->GetDrive().SetClock (m_host.GetCpu()->GetBusCyclePtr());
+    }
+
+    for (Apple35ControllerCard * apple35Card : m_host.GetRefs().apple35Cards)
+    {
+        apple35Card->SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
+    }
+
+    for (LironCard * lironCard : m_host.GetRefs().lironCards)
+    {
+        lironCard->SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
+    }
+
+    if (m_host.GetRefs().apple2cSmartPort != nullptr)
+    {
+        m_host.GetRefs().apple2cSmartPort->GetPort().SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
+    }
+
+    if (m_host.GetRefs().apple2cPlusDiskPort != nullptr)
+    {
+        m_host.GetRefs().apple2cPlusDiskPort->GetPort().SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
+        m_host.SetAccelerator (std::make_unique<Apple2cPlusAccelerator> (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed));
+    }
+
     if (m_host.GetRefs().diskController != nullptr)
     {
         m_host.GetRefs().diskController->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
@@ -2043,6 +2140,45 @@ void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCa
 
     card.SetSwitches (switches);
 
+    AddExpansionRomCard (slot.slot, card, card.GetSlotPage());
+
+    hr = card.GetAcia().AttachInterruptController (&m_host.GetInterruptController());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    card.GetAcia().SetCpuClockHz (m_host.GetConfig().clockSpeed);
+    refs.serialChips.push_back (&card.GetAcia());
+
+    if (refs.superSerialCard == nullptr)
+    {
+        refs.superSerialCard = &card;
+    }
+
+    m_host.SetSerialPort (slot.slot, &card.GetAcia(), true);
+    AttachSerialEndpoint (slot, card);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddExpansionRomCard
+//
+//  Puts a card's $Cn00 page and its share of the $C800-$CFFF expansion space
+//  on the machine. On the //e the CxxxRomRouter owns $C100-$CFFF and passes
+//  the card's page and the expansion space to it under the //e's ROM
+//  switches; on the ][ and ][+ both are plain bus devices. The expansion bus
+//  is made with the first card that needs it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::AddExpansionRomCard (int slot, IExpansionRomCard & card, SlotRomPage & slotPage)
+{
+    MachineRefs  & refs = m_host.GetRefs();
+
+
+
     if (refs.expansionRomBus == nullptr)
     {
         auto  bus = std::make_unique<ExpansionRomBus> (m_host.GetMemoryBus());
@@ -2062,29 +2198,16 @@ void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCa
     }
 
     refs.expansionRomBus->AddCard (&card);
+    slotPage.SetExpansionBus (refs.expansionRomBus);
 
     if (m_host.GetMmu() != nullptr)
     {
-        m_host.GetMmu()->GetCxxxRouter()->SetSlotIoDevice (slot.slot, &card.GetSlotPage());
+        m_host.GetMmu()->GetCxxxRouter()->SetSlotIoDevice (slot, &slotPage);
     }
     else
     {
-        m_host.GetMemoryBus().AddDevice (&card.GetSlotPage());
+        m_host.GetMemoryBus().AddDevice (&slotPage);
     }
-
-    hr = card.GetAcia().AttachInterruptController (&m_host.GetInterruptController());
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    card.GetAcia().SetCpuClockHz (m_host.GetConfig().clockSpeed);
-    refs.serialChips.push_back (&card.GetAcia());
-
-    if (refs.superSerialCard == nullptr)
-    {
-        refs.superSerialCard = &card;
-    }
-
-    m_host.SetSerialPort (slot.slot, &card.GetAcia(), true);
-    AttachSerialEndpoint (slot, card);
 }
 
 

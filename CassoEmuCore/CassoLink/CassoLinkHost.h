@@ -4,6 +4,7 @@
 
 #include "CassoLink/Host/CassoLinkAdtProServer.h"
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/CassoLinkClient.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/LinkFault.h"
 
@@ -48,40 +49,6 @@ public:
 
 
 
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkClient
-//
-//  Casso's client as its last Ready packet reported it, and the Status packet
-//  that ends each of its operations. A shim with no program loaded reports
-//  program version 0.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct CassoLinkClient
-{
-    Word  programVersion = 0;
-    Byte  shimVersion    = 0;
-    Byte  driveMap       = 0;
-
-    //  The program's Ready has the ROM's identification bytes: $FBB3,
-    //  $FBC0, $FBBF, $FB1E, and 1 for a IIgs. The shim's has none.
-    bool                 hasRomId = false;
-    std::array<Byte, 5>  romId    = {};
-
-    //  The CRC-16/XMODEM the program computed over itself as loaded, which
-    //  the host compares with the image it sent. Earlier programs sent none.
-    bool                 hasProgramCrc = false;
-    Word                 programCrc    = 0;
-
-    //  The model the bytes identify, as Apple //c (ROM 4); empty without them.
-    std::wstring  GetModelName () const;
-
-    //  True for a //e, //c or IIgs, whose screen has small letters; false
-    //  for a ][ or ][+, and without the bytes.
-    bool          HasLowercase () const;
-};
 
 struct CassoLinkStatus
 {
@@ -222,6 +189,7 @@ public:
     DWORD    GetSilenceMs () const;
 
     void     SetActivitySink (ActivityFn sink) { m_adtProServer.m_activity = std::move (sink); }
+    void     ReportActivity  (const std::string & text) { if (m_adtProServer.m_activity) { m_adtProServer.m_activity (text); } }
 
     //  Each packet sent and received, as CassoLinkPacketText describes it, for
     //  a log; sent is false for one received. A pause's report of no key, once
@@ -275,6 +243,19 @@ public:
     //  each pass of sector 0 on `track`, over `revolutions` passes. Zero, with
     //  the Status's error, when the track has no sector 0 to time.
     HRESULT  TimeDrive    (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);
+
+    //  On the track before `track`, sector 0 found, the arm stepped to `track`,
+    //  and the nibbles counted to its sector 0 and on through a turn, with
+    //  that address field's volume. On track 0 fromStep is 0. Zeros, with the
+    //  Status's error, when a track has no sector 0.
+    struct TrackMeasure
+    {
+        Word  fromStep = 0;
+        Word  turn     = 0;
+        Byte  volume   = 0;
+    };
+
+    HRESULT  MeasureTrack (Byte drive, Byte track, TrackMeasure & outMeasure, CassoLinkStatus & outStatus);
 
     //  The Apple Pascal volume in the drive krunched on the Apple, after it
     //  checks that its directory's CRC is `directoryCrc`, the CRC of the
@@ -426,6 +407,7 @@ private:
     HRESULT  ReadCrcsOnce      (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Word> & outCrcs, std::vector<bool> & outRead, CassoLinkStatus & outStatus);
     HRESULT  FormatTrackOnce   (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap);
     HRESULT  TimeDriveOnce     (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);
+    HRESULT  MeasureTrackOnce  (Byte drive, Byte track, TrackMeasure & outMeasure, CassoLinkStatus & outStatus);
     HRESULT  KrunchOnce        (Byte drive, Word directoryCrc, const KrunchProgressFn & progress, CassoLinkStatus & outStatus, bool & outTaken);
     HRESULT  SendSectorsOnce   (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
                                 std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer);

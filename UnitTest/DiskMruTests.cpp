@@ -59,11 +59,41 @@ namespace DiskMruTests
             // The most-recent (last inserted, index k_capacity) is at front;
             // the original index-0 entry should have been evicted.
             snap = m.GetSnapshot();
-            Assert::IsTrue (snap[0].path.wstring().find (L"\\16.dsk") != std::wstring::npos);
+            Assert::IsTrue (snap[0].path.wstring().find (std::format (L"\\{}.dsk", DiskMru::k_capacity)) != std::wstring::npos);
             for (const auto & mruEntry : snap)
             {
                 Assert::IsTrue (mruEntry.path.wstring().find (L"\\0.dsk") == std::wstring::npos);
             }
+        }
+
+
+        TEST_METHOD (CapacityIsAThousand_AndTheMenuShowsSixteen)
+        {
+            Assert::AreEqual ((size_t) 1000, DiskMru::k_capacity);
+            Assert::AreEqual ((size_t) 16,   DiskMru::kMenuEntries);
+        }
+
+
+        TEST_METHOD (TrimTo_KeepsTheNewest)
+        {
+            DiskMru                      m;
+            std::vector<DiskMru::Entry>  snap;
+            int                          i    = 0;
+
+            for (i = 0; i < 20; i++)
+            {
+                m.RecordMount (std::format (L"C:\\Disks\\{}.dsk", i));
+            }
+
+            m.TrimTo (DiskMru::kMenuEntries);
+            snap = m.GetSnapshot();
+
+            Assert::AreEqual (DiskMru::kMenuEntries, snap.size());
+            Assert::AreEqual (std::wstring (L"C:\\Disks\\19.dsk"), snap.front().path.wstring());
+            Assert::AreEqual (std::wstring (L"C:\\Disks\\4.dsk"),  snap.back().path.wstring());
+
+            m.TrimTo (100);
+            Assert::AreEqual (DiskMru::kMenuEntries, m.GetSize(), L"trimming to more than the list has changes nothing");
         }
 
 

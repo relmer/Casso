@@ -3,7 +3,9 @@
 #include "CassoLink/Session/CassoLinkFullSend.h"
 #include "CassoLink/Session/CassoLinkCapture.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
+#include "CassoLink/Session/TrackMeasures.h"
 #include "CassoLink/FullSend/FullSendDisk.h"
+#include "CassoLink/FullSend/FullSendSession.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "Core/TextEncoding.h"
@@ -50,6 +52,8 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
     m_operation = &operation;
     m_verifying = operation.verifyReads;
 
+    session.SetProtection (operation.protection);
+
     //  A long wait for the Apple's reply is the window's state line.
     m_session.m_host->SetWaitObserver ([this] (bool waiting) { m_status.SetWaiting (waiting); });
 
@@ -59,8 +63,9 @@ HRESULT CassoLinkFullSend::Run (LinkOperation & operation)
 
     operation.message         = session.GetMessage();
     operation.imagePrefix     = session.GetPrefix();
-    operation.fullSendSummary = std::format ("{} sent, {} bad, {} dup", session.GetScreen().sent, session.GetScreen().bad, session.GetScreen().duplicates);
-    m_session.m_sink.OnActivity (operation.message);
+    //  The Apple's history line: how the session ended and its counts.
+    operation.fullSendSummary = std::format ("{}: {} sent, {} bad, {} dup", session.GetEndReason() == FullSendSession::EndReason::Canceled ? "Ended on PC" : "Full Send",
+                                             session.GetScreen().sent, session.GetScreen().bad, session.GetScreen().duplicates);
     m_operation       = nullptr;
 
     for (size_t i = 0; i < CassoLinkSessionTypes::kDriveCount; i++)
@@ -227,27 +232,46 @@ Error:
 //  Read disk to image's track reads, with an unreadable sector listed and left
 //  as zeros, and the check for Q and Cancel between tracks. The session
 //  writes the file only when every track has been read. The operation's drive
-//  is the one being read, for the status bar.
+//  is the one being read, for the status bar. When measuring, every track is
+//  measured, the tracks the check read too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std::span<const int> haveTracks, std::vector<std::pair<int, int>> & outUnreadable, FullSendReadReport & outReport)
 {
-    HRESULT  hr      = S_OK;
-    size_t   before  = 0;
-    size_t   marked  = 0;
-    bool     stop    = false;
-    int      damaged = 0;
+    HRESULT                                   hr          = S_OK;
+    size_t                                    before      = 0;
+    size_t                                    marked      = 0;
+    bool                                      stop        = false;
+    int                                       damaged     = 0;
+    std::vector<CassoLinkHost::TrackMeasure>  measures;
+    int                                       bitsPerTurn = 0;
 
 
 
     m_operation->drive            = drive;
     m_operation->fullSendChecking = false;
 
+    if (m_measuring)
+    {
+        hr = m_session.m_diskTransfer.TimeDriveForLayout (drive, bitsPerTurn);
+        CHR (hr);
+    }
+
     for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
         hr = CheckStop();
         CHR (hr);
+
+        //  The measure has the track's share of the bar, the read's share, so
+        //  the Apple draws the bar the same for both.
+        if (m_measuring)
+        {
+            m_session.m_host->SetProgress ((Byte) (track * 100 / NibblizationLayer::kTrackCount), (Byte) ((track + 1) * 100 / NibblizationLayer::kTrackCount));
+
+            hr = m_session.m_diskTransfer.MeasureTrack (drive, track, measures);
+            CHR (hr);
+        }
 
         //  A track the check read once still has its three reads when verifying.
         if (!m_verifying && std::find (haveTracks.begin(), haveTracks.end(), track) != haveTracks.end())
@@ -297,6 +321,49 @@ HRESULT CassoLinkFullSend::ReadDisk (int drive, std::vector<Byte> & ioImage, std
     //  after this one draws the bar full.
     m_session.m_host->SetProgress (100, 100);
     m_barFull = true;
+
+    if (m_measuring)
+    {
+        outReport.layouts = TrackMeasures::ToLayouts (measures, bitsPerTurn);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkFullSend::MeasureLayouts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkFullSend::MeasureLayouts (int drive, int tracks, std::vector<TrackLayout> & outLayouts)
+{
+    HRESULT                                   hr          = S_OK;
+    std::vector<CassoLinkHost::TrackMeasure>  measures;
+    int                                       bitsPerTurn = 0;
+
+
+
+    outLayouts.clear();
+
+    hr = m_session.m_diskTransfer.TimeDriveForLayout (drive, bitsPerTurn);
+    CHR (hr);
+
+    for (int track = 0; track < tracks; track++)
+    {
+        hr = CheckStop();
+        CHR (hr);
+
+        hr = m_session.m_diskTransfer.MeasureTrack (drive, track, measures);
+        CHR (hr);
+    }
+
+    outLayouts = TrackMeasures::ToLayouts (measures, bitsPerTurn);
 
 Error:
     return hr;
@@ -495,7 +562,8 @@ HRESULT CassoLinkFullSend::CaptureRaw (int drive, bool withEarlier, std::vector<
     CHR (hr);
 
     hr = CassoLinkCapture::Capture (*m_session.m_host, (Byte) drive, module, date,
-                                    [this, drive] (const CassoLinkCapture::Progress & where) { NoteCapture (drive, where); }, result);
+                                    [this, drive] (const CassoLinkCapture::Progress & where) { NoteCapture (drive, where); }, result,
+                                    CassoLinkCapture::kTracks - 1, [this] () { return m_canceled.load(); });
     CHR (hr);
 
     //  A disk captured again has the reads of both captures for each

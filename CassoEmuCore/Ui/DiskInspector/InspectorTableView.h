@@ -30,9 +30,19 @@ public:
 
     explicit InspectorTableView (InspectorViewContext & context);
 
-    void  SetColumns  (const vector<std::wstring> & titles);
-    void  SetRows     (vector<TableRow> rows);
-    void  SetCaption  (const std::wstring & caption) { m_caption = caption; }
+    //  The last column stretches, or with a trailing width, the one before it
+    //  stretches and the last is that wide.
+    void  SetColumns  (const vector<std::wstring> & titles, int trailingDip = 0);
+
+    //  Each column as wide as its width, or fitted to its cells for 0, and
+    //  the stretch column taking the rest.
+    void  SetColumns  (const vector<std::wstring> & titles, const vector<int> & widthsDip, size_t stretch);
+
+    //  A column whose cells the view draws, as an icon, in place of their
+    //  text; Copy includes the text. None by default.
+    void  SetIconColumn (int column) { m_iconColumn = column; }
+    void  SetRows       (vector<TableRow> rows);
+    void  SetCaption    (const std::wstring & caption) { m_caption = caption; }
 
     //  Rows with a title and no value head a group: a click collapses or
     //  expands the rows under them, and those rows are indented.
@@ -50,6 +60,7 @@ public:
     void  Tick             (int64_t nowMs) override { m_list.Tick (nowMs); }
 
     const vector<TableRow> &  GetRows () const { return m_rows; }
+    const DxuiListView     &  GetList () const { return m_list; }
 
     //  The selected row under the header, tab-separated, for Copy (FR-057).
     std::wstring  GetSelectedText () const;
@@ -59,6 +70,9 @@ public:
     bool  OnMouse    (const DxuiMouseEvent & ev) override;
     bool  OnKey      (const DxuiKeyEvent & ev) override;
     bool  GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
+
+    //  The list's cursor: the resize arrows over a header's divider.
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 private:
     void  ShowRows    ();
@@ -80,4 +94,5 @@ protected:
     std::set<std::wstring>  m_collapsed;
     std::wstring            m_toggle;
     bool                    m_isSelecting = false;
+    int                     m_iconColumn  = -1;
 };

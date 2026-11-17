@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "Core/MachineConfig.h"
@@ -14,6 +16,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/FullSendWindowManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
@@ -109,7 +112,7 @@ void ExplorerLayout::ConfigureWidgets()
     if (m_context.app.links != nullptr)
     {
         m_context.app.links->SetTarget (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerCassoLink);
-        m_context.cassoLinkManager.ApplyFullSendPrefs();
+        m_context.fullSendWindows.ApplyFullSendPrefs();
         m_context.cassoLinkManager.ApplyVerifyPrefs();
         m_context.app.links->SetLinks (m_context.prefs.links);
         m_context.browser.SetLinks (m_context.app.links);
@@ -136,9 +139,13 @@ void ExplorerLayout::ConfigureWidgets()
         m_context.cassoLinkManager.HandleRunningChanged();
     }
 
+    //  A picker's scope applies from the first listing.
+    m_context.pickerMode.Start();
+
     //  The tabs of the request, from the session or a torn-off tab, or Home.
     m_context.browser.RestoreTabs (std::move (m_context.app.request.tabs), m_context.app.request.activeTab);
     m_context.browser.LeaveMissingLocation();
+    m_context.pickerMode.ShowStockDisksIfCassoIsEmpty();
     m_context.browser.SetCardOpenAllowed (true);
 
     m_context.folderSync.StartPolling();
@@ -182,11 +189,13 @@ void ExplorerLayout::ConfigureWidgets()
 
 void ExplorerLayout::RecomputeLayout()
 {
-    IDxuiControl  * bands[]     = { &m_tabBand, &m_toolbarBand, &m_menuBand, &m_statusBand, &m_bodyBand };
+    IDxuiControl  * bands[]     = { &m_tabBand, &m_toolbarBand, &m_menuBand, &m_statusBand, &m_pickerBand, &m_bodyBand };
+    bool            picker      = m_context.IsPicker();
     RECT            body        = {};
     RECT            right       = {};
     RECT            sashRect    = {};
     int             rightDip    = 0;
+    int             edgePx      = 0;
     bool            preview     = m_context.preview.IsShown();
     bool            expanded    = m_context.preview.IsExpanded();
     PaneWidths      panes;
@@ -206,7 +215,9 @@ void ExplorerLayout::RecomputeLayout()
 
     //  An expanded preview fills the tab below the tab strip. The command bar,
     //  the address bar and the status bar are hidden, with bands of 0.
-    m_tabBand.SetThickness     (m_context.scaler.ToPx (kTabHeightDip));
+    //  A picker has one location and no tabs, and its bar above the status bar.
+    m_tabBand.SetThickness     (picker ? 0 : m_context.scaler.ToPx (kTabHeightDip));
+    m_pickerBand.SetThickness  (expanded ? 0 : m_context.scaler.ToPx (m_context.pickerBar.GetBandDip()));
     m_menuBand.SetThickness    (expanded ? 0 : (int) std::floor (m_context.scaler.ToPxf (kCommandBarDip)));
     m_toolbarBand.SetThickness (expanded ? 0 : (int) std::floor (m_context.scaler.ToPxf (kNavStripFillDip))   + DxuiToolbar::GetEdgePx (m_context.scaler));
     m_statusBand.SetThickness  (expanded ? 0 : m_context.scaler.ToPx (ExplorerStatusBar::kStatusBandDip));
@@ -215,7 +226,14 @@ void ExplorerLayout::RecomputeLayout()
 
     body = m_bodyBand.GetBounds();
 
-    if (body.bottom <= body.top)
+    //  The panes stop short of the right edge's resize band, and of the
+    //  bottom's under an expanded preview, so a scrollbar beside the band is
+    //  clear of it.
+    edgePx       = m_context.window.GetPopupHost() != nullptr ? m_context.window.GetPopupHost()->GetResizeBorderPx() : 0;
+    body.right  -= edgePx;
+    body.bottom -= body.bottom >= m_client.bottom ? edgePx : 0;
+
+    if (body.bottom <= body.top || body.right <= body.left)
     {
         return;
     }
@@ -262,6 +280,7 @@ void ExplorerLayout::RecomputeLayout()
 
     sashRect = m_context.prefs.navigationPane ? m_treeSplitter->GetSashRect() : RECT { body.left, body.top, body.left, body.bottom };
     m_context.treePane.Layout (RECT { body.left, body.top, sashRect.left, body.bottom });
+    m_context.pickerBar.LayoutChips (m_context.toolbars.GetCommandBar().GetFreeRect(), sashRect.right);
 
     right    = RECT { sashRect.right, body.top, body.right, body.bottom };
     rightDip = MulDiv (right.right - right.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_context.scaler.GetDpi());
@@ -291,6 +310,7 @@ void ExplorerLayout::RecomputeLayout()
     }
 
     m_context.statusBar.Layout (m_statusBand.GetBounds());
+    m_context.pickerBar.Layout (m_pickerBand.GetBounds());
 
     m_dropHits.Clear();
     m_dropHits.Register (DxuiHitRect { m_context.listPane.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagList });
@@ -446,6 +466,7 @@ void ExplorerLayout::DockBands()
     m_dock.SetDock (m_menuBand,    DxuiDock::Top);
     m_dock.SetDock (m_toolbarBand, DxuiDock::Top);
     m_dock.SetDock (m_statusBand,  DxuiDock::Bottom);
+    m_dock.SetDock (m_pickerBand,  DxuiDock::Bottom);
     m_dock.SetDock (m_bodyBand,    DxuiDock::Fill);
 }
 

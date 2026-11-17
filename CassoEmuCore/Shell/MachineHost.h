@@ -2,12 +2,14 @@
 
 #include "Pch.h"
 
+#include "Machines/Apple2/Apple2cPlus/Apple2cPlusAccelerator.h"
 #include "Core/ComponentRegistry.h"
 #include "Core/EmuCpu.h"
 #include "Core/InterruptController.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/IDiskImage.h"
 #include "Devices/IAciaEndpoint.h"
 #include "Devices/Printer/PrinterByteRing.h"
 #include "Devices/Tape/TapeDeck.h"
@@ -25,7 +27,10 @@ class IByteStream;
 class Apple2eMmu;
 class AppleMouse;
 class SiriusJoyport;
+class IBlockDeviceEventSink;
 class IDisk2EventSink;
+class IDiskFileIo;
+class IFloppy35EventSink;
 class IInputEventSink;
 class Prng;
 
@@ -48,8 +53,10 @@ class Prng;
 
 struct MachineObservers
 {
-    IDisk2EventSink  *  disk  = nullptr;
-    IInputEventSink  *  input = nullptr;
+    IDisk2EventSink        *  disk        = nullptr;
+    IInputEventSink        *  input       = nullptr;
+    IBlockDeviceEventSink  *  blockDevice = nullptr;
+    IFloppy35EventSink     *  floppy35    = nullptr;
 };
 
 
@@ -131,13 +138,14 @@ public:
     //  scratch on every machine switch. Null is a real answer for all but
     //  the CPU and the Prng: a ][ has no MMU, only a //c has the firmware
     //  bank and the IOU mouse.
-    EmuCpu          *  GetCpu             () noexcept { return m_cpu.get(); }
-    Prng            *  GetPrng            () noexcept { return m_prng.get(); }
-    Apple2eMmu      *  GetMmu             () noexcept { return m_mmu.get(); }
-    Apple2cRomBank  *  GetApple2cRomBank  () noexcept { return m_apple2cRomBank.get(); }
-    AppleMouse      *  GetMouse           () noexcept { return m_mouse.get(); }
-    SiriusJoyport   *  GetJoyport         () noexcept { return m_joyport.get(); }
-    VideoTiming     *  GetVideoTiming     () noexcept { return m_videoTiming.get(); }
+    EmuCpu                  * GetCpu            () noexcept { return m_cpu.get(); }
+    Prng                    * GetPrng           () noexcept { return m_prng.get(); }
+    Apple2eMmu              * GetMmu            () noexcept { return m_mmu.get(); }
+    Apple2cRomBank          * GetApple2cRomBank () noexcept { return m_apple2cRomBank.get(); }
+    AppleMouse              * GetMouse          () noexcept { return m_mouse.get(); }
+    Apple2cPlusAccelerator  * GetAccelerator    () noexcept { return m_accelerator.get(); }
+    SiriusJoyport           * GetJoyport        () noexcept { return m_joyport.get(); }
+    VideoTiming             * GetVideoTiming    () noexcept { return m_videoTiming.get(); }
 
     const EmuCpu          *  GetCpu            () const noexcept { return m_cpu.get(); }
     const Prng            *  GetPrng           () const noexcept { return m_prng.get(); }
@@ -152,6 +160,10 @@ public:
     void  SetMmu            (std::unique_ptr<Apple2eMmu>      mmu);
     void  SetApple2cRomBank (std::unique_ptr<Apple2cRomBank>  romBank);
     void  SetMouse          (std::unique_ptr<AppleMouse>      mouse);
+
+    //  The //c Plus's accelerator, which scales each instruction's cycles
+    //  and watches the soft switches; null on every other machine.
+    void  SetAccelerator    (std::unique_ptr<Apple2cPlusAccelerator> accelerator);
     void  SetJoyport        (std::unique_ptr<SiriusJoyport>   joyport);
     void  SetVideoTiming    (std::unique_ptr<VideoTiming>     videoTiming);
 
@@ -291,6 +303,39 @@ public:
     //  or a shutdown: <assetBase>/Machines/<machine>/PendingPrint.
     std::filesystem::path  GetPendingPrintDir() const;
 
+    //  How the machine's hard disks and 3.5-inch drives reach their image
+    //  files, and how a file's write protection is found. Both default to the
+    //  host's file system; a test passes an in-memory one, whose probe
+    //  reports every file writable unless the test supplies its own.
+    using WriteProtectProbe = std::function<WriteProtectInfo (const std::string & path)>;
+
+    void                SetBlockMediaFileIo (IDiskFileIo * fileIo, WriteProtectProbe probe = nullptr);
+    IDiskFileIo       & GetBlockMediaFileIo ();
+    WriteProtectInfo    ProbeBlockMedia     (const std::string & path) const;
+
+    //  Why an image the machine file lists did not attach, one line each, for
+    //  a notice; cleared at each build.
+    std::vector<std::wstring> &  GetBlockMediaProblems () noexcept { return m_blockMediaProblems; }
+
+    //  The 3.5-inch drive at `drive` of the UniDisk 3.5 or 3.5 controller
+    //  card in `slot`, or for slot 0 the //c disk port's: the //c Plus's
+    //  internal drive as drive 0, then the drives on the chain. Null for a
+    //  slot or drive without one. Inserting or ejecting runs on the CPU thread.
+    class Sony35Drive *  FindFloppy35   (int slot, int drive);
+    HRESULT              InsertFloppy35 (int slot, int drive, const std::string & path, std::wstring & outError);
+    HRESULT              EjectFloppy35  (int slot, int drive);
+
+    //  A hard disk's image, by its card's slot and the drive's SCSI ID (0 for
+    //  a ProFile), with the machine build's checks. When an image fails them,
+    //  the drive has its image from before. The machine's configuration
+    //  takes the new image. Runs on the CPU thread.
+    HRESULT              AttachHardDisk (int slot, int drive, const std::string & path, std::wstring & outError);
+
+    //  Where the stock hard disk image is made and found; empty leaves an
+    //  HD20SC that lists "stock" without an image.
+    void                 SetStockImageFolder (const std::string & folder) { m_stockImageFolder = folder; }
+    const std::string &  GetStockImageFolder () const noexcept            { return m_stockImageFolder; }
+
     void  SetCurrentMachineName (const std::wstring & name) { m_currentMachineName = name; }
     void  SetAssetBaseDir       (const std::wstring & dir)  { m_assetBaseDir = dir; }
 
@@ -353,11 +398,12 @@ private:
 
     std::shared_mutex  m_lifetimeLock;
 
-    std::unique_ptr<Apple2eMmu>      m_mmu;
-    std::unique_ptr<Apple2cRomBank>  m_apple2cRomBank;
-    std::unique_ptr<AppleMouse>      m_mouse;
-    std::unique_ptr<SiriusJoyport>   m_joyport;
-    std::unique_ptr<VideoTiming>     m_videoTiming;
+    std::unique_ptr<Apple2eMmu>              m_mmu;
+    std::unique_ptr<Apple2cRomBank>          m_apple2cRomBank;
+    std::unique_ptr<AppleMouse>              m_mouse;
+    std::unique_ptr<Apple2cPlusAccelerator>  m_accelerator;
+    std::unique_ptr<SiriusJoyport>           m_joyport;
+    std::unique_ptr<VideoTiming>             m_videoTiming;
 
     // On the heap: together they are most of the host's size, and a test
     // that builds two machines on the stack must stay under the analyzer's
@@ -376,6 +422,11 @@ private:
     // so it outlives every rebuild and every change of connector. 64 KB, so
     // on the heap.
     std::unique_ptr<PrinterByteRing>  m_printerRing;
+    std::unique_ptr<IDiskFileIo>      m_hostBlockFileIo;
+    IDiskFileIo                     * m_blockFileIo        = nullptr;
+    WriteProtectProbe                 m_blockProbe;
+    std::vector<std::wstring>         m_blockMediaProblems;
+    std::string                       m_stockImageFolder;
 
     std::wstring  m_currentMachineName;
     std::wstring  m_assetBaseDir;

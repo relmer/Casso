@@ -62,6 +62,53 @@ public:
         return bits;
     }
 
+    //  A disk byte as a drive's latch takes it, and the zero bits after it.
+    struct TrackByte
+    {
+        Byte  value = 0;
+        int   zeros = 0;
+    };
+
+    //  A track's bytes in one revolution. The bits are taken twice round, so
+    //  the second revolution's bytes are framed in step.
+    static std::vector<TrackByte>  GetTrackBytes (const std::vector<uint8_t> & bits)
+    {
+        std::vector<TrackByte>  bytes;
+        Byte                    shift = 0;
+        size_t                  n     = bits.size();
+
+
+
+        for (size_t at = 0; at < 2 * n; at++)
+        {
+            uint8_t  bit = bits[at % n];
+
+            if (shift == 0 && bit == 0)
+            {
+                if (!bytes.empty() && at >= n)
+                {
+                    bytes.back().zeros++;
+                }
+
+                continue;
+            }
+
+            shift = (Byte) ((shift << 1) | bit);
+
+            if ((shift & 0x80) != 0)
+            {
+                if (at >= n)
+                {
+                    bytes.push_back ({ shift, 0 });
+                }
+
+                shift = 0;
+            }
+        }
+
+        return bytes;
+    }
+
     //  Whether `captured` is `track` started at some bit.
     static bool  IsRotationOf (const std::vector<uint8_t> & captured, const std::vector<uint8_t> & track)
     {
@@ -846,16 +893,25 @@ public:
     }
 
 
-    TEST_METHOD (WholeTrack_IsReadBitForBit)    {
-        ProgramRig            rig (LoadFixture());
-        std::vector<Byte>     module;
-        std::vector<Byte>     bytes;
-        std::vector<uint8_t>  bits;
-        std::vector<uint8_t>  track;
-        CassoLinkStatus       status;
-        CaptureTiming         timing;
-        size_t                length = 0;
-        size_t                syncs  = 0;
+    //  A whole track read once: every byte of it, in order, and every sync
+    //  byte marked. A read marks a byte when the latch has it again 8 cycles
+    //  after the loop finds it, so a byte found the cycle it finishes can be
+    //  marked too; the PC sorts those out across reads.
+    TEST_METHOD (WholeTrack_IsReadByteForByte_WithEverySyncMarked)
+    {
+        ProgramRig              rig (LoadFixture());
+        std::vector<Byte>       module;
+        std::vector<Byte>       bytes;
+        std::vector<uint8_t>    bits;
+        std::vector<uint8_t>    track;
+        std::vector<TrackByte>  trackBytes;
+        CassoLinkStatus         status;
+        CaptureTiming           timing;
+        size_t                  length  = 0;
+        size_t                  syncs   = 0;
+        size_t                  start   = 0;
+        size_t                  missed  = 0;
+        bool                    aligned = false;
 
 
 
@@ -874,11 +930,38 @@ public:
         Assert::IsTrue (CaptureStream::FindRevolution (bytes, length), L"The read repeats");
 
         CaptureStream::BuildRevolution (bytes, length, bits);
-        track = GetTrackBits (rig, 0);
+        track      = GetTrackBits (rig, 0);
+        trackBytes = GetTrackBytes (track);
 
-        Logger::WriteMessage (std::format ("revolution {} bytes, {} bits; the track has {} bits; {} syncs\n", length, bits.size(), track.size(), syncs).c_str());
+        Logger::WriteMessage (std::format ("revolution {} bytes, {} bits; the track has {} bytes, {} bits; {} syncs\n", length, bits.size(), trackBytes.size(), track.size(), syncs).c_str());
 
-        Assert::IsTrue (IsRotationOf (bits, track), L"One revolution is the drive's track");
+        Assert::AreEqual (trackBytes.size(), length, L"A revolution has the track's bytes");
+
+        for (start = 0; start < length && !aligned; start++)
+        {
+            size_t  at = 0;
+
+            while (at < length && (Byte) (bytes[at] | 0x80) == trackBytes[(start + at) % length].value)
+            {
+                at++;
+            }
+
+            aligned = at == length;
+        }
+
+        Assert::IsTrue (aligned, L"The read has every byte of the track, in order");
+
+        start--;
+
+        for (size_t at = 0; at < length; at++)
+        {
+            if (trackBytes[(start + at) % length].zeros >= 2)
+            {
+                missed += CaptureStream::IsSync (bytes[at]) ? 0 : 1;
+            }
+        }
+
+        Assert::AreEqual ((size_t) 0, missed, L"Every byte followed by two zero bits is marked");
     }
 
     //  A read that waits on a marker the track doesn't have ends with the
@@ -994,6 +1077,30 @@ public:
     static constexpr size_t  kWindowBits     = 200;
     static constexpr double  kAngleTolerance = 0.005;    // about 30 bytes
 
+
+    //  A capture stopped after its first read ends with ERROR_CANCELLED and
+    //  no image, and the program takes the next request.
+    TEST_METHOD (ACaptureStopped_EndsCanceled_AndTheLinkGoesOn)
+    {
+        ProgramRig                rig (LoadFixture());
+        std::vector<Byte>         module;
+        CassoLinkCapture::Result  result;
+        int                       checks   = 0;
+        const Byte                sector[] = { 0 };
+        std::vector<Byte>         data;
+        CassoLinkStatus           status;
+
+
+
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANCELLED),
+                          CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11T00:00:00Z", {}, result, 1, [&checks] () { return ++checks > 1; }));
+        Assert::IsTrue (result.woz.empty(), L"No image");
+
+        AssertSucceeded (rig.host->ReadSectors (1, 0, sector, data, status));
+        Assert::AreEqual ((Byte) 0, status.error);
+    }
 
     //  Tracks 0 and 1 captured into a WOZ: both are standard, so the
     //  positions between them aren't read; each quarter track reads what the

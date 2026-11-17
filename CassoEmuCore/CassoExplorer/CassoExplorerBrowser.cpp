@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/CollectionQuery.h"
+#include "CassoExplorer/Model/CassoImagesListing.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Archives/ContainerPath.h"
@@ -21,6 +22,7 @@
 
 CassoExplorerBrowser::CassoExplorerBrowser (IFileSystem & fs, IDiskFileIo & fileIo)
     : m_fs         (fs),
+      m_fileIo     (fileIo),
       m_tree       (fs),
       m_operations (fileIo)
 {
@@ -263,6 +265,26 @@ HRESULT CassoExplorerBrowser::Refresh()
             break;
     }
 
+    //  A picker lists the host rows in its scope; a disk's entries and a
+    //  root's drives aren't host rows.
+    m_scopedOut = 0;
+
+    if (m_rowScope && (location.kind == Location::Kind::HostFolder || (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)))
+    {
+        m_scopedOut = std::erase_if (m_rows, [this] (const CatalogRow & row) { return !m_rowScope (row); });
+    }
+
+    if (!m_mountedImages.empty() && (location.kind == Location::Kind::HostFolder || (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)))
+    {
+        for (CatalogRow & row : m_rows)
+        {
+            std::wstring  path  = !row.hostPath.empty() ? row.hostPath : JoinPath (location.path, row.name);
+            auto          found = row.isDirectory ? m_mountedImages.end() : m_mountedImages.find (CassoImagesListing::MakePathKey (path));
+
+            row.inDrive = (found != m_mountedImages.end()) ? found->second : std::wstring();
+        }
+    }
+
     m_rowsUnfiltered = true;
 
     if (IsHomeLocation())
@@ -305,6 +327,94 @@ void CassoExplorerBrowser::SetShellVerbs (IShellItemVerbs * verbs)
 
         return m_shellListings.TryTake (s_kTreeKey + id, id, outItems, hr);
     });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::QueueVolumeFacts
+//
+//  Each image row's file system and volume name: the ones already read go
+//  in the row now, and the rest are queued for the worker, in place of the
+//  last folder's. `folder` is the folder the rows are in, or empty for rows
+//  with their own path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::QueueVolumeFacts (const std::wstring & folder)
+{
+    std::vector<ImageVolumeFacts::Request>  requests;
+    VolumeFacts                             facts;
+
+
+
+    for (CatalogRow & row : m_rows)
+    {
+        std::wstring  path = folder.empty() ? row.hostPath : JoinPath (folder, row.name);
+
+
+
+        if (!row.isDiskImage || row.isDirectory || path.empty())
+        {
+            continue;
+        }
+
+        if (m_volumeFacts.TryGet (path, row.sizeBytes, row.modifiedUnix, facts))
+        {
+            row.collection.fileSystem = facts.fileSystem;
+            row.collection.volumeName = facts.volumeName;
+            continue;
+        }
+
+        requests.push_back (ImageVolumeFacts::Request { path, row.sizeBytes, row.modifiedUnix });
+    }
+
+    m_volumeFacts.Queue (requests);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::ApplyVolumeFacts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::ApplyVolumeFacts()
+{
+    VolumeFacts  facts;
+    Location     at        = GetLocation();
+    bool         isChanged = false;
+
+
+
+    for (CatalogRow & row : m_rows)
+    {
+        std::wstring  path = !row.hostPath.empty()                  ? row.hostPath
+                           : (at.kind == Location::Kind::HostFolder) ? JoinPath (at.path, row.name)
+                                                                     : std::wstring();
+
+
+
+        if (!row.isDiskImage || row.isDirectory || path.empty() || !row.collection.fileSystem.empty())
+        {
+            continue;
+        }
+
+        if (m_volumeFacts.TryGet (path, row.sizeBytes, row.modifiedUnix, facts) && !(facts == VolumeFacts()))
+        {
+            row.collection.fileSystem = facts.fileSystem;
+            row.collection.volumeName = facts.volumeName;
+            isChanged                 = true;
+        }
+    }
+
+    return isChanged;
 }
 
 
@@ -1104,6 +1214,26 @@ bool CassoExplorerBrowser::TryGetSelectedEntry (const FileEntry *& outEntry) con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::SetMountedImages
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::SetMountedImages (const std::map<std::wstring, std::wstring> & mounted)
+{
+    m_mountedImages.clear();
+
+    for (const auto & [path, drive] : mounted)
+    {
+        m_mountedImages[CassoImagesListing::MakePathKey (path)] = drive;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::JoinPath
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1313,6 +1443,16 @@ bool CassoExplorerBrowser::TryGetRowLocation (int row, Location & outLocation)
             found = false;
         }
     }
+    else if (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)
+    {
+        //  The Casso node's images, each by its own path.
+        found = m_rows[row].isDiskImage && !m_rows[row].hostPath.empty() && m_loader.CanListImage (m_rows[row].hostPath);
+
+        if (found)
+        {
+            outLocation = Location::MakeDiskImage (m_rows[row].hostPath);
+        }
+    }
     else if (location.kind != Location::Kind::HostFolder)
     {
         found = false;
@@ -1377,8 +1517,9 @@ bool CassoExplorerBrowser::TryGetRowPath (int row, std::wstring & outPath) const
     {
         outPath = BrowserModel::FormatAddress (m_loader.m_rootChildren[m_rows[row].sourceIndex].location);
     }
-    else if (m_rows[row].homeGroup > 0 && !m_rows[row].hostPath.empty())
+    else if ((m_rows[row].homeGroup > 0 || (location.kind == Location::Kind::Root && location.path == TreeModel::kCassoRootId)) && !m_rows[row].hostPath.empty())
     {
+        //  Home's items and the Casso node's images, each by its own path.
         outPath = m_rows[row].hostPath;
     }
     else if (location.kind == Location::Kind::HostFolder)

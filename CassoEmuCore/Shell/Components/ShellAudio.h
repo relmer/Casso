@@ -114,6 +114,7 @@ private:
     // Disk II controller (FR-015).
     DriveAudioMixer                       m_driveAudioMixer;
     vector<unique_ptr<Disk2AudioSource>>  m_diskAudioSources;
+    vector<unique_ptr<IDriveAudioSource>> m_deviceAudioSources;
 
     // Emulated ImageWriter II mechanical audio (Option A: driven by the paced
     // on-screen carriage, not the raw guest stream). A single persistent source

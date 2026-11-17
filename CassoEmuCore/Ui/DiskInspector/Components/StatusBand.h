@@ -41,6 +41,9 @@ public:
     bool  IsZoomDragging () const                                          { return m_bar.IsZoomDragging(); }
     bool  IsOverZoom     (POINT p) const                                   { return m_bar.IsOverZoom (p); }
 
+    //  Whether the point is on a chip that is a link, for IDC_HAND.
+    bool  IsOverLink     (POINT p) const                                   { return m_bar.GetLinkedChipAt (p) != nullptr; }
+
 private:
     vector<InspectorStatusBar::LeadItem>  BuildLead        () const;
     std::wstring                          GetSelectionLine () const;

@@ -559,7 +559,7 @@ DxuiListViewTypes::ScrollbarMetrics DxuiListScrollbars::GetScrollbarGeometry() c
     SyncVertScroll();
     g = m_vertScroll.GetMetrics();
 
-    BAIL_OUT_IF (!g.visible, S_OK);
+    BAIL_OUT_IF (!g.visible || m_list.m_vertBarHidden, S_OK);
 
     m.visible      = true;
     m.barX         = g.bar.left;

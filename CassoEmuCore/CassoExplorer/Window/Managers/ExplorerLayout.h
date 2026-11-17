@@ -78,6 +78,7 @@ public:
     DxuiLayoutBand         & GetMenuBand        ()       { return m_menuBand; }
     DxuiLayoutBand         & GetToolbarBand     ()       { return m_toolbarBand; }
     DxuiLayoutBand         & GetStatusBand      ()       { return m_statusBand; }
+    DxuiLayoutBand         & GetPickerBand      ()       { return m_pickerBand; }
     DxuiLayoutBand         & GetBodyBand        ()       { return m_bodyBand; }
     DxuiHitTester          & GetDropHits        ()       { return m_dropHits; }
 
@@ -97,6 +98,7 @@ private:
     DxuiLayoutBand                            m_menuBand;
     DxuiLayoutBand                            m_toolbarBand;
     DxuiLayoutBand                            m_statusBand;
+    DxuiLayoutBand                            m_pickerBand;
     DxuiLayoutBand                            m_bodyBand;
 
     //  The location's buttons on the command bar, if any.

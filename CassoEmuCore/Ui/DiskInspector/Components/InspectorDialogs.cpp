@@ -4,6 +4,7 @@
 #include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Core/TextEncoding.h"
+#include "Core/UnicodeSymbols.h"
 #include "Ui/DiskInspector/DecodeSettingsDialog.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DurableCommit.h"
@@ -11,6 +12,8 @@
 #include "Seams/Win32HostDialogs.h"
 #include "Ui/DiskInspector/ExportDialog.h"
 #include "Ui/DiskInspector/GoToDialog.h"
+#include "Ui/DiskInspector/RepairDialog.h"
+#include "Devices/Disk/Inspector/Repair/RepairCopy.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
 
@@ -71,6 +74,61 @@ void InspectorDialogs::OpenDecodeSettings()
     if (dialog.GetOutcome() != DecodeSettingsDialog::Outcome::Cancelled)
     {
         ApplySettings (dialog.GetSettings());
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorDialogs::OpenRepair
+//
+//  The confirmation from the image file as saved, with the chosen changes
+//  checked, and the copy written beside the image. The status band has the
+//  copy's name or the reason it wasn't written. A second dialog lists the
+//  fixes applied; on its OK, the host's OnRepairedCopyWritten is called with
+//  the copy, and Casso Explorer opens the copy in the window in the image's
+//  place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorDialogs::OpenRepair (const std::set<std::wstring> & chosen)
+{
+    HRESULT               hr      = S_OK;
+    Win32DiskFileIo       fileIo;
+    std::string           path    = (m_session.analysis.copy != nullptr) ? m_session.analysis.copy->fileName : std::string();
+    std::string           written;
+    std::wstring          note;
+    RepairPlan            applied;
+    std::wstring          footer;
+    bool                  hasPath = !path.empty();
+    bool                  canOpen = m_session.host != nullptr && m_session.host->CanOpenRepairedCopy();
+
+
+
+    CBRA (hasPath);
+
+    hr = RepairDialog::Run (m_host.GetOwnerHwnd(), m_session.theme, fileIo, path, chosen, written, applied, note);
+
+    if (!note.empty())
+    {
+        m_host.SetStatusNote (note);
+    }
+
+    BAIL_OUT_IF (FAILED (hr) || written.empty(), hr);
+
+    //  What the copy has, and the copy opened in the window on OK where the
+    //  host opens it.
+    footer = RepairReportDialog::FormatFooter (canOpen, fs::path (TextEncoding::Utf8ToWide (written)).filename().wstring());
+
+    if (RepairReportDialog::Run (m_host.GetOwnerHwnd(), m_session.theme, applied, footer) && canOpen)
+    {
+        m_session.host->OnRepairedCopyWritten (TextEncoding::Utf8ToWide (written));
     }
 
 Error:
@@ -270,6 +328,12 @@ void InspectorDialogs::OpenExport()
     spec.defaultExtension = dialog.GetRequest().extension;
     spec.defaultFileName  = dialog.GetRequest().fileName;
     spec.initialFolder    = image.parent_path();
+
+    //  A WOZ export is a disk image, saved through the picker.
+    if (dialog.GetRequest().extension == L"woz")
+    {
+        spec.content = FileDialogContent::Images;
+    }
 
     hr = dialogs.PickFileToSave (m_host.GetOwnerHwnd(), spec, target, isPicked);
     CHR (hr);

@@ -8,6 +8,7 @@
 #include "CassoExplorer/CassoLinkActivityDialog.h"
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "CassoExplorer/Model/CassoLinkConnectionText.h"
 #include "CassoLink/CassoLinkSession.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -850,7 +851,7 @@ public:
         modem.transport = LinkTransport::WifiModem;
         modem.address   = "0.0.0.0:6400";
 
-        Assert::AreEqual (std::wstring (L"Dial ATDT relmer-pc.local:6400 from the modem."), CassoLinkConnections::DescribeDial (L"relmer-pc", modem));
+        Assert::AreEqual (std::wstring (L"Dial ATDT relmer-pc.local:6400 from the modem."), CassoLinkConnectionText::DescribeDial (L"relmer-pc", modem));
     }
 
 
@@ -863,19 +864,20 @@ public:
         link.port = "COM3";
 
         Assert::AreEqual (std::wstring (L"Searching for My //c on COM3 at 115,200 baud.\nBoot a CassoLink disk on the Apple, or choose Bootstrap the Apple from My //c's menu."),
-                          CassoLinkConnections::DescribeState (LinkState::Disconnected, link, L"pc"));
+                          CassoLinkConnectionText::DescribeState (LinkState::Disconnected, link, L"pc"));
 
         link.transport = LinkTransport::Emulated;
         link.address   = "127.0.0.1:6502";
         Assert::AreEqual (std::wstring (L"Waiting for My //c on 127.0.0.1:6502.\nBoot a CassoLink disk in that Casso to connect."),
-                          CassoLinkConnections::DescribeState (LinkState::WaitingForReady, link, L"pc"));
+                          CassoLinkConnectionText::DescribeState (LinkState::WaitingForReady, link, L"pc"));
 
         link.transport = LinkTransport::WifiModem;
         link.address   = "0.0.0.0:6400";
         Assert::AreEqual (std::wstring (L"Waiting for My //c to dial relmer-pc.local:6400.\nBoot that Apple from a CassoLink disk saved from My //c."),
-                          CassoLinkConnections::DescribeState (LinkState::Opening, link, L"relmer-pc"));
+                          CassoLinkConnectionText::DescribeState (LinkState::Opening, link, L"relmer-pc"));
 
-        Assert::AreEqual (std::wstring (L"Click My //c to connect."), CassoLinkConnections::DescribeState (LinkState::Closed, link, L"pc"));
+        Assert::AreEqual (std::wstring (L"Click My //c to connect."), CassoLinkConnectionText::DescribeState (LinkState::Closed, link, L"pc"));
+        Assert::AreEqual (std::wstring (L"1,200"), CassoLinkConnectionText::FormatBaud (1200));
     }
 
 
@@ -912,18 +914,18 @@ public:
         link.name      = CassoLinkSettings::MakeName (link);
 
         Assert::AreEqual (std::wstring (L"Connecting to Uthernet II at 127.0.0.1:6502.\nBoot that Apple from a CassoLink disk saved from Uthernet II at 127.0.0.1:6502."),
-                          CassoLinkConnections::DescribeState (LinkState::Opening, link, L"pc"));
+                          CassoLinkConnectionText::DescribeState (LinkState::Opening, link, L"pc"));
 
         link.name = "Lab //e";
         Assert::AreEqual (std::wstring (L"Connecting to Lab //e at 127.0.0.1:6502.\nBoot that Apple from a CassoLink disk saved from Lab //e."),
-                          CassoLinkConnections::DescribeState (LinkState::Opening, link, L"pc"), L"a name of its own still gets the address");
+                          CassoLinkConnectionText::DescribeState (LinkState::Opening, link, L"pc"), L"a name of its own still gets the address");
 
         link.transport = LinkTransport::Emulated;
         link.name      = "Casso on port 6502";
         Assert::AreEqual (std::wstring (L"Waiting for Casso on port 6502.\nBoot a CassoLink disk in that Casso to connect."),
-                          CassoLinkConnections::DescribeState (LinkState::WaitingForReady, link, L"pc"));
+                          CassoLinkConnectionText::DescribeState (LinkState::WaitingForReady, link, L"pc"));
 
-        Assert::IsFalse (CassoLinkConnections::NamesItsPort (L"Port 65020", L"127.0.0.1:6502"), L"the digits must stand alone");
+        Assert::IsFalse (CassoLinkConnectionText::NamesItsPort (L"Port 65020", L"127.0.0.1:6502"), L"the digits must stand alone");
     }
 
 
@@ -985,13 +987,13 @@ public:
 
         operation.drive  = 2;
         operation.result = HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE);
-        Assert::AreEqual (std::wstring (L"Drive 2: the connection to the Apple closed."), CassoLinkConnections::DescribeFailure (operation));
+        Assert::AreEqual (std::wstring (L"Drive 2: the connection to the Apple closed."), CassoLinkConnectionText::DescribeFailure (operation));
 
         operation.result = HRESULT_FROM_WIN32 (ERROR_TIMEOUT);
-        Assert::AreEqual (std::wstring (L"Drive 2: the Apple stopped answering."), CassoLinkConnections::DescribeFailure (operation));
+        Assert::AreEqual (std::wstring (L"Drive 2: the Apple stopped answering."), CassoLinkConnectionText::DescribeFailure (operation));
 
         operation.result = HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
-        Assert::AreEqual (std::wstring (L"Drive 2: replies from the Apple arrived damaged on every attempt. Check the cable and the port's speed."), CassoLinkConnections::DescribeFailure (operation));
+        Assert::AreEqual (std::wstring (L"Drive 2: replies from the Apple arrived damaged on every attempt. Check the cable and the port's speed."), CassoLinkConnectionText::DescribeFailure (operation));
     }
 
 

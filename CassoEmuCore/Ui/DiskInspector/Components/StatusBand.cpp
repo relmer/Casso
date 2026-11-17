@@ -5,6 +5,7 @@
 #include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Devices/Disk/Inspector/Repair/FileSystemCheck.h"
 
 
 
@@ -114,9 +115,10 @@ vector<InspectorStatusBar::LeadItem> StatusBand::BuildLead() const
                                LeadKind::Result });
         }
 
-        for (const SummaryChip & chip : InspectorText::BuildChips (m_session.analysis.summary))
+        for (const SummaryChip & chip : InspectorText::BuildChips (m_session.analysis.summary, m_session.analysis.verdict))
         {
             items.push_back ({ chip.text, chip.isBad ? LeadKind::BadChip : LeadKind::Chip });
+            items.back().isLinked = chip.kind == SummaryChipKind::FileSystem && FileSystemCheck::GetVerdictFinding (m_session.analysis) != nullptr;
         }
 
         if (!m_session.analysis.settings.IsStandard())
@@ -169,22 +171,34 @@ std::wstring StatusBand::GetSelectionLine() const
 //
 //  StatusBand::OnMouse
 //
-//  A press on "?" opens the walkthrough (FR-153).
+//  A press on "?" opens the walkthrough, and one on the file-system chip of
+//  a Bad or Suspect volume opens its finding on the Issues tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool StatusBand::OnMouse (const DxuiMouseEvent & ev)
 {
-    bool  isPress = ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && m_bar.IsOverHelp (ev.positionDip);
+    bool                                   isDown  = ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left;
+    bool                                   isHot   = ev.kind != DxuiMouseEventKind::Leave && m_bar.GetLinkedChipAt (ev.positionDip) != nullptr;
+    bool                                   isHelp  = isDown && m_bar.IsOverHelp (ev.positionDip);
+    const InspectorStatusBar::LeadItem   * chip    = isDown ? m_bar.GetLinkedChipAt (ev.positionDip) : nullptr;
+    const Finding                        * finding = (chip != nullptr) ? FileSystemCheck::GetVerdictFinding (m_session.analysis) : nullptr;
 
 
 
-    if (isPress)
+    m_bar.SetLinkHot (isHot);
+
+    if (isHelp)
     {
         m_host.OpenWalkthrough();
     }
 
-    return isPress;
+    if (finding != nullptr)
+    {
+        m_host.ShowFinding (static_cast<int> (finding - m_session.analysis.findings.data()));
+    }
+
+    return isHelp || chip != nullptr;
 }
 
 
@@ -203,10 +217,19 @@ std::wstring StatusBand::GetTip (POINT pointPx, RECT & outAnchorPx) const
 
 
 
+    const InspectorStatusBar::LeadItem  * chip = m_bar.GetLinkedChipAt (pointPx);
+
+
+
     if (m_bar.IsOverHelp (pointPx))
     {
         tip         = L"Open the walkthrough";
         outAnchorPx = m_bar.GetHelpRect();
+    }
+    else if (chip != nullptr)
+    {
+        tip         = L"Go to this issue on the Issues tab";
+        outAnchorPx = RECT { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
     }
 
     return tip;

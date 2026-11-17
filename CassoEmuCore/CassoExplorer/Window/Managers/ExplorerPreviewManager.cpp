@@ -66,6 +66,9 @@ void ExplorerPreviewManager::Create()
 
     m_find.Create();
     m_thumbnail.Create();
+
+    m_thumbnail.GetScrollbar().SetOnScroll ([this] (int posPx) { ScrollTo (posPx); });
+    m_thumbnail.GetScrollbar().SetOnSync   ([this] () { SyncScrollbar(); });
 }
 
 
@@ -152,17 +155,48 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         content.top += barPx;
     }
 
-    //  A disk image's small platter and chips, under the toolbar (FR-072).
+    //  A disk image's small platter and chips, under the toolbar (FR-072),
+    //  scrolled away by the wheel no further than the view under them
+    //  overflows the pane.
+    m_headerTop = content.top;
+
     if (m_thumbnail.IsShown())
     {
-        int  height = m_thumbnail.GetHeightPx (static_cast<int> (content.right - content.left));
+        //  The thumbnail is laid out no narrower than the pane's least width,
+        //  and clipped at the pane's edge when the window forces it narrower.
+        int  thumbW = (std::max) (static_cast<int> (content.right - content.left), scaler.ToPx (ExplorerLayout::kMinPreviewWidthDip));
+        int  height = m_thumbnail.GetHeightPx (thumbW);
+        int  need   = 0;
 
-        m_thumbnail.Layout (RECT { content.left, content.top, content.right, content.top + height });
-        content.top += height;
+        for (const PreviewView * view : m_views)
+        {
+            need = (std::max) (need, view->GetContentHeightPx());
+        }
+
+        m_headerRange  = (std::max) (0, height + need - static_cast<int> (content.bottom - content.top));
+        m_headerMax    = (std::min) (m_headerRange, height);
+        m_headerScroll = std::clamp (m_headerScroll, 0, m_headerMax);
+        m_headerPage   = static_cast<int> (content.bottom - content.top);
+        content.top    = m_thumbnail.Layout (RECT { content.left, content.top, content.left + thumbW - scaler.ToPx (ThumbnailScrollbar::kWidthDip), content.top + height },
+                                             m_headerScroll, content.bottom, content.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip));
+
+        m_thumbnail.GetScrollbar().Layout     (RECT { m_rect.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip), m_headerTop, m_rect.right, m_rect.bottom }, scaler);
+        m_thumbnail.GetScrollbar().SetVisible (m_headerRange > 0);
+        SyncScrollbar();
     }
     else
     {
+        m_headerRange  = 0;
+        m_headerMax    = 0;
+        m_headerScroll = 0;
         m_thumbnail.Hide();
+    }
+
+    //  The views' bars are hidden while the pane's bar scrolls the thumbnail
+    //  and the view as one.
+    for (PreviewView * view : m_views)
+    {
+        view->SetScrollbarHidden (m_thumbnail.IsShown());
     }
 
     //  A WOZ image's details, between the toolbar and the catalog, as tall as
@@ -292,6 +326,7 @@ void ExplorerPreviewManager::FillPreview()
             (void) m_context.actions.TryGetPartition (path);
         }
 
+        m_headerScroll = (InspectorWindowSet::CanInspect (path) && path == m_thumbnail.GetPath()) ? m_headerScroll : 0;
         m_thumbnail.SetPath (InspectorWindowSet::CanInspect (path) ? path : std::wstring());
 
         if (m_thumbnail.IsShown() != wasShown || m_thumbnail.IsShown())
@@ -303,7 +338,7 @@ void ExplorerPreviewManager::FillPreview()
     m_shell.Update   (preview, m_content);
     m_picture.Fill   (preview, picture, shell && m_shell.IsPicture());
     m_listing.Fill   (preview, columns);
-    m_text.Fill      (preview);
+    FillText         (preview);
 
     //  A WOZ image's details above its catalog, which moves the catalog down.
     //  An image with no file system has its details in place of a catalog.
@@ -414,8 +449,45 @@ void ExplorerPreviewManager::HandlePicturesReady()
 void ExplorerPreviewManager::TakeThumbnail()
 {
     m_thumbnail.TakeResult();
+    FillText (m_context.browser.GetPreview());
     m_context.layout.RecomputeLayout();
     m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::FillText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::FillText (const PreviewContent & preview)
+{
+    std::wstring    system = m_thumbnail.GetFileSystemText();
+    PreviewContent  found;
+
+
+
+    if (preview.kind != PreviewContent::Kind::Details || system.empty())
+    {
+        m_text.Fill (preview);
+        return;
+    }
+
+    found = preview;
+
+    for (std::pair<std::wstring, std::wstring> & detail : found.details)
+    {
+        if (detail.first == L"File system")
+        {
+            detail.second = system;
+        }
+    }
+
+    m_text.Fill (found);
 }
 
 
@@ -819,6 +891,8 @@ bool ExplorerPreviewManager::UpdateScrollbarHover (POINT at)
         changed = view->UpdateScrollbarHover (at) || changed;
     }
 
+    changed = m_thumbnail.GetScrollbar().SetHover (at) || changed;
+
     return changed;
 }
 
@@ -842,6 +916,8 @@ bool ExplorerPreviewManager::TickScrollbars (int64_t nowMs)
     {
         moved = view->TickScrollbars (nowMs) || moved;
     }
+
+    moved = m_thumbnail.GetScrollbar().TickBar (nowMs) || moved;
 
     return moved;
 }
@@ -867,21 +943,133 @@ bool ExplorerPreviewManager::IsOverPane (POINT point) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPreviewManager::SyncScrollbar
+//
+//  The pane's bar at the thumbnail's scroll plus the view's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::SyncScrollbar()
+{
+    int  viewPx = 0;
+
+
+
+    for (const PreviewView * view : m_views)
+    {
+        viewPx = (std::max) (viewPx, view->GetScrollPx());
+    }
+
+    m_thumbnail.GetScrollbar().SetRange (m_headerRange, m_headerPage, m_headerScroll + viewPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::ScrollTo
+//
+//  A position of the pane's bar: the thumbnail scrolled away as far as it
+//  goes, then the view by the rest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::ScrollTo (int posPx)
+{
+    int  header = std::clamp (posPx, 0, m_headerMax);
+
+
+
+    for (PreviewView * view : m_views)
+    {
+        view->SetScrollPx ((std::max) (0, posPx - header));
+    }
+
+    if (header != m_headerScroll)
+    {
+        m_headerScroll = header;
+        Layout (m_rect);
+    }
+
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::HandleWheel
+//
+//  A notch moves the thumbnail as far as three of the catalog's rows. The
+//  wheel over the thumbnail is always the thumbnail's, so the thumbnail
+//  doesn't scroll by itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::HandleWheel (const DxuiMouseEvent & ev)
+{
+    static constexpr float  kStepDip = 3.0f * PreviewListingView::kRowHeightDip;
+
+
+
+    POINT  point    = ev.positionDip;
+    bool   isOver   = m_shown && m_thumbnail.IsShown() && point.x >= m_rect.left && point.x < m_rect.right && point.y >= m_headerTop && point.y < m_rect.bottom;
+    bool   isHeader = isOver && point.y < m_content.top;
+    int    step     = static_cast<int> (std::lround (std::abs (ev.wheelDelta) * m_context.scaler.ToPxf (kStepDip)));
+    int    before   = m_headerScroll;
+    bool   isAtTop  = std::all_of (m_views.begin(), m_views.end(), [] (const PreviewView * view) { return view->IsAtTop(); });
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Wheel || ev.ctrl || ev.wheelHorizontal || !isOver)
+    {
+        return false;
+    }
+
+    if (ev.wheelDelta < 0.0f && m_headerScroll < m_headerMax)
+    {
+        m_headerScroll = (std::min) (m_headerMax, m_headerScroll + step);
+    }
+    else if (ev.wheelDelta > 0.0f && m_headerScroll > 0 && isAtTop)
+    {
+        m_headerScroll = (std::max) (0, m_headerScroll - step);
+    }
+
+    if (m_headerScroll != before)
+    {
+        Layout (m_rect);
+    }
+
+    return m_headerScroll != before || isHeader;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPreviewManager::GetCursorForPoint
 //
 //  The preview's text -- a listing, a catalog, a hex dump -- selects as text
 //  does, so the cursor over it is the I-beam, except over its scrollbars.
-//  Over the thumbnail's platter or block map, which opens the inspector on
-//  a click, the cursor is IDC_HAND.
+//  The pane's bar beside a disk image's thumbnail is drawn over the view, so
+//  the bar is checked first. Over the thumbnail's platter or block map,
+//  which opens the inspector on a click, the cursor is IDC_HAND.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 LPCWSTR ExplorerPreviewManager::GetCursorForPoint (POINT clientPx) const
 {
-    LPCWSTR  cursor = m_thumbnail.IsShown() && m_thumbnail.IsOverPlatter (clientPx) ? IDC_HAND : nullptr;
+    LPCWSTR  cursor = m_thumbnail.IsShown() && m_thumbnail.GetScrollbar().IsOverScrollbar (clientPx) ? IDC_ARROW : nullptr;
 
 
 
+    cursor = (cursor != nullptr) ? cursor : (m_thumbnail.IsShown() && m_thumbnail.IsOverPlatter (clientPx) ? IDC_HAND : nullptr);
     cursor = (cursor != nullptr) ? cursor : m_text.GetCursorForPoint (clientPx);
     cursor = (cursor != nullptr) ? cursor : m_hex.GetCursorForPoint (clientPx);
     cursor = (cursor != nullptr) ? cursor : m_listing.GetCursorForPoint (clientPx);
@@ -889,6 +1077,12 @@ LPCWSTR ExplorerPreviewManager::GetCursorForPoint (POINT clientPx) const
     if (cursor == nullptr && m_message->IsVisible())
     {
         cursor = m_message->GetCursorForPoint (clientPx);
+    }
+
+    //  A click on the small platter opens the inspector.
+    if (cursor == nullptr && m_thumbnail.IsOverPlatter (clientPx))
+    {
+        cursor = IDC_HAND;
     }
 
     return cursor;

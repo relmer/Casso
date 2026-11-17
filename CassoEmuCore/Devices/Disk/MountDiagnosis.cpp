@@ -123,6 +123,10 @@ string MountDiagnosis::Describe() const
             text = "is not in a disk image format Casso can read";
             break;
 
+        case MountFailure::WozNot525:
+            text = "is a WOZ image of a 3.5-inch disk, and a 5.25-inch drive can't read it";
+            break;
+
         case MountFailure::None:
         default:
             text = "could not be opened for an unknown reason. Please report this "

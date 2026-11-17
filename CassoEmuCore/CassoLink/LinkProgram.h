@@ -91,7 +91,7 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 95;
+    static constexpr Word    kProgramVersion    = 98;
     static constexpr Byte    kShimVersion       = 8;
     static constexpr Word    kShimAddress       = 0x3B00;
     static constexpr Word    kZeroPageSave      = 0x3A00;   // the shim's copy of the machine's zero page, below it
@@ -206,5 +206,6 @@ public:
     static bool         GetSpeedControl  (DWORD baud, Byte & outControl);
 
 private:
-    static HRESULT      Assemble (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults = false, std::unordered_map<std::string, Word> * outSymbols = nullptr);
+    static std::string  GetCommandLines ();
+    static HRESULT      Assemble        (const std::string & source, Word origin, LinkChip chip, std::vector<Byte> & outBytes, std::string & outErrors, bool faults = false, std::unordered_map<std::string, Word> * outSymbols = nullptr);
 };

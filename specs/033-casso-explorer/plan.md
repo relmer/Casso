@@ -390,7 +390,7 @@ tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
 
 ### Full Send
 
-Story 17 and R34. F on the Apple sends an unprompted Key, and the session's idle loop queues the Full Send with the folder and format from the Full Send page in Options. `FullSendSession` is a pure class in the core: a state machine over injected drive reads, a clock and a file store, so every path runs in the unit tests with scripted disks. `CassoLinkManager` runs one session per Apple, through the queue FR-098 defines, and each whole-disk read reuses Read disk to image's path, its unreadable list included. The Apple-side program adds Session screen, Wait for key and Key (contract), and bumps its version so a running shim loads the new program. Files are written to a temporary name and renamed when complete, so FR-087's rule for a partial image applies. `FullSendManifest` is a separate pure class for parsing and writing the manifest.
+Story 17 and R34. F on the Apple sends an unprompted Key, and the session's idle loop queues the Full Send with the folder and format from the Full Send page in Options. `FullSendSession` is a pure class in the core: a state machine over injected drive reads, a clock and a file store, so every path runs in the unit tests with scripted disks. `CassoLinkManager` runs one session per Apple, through the queue FR-098 defines, and each whole-disk read reuses Read disk to image's path, its unreadable list included. The Apple-side program adds Session screen, Wait for key and Key (contract), and bumps its version so a running shim loads the new program. Files are written to a temporary name and renamed when complete, so FR-087's rule for a partial image applies. `FullSendManifest` is a separate pure class for parsing and writing the manifest. `FullSendSession` has the begin, round and pause loop. A drive's check and each drive's repeat and blank state are in `FullSendDriveCheck`. Reading, capturing, writing and booting one disk is in `FullSendDiskSend`. The manifest, the images and the search for renamed images are in `FullSendFolder`, and the Apple's screen is `FullSendScreen`.
 
 ### File types
 
@@ -524,7 +524,7 @@ MAC Address has no canonical name. `Win32PropertyColumns::GetKey` takes the key'
 
 ## Phase 31: Full Send prefix, speed and folder row (Session 2026-11-01)
 
-`FullSendSession::ReadStableTrack` stops at the first whole read, and `RunRound` passes over the drive just sent unless its disk changed during the read. That is 36 track reads per DOS 3.3 disk on one drive, down from 42. The arm's moves between tracks 0 and 17 stay, as the fingerprint needs both before the read and the catalog track again after it.
+`FullSendDriveCheck::ReadStableTrack` stops at the first whole read, and `RunRound` passes over the drive just sent unless its disk changed during the read. That is 36 track reads per DOS 3.3 disk on one drive, down from 42. The arm's moves between tracks 0 and 17 stay, as the fingerprint needs both before the read and the catalog track again after it.
 
 The prefix follows the folder and extension from `CassoExplorerPrefs` to `LinkOperation::imagePrefix`. The Full Send row is an `adtpro:<path>` node under CassoLink's root, so it has the same path tip as an ADTPro server's folder.
 

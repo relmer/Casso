@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/CxxxRomRouter.h"
+#include "Machines/Apple2/Apple2cPlus/MigChip.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/ExpansionRomBus.h"
 
@@ -161,11 +162,13 @@ Byte * CxxxRomRouter::GetFastMapReadPtr (int page)
     //     it just as Write does;
     //   - the page falls past the end of a short internal image.
     bool     deviceOwned = slot >= kMinSlot && slot <= kMaxSlot && m_slotIoDevice[slot] != nullptr;
+    bool     windowOwned = m_windowHandler != nullptr && m_windowHandler->HandlesPage (page);
     bool     passive     = m_noExternalSlots
                            && !m_internal.empty()
                            && page != 0xC3
                            && page != 0xCF
-                           && !deviceOwned;
+                           && !deviceOwned
+                           && !windowOwned;
 
     offset = static_cast<size_t> ((page - 0xC1) * kPageSize);
 
@@ -268,11 +271,16 @@ Error:
 
 Byte CxxxRomRouter::Read (Word address)
 {
-    Byte  value;
+    Byte  value  = 0;
+    Byte  window = 0;
 
 
 
-    if (m_noExternalSlots && !m_hasSlotIoDevice)
+    if (m_windowHandler != nullptr && m_windowHandler->OnRomWindowAccess (address, false, 0, window))
+    {
+        value = window;
+    }
+    else if (m_noExternalSlots && !m_hasSlotIoDevice)
     {
         // Apple //c fast path: with no external slots the whole $C100-$CFFF
         // window is internal firmware regardless of INTCXROM/SLOTC3ROM/INTC8ROM
@@ -317,8 +325,16 @@ void CxxxRomRouter::Write (Word address, Byte value)
 {
     MemoryDevice *  io     = GetSlotIoDevice (address);
     bool            strobe = IsIoStrobeAsserted (address);
+    Byte            window = 0;
+    bool            taken  = m_windowHandler != nullptr && m_windowHandler->OnRomWindowAccess (address, true, value, window);
 
 
+
+    if (taken)
+    {
+        ApplyAccessSideEffects (address);
+        return;
+    }
 
     if (io != nullptr)
     {

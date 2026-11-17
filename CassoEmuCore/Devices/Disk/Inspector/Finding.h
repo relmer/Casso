@@ -78,6 +78,62 @@ enum class FindingKind
     PascalFileCountDiffers,
     CpmInvalidEntry,
     CpmDuplicateEntry,
+
+    //  The DOS 3.3 checks of the VTOC's header and the catalog's entries,
+    //  and the checks of each file's bytes.
+    Dos33HeaderLost,
+    Dos33SectorBytesDiffer,
+    Dos33PairsDiffer,
+    Dos33NextTrackOffDisk,
+    Dos33ReleaseDiffers,
+    Dos33VolumeOutOfRange,
+    Dos33BitmapPadding,
+    Dos33EntryNameMixed,
+    Dos33EntryTypeUnknown,
+    Dos33EntryCountTooLarge,
+    Dos33CatalogNonstandard,
+    Dos33StoredLengthDiffers,
+    Dos33ListOffsetDiffers,
+    ProDosFileCountDiffers,
+    FileRepeatedByte,
+    ImageAlmostBlank,
+    CpmExtentMissing,
+    CpmRecordsPastBlocks,
+    CpmBlockInDirectory,
+    CpmBlocksPastRecords,
+    FileUsesStructure,
+    Dos33StructureMarkedFree,
+    ProDosDirectoryPointer,
+    ProDosParentPointer,
+    ProDosBitmapPastEnd,
+    ProDosEofPastStorage,
+    ProDosNameInvalid,
+    PascalLastBytesInvalid,
+    PascalNameInvalid,
+};
+
+
+//  How serious a finding is for the reader, least first: an error for a
+//  sector or record that can't be read and for file-system damage, a warning
+//  for anything unusual on a track or in the image file, and information for
+//  the rest, possible file-system inconsistencies and signs of copy
+//  protection among them.
+enum class FindingSeverity
+{
+    Info,
+    Warning,
+    Error,
+};
+
+
+//  How much a file-system finding weighs in the verdict: damage makes the
+//  volume Bad, a suspect finding makes it Suspect, and a note doesn't
+//  change it.
+enum class FindingWeight
+{
+    Note,
+    Suspect,
+    Damage,
 };
 
 
@@ -85,12 +141,14 @@ struct Finding
 {
     FindingCategory             category     = FindingCategory::Track;
     FindingKind                 kind         = FindingKind::AddressChecksumFailed;
+    FindingWeight               weight       = FindingWeight::Note;
     int                         quarterTrack = -1;
     int                         slot         = -1;
     int                         sector       = -1;
     int                         field        = -1;
     uint32_t                    cell         = 0;
     bool                        hasCell      = false;
+    int                         mapCell      = -1;      // a file-system finding's sector or block in its file map
     int                         value        = 0;
     int                         value2       = 0;
     vector<int>                 quarterTracks;
