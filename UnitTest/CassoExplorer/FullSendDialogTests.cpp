@@ -259,7 +259,7 @@ public:
         Assert::AreEqual (std::wstring (L"Sent, verified, boots, file system OK"), FullSendPanel::DescribeStatus (row));
 
         row.fsCheck = FullSendManifest::kCheckSuspect;
-        Assert::AreEqual (std::wstring (L"Sent, verified, boots, file system suspect"), FullSendPanel::DescribeStatus (row));
+        Assert::AreEqual (std::wstring (L"Sent, verified, boots, file system possible inconsistencies"), FullSendPanel::DescribeStatus (row));
 
         row.status      = FullSendManifest::kStatusDuplicate;
         row.duplicateOf = "0001 HELLO.dsk";

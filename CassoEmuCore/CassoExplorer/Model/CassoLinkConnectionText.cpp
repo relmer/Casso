@@ -148,7 +148,7 @@ std::wstring CassoLinkConnectionText::DescribeState (LinkState state, const Cass
     switch ((server || settings.IsSearch()) ? LinkState::Opening : state)
     {
         case LinkState::Closed:          text = std::format (L"Click {} to connect.", name);                     break;
-        case LinkState::Bootstrapping:   text = (settings.transport == LinkTransport::Cassette) ? std::format (L"Sending the program's tape to {}...", name)
+        case LinkState::Bootstrapping:   text = (settings.transport == LinkTransport::Cassette) ? std::format (L"Sending the program to {} as audio...", name)
                                                                                                 : std::format (L"Typing the loader into {}...", name);     break;
         case LinkState::LoadingProgram:  text = std::format (L"Loading Casso's program into {}...", name);        break;
         case LinkState::Ready:
@@ -185,7 +185,7 @@ std::wstring CassoLinkConnectionText::DescribeState (LinkState state, const Cass
                     break;
 
                 case LinkTransport::Cassette:
-                    text = std::format (L"Waiting for the CassoLink program on {}.\nChoose Start from the tape from {}'s menu.", name, name);
+                    text = std::format (L"Waiting for the CassoLink program on {}.\nChoose Send the program from {}'s menu.", name, name);
                     break;
 
                 case LinkTransport::AdtProServer:

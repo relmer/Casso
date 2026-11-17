@@ -933,7 +933,7 @@ ggdone: rts
 ; dialed, as a modem link is connected already. A W5100's connection is left open, with what
 ; was read given back and what was put sent.
         ifdef CASSETTE
-doload: jmp main                ; the program came from the tape, with no shim
+doload: jmp main                ; the program came from the cassette input, with no shim
         else
         ifdef W5100
 doload: jsr col40
@@ -4270,7 +4270,7 @@ scfound: lda speeds+1,x
         endif
 
         ifdef CASSETTE
-conntext: .text "Cassette ports"
+conntext: .text "Cassette ports (audio)"
         .byte 0
         else
         ifdef W5100

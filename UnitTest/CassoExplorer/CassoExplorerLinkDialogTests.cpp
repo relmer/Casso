@@ -158,7 +158,7 @@ public:
         Assert::AreEqual (0, CassoExplorerLinkChoices::GetSoundIndex (devices, L"{gone}"), L"a device not found now is the default");
 
         cassette = CassoExplorerLinkChoices::MakeSettings (CassoExplorerLinkChoices::GetTransportIndex (LinkTransport::Cassette), {}, 0, L"", 0, 0, false, L"");
-        Assert::AreEqual (std::string ("Cassette ports"), cassette.name);
+        Assert::AreEqual (std::string ("Cassette ports (audio)"), cassette.name);
         Assert::IsTrue   (CassoExplorerLinkChoices::IsComplete (cassette));
     }
 

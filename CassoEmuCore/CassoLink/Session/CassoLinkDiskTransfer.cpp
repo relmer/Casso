@@ -745,12 +745,21 @@ HRESULT CassoLinkDiskTransfer::ReadThirteenSectorDisk (LinkOperation & operation
 
     for (int track = 0; track < ThirteenSectorCodec::kTrackCount; track++)
     {
-        complete = complete && report.GetOutcome (track) == TrackDecodeOutcome::Complete;
+        for (int sector = 0; sector < ThirteenSectorCodec::kSectorsPerTrack; sector++)
+        {
+            if ((report.GetCoverage (track) & (1u << sector)) == 0)
+            {
+                operation.unreadable.emplace_back (track, sector);
+            }
+        }
     }
+
+    complete = operation.unreadable.empty();
 
     if (!complete && !operation.blankUnreadable)
     {
-        operation.message = std::format ("Some sectors of the 13-sector disk in drive {} couldn't be read, so no image was written.", operation.drive);
+        operation.message = std::format ("{} sectors could not be read, the first on track {}, sector {}.",
+                                         operation.unreadable.size(), operation.unreadable[0].first, operation.unreadable[0].second);
     }
 
     CBREx (complete || operation.blankUnreadable, HRESULT_FROM_WIN32 (ERROR_CRC));

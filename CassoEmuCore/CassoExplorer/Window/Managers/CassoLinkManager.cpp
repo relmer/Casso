@@ -663,8 +663,8 @@ void CassoLinkManager::BootstrapConnection (const std::string & name)
                               L"On the Apple, at the prompt, type:\n\n"
                               L"1. **CALL -151**, then press Return\n"
                               L"2. **{}**, then press Return\n\n"
-                              L"Then choose Send. The tape takes about {} seconds.", TextEncoding::NarrowToWide (command), (int) ceil (seconds));
-        answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, steps.c_str(), L"Start from the tape",
+                              L"Then choose Send. The audio takes about {} seconds.", TextEncoding::NarrowToWide (command), (int) ceil (seconds));
+        answer = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, steps.c_str(), L"Send the program",
                                  MB_OKCANCEL | MB_ICONINFORMATION, { L"Send", L"Cancel" });
     }
     else
@@ -1166,11 +1166,11 @@ void CassoLinkManager::AddConnectionRows (std::vector<DxuiPopupMenuItem> & items
             m_context.menus.AddMenuCommand (items, L"&Search COM ports", [this, name]() { SearchComPorts (name); });
         }
 
-        //  An Apple on its cassette ports is started from the program's tape.
+        //  An Apple on its cassette ports is started by the program sent as audio.
         if (IsCassetteConnection (name))
         {
-            m_context.menus.AddMenuCommand (items, L"Start from the &tape...", [this, name]() { BootstrapConnection (name); });
-            m_context.menus.AddMenuCommand (items, L"Save the program's ta&pe...", [this, name]() { SaveCassetteBootstrap (name); });
+            m_context.menus.AddMenuCommand (items, L"Send the &program...", [this, name]() { BootstrapConnection (name); });
+            m_context.menus.AddMenuCommand (items, L"Save the program as a&udio...", [this, name]() { SaveCassetteBootstrap (name); });
         }
 
         //  Only an Apple on a serial card can be started from here.

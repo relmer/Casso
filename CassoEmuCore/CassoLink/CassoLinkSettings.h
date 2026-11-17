@@ -86,7 +86,7 @@ struct CassoLinkSettings
     //  port)" or the COM port, "TCP" and the address, "Wi-Fi modem on port
     //  6400", "Uthernet II at" and the address or "Uthernet II (any
     //  address)", "ADTPro server on" the COM
-    //  port or "at" the address, "Cassette ports", and for a running Casso,
+    //  port or "at" the address, "Cassette ports (audio)", and for a running Casso,
     //  "Casso on port" and its TCP port. Two connections with the same settings have the same
     //  name.
     static std::string   MakeName          (const CassoLinkSettings & settings);

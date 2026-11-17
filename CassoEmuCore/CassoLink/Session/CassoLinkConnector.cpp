@@ -222,7 +222,7 @@ Error:
 
     if (FAILED (hr) && operation.message.empty())
     {
-        operation.message = "The Apple did not answer after the tape. Check that the monitor's read command was typed before the tape started, and that the volume is up.";
+        operation.message = "The Apple did not answer after the program was sent. Check that the monitor's read command was typed before the audio started, and that the volume is up.";
     }
 
     return hr;

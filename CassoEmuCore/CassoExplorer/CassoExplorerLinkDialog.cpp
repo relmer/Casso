@@ -264,9 +264,9 @@ const wchar_t * CassoExplorerLinkChoices::GetNote (LinkTransport transport)
             break;
 
         case LinkTransport::Cassette:
-            note = L"Two audio cables to a ][+ or //e with no serial card: this PC's sound output to the Apple's "
-                   L"cassette input, and the Apple's cassette output to this PC's sound input. A 140K disk takes "
-                   L"about 15 minutes each way.";
+            note = L"Two audio cables to a ][+ or //e with no serial card, and no cassette tape: this PC's sound "
+                   L"output to the Apple's cassette input, and the Apple's cassette output to this PC's sound input. "
+                   L"A 140K disk takes about 15 minutes each way.";
             break;
 
         default:

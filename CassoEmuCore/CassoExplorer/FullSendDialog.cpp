@@ -816,7 +816,7 @@ std::wstring FullSendPanel::DescribeStatus (const FullSendRow & row)
                                  : row.boot == FullSendManifest::kBootUnclear     ? L", boot unclear"
                                                                                   : L"";
     const wchar_t  * check       = row.fsCheck == FullSendManifest::kCheckOk                     ? L", file system OK"
-                                 : row.fsCheck == FullSendManifest::kCheckSuspect                ? L", file system suspect"
+                                 : row.fsCheck == FullSendManifest::kCheckSuspect                ? L", file system possible inconsistencies"
                                  : row.fsCheck == FullSendManifest::kCheckBad                    ? L", file system bad"
                                  : row.fsCheck == FullSendManifest::kCheckNone && !isProtected   ? L", no standard file system"
                                                                                                  : L"";

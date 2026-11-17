@@ -36,7 +36,7 @@ public:
         { L"Wi-Fi modem",                  LinkTransport::WifiModem    },
         { L"Uthernet II",                  LinkTransport::Uthernet     },
         { L"ADTPro-compatible server",     LinkTransport::AdtProServer },
-        { L"Cassette ports",               LinkTransport::Cassette     },
+        { L"Cassette ports (audio)",       LinkTransport::Cassette     },
     };
 
     static constexpr DWORD  kSpeeds[] = { 115200, 19200, 9600, 4800, 2400, 1200 };

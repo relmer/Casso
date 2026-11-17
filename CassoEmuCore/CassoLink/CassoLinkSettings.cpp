@@ -87,7 +87,7 @@ std::string CassoLinkSettings::MakeName (const CassoLinkSettings & settings)
                                                                           : std::format ("Uthernet II at {}", settings.address);        break;
         case LinkTransport::AdtProServer: name = settings.IsComPort() ? std::format ("ADTPro server on {}", settings.port)
                                                                       : std::format ("ADTPro server at {}", settings.address);          break;
-        case LinkTransport::Cassette:     name = "Cassette ports";                                                                       break;
+        case LinkTransport::Cassette:     name = "Cassette ports (audio)";                                                               break;
         default:                          name = std::format ("TCP {}", settings.address);                                              break;
     }
 
