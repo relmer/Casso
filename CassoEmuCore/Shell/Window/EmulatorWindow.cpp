@@ -366,11 +366,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_chrome->m_mainMenu);
     m_host->GetRoot().Adopt (m_chrome->m_driveBandSurface);
 
-    // Behind the Disk II widgets, which are placed on its fan's panel.
-    m_host->GetRoot().Adopt (m_chrome->m_driveBarFan);
-    m_chrome->HideDriveBar();
-    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
-    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
     m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
     m_host->GetRoot().Adopt (m_chrome->m_fpsReadout);
     m_host->GetRoot().Adopt (m_scene->m_sceneViewReadout);
@@ -464,6 +459,15 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     });
     m_host->GetRoot().Adopt (m_chrome->m_toolbar);
     m_host->GetRoot().Adopt (m_chrome->m_switchBar);
+
+    // The drive bar is behind the Disk II widgets, which are placed on its
+    // fan's panel. Both go after the //c's switch strip, so an open stack
+    // of drives is drawn over the strip. The bar's zoom readout is drawn
+    // over the bar.
+    m_host->GetRoot().Adopt (m_chrome->m_driveBarFan);
+    m_chrome->HideDriveBar();
+    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
+    m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
     m_host->GetRoot().Adopt (m_chrome->m_driveBarZoomReadout);
     m_host->GetRoot().Adopt (m_disks->GetChangeBanner());
     m_host->GetRoot().Adopt (m_serialCard->GetBanner());
