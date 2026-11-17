@@ -508,6 +508,7 @@
     <ClCompile Include="CassoExplorer\Picker\FileMaskSet.cpp" />
     <ClCompile Include="CassoExplorer\Picker\ExplorerPickerHost.cpp" />
     <ClCompile Include="CassoExplorer\Picker\PickerPrefs.cpp" />
+    <ClCompile Include="CassoExplorer\Picker\PickerShellRoots.cpp" />
     <ClCompile Include="CassoExplorer\Picker\PickerScope.cpp" />
     <ClCompile Include="CassoExplorer\Picker\StartupDiskPicker.cpp" />
     <ClCompile Include="CassoExplorer\Model\AppleFileProperties.cpp" />
@@ -1659,6 +1660,7 @@
     <ClInclude Include="CassoExplorer\Picker\PickerRequest.h" />
     <ClInclude Include="CassoExplorer\Picker\ExplorerPickerHost.h" />
     <ClInclude Include="CassoExplorer\Picker\PickerPrefs.h" />
+    <ClInclude Include="CassoExplorer\Picker\PickerShellRoots.h" />
     <ClInclude Include="CassoExplorer\Picker\PickerScope.h" />
     <ClInclude Include="CassoExplorer\Picker\StartupDiskPicker.h" />
     <ClInclude Include="CassoExplorer\Model\AppleFileProperties.h" />

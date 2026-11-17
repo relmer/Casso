@@ -938,9 +938,12 @@ void WindowCommandManager::OnViewCommand (int id)
             break;
         }
 
+        // Either one changes what is on the desk and how much room the scene
+        // has, so the scene is reset to frame it, as Ctrl+0 does.
         case IDM_VIEW_AUTOHIDE_DRIVES:
         {
             m_shell.m_chrome->SetAutoHideDrives (!m_shell.m_settings->GetPrefs().autoHideDrives);
+            m_shell.m_scene->ResetSceneView();
             break;
         }
 
@@ -948,6 +951,7 @@ void WindowCommandManager::OnViewCommand (int id)
         case IDM_VIEW_HARD_DISKS_ON_DESK:
         {
             m_shell.m_scene->ToggleClassOnDesk ((id == IDM_VIEW_FLOPPIES_ON_DESK) ? DeskDriveClass::Floppy : DeskDriveClass::HardDisk);
+            m_shell.m_scene->ResetSceneView();
             break;
         }
 

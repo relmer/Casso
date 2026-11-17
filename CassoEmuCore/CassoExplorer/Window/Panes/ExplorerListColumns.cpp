@@ -611,16 +611,16 @@ void ExplorerListColumns::ApplyFolderView()
 //
 //  ExplorerListColumns::ApplyPickerImageColumns
 //
-//  A picker's first view of the Casso node's images: what each image is
-//  before the file's dates and size. A 140K disk and an 800K disk differ
-//  in the first columns.
+//  A picker's first view of the Casso node's images: when Casso last loaded
+//  each, then what it is before the file's dates and size. A 140K disk and
+//  an 800K disk differ in the first columns.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerListColumns::ApplyPickerImageColumns (bool isOrderDefault)
 {
-    static constexpr CatalogModel::Column  s_kShown[]  = { CatalogModel::Column::Name,       CatalogModel::Column::FormFactor, CatalogModel::Column::FormattedSize,
-                                                           CatalogModel::Column::FileSystem, CatalogModel::Column::VolumeName, CatalogModel::Column::LastUsed,
+    static constexpr CatalogModel::Column  s_kShown[]  = { CatalogModel::Column::LastUsed,   CatalogModel::Column::Name,       CatalogModel::Column::FormFactor,
+                                                           CatalogModel::Column::FormattedSize, CatalogModel::Column::FileSystem, CatalogModel::Column::VolumeName,
                                                            CatalogModel::Column::Folder };
     static constexpr CatalogModel::Column  s_kHidden[] = { CatalogModel::Column::Modified, CatalogModel::Column::Type, CatalogModel::Column::Size };
 

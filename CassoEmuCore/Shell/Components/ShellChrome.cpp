@@ -1250,6 +1250,7 @@ void ShellChrome::SyncChromeBands()
     inputs.hasCaseSwitches     = m_shell.MachineHasCaseSwitches();
     inputs.driveBarThicknessDp = m_driveBarThicknessDp;
     inputs.chromeSceneScale    = m_chromeSceneScale;
+    inputs.driveBarZoom        = GetDriveBarZoom();
     inputs.toolbarBandDp       = m_toolbar.GetBandDp();
 
     // Measured against the CLIENT width, which is what the band will be given.

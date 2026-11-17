@@ -68,8 +68,8 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_DISK_OPEN_CASSO_EXPLORER, MainMenuId::Disk,    L"Browse disks in Casso &Explorer...", nullptr },
     { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Full screen",           L"Alt+Enter"     },
     { IDM_VIEW_AUTOHIDE_DRIVES,     MainMenuId::View,    L"&Auto-hide drives",      nullptr,          true   },
-    { IDM_VIEW_FLOPPIES_ON_DESK,    MainMenuId::View,    L"F&loppy drives on the desk", nullptr,      true   },
-    { IDM_VIEW_HARD_DISKS_ON_DESK,  MainMenuId::View,    L"&Hard disks on the desk", nullptr,         true   },
+    { IDM_VIEW_FLOPPIES_ON_DESK,    MainMenuId::View,    L"Show f&loppy drives on the desk", nullptr     },
+    { IDM_VIEW_HARD_DISKS_ON_DESK,  MainMenuId::View,    L"Show &hard disks on the desk", nullptr        },
     { IDM_VIEW_FLOPPY_PAIR_BESIDE,  MainMenuId::View,    L"&Two floppies beside the monitor", nullptr, true  },
     { IDM_VIEW_DRIVE_STRIP,         MainMenuId::View,    L"Drive &strip",           L"F8"            },
     { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset view",            L"Ctrl+0"        },
@@ -351,6 +351,38 @@ std::wstring EmulatorCommands::GetDrive2Label (bool isExternal, bool isAttached)
     else
     {
         label = isAttached ? L"Detac&h drive 2" : L"Attac&h drive 2";
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorCommands::GetDrivePlaceLabel
+//
+//  The label of the floppy or hard disk place row is where a click moves the
+//  class's drives: into the drive dock when they are on the desk, onto the
+//  desk when they are docked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorCommands::GetDrivePlaceLabel (bool isHardDisk, bool isOnDesk)
+{
+    const wchar_t *  label = nullptr;
+
+
+
+    if (isHardDisk)
+    {
+        label = isOnDesk ? L"Show &hard disks in the drive dock" : L"Show &hard disks on the desk";
+    }
+    else
+    {
+        label = isOnDesk ? L"Show f&loppy drives in the drive dock" : L"Show f&loppy drives on the desk";
     }
 
     return label;

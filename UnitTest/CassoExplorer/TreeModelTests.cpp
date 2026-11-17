@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "FakeRecycleBin.h"
 #include "../EmuTests/FixtureProvider.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/Model/TreeModel.h"
@@ -108,6 +109,41 @@ public:
 
         AssertSucceeded (model.GetChildren (roots[4].id, binChildren));
         Assert::IsTrue  (binChildren.empty());
+    }
+
+
+
+    //  Roots read ahead of time are listed in place of the shell's, until a
+    //  refresh reads the shell again.
+    TEST_METHOD (ShellRoots_ReadAhead_AreListedInPlaceOfTheShells)
+    {
+        InMemoryFileSystem                fs;
+        TreeModel                         model (fs);
+        FakeRecycleBin                    shell;
+        std::vector<TreeNode>             roots;
+        IShellItemVerbs::ShellFolderItem  home  { L"::{HOME}", L"Home" };
+        IShellItemVerbs::ShellFolderItem  ahead { L"::{AHEAD}", L"Read ahead" };
+        auto                              hasLabel = [&roots] (const wchar_t * label)
+        {
+            return std::any_of (roots.begin(), roots.end(), [label] (const TreeNode & root) { return root.label == label; });
+        };
+
+        home.leading   = true;
+        ahead.leading  = true;
+        shell.navRoots = { home };
+
+        model.SetShellRoots ({ ahead }, {});
+        model.SetShellVerbs (&shell);
+        model.GetRoots (roots);
+
+        Assert::IsTrue  (hasLabel (L"Read ahead"));
+        Assert::IsFalse (hasLabel (L"Home"));
+
+        model.RefreshShellRoots();
+        model.GetRoots (roots);
+
+        Assert::IsTrue  (hasLabel (L"Home"), L"a refresh reads the shell");
+        Assert::IsFalse (hasLabel (L"Read ahead"));
     }
 
 

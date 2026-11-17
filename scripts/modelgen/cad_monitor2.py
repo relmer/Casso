@@ -36,6 +36,7 @@ X right, Y back, Z up; the case front sits at y=0.
 
 import cadquery as cq
 from cadkit import KD, Model, round_rect_wire, sag_sheet
+from cad_iec import c14, c14_cut
 
 # ---------------------------------------------------------------- dimensions
 #
@@ -746,26 +747,10 @@ case = case.cut (
       .cylinder (3.0, 6.6, direct=(0, 1, 0), centered=(True, True, False))
       .translate ((RCA_CX, D - 1.5, CTRL_CZ)))
 
-# THE MAINS INLET IS THE MONITOR //c's RECEPTACLE, by direction: the same
-# recessed rounded rectangle with its top corners clipped at forty-five
-# degrees, cut eight millimeters into the strip.
-AC_W, AC_H, AC_CLIP, AC_DEEP = 24.0, 17.0, 5.0, 8.0
-
-_acx0, _acx1 = AC_CX - AC_W * 0.5, AC_CX + AC_W * 0.5
-_acz0, _acz1 = CTRL_CZ - AC_H * 0.5, CTRL_CZ + AC_H * 0.5
-
-_ac_face = cq.Face.makeFromWires (cq.Wire.makePolygon ([
-    cq.Vector (_acx0, D + 0.5, _acz0),
-    cq.Vector (_acx1, D + 0.5, _acz0),
-    cq.Vector (_acx1, D + 0.5, _acz1 - AC_CLIP),
-    cq.Vector (_acx1 - AC_CLIP, D + 0.5, _acz1),
-    cq.Vector (_acx0 + AC_CLIP, D + 0.5, _acz1),
-    cq.Vector (_acx0, D + 0.5, _acz1 - AC_CLIP),
-    cq.Vector (_acx0, D + 0.5, _acz0),
-]))
-
-case = case.cut (cq.Workplane (obj=cq.Solid.extrudeLinear (
-    _ac_face, cq.Vector (0.0, -(AC_DEEP + 0.5), 0.0))))
+# THE MAINS INLET: the shared IEC C14 inlet (cad_iec.py), the same part as
+# the Monitor //c's, earth pin at the top, its face flush with the strip.
+AC_AT = (AC_CX, D, CTRL_CZ)
+case  = case.cut (c14_cut ().translate (AC_AT))
 
 # ------------------------------------------------------------ the underside
 #
@@ -968,7 +953,7 @@ def read_branding():
     import io, os, re
 
     src = io.open (os.path.join (os.path.dirname (os.path.abspath (__file__)),
-                                 "..", "..", "Casso", "Ui", "Chrome", "CassoBranding.cpp"),
+                                 "..", "..", "CassoEmuCore", "Ui", "Chrome", "CassoBranding.cpp"),
                    encoding="cp1252").read()
 
     rows_m    = re.search (r"s_kSilhouette\[[^\]]*\]\s*=\s*\{(.*?)\};", src, re.S)
@@ -1088,8 +1073,7 @@ panel = panel.cut (
     cq.Workplane ("XY")
       .cylinder (12.0, 6.6, direct=(0, 1, 0), centered=(True, True, False))
       .translate ((RCA_CX, D - 11.0, CTRL_CZ)))
-panel = panel.cut (cq.Workplane (obj=cq.Solid.extrudeLinear (
-    _ac_face, cq.Vector (0.0, -(AC_DEEP + 0.5), 0.0))))
+panel = panel.cut (c14_cut ().translate (AC_AT))
 
 m.add ("ctrl_panel", panel, PANEL_GRAY, angular=CORNER_ANG)
 
@@ -1374,41 +1358,8 @@ m.add ("rca_bore",
          .translate ((RCA_CX, D - 1.0, CTRL_CZ)),
        DARK_PART, angular=0.05)
 
-# THE MAINS RECEPTACLE, the //c's socket brought over whole: the dark
-# open-fronted liner in the clipped-corner cavity, and the three plated
-# blades, LOW - HIGH - LOW.
-AC_SILVER = (0.760, 0.765, 0.780)
-AC_SOCKET = (0.200, 0.200, 0.220)
-
-
-def ac_profile(inset, y):
-    """The receptacle profile drawn `inset` inside the cavity, at depth y."""
-    return cq.Wire.makePolygon ([
-        cq.Vector (_acx0 + inset, y, _acz0 + inset),
-        cq.Vector (_acx1 - inset, y, _acz0 + inset),
-        cq.Vector (_acx1 - inset, y, _acz1 - AC_CLIP - inset * 0.41),
-        cq.Vector (_acx1 - AC_CLIP - inset * 0.41, y, _acz1 - inset),
-        cq.Vector (_acx0 + AC_CLIP + inset * 0.41, y, _acz1 - inset),
-        cq.Vector (_acx0 + inset, y, _acz1 - AC_CLIP - inset * 0.41),
-        cq.Vector (_acx0 + inset, y, _acz0 + inset),
-    ])
-
-
-m.add ("ac_liner",
-       cq.Workplane (obj=cq.Solid.extrudeLinear (
-           cq.Face.makeFromWires (ac_profile (0.25, D - 0.2)),
-           cq.Vector (0.0, -(AC_DEEP - 0.4), 0.0)))
-         .cut (cq.Workplane (obj=cq.Solid.extrudeLinear (
-             cq.Face.makeFromWires (ac_profile (1.2, D + 0.3)),
-             cq.Vector (0.0, -(AC_DEEP - 1.4), 0.0)))),
-       AC_SOCKET)
-
-for _dx, _dz in ((-6.0, -2.5), (0.0, 3.0), (6.0, -2.5)):
-    m.add (f"acpin{int (_dx)}",
-           cq.Workplane ("XY")
-             .box (2.0, 5.0, 4.5, centered=(True, False, False))
-             .translate ((AC_CX + _dx, D - AC_DEEP, CTRL_CZ + _dz - 2.25)),
-           AC_SILVER)
+# THE MAINS INLET's parts.
+c14 (m, "ac", lambda solid: solid.translate (AC_AT))
 
 # THE FEET: six square pads in two rows of three, standing proud of the
 # underside -- they are what the monitor actually rests on.

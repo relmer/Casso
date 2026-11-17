@@ -16,7 +16,7 @@ enum class DeskDriveModel
     Disk2c,          // the //c's drive, built in or external, and the //c Plus's
     UniDisk35,
     Apple35Drive,
-    Apple35Plus,     // the //c Plus's built-in drive, in its colors
+    Apple35Plus,     // the //c Plus's built-in drive, drawn as an Apple 3.5 Drive
     HardDisk20SC,
     ProFile,
 
