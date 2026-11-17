@@ -836,12 +836,12 @@ void EditingPart::TakeApplyReply (const InspectorReply & reply)
         m_applyRequest = 0;
     }
 
-    //  After a save chosen when closing, the window closes once the save
-    //  succeeds. It stays open when the save fails or is canceled.
-    if (m_isCloseAfterSave && !m_isApplyWaiting)
+    //  The action chosen to run after the save is due once the save
+    //  succeeds, and is dropped when the save fails or is canceled.
+    if (m_afterSave != nullptr && !m_isApplyWaiting)
     {
-        m_isCloseDue       = isApplied && reply.applyKind == ApplyKind::Apply;
-        m_isCloseAfterSave = false;
+        m_dueAction = (isApplied && reply.applyKind == ApplyKind::Apply) ? std::move (m_afterSave) : nullptr;
+        m_afterSave = nullptr;
     }
 
     if (isApplied)
@@ -1094,27 +1094,65 @@ bool EditingPart::IsSameFile (const std::filesystem::path & a, const std::filesy
 //
 //  EditingPart::ConfirmDiscardEdits
 //
+//  With unsaved changes, the user picks Save, Discard or Cancel. Save is
+//  offered when there is an action to run after it and the disk can be
+//  saved to. The save can wait for the drive to stop, so `afterSave` runs
+//  once the save succeeds, and not at all when it fails or is canceled.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EditingPart::ConfirmDiscardEdits (const std::wstring & action)
+bool EditingPart::ConfirmDiscardEdits (const std::wstring & action, std::function<void()> afterSave)
 {
-    EditController::Counts  counts    = m_session.edits.GetCounts();
-    bool                    isGoingOn = counts.sectors == 0;
+    static constexpr int  kCancel  = 0;
+    static constexpr int  kSave    = 1;
+    static constexpr int  kDiscard = 2;
+
+
+
+    EditController::Counts         counts    = m_session.edits.GetCounts();
+    bool                           canSave   = afterSave != nullptr && (m_state.canApply || m_applyRequest != 0);
+    bool                           isGoingOn = counts.sectors == 0;
+    int                            choice    = kCancel;
+    vector<std::wstring>           lines;
+    vector<MessageDialog::Button>  buttons;
 
 
 
     if (!isGoingOn)
     {
-        isGoingOn = m_host.Confirm (L"Unsaved changes", { L"There are unsaved changes to " + InspectorText::FormatCount (counts.sectors, L"sector", L"sectors") + L".",
-                                                       action + L" discards them." }, L"Discard");
-    }
+        lines.push_back (L"There are unsaved changes to " + InspectorText::FormatCount (counts.sectors, L"sector", L"sectors") + L".");
 
-    if (isGoingOn && counts.sectors > 0)
-    {
-        m_session.edits      = EditController();
-        m_session.editNote   = action + L" discarded the unsaved changes.";
-        m_host.SetStatusNote (m_session.editNote);
-        m_sectorsView.SetEditing (false);
+        if (canSave)
+        {
+            buttons.push_back ({ L"Save", kSave, true, false });
+        }
+        else
+        {
+            lines.push_back (action + L" discards them.");
+        }
+
+        buttons.push_back ({ L"Discard", kDiscard, !canSave, false });
+        buttons.push_back ({ L"Cancel", kCancel, false, true });
+
+        choice = InspectorDialogs::ShowChoice (m_host.GetOwnerHwnd(), m_session.theme, L"Unsaved changes", lines, buttons);
+
+        if (choice == kSave)
+        {
+            if (m_applyRequest == 0)
+            {
+                ApplyEdits();
+            }
+
+            m_afterSave = (m_applyRequest != 0) ? std::move (afterSave) : nullptr;
+        }
+
+        if (choice == kDiscard)
+        {
+            m_session.edits = EditController();
+            m_sectorsView.SetEditing (false);
+        }
+
+        isGoingOn = choice == kDiscard;
     }
 
     return isGoingOn;
@@ -1126,84 +1164,14 @@ bool EditingPart::ConfirmDiscardEdits (const std::wstring & action)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EditingPart::ConfirmClose
+//  EditingPart::TakeDueAction
 //
-//  With unsaved changes, the user picks Save, Discard or Cancel. Save is
-//  offered only when the disk can be saved to. After Save, the window
-//  stays open until the save succeeds, which can wait for the drive to
-//  stop.
+//  The action chosen to run after a save, once that save succeeds; empty
+//  otherwise.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EditingPart::ConfirmClose()
+std::function<void()> EditingPart::TakeDueAction()
 {
-    static constexpr int  kCancel  = 0;
-    static constexpr int  kSave    = 1;
-    static constexpr int  kDiscard = 2;
-
-
-
-    EditController::Counts         counts    = m_session.edits.GetCounts();
-    bool                           canSave   = m_state.canApply || m_applyRequest != 0;
-    bool                           isClosing = counts.sectors == 0;
-    int                            choice    = kCancel;
-    vector<MessageDialog::Button>  buttons;
-
-
-
-    if (!isClosing)
-    {
-        if (canSave)
-        {
-            buttons.push_back ({ L"Save", kSave, true, false });
-        }
-
-        buttons.push_back ({ L"Discard", kDiscard, !canSave, false });
-        buttons.push_back ({ L"Cancel", kCancel, false, true });
-
-        choice = InspectorDialogs::ShowChoice (m_host.GetOwnerHwnd(), m_session.theme, L"Unsaved changes",
-                                               { L"There are unsaved changes to " + InspectorText::FormatCount (counts.sectors, L"sector", L"sectors") + L"." }, buttons);
-
-        if (choice == kSave)
-        {
-            if (m_applyRequest == 0)
-            {
-                ApplyEdits();
-            }
-
-            m_isCloseAfterSave = m_applyRequest != 0;
-        }
-
-        if (choice == kDiscard)
-        {
-            m_session.edits = EditController();
-            m_sectorsView.SetEditing (false);
-        }
-
-        isClosing = choice == kDiscard;
-    }
-
-    return isClosing;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EditingPart::TakeCloseDue
-//
-//  True once, after a save chosen when closing the window succeeds.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool EditingPart::TakeCloseDue()
-{
-    bool  isDue = m_isCloseDue;
-
-
-
-    m_isCloseDue = false;
-    return isDue;
+    return std::exchange (m_dueAction, nullptr);
 }

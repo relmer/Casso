@@ -44,9 +44,9 @@ public:
     bool  TakeReply           (const InspectorReply & reply) override;
     void  ToggleEditing       ();
     void  FollowEdits         ();
-    bool  ConfirmDiscardEdits (const std::wstring & action);
-    bool  ConfirmClose        ();
-    bool  TakeCloseDue        ();
+    bool  ConfirmDiscardEdits (const std::wstring & action, std::function<void()> afterSave);
+
+    std::function<void()>  TakeDueAction ();
     void  ApplyEdits          ();
     void  UndoApplied         ();
     void  RedoApplied         ();
@@ -99,6 +99,6 @@ private:
     bool                         m_isApplyWaiting   = false;
     bool                         m_isApplyPaused    = false;
     bool                         m_isFirstApplyDone = false;
-    bool                         m_isCloseAfterSave = false;
-    bool                         m_isCloseDue       = false;
+    std::function<void()>        m_afterSave;
+    std::function<void()>        m_dueAction;
 };

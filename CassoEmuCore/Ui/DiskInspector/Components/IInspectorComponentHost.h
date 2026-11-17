@@ -35,7 +35,7 @@ public:
     virtual void                 ShowDiskTab         (int tab) = 0;
     virtual void                 SetStatusNote       (const std::wstring & note) = 0;
     virtual bool                 Confirm             (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action) = 0;
-    virtual bool                 ConfirmDiscardEdits (const std::wstring & action) = 0;
+    virtual bool                 ConfirmDiscardEdits (const std::wstring & action, std::function<void()> afterSave) = 0;
     virtual void                 RequestCopy         () = 0;
     virtual void                 StartDisk           (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason) = 0;
     virtual HRESULT              ShowDrive           (int drive) = 0;

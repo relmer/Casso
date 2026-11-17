@@ -165,7 +165,7 @@ void ShellDisks::InstallMountReporting()
     m_diskManager->SetDiscardConfirmCallback (
         [this] (int drive, const std::wstring & action)
         {
-            return m_shell.ConfirmInspectorDiscard (drive, action);
+            return m_shell.ConfirmInspectorDiscard (drive, action, {});
         });
 }
 
@@ -644,7 +644,8 @@ void ShellDisks::BrowseForDisk (int drive, const RECT * anchorClientPx)
     }
 
     //  Confirm before the picker opens. When the user cancels, the door does not move.
-    if (!m_shell.ConfirmInspectorDiscard (drive, L"Inserting another disk"))
+    if (!m_shell.ConfirmInspectorDiscard (drive, L"Inserting another disk", [hwnd = m_shell.m_hwnd, drive] ()
+                                          { PostMessageW (hwnd, WM_COMMAND, (drive == 0) ? IDM_DISK_INSERT1 : IDM_DISK_INSERT2, 0); }))
     {
         return;
     }

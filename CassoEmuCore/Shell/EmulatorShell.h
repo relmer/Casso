@@ -241,7 +241,7 @@ private:
     //  True when nothing in the disk inspector's pending edits for `drive`
     //  is discarded by `action`, or the user confirms that they are. A
     //  drive of -1 matches either drive.
-    bool               ConfirmInspectorDiscard (int drive, const std::wstring & action);
+    bool               ConfirmInspectorDiscard (int drive, const std::wstring & action, std::function<void()> afterSave);
 
     //  Open the disk inspector on a drive, in the foreground only when
     //  `activate`; save its state for the next launch; at launch, reopen it

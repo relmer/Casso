@@ -241,7 +241,7 @@ DxuiMessageResult DiskInspectorWindow::OnKeyUp (WPARAM vk, LPARAM lParam)
 
 void DiskInspectorWindow::CompareWithFile (const std::wstring & path)
 {
-    if (ConfirmDiscardEdits (L"Comparing disk images"))
+    if (ConfirmDiscardEdits (L"Comparing disk images", [this, path] () { CompareWithFile (path); }))
     {
         m_comparisonPart->CompareWithFile (path);
     }

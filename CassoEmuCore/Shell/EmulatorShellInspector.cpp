@@ -162,7 +162,7 @@ void EmulatorShell::ServiceInspectorRequests()
 
 DxuiMessageResult EmulatorShell::OnClose()
 {
-    bool  isGoingOn = ConfirmInspectorDiscard (-1, L"Quitting Casso");
+    bool  isGoingOn = ConfirmInspectorDiscard (-1, L"Quitting Casso", [hwnd = m_hwnd] () { PostMessageW (hwnd, WM_CLOSE, 0, 0); });
 
 
 
@@ -236,7 +236,7 @@ void EmulatorShell::ReopenDiskInspector()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::ConfirmInspectorDiscard (int drive, const std::wstring & action)
+bool EmulatorShell::ConfirmInspectorDiscard (int drive, const std::wstring & action, std::function<void()> afterSave)
 {
     bool  isOpen    = m_diskInspector != nullptr && m_diskInspector->GetHwnd() != nullptr;
     bool  isUi      = m_hwnd != nullptr && GetWindowThreadProcessId (m_hwnd, nullptr) == GetCurrentThreadId();
@@ -244,7 +244,7 @@ bool EmulatorShell::ConfirmInspectorDiscard (int drive, const std::wstring & act
 
 
 
-    return !isMatched || !isUi || m_diskInspector->ConfirmDiscardEdits (action);
+    return !isMatched || !isUi || m_diskInspector->ConfirmDiscardEdits (action, std::move (afterSave));
 }
 
 

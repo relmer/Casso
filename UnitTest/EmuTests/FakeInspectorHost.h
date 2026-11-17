@@ -40,7 +40,7 @@ public:
     void                 ShowDiskTab         (int tab) override { diskTabs.push_back (tab); }
     void                 SetStatusNote       (const std::wstring & note) override { statusNote = note; }
     bool                 Confirm             (const std::wstring &, const vector<std::wstring> &, const std::wstring &) override { return true; }
-    bool                 ConfirmDiscardEdits (const std::wstring &) override { return true; }
+    bool                 ConfirmDiscardEdits (const std::wstring &, std::function<void()>) override { return true; }
     void                 RequestCopy         () override {}
     void                 StartDisk           (std::shared_ptr<const DiskCopy>, const std::wstring &) override {}
     HRESULT              ShowDrive           (int) override { return S_OK; }

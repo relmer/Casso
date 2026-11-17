@@ -385,7 +385,7 @@ void SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
             HRESULT      hrDrives  = AssetBootstrap::HasSlot6Drives (hInstance, wideName, hasDrives, drivesErr);
 
             IGNORE_RETURN_VALUE (hrDrives, S_OK);
-            selected = hasDrives || m_emuShell->ConfirmInspectorDiscard (-1, L"Switching to a machine with no Disk II in slot 6");
+            selected = hasDrives || m_emuShell->ConfirmInspectorDiscard (-1, L"Switching to a machine with no Disk II in slot 6", {});
         }
 
         if (selected && FAILED (hr))

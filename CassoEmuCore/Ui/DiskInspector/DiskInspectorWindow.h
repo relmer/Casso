@@ -88,7 +88,7 @@ public:
 
     //  Before something discards the pending edits (FR-108): true when there
     //  are none, or the user confirms that they are discarded.
-    bool     ConfirmDiscardEdits (const std::wstring & action) override;
+    bool     ConfirmDiscardEdits (const std::wstring & action, std::function<void()> afterSave) override;
 
     //  The window's state to save, and the saved state applied to a new
     //  window before ShowDrive (FR-080). The host sets `isOpen`.

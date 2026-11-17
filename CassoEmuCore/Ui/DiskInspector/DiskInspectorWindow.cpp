@@ -221,7 +221,7 @@ HRESULT DiskInspectorWindow::ShowDrive (int drive)
 
     //  The drive selector goes back to the window's drive when the user
     //  cancels.
-    BAIL_OUT_IF (drive != m_session.drive && !ConfirmDiscardEdits (L"Switching to the other drive"), S_OK);
+    BAIL_OUT_IF (drive != m_session.drive && !ConfirmDiscardEdits (L"Switching to the other drive", [this, drive] () { (void) ShowDrive (drive); }), S_OK);
 
     //  Another drive's disk ends a comparison of this one.
     if (m_session.comparison.IsComparing())
@@ -494,9 +494,9 @@ bool DiskInspectorWindow::OfferReply (const InspectorReply & reply)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskInspectorWindow::ConfirmDiscardEdits (const std::wstring & action)
+bool DiskInspectorWindow::ConfirmDiscardEdits (const std::wstring & action, std::function<void()> afterSave)
 {
-    return m_editing->ConfirmDiscardEdits (action);
+    return m_editing->ConfirmDiscardEdits (action, std::move (afterSave));
 }
 
 
@@ -528,9 +528,9 @@ HRESULT DiskInspectorWindow::RenderFrame()
     m_hostLink->TakeReplies();
     m_hostLink->TakeResults();
 
-    if (m_editing->TakeCloseDue())
+    if (std::function<void()> action = m_editing->TakeDueAction(); action != nullptr)
     {
-        PostMessageW (GetHwnd(), WM_CLOSE, 0, 0);
+        action();
     }
 
     m_comparisonPart->TakeComparison();
@@ -1020,7 +1020,7 @@ void DiskInspectorWindow::OnWindowClose()
 {
     //  The window stays open when the user cancels, and after Save until
     //  the save succeeds (FR-108).
-    if (m_editing->ConfirmClose())
+    if (ConfirmDiscardEdits (L"Closing the disk inspector", [hwnd = GetHwnd()] () { PostMessageW (hwnd, WM_CLOSE, 0, 0); }))
     {
         m_tooltip.HideImmediate();
         m_zoomNote.HideImmediate();
