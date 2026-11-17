@@ -1389,7 +1389,7 @@ bool BlockInspectorWindow::ConfirmClose()
     if (blocks > 0)
     {
         choice = InspectorDialogs::ShowChoice (GetHwnd(), m_theme, L"Unsaved changes",
-                                               { L"There are unsaved changes to " + InspectorText::FormatCount (blocks, L"block", L"blocks") + L" in " + GetFileName() + L"." },
+                                               { InspectorText::FormatUnsavedChanges (blocks, L"block", L"blocks", GetFileName()) },
                                                { { L"Save", kSave, true, false }, { L"Discard", kDiscard, false, false }, { L"Cancel", kCancel, false, true } });
 
         //  The window closes once the save succeeds.

@@ -244,6 +244,45 @@ std::wstring InspectorText::FormatFileSystem (BlockFileSystem fileSystem)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  InspectorText::FormatWindowTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatWindowTitle (const std::wstring & path, bool isWriteProtected, bool hasEdits, const std::wstring & mount, size_t & outMarkAt)
+{
+    std::wstring  title = L"Disk inspector - ";
+
+
+
+    title    += isWriteProtected ? std::wstring (s_kpszLock) + L" " : std::wstring();
+    title    += path;
+    outMarkAt = hasEdits ? title.size() : std::wstring::npos;
+    title    += mount.empty() ? std::wstring() : L" (mounted in " + mount + L")";
+
+    return title;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatUnsavedChanges
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatUnsavedChanges (int count, LPCWSTR singular, LPCWSTR plural, const std::wstring & fileName)
+{
+    return L"There are unsaved changes to " + FormatCount (count, singular, plural) + L" in " + fileName + L".";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorText::FormatDiskFormat
 //
 ////////////////////////////////////////////////////////////////////////////////
