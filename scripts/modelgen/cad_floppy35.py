@@ -44,9 +44,9 @@ What the photographs settle:
   The two drives are one case in two colors: the UniDisk 3.5 in the //c's
   Snow White, the Apple 3.5 Drive in Platinum. The dimensions are the Apple
   3.5 Drive's from the Computer History Museum's catalog entry 102735399,
-  4 3/4 in wide and 8 1/4 in deep. The case is 1.85 in high: the
-  straight-on photograph puts the front's height at 0.39 of its width, the
-  lid's seam at 0.88 of the height and the slot between 0.64 and 0.74.
+  4 3/4 in wide and 8 1/4 in deep. The heights are each drive's
+  (APPLE35_H and UNIDISK_H, below), and on both the lid comes down the
+  front to the top of the slot.
 
 Sub-mesh identity is by part NAME and color: `lamp` is the activity LED in
 the drive-lamp color and `front_anchor` the front plane the scene lines
@@ -83,6 +83,16 @@ SEAM_W     = 0.7
 # round it. The eject button stands out from the lid's lower right corner,
 # and the manual eject hole is under it, right of the slot.
 UNIDISK_H     = 50.6
+
+# THE APPLE 3.5 DRIVE is 2.01 in high by Apple's specification sheet (Apple
+# 3.5 Drive, downloads.reactivemicro.com). From the front photograph
+# (a9m0106-01.jpg), measured at 0.204 mm a pixel along the front: the slot
+# runs from 14.3 to 105.0 mm; the eject button is right of it, 107.5 to
+# 119.0 mm, as tall as the slot, with the manual eject hole in its middle;
+# and the activity light is a dark strip at the far left, just under the
+# lid.
+APPLE35_H     = 2.01 * INCH
+APPLE35_FRONT = dict(slot_x=(14.3, 105.0), eject_x=(107.5, 119.0), lamp_x=(1.0, 10.0))
 UNIDISK_FRONT = dict(slot_x=(14.6, 105.4), slot_z=(31.6, 36.5), block_x1=14.2, block_z1=44.6,
                      hole=(113.4, 34.5), lamp=(1.3, 13.9, 41.1, 44.2), eject=(106.7, 40.0, 44.5), eject_out=3.0,
                      badge=(15.2, 5.3, 9.3))
@@ -260,8 +270,7 @@ def build(case_rgb, seam_frac=0.88, slot_top_frac=0.74, unidisk=False):
     # the Apple 3.5 Drive's, and its height.
     global H
 
-    if unidisk:
-        H = UNIDISK_H
+    H = UNIDISK_H if unidisk else APPLE35_H
 
     m       = Model()
     seam_z  = UNIDISK_FRONT["slot_z"][1] if unidisk else H * seam_frac    # the lid's lower edge, level all round
@@ -307,7 +316,7 @@ def build(case_rgb, seam_frac=0.88, slot_top_frac=0.74, unidisk=False):
         case = case.cut(cq.Workplane("XY").box(bx1 + 1.0, 1.4, SEAM_W, centered=(False, False, False))
                         .translate((-1.0, -0.8, bz1)))
     else:
-        slot_x0, slot_x1 = W * 0.11, W * 0.83
+        slot_x0, slot_x1 = APPLE35_FRONT["slot_x"]
         slot_h           = 5.0
         slot_z0          = H * slot_top_frac - slot_h
 
@@ -346,21 +355,23 @@ def build(case_rgb, seam_frac=0.88, slot_top_frac=0.74, unidisk=False):
         # The eject button: a rectangle as tall as the slot, to its right,
         # standing out as far as the UniDisk 3.5's, with the manual eject
         # hole in its face.
-        out = UNIDISK_FRONT["eject_out"]
+        out      = UNIDISK_FRONT["eject_out"]
+        ex0, ex1 = APPLE35_FRONT["eject_x"]
         m.add("eject",
-              cq.Workplane("XY").box(W * 0.085, out + 1.0, slot_h, centered=(False, False, False))
+              cq.Workplane("XY").box(ex1 - ex0, out + 1.0, slot_h, centered=(False, False, False))
                 .edges("|Y").fillet(0.5).faces("<Y").edges().fillet(0.4)
-                .translate((W * 0.85, -out, slot_z0)),
+                .translate((ex0, -out, slot_z0)),
               case_rgb)
         m.add("eject_hole",
-              cq.Workplane("XZ").circle(0.55).extrude(0.3)
-                .translate((W * 0.8925, -out - 0.1, slot_z0 + slot_h * 0.5)),
+              cq.Workplane("XZ").circle(0.7).extrude(0.3)
+                .translate(((ex0 + ex1) * 0.5, -out - 0.1, slot_z0 + slot_h * 0.5)),
               DARK)
 
-        # The activity LED, in line with the slot at its left.
+        # The activity light, a strip at the far left just under the lid.
+        lx0, lx1 = APPLE35_FRONT["lamp_x"]
         m.add("lamp",
-              cq.Workplane("XY").box(3.5, 0.5, 2.0, centered=(False, False, False))
-                .translate((W * 0.05, -0.3, slot_z0 + slot_h * 0.5 - 1.0)),
+              cq.Workplane("XY").box(lx1 - lx0, 0.6, 1.4, centered=(False, False, False))
+                .translate((lx0, -0.4, seam_z - 1.8)),
               KD["drive_lamp"])
 
         badge(m, W * 0.11, H * 0.10, 9.0)
