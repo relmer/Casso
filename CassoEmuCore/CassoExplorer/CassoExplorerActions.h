@@ -260,7 +260,7 @@ public:
     //  The same boot disk as an image file on the PC, for an emulator or to
     //  write to a disk some other way. A Wi-Fi modem link's disk dials this
     //  PC before its first Ready.
-    Outcome  SaveLinkDiskImage (const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkDiskImage (imagePath, settings); }
+    Outcome  SaveLinkDiskImage  (const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkDiskImage (imagePath, settings); }
     Outcome  SaveLinkProDosDisk (const std::wstring & usersDisk, const std::wstring & imagePath, const CassoLinkSettings & settings) { return m_appleDrive.SaveLinkProDosDisk (usersDisk, imagePath, settings); }
 
     //  The cassette bootstrap for a link as a WAV file on the PC, to send into

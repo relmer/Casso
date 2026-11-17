@@ -208,7 +208,7 @@ public:
     //  (CassoLinkCodec::kVirtualBlock). With none set, each request's reply
     //  is ProDOS's no-device error.
     void     SetVirtualDrives (CassoLinkVirtualDrives * drives) { m_virtualDrives = drives; }
-    void     SetReplyTimeout (DWORD timeoutMs) { m_adtProServer.m_replyTimeoutMs = timeoutMs; }
+    void     SetReplyTimeout  (DWORD timeoutMs) { m_adtProServer.m_replyTimeoutMs = timeoutMs; }
 
     //  How long an operation for Casso's client waits for each packet, and an
     //  ADTPro transfer for the client's next packet. The default allows for a
