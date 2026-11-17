@@ -16,10 +16,9 @@ class EmulatorShell;
 //  ShellDrivePickers
 //
 //  The emulator's drive pickers: Casso Explorer windows in picker mode,
-//  one for each drive that was clicked, owned by the emulator's window and
-//  run by its message loop. A pick is inserted in the drive the picker was
-//  opened for: mounted in a floppy drive, loaded in the recorder, or staged
-//  for a hard disk.
+//  one for each drive that was clicked, run by the emulator's message loop.
+//  A pick is inserted in the drive the picker was opened for: mounted in a
+//  floppy drive, loaded in the recorder, or staged for a hard disk.
 //
 //  The pickers close on a machine switch and when the emulator's window
 //  closes, since their drives may be gone after either.

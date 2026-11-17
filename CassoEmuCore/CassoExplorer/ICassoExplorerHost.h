@@ -22,7 +22,8 @@ struct DxuiTheme;
 //  a tab after them. It goes where `screenRect` is when that is set, a
 //  torn-off tab's window; else where `placement` is when that is valid,
 //  stepped down and right with `cascade`; else at the default size. `owner`
-//  is the emulator window it serves, if any.
+//  is the emulator window it serves, if any. With `isOwned` the window stays
+//  in front of `owner`, as a modal picker's does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,6 +37,7 @@ struct CassoExplorerWindowRequest
     RECT                            screenRect    = {};
     bool                            hasScreenRect = false;
     HWND                            owner         = nullptr;
+    bool                            isOwned       = false;
 };
 
 

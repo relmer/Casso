@@ -116,6 +116,7 @@ private:
     bool                                     m_cascade       = false;
     bool                                     m_ended         = false;
     bool                                     m_disabledOwner = false;   // a modal run disabled the owner, which End enables again
+    bool                                     m_isModal       = false;
     std::function<void ()>                   m_onClosed;
     std::unique_ptr<IFolderWatcher>          m_watcher;
     std::unique_ptr<CassoExplorerBrowser>    m_browser;

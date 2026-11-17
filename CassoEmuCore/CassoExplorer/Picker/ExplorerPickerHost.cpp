@@ -168,6 +168,7 @@ CassoExplorerWindowContext ExplorerPickerHost::MakeContext()
     context.picker            = &m_request;
     context.outcome           = &m_outcome;
     context.request.owner     = m_owner;
+    context.request.isOwned   = m_isModal;
     context.request.placement = m_prefs.placement;
     context.request.cascade   = m_cascade;
 
@@ -246,6 +247,8 @@ HRESULT ExplorerPickerHost::RunModal (HINSTANCE instance)
     BOOL     got     = TRUE;
 
 
+
+    m_isModal = true;
 
     hr = Open (instance);
     CHR (hr);

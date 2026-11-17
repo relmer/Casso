@@ -152,6 +152,29 @@ public:
 
 
 
+    //  A drive's picker can go behind the emulator's window. It still opens
+    //  centered over it.
+    TEST_METHOD (DrivePicker_IsNotOwned)
+    {
+        InMemoryFileSystem          fs;
+        FakeDiskFileIo              io;
+        ExplorerPickerHost          host (fs, io, kBaseDir);
+        CassoExplorerWindowContext  context;
+        HWND                        owner = (HWND) (UINT_PTR) 0x1234;
+
+
+
+        SeedCassoExplorerFiles (fs);
+
+        host.Prepare (MakeDriveRequest(), CassoExplorerPrefs::kThemeDark, owner, false);
+        context = host.MakeContext();
+
+        Assert::IsTrue  (context.request.owner == owner);
+        Assert::IsFalse (context.request.isOwned);
+    }
+
+
+
     TEST_METHOD (SavingTheView_WritesOnlyThePickersFile)
     {
         InMemoryFileSystem  fs;
