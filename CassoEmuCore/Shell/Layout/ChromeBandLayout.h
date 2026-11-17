@@ -83,6 +83,10 @@ public:
     static constexpr int  kNavStripBandDp = 32;
     static constexpr int  kSwitchBandDp   = 40;
 
+    //  The drive bar's closed row: the compact drive widget's 36 dp, an 8 dp
+    //  gap above it and a 2 dp bottom margin, at a zoom of 100%.
+    static constexpr int  kDriveBarRowDp  = 46;
+
     static int  DriveBandDp  (const ChromeBandInputs & inputs);
     static int  SwitchBandDp (const ChromeBandInputs & inputs);
 

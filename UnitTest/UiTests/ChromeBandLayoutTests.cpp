@@ -59,7 +59,7 @@ public:
         inputs.driveBarThicknessDp = 180;
         inputs.chromeSceneScale    = 0.4f;
 
-        Assert::AreEqual (180, ChromeBandLayout::DriveBandDp (inputs),
+        Assert::AreEqual (ChromeBandLayout::kDriveBarRowDp, ChromeBandLayout::DriveBandDp (inputs),
                           L"hard disks alone get the bar, at the window's scale, not the zoomed-out scene's");
     }
 
@@ -73,7 +73,7 @@ public:
         inputs.hasDiskController   = false;
         inputs.driveBarThicknessDp = 180;
 
-        Assert::AreEqual (180, ChromeBandLayout::DriveBandDp (inputs),
+        Assert::AreEqual (ChromeBandLayout::kDriveBarRowDp, ChromeBandLayout::DriveBandDp (inputs),
                           L"a //c Plus's drives on the bar get a band without a Disk ][ controller");
     }
 
@@ -181,6 +181,6 @@ private:
         inputs.driveBarThicknessDp = 180;
         inputs.driveBarZoom        = 1.5f;
 
-        Assert::AreEqual (270, ChromeBandLayout::DriveBandDp (inputs), L"the band is as tall as the zoomed widgets");
+        Assert::AreEqual (69, ChromeBandLayout::DriveBandDp (inputs), L"the band is as tall as the zoomed closed row");
     }
 };
