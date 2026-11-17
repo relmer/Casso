@@ -226,6 +226,43 @@ public:
     }
 
 
+    //  A card put in a slot is reported, so its firmware download can be
+    //  offered; a card the confirmation was canceled for isn't.
+    TEST_METHOD (Page_ReportsTheCardPutInASlot)
+    {
+        SettingsPanelState  st;
+        HardwarePage        page;
+        JsonValue           machine = Parse (kMachineJson);
+        int                 profile = -1;
+        std::string         chosen;
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("Apple2e", machine, machine));
+        page.SetState (&st);
+        page.SetOnCardChosen ([&chosen] (const std::string & device) { chosen = device; });
+        page.SelectSlot (4);
+
+        for (size_t i = 0; i < page.GetCardDropdown().GetItems().size(); i++)
+        {
+            if (page.GetCardDropdown().GetItems()[i] == L"ProFile interface card")
+            {
+                profile = (int) i;
+            }
+        }
+
+        Assert::IsTrue (profile >= 0);
+
+        page.ChooseCard (profile);
+        page.CancelReplace();
+        Assert::IsTrue (chosen.empty(), L"the replacement was canceled");
+
+        page.ChooseCard (profile);
+        page.ConfirmReplace();
+        Assert::AreEqual (std::string (kpszProFileCardDevice), chosen);
+    }
+
+
     //  A drive selected in the tree takes an image from the file dialog, and
     //  a chain's Add drive stops at its limit with the limit in the prompt.
     TEST_METHOD (Page_AttachesAnImageAndLimitsAChain)

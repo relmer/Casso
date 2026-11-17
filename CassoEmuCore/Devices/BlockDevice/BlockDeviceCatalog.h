@@ -66,6 +66,8 @@ struct BlockDriveSpec
 {
     const char  * device        = nullptr;
     const char  * label         = nullptr;
+    // Whether the Machine tab offers the drive's real timing switch. No drive
+    // has it until there are seek sound samples to go with the delays.
     bool          hasRealTiming = false;
     uint32_t      maxBlocks     = 0;
 

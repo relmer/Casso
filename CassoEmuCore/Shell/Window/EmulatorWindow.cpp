@@ -661,22 +661,29 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         int   drive1  = m_disks->GetMenuDrive (0).diskIiDrive;
         int   drive2  = m_disks->GetMenuDrive (1).diskIiDrive;
+        int   drive3  = m_disks->GetMenuDrive (2).diskIiDrive;
         auto  isShown = [this] (int drive) { return drive == 0 || (drive == 1 && m_disks->ShouldShowExternalDrive()); };
 
         switch (commandId)
         {
             case IDM_DISK_WP1:      return drive1 >= 0 && m_disks->IsWriteProtectToggleOffered (drive1);
             case IDM_DISK_WP2:      return drive2 >= 0 && m_disks->IsWriteProtectToggleOffered (drive2);
+            case IDM_DISK_WP3:      return drive3 >= 0 && m_disks->IsWriteProtectToggleOffered (drive3);
             case IDM_DISK_SALVAGE1: return drive1 >= 0 && m_disks->IsSalvageOffered (drive1);
             case IDM_DISK_SALVAGE2: return drive2 >= 0 && m_disks->IsSalvageOffered (drive2);
+            case IDM_DISK_SALVAGE3: return drive3 >= 0 && m_disks->IsSalvageOffered (drive3);
             case IDM_DISK_INSPECT1: return isShown (drive1) && m_disks->GetManager()->HasSlot6Controller();
             case IDM_DISK_INSPECT2: return isShown (drive2) && m_disks->GetManager()->HasSlot6Controller();
+            case IDM_DISK_INSPECT3: return isShown (drive3) && m_disks->GetManager()->HasSlot6Controller();
             case IDM_DISK_THUMBNAIL1: return isShown (drive1) && !m_disks->GetMountedImagePath (drive1).empty();
             case IDM_DISK_THUMBNAIL2: return isShown (drive2) && !m_disks->GetMountedImagePath (drive2).empty();
+            case IDM_DISK_THUMBNAIL3: return isShown (drive3) && !m_disks->GetMountedImagePath (drive3).empty();
             case IDM_STORAGE_DRIVE2:   return m_disks->IsSecondDriveOffered();
             case IDM_STORAGE_RECORDER: return m_tapeDeck->MachineHasCassettePort();
             case IDM_DISK_INSERT2:     return isShown (drive2);
             case IDM_DISK_EJECT2:      return isShown (drive2);
+            case IDM_DISK_INSERT3:     return isShown (drive3);
+            case IDM_DISK_EJECT3:      return isShown (drive3);
             case IDM_TAPE_INSERT:      return m_tapeDeck->IsTapeRecorderShown();
             case IDM_TAPE_NEW:         return m_tapeDeck->IsTapeRecorderShown();
             case IDM_TAPE_PLAY:        return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Play,        m_tapeDeck->GetTapeView());
@@ -706,6 +713,29 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_STORAGE_DRIVE2:          visible = !portChain;                                                                 break;
             case IDM_STORAGE_ATTACH_APPLE35:  visible = portChain && DiskPortChainRule::CanPlugIn (config, kpszApple35DriveDevice); break;
             case IDM_STORAGE_ATTACH_FLOPPY:   visible = portChain && DiskPortChainRule::CanPlugIn (config, kpszDiskIicDevice);      break;
+
+            // The drive 3 commands are for a //c Plus with two 5.25-inch
+            // drives on its port. Its built-in drive 1 has only insert and
+            // eject.
+            case IDM_DISK_INSERT3:
+            case IDM_DISK_EJECT3:
+            case IDM_DISK_WP3:
+            case IDM_DISK_SALVAGE3:
+            case IDM_DISK_INSPECT3:
+            case IDM_DISK_THUMBNAIL3:         visible = m_disks->GetMenuDrive (2).IsDiskIi();                                       break;
+            case IDM_DISK_WP1:
+            case IDM_DISK_SALVAGE1:
+            case IDM_DISK_INSPECT1:
+            case IDM_DISK_THUMBNAIL1:         visible = !m_disks->GetMenuDrive (0).isBuiltIn35;                                     break;
+
+            // A machine without a cassette port has no recorder rows.
+            case IDM_STORAGE_RECORDER:
+            case IDM_TAPE_INSERT:
+            case IDM_TAPE_PLAY:
+            case IDM_TAPE_STOP:
+            case IDM_TAPE_REWIND:
+            case IDM_TAPE_FASTFORWARD:
+            case IDM_TAPE_EJECT:              visible = m_tapeDeck->MachineHasCassettePort();                                       break;
             default:                                                                                                                break;
         }
 
@@ -734,6 +764,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
             case IDM_DISK_WP1:
             case IDM_DISK_WP2:
+            case IDM_DISK_WP3:
             {
                 // Give the mounted image and the ACTION the click will take:
                 // write-enable when the WOZ flag or the read-only attribute
@@ -741,7 +772,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                 // preference is a different toggle and does not flip it. An
                 // empty return keeps the static "Write-protect disk N" label
                 // for an empty (disabled) drive.
-                int           drive = m_disks->GetMenuDrive ((commandId == IDM_DISK_WP1) ? 0 : 1).diskIiDrive;
+                int           drive = m_disks->GetMenuDrive ((commandId == IDM_DISK_WP1) ? 0 : ((commandId == IDM_DISK_WP3) ? 2 : 1)).diskIiDrive;
                 DiskImage  *  image = (drive >= 0) ? m_machine.GetDiskStore().GetImage (6, drive) : nullptr;
                 std::wstring  name;
 

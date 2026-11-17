@@ -75,6 +75,10 @@ public:
     using BrowseImageFn = std::function<bool (const std::string & device, std::string & inOutPath)>;
     void  SetOnBrowseImage (BrowseImageFn fn) { m_onBrowseImage = std::move (fn); }
 
+    // Called with a card's device once the card is put in a slot.
+    using CardChosenFn = std::function<void (const std::string & device)>;
+    void  SetOnCardChosen  (CardChosenFn fn)  { m_onCardChosen = std::move (fn); }
+
     // The storage controls above the tree, on a machine with slots: a slot,
     // the card in it, a confirmation before a card is replaced or taken out,
     // and buttons for the drive selected in the tree. Each edit takes a
@@ -221,6 +225,7 @@ private:
     std::wstring                  m_storagePrompt;
     std::string                   m_pendingDevice;
     BrowseImageFn                 m_onBrowseImage;
+    CardChosenFn                  m_onCardChosen;
     int                           m_selectedSlot   = 0;
     int                           m_selectedPort   = -1;
     bool                          m_replacePending = false;

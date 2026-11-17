@@ -39,6 +39,11 @@ the interaction, sound and event log the Disk II already has.
 - Q: Should hard disks have their real spin-up and seek times? A: Real timing is
   available as a per-drive setting, and the default is speed: drives are ready
   at power-on and seek without delay. The sounds are audible either way.
+- Q: Is the real timing setting worth offering? A: Not yet (2026-11-16). The
+  power-on wait only makes a cold boot fall through to BASIC, and a seek
+  delay is worth having only with seek sound samples. The Machine tab
+  doesn't offer the switch. The timing code is in the drives, and a machine
+  file can turn it on.
 - Q: The CFFA 3000's firmware runs on an AVR microcontroller. How should Casso
   run it? A: Drop the CFFA from Casso entirely, the 2.0 and the 3000. It can be
   added later. Casso Explorer's CFFA card layout support from spec 033 stays.
@@ -128,22 +133,34 @@ the interaction, sound and event log the Disk II already has.
 
 - Q: Where are external drives plugged into the //c Plus's disk port? A: In
   the Storage menu, which has "Plug in a 3.5-inch drive" and "Plug in a
-  5.25-inch drive" on the //c Plus, each disabled at two drives of its kind,
-  in place of the //c's "Attach external drive". The same rows are on each
+  5.25-inch drive" on the //c Plus, each left out while the port has no
+  room for its kind, in place of the //c's "Attach external drive". The same rows are on each
   drive's right-click menu, and a drive on the port has "Unplug drive" there
   (for the 5.25-inch drives, the last one). A confirmation states that the
   change restarts the machine, as for a hard disk image change. On Restart
   the chain is saved with the machine and the machine is rebuilt with it.
 - Q: How many drives does the //c Plus's port take, and can one be changed
-  for the other size? A: Two in all, so both rows are disabled once two
-  drives are plugged in. A drive with "Unplug drive" also has "Swap for a
-  5.25-inch drive" or "Swap for a 3.5-inch drive", which removes it and
-  plugs in one of the other size, behind the same confirmation. The
+  for the other size? A: Three in all, as the //c Technical Reference (2nd
+  edition) lists: at most one Apple 3.5 Drive, then UniDisk 3.5 drives, then
+  at most two 5.25-inch drives. The //c's port also takes three: UniDisk 3.5
+  drives, then at most one 5.25-inch drive. A machine whose chain is over a
+  limit or out of that order fails to load, with the reason. A plug-in row is left out of the menus while the
+  port has no room for its kind. A drive with "Unplug drive" also has "Swap
+  for a 5.25-inch drive" or "Swap for a 3.5-inch drive" while the port has
+  room for the other size, which removes it and plugs in one of the other
+  size, behind the same confirmation. The
   5.25-inch drives are labeled with their slot and drive, "Disk IIc - S6,D1",
   since the firmware numbers them in slot 6 behind the built-in drive in
   slot 5.
 - Q: What happens to the window when the theme changes between a 2D and a
   3D theme? A: The view is reset, as Ctrl+0 does.
+- Q: Which Storage menu rows act on the //c Plus's second 5.25-inch drive?
+  A: A third set of rows, drive 3 with Ctrl+3. The drive 1 rows are the
+  built-in 3.5-inch drive's insert and eject, and the drive 2 rows act on
+  the first 5.25-inch drive. The drive 3 rows
+  are visible only while that drive is plugged in. Rows that don't apply are
+  left out rather than disabled: the Disk II rows of a built-in 3.5-inch
+  drive, and the cassette rows on a machine without a cassette port.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -507,7 +524,8 @@ on each device's feed.
 - **FR-023**: In the compact themes each drive MUST be a widget in the drive
   band, with the same tip and clicks as on the desk.
 - **FR-023b**: Each hard disk MUST have a setting for real spin-up and seek
-  timing, off by default. With it off the drive is ready at power-on and seeks
+  timing, off by default, in the machine file. The Machine tab doesn't offer
+  it until seek sound samples exist (Clarifications, 2026-11-16). With it off the drive is ready at power-on and seeks
   without delay; with it on the firmware waits as on real hardware. The sounds
   are audible in both cases.
 - **FR-024**: The desk scene MUST place the attached drives automatically

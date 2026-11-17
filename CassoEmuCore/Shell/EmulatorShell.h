@@ -459,6 +459,13 @@ private:
     static constexpr int  kStorageMenuBar       = 64;
     void    ShowStorageContextMenu    (int device, int x, int y);
     void    ShowDriveContextMenu      (const DeskDrive & drive, int x, int y);
+
+    // Every floppy drive's menu, 5.25-inch and 3.5-inch alike: one list of
+    // rows, less the ones that don't apply to the drive. `outDevice` and
+    // `outNth` specify the drive's place on the //c Plus's disk port chain,
+    // empty and -1 for a drive that can't be unplugged.
+    void    ShowFloppyContextMenu     (const DeskDrive & drive, int x, int y);
+    void    FindPortDrive             (const DeskDrive & drive, std::string & outDevice, int & outNth) const;
     int     StorageDeviceAt           (int x, int y) const;
 
     // Bounds-changed callback wired onto m_viewport. Stores the new

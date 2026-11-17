@@ -1654,6 +1654,30 @@ DiskMenuDrive ShellDisks::GetMenuDrive (int menuDrive) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellDisks::GetMenuIndex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDisks::GetMenuIndex (int diskIiDrive) const
+{
+    int  index = -1;
+
+
+
+    for (int menuDrive = 0; menuDrive < 3 && index < 0; menuDrive++)
+    {
+        index = (GetMenuDrive (menuDrive).diskIiDrive == diskIiDrive) ? menuDrive : -1;
+    }
+
+    return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShellDisks::HasDiskIicDrives
 //
 //  Whether the machine's 5.25-inch drives are the //c family's, on a disk

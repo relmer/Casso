@@ -36,9 +36,9 @@ struct DiskMenuDrive
 //
 //  The //c Plus boots from its built-in 3.5-inch drive, and its 5.25-inch
 //  drives are external units on the disk port. Its drive 1 commands act on
-//  the built-in drive, and its drive 2 commands on the first 5.25-inch
-//  drive, when one is attached. On every other machine, drive 1 and drive 2
-//  are slot 6's Disk II drives.
+//  the built-in drive, and its drive 2 and drive 3 commands on the first and
+//  second 5.25-inch drives, when they are attached. On every other machine,
+//  drive 1 and drive 2 are slot 6's Disk II drives, and there is no drive 3.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

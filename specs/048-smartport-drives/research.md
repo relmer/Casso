@@ -253,6 +253,10 @@ change its bits and are saved by the rules the Disk II applies to a 5.25-inch
 WOZ image (the owner's clarification). **To verify**: where those rules are in
 `Disk2Controller` and `WozLoader`, so the 3.5-inch drive calls the same code.
 
+**Update** (2026-11-16): the 3.5-inch drive doesn't call the Disk II's
+code. `Sony35Drive::FlushWoz` writes each changed track's bits into the WOZ
+image's TMAP entry and replaces the file in one step.
+
 **To verify**: the status line numbering and the sector format, against the
 Apple IIgs Firmware Reference and Inside Macintosh.
 
@@ -299,6 +303,14 @@ does not stop a floppy in slot 6 from booting. Entered by `PR#n`, it prints
 chain, the number ProDOS 8 2.x mounts from one slot. **To verify**: the limit
 in Apple's UniDisk 3.5 and //c manuals, and in the //c ROM 4 and //c Plus
 firmware. The Machine tab uses the lower of the two.
+
+**Update** (2026-11-16, the //c Technical Reference, 2nd edition): the //c
+and the //c Plus take three external drives on the disk port, the power
+supply running four counting the built-in drive. On the //c they are UniDisk
+3.5 drives, then at most one 5.25-inch drive. On the //c Plus they are at
+most one Apple 3.5 Drive, then UniDisk 3.5 drives, then at most two 5.25-inch
+drives. `MachineConfigLoader::kMaxChainDrives` is 3, and the Liron card's
+chain takes four.
 
 **Checked** (2026-11-13, the Liron card ROM and the UniDisk 3.5 ROM running
 against each other in Casso, with a2-liron's labels): the host's IWM runs
@@ -473,6 +485,15 @@ average seek and rotational latency per access. Sounds are audible in both
 modes. **To verify**: the spin-up and seek times of the HD20SC and the ProFile,
 from their service manuals.
 
+**Update** (2026-11-16): the HD20SC's times aren't checked against a
+service manual. It uses a 10 s spin-up and a 65 ms average seek plus half a
+turn at 3,600 RPM (`ScsiHardDisk`). The ProFile's are Apple's specifications
+(https://apple3.org/Documents/Technotes/1128.html): ready to operate 60 s
+after power-on for the 5 MB drive and 120 s for the 10 MB drive, average
+seeks of 180 ms and 85 ms, 3,600 RPM (`ProFileDrive`). A ProFile that isn't
+ready at power-on is passed over by the slot scan, and `PR#n` boots it once
+it is.
+
 ## R16. Desk scene
 
 **Decision**: Four new `DeskDeviceKind` values: `UniDisk35`, `Apple35Drive`,
@@ -536,3 +557,10 @@ owner set no limit on it.
 The Machine tab's list for each card is set from the verified result, and a
 machine is removed from a card's list when the boot fails there on real
 firmware.
+
+**Update** (2026-11-16): each is checked by a scenario boot on real firmware.
+The UniDisk 3.5 interface card boots on the ][+, the //e and the enhanced //e
+(`LironCard_BootsOnTheOtherHosts`). The 3.5 controller card boots on the //e
+and the enhanced //e (`Apple35Card_DiskCopy42OnAnUnenhancedIIe`). The ProFile
+interface card boots on the ][+, the //e and the enhanced //e
+(`ProFile_BootsOnEachHostMachine`, R6).

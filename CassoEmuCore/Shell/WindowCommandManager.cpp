@@ -449,6 +449,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id == IDM_DISK_OPEN_CASSO_EXPLORER)                            { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_INSPECT1  || id == IDM_DISK_INSPECT2)           { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_THUMBNAIL1 || id == IDM_DISK_THUMBNAIL2)        { route = WindowCommandRoute::Disk; }
+    else if (id >= IDM_DISK_INSERT3   && id <= IDM_DISK_THUMBNAIL3)         { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_TAPE_INSERT    && id <= IDM_TAPE_FASTFORWARD)        { route = WindowCommandRoute::Disk; }
     else if (id == IDM_STORAGE_DRIVE2 || id == IDM_STORAGE_RECORDER)        { route = WindowCommandRoute::Disk; }
     else if (id == IDM_STORAGE_ATTACH_APPLE35 || id == IDM_STORAGE_ATTACH_FLOPPY) { route = WindowCommandRoute::Disk; }
@@ -1163,8 +1164,8 @@ Error:
 //  reports anything worth reporting.
 //
 //  On a //c Plus, drive 1 is the built-in 3.5-inch drive, which has only
-//  insert and eject, and drive 2 is the first 5.25-inch drive on the disk
-//  port. The posted commands address the Disk II drive.
+//  insert and eject, and drives 2 and 3 are the 5.25-inch drives on the
+//  disk port. The posted commands address the Disk II drive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1172,7 +1173,8 @@ void WindowCommandManager::OnDiskCommand (int id)
 {
     bool           isDrive1 = (id == IDM_DISK_INSERT1  || id == IDM_DISK_EJECT1   || id == IDM_DISK_WP1 ||
                                id == IDM_DISK_SALVAGE1 || id == IDM_DISK_INSPECT1 || id == IDM_DISK_THUMBNAIL1);
-    DiskMenuDrive  target   = m_shell.m_disks->GetMenuDrive (isDrive1 ? 0 : 1);
+    bool           isDrive3 = (id >= IDM_DISK_INSERT3 && id <= IDM_DISK_THUMBNAIL3);
+    DiskMenuDrive  target   = m_shell.m_disks->GetMenuDrive (isDrive1 ? 0 : (isDrive3 ? 2 : 1));
     int            drive    = target.diskIiDrive;
 
 
@@ -1181,6 +1183,7 @@ void WindowCommandManager::OnDiskCommand (int id)
     {
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
+        case IDM_DISK_INSERT3:
         {
             if (target.isBuiltIn35 && m_shell.m_scene)
             {
@@ -1196,6 +1199,7 @@ void WindowCommandManager::OnDiskCommand (int id)
 
         case IDM_DISK_EJECT1:
         case IDM_DISK_EJECT2:
+        case IDM_DISK_EJECT3:
         {
             if (target.isBuiltIn35)
             {
@@ -1211,6 +1215,7 @@ void WindowCommandManager::OnDiskCommand (int id)
 
         case IDM_DISK_WP1:
         case IDM_DISK_WP2:
+        case IDM_DISK_WP3:
         {
             // The toggle runs on the CPU thread (like mount / eject) so its
             // flush never races the drive engine.
@@ -1224,6 +1229,7 @@ void WindowCommandManager::OnDiskCommand (int id)
 
         case IDM_DISK_SALVAGE1:
         case IDM_DISK_SALVAGE2:
+        case IDM_DISK_SALVAGE3:
         {
             // Stays on the UI thread: the flow opens Dxui modals.
             if (target.IsDiskIi())
@@ -1242,6 +1248,7 @@ void WindowCommandManager::OnDiskCommand (int id)
 
         case IDM_DISK_INSPECT1:
         case IDM_DISK_INSPECT2:
+        case IDM_DISK_INSPECT3:
         {
             if (target.IsDiskIi())
             {
@@ -1253,6 +1260,7 @@ void WindowCommandManager::OnDiskCommand (int id)
 
         case IDM_DISK_THUMBNAIL1:
         case IDM_DISK_THUMBNAIL2:
+        case IDM_DISK_THUMBNAIL3:
         {
             if (target.IsDiskIi())
             {

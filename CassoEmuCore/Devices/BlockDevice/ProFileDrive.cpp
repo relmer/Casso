@@ -12,6 +12,9 @@ static constexpr Byte  s_kSpecialBlockHigh = 0xFF;
 //  Status byte 0's bit for a failed operation.
 static constexpr Byte  s_kStatusFailed     = 0x01;
 
+//  The 5 MB drive's blocks; the 10 MB drive has more.
+static constexpr uint32_t  s_k5MbBlocks = 9728;
+
 
 
 
@@ -40,6 +43,54 @@ void ProFileDrive::StartHandshake()
 
     m_presenting = true;
     m_busy       = true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetRealTiming
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProFileDrive::SetRealTiming (bool isOn, uint32_t cpuClockHz, uint64_t powerOnCycle)
+{
+    constexpr uint64_t  kReady5MbSeconds  = 60;
+    constexpr uint64_t  kReady10MbSeconds = 120;
+    uint64_t            readySeconds      = (m_capacity > s_k5MbBlocks) ? kReady10MbSeconds : kReady5MbSeconds;
+
+
+
+    m_realTiming = isOn;
+    m_clockHz    = cpuClockHz;
+    m_readyCycle = isOn ? powerOnCycle + readySeconds * cpuClockHz : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSeekDelay
+//
+//  An average seek and half a revolution at 3,600 RPM, with real timing on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t ProFileDrive::GetSeekDelay() const
+{
+    constexpr uint64_t  kSeek5MbMs   = 180;
+    constexpr uint64_t  kSeek10MbMs  = 85;
+    constexpr uint64_t  kHalfTurnMs  = 8;
+    constexpr uint64_t  kMsPerSecond = 1000;
+    uint64_t            seekMs       = (m_capacity > s_k5MbBlocks) ? kSeek10MbMs : kSeek5MbMs;
+
+
+
+    return m_realTiming ? (seekMs + kHalfTurnMs) * m_clockHz / kMsPerSecond : 0;
 }
 
 
@@ -237,6 +288,8 @@ void ProFileDrive::RunCommand()
         m_state = kStateCommand;
         return;
     }
+
+    m_readyCycle = GetNow() + GetSeekDelay();
 
     if (op != kOpRead)
     {

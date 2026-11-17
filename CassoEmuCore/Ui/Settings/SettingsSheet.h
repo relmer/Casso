@@ -298,6 +298,12 @@ private:
     // A cross-tab change's notice, for a message box on the next tick.
     std::wstring   m_pendingNotice;
 
+    // A card just put in a slot, whose firmware download is offered on the
+    // next tick when the firmware is missing.
+    std::string    m_pendingCardDevice;
+
+    void           OfferCardFirmware ();
+
     void           UpdateSerialTabVisibility ();
     bool           IsSerialFirmwareMissing   () const;
     std::wstring   GetSerialFirmwareStatus   () const;
