@@ -1143,7 +1143,7 @@ bool EditingPart::ConfirmDiscardEdits (const std::wstring & action, std::functio
 
     if (!isGoingOn)
     {
-        lines.push_back (L"There are unsaved changes to " + InspectorText::FormatCount (counts.sectors, L"sector", L"sectors") + L".");
+        lines.push_back (L"There are unsaved changes to " + InspectorText::FormatCount (counts.sectors, L"sector", L"sectors") + L" in " + m_session.GetFileName() + L".");
 
         if (canSave)
         {
