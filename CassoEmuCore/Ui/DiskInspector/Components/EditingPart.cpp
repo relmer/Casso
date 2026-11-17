@@ -322,7 +322,7 @@ void EditingPart::ToggleEditing()
     {
         m_sectorsView.SetEditing (false);
     }
-    else if (track != nullptr)
+    else if (track != nullptr && IsLiveEditConfirmed())
     {
         edit               = m_session.edits.Begin (*track, m_session.model.GetQuarterTrack(), m_session.model.GetSectorIndex(), reason);
         m_session.editNote = reason;
@@ -1226,3 +1226,28 @@ vector<RecordWriteCount> EditingPart::GetCurrentCounts (const vector<SectorWrite
     return counts;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::IsLiveEditConfirmed
+//
+//  A disk in a drive of a running machine is edited only after the user
+//  accepts the risks, once for each window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditingPart::IsLiveEditConfirmed()
+{
+    if (!m_isLiveEditConfirmed && m_session.host->GetDriveCount() > 0)
+    {
+        m_isLiveEditConfirmed = m_host.Confirm (L"Edit a disk in use",
+                                                { L"This disk is in a drive of a running machine. DOS or ProDOS may have parts of it in memory and write them back over your changes, "
+                                                  L"and a wrong byte in a catalog, directory or bitmap can damage its files.",
+                                                  L"Edit it anyway?" }, L"Edit");
+    }
+
+    return m_isLiveEditConfirmed || m_session.host->GetDriveCount() == 0;
+}

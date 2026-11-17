@@ -75,6 +75,7 @@ private:
     void                      OnEjected           ();
     void                      PasteIntoEdit       ();
     bool                      IsHistoryCurrent    (const vector<RecordWriteCount> & counts) const;
+    bool                      IsLiveEditConfirmed ();
     vector<RecordWriteCount>  GetCurrentCounts    (const vector<SectorWrite> & writes) const;
     void                      PostApply           (const InspectorRequest & request);
     void                      PauseApply          ();
@@ -99,6 +100,7 @@ private:
     uint64_t                     m_saveCopyRequest     = 0;
     bool                         m_isApplyWaiting      = false;
     bool                         m_isApplyPaused       = false;
+    bool                         m_isLiveEditConfirmed = false;
     std::function<void()>        m_afterSave;
     std::function<void()>        m_dueAction;
 };
