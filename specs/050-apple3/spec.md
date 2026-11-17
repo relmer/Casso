@@ -55,6 +55,18 @@ the authority. The plan cites the document and page for each one, and a
 difference between this spec and the documents is resolved in favor of the
 documents.
 
+## Clarifications
+
+### Session 2026-11-17
+
+- Q: Is the Apple II emulation mode in scope? → A: Yes (User Story 12, FR-031 to FR-031d).
+- Q: Is the Apple /// Plus a second machine in this spec? → A: Yes, a separate machine entry with the Plus keyboard, interlaced video, 256K and the clock chip (User Story 13).
+- Q: What does "remove the keyboard" mean for the chassis model? → A: The model is cut at the front of the upper body. The sloped keyboard section is not modeled.
+- Q: How does 048's ProFile get to this branch? → A: 033 merges into master regularly; master merges into 035, and 035 merges into this branch. The ProFile work stays in this spec.
+- Q: How is a bank-qualified address written in the debugger? → A: `bank/address` in every command mode, for example `2/3000`.
+- Q: Is Business BASIC source-level debugging in scope? → A: Yes (User Story 14).
+- Q: Can the user choose color or a monochrome style on the Monitor ///? → A: Yes, as on the other monitors. Green is the default (FR-021).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Boot SOS and run Business BASIC (Priority: P1)
@@ -140,10 +152,11 @@ moment.
 2. **Given** a program that loads a different character set, **When** it
    finishes loading, **Then** all text on the screen is drawn with the new
    glyphs.
-3. **Given** the Monitor ///, which is monochrome, **When** a color mode is on
-   the screen, **Then** each of the 16 colors is drawn as its gray level.
-4. **Given** a color monitor chosen in settings, **When** a color mode is on
-   the screen, **Then** the 16 colors are drawn in color.
+3. **Given** the Monitor /// with its default green style or the amber or
+   white style, **When** a color mode is on the screen, **Then** each of the
+   16 colors is drawn as its gray level in that phosphor color.
+4. **Given** the color style chosen from the View menu or settings, **When**
+   a color mode is on the screen, **Then** the 16 colors are drawn in color.
 5. **Given** the environment register's video enable bit off, **Then** the
    screen is blank.
 6. **Given** a program that scrolls with the smooth scroll feature, **Then**
@@ -398,10 +411,108 @@ ProFile, copy files to it and read them back from the image.
 
 ### User Story 12 - Run Apple II software in emulation mode (Priority: P3)
 
-[NEEDS CLARIFICATION: Is the Apple II emulation mode in scope or deferred? In
-scope: booting the Apple II Emulation disk turns the machine into a 48K
-Apple ][+ until power-off, with the Apple II video modes, keyboard codes and
-paddles, and the debugger follows the change.]
+A user boots Apple's Apple II Emulation disk, picks the options on its setup
+screen and starts emulation. The machine becomes a 48K Apple ][+ until the
+next power-off: the Apple /// registers are locked out, the screen uses the
+Apple II video modes, the keyboard returns Apple II codes and the joystick
+ports read as paddles. The user then boots a DOS 3.3 disk and runs Apple II
+software. The debugger follows the change.
+
+**Why this priority**: Apple shipped the mode with every Apple ///, and a
+machine without it is incomplete. It is last in priority because every native
+feature has to work first.
+
+**Independent Test**: Boot the Apple II Emulation disk, start emulation, boot
+the DOS 3.3 System Master, run a program that draws in lo-res and hi-res, and
+compare the frames with the ][+ machine's frames of the same program.
+
+**Acceptance Scenarios**:
+
+1. **Given** the Apple II Emulation disk, **When** the user starts emulation,
+   **Then** the Applesoft or Integer BASIC prompt chosen on the setup screen
+   appears.
+2. **Given** emulation mode, **When** a program writes to the environment,
+   bank or zero page register addresses, **Then** the mapping does not
+   change, as on the real machine.
+3. **Given** emulation mode, **When** the DOS 3.3 System Master is put in the
+   built-in drive and booted, **Then** DOS 3.3 boots and its programs run.
+4. **Given** emulation mode, **Then** Apple II text, lo-res and hi-res
+   graphics are drawn as the ][+ machine draws them.
+5. **Given** emulation mode, **When** the machine is reset, **Then** it stays
+   an Apple ][+; **When** it is turned off and on, **Then** it is an
+   Apple /// again.
+6. **Given** emulation mode and the debugger, **Then** the memory map, the
+   device panels, the machine symbols and the registers pane report the
+   Apple II state, and the lockout is reported in the memory and banking
+   panel.
+
+---
+
+### User Story 13 - Run an Apple /// Plus (Priority: P2)
+
+A user picks the Apple /// Plus from the machine list. It has 256K, the clock
+chip, the Plus keyboard layout and interlaced video, and otherwise works as
+the Apple /// does, with the same settings, debugger support and desk models.
+
+**Why this priority**: The Plus is the revised machine Apple sold from 1983
+and the one with the clock chip fitted at the factory.
+
+**Independent Test**: Boot a Business BASIC disk on the Plus, read every key
+of the Plus keyboard from a test program, and turn on interlaced video.
+
+**Acceptance Scenarios**:
+
+1. **Given** the machine list, **Then** the Apple /// Plus is a separate
+   entry with its release year.
+2. **Given** the Plus, **Then** memory is 256K and the 128K option is not
+   offered.
+3. **Given** each key of the Plus keyboard, **When** the mapped PC key is
+   pressed, **Then** the program reads that key's documented code.
+4. **Given** a program that turns on interlaced video, **Then** the frame is
+   drawn interlaced, per the Apple /// Plus Owner's Guide.
+5. **Given** the skeuomorphic theme, **Then** the body model has the Plus's
+   badge.
+
+---
+
+### User Story 14 - Debug a Business BASIC program at source level (Priority: P2)
+
+A user typing in or loading a Business BASIC program opens the debugger's
+BASIC view. The listing is there with the line being run marked. The user
+steps a statement or a line at a time, stops on a line or when a variable
+changes, and reads the variables and the GOSUB and FOR stack, without reading
+6502 code. This is 035's Applesoft debugging (its User Story 22) for
+Business BASIC.
+
+**Why this priority**: Business BASIC is the language most Apple /// users
+wrote in, and the acceptance target for the whole machine is its prompt.
+
+**Independent Test**: Type a ten-line program with a GOSUB, a FOR loop, a
+string, an integer, a long integer and an array; set a breakpoint on line 40
+and RUN; check the marked line, the variables and the stack; step a statement
+and check that the mark moves.
+
+**Acceptance Scenarios**:
+
+1. **Given** a Business BASIC program in memory, **When** the BASIC view
+   opens, **Then** the listing appears as `LIST` prints it, with the line
+   being run marked.
+2. **Given** the program is stopped, **When** the user steps a statement or a
+   line, **Then** it runs to the start of the next statement or line and
+   stops.
+3. **Given** a breakpoint on a line number, **When** the program runs,
+   **Then** it stops as that line begins.
+4. **Given** a breakpoint on a variable changing, **When** the program
+   assigns it a different value, **Then** it stops after that statement.
+5. **Given** the program is stopped, **Then** the variables view lists the
+   real, integer, long integer and string variables and the arrays with
+   their values, and the stack view lists the active GOSUB returns and FOR
+   loops.
+6. **Given** an error or an `ON ERR` handler, **When** an error occurs,
+   **Then** the debugger can stop there with the error and the line.
+7. **Given** a Business BASIC release the debugger does not recognize,
+   **Then** the BASIC view reports that the release is not supported and
+   lists nothing, never wrong data.
 
 ### Edge Cases
 
@@ -518,9 +629,11 @@ paddles, and the debugger follows the change.]
   MUST be substituted for it.
 - **FR-020**: Normal and inverse text, the smooth scroll feature, the video
   enable bit and every other documented video control MUST work.
-- **FR-021**: On a monochrome monitor the 16 colors MUST be drawn as the gray
-  levels the black and white video output produces; on a color monitor they
-  MUST be drawn as the 16 documented colors.
+- **FR-021**: The Monitor /// MUST offer the color, green, amber and white
+  styles the other monitors offer, with green as its default. In a
+  monochrome style the 16 colors MUST be drawn as the gray levels the black
+  and white video output produces; in the color style they MUST be drawn as
+  the 16 documented colors.
 - **FR-022**: Video timing MUST produce the vertical blanking signal and
   interrupt the VIAs expose, at the documented frame rate.
 - **FR-023**: Screenshot capture, the CRT effects and every other feature
@@ -554,8 +667,45 @@ paddles, and the debugger follows the change.]
 
 **Apple II emulation mode**
 
-- **FR-031**: [NEEDS CLARIFICATION: Apple II emulation mode, in scope or
-  deferred. See User Story 12.]
+- **FR-031**: The machine MUST support the Apple II emulation mode: the
+  documented lockout that the Apple II Emulation disk sets MUST turn the
+  machine into a 48K Apple ][+ and MUST stay set until power-off.
+- **FR-031a**: In emulation mode the Apple /// registers, memory beyond 48K
+  and the Apple /// video modes MUST be unavailable to the program, as
+  documented.
+- **FR-031b**: In emulation mode the screen MUST use the Apple II text,
+  lo-res and hi-res modes, drawn by the code the ][+ machine uses, and the
+  keyboard, speaker, joystick ports and built-in drive MUST respond at their
+  Apple II addresses with Apple II behavior.
+- **FR-031c**: The Apple II ROM contents MUST come from the user's Apple II
+  Emulation disk, as on the real machine. Casso MUST NOT substitute its
+  Apple II ROM files.
+- **FR-031d**: The debugger MUST follow the mode: Apple II machine symbols,
+  the Apple II memory map and the panels that apply, with the lockout state
+  in the memory and banking panel. History MUST store the lockout, so a seek
+  across the switch restores the right machine.
+
+**Apple /// Plus**
+
+- **FR-071**: Casso MUST offer the Apple /// Plus as a separate machine type
+  with 256K, the clock chip, the Plus keyboard and its documented key codes,
+  and the documented interlaced video.
+- **FR-072**: Every other requirement in this spec MUST apply to the Plus as
+  to the Apple ///.
+- **FR-073**: The body model MUST have the badge of the machine in use.
+
+**Business BASIC debugging**
+
+- **FR-074**: The debugger's BASIC view, variables view and stack view MUST
+  work for a Business BASIC program as 035's do for Applesoft: the listing
+  as `LIST` prints it, the current line marked, statement and line stepping,
+  breakpoints on a line and on a variable changing, the variables of every
+  Business BASIC type with their values, the GOSUB and FOR stack, and a stop
+  on an error.
+- **FR-075**: The BASIC view MUST identify the Business BASIC release in
+  memory and MUST report an unrecognized release as not supported.
+- **FR-076**: The BASIC commands of every command mode and the debug channel
+  MUST work for Business BASIC as for Applesoft.
 
 **Machine definition and settings**
 
@@ -656,8 +806,9 @@ paddles, and the debugger follows the change.]
 **3D models**
 
 - **FR-058**: The skeuomorphic theme MUST have a 3D model of the Apple ///'s
-  main body without the keyboard, with the built-in drive in its bay, built
-  to the dimensions in Apple's technical documents.
+  main body with the built-in drive in its bay, built to the dimensions in
+  Apple's technical documents. The model MUST end at the front of the upper
+  body; the sloped keyboard section MUST NOT be modeled.
 - **FR-059**: The back panel MUST be modeled with every connector and opening
   of the real one, each at its measured position and with its real form: the
   power switch and power inlet, the black and white video jack, the color
@@ -755,15 +906,20 @@ paddles, and the debugger follows the change.]
 
 - The feature ships whole, in one merge, after 033 and 035. There is no
   reduced first release.
-- The original Apple /// is the machine. The Apple /// Plus (256K, a changed
-  keyboard, interlaced video, the clock chip as standard) is covered by the
-  256K setting and the clock chip; its keyboard and interlace are not
-  included unless the owner adds them.
-- The clock chip is fitted on every emulated machine, although many original
-  units shipped without one.
-- User Story 11 and FR-030 depend on 048's ProFile drive and models, which
-  are on 033's branch. The ProFile work is done after this branch has taken a
-  merge that includes 048; the rest of the feature does not depend on it.
+- The Apple /// and the Apple /// Plus are two machine entries. Where MAME
+  has no Apple /// Plus, the Plus's keyboard and interlaced video are checked
+  against Apple's documents.
+- The clock chip is fitted on the Apple /// as well as the Plus, although
+  many original units shipped without one.
+- User Story 11 and FR-030 depend on 048's ProFile drive and models. They
+  arrive through merges: 033 into master, master into 035, and 035 into this
+  branch. The ProFile work is done after such a merge includes 048; the rest
+  of the feature does not depend on it.
+- Business BASIC's internal tables are worked out from Apple's Business BASIC
+  manuals and from observing the interpreter run in Casso. The plan lists
+  the releases supported.
+- The Apple II Emulation disk is Apple's software and is supplied by the
+  user or fetched for the scenario suite, never committed.
 - The ProFile is attached by default, with its interface card in a slot,
   which is why the default desk arrangement includes it.
 - 047's COM port, TCP and modem attachments work on the Apple ///'s port once
@@ -778,7 +934,6 @@ paddles, and the debugger follows the change.]
   the two programs' palettes and filters differ.
 - The model sources are Apple's technical documents for dimensions and
   connector positions, with photographs for details those documents omit.
-- Out of scope: the Silentype printer, the Apple /// Plus keyboard and
-  interlace, third-party memory beyond 256K, Business BASIC or Pascal
-  source-level debugging, a SOS file browser in Casso Explorer beyond what
+- Out of scope: the Silentype printer, third-party memory beyond 256K,
+  Pascal source-level debugging, a SOS file browser in Casso Explorer beyond what
   048 provides, and cards other than the ProFile interface card.

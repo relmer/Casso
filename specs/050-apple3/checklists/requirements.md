@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,8 +31,6 @@
 
 ## Notes
 
-- Open: User Story 12 and FR-031, the Apple II emulation mode. The owner
-  chooses in scope or deferred.
 - Hardware addresses and chip part numbers appear because the feature is an
   emulation of that hardware; they are the subject, not implementation.
 - The reuse of the 6522, 6551 and Disk II models is stated because the owner
