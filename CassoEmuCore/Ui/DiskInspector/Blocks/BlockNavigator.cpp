@@ -379,6 +379,9 @@ void BlockNavigator::SelectTreeNode (const BlockPlace & container)
 //
 //  BlockNavigator::FillList
 //
+//  A row's cells are built the first time the list draws the row, so a
+//  folder of thousands of entries is listed as fast as one of ten.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockNavigator::FillList()
@@ -388,10 +391,9 @@ void BlockNavigator::FillList()
 
 
 
-    vector<DxuiListView::Column>        columns;
-    vector<vector<DxuiListView::Cell>>  rows;
-    vector<DxuiListView::Group>         groups;
-    size_t                              i = 0;
+    vector<DxuiListView::Column>  columns;
+    vector<DxuiListView::Group>   groups;
+    size_t                        i = 0;
 
 
 
@@ -407,32 +409,67 @@ void BlockNavigator::FillList()
         columns.push_back ({ m_listing.columns[i], i == 0 ? kNameDip : kColumnDip, i + 1 == m_listing.columns.size(), isNumber ? DxuiTextHAlign::Right : DxuiTextHAlign::Left });
     }
 
+    m_rowOrder.clear();
+
     for (const BlockListGroup & group : m_listing.groups)
     {
-        groups.push_back ({ group.title, (int) rows.size() });
+        groups.push_back ({ group.title, (int) m_rowOrder.size() });
 
         for (const BlockListRow & row : group.rows)
         {
-            vector<DxuiListView::Cell>  cells;
-
-            for (const std::wstring & text : row.cells)
-            {
-                cells.push_back ({ text });
-            }
-
-            if (!cells.empty())
-            {
-                cells[0].icon = GetRowIcon (row);
-            }
-
-            rows.push_back (std::move (cells));
+            m_rowOrder.push_back (&row);
         }
     }
 
+    m_rowCells.assign (m_rowOrder.size(), {});
+    m_rowBuilt.assign (m_rowOrder.size(), false);
+
     m_list->SetColumns       (std::move (columns));
     m_list->SetSortIndicator (m_sortColumn, m_isDescending);
-    m_list->SetRows          (std::move (rows));
+    m_list->SetRowSource     ((int) m_rowOrder.size(), [this] (int row) -> const vector<DxuiListView::Cell> & { return GetRowCells (row); });
+    m_list->SetRowNameSource ([this] (int row) { return (row >= 0 && (size_t) row < m_rowOrder.size() && !m_rowOrder[(size_t) row]->cells.empty()) ? m_rowOrder[(size_t) row]->cells[0] : std::wstring(); });
     m_list->SetGroups        (std::move (groups));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockNavigator::GetRowCells
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const vector<DxuiListView::Cell> & BlockNavigator::GetRowCells (int row)
+{
+    static const vector<DxuiListView::Cell>  s_kNone;
+
+
+
+    if (row < 0 || (size_t) row >= m_rowOrder.size())
+    {
+        return s_kNone;
+    }
+
+    if (!m_rowBuilt[(size_t) row])
+    {
+        vector<DxuiListView::Cell> & cells = m_rowCells[(size_t) row];
+
+        for (const std::wstring & text : m_rowOrder[(size_t) row]->cells)
+        {
+            cells.push_back ({ text });
+        }
+
+        if (!cells.empty())
+        {
+            cells[0].icon = GetRowIcon (*m_rowOrder[(size_t) row]);
+        }
+
+        m_rowBuilt[(size_t) row] = true;
+    }
+
+    return m_rowCells[(size_t) row];
 }
 
 
