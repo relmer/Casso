@@ -9,6 +9,7 @@
 #include "CassoExplorer/Picker/ExplorerPickerHost.h"
 #include "CassoExplorer/Picker/PickerPrefs.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
+#include "CassoExplorer/Picker/PickerShellRoots.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -171,6 +172,45 @@ public:
 
         Assert::IsTrue  (context.request.owner == owner);
         Assert::IsFalse (context.request.isOwned);
+    }
+
+
+
+    //  The shell's roots are read on a background thread, before a picker
+    //  opens.
+    TEST_METHOD (ShellRoots_AreReadAhead_OnAThread)
+    {
+        PickerShellRoots           roots ([] (PickerShellRoots::Folders & outNavRoots, PickerShellRoots::Folders & outPinned)
+        {
+            outNavRoots = { IShellItemVerbs::ShellFolderItem { L"::{HOME}", L"Home" } };
+            outPinned   = { IShellItemVerbs::ShellFolderItem { L"C:\\Disks", L"Disks", L"C:\\Disks" } };
+
+            return S_OK;
+        });
+        PickerShellRoots::Folders  navRoots;
+        PickerShellRoots::Folders  pinned;
+        ULONGLONG                  deadline = 0;
+        bool                       isRead   = false;
+
+
+
+        Assert::IsFalse (roots.TryGet (navRoots, pinned), L"nothing before the first read");
+
+        roots.Refresh();
+
+        deadline = GetTickCount64() + 5000;
+
+        while (!isRead && GetTickCount64() < deadline)
+        {
+            isRead = roots.TryGet (navRoots, pinned);
+            Sleep (1);
+        }
+
+        Assert::IsTrue (isRead);
+        Assert::AreEqual ((size_t) 1, navRoots.size());
+        Assert::AreEqual (std::wstring (L"Home"), navRoots[0].name);
+        Assert::AreEqual ((size_t) 1, pinned.size());
+        Assert::AreEqual (std::wstring (L"Disks"), pinned[0].name);
     }
 
 

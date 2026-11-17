@@ -1077,6 +1077,10 @@ int EmulatorShell::RunMessageLoop()
     // drive-audio door-close (FR-013).
     m_disks->GetManager()->SetColdBootMountWindow (false);
 
+    // The shell's roots are read now, so the first drive picker opens
+    // without waiting on the shell for them.
+    m_drivePickers->ReadShellRootsAhead();
+
     // UI thread loop: process messages, present latest framebuffer with vsync
     while (m_cpuManager.IsRunning())
     {

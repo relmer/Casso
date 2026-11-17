@@ -51,8 +51,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ShellDrivePickers::ShellDrivePickers (EmulatorShell & shell)
-    : m_shell   (shell),
-      m_pickers (*this, MakeHooks())
+    : m_shell      (shell),
+      m_shellRoots (&PickerShellRoots::ReadFromShell),
+      m_pickers    (*this, MakeHooks())
 {
 }
 
@@ -342,10 +343,12 @@ std::unique_ptr<IDrivePicker> ShellDrivePickers::OpenPicker (PickerRequest reque
 
 std::unique_ptr<ExplorerPickerHost> ShellDrivePickers::MakeHost (PickerRequest request, HWND owner, bool cascade)
 {
-    std::string                          theme = CassoExplorerPrefs::MapCassoTheme (m_shell.m_settings->GetPrefs().activeTheme);
-    std::unique_ptr<ExplorerPickerHost>  host  = std::make_unique<ExplorerPickerHost> (m_shell.m_settings->GetFileSystem(),
-                                                                                         m_shell.m_machine.GetBlockMediaFileIo(),
-                                                                                         AssetBootstrap::GetAssetBaseDirectory().wstring());
+    std::string                          theme    = CassoExplorerPrefs::MapCassoTheme (m_shell.m_settings->GetPrefs().activeTheme);
+    ExplorerPickerHost::Services         services = { .shellRoots = &m_shellRoots };
+    std::unique_ptr<ExplorerPickerHost>  host     = std::make_unique<ExplorerPickerHost> (m_shell.m_settings->GetFileSystem(),
+                                                                                            m_shell.m_machine.GetBlockMediaFileIo(),
+                                                                                            AssetBootstrap::GetAssetBaseDirectory().wstring(),
+                                                                                            services);
 
 
 

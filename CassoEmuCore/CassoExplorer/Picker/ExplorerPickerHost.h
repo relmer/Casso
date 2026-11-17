@@ -13,6 +13,7 @@ class GivenNames;
 class IDiskFileIo;
 class IDiskPictures;
 class IFolderWatcher;
+class PickerShellRoots;
 
 
 
@@ -41,8 +42,9 @@ public:
     //  Optional services of the process the picker is in.
     struct Services
     {
-        IDiskPictures  * pictures   = nullptr;
-        GivenNames     * givenNames = nullptr;
+        IDiskPictures     * pictures   = nullptr;
+        GivenNames        * givenNames = nullptr;
+        PickerShellRoots  * shellRoots = nullptr;
     };
 
     ExplorerPickerHost (IFileSystem & fs, IDiskFileIo & fileIo, std::wstring baseDir);
