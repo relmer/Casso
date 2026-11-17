@@ -464,6 +464,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     });
     m_host->GetRoot().Adopt (m_chrome->m_toolbar);
     m_host->GetRoot().Adopt (m_chrome->m_switchBar);
+    m_host->GetRoot().Adopt (m_chrome->m_driveBarZoomReadout);
     m_host->GetRoot().Adopt (m_disks->GetChangeBanner());
     m_host->GetRoot().Adopt (m_serialCard->GetBanner());
     m_host->GetRoot().Adopt (m_networkCard->GetBanner());
@@ -517,8 +518,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // protection source(s).
     m_chrome->m_driveTooltip.SetPopupHost (m_host.get());
     m_chrome->m_driveTooltip.SetTheme     (m_chrome->m_chromeTheme);
-    m_chrome->m_driveBarZoomNote.SetPopupHost (m_host.get());
-    m_chrome->m_driveBarZoomNote.SetTheme     (m_chrome->m_chromeTheme);
 
     // The caption buttons' tooltip, in place of the stock system one.
     m_chrome->m_captionTooltip.SetPopupHost (m_host.get());
@@ -1238,7 +1237,7 @@ void EmulatorShell::WaitForFrameOrMessage()
 
     if (m_chrome->m_switchBarTooltip.WantsTick() ||
         m_chrome->m_driveTooltip.WantsTick()     ||
-        m_chrome->m_driveBarZoomNote.WantsTick() ||
+        m_chrome->IsDriveBarZoomReadoutUp()      ||
         m_chrome->m_captionTooltip.WantsTick()   ||
         m_scene->m_sceneCompass.WantsTick()     ||
         m_scene->m_compassHintOpacity != (m_scene->m_sceneCompass.IsHovered() ? 1.0f : 0.0f) ||

@@ -1170,8 +1170,12 @@ bool ShellRenderer::TryPresentUiFrame()
         m_shell.m_chrome->m_toolbarTooltip.Tick   (nowMs);
         m_shell.m_chrome->m_switchBarTooltip.Tick (nowMs);
         m_shell.m_chrome->m_driveTooltip.Tick     (nowMs);
-        m_shell.m_chrome->m_driveBarZoomNote.Tick (nowMs);
         m_shell.m_chrome->m_captionTooltip.Tick   (nowMs);
+
+        if (m_shell.m_chrome->TickDriveBarZoomReadout (nowMs))
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
 
         // The update indicator's shimmer asks for frames only while it sweeps;
         // between sweeps the idle loop sleeps until the next one is due.

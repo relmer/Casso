@@ -1585,7 +1585,6 @@ void ShellChrome::ApplyThemeToChrome (const CassoTheme & theme)
     m_toolbarTooltip.SetTheme   (theme);
     m_switchBarTooltip.SetTheme (theme);
     m_driveTooltip.SetTheme     (theme);
-    m_driveBarZoomNote.SetTheme (theme);
     m_captionTooltip.SetTheme   (theme);
 
     // A balloon that is already up was sized and cleared with the outgoing
@@ -1594,7 +1593,6 @@ void ShellChrome::ApplyThemeToChrome (const CassoTheme & theme)
     m_toolbarTooltip.HideImmediate();
     m_switchBarTooltip.HideImmediate();
     m_driveTooltip.HideImmediate();
-    m_driveBarZoomNote.HideImmediate();
     m_captionTooltip.HideImmediate();
 
     // Every path applies the new thickness; only the window resize is
@@ -2068,7 +2066,6 @@ void ShellChrome::HideTooltips()
     m_toolbarTooltip.HideImmediate();
     m_switchBarTooltip.HideImmediate();
     m_driveTooltip.HideImmediate();
-    m_driveBarZoomNote.HideImmediate();
     m_captionTooltip.HideImmediate();
 }
 

@@ -158,8 +158,9 @@ bool ShellChrome::IsPointOnDriveBar (POINT pt) const
 //  ShellChrome::ZoomDriveBar
 //
 //  The band under the scene grows with the bar, so the whole window is laid
-//  out again, as for a change of where the drives go. A note with the zoom
-//  as a percent appears above the pointer for a moment.
+//  out again, as for a change of where the drives go. The zoom appears as a
+//  percent for a moment, centered across the window and a little under a
+//  fifth of its height above the bottom.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,7 +169,9 @@ bool ShellChrome::ZoomDriveBar (POINT pt, float notches)
     GlobalUserPrefs  & prefs    = m_shell.m_settings->GetPrefs();
     float              zoom     = DriveBarFan::GetZoomAfterWheel (GetDriveBarZoom(), notches);
     RECT               rcClient = {};
-    int64_t            nowMs    = (int64_t) GetTickCount64();
+    int64_t            nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::steady_clock::now().time_since_epoch()).count();
+    int                middleY  = 0;
+    int                halfH    = 0;
 
 
 
@@ -190,9 +193,57 @@ bool ShellChrome::ZoomDriveBar (POINT pt, float notches)
         }
     }
 
-    m_driveBarZoomNote.ShowTimed ({ pt.x, pt.y, pt.x + 1, pt.y + 1 }, std::format (L"{:.0f}%", zoom * 100.0f), nowMs, s_kDriveBarZoomNoteMs, DxuiPopupPlacement::Above);
+    if (m_shell.m_hwnd != nullptr && GetClientRect (m_shell.m_hwnd, &rcClient))
+    {
+        middleY = rcClient.bottom - (int) lroundf ((float) rcClient.bottom * s_kDriveBarZoomReadoutRise);
+        halfH   = m_shell.m_scaler.ToPx ((int) s_kDriveBarZoomReadoutFontDp);
+
+        m_driveBarZoomReadout.SetText        (std::format (L"Widgets: {:.0f}%", zoom * 100.0f));
+        m_driveBarZoomReadout.SetFontSizeDip (s_kDriveBarZoomReadoutFontDp);
+        m_driveBarZoomReadout.SetAlign       (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+        m_driveBarZoomReadout.SetDpi         (m_shell.m_scaler.GetDpi());
+        m_driveBarZoomReadout.SetOpacity     (1.0f);
+        m_driveBarZoomReadout.Layout         (RECT { 0, middleY - halfH, rcClient.right, middleY + halfH }, m_shell.m_scaler);
+        m_driveBarZoomReadout.SetVisible     (true);
+
+        m_driveBarZoomReadoutEndMs = nowMs + s_kDriveBarZoomReadoutMs;
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+    }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::TickDriveBarZoomReadout
+//
+//  Fades the zoom readout over its last moments and hides it at the end.
+//  Returns whether it changed, so the frame is drawn again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellChrome::TickDriveBarZoomReadout (int64_t nowMs)
+{
+    int64_t  leftMs  = m_driveBarZoomReadoutEndMs - nowMs;
+    bool     changed = m_driveBarZoomReadoutEndMs != 0;
+
+
+
+    if (m_driveBarZoomReadoutEndMs != 0 && leftMs <= 0)
+    {
+        m_driveBarZoomReadout.SetVisible (false);
+        m_driveBarZoomReadoutEndMs = 0;
+    }
+    else if (m_driveBarZoomReadoutEndMs != 0)
+    {
+        m_driveBarZoomReadout.SetOpacity (std::min (1.0f, (float) leftMs / (float) s_kDriveBarZoomReadoutFadeMs));
+    }
+
+    return changed;
 }
 
 
