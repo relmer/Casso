@@ -66,7 +66,7 @@ static constexpr DiskHelpPage::DiskCommandHelp  s_kDiskCommandHelp[] =
         "  %Lout <file>            Extract the file to <file>. By default, the file is written to stdout instead."
                                    " A <file> with a suffix Casso Explorer writes for a conversion, such as SOURCE.Merlin.txt,"
                                    " is written as that conversion of the file\n"
-        "  %Ltext                  Convert text from the disk's file system format\n"
+        "  %Ltext                  Convert text from the disk's file system\n"
         "  %Lbasic                 Convert tokenized Applesoft BASIC to readable text\n",
         "Applesoft BASIC programs are stored in a tokenized form on disk. Retrieving these with 'get' returns the raw tokenized file,"
         " so it can be copied losslessly to another disk. However, the tokenized format is not human-readable. Using the %Lbasic switch"
