@@ -30,19 +30,21 @@ Go to box, dialog field and JSON field accepts.
 | Apple II Monitor | `/` | `/` | `addr: bytes` is the deposit command, so `2:30` already means "store `$30` at `$0002`" |
 | GSSquared | `/` | `/` | `addr:bytes` is its deposit command too, and `/` is its existing bank separator |
 
-Two other places use `:` today and have a rule each:
+**The rule** (owner decision, 2026-11-17): `:` everywhere, and `/` wherever
+`:` already has a meaning. Two more places use `:` today, so both take `/`:
 
 - **Assembler prompt** (`addr:MNE operand` moves the assembly address): a
-  bank-qualified address is written `b:nnnn:MNE operand`. A single
-  `hex:` prefix is an address, as it is today.
+  bank-qualified address is written `b/nnnn:MNE operand`.
 - **Range fields** (heat map ranges accept `start:end`, `start..end` and
-  `start,length`): with a bank on either end, the range is written with
-  `..` or `,`, for example `2:3000..2:3FFF`. `start:end` is accepted only
-  when neither end has a bank.
+  `start,length`): an end with a bank is written `b/nnnn`, for example
+  `2/3000:2/3FFF` or `2/3000..2/3FFF`.
+
+Any conflict found later is handled the same way, with no new decision: that
+place accepts and prints `/`.
 
 To check when this is built: whether `/` or `:` is an operator in the Casso
-and WinDbg modes' address expressions. If either is, that mode's rule is
-revisited before the parser is changed.
+and WinDbg modes' address expressions. If `:` is, that mode takes `/` under
+the rule above; if `/` is as well, the owner decides.
 
 ### Rules
 
