@@ -403,9 +403,12 @@ private:
     float                    m_deskSlideProgress   = 0.0f;
     RECT                     m_deskSlideCoverPx    = {};
 
-    // The dock's magnification under the pointer, and when it last eased.
+    // The dock's magnification under the pointer, and its strength easing in
+    // and out over s_kDockEaseMs.
+    static constexpr int64_t  s_kDockEaseMs = 120;
+
     DeskDockHover            m_dockHover;
-    int64_t                  m_dockHoverMs         = 0;
+    DxuiMagnifiedRow         m_dockFade            { s_kDockEaseMs };
 
     // The top of the zone that reveals the drives: see
     // FullscreenStripState::GetRevealTopPx. Written by UpdateViewportLayout

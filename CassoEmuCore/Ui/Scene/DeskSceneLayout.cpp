@@ -631,21 +631,18 @@ void DeskSceneLayout::MagnifyDock (DeskSceneComposition   & out,
         const float  * hi;
         float          x0;
         float          w;
-        float          mag;
     };
 
-    constexpr float                       kPi       = 3.14159265f;
     std::vector<Item>                     items;
+    std::vector<DxuiMagnifiedItem>        row;
+    std::vector<DxuiMagnifiedSpan>        spans;
     std::vector<std::pair<float, float>>  edges;
+    DxuiMagnifiedRow::Options             options;
     float                                 halfW     = (float) (viewportPx.right - viewportPx.left) * 0.5f;
     float                                 pointer   = 0.0f;
     float                                 reach     = 0.0f;
     float                                 pointerX  = 0.0f;
-    float                                 x         = 0.0f;
-    float                                 shift     = 0.0f;
-    float                                 fraction  = 0.0f;
     float                                 lift      = 0.0f;
-    size_t                                anchor    = 0;
     size_t                                k         = 0;
 
 
@@ -731,43 +728,35 @@ void DeskSceneLayout::MagnifyDock (DeskSceneComposition   & out,
         pointerX = items[0].x0 + items[0].w * 0.5f;
     }
 
-    for (size_t i = 0; i < items.size(); i++)
+    // The gaps grow with the devices beside them, and the row is moved so
+    // the point under the pointer is under it again.
+    for (const Item & item : items)
     {
-        float  d = std::abs (pointerX - (items[i].x0 + items[i].w * 0.5f)) / reach;
+        float  most = (item.world[0] > 0.0f) ? std::max (1.0f, out.dockFullScale * kDockMostOfFullSize / item.world[0]) : 1.0f;
 
-        float  most = (items[i].world[0] > 0.0f) ? std::max (1.0f, out.dockFullScale * kDockMostOfFullSize / items[i].world[0]) : 1.0f;
-
-        items[i].mag = 1.0f + (most - 1.0f) * dock.strength * ((d < 1.0f) ? 0.5f * (1.0f + std::cos (kPi * d)) : 0.0f);
-        anchor       = (pointerX >= items[i].x0) ? i : anchor;
+        row.push_back ({ item.x0, item.w, most });
     }
 
-    fraction = (items[anchor].w > 0.0f) ? (pointerX - items[anchor].x0) / items[anchor].w : 0.0f;
+    spans.resize (row.size());
 
-    // Lay the row out again from the left, the gaps growing with the devices
-    // beside them, then shift it so the anchor point stays under the pointer.
+    options.reach  = reach;
+    options.anchor = DxuiMagnifiedRow::Anchor::Pointer;
+    options.gaps   = DxuiMagnifiedRow::Gaps::Grow;
+
+    DxuiMagnifiedRow::Lay (row, pointerX, dock.strength, options, spans);
+
     for (size_t i = 0; i < items.size(); i++)
     {
-        bool   hasNext = i + 1 < items.size();
-        float  gap     = hasNext ? items[i + 1].x0 - (items[i].x0 + items[i].w) : 0.0f;
-        float  nextMag = hasNext ? items[i + 1].mag : 1.0f;
-
-        items[i].x0 = x;
-        x          += items[i].w * items[i].mag + gap * (items[i].mag + nextMag) * 0.5f;
-    }
-
-    shift = pointerX - (items[anchor].x0 + fraction * items[anchor].w * items[anchor].mag);
-
-    for (Item & item : items)
-    {
-        float  s       = item.world[0];
-        float  bottomY = item.world[13] + s * item.lo[2];
-        float  backZ   = item.world[14] - s * item.hi[1];
-        float  grown   = s * item.mag;
+        Item &  item    = items[i];
+        float   s       = item.world[0];
+        float   bottomY = item.world[13] + s * item.lo[2];
+        float   backZ   = item.world[14] - s * item.hi[1];
+        float   grown   = s * spans[i].scale;
 
         item.world[0]  = grown;
         item.world[6]  = -grown;
         item.world[9]  = grown;
-        item.world[12] = item.x0 + shift - grown * item.lo[0];
+        item.world[12] = spans[i].left - grown * item.lo[0];
         item.world[13] = bottomY - grown * item.lo[2];
         item.world[14] = backZ + grown * item.hi[1];
     }

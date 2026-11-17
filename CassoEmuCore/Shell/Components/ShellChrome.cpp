@@ -1110,7 +1110,7 @@ Error:
 //
 //  ShellChrome::UpdateDockHover
 //
-//  The magnification grows over kDockEaseMs once the dock is fully up and the
+//  The magnification grows over s_kDockEaseMs once the dock is fully up and the
 //  pointer is over it, and shrinks back over the same time once the pointer
 //  is off it, about the pointer's last place so the row settles where it
 //  was.
@@ -1119,23 +1119,20 @@ Error:
 
 bool ShellChrome::UpdateDockHover (POINT cursor, bool isOverDock, int64_t nowMs)
 {
-    constexpr float  kDockEaseMs = 120.0f;
-    DeskDockHover    next        = m_dockHover;
-    float            target      = (isOverDock && m_deskSlideProgress >= 1.0f) ? 1.0f : 0.0f;
-    float            step        = (m_dockHoverMs > 0) ? std::clamp ((float) (nowMs - m_dockHoverMs) / kDockEaseMs, 0.0f, 1.0f) : 0.0f;
-    bool             isChanged   = false;
+    DeskDockHover  next      = m_dockHover;
+    bool           isNear    = isOverDock && m_deskSlideProgress >= 1.0f;
+    bool           isChanged = false;
 
 
 
-    m_dockHoverMs = nowMs;
+    m_dockFade.SetNear (isNear, nowMs);
 
-    if (target > 0.0f)
+    if (isNear)
     {
         next.pointerPx = (float) cursor.x;
     }
 
-    next.strength = (target > next.strength) ? std::min (target, next.strength + step)
-                                             : std::max (target, next.strength - step);
+    next.strength = m_dockFade.GetStrength (nowMs);
 
     isChanged = next.pointerPx != m_dockHover.pointerPx || next.strength != m_dockHover.strength;
 
