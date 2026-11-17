@@ -239,7 +239,7 @@ public:
     {
         static const std::pair<const char *, LPCWSTR>  s_kCases[] =
         {
-            { "prodos/simple-sparse.po",  L"ProDOS loader"       },
+            { "prodos/simple-sparse.po",  L"ProDOS 8 v2.0.3"     },
             { "pascal/Apple Pascal1.po",  L"Apple Pascal loader" },
             { "hfs/simple-gsos.po",       L"None"                },
         };

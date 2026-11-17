@@ -105,7 +105,7 @@ void BlockMapBuilder::Build (const BlockImage & image, BlockMap & outMap)
 
     if (fileSystem != BlockFileSystem::None)
     {
-        outMap.bootLoader = BootLoaderId::Identify (image, fileSystem);
+        outMap.bootLoader = BootLoaderId::Identify (image, outMap);
     }
 
     outMap.CompleteEntries();
