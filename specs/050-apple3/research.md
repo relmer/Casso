@@ -56,12 +56,12 @@ hardware map's "Settled from an existing emulator" table. The main ones:
 - A character is 7 dots by 8 rows; bit 7 of a glyph row selects flashing.
 
 Four rows stay open: the exact 1 MHz rule, E VIA port B bit 6, the color
-values, and `ENSEL`/`ENSIO` (not needed without the Silentype).
+values, and `ENSEL`/`ENSIO` (unused without the Silentype).
 
 **Case dimensions**: no dimensioned drawing has been found. First estimates
 from the design patent's views and a main board photograph are in
 `contracts/desk-models.md`, with a discrepancy that blocks the body model:
-the patent's proportions give a height near 6.1 inches at a 17.5 inch width,
+by the patent's proportions the height is near 6.1 inches at a 17.5 inch width,
 against Apple's stated 4.8 inches.
 
 **Not yet read**: the Apple /// Owner's Guide (page images), the schematics,
