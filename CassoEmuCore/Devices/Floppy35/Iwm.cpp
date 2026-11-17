@@ -179,7 +179,8 @@ void Iwm::AdvanceTo (uint64_t nowNs)
 
     if (drive == nullptr || !m_enabled)
     {
-        m_cellCarryNs = 0;
+        m_cellCarryNs     = 0;
+        m_isUpdatePending = false;
         return;
     }
 
@@ -213,6 +214,51 @@ void Iwm::AdvanceTo (uint64_t nowNs)
         boundary      += cellNs;
         MoveCell (boundary);
     }
+
+    if (m_isUpdatePending && m_lastNs >= m_updateAt)
+    {
+        m_data            = m_shift;
+        m_isUpdatePending = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Iwm::Disable()
+{
+    m_enabled         = false;
+    m_motorOffPending = false;
+    UpdateEnables();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConsumeFreshByte
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Iwm::ConsumeFreshByte (Byte & outByte)
+{
+    bool  hasByte = m_hasFreshByte;
+
+
+
+    outByte        = m_freshByte;
+    m_hasFreshByte = false;
+
+    return hasByte;
 }
 
 
@@ -236,6 +282,8 @@ void Iwm::Reset()
     m_mode            = 0;
     m_data            = 0;
     m_shift           = 0;
+    m_isUpdatePending = false;
+    m_hasFreshByte    = false;
     m_bufferFull      = false;
     m_writeBits       = 0;
     m_underrun        = false;
@@ -340,7 +388,7 @@ Byte Iwm::ReadRegister()
     }
     else if (!m_q7 && m_q6)
     {
-        value = (Byte) (((drive == nullptr || drive->GetSense()) ? s_kSenseBit : 0) | (m_enabled ? s_kEnableBit : 0) | (m_mode & kModeMask));
+        value = (Byte) (((drive == nullptr || drive->GetSense()) ? s_kSenseBit : 0) | (IsMotorSwitchOn() ? s_kEnableBit : 0) | (m_mode & kModeMask));
     }
     else if (m_q7 && !m_q6)
     {
@@ -394,7 +442,9 @@ void Iwm::WriteRegister (Byte value)
 //  MoveCell
 //
 //  One cell: read, a bit into the shift register; written, a bit out of it,
-//  reloaded from the buffer every eight.
+//  reloaded from the buffer every eight. In sync mode a byte shifting in
+//  replaces the finished one in the data register from its third bit, or
+//  eight IWM clocks after its second.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -404,16 +454,43 @@ void Iwm::MoveCell (uint64_t cellEndNs)
 
 
 
+    constexpr Byte  kThirdBit  = 0x04;
+    constexpr Byte  kSecondBit = 0x02;
+    bool            isSync     = (m_mode & kModeAsync) == 0;
+
+
+
     if (!m_q7)
     {
         m_shift = (Byte) ((m_shift << 1) | drive->ReadCell (cellEndNs));
 
         if ((m_shift & s_kTopBit) != 0)
         {
-            m_data  = m_shift;
-            m_shift = 0;
+            m_data            = m_shift;
+            m_freshByte       = m_shift;
+            m_hasFreshByte    = true;
+            m_shift           = 0;
+            m_isUpdatePending = false;
+        }
+        else if (isSync && m_shift >= kThirdBit)
+        {
+            m_data            = m_shift;
+            m_isUpdatePending = false;
+        }
+        else if (isSync && m_shift >= kSecondBit)
+        {
+            m_isUpdatePending = true;
+            m_updateAt        = cellEndNs + (((m_mode & kModeFast) != 0) ? kSyncUpdateNs / 2 : kSyncUpdateNs);
         }
 
+        return;
+    }
+
+    //  With the motor switch off, a write stops: the disk turns through the
+    //  second's delay, and nothing is written to it.
+    if (m_motorOffPending)
+    {
+        (void) drive->ReadCell (cellEndNs);
         return;
     }
 

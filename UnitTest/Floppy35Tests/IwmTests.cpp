@@ -150,6 +150,72 @@ public:
     }
 
 
+    //  In sync mode a finished byte reads with its top bit set only until the
+    //  next byte's second bit and the delay after it; from the third bit on,
+    //  the bits shifted in so far read, top bit clear. A Disk II read loop
+    //  depends on that to read each byte once.
+    TEST_METHOD (Read_SyncModeShowsTheNextByteAsItArrives)
+    {
+        Iwm           iwm;
+        FakeDriveBus  drive;
+        Byte          data = 0;
+
+
+
+        AppendByte (drive.loop, 0xD5);
+        AppendByte (drive.loop, 0xAA);
+        iwm.AttachDrive (0, &drive);
+        iwm.Access (kMotorOn, false, 0, 0);
+
+        data = iwm.Access (kQ6Off, false, 0, 9 * FakeDriveBus::kCellNs);
+        Assert::AreEqual ((Byte) 0xD5, data, L"one bit of the next byte in");
+
+        data = iwm.Access (kQ6Off, false, 0, 11 * FakeDriveBus::kCellNs);
+        Assert::AreEqual ((Byte) 0x05, data, L"three bits in: 101");
+    }
+
+
+    //  With the motor switch turned off, a write stops for the second's
+    //  delay: the disk turns, and nothing is written to it.
+    TEST_METHOD (Write_StopsWithTheMotorSwitchOff)
+    {
+        Iwm           iwm;
+        FakeDriveBus  drive;
+
+
+
+        iwm.AttachDrive (0, &drive);
+        iwm.Access (kMotorOn, false, 0, 0);
+        iwm.Access (kMotorOff, false, 0, 0);
+        iwm.Access (kQ6On, false, 0, 0);
+        iwm.Access (kQ7On, true, 0x0F, 0);
+        iwm.AdvanceTo (16 * FakeDriveBus::kCellNs);
+
+        Assert::IsTrue (drive.written.empty(), L"nothing written in the delay");
+        Assert::AreEqual ((Byte) 0x0F, iwm.GetMode(), L"the byte went to the mode register");
+        Assert::AreEqual ((size_t) 16, drive.at, L"the disk turned");
+    }
+
+
+    //  The status register's enable bit follows the motor switch, so it
+    //  drops at once when the motor is turned off and the drive runs on.
+    TEST_METHOD (Status_EnableBitFollowsTheMotorSwitch)
+    {
+        Iwm           iwm;
+        FakeDriveBus  drive;
+
+
+
+        iwm.AttachDrive (0, &drive);
+        iwm.Access (kMotorOn, false, 0, 0);
+        iwm.Access (kMotorOff, false, 0, 0);
+        iwm.Access (kQ6On, false, 0, 0);
+
+        Assert::AreEqual ((Byte) 0x00, (Byte) (iwm.Access (kQ7Off, false, 0, 0) & 0x20));
+        Assert::IsTrue (iwm.IsEnabled(), L"the drive runs through the delay");
+    }
+
+
     //  A drive is enabled while the IWM's enable is on and the drive is
     //  selected; the other drive isn't.
     TEST_METHOD (Enable_ReachesTheSelectedDrive)

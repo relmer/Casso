@@ -41,6 +41,7 @@ TEST_CLASS (Floppy35BootTests)
 public:
 
     static constexpr const char *  kDiskPath     = "C:\\disks\\800k.po";
+    static constexpr const char *  kpszTrollSportsMath = "TrollSportsMath.woz";
     static constexpr uint64_t      kBootCap      = 80'000'000ULL;
     static constexpr size_t        kSector       = 256;
     static constexpr size_t        kTrackBlocks  = 8;
@@ -1046,5 +1047,114 @@ public:
         AssertSucceeded (DiskCopy42Container::Parse (io.files[kDiskPath], header, payload, parseError));
         Assert::IsFalse (header.isDataChecksumBad, L"the data checksum matches the written data");
         Assert::IsFalse (payload == Make800K (merlin), L"the guest's write is in the image");
+    }
+
+
+    //  The hi-res page 1 bytes, hashed: the copy-protected disk draws its
+    //  screens on the hi-res page, which the text scraper can't read.
+    static uint32_t GetHiResHash (MachineHost & host)
+    {
+        constexpr Word      kHiResStart = 0x2000;
+        constexpr Word      kHiResEnd   = 0x4000;
+        constexpr uint32_t  kFnvBasis   = 2166136261u;
+        constexpr uint32_t  kFnvPrime   = 16777619u;
+        uint32_t            hash        = kFnvBasis;
+
+
+
+        for (Word at = kHiResStart; at < kHiResEnd; at++)
+        {
+            hash = (hash ^ host.GetMemoryBus().ReadByte (at)) * kFnvPrime;
+        }
+
+        return hash;
+    }
+
+
+    static bool RunUntilHiResIs (MachineHost & host, uint32_t hash, uint64_t cycleCap)
+    {
+        constexpr uint64_t  kSlice  = 1'000'000ULL;
+        uint64_t            spent   = 0;
+        bool                isThere = false;
+
+
+
+        while (!isThere && spent < cycleCap)
+        {
+            spent  += host.RunCycles (kSlice);
+            isThere = GetHiResHash (host) == hash;
+        }
+
+        return isThere;
+    }
+
+
+    //  A COPY-PROTECTED 800K WOZ DISK, Troll Sports Math (1991), runs past
+    //  its protection to the name prompt in the //c Plus's internal drive and
+    //  in a UniDisk 3.5 on the //e's interface card. The disk runs only on
+    //  those drives and a IIgs: on the 3.5 controller card it falls to the
+    //  BASIC prompt with a screen of letters, as it does in MAME's
+    //  `superdrive` card. The name prompt's hash is of the screen on MAME's
+    //  //c Plus at the same point (validation.md).
+    TEST_METHOD (TrollSportsMath_ProtectedWozRunsOnTheDrivesItSupports)
+    {
+        constexpr uint32_t  kNamePromptHash = 0x35B52330;
+        constexpr uint64_t  kRunCap         = 60'000'000ULL;
+        std::vector<Byte>   woz             = GuestSession::FindTestDisk (kpszTrollSportsMath);
+
+
+
+        Assert::IsFalse (woz.empty(), L"TrollSportsMath.woz is REQUIRED. To get it, run scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs");
+
+        {
+            FakeDiskFileIo           io;
+            std::vector<PortConfig>  ports;
+            std::vector<PortConfig>  internal (1);
+
+
+
+            Attach (io, woz, ports);
+            internal[0].name   = "internal";
+            internal[0].device = kpszApple35DriveDevice;
+            internal[0].image  = kDiskPath;
+
+            TestMachine  machine ("Apple2cPlus", internal, io);
+
+            machine.PowerCycle();
+            GuestSession::StartFromPowerOn (machine);
+            Assert::IsTrue (RunUntilHiResIs (machine, kNamePromptHash, kRunCap), L"the name prompt, from the //c Plus's internal drive");
+        }
+
+        {
+            FakeDiskFileIo           io;
+            std::vector<PortConfig>  ports;
+
+
+
+            Attach (io, woz, ports);
+            ports[0].device = kpszUniDisk35Device;
+
+            TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszLironCardDevice, ports } }, io);
+
+            machine.PowerCycle();
+            GuestSession::StartFromPowerOn (machine);
+            Assert::IsTrue (RunUntilHiResIs (machine, kNamePromptHash, kRunCap), L"the name prompt, from a UniDisk 3.5 on the //e's card");
+        }
+
+        {
+            FakeDiskFileIo           io;
+            std::vector<PortConfig>  ports;
+
+
+
+            Attach (io, woz, ports);
+
+            TestMachine  machine ("Apple2eEnhanced", TestMachine::Slots::Empty, { { 5, kpszApple35CardDevice, ports } }, io);
+
+            machine.PowerCycle();
+            GuestSession::StartFromPowerOn (machine);
+            Assert::IsTrue (RunUntilScreenShows (machine, "]", kRunCap), L"on the 3.5 controller card the disk falls to BASIC, as in MAME");
+            Assert::IsFalse (GetHiResHash (machine) == kNamePromptHash);
+        }
     }
 };
