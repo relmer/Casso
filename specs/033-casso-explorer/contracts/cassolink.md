@@ -407,7 +407,7 @@ Modules and the requests they serve:
 |---|---|---|
 | Block | List block devices, Read blocks, Write blocks | every Apple II with a ProDOS block device |
 | Capture | Read quarter track | every Apple II with a Disk II |
-| Nibble | Read 13-sector track, Write nibble track | every Apple II with a Disk II |
+| 13-sector | Read 13-sector track, Write nibble track | every Apple II with a Disk II |
 | Cassette | Audio track, and the program's transport over cassette | ][+, //e |
 | SCC | the program's transport | IIgs |
 | Pascal firmware | the program's transport | any slot with a Pascal 1.1 serial card |

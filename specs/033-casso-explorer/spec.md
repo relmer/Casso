@@ -657,6 +657,12 @@ hardware.
 - Q: What do Undo save and Redo save do in the block inspector? -> A: As in the disk inspector (040's FR-107): Undo save writes the blocks back and makes the saved edits unsaved again; Redo save writes them again. Neither has a confirmation.
 - Q: Is there a confirmation before the block inspector edits an image a running machine has mounted? -> A: The same as in the disk inspector, only for a disk in a drive of a running machine (owner: "BI would deal with mounted block devices exactly as DI does"). Casso Explorer has no machine and Casso has no block inspector, so no confirmation comes up today.
 
+### Session 2026-11-17
+
+- Q: Which audio encoding does Casso's cassette link use? -> A: An encoding designed in Casso, and ADTPro's audio client is served besides by ADTPro's encoding (owner, 2026-11-17: "go with option 2"). ADTPro's protocol document has nothing on its audio encoding, so that encoding comes from recordings of ADTPro 2.1.0's audio client and server, never from ADTPro's source (FR-096). Casso's encoding doesn't wait on that work, and an error in ADTPro's affects ADTPro's client alone.
+- Q: Is a failed track sent again whole, or only its failed sectors? -> A: Only its failed sectors (owner, 2026-11-17: "per-sector retries are fine"). A track is about 15 seconds of audio, so each sector has a CRC in the track's packet, and the reply lists those that failed.
+- Q: What does Casso's audio encoding have to tolerate? -> A: Each bit is one full cycle, 500 microseconds for a 0 and 1,000 for a 1, as the monitor's tape format has, so an offset comparator, an inverted cable and resampling at 44.1 or 48 kHz don't change a bit; a turn starts with a tone and a mark that data can't contain; and the Apple's side is half duplex, sending what it has put when it next waits for a byte. The scenario tests run each direction through resampling, filtering, noise, inverted polarity, an offset threshold and jitter.
+
 ## User Scenarios & Testing *(mandatory)*
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
 
@@ -1639,8 +1645,8 @@ each way and compare the images. Serve ADTPro's audio client the same way.
 1. **Given** the link started over cassette, **When** Read disk to image is
    chosen, **Then** each track is sent from the Apple's cassette output,
    and Casso Explorer decodes the PC's audio input into the image.
-2. **Given** a damaged stretch of audio, **When** a track's checksum fails,
-   **Then** that track is requested again, as a serial reply is.
+2. **Given** a damaged stretch of audio, **When** a sector's checksum fails,
+   **Then** that sector is requested again, as a serial reply is.
 3. **Given** an image on the PC, **When** Write image to disk is chosen,
    **Then** each track is played into the Apple's cassette input, written,
    and read back to verify.
@@ -3788,8 +3794,9 @@ as they arrive.
   Apple's cassette input, write it and read it back to verify. The
   connection's settings MUST pick the audio input and output devices and
   draw the input level.
-- **FR-203**: Each track sent as audio MUST have a checksum, and a track that
-  fails MUST be sent again, up to five times, as FR-144 sets for serial.
+- **FR-203**: Each sector of a track sent as audio MUST have a checksum, and
+  the sectors that fail MUST be sent again, up to five times, as FR-144 sets
+  for serial.
 - **FR-204**: ADTPro's audio client MUST be served by its published
   protocol, by the rule the Assumptions set for ADTPro compatibility.
 
