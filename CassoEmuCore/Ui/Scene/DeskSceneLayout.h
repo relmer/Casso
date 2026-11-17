@@ -645,6 +645,26 @@ private:
                                       float                        tanHalfX,
                                       const RECT                 & viewportPx);
 
+    // A docked device: its world matrix in the composition, its model's
+    // bounds, and its span in world x at rest.
+    struct DockItem
+    {
+        float        * world;
+        const float  * lo;
+        const float  * hi;
+        float          x0;
+        float          w;
+    };
+
+    // The docked devices grown for the pointer at pointerX on the row at
+    // rest, each from its world matrix at rest in `rest`.
+    static void     GrowDock         (std::vector<DockItem>                         & items,
+                                      const std::vector<std::array<float, 16>>      & rest,
+                                      const std::vector<DxuiMagnifiedItem>          & row,
+                                      float                                           pointerX,
+                                      float                                           strength,
+                                      float                                           reach);
+
     // The drives' and recorder's screen rects and the drives' label anchors.
     static void     ProjectDeviceRects (DeskSceneComposition     & out,
                                         const DeskSceneMetrics   & metrics,

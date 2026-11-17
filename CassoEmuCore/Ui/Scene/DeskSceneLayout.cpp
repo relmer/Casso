@@ -624,26 +624,21 @@ void DeskSceneLayout::MagnifyDock (DeskSceneComposition   & out,
                                    float                    tanHalfX,
                                    const RECT             & viewportPx)
 {
-    struct Item
-    {
-        float        * world;
-        const float  * lo;
-        const float  * hi;
-        float          x0;
-        float          w;
-    };
-
-    std::vector<Item>                     items;
+    std::vector<DockItem>                 items;
+    std::vector<std::array<float, 16>>    rest;
     std::vector<DxuiMagnifiedItem>        row;
-    std::vector<DxuiMagnifiedSpan>        spans;
     std::vector<std::pair<float, float>>  edges;
-    DxuiMagnifiedRow::Options             options;
     float                                 halfW     = (float) (viewportPx.right - viewportPx.left) * 0.5f;
     float                                 pointer   = 0.0f;
     float                                 reach     = 0.0f;
     float                                 pointerX  = 0.0f;
     float                                 lift      = 0.0f;
+    float                                 liftA     = 0.0f;
+    float                                 liftB     = 0.0f;
+    float                                 centerA   = 0.0f;
+    float                                 centerB   = 0.0f;
     size_t                                k         = 0;
+    size_t                                nearest   = 0;
 
 
 
@@ -677,7 +672,7 @@ void DeskSceneLayout::MagnifyDock (DeskSceneComposition   & out,
 
     // Each device's span in world x, and the view tangents of its front
     // corners, which place its edges on screen.
-    for (Item & item : items)
+    for (DockItem & item : items)
     {
         float  s = item.world[0];
 
@@ -697,7 +692,7 @@ void DeskSceneLayout::MagnifyDock (DeskSceneComposition   & out,
         }
     }
 
-    std::sort (items.begin(), items.end(), [] (const Item & a, const Item & b) { return a.x0 < b.x0; });
+    std::sort (items.begin(), items.end(), [] (const DockItem & a, const DockItem & b) { return a.x0 < b.x0; });
     std::sort (edges.begin(), edges.end());
 
     if (edges.size() < 2)
@@ -728,30 +723,89 @@ void DeskSceneLayout::MagnifyDock (DeskSceneComposition   & out,
         pointerX = items[0].x0 + items[0].w * 0.5f;
     }
 
-    // The gaps grow with the devices beside them, and the row is moved so
-    // the point under the pointer is under it again.
-    for (const Item & item : items)
+    for (const DockItem & item : items)
     {
         float  most = (item.world[0] > 0.0f) ? std::max (1.0f, out.dockFullScale * kDockMostOfFullSize / item.world[0]) : 1.0f;
 
         row.push_back ({ item.x0, item.w, most });
+        rest.push_back ({});
+        std::copy (item.world, item.world + 16, rest.back().begin());
     }
 
-    spans.resize (row.size());
+    // The lift is solved with the pointer at the centers of the devices on
+    // either side of it and blended between them by the pointer's place.
+    // Solved for the pointer itself, the lift fell between two devices,
+    // where neither is fully grown, and rose again at the next, so the row
+    // bounced as the pointer crossed it.
+    while (nearest + 1 < row.size() && pointerX >= row[nearest + 1].left + row[nearest + 1].width * 0.5f)
+    {
+        nearest++;
+    }
+
+    centerA = row[nearest].left + row[nearest].width * 0.5f;
+    centerB = (nearest + 1 < row.size()) ? row[nearest + 1].left + row[nearest + 1].width * 0.5f : centerA;
+
+    GrowDock (items, rest, row, centerA, dock.strength, reach);
+    liftA = SolveSlideOffset (out, metrics, driveCount, 1.0f, out.dockFloorTan);
+
+    GrowDock (items, rest, row, centerB, dock.strength, reach);
+    liftB = SolveSlideOffset (out, metrics, driveCount, 1.0f, out.dockFloorTan);
+
+    lift = (centerB > centerA) ? liftA + (liftB - liftA) * std::clamp ((pointerX - centerA) / (centerB - centerA), 0.0f, 1.0f) : liftA;
+
+    GrowDock (items, rest, row, pointerX, dock.strength, reach);
+
+    for (DockItem & item : items)
+    {
+        item.world[13] += lift;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeskSceneLayout::GrowDock
+//
+//  The gaps grow with the devices beside them, and the row is moved so the
+//  point under the pointer is under it again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DeskSceneLayout::GrowDock (std::vector<DockItem>                     & items,
+                                const std::vector<std::array<float, 16>>  & rest,
+                                const std::vector<DxuiMagnifiedItem>      & row,
+                                float                                       pointerX,
+                                float                                       strength,
+                                float                                       reach)
+{
+    std::vector<DxuiMagnifiedSpan>  spans (row.size());
+    DxuiMagnifiedRow::Options       options;
+
+
 
     options.reach  = reach;
     options.anchor = DxuiMagnifiedRow::Anchor::Pointer;
     options.gaps   = DxuiMagnifiedRow::Gaps::Grow;
 
-    DxuiMagnifiedRow::Lay (row, pointerX, dock.strength, options, spans);
+    DxuiMagnifiedRow::Lay (row, pointerX, strength, options, spans);
 
     for (size_t i = 0; i < items.size(); i++)
     {
-        Item &  item    = items[i];
-        float   s       = item.world[0];
-        float   bottomY = item.world[13] + s * item.lo[2];
-        float   backZ   = item.world[14] - s * item.hi[1];
-        float   grown   = s * spans[i].scale;
+        DockItem &  item    = items[i];
+        float       s       = 0.0f;
+        float       bottomY = 0.0f;
+        float       backZ   = 0.0f;
+        float       grown   = 0.0f;
+
+        std::copy (rest[i].begin(), rest[i].end(), item.world);
+
+        s       = item.world[0];
+        bottomY = item.world[13] + s * item.lo[2];
+        backZ   = item.world[14] - s * item.hi[1];
+        grown   = s * spans[i].scale;
 
         item.world[0]  = grown;
         item.world[6]  = -grown;
@@ -759,13 +813,6 @@ void DeskSceneLayout::MagnifyDock (DeskSceneComposition   & out,
         item.world[12] = spans[i].left - grown * item.lo[0];
         item.world[13] = bottomY - grown * item.lo[2];
         item.world[14] = backZ + grown * item.hi[1];
-    }
-
-    lift = SolveSlideOffset (out, metrics, driveCount, 1.0f, out.dockFloorTan);
-
-    for (Item & item : items)
-    {
-        item.world[13] += lift;
     }
 }
 
