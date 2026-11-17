@@ -63,7 +63,7 @@ public:
 
     void  ConfigureButtons (Buttons buttons);
     void  SetSystemHwnd    (HWND hwnd);
-    void  SetTitle         (const std::wstring & title);
+    void  SetTitle         (const std::wstring & title, size_t markAt = std::wstring::npos);
     void  SetAppIcon       (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
     void  SetMaximized     (bool maximized);
 
@@ -101,9 +101,12 @@ private:
     static constexpr int      kButtonWidthDip   = 46;
     static constexpr wchar_t  kTitleFamily[]    = L"Segoe UI";
 
+    void  PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & areaPx, float fontPx);
+
     bool                                 m_renderCaption     = false;
     Buttons                              m_buttons           = Buttons::None;
     std::wstring                         m_title;
+    size_t                               m_markAt            = std::wstring::npos;
     bool                                 m_titleCut          = false;
     RECT                                 m_titleRectPx       = {};
     std::vector<uint32_t>                m_iconPixels;

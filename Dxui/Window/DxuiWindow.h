@@ -247,7 +247,7 @@ public:
 
     void                SetTheme           (const IDxuiTheme * theme);
     const IDxuiTheme  * GetTheme           () const { return m_theme; }
-    void                SetTitle           (const std::wstring & title);
+    void                SetTitle           (const std::wstring & title, size_t markAt = std::wstring::npos);
 
     //  The smallest size the user can resize the window to, as at creation.
     void                SetMinSizeDip      (const SIZE & sizeDip) { m_minSizeDip = sizeDip; }

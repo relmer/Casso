@@ -413,7 +413,7 @@ public:
     //  top-strip height in physical pixels (0 when no host caption) so
     //  the consumer can lay its own content out beneath it.
     //
-    void  SetTitle           (const std::wstring & title);
+    void  SetTitle           (const std::wstring & title, size_t markAt = std::wstring::npos);
     void  SetCaptionIcon     (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx);
     int   GetCaptionHeightPx () const;
 

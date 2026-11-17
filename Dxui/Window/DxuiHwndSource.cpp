@@ -32,6 +32,9 @@ static constexpr UINT_PTR  s_kModalLoopTimerId = 0xDCE1;
 static constexpr UINT_PTR  s_kCaptionTipTimerId = 0xDCE2;
 static constexpr UINT      s_kCaptionTipTickMs  = 16;
 
+// The mark in the window text for unsaved changes: U+25CF BLACK CIRCLE.
+static constexpr LPCWSTR   s_kpszUnsavedMark    = L"\x25CF";
+
 
 
 
@@ -4050,24 +4053,30 @@ void DxuiHwndSource::LayoutCaption (const RECT & clientDip)
 //  SetTitle
 //
 //  SetWindowText-style title update: drives the Win32 window text (so
-//  Alt-Tab / taskbar stay correct) and the host-owned caption glyph.
+//  Alt-Tab / taskbar stay correct) and the host-owned caption glyph. At
+//  markAt, the window text has a black circle and the caption a dot in the
+//  error color, which indicate unsaved changes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::SetTitle (const std::wstring & title)
+void DxuiHwndSource::SetTitle (const std::wstring & title, size_t markAt)
 {
+    std::wstring  text = (markAt <= title.size()) ? title.substr (0, markAt) + L" " + s_kpszUnsavedMark + title.substr (markAt) : title;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    m_params.title = title;
+    m_params.title = text;
 
     if (m_hwnd != nullptr)
     {
-        SetWindowTextW (m_hwnd, title.c_str());
+        SetWindowTextW (m_hwnd, text.c_str());
     }
 
     if (m_caption)
     {
-        m_caption->SetTitle (title);
+        m_caption->SetTitle (title, markAt);
         if (m_hwnd != nullptr)
         {
             InvalidateRect (m_hwnd, nullptr, FALSE);

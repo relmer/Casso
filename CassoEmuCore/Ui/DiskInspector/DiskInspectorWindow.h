@@ -188,6 +188,7 @@ private:
     vector<IInspectorComponent *>      m_components;
     InspectorCommands                  m_commands;
     std::wstring                       m_title;
+    size_t                             m_titleMark        = std::wstring::npos;
     DxuiTooltip                        m_tooltip;
     DxuiTooltip                        m_zoomNote;
     bool                               m_isSplitting      = false;

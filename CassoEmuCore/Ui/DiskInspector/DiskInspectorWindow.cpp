@@ -916,16 +916,17 @@ bool DiskInspectorWindow::RunCommand (const InspectorCommands::Command & command
 //  DiskInspectorWindow::UpdateTitle
 //
 //  "Disk inspector - " and the file's path, with a lock before it while the
-//  disk is write-protected (FR-007, FR-065), a * just before the path while
+//  disk is write-protected (FR-007, FR-065), a red dot after the path while
 //  edits are pending, and the machine and drive while the disk is mounted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskInspectorWindow::UpdateTitle()
 {
-    std::wstring  title = s_kpszWindowTitle;
-    std::wstring  mount = m_session.host->GetMountDescription();
-    std::wstring  path  = (m_session.analysis.copy != nullptr) ? TextEncoding::Utf8ToWide (m_session.analysis.copy->fileName) : std::wstring();
+    std::wstring  title  = s_kpszWindowTitle;
+    std::wstring  mount  = m_session.host->GetMountDescription();
+    size_t        markAt = std::wstring::npos;
+    std::wstring  path   = (m_session.analysis.copy != nullptr) ? TextEncoding::Utf8ToWide (m_session.analysis.copy->fileName) : std::wstring();
 
 
 
@@ -933,15 +934,16 @@ void DiskInspectorWindow::UpdateTitle()
     {
         title += L" - ";
         title += m_session.IsWriteProtected() ? std::wstring (s_kpszLock) + L" " : std::wstring();
-        title += m_session.edits.IsEmpty() ? L"" : L"*";
         title += path.empty() ? m_session.GetFileName() : path;
+        markAt = m_session.edits.IsEmpty() ? std::wstring::npos : title.size();
         title += mount.empty() ? std::wstring() : L" (mounted in " + mount + L")";
     }
 
-    if (title != m_title)
+    if (title != m_title || markAt != m_titleMark)
     {
-        m_title = title;
-        SetTitle (title);
+        m_title     = title;
+        m_titleMark = markAt;
+        SetTitle (title, markAt);
     }
 }
 

@@ -500,13 +500,16 @@ void DxuiWindow::SetTheme (const IDxuiTheme * theme)
 //
 //  SetTitle
 //
+//  markAt is the position in the title of the unsaved-changes dot, or npos
+//  for none.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::SetTitle (const std::wstring & title)
+void DxuiWindow::SetTitle (const std::wstring & title, size_t markAt)
 {
     if (m_source != nullptr)
     {
-        m_source->SetTitle (title);
+        m_source->SetTitle (title, markAt);
     }
 }
 

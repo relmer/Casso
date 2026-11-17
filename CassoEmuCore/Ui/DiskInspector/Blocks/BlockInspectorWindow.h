@@ -149,6 +149,7 @@ private:
     std::wstring              m_editNote;                // the edit bar's note: the last save's result, or why it failed
     std::wstring              m_titleNote;               // after the name in the title, as the image compared with
     std::wstring              m_title;
+    size_t                    m_titleMark       = std::wstring::npos;
     DxuiTooltip               m_tooltip;
     Win32ShellIcons           m_icons;
     std::wstring              m_tooltipText;

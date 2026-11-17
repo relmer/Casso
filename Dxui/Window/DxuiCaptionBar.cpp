@@ -118,11 +118,12 @@ void DxuiCaptionBar::SetSystemHwnd (HWND hwnd)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiCaptionBar::SetTitle (const std::wstring & title)
+void DxuiCaptionBar::SetTitle (const std::wstring & title, size_t markAt)
 {
     DXUI_ASSERT_UI_THREAD();
 
-    m_title = title;
+    m_title  = title;
+    m_markAt = (markAt <= title.size()) ? markAt : std::wstring::npos;
 }
 
 
@@ -367,7 +368,6 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     float         textOffsetPx  = 0.0f;
     float         titleWidthPx  = 0.0f;
     float         fontPx        = 0.0f;
-    std::wstring  shown;
     float         buttonStripPx = 0.0f;
     int           buttonCount   = 0;
 
@@ -418,29 +418,70 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     fontPx = m_scaler.ToPxf (kTitleFontDip);
 
-    //  One line, as Windows draws a caption: a title too long for the room
-    //  is cut short with an ellipsis rather than wrapped.
-    shown = DxuiTextElide::ToWidth (text, m_title, fontPx, kTitleFamily, titleWidthPx, DxuiElide::Tail);
-
-    m_titleCut    = shown != m_title;
-    m_titleRectPx = RECT { std::lround (textLeftPx), std::lround (yPx),
-                           std::lround (textLeftPx + titleWidthPx), std::lround (yPx + hPx) };
-
-    {
-        HRESULT  hrText = text.DrawString (shown.c_str(),
-                                           textLeftPx,
-                                           yPx,
-                                           titleWidthPx,
-                                           hPx,
-                                           theme.CaptionForeground(),
-                                           fontPx,
-                                           kTitleFamily,
-                                           DxuiTextHAlign::Left,
-                                           DxuiTextVAlign::Center);
-        IGNORE_RETURN_VALUE (hrText, S_OK);
-    }
+    PaintTitle (painter, text, theme, RECT { std::lround (textLeftPx), std::lround (yPx), std::lround (textLeftPx + titleWidthPx), std::lround (yPx + hPx) }, fontPx);
 
     DxuiPanel::Paint (painter, text, theme);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintTitle
+//
+//  One line, as Windows draws a caption: a title too long for the room is
+//  cut short with an ellipsis rather than wrapped. The unsaved-changes dot
+//  goes at m_markAt, or after the cut when the cut comes before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiCaptionBar::PaintTitle (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & areaPx, float fontPx)
+{
+    constexpr float  kDotFraction = 0.45f;
+    constexpr float  kGapFraction = 0.35f;
+
+
+
+    bool          isMarked = m_markAt != std::wstring::npos;
+    float         leftPx   = (float) areaPx.left;
+    float         topPx    = (float) areaPx.top;
+    float         widthPx  = (float) (areaPx.right - areaPx.left);
+    float         heightPx = (float) (areaPx.bottom - areaPx.top);
+    float         dotPx    = fontPx * kDotFraction;
+    float         markPx   = isMarked ? fontPx * kGapFraction + dotPx : 0.0f;
+    float         headPx   = 0.0f;
+    float         unused   = 0.0f;
+    std::wstring  shown    = DxuiTextElide::ToWidth (text, m_title, fontPx, kTitleFamily, std::max (0.0f, widthPx - markPx), DxuiElide::Tail);
+    std::wstring  head     = shown;
+    std::wstring  tail;
+    HRESULT       hr       = S_OK;
+
+
+
+    m_titleCut    = shown != m_title;
+    m_titleRectPx = areaPx;
+
+    if (isMarked && shown.size() >= m_markAt && shown.compare (0, m_markAt, m_title, 0, m_markAt) == 0)
+    {
+        head = shown.substr (0, m_markAt);
+        tail = shown.substr (m_markAt);
+    }
+
+    hr = text.DrawString (head.c_str(), leftPx, topPx, widthPx, heightPx, theme.CaptionForeground(), fontPx, kTitleFamily, DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (isMarked)
+    {
+        hr = text.MeasureString (head.c_str(), fontPx, kTitleFamily, headPx, unused);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        painter.FillCircle (leftPx + headPx + markPx - dotPx / 2.0f, topPx + heightPx / 2.0f, dotPx / 2.0f, theme.ErrorForeground());
+
+        hr = text.DrawString (tail.c_str(), leftPx + headPx + markPx, topPx, std::max (0.0f, widthPx - headPx - markPx), heightPx, theme.CaptionForeground(), fontPx, kTitleFamily, DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }
 
 

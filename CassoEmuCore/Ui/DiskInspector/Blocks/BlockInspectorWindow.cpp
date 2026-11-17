@@ -1101,22 +1101,25 @@ void BlockInspectorWindow::UpdateEditing()
 //
 //  BlockInspectorWindow::UpdateTitle
 //
-//  "Block inspector - " and the file's name, with a * before the name while
-//  edits are pending, then a note such as the image it is compared with.
+//  "Block inspector - " and the file's name, with a red dot after the name
+//  while edits are pending, then a note such as the image it is compared with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BlockInspectorWindow::UpdateTitle()
 {
     bool          hasEdits = m_model.IsOpen() && !m_model.GetEdits().IsEmpty();
-    std::wstring  title    = L"Block inspector - " + std::wstring (hasEdits ? L"*" : L"") + GetFileName() + m_titleNote;
+    std::wstring  name     = L"Block inspector - " + GetFileName();
+    std::wstring  title    = name + m_titleNote;
+    size_t        markAt   = hasEdits ? name.size() : std::wstring::npos;
 
 
 
-    if (title != m_title)
+    if (title != m_title || markAt != m_titleMark)
     {
-        m_title = title;
-        SetTitle (title);
+        m_title     = title;
+        m_titleMark = markAt;
+        SetTitle (title, markAt);
     }
 }
 
