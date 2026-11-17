@@ -20,7 +20,7 @@ class IDiskDriveBus;
 //      0  0   the data register: the last byte read off the disk, $FF
 //             with the drive not enabled
 //      0  1   status: bit 7 the selected drive's sense line, bit 5 the
-//             enable, bits 4-0 the mode
+//             enable switch, bits 4-0 the mode
 //      1  0   write handshake: bit 7 the write buffer empty, bit 6 no
 //             underrun
 //
@@ -31,6 +31,9 @@ class IDiskDriveBus;
 //  Bits move one drive cell at a time, at the selected drive's cell time:
 //  reading shifts each cell into a register that becomes the data byte when
 //  its top bit is set; writing shifts the buffered byte out, top bit first.
+//  In sync mode the data register reads the next byte's bits as they shift
+//  in: at once from its third bit, and eight IWM clocks after its second.
+//  Until then a finished byte reads with its top bit set.
 //  Time is passed in nanoseconds by the owner, whose clock runs the chip.
 //
 //  The SWIM in its IWM mode works the same way. Writing mode bit 6 as 1, 0,
@@ -54,6 +57,7 @@ public:
     static constexpr Byte  kModeLatch     = 0x01;
     static constexpr Byte  kModeAsync     = 0x02;
     static constexpr Byte  kModeNoTimer   = 0x04;
+    static constexpr Byte  kModeFast      = 0x08;
     static constexpr Byte  kModeMask      = 0x1F;
 
     void  AttachDrive (int index, IDiskDriveBus * drive) { m_drives[(size_t) index] = drive; }
@@ -67,15 +71,25 @@ public:
 
     void  Reset ();
 
-    bool  IsEnabled     () const { return m_enabled; }
-    bool  IsWriting     () const { return m_q7; }
-    int   GetDrive      () const { return m_driveSelect; }
-    Byte  GetMode       () const { return m_mode; }
-    bool  GetPhase      (int phase) const { return m_phases[(size_t) phase]; }
-    bool  IsIsmMode     () const { return m_ism; }
+    //  Turns the enable off at once, without the second's delay.
+    void  Disable ();
+
+    //  The last byte the shift register finished since the previous call, for
+    //  a log of what was read. False when no byte has finished.
+    bool  ConsumeFreshByte (Byte & outByte);
+
+    bool  IsEnabled       () const { return m_enabled; }
+    bool  IsWriting       () const { return m_q7; }
+    bool  IsQ6            () const { return m_q6; }
+    bool  IsMotorSwitchOn () const { return m_enabled && !m_motorOffPending; }
+    int   GetDrive        () const { return m_driveSelect; }
+    Byte  GetMode         () const { return m_mode; }
+    bool  GetPhase        (int phase) const { return m_phases[(size_t) phase]; }
+    bool  IsIsmMode       () const { return m_ism; }
 
 private:
     static constexpr uint64_t  kMotorOffNs    = 1'000'000'000;
+    static constexpr uint64_t  kSyncUpdateNs  = 1'117;
     static constexpr size_t    kParamBytes    = 16;
     static constexpr Byte      kIsmBit        = 0x40;
     static constexpr Byte      kIsmEntry      = 0x0B;
@@ -103,6 +117,10 @@ private:
     Byte                                  m_mode            = 0;
     Byte                                  m_data            = 0;
     Byte                                  m_shift           = 0;
+    bool                                  m_isUpdatePending = false;
+    uint64_t                              m_updateAt        = 0;
+    bool                                  m_hasFreshByte    = false;
+    Byte                                  m_freshByte       = 0;
     Byte                                  m_writeBuffer     = 0;
     bool                                  m_bufferFull      = false;
     int                                   m_writeBits       = 0;

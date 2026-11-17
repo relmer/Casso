@@ -107,6 +107,13 @@ public:
     uint8_t  ReadLatch  ();
     void     WriteLatch (uint8_t value);
 
+    // One bit cell for an IWM, which has a shift register in place of the
+    // sequencer: returns 1 when the read head finds a transition in the
+    // cell, and with `isWriting` writes `bit` to it instead. A flux track
+    // moves on by the cell's eight sequencer clocks.
+    uint8_t  StepCell         (bool isWriting, uint8_t bit);
+    void     CountReadNibble  () { m_readNibbles++; }
+
     // Passive-watcher hook: returns true exactly once per fully-
     // assembled MSB-set nibble. ReadLatch is a pure sample with no
     // consume side effect (the CPU polls $C0EC in a tight BPL loop

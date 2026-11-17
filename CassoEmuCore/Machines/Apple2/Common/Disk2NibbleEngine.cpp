@@ -545,6 +545,86 @@ void Disk2NibbleEngine::Tick (uint32_t cpuCycles)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StepCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t Disk2NibbleEngine::StepCell (bool isWriting, uint8_t bit)
+{
+    constexpr int  kLssClocksPerCell = 8;
+    bool           hasTrack          = false;
+    bool           writing           = false;
+    uint8_t        pulse             = 0;
+    size_t         trackBits         = 0;
+
+
+
+    if (m_disk != nullptr && m_disk->GetLayoutGeneration() != m_layoutGeneration)
+    {
+        RefreshSlot();
+    }
+
+    hasTrack = (m_slot >= 0);
+    writing  = isWriting && hasTrack && !m_disk->IsWriteProtected();
+
+    if (m_isFluxSlot)
+    {
+        for (m_lssClock = 0; m_lssClock < kLssClocksPerCell; m_lssClock++)
+        {
+            m_fluxNow += kFluxUnitsPerLssClock;
+
+            if (m_lssClock == kLssReadClock || m_fluxNow >= m_fluxDue)
+            {
+                pulse = (uint8_t) (pulse | StepFluxPulse());
+            }
+        }
+
+        m_lssClock = 0;
+
+        if (writing)
+        {
+            RecordFluxWriteBit (bit);
+        }
+        else if (m_burstActive)
+        {
+            CommitPendingWrite();
+        }
+    }
+    else if (hasTrack)
+    {
+        pulse = ApplyHeadWindow (m_disk->ReadBit (m_slot, m_bitPos));
+
+        if (writing)
+        {
+            m_disk->WriteBit (m_slot, m_bitPos, bit);
+        }
+
+        trackBits = m_disk->GetTrackBitCount (m_slot);
+
+        if (trackBits > 0)
+        {
+            m_bitPos = (m_bitPos + 1) % trackBits;
+        }
+    }
+    else
+    {
+        pulse = ApplyHeadWindow (0);
+
+        if (m_disk != nullptr)
+        {
+            m_bitPos = (m_bitPos + 1) % kUnformattedTrackBits;
+        }
+    }
+
+    return pulse;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  StepLss
 //
 //  One 2 MHz Logic State Sequencer clock. Faithful port of the P6 state
