@@ -127,6 +127,11 @@ public:
     void    SlideDriveBar          (float progress);
     bool    IsPointOnDriveBar      (POINT pt) const;
 
+    // Ctrl+wheel over the bar zooms every widget on it together, and the
+    // row stays centered. Returns false when the pointer is not on the bar.
+    bool    ZoomDriveBar           (POINT pt, float notches);
+    float   GetDriveBarZoom        () const;
+
     void    LayoutSwitchBar        (UINT dpi);
     void    SyncSwitchBarState     ();
     void    HandleSwitchBarClick   (Apple2cSwitchBar::Part part);
@@ -257,6 +262,15 @@ private:
     float                      m_driveBarSlideProgress = 0.0f;
     int                        m_driveBarHoverClass    = -1;
     int                        m_driveBarHoverEntry    = -1;
+
+    // The DPI the bar is drawn at: the window's times the bar's zoom.
+    UINT                       m_driveBarZoomedDpi     = 96;
+
+    // The last drive clicked in each class, drawn in the class's widget
+    // while the class is closed (DriveBarFan::PutFirst). A click while the fan is open takes effect
+    // when it closes, so the fan isn't rearranged under the pointer.
+    std::vector<DeskDrive>     m_driveBarRecent;
+    bool                       m_driveBarRecentPending = false;
 
     static constexpr uint64_t  s_kDriveBarFanSlideMs = 160;
 

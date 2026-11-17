@@ -56,6 +56,47 @@ std::vector<std::vector<DeskDrive>> DriveBarFan::Group (const std::vector<DeskDr
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DriveBarFan::PutFirst
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DriveBarFan::PutFirst (std::vector<std::vector<DeskDrive>> & classes, const std::vector<DeskDrive> & recent)
+{
+    for (std::vector<DeskDrive> & drives : classes)
+    {
+        for (const DeskDrive & drive : recent)
+        {
+            auto  found = std::find (drives.begin(), drives.end(), drive);
+
+            if (found != drives.end())
+            {
+                std::rotate (drives.begin(), found, found + 1);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DriveBarFan::GetZoomAfterWheel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DriveBarFan::GetZoomAfterWheel (float zoom, float notches)
+{
+    return std::clamp (zoom + notches * kZoomStep, kMinZoom, kMaxZoom);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DriveBarFan::SetClasses
 //
 ////////////////////////////////////////////////////////////////////////////////

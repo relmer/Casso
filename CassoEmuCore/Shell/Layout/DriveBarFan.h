@@ -37,6 +37,19 @@ public:
     //  class with no drive on the bar has no list.
     static std::vector<std::vector<DeskDrive>>  Group (const std::vector<DeskDrivePlacement> & plan);
 
+    //  Moves each of the `recent` drives to the bottom of its class, the
+    //  slot drawn while the class is closed. A drive no longer on the bar
+    //  changes nothing.
+    static void  PutFirst (std::vector<std::vector<DeskDrive>> & classes, const std::vector<DeskDrive> & recent);
+
+    //  The bar's zoom after `notches` of Ctrl+wheel, kZoomStep a notch,
+    //  between kMinZoom and kMaxZoom.
+    static constexpr float  kMinZoom  = 0.75f;
+    static constexpr float  kMaxZoom  = 3.0f;
+    static constexpr float  kZoomStep = 0.1f;
+
+    static float  GetZoomAfterWheel (float zoom, float notches);
+
     void  SetClasses (std::vector<std::vector<DeskDrive>> classes);
 
     //  Width of a row of `classCount` widgets.

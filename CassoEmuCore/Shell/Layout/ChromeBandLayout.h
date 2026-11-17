@@ -23,6 +23,7 @@ struct ChromeBandInputs
     bool   hasCaseSwitches     = false;   // only the //c has the switch strip
     int    driveBarThicknessDp = 0;
     float  chromeSceneScale    = 1.0f;    // the drive band zooms with the scene
+    float  driveBarZoom        = 1.0f;    // or, with drives on the bar, with the bar's zoom
     int    toolbarBandDp       = 0;
     int    changeBandPx        = 0;       // already measured against the client width
     int    captureBandPx       = 0;

@@ -170,4 +170,17 @@ private:
 
         return scaler;
     }
+
+
+    TEST_METHOD (DrivesOnTheBar_BandGrowsWithTheBarZoom)
+    {
+        ChromeBandInputs  inputs = Typical();
+
+        inputs.crtMonitorActive    = true;
+        inputs.drivesOnBar         = true;
+        inputs.driveBarThicknessDp = 180;
+        inputs.driveBarZoom        = 1.5f;
+
+        Assert::AreEqual (270, ChromeBandLayout::DriveBandDp (inputs), L"the band is as tall as the zoomed widgets");
+    }
 };

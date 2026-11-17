@@ -17,7 +17,8 @@
 //  //c Plus's drives in a compact theme, which has no Disk ][ controller.
 //  The bar is drawn at the window's scale rather than the scene's: the scene
 //  zooms out to fit the desk, and a bar zoomed with it was too small to
-//  read. With auto-hide on,
+//  read. The bar is zoomed separately instead, with Ctrl+wheel over it, and
+//  the band grows with it. With auto-hide on,
 //  the drives slide up over the picture from the bottom edge, so the band
 //  collapses too. Otherwise the band zooms with the scene so it hugs the
 //  scaled widgets instead of leaving dead space around them.
@@ -28,7 +29,7 @@ int ChromeBandLayout::DriveBandDp (const ChromeBandInputs & inputs)
 {
     int   dp    = 0;
     bool  bar   = inputs.drivesOnBar;
-    float scale = bar ? 1.0f : inputs.chromeSceneScale;
+    float scale = bar ? inputs.driveBarZoom : inputs.chromeSceneScale;
 
 
 

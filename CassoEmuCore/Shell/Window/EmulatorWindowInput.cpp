@@ -984,12 +984,21 @@ DxuiMessageResult EmulatorShell::OnMouseWheel (WPARAM wParam, LPARAM lParam, boo
 {
     int     delta   = GET_WHEEL_DELTA_WPARAM (wParam);
     POINT   pt      = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    POINT   onBar   = pt;
     bool    pinch   = (GET_KEYSTATE_WPARAM (wParam) & MK_CONTROL) != 0;
     bool    detent  = (delta % WHEEL_DELTA) == 0;
     float   notch   = 0.0f;
     float   factor  = 1.0f;
 
 
+
+    // Ctrl+wheel over the drive bar zooms the bar, in any theme, ahead of
+    // the scene, which would otherwise take it as a zoom of the desk.
+    if (pinch && !horizontal && delta != 0 && !m_paddleCaptured && m_hwnd != nullptr &&
+        ScreenToClient (m_hwnd, &onBar) && m_chrome->ZoomDriveBar (onBar, (float) delta / (float) WHEEL_DELTA))
+    {
+        return DxuiMessageResult::Handled;
+    }
 
     // Paddle capture owns the pointer: it is hidden and confined to the
     // window because someone is playing a game with it. Nothing about a wheel

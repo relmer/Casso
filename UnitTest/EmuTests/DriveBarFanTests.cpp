@@ -218,4 +218,55 @@ public:
         Assert::AreEqual (0, c);
         Assert::AreEqual (2, entry);
     }
+
+
+    TEST_METHOD (PutFirst_MovesTheRecentDriveToTheBottomOfItsClass)
+    {
+        std::vector<DeskDrivePlacement>      plan;
+        std::vector<std::vector<DeskDrive>>  classes;
+
+
+
+        plan.push_back (OnBar (DeskDriveModel::DiskII,       6, 0, 0));
+        plan.push_back (OnBar (DeskDriveModel::Apple35Drive, 4, 0, 1));
+        plan.push_back (OnBar (DeskDriveModel::UniDisk35,    5, 0, 2));
+        plan.push_back (OnBar (DeskDriveModel::HardDisk20SC, 7, 6, 0));
+        plan.push_back (OnBar (DeskDriveModel::ProFile,      2, 0, 1));
+
+        classes = DriveBarFan::Group (plan);
+        DriveBarFan::PutFirst (classes, { DeskDrive { DeskDriveModel::UniDisk35, 5, 0 }, DeskDrive { DeskDriveModel::ProFile, 2, 0 } });
+
+        Assert::IsTrue (classes[0][0].model == DeskDriveModel::UniDisk35, L"the last floppy clicked is shown while the stack is closed");
+        Assert::IsTrue (classes[0][1].model == DeskDriveModel::DiskII);
+        Assert::IsTrue (classes[0][2].model == DeskDriveModel::Apple35Drive);
+        Assert::IsTrue (classes[1][0].model == DeskDriveModel::ProFile);
+        Assert::IsTrue (classes[1][1].model == DeskDriveModel::HardDisk20SC);
+    }
+
+
+    TEST_METHOD (PutFirst_DriveNotOnTheBar_ChangesNothing)
+    {
+        std::vector<DeskDrivePlacement>      plan;
+        std::vector<std::vector<DeskDrive>>  classes;
+
+
+
+        plan.push_back (OnBar (DeskDriveModel::DiskII,       6, 0, 0));
+        plan.push_back (OnBar (DeskDriveModel::Apple35Drive, 4, 0, 1));
+
+        classes = DriveBarFan::Group (plan);
+        DriveBarFan::PutFirst (classes, { DeskDrive { DeskDriveModel::UniDisk35, 5, 0 } });
+
+        Assert::IsTrue (classes[0][0].model == DeskDriveModel::DiskII);
+        Assert::IsTrue (classes[0][1].model == DeskDriveModel::Apple35Drive);
+    }
+
+
+    TEST_METHOD (GetZoomAfterWheel_StepsByANotchAndStopsAtTheLimits)
+    {
+        Assert::AreEqual (1.1f, DriveBarFan::GetZoomAfterWheel (1.0f, 1.0f), 0.001f);
+        Assert::AreEqual (0.9f, DriveBarFan::GetZoomAfterWheel (1.0f, -1.0f), 0.001f);
+        Assert::AreEqual (DriveBarFan::kMaxZoom, DriveBarFan::GetZoomAfterWheel (DriveBarFan::kMaxZoom, 3.0f), 0.001f);
+        Assert::AreEqual (DriveBarFan::kMinZoom, DriveBarFan::GetZoomAfterWheel (DriveBarFan::kMinZoom, -3.0f), 0.001f);
+    }
 };

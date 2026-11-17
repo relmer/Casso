@@ -6,6 +6,8 @@
 #include "Shell/DiskPortChainRule.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellRenderer.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/Layout/DriveLabel.h"
 #include "Ui/Chrome/DriveWidget.h"
 
@@ -19,8 +21,9 @@
 //
 //  The slots are the compact Disk II widget's size at the bar's DPI, so the
 //  widgets placed in them and the ones the control draws line up. The bar is
-//  drawn at the window's DPI, not zoomed with the desk scene: the scene
-//  zooms out to fit the desk, and the bar shrank with it.
+//  drawn at the window's DPI times the bar's zoom, not zoomed with the desk
+//  scene: the scene zooms out to fit the desk, and the bar shrank with it.
+//  While a class is closed, its last clicked drive is drawn in its widget.
 //
 //  With the drives auto-hidden (the auto-hide setting, or fullscreen), every
 //  class is expanded, and the whole bar rises from the bottom edge as far as
@@ -32,30 +35,34 @@
 
 void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, UINT dpi)
 {
-    std::array<DriveWidget, 2>  & widgets     = m_shell.m_disks->GetDriveChrome();
-    DriveBarFan                 & fan         = m_driveBarFan.GetFan();
-    DxuiDpiScaler                 scaler;
-    RECT                          probe       = {};
-    SIZE                          slot        = {};
-    int                           gap         = MulDiv (s_kCompactDriveWidgetGapDp, (int) dpi, s_kBaseDpi);
-    int                           bottomGap   = MulDiv (s_kLabelBottomGapDp,        (int) dpi, s_kBaseDpi);
-    int                           gapY        = MulDiv (4, (int) dpi, s_kBaseDpi);
-    int                           pad         = MulDiv (6, (int) dpi, s_kBaseDpi);
-    int                           arrow       = MulDiv (14, (int) dpi, s_kBaseDpi);
-    bool                          sliding     = m_shell.AreDrivesAutoHidden();
-    int                           originX     = 0;
-    int                           rowTop      = 0;
-    int                           stripBottom = (m_driveStripAreaPx.bottom > m_driveStripAreaPx.top) ? (int) m_driveStripAreaPx.bottom : clientH;
+    std::array<DriveWidget, 2>           & widgets     = m_shell.m_disks->GetDriveChrome();
+    DriveBarFan                          & fan         = m_driveBarFan.GetFan();
+    UINT                                   barDpi      = (UINT) lroundf ((float) dpi * GetDriveBarZoom());
+    DxuiDpiScaler                          scaler;
+    RECT                                   probe       = {};
+    SIZE                                   slot        = {};
+    int                                    gap         = MulDiv (s_kCompactDriveWidgetGapDp, (int) barDpi, s_kBaseDpi);
+    int                                    bottomGap   = MulDiv (s_kLabelBottomGapDp,        (int) barDpi, s_kBaseDpi);
+    int                                    gapY        = MulDiv (4, (int) barDpi, s_kBaseDpi);
+    int                                    pad         = MulDiv (6, (int) barDpi, s_kBaseDpi);
+    int                                    arrow       = MulDiv (14, (int) barDpi, s_kBaseDpi);
+    bool                                   sliding     = m_shell.AreDrivesAutoHidden();
+    int                                    originX     = 0;
+    int                                    rowTop      = 0;
+    int                                    stripBottom = (m_driveStripAreaPx.bottom > m_driveStripAreaPx.top) ? (int) m_driveStripAreaPx.bottom : clientH;
+    std::vector<std::vector<DeskDrive>>    classes     = DriveBarFan::Group (m_shell.m_scene->GetDrivePlan());
 
 
 
-    m_driveBarDpi     = dpi;
-    m_driveBarInsetPx = bottomInsetPx;
-    m_driveBarClientW = clientW;
-    m_driveBarClientH = clientH;
-    scaler.SetDpi (dpi);
+    m_driveBarDpi       = dpi;
+    m_driveBarZoomedDpi = barDpi;
+    m_driveBarInsetPx   = bottomInsetPx;
+    m_driveBarClientW   = clientW;
+    m_driveBarClientH   = clientH;
+    scaler.SetDpi (barDpi);
 
-    fan.SetClasses (DriveBarFan::Group (m_shell.m_scene->GetDrivePlan()));
+    DriveBarFan::PutFirst (classes, m_driveBarRecent);
+    fan.SetClasses (std::move (classes));
     SetDiskIiBarCaptions (true);
     m_driveBarFan.SetCaptionWidthDip (s_kDriveBarCaptionDip);
 
@@ -82,7 +89,7 @@ void ShellChrome::LayoutDriveBar (int bottomInsetPx, int clientW, int clientH, U
         fan.Layout (originX, rowTop, slot, gap, gapY, pad, arrow);
     }
 
-    m_driveBarFan.SetDpi     (dpi);
+    m_driveBarFan.SetDpi     (barDpi);
     m_driveBarFan.SetBounds  (RECT { 0, 0, clientW, sliding ? stripBottom : clientH });
     m_driveBarFan.SetVisible (fan.GetClassCount() > 0 && (!sliding || m_driveBarSlideProgress > 0.0f));
 
@@ -140,6 +147,66 @@ bool ShellChrome::IsPointOnDriveBar (POINT pt) const
     }
 
     return on;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::ZoomDriveBar
+//
+//  The band under the scene grows with the bar, so the whole window is laid
+//  out again, as for a change of where the drives go.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellChrome::ZoomDriveBar (POINT pt, float notches)
+{
+    GlobalUserPrefs  & prefs    = m_shell.m_settings->GetPrefs();
+    float              zoom     = DriveBarFan::GetZoomAfterWheel (GetDriveBarZoom(), notches);
+    RECT               rcClient = {};
+
+
+
+    if (!IsPointOnDriveBar (pt))
+    {
+        return false;
+    }
+
+    if (zoom != prefs.driveBarZoom)
+    {
+        prefs.driveBarZoom = zoom;
+        m_shell.m_settings->SaveGlobalPrefs();
+
+        if (m_shell.m_hwnd != nullptr && GetClientRect (m_shell.m_hwnd, &rcClient))
+        {
+            (void) m_shell.OnSize ((UINT) (rcClient.right - rcClient.left), (UINT) (rcClient.bottom - rcClient.top));
+            m_shell.m_scene->SyncSceneDriveChrome();
+            m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::GetDriveBarZoom
+//
+//  The saved zoom, clamped to the bar's limits in case the file was
+//  edited.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float ShellChrome::GetDriveBarZoom() const
+{
+    return DriveBarFan::GetZoomAfterWheel (m_shell.m_settings->GetPrefs().driveBarZoom, 0.0f);
 }
 
 
@@ -217,7 +284,7 @@ void ShellChrome::PlaceDriveBarWidgets()
 
 
 
-    scaler.SetDpi (m_driveBarDpi);
+    scaler.SetDpi (m_driveBarZoomedDpi);
 
     for (int w = 0; w < (int) widgets.size(); w++)
     {
@@ -290,6 +357,14 @@ bool ShellChrome::UpdateDriveBarHover (POINT pt)
             m_driveBarFanStartMs = GetTickCount64();
         }
 
+        // A drive clicked while the fan was open is moved to the bottom of
+        // its class once the fan has closed.
+        if (fan.GetOpenClass() < 0 && m_driveBarRecentPending)
+        {
+            m_driveBarRecentPending = false;
+            LayoutDriveBar (m_driveBarInsetPx, m_driveBarClientW, m_driveBarClientH, m_driveBarDpi);
+        }
+
         PlaceDriveBarWidgets();
         m_shell.m_scene->SyncSceneDriveChrome();
         changed = true;
@@ -321,8 +396,9 @@ bool ShellChrome::UpdateDriveBarHover (POINT pt)
 //  ShellChrome::HandleDriveBarClick
 //
 //  A Disk II ejects and browses, as its widget does elsewhere; a 3.5-inch
-//  drive or a hard disk browses. A click in a box between drives is taken
-//  and does nothing.
+//  drive or a hard disk browses. Either way the drive becomes its class's
+//  last clicked drive, drawn in its widget once the class closes. A click
+//  in a box between drives is taken and does nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -342,7 +418,12 @@ bool ShellChrome::HandleDriveBarClick (POINT pt)
 
     if (fan.HitTest (pt, c, entry))
     {
-        const DeskDrive  & drive = fan.GetDrive (c, entry);
+        const DeskDrive  drive = fan.GetDrive (c, entry);
+
+        std::erase_if (m_driveBarRecent, [&drive] (const DeskDrive & recent)
+                       { return DeskDrivePlan::GetClass (recent.model) == DeskDrivePlan::GetClass (drive.model); });
+        m_driveBarRecent.push_back (drive);
+        m_driveBarRecentPending = entry != 0;
 
         if (drive.model == DeskDriveModel::DiskII || drive.model == DeskDriveModel::Disk2c)
         {
