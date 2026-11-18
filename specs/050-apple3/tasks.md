@@ -156,7 +156,7 @@ it back with Casso's disk tools.
 
 **Independent Test**: set each option, restart, check SOS's report.
 
-- [ ] T055 [US6] Get the owner's approval of the machine list, settings (the ProFile placement options included), menu and message strings in `specs/050-apple3/contracts/ui-strings.md` and mark each approved
+- [x] T055 [US6] Get the owner's approval of the machine list, settings (the ProFile placement options included), menu and message strings in `specs/050-apple3/contracts/ui-strings.md` and mark each approved
 - [ ] T056 [P] [US6] Write settings model tests (options offered per machine; Apple II-only options absent; values saved and applied on restart) in `UnitTest/UiTests/Apple3SettingsTests.cpp`
 - [ ] T057 [US6] Add the Apple /// options (memory, external drives, slots, serial port, joystick ports) to the machine settings page in `CassoEmuCore/Ui/Settings/`
 - [ ] T058 [US6] Audit every feature that depends on the machine type (menus, command line, debug channel, MCP adapter, screenshot capture, disk tools, game controllers, drive audio, cassette, printer, update check) and make each work or be disabled with "Not available on the Apple ///" (FR-035); list the audit in `specs/050-apple3/validation/feature-audit.md`
@@ -267,7 +267,7 @@ Phases 3 to 11; can start after T001.
 - [ ] T106 [US10] Find a square-on side photograph of the Apple ///, replace each estimate in `contracts/desk-models.md` with a value measured by script from the photographs listed there (the Monitor ///'s foot positions included, for the fit rule), and fill the remaining dimension tables of `specs/050-apple3/contracts/desk-models.md` from the Service Reference Manual and Owner's Guides; where a dimension is in no Apple document, measure it from photographs as a fraction of a documented one and mark it `measured`; tell the owner which dimensions are measured
 - [ ] T107 [P] [US10] Write `scripts/modelgen/cad_apple3.py` (body ending at the front of the upper body, drive bay with door, latch and lamp in the existing palette colors, back panel with every connector at its position, badge variants) and `Resources/Models/Apple3/README.md` with sources
 - [ ] T108 [P] [US10] Write `scripts/modelgen/cad_monitor3.py` (case, spherical-sag glass, anti-glare mesh, controls, lamp, brand stamp) and `Resources/Models/Monitor3/README.md`
-- [ ] T109 [P] [US10] Write `scripts/modelgen/cad_disk3.py` and `Resources/Models/Disk3/README.md`
+- [x] T109 [P] [US10] Write `scripts/modelgen/cad_disk3.py` and `Resources/Models/Disk3/README.md`
 - [ ] T110 [US10] Render a preview of each model with `scripts/modelgen/preview.py`, check each mesh for bad fillets, and send the previews to the owner before wiring
 - [ ] T111 [US10] Copy the generated meshes to `Resources/Models/`, add them to the `BakedMesh` list in `Casso/Casso.vcxproj` and the `RCDATA` lines in `Casso/Casso.rc`, and update `scripts/modelgen/README.md`
 - [ ] T112 [P] [US10] Write layout tests for the stack and fit rules of `contracts/desk-models.md` (each arrangement; containment by the camera; side row clear of the stack) in `UnitTest/UiTests/DeskSceneStackTests.cpp`
