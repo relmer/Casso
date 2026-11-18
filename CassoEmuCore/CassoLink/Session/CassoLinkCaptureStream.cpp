@@ -29,7 +29,9 @@ bool CassoLinkCapture::MakeStream (const Position & position, Stream & outStream
         return false;
     }
 
-    CountZeros (outStream.bytes, outStream.weak, marks, outStream.timed, outStream.zeros, outStream.unsure);
+    outStream.quiet = IsQuiet (outStream.bytes, outStream.weak, marks);
+
+    CountZeros (outStream.bytes, outStream.weak, marks, outStream.timed, position.reads.size() > kWholeReads, outStream.zeros, outStream.unsure, outStream.unsureData);
     ToBits (outStream, outStream.bits, outStream.starts);
 
     return true;
@@ -136,13 +138,14 @@ bool CassoLinkCapture::CollectMarks (const Position & position, Stream & outStre
 
     //  A //c's IWM reads a write splice otherwise on each pass, so a stretch
     //  each pass reads otherwise is random only with a quiet baseline, and
-    //  only that baseline lets the moments a byte was caught be followed.
+    //  only that baseline lets the moments a byte was caught be followed;
+    //  both take a track read more than kWholeReads times.
     if (noisy)
     {
         FitNoise (position, alignments, outStream);
     }
 
-    if (IsQuiet (outStream.bytes, outStream.weak, outMarks))
+    if (position.reads.size() > kWholeReads && IsQuiet (outStream.bytes, outStream.weak, outMarks))
     {
         if (!noisy)
         {
@@ -1021,7 +1024,8 @@ bool CassoLinkCapture::IsSameStream (std::span<const Byte> a, std::span<const By
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, const std::vector<int> & timed, std::vector<uint8_t> & outZeros, size_t & outUnsure)
+void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, const std::vector<int> & timed, bool fine,
+                                   std::vector<uint8_t> & outZeros, size_t & outUnsure, size_t & outUnsureData)
 {
     size_t                                  length    = bytes.size();
     double                                  base[2]   = {};
@@ -1033,23 +1037,33 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
     std::vector<std::pair<size_t, size_t>>  runs;
     std::vector<bool>                       values (length, false);
     std::vector<bool>                       pooled (length, false);
+    std::vector<bool>                       inData (length, false);
+    bool                                    quiet     = false;
+    size_t                                  shortest  = fine ? s_kShortestRun : s_kPooledRun;
 
 
 
     outZeros.assign (length, 0);
-    outUnsure = 0;
+    outUnsure     = 0;
+    outUnsureData = 0;
 
     for (size_t each = 0; each + 2 < length; each++)
     {
-        Byte  first  = bytes[each]     | 0x80;
-        Byte  second = bytes[each + 1] | 0x80;
-        Byte  third  = bytes[each + 2] | 0x80;
-        bool  disk   = first == s_kProlog0     && second == s_kProlog1 && (third == s_kAddress16 || third == s_kAddress13);
-        bool  rdos   = first == s_kRdosProlog0 && second == s_kProlog1 && third == s_kRdosAddress;
+        Byte    first  = bytes[each]     | 0x80;
+        Byte    second = bytes[each + 1] | 0x80;
+        Byte    third  = bytes[each + 2] | 0x80;
+        bool    disk   = first == s_kProlog0     && second == s_kProlog1 && (third == s_kAddress16 || third == s_kAddress13);
+        bool    rdos   = first == s_kRdosProlog0 && second == s_kProlog1 && third == s_kRdosAddress;
+        size_t  data   = disk ? FindDataField (bytes, each) : SIZE_MAX;
 
         if (disk || rdos)
         {
             std::fill (values.begin() + (ptrdiff_t) each + 3, values.begin() + (ptrdiff_t) std::min (length, each + 3 + s_kAddressValues), true);
+        }
+
+        for (size_t nibble = 0; data != SIZE_MAX && nibble < NibblizationLayer::kDataNibbleCount && data + nibble < length; nibble++)
+        {
+            inData[data + nibble] = true;
         }
     }
 
@@ -1074,7 +1088,9 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
     //  With a quiet baseline, a byte some reads mark is most likely followed
     //  by zero bits, so the baseline for a byte's marks is taken from the
     //  bytes that one read at most marks.
-    for (int delay = 0; base[0] <= s_kQuietBase && delay < 2; delay++)
+    quiet = fine && base[0] <= s_kQuietBase;
+
+    for (int delay = 0; quiet && delay < 2; delay++)
     {
         double  set  = 0.0;
         double  read = 0.0;
@@ -1092,25 +1108,29 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
     }
 
     //  With a quiet baseline, a run of FF that fewer than half its reads at
-    //  8 cycles mark is a protection's data, not sync bytes, and each of its
-    //  bytes is counted from the byte's marks.
+    //  8 and at 12 cycles mark is a protection's data, not sync bytes, and
+    //  each of its bytes is counted from the byte's marks.
     while (at < length)
     {
-        size_t  end      = at;
-        int     runSet   = 0;
-        int     runRead  = 0;
-        bool    isData   = false;
+        size_t  end        = at;
+        int     runSet[2]  = {};
+        int     runRead[2] = {};
+        bool    isData     = false;
 
         while (end < length && (bytes[end] | 0x80) == s_kSyncByte && !values[end] && !weak[end])
         {
-            runSet  += marks.set[0][end];
-            runRead += marks.read[0][end];
+            for (int delay = 0; delay < 2; delay++)
+            {
+                runSet[delay]  += marks.set[delay][end];
+                runRead[delay] += marks.read[delay][end];
+            }
+
             end++;
         }
 
-        isData = base[0] <= s_kQuietBase && runSet * 2 < runRead;
+        isData = quiet && runSet[0] * 2 < runRead[0] && (runRead[1] == 0 || runSet[1] * 2 < runRead[1]);
 
-        if (end - at >= s_kShortestRun && !isData)
+        if (end - at >= shortest && !isData)
         {
             runs.push_back ({ at, end });
 
@@ -1146,23 +1166,27 @@ void CassoLinkCapture::CountZeros (const std::vector<Byte> & bytes, const std::v
         std::fill (pooled.begin() + (ptrdiff_t) first, pooled.begin() + (ptrdiff_t) end, true);
 
         //  The last byte of a run, before the field it frames, can be a
-        //  plain FF that fewer than half the reads mark.
-        pooled[end - 1] = marks.read[0][end - 1] == 0 || marks.set[0][end - 1] * 2 >= marks.read[0][end - 1];
+        //  plain FF that fewer than half the reads at 8 and at 12 cycles mark.
+        pooled[end - 1] = !quiet || marks.read[0][end - 1] == 0 || marks.set[0][end - 1] * 2 >= marks.read[0][end - 1] || (marks.read[1][end - 1] > 0 && marks.set[1][end - 1] * 2 >= marks.read[1][end - 1]);
     }
 
     //  A byte no read marks has no zero bits after it, whatever the moments
-    //  of its catches allow. A byte some reads mark, too few to count its
-    //  zero bits from, is unsure when the baseline is low enough for more
-    //  reads to settle it.
+    //  of its catches allow. On a track read kWholeReads times, a byte its
+    //  reads mark more often than the baseline would is unsure: it has zero
+    //  bits after it, and more reads can count them.
     for (size_t each = 0; each < length; each++)
     {
         bool  alone  = !pooled[each] && !values[each];
         bool  marked = marks.set[0][each] + marks.set[1][each] > 0;
-        bool  known  = alone && base[0] <= s_kQuietBase && each < timed.size() && timed[each] >= 0 && (timed[each] == 0 || marked);
+        bool  known  = alone && quiet && each < timed.size() && timed[each] >= 0 && (timed[each] == 0 || marked);
+        bool  unsure = false;
 
-        outZeros[each] = alone ? CountByteZeros (marks, each, single) : outZeros[each];
+        outZeros[each] = (alone && quiet) ? CountByteZeros (marks, each, single) : outZeros[each];
         outZeros[each] = known ? (uint8_t) timed[each] : outZeros[each];
-        outUnsure     += (alone && !known && outZeros[each] == 0 && marks.set[0][each] > 0 && base[0] <= s_kQuietBase) ? 1 : 0;
+        unsure         = !fine && alone && base[0] <= s_kQuietBase && IsMarkedOften (marks.set[0][each], marks.read[0][each], base[0]);
+
+        outUnsure     += unsure ? 1 : 0;
+        outUnsureData += (unsure && inData[each]) ? 1 : 0;
     }
 }
 

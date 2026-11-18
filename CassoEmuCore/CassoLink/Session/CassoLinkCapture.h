@@ -149,18 +149,20 @@ public:
 private:
     struct Stream
     {
-        int                   position = 0;
-        size_t                start    = 0;   // the first read's byte the revolution starts at
-        std::vector<Byte>     bytes;          // one revolution, as the first read has it
+        int                   position   = 0;
+        size_t                start      = 0;    // the first read's byte the revolution starts at
+        std::vector<Byte>     bytes;             // one revolution, as the first read has it
         std::vector<bool>     weak;
-        std::vector<uint8_t>  zeros;          // the zero bits after each byte
+        std::vector<uint8_t>  zeros;             // the zero bits after each byte
         std::vector<uint8_t>  bits;
-        std::vector<size_t>   starts;         // each byte's first bit in bits
-        std::vector<int>      replaced;       // the sectors taken whole from another read
-        std::vector<uint8_t>  weakZeros;      // the zero bits after a weak byte's eight, for a stretch read as noise
-        bool                  noisy    = false;   // aligned as a track with a stretch read as noise (AlignNoisy)
-        size_t                unsure   = 0;       // the bytes whose zero bits more reads would settle (CountZeros)
-        std::vector<int>      timed;          // each byte's zero bits from the moments the reads caught it, -1 unknown (TimeZeros)
+        std::vector<size_t>   starts;            // each byte's first bit in bits
+        std::vector<int>      replaced;          // the sectors taken whole from another read
+        std::vector<uint8_t>  weakZeros;         // the zero bits after a weak byte's eight, for a stretch read as noise
+        bool                  noisy      = false; // aligned as a track with a stretch read as noise (AlignNoisy)
+        size_t                unsure     = 0;    // the bytes whose zero bits more reads would settle (CountZeros)
+        size_t                unsureData = 0;    // and those in a data field
+        bool                  quiet      = false; // the reads mark bytes as a Disk II does, not as a //c's IWM does (IsQuiet)
+        std::vector<int>      timed;             // each byte's zero bits from the moments the reads caught it, -1 unknown (TimeZeros)
     };
 
     //  The marks of each byte, at each delay: the count set and the count read.
@@ -237,8 +239,8 @@ private:
                                                 std::vector<int> & outMap, size_t & outDiffer, std::vector<bool> & outStretch);
     static int                  CountSectors   (std::span<const Byte> revolution, int track, bool & outThirteen, int & outAddressed);
     static bool                 IsCrosstalk    (std::span<const Byte> revolution, int position);
-    static void                 CountZeros     (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, const std::vector<int> & timed,
-                                                std::vector<uint8_t> & outZeros, size_t & outUnsure);
+    static void                 CountZeros     (const std::vector<Byte> & bytes, const std::vector<bool> & weak, const Marks & marks, const std::vector<int> & timed, bool fine,
+                                                std::vector<uint8_t> & outZeros, size_t & outUnsure, size_t & outUnsureData);
     static void         TimeZeros      (const Position & position, size_t length, const std::vector<Alignment> & alignments, std::vector<int> & outZeros);
     static bool         IsAboveBase    (double set, double read, double base);
     static uint8_t      CountByteZeros (const Marks & marks, size_t at, const double (&base)[2]);
@@ -313,10 +315,12 @@ private:
     static constexpr Byte    s_kStepFewer          = 2;
     static constexpr Byte    s_kStepMore           = 3;
 
-    //  CountZeros: the shortest run of FF counted as sync bytes, the share of
+    //  CountZeros: the shortest run of FF counted as sync bytes on a track read
+    //  more than kWholeReads times, the share of
     //  marks at 12 cycles for three zero bits, and how far above the baseline
     //  a run's share must be.
     static constexpr size_t  s_kShortestRun        = 3;
+    static constexpr size_t  s_kPooledRun          = 2;        // the shortest run counted as sync bytes on a track read only kWholeReads times
     static constexpr double  s_kThreeZeroShare     = 0.8;
     static constexpr double  s_kMinimumGain        = 0.05;
     static constexpr double  s_kDeviations         = 3.0;
