@@ -421,6 +421,12 @@ Existing work, not merged, for reference and for the parts that pass the rules:
     other `DebuggerWindow*.cpp` files, most files under `Panes/`, the history
     files, and much of `UnitTest/DebuggerTests`.
     `git diff --name-only 276f8eb7e..3cba8b5b3` lists them.
+  - Its edits to the debug engine group's files are call-site renames only.
+    `ShellDebugger.cpp` gets an include of `DebuggerViewCommands.h`, and its
+    `m_debugViewState.X` calls go through `GetCodeViews()`, `GetMemoryWindows()`,
+    `GetPanels()`, `GetHeatMap()` or `GetCommands()`. `OperandResultTipTests.cpp`
+    has `SourcePane::` qualifiers changed to `SourceRows::` and `SourceLineText::`.
+    It edits nothing under `Dxui/`.
   - These ratings are that session's. The overseer checks each class against
     rules 1 to 5 before taking it.
 - `refs/heads/claude/035-split-debug-engine-080423`. Its report rates
