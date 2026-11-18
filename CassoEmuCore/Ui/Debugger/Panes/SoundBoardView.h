@@ -3,6 +3,8 @@
 #include "Pch.h"
 
 #include "Debugger/DiagnosticsSnapshot.h"
+#include "Ui/Debugger/Panes/SoundBoardInk.h"
+#include "Ui/Debugger/Panes/SoundVoiceCard.h"
 
 
 
@@ -28,16 +30,19 @@
 class SoundBoardView : public IDxuiControl
 {
 public:
-    struct Palette
-    {
-        std::array<uint32_t, DiagnosticsSoundPsg::kChannelCount>  channels = { 0xFF3CC8C8, 0xFFE6B43C, 0xFFD070E0 };
-        uint32_t                                                  voice    = 0xFF3C8CE6;
-    };
+    using Palette = SoundBoardInk::Palette;
+
+    //  Not copied: its parts have references to its members.
+    SoundBoardView() = default;
+
+    SoundBoardView             (const SoundBoardView &) = delete;
+    SoundBoardView & operator= (const SoundBoardView &) = delete;
+
 
     using MuteFn = std::function<void (int channel, bool isMuted)>;
 
     //  The channel the speech chip's mute has.
-    static constexpr int  kVoiceMuteChannel = 6;
+    static constexpr int  kVoiceMuteChannel = SoundVoiceCard::kVoiceMuteChannel;
 
     void  SetBoard     (const DiagnosticsSoundBoard & board);
     void  SetPalette   (const Palette & palette)  { m_palette = palette; }
@@ -64,12 +69,12 @@ public:
     //  The phoneme strip scrolled back through the history by `count`
     //  phonemes, forward for a negative one, from the newest to the oldest
     //  the speech chip has; and how far back it is.
-    void    ScrollPhonemes   (int count);
-    size_t  GetPhonemesBack  () const { return m_phonemesBack; }
+    void    ScrollPhonemes   (int count) { m_voice.ScrollPhonemes (count); }
+    size_t  GetPhonemesBack  () const   { return m_voice.GetPhonemesBack(); }
 
     //  How many columns the speech chip's values are in: four where the
     //  mode's name fits in the first, two or one where the pane is narrower.
-    int     GetValueColumns  () const;
+    int     GetValueColumns  () const { return m_voice.GetValueColumns (GetClientWidth()); }
 
     //  A notch of the wheel over the strip.
     static constexpr int  kPhonemesPerNotch = 4;
@@ -97,53 +102,19 @@ private:
         int           muteChannel = -1;
     };
 
-    //  A part's tip, at the place the last paint drew the part, in client
-    //  pixels.
-    struct Spot
-    {
-        RECT          rect = {};
-        std::wstring  tip;
-    };
-
-    //  A trace's glow, its bright line, or both.
-    enum class TraceLayer
-    {
-        Glow,
-        Core,
-        Both,
-    };
-
-    struct Painting
-    {
-        IDxuiPainter       & painter;
-        IDxuiTextRenderer  & text;
-        const IDxuiTheme   & theme;
-        uint32_t             screen;
-        uint32_t             card;
-        uint32_t             edge;
-        std::vector<Spot>  & spots;
-    };
+    using Spot     = SoundBoardInk::Spot;
+    using Painting = SoundBoardInk::Painting;
 
     static constexpr int  kScrollbarDip    = 12;
-    static constexpr int  kGapDip          = 8;
-    static constexpr int  kPadDip          = 12;
-    static constexpr int  kTitleDip        = 28;
+    static constexpr int  kGapDip          = SoundBoardInk::kGapDip;
+    static constexpr int  kPadDip          = SoundBoardInk::kPadDip;
+    static constexpr int  kTitleDip        = SoundBoardInk::kTitleDip;
     static constexpr int  kChannelDip      = 58;
     static constexpr int  kChannelGapDip   = 6;
     static constexpr int  kEnvelopeDip     = 74;
-    static constexpr int  kRegisterDip     = 20;
+    static constexpr int  kRegisterDip     = SoundBoardInk::kRegisterDip;
     static constexpr int  kRegisterRows    = 7;
     static constexpr int  kLeastCardDip    = 440;
-    static constexpr int  kPhonemeDip      = 128;
-    static constexpr int  kStripDip        = 30;
-    static constexpr int  kStripHeadDip    = 18;
-    static constexpr int  kHistoryDip      = 30;
-    static constexpr int  kValueCount      = 8;
-    static constexpr int  kValueFirstDip   = 250;     // the first column's least width, for the mode's name
-    static constexpr int  kValueCellDip    = 160;
-    static constexpr int  kLabelDip        = 44;
-    static constexpr int  kVoiceLabelDip   = 78;
-    static constexpr int  kWordBreakDip    = 6;
 
     void  Reflow            ();
     void  BuildHalfRegions  (const DiagnosticsSoundHalf & half, const RECT & card);
@@ -160,37 +131,16 @@ private:
 
     RECT  GetChannelRect    (const RECT & card, int channel) const;
     RECT  GetMuteOfChannel  (const RECT & row) const;
-    RECT  GetMuteOfVoice    (const RECT & card) const;
     RECT  GetEnvelopeRect   (const RECT & card) const;
-    int   GetVoiceHeight    () const;
-    RECT  GetValueCell      (const RECT & card, int index) const;
     int   GetHalfHeight     () const;
     int   GetClientWidth    () const;
     RECT  ToClient          (const RECT & content) const;
 
-    void         PaintCard             (const Painting & p, const RECT & card, const std::wstring & title, const std::wstring & detail) const;
     void         PaintHalf             (const Painting & p, const DiagnosticsSoundHalf & half, const RECT & card) const;
     void         PaintChannel          (const Painting & p, const DiagnosticsSoundPsg & psg, const RECT & row, int index, int muteChannel) const;
     void         PaintEnvelope         (const Painting & p, const DiagnosticsSoundPsg & psg, const RECT & rect) const;
     void         PaintVia              (const Painting & p, const DiagnosticsSoundHalf & half, const RECT & rect) const;
     void         PaintRegisters        (const Painting & p, const DiagnosticsSoundPsg & psg, const RECT & rect) const;
-    static void  AddSpot               (const Painting & p, const RECT & rect, std::wstring tip);
-    void         PaintVoice            (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & card) const;
-    void         PaintStrip            (const Painting & p, std::span<const DiagnosticsSoundVoice::Phoneme> recent, bool isSounding, const RECT & rect) const;
-    float        GetWidestPhonemeLabel (const Painting & p, const DxuiFontHandle & font) const;
-    void         PaintWordBreak        (const Painting & p, float x, float top, float bottom) const;
-    size_t       PaintHistory          (const Painting & p, std::span<const DiagnosticsSoundVoice::Phoneme> recent, bool isSounding, const RECT & rect) const;
-    RECT         GetStripArea          (const RECT & card) const;
-    void         PaintFormants         (const Painting & p, const DiagnosticsSoundVoice & voice, const RECT & rect) const;
-    void         PaintScope            (const Painting & p, const std::vector<float> & scope, const RECT & rect, uint32_t color, double hz, bool isBipolar) const;
-    void         PaintTrace            (const Painting & p, const std::vector<std::pair<float, float>> & points, uint32_t color, TraceLayer layer = TraceLayer::Both) const;
-    void         PaintLamp             (const Painting & p, float x, float y, const wchar_t * label, bool isOn, uint32_t color, float width) const;
-    void         PaintMuteButton       (const Painting & p, const RECT & rect, int channel, bool isMuted, uint32_t color) const;
-    void         PaintValue            (const Painting & p, const RECT & rect, const std::wstring & label, const std::wstring & value, int labelDip = kLabelDip) const;
-    void         PaintString           (const Painting & p, const std::wstring & value, const RECT & rect, uint32_t color, const DxuiFontHandle & font, DxuiTextHAlign align = DxuiTextHAlign::Left) const;
-
-    static uint32_t  Mix       (uint32_t from, uint32_t to, float amount);
-    static uint32_t  WithAlpha (uint32_t argb, float alpha);
 
     DiagnosticsSoundBoard  m_board;
     Palette                m_palette;
@@ -204,11 +154,10 @@ private:
     std::array<float, 6>   m_peaks             = {};
     int                    m_contentHeight     = 0;
     int                    m_scrollTop         = 0;
-    size_t                 m_phonemesBack      = 0;   // how many of the newest phonemes the strip is scrolled back past
     bool                   m_hasScrollbar      = false;
     bool                   m_isFocused         = false;
     int                    m_focusMute         = 0;   // the mute the keyboard focused, by its place in GetMuteChannels
     int                    m_hoverMute         = -1;   // the channel of the mute under the pointer
-    mutable float          m_widestLabelPx     = 0.0f;   // the widest phoneme symbol, at
-    mutable float          m_widestLabelSizePx = 0.0f;   // this font size
+    SoundBoardInk          m_ink               { m_scaler };
+    SoundVoiceCard         m_voice             { m_ink, m_scaler, m_board, m_palette };
 };

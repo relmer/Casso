@@ -99,6 +99,10 @@ public:
     //  its pane has the focus and is drawn with the accent.
     HeatMapView() { m_focusable = true; }
 
+    //  Not copied: its parts have references to its members.
+    HeatMapView             (const HeatMapView &) = delete;
+    HeatMapView & operator= (const HeatMapView &) = delete;
+
     //  What a click on a cell asks for, by the keys held.
     enum class PickAction
     {
