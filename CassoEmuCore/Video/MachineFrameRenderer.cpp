@@ -6,6 +6,7 @@
 #include "Machines/Apple2/Common/AppleDoubleHiResMode.h"
 #include "Machines/Apple2/Common/AppleHiResMode.h"
 #include "Machines/Apple2/Common/AppleTextMode.h"
+#include "Machines/Apple3/Apple3VideoOutput.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
 
@@ -49,6 +50,11 @@ HRESULT MachineFrameRenderer::Render (
 
     refs.hiRes->SetMonochrome       (false);
     refs.doubleHiRes->SetMonochrome (false);
+
+    if (refs.apple3Video != nullptr)
+    {
+        refs.apple3Video->SetMonochrome (false);
+    }
 
     builder.SelectVideoMode();
 

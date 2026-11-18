@@ -15,6 +15,7 @@ static constexpr int  s_kColorSwitch    = 0;
 static constexpr int  s_k80ColumnSwitch = 1;
 static constexpr int  s_kPage2Switch    = 2;
 static constexpr int  s_kGraphicsSwitch = 3;
+static constexpr int  s_kScrollMask     = 0x07;
 
 
 
@@ -158,8 +159,8 @@ void Apple3Video::SetVerticalBlank (bool isBlank)
 //
 //  GetMode
 //
-//  The text modes by the 40/80 and color switches; null for a graphics
-//  mode.
+//  The text, graphics, 40/80 and color switches select one of seven modes;
+//  the 80-column text mode ignores the color switch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,6 +176,13 @@ const IApple3VideoMode * Apple3Video::GetMode() const
              : m_isColor     ? static_cast<const IApple3VideoMode *> (&m_color40)
              :                 static_cast<const IApple3VideoMode *> (&m_text40);
     }
+    else
+    {
+        mode = (m_is80Columns && m_isColor) ? static_cast<const IApple3VideoMode *> (&m_color140)
+             : m_is80Columns                ? static_cast<const IApple3VideoMode *> (&m_hires560)
+             : m_isColor                    ? static_cast<const IApple3VideoMode *> (&m_colorHires)
+             :                                static_cast<const IApple3VideoMode *> (&m_hires);
+    }
 
     return mode;
 }
@@ -187,15 +195,16 @@ const IApple3VideoMode * Apple3Video::GetMode() const
 //
 //  Render
 //
-//  With the video off, or a mode not decoded yet, the screen is black.
+//  With the video off the screen is black.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple3Video::Render (Apple3Screen & screen) const
 {
-    const IApple3VideoMode  * mode  = GetMode();
-    Apple3VideoInput          input { m_readSystem, m_characterSet, m_isPage2, m_isFlashOn };
-    bool                      isOn  = m_isScreenOn && mode != nullptr && m_readSystem;
+    const IApple3VideoMode  * mode   = GetMode();
+    int                       scroll = (m_isSmoothScroll && m_scrollSource) ? m_scrollSource() & s_kScrollMask : 0;
+    Apple3VideoInput          input  { m_readSystem, m_characterSet, m_isPage2, m_isFlashOn, m_readGraphics ? &m_readGraphics : nullptr, scroll };
+    bool                      isOn   = m_isScreenOn && mode != nullptr && m_readSystem;
 
 
 

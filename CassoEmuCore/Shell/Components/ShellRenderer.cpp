@@ -84,6 +84,7 @@
 #include "Ui/ThemeManager.h"
 #include "Shell/DiskManager.h"
 #include "Devices/Printer/PngMetadata.h"
+#include "Machines/Apple3/Apple3VideoOutput.h"
 
 
 
@@ -1504,6 +1505,13 @@ void ShellRenderer::RenderFramebuffer()
 
         m_shell.m_machine.GetRefs().hiRes->SetMonochrome       (monoMonitor);
         m_shell.m_machine.GetRefs().doubleHiRes->SetMonochrome (monoMonitor);
+
+        // The Apple /// draws its 16 colors as gray levels on a monochrome
+        // monitor, which the tint below then colors.
+        if (m_shell.m_machine.GetRefs().apple3Video != nullptr)
+        {
+            m_shell.m_machine.GetRefs().apple3Video->SetMonochrome (monoMonitor);
+        }
     }
 
     m_shell.m_machineBuilder->SelectVideoMode();

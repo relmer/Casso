@@ -89,7 +89,16 @@ public:
         Assert::AreEqual ("apple3-text80", rig->video.GetMode()->GetModeName());
 
         rig->video.HandleSwitch (0xC057);
-        Assert::IsNull (rig->video.GetMode());
+        Assert::AreEqual ("apple3-color140", rig->video.GetMode()->GetModeName());
+
+        rig->video.HandleSwitch (0xC050);
+        Assert::AreEqual ("apple3-hires560", rig->video.GetMode()->GetModeName());
+
+        rig->video.HandleSwitch (0xC052);
+        Assert::AreEqual ("apple3-hires", rig->video.GetMode()->GetModeName());
+
+        rig->video.HandleSwitch (0xC051);
+        Assert::AreEqual ("apple3-hires-color", rig->video.GetMode()->GetModeName());
     }
 
 

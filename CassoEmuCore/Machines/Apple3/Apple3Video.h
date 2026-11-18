@@ -3,7 +3,11 @@
 #include "Pch.h"
 
 #include "Apple380ColTextMode.h"
+#include "Apple3Color140Mode.h"
+#include "Apple3ColorHiResMode.h"
 #include "Apple3ColorTextMode.h"
+#include "Apple3HiRes560Mode.h"
+#include "Apple3HiResMode.h"
 #include "Apple3TextMode.h"
 #include "Core/IMachineState.h"
 
@@ -21,7 +25,10 @@ class Apple3SystemVias;
 //
 //  The Apple ///'s display control. Any access to $C050-$C057 sets or
 //  clears a switch: black and white or color, 40 or 80 columns, page 1 or
-//  2, text or graphics. $C0D8 and $C0D9 turn smooth scroll off and on, and
+//  2, text or graphics, selecting one of seven modes. The graphics buffers
+//  are in bank 0 at $0000-$7FFF, read as $2000-$9FFF. $C0D8 and
+//  $C0D9 turn smooth scroll off and on, which offsets each 8-line group by
+//  the disk register's first three phase latches, and
 //  $C0DA and $C0DB the character download. Environment bit 5 turns the
 //  video on.
 //
@@ -50,7 +57,9 @@ public:
     explicit Apple3Video (Apple3CharacterSet & characterSet);
 
     void     AttachVias        (Apple3SystemVias * vias)   { m_vias = vias; }
-    void     SetSystemReader   (SystemReader reader)       { m_readSystem = std::move (reader); }
+    void     SetSystemReader   (SystemReader reader)       { m_readSystem   = std::move (reader); }
+    void     SetGraphicsReader (SystemReader reader)       { m_readGraphics = std::move (reader); }
+    void     SetScrollSource   (std::function<int ()> source) { m_scrollSource = std::move (source); }
     void     SetScreenOn       (bool on)                   { m_isScreenOn = on; }
 
     bool     IsSwitchAddress   (Word address) const;
@@ -81,9 +90,15 @@ private:
     Apple3CharacterSet   & m_characterSet;
     Apple3SystemVias     * m_vias            = nullptr;
     SystemReader           m_readSystem;
+    SystemReader           m_readGraphics;
+    std::function<int ()>  m_scrollSource;
     Apple3TextMode         m_text40;
     Apple3ColorTextMode    m_color40;
     Apple380ColTextMode    m_text80;
+    Apple3HiResMode        m_hires;
+    Apple3ColorHiResMode   m_colorHires;
+    Apple3HiRes560Mode     m_hires560;
+    Apple3Color140Mode     m_color140;
     bool                   m_isColor         = false;
     bool                   m_is80Columns     = false;
     bool                   m_isPage2         = false;

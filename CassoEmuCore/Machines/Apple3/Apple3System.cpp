@@ -11,6 +11,7 @@
 
 static constexpr Word  s_kFirstIo = 0xC000;
 static constexpr Word  s_kLastIo  = 0xCFFF;
+static constexpr Word  s_kGraphicsBase = 0x2000;
 
 
 
@@ -71,7 +72,9 @@ HRESULT Apple3System::Initialize (InterruptController & interrupts, size_t ramBy
 
     m_keyboard.AttachVias (&m_vias);
     m_video.AttachVias    (&m_vias);
-    m_video.SetSystemReader ([this] (Word address) { return m_mmu.PeekSystem (address); });
+    m_video.SetSystemReader   ([this] (Word address) { return m_mmu.PeekSystem (address); });
+    m_video.SetGraphicsReader ([this] (Word address) { return m_mmu.PeekPhysical (0, (Word) (address - s_kGraphicsBase)); });
+    m_video.SetScrollSource   ([this] () { return (int) m_disk.GetDiskII().GetLines().GetPhases(); });
 
 Error:
     return hr;

@@ -1708,6 +1708,11 @@
     <ClCompile Include="Machines\Apple3\Apple3System.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3IoSpace.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3AnalogInputs.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3GraphicsRows.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3HiResMode.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3ColorHiResMode.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3HiRes560Mode.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3Color140Mode.cpp" />
     <ClCompile Include="Ui\Settings\NetworkPage.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -3175,6 +3180,11 @@
     <ClInclude Include="Machines\Apple3\Apple3System.h" />
     <ClInclude Include="Machines\Apple3\Apple3IoSpace.h" />
     <ClInclude Include="Machines\Apple3\Apple3AnalogInputs.h" />
+    <ClInclude Include="Machines\Apple3\Apple3GraphicsRows.h" />
+    <ClInclude Include="Machines\Apple3\Apple3HiResMode.h" />
+    <ClInclude Include="Machines\Apple3\Apple3ColorHiResMode.h" />
+    <ClInclude Include="Machines\Apple3\Apple3HiRes560Mode.h" />
+    <ClInclude Include="Machines\Apple3\Apple3Color140Mode.h" />
     <ClInclude Include="Ui\Settings\NetworkPage.h" />
     <ClInclude Include="Devices\BlockDevice\BlockDeviceCatalog.h" />
     <ClInclude Include="Core\SpscEventRing.h" />

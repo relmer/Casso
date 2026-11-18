@@ -13,8 +13,9 @@ class IGlyphSource;
 //
 //  Apple3VideoInput
 //
-//  What a mode decodes from: the system bank, the glyphs, the page switch
-//  and the flash phase.
+//  What a mode decodes from: the system bank, the glyphs, the page switch,
+//  the flash phase, bank 0 at $2000-$9FFF for the graphics modes, and the
+//  smooth scroll offset, from 0 to 7 scan lines within each group of eight.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,6 +25,8 @@ struct Apple3VideoInput
     const IGlyphSource                & glyphs;
     bool                                isPage2   = false;
     bool                                isFlashOn = false;
+    const std::function<Byte (Word)>  * readGraphics = nullptr;
+    int                                 scrollOffset = 0;
 };
 
 

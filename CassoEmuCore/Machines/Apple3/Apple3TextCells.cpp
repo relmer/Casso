@@ -56,7 +56,7 @@ void Apple3TextCells::DrawCell (const Apple3VideoInput & input, const Cell & cel
 
     for (int line = 0; line < kCellLines; line++)
     {
-        Byte  glyph      = input.glyphs.GetGlyphRow (code, line);
+        Byte  glyph      = input.glyphs.GetGlyphRow (code, (line + input.scrollOffset) % kCellLines);
         bool  isFlashing = cell.canFlash && (glyph & s_kFlashBit) != 0;
         bool  isInverted = isInverse && (!isFlashing || input.isFlashOn);
         int   y          = cell.row * kCellLines + line;

@@ -131,14 +131,14 @@ it back with Casso's disk tools.
 
 ### Tests
 
-- [ ] T046 [P] [US3] Write decoding tests for the four graphics modes (known buffer bytes to color indices) in `UnitTest/Apple3Tests/Apple3GraphicsModeTests.cpp`
-- [ ] T047 [P] [US3] Write tests for gray levels in the monochrome styles, the color style, the video enable bit and smooth scroll in `UnitTest/Apple3Tests/Apple3VideoTests.cpp`
+- [x] T046 [P] [US3] Write decoding tests for the four graphics modes (known buffer bytes to color indices) in `UnitTest/Apple3Tests/Apple3GraphicsModeTests.cpp`
+- [x] T047 [P] [US3] Write tests for gray levels in the monochrome styles, the color style, the video enable bit and smooth scroll in `UnitTest/Apple3Tests/Apple3VideoTests.cpp`
 
 ### Implementation
 
-- [ ] T048 [P] [US3] Implement `Apple3HiResMode`, `Apple3ColorHiResMode`, `Apple3Color140Mode` and `Apple3HiRes560Mode` in `CassoEmuCore/Machines/Apple3/`
-- [ ] T049 [US3] Implement smooth scroll and mode selection for all seven modes in `CassoEmuCore/Machines/Apple3/Apple3Video.cpp`
-- [ ] T050 [US3] Add the 16-color palette and the 16 gray levels, applied by the color, green, amber and white styles (FR-021), in `CassoEmuCore/Machines/Apple3/Apple3Palette.h`
+- [x] T048 [P] [US3] Implement `Apple3HiResMode`, `Apple3ColorHiResMode`, `Apple3Color140Mode` and `Apple3HiRes560Mode` in `CassoEmuCore/Machines/Apple3/`
+- [x] T049 [US3] Implement smooth scroll and mode selection for all seven modes in `CassoEmuCore/Machines/Apple3/Apple3Video.cpp`
+- [x] T050 [US3] Add the 16-color palette and the 16 gray levels, applied by the color, green, amber and white styles (FR-021), in `CassoEmuCore/Machines/Apple3/Apple3Palette.h`
 - [ ] T051 [US3] Add `AppleMonitorIII` with green as its phosphor to `CassoEmuCore/Config/MonitorCatalog.h` (its mesh arrives in Phase 12; until then it uses the Monitor II mesh)
 - [ ] T052 [US3] Write `scripts/CompareMameFrame.ps1` (headless MAME snapshot, headless Casso frame at the same emulated time, color index mapping, differing pixel report)
 - [ ] T053 [US3] Run T052 for each mode with a disk that draws in it; check each difference against the documents before changing code; store the results in `specs/050-apple3/validation/mame-frames.md`
