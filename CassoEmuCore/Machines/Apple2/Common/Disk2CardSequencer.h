@@ -72,17 +72,19 @@ public:
     void      Restore (uint32_t spindownCycles, uint32_t spinupRemaining);
 
 private:
-    bool  PollFloppyEnable      (IDiskPortHook * hook);
-    void  CatchUpToCpu          ();
-    void  HandleSwitch          (int offset);
-    void  CommandMotorOff       ();
-    void  CommandMotorOn        ();
-    void  SelectDrive           (int drive);
-    void  SetQ7                 (bool isOn);
-    Byte  HandleReadDispatch    ();
-    void  StopMotor             ();
-    void  UpdateEngineSelection ();
-    void  UpdateEngineWriteMode ();
+    bool         PollFloppyEnable      (IDiskPortHook * hook);
+    void         CatchUpToCpu          ();
+    void         HandleSwitch          (int offset);
+    void         CommandMotorOff       ();
+    void         CommandMotorOn        ();
+    void         SelectDrive           (int drive);
+    void         SetQ7                 (bool isOn);
+    Byte         HandleReadDispatch    ();
+    static bool  TryGetFixedByte       (bool q6, bool q7, const Disk2Drive & drive, Byte & value);
+    static Byte  GetLatchByte          (bool isSpinningUp, Byte latch) { return isSpinningUp ? 0x80 : latch; }
+    void         StopMotor             ();
+    void         UpdateEngineSelection ();
+    void         UpdateEngineWriteMode ();
 
     Disk2Drive  & GetActive();
 

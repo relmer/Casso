@@ -124,11 +124,13 @@ void Disk2CardSequencer::Write (int offset, Byte value, IDiskPortHook * hook)
 
 bool Disk2CardSequencer::TryPeek (int offset, Byte & value)
 {
-    bool          q6     = m_lines.IsQ6();
-    bool          q7     = m_lines.IsQ7();
-    int           drive  = m_lines.GetActiveDrive();
-    uint64_t      delta  = 0;
-    Disk2Drive  * peeked = nullptr;
+    bool          q6           = m_lines.IsQ6();
+    bool          q7           = m_lines.IsQ7();
+    int           drive        = m_lines.GetActiveDrive();
+    uint64_t      delta        = 0;
+    bool          isSpinningUp = false;
+    Byte          latch        = 0;
+    Disk2Drive  * peeked       = nullptr;
 
 
 
@@ -144,16 +146,9 @@ bool Disk2CardSequencer::TryPeek (int offset, Byte & value)
     }
 
     peeked = &m_drives[(size_t) drive];
-    value  = 0;
 
-    if (q7)
+    if (TryGetFixedByte (q6, q7, *peeked, value))
     {
-        return true;
-    }
-
-    if (q6)
-    {
-        value = peeked->IsWriteProtected() ? 0x80 : 0x00;
         return true;
     }
 
@@ -168,9 +163,9 @@ bool Disk2CardSequencer::TryPeek (int offset, Byte & value)
     }
 
     //  A motor turned on from rest starts the spin-up, which reads $80.
-    value = (m_motorSpinupRemaining > 0 || (offset == 0x9 && !m_lines.IsMotorOn()))
-          ? 0x80
-          : m_peek.Peek (peeked->GetEngine(), drive, m_clock.GetLastSync(), delta);
+    isSpinningUp = m_motorSpinupRemaining > 0 || (offset == 0x9 && !m_lines.IsMotorOn());
+    latch        = isSpinningUp ? 0 : m_peek.Peek (peeked->GetEngine(), drive, m_clock.GetLastSync(), delta);
+    value        = GetLatchByte (isSpinningUp, latch);
 
     return true;
 }
@@ -518,14 +513,9 @@ Byte Disk2CardSequencer::HandleReadDispatch()
 
 
 
-    if (m_lines.IsQ7())
+    if (TryGetFixedByte (m_lines.IsQ6(), m_lines.IsQ7(), drive, result))
     {
-        return 0;
-    }
-
-    if (m_lines.IsQ6())
-    {
-        return drive.IsWriteProtected() ? 0x80 : 0x00;
+        return result;
     }
 
     nibble  = drive.GetEngine().ReadLatch();
@@ -540,9 +530,41 @@ Byte Disk2CardSequencer::HandleReadDispatch()
                              m_clock.GetNow());
     }
 
-    result = (m_motorSpinupRemaining > 0) ? 0x80 : nibble;
+    result = GetLatchByte (m_motorSpinupRemaining > 0, nibble);
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2CardSequencer::TryGetFixedByte
+//
+//  The byte a read returns when it isn't the data latch's, which a read and
+//  a peek both select here: 0 with Q7 on, the write-protect sense in bit 7
+//  with Q6 on. False with both off, for the latch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2CardSequencer::TryGetFixedByte (bool q6, bool q7, const Disk2Drive & drive, Byte & value)
+{
+    value = 0;
+
+    if (q7)
+    {
+        return true;
+    }
+
+    if (q6)
+    {
+        value = drive.IsWriteProtected() ? 0x80 : 0x00;
+        return true;
+    }
+
+    return false;
 }
 
 
