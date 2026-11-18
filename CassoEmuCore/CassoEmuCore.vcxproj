@@ -303,6 +303,7 @@
     <ClCompile Include="Ui\Debugger\HeatMapRangeBarCommands.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowMenuBar.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowInput.cpp" />
+    <ClCompile Include="Ui\Debugger\DebuggerWindowMouse.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowLayout.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowContextMenus.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowTips.cpp" />
