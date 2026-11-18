@@ -874,6 +874,7 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     {
         ReadOptions (*options, copyOptions);
     }
+
     root.HasBool ("lineAddresses",  lineAddresses);
     root.HasBool ("skipElevationNotice", skipElevationNotice);
     root.HasBool ("hexShowValues",  hexShowValues);

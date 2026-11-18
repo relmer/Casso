@@ -1473,9 +1473,9 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
 void CassoExplorerActions::FindCopyOptionRows (std::vector<CopyOptionRows::Row> & outRows)
 {
     std::vector<FileEntry>  entries;
-    std::string             image = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
-    VolumeKind              kind  = m_browser.GetVolumeKind();
-    FileFormat              format = FileFormat::None;
+    std::string             image   = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
+    VolumeKind              kind    = m_browser.GetVolumeKind();
+    FileFormat              format  = FileFormat::None;
 
 
 

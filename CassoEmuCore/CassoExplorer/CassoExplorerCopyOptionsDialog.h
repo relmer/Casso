@@ -66,8 +66,8 @@ public:
                          const std::vector<CopyOptionRows::Row>   & rows,
                          DecodeOptions                            & ioOptions);
 
-    static const wchar_t *                   GetRowLabel   (CopyOptionRows::Row row);
-    static const std::vector<std::wstring> & GetRowChoices (CopyOptionRows::Row row);
+    static const wchar_t                    * GetRowLabel   (CopyOptionRows::Row row);
+    static const std::vector<std::wstring>  & GetRowChoices (CopyOptionRows::Row row);
 
 protected:
     void  OnCreate () override;
