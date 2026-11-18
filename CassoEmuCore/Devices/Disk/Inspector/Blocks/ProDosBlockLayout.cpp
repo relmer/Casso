@@ -171,7 +171,8 @@ void ProDosBlockLayout::Walk (const BlockImage & image, BlockFileSystem fileSyst
 //
 //  A directory's chain of blocks from its key block, each entry walked as it
 //  is found. `owner` is the subdirectory's file, or -1 for the volume
-//  directory.
+//  directory. A chain read to its end has its file count checked against
+//  its active entries.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -186,13 +187,15 @@ void ProDosBlockLayout::WalkDirectory (
 
 
 
-    uint32_t        block = keyBlock;
-    Block           bytes = {};
-    uint32_t        entry = 0;
-    const Byte    * at    = nullptr;
-    bool            isKey = true;
-    SectorRole      role  = SectorRole::CatalogOrDirectory;
-    uint32_t        count = kEntriesPerBlock;
+    uint32_t        block  = keyBlock;
+    Block           bytes  = {};
+    uint32_t        entry  = 0;
+    const Byte    * at     = nullptr;
+    bool            isKey  = true;
+    SectorRole      role   = SectorRole::CatalogOrDirectory;
+    uint32_t        count  = kEntriesPerBlock;
+    int             files  = 0;
+    int             active = 0;
 
 
 
@@ -220,6 +223,7 @@ void ProDosBlockLayout::WalkDirectory (
         if (isKey)
         {
             count = (uint32_t) ProDosSkeleton::GetEntriesPerBlock (bytes[kFirstEntry + kOffEntriesPerBlock]);
+            files = GetWord (&bytes[kFirstEntry + kOffFileCount]);
         }
 
         for (entry = isKey ? 1 : 0; entry < count; entry++)
@@ -228,6 +232,7 @@ void ProDosBlockLayout::WalkDirectory (
 
             if ((at[0] >> kStorageShift) != 0)
             {
+                active++;
                 WalkEntry (walker, at, block, prefix, owner, depth);
             }
         }
@@ -235,6 +240,42 @@ void ProDosBlockLayout::WalkDirectory (
         isKey = false;
         block = GetWord (&bytes[kNextPointer]);
     }
+
+    if (block == 0 && !isKey && files != active)
+    {
+        AddCount (walker, keyBlock, prefix, files, active);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosBlockLayout::AddCount
+//
+//  ProDOS stops reading a directory at its file count, so a count that
+//  differs from the active entries is damage.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosBlockLayout::AddCount (Walker & walker, uint32_t keyBlock, const std::wstring & prefix, int files, int active)
+{
+    std::wstring  directory = prefix.empty() ? std::wstring() : prefix.substr (0, prefix.size() - 1);
+    BlockCount    count;
+
+
+
+    count.keyBlock = keyBlock;
+    count.offset   = kFirstEntry + kOffFileCount;
+    count.recorded = files;
+    count.actual   = active;
+    count.what     = directory.empty() ? std::wstring (L"the volume directory's file count") : L"the file count of " + directory;
+    count.finding  = directory.empty() ? L"Expected a volume directory file count of " + NumberFormat::FormatInteger (active) + L", but found " + NumberFormat::FormatInteger (files)
+                                       : directory + L": expected a directory file count of " + NumberFormat::FormatInteger (active) + L", but found " + NumberFormat::FormatInteger (files);
+
+    walker.map.counts.push_back (std::move (count));
 }
 
 

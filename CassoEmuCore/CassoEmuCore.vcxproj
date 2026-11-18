@@ -342,6 +342,7 @@
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockFieldList.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMap.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockRepair.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BootLoaderId.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\Dos33SectorLayout.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\HfsBlockLayout.cpp" />
@@ -1475,6 +1476,7 @@
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockFieldList.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMap.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockRepair.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BootLoaderId.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\Dos33SectorLayout.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\HfsBlockLayout.h" />

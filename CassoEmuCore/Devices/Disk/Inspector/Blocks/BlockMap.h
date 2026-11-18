@@ -115,6 +115,30 @@ struct BlockFileEntry
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BlockCount
+//
+//  A directory's file count that differs from its active entries: the key
+//  block, the count's offset in it, the count on the disk and the entries
+//  counted, the count in words for a repair, and the finding.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct BlockCount
+{
+    uint32_t      keyBlock = 0;
+    uint32_t      offset   = 0;
+    int           recorded = 0;
+    int           actual   = 0;
+    std::wstring  what;
+    std::wstring  finding;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BlockMap
 //
 //  Every block of a volume, the paths of the files that use them, and for
@@ -122,7 +146,9 @@ struct BlockFileEntry
 //  is in. `hasFreeMap` is false for a volume with no free map, such as
 //  Pascal's, where a block with no file is simply free. `bootLoader` is the
 //  loader in the boot blocks, as "ProDOS loader", or empty for a volume of
-//  no known file system.
+//  no known file system. `counts` has each directory file count that
+//  differs, and `hasBrokenChains` is true when a file's blocks can't be
+//  followed to its end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,6 +164,8 @@ struct BlockMap
     vector<BlockFileEntry> entries;
     bool                   hasFreeMap          = false;
     bool                   isCatalogComplete   = true;
+    bool                   hasBrokenChains     = false;
+    vector<BlockCount>     counts;
     uint32_t               allocationStart     = 0;
     uint32_t               blocksPerAllocation = 1;
     vector<uint32_t>       catalogNodes;

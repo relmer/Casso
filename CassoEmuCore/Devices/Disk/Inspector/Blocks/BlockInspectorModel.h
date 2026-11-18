@@ -10,6 +10,7 @@
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorWorker.h"
 #include "Devices/Disk/Inspector/Blocks/BlockMap.h"
 #include "Devices/Disk/OffsetBlockStore.h"
+#include "Devices/Disk/Inspector/Repair/DiskRepair.h"
 
 struct Partition;
 
@@ -170,6 +171,20 @@ public:
     //  The other image's bytes for a block, as a pending edit. False when
     //  not comparing or when the block has those bytes.
     bool  UseOtherBlock (uint32_t block);
+
+    //  A volume's repair, planned over the volume as the file has it, without
+    //  the pending edits. WriteRepairTo writes the plan's blocks into a copy
+    //  of the image that the caller made at `path`, or with `isVolumeOnly`,
+    //  writes the volume alone to `path` as a ProDOS-order image, as for a
+    //  card's partition.
+    RepairPlan  PlanRepair    (int volume, const std::set<std::wstring> & chosen) const;
+    HRESULT     WriteRepairTo (IDiskFileIo        & fileIo,
+                               const std::string  & path,
+                               int                  volume,
+                               const RepairPlan   & plan,
+                               bool                 isVolumeOnly,
+                               std::wstring       & outError,
+                               BlockJobProgress   * progress = nullptr);
 
     //  Writes each changed block and reads the map again. Fails, writing
     //  nothing, when the file changed since it was opened. UndoApplied puts

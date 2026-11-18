@@ -104,6 +104,7 @@ private:
     static void  MarkBlock     (Walker & walker, uint32_t block, SectorRole role, BlockStructure structure, int owner, uint32_t node = 0);
     static void  WalkDirectory (Walker & walker, uint32_t keyBlock, const std::wstring & prefix, int owner, int depth);
     static void  WalkEntry     (Walker & walker, const Byte * entry, uint32_t block, const std::wstring & prefix, int owner, int depth);
+    static void  AddCount      (Walker & walker, uint32_t keyBlock, const std::wstring & prefix, int files, int active);
     static void  WalkFork      (Walker & walker, int file, Byte storage, uint32_t key);
     static void  WalkIndex     (Walker & walker, int file, uint32_t index, uint32_t & ioNode);
 

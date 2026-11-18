@@ -17,6 +17,8 @@
 #include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Ui/DiskInspector/RepairDialog.h"
+#include "Devices/Disk/Inspector/Repair/RepairCopy.h"
 #include "Core/NumberFormat.h"
 
 
@@ -226,6 +228,8 @@ void BlockInspectorWindow::BuildCommands()
         m_panel->Refresh();
     });
     c.endComparison->isEnabled = [this] () { return m_model.IsOpen() && !m_worker.IsBusy() && m_model.IsComparing(); };
+    c.repair                   = make (L"&Repair...", L"", [this] () { Repair(); });
+    c.repair->isEnabled        = [this, isOpen] () { return isOpen() && GetRepairVolume() >= 0; };
 
     //  Window
     c.windowZoomIn  = make (L"Zoom &in", L"Ctrl++", [this] () { SetZoom (DxuiZoomControl::StepZoom (m_zoom, 1)); });
@@ -1190,6 +1194,288 @@ void BlockInspectorWindow::Discard()
         m_model.DiscardEdits();
         m_panel->Refresh();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::GetRepairVolume
+//
+//  The volume of the current place, or the image's only volume.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BlockInspectorWindow::GetRepairVolume() const
+{
+    int  volume = m_panel->GetNavigator().GetPlace().volume;
+
+
+
+    if (volume < 0 && m_model.GetVolumeCount() == 1)
+    {
+        volume = 0;
+    }
+
+    return volume;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::Repair
+//
+//  The confirmation lists every change the volume can have, and the checked
+//  ones are written to a repaired copy, as the track inspector writes one:
+//  beside the image, unless the image is on a removable drive, which can
+//  be slow or short of space, or its drive doesn't have room for the copy.
+//  Then, and for a card's partition, the user chooses where the copy goes.
+//  The image isn't written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::Repair()
+{
+    int              volume = GetRepairVolume();
+    bool             isCard = IsOnCard();
+    std::wstring     name   = RepairDialog::FormatName (GetFileName());
+    RepairPlan       full   = m_model.PlanRepair (volume, {});
+    RepairDialog     dialog;
+    fs::path         target;
+    uint64_t         bytes  = 0;
+    std::wstring     why;
+    std::wstring     label;
+    std::error_code  error;
+    HRESULT          hr     = S_OK;
+
+
+
+    if (m_worker.IsBusy() || !full.canRepair)
+    {
+        ShowMessage (L"Repair isn't available. " + (m_worker.IsBusy() ? std::wstring (L"Wait for the current job to finish.") : full.reason));
+        return;
+    }
+
+    dialog.Configure (m_theme, isCard ? FormatCardIntro (GetFileName()) : RepairDialog::FormatIntro (GetFileName()), kRepairIntroLines, full,
+                      [this, volume] (const std::set<std::wstring> & keys) { return m_model.PlanRepair (volume, keys); }, {});
+
+    hr = dialog.ShowModal (GetHwnd(), m_theme);
+
+    if (FAILED (hr) || !dialog.IsConfirmed())
+    {
+        return;
+    }
+
+    if (isCard)
+    {
+        label  = m_model.GetVolumeMap (volume).volumeName;
+        bytes  = (uint64_t) m_model.GetVolumeSize (volume) * BlockInspectorModel::kBlockBytes;
+        target = fs::path ((label.empty() ? std::wstring (L"Partition") : label) + L" (repaired).po");
+    }
+    else
+    {
+        bytes  = fs::file_size (m_path, error);
+        target = TextEncoding::Utf8ToWide (RepairCopy::GetCopyPath (*m_fileIo, TextEncoding::WideToUtf8 (m_path)));
+
+        if (IsOnRemovableDrive (target))
+        {
+            why = name + L" is on a removable drive, which can be slow or short of space. Choose where to save the repaired copy.";
+        }
+        else if (!HasRoomFor (target.parent_path(), bytes))
+        {
+            why = L"The drive with " + name + L" doesn't have room for the repaired copy. Choose where to save it.";
+        }
+    }
+
+    if ((isCard || !why.empty()) && !PickRepairTarget (why, bytes, target))
+    {
+        return;
+    }
+
+    QueueRepairCopy (volume, dialog.GetPlan(), isCard, target);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::PickRepairTarget
+//
+//  The Save dialog opens again until the file isn't the image and its
+//  drive has room for the copy. False when the user cancels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorWindow::PickRepairTarget (const std::wstring & why, uint64_t bytes, fs::path & ioTarget)
+{
+    std::wstring     extension = ioTarget.has_extension() ? ioTarget.extension().wstring().substr (1) : std::wstring (L"po");
+    FileDialogSpec   spec;
+    fs::path         picked;
+    bool             isPicked  = false;
+    bool             isChosen  = false;
+    std::error_code  error;
+    HRESULT          hr        = S_OK;
+
+
+
+    if (!why.empty())
+    {
+        ShowMessage (why);
+    }
+
+    spec.title            = L"Save the repaired copy";
+    spec.filters          = { { L"Disk images", L"*." + extension } };
+    spec.defaultExtension = extension;
+    spec.defaultFileName  = ioTarget.filename().wstring();
+    spec.initialFolder    = ioTarget.parent_path();
+
+    while (!isChosen)
+    {
+        hr = m_dialogs.PickFileToSave (GetHwnd(), spec, picked, isPicked);
+
+        if (FAILED (hr) || !isPicked)
+        {
+            return false;
+        }
+
+        if (!IsOnCard() && (fs::equivalent (picked, m_path, error) || _wcsicmp (fs::absolute (picked, error).wstring().c_str(), fs::absolute (m_path, error).wstring().c_str()) == 0))
+        {
+            ShowMessage (L"That file is the image this window opened. Choose another file for the copy.");
+        }
+        else if (!HasRoomFor (picked.parent_path(), bytes))
+        {
+            ShowMessage (L"That drive doesn't have room for the repaired copy. Choose another folder.");
+        }
+        else
+        {
+            isChosen = true;
+        }
+    }
+
+    ioTarget = picked;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::QueueRepairCopy
+//
+//  The image copied and the plan's blocks written into the copy, or a card's
+//  partition written whole, on the worker's thread. A copy that fails
+//  partway is deleted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BlockInspectorWindow::QueueRepairCopy (int volume, const RepairPlan & plan, bool isCard, const fs::path & target)
+{
+    auto                   result = std::make_shared<JobResult>();
+    BlockInspectorModel  * model  = &m_model;
+    IDiskFileIo          * fileIo = m_fileIo;
+    fs::path               image  = m_path;
+
+
+
+    m_editNote = L"Writing the repaired copy...";
+
+    m_panel->QueueJob ({ L"Writing the repaired copy", false,
+                         [result, model, fileIo, image, target, volume, plan, isCard] (BlockJobProgress & progress)
+                         {
+                             std::string  path = TextEncoding::WideToUtf8 (target.wstring());
+
+                             if (!isCard && !CopyFileW (image.c_str(), target.c_str(), FALSE))
+                             {
+                                 result->hr      = HRESULT_FROM_WIN32 (GetLastError());
+                                 result->message = L"The image can't be copied.";
+                             }
+                             else
+                             {
+                                 result->hr = model->WriteRepairTo (*fileIo, path, volume, plan, isCard, result->message, &progress);
+                             }
+
+                             if (FAILED (result->hr) && fileIo->Exists (path))
+                             {
+                                 (void) fileIo->Remove (path);
+                             }
+                         },
+                         [this, result, target] ()
+                         {
+                             m_editNote = SUCCEEDED (result->hr) ? L"Repaired copy written: " + target.filename().wstring()
+                                                                 : L"Repair failed: " + (result->message.empty() ? std::wstring (L"The repaired copy can't be written.") : result->message);
+                             m_panel->Refresh();
+                         } });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::FormatCardIntro
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlockInspectorWindow::FormatCardIntro (const std::wstring & fileName)
+{
+    std::wstring  name = RepairDialog::FormatName (fileName);
+
+
+
+    return L"Repairing a partition writes a repaired copy of it to an image file you choose. " + name + L" on the card isn't changed. "
+           L"Select the repairs below to apply to the repaired image.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::IsOnRemovableDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorWindow::IsOnRemovableDrive (const fs::path & path)
+{
+    wchar_t  root[MAX_PATH] = {};
+
+
+
+    return GetVolumePathNameW (path.c_str(), root, MAX_PATH) && GetDriveTypeW (root) == DRIVE_REMOVABLE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::HasRoomFor
+//
+//  Room for the copy and a margin. A drive whose free space can't be read
+//  is taken to have room, and the write reports a failure.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BlockInspectorWindow::HasRoomFor (const fs::path & folder, uint64_t bytes)
+{
+    ULARGE_INTEGER  available = {};
+
+
+
+    return !GetDiskFreeSpaceExW (folder.c_str(), &available, nullptr, nullptr) || available.QuadPart >= bytes + kRoomMarginBytes;
 }
 
 
