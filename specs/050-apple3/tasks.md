@@ -77,17 +77,17 @@ the screen text.
 
 ### Tests
 
-- [ ] T025 [P] [US1] Write character set tests (loading through the documented mechanism changes glyphs; nothing else does; power-on contents) in `UnitTest/Apple3Tests/Apple3CharacterSetTests.cpp`
-- [ ] T026 [P] [US1] Write text mode decoding tests for 40-column, 40-column color and 80-column: normal, inverse, and flashing in the 40-column black and white mode, in `UnitTest/Apple3Tests/Apple3TextModeTests.cpp`
+- [x] T025 [P] [US1] Write character set tests (loading through the documented mechanism changes glyphs; nothing else does; power-on contents) in `UnitTest/Apple3Tests/Apple3CharacterSetTests.cpp`
+- [x] T026 [P] [US1] Write text mode decoding tests for 40-column, 40-column color and 80-column: normal, inverse, and flashing in the 40-column black and white mode, in `UnitTest/Apple3Tests/Apple3TextModeTests.cpp`
 - [ ] T027 [P] [US1] Write keyboard tests (code and flags for every key of the Apple /// layout, strobe, repeat, interrupt) in `UnitTest/Apple3Tests/Apple3KeyboardTests.cpp`
 - [ ] T028 [P] [US1] Write disk controller tests for the built-in drive (select, motor, read latch, write) in `UnitTest/Apple3Tests/Apple3DiskControllerTests.cpp`
 - [ ] T029 [US1] Write scenario tests (no-disk screen with an empty drive; Business BASIC prompt on 128K and 256K; `PRINT 6*7` prints 42; a missing disk or ROM fails the test) in `ScenarioTests/Apple3SosTests.cpp`
 
 ### Implementation
 
-- [ ] T030 [P] [US1] Implement `Apple3CharacterSet` and its loader behind a glyph source interface in `CassoEmuCore/Machines/Apple3/Apple3CharacterSet.h` and `.cpp`
+- [x] T030 [P] [US1] Implement `Apple3CharacterSet` and its loader behind a glyph source interface in `CassoEmuCore/Machines/Apple3/Apple3CharacterSet.h` and `.cpp`
 - [ ] T031 [US1] Implement `Apple3Video` (mode switches, display buffer, video enable, vertical blanking to the VIAs, beam position) in `CassoEmuCore/Machines/Apple3/Apple3Video.h` and `.cpp`
-- [ ] T032 [P] [US1] Implement `Apple3TextMode`, `Apple3ColorTextMode` and `Apple380ColTextMode` in `CassoEmuCore/Machines/Apple3/`
+- [x] T032 [P] [US1] Implement `Apple3TextMode`, `Apple3ColorTextMode` and `Apple380ColTextMode` in `CassoEmuCore/Machines/Apple3/`
 - [ ] T033 [P] [US1] Implement `Apple3Keyboard` and add the `Apple3` layout to the keyboard layout tables in `CassoEmuCore/Machines/Apple3/Apple3Keyboard.h` and `.cpp`
 - [x] T034 [US1] List in `specs/050-apple3/research.md` under R8 every place `Disk2Controller` and its consumers assume two drives
 - [ ] T035 [US1] Implement `Apple3DiskController` over `Disk2NibbleEngine` with the built-in drive working, in `CassoEmuCore/Machines/Apple3/Apple3DiskController.h` and `.cpp`

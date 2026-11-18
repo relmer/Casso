@@ -967,6 +967,11 @@
     <ClCompile Include="Machines\Apple3\Apple3SystemVias.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3Slots.cpp" />
     <ClCompile Include="Machines\Apple3\Apple3TimeBase.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3CharacterSet.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3TextCells.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3TextMode.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple3ColorTextMode.cpp" />
+    <ClCompile Include="Machines\Apple3\Apple380ColTextMode.cpp" />
     <ClCompile Include="Ui\Settings\NetworkPage.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -1953,6 +1958,14 @@
     <ClInclude Include="Machines\Apple3\Apple3SystemVias.h" />
     <ClInclude Include="Machines\Apple3\Apple3Slots.h" />
     <ClInclude Include="Machines\Apple3\Apple3TimeBase.h" />
+    <ClInclude Include="Machines\Apple3\IGlyphSource.h" />
+    <ClInclude Include="Machines\Apple3\Apple3CharacterSet.h" />
+    <ClInclude Include="Machines\Apple3\Apple3Screen.h" />
+    <ClInclude Include="Machines\Apple3\IApple3VideoMode.h" />
+    <ClInclude Include="Machines\Apple3\Apple3TextCells.h" />
+    <ClInclude Include="Machines\Apple3\Apple3TextMode.h" />
+    <ClInclude Include="Machines\Apple3\Apple3ColorTextMode.h" />
+    <ClInclude Include="Machines\Apple3\Apple380ColTextMode.h" />
     <ClInclude Include="Ui\Settings\NetworkPage.h" />
   </ItemGroup>
   <ItemGroup>
