@@ -20,7 +20,7 @@ listed with their pages in `photo-sources.md` there.
   square-on rear: the rear recess, connector and label, and the seam
 - `disk3-3q-right-oc.jpg`, `disk3-front-high-oc.jpg` and
   `disk3-3q-front-left-rr3483512.jpg`: the top panel, the chamfers and the
-  block below the slot, by eye
+  side seam, by eye
 - Computer History Museum X2437.2002D, 6 1/4 x 4 x 8 1/2 in, a cross-check
   for the width and height (not an Apple document)
 
@@ -42,9 +42,13 @@ dimension comes from the photographs.
   pixel of a 1200-pixel copy, good to about 1 mm: the slot at 51.5 to 56 mm
   above the desk, the notch 41.5 mm wide from 22.8 to 83.4 mm, the latch's
   tab from 46.4 to 61.2 mm, the lamp centered at 33.1 mm, the drive label at
-  9.3 to 25.1 mm from the left and the logo plate at 12.7 to 45.8 mm.
-- **Feet** are 22 mm squares, 25.9 and 113.6 mm from the left and 55.6 and
-  179.6 mm from the front, from the bottom photograph at 0.2 mm per pixel.
+  9.3 to 25.1 mm from the left and the logo plate at 12.7 to 45.8 mm. The
+  face is one flat molding, with the slot in a channel 1.2 mm deep from 49.3
+  to 57.1 mm and the notch in a second one, each beveled at 45 degrees.
+- **The bottom** was read from `disk3-bottom-oc.jpg` at 0.118 mm per pixel:
+  the four feet, each about 21.5 mm square in a 0.7 mm pocket with its bottom
+  edges beveled, the four screws, and the FCC label, 86.5 by 39.7 mm, with
+  its lines stretched to their measured widths as the label's are justified.
 - **Edges** are treated as the ProFile's are: the front top edge and the
   rear corners are rounded, and the front corners, the top's sides, the rear
   top edge and the bottom edges are 45-degree chamfers.
@@ -58,5 +62,5 @@ dimension comes from the photographs.
   per pixel, and each line of lettering is set to its measured width. The
   type is Century Gothic in place of the label's geometric sans. Casso's
   silhouette replaces the logo.
-- **Chamfer and fillet sizes, the block's projection, the top panel's inset
+- **Chamfer and fillet sizes, the top panel's inset
   and the seam's height** are by eye from the three-quarter views.
