@@ -4,6 +4,7 @@
 
 #include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
+#include "Devices/BlockDevice/IReplayMedia.h"
 #include "Devices/BlockDevice/IBlockDeviceEventSink.h"
 #include "Devices/BlockDevice/Ncr5380.h"
 #include "Devices/BlockDevice/ScsiBus.h"
@@ -39,7 +40,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class AppleScsiCard : public MemoryDevice, public IExpansionRomCard, public IBlockDeviceEventSource, public IMachineState
+class AppleScsiCard : public MemoryDevice, public IExpansionRomCard, public IBlockDeviceEventSource, public IMachineState, public IReplayMediaSource
 {
 public:
     static constexpr size_t  kRomSize   = 0x4000;
@@ -101,9 +102,9 @@ public:
     //  IMachineState: the card's RAM, bank latch and selection, the NCR
     //  5380, the bus and each disk on it, its written blocks included. A
     //  state saved with another set of disks doesn't load.
-    HRESULT  SaveState (StateWriter & writer) const override;
-    HRESULT  LoadState (StateReader & reader) override;
-    bool     HasMedia  () const override { return true; }
+    HRESULT  SaveState      (StateWriter & writer) const override;
+    HRESULT  LoadState      (StateReader & reader) override;
+    void     GetReplayMedia (std::vector<IReplayMedia *> & outDrives) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('S', 'C', 'S', 'I');
     static constexpr uint16_t  kStateVersion = 1;

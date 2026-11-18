@@ -51,3 +51,26 @@ public:
     virtual HRESULT  CopyForReplay   (ReplayBlockMedia & outCopy)      = 0;
     virtual HRESULT  MountReplayCopy (const ReplayBlockMedia & copy)   = 0;
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IReplayMediaSource
+//
+//  A card or port whose drives have disks a replay copies. GetReplayMedia
+//  appends the drives, in an order two cards built from one configuration
+//  share. The state of a part that implements it is passed over by a load
+//  for a picture, which has no disks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IReplayMediaSource
+{
+public:
+    virtual ~IReplayMediaSource() = default;
+
+    virtual void  GetReplayMedia (std::vector<IReplayMedia *> & outDrives) = 0;
+};

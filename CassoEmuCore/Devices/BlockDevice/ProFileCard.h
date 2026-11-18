@@ -4,6 +4,7 @@
 
 #include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
+#include "Devices/BlockDevice/IReplayMedia.h"
 #include "Devices/BlockDevice/IBlockDeviceEventSink.h"
 #include "Devices/BlockDevice/ProFileDrive.h"
 #include "Machines/Apple2/Common/IExpansionRomCard.h"
@@ -39,7 +40,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ProFileCard : public MemoryDevice, public IExpansionRomCard, public IBlockDeviceEventSource, public IMachineState
+class ProFileCard : public MemoryDevice, public IExpansionRomCard, public IBlockDeviceEventSource, public IMachineState, public IReplayMediaSource
 {
 public:
     static constexpr size_t  kRomSize      = 0x800;
@@ -81,9 +82,9 @@ public:
 
     //  IMachineState: the handshake lines, the expansion ROM's selection
     //  and the drive, its written blocks included.
-    HRESULT  SaveState (StateWriter & writer) const override;
-    HRESULT  LoadState (StateReader & reader) override;
-    bool     HasMedia  () const override { return true; }
+    HRESULT  SaveState      (StateWriter & writer) const override;
+    HRESULT  LoadState      (StateReader & reader) override;
+    void     GetReplayMedia (std::vector<IReplayMedia *> & outDrives) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('P', 'R', 'O', 'F');
     static constexpr uint16_t  kStateVersion = 1;

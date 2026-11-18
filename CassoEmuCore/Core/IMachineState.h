@@ -99,11 +99,6 @@ public:
     virtual HRESULT  SaveState (StateWriter & writer) const = 0;
     virtual HRESULT  LoadState (StateReader & reader)       = 0;
 
-    // Whether the part's state has a disk's, such as a hard disk card's. A
-    // machine made only to draw a state's picture has no disks, and passes
-    // over such a part.
-    virtual bool     HasMedia  () const { return false; }
-
     // Four characters packed into a section tag, first character in the low
     // byte, so the tag reads as text in a hex dump of the stream.
     static constexpr uint32_t MakeTag (char a, char b, char c, char d)

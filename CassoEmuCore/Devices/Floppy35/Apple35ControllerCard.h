@@ -4,6 +4,8 @@
 
 #include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
+#include "Devices/BlockDevice/IReplayMedia.h"
+#include "Devices/Floppy35/ICatchUpDevice.h"
 #include "Devices/Floppy35/Apple35CardMemory.h"
 #include "Devices/Floppy35/DeviceCpu.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
@@ -36,7 +38,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Apple35ControllerCard : public MemoryDevice, public IExpansionRomCard, public IFloppy35EventSource, public IMachineState
+class Apple35ControllerCard : public MemoryDevice, public IExpansionRomCard, public IFloppy35EventSource, public IMachineState, public IReplayMediaSource, public ICatchUpDevice
 {
 public:
     Apple35ControllerCard (int slot, MemoryBus & bus);
@@ -73,7 +75,7 @@ public:
     void  SetHostClock (const uint64_t * cycles, uint32_t clockHz);
 
     //  Runs the card's CPU up to the Apple's clock.
-    void  CatchUp (CatchUpKind kind = CatchUpKind::Access);
+    void  CatchUp (CatchUpKind kind = CatchUpKind::Access) override;
 
     Apple35CardMemory  & GetCardMemory () { return m_memory; }
     DeviceCpu          & GetCardCpu    () { return m_cpu; }
@@ -82,9 +84,9 @@ public:
 
     //  IMachineState: the card's CPU, RAM, IWM and drives, the bank, the
     //  expansion ROM's selection and the card's clock against the Apple's.
-    HRESULT  SaveState (StateWriter & writer) const override;
-    HRESULT  LoadState (StateReader & reader) override;
-    bool     HasMedia  () const override { return true; }
+    HRESULT  SaveState      (StateWriter & writer) const override;
+    HRESULT  LoadState      (StateReader & reader) override;
+    void     GetReplayMedia (std::vector<IReplayMedia *> & outDrives) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('3', '5', 'C', 'C');
     static constexpr uint16_t  kStateVersion = 1;

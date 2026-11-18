@@ -5,6 +5,7 @@
 #include "Core/Prng.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Devices/BlockDevice/IReplayMedia.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Shell/MachineHardwareIdentity.h"
 #include "Shell/MachineStateStream.h"
@@ -191,6 +192,7 @@ HRESULT MachineStateStream::LoadStateForPicture (StateReader & reader)
     uint32_t                i          = 0;
     uint32_t                tag        = 0;
     size_t                  next       = 0;
+    bool                    isMedia    = false;
     std::vector<uint32_t>   tags;
 
 
@@ -221,7 +223,9 @@ HRESULT MachineStateStream::LoadStateForPicture (StateReader & reader)
 
         if (next < tags.size() && tags[next] == tag)
         {
-            hr = m_stateParts[next]->HasMedia() ? reader.SkipSection() : m_stateParts[next]->LoadState (reader);
+            // A card or port with disks: the picture's machine doesn't have them.
+            isMedia = dynamic_cast<IReplayMediaSource *> (m_stateParts[next]) != nullptr;
+            hr      = isMedia ? reader.SkipSection() : m_stateParts[next]->LoadState (reader);
             CHR (hr);
 
             next++;

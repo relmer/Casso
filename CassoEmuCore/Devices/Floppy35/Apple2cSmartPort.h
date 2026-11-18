@@ -4,6 +4,8 @@
 
 #include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
+#include "Devices/BlockDevice/IReplayMedia.h"
+#include "Devices/Floppy35/ICatchUpDevice.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
 #include "Devices/Floppy35/SmartPortHost.h"
 #include "Machines/Apple2/Common/IDiskPortHook.h"
@@ -28,7 +30,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Apple2cSmartPort : public MemoryDevice, public IDiskPortHook, public IFloppy35EventSource, public IMachineState
+class Apple2cSmartPort : public MemoryDevice, public IDiskPortHook, public IFloppy35EventSource, public IMachineState, public IReplayMediaSource, public ICatchUpDevice
 {
 public:
     static constexpr int  kDriveTwo = 1;
@@ -51,11 +53,13 @@ public:
 
     SmartPortHost  & GetPort () { return m_port; }
 
+    void  CatchUp (CatchUpKind kind) override { m_port.CatchUp (kind); }
+
     //  IMachineState: the SmartPort chain on the disk port, its drives'
     //  CPUs, RAM and disks included.
-    HRESULT  SaveState (StateWriter & writer) const override;
-    HRESULT  LoadState (StateReader & reader) override;
-    bool     HasMedia  () const override { return true; }
+    HRESULT  SaveState      (StateWriter & writer) const override;
+    HRESULT  LoadState      (StateReader & reader) override;
+    void     GetReplayMedia (std::vector<IReplayMedia *> & outDrives) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('C', '2', 'S', 'P');
     static constexpr uint16_t  kStateVersion = 1;

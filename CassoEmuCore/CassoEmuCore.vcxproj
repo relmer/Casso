@@ -3008,6 +3008,7 @@
     <ClInclude Include="Devices\Floppy35\Gcr35Track.h" />
     <ClInclude Include="Devices\Floppy35\Sony35Drive.h" />
     <ClInclude Include="Devices\Floppy35\IDiskDriveBus.h" />
+    <ClInclude Include="Devices\Floppy35\ICatchUpDevice.h" />
     <ClInclude Include="Devices\Floppy35\Iwm.h" />
     <ClInclude Include="Devices\Floppy35\DeviceCpu.h" />
     <ClInclude Include="Devices\Floppy35\Apple35CardMemory.h" />

@@ -4,6 +4,8 @@
 
 #include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
+#include "Devices/BlockDevice/IReplayMedia.h"
+#include "Devices/Floppy35/ICatchUpDevice.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
 #include "Devices/Floppy35/SmartPortHost.h"
 #include "Machines/Apple2/Common/IExpansionRomCard.h"
@@ -31,7 +33,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class LironCard : public MemoryDevice, public IExpansionRomCard, public IFloppy35EventSource, public IMachineState
+class LironCard : public MemoryDevice, public IExpansionRomCard, public IFloppy35EventSource, public IMachineState, public IReplayMediaSource, public ICatchUpDevice
 {
 public:
     static constexpr size_t  kRomSize = 0x1000;
@@ -69,7 +71,7 @@ public:
 
     //  Runs the drives up to the Apple's time, so their firmware's timers run
     //  while the Apple doesn't access the card.
-    void  CatchUp (CatchUpKind kind = CatchUpKind::Access) { m_port.CatchUp (kind); }
+    void  CatchUp (CatchUpKind kind = CatchUpKind::Access) override { m_port.CatchUp (kind); }
 
     size_t            GetDriveCount () const { return m_port.GetDriveCount(); }
     UniDisk35Drive  & GetDrive      (size_t index) { return m_port.GetDrive (index); }
@@ -80,9 +82,9 @@ public:
 
     //  IMachineState: the expansion ROM's selection and the SmartPort chain
     //  behind the card, its drives' CPUs, RAM and disks included.
-    HRESULT  SaveState (StateWriter & writer) const override;
-    HRESULT  LoadState (StateReader & reader) override;
-    bool     HasMedia  () const override { return true; }
+    HRESULT  SaveState      (StateWriter & writer) const override;
+    HRESULT  LoadState      (StateReader & reader) override;
+    void     GetReplayMedia (std::vector<IReplayMedia *> & outDrives) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('L', 'I', 'R', 'N');
     static constexpr uint16_t  kStateVersion = 1;

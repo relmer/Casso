@@ -4,6 +4,8 @@
 
 #include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
+#include "Devices/BlockDevice/IReplayMedia.h"
+#include "Devices/Floppy35/ICatchUpDevice.h"
 #include "Devices/Floppy35/IDiskDriveBus.h"
 #include "Devices/Floppy35/IFloppy35EventSink.h"
 #include "Devices/Floppy35/SmartPortHost.h"
@@ -37,7 +39,7 @@ class MigChip;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Apple2cPlusDiskPort : public MemoryDevice, public IDiskPortHook, public IFloppy35EventSource, public IMachineState
+class Apple2cPlusDiskPort : public MemoryDevice, public IDiskPortHook, public IFloppy35EventSource, public IMachineState, public IReplayMediaSource, public ICatchUpDevice
 {
 public:
     static constexpr Word  kIoStart     = 0xC0E0;
@@ -71,6 +73,8 @@ public:
     Sony35Drive    & GetInternalDrive ()       { return m_internal; }
     SmartPortHost  & GetPort          ()       { return m_port; }
 
+    void  CatchUp (CatchUpKind kind) override { m_port.CatchUp (kind); }
+
     //  The 5.25-inch drives at the end of the chain, drive 1 first.
     void             SetFloppyCount   (int count) { m_floppyCount = count; }
     int              GetFloppyCount   () const    { return m_floppyCount; }
@@ -82,9 +86,9 @@ public:
 
     //  IMachineState: the MIG, the SmartPort chain, the internal drive and
     //  the external 3.5-inch drives, the phases and the drive enables.
-    HRESULT  SaveState (StateWriter & writer) const override;
-    HRESULT  LoadState (StateReader & reader) override;
-    bool     HasMedia  () const override { return true; }
+    HRESULT  SaveState      (StateWriter & writer) const override;
+    HRESULT  LoadState      (StateReader & reader) override;
+    void     GetReplayMedia (std::vector<IReplayMedia *> & outDrives) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('C', '+', 'D', 'P');
     static constexpr uint16_t  kStateVersion = 1;

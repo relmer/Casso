@@ -515,6 +515,38 @@ void Apple2cPlusDiskPort::PortDrive::SetEnabled (bool isEnabled)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Apple2cPlusDiskPort::GetReplayMedia
+//
+//  The internal drive, the external drives, then the chain.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cPlusDiskPort::GetReplayMedia (std::vector<IReplayMedia *> & outDrives)
+{
+    int     drive = 0;
+    size_t  i     = 0;
+
+
+
+    outDrives.push_back (&m_internal);
+
+    for (drive = 0; drive < kMaxExternal; drive++)
+    {
+        outDrives.push_back (&m_externals[(size_t) drive]);
+    }
+
+    for (i = 0; i < m_port.GetDriveCount(); i++)
+    {
+        outDrives.push_back (&m_port.GetDrive (i).GetMechanism());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Apple2cPlusDiskPort::SaveState
 //
 ////////////////////////////////////////////////////////////////////////////////

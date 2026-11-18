@@ -5,10 +5,8 @@
 #include "Debugger/Reverse/HeldInputWatch.h"
 #include "Debugger/Reverse/HistoryRecorder.h"
 #include "Devices/Acia6551.h"
-#include "Devices/Floppy35/Apple2cPlusDiskPort.h"
-#include "Devices/Floppy35/Apple2cSmartPort.h"
-#include "Devices/Floppy35/Apple35ControllerCard.h"
-#include "Devices/Floppy35/LironCard.h"
+#include "Devices/Floppy35/DeviceCpu.h"
+#include "Devices/Floppy35/ICatchUpDevice.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
@@ -246,28 +244,9 @@ Byte MachineRunner::FinishStep()
 
 void MachineRunner::CatchUpCards()
 {
-    MachineRefs  & refs = m_parts.refs;
-
-
-
-    for (LironCard * lironCard : refs.lironCards)
+    for (ICatchUpDevice * device : m_parts.refs.catchUpDevices)
     {
-        lironCard->CatchUp (CatchUpKind::BetweenFrames);
-    }
-
-    for (Apple35ControllerCard * apple35Card : refs.apple35Cards)
-    {
-        apple35Card->CatchUp (CatchUpKind::BetweenFrames);
-    }
-
-    if (refs.apple2cSmartPort != nullptr)
-    {
-        refs.apple2cSmartPort->GetPort().CatchUp (CatchUpKind::BetweenFrames);
-    }
-
-    if (refs.apple2cPlusDiskPort != nullptr)
-    {
-        refs.apple2cPlusDiskPort->GetPort().CatchUp (CatchUpKind::BetweenFrames);
+        device->CatchUp (CatchUpKind::BetweenFrames);
     }
 }
 

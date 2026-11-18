@@ -61,6 +61,11 @@ struct MachineRefs
     std::vector<class ProFileCard *>              proFileCards;
     std::vector<class Apple35ControllerCard *>    apple35Cards;
     std::vector<class LironCard *>                lironCards;
+    // The cards and ports with separate processors, caught up together
+    // (MachineRunner::CatchUpCards), and the ones whose drives a replay
+    // copies (MachineStorage::GetReplayMedia), in the order they were built.
+    std::vector<class ICatchUpDevice *>           catchUpDevices;
+    std::vector<class IReplayMediaSource *>       replayMediaSources;
     class Apple2cSmartPort                      * apple2cSmartPort    = nullptr;
     class Apple2cPlusDiskPort                   * apple2cPlusDiskPort = nullptr;
     class MigChip                               * migChip             = nullptr;

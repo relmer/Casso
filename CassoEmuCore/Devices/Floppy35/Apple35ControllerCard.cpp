@@ -538,6 +538,33 @@ Word Apple35ControllerCard::GetRamAddress (Word address) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Apple35ControllerCard::GetReplayMedia
+//
+//  Each drive the card has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple35ControllerCard::GetReplayMedia (std::vector<IReplayMedia *> & outDrives)
+{
+    int  drive = 0;
+
+
+
+    for (drive = 0; drive < Apple35CardMemory::kDrives; drive++)
+    {
+        if (m_memory.HasDrive (drive))
+        {
+            outDrives.push_back (&m_memory.GetDrive (drive));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Apple35ControllerCard::SaveState
 //
 ////////////////////////////////////////////////////////////////////////////////

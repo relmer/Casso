@@ -124,6 +124,7 @@ void StorageCardWiring::WireAppleScsiCard (const SlotConfig & slot, AppleScsiCar
 
     m_host.GetRefs().scsiCards.push_back (&card);
     m_host.GetRefs().blockDeviceSources.push_back (&card);
+    m_host.GetRefs().replayMediaSources.push_back (&card);
 }
 
 
@@ -234,6 +235,7 @@ void StorageCardWiring::WireProFileCard (const SlotConfig & slot, ProFileCard & 
 
     m_host.GetRefs().proFileCards.push_back (&card);
     m_host.GetRefs().blockDeviceSources.push_back (&card);
+    m_host.GetRefs().replayMediaSources.push_back (&card);
 }
 
 
@@ -294,6 +296,8 @@ void StorageCardWiring::WireApple35Card (const SlotConfig & slot, Apple35Control
 
     m_host.GetRefs().apple35Cards.push_back (&card);
     m_host.GetRefs().floppy35Sources.push_back (&card);
+    m_host.GetRefs().catchUpDevices.push_back (&card);
+    m_host.GetRefs().replayMediaSources.push_back (&card);
 }
 
 
@@ -376,6 +380,8 @@ void StorageCardWiring::WireLironCard (const SlotConfig & slot, LironCard & card
 
     m_host.GetRefs().lironCards.push_back (&card);
     m_host.GetRefs().floppy35Sources.push_back (&card);
+    m_host.GetRefs().catchUpDevices.push_back (&card);
+    m_host.GetRefs().replayMediaSources.push_back (&card);
 }
 
 
@@ -415,6 +421,8 @@ void StorageCardWiring::WireDiskPortChain (Disk2Controller & controller)
         controller.SetPortHook (chain.get());
         m_host.GetRefs().apple2cSmartPort = chain.get();
         m_host.GetRefs().floppy35Sources.push_back (chain.get());
+        m_host.GetRefs().catchUpDevices.push_back (chain.get());
+        m_host.GetRefs().replayMediaSources.push_back (chain.get());
         m_host.GetOwnedDevices().push_back (std::move (chain));
     }
 }
@@ -549,6 +557,8 @@ void StorageCardWiring::WireApple2cPlusDrives (Apple2cPlusDiskPort & port)
 
     m_host.GetRefs().apple2cPlusDiskPort = &port;
     m_host.GetRefs().floppy35Sources.push_back (&port);
+    m_host.GetRefs().catchUpDevices.push_back (&port);
+    m_host.GetRefs().replayMediaSources.push_back (&port);
 }
 
 

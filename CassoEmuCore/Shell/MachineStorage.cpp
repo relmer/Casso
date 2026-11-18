@@ -392,75 +392,17 @@ void MachineStorage::BindDiskDrives()
 //
 //  MachineStorage::GetReplayMedia
 //
-//  Each SCSI card's targets, each ProFile, each 3.5 controller card's
-//  drives, each Liron card's chain, then the //c's SmartPort chain and the
-//  //c Plus's drives.
+//  Each card's or port's drives, in the order the builder built them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineStorage::GetReplayMedia (std::vector<IReplayMedia *> & outDrives)
 {
-    MachineRefs  & refs  = m_parts.refs;
-    size_t         i     = 0;
-    int            drive = 0;
-
-
-
     outDrives.clear();
 
-    for (AppleScsiCard * card : refs.scsiCards)
+    for (IReplayMediaSource * source : m_parts.refs.replayMediaSources)
     {
-        for (drive = 0; drive < AppleScsiCard::kTargets; drive++)
-        {
-            outDrives.push_back (&card->GetTarget (drive).GetMedia());
-        }
-    }
-
-    for (ProFileCard * card : refs.proFileCards)
-    {
-        outDrives.push_back (&card->GetDrive().GetMedia());
-    }
-
-    for (Apple35ControllerCard * card : refs.apple35Cards)
-    {
-        for (drive = 0; drive < Apple35CardMemory::kDrives; drive++)
-        {
-            if (card->GetCardMemory().HasDrive (drive))
-            {
-                outDrives.push_back (&card->GetCardMemory().GetDrive (drive));
-            }
-        }
-    }
-
-    for (LironCard * card : refs.lironCards)
-    {
-        for (i = 0; i < card->GetDriveCount(); i++)
-        {
-            outDrives.push_back (&card->GetDrive (i).GetMechanism());
-        }
-    }
-
-    if (refs.apple2cSmartPort != nullptr)
-    {
-        for (i = 0; i < refs.apple2cSmartPort->GetPort().GetDriveCount(); i++)
-        {
-            outDrives.push_back (&refs.apple2cSmartPort->GetPort().GetDrive (i).GetMechanism());
-        }
-    }
-
-    if (refs.apple2cPlusDiskPort != nullptr)
-    {
-        outDrives.push_back (&refs.apple2cPlusDiskPort->GetInternalDrive());
-
-        for (drive = 0; drive < Apple2cPlusDiskPort::kMaxExternal; drive++)
-        {
-            outDrives.push_back (&refs.apple2cPlusDiskPort->GetExternalDrive (drive));
-        }
-
-        for (i = 0; i < refs.apple2cPlusDiskPort->GetPort().GetDriveCount(); i++)
-        {
-            outDrives.push_back (&refs.apple2cPlusDiskPort->GetPort().GetDrive (i).GetMechanism());
-        }
+        source->GetReplayMedia (outDrives);
     }
 }
 
