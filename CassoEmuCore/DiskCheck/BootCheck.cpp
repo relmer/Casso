@@ -5,6 +5,7 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 #include "Core/MachineConfig.h"
+#include "Core/MachineConfigSource.h"
 #include "Core/PathResolver.h"
 #include "Core/Prng.h"
 #include "Core/TextEncoding.h"
@@ -62,7 +63,7 @@ HRESULT BootMachine::Build (const std::string & machineId, std::string & outErro
 
     CBREx (hasConfig, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
-    hr = files.ReadAllText (configPath.wstring(), jsonText);
+    hr = MachineConfigSource::ReadConfigText (GetModuleHandleW (nullptr), TextEncoding::NarrowToWide (machineId), configPath, jsonText);
     CHR (hr);
 
     hr = KeepDiskSlots (jsonText);

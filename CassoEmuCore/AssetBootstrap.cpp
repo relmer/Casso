@@ -9,6 +9,7 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
+#include "Core/MachineConfigSource.h"
 #include "Core/MachineConfigUpgrade.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
@@ -1795,7 +1796,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static const EmbeddedConfig * FindEmbeddedConfig (const wstring & machineName)
+const EmbeddedConfig * AssetBootstrap::FindEmbeddedConfig (const wstring & machineName)
 {
     const EmbeddedConfig  * result = nullptr;
     wstring                 wide;
@@ -1814,6 +1815,21 @@ static const EmbeddedConfig * FindEmbeddedConfig (const wstring & machineName)
     }
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssetBootstrap::HasEmbeddedConfig
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssetBootstrap::HasEmbeddedConfig (const wstring & machineName)
+{
+    return FindEmbeddedConfig (machineName) != nullptr;
 }
 
 
@@ -1848,7 +1864,7 @@ static HRESULT LoadEmbeddedJson (
     outNarrowName.clear();
     outNarrowName = TextEncoding::WideToUtf8 (machineName);
 
-    cfg = FindEmbeddedConfig (machineName);
+    cfg = AssetBootstrap::FindEmbeddedConfig (machineName);
     CBRF (cfg != nullptr,
           outError = format ("No embedded config for machine '{}'", outNarrowName));
 
@@ -2965,10 +2981,11 @@ HRESULT AssetBootstrap::OfferMachineRoms (
             continue;
         }
 
-        {
-            std::ifstream  in (configPath, std::ios::binary);
+        hrRoms = MachineConfigSource::ReadConfigText (hInst, machineName, configPath, jsonText);
 
-            jsonText.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        if (FAILED (hrRoms))
+        {
+            continue;
         }
 
         hrRoms = MachineConfigLoader::CollectRomFiles (jsonText, romFiles, ignored);

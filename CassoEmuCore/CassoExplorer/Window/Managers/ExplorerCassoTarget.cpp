@@ -11,6 +11,7 @@
 #include "AssetBootstrap.h"
 #include "Config/UserConfigStore.h"
 #include "Core/JsonWriter.h"
+#include "Core/MachineConfigSource.h"
 #include "Core/MachineScanner.h"
 #include "Core/TextEncoding.h"
 #include "Core/AppMessages.h"
@@ -221,12 +222,12 @@ int ExplorerCassoTarget::GetDefaultMachineDriveCount()
 
     searchPaths = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(), PathResolver::GetWorkingDirectory());
     machine     = TextEncoding::NarrowToWide (prefs.lastSelectedMachine);
-    machine     = MachineScanner::SelectCanonical (MachineScanner::Scan (searchPaths, &MachineScanner::ListDirectory, &MachineScanner::ReadFile),
+    machine     = MachineScanner::SelectCanonical (MachineScanner::Scan (searchPaths, &MachineScanner::ListDirectory, &MachineScanner::ReadFile, &AssetBootstrap::HasEmbeddedConfig),
                                                    machine, s_kPreferredDefaultMachine);
     configPath  = PathResolver::FindFile (searchPaths, fs::path ("Machines") / fs::path (machine) / (fs::path (machine).string() + ".json"));
     BAIL_OUT_IF (configPath.empty(), S_OK);
 
-    hr = files.ReadAllText (configPath.wstring(), jsonText);
+    hr = MachineConfigSource::ReadConfigText (GetModuleHandleW (nullptr), machine, configPath, jsonText);
     CHR (hr);
 
     hr = MergeUserMachineDelta (TextEncoding::WideToNarrow (machine), files, jsonText);

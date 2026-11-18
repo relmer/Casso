@@ -75,14 +75,14 @@ Every user story depends on this phase.
 
 **Independent test**: Quickstart check 3.
 
-- [ ] T021 [US3] Write `UnitTest/EmuTests/MachineConfigSourceTests.cpp`: `ChooseText` with a lower disk stamp, an equal stamp and an unstamped file returns the disk text; a higher disk stamp returns the embedded text with `useEmbedded` true; unparseable disk text with a higher legacy `$cassoDefault` stamp is treated like `$cassoMachineVersion`.
-- [ ] T022 [US3] Add `MachineConfigSource` in `CassoEmuCore/Core/MachineConfigSource.h/.cpp`: pure `ChooseText (diskText, embeddedText)` using `MachineConfigUpgrade::ParseStamp`, and `ReadConfigText (hInstance, machineName, diskPath, outText)` that reads the file and the embedded resource and never writes. Run T021 and confirm each case fails when its branch is broken.
-- [ ] T023 [US3] Classify each reader in research.md R6 as reading the JSON text or building a path only, and record the result in research.md.
-- [ ] T024 [US3] Route every text reader from T023 through `MachineConfigSource::ReadConfigText`, starting with `GuiMain.cpp:386` and `MachineManager.cpp:228`.
-- [ ] T025 [US3] Add cases to `UnitTest/EmuTests/MachineScannerTests.cpp`: a subfolder whose name fails the `HasEmbeddedConfig` predicate is excluded; a passing one is included with its display name and release year.
-- [ ] T026 [US3] Add the `HasEmbeddedConfig` predicate parameter to `MachineScanner::Scan` in `CassoEmuCore/Core/MachineScanner.h/.cpp`, and pass `AssetBootstrap::FindEmbeddedConfig (name) != nullptr` from `GuiMain.cpp:967`, `SettingsMachineCatalog.cpp:214` and `ExplorerCassoTarget.cpp:224`. Expose `FindEmbeddedConfig` from `AssetBootstrap.h` if it isn't public.
-- [ ] T027 [US3] Make the `--machine` path in `GuiMain.cpp` check the embedded table before the folder, so a machine the build has no config for returns the existing "Unknown machine" error.
-- [ ] T028 [US3] Run quickstart check 3 with a `Machines\` tree from a newer build in a `CASSO_PROFILE_DIR` scratch folder, and confirm the copied files are byte-identical afterward.
+- [x] T021 [US3] Write `UnitTest/EmuTests/MachineConfigSourceTests.cpp`: `ChooseText` with a lower disk stamp, an equal stamp and an unstamped file returns the disk text; a higher disk stamp returns the embedded text with `useEmbedded` true; unparseable disk text with a higher legacy `$cassoDefault` stamp is treated like `$cassoMachineVersion`.
+- [x] T022 [US3] Add `MachineConfigSource` in `CassoEmuCore/Core/MachineConfigSource.h/.cpp`: pure `ChooseText (diskText, embeddedText)` using `MachineConfigUpgrade::ParseStamp`, and `ReadConfigText (hInstance, machineName, diskPath, outText)` that reads the file and the embedded resource and never writes. Run T021 and confirm each case fails when its branch is broken.
+- [x] T023 [US3] Classify each reader in research.md R6 as reading the JSON text or building a path only, and record the result in research.md.
+- [x] T024 [US3] Route every text reader from T023 through `MachineConfigSource::ReadConfigText`, starting with `GuiMain.cpp:386` and `MachineManager.cpp:228`.
+- [x] T025 [US3] Add cases to `UnitTest/EmuTests/MachineScannerTests.cpp`: a subfolder whose name fails the `HasEmbeddedConfig` predicate is excluded; a passing one is included with its display name and release year.
+- [x] T026 [US3] Add the `HasEmbeddedConfig` predicate parameter to `MachineScanner::Scan` in `CassoEmuCore/Core/MachineScanner.h/.cpp`, and pass `AssetBootstrap::FindEmbeddedConfig (name) != nullptr` from `GuiMain.cpp:967`, `SettingsMachineCatalog.cpp:214` and `ExplorerCassoTarget.cpp:224`. Expose `FindEmbeddedConfig` from `AssetBootstrap.h` if it isn't public.
+- [x] T027 [US3] Make the `--machine` path in `GuiMain.cpp` check the embedded table before the folder, so a machine the build has no config for returns the existing "Unknown machine" error.
+- [x] T028 [US3] Run quickstart check 3 with a `Machines\` tree from a newer build in a `CASSO_PROFILE_DIR` scratch folder, and confirm the copied files are byte-identical afterward.
 
 ---
 

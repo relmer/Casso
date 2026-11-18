@@ -31,6 +31,12 @@ public:
     using FileMap = map<fs::path, string>;
 
 
+    static bool AcceptsAll (const wstring &)
+    {
+        return true;
+    }
+
+
     static MachineScanner::DirectoryLister MakeLister (const DirMap & dirs)
     {
         return [dirs] (const fs::path & dir) -> vector<fs::path>
@@ -88,7 +94,7 @@ public:
             { "C:/app/Machines/Apple2Plus/Apple2Plus.json", "{\"name\":\"Apple ][ plus\"}" },
         };
 
-        auto results = MachineScanner::Scan ({ "C:/app" }, MakeLister (dirs), MakeReader (files));
+        auto results = MachineScanner::Scan ({ "C:/app" }, MakeLister (dirs), MakeReader (files), AcceptsAll);
 
         Assert::AreEqual (size_t (2), results.size());
         Assert::AreEqual (wstring (L"Apple2"),         results[0].fileName);
@@ -209,7 +215,7 @@ public:
             { "C:/app/Machines/Apple2.json", "{\"name\":\"Apple ][\"}" },
         };
 
-        auto results = MachineScanner::Scan ({ "C:/app" }, MakeLister (dirs), MakeReader (files));
+        auto results = MachineScanner::Scan ({ "C:/app" }, MakeLister (dirs), MakeReader (files), AcceptsAll);
 
         Assert::AreEqual (size_t (0), results.size());
     }
@@ -239,7 +245,7 @@ public:
         };
 
         auto results = MachineScanner::Scan (
-            { "C:/app", "C:/project" }, MakeLister (dirs), MakeReader (files));
+            { "C:/app", "C:/project" }, MakeLister (dirs), MakeReader (files), AcceptsAll);
 
         Assert::AreEqual (size_t (1), results.size());
         Assert::AreEqual (wstring (L"Apple2"), results[0].fileName);
@@ -264,7 +270,7 @@ public:
         };
 
         auto results = MachineScanner::Scan (
-            { "C:/missing", "C:/project" }, MakeLister (dirs), MakeReader (files));
+            { "C:/missing", "C:/project" }, MakeLister (dirs), MakeReader (files), AcceptsAll);
 
         Assert::AreEqual (size_t (1), results.size());
         Assert::AreEqual (wstring (L"Apple2"), results[0].fileName);
@@ -291,7 +297,7 @@ public:
             { "C:/app/Machines/Apple2/Apple2.json", "{\"name\":\"App2\"}" },
         };
 
-        auto results = MachineScanner::Scan ({ "C:/app" }, MakeLister (dirs), MakeReader (files));
+        auto results = MachineScanner::Scan ({ "C:/app" }, MakeLister (dirs), MakeReader (files), AcceptsAll);
 
         Assert::AreEqual (size_t (1), results.size());
         Assert::AreEqual (wstring (L"Apple2"), results[0].fileName);
@@ -315,7 +321,7 @@ public:
             { "C:/app/Machines/Junk/Junk.json", "this is not json" },
         };
 
-        auto results = MachineScanner::Scan ({ "C:/app" }, MakeLister (dirs), MakeReader (files));
+        auto results = MachineScanner::Scan ({ "C:/app" }, MakeLister (dirs), MakeReader (files), AcceptsAll);
 
         Assert::AreEqual (size_t (1), results.size());
         Assert::AreEqual (wstring (L"Junk"), results[0].fileName);
@@ -340,7 +346,7 @@ public:
             { "C:/app/Machines/Apple2/Apple2.json", "{\"cpu\":\"6502\"}" },
         };
 
-        auto results = MachineScanner::Scan ({ "C:/app" }, MakeLister (dirs), MakeReader (files));
+        auto results = MachineScanner::Scan ({ "C:/app" }, MakeLister (dirs), MakeReader (files), AcceptsAll);
 
         Assert::AreEqual (size_t (1), results.size());
         Assert::AreEqual (wstring (L"Apple2"), results[0].displayName);
@@ -355,8 +361,73 @@ public:
 
     TEST_METHOD (Scan_NoSearchPaths_ReturnsEmpty)
     {
-        auto results = MachineScanner::Scan ({}, MakeLister ({}), MakeReader ({}));
+        auto results = MachineScanner::Scan ({}, MakeLister ({}), MakeReader ({}), AcceptsAll);
 
         Assert::AreEqual (size_t (0), results.size());
     }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Scan_FolderWithoutEmbeddedConfig_IsExcluded
+    //
+    //  A newer build can leave a machine folder this build has no config for.
+    //  The predicate decides by folder name, so the folder is left out of the
+    //  list even though its JSON reads cleanly.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Scan_FolderWithoutEmbeddedConfig_IsExcluded)
+    {
+        DirMap dirs =
+        {
+            { "C:/app/Machines", { "C:/app/Machines/Apple2e", "C:/app/Machines/Apple2cPlus" } },
+        };
+        FileMap files =
+        {
+            { "C:/app/Machines/Apple2e/Apple2e.json",           "{\"name\":\"Apple //e\",\"releaseYear\":1983}"       },
+            { "C:/app/Machines/Apple2cPlus/Apple2cPlus.json",   "{\"name\":\"Apple //c Plus\",\"releaseYear\":1988}"  },
+        };
+        auto  knowsApple2e = [] (const wstring & name) { return name == L"Apple2e"; };
+
+        auto results = MachineScanner::Scan ({ "C:/app" }, MakeLister (dirs), MakeReader (files), knowsApple2e);
+
+        Assert::AreEqual (size_t (1), results.size());
+        Assert::AreEqual (wstring (L"Apple2e"), results[0].fileName);
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Scan_FolderWithEmbeddedConfig_IsIncludedWithItsDisplayNameAndYear
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Scan_FolderWithEmbeddedConfig_IsIncludedWithItsDisplayNameAndYear)
+    {
+        DirMap dirs =
+        {
+            { "C:/app/Machines", { "C:/app/Machines/Apple2e", "C:/app/Machines/Apple2cPlus" } },
+        };
+        FileMap files =
+        {
+            { "C:/app/Machines/Apple2e/Apple2e.json",           "{\"name\":\"Apple //e\",\"releaseYear\":1983}"       },
+            { "C:/app/Machines/Apple2cPlus/Apple2cPlus.json",   "{\"name\":\"Apple //c Plus\",\"releaseYear\":1988}"  },
+        };
+        auto  knowsBoth = [] (const wstring & name) { return name == L"Apple2e" || name == L"Apple2cPlus"; };
+
+        auto results = MachineScanner::Scan ({ "C:/app" }, MakeLister (dirs), MakeReader (files), knowsBoth);
+
+        Assert::AreEqual (size_t (2), results.size());
+        Assert::AreEqual (wstring (L"Apple2e"),       results[0].fileName);
+        Assert::AreEqual (wstring (L"Apple //e"),     results[0].displayName);
+        Assert::AreEqual (1983,                       results[0].releaseYear);
+        Assert::AreEqual (wstring (L"Apple2cPlus"),   results[1].fileName);
+        Assert::AreEqual (wstring (L"Apple //c Plus"), results[1].displayName);
+        Assert::AreEqual (1988,                       results[1].releaseYear);
+    }
 };
+
+
+
+
+

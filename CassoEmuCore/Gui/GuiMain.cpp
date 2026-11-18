@@ -17,6 +17,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Ui/DriveWidgetState.h"
 #include "Shell/Components/ShellUpdater.h"
+#include "Core/MachineConfigSource.h"
 #include "Core/MachineScanner.h"
 #include "Shell/DiskMru.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
@@ -365,9 +366,6 @@ static HRESULT LoadMachineConfig (
     vector<fs::path>    searchPaths;
     fs::path            configRelPath;
     fs::path            configPath;
-    ifstream            configFile;
-    bool                configGood     = false;
-    stringstream        ss;
     string              jsonText;
     vector<fs::path>    romSearchPaths;
     fs::path            romDir;
@@ -450,15 +448,11 @@ static HRESULT LoadMachineConfig (
         BAIL_OUT_IF (outUserExited, S_OK);
     }
 
-    // Now load the on-disk config file and parse it
-    configFile.open (configPath);
-    configGood = configFile.good();
-    CBRN (configGood,
-          format (L"Cannot open machine config:\n{}",
-                  configPath.wstring()).c_str());
-
-    ss << configFile.rdbuf();
-    jsonText = ss.str();
+    // Now load the config text, from the file unless a newer build wrote
+    // it, and parse it
+    hr = MachineConfigSource::ReadConfigText (hInstance, machineName, configPath, jsonText);
+    CHRN (hr, format (L"Cannot open machine config:\n{}",
+                      configPath.wstring()).c_str());
 
     // Apply the user's per-machine delta (e.g. a slot disabled in Settings >
     // Hardware) to the base config before building, so machine-level edits
@@ -819,6 +813,9 @@ extern "C" int WINAPI wCassoMain (
     bool                                 userExited    = false;
     bool                                 answered      = false;
     bool                                 firewall      = false;
+    bool                                 hasRequested  = false;
+    bool                                 hasEmbedded   = false;
+    bool                                 isKnown       = false;
     CommandLineOptions::EmulatorOptions  parsed;
     MachineConfig                        config;
     std::unique_ptr<EmulatorShell>       shell         = std::make_unique<EmulatorShell>();
@@ -992,6 +989,17 @@ extern "C" int WINAPI wCassoMain (
         machineName = TextEncoding::Utf8ToWide (earlyPrefs.lastSelectedMachine);
     }
 
+    // --machine for a machine this build has no config for is an unknown
+    // machine, not a reason to boot another one. The check is against the
+    // embedded table: a machine folder left by a newer build has a config file,
+    // but nothing in this build can make that machine.
+    hasRequested = !parsed.machine.empty();
+    hasEmbedded  = AssetBootstrap::HasEmbeddedConfig (machineName);
+    isKnown      = !hasRequested || hasEmbedded;
+    CBRN (isKnown,
+          format (L"Unknown machine '{}'. This build has no configuration for it.",
+                  machineName).c_str());
+
     // Resolve the requested machine (from --machine or last-selected prefs)
     // to a canonical on-disk name. The filesystem is case-insensitive, so a
     // mis-cased --machine value like "apple2e" still loads its config -- but
@@ -1011,7 +1019,8 @@ extern "C" int WINAPI wCassoMain (
         vector<MachineInfo> discovered = MachineScanner::Scan (
             scanPaths,
             &MachineScanner::ListDirectory,
-            &MachineScanner::ReadFile);
+            &MachineScanner::ReadFile,
+            &AssetBootstrap::HasEmbeddedConfig);
 
         machineName = MachineScanner::SelectCanonical (
             discovered, machineName, s_kPreferredDefaultMachine);

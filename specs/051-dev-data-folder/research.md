@@ -65,11 +65,13 @@ Every reader goes through one core function, `MachineConfigSource::ReadConfigTex
 | Machine host | `Shell/MachineHost.cpp:302` |
 | Config loader | `Core/MachineConfig.cpp:433`, `519`, `1150` |
 
-The tasks phase confirms which of these read the JSON text and which only build a folder path; only the text readers change.
+Seven of these read the JSON text and now call `ReadConfigText`: Boot, Machine switch, Boot check, Explorer target, ROM offer, Disk settings and Settings catalog. The other two only build a folder path and are unchanged: Machine host builds the `PendingPrint` folder, and the three `Core/MachineConfig.cpp` sites build the ROM search folder from the machine name.
+
+The machine configs are resources of `Casso.exe` alone. Casso Explorer and CassoCli have none, so in those programs `ReadConfigText` finds no embedded text and returns the disk text, and `FindResourceW` is never asserted on. The embedded table (`s_kEmbeddedConfigs`) is code in `CassoEmuCore`, so every program can use it to filter the machine list.
 
 ## R7: Machine list filter
 
-`MachineScanner::Scan` is called from `GuiMain.cpp:967`, `SettingsMachineCatalog.cpp:214` and `ExplorerCassoTarget.cpp:224`. Add a predicate parameter, `HasEmbeddedConfig`, that the scanner applies to each subfolder name, so the three callers share one rule and the pure scanner stays testable with a fake predicate. The production predicate is `AssetBootstrap::FindEmbeddedConfig (name) != nullptr`.
+`MachineScanner::Scan` is called from `GuiMain.cpp:967`, `SettingsMachineCatalog.cpp:214` and `ExplorerCassoTarget.cpp:224`. Add a predicate parameter, `HasEmbeddedConfig`, that the scanner applies to each subfolder name, so the three callers share one rule and the pure scanner stays testable with a fake predicate. The production predicate is `AssetBootstrap::HasEmbeddedConfig`, which returns `AssetBootstrap::FindEmbeddedConfig (name) != nullptr`. `FindEmbeddedConfig` is public for it and for `MachineConfigSource`.
 
 `--machine` with a name the build has no embedded config for already fails through `FindFile`. With the folder present, the boot path calls `LoadEmbeddedJson`, which fails. The boot path checks the embedded table first and reports the existing "Unknown machine" error.
 

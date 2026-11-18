@@ -75,7 +75,8 @@ Error:
 vector<MachineInfo> MachineScanner::Scan (
     const vector<fs::path>                & searchPaths,
     const MachineScanner::DirectoryLister & lister,
-    const MachineScanner::FileReader      & reader)
+    const MachineScanner::FileReader      & reader,
+    const MachineScanner::ConfigPredicate & hasEmbeddedConfig)
 {
     vector<MachineInfo>  results;
 
@@ -100,6 +101,13 @@ vector<MachineInfo> MachineScanner::Scan (
             wstring      name;
             HRESULT      hrRead   = S_OK;
             fs::path     jsonPath = subDir / (subDir.filename().string() + ".json");
+            bool         isKnown  = hasEmbeddedConfig (subDir.filename().wstring());
+
+            if (!isKnown)
+            {
+                continue;
+            }
+
             hrRead = reader (jsonPath, jsonText);
 
             if (FAILED (hrRead))
