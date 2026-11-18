@@ -8,11 +8,11 @@
 #include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Floppy35/IDiskDriveBus.h"
-#include "Devices/Floppy35/Iwm.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Machines/Apple2/Common/Disk2AddressMarkWatcher.h"
 #include "Machines/Apple2/Common/Disk2NibbleRecord.h"
 #include "Machines/Apple2/Common/DiskAccessLog.h"
+#include "Machines/Apple2/Common/Disk2IwmPort.h"
 #include "Machines/Apple2/Common/IDiskPortHook.h"
 
 
@@ -42,7 +42,7 @@ class MemoryBus;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Disk2Controller : public MemoryDevice, public IDiagnosticsProvider, public IMachineState
+class Disk2Controller : public MemoryDevice, public IDiagnosticsProvider, public IMachineState, private IDisk2IwmOwner
 {
 public:
     static constexpr int    kDriveCount      = 2;
@@ -141,7 +141,7 @@ public:
     // default, for a Disk II card.
     void   SetIwmMode (bool v) { m_iwmMode = v; }
     bool   IsIwmMode  () const { return m_iwmMode; }
-    Iwm  & GetIwm     ()       { return m_iwm; }
+    Iwm  & GetIwm     ()       { return m_iwmPort.GetIwm(); }
 
     //  A SmartPort chain on the //c's disk port. Each access to the IWM's
     //  switches goes to it after the controller, and its byte replaces the
@@ -316,46 +316,21 @@ protected:
     bool                 m_q6           = false;
     bool                 m_q7           = false;
 
-    // One of the //c IWM's two drives: its phases step the drive's head,
-    // its cells are the drive's engine, and its enable runs the motor.
-    class IwmDrive : public IDiskDriveBus
-    {
-    public:
-        IwmDrive (Disk2Controller & controller, int drive) : m_controller (controller), m_drive (drive) {}
-
-        void      SetPhases  (bool ph0, bool ph1, bool ph2, bool ph3) override;
-        bool      GetSense   () const override;
-        Byte      ReadCell   (uint64_t cellEndNs) override;
-        void      WriteCell  (Byte bit, uint64_t cellEndNs) override;
-        void      Advance    (uint64_t elapsedNs) override { (void) elapsedNs; }
-        uint32_t  GetCellNs  () const override { return kIwmCellNs; }
-        void      SetEnabled (bool isEnabled) override;
-
-    private:
-        Disk2Controller  & m_controller;
-        int                m_drive = 0;
-    };
-
-    // The IWM's time is the CPU's cycles at a thousand nanoseconds a cycle,
-    // near enough to real time at the //c's 1.02 MHz for its one-second
-    // motor timer. A cell is four cycles, as a Disk II card's is.
-    static constexpr uint64_t  kIwmNsPerCycle = 1000;
-    static constexpr uint32_t  kIwmCellNs     = Disk2NibbleEngine::kCyclesPerBit * kIwmNsPerCycle;
-
-    Byte      AccessIwm    (int offset, bool isWrite, Byte value);
-    bool      TryPeekIwm   (int offset, Byte & value) const;
-    uint64_t  GetIwmNow    ();
-    void      OnIwmPhases  (int drive, uint8_t phases);
-    void      OnIwmEnable  (int drive, bool isEnabled);
-    void      SyncIwmMotor ();
-    void      TickIwm      (uint32_t cpuCycles);
+    //  IDisk2IwmOwner: the controller behind the //c's IWM.
+    bool  AdvanceIwmClock     (uint64_t & outElapsed) override;
+    void  OnIwmSequencer      (int drive, bool q6, bool q7) override;
+    void  OnIwmSwitch         (int offset) override;
+    void  OnIwmMotor          (bool isOn) override;
+    void  OnIwmNibbleWritten  (Byte value) override;
+    void  OnIwmNibbleRead     (Byte nibble) override;
+    void  OnIwmPhases         (int drive, uint8_t phases) override;
+    void  OnIwmEnable         (int drive, bool isEnabled) override;
+    Byte  StepIwmCell         (int drive, bool isWrite, Byte bit) override { return m_engine[drive].StepCell (isWrite, bit); }
+    bool  IsIwmWriteProtected (int drive) const override                   { return m_activeDisk[drive]->IsWriteProtected(); }
 
     bool                               m_iwmMode    = false;
     IDiskPortHook                    * m_portHook   = nullptr;
-    Iwm                                m_iwm;
-    std::array<IwmDrive, kDriveCount>  m_iwmDrives  { IwmDrive { *this, 0 }, IwmDrive { *this, 1 } };
-    std::array<bool, kDriveCount>      m_iwmEnabled = {};
-    uint64_t                           m_iwmCycles  = 0;
+    Disk2IwmPort                       m_iwmPort    { *this };
 
     DiskImage            m_disks[kDriveCount];
     DiskImage *          m_activeDisk[kDriveCount] = { nullptr, nullptr };

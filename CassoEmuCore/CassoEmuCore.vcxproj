@@ -599,6 +599,7 @@
     <ClCompile Include="Machines\Apple2\Common\MockingboardAudioSource.cpp" />
     <ClCompile Include="Machines\Apple2\Common\MockingboardCard.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Disk2Controller.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\Disk2IwmPort.cpp" />
     <ClCompile Include="Machines\Apple2\Common\DiskAccessLog.cpp" />
     <ClCompile Include="Machines\Apple2\Common\Disk2EventRing.cpp" />
     <ClCompile Include="Devices\InputEventRing.cpp" />
@@ -2572,6 +2573,7 @@
     <ClInclude Include="Devices\IAciaEndpoint.h" />
     <ClInclude Include="Devices\SerialByteQueue.h" />
     <ClInclude Include="Machines\Apple2\Common\Disk2Controller.h" />
+    <ClInclude Include="Machines\Apple2\Common\Disk2IwmPort.h" />
     <ClInclude Include="Machines\Apple2\Common\DiskAccessLog.h" />
     <ClInclude Include="Machines\Apple2\Common\IDisk2EventSink.h" />
     <ClInclude Include="Machines\Apple2\Common\Disk2Event.h" />

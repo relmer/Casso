@@ -69,8 +69,6 @@ Disk2Controller::Disk2Controller (int slot)
     m_activeDisk[1] = &m_disks[1];
     m_engine[0].SetDiskImage (m_activeDisk[0]);
     m_engine[1].SetDiskImage (m_activeDisk[1]);
-    m_iwm.AttachDrive (0, &m_iwmDrives[0]);
-    m_iwm.AttachDrive (1, &m_iwmDrives[1]);
 }
 
 
@@ -97,7 +95,7 @@ Byte Disk2Controller::Read (Word address)
 
     if (m_iwmMode)
     {
-        value = AccessIwm (offset, false, 0);
+        value = m_iwmPort.Access (offset, false, 0, m_portHook);
     }
     else
     {
@@ -153,7 +151,7 @@ bool Disk2Controller::TryPeekIo (Word address, Byte & value)
 
     if (m_iwmMode)
     {
-        return TryPeekIwm (offset, value);
+        return m_iwmPort.TryPeek (offset, m_portHook, value);
     }
 
     switch (offset)
@@ -177,7 +175,7 @@ bool Disk2Controller::TryPeekIo (Word address, Byte & value)
     if (q6)
     {
         sense = m_activeDisk[drive]->IsWriteProtected() ? 0x80 : 0x00;
-        value = m_iwmMode ? static_cast<Byte> (sense | ((m_motorOn && m_motorSpindownCycles == 0) ? 0x20 : 0x00) | (m_iwm.GetMode() & 0x1F))
+        value = m_iwmMode ? static_cast<Byte> (sense | ((m_motorOn && m_motorSpindownCycles == 0) ? 0x20 : 0x00) | (m_iwmPort.GetIwm().GetMode() & 0x1F))
                           : sense;
         return true;
     }
@@ -196,49 +194,6 @@ bool Disk2Controller::TryPeekIo (Word address, Byte & value)
     value = (m_motorSpinupRemaining > 0 || (offset == 0x9 && !m_motorOn)) ? 0x80 : PeekLatch (drive, delta);
 
     return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryPeekIwm
-//
-//  AccessIwm's byte for a read, then the port hook's: the IWM's byte with the
-//  drives enabled, 0 without them, or the hook's when the access is the
-//  hook's. False where the IWM or the hook cannot work it out.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Disk2Controller::TryPeekIwm (int offset, Byte & value) const
-{
-    bool  isEnabled = m_portHook == nullptr || m_portHook->PeekFloppiesEnabled();
-    bool  isPorts   = false;
-    bool  canPeek   = true;
-    Byte  port      = 0;
-
-
-
-    value = 0;
-
-    if (isEnabled)
-    {
-        canPeek = m_iwm.TryPeekAccess (offset, value);
-    }
-
-    if (m_portHook != nullptr)
-    {
-        canPeek = canPeek && m_portHook->TryPeekIwmAccess (offset, isPorts, port);
-
-        if (isPorts)
-        {
-            value = port;
-        }
-    }
-
-    return canPeek;
 }
 
 
@@ -299,7 +254,7 @@ void Disk2Controller::Write (Word address, Byte value)
 
     if (m_iwmMode)
     {
-        (void) AccessIwm (offset, true, value);
+        (void) m_iwmPort.Access (offset, true, value, m_portHook);
     }
     else
     {
@@ -333,153 +288,6 @@ void Disk2Controller::Write (Word address, Byte value)
 
         m_portHook->OnIwmAccess (offset, true, value, ignored);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AccessIwm
-//
-//  An access to the //c's IWM. With the drives not enabled, only the drive
-//  select, Q6 and Q7 change, and a read returns 0. A write then goes to the
-//  device that has the port, so it doesn't load the mode register. A byte
-//  the IWM finished reading goes to the address mark watcher and the access
-//  log.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte Disk2Controller::AccessIwm (int offset, bool isWrite, Byte value)
-{
-    bool  enabled = m_portHook == nullptr || m_portHook->AreFloppiesEnabled();
-    Byte  result  = 0;
-    Byte  fresh   = 0;
-
-
-
-    if (!enabled && m_iwm.IsEnabled())
-    {
-        m_iwm.Disable();
-    }
-
-    if (enabled)
-    {
-        result = m_iwm.Access (offset, isWrite, value, GetIwmNow());
-    }
-    else if (offset >= s_kFirstSelectSwitch)
-    {
-        (void) m_iwm.Access (offset, false, 0, GetIwmNow());
-    }
-
-    m_activeDrive = m_iwm.GetDrive();
-    m_q6          = m_iwm.IsQ6();
-    m_q7          = m_iwm.IsWriting();
-
-    if (enabled && m_eventSinks.IsAny())
-    {
-        if (offset == 0x8)
-        {
-            m_eventSinks.ForEach ([] (IDisk2EventSink & sink) { sink.OnMotorCommandOff(); });
-        }
-        else if (offset == 0x9)
-        {
-            m_eventSinks.ForEach ([] (IDisk2EventSink & sink) { sink.OnMotorCommandOn(); });
-        }
-        else if (offset == 0xA || offset == 0xB)
-        {
-            m_eventSinks.ForEach ([this] (IDisk2EventSink & sink) { sink.OnDriveSelect (m_activeDrive); });
-        }
-    }
-
-    SyncIwmMotor();
-
-    if (enabled && isWrite && m_q6 && m_q7 && m_iwm.IsMotorSwitchOn())
-    {
-        m_engine[m_activeDrive].WriteLatch (value);
-        m_addrMarkWatcher.ObserveWrittenNibble (value);
-        CountLatchLoad();
-        OnLatchLoad (m_activeDrive, value, GetQuarterTrack(), m_activeDisk[m_activeDrive]->IsWriteProtected());
-    }
-
-    if (enabled && !isWrite && !m_q6 && !m_q7 && m_iwm.ConsumeFreshByte (fresh))
-    {
-        m_engine[m_activeDrive].CountReadNibble();
-        m_addrMarkWatcher.ObserveNibble (fresh, (m_cpuCycleSource != nullptr) ? *m_cpuCycleSource : 0, GetInstructionAddress());
-        m_access[m_activeDrive].ObserveRead (m_quarterTrack[m_activeDrive], fresh, static_cast<uint32_t> (m_engine[m_activeDrive].GetBitPosition()),
-                                             static_cast<uint32_t> (m_engine[m_activeDrive].GetCurrentTrackBits()));
-
-        if (m_activeDisk[m_activeDrive]->IsLoaded())
-        {
-            m_nibbleRecord.AddRead (m_activeDrive, fresh, 0, GetInstructionAddress(), m_engine[m_activeDrive].GetReadNibbles());
-        }
-    }
-
-    return enabled ? result : 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetIwmNow
-//
-//  The IWM's time, moved on by the CPU's cycles since the last access. With
-//  no cycle source, Tick moves it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint64_t Disk2Controller::GetIwmNow()
-{
-    uint64_t  now = 0;
-
-
-
-    if (m_cpuCycleSource != nullptr)
-    {
-        now = *m_cpuCycleSource;
-
-        if (now > m_lastCpuSync)
-        {
-            m_iwmCycles += now - m_lastCpuSync;
-        }
-
-        m_lastCpuSync = now;
-    }
-
-    return m_iwmCycles * kIwmNsPerCycle;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TickIwm
-//
-//  While a drive is enabled, its cells move with the CPU, so its motor stops
-//  when the IWM's timer runs out.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2Controller::TickIwm (uint32_t cpuCycles)
-{
-    if (m_cpuCycleSource == nullptr)
-    {
-        m_iwmCycles += cpuCycles;
-    }
-
-    if (m_iwm.IsEnabled())
-    {
-        m_iwm.AdvanceTo (GetIwmNow());
-        SyncIwmMotor();
-    }
-
-    PumpIdleCallback (cpuCycles);
 }
 
 
@@ -523,7 +331,6 @@ void Disk2Controller::OnIwmPhases (int drive, uint8_t phases)
 
 void Disk2Controller::OnIwmEnable (int drive, bool isEnabled)
 {
-    m_iwmEnabled[(size_t) drive] = isEnabled;
     m_engine[drive].SetMotorOn (isEnabled);
 }
 
@@ -533,20 +340,106 @@ void Disk2Controller::OnIwmEnable (int drive, bool isEnabled)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SyncIwmMotor
+//  Disk2Controller::AdvanceIwmClock
 //
-//  The motor runs while either drive is enabled. Checked after an access
-//  rather than at each enable, since a drive select disables one drive
-//  before it enables the other.
+//  The CPU's cycles since the last access, which move the IWM's time. False
+//  with no cycle source: Tick moves it then.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2Controller::SyncIwmMotor()
+bool Disk2Controller::AdvanceIwmClock (uint64_t & outElapsed)
 {
-    bool  isOn = m_iwmEnabled[0] || m_iwmEnabled[1];
+    uint64_t  now = 0;
 
 
 
+    outElapsed = 0;
+
+    if (m_cpuCycleSource == nullptr)
+    {
+        return false;
+    }
+
+    now = *m_cpuCycleSource;
+
+    if (now > m_lastCpuSync)
+    {
+        outElapsed = now - m_lastCpuSync;
+    }
+
+    m_lastCpuSync = now;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2Controller::OnIwmSequencer
+//
+//  The IWM's drive select, Q6 and Q7 after an access.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::OnIwmSequencer (int drive, bool q6, bool q7)
+{
+    m_activeDrive = drive;
+    m_q6          = q6;
+    m_q7          = q7;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2Controller::OnIwmSwitch
+//
+//  The motor and drive select switches, for the event sinks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::OnIwmSwitch (int offset)
+{
+    if (!m_eventSinks.IsAny())
+    {
+        return;
+    }
+
+    if (offset == 0x8)
+    {
+        m_eventSinks.ForEach ([] (IDisk2EventSink & sink) { sink.OnMotorCommandOff(); });
+    }
+    else if (offset == 0x9)
+    {
+        m_eventSinks.ForEach ([] (IDisk2EventSink & sink) { sink.OnMotorCommandOn(); });
+    }
+    else if (offset == 0xA || offset == 0xB)
+    {
+        m_eventSinks.ForEach ([this] (IDisk2EventSink & sink) { sink.OnDriveSelect (m_activeDrive); });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Disk2Controller::OnIwmMotor
+//
+//  The motor runs while either drive is enabled. The port calls this after
+//  an access rather than at each enable, since a drive select disables one
+//  drive before it enables the other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2Controller::OnIwmMotor (bool isOn)
+{
     if (isOn && !m_motorOn)
     {
         m_motorOn = true;
@@ -584,13 +477,19 @@ void Disk2Controller::SyncIwmMotor()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IwmDrive::SetPhases
+//  Disk2Controller::OnIwmNibbleWritten
+//
+//  A byte the CPU wrote to the IWM's data register goes to the drive, the
+//  address mark watcher and the nibble record.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2Controller::IwmDrive::SetPhases (bool ph0, bool ph1, bool ph2, bool ph3)
+void Disk2Controller::OnIwmNibbleWritten (Byte value)
 {
-    m_controller.OnIwmPhases (m_drive, static_cast<uint8_t> ((ph0 ? 1 : 0) | (ph1 ? 2 : 0) | (ph2 ? 4 : 0) | (ph3 ? 8 : 0)));
+    m_engine[m_activeDrive].WriteLatch (value);
+    m_addrMarkWatcher.ObserveWrittenNibble (value);
+    CountLatchLoad();
+    OnLatchLoad (m_activeDrive, value, GetQuarterTrack(), m_activeDisk[m_activeDrive]->IsWriteProtected());
 }
 
 
@@ -599,62 +498,24 @@ void Disk2Controller::IwmDrive::SetPhases (bool ph0, bool ph1, bool ph2, bool ph
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IwmDrive::GetSense
+//  Disk2Controller::OnIwmNibbleRead
+//
+//  A byte the IWM finished reading goes to the address mark watcher, the
+//  access log and the nibble record.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Disk2Controller::IwmDrive::GetSense() const
+void Disk2Controller::OnIwmNibbleRead (Byte nibble)
 {
-    return m_controller.m_activeDisk[m_drive]->IsWriteProtected();
-}
+    m_engine[m_activeDrive].CountReadNibble();
+    m_addrMarkWatcher.ObserveNibble (nibble, (m_cpuCycleSource != nullptr) ? *m_cpuCycleSource : 0, GetInstructionAddress());
+    m_access[m_activeDrive].ObserveRead (m_quarterTrack[m_activeDrive], nibble, static_cast<uint32_t> (m_engine[m_activeDrive].GetBitPosition()),
+                                         static_cast<uint32_t> (m_engine[m_activeDrive].GetCurrentTrackBits()));
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IwmDrive::ReadCell
-//
-////////////////////////////////////////////////////////////////////////////////
-
-Byte Disk2Controller::IwmDrive::ReadCell (uint64_t cellEndNs)
-{
-    UNREFERENCED_PARAMETER (cellEndNs);
-
-    return m_controller.m_engine[m_drive].StepCell (false, 0);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IwmDrive::WriteCell
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2Controller::IwmDrive::WriteCell (Byte bit, uint64_t cellEndNs)
-{
-    UNREFERENCED_PARAMETER (cellEndNs);
-
-    (void) m_controller.m_engine[m_drive].StepCell (true, bit);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IwmDrive::SetEnabled
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2Controller::IwmDrive::SetEnabled (bool isEnabled)
-{
-    m_controller.OnIwmEnable (m_drive, isEnabled);
+    if (m_activeDisk[m_activeDrive]->IsLoaded())
+    {
+        m_nibbleRecord.AddRead (m_activeDrive, nibble, 0, GetInstructionAddress(), m_engine[m_activeDrive].GetReadNibbles());
+    }
 }
 
 
@@ -1224,7 +1085,8 @@ void Disk2Controller::Tick (uint32_t cpuCycles)
 {
     if (m_iwmMode)
     {
-        TickIwm (cpuCycles);
+        m_iwmPort.Tick (cpuCycles, m_cpuCycleSource == nullptr);
+        PumpIdleCallback (cpuCycles);
         return;
     }
 
@@ -1727,8 +1589,7 @@ void Disk2Controller::Reset()
     m_activeDrive  = 0;
     m_q6           = false;
     m_q7           = false;
-    m_iwmEnabled.fill (false);
-    m_iwm.Reset();
+    m_iwmPort.Reset();
 
     for (i = 0; i < kDriveCount; i++)
     {
@@ -1932,7 +1793,7 @@ HRESULT Disk2Controller::SaveState (StateWriter & writer) const
     writer.WriteBool   (m_q6);
     writer.WriteBool   (m_q7);
     writer.WriteBool   (m_iwmMode);
-    writer.WriteByte   (m_iwm.GetMode());
+    writer.WriteByte   (m_iwmPort.GetIwm().GetMode());
     writer.WriteUInt32 (m_cyclesSinceIdleCallback);
     writer.WriteBool   (m_busySinceIdleCallback);
     writer.WriteUInt64 (m_lastCpuSync);
@@ -1949,10 +1810,7 @@ HRESULT Disk2Controller::SaveState (StateWriter & writer) const
     hr = m_nibbleRecord.SaveState (writer);
     CHR (hr);
 
-    m_iwm.SaveState (writer);
-    writer.WriteBool   (m_iwmEnabled[0]);
-    writer.WriteBool   (m_iwmEnabled[1]);
-    writer.WriteUInt64 (m_iwmCycles);
+    m_iwmPort.SaveState (writer);
 
     hr = writer.EndSection();
     CHR (hr);
@@ -2069,12 +1927,8 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
 
     if (version >= kIwmStateVersion)
     {
-        hr = m_iwm.LoadState (reader);
+        hr = m_iwmPort.LoadState (reader);
         CHR (hr);
-
-        reader.ReadBool   (m_iwmEnabled[0]);
-        reader.ReadBool   (m_iwmEnabled[1]);
-        reader.ReadUInt64 (m_iwmCycles);
     }
 
     hr = reader.EndSection();
