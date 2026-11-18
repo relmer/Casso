@@ -198,6 +198,7 @@ private:
     size_t   FindOldestLeaf   () const;
     size_t   FindBranch       (uint32_t id) const;
     void     ExportEntry      (const Entry & entry, SavedKeyframeSegment & segment, std::vector<Byte> & arena) const;
+
     KeyframeCodec::Packed  GetEntryPacked (const Entry & entry) const;
 
     static size_t    GetPackedBytes (const KeyframeInfo & info) { return info.storedBytes - info.sideBytes; }

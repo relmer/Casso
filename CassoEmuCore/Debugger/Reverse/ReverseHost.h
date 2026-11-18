@@ -38,13 +38,13 @@ public:
     ReverseHost             (const ReverseHost &) = delete;
     ReverseHost & operator= (const ReverseHost &) = delete;
 
-    HRESULT  StartRecording (const ReverseSettings & settings);
+    HRESULT  StartRecording          (const ReverseSettings & settings);
     HRESULT  StartRecordingFromSaved (const ReverseSettings & settings, const SavedKeyframes & saved);
-    void     StopRecording  ();
-    HRESULT  OnFrame        ();
-    void     SyncInputGate  ();
-    HRESULT  Execute        (ReverseCommand command, uint64_t argument, IReverseStopTest * stopTest, ReverseResult & result);
-    HRESULT  Fork           ();
+    void     StopRecording           ();
+    HRESULT  OnFrame                 ();
+    void     SyncInputGate           ();
+    HRESULT  Execute                 (ReverseCommand command, uint64_t argument, IReverseStopTest * stopTest, ReverseResult & result);
+    HRESULT  Fork                    ();
 
     void     SetLiveCallback (std::function<void()> onLive) { m_onLive = std::move (onLive); }
 

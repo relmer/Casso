@@ -40,7 +40,7 @@ private:
     static constexpr float  kStrokeRatio   = 0.075f; // half the stroke width
     static constexpr float  kMinHalfStroke = 0.55f;
 
-    static void   BuildPath           (float sizePx, std::vector<Point> & outMain, std::vector<Point> & outBranch);
-    static float  GetDistanceToPath   (const std::vector<Point> & path, Point p);
+    static void   BuildPath            (float sizePx, std::vector<Point> & outMain, std::vector<Point> & outBranch);
+    static float  GetDistanceToPath    (const std::vector<Point> & path, Point p);
     static float  GetDistanceToSegment (Point a, Point b, Point p);
 };

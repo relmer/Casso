@@ -56,10 +56,10 @@ public:
 
                  RewindBar  ();
 
-    void  Configure    (ShellHistory & history, IDxuiTextRenderer * text);
-    void  SetPopupHost (DxuiHwndSource * host);
+    void  Configure     (ShellHistory & history, IDxuiTextRenderer * text);
+    void  SetPopupHost  (DxuiHwndSource * host);
     void  SetScreenTest (ScreenTestFn isOnScreen) { m_screenTest = std::move (isOnScreen); }
-    void  Adopt        (DxuiPanel & root);
+    void  Adopt         (DxuiPanel & root);
 
     //  The screen the bar lies along the bottom of. With a screen test, the
     //  rectangle is not the screen's, and the test finds it.
@@ -83,10 +83,11 @@ public:
     RECT           GetBounds  () const { return m_bar.GetBounds(); }
     RECT           GetScreen  () const { return m_screen; }
     DxuiTooltip &  GetTooltip ()       { return m_tooltip; }
+    bool           WantsTick  () const { return m_tooltip.WantsTick() || m_strip.GetFlyout().WantsTick(); }
+
     //  Where the strip's fork flyout is on the screen, in pixels; false while
     //  it is closed or the bar is.
-    bool           TryGetFlyoutRect (RECT & outScreenPx) const { return m_isOpen && m_strip.GetFlyout().TryGetPlacedRect (outScreenPx); }
-    bool           WantsTick  () const { return m_tooltip.WantsTick() || m_strip.GetFlyout().WantsTick(); }
+    bool  TryGetFlyoutRect (RECT & outScreenPx) const { return m_isOpen && m_strip.GetFlyout().TryGetPlacedRect (outScreenPx); }
 
 private:
     void  Open          ();

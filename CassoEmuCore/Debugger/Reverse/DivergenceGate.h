@@ -148,9 +148,9 @@ public:
     //  input is deferred with no fork made for it.
     HeldInputLines            GetHeldLines           () const;
 
-    bool                      IsHolding              () const { return m_state == State::Holding; }
-    bool                      IsForking               () const { return m_state == State::Forking; }
-    bool                      IsAwaitingLive         () const { return m_state == State::AwaitingLive; }
+    bool  IsHolding      () const { return m_state == State::Holding; }
+    bool  IsForking      () const { return m_state == State::Forking; }
+    bool  IsAwaitingLive () const { return m_state == State::AwaitingLive; }
 
 private:
     enum class State
@@ -164,11 +164,11 @@ private:
     static bool  IsAxisApart   (Byte a, Byte b);
     static bool  IsAxisAtRest  (Byte value);
 
-    void         Hold          ();
-    void         StartForking   ();
-    void         DropHeld      ();
-    bool         HasAnyHeld    () const;
-    void         SettleHolding ();
+    void  Hold          ();
+    void  StartForking  ();
+    void  DropHeld      ();
+    bool  HasAnyHeld    () const;
+    void  SettleHolding ();
 
     State                      m_state                = State::Idle;
     std::vector<DxuiKeyEvent>  m_held;

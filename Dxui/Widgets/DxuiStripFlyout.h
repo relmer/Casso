@@ -62,7 +62,7 @@ public:
 
     //  Where the open flyout is on the screen, in pixels; false while closed.
     bool  TryGetPlacedRect (RECT & outScreenPx) const;
-    int   GetHoveredRow() const { return m_hoveredRow; }
+    int   GetHoveredRow    () const { return m_hoveredRow; }
 
     const std::vector<DxuiStripForkRow> &  GetRows () const { return m_rows; }
 

@@ -224,17 +224,17 @@ private:
     bool          TryPickFull     (uint64_t & outPosition);
     HRESULT       TrySubmitBranch (KeyframeStore & keyframes, bool & outIsSubmitted);
     HRESULT       Submit          ();
-    bool          HasPicture     (uint64_t position) const;
-    bool          IsWanted       (uint64_t position) const;
-    Image         ScaleBase      (uint64_t position);
-    ShownPicture  ResolveShown   (size_t index);
-    bool          TryGetPointAt  (float offset, HistoryThumbnailCell & outPoint);
-    void          PrunePoints    ();
-    void          ForgetPoint    (uint64_t position);
-    void          OnKeyframeDrop (KeyframeDrop drop);
-    void          ForgetPictures (uint64_t from);
-    double        GetNowMs       () const;
-    void          Bump           ()              { m_version.fetch_add (1, std::memory_order_acq_rel); }
+    bool          HasPicture      (uint64_t position) const;
+    bool          IsWanted        (uint64_t position) const;
+    Image         ScaleBase       (uint64_t position);
+    ShownPicture  ResolveShown    (size_t index);
+    bool          TryGetPointAt   (float offset, HistoryThumbnailCell & outPoint);
+    void          PrunePoints     ();
+    void          ForgetPoint     (uint64_t position);
+    void          OnKeyframeDrop  (KeyframeDrop drop);
+    void          ForgetPictures  (uint64_t from);
+    double        GetNowMs        () const;
+    void          Bump            ()              { m_version.fetch_add (1, std::memory_order_acq_rel); }
 
     IHistoryFrameRenderer           & m_renderer;
     ThreadPoolWorkQueue               m_ownQueue;
@@ -259,10 +259,6 @@ private:
     uint64_t                          m_layoutId     = 0;     // changes with the cell size, which outdates the thumbnails
     uint64_t                          m_cutCount     = 0;     // changes with each drop at the new end, which outdates the picture in flight
     std::vector<HistoryThumbnailCell> m_cells;
-    std::vector<HistoryMark>             m_marks;
-    std::vector<KeyframeBranch>          m_branches;
-    std::unordered_map<uint32_t, Image>  m_branchPictures;   // each branch's live end, drawn
-    std::set<uint32_t>                   m_wantedBranches;   // listed by a flyout and not drawn yet
     HistoryImageCache                 m_thumbs       { kMinThumbCount };
     HistoryImageCache                 m_bases        { kMinThumbCount };
     HistoryImageCache                 m_previews     { kPreviewCount };
@@ -271,6 +267,13 @@ private:
     std::vector<ShownPicture>         m_shown;               // the last picture each cell showed
     PointMap                          m_points;              // the snapshot of every base copy held
     bool                              m_useStandIns  = false; // set once a layout changes over pictures drawn
+
+    //  The marks and the branches left behind, published with the cells, and
+    //  the pictures of the branches' live ends, under the lock too.
+    std::vector<HistoryMark>             m_marks;
+    std::vector<KeyframeBranch>          m_branches;
+    std::unordered_map<uint32_t, Image>  m_branchPictures;   // each branch's live end, drawn
+    std::set<uint32_t>                   m_wantedBranches;   // listed by a flyout and not drawn yet
 
     //  Machine thread's own.
     KeyframeStore                   * m_keyframes    = nullptr;

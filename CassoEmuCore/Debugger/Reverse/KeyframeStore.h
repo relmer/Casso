@@ -153,7 +153,7 @@ private:
     void      NotifyDrop        (KeyframeDrop drop);
     HRESULT   FinishPathChange  ();
 
-    static uint64_t  ReadWallClock();
+    static uint64_t  ReadWallClock ();
     static bool      IsValidSaved  (const SavedKeyframes & saved);
     static bool      IsRootedSaved (const SavedKeyframes & saved, size_t s);
 
