@@ -10,6 +10,7 @@
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorWorker.h"
 #include "Devices/Disk/Inspector/Blocks/BlockMap.h"
 #include "Devices/Disk/OffsetBlockStore.h"
+#include "Devices/Disk/Inspector/Repair/DiskRepair.h"
 
 struct Partition;
 
@@ -171,6 +172,20 @@ public:
     //  not comparing or when the block has those bytes.
     bool  UseOtherBlock (uint32_t block);
 
+    //  A volume's repair, planned over the volume as the file has it, without
+    //  the pending edits. WriteRepairTo writes the plan's blocks into a copy
+    //  of the image that the caller made at `path`, or with `isVolumeOnly`,
+    //  writes the volume alone to `path` as a ProDOS-order image, as for a
+    //  card's partition.
+    RepairPlan  PlanRepair    (int volume, const std::set<std::wstring> & chosen) const;
+    HRESULT     WriteRepairTo (IDiskFileIo        & fileIo,
+                               const std::string  & path,
+                               int                  volume,
+                               const RepairPlan   & plan,
+                               bool                 isVolumeOnly,
+                               std::wstring       & outError,
+                               BlockJobProgress   * progress = nullptr);
+
     //  Writes each changed block and reads the map again. Fails, writing
     //  nothing, when the file changed since it was opened. UndoApplied puts
     //  back the blocks the last save changed and makes its edits unsaved
@@ -239,6 +254,9 @@ private:
     };
 
     HRESULT  WriteBlocks        (const std::map<uint32_t, Block> & blocks, std::wstring & outError, BlockJobProgress * progress);
+    HRESULT  ReadSectors        (const Volume & volume, vector<Byte> & outSectors) const;
+    HRESULT  WriteSectorRepair  (IDiskFileIo & fileIo, const std::string & path, const Volume & volume, const RepairPlan & plan, bool isVolumeOnly, std::wstring & outError);
+    uint32_t GetSectorOffset    (const Volume & volume, uint32_t unit) const;
     HRESULT  IsStoredAs         (const std::map<uint32_t, Block> & blocks, bool & outIsSame);
     HRESULT  BuildVolumes       ();
     void     AddVolume          (uint32_t first, uint32_t count, const std::wstring & label);

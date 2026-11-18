@@ -215,7 +215,8 @@ void Dos33SectorLayout::WalkCatalog (Walker & walker, int track, int sector)
 //  Dos33SectorLayout::WalkFile
 //
 //  The chain of track and sector lists, and each data sector they list,
-//  numbered in the file by the list's sector offset.
+//  numbered in the file by the list's sector offset. A chain that loops or
+//  links off the volume can't be followed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -229,12 +230,15 @@ void Dos33SectorLayout::WalkFile (Walker & walker, int file, int track, int sect
 
 
 
+    walker.map.hasBrokenChains = walker.map.hasBrokenChains || (track != 0 && !IsInside (walker, track, sector));
+
     while (IsInside (walker, track, sector))
     {
         unit = GetUnit (walker, track, sector);
 
         if (!visited.insert (unit).second)
         {
+            walker.map.hasBrokenChains = true;
             break;
         }
 
@@ -253,6 +257,8 @@ void Dos33SectorLayout::WalkFile (Walker & walker, int file, int track, int sect
 
         track  = list[kNextTrack];
         sector = list[kNextSector];
+
+        walker.map.hasBrokenChains = walker.map.hasBrokenChains || (track != 0 && !IsInside (walker, track, sector));
     }
 }
 
