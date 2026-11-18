@@ -104,7 +104,7 @@ namespace DebuggerTests
 
             Assert::IsTrue   (view.HasRanges());
             Assert::AreEqual (view.GetMapRect().top, zero.top, L"the first header opens the map");
-            Assert::AreEqual ((long) HeatMapView::kHeaderDip, zero.bottom - zero.top);
+            Assert::AreEqual ((long) HeatMapGrid::kHeaderDip, zero.bottom - zero.top);
             Assert::AreEqual (zero.bottom, view.GetCellRect (0x0000).top, L"the range's first row under its header");
             Assert::IsTrue   (view.GetCellRect (0x00FF).bottom <= sprite.top, L"Sprites below the zero page");
             Assert::AreEqual (sprite.bottom, view.GetCellRect (0x6000).top);
@@ -126,7 +126,7 @@ namespace DebuggerTests
             Place (view);
             view.SetRanges (MakeRanges());
 
-            across = HeatMapView::GetColumnsOf (view.GetColumns(), 0x3600);
+            across = HeatMapSections::GetColumnsOf (view.GetColumns(), 0x3600);
             first  = view.GetCellRect (0x6000);
             second = view.GetCellRect ((Word) (0x6000 + across));
 
@@ -149,17 +149,17 @@ namespace DebuggerTests
             Place (view);
             view.SetRanges (MakeRanges());
             map  = view.GetMapRect();
-            zero = HeatMapView::GetColumnsOf (view.GetColumns(), 0x0100);
+            zero = HeatMapSections::GetColumnsOf (view.GetColumns(), 0x0100);
 
             Assert::IsTrue   (zero <= 0x0100, L"no more columns than the range holds");
-            Assert::AreEqual (map.right, view.GetCellRect ((Word) (zero - 1)).right + HeatMapView::kStreetPx, L"the zero page's row ends the map");
-            Assert::AreEqual (map.right, view.GetCellRect ((Word) (0x6000 + HeatMapView::GetColumnsOf (view.GetColumns(), 0x3600) - 1)).right + HeatMapView::kStreetPx,
+            Assert::AreEqual (map.right, view.GetCellRect ((Word) (zero - 1)).right + HeatMapSections::kStreetPx, L"the zero page's row ends the map");
+            Assert::AreEqual (map.right, view.GetCellRect ((Word) (0x6000 + HeatMapSections::GetColumnsOf (view.GetColumns(), 0x3600) - 1)).right + HeatMapSections::kStreetPx,
                               L"and so does a row of Sprites");
             Assert::AreEqual (view.GetCellRect (0x0000).bottom - view.GetCellRect (0x0000).top, view.GetCellRect (0x6000).bottom - view.GetCellRect (0x6000).top,
                               L"one zoom: every range's rows are as tall");
-            Assert::AreEqual (1,   HeatMapView::GetColumnsOf (256, 1),       L"a single byte is a row of one");
-            Assert::AreEqual (32,  HeatMapView::GetColumnsOf (256, 32),      L"32 bytes are 32 across");
-            Assert::AreEqual (256, HeatMapView::GetColumnsOf (256, 0x3600),  L"a large range takes the map's columns");
+            Assert::AreEqual (1,   HeatMapSections::GetColumnsOf (256, 1),       L"a single byte is a row of one");
+            Assert::AreEqual (32,  HeatMapSections::GetColumnsOf (256, 32),      L"32 bytes are 32 across");
+            Assert::AreEqual (256, HeatMapSections::GetColumnsOf (256, 0x3600),  L"a large range takes the map's columns");
         }
 
 
@@ -175,19 +175,19 @@ namespace DebuggerTests
 
             Place (view, 200, kHeight);
             view.SetRanges (MakeRanges());
-            view.ZoomTo (HeatMapView::kMaxCellPx);
+            view.ZoomTo (HeatMapGrid::kMaxCellPx);
             map = view.GetMapRect();
 
-            Assert::AreEqual (HeatMapView::kMaxCellPx, view.GetCellPx());
+            Assert::AreEqual (HeatMapGrid::kMaxCellPx, view.GetCellPx());
             Assert::AreEqual (2, view.GetColumns(), L"two of the largest cells to a row");
 
             for (const HeatMapView::Band & band : MakeRanges())
             {
-                Word  last = (Word) (band.first + HeatMapView::GetColumnsOf (view.GetColumns(), band.count) - 1);
+                Word  last = (Word) (band.first + HeatMapSections::GetColumnsOf (view.GetColumns(), band.count) - 1);
 
 
 
-                Assert::AreEqual (map.right, view.GetCellRect (last).right + HeatMapView::kStreetPx, band.title.c_str());
+                Assert::AreEqual (map.right, view.GetCellRect (last).right + HeatMapSections::kStreetPx, band.title.c_str());
             }
         }
 
@@ -353,7 +353,7 @@ namespace DebuggerTests
             view.Paint  (painter, text, theme);
             view.ZoomTo (3);
 
-            label = (long) std::ceil (theme.MonospaceFont().sizeDip * HeatMapView::kLabelLine);
+            label = (long) std::ceil (theme.MonospaceFont().sizeDip * HeatMapGrid::kLabelLine);
             rows  = view.GetCellRect (0x00FF).bottom - view.GetCellRect (0x0000).top;
             room  = view.GetHeaderRect (1).top - view.GetCellRect (0x0000).top;
 
@@ -375,7 +375,7 @@ namespace DebuggerTests
 
             Assert::IsFalse  (view.HasRanges());
             Assert::AreEqual (view.GetStartCellPx(), view.GetCellPx());
-            Assert::AreEqual (HeatMapView::kAddressCount / view.GetColumns(), view.GetRows());
+            Assert::AreEqual (HeatMapSections::kAddressCount / view.GetColumns(), view.GetRows());
             Assert::AreEqual ((Word) 0x1234, view.GetAddressAt (GetPointOf (view, 0x1234)).value_or (0));
         }
 

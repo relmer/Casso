@@ -57,8 +57,8 @@ void SoundBoardView::SetBoard (const DiagnosticsSoundBoard & board)
 
 int SoundBoardView::GetHalfHeight() const
 {
-    return m_scaler.ToPx (kPadDip + kTitleDip + DiagnosticsSoundPsg::kChannelCount * (kChannelDip + kChannelGapDip)
-                          + kEnvelopeDip + kGapDip + kRegisterRows * kRegisterDip + kPadDip);
+    return m_scaler.ToPx (SoundBoardInk::kPadDip + SoundBoardInk::kTitleDip + DiagnosticsSoundPsg::kChannelCount * (kChannelDip + kChannelGapDip)
+                          + kEnvelopeDip + SoundBoardInk::kGapDip + kRegisterRows * SoundBoardInk::kRegisterDip + SoundBoardInk::kPadDip);
 }
 
 
@@ -73,7 +73,7 @@ int SoundBoardView::GetHalfHeight() const
 
 int SoundBoardView::GetClientWidth() const
 {
-    int  gaps = 2 * m_scaler.ToPx (kGapDip);
+    int  gaps = 2 * m_scaler.ToPx (SoundBoardInk::kGapDip);
     int  bar  = m_hasScrollbar ? m_scaler.ToPx (kScrollbarDip) : 0;
 
 
@@ -97,7 +97,7 @@ int SoundBoardView::GetClientWidth() const
 
 void SoundBoardView::Reflow()
 {
-    int               gap     = m_scaler.ToPx (kGapDip);
+    int               gap     = m_scaler.ToPx (SoundBoardInk::kGapDip);
     int               height  = (int) (m_boundsDip.bottom - m_boundsDip.top) - 2 * gap;
     int               voice   = 0;
     int               columns = 1;
@@ -161,11 +161,11 @@ void SoundBoardView::SyncScrollbar()
 
 
 
-    m_scrollTop = std::clamp (m_scrollTop, 0, std::max (0, m_contentHeight + 2 * m_scaler.ToPx (kGapDip) - page));
+    m_scrollTop = std::clamp (m_scrollTop, 0, std::max (0, m_contentHeight + 2 * m_scaler.ToPx (SoundBoardInk::kGapDip) - page));
 
     info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
     info.nMin  = 0;
-    info.nMax  = m_contentHeight + 2 * m_scaler.ToPx (kGapDip);
+    info.nMax  = m_contentHeight + 2 * m_scaler.ToPx (SoundBoardInk::kGapDip);
     info.nPage = (UINT) page;
     info.nPos  = m_scrollTop;
 
@@ -230,7 +230,7 @@ bool SoundBoardView::IsOverPhonemeStrip (POINT clientPx) const
 RECT SoundBoardView::ToClient (const RECT & content) const
 {
     RECT  placed = content;
-    int   gap    = m_scaler.ToPx (kGapDip);
+    int   gap    = m_scaler.ToPx (SoundBoardInk::kGapDip);
 
 
 
@@ -250,8 +250,8 @@ RECT SoundBoardView::ToClient (const RECT & content) const
 
 RECT SoundBoardView::GetChannelRect (const RECT & card, int channel) const
 {
-    int  pad = m_scaler.ToPx (kPadDip);
-    int  top = card.top + pad + m_scaler.ToPx (kTitleDip) + channel * m_scaler.ToPx (kChannelDip + kChannelGapDip);
+    int  pad = m_scaler.ToPx (SoundBoardInk::kPadDip);
+    int  top = card.top + pad + m_scaler.ToPx (SoundBoardInk::kTitleDip) + channel * m_scaler.ToPx (kChannelDip + kChannelGapDip);
 
 
 
@@ -353,7 +353,7 @@ void SoundBoardView::BuildHalfRegions (const DiagnosticsSoundHalf & half, const 
     constexpr int             kChannels = DiagnosticsSoundPsg::kChannelCount;
     constexpr int             kRegsEach = 2;
     RECT                      envelope  = GetEnvelopeRect (card);
-    int                       pad       = m_scaler.ToPx (kPadDip);
+    int                       pad       = m_scaler.ToPx (SoundBoardInk::kPadDip);
 
 
 
@@ -376,7 +376,7 @@ void SoundBoardView::BuildHalfRegions (const DiagnosticsSoundHalf & half, const 
     AddRegion (envelope, std::format (L"The envelope period is ${:04X} (R11 and R12), its pattern ${:02X} (R13), and the noise period ${:02X} (R6).",
                                       half.psg.envelopePeriod, half.psg.envelopeRegister, half.psg.noisePeriod));
 
-    AddRegion ({ card.left, card.top, card.right, card.top + pad + m_scaler.ToPx (kTitleDip) },
+    AddRegion ({ card.left, card.top, card.right, card.top + pad + m_scaler.ToPx (SoundBoardInk::kTitleDip) },
                std::format (L"The 6522's interrupt flags are ${:02X} and its interrupt enable ${:02X}.", half.via.ifr, half.via.ier));
 
     AddRegion ({ envelope.left, envelope.bottom, envelope.right, card.bottom },
@@ -395,7 +395,7 @@ void SoundBoardView::BuildHalfRegions (const DiagnosticsSoundHalf & half, const 
 
 void SoundBoardView::BuildVoiceRegions (const DiagnosticsSoundVoice & voice, const RECT & card)
 {
-    AddRegion (m_voice.GetMuteRect (card), voice.isMuted ? L"Unmute the speech chip" : L"Mute the speech chip", kVoiceMuteChannel);
+    AddRegion (m_voice.GetMuteRect (card), voice.isMuted ? L"Unmute the speech chip" : L"Mute the speech chip", SoundVoiceCard::kVoiceMuteChannel);
 
     AddRegion (m_voice.GetStripArea (card), SoundBoardTips::GetVoice (L"Recent phonemes", voice));
 
@@ -552,7 +552,7 @@ bool SoundBoardView::OnMouse (const DxuiMouseEvent & ev)
     //  the left, or Shift with the wheel up, goes back to them.
     if (ev.kind == DxuiMouseEventKind::Wheel && (ev.wheelHorizontal || ev.shift) && IsOverPhonemeStrip (at))
     {
-        ScrollPhonemes ((int) std::lround ((ev.wheelHorizontal ? -ev.wheelDelta : ev.wheelDelta) * (float) kPhonemesPerNotch));
+        m_voice.ScrollPhonemes ((int) std::lround ((ev.wheelHorizontal ? -ev.wheelDelta : ev.wheelDelta) * (float) kPhonemesPerNotch));
         return true;
     }
 
@@ -660,7 +660,7 @@ bool SoundBoardView::IsChannelMuted (int channel) const
 
 
 
-    if (channel == kVoiceMuteChannel)
+    if (channel == SoundVoiceCard::kVoiceMuteChannel)
     {
         return m_board.voice.has_value() && m_board.voice->isMuted;
     }
@@ -829,7 +829,7 @@ bool SoundBoardView::OnKey (const DxuiKeyEvent & ev)
 void SoundBoardView::RevealFocusedMute()
 {
     std::vector<int>  mutes = GetMuteChannels();
-    int               gap   = m_scaler.ToPx (kGapDip);
+    int               gap   = m_scaler.ToPx (SoundBoardInk::kGapDip);
     int               page  = (int) (m_boundsDip.bottom - m_boundsDip.top) - 2 * gap;
 
 
@@ -876,7 +876,7 @@ std::wstring SoundBoardView::GetAccessibleName() const
     {
         if (focused >= 0 && region.muteChannel == focused)
         {
-            return (focused == kVoiceMuteChannel) ? std::format (L"Mockingboard, {} button", region.tip)
+            return (focused == SoundVoiceCard::kVoiceMuteChannel) ? std::format (L"Mockingboard, {} button", region.tip)
                                                   : std::format (L"Mockingboard, {} of AY #{} button", region.tip, focused / DiagnosticsSoundPsg::kChannelCount + 1);
         }
     }
@@ -1169,7 +1169,7 @@ void SoundBoardView::PaintVia (const Painting & p, const DiagnosticsSoundHalf & 
     constexpr int                kColumns = 4;
     const DiagnosticsSoundVia  & via      = half.via;
     const DiagnosticsSoundPsg  & psg      = half.psg;
-    int                          row      = m_scaler.ToPx (kRegisterDip);
+    int                          row      = m_scaler.ToPx (SoundBoardInk::kRegisterDip);
     int                          wide     = (rect.right - rect.left) / kColumns;
     uint32_t                     lit      = m_palette.voice;
     float                        lampY    = (float) rect.top + (float) row * 4.5f;
@@ -1266,15 +1266,15 @@ void SoundBoardView::PaintHalf (const Painting & p, const DiagnosticsSoundHalf &
     constexpr int     kChannels = DiagnosticsSoundPsg::kChannelCount;
     constexpr int     kLampDip  = 56;
     RECT              envelope  = GetEnvelopeRect (card);
-    int               pad       = m_scaler.ToPx (kPadDip);
+    int               pad       = m_scaler.ToPx (SoundBoardInk::kPadDip);
     float             lampX     = (float) (card.right - pad - m_scaler.ToPx (kLampDip));
-    float             lampY     = (float) card.top + (float) pad + m_scaler.ToPxf (kTitleDip / 2.0f);
+    float             lampY     = (float) card.top + (float) pad + m_scaler.ToPxf (SoundBoardInk::kTitleDip / 2.0f);
 
 
 
     m_ink.PaintCard (p, card, std::format (L"AY #{}", half.index + 1), std::format (L"6522 #{}, slot {}, ${:04X}", half.index + 1, m_board.slot, half.baseAddress));
     m_ink.PaintLamp (p, lampX, lampY, L"IRQ", half.via.isIrq, p.theme.ErrorForeground(), (float) m_scaler.ToPx (kLampDip));
-    SoundBoardInk::AddSpot   (p, { (long) lampX, card.top + pad, card.right - pad, card.top + pad + m_scaler.ToPx (kTitleDip) }, SoundBoardTips::GetVia (L"IRQ", half));
+    SoundBoardInk::AddSpot   (p, { (long) lampX, card.top + pad, card.right - pad, card.top + pad + m_scaler.ToPx (SoundBoardInk::kTitleDip) }, SoundBoardTips::GetVia (L"IRQ", half));
 
     for (int c = 0; c < kChannels; c++)
     {
@@ -1282,7 +1282,7 @@ void SoundBoardView::PaintHalf (const Painting & p, const DiagnosticsSoundHalf &
     }
 
     PaintEnvelope (p, half.psg, envelope);
-    PaintVia (p, half, { envelope.left, envelope.bottom + m_scaler.ToPx (kGapDip), envelope.right, card.bottom - pad });
+    PaintVia (p, half, { envelope.left, envelope.bottom + m_scaler.ToPx (SoundBoardInk::kGapDip), envelope.right, card.bottom - pad });
 }
 
 

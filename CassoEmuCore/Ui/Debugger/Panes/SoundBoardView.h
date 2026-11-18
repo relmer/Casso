@@ -41,9 +41,6 @@ public:
 
     using MuteFn = std::function<void (int channel, bool isMuted)>;
 
-    //  The channel the speech chip's mute has.
-    static constexpr int  kVoiceMuteChannel = SoundVoiceCard::kVoiceMuteChannel;
-
     void  SetBoard     (const DiagnosticsSoundBoard & board);
     void  SetPalette   (const Palette & palette)  { m_palette = palette; }
     void  SetOnMute    (MuteFn onMute)            { m_onMute = std::move (onMute); }
@@ -66,11 +63,9 @@ public:
     int   GetContentHeight () const { return m_contentHeight; }
     int   GetScrollTop     () const { return m_scrollTop; }
 
-    //  The phoneme strip scrolled back through the history by `count`
-    //  phonemes, forward for a negative one, from the newest to the oldest
-    //  the speech chip has; and how far back it is.
-    void    ScrollPhonemes   (int count) { m_voice.ScrollPhonemes (count); }
-    size_t  GetPhonemesBack  () const   { return m_voice.GetPhonemesBack(); }
+    //  The speech chip's card, with its mute and its phoneme strip.
+    SoundVoiceCard        & GetVoice ()       { return m_voice; }
+    const SoundVoiceCard  & GetVoice () const { return m_voice; }
 
     //  How many columns the speech chip's values are in: four where the
     //  mode's name fits in the first, two or one where the pane is narrower.
@@ -106,13 +101,9 @@ private:
     using Painting = SoundBoardInk::Painting;
 
     static constexpr int  kScrollbarDip    = 12;
-    static constexpr int  kGapDip          = SoundBoardInk::kGapDip;
-    static constexpr int  kPadDip          = SoundBoardInk::kPadDip;
-    static constexpr int  kTitleDip        = SoundBoardInk::kTitleDip;
     static constexpr int  kChannelDip      = 58;
     static constexpr int  kChannelGapDip   = 6;
     static constexpr int  kEnvelopeDip     = 74;
-    static constexpr int  kRegisterDip     = SoundBoardInk::kRegisterDip;
     static constexpr int  kRegisterRows    = 7;
     static constexpr int  kLeastCardDip    = 440;
 

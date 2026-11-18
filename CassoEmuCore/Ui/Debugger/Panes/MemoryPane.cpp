@@ -211,7 +211,7 @@ uint32_t MemoryPane::GetHeatFill (const DebuggerViewSnapshot::HeatColumnLevels &
         return 0;
     }
 
-    heat = HeatMapView::GetColor (HeatMapView::Mode::All, execute, read, write, palette);
+    heat = HeatMapCells::GetColor (HeatMapView::Mode::All, execute, read, write, palette);
     fill = DxuiColor::Mix (page, heat, tint) | 0xFF000000u;
 
     if (DxuiColor::ComputeRelativeLuminance (page) < kLightPage)

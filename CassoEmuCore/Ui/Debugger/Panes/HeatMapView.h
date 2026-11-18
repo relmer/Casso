@@ -120,77 +120,18 @@ public:
 
     static PickAction  GetPickAction (bool ctrl, bool shift, bool alt);
 
-    //  The kind an enabled breakpoint on an address or a span is outlined
-    //  as; none for a disabled one and one on no address (an opcode, a
-    //  register, BRK, an interrupt).
-    static std::optional<BreakKind>  GetBreakKind (const BreakpointInfo & info) { return HeatMapCells::GetBreakKind (info); }
-
-    //  How far an address with a symbol is tinted toward the symbol color.
-    static constexpr float  kSymbolTint  = HeatMapCells::kSymbolTint;
-
-    //  The text drawn inside a cell large enough for it (HeatMapCellText).
-    static constexpr float  kMinDetailFontDip = HeatMapCellText::kMinDetailFontDip;
-    static constexpr int    kDetailPadDip     = HeatMapCellText::kDetailPadDip;
-    static constexpr int    kValueChars       = HeatMapCellText::kValueChars;
-    static constexpr int    kDetailChars      = HeatMapCellText::kDetailChars;
-    static constexpr float  kAdvancePerEm     = HeatMapCellText::kAdvancePerEm;
-    static constexpr float  kLinePerEm        = HeatMapCellText::kLinePerEm;
-
-    static Detail        GetDetail          (long widthPx, long heightPx, float maxFontPx, float minFontPx, float padPx) { return HeatMapCellText::GetDetail (widthPx, heightPx, maxFontPx, minFontPx, padPx); }
-    static std::wstring  GetDetailLine      (Byte value, bool isOpcode, const std::string & form)                       { return HeatMapCellText::GetDetailLine (value, isOpcode, form); }
-
     //  An instruction's length in bytes from its opcode's form ("LDA ....",
     //  3), and its text with the operand bytes filled in.
-    static int       GetInstructionLength (const std::string & form) { return HeatMapCellText::GetInstructionLength (form); }
     std::wstring     GetInstructionText   (const std::string & form, Word cpu, const std::vector<Byte> & operands) const { return HeatMapCellText::GetInstructionText (form, cpu, operands, m_cells.GetSymbols().get()); }
-    static uint32_t  GetDetailTextColor   (uint32_t cell, uint32_t foreground, uint32_t background) { return HeatMapCellText::GetDetailTextColor (cell, foreground, background); }
 
-    //  An instruction's text and bytes for each piece of a cell that wraps to
-    //  the next row, by the number of cells in each piece: a first piece of
-    //  one cell has the mnemonic and opcode byte, and the next the operand and
-    //  its bytes; a longer first piece has all of it, and the rest are empty.
-    static InstructionLines  SplitInstruction (const std::wstring & instruction, const std::wstring & bytes, const std::vector<long> & pieceCells)
-    {
-        return HeatMapCellText::SplitInstruction (instruction, bytes, pieceCells);
-    }
-
-    static constexpr int    kAddressCount   = HeatMapSections::kAddressCount;
-    static constexpr int    kMinColumns     = HeatMapSections::kMinColumns;
-    static constexpr int    kMaxColumns     = HeatMapSections::kMaxColumns;
-    static constexpr int    kBarDip         = HeatMapGrid::kBarDip;
     static constexpr int    kTabDip         = 52;
-    static constexpr int    kInsetDip       = HeatMapGrid::kInsetDip;
-    static constexpr float  kLabelLine      = HeatMapGrid::kLabelLine;
-    static constexpr int    kScrollbarDip   = HeatMapGrid::kScrollbarDip;
     static constexpr int    kModeCount      = 4;
-
-    //  A cell's side, without the street of one pixel after it: three at 96
-    //  dpi to start, from one to kMaxCellPx as the zoom goes.
-    static constexpr int    kStreetPx       = HeatMapSections::kStreetPx;
-    static constexpr int    kMaxCellPx      = HeatMapGrid::kMaxCellPx;
-
-    //  The most a row's cells are widened to fill the pane before the row
-    //  takes twice the addresses instead (HeatMapSections::kMaxStretch).
-    static constexpr double kMaxStretch     = HeatMapSections::kMaxStretch;
 
     //  How far one notch of the wheel scrolls, rounded to whole rows.
     static constexpr int    kWheelStepDip   = 48;
 
-    //  Below this side a cell is hard to land on, and over a cold cell the
-    //  pick is the nearest hot cell in the same row within kSnapDip of the
-    //  mouse.
-    static constexpr int    kComfortCellDip = HeatMapPicker::kComfortCellDip;
-    static constexpr int    kSnapDip        = HeatMapPicker::kSnapDip;
-
     //  How far the mouse moves with the button down before it pans.
     static constexpr int    kDragDip        = 4;
-
-    //  How far from the cold gray toward its color the faintest touched
-    //  address is drawn, so one touch is still visible; and the faintest
-    //  read before written, which is rare and worth seeing at any count, so
-    //  it is drawn nearly at full strength from the first read.
-    static constexpr float  kFaintest          = HeatMapCells::kFaintest;
-    static constexpr float  kUnwrittenFaintest = HeatMapCells::kUnwrittenFaintest;
 
     //  The levels, 0 for cold and 1 to 255 rising with the logarithm of the
     //  rate or the count, and the value level 255 stands for: accesses a
@@ -208,9 +149,6 @@ public:
 
     //  While the heat is rebuilt after a move through history, the bar says
     //  so.
-    static constexpr const wchar_t * kpszRebuildingNote = HeatMapPainter::kpszRebuildingNote;
-
-
     void   SetRebuilding (bool isRebuilding) { m_painter.SetRebuilding (isRebuilding); }
 
     //  Where the note that the heat is being rebuilt goes: the room the
@@ -244,12 +182,6 @@ public:
     //  starting a row under a header with its label, in a rounded outline as
     //  a memory window outlines and labels its ranges. Any other labeled
     //  range, such as aux RAM, is outlined once cells are kRegionCellPx.
-    static constexpr int  kRegionCellPx = HeatMapPainter::kRegionCellPx;
-
-    //  The lowest contrast of an outline against the page, WCAG's minimum for
-    //  a control's border; text's is DebuggerTextColors::s_kMinTextContrast.
-    static constexpr float  kMinLineContrast = HeatMapPainter::kMinLineContrast;
-
     void      SetRegions      (const std::vector<uint16_t> & regions);
     void      SetSlotCards    (const MemoryRegionKeys::SlotCards & cards)   { m_cells.SetSlotCards (cards); }
     void      SetMachineId    (const std::string & machineId);
@@ -283,42 +215,9 @@ public:
     //  stack pointer's, then each breakpoint's on it.
     std::vector<uint32_t>  GetOutlineColors (Word address) const { return m_cells.GetOutlineColors (address); }
 
-    //  Where the sections start (HeatMapSections::kSectionStarts), and every
-    //  section start for a machine, in order: kSectionStarts; below them,
-    //  where each built-in range in RAM begins and ends, so zero page, the
-    //  stack and the text and hi-res pages are sections, and so is the RAM
-    //  between them; and above them, each page where the machine's system
-    //  ROM changes part, as $F800 starts the Monitor.
-    static std::vector<Word>  GetSectionStarts (const std::string & machineId = {}) { return HeatMapSections::GetSectionStarts (machineId); }
-
-    //  A section of RAM's label: the built-in range at an address, "Zero
-    //  page", "Hi-res page 1", or "RAM" for none.
-    static std::wstring       GetRamLabel     (Word address)      { return HeatMapSections::GetRamLabel (address); }
-
-    //  A range's title and span, "Zero page  $0000-$00FF".
-    static std::wstring       GetBandTitle    (const Band & band) { return HeatMapSections::GetBandTitle (band); }
-
-    //  The ranges cut at GetSectionStarts, each piece a section. A range no
-    //  start cuts is left whole, and a section only where `isAllMemory`.
-    static std::vector<Band>  SplitAtSections (const std::vector<Band> & ranges, bool isAllMemory, const std::string & machineId = {})
-    {
-        return HeatMapSections::SplitAtSections (ranges, isAllMemory, machineId);
-    }
-
     //  Whether the map is cut into sections now, and the ranges on the map.
     bool                       IsSplit  () const { return m_bands.IsSplit(); }
     const std::vector<Band> &  GetBands () const { return m_bands.GetAll(); }
-
-    //  The height of a range's header, the room after a section's rows, and
-    //  the note in place of an empty set.
-    static constexpr int              kHeaderDip       = HeatMapGrid::kHeaderDip;
-
-    //  A section's label's size, its header's height, and the room between
-    //  its box and its cells on every side, which the label's line runs
-    //  through at the top.
-    static constexpr float            kSectionLabelDip  = HeatMapPainter::kSectionLabelDip;
-    static constexpr int              kSectionPadDip    = HeatMapGrid::kSectionPadDip;
-    static constexpr const wchar_t  * kpszNoRangesNote  = HeatMapPainter::kpszNoRangesNote;
 
     //  The ranges the map is focused on, which it then fits to the pane; or
     //  none of that, for all of memory.
@@ -370,17 +269,6 @@ public:
     const HeatMapZoomWidget &  GetZoomWidget   () const { return m_controls.GetZoomWidget(); }
     bool                       TryGetZoomTipAt (POINT point, RECT & anchor, std::wstring & text) const { return m_controls.TryGetZoomTipAt (point, m_visible, anchor, text); }
 
-    //  The addresses a row holds for a width at a pitch: the largest power of
-    //  two from kMinColumns to kMaxColumns whose cells fit, or twice that when
-    //  those would stretch past kMaxStretch and each cell is at least a pixel
-    //  wide; one address when even one cell at the pitch is wider than the
-    //  width.
-    static int  GetColumnsFor (long widthPx, long pitchPx) { return HeatMapSections::GetColumnsFor (widthPx, pitchPx); }
-
-    //  The addresses a row of a range holds, out of the map's columns: no
-    //  more than the next power of two up from the range's size.
-    static int  GetColumnsOf  (int columns, int count)     { return HeatMapSections::GetColumnsOf (columns, count); }
-
     //  Whether the map is taller than its area, so it scrolls and has a
     //  scrollbar; and where the scrollbar is drawn, empty without one.
     bool   HasVerticalScroll  () const { return m_grid.HasVerticalScroll(); }
@@ -390,24 +278,6 @@ public:
     //  first if anything changed it since; and the color one address is drawn in.
     const std::vector<uint32_t> &  GetPixels    ()                   { return m_frame.GetPixels (m_visible); }
     uint32_t                       GetCellColor (Word address) const { return m_cells.GetCellColor (address); }
-
-    static uint32_t      GetColor     (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette) { return HeatMapCells::GetColor (mode, execute, read, write, palette); }
-
-    //  The same with Blend mixing the kinds that touched it instead of
-    //  showing the hottest.
-    static uint32_t      GetColor     (Mode mode, Byte execute, Byte read, Byte write, const Palette & palette, bool isBlend)
-    {
-        return HeatMapCells::GetColor (mode, execute, read, write, palette, isBlend);
-    }
-
-    //  An address's color with the reads before written and the changes
-    //  drawn as the mode shows them, from its color without them.
-    static uint32_t      GetChannelColor (Mode mode, Byte unwritten, Byte changed, uint32_t color, const Palette & palette)
-    {
-        return HeatMapCells::GetChannelColor (mode, unwritten, changed, color, palette);
-    }
-
-    static std::wstring  GetModeLabel    (Mode mode) { return HeatMapCells::GetModeLabel (mode); }
 
     //  The map's area within the pane: the part of the rows in view, without
     //  the scrollbar; and an address's cell within the pane, as scrolled.
@@ -440,11 +310,6 @@ public:
     bool                 TryGetTipAt  (POINT point, RECT & anchor, std::wstring & text, std::vector<uint32_t> & swatches) const;
     bool                 TryGetTipAt  (POINT point, RECT & anchor, std::wstring & text, std::vector<uint32_t> & swatches,
                                        std::vector<uint32_t> & gradient, float & mark) const;
-
-    static CellKind  GetCellKind (Mode mode, Byte execute, Byte read, Byte write, Byte unwritten, Byte changed, bool isOperand, bool isBlend)
-    {
-        return HeatMapCells::GetCellKind (mode, execute, read, write, unwritten, changed, isOperand, isBlend);
-    }
 
     CellKind         GetCellKind (Word address) const { return m_cells.GetCellKind (address); }
 

@@ -235,7 +235,7 @@ bool HeatMapView::TryGetTipAt (POINT point, RECT & anchor, std::wstring & text, 
     }
 
     anchor   = m_grid.GetPlaceRect (*pick);
-    InflateRect (&anchor, kStreetPx, kStreetPx);
+    InflateRect (&anchor, HeatMapSections::kStreetPx, HeatMapSections::kStreetPx);
     lead     = m_tips.GetTipLead (m_bands.GetAddressOf (*pick));
     text     = m_tips.GetTipText (m_bands.GetAddressOf (*pick));
     contents = m_tips.GetContentsLine (m_bands.GetAddressOf (*pick));
@@ -344,7 +344,7 @@ void HeatMapView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
     m_painter.PaintHover   (text, theme);
 
     m_controls.PlaceZoomWidget (m_grid);
-    m_controls.GetZoomWidget().Paint (text, theme, m_grid.GetCellPx(), m_grid.GetStartCellPx(), kMaxCellPx);
+    m_controls.GetZoomWidget().Paint (text, theme, m_grid.GetCellPx(), m_grid.GetStartCellPx(), HeatMapGrid::kMaxCellPx);
 
     if (m_grid.HasVerticalScroll())
     {
@@ -701,7 +701,7 @@ bool HeatMapView::OnZoomWidget (const DxuiMouseEvent & ev)
     {
         if (ev.kind == DxuiMouseEventKind::Move)
         {
-            m_grid.ApplyCellPx (m_controls.GetZoomWidget().GetCellPxAt (ev.positionDip, kMaxCellPx), center);
+            m_grid.ApplyCellPx (m_controls.GetZoomWidget().GetCellPxAt (ev.positionDip, HeatMapGrid::kMaxCellPx), center);
         }
         else if (ev.kind == DxuiMouseEventKind::Up)
         {
@@ -729,7 +729,7 @@ bool HeatMapView::OnZoomWidget (const DxuiMouseEvent & ev)
 
     case Hit::Track:
         m_controls.GetZoomWidget().SetDragging (true);
-        m_grid.ApplyCellPx (m_controls.GetZoomWidget().GetCellPxAt (ev.positionDip, kMaxCellPx), center);
+        m_grid.ApplyCellPx (m_controls.GetZoomWidget().GetCellPxAt (ev.positionDip, HeatMapGrid::kMaxCellPx), center);
         return true;
 
     case Hit::Reset:

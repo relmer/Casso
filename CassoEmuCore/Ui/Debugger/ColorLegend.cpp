@@ -344,7 +344,7 @@ uint32_t ColorLegend::GetArgb (Meaning meaning, const Palette & palette)
     case Meaning::HeatRead:
     case Meaning::HeatWrite:          return GetRampStops (meaning, palette).back();
     case Meaning::HeatSelfModifying:  return palette.text.heatSelfModifying;
-    case Meaning::HeatSymbol:         return DxuiColor::Mix (palette.text.heatCold | 0xFF000000u, palette.text.syntax.symbol | 0xFF000000u, HeatMapView::kSymbolTint);
+    case Meaning::HeatSymbol:         return DxuiColor::Mix (palette.text.heatCold | 0xFF000000u, palette.text.syntax.symbol | 0xFF000000u, HeatMapCells::kSymbolTint);
     case Meaning::HeatPc:             return palette.pcMarker;
     case Meaning::HeatStack:          return palette.text.heatStack;
     case Meaning::HeatBreakpoint:     return palette.breakpoint;
@@ -521,14 +521,14 @@ std::shared_ptr<DxuiIconImage> ColorLegend::MakeSwatchIcon (Swatch swatch, uint3
 //  ColorLegend::GetFaintest
 //
 //  As the heat map draws the least touched address: the color mixed from
-//  the cold gray by HeatMapView::kFaintest, or kUnwrittenFaintest for a
+//  the cold gray by HeatMapCells::kFaintest, or kUnwrittenFaintest for a
 //  read before written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 uint32_t ColorLegend::GetFaintest (Meaning meaning, uint32_t argb, const Palette & palette)
 {
-    float  floor = (meaning == Meaning::HeatUnwritten) ? HeatMapView::kUnwrittenFaintest : HeatMapView::kFaintest;
+    float  floor = (meaning == Meaning::HeatUnwritten) ? HeatMapCells::kUnwrittenFaintest : HeatMapCells::kFaintest;
 
 
 

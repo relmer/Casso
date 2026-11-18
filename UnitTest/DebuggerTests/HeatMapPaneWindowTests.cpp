@@ -591,7 +591,7 @@ namespace HeatMapPaneWindowTests
             button = view->GetZoomWidget().GetButtonRect();
 
             Assert::IsTrue   (button.right > button.left, L"the widget is placed");
-            Assert::AreEqual (view->GetBounds().right  - HeatMapZoomWidget::kMarginDip - (view->HasVerticalScroll()   ? HeatMapView::kScrollbarDip : 0), button.right,
+            Assert::AreEqual (view->GetBounds().right  - HeatMapZoomWidget::kMarginDip - (view->HasVerticalScroll()   ? HeatMapGrid::kScrollbarDip : 0), button.right,
                               L"its margin in from the pane's right, inside a scrollbar that shows");
             Assert::AreEqual (view->GetBounds().bottom - HeatMapZoomWidget::kMarginDip, button.bottom, L"and its bottom");
             Assert::AreEqual (100, HeatMapZoomWidget::GetPercent (view->GetCellPx(), view->GetStartCellPx()), L"the starting zoom is 100%");
@@ -607,7 +607,7 @@ namespace HeatMapPaneWindowTests
 
             track = view->GetZoomWidget().GetTrackRect();
             ClickAt (window, POINT { track.right - 1, GetCenter (track).y });
-            Assert::AreEqual ((int) HeatMapView::kMaxCellPx, view->GetCellPx(), L"the right end is the largest cell");
+            Assert::AreEqual ((int) HeatMapGrid::kMaxCellPx, view->GetCellPx(), L"the right end is the largest cell");
 
             moved = view->GetZoomWidget().GetTrackRect();
             Assert::IsTrue   (EqualRect (&track, &moved) != FALSE, L"the slider stays put as the zoom changes the map");
@@ -735,9 +735,9 @@ namespace HeatMapPaneWindowTests
             cell = view->GetCellRect (0x2000);
             map  = view->GetMapRect();
 
-            Assert::AreEqual (HeatMapView::kMaxCellPx, view->GetCellPx(), L"the largest zoom");
+            Assert::AreEqual (HeatMapGrid::kMaxCellPx, view->GetCellPx(), L"the largest zoom");
             Assert::IsTrue   (view->GetShownAddress() == std::optional<Word> (0x2000), L"$2000 is outlined");
-            Assert::IsTrue   (std::abs ((cell.top + cell.bottom) / 2 - (map.top + map.bottom) / 2) <= HeatMapView::kMaxCellPx, L"and centered");
+            Assert::IsTrue   (std::abs ((cell.top + cell.bottom) / 2 - (map.top + map.bottom) / 2) <= HeatMapGrid::kMaxCellPx, L"and centered");
 
             symbol->goTo = DebuggerViewSnapshot::GoTo { DebuggerViewState::kHeatMapGoTo, Word (0x0300), "start", "", 1 };
             window.TakeSnapshot (symbol);
