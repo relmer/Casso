@@ -75,7 +75,7 @@ HRESULT InspectorImageLoader::LoadBytes (const vector<Byte> & bytes, const std::
     if (!image.IsLoaded())
     {
         diagnosis = DiskImageStore::ClassifyLoadFailure (format, bytes);
-        outReason = std::format (L"{} {}", name, TextEncoding::NarrowToWide (diagnosis.Describe()));
+        outReason = diagnosis.FormatSentence (name);
         CHR (E_FAIL);
     }
 

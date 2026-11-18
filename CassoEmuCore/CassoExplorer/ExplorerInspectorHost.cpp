@@ -404,7 +404,7 @@ void ExplorerInspectorHost::Load()
     if (!m_image->IsLoaded())
     {
         diagnosis   = DiskImageStore::ClassifyLoadFailure (format, bytes);
-        m_openError = std::format (L"{} {}", name, TextEncoding::NarrowToWide (diagnosis.Describe()));
+        m_openError = diagnosis.FormatSentence (name);
     }
 
 Error:

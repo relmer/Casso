@@ -811,7 +811,6 @@ wstring DiskImageStore::FormatMountFailureMessage (const string & path,
                                                    const MountDiagnosis & diagnosis)
 {
     wstring  widePath = fs::path (path).wstring();
-    wstring  reason   = TextEncoding::NarrowToWide (diagnosis.Describe());
 
 
 
@@ -821,7 +820,7 @@ wstring DiskImageStore::FormatMountFailureMessage (const string & path,
     }
 
     return L"Casso could not open this file as a disk image:\n\n" + widePath +
-           L"\n\nThis file " + reason + L".";
+           L"\n\n" + diagnosis.FormatSentence (L"This file") + L".";
 }
 
 

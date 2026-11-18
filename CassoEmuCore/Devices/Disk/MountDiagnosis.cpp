@@ -31,6 +31,10 @@
 
 string MountDiagnosis::Describe() const
 {
+    static constexpr const char *  kpsz35In525 = "Cannot mount a 3.5-inch image in a 5.25-inch drive";
+
+
+
     char    note[400] = {};
     string  observed;
     string  required;
@@ -63,9 +67,9 @@ string MountDiagnosis::Describe() const
 
             //  A 400K or 800K image is a 3.5-inch disk, a real format rather than
             //  a damaged 140K one, so the message is about the drive.
-            if (fileByteSize == 400u * 1024u || fileByteSize == 800u * 1024u)
+            if (IsWholeSentence())
             {
-                snprintf (note, sizeof (note), "is a %zuK 3.5-inch disk image, which a 5.25-inch drive can't read", fileByteSize / 1024u);
+                snprintf (note, sizeof (note), "%s", kpsz35In525);
             }
             else
             {
@@ -124,7 +128,7 @@ string MountDiagnosis::Describe() const
             break;
 
         case MountFailure::WozNot525:
-            text = "is a WOZ image of a 3.5-inch disk, and a 5.25-inch drive can't read it";
+            text = kpsz35In525;
             break;
 
         case MountFailure::None:
@@ -135,6 +139,47 @@ string MountDiagnosis::Describe() const
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountDiagnosis::IsWholeSentence
+//
+//  A 400K or 800K sector image, or a WOZ of a 3.5-inch disk, in a 5.25-inch
+//  drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MountDiagnosis::IsWholeSentence() const
+{
+    bool  is35Size = fileByteSize == 400u * 1024u || fileByteSize == 800u * 1024u;
+
+
+
+    return failure == MountFailure::WozNot525 || (failure == MountFailure::WrongSizeForFormat && is35Size);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountDiagnosis::FormatSentence
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring MountDiagnosis::FormatSentence (const std::wstring & subject) const
+{
+    std::wstring  clause = TextEncoding::NarrowToWide (Describe());
+
+
+
+    return IsWholeSentence() ? clause : subject + L" " + clause;
 }
 
 

@@ -922,9 +922,9 @@ std::wstring PreviewText::FormatPreviewError (const std::wstring & message)
 
 
 
-    if (message.find (L"3.5-inch disk image") != std::wstring::npos)
+    if (message.find (L"Cannot mount a ") != std::wstring::npos)
     {
-        reason = L"A 5.25-inch drive can't read a 3.5-inch disk image";
+        reason = message.substr (message.find (L"Cannot mount a "));
     }
 
     if (message == CassoExplorerBrowser::s_kWorkingText)

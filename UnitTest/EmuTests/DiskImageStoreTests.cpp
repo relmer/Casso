@@ -1746,6 +1746,24 @@ public:
     }
 
 
+    TEST_METHOD (FormatMountFailureMessage_35InchImage_IsAboutTheDrive)
+    {
+        wstring  sized = DiskImageStore::FormatMountFailureMessage (
+                             "C:\\disks\\Big.dsk",
+                             DiagnosisOf (MountFailure::WrongSizeForFormat,
+                                          DiskFormat::Dsk, 800 * 1024));
+        wstring  woz   = DiskImageStore::FormatMountFailureMessage (
+                             "C:\\disks\\Big.woz",
+                             DiagnosisOf (MountFailure::WozNot525,
+                                          DiskFormat::Woz, 1000));
+
+
+
+        Assert::IsTrue (sized.ends_with (L"\n\nCannot mount a 3.5-inch image in a 5.25-inch drive."), sized.c_str());
+        Assert::IsTrue (woz.ends_with   (L"\n\nCannot mount a 3.5-inch image in a 5.25-inch drive."), woz.c_str());
+    }
+
+
     TEST_METHOD (FormatMountFailureMessage_WrongSize_NamesTheFormatItWasGiven)
     {
         wstring  message = DiskImageStore::FormatMountFailureMessage (
