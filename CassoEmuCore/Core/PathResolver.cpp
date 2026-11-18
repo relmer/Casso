@@ -2,15 +2,10 @@
 
 #include "PathResolver.h"
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BuildSearchPaths
-//
-////////////////////////////////////////////////////////////////////////////////
+#include "Core/DataFolderResolver.h"
+#include "Update/AuthenticodeVerifier.h"
+#include "Update/InstallTypeDetector.h"
+#include "Update/ModuleInstallEnvironment.h"
 
 
 
@@ -20,7 +15,17 @@
 //
 //  BuildSearchPaths
 //
-//  Returns the single user-writable asset directory: %LOCALAPPDATA%\Casso\.
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildSearchPaths
+//
+//  Returns the single user-writable asset directory, the data folder.
 //  Casso uses no exe-adjacent or cwd-relative fallback path -- every file
 //  it reads or writes lives in that one directory. The exeDir / cwd
 //  parameters are accepted for API compatibility but ignored.
@@ -35,13 +40,13 @@ vector<fs::path> PathResolver::BuildSearchPaths (
 
 
 
-    fs::path          localAppData = GetLocalAppDataDir (L"Casso");
+    fs::path          dataFolder = GetDataFolder();
 
 
 
-    if (!localAppData.empty())
+    if (!dataFolder.empty())
     {
-        searchBases.push_back (localAppData);
+        searchBases.push_back (dataFolder);
     }
 
     return searchBases;
@@ -172,11 +177,105 @@ fs::path PathResolver::GetWorkingDirectory()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetLocalAppDataDir
+//  GetDataFolder
 //
-//  Resolves %LOCALAPPDATA%\<appName>\, creating the directory tree if
-//  it doesn't already exist. Three layered fallbacks because we never
-//  want this to fail in normal user setups:
+//  The one folder this process reads and writes everything under. It is chosen
+//  on the first call and is the same on every later call from any thread. The
+//  rules are in DataFolderResolver; ChooseDataFolder gathers their inputs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+fs::path PathResolver::GetDataFolder()
+{
+    static const fs::path  folder = ChooseDataFolder();
+
+
+
+    return folder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChooseDataFolder
+//
+//  Reads CASSO_PROFILE_DIR, the install type of the module that contains this
+//  code, the module's path and the local application data folder, applies
+//  DataFolderResolver and creates the resulting folder.
+//
+//  The install type check verifies a signature, so it is skipped when
+//  CASSO_PROFILE_DIR is set, since that variable decides the folder by itself.
+//  A check that fails to run counts as a developer build, so a failure never
+//  sends a developer build to the shipped folder.
+//
+//  An empty result means no rule produced a folder: an official build whose
+//  local application data folder could not be found. Nothing is created then.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+fs::path PathResolver::ChooseDataFolder()
+{
+    HRESULT                   hr            = S_OK;
+    ModuleInstallEnvironment  environment;
+    AuthenticodeVerifier      verifier;
+    DataFolderInputs          inputs;
+    DataFolderResult          result;
+    std::wstring              modulePath;
+    wchar_t                   env[MAX_PATH] = {};
+    DWORD                     envLen        = 0;
+    error_code                ec;
+
+
+
+    envLen = GetEnvironmentVariableW (kpszProfileVariable, env, MAX_PATH);
+    if (envLen > 0 && envLen < MAX_PATH)
+    {
+        inputs.profileOverride = env;
+    }
+
+    inputs.localAppData = GetLocalAppDataFolder();
+    inputs.hasGitEntry  = &PathResolver::HasGitEntry;
+    inputs.installType  = InstallType::Developer;
+
+    hr = environment.GetExecutablePath (modulePath);
+    if (SUCCEEDED (hr))
+    {
+        inputs.modulePath = modulePath;
+    }
+    else
+    {
+        inputs.modulePath = GetExecutableDirectory() / kpszFallbackModuleName;
+    }
+
+    if (inputs.profileOverride.empty())
+    {
+        hr = InstallTypeDetector::Detect (environment, verifier, inputs.installType);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    result = DataFolderResolver::Resolve (inputs);
+
+    if (!result.folder.empty())
+    {
+        fs::create_directories (result.folder, ec);
+    }
+
+    return result.folder;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLocalAppDataFolder
+//
+//  The user's local application data folder, with three layered fallbacks
+//  because this should not fail on a normal user profile:
 //
 //   1. SHGetKnownFolderPath (FOLDERID_LocalAppData) -- canonical API,
 //      works on every supported Windows even with redirected profiles.
@@ -185,26 +284,19 @@ fs::path PathResolver::GetWorkingDirectory()
 //      out cleanly).
 //   3. %USERPROFILE%\AppData\Local -- last-resort literal path.
 //
+//  Empty when all three fail.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
+fs::path PathResolver::GetLocalAppDataFolder()
 {
     HRESULT     hr            = S_OK;
     PWSTR       pszPath       = nullptr;
     fs::path    result;
-    error_code  ec;
     wchar_t     env[MAX_PATH] = {};
     DWORD       envLen        = 0;
 
 
-
-    envLen = GetEnvironmentVariableW (kpszProfileVariable, env, MAX_PATH);
-    if (envLen > 0 && envLen < MAX_PATH)
-    {
-        result = fs::path (env);
-        fs::create_directories (result, ec);
-        return result;
-    }
 
     hr = SHGetKnownFolderPath (FOLDERID_LocalAppData, 0, nullptr, &pszPath);
     if (SUCCEEDED (hr) && pszPath != nullptr)
@@ -231,16 +323,29 @@ fs::path PathResolver::GetLocalAppDataDir (const std::wstring & appName)
         }
     }
 
-    // All three fallbacks failed, which should not happen on a normal user
-    // profile. Yield the empty path rather than creating "\<appName>" at the
-    // drive root.
-    if (!result.empty())
-    {
-        result /= appName;
-        fs::create_directories (result, ec);
-    }
-
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasGitEntry
+//
+//  A clone has .git as a folder and a worktree has it as a file, so either
+//  counts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PathResolver::HasGitEntry (const fs::path & folder)
+{
+    error_code  ec;
+
+
+
+    return fs::exists (folder / L".git", ec);
 }
 
 

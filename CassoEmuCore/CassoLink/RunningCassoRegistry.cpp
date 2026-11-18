@@ -37,7 +37,7 @@ RunningCassoRegistry::RunningCassoRegistry (IFileSystem & fileSystem, IProcessPr
 
 std::wstring RunningCassoRegistry::GetDefaultFolder()
 {
-    return (PathResolver::GetLocalAppDataDir (L"Casso") / L"Links").wstring();
+    return (PathResolver::GetDataFolder() / L"Links").wstring();
 }
 
 

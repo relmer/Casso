@@ -363,7 +363,7 @@ const ThemeCrtDefaults * PreviewPictureView::GetCrtDefaults()
     {
         m_crtThemeName  = name;
         m_crtTheme      = LoadedTheme();
-        dir             = (PathResolver::GetLocalAppDataDir (L"Casso") / L"Themes" / TextEncoding::Utf8ToWide (name)).wstring();
+        dir             = (PathResolver::GetDataFolder() / L"Themes" / TextEncoding::Utf8ToWide (name)).wstring();
         hr              = ThemeLoader::Load (fs, dir, m_crtTheme, error);
         m_crtThemeValid = SUCCEEDED (hr);
     }

@@ -38,8 +38,8 @@ struct CassoTheme;
 //   * Detect missing ROM files for a given machine config and offer
 //     to download them from the AppleWin project.
 //
-//  Runtime asset roots live under the user-writable
-//  %LOCALAPPDATA%\Casso\ directory.
+//  Runtime asset roots live under the user-writable data folder, which
+//  PathResolver::GetDataFolder chooses.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -272,6 +272,7 @@
     <ClCompile Include="EmuTests\Phase7IntegrationTests.cpp" />
     <ClCompile Include="EmuTests\LanguageCardTests.cpp" />
     <ClCompile Include="EmuTests\RegistryTests.cpp" />
+    <ClCompile Include="EmuTests\DataFolderResolverTests.cpp" />
     <ClCompile Include="EmuTests\PathResolverTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigTests.cpp" />
     <ClCompile Include="EmuTests\Apple2cRomBankTests.cpp" />

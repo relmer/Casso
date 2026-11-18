@@ -190,6 +190,7 @@
     <ClCompile Include="Update\UpdateRuntime.cpp" />
     <ClCompile Include="Update\Win32UpdateHost.cpp" />
     <ClCompile Include="Update\WindowUpdateResultPoster.cpp" />
+    <ClCompile Include="Update\ModuleInstallEnvironment.cpp" />
     <ClCompile Include="Update\Win32InstallEnvironment.cpp" />
     <ClCompile Include="Update\LocalFeedHttpClient.cpp" />
     <ClCompile Include="Update\PendingUpdateModel.cpp" />
@@ -201,6 +202,7 @@
     <ClCompile Include="Core\MachineConfig.cpp" />
     <ClCompile Include="Core\MachineConfigUpgrade.cpp" />
     <ClCompile Include="Core\MachineScanner.cpp" />
+    <ClCompile Include="Core\DataFolderResolver.cpp" />
     <ClCompile Include="Core\PathResolver.cpp" />
     <ClCompile Include="Core\MemoryBus.cpp" />
     <ClCompile Include="Core\EmuCpu.cpp" />
@@ -1423,6 +1425,7 @@
     <ClInclude Include="Update\UpdateResult.h" />
     <ClInclude Include="Update\IUpdateHost.h" />
     <ClInclude Include="Update\IUpdateResultPoster.h" />
+    <ClInclude Include="Update\ModuleInstallEnvironment.h" />
     <ClInclude Include="Update\Win32InstallEnvironment.h" />
     <ClInclude Include="Update\LocalFeedHttpClient.h" />
     <ClInclude Include="Update\PendingUpdateModel.h" />
@@ -1438,6 +1441,7 @@
     <ClInclude Include="Core\MachineConfig.h" />
     <ClInclude Include="Core\MachineConfigUpgrade.h" />
     <ClInclude Include="Core\MachineScanner.h" />
+    <ClInclude Include="Core\DataFolderResolver.h" />
     <ClInclude Include="Core\PathResolver.h" />
     <ClInclude Include="Core\Prng.h" />
     <ClInclude Include="Core\DramPowerOnPattern.h" />

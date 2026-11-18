@@ -55,17 +55,14 @@ public:
     // Get the current working directory
     static fs::path GetWorkingDirectory ();
 
-    // Returns %LOCALAPPDATA%\<appName>\, creating the directory if it
-    // doesn't already exist. Falls back to the %LOCALAPPDATA% env var
-    // and finally %USERPROFILE%\AppData\Local if SHGetKnownFolderPath
-    // fails (extremely rare on supported Windows). Empty path returned
-    // only if every fallback fails.
-    //
-    // When the CASSO_PROFILE_DIR environment variable is set, that folder is
-    // returned in place of %LOCALAPPDATA%\<appName>\. It is for a test copy
-    // of Casso Explorer run beside the owner's. Its prefs, session and logs
-    // go to that folder, so it doesn't start the owner's saved connections.
-    static fs::path GetLocalAppDataDir (const std::wstring & appName);
+    // The one folder this process reads and writes everything under, created
+    // when it doesn't exist. Chosen on the first call, the same afterward.
+    // CASSO_PROFILE_DIR, when set, is the folder. Otherwise an official build
+    // (signed, or running from an MSIX) uses %LOCALAPPDATA%\Casso, and any
+    // other build uses CassoData at its repo root, or beside the module when
+    // no repo is found. Empty only when an official build can't find
+    // %LOCALAPPDATA%. The rules are in DataFolderResolver.
+    static fs::path GetDataFolder ();
 
     static constexpr const wchar_t * kpszProfileVariable = L"CASSO_PROFILE_DIR";
 
@@ -88,4 +85,12 @@ public:
     // drive letter's kind is known locally, so the query never waits on the
     // network.
     static bool IsNetworkPath (const std::wstring & path);
+
+private:
+
+    static constexpr const wchar_t * kpszFallbackModuleName = L"Casso.exe";
+
+    static fs::path  ChooseDataFolder      ();
+    static fs::path  GetLocalAppDataFolder ();
+    static bool      HasGitEntry           (const fs::path & folder);
 };

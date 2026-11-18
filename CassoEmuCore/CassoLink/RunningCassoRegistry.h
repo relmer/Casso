@@ -38,7 +38,7 @@ struct RunningCasso
 //
 //  The files through which Casso Explorer finds each running Casso whose
 //  serial port is on TCP: one per port, <pid>-<port>.json in a folder under
-//  %LOCALAPPDATA%\Casso. Casso writes a port's file when it connects the
+//  the data folder. Casso writes a port's file when it connects the
 //  port to TCP and deletes it when the port is connected elsewhere or the
 //  machine goes. Casso Explorer reads them, and deletes any whose process
 //  has exited, or whose process id is now another process's, started at
@@ -54,7 +54,7 @@ class RunningCassoRegistry
 public:
     RunningCassoRegistry (IFileSystem & fileSystem, IProcessProbe & probe, std::wstring folder);
 
-    //  %LOCALAPPDATA%\Casso\Links.
+    //  <data folder>\Links.
     static std::wstring  GetDefaultFolder ();
 
     const std::wstring &  GetFolder () const { return m_folder; }

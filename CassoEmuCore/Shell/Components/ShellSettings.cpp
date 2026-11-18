@@ -498,14 +498,14 @@ void ShellSettings::SetRomRefreshConsent (const std::string & consent)
 //
 //  ShellSettings::GetSettingsFolder
 //
-//  %LOCALAPPDATA%\Casso, where the preferences files live. Empty when the
+//  The data folder, where the preferences files live. Empty when the
 //  folder cannot be resolved.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring ShellSettings::GetSettingsFolder()
 {
-    return PathResolver::GetLocalAppDataDir (L"Casso").wstring();
+    return PathResolver::GetDataFolder().wstring();
 }
 
 

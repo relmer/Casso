@@ -207,7 +207,7 @@ bool StockBootDisks::TryGetStockDisks (const std::string & format, const std::st
 //
 //  StockBootDisks::CacheDirectory
 //
-//  <localAppData>\Casso\Disks, which is where the downloader puts them.
+//  <data folder>\Disks, which is where the downloader puts them.
 //
 //  It does NOT create the directory, which is the one behavioral difference
 //  from the version this was lifted out of. Asking where a file would be is
@@ -219,7 +219,7 @@ bool StockBootDisks::TryGetStockDisks (const std::string & format, const std::st
 
 std::string StockBootDisks::CacheDirectory()
 {
-    std::filesystem::path  base = PathResolver::GetLocalAppDataDir (L"Casso");
+    std::filesystem::path  base = PathResolver::GetDataFolder();
 
 
 
