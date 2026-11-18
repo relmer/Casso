@@ -1308,7 +1308,7 @@ HRESULT VolumeImage::SaveContainer (
         hr = Save (payload, innerPath, editedSectors, newPayload, outRefusalReason);
         CHR (hr);
 
-        GzipFile::Build (newPayload, innerName, outFileBytes);
+        GzipFile::Build (newPayload, innerName, outFileBytes, GzipFile::GetLevel (originalFileBytes));
 
         BAIL_OUT_IF (true, S_OK);
     }

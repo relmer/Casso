@@ -372,7 +372,6 @@ HRESULT ZipArchive::Replace (
     static constexpr std::uint32_t  kEndSignature     = 0x06054B50;
     static constexpr std::uint32_t  kCentralSignature = 0x02014B50;
     static constexpr std::uint16_t  kVersion          = 20;
-    static constexpr std::uint16_t  kMethodStored     = 0;
     static constexpr std::uint16_t  kMethodDeflated   = 8;
     static constexpr std::uint16_t  kDosDate1980      = 0x0021;
     static constexpr size_t         kCentralSize      = 46;
@@ -394,7 +393,7 @@ HRESULT ZipArchive::Replace (
     bool                            isCdInside        = false;
     std::uint32_t                   dataCrc           = ComputeCrc32 (data);
     std::span<const Byte>           stored;
-    std::vector<Byte>               deflated;
+    std::vector<Byte>               packed;
     std::uint16_t                   method            = kMethodDeflated;
     std::vector<Byte>               directory;
     std::vector<Byte>               added;
@@ -403,15 +402,6 @@ HRESULT ZipArchive::Replace (
 
 
     outArchive.clear();
-
-    //  The data is deflated, unless that would make it no smaller.
-    Deflate::Compress (data, deflated);
-
-    if (deflated.size() >= data.size())
-    {
-        deflated.assign (data.begin(), data.end());
-        method = kMethodStored;
-    }
 
     hr = FindEndRecord (archive, endOffset);
     CHR (hr);
@@ -431,7 +421,8 @@ HRESULT ZipArchive::Replace (
         if (record.path == path)
         {
             found = true;
-            AppendEntry (archive.subspan (offset, next - offset), method, dataCrc, deflated, (std::uint32_t) data.size(), outArchive, directory);
+            Pack (data, record.method, record.flags, packed, method);
+            AppendEntry (archive.subspan (offset, next - offset), method, dataCrc, packed, (std::uint32_t) data.size(), outArchive, directory);
         }
         else
         {
@@ -454,7 +445,8 @@ HRESULT ZipArchive::Replace (
         SetU16 (added, kNameLenOffset, (std::uint16_t) path.size());
         added.insert (added.end(), path.begin(), path.end());
 
-        AppendEntry (added, method, dataCrc, deflated, (std::uint32_t) data.size(), outArchive, directory);
+        Pack (data, kMethodDeflated, 0, packed, method);
+        AppendEntry (added, method, dataCrc, packed, (std::uint32_t) data.size(), outArchive, directory);
         written++;
     }
 
@@ -477,6 +469,48 @@ Error:
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ZipArchive::Pack
+//
+//  The data as an entry of `method` is: stored for a stored entry, and
+//  otherwise deflated at the level of flag bits 1 and 2, as Info-ZIP sets
+//  them: 0 normal, 1 maximum, 2 fast and 3 super fast. The data is stored
+//  when deflating doesn't make it smaller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ZipArchive::Pack (
+    std::span<const Byte>    data,
+    std::uint16_t            method,
+    std::uint16_t            flags,
+    std::vector<Byte>      & outPacked,
+    std::uint16_t          & outMethod)
+{
+    static constexpr std::uint16_t  kMethodStored   = 0;
+    static constexpr std::uint16_t  kMethodDeflated = 8;
+    static constexpr int            kLevels[]       = { Deflate::kDefault, Deflate::kBest, 2, Deflate::kFastest };
+
+
+
+    outMethod = kMethodDeflated;
+
+    if (method != kMethodStored)
+    {
+        Deflate::Compress (data, outPacked, kLevels[(flags >> 1) & 3]);
+    }
+
+    if (method == kMethodStored || outPacked.size() >= data.size())
+    {
+        outPacked.assign (data.begin(), data.end());
+        outMethod = kMethodStored;
+    }
 }
 
 

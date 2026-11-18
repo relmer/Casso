@@ -48,9 +48,10 @@ public:
     static std::uint32_t  ComputeCrc32      (std::span<const Byte> bytes);
 
     //  The archive with the entry at `path` replaced by `data`, or added at
-    //  the end when no entry has that path. The data is deflated unless that
-    //  makes it no smaller. Every other entry is copied with its compressed
-    //  bytes.
+    //  the end when no entry has that path. A stored entry is stored again;
+    //  otherwise the data is deflated at the level the entry's flags
+    //  indicate, unless that makes it no smaller. Every other entry is copied
+    //  with its compressed bytes.
     static HRESULT        Replace           (std::span<const Byte>    archive,
                                              const std::string      & path,
                                              std::span<const Byte>    data,
@@ -71,6 +72,11 @@ private:
     static HRESULT        LocateData        (std::span<const Byte>    archive,
                                              const CentralRecord    & record,
                                              std::span<const Byte>  & outData);
+    static void           Pack              (std::span<const Byte>    data,
+                                             std::uint16_t            method,
+                                             std::uint16_t            flags,
+                                             std::vector<Byte>      & outPacked,
+                                             std::uint16_t          & outMethod);
     static void           AppendEntry       (std::span<const Byte>    central,
                                              std::uint16_t            method,
                                              std::uint32_t            crc32,

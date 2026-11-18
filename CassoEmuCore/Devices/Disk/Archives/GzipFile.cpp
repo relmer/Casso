@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Archives/GzipFile.h"
-#include "Update/Deflate.h"
 #include "Update/Inflate.h"
 #include "Update/ZipArchive.h"
 
@@ -108,24 +107,27 @@ Error:
 
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
 //  GzipFile::Build
 //
+//  The extra flags indicate the level, as gzip writes them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void GzipFile::Build (std::span<const Byte> data, const std::string & name, std::vector<Byte> & outBytes)
+void GzipFile::Build (std::span<const Byte> data, const std::string & name, std::vector<Byte> & outBytes, int level)
 {
     constexpr Byte  kOsUnknown = 0xFF;
 
 
 
-    uint32_t           crc = ZipArchive::ComputeCrc32 (data);
+    uint32_t           crc   = ZipArchive::ComputeCrc32 (data);
+    Byte               extra = level >= Deflate::kBest ? kExtraBest : level <= Deflate::kFastest ? kExtraFast : 0;
     std::vector<Byte>  deflated;
 
 
 
-    outBytes = { kId1, kId2, kDeflate, (Byte) (name.empty() ? 0 : kFlagName), 0, 0, 0, 0, 0, kOsUnknown };
+    outBytes = { kId1, kId2, kDeflate, (Byte) (name.empty() ? 0 : kFlagName), 0, 0, 0, 0, extra, kOsUnknown };
 
     if (!name.empty())
     {
@@ -133,7 +135,7 @@ void GzipFile::Build (std::span<const Byte> data, const std::string & name, std:
         outBytes.push_back (0);
     }
 
-    Deflate::Compress (data, deflated);
+    Deflate::Compress (data, deflated, level);
     outBytes.insert (outBytes.end(), deflated.begin(), deflated.end());
 
     for (int shift = 0; shift < 32; shift += 8)
@@ -145,4 +147,23 @@ void GzipFile::Build (std::span<const Byte> data, const std::string & name, std:
     {
         outBytes.push_back ((Byte) ((uint32_t) data.size() >> shift));
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GzipFile::GetLevel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int GzipFile::GetLevel (std::span<const Byte> bytes)
+{
+    Byte  extra = IsGzip (bytes) ? bytes[kExtraFlags] : 0;
+
+
+
+    return extra == kExtraBest ? Deflate::kBest : extra == kExtraFast ? Deflate::kFastest : Deflate::kDefault;
 }
