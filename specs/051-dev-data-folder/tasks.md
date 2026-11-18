@@ -19,8 +19,8 @@ Every new `.cpp` and `.h` goes into its `.vcxproj` and `.vcxproj.filters`. Every
 
 ## Phase 1: Setup
 
-- [ ] T001 Merge `origin/master` into `051-dev-data-folder` and build Debug x64 with `scripts/Build.ps1`, so the work starts from the current tree.
-- [ ] T002 Add `CassoData/` to `.gitignore` at the repo root.
+- [x] T001 Merge `origin/master` into `051-dev-data-folder` and build Debug x64 with `scripts/Build.ps1`, so the work starts from the current tree.
+- [x] T002 Add `CassoData/` to `.gitignore` at the repo root.
 
 ---
 
@@ -28,13 +28,13 @@ Every new `.cpp` and `.h` goes into its `.vcxproj` and `.vcxproj.filters`. Every
 
 Every user story depends on this phase.
 
-- [ ] T003 Add `DataFolderInputs`, `DataFolderResult` and `enum class DataFolderRule { ProfileOverride, Official, RepoRoot, BesideModule }` in `CassoEmuCore/Core/DataFolderResolver.h`, with the fields in data-model.md: `profileOverride` ("empty when unset"), `installType` ("`Unknown` is treated as `Developer`"), `modulePath` ("absolute"), `localAppData` ("may be empty when every fallback failed"), `hasGitEntry`.
-- [ ] T004 Write `UnitTest/EmuTests/DataFolderResolverTests.cpp` with one test per row of contracts/data-folder-rules.md: the override is returned for an official build; `Msix` and `Zip` return `<localAppData>\Casso`; `Developer` and `Unknown` with a `.git` folder return `<root>\CassoData`; a `.git` file (worktree) returns its folder; the nearest `.git` is used over a farther one; no `.git` returns `<module folder>\CassoData`; rules 3 and 4 never return a path under `<localAppData>\Casso`; an official build with empty `localAppData` returns an empty folder.
-- [ ] T005 Implement `DataFolderResolver::Resolve` in `CassoEmuCore/Core/DataFolderResolver.cpp` as a pure function over `DataFolderInputs`, walking from `modulePath`'s folder to the drive root. Run T004, then break each rule in turn and confirm its test fails.
-- [ ] T006 [P] Add `ModuleInstallEnvironment` in `CassoEmuCore/Update/ModuleInstallEnvironment.h/.cpp`: an `IInstallEnvironment` whose `GetExecutablePath` returns the path of the module that contains `CassoEmuCore`, from `GetModuleHandleExW (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, ...)` and `GetModuleFileNameW`, and whose `HasPackageIdentity` matches `Win32InstallEnvironment`.
-- [ ] T007 Rename `PathResolver::GetLocalAppDataDir (appName)` to `PathResolver::GetDataFolder()` in `CassoEmuCore/Core/PathResolver.h/.cpp`. It builds `DataFolderInputs` from `CASSO_PROFILE_DIR`, `InstallTypeDetector::Detect` with `ModuleInstallEnvironment` and `AuthenticodeVerifier` (a failed `Detect` counts as `Developer`), the module path, the existing `LOCALAPPDATA` fallbacks, and an `fs::exists` check for `.git`. It caches the result in a function-local static and creates the folder.
-- [ ] T008 Update every caller of `GetLocalAppDataDir` to `GetDataFolder`: `AssetBootstrap.cpp`, `CassoExplorerShell.cpp`, `PreviewPictureView.cpp`, `RunningCassoRegistry.cpp`, `StockBootDisks.cpp`, `ShellSettings.cpp` and `PathResolver.cpp`, then fix the comments that mention `%LOCALAPPDATA%\Casso` as the only location in `PathResolver.h`, `AssetBootstrap.h/.cpp` and `ShellSettings.h/.cpp`.
-- [ ] T009 Update `UnitTest/EmuTests/PathResolverTests.cpp` for the rename, and confirm no unit test calls `GetDataFolder` directly (Principle II).
+- [x] T003 Add `DataFolderInputs`, `DataFolderResult` and `enum class DataFolderRule { ProfileOverride, Official, RepoRoot, BesideModule }` in `CassoEmuCore/Core/DataFolderResolver.h`, with the fields in data-model.md: `profileOverride` ("empty when unset"), `installType` ("`Unknown` is treated as `Developer`"), `modulePath` ("absolute"), `localAppData` ("may be empty when every fallback failed"), `hasGitEntry`.
+- [x] T004 Write `UnitTest/EmuTests/DataFolderResolverTests.cpp` with one test per row of contracts/data-folder-rules.md: the override is returned for an official build; `Msix` and `Zip` return `<localAppData>\Casso`; `Developer` and `Unknown` with a `.git` folder return `<root>\CassoData`; a `.git` file (worktree) returns its folder; the nearest `.git` is used over a farther one; no `.git` returns `<module folder>\CassoData`; rules 3 and 4 never return a path under `<localAppData>\Casso`; an official build with empty `localAppData` returns an empty folder.
+- [x] T005 Implement `DataFolderResolver::Resolve` in `CassoEmuCore/Core/DataFolderResolver.cpp` as a pure function over `DataFolderInputs`, walking from `modulePath`'s folder to the drive root. Run T004, then break each rule in turn and confirm its test fails.
+- [x] T006 [P] Add `ModuleInstallEnvironment` in `CassoEmuCore/Update/ModuleInstallEnvironment.h/.cpp`: an `IInstallEnvironment` whose `GetExecutablePath` returns the path of the module that contains `CassoEmuCore`, from `GetModuleHandleExW (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, ...)` and `GetModuleFileNameW`, and whose `HasPackageIdentity` matches `Win32InstallEnvironment`.
+- [x] T007 Rename `PathResolver::GetLocalAppDataDir (appName)` to `PathResolver::GetDataFolder()` in `CassoEmuCore/Core/PathResolver.h/.cpp`. It builds `DataFolderInputs` from `CASSO_PROFILE_DIR`, `InstallTypeDetector::Detect` with `ModuleInstallEnvironment` and `AuthenticodeVerifier` (a failed `Detect` counts as `Developer`), the module path, the existing `LOCALAPPDATA` fallbacks, and an `fs::exists` check for `.git`. It caches the result in a function-local static and creates the folder.
+- [x] T008 Update every caller of `GetLocalAppDataDir` to `GetDataFolder`: `AssetBootstrap.cpp`, `CassoExplorerShell.cpp`, `PreviewPictureView.cpp`, `RunningCassoRegistry.cpp`, `StockBootDisks.cpp`, `ShellSettings.cpp` and `PathResolver.cpp`, then fix the comments that mention `%LOCALAPPDATA%\Casso` as the only location in `PathResolver.h`, `AssetBootstrap.h/.cpp` and `ShellSettings.h/.cpp`.
+- [x] T009 Update `UnitTest/EmuTests/PathResolverTests.cpp` for the rename, and confirm no unit test calls `GetDataFolder` directly (Principle II).
 
 **Checkpoint**: Debug x64 builds; `scripts/RunTests.ps1 -Filter DataFolder` and `-Filter PathResolver` pass.
 
