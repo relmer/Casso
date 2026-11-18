@@ -209,6 +209,7 @@ bool BlockEditBuffer::SetBlock (uint32_t block, const Block & base, const Block 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BlockEditBuffer::Paste
