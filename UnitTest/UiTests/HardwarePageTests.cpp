@@ -41,6 +41,33 @@ public:
         return e;
     }
 
+    //  A SCSI CARD'S DRIVES ARE ROWS UNDER ITS SLOT, each with its image. No
+    //  hard disk has a real timing row.
+    TEST_METHOD (BuildNodes_BlockCardDrivesAndRealTiming)
+    {
+        std::vector<HardwareEntry>  entries;
+        std::vector<DxuiTreeNode>   nodes;
+        HardwareEntry               scsi = MakeEntry (HardwareEntryKind::Slot, "Slot 7: Apple II SCSI Card", CapabilityFlag::Optional, true);
+
+
+
+        scsi.slot           = 7;
+        scsi.type           = "apple-scsi-card";
+        scsi.ports          = { "", "hd20sc", "", "", "", "", "hd20sc" };
+        scsi.portImages     = { "", "C:\\disks\\Total Replay.hdv", "", "", "", "", "stock" };
+        scsi.portRealTiming = { false, true, false, false, false, false, false };
+        entries.push_back (scsi);
+
+        nodes = HardwarePage::BuildNodes (entries);
+
+        Assert::AreEqual<size_t> (2u, nodes[0].children[0].children.size(), L"one row per drive");
+        Assert::AreEqual (std::wstring (L"SCSI ID 1: Apple Hard Disk 20SC (Total Replay.hdv)"), nodes[0].children[0].children[0].label);
+        Assert::AreEqual (std::wstring (L"SCSI ID 6: Apple Hard Disk 20SC (Stock hard disk.hdv)"), nodes[0].children[0].children[1].label);
+        Assert::IsTrue   (nodes[0].children[0].children[0].children.empty(), L"no real timing row for ID 1");
+        Assert::IsTrue   (nodes[0].children[0].children[1].children.empty(), L"no real timing row for ID 6");
+    }
+
+
     TEST_METHOD (BuildNodes_GroupsInternalAndSlotsSeparately)
     {
         std::vector<HardwareEntry>  entries;

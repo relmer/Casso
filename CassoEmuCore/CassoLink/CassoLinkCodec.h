@@ -90,6 +90,10 @@ public:
     static constexpr Byte  kFormatTrack   = 0xC8;
     static constexpr Byte  kWriteTrack    = 0xDB;
     static constexpr Byte  kStatus        = 0xD4;
+
+    //  The bit of Status's drive byte that marks a write-protected disk.
+    static constexpr Byte  kStatusWriteProtected = 0x40;
+
     static constexpr Byte  kCancel        = 0xD1;
     static constexpr Byte  kLabel         = 0xDC;
     static constexpr Byte  kLog           = 0xDD;
@@ -112,6 +116,12 @@ public:
     static constexpr Byte  kReadCrcs      = 0xE4;
     static constexpr Byte  kSectorCrcs    = 0xE5;
     static constexpr Byte  kFault         = 0xE6;     // a Debug build's program alone
+
+    //  Measure track, drive and track, and Track measure in reply: the nibbles
+    //  from the step to sector 0's address field and the nibbles in a turn,
+    //  each low byte first, and the field's volume.
+    static constexpr Byte  kMeasureTrack  = 0xEC;
+    static constexpr Byte  kTrackMeasure  = 0xED;
     static constexpr Byte  kKeySpace      = 0xA0;
     static constexpr Byte  kKeyQuit       = 0xD1;
     static constexpr Byte  kKeyNone       = 0x00;
@@ -133,6 +143,65 @@ public:
     static constexpr Byte  kKrunch         = 0xE7;
     static constexpr Byte  kKrunchProgress = 0xE8;
 
+    //  Load module: with no payload, the module loaded's id and version in
+    //  reply, 0 and 0 for none; with an offset into the module and bytes,
+    //  an Acknowledge with the offset; with $FFFF alone, the module checked,
+    //  and its id and version in reply, 0 and 0 when it fails.
+    static constexpr Byte    kLoadModule      = 0xE9;
+    static constexpr Word    kModuleCheck     = 0xFFFF;
+    static constexpr size_t  kModuleChunk     = 240;
+
+    //  The capture module's request: the percentages at its start and end,
+    //  the drive, the quarter-track position and the delay. Its reply is the
+    //  read's kCapturePages pages encoded (CaptureStream::Decode), in Capture
+    //  data packets of a sequence number, 256 bytes of the encoding and their
+    //  CRC-16/XMODEM, low byte first; then a Status.
+    static constexpr Byte    kCapture         = 0xEA;
+    static constexpr Byte    kCaptureData     = 0xEB;
+    static constexpr size_t  kCapturePages    = 55;
+    static constexpr int     kQuarterTracks   = 140;
+
+    //  The block module's requests (Block.s): List block devices, with
+    //  Block devices in reply; Read blocks, with a Block data packet for
+    //  each block, then a Status; and Write blocks, with an Acknowledge
+    //  that requests each block's Block data, then a Status.
+    static constexpr Byte    kListBlocks      = 0xEE;
+    static constexpr Byte    kBlockDevices    = 0xEF;
+    static constexpr Byte    kReadBlocks      = 0xF0;
+    static constexpr Byte    kBlockData       = 0xF1;
+    static constexpr Byte    kWriteBlocks     = 0xF2;
+    static constexpr size_t  kBlockSize       = 512;
+
+    //  The 13-sector module's Write nibble track: the drive, the track and the
+    //  stream's length; an Acknowledge requests the stream, in a Nibble data
+    //  packet with its CRC, and a Status ends it. In the stream, a byte with
+    //  its top bit set is a nibble and a 0 a self-sync byte.
+    static constexpr Byte    kWriteNibbleTrack = 0xF3;
+    static constexpr Byte    kNibbleData       = 0xF4;
+    static constexpr size_t  kMaxNibbleStream  = 0x3500;
+
+    //  The 13-sector module's Read 13-sector track: the drive, the track and
+    //  the sectors requested, a bit each, low byte first. The reply is a
+    //  13-sector data packet for each sector found, in physical order: the
+    //  sector, its data field's nibbles as the drive read them and their CRC;
+    //  or the sector with kNoDataField set alone, for one with no data field.
+    //  A Status ends it, its count the packets.
+    static constexpr Byte    kReadThirteenTrack = 0xF6;
+    static constexpr Byte    kThirteenData      = 0xF7;
+    static constexpr size_t  kThirteenSectors   = 13;
+    static constexpr size_t  kThirteenField     = 411;
+    static constexpr Byte    kNoDataField       = 0x80;
+
+    //  The CassoLink ProDOS disk's block driver's request, from the Apple:
+    //  the drive, the operation (kVirtualStatus, kVirtualRead or
+    //  kVirtualWrite) and the block, low byte first, and for a write the
+    //  block and its CRC. The reply has ProDOS's error, then for a status the
+    //  drive's blocks and for a read the block and its CRC.
+    static constexpr Byte    kVirtualBlock     = 0xF5;
+    static constexpr Byte    kVirtualStatus    = 0x00;
+    static constexpr Byte    kVirtualRead      = 0x01;
+    static constexpr Byte    kVirtualWrite     = 0x02;
+
     //  The longest row on the Session screen.
     static constexpr size_t  kSessionRowLength = 80;
 
@@ -153,6 +222,75 @@ public:
 
     static constexpr size_t  kPageSize   = 256;
     static constexpr size_t  kSectorSize = 256;
+
+    //  Every packet's command, ADTPro's and Casso's, each once, so no two
+    //  have the same byte: CassoLinkCodecTests checks it. LinkProgram puts
+    //  each one with an assembler name ahead of the Apple sources it
+    //  assembles, and the sources don't define any. Acknowledge is
+    //  ADTPro's, and Casso's program sends it too.
+    struct Command
+    {
+        Byte          value;
+        const char *  symbol;      // the Apple sources' name, or nullptr for ADTPro's alone
+    };
+
+    static constexpr Command  kCommands[] =
+    {
+        { kCd,            nullptr       },
+        { kDirectory,     nullptr       },
+        { kGet,           nullptr       },
+        { kPut,           nullptr       },
+        { kBatch,         nullptr       },
+        { kNibble,        nullptr       },
+        { kMultiple,      nullptr       },
+        { kSize,          nullptr       },
+        { kImageData,     nullptr       },
+        { kSummary,       nullptr       },
+        { kHome,          nullptr       },
+        { kSendFile,      nullptr       },
+        { kVirtualDrive,  nullptr       },
+        { kAcknowledge,   "CMDACK"      },
+        { kReady,         "CMDREADY"    },
+        { kIdle,          "CMDIDLE"     },
+        { kSectorData,    "CMDDATA"     },
+        { kSectorNibbles, "CMDNIBS"     },
+        { kLoadProgram,   "CMDLOAD"     },
+        { kSetSpeed,      "CMDSPEED"    },
+        { kReadSectors,   "CMDREAD"     },
+        { kWriteSectors,  "CMDWRITE"    },
+        { kFormatTrack,   "CMDFORMAT"   },
+        { kWriteTrack,    "CMDWTRACK"   },
+        { kStatus,        "CMDSTATUS"   },
+        { kCancel,        "CMDCANCEL"   },
+        { kLabel,         "CMDLABEL"    },
+        { kLog,           "CMDLOG"      },
+        { kTimeDrive,     "CMDTIME"     },
+        { kExit,          "CMDEXIT"     },
+        { kSectorBlank,   "CMDBLANK"    },
+        { kSessionScreen, "CMDSCREEN"   },
+        { kWaitForKey,    "CMDKEY"      },
+        { kSetColumns,    "CMDCOLS"     },
+        { kReadCrcs,      "CMDREADCRC"  },
+        { kSectorCrcs,    "CMDCRCS"     },
+        { kFault,         "CMDFAULT"    },
+        { kKrunch,        "CMDKRUNCH"   },
+        { kKrunchProgress, "CMDKPROG"   },
+        { kLoadModule,    "CMDMODULE"   },
+        { kCapture,       "CMDCAPTURE"  },
+        { kCaptureData,   "CMDCAPDATA"  },
+        { kMeasureTrack,  "CMDMEASURE"  },
+        { kTrackMeasure,  "CMDMEASURED" },
+        { kListBlocks,    "CMDBLKLIST"  },
+        { kBlockDevices,  "CMDBLKDEVS"  },
+        { kReadBlocks,    "CMDBLKREAD"  },
+        { kBlockData,     "CMDBLKDATA"  },
+        { kWriteBlocks,   "CMDBLKWRITE" },
+        { kWriteNibbleTrack, "CMDWNIBS"  },
+        { kNibbleData,    "CMDNIBDATA"  },
+        { kReadThirteenTrack, "CMDRD13" },
+        { kThirteenData,  "CMDSEC13"    },
+        { kVirtualBlock,  "CMDVBLOCK"   },
+    };
 
     static HRESULT   Encode            (Byte command, std::span<const Byte> payload, std::vector<Byte> & out);
     static HRESULT   EncodeImageData   (Word startBlock, std::span<const Byte> data, std::vector<Byte> & out);

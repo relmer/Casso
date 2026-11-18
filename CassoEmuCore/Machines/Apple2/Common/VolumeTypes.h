@@ -68,7 +68,7 @@ enum class PayloadEncoding
 //
 enum class PayloadTextForm
 {
-    AppleHighAscii,     // DOS 3.3 and ProDOS: high-bit characters, $8D line ends
+    AppleHighAscii,     // DOS 3.3, ProDOS and HFS: high-bit or plain characters, $8D or $0D line ends
     PascalPages,        // Apple Pascal: a header, then pages of indent-coded lines
     CpmRecords,         // CP/M: CR LF line ends, ended by $1A in the last record
 };
@@ -109,6 +109,11 @@ struct FileEntry
     Word         modifiedTime   = 0;
     bool         hasDates       = false;
 
+    //  A ProDOS extended file's resource fork length, beside the data fork's
+    //  in eofBytes.
+    uint32_t     resourceForkBytes = 0;
+    bool         hasResourceFork   = false;
+
     //  Where the entry sits in its directory's catalog, from 0. DOS 3.3 names
     //  can repeat, and this distinguishes two entries with the same name.
     size_t       catalogIndex   = 0;
@@ -123,6 +128,23 @@ struct FileEntry
     int          user           = 0;
     bool         isReadOnly     = false;
     bool         isSystem       = false;
+};
+
+
+
+//
+//  Which computers a ProDOS volume starts. An Apple II starts from the
+//  Apple II loader in block 0 and the PRODOS file. An Apple /// starts from
+//  the SOS loader, in block 0 on a disk SOS formatted or in block 1 on one
+//  ProDOS formatted, and the SOS.KERNEL, SOS.DRIVER and SOS.INTERP files. A
+//  volume can start both, or neither.
+//
+struct StartupSystems
+{
+    bool  appleII  = false;
+    bool  appleIII = false;
+
+    bool  operator== (const StartupSystems & other) const = default;
 };
 
 
@@ -145,6 +167,9 @@ struct VolumeListing
 
     //  Apple Pascal: the file count its directory records, valid entries or not.
     uint32_t                  directoryFiles  = 0;
+
+    //  ProDOS: the computers the volume starts.
+    StartupSystems            startup;
 };
 
 
@@ -180,6 +205,14 @@ struct FilePayload
     Word               modifiedDate   = 0;
     Word               modifiedTime   = 0;
     bool               hasDates       = false;
+
+    //  A resource fork and the Finder information beside the data fork in
+    //  bytes, from a ProDOS extended file, AppleSingle or AppleDouble. Finder
+    //  information is the 16 bytes of FInfo then the 16 of FXInfo, and empty
+    //  for none.
+    std::vector<Byte>  resourceFork;
+    std::vector<Byte>  finderInfo;
+    bool               hasResourceFork = false;
 
     //  ProDOS's access bytes for a file unlocked and locked, and the
     //  write-enable bit, which is clear in a locked file.

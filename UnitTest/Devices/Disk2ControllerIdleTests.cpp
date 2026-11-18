@@ -41,10 +41,10 @@ public:
 
 
 
-        controller.SetIdleCallback ([&turns] () { turns++; });
+        controller.GetSignals().SetIdleCallback ([&turns] () { turns++; });
 
         //  No motor, no access, no spindown -- a machine sitting at a prompt.
-        controller.Tick (Disk2Controller::kIdleCallbackCycles);
+        controller.Tick (Disk2Signals::kIdleCallbackCycles);
 
         Assert::IsTrue (turns > 0,
                         L"the build loop's whole case is a guest that is not "
@@ -61,19 +61,19 @@ public:
 
 
 
-        controller.SetIdleCallback ([&turns] () { turns++; });
+        controller.GetSignals().SetIdleCallback ([&turns] () { turns++; });
 
         //  Tick is pumped per instruction and "nothing in flight" is true
         //  nearly always, so an ungated callback would be an indirect dispatch
         //  on essentially every instruction the machine executes.
-        for (cycles = 0; cycles < Disk2Controller::kIdleCallbackCycles; cycles++)
+        for (cycles = 0; cycles < Disk2Signals::kIdleCallbackCycles; cycles++)
         {
             controller.Tick (1);
         }
 
         Assert::AreEqual (1, turns, L"one frame, one turn");
 
-        for (cycles = 0; cycles < Disk2Controller::kIdleCallbackCycles; cycles++)
+        for (cycles = 0; cycles < Disk2Signals::kIdleCallbackCycles; cycles++)
         {
             controller.Tick (1);
         }
@@ -90,7 +90,7 @@ public:
 
 
         //  Headless hosts and most tests install nothing.
-        controller.Tick (Disk2Controller::kIdleCallbackCycles * 4);
+        controller.Tick (Disk2Signals::kIdleCallbackCycles * 4);
     }
 
 
@@ -107,12 +107,12 @@ public:
         //  the bytes underneath would be seen.
         controller.Read (0xC0E9);   //  motor on
 
-        controller.SetIdleCallback ([&turns] () { turns++; });
+        controller.GetSignals().SetIdleCallback ([&turns] () { turns++; });
 
         //  Spin-up is a few hundred cycles inside a frame-long window, so the
         //  window has to REMEMBER that it was busy: sampling at its end would
         //  find the drive quiet again and hand out a turn anyway.
-        for (uint32_t cycle = 0; cycle < Disk2Controller::kIdleCallbackCycles; cycle++)
+        for (uint32_t cycle = 0; cycle < Disk2Signals::kIdleCallbackCycles; cycle++)
         {
             controller.Tick (1);
         }
@@ -121,7 +121,7 @@ public:
 
         //  Once it is up to speed, the machine is quiet again even with the
         //  motor running: between accesses is as good a moment as motor-off.
-        controller.Tick (Disk2Controller::kIdleCallbackCycles * 4);
+        controller.Tick (Disk2Signals::kIdleCallbackCycles * 4);
 
         Assert::IsTrue (turns > 0);
     }

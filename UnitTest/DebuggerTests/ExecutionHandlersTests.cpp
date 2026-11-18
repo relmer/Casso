@@ -694,7 +694,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"nothing is counted while profiling is off");
 
             Assert::AreEqual (std::string ("Profiling on."), rig.RunOk ("PROFILE ON").text.at (0));
-            rig.machine.RunCycles (20);
+            rig.machine.GetRunner().RunCycles (20);
             Assert::AreNotEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"a machine running on its own is profiled too");
             rig.RunOk ("PROFILE RESET");
 
@@ -919,7 +919,7 @@ namespace DebuggerTests
 
             rig.RunOk ("TF trace.txt");
             rig.RunOk ("PROFILE ON");
-            rig.machine.RunCycles (200);
+            rig.machine.GetRunner().RunCycles (200);
             Assert::AreNotEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"the free run is profiled");
 
             rig.RunOk ("= 300");

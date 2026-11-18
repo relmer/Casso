@@ -1,0 +1,764 @@
+#include "Pch.h"
+
+#include "CassoLink/FullSend/FullSendStatus.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::FullSendStatus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FullSendStatus::FullSendStatus (SecondsFn seconds, TimeFn time) :
+    m_seconds (std::move (seconds)),
+    m_time    (std::move (time))
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::FormatClock
+//
+//  The Full Send window's format for its times.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string FullSendStatus::FormatClock (double seconds)
+{
+    int  whole = (int) std::max (0.0, seconds + 0.5);
+
+
+
+    return whole >= 3600 ? std::format ("{}:{:02}:{:02}", whole / 3600, whole / 60 % 60, whole % 60)
+                         : std::format ("{}:{:02}", whole / 60, whole % 60);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::Begin
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::Begin()
+{
+    std::lock_guard  lock (m_lock);
+    uint64_t         revision = m_snapshot.revision;
+
+
+
+    m_snapshot          = FullSendSnapshot();
+    m_snapshot.activity = FullSendActivity::Starting;
+    m_snapshot.revision = revision + 1;
+    m_resume            = FullSendActivity::None;
+    m_resumeDrive       = 0;
+    m_began             = m_seconds();
+    m_ended             = -1.0;
+    m_sentSeconds       = 0.0;
+    m_idleSeconds       = 0.0;
+    m_idleSince         = m_began;
+    m_baseCount         = { 0, 0 };
+    m_lastMark          = { m_began, m_began };
+
+    m_samples.clear();
+    m_boots.clear();
+    m_booted.clear();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::End
+//
+//  The totals' time stops, and each drive's disk in progress is cleared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::End (const std::string & reason)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    m_ended             = m_seconds();
+    m_snapshot.activity = FullSendActivity::Ended;
+    m_snapshot.drive    = 0;
+    m_snapshot.reason   = reason;
+
+    NoteIdle();
+
+    for (FullSendDriveStatus & drive : m_snapshot.drives)
+    {
+        bool  busy = drive.state == FullSendDiskState::Checking || drive.state == FullSendDiskState::Sending || drive.state == FullSendDiskState::Capturing;
+
+        drive.state = busy ? FullSendDiskState::None : drive.state;
+    }
+
+    AddTimedLine (reason);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::SetActivity
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::SetActivity (FullSendActivity activity, int drive)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    m_snapshot.activity = activity;
+    m_snapshot.drive    = drive;
+    m_snapshot.revision++;
+
+    NoteIdle();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::SetPresent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::SetPresent (int drive, bool present)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    if (drive < 1 || drive > (int) m_snapshot.present.size())
+    {
+        return;
+    }
+
+    m_snapshot.present[(size_t) drive - 1] = present;
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::IsIdle
+//
+//  The activities that wait for the user: the first screen, before Space; a
+//  disk and a key; and a prefix being typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendStatus::IsIdle (FullSendActivity activity)
+{
+    return activity == FullSendActivity::Starting || activity == FullSendActivity::WaitingForDisk || activity == FullSendActivity::EditingPrefix;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::NoteIdle
+//
+//  The current activity's start or end of a wait for the user, after the
+//  activity changes. A wait for the Apple's reply over a wait for the user
+//  is idle too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::NoteIdle()
+{
+    double  now    = m_seconds();
+    bool    isIdle = IsIdle (m_snapshot.activity) || (m_snapshot.activity == FullSendActivity::WaitingForApple && IsIdle (m_resume));
+
+
+
+    if (isIdle && m_idleSince < 0.0)
+    {
+        m_idleSince = now;
+    }
+    else if (!isIdle && m_idleSince >= 0.0)
+    {
+        m_idleSeconds += now - m_idleSince;
+        m_idleSince    = -1.0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::SetWaiting
+//
+//  A wait for the Apple's reply begins over the activity it interrupts, and
+//  ends with that activity again and a line with the wait's length.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::SetWaiting (bool waiting)
+{
+    std::lock_guard  lock (m_lock);
+    bool             isWaiting = m_snapshot.activity == FullSendActivity::WaitingForApple;
+
+
+
+    if (waiting && !isWaiting)
+    {
+        m_resume            = m_snapshot.activity;
+        m_resumeDrive       = m_snapshot.drive;
+        m_waitBegan         = m_seconds();
+        m_snapshot.activity = FullSendActivity::WaitingForApple;
+        m_snapshot.revision++;
+        NoteIdle();
+    }
+
+    if (!waiting && isWaiting)
+    {
+        m_snapshot.activity = m_resume;
+        m_snapshot.drive    = m_resumeDrive;
+        NoteIdle();
+
+        AddTimedLine (std::format ("The Apple replied after {:.0f} seconds.", m_seconds() - m_waitBegan));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::BeginDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::BeginDisk (int drive, bool verified, std::span<const int> haveTracks)
+{
+    std::lock_guard        lock (m_lock);
+    FullSendDriveStatus  & status = GetDrive (drive);
+    FullSendTrackMark      mark   = verified ? FullSendTrackMark::Verified : FullSendTrackMark::Read;
+    int                    count  = 0;
+
+
+
+    status          = FullSendDriveStatus();
+    status.state    = FullSendDiskState::Sending;
+    status.verified = verified;
+    status.started  = m_seconds();
+
+    for (int track : haveTracks)
+    {
+        if (track >= 0 && track < FullSendDriveStatus::kTracks && status.tracks[(size_t) track] == FullSendTrackMark::Unread)
+        {
+            status.tracks[(size_t) track] = mark;
+            count++;
+        }
+    }
+
+    m_baseCount[GetIndex (drive)] = count;
+    m_lastMark[GetIndex (drive)]  = status.started;
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::SetTitle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::SetTitle (int drive, const std::string & title, const std::string & fileSystem)
+{
+    std::lock_guard        lock (m_lock);
+    FullSendDriveStatus  & status = GetDrive (drive);
+
+
+
+    status.title      = title;
+    status.fileSystem = fileSystem;
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::MarkTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::MarkTrack (int drive, int track, FullSendTrackMark mark)
+{
+    std::lock_guard        lock (m_lock);
+    FullSendDriveStatus  & status = GetDrive (drive);
+
+
+
+    if (track < 0 || track >= FullSendDriveStatus::kTracks)
+    {
+        return;
+    }
+
+    status.tracks[(size_t) track] = mark;
+    status.percent                = CountRead (status) * 100 / FullSendDriveStatus::kTracks;
+    m_lastMark[GetIndex (drive)]  = m_seconds();
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::BeginCapture
+//
+//  The drive's disk, read as sectors until now, is captured raw: its title
+//  and start time stay, and its progress begins again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::BeginCapture (int drive)
+{
+    std::lock_guard        lock (m_lock);
+    FullSendDriveStatus  & status = GetDrive (drive);
+
+
+
+    status.state       = FullSendDiskState::Capturing;
+    status.positions.assign (FullSendDriveStatus::kPositions, FullSendPositionMark::Unread);
+    status.pass        = 1;
+    status.position    = 0;
+    status.read        = 0;
+    status.reads       = 0;
+    status.percent     = 0;
+    status.secondsLeft = -1.0;
+
+    m_lastMark[GetIndex (drive)] = m_seconds();
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::SetCapture
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::SetCapture (int drive, int pass, int position, int read, int reads, int percent, double secondsLeft)
+{
+    std::lock_guard        lock (m_lock);
+    FullSendDriveStatus  & status = GetDrive (drive);
+
+
+
+    status.pass        = pass;
+    status.position    = position;
+    status.read        = read;
+    status.reads       = reads;
+    status.percent     = percent;
+    status.secondsLeft = secondsLeft;
+
+    if (position >= 0 && (size_t) position < status.positions.size() && status.positions[(size_t) position] == FullSendPositionMark::Unread)
+    {
+        status.positions[(size_t) position] = FullSendPositionMark::Read;
+    }
+
+    m_lastMark[GetIndex (drive)] = m_seconds();
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::MarkPosition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::MarkPosition (int drive, int position, FullSendPositionMark mark)
+{
+    std::lock_guard        lock (m_lock);
+    FullSendDriveStatus  & status = GetDrive (drive);
+
+
+
+    if (position >= 0 && (size_t) position < status.positions.size())
+    {
+        status.positions[(size_t) position] = mark;
+        m_snapshot.revision++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::SetCaptureTime
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::SetCaptureTime (int drive, double diskSeconds, double lineSeconds)
+{
+    std::lock_guard        lock (m_lock);
+    FullSendDriveStatus  & status = GetDrive (drive);
+
+
+
+    status.diskSeconds = diskSeconds;
+    status.lineSeconds = lineSeconds;
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::EndDisk
+//
+//  The disk goes to the top of the list of disks done and into the totals.
+//  A sector image's time is a sample for the next disk's time left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::EndDisk (int drive, const FullSendRow & row, uint64_t bytes)
+{
+    std::lock_guard        lock (m_lock);
+    FullSendDriveStatus  & status      = GetDrive (drive);
+    FullSendTotals       & totals      = m_snapshot.totals;
+    bool                   isDuplicate = row.status == FullSendManifest::kStatusDuplicate;
+    bool                   isRaw       = row.status == FullSendManifest::kStatusRawCapture;
+    FullSendDoneDisk       done;
+
+
+
+    done.row        = row;
+    done.fileSystem = status.fileSystem;
+    done.seconds    = m_seconds() - status.started;
+
+    m_snapshot.disks.insert (m_snapshot.disks.begin(), done);
+
+    totals.duplicates  += isDuplicate ? 1 : 0;
+    totals.sent        += isDuplicate ? 0 : 1;
+    totals.rawCaptures += isRaw ? 1 : 0;
+    totals.badSectors  += (!isRaw && (row.unreadable != 0 || row.unreliable != 0)) ? 1 : 0;
+    totals.bytes       += bytes;
+
+    if (!isDuplicate)
+    {
+        m_sentSeconds += done.seconds;
+    }
+
+    if (!isDuplicate && !isRaw)
+    {
+        m_samples.push_back ({ status.verified, done.seconds });
+    }
+
+    status.state       = isDuplicate ? FullSendDiskState::Duplicate : FullSendDiskState::Sent;
+    status.percent     = 100;
+    status.secondsLeft = -1.0;
+    status.elapsed     = done.seconds;
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::ClearDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::ClearDisk (int drive, FullSendDiskState state)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    GetDrive (drive)       = FullSendDriveStatus();
+    GetDrive (drive).state = state;
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::AddBlank
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::AddBlank()
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    m_snapshot.totals.blanks++;
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::AddLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::AddLine (const std::string & text)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    AddTimedLine (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::SetBoot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::SetBoot (const std::string & file, const std::string & boot, const std::string & renamedTo, const std::string & fsCheck)
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    for (FullSendDoneDisk & disk : m_snapshot.disks)
+    {
+        if (disk.row.file == file)
+        {
+            disk.row.boot    = boot;
+            disk.row.fsCheck = fsCheck;
+            disk.row.file    = renamedTo.empty() ? file : renamedTo;
+        }
+    }
+
+    m_boots.push_back ({ file, boot, fsCheck });
+    m_booted.insert (file);
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::HasBoot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FullSendStatus::HasBoot (const std::string & file) const
+{
+    std::lock_guard  lock (m_lock);
+
+
+
+    return m_booted.contains (file);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::TakeBoots
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<FullSendBoot> FullSendStatus::TakeBoots()
+{
+    std::lock_guard            lock (m_lock);
+    std::vector<FullSendBoot>  boots = std::move (m_boots);
+
+
+
+    m_boots.clear();
+
+    return boots;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::AddTimedLine
+//
+//  Called with the lock taken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FullSendStatus::AddTimedLine (const std::string & text)
+{
+    m_snapshot.lines.push_back ({ m_time(), text });
+    m_snapshot.revision++;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::GetSnapshot
+//
+//  A copy with the times as of now: each disk in progress has its elapsed
+//  time and time left, and the totals their elapsed time and average.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FullSendSnapshot FullSendStatus::GetSnapshot() const
+{
+    std::lock_guard   lock (m_lock);
+    FullSendSnapshot  snapshot = m_snapshot;
+    double            now      = m_seconds();
+    double            end      = 0.0;
+    double            idle     = 0.0;
+
+
+
+    for (size_t index = 0; index < snapshot.drives.size(); index++)
+    {
+        FullSendDriveStatus  & drive = snapshot.drives[index];
+        bool                   busy  = drive.state == FullSendDiskState::Sending || drive.state == FullSendDiskState::Capturing;
+
+        if (busy)
+        {
+            drive.elapsed     = now - drive.started;
+            drive.secondsLeft = EstimateLeft (index, now);
+        }
+    }
+
+    end  = m_ended >= 0.0 ? m_ended : now;
+    idle = m_idleSeconds + (m_idleSince >= 0.0 ? end - m_idleSince : 0.0);
+
+    snapshot.waited         = snapshot.activity == FullSendActivity::WaitingForApple ? now - m_waitBegan : 0.0;
+    snapshot.totals.idle    = idle;
+    snapshot.totals.elapsed = end - m_began - idle;
+    snapshot.totals.average = snapshot.totals.sent != 0 ? m_sentSeconds / snapshot.totals.sent : 0.0;
+
+    return snapshot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::EstimateLeft
+//
+//  A raw capture's time left is the capture's, less the time since it was
+//  set. A sector image's is the tracks left at the rate of the tracks read
+//  since the disk began, once kRateTracks are, and before that the average
+//  of the sector images read the same way, less the time so far. Negative
+//  with neither.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double FullSendStatus::EstimateLeft (size_t index, double now) const
+{
+    const FullSendDriveStatus  & drive   = m_snapshot.drives[index];
+    double                       since   = now - m_lastMark[index];
+    int                          read    = CountRead (drive);
+    int                          counted = read - m_baseCount[index];
+    double                       total   = 0.0;
+    int                          samples = 0;
+
+
+
+    if (drive.state == FullSendDiskState::Capturing)
+    {
+        return drive.secondsLeft < 0.0 ? -1.0 : std::max (0.0, drive.secondsLeft - since);
+    }
+
+    if (counted >= kRateTracks)
+    {
+        double  rate = (m_lastMark[index] - drive.started) / counted;
+
+        return std::max (0.0, rate * (FullSendDriveStatus::kTracks - read) - since);
+    }
+
+    for (const Sample & sample : m_samples)
+    {
+        if (sample.verified == drive.verified)
+        {
+            total += sample.seconds;
+            samples++;
+        }
+    }
+
+    return samples == 0 ? -1.0 : std::max (0.0, total / samples - (now - drive.started));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FullSendStatus::CountRead
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int FullSendStatus::CountRead (const FullSendDriveStatus & drive)
+{
+    return (int) std::count_if (drive.tracks.begin(), drive.tracks.end(), [] (FullSendTrackMark mark) { return mark != FullSendTrackMark::Unread; });
+}

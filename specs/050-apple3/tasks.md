@@ -27,7 +27,7 @@ runs once, in the last phase. New UI strings come from
 - [x] T004 [P] Add `Apple3.rom` (each accepted revision with size and CRC) to the ROM catalog and to `scripts/FetchRoms.ps1 -Fixtures`
 - [x] T005 [P] Add the Business BASIC, System Utilities, Confidence Test and Apple II Emulation disks to `scripts/FetchStockDisks.ps1` and to `.gitignore`'s existing fetched-disk entries under `Disks/Apple/`
 - [x] T006 [P] Create `CassoEmuCore/Machines/Apple3/`, `UnitTest/Apple3Tests/` and their entries in `CassoEmuCore/CassoEmuCore.vcxproj` and `UnitTest/UnitTest.vcxproj` (neither project has a filters file)
-- [ ] T007 Merge `035-debugger` into `050-Apple-III` when its merge of master is announced, fix stale call sites the compiler reports, and run `scripts/CheckStyle.ps1 -Mode Tree`
+- [x] T007 Merge `035-debugger` into `050-Apple-III` when its merge of master is announced, fix stale call sites the compiler reports, and run `scripts/CheckStyle.ps1 -Mode Tree`
 
 ---
 

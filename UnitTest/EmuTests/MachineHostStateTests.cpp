@@ -12,13 +12,14 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-static constexpr uint64_t  s_kFrameCycles  = 17030;
-static constexpr uint64_t  s_kWarmupFrames = 30;
-static constexpr uint64_t  s_kRunFrames    = 20;
-static constexpr int       s_kDiskSlot     = 6;
-static constexpr int       s_kDiskDrive    = 0;
-static constexpr size_t    s_kPatternStep  = 7;
-static constexpr Word      s_kSlotRomByte  = 0xC600;
+static constexpr uint64_t  s_kFrameCycles       = 17030;
+static constexpr uint64_t  s_kWarmupFrames      = 30;
+static constexpr uint64_t  s_kRunFrames         = 20;
+static constexpr int       s_kDiskSlot          = 6;
+static constexpr int       s_kDiskDrive         = 0;
+static constexpr int       s_kMockingboardSlot  = 4;
+static constexpr size_t    s_kPatternStep       = 7;
+static constexpr Word      s_kSlotRomByte       = 0xC600;
 
 static constexpr const char * s_kMachineIds[] =
 {
@@ -27,6 +28,7 @@ static constexpr const char * s_kMachineIds[] =
     "Apple2e",
     "Apple2eEnhanced",
     "Apple2c",
+    "Apple2cPlus",
 };
 
 
@@ -55,7 +57,7 @@ public:
 
             // Powered on as Casso powers on a machine it has just built.
             machine.PowerCycle();
-            machine.RunCycles (s_kWarmupFrames * s_kFrameCycles);
+            machine.GetRunner().RunCycles (s_kWarmupFrames * s_kFrameCycles);
 
             CheckRunRepeats (machine, ToWide (id));
         }
@@ -75,7 +77,7 @@ public:
         Assert::IsNotNull (image);
 
         // Partway into the boot ROM's read of track 0, with the motor on.
-        machine.RunCycles (s_kWarmupFrames * s_kFrameCycles);
+        machine.GetRunner().RunCycles (s_kWarmupFrames * s_kFrameCycles);
 
         CheckRunRepeats (machine, L"Apple2e with a disk");
     }
@@ -91,11 +93,11 @@ public:
 
 
         MountPatternDisk (machine);
-        machine.RunCycles (s_kWarmupFrames * s_kFrameCycles);
+        machine.GetRunner().RunCycles (s_kWarmupFrames * s_kFrameCycles);
 
         saved = Save (machine);
 
-        machine.RunCycles (s_kRunFrames * s_kFrameCycles);
+        machine.GetRunner().RunCycles (s_kRunFrames * s_kFrameCycles);
 
         hr = Load (machine, saved);
         AssertSucceeded (hr, L"loading a state into the machine that saved it");
@@ -149,8 +151,8 @@ public:
 
 
 
-        source.RunCycles (s_kWarmupFrames * s_kFrameCycles);
-        other.RunCycles  (s_kWarmupFrames * s_kFrameCycles);
+        source.GetRunner().RunCycles (s_kWarmupFrames * s_kFrameCycles);
+        other.GetRunner().RunCycles (s_kWarmupFrames * s_kFrameCycles);
 
         saved  = Save (source);
         pc     = other.GetCpu()->GetPC();
@@ -164,6 +166,73 @@ public:
 
         hr = Load (same, saved);
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"a //e state must not load into an enhanced //e");
+    }
+
+
+    //  A state taken on other hardware doesn't load, though the machine and
+    //  its ROMs are the same: here the Mockingboard, which has no ROM, is
+    //  turned off, and then the Disk II's second drive is unplugged.
+    //  A loaded state may change a mounted disk's tracks under it, so the
+    //  disk gets a new viewer media id and a viewer analyzes it again. A
+    //  rewind loads a keyframe through the same path.
+    TEST_METHOD (ALoadedStateHasTheViewerAnalyzeEachDiskAgain)
+    {
+        TestMachine        machine ("Apple2e");
+        std::vector<Byte>  saved;
+        uint64_t           before  = 0;
+        HRESULT            hr      = S_OK;
+
+
+
+        MountPatternDisk (machine);
+
+        saved  = Save (machine);
+        before = machine.GetDiskStore().GetViewerMediaId (s_kDiskSlot, s_kDiskDrive);
+
+        hr = Load (machine, saved);
+        AssertSucceeded (hr, L"the state loads");
+
+        Assert::AreNotEqual (before, machine.GetDiskStore().GetViewerMediaId (s_kDiskSlot, s_kDiskDrive), L"the disk gets a new viewer media id");
+    }
+
+    TEST_METHOD (AStateFromOtherHardwareDoesNotLoad)
+    {
+        auto               noBoard  = [] (MachineConfig & config, MachineBuildServices &)
+        {
+            for (SlotConfig & slot : config.slots)
+            {
+                slot.enabled = slot.enabled && slot.slot != s_kMockingboardSlot;
+            }
+        };
+        auto               oneDrive = [] (MachineConfig & config, MachineBuildServices &)
+        {
+            for (SlotConfig & slot : config.slots)
+            {
+                if (slot.slot == s_kDiskSlot && slot.ports.size() > 1)
+                {
+                    slot.ports[1].device.clear();
+                }
+            }
+        };
+        TestMachine        source   ("Apple2e");
+        TestMachine        same     ("Apple2e");
+        TestMachine        noCard   ("Apple2e", TestMachine::Slots::AsShipped, noBoard);
+        TestMachine        noDrive  ("Apple2e", TestMachine::Slots::AsShipped, oneDrive);
+        std::vector<Byte>  saved;
+        HRESULT            hr       = S_OK;
+
+
+
+        saved = Save (source);
+
+        hr = Load (same, saved);
+        AssertSucceeded (hr, L"a state loads into a machine with the same hardware");
+
+        hr = Load (noCard, saved);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"not with a card turned off");
+
+        hr = Load (noDrive, saved);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"nor with a drive unplugged");
     }
 
 
@@ -228,10 +297,10 @@ public:
 
 
         first  = machine.GetRomIdentity();
-        hashes = machine.GetRomIdentityHashCount();
+        hashes = machine.GetRomIdentityCache().GetHashCount();
 
         Assert::AreEqual<uint64_t> (first,  machine.GetRomIdentity(),          L"an unchanged ROM set keeps its identity");
-        Assert::AreEqual<uint64_t> (hashes, machine.GetRomIdentityHashCount(), L"and a second call does not hash the ROMs again");
+        Assert::AreEqual<uint64_t> (hashes, machine.GetRomIdentityCache().GetHashCount(), L"and a second call does not hash the ROMs again");
 
         for (std::unique_ptr<MemoryDevice> & owned : machine.GetOwnedDevices())
         {
@@ -324,7 +393,7 @@ private:
 
         start = Save (machine);
 
-        machine.RunCycles (s_kRunFrames * s_kFrameCycles);
+        machine.GetRunner().RunCycles (s_kRunFrames * s_kFrameCycles);
 
         firstRun    = Save (machine);
         firstPc     = machine.GetCpu()->GetPC();
@@ -335,7 +404,7 @@ private:
         hr = Load (machine, start);
         AssertSucceeded (hr, (label + L": load").c_str());
 
-        machine.RunCycles (s_kRunFrames * s_kFrameCycles);
+        machine.GetRunner().RunCycles (s_kRunFrames * s_kFrameCycles);
 
         secondRun = Save (machine);
 
@@ -352,7 +421,7 @@ private:
 
 
 
-        hr = machine.SaveState (writer);
+        hr = machine.GetStateStream().SaveState (writer);
         AssertSucceeded (hr, L"SaveState");
 
         return writer.GetBytes();
@@ -365,7 +434,7 @@ private:
 
 
 
-        return machine.LoadState (reader);
+        return machine.GetStateStream().LoadState (reader);
     }
 
 

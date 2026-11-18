@@ -12,6 +12,9 @@
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
 #include "Core/AppMessages.h"
+#include "Core/TextEncoding.h"
+#include "CassoExplorer/Model/HostFolderNames.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 
 
 
@@ -36,18 +39,31 @@ ExplorerFolderSync::ExplorerFolderSync (ExplorerContext & context)
 //
 //  ExplorerFolderSync::RefreshAfterHostChange
 //
-//  The folder watcher sees the change too, a moment later; rereading now
-//  shows it at once.
+//  The folder watcher's notice of the change arrives a moment later, so the
+//  folder is reread now. The row whose name is select, such as a file just
+//  renamed, is selected before the list is filled, so the preview pane stays
+//  open.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerFolderSync::RefreshAfterHostChange()
+void ExplorerFolderSync::RefreshAfterHostChange (const std::wstring & select)
 {
-    HRESULT  hr = m_context.browser.Reload (true);
+    HRESULT                          hr   = m_context.browser.Reload (true);
+    const std::vector<CatalogRow>  & rows = m_context.browser.GetRows();
 
 
 
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    for (size_t i = 0; i < rows.size() && !select.empty(); i++)
+    {
+        if (_wcsicmp (rows[i].name.c_str(), select.c_str()) == 0)
+        {
+            m_context.browser.SetSelectedRows ({ (int) i });
+            break;
+        }
+    }
+
     m_context.listPane.FillList();
 }
 
@@ -282,23 +298,38 @@ int64_t ExplorerFolderSync::GetFileStamp (const std::wstring & path)
 
 void ExplorerFolderSync::CheckDrives()
 {
-    HRESULT   hr   = S_OK;
-    DWORD     mask = GetLogicalDrives();
+    HRESULT   hr           = S_OK;
+    DWORD     mask         = GetLogicalDrives();
+    bool      cardsChanged = UpdateStorageCards();
     Location  showing;
 
 
 
-    if (mask == m_driveMask)
+    if (mask == m_driveMask && !cardsChanged)
     {
         return;
     }
 
     m_driveMask = mask;
 
-    m_context.browser.GetTreeModel().SetDrives (CassoExplorerShell::GetDriveRoots());
+    m_context.browser.GetTreeModel().SetDrives (HostFolderNames::GetDriveRoots());
     m_context.browser.GetTreeModel().Invalidate (TreeModel::kThisPcRootId);
     m_context.treePane.ReloadChildren (TreeModel::kThisPcRootId);
     ReloadKnownFolders();
+
+    //  A card opened since the last look is opened in the tree to its
+    //  partitions.
+    for (const std::wstring & id : m_expandIds)
+    {
+        m_context.treePane.ExpandNode (id);
+    }
+
+    if (!m_expandIds.empty())
+    {
+        m_context.treePane.RevealLocationInTree();
+    }
+
+    m_expandIds.clear();
 
     if (!m_context.browser.GetBrowserModel().HasTabs())
     {
@@ -318,6 +349,231 @@ void ExplorerFolderSync::CheckDrives()
     {
         m_context.listPane.FillList();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::PollDrives
+//
+//  Listing the cards calls GetVolumeInformationW for each volume, and for a
+//  volume Windows can't read, as a CFFA card's are, Windows reads the card
+//  again for each file system it has. So the cards are listed only when the
+//  drive letters changed, or Windows reports a device attached or removed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::PollDrives()
+{
+    if (GetLogicalDrives() != m_driveMask)
+    {
+        CheckDrives();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::HandleDeviceChange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::HandleDeviceChange()
+{
+    SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDeviceSoon, kDeviceSoonMs, nullptr);
+    SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDeviceLate, kDeviceLateMs, nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::HandleDeviceTimer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::HandleDeviceTimer (UINT_PTR timerId)
+{
+    KillTimer (m_context.window.GetHwnd(), timerId);
+    CheckDrives();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::CheckOpenedCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::CheckOpenedCard()
+{
+    Location  location = m_context.browser.GetLocation();
+    int       number   = 0;
+    int       part     = 0;
+    bool      isNew    = false;
+
+
+
+    if (m_context.app.cards == nullptr ||
+        PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (location.path), number, part) == PhysicalCards::PathKind::None)
+    {
+        return;
+    }
+
+    isNew = m_context.app.cards->IsOpen (number) &&
+            std::find (m_openCardDrives.begin(), m_openCardDrives.end(), number) == m_openCardDrives.end();
+
+    if (isNew)
+    {
+        CheckDrives();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::UpdateStorageCards
+//
+//  Returns true when the storage cards differ from the last look. A card that
+//  was removed is closed, so a card put back in is read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerFolderSync::UpdateStorageCards()
+{
+    HRESULT                                   hr      = S_OK;
+    std::vector<PhysicalCards::StorageCard>   cards;
+    std::vector<StorageCardTreeEntry>         entries;
+    std::vector<int>                          drives;
+    std::wstring                              key;
+    bool                                      changed = false;
+
+
+
+    BAIL_OUT_IF (m_context.app.cards == nullptr, S_OK);
+
+    hr = m_context.app.cards->ListStorageCards (cards);
+    CHR (hr);
+
+    for (const PhysicalCards::StorageCard & card : cards)
+    {
+        std::wstring                 path         = TextEncoding::Utf8ToWide (PhysicalCards::MakeCardPath (card.drive.number));
+        std::wstring                 letters;
+        std::vector<WindowsVolume>   volumes;
+        StorageCardTreeEntry         entry        { path, std::wstring() };
+        PartitionLayoutKind          kind         = PartitionLayoutKind::None;
+        std::vector<PartitionEntry>  partitions;
+        HRESULT                      hrVolumes    = S_OK;
+        HRESULT                      hrPartitions = S_OK;
+
+        hrVolumes = m_context.app.cards->ListVolumes (card.drive.number, volumes);
+        IGNORE_RETURN_VALUE (hrVolumes, S_OK);
+
+        //  A volume Windows can't read, as a CFFA card is to it, is listed as
+        //  the card's node rather than a drive letter.
+        for (const WindowsVolume & volume : volumes)
+        {
+            if (volume.fileSystem.empty() && !volume.letter.empty())
+            {
+                entry.hiddenRoots.push_back (volume.letter + L"\\");
+                letters += (letters.empty() ? L"" : L", ") + volume.letter;
+            }
+        }
+
+        entry.label = PhysicalCards::FormatCardLabel (card.drive, letters);
+
+        drives.push_back (card.drive.number);
+
+        //  An open card's partitions are listed from the read made when it
+        //  opened, so this reads nothing from the card.
+        if (m_context.app.cards->IsOpen (card.drive.number))
+        {
+            hrPartitions = m_context.app.cards->ListPartitions (card.drive.number, kind, partitions);
+            IGNORE_RETURN_VALUE (hrPartitions, S_OK);
+        }
+
+        for (const PartitionEntry & partition : partitions)
+        {
+            entry.partitions.push_back ({ TextEncoding::Utf8ToWide (partition.step), TextEncoding::NarrowToWide (PartitionAccess::GetLabel (partition, true)) });
+        }
+
+        key += std::format (L"{}|{}|{}|{}|{}|{};", letters, card.drive.number, card.drive.bytes, entry.label, card.hasUnmounted ? 1 : 0, entry.partitions.size());
+
+        for (const StorageCardTreeEntry::Partition & partition : entry.partitions)
+        {
+            key += partition.label + L";";
+        }
+
+        if (card.hasUnmounted)
+        {
+            entries.push_back (std::move (entry));
+        }
+    }
+
+    changed = key != m_storageCardKey;
+    BAIL_OUT_IF (!changed, S_OK);
+
+    for (const StorageCardTreeEntry & entry : entries)
+    {
+        int   number   = 0;
+        int   part     = 0;
+        bool  isOpened = false;
+
+        PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (entry.path), number, part);
+        isOpened = !entry.partitions.empty() && std::find (m_openCardDrives.begin(), m_openCardDrives.end(), number) == m_openCardDrives.end();
+
+        if (isOpened)
+        {
+            m_expandIds.push_back (std::wstring (TreeModel::kStorageCardTag) + entry.path);
+        }
+    }
+
+    m_openCardDrives.clear();
+
+    for (const StorageCardTreeEntry & entry : entries)
+    {
+        int  number = 0;
+        int  part   = 0;
+
+        if (!entry.partitions.empty())
+        {
+            PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (entry.path), number, part);
+            m_openCardDrives.push_back (number);
+        }
+    }
+
+    for (int number : m_storageCardDrives)
+    {
+        if (std::find (drives.begin(), drives.end(), number) == drives.end())
+        {
+            m_context.app.cards->Close (number);
+        }
+    }
+
+    m_storageCardKey    = std::move (key);
+    m_storageCardDrives = std::move (drives);
+
+    m_context.browser.GetTreeModel().SetStorageCards (std::move (entries));
+
+    //  The top level is rebuilt without the drive letters the card's node replaces.
+    m_context.treePane.RefreshTree();
+
+Error:
+    return changed;
 }
 
 
@@ -571,12 +827,14 @@ void ExplorerFolderSync::RefreshChangedFolders()
     //  selection and where the view lands.
     hr = m_context.browser.Reload (false);
     IGNORE_RETURN_VALUE (hr, S_OK);
-    m_context.listPane.FillList();
 
+    //  The selection is set before the list is filled, so the preview pane
+    //  doesn't close and reopen in between.
     m_context.browser.GetRowKeys (keys);
     after = RefreshAnchor::Compute (before, keys);
 
     m_context.browser.SetSelectedRows (after.selected);
+    m_context.listPane.FillList();
     m_context.listPane.RestoreView (after);
 
     m_context.preview.FillPreview();
@@ -623,8 +881,9 @@ void ExplorerFolderSync::StartWatch()
 //
 //  ExplorerFolderSync::StartPolling
 //
-//  The drives attached at the start, polled for others, and the folder of
-//  File Explorer's Quick access, with its file's last write.
+//  The drives attached at the start, the drive letters polled and Windows'
+//  device notifications watched for others, and the folder of File
+//  Explorer's Quick access, with its file's last write.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -637,6 +896,9 @@ void ExplorerFolderSync::StartPolling()
 
     m_driveMask = GetLogicalDrives();
     SetTimer (m_context.window.GetHwnd(), (UINT_PTR) AppTimerId::ExplorerDrive, kDrivePollMs, nullptr);
+
+    hr = m_deviceWatch.Start ([this]() { HandleDeviceChange(); });
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = SHGetKnownFolderPath (FOLDERID_Recent, 0, nullptr, &recent);
 

@@ -102,7 +102,7 @@ HRESULT ReverseHost::OnFrame (bool isUserMaximumSpeed)
 
 
 
-    if (m_controller.IsRecording())
+    if (m_controller.GetSpan().IsRecording())
     {
         hr = m_controller.SetUserMaximumSpeed (isUserMaximumSpeed);
         CHR (hr);
@@ -129,8 +129,8 @@ Error:
 
 void ReverseHost::SyncInputGate()
 {
-    HostInputGate  & gate     = m_machine.GetHostInputGate();
-    bool             isBehind = m_controller.IsInHistory();
+    HostInputGate  & gate     = m_machine.GetHostInput().GetGate();
+    bool             isBehind = m_controller.GetSpan().IsInHistory();
     bool             isHeld   = gate.IsHeld();
 
 
@@ -174,18 +174,18 @@ HRESULT ReverseHost::Execute (
     ReverseResult      & result)
 {
     HRESULT  hr          = S_OK;
-    bool     isRecording = m_controller.IsRecording();
+    bool     isRecording = m_controller.GetSpan().IsRecording();
 
 
 
     CBREx (isRecording, HRESULT_FROM_WIN32 (ERROR_INVALID_STATE));
 
-    m_machine.GetHostInputGate().Hold();
+    m_machine.GetHostInput().GetGate().Hold();
 
     hr = Move (command, argument, stopTest, result);
     CHR (hr);
 
-    hr = m_controller.PrepareRecentSteps (result);
+    hr = m_controller.GetStepper().PrepareRecentSteps (result);
     CHR (hr);
 
 Error:
@@ -214,9 +214,9 @@ HRESULT ReverseHost::Diverge()
 
 
 
-    BAIL_OUT_IF (!m_controller.IsInHistory(), S_OK);
+    BAIL_OUT_IF (!m_controller.GetSpan().IsInHistory(), S_OK);
 
-    hr = m_controller.OnMachineChanged();
+    hr = m_controller.GetSeeker().OnMachineChanged();
     CHR (hr);
 
 Error:
@@ -248,41 +248,41 @@ HRESULT ReverseHost::Move (
     switch (command)
     {
         case ReverseCommand::StepBack:
-            hr = m_controller.StepBack (result);
+            hr = m_controller.GetStepper().StepBack (result);
             break;
 
         case ReverseCommand::StepBackOver:
-            hr = m_controller.StepBackOver (result);
+            hr = m_controller.GetStepper().StepBackOver (result);
             break;
 
         case ReverseCommand::StepBackOut:
-            hr = m_controller.StepBackOut (result);
+            hr = m_controller.GetStepper().StepBackOut (result);
             break;
 
         case ReverseCommand::ReverseContinue:
             CBREx (stopTest != nullptr, E_INVALIDARG);
-            hr = m_controller.ReverseContinue (*stopTest, result);
+            hr = m_controller.GetSeeker().ReverseContinue (*stopTest, result);
             break;
 
         case ReverseCommand::StepForward:
-            hr = m_controller.StepForward (result);
+            hr = m_controller.GetSeeker().StepForward (result);
             break;
 
         case ReverseCommand::Seek:
-            hr = m_controller.SeekToPosition (argument, result);
+            hr = m_controller.GetSeeker().SeekToPosition (argument, result);
             break;
 
         case ReverseCommand::SeekCycle:
         case ReverseCommand::ScrubCycle:
-            hr = m_controller.SeekToCycle (argument, result);
+            hr = m_controller.GetSeeker().SeekToCycle (argument, result);
             break;
 
         case ReverseCommand::GoLive:
-            hr = m_controller.SeekToPosition (m_controller.GetLiveEndPosition(), result);
+            hr = m_controller.GetSeeker().SeekToPosition (m_controller.GetSeeker().GetLiveEndPosition(), result);
             break;
 
         case ReverseCommand::SeekBack:
-            hr = m_controller.SeekToCycle (GetCycleBack (m_controller.GetLiveEndCycle(), argument), result);
+            hr = m_controller.GetSeeker().SeekToCycle (GetCycleBack (m_controller.GetSeeker().GetLiveEndCycle(), argument), result);
             break;
 
         default:
@@ -342,17 +342,17 @@ HistoryStatus ReverseHost::GetStatus() const
 {
     HistoryStatus    status;
     EmuCpu         * cpu      = m_machine.GetCpu();
-    uint64_t         position = m_machine.GetPosition();
+    uint64_t         position = m_machine.GetRunner().GetPosition();
     uint64_t         cycle    = (cpu != nullptr) ? cpu->GetHistoryCycles() : 0;
-    uint64_t         endPos   = m_controller.GetLiveEndPosition();
-    uint64_t         endCycle = m_controller.GetLiveEndCycle();
+    uint64_t         endPos   = m_controller.GetSeeker().GetLiveEndPosition();
+    uint64_t         endCycle = m_controller.GetSeeker().GetLiveEndCycle();
 
 
 
-    status.isRecording  = m_controller.IsRecording();
-    status.isBehindLive = m_controller.IsInHistory();
+    status.isRecording  = m_controller.GetSpan().IsRecording();
+    status.isBehindLive = m_controller.GetSpan().IsInHistory();
     status.cycle        = cycle;
-    status.wallTime     = m_controller.GetWallTimeAt (cycle);
+    status.wallTime     = m_controller.GetTimeline().GetWallTimeAt (cycle);
     status.position     = position;
 
     if (status.isRecording)
@@ -390,18 +390,18 @@ void ReverseHost::FillBudget (
     HistoryStatus        & status)
 {
     size_t  budget = store.GetSettings().budgetBytes;
-    size_t  count  = store.GetCount();
+    size_t  count  = store.GetArena().GetCount();
 
 
 
     status.budgetBytes   = budget;
-    status.usedBytes     = store.GetUsedBytes();
-    status.storedBytes   = store.GetByteCount();
-    status.arenaBytes    = store.GetArenaBytes();
+    status.usedBytes     = store.GetArena().GetUsedBytes (store.GetSettings().budgetBytes);
+    status.storedBytes   = store.GetArena().GetByteCount();
+    status.arenaBytes    = store.GetArena().GetArenaBytes();
     status.hasHistory    = count > 0;
-    status.isFull        = store.IsFull();
-    status.beginCycle    = (count > 0) ? store.GetInfo (0).cycle    : 0;
-    status.beginWallTime = (count > 0) ? store.GetInfo (0).wallTime : 0;
+    status.isFull        = store.GetArena().IsFull();
+    status.beginCycle    = (count > 0) ? store.GetArena().GetInfo (0).cycle    : 0;
+    status.beginWallTime = (count > 0) ? store.GetArena().GetInfo (0).wallTime : 0;
 }
 
 
@@ -429,12 +429,12 @@ void ReverseHost::GetRecentTrace (
 
     outEntries.clear();
 
-    if (!m_controller.IsInHistory())
+    if (!m_controller.GetSpan().IsInHistory())
     {
         return;
     }
 
-    m_controller.GetRecentSteps (count, steps);
+    m_controller.GetStepper().GetRecentSteps (count, steps);
 
     for (const ReplayStep & step : steps)
     {

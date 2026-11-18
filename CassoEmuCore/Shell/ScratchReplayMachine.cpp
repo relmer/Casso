@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Shell/MachineStorage.h"
 #include "Shell/ScratchReplayMachine.h"
 
 #include "Core/Prng.h"
@@ -103,7 +104,7 @@ HRESULT ScratchReplayMachine::Build()
     CHR (hr);
 
     m_machine->GetDiskStore().SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
-    m_machine->SetOutputMuted (true);
+    m_machine->GetOutputMute().SetMuted (true);
 
     m_replayer = std::make_unique<Replayer> (*m_machine, m_noKeyframes);
     m_replayer->SetOverMountedMedia (true);
@@ -129,11 +130,12 @@ Error:
 //
 //  Each bay holds the medium given for it, mounted from its image only when
 //  a different one is there, with as many track slots as the medium has,
-//  and bays the list leaves out are emptied.
+//  and bays not on the list are emptied. Each hard disk, ProFile and
+//  3.5-inch drive gets its copy of the running machine's disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ScratchReplayMachine::MountDisks (const std::vector<ReplayDisk> & disks)
+HRESULT ScratchReplayMachine::MountDisks (const std::vector<ReplayDisk> & disks, const std::vector<ReplayBlockMedia> & blockMedia)
 {
     HRESULT       hr       = S_OK;
     DiskImage   * image    = nullptr;
@@ -184,6 +186,9 @@ HRESULT ScratchReplayMachine::MountDisks (const std::vector<ReplayDisk> & disks)
         m_mounted[bay] = disk.mediaId;
     }
 
+    hr = m_machine->GetStorage().MountReplayMedia (blockMedia, m_mountedBlocks);
+    CHR (hr);
+
 Error:
     return hr;
 }
@@ -206,6 +211,7 @@ void ScratchReplayMachine::Release()
     m_builder.reset();
     m_machine.reset();
     m_mounted.fill (0);
+    m_mountedBlocks.clear();
 }
 
 
@@ -222,10 +228,10 @@ void ScratchReplayMachine::Release()
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ScratchReplayMachine::IsSavedWith (
-    const MachineHost::MediaIds    & saved,
+    const MachineStateStream::MediaIds    & saved,
     const std::vector<ReplayDisk>  & disks)
 {
-    MachineHost::MediaIds  given = {};
+    MachineStateStream::MediaIds  given = {};
 
 
 

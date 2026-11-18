@@ -4,7 +4,8 @@
 
 #include "Debugger/IDiagnosticsProvider.h"
 
-class MachineHost;
+struct MachineRefs;
+class TapeDeck;
 enum class TapeTransport;
 
 
@@ -18,16 +19,16 @@ enum class TapeTransport;
 //  The Cassette panel: the deck's transport, where the tape is and how long
 //  it runs, the port's input level and output flip-flop, how many times the
 //  output has toggled, and the cycle of the guest's last access to the
-//  tape. The port and the deck are read from the machine on each call, so a
+//  tape. The port is read from the machine's references on each call, so a
 //  rebuilt machine is followed; a machine with no cassette port has no
-//  panel (MachineHost::GetDiagnosticsProviders).
+//  panel (MachineClockPanel::GetProviders).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class CassetteDiagnostics : public IDiagnosticsProvider
 {
 public:
-    explicit CassetteDiagnostics (const MachineHost & machine) : m_machine (machine) {}
+    CassetteDiagnostics (const TapeDeck & deck, const MachineRefs & refs) : m_deck (deck), m_refs (refs) {}
 
     std::string  GetDiagnosticsId    () const override { return "cassette"; }
     std::string  GetDiagnosticsTitle () const override { return "Cassette"; }
@@ -39,5 +40,6 @@ public:
 private:
     static constexpr int  kTenths = 10;
 
-    const MachineHost  & m_machine;
+    const TapeDeck     & m_deck;
+    const MachineRefs  & m_refs;
 };

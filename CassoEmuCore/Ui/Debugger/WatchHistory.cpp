@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/WatchHistory.h"
+#include "Ui/Debugger/WatchEdits.h"
+#include "Ui/Debugger/SavedActionText.h"
 #include "Ui/Debugger/UndoText.h"
 #include "Core/TextEncoding.h"
 
@@ -14,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void WatchHistory::Record (DebuggerViewState::WatchUndo undo, std::vector<DebuggerAction> edit, std::wstring text)
+void WatchHistory::Record (WatchEdits::WatchUndo undo, std::vector<DebuggerAction> edit, std::wstring text)
 {
     m_undo.push_back ({ std::move (undo), std::move (edit), std::move (text) });
     m_redo.clear();
@@ -34,7 +36,7 @@ void WatchHistory::OnSnapshot (const DebuggerViewSnapshot & now)
 {
     for (Step & step : m_undo)
     {
-        DebuggerViewState::NoteMovedWatch (now, step.undo);
+        WatchEdits::NoteMovedWatch (now, step.undo);
     }
 }
 
@@ -62,7 +64,7 @@ std::optional<std::vector<DebuggerAction>> WatchHistory::TryUndo (const Debugger
         return std::nullopt;
     }
 
-    actions = DebuggerViewState::GetWatchUndoActions (now, m_undo.back().undo, mode);
+    actions = WatchEdits::GetWatchUndoActions (now, m_undo.back().undo, mode);
 
     if (!actions.has_value())
     {
@@ -232,7 +234,7 @@ std::string WatchHistory::FormatActions (const std::vector<DebuggerAction> & act
 
     for (size_t i = 0; i < actions.size(); i++)
     {
-        text += ((i == 0) ? "" : "+") + DebuggerActions::ToText (actions[i]);
+        text += ((i == 0) ? "" : "+") + SavedActionText::ToText (actions[i]);
     }
 
     return text;
@@ -357,7 +359,7 @@ bool WatchHistory::TryParseActions (const std::string & text, std::vector<Debugg
 
     for (const std::string & each : UndoText::Split (text, '+'))
     {
-        if (!DebuggerActions::TryFromText (each, action))
+        if (!SavedActionText::TryFromText (each, action))
         {
             return false;
         }

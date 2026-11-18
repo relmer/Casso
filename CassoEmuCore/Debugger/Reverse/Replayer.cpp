@@ -49,14 +49,14 @@ Replayer::Replayer (
 HRESULT Replayer::RestoreKeyframe (size_t index)
 {
     HRESULT       hr      = S_OK;
-    bool          isValid = index < m_keyframes.GetCount();
+    bool          isValid = index < m_keyframes.GetArena().GetCount();
     KeyframeInfo  info;
 
 
 
     CBRAEx (isValid, E_INVALIDARG);
 
-    info = m_keyframes.GetInfo (index);
+    info = m_keyframes.GetArena().GetInfo (index);
 
     m_restoreCount++;
 
@@ -136,10 +136,10 @@ HRESULT Replayer::RunTo (
     std::vector<Byte>        * stackPointers)
 {
     HRESULT             hr         = S_OK;
-    DebugHook         * hook       = m_machine.GetDebugHook();
+    DebugHook         * hook       = m_machine.GetRunner().GetDebugHook();
     IWatchSink        * watchSink  = m_machine.GetMemoryBus().GetWatchSink();
     Disk2Controller   * controller = m_machine.GetRefs().diskController;
-    IDisk2EventSink   * diskSink   = (controller != nullptr) ? controller->GetEventSink (ObserverSlot::Breakpoints) : nullptr;
+    IDisk2EventSink   * diskSink   = (controller != nullptr) ? controller->GetSignals().GetEventSink (ObserverSlot::Breakpoints) : nullptr;
     EmuCpu            * cpu        = m_machine.GetCpu();
     uint64_t            position   = 0;
     uint64_t            cycle      = 0;
@@ -170,8 +170,8 @@ HRESULT Replayer::RunTo (
         controller->SetEventSink (ObserverSlot::Breakpoints, (stopTest != nullptr) ? stopTest->GetDiskSink() : nullptr);
     }
 
-    m_machine.SetDebugHook (nullptr);
-    m_machine.SetInputJournalOn (false);
+    m_machine.GetRunner().SetDebugHook (nullptr);
+    m_machine.GetHostInput().SetJournalOn (false);
     m_machine.GetDiskStore().SetReplaying (true);
     m_isReplaying = true;
 
@@ -179,11 +179,11 @@ HRESULT Replayer::RunTo (
     // a reverse command closed it already on the live machine. A scratch
     // machine's gate is open, and its serial attachment queued its bytes at
     // the build.
-    isGateHeld = m_machine.GetHostInputGate().IsHeld();
+    isGateHeld = m_machine.GetHostInput().GetGate().IsHeld();
 
     if (!isGateHeld)
     {
-        m_machine.GetHostInputGate().Hold();
+        m_machine.GetHostInput().GetGate().Hold();
     }
 
     if (m_outputGate)
@@ -193,7 +193,7 @@ HRESULT Replayer::RunTo (
 
     while (!isDone)
     {
-        position = m_machine.GetPosition();
+        position = m_machine.GetRunner().GetPosition();
         cycle    = cpu->GetHistoryCycles();
 
         hr = ApplyInputs (position, false);
@@ -217,7 +217,7 @@ HRESULT Replayer::RunTo (
 Error:
     if (!isGateHeld)
     {
-        m_machine.GetHostInputGate().Release();
+        m_machine.GetHostInput().GetGate().Release();
     }
 
     m_isReplaying = false;
@@ -228,7 +228,7 @@ Error:
         m_outputGate (false);
     }
 
-    m_machine.SetDebugHook (hook);
+    m_machine.GetRunner().SetDebugHook (hook);
     m_machine.GetMemoryBus().SetWatchSink (watchSink);
 
     if (controller != nullptr)
@@ -262,7 +262,7 @@ HRESULT Replayer::PrepareStepHere (
     bool            includeObserved)
 {
     HRESULT   hr       = S_OK;
-    uint64_t  position = m_machine.GetPosition();
+    uint64_t  position = m_machine.GetRunner().GetPosition();
 
 
 
@@ -279,7 +279,7 @@ HRESULT Replayer::PrepareStepHere (
 
     BAIL_OUT_IF (report.isDiverged, S_OK);
 
-    hr = ApplyInputs (m_machine.GetPosition(), includeObserved);
+    hr = ApplyInputs (m_machine.GetRunner().GetPosition(), includeObserved);
     CHR (hr);
 
 Error:
@@ -309,7 +309,7 @@ HRESULT Replayer::Step (
 {
     HRESULT   hr       = S_OK;
     EmuCpu  * cpu      = m_machine.GetCpu();
-    uint64_t  position = m_machine.GetPosition();
+    uint64_t  position = m_machine.GetRunner().GetPosition();
     uint64_t  after    = 0;
 
 
@@ -333,10 +333,10 @@ HRESULT Replayer::Step (
     hr = ApplyInputs (position, true);
     CHR (hr);
 
-    m_machine.StepOne();
+    m_machine.GetRunner().StepOne();
     m_replayedCount++;
 
-    after = m_machine.GetPosition();
+    after = m_machine.GetRunner().GetPosition();
 
     if (stopTest != nullptr && stopTest->TakePendingStop() && after < endPosition)
     {
@@ -415,10 +415,10 @@ HRESULT Replayer::LoadState (
 
 
 
-    hr = m_isOverMounted ? m_machine.LoadStateOverMountedMedia (reader) : m_machine.LoadState (reader);
+    hr = m_isOverMounted ? m_machine.GetStateStream().LoadStateOverMountedMedia (reader) : m_machine.GetStateStream().LoadState (reader);
     CHR (hr);
 
-    m_machine.SetPosition (position);
+    m_machine.GetRunner().SetPosition (position);
     m_journalCursor = journalIndex;
 
     if (m_onStateLoaded)
@@ -449,7 +449,7 @@ HRESULT Replayer::ApplyInputs (
     bool      includeObserved)
 {
     HRESULT               hr      = S_OK;
-    const InputJournal  & journal = m_machine.GetInputJournal();
+    const InputJournal  & journal = m_machine.GetHostInput().GetJournal();
     const InputRecord   * record  = nullptr;
     bool                  isDue   = false;
 
@@ -500,7 +500,7 @@ Error:
 HRESULT Replayer::ApplyInput (const InputRecord & record)
 {
     HRESULT      hr           = S_OK;
-    bool         isApplied    = m_machine.ApplyDeviceInput (record);
+    bool         isApplied    = m_machine.GetHostInput().ApplyDeviceInput (record);
     bool         isReset      = record.kind == InputKind::Reset;
     bool         isPowerCycle = record.kind == InputKind::PowerCycle;
     bool         isHostState  = record.kind == InputKind::HostState;
@@ -527,7 +527,7 @@ HRESULT Replayer::ApplyInput (const InputRecord & record)
     }
     else if (isHostState)
     {
-        hr = m_machine.LoadHostInputState (record.payload);
+        hr = m_machine.GetHostInput().LoadState (record.payload);
         CHR (hr);
     }
     else if (isReset)
@@ -561,7 +561,7 @@ Error:
 void Replayer::ReportMedia (const InputRecord & record)
 {
     Disk2Controller  * controller = m_machine.GetRefs().diskController;
-    IDisk2EventSink  * sink       = (controller != nullptr) ? controller->GetEventSink (ObserverSlot::Breakpoints) : nullptr;
+    IDisk2EventSink  * sink       = (controller != nullptr) ? controller->GetSignals().GetEventSink (ObserverSlot::Breakpoints) : nullptr;
 
 
 
@@ -593,7 +593,7 @@ void Replayer::ReportMedia (const InputRecord & record)
 HRESULT Replayer::LoadBoundaryIfDue()
 {
     HRESULT       hr       = S_OK;
-    uint64_t      position = m_machine.GetPosition();
+    uint64_t      position = m_machine.GetRunner().GetPosition();
     bool          isDue    = false;
     KeyframeInfo  info;
 
@@ -601,10 +601,10 @@ HRESULT Replayer::LoadBoundaryIfDue()
 
     SyncNextKeyframe();
 
-    isDue = m_nextKeyframe < m_keyframes.GetCount() && m_keyframes.GetInfo (m_nextKeyframe).position == position;
+    isDue = m_nextKeyframe < m_keyframes.GetArena().GetCount() && m_keyframes.GetArena().GetInfo (m_nextKeyframe).position == position;
     BAIL_OUT_IF (!isDue, S_OK);
 
-    info = m_keyframes.GetInfo (m_nextKeyframe);
+    info = m_keyframes.GetArena().GetInfo (m_nextKeyframe);
 
     BAIL_OUT_IF (!info.isBoundary, S_OK);
 
@@ -637,7 +637,7 @@ Error:
 HRESULT Replayer::CheckKeyframe (ReplayReport & report)
 {
     HRESULT              hr         = S_OK;
-    uint64_t             position   = m_machine.GetPosition();
+    uint64_t             position   = m_machine.GetRunner().GetPosition();
     bool                 isDue      = false;
     StateWriter        & writer     = m_checkWriter;
     bool                 isMatch    = false;
@@ -648,12 +648,12 @@ HRESULT Replayer::CheckKeyframe (ReplayReport & report)
 
     SyncNextKeyframe();
 
-    isDue = m_nextKeyframe < m_keyframes.GetCount() && m_keyframes.GetInfo (m_nextKeyframe).position == position;
+    isDue = m_nextKeyframe < m_keyframes.GetArena().GetCount() && m_keyframes.GetArena().GetInfo (m_nextKeyframe).position == position;
     BAIL_OUT_IF (!isDue, S_OK);
 
     writer.Reuse (writer.TakeBytes());
 
-    hr = m_machine.SaveState (writer);
+    hr = m_machine.GetStateStream().SaveState (writer);
     CHR (hr);
 
     isMatch = m_keyframes.DoesStateMatch (m_nextKeyframe, writer.GetBytes());
@@ -692,14 +692,14 @@ Error:
 
 void Replayer::FindNextKeyframe (uint64_t afterPosition)
 {
-    size_t  count = m_keyframes.GetCount();
+    size_t  count = m_keyframes.GetArena().GetCount();
 
 
 
     m_nextKeyframe = 0;
     m_nextAfter    = afterPosition;
 
-    while (m_nextKeyframe < count && m_keyframes.GetInfo (m_nextKeyframe).position <= afterPosition)
+    while (m_nextKeyframe < count && m_keyframes.GetArena().GetInfo (m_nextKeyframe).position <= afterPosition)
     {
         m_nextKeyframe++;
     }
@@ -723,9 +723,9 @@ void Replayer::FindNextKeyframe (uint64_t afterPosition)
 
 void Replayer::SyncNextKeyframe()
 {
-    size_t  count    = m_keyframes.GetCount();
-    bool    isAfter  = m_nextKeyframe == 0 || (m_nextKeyframe <= count && m_keyframes.GetInfo (m_nextKeyframe - 1).position <= m_nextAfter);
-    bool    isBefore = m_nextKeyframe >= count || m_keyframes.GetInfo (m_nextKeyframe).position > m_nextAfter;
+    size_t  count    = m_keyframes.GetArena().GetCount();
+    bool    isAfter  = m_nextKeyframe == 0 || (m_nextKeyframe <= count && m_keyframes.GetArena().GetInfo (m_nextKeyframe - 1).position <= m_nextAfter);
+    bool    isBefore = m_nextKeyframe >= count || m_keyframes.GetArena().GetInfo (m_nextKeyframe).position > m_nextAfter;
 
 
 

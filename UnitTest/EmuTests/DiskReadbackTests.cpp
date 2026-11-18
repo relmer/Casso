@@ -165,7 +165,7 @@ public:
         // catch-up-on-read path needs a live, advancing CPU cycle
         // counter to do its job; detach the source so Tick(N) goes
         // back to advancing the engine bit cursor itself.
-        machine.GetRefs().diskController->SetCpuCycleSource (nullptr);
+        machine.GetRefs().diskController->GetClock().SetSource (nullptr);
 
         // Spin up: select drive 1, motor on, set Q7=0/Q6=0 (read mode).
         machine.GetMemoryBus().ReadByte (kSelectDrive1);
@@ -179,7 +179,7 @@ public:
         // zeros the controller hands back during spin-up. Tests
         // written before #67 expected immediate readiness; the
         // controller now models the ~70 ms physical spin-up.
-        machine.GetRefs().diskController->Tick (Disk2Controller::kMotorSpinupCycles);
+        machine.GetRefs().diskController->Tick (Disk2CardSequencer::kMotorSpinupCycles);
 
         return external;
     }
@@ -192,11 +192,11 @@ public:
     // previous" sequence.
     void SeekToTrack (MachineHost & machine, int targetTrack)
     {
-        int currentTrack = machine.GetRefs().diskController->GetCurrentTrack();
+        int currentTrack = machine.GetRefs().diskController->GetLines().GetCurrentTrack();
 
         while (currentTrack != targetTrack)
         {
-            int currentQt   = machine.GetRefs().diskController->GetQuarterTrack();
+            int currentQt   = machine.GetRefs().diskController->GetLines().GetQuarterTrack();
             int targetQt    = targetTrack * 4;
             int direction   = (targetQt > currentQt) ? +1 : -1;
 
@@ -212,7 +212,7 @@ public:
             // the next pulse.
             machine.GetRefs().diskController->Tick (16);
 
-            currentTrack = machine.GetRefs().diskController->GetCurrentTrack();
+            currentTrack = machine.GetRefs().diskController->GetLines().GetCurrentTrack();
 
             // Safety: don't loop forever.
             if (currentTrack == targetTrack) break;
@@ -632,7 +632,7 @@ public:
 
             SeekToTrack (machine, trk);
 
-            actualTrack = machine.GetRefs().diskController->GetCurrentTrack();
+            actualTrack = machine.GetRefs().diskController->GetLines().GetCurrentTrack();
             if (actualTrack != trk)
             {
                 wchar_t  msg[128] = {};
@@ -730,7 +730,7 @@ public:
 
         // Drive the catch-up path from a live, mutable cycle source so
         // the test can rewind it the way a power cycle does.
-        machine.GetRefs().diskController->SetCpuCycleSource (&cpuCycle);
+        machine.GetRefs().diskController->GetClock().SetSource (&cpuCycle);
 
         // Select drive 1, motor on, read mode (Q7=0, Q6=0).
         cpuCycle += 1;  machine.GetMemoryBus().ReadByte (kSelectDrive1);
@@ -748,7 +748,7 @@ public:
         // the controller's anchor still holds the large value.
         cpuCycle = 0;
 
-        bitBefore = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitBefore = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
         // A handful of post-rewind accesses, each a few bit-cells apart.
         for (int i = 0; i < 8; i++)
@@ -757,7 +757,7 @@ public:
             machine.GetMemoryBus().ReadByte (kReadLatch);
         }
 
-        bitAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
         Assert::IsTrue (bitAfter != bitBefore,
                         L"Bit cursor frozen after cycle-counter rewind "

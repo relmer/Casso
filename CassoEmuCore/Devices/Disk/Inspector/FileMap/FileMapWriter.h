@@ -1,0 +1,90 @@
+#pragma once
+
+#include "Pch.h"
+
+#include "Devices/Disk/Inspector/FileMap/SectorSource.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapWriter
+//
+//  What every map reader shares: it gives each cell its result, takes the
+//  files and the sectors they own and the volume's own structures, and at
+//  the end settles each cell's role (FR-086), each file's states (FR-089)
+//  and deleted counts (FR-088), and the file system findings (FR-093). A
+//  volume with a bitmap gives it, so allocated-but-unowned and
+//  owned-but-free apply only there. Chain walks go through Step, which stops
+//  at a loop, a pointer outside the volume, a bad or missing sector, or a
+//  chain longer than the volume (FR-092).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class FileMapWriter
+{
+public:
+    FileMapWriter (const SectorSource & source, FileMap & map, MapFileSystem fileSystem);
+
+    int   AddFile       (MappedFile file);
+    void  Own           (int file, int cell, SectorRole role);
+    void  AddHole       (int file);
+    void  SetStructure  (int cell, SectorRole role);
+    void  SetMarkedUsed (vector<bool> markedUsed);
+    void  BreakChain    (int file, ChainReason reason, int cell);
+    void  AddFinding    (FindingKind kind, int cell, const std::wstring & text);
+    void  AddFinding    (FindingKind kind, int cell, const std::wstring & text, FindingWeight weight);
+    void  AddCount      (const RecordedCount & count);
+
+    //  A whole chain whose count differs from the one at an offset in the
+    //  cell with the file's entry: damage, which Repair sets right.
+    void  CheckCount    (int file, int cell, int offset, LPCWSTR what);
+    void  Finalize      ();
+
+    //  A cell's bytes: 256 for a sector, 512 for a block; false when any of
+    //  it can't be read.
+    bool  ReadCell      (int cell, vector<Byte> & outBytes) const;
+
+    //  One step of a chain onto a cell: false, with the reason, when the
+    //  chain must stop there.
+    bool  Step (int cell, std::set<int> & visited, ChainReason & outReason) const;
+
+    const MappedFile &  GetFile (int file) const { return m_map.files[file]; }
+
+    bool           IsOwned      (int cell) const { return cell >= 0 && cell < static_cast<int> (m_map.cells.size()) && !m_map.cells[cell].owners.empty(); }
+    SectorResult   GetResult    (int cell) const { return m_map.cells[cell].result; }
+    int            GetCellCount () const         { return static_cast<int> (m_map.cells.size()); }
+    std::wstring   DescribeCell (int cell) const;
+    int            GetPhysical  (int cell) const;
+
+    std::wstring          DescribeChain      (ChainReason reason, int cell) const;
+    std::wstring          DescribeUnreadable (int cell) const;
+
+    static std::wstring   Capitalize     (std::wstring text);
+
+    //  Whether a cell is the volume's bookkeeping, which no file may use,
+    //  and what it is.
+    bool                  IsStructure       (int cell) const;
+    std::wstring          DescribeStructure (int cell) const;
+    static FindingWeight  GetWeight         (FindingKind kind);
+
+private:
+    void  SettleCell         (int cell);
+    void  SettleFiles        ();
+    void  CheckRepeatedBytes ();
+    void  CheckAlmostBlank   ();
+
+    int   CountUnchecked () const;
+    int   CountBad       (const MappedFile & file) const;
+
+    static bool  IsOneByte (const vector<Byte> & bytes, size_t count);
+
+    const SectorSource &  m_source;
+    FileMap &             m_map;
+    vector<SectorRole>    m_structure;
+    vector<SectorRole>    m_ownerRole;
+    vector<bool>          m_markedUsed;
+    bool                  m_hasBitmap = false;
+};

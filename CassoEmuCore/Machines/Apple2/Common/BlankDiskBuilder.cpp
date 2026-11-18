@@ -9,6 +9,7 @@
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Machines/Apple2/Common/ProDosStartup.h"
 
 
 
@@ -356,8 +357,9 @@ HRESULT BlankDiskBuilder::Build (
     const BootPayload   & payload,
     vector<Byte>        & outBytes)
 {
-    HRESULT       hr    = S_OK;
+    HRESULT       hr       = S_OK;
     vector<Byte>  buffer;
+    std::string   sosError;
 
 
 
@@ -389,13 +391,23 @@ HRESULT BlankDiskBuilder::Build (
         hr = ProDosSkeleton::Write (buffer, spec.volumeName);
         CHR (hr);
 
-        if (spec.bootable)
+        if (spec.bootable && spec.bootSystem != ProDosBootSystem::AppleIII)
         {
             bool  havePayload = !payload.proDosUsersDisk.empty();
 
             CBREx (havePayload, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
             hr = ProDosSkeleton::InstallBoot (buffer, payload.proDosUsersDisk);
+            CHR (hr);
+        }
+
+        if (spec.bootable && spec.bootSystem != ProDosBootSystem::AppleII)
+        {
+            bool  havePayload = !payload.sosSystemDisk.empty();
+
+            CBREx (havePayload, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+
+            hr = ProDosStartup::InstallSos (buffer, payload.sosSystemDisk, sosError);
             CHR (hr);
         }
     }

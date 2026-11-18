@@ -5,6 +5,7 @@
 #include "CommandLineHelp.h"
 #include "As65Mode.h"
 #include "DebugMode.h"
+#include "BasicCommand.h"
 #include "DiskCommand.h"
 #include "Cli/McpMode.h"
 #include "MerlinMode.h"
@@ -193,6 +194,15 @@ int CliMain (int argc, char * argv[])
         // opposite, and it was the one page in the tool that stayed at the
         // width it was composed at however wide the terminal was.
         CommandLine::PrintPageFor (options.subcommand, options.flagPrefix);
+    }
+    else if (options.subcommand == CommandLineOptions::Subcommand::Basic
+             && options.basic.command == CommandLineOptions::BasicOptions::Command::Help)
+    {
+        CommandLine::PrintPageFor (options.subcommand, options.flagPrefix);
+    }
+    else if (options.subcommand == CommandLineOptions::Subcommand::Basic)
+    {
+        exitCode = BasicCommand::Run (options);
     }
     else if (options.subcommand == CommandLineOptions::Subcommand::Disk)
     {

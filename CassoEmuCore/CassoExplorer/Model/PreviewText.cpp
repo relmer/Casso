@@ -4,6 +4,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "Core/TextEncoding.h"
 #include "ApplesoftTokenizer.h"
+#include "BasicCrossReference.h"
 #include "IntegerBasicDetokenizer.h"
 
 
@@ -90,6 +91,137 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDetailRows (const std::vector<s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PreviewText::GetRunColor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t PreviewText::GetRunColor (RunColor color, const SourceSyntax::Colors & colors)
+{
+    return (color == RunColor::Good)  ? colors.comment
+         : (color == RunColor::Bad)   ? colors.string
+         : (color == RunColor::Muted) ? colors.address
+                                      : 0u;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::BuildDocumentRows
+//
+//  A row for each paragraph, aligned as it is, a span for each styled or
+//  colored run, and a paragraph with a picture a row of the picture.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> PreviewText::BuildDocumentRows (const std::vector<Paragraph> & paragraphs, const SourceSyntax::Colors & colors)
+{
+    std::vector<DxuiTextView::Row>  rows;
+
+
+
+    for (const Paragraph & paragraph : paragraphs)
+    {
+        DxuiTextView::Row  row { { std::wstring() } };
+
+        row.alignment = (paragraph.alignment == Alignment::Center) ? DxuiTextHAlign::Center
+                      : (paragraph.alignment == Alignment::Right)  ? DxuiTextHAlign::Right
+                                                                   : DxuiTextHAlign::Left;
+
+        if (!paragraph.picture.empty())
+        {
+            auto  picture = std::make_shared<DxuiTextView::Picture>();
+
+            picture->bgra   = paragraph.picture;
+            picture->width  = paragraph.width;
+            picture->height = paragraph.height;
+            row.picture     = picture;
+        }
+
+        for (const Run & run : paragraph.runs)
+        {
+            uint32_t  argb = GetRunColor (run.color, colors);
+
+            if (run.bold || run.italic || run.underline || argb != 0)
+            {
+                DxuiTextView::Span  span;
+
+                span.start     = (int) row.cells[0].size();
+                span.length    = (int) run.text.size();
+                span.argb      = argb;
+                span.bold      = run.bold;
+                span.italic    = run.italic;
+                span.underline = run.underline;
+                row.spans.push_back (span);
+            }
+
+            row.cells[0] += run.text;
+        }
+
+        rows.push_back (std::move (row));
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::BuildCrossReferenceRows
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> PreviewText::BuildCrossReferenceRows (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors)
+{
+    HRESULT                         hr        = E_FAIL;
+    std::vector<DxuiTextView::Row>  rows;
+    BasicCrossReference::Report     report;
+    std::string                     reason;
+    std::wstring                    text;
+    size_t                          start     = 0;
+    size_t                          end       = 0;
+    bool                            isProgram = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
+
+
+
+    if (isProgram)
+    {
+        hr = BasicCrossReference::Build (preview.bytes, report, reason);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        text = TextEncoding::NarrowToWide (BasicCrossReference::Format (report));
+
+        while (start < text.size())
+        {
+            end = text.find (L'\n', start);
+            end = (end == std::wstring::npos) ? text.size() : end;
+
+            rows.push_back (DxuiTextView::Row { { text.substr (start, end - start) } });
+
+            start = end + 1;
+        }
+    }
+    else
+    {
+        rows = BuildTextRows (preview, lineAddresses, colors);
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PreviewText::BuildTextRows
 //
 //  A listing that is not a valid program ends with a blank row and the
@@ -100,7 +232,7 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDetailRows (const std::vector<s
 std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors)
 {
     std::vector<DxuiTextView::Row>  rows;
-    DxuiTextView::Row               warning;
+    std::vector<DxuiTextView::Row>  warnings;
     std::vector<Word>               addresses;
 
 
@@ -126,14 +258,11 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
 
     if (!addresses.empty())
     {
-        for (size_t i = 0; i < preview.lines.size(); i++)
-        {
-            DxuiTextView::Row  row { SplitLineNumber (preview.lines[i]) };
-
-            row.cells.insert (row.cells.begin(), (i < addresses.size()) ? std::format (L"${:04X}", addresses[i]) : std::wstring());
-            AddBasicSpans (row, colors);
-            rows.push_back (std::move (row));
-        }
+        AddListingRows (preview.lines, addresses, !preview.integerBasic, colors, rows);
+    }
+    else if (preview.kind == PreviewContent::Kind::Document)
+    {
+        rows = BuildDocumentRows (preview.paragraphs, colors);
     }
     else if (preview.kind == PreviewContent::Kind::Details)
     {
@@ -152,6 +281,8 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
         for (size_t i = 0; i < preview.lines.size(); i++)
         {
             DxuiTextView::Row  row { { std::format (L"{:>{}}", i + 1, digits), preview.lines[i] } };
+
+            row.wrapIndent = GetOperandColumn (preview.lines[i]);
 
             if (colors.mnemonic != 0)
             {
@@ -194,44 +325,129 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
             rows.push_back (std::move (row));
         }
     }
+    else if (preview.kind == PreviewContent::Kind::Listing)
+    {
+        AddListingRows (preview.lines, addresses, !preview.integerBasic, colors, rows);
+    }
     else
     {
         for (const std::wstring & line : preview.lines)
         {
-            rows.push_back (DxuiTextView::Row { (preview.kind == PreviewContent::Kind::Listing) ? SplitLineNumber (line)
-                                                                                               : std::vector<std::wstring> { line } });
+            rows.push_back (DxuiTextView::Row { { line } });
 
-            if (preview.kind == PreviewContent::Kind::Listing)
+            if (preview.assembler)
             {
-                AddBasicSpans (rows.back(), colors);
+                rows.back().wrapIndent = GetOperandColumn (line);
             }
         }
     }
 
-    //  A catalog's rows don't wrap, so a warning of several sentences, as a
-    //  damaged directory's is, goes in a row a sentence.
     if (!preview.warning.empty())
     {
-        size_t  start = 0;
+        warnings = BuildWarningRows (preview.warning);
 
         rows.push_back (DxuiTextView::Row());
-
-        while (start < preview.warning.size())
-        {
-            size_t  end = preview.warning.find (L". ", start);
-
-            end = (end == std::wstring::npos) ? preview.warning.size() : end + 1;
-
-            warning.cells   = { preview.warning.substr (start, end - start) };
-            warning.warning = true;
-            rows.push_back (warning);
-
-            start = preview.warning.find_first_not_of (L' ', end);
-            start = (start == std::wstring::npos) ? preview.warning.size() : start;
-        }
+        rows.insert    (rows.end(), warnings.begin(), warnings.end());
     }
 
     return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::BuildWarningRows
+//
+//  A catalog's rows don't wrap, so a warning of several sentences, as a
+//  damaged directory's is, goes in a row a sentence.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiTextView::Row> PreviewText::BuildWarningRows (const std::wstring & warning)
+{
+    std::vector<DxuiTextView::Row>  rows;
+    DxuiTextView::Row               row;
+    size_t                          start = 0;
+
+
+
+    row.warning = true;
+
+    while (start < warning.size())
+    {
+        size_t  end = warning.find (L". ", start);
+
+        end       = (end == std::wstring::npos) ? warning.size() : end + 1;
+        row.cells = { warning.substr (start, end - start) };
+        rows.push_back (row);
+
+        start = warning.find_first_not_of (L' ', end);
+        start = (start == std::wstring::npos) ? warning.size() : start;
+    }
+
+    return rows;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::AddListingRows
+//
+//  An Applesoft line feed inside a REM, a DATA payload or a string is listed as
+//  a line break, so the host lines after it have no line number. Each one is
+//  set under the statements of the line it continues, and the address column
+//  advances only on a numbered line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewText::AddListingRows (
+    const std::vector<std::wstring>     &  lines,
+    const std::vector<Word>             &  addresses,
+    bool                                   applesoft,
+    const SourceSyntax::Colors          &  colors,
+    std::vector<DxuiTextView::Row>      &  ioRows)
+{
+    size_t        numbered = 0;
+    BasicContext  context  = BasicContext::Normal;
+
+
+
+    for (const std::wstring & line : lines)
+    {
+        DxuiTextView::Row  row       { SplitLineNumber (line) };
+        size_t             first     = line.find_first_not_of (L' ');
+        bool               continued = first == std::wstring::npos || !iswdigit (line[first]);
+
+        if (continued)
+        {
+            row.cells.insert (row.cells.begin(), std::wstring());
+        }
+        else
+        {
+            context = BasicContext::Normal;
+        }
+
+        if (!addresses.empty())
+        {
+            row.cells.insert (row.cells.begin(), (!continued && numbered < addresses.size()) ? std::format (L"${:04X}", addresses[numbered]) : std::wstring());
+        }
+
+        if (!continued)
+        {
+            numbered++;
+        }
+
+        AddBasicSpans (row, colors, context);
+
+        context = AddEscapeSpans (row, colors, context, applesoft);
+        ioRows.push_back (std::move (row));
+    }
 }
 
 
@@ -246,11 +462,21 @@ std::vector<DxuiTextView::Row> PreviewText::BuildTextRows (const PreviewContent 
 //  on, its line number and its statements. The address and the number are in the muted color, and the
 //  statements are colored as GetBasicRuns reads them.
 //
+//  A row that continues a REM is a comment throughout, and one that continues
+//  a string is a string through its closing quote.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void PreviewText::AddBasicSpans (DxuiTextView::Row & ioRow, const SourceSyntax::Colors & colors)
+void PreviewText::AddBasicSpans (
+    DxuiTextView::Row           &  ioRow,
+    const SourceSyntax::Colors  &  colors,
+    BasicContext                   context)
 {
-    int  last = (int) ioRow.cells.size() - 1;
+    int           last     = (int) ioRow.cells.size() - 1;
+    std::wstring  text     = (last < 0) ? std::wstring() : ioRow.cells.back();
+    size_t        from     = 0;
+    size_t        close    = std::wstring::npos;
+    bool          inString = context == BasicContext::String || context == BasicContext::DataString;
 
 
 
@@ -264,10 +490,119 @@ void PreviewText::AddBasicSpans (DxuiTextView::Row & ioRow, const SourceSyntax::
         ioRow.spans.push_back ({ cell, 0, (int) ioRow.cells[(size_t) cell].size(), colors.address });
     }
 
-    for (const SourceSyntax::Run & run : GetBasicRuns (ioRow.cells[(size_t) last]))
+    if (context == BasicContext::Rem)
     {
-        ioRow.spans.push_back ({ last, run.start, run.length, colors.Get (run.token) });
+        ioRow.spans.push_back ({ last, 0, (int) text.size(), colors.Get (SourceSyntax::Token::Comment) });
+        return;
     }
+
+    if (inString)
+    {
+        close = text.find (L'"');
+        from  = (close == std::wstring::npos) ? text.size() : close + 1;
+
+        ioRow.spans.push_back ({ last, 0, (int) from, colors.Get (SourceSyntax::Token::String) });
+    }
+
+    for (const SourceSyntax::Run & run : GetBasicRuns (text.substr (from)))
+    {
+        ioRow.spans.push_back ({ last, (int) from + run.start, run.length, colors.Get (run.token) });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::AddEscapeSpans
+//
+//  ApplesoftTokenizer lists a control character in a REM, a string or a DATA
+//  payload as ^ and a letter, and a literal caret as ^^. Each escape gets an
+//  inverse span in its REM's or string's color, which marks the two characters
+//  as one byte. The text is left as listed, so a copied line tokenizes back to
+//  the same bytes.
+//
+//  A REM runs to the end of its line and a DATA payload to a colon outside a
+//  string. The context the row ends in is where the next row starts, when it
+//  continues this one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PreviewText::BasicContext PreviewText::AddEscapeSpans (
+    DxuiTextView::Row           &  ioRow,
+    const SourceSyntax::Colors  &  colors,
+    BasicContext                   context,
+    bool                           applesoft)
+{
+    constexpr wchar_t  kCaret       = L'^';
+    constexpr wchar_t  kFirstLetter = L'@';
+    constexpr wchar_t  kLastLetter  = L'_';
+    int                last         = (int) ioRow.cells.size() - 1;
+    std::wstring       text         = (last < 0) ? std::wstring() : ioRow.cells.back();
+    size_t             i            = 0;
+    size_t             n            = text.size();
+
+
+
+    while (i < n)
+    {
+        wchar_t             c        = text[i];
+        wchar_t             next     = (i + 1 < n) ? text[i + 1] : L'\0';
+        bool                isEscape = applesoft && context != BasicContext::Normal && c == kCaret && next >= kFirstLetter && next <= kLastLetter;
+        bool                isQuote  = c == L'"';
+        DxuiTextView::Span  span;
+
+        if (isEscape && next != kCaret)
+        {
+            span.cell    = last;
+            span.start   = (int) i;
+            span.length  = 2;
+            span.argb    = (colors.mnemonic == 0)           ? 0
+                         : (context == BasicContext::Rem)   ? colors.Get (SourceSyntax::Token::Comment)
+                         : (context != BasicContext::Data)  ? colors.Get (SourceSyntax::Token::String)
+                                                            : 0;
+            span.inverse = true;
+
+            ioRow.spans.push_back (span);
+        }
+
+        if (isEscape)
+        {
+            i += 2;
+            continue;
+        }
+
+        switch (context)
+        {
+            case BasicContext::Normal:
+                context = isQuote                               ? BasicContext::String
+                        : (text.compare (i, 3, L"REM") == 0)    ? BasicContext::Rem
+                        : (text.compare (i, 4, L"DATA") == 0)   ? BasicContext::Data
+                                                                : context;
+                break;
+
+            case BasicContext::String:
+                context = isQuote ? BasicContext::Normal : context;
+                break;
+
+            case BasicContext::Data:
+                context = isQuote ? BasicContext::DataString : (c == L':') ? BasicContext::Normal : context;
+                break;
+
+            case BasicContext::DataString:
+                context = isQuote ? BasicContext::Data : context;
+                break;
+
+            case BasicContext::Rem:
+                break;
+        }
+
+        i++;
+    }
+
+    return context;
 }
 
 
@@ -540,6 +875,30 @@ std::vector<std::wstring> PreviewText::SplitLineNumber (const std::wstring & lin
     }
 
     return { line.substr (0, end), line.substr (text) };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewText::GetOperandColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PreviewText::GetOperandColumn (const std::wstring & line)
+{
+    size_t  at = (line.empty() || line[0] == L'*' || line[0] == L';') ? std::wstring::npos : 0;
+
+
+
+    at = (at == std::wstring::npos) ? at : line.find_first_of (L' ');
+    at = (at == std::wstring::npos) ? at : line.find_first_not_of (L' ', at);
+    at = (at == std::wstring::npos) ? at : line.find_first_of (L' ', at);
+    at = (at == std::wstring::npos) ? at : line.find_first_not_of (L' ', at);
+
+    return (at == std::wstring::npos) ? 0 : (int) at;
 }
 
 

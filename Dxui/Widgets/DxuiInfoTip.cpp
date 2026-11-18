@@ -165,7 +165,7 @@ bool DxuiInfoTip::OnMouse (const DxuiMouseEvent & ev)
     }
     else if (inside && !pinned && !m_text.empty())
     {
-        m_tooltip.RequestShow (bounds, m_text, nowMs);
+        m_tooltip.RequestShow (bounds, GetTipText(), nowMs);
     }
     else if (m_isHovered && !pinned)
     {
@@ -254,7 +254,7 @@ void DxuiInfoTip::Open()
 
     if (!m_text.empty())
     {
-        m_tooltip.RequestShowNow (GetBounds(), m_text, GetNowMs());
+        m_tooltip.RequestShowNow (GetBounds(), GetTipText(), GetNowMs());
         s_open = this;
     }
 }
@@ -293,4 +293,41 @@ int64_t DxuiInfoTip::GetNowMs()
 {
     return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
         std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoTip::GetTipText
+//
+//  The text, and the table one blank line under it: each row a line, its
+//  cells apart by tabs, which the tooltip lines up in columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiInfoTip::GetTipText() const
+{
+    std::wstring  text = m_text;
+
+
+
+    if (!m_tableRows.empty())
+    {
+        text += L"\n";
+    }
+
+    for (const std::vector<std::wstring> & row : m_tableRows)
+    {
+        text += L"\n";
+
+        for (size_t i = 0; i < row.size(); i++)
+        {
+            text += (i > 0) ? L"\t" + row[i] : row[i];
+        }
+    }
+
+    return text;
 }

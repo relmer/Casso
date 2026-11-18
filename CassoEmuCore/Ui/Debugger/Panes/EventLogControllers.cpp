@@ -11,6 +11,7 @@
 #include "Ui/Debugger/Panes/IoLogPane.h"
 #include "Ui/Debugger/ToolbarBoxEntry.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/SessionActions.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IHostDialogs.h"
 
@@ -1262,7 +1263,7 @@ void IoLogController::SetBarEntries()
 
 void IoLogController::Clear()
 {
-    m_host.RunAction (DebuggerActions::GetIoLog (IsVideo(), "CLEAR", m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetIoLog (IsVideo(), "CLEAR", m_host.GetMode()));
 }
 
 
@@ -1298,7 +1299,7 @@ void IoLogController::Save()
     CHR (hr);
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host.RunAction (DebuggerActions::GetIoLog (IsVideo(), std::format ("SAVE \"{}\"", TextEncoding::WideToNarrow (chosen.wstring())), m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetIoLog (IsVideo(), std::format ("SAVE \"{}\"", TextEncoding::WideToNarrow (chosen.wstring())), m_host.GetMode()));
 
 Error:
     return;

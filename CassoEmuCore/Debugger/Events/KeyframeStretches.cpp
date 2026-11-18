@@ -22,7 +22,7 @@
 
 void KeyframeStretches::Sync (const KeyframeStore * keyframes)
 {
-    size_t    count = (keyframes != nullptr) ? keyframes->GetCount() : 0;
+    size_t    count = (keyframes != nullptr) ? keyframes->GetArena().GetCount() : 0;
     uint64_t  first = 0;
 
 
@@ -33,7 +33,7 @@ void KeyframeStretches::Sync (const KeyframeStore * keyframes)
         return;
     }
 
-    first = keyframes->GetInfo (0).position;
+    first = keyframes->GetArena().GetInfo (0).position;
 
     while (!m_stretches.empty() && m_stretches.front().startPosition < first)
     {
@@ -117,8 +117,8 @@ DebugEventBounds KeyframeStretches::MakeStretch (
     const KeyframeStore  & keyframes,
     size_t                 index)
 {
-    const KeyframeInfo  & start = keyframes.GetInfo (index);
-    const KeyframeInfo  & next  = keyframes.GetInfo (index + 1);
+    const KeyframeInfo  & start = keyframes.GetArena().GetInfo (index);
+    const KeyframeInfo  & next  = keyframes.GetArena().GetInfo (index + 1);
 
 
 

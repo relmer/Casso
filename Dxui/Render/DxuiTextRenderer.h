@@ -150,6 +150,13 @@ public:
     HRESULT  BeginDrawDeferred () { return m_targets.BeginDrawDeferred(); }
     HRESULT  EndDrawDeferred   () { return m_targets.EndDrawDeferred(); }
 
+    // Replays the command list so far onto the back buffer and continues the
+    // pass in a new one, so a fill drawn after this covers the text drawn
+    // before it. IDxuiPainter::FlushLayer calls it through the host's text
+    // flush, after drawing the queued fills. Pushed clips, the origin and any
+    // skew apply in the new command list too. A no-op outside a deferred pass.
+    HRESULT  FlushDeferred     () { return m_targets.FlushDeferred(); }
+
     // Glyphs as a TEXTURE. See IDxuiTextRenderer for what these are for;
     // the target is created on demand and grown to fit, and the view handed
     // back stays valid until the next BeginDrawToTexture.
@@ -203,6 +210,9 @@ public:
 
     void     PushMonochromeGlyphs () override { m_monochromeGlyphs = true;  }
     void     PopMonochromeGlyphs  () override { m_monochromeGlyphs = false; }
+
+    HRESULT  BeginShadowCapture () override                                             { return m_targets.BeginShadowCapture(); }
+    HRESULT  EndShadowCapture   (float spreadDip, float blurDip, float opacity) override { return m_targets.EndShadowCapture (spreadDip, blurDip, opacity); }
 
     HRESULT  FillEllipse      (float cxDip, float cyDip, float radiusXDip, float radiusYDip, uint32_t argbColor) override;
     HRESULT  FillVectorIcon   (const DxuiVectorIcon & icon, float xDip, float yDip, float sizeDip, uint32_t foreground, uint32_t accent) override { return m_icons.FillVectorIcon (icon, xDip, yDip, sizeDip, foreground, accent); }
@@ -500,6 +510,18 @@ private:
 
     // See PushMonochromeGlyphs: while set, DrawString leaves color fonts off.
     bool                              m_monochromeGlyphs = false;
+
+    // The clips PushClipRect has pushed and PopClipRect has not popped, each
+    // with the transform it was pushed under. Direct2D requires an empty clip
+    // stack at EndDraw, so FlushDeferred pops them and pushes them again in
+    // the new recording.
+    struct PushedClip
+    {
+        D2D1_RECT_F        rect      = {};
+        D2D1_MATRIX_3X2_F  transform = {};
+    };
+
+    std::vector<PushedClip>           m_pushedClips;
 
     friend class DxuiRenderTargets;
     friend class DxuiRenderIcons;

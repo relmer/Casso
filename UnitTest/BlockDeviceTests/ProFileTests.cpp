@@ -1,0 +1,327 @@
+#include "Pch.h"
+
+#include "Core/MemoryBus.h"
+#include "Devices/BlockDevice/ProFileCard.h"
+#include "Devices/BlockDevice/ProFileDrive.h"
+#include "../EmuTests/FakeDiskFileIo.h"
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProFileTests
+//
+//  The ProFile's protocol as its interface card's ROM runs it: handshakes
+//  with state bytes, the six-byte command, a read and a write of a block,
+//  the identification block, and the card's line latch and registers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (ProFileTests)
+{
+public:
+
+    static constexpr uint32_t  kBlocks = 64;
+    static constexpr size_t    kBlock  = 512;
+
+
+    static void Attach (FakeDiskFileIo & io, ProFileDrive & drive)
+    {
+        std::vector<Byte>  image ((size_t) kBlocks * kBlock);
+        std::wstring       error;
+
+
+
+        for (size_t i = 0; i < image.size(); i++)
+        {
+            image[i] = (Byte) (i / kBlock);
+        }
+
+        io.files["p.po"]  = image;
+        io.stamps["p.po"] = FileStamp { image.size(), 1 };
+
+        Assert::AreEqual (S_OK, drive.GetMedia().Attach (io, "p.po", drive.GetCapacity(), {}, error));
+    }
+
+
+    //  One handshake: the state byte the drive offers, then the host's answer.
+    static Byte Handshake (ProFileDrive & drive, Byte answer = ProFileDrive::kAck)
+    {
+        Byte  state = 0;
+
+
+
+        drive.StartHandshake();
+        Assert::IsTrue (drive.IsBusy(), L"BSY is asserted during a handshake");
+
+        state = drive.ReadData();
+        drive.WriteData (answer);
+        drive.EndHandshake();
+
+        return state;
+    }
+
+
+    static void SendCommand (ProFileDrive & drive, Byte op, uint32_t block)
+    {
+        Byte  bytes[] = { op, (Byte) (block >> 16), (Byte) (block >> 8), (Byte) block, 3, 0x0A };
+
+
+
+        for (Byte value : bytes)
+        {
+            drive.WriteData (value);
+        }
+    }
+
+
+    //  A READ: state $01, the command, state $02, four zero status bytes, then
+    //  the block's 512 bytes; a new handshake drops the tags that follow.
+    TEST_METHOD (ReadSendsStatusThenTheBlock)
+    {
+        FakeDiskFileIo  io;
+        ProFileDrive    drive (5, 9728);
+
+
+
+        Attach (io, drive);
+
+        Assert::AreEqual (ProFileDrive::kStateCommand, Handshake (drive));
+        SendCommand (drive, 0, 7);
+        Assert::AreEqual (ProFileDrive::kStateRead, Handshake (drive));
+
+        for (int i = 0; i < 4; i++)
+        {
+            Assert::AreEqual ((Byte) 0, drive.ReadData(), L"status is zero for success");
+        }
+
+        for (size_t i = 0; i < kBlock; i++)
+        {
+            Assert::AreEqual ((Byte) 7, drive.ReadData());
+        }
+
+        Assert::AreEqual (ProFileDrive::kStateCommand, Handshake (drive), L"the next handshake starts a new command");
+    }
+
+
+    //  WITH REAL TIMING, BSY waits for the drive to be ready after power-on,
+    //  and the read's state waits for a seek; without it, both are at once.
+    TEST_METHOD (RealTiming)
+    {
+        constexpr uint32_t  kClock = 1'000'000;
+        FakeDiskFileIo      io;
+        ProFileDrive        drive (5, 9728);
+        uint64_t            now    = 0;
+
+
+
+        Attach (io, drive);
+        drive.SetClock (&now);
+        drive.SetRealTiming (true, kClock, 0);
+
+        drive.StartHandshake();
+        Assert::IsFalse (drive.IsBusy(), L"not ready at power-on");
+
+        now = 60ULL * kClock;
+        Assert::IsTrue (drive.IsBusy(), L"ready after the 5 MB drive's 60 s");
+
+        drive.ReadData();
+        drive.WriteData (ProFileDrive::kAck);
+        drive.EndHandshake();
+        SendCommand (drive, 0, 7);
+
+        drive.StartHandshake();
+        Assert::IsFalse (drive.IsBusy(), L"the seek isn't done");
+
+        now += 188ULL * kClock / 1000;
+        Assert::IsTrue (drive.IsBusy(), L"a 180 ms seek and half a turn later");
+        Assert::AreEqual (ProFileDrive::kStateRead, drive.ReadData());
+    }
+
+
+    //  A WRITE: state $04 after the command, the block, state $06, and the
+    //  block is in the image.
+    TEST_METHOD (WriteTakesTheBlock)
+    {
+        FakeDiskFileIo  io;
+        ProFileDrive    drive (5, 9728);
+
+
+
+        Attach (io, drive);
+
+        Assert::AreEqual (ProFileDrive::kStateCommand, Handshake (drive));
+        SendCommand (drive, 2, 9);
+        Assert::AreEqual (ProFileDrive::kStateWrite, Handshake (drive));
+
+        for (size_t i = 0; i < kBlock; i++)
+        {
+            drive.WriteData (0x5E);
+        }
+
+        Assert::AreEqual (ProFileDrive::kStateWritten, Handshake (drive));
+        Assert::AreEqual ((Byte) 0, drive.ReadData());
+        Assert::AreEqual ((Byte) 0x5E, io.files["p.po"][9 * kBlock + 3]);
+    }
+
+
+    //  AN ANSWER OTHER THAN $55 OFFERS THE SAME STATE AGAIN, and the reset
+    //  operation, $FF, returns the drive to waiting for a command.
+    TEST_METHOD (NakRepeatsAndResetReturns)
+    {
+        FakeDiskFileIo  io;
+        ProFileDrive    drive (5, 9728);
+
+
+
+        Attach (io, drive);
+
+        Assert::AreEqual (ProFileDrive::kStateCommand, Handshake (drive, 0xAA));
+        Assert::AreEqual (ProFileDrive::kStateCommand, Handshake (drive));
+        SendCommand (drive, 0xFF, 0);
+        Assert::AreEqual (ProFileDrive::kStateCommand, Handshake (drive));
+    }
+
+
+    //  BLOCK $FFFFFF IS THE IDENTIFICATION BLOCK: the name and the capacity.
+    TEST_METHOD (IdentificationBlock)
+    {
+        FakeDiskFileIo     io;
+        ProFileDrive       drive (5, 19456);
+        std::vector<Byte>  block;
+
+
+
+        Attach (io, drive);
+
+        Handshake (drive);
+        SendCommand (drive, 0, 0xFFFFFF);
+        Handshake (drive);
+
+        for (int i = 0; i < 4; i++)
+        {
+            drive.ReadData();
+        }
+
+        for (size_t i = 0; i < kBlock; i++)
+        {
+            block.push_back (drive.ReadData());
+        }
+
+        Assert::AreEqual (std::string ("PROFILE"), std::string (block.begin(), block.begin() + 7));
+        Assert::AreEqual ((uint32_t) 19456, ((uint32_t) block[18] << 16) | ((uint32_t) block[19] << 8) | block[20]);
+    }
+
+
+    //  THE CARD: line 2 falling with line 3 set starts a handshake and $Cn00
+    //  ends it; status bit 7 is BSY, 1 when idle; the ROM's last page is at
+    //  $Cn00 and its first $700 bytes at $C800.
+    TEST_METHOD (CardLinesAndRegisters)
+    {
+        constexpr Word     kIo = 0xC0D0;
+
+        MemoryBus          bus;
+        ProFileCard        card (5, bus);
+        std::vector<Byte>  rom (ProFileCard::kRomSize);
+
+
+
+        for (size_t i = 0; i < rom.size(); i++)
+        {
+            rom[i] = (Byte) (i >> 8);
+        }
+
+        Assert::AreEqual (S_OK, card.SetFirmware (rom));
+        Assert::AreEqual ((Byte) 0x80, card.Read (kIo + 2), L"idle");
+
+        card.OnSlotPageAccess (0xC504, false, 0);
+        Assert::AreEqual ((Byte) 0x80, card.Read (kIo + 2), L"line 3 clear: a fetch at $C504 starts nothing");
+
+        card.OnSlotPageAccess (0xC505, false, 0);
+        card.OnSlotPageAccess (0xC507, false, 0);
+        Assert::AreEqual ((Byte) 7, card.OnSlotPageAccess (0xC504, false, 0), L"the page is the ROM's last");
+        Assert::AreEqual ((Byte) 0x00, card.Read (kIo + 2), L"busy in the handshake");
+        Assert::AreEqual (ProFileDrive::kStateCommand, card.Read (kIo + 1));
+
+        card.Write (kIo, ProFileDrive::kAck);
+        card.OnSlotPageAccess (0xC500, false, 0);
+        Assert::AreEqual ((Byte) 0x80, card.Read (kIo + 2), L"idle again");
+
+        Assert::AreEqual ((Byte) 3, card.ReadExpansionRom (0xCB10));
+    }
+
+    //  A peek of the drive's data has the byte the next read takes, in a
+    //  handshake and in a block. A peek advances nothing.
+    TEST_METHOD (PeekDataTakesNoByte)
+    {
+        FakeDiskFileIo  io;
+        ProFileDrive    drive (5, 9728);
+
+
+
+        Attach (io, drive);
+
+        drive.StartHandshake();
+        Assert::AreEqual (ProFileDrive::kStateCommand, drive.PeekData());
+        Assert::AreEqual (ProFileDrive::kStateCommand, drive.PeekData());
+        Assert::AreEqual (ProFileDrive::kStateCommand, drive.ReadData());
+        drive.WriteData (ProFileDrive::kAck);
+        drive.EndHandshake();
+
+        SendCommand (drive, 0, 7);
+        Assert::AreEqual (ProFileDrive::kStateRead, Handshake (drive));
+
+        for (int i = 0; i < 4; i++)
+        {
+            Assert::AreEqual ((Byte) 0, drive.ReadData(), L"status is zero for success");
+        }
+
+        for (size_t i = 0; i < kBlock; i++)
+        {
+            Assert::AreEqual ((Byte) 7, drive.PeekData());
+        }
+
+        for (size_t i = 0; i < kBlock; i++)
+        {
+            Assert::AreEqual ((Byte) 7, drive.ReadData(), L"the peeks took no byte of the block");
+        }
+    }
+
+
+    //  The card's peeks have what its reads return, and a peek of the slot
+    //  page doesn't set a handshake line or select the expansion ROM.
+    TEST_METHOD (CardPeeksSetNothing)
+    {
+        constexpr Word     kIo = 0xC0D0;
+
+        MemoryBus          bus;
+        ProFileCard        card (5, bus);
+        std::vector<Byte>  rom (ProFileCard::kRomSize);
+        Byte               peeked = 0;
+
+
+
+        for (size_t i = 0; i < rom.size(); i++)
+        {
+            rom[i] = (Byte) (i >> 8);
+        }
+
+        Assert::AreEqual (S_OK, card.SetFirmware (rom));
+
+        for (Word offset : { (Word) 1, (Word) 2 })
+        {
+            Assert::IsTrue   (card.TryPeekIo ((Word) (kIo + offset), peeked));
+            Assert::AreEqual (card.Read ((Word) (kIo + offset)), peeked, std::format (L"offset {}", offset).c_str());
+        }
+
+        peeked = card.PeekSlotPage (0xC507);
+        Assert::AreEqual ((Byte) 7, peeked, L"the page is the ROM's last");
+        Assert::AreEqual ((Byte) 0, card.GetLines(), L"no handshake line was set");
+        Assert::IsFalse  (card.IsExpansionRomSelected());
+    }
+
+};

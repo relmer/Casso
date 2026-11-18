@@ -42,7 +42,7 @@ public:
             UthernetCard  * card   = machine->GetRefs().uthernet;
             uint64_t        before = (card != nullptr) ? card->GetChip().GetEmptyReceivePolls() : 0;
 
-            machine->RunCycles (kSliceCycles);
+            machine->GetRunner().RunCycles (kSliceCycles);
 
             waited = waited || (card != nullptr && card->GetChip().GetEmptyReceivePolls() != before);
         }

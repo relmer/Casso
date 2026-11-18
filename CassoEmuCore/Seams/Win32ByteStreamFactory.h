@@ -26,6 +26,7 @@ public:
     HRESULT  ListenTcp    (uint16_t port, LinkTransport transport, std::unique_ptr<IByteStream> & outStream) override;
     HRESULT  ConnectTcp   (const std::string & host, uint16_t port, std::unique_ptr<IByteStream> & outStream) override;
     HRESULT  ConnectTcp   (const std::string & host, uint16_t port, std::stop_token stop, std::unique_ptr<IByteStream> & outStream) override;
+    HRESULT  OpenCassette (const std::wstring & outputId, const std::wstring & inputId, std::unique_ptr<IByteStream> & outStream) override;
 
 private:
     static constexpr const wchar_t *  s_kpszSerialMapKey = L"HARDWARE\\DEVICEMAP\\SERIALCOMM";

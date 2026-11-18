@@ -3,7 +3,10 @@
 
 #include "Seams/ShellVerbs/Win32ShellNamespace.h"
 #include "Seams/Win32ShellItemVerbs.h"
+#include "CassoExplorer/Model/CollectionQuery.h"
+#include "CassoExplorer/Model/CollectionResultsItems.h"
 #include "CassoExplorer/Model/SearchQuery.h"
+#include "Seams/Win32DiskFileIo.h"
 
 
 
@@ -227,6 +230,14 @@ HRESULT Win32ShellNamespace::ReadShellFolder (const std::wstring & id, std::vect
     if (SearchQuery::IsId (id))
     {
         return Win32ShellSearch::RunSearch (id, outItems);
+    }
+
+    //  So are Disk list's and Find duplicates'.
+    if (CollectionQuery::IsId (id))
+    {
+        Win32DiskFileIo  io;
+
+        return CollectionResultsItems::Read (io, id, outItems);
     }
 
     hr = CreateItem (id, &folder);

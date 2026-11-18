@@ -679,7 +679,7 @@ namespace DebugModeTests
             rig.options.commands  = { "G" };
 
             Assert::AreEqual (S_OK, runner.Prepare (rig.options, rig.result));
-            Assert::IsTrue (runner.GetHost()->GetRefs().diskController->HasExternalDisk (0), L"drive 1 reads the store's image");
+            Assert::IsTrue (runner.GetHost()->GetRefs().diskController->GetDrive (0).HasExternalDisk(), L"drive 1 reads the store's image");
 
             runner.Execute (rig.options, "", rig.result);
 

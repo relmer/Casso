@@ -66,8 +66,8 @@ public:
 
         Assert::IsTrue (watch.HasHit(), L"the guest read the keyboard");
         Assert::AreEqual<uint64_t> (expected, watch.GetHitPosition(), L"at the first LDA $C000");
-        Assert::AreEqual<uint64_t> (expected + 1, machine.GetPosition(), L"the run ended after that instruction");
-        Assert::IsTrue (controller.IsInHistory(), L"still replaying");
+        Assert::AreEqual<uint64_t> (expected + 1, machine.GetRunner().GetPosition(), L"the run ended after that instruction");
+        Assert::IsTrue (controller.GetSpan().IsInHistory(), L"still replaying");
 
         Rewind (machine, controller, watch.GetHitPosition());
 
@@ -126,7 +126,7 @@ public:
         RunWatched (machine, controller, watch, lines);
 
         Assert::IsFalse (watch.HasHit(), L"nothing read the held lines");
-        Assert::IsFalse (controller.IsInHistory(), L"the replay reached live");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"the replay reached live");
     }
 
 
@@ -194,10 +194,10 @@ public:
         {
             if (machine.GetCpu()->GetPC() == kPaddleRead)
             {
-                expected = machine.GetPosition();
+                expected = machine.GetRunner().GetPosition();
             }
 
-            machine.StepOne();
+            machine.GetRunner().StepOne();
         }
 
         Rewind (machine, controller, expected);
@@ -232,7 +232,7 @@ public:
         RunWatched (machine, controller, watch, lines);
 
         Assert::IsFalse (watch.HasHit(), L"every read agrees with the recording");
-        Assert::IsFalse (controller.IsInHistory(), L"so the replay reached live");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"so the replay reached live");
     }
 
 
@@ -291,7 +291,7 @@ public:
         Load (machine, s_kButtonPoll, sizeof (s_kButtonPoll));
 
         machine.GetJoyport()->SetAttached (true);
-        machine.RunCycles (kJoyportSettle);
+        machine.GetRunner().RunCycles (kJoyportSettle);
 
         Record (machine, controller);
 
@@ -421,8 +421,8 @@ public:
             hr = host.StartRecording (ReverseSessionRig::MakeSettings (1));
             AssertSucceeded (hr, L"StartRecording");
 
-            machine.RunCycles (kRecordCycles);
-            liveEnd = machine.GetPosition();
+            machine.GetRunner().RunCycles (kRecordCycles);
+            liveEnd = machine.GetRunner().GetPosition();
 
             hr = host.Execute (ReverseCommand::Seek, GetPointIn (machine, host.GetController(), 2), nullptr, result);
             AssertSucceeded (hr, L"Seek");
@@ -445,7 +445,7 @@ public:
                 machine.GetRefs().keyboard->PressKey ('Q');
             }
 
-            machine.StepOne();
+            machine.GetRunner().StepOne();
             read = machine.GetCpu()->GetCpu6502()->GetRegisters().a;
 
             if (isYes)
@@ -456,7 +456,7 @@ public:
             else
             {
                 Assert::IsTrue  (host.IsBehindLive(), L"still replaying");
-                Assert::AreEqual<uint64_t> (liveEnd, host.GetController().GetLiveEndPosition(), L"history kept");
+                Assert::AreEqual<uint64_t> (liveEnd, host.GetController().GetSeeker().GetLiveEndPosition(), L"history kept");
                 Assert::IsTrue  (read != kHeldKey, L"the read saw the recording");
             }
         }
@@ -562,7 +562,7 @@ private:
         hr = controller.Start (ReverseSessionRig::MakeSettings (1));
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (kRecordCycles);
+        machine.GetRunner().RunCycles (kRecordCycles);
     }
 
 
@@ -572,7 +572,7 @@ private:
 
         if (settle > 0)
         {
-            machine.RunCycles (settle);
+            machine.GetRunner().RunCycles (settle);
         }
 
         Record (machine, controller);
@@ -593,11 +593,11 @@ private:
     //  A point the given fraction of the way into the recorded history.
     static uint64_t GetPointIn (TestMachine & machine, ReverseController & controller, uint64_t divisor)
     {
-        uint64_t  oldest = controller.GetOldestPosition();
+        uint64_t  oldest = controller.GetSeeker().GetOldestPosition();
 
 
 
-        return oldest + (machine.GetPosition() - oldest) / divisor;
+        return oldest + (machine.GetRunner().GetPosition() - oldest) / divisor;
     }
 
 
@@ -608,11 +608,11 @@ private:
 
 
 
-        hr = controller.SeekToPosition (position, result);
+        hr = controller.GetSeeker().SeekToPosition (position, result);
         AssertSucceeded (hr, L"SeekToPosition");
 
-        Assert::AreEqual<uint64_t> (position, machine.GetPosition(), L"landed where asked");
-        Assert::IsTrue (controller.IsInHistory(), L"behind live");
+        Assert::AreEqual<uint64_t> (position, machine.GetRunner().GetPosition(), L"landed where asked");
+        Assert::IsTrue (controller.GetSpan().IsInHistory(), L"behind live");
     }
 
 
@@ -625,12 +625,12 @@ private:
 
         while (machine.GetCpu()->GetPC() != pc)
         {
-            machine.StepOne();
+            machine.GetRunner().StepOne();
         }
 
         outChecksum = ReverseSessionRig::Checksum (machine);
 
-        return machine.GetPosition();
+        return machine.GetRunner().GetPosition();
     }
 
 
@@ -643,9 +643,9 @@ private:
 
         machine.SetHeldInputWatch (&watch);
 
-        while (!watch.HasHit() && controller.IsInHistory())
+        while (!watch.HasHit() && controller.GetSpan().IsInHistory())
         {
-            machine.RunCycles (kSliceCycles);
+            machine.GetRunner().RunCycles (kSliceCycles);
         }
 
         machine.SetHeldInputWatch (nullptr);

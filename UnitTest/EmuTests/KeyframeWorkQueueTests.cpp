@@ -91,7 +91,7 @@ public:
         InlineWorkQueue    queue;
         KeyframeStore      store;
         std::vector<Byte>  state    = MakeState (s_kHandoffState, 1);
-        uint64_t           checksum = KeyframeStore::ComputeChecksum (state.data(), state.size());
+        uint64_t           checksum = KeyframeCodec::ComputeChecksum (state.data(), state.size());
         HRESULT            hr       = S_OK;
 
 
@@ -102,12 +102,12 @@ public:
         hr = store.Add (1, 100, 7, state);
         AssertSucceeded (hr, L"Add");
 
-        Assert::AreEqual<size_t> (1, store.GetCount(), L"the keyframe is listed at once");
-        Assert::AreEqual<size_t> (1, store.GetPendingCount(), L"with its packing in flight");
+        Assert::AreEqual<size_t> (1, store.GetArena().GetCount(), L"the keyframe is listed at once");
+        Assert::AreEqual<size_t> (1, store.GetArena().GetUnplacedCount(), L"with its packing in flight");
         Assert::AreEqual<size_t> (1, queue.GetPendingCount(), L"handed to the queue");
-        Assert::AreEqual<uint64_t> (100, store.GetInfo (0).cycle);
-        Assert::AreEqual<size_t> (7, store.GetInfo (0).journalIndex);
-        Assert::IsTrue (store.GetInfo (0).isWhole);
+        Assert::AreEqual<uint64_t> (100, store.GetArena().GetInfo (0).cycle);
+        Assert::AreEqual<size_t> (7, store.GetArena().GetInfo (0).journalIndex);
+        Assert::IsTrue (store.GetArena().GetInfo (0).isWhole);
         Assert::IsTrue (store.GetNextDueCycle() > 100, L"the next one is scheduled at once");
 
         Assert::IsTrue (queue.TryRunNext());
@@ -115,9 +115,9 @@ public:
         hr = store.WaitForPending();
         AssertSucceeded (hr, L"WaitForPending");
 
-        Assert::AreEqual<size_t> (0, store.GetPendingCount(), L"collected");
-        Assert::AreEqual<uint64_t> (checksum, store.GetInfo (0).checksum, L"with its checksum");
-        Assert::IsTrue (store.GetInfo (0).storedBytes > 0, L"and its packed bytes");
+        Assert::AreEqual<size_t> (0, store.GetArena().GetUnplacedCount(), L"collected");
+        Assert::AreEqual<uint64_t> (checksum, store.GetArena().GetInfo (0).checksum, L"with its checksum");
+        Assert::IsTrue (store.GetArena().GetInfo (0).storedBytes > 0, L"and its packed bytes");
     }
 
 
@@ -133,21 +133,21 @@ public:
         store.Configure (KeyframeSettings());
         store.SetWorkQueue (&queue);
 
-        for (i = 0; i < KeyframeStore::kBufferCount; i++)
+        for (i = 0; i < KeyframeLayout::kJobCount; i++)
         {
             hr = store.Add (i, (i + 1) * 100, MakeState (s_kHandoffState, i));
             AssertSucceeded (hr, L"Add");
         }
 
         Assert::AreEqual<size_t> (0, queue.GetWaitCount(), L"every buffer is in flight and nothing waited yet");
-        Assert::AreEqual (KeyframeStore::kBufferCount, store.GetPendingCount());
+        Assert::AreEqual (KeyframeLayout::kJobCount, store.GetArena().GetUnplacedCount());
 
         hr = store.Add (i, (i + 1) * 100, MakeState (s_kHandoffState, i));
         AssertSucceeded (hr, L"Add");
 
         Assert::AreEqual<size_t> (1, queue.GetWaitCount(), L"the next keyframe waited for the buffers in flight");
-        Assert::AreEqual<size_t> (1, store.GetPendingCount(), L"and is in flight in a buffer they gave back");
-        Assert::AreEqual (KeyframeStore::kBufferCount + 1, store.GetCount());
+        Assert::AreEqual<size_t> (1, store.GetArena().GetUnplacedCount(), L"and is in flight in a buffer they gave back");
+        Assert::AreEqual (KeyframeLayout::kJobCount + 1, store.GetArena().GetCount());
     }
 
 
@@ -184,7 +184,7 @@ public:
         AssertSucceeded (hr, L"TruncateAfter");
 
         Assert::AreEqual<size_t> (0, queue.GetPendingCount(), L"TruncateAfter ran the work in flight");
-        Assert::AreEqual<size_t> (3, store.GetCount());
+        Assert::AreEqual<size_t> (3, store.GetArena().GetCount());
 
         hr = store.Restore (2, restored);
         AssertSucceeded (hr, L"Restore");
@@ -196,7 +196,7 @@ public:
         store.Clear();
 
         Assert::AreEqual<size_t> (0, queue.GetPendingCount(), L"Clear ran the work in flight before dropping it");
-        Assert::AreEqual<size_t> (0, store.GetCount());
+        Assert::AreEqual<size_t> (0, store.GetArena().GetCount());
     }
 
 
@@ -223,7 +223,7 @@ public:
         settings.longestGroup   = 8;
         settings.budgetBytes    = s_kStressBudget;
 
-        hr = queue.Create (KeyframeStore::kBufferCount);
+        hr = queue.Create (KeyframeLayout::kJobCount);
         AssertSucceeded (hr, L"Create");
 
         pooled.Configure  (settings);
@@ -244,16 +244,16 @@ public:
 
             if (i % s_kStressRestore == 0)
             {
-                index = inPlace.GetCount() - 1 - (i % inPlace.GetCount());
+                index = inPlace.GetArena().GetCount() - 1 - (i % inPlace.GetArena().GetCount());
 
-                Assert::IsTrue (pooled.TryFindAtOrBefore (inPlace.GetInfo (index).cycle, other), L"the pooled store holds the keyframe");
+                Assert::IsTrue (pooled.GetArena().TryFindAtOrBefore (inPlace.GetArena().GetInfo (index).cycle, other), L"the pooled store holds the keyframe");
 
                 AssertSucceeded (pooled.Restore (other, fromPool),   L"Restore, pooled");
                 AssertSucceeded (inPlace.Restore (index, fromPlace), L"Restore, in place");
 
-                Assert::AreEqual<uint64_t> (inPlace.GetInfo (index).cycle, pooled.GetInfo (other).cycle);
+                Assert::AreEqual<uint64_t> (inPlace.GetArena().GetInfo (index).cycle, pooled.GetArena().GetInfo (other).cycle);
                 Assert::IsTrue (fromPool == fromPlace, L"a restore mid-run gives the same state");
-                Assert::IsTrue (pooled.DoesStateMatch (pooled.GetCount() - 1, state), L"the newest keyframe's checksum is the state's");
+                Assert::IsTrue (pooled.DoesStateMatch (pooled.GetArena().GetCount() - 1, state), L"the newest keyframe's checksum is the state's");
             }
 
             if (i % s_kStressTruncate == 0)
@@ -269,16 +269,16 @@ public:
         // The pooled store enforces its budget on keyframes it has collected,
         // so it may still hold a group the other has dropped; the newest
         // keyframes of both must be the same ones.
-        skipped = pooled.GetCount() - inPlace.GetCount();
+        skipped = pooled.GetArena().GetCount() - inPlace.GetArena().GetCount();
 
-        Assert::IsTrue (pooled.GetCount() >= inPlace.GetCount(), L"the pooled store drops no more than the other");
-        Assert::IsTrue (inPlace.GetCount() > settings.wholeEvery, L"more than one group was kept to compare");
+        Assert::IsTrue (pooled.GetArena().GetCount() >= inPlace.GetArena().GetCount(), L"the pooled store drops no more than the other");
+        Assert::IsTrue (inPlace.GetArena().GetCount() > settings.wholeEvery, L"more than one group was kept to compare");
 
-        for (index = 0; index < inPlace.GetCount(); index++)
+        for (index = 0; index < inPlace.GetArena().GetCount(); index++)
         {
-            Assert::AreEqual<uint64_t> (inPlace.GetInfo (index).cycle,    pooled.GetInfo (skipped + index).cycle);
-            Assert::AreEqual<uint64_t> (inPlace.GetInfo (index).checksum, pooled.GetInfo (skipped + index).checksum);
-            Assert::AreEqual (inPlace.GetInfo (index).isWhole, pooled.GetInfo (skipped + index).isWhole);
+            Assert::AreEqual<uint64_t> (inPlace.GetArena().GetInfo (index).cycle,    pooled.GetArena().GetInfo (skipped + index).cycle);
+            Assert::AreEqual<uint64_t> (inPlace.GetArena().GetInfo (index).checksum, pooled.GetArena().GetInfo (skipped + index).checksum);
+            Assert::AreEqual (inPlace.GetArena().GetInfo (index).isWhole, pooled.GetArena().GetInfo (skipped + index).isWhole);
 
             AssertSucceeded (pooled.Restore (skipped + index, fromPool), L"Restore, pooled");
             AssertSucceeded (inPlace.Restore (index, fromPlace),         L"Restore, in place");
@@ -302,25 +302,25 @@ public:
 
         ReverseSessionRig::Prepare (machine);
 
-        controller.SetWorkQueue (&queue);
+        controller.GetCapturer().SetWorkQueue (&queue);
 
         hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
         AssertSucceeded (hr, L"Start");
 
-        machine.RunCycles (KeyframeSettings::kFrameCycles * (s_kSeekFrames - s_kSeekBackFrames));
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles * (s_kSeekFrames - s_kSeekBackFrames));
 
-        target   = machine.GetPosition();
+        target   = machine.GetRunner().GetPosition();
         expected = ReverseSessionRig::Checksum (machine);
 
-        machine.RunCycles (KeyframeSettings::kFrameCycles * s_kSeekBackFrames);
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles * s_kSeekBackFrames);
 
         Assert::IsTrue (queue.GetPendingCount() > 0, L"keyframes are still in flight");
 
-        hr = controller.SeekToPosition (target, result);
+        hr = controller.GetSeeker().SeekToPosition (target, result);
         AssertSucceeded (hr, L"SeekToPosition");
 
         Assert::AreEqual<size_t> (0, queue.GetPendingCount(), L"the seek ran them first");
-        Assert::AreEqual<size_t> (0, controller.GetKeyframes().GetPendingCount());
+        Assert::AreEqual<size_t> (0, controller.GetKeyframes().GetArena().GetUnplacedCount());
         Assert::AreEqual<uint64_t> (target, result.position);
         Assert::AreEqual<uint64_t> (expected, ReverseSessionRig::Checksum (machine), L"the machine is as it was there");
     }
@@ -389,7 +389,7 @@ private:
         hr = store.Add (position, cycle, state);
         AssertSucceeded (hr, L"Add");
 
-        Assert::IsTrue (store.GetPendingCount() > 0, L"left in flight");
+        Assert::IsTrue (store.GetArena().GetUnplacedCount() > 0, L"left in flight");
     }
 
 

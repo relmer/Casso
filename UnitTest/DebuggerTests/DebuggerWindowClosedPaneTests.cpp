@@ -95,14 +95,13 @@ namespace DebuggerWindowClosedPaneTests
         }
 
         using DebuggerWindow::OnCreate;
+        using DebuggerWindow::GetDockSite;
         using DebuggerWindow::Layout;
         using DebuggerWindow::CloseFloatingPane;
         using DebuggerWindow::ClosePane;
         using DebuggerWindow::ShowPane;
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::GetViewMenuPanes;
-        using DebuggerWindow::GetPaneLayout;
-        using DebuggerWindow::EditPaneLayout;
     };
 
 
@@ -143,7 +142,7 @@ namespace DebuggerWindowClosedPaneTests
             second->Layout (RECT { 0, 0, 1400, 900 }, scaler);
             Assert::IsFalse (second->IsPaneShown (DebuggerLayout::kRegisters), L"the registers stay closed");
             Assert::IsTrue  (second->IsPaneShown (DebuggerLayout::kWatches),   L"the others still show");
-            Assert::IsTrue  (second->GetPaneLayout().IsDocked (DebuggerLayout::kRegisters), L"it keeps its place");
+            Assert::IsTrue  (second->GetDockSite()->GetPaneLayout().IsDocked (DebuggerLayout::kRegisters), L"it keeps its place");
 
             second->ShowPane (DebuggerLayout::kRegisters);
             Assert::IsTrue (second->IsPaneShown (DebuggerLayout::kRegisters), L"the View menu shows it again");

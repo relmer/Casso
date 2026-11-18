@@ -114,21 +114,19 @@ bool ApplesoftTokenizer::IsPrintable (char c)
 //
 //  What a string, a REM or a DATA payload may hold. Applesoft stores a control
 //  character typed inside quotes -- a Ctrl-D in a DOS command string, a Ctrl-G
-//  bell -- and LIST writes it out as the byte it is, so a listing here does the
-//  same and reads it back the same way. Only the line's own terminators are
-//  refused: a zero ends the stored line and a CR or LF ends the text line, so
-//  neither can be a byte inside one.
+//  bell -- so a raw one in a listing is stored as it is. A line feed arrives
+//  here only where Tokenize joined a continuation line. A zero is not
+//  storable, because it ends the stored line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ApplesoftTokenizer::IsStorableVerbatim (char c)
 {
-    constexpr unsigned char  kHighest = 0x7E;
-    unsigned char            u        = (unsigned char) c;
+    unsigned char  u = (unsigned char) c;
 
 
 
-    return u != 0 && u != '\r' && u != '\n' && u <= kHighest;
+    return u != 0 && u <= kHighestAscii;
 }
 
 
@@ -367,6 +365,60 @@ bool ApplesoftTokenizer::TryMatchAnyKeyword (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ApplesoftTokenizer::TryCopyVerbatim
+//
+//  A caret followed by @, a capital letter, [, \, ] or _ is the control
+//  character $00 through $1F, and ^^ is a caret. A caret followed by anything
+//  else is a literal caret, so `X^2` in a REM typed on a PC is stored as typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ApplesoftTokenizer::TryCopyVerbatim (
+    const std::string  &  text,
+    size_t             &  inOutAt,
+    std::vector<Byte>  &  outBody,
+    std::string        &  outReason)
+{
+    size_t         i         = inOutAt;
+    char           c         = text[i];
+    unsigned char  next      = ((i + 1) < text.size()) ? (unsigned char) text[i + 1] : 0;
+    bool           storable  = IsStorableVerbatim (c);
+    bool           isEscape  = c == kCaret && next >= kControlBase && next <= (kControlBase + kLastControl);
+    bool           isCaret   = isEscape && next == (unsigned char) kCaret;
+
+
+
+    if (!storable)
+    {
+        outReason = "has a character with no Apple II representation";
+        return false;
+    }
+
+    if (!isEscape)
+    {
+        outBody.push_back ((Byte) c);
+        inOutAt = i + 1;
+        return true;
+    }
+
+    if (next == kControlBase)
+    {
+        outReason = "has ^@, which is a zero byte, and a zero byte ends a stored line";
+        return false;
+    }
+
+    outBody.push_back (isCaret ? (Byte) kCaret : (Byte) (next - kControlBase));
+    inOutAt = i + 2;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ApplesoftTokenizer::TryCopyQuoted
 //
 //  From the opening quote through the closing one, or to the end of the line
@@ -379,38 +431,36 @@ bool ApplesoftTokenizer::TryCopyQuoted (
     const std::string  &  text,
     size_t             &  inOutAt,
     std::vector<Byte>  &  outBody,
+    bool               &  outClosed,
     std::string        &  outReason)
 {
     size_t  i      = inOutAt;
     size_t  len    = text.size();
-    bool    closed = false;
+    bool    copied = true;
 
 
 
     outBody.push_back ((Byte) text[i]);
     i++;
 
-    while (i < len && !closed)
+    outClosed = false;
+
+    while (i < len && !outClosed && copied)
     {
-        bool  printable = IsStorableVerbatim (text[i]);
-
-        if (!printable)
+        if (text[i] == '"')
         {
-            outReason = "has a character with no Apple II representation";
-            inOutAt   = i;
-
-            return false;
+            outBody.push_back ((Byte) text[i]);
+            outClosed = true;
+            i++;
+            continue;
         }
 
-        outBody.push_back ((Byte) text[i]);
-
-        closed = text[i] == '"';
-        i++;
+        copied = TryCopyVerbatim (text, i, outBody, outReason);
     }
 
     inOutAt = i;
 
-    return true;
+    return copied;
 }
 
 
@@ -428,12 +478,16 @@ bool ApplesoftTokenizer::TryCopyQuoted (
 //  mode changes only where the guest changes it -- at the REM and DATA tokens,
 //  and back out of DATA at a colon outside a string.
 //
+//  `outContinues` indicates the text ends in a REM, a DATA payload or an open
+//  string, which is where a following host line with no number continues it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ApplesoftTokenizer::TokenizeBody (
     const std::string  &  text,
     size_t                from,
     std::vector<Byte>  &  outBody,
+    bool               &  outContinues,
     std::string        &  outReason)
 {
     HRESULT  hr       = S_OK;
@@ -447,27 +501,20 @@ HRESULT ApplesoftTokenizer::TokenizeBody (
     bool     isAtn    = false;
     bool     isAt     = false;
     bool     startsTo = false;
+    bool     closed   = true;
 
 
 
     outBody.clear();
+    outContinues = false;
 
     while (i < len && ok)
     {
-        char  c        = text[i];
-        bool  verbatim = mode != Mode::Normal;
-
-        if (!(verbatim ? IsStorableVerbatim (c) : IsPrintable (c)))
-        {
-            outReason = "has a character with no Apple II representation";
-            ok        = false;
-            continue;
-        }
+        char  c = text[i];
 
         if (mode == Mode::Rem)
         {
-            outBody.push_back ((Byte) c);
-            i++;
+            ok = TryCopyVerbatim (text, i, outBody, outReason);
             continue;
         }
 
@@ -475,7 +522,7 @@ HRESULT ApplesoftTokenizer::TokenizeBody (
         {
             if (c == '"')
             {
-                ok = TryCopyQuoted (text, i, outBody, outReason);
+                ok = TryCopyQuoted (text, i, outBody, closed, outReason);
                 continue;
             }
 
@@ -484,8 +531,14 @@ HRESULT ApplesoftTokenizer::TokenizeBody (
                 mode = Mode::Normal;
             }
 
-            outBody.push_back ((Byte) c);
-            i++;
+            ok = TryCopyVerbatim (text, i, outBody, outReason);
+            continue;
+        }
+
+        if (!IsPrintable (c))
+        {
+            outReason = "has a character with no Apple II representation";
+            ok        = false;
             continue;
         }
 
@@ -497,7 +550,7 @@ HRESULT ApplesoftTokenizer::TokenizeBody (
 
         if (c == '"')
         {
-            ok = TryCopyQuoted (text, i, outBody, outReason);
+            ok = TryCopyQuoted (text, i, outBody, closed, outReason);
             continue;
         }
 
@@ -568,6 +621,8 @@ HRESULT ApplesoftTokenizer::TokenizeBody (
     }
 
     CBREx (ok, E_INVALIDARG);
+
+    outContinues = mode != Mode::Normal || !closed;
 
 Error:
     if (FAILED (hr))
@@ -645,7 +700,7 @@ HRESULT ApplesoftTokenizer::ParseOneLine (
 
     CBREx (hasBody, E_INVALIDARG);
 
-    hr = TokenizeBody (text, at, outParsed.body, reason);
+    hr = TokenizeBody (text, at, outParsed.body, outParsed.continues, reason);
 
     if (FAILED (hr))
     {
@@ -786,6 +841,11 @@ Error:
 //
 //  ApplesoftTokenizer::Tokenize
 //
+//  A host line with no line number after a line that ends in a REM, a DATA
+//  payload or an open string is part of that line, joined to it with a line
+//  feed. A blank host line there is a line feed too; anywhere else it is
+//  skipped.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ApplesoftTokenizer::Tokenize (
@@ -798,6 +858,7 @@ HRESULT ApplesoftTokenizer::Tokenize (
     std::vector<std::string>  lines;
     std::vector<ParsedLine>   parsed;
     ParsedLine                one;
+    std::string               joined;
 
 
 
@@ -808,8 +869,30 @@ HRESULT ApplesoftTokenizer::Tokenize (
 
     for (i = 0; i < lines.size(); i++)
     {
-        size_t  firstReal = SkipSpaces (lines[i], 0);
-        bool    isBlank   = firstReal >= lines[i].size();
+        size_t    at        = 0;
+        uint32_t  number    = 0;
+        size_t    firstReal = SkipSpaces (lines[i], 0);
+        bool      isBlank   = firstReal >= lines[i].size();
+        bool      numbered  = TryParseLineNumber (lines[i], at, number);
+        bool      continues = !numbered && !parsed.empty() && parsed.back().continues;
+        bool      tooLong   = continues && parsed.back().body.size() > kMaxTokenizedLine;
+
+        // A line already past Applesoft's limit fails in EmitProgram whatever
+        // follows it, so its remaining host lines are skipped, not parsed again.
+        if (tooLong)
+        {
+            continue;
+        }
+
+        if (continues)
+        {
+            joined = parsed.back().text + '\n' + lines[i];
+
+            hr = ParseOneLine (joined, parsed.back().index, parsed.back(), outError);
+            CHR (hr);
+
+            continue;
+        }
 
         if (isBlank)
         {
@@ -846,6 +929,88 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ApplesoftTokenizer::IsLineNumberAt
+//
+//  Spaces and then a digit, which TryParseLineNumber reads as a line number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ApplesoftTokenizer::IsLineNumberAt (
+    const std::vector<Byte>  &  body,
+    size_t                      at)
+{
+    size_t  i     = at;
+    size_t  count = body.size();
+
+
+
+    while (i < count && body[i] == (Byte) ' ')
+    {
+        i++;
+    }
+
+    return i < count && body[i] >= (Byte) '0' && body[i] <= (Byte) '9';
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplesoftTokenizer::TryRenderVerbatim
+//
+//  A line feed is a line break, unless the host line after it would read back
+//  as a new program line, in which case it is ^J. A caret is ^^, Ctrl-^ is
+//  the raw byte, because ^^ is a caret, and any other control character is ^
+//  and its letter. DEL ($7F) has no listing form.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ApplesoftTokenizer::TryRenderVerbatim (
+    const std::vector<Byte>  &  body,
+    size_t                      at,
+    std::string              &  ioText)
+{
+    constexpr Byte  kControlCaret = (Byte) kCaret - kControlBase;
+    Byte            b             = body[at];
+    bool            isLineBreak   = b == (Byte) '\n' && !IsLineNumberAt (body, at + 1);
+
+
+
+    if (b > kHighestAscii)
+    {
+        return false;
+    }
+
+    if (isLineBreak)
+    {
+        ioText += '\n';
+    }
+    else if (b == (Byte) kCaret)
+    {
+        ioText += kCaret;
+        ioText += kCaret;
+    }
+    else if (b <= kLastControl && b != kControlCaret)
+    {
+        ioText += kCaret;
+        ioText += (char) (b + kControlBase);
+    }
+    else
+    {
+        ioText += (char) b;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ApplesoftTokenizer::RenderOneLine
 //
 //  A token gets a space in front of it, and one behind it unless it is REM or
@@ -854,6 +1019,11 @@ Error:
 //  back as part of the payload and the listing would grow a space per trip.
 //  Everywhere else a space is dropped on the way in, so writing one costs
 //  nothing and buys a listing somebody can read.
+//
+//  Inside a string, a REM or a DATA payload, a control character is listed as
+//  TryRenderVerbatim writes it: a line feed as a line break, and the others as
+//  ^ and a letter. Tokenize reads both forms back as the bytes they came from.
+//  A control character anywhere else fails the line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -921,14 +1091,18 @@ HRESULT ApplesoftTokenizer::RenderOneLine (
             continue;
         }
 
-        if (!(verbatim ? IsStorableVerbatim ((char) b) : IsPrintable ((char) b)))
+        ok = verbatim ? TryRenderVerbatim (body, i, outText) : IsPrintable ((char) b);
+
+        if (!ok)
         {
             outReason = "has a byte no listing can show";
-            ok        = false;
             continue;
         }
 
-        outText += (char) b;
+        if (!verbatim)
+        {
+            outText += (char) b;
+        }
 
         if (b == (Byte) '"')
         {

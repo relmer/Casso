@@ -20,6 +20,9 @@
 #include "Devices/Disk/DiskImageSession.h"
 #include "Debugger/RomSymbols.h"
 #include "Ui/Debugger/SourceSyntax.h"
+#include "FileTypes/FileFormatTable.h"
+#include "FileTypes/HiResFormats.h"
+#include "FileTypes/TextCharset.h"
 
 
 
@@ -809,6 +812,149 @@ void PreviewDecoder::RenderCatalog (const VolumeListing & listing, VolumeKind ki
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT PreviewDecoder::Render (
+    const FileEntry    & entry,
+    VolumeKind           kind,
+    const FilePayload  & payload,
+    HexForm              hexForm,
+    MemoryBus          & bus,
+    PreviewContent     & outContent,
+    PicturePreview::Monitor  monitor,
+    uint32_t                 customArgb,
+    const DecodeOptions    & options)
+{
+    HRESULT            hr     = S_OK;
+    FileFormat         format = FileFormatTable::Identify (entry, kind, payload.bytes);
+    DecodedFile        decoded;
+    std::wstring       error;
+    std::vector<Byte>  page;
+
+
+
+    //  An LZ4FH picture unpacks to a hi-res page, drawn by the Display
+    //  page's monitor as any other hi-res picture.
+    if (format == FileFormat::Lz4fh)
+    {
+        outContent = PreviewContent();
+
+        hr = Lz4fh::Unpack (payload.bytes, page);
+
+        if (SUCCEEDED (hr))
+        {
+            hr = PicturePreview::Render (PicturePreview::Mode::HiRes, page, s_kHiResPage, bus,
+                                         outContent.bgra, outContent.width, outContent.height, monitor, customArgb);
+        }
+
+        if (SUCCEEDED (hr))
+        {
+            outContent.kind          = PreviewContent::Kind::Picture;
+            outContent.bytes         = page;
+            outContent.origin        = s_kHiResPage;
+            outContent.pictureMode   = PicturePreview::Mode::HiRes;
+            outContent.pictureChosen = PicturePreview::Mode::HiRes;
+            return S_OK;
+        }
+    }
+
+    if (format != FileFormat::None)
+    {
+        FileFacts  facts = FileFacts::From (entry, kind);
+
+        facts.resourceFork = payload.resourceFork;
+        hr                 = FileFormatTable::Decode (format, payload.bytes, facts, options, decoded, error);
+
+        if (SUCCEEDED (hr))
+        {
+            FromDecoded (decoded, outContent);
+            return S_OK;
+        }
+    }
+
+    hr = RenderByType (entry, kind, payload, hexForm, bus, outContent, monitor, customArgb);
+
+    //  Apple text read by its type alone is read again in a chosen set.
+    if (SUCCEEDED (hr) && outContent.kind == PreviewContent::Kind::Text && payload.textForm == PayloadTextForm::AppleHighAscii)
+    {
+        outContent.charset = TextCharset::Resolve (options.charset, false);
+
+        if (outContent.charset != Charset::AppleText)
+        {
+            outContent.lines = TextCharset::DecodeLines (payload.bytes, outContent.charset);
+        }
+    }
+
+    if (!error.empty())
+    {
+        outContent.warning = error;
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::FromDecoded
+//
+//  Lines as text and a picture as a picture; a decoder's notes follow as
+//  the warning.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewDecoder::FromDecoded (const DecodedFile & decoded, PreviewContent & outContent)
+{
+    outContent              = PreviewContent();
+    outContent.charset      = decoded.charset;
+    outContent.recordLength = decoded.recordLength;
+    outContent.sheetForm    = decoded.sheetForm;
+
+    switch (decoded.kind)
+    {
+        case DecodedFile::Kind::Document:
+            outContent.kind       = PreviewContent::Kind::Document;
+            outContent.paragraphs = decoded.paragraphs;
+            break;
+
+        case DecodedFile::Kind::Grid:
+            outContent.kind = PreviewContent::Kind::Grid;
+            outContent.grid = decoded.grid;
+            break;
+
+        case DecodedFile::Kind::Picture:
+            outContent.kind   = PreviewContent::Kind::Picture;
+            outContent.bgra   = decoded.bgra;
+            outContent.width  = decoded.width;
+            outContent.height = decoded.height;
+            break;
+
+        default:
+            outContent.kind      = PreviewContent::Kind::Text;
+            outContent.lines     = decoded.lines;
+            outContent.assembler = decoded.format == FileFormat::Merlin || decoded.format == FileFormat::ScAssembler || decoded.format == FileFormat::Lisa;
+            break;
+    }
+
+    for (const std::wstring & note : decoded.notes)
+    {
+        outContent.warning += (outContent.warning.empty() ? L"" : L" ") + note;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::RenderByType
+//
+//  The preview a file's type and contents choose, with no format decoded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT PreviewDecoder::RenderByType (
     const FileEntry    & entry,
     VolumeKind           kind,
     const FilePayload  & payload,

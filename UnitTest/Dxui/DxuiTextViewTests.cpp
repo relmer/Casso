@@ -73,6 +73,58 @@ public:
     }
 
 
+    //  A picture row is as many lines as the picture is tall, and the picture
+    //  is drawn once, a pixel a DIP.
+    TEST_METHOD (Picture_TakesTheLinesOfItsHeightAndIsDrawnOnce)
+    {
+        DxuiTextView          view;
+        DxuiTextView::Row     row     = MakeRow ({ L"" });
+        auto                  picture = std::make_shared<DxuiTextView::Picture>();
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        int                   drawn   = 0;
+
+        picture->bgra.assign (10 * 40, 0xFF336699);
+        picture->width  = 10;
+        picture->height = 40;
+        row.picture     = picture;
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ MakeRow ({ L"above" }), row, MakeRow ({ L"below" }) });
+
+        Assert::AreEqual (5, view.GetLineCount(), L"a line above, three for 40 pixels of 16-pixel lines, and one below");
+
+        view.Paint (painter, text, theme);
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            drawn += (call.kind == RecordedTextKind::DrawFramebuffer) ? 1 : 0;
+        }
+
+        Assert::AreEqual (1,  drawn);
+        Assert::AreEqual (10, text.GetLastFramebufferWidth());
+    }
+
+
+    //  A row's wrap indent starts each wrapped line that many characters past
+    //  the last cell's first, as source code wraps under its operand.
+    TEST_METHOD (WrapIndent_StartsAWrappedLinePastTheCellsFirstCharacter)
+    {
+        DxuiTextView       view;
+        DxuiTextView::Row  row = MakeRow ({ L"10", L"X LDA AAAA BBBB" });
+
+        row.wrapIndent = 6;
+
+        LayOut (view, 12 + 16 * 8, 400);
+        view.SetRows ({ row });
+
+        Assert::AreEqual (2, view.GetLineCount());
+        Assert::AreEqual (14, view.HitTest (POINT { 6 + 10 * 8, 6 + 16 + 4 }).offset, L"BBBB starts under the first A");
+        Assert::AreEqual (15, view.HitTest (POINT { 6 + 11 * 8, 6 + 16 + 4 }).offset);
+    }
+
+
     //  A row with a wrap indent continues its last cell that many characters
     //  in, so a help row's description wraps under itself.
     TEST_METHOD (WrapIndent_StartsEachWrappedLineThatFarIn)
@@ -90,6 +142,45 @@ public:
         Assert::AreEqual (2, view.GetLineCount(), L"sixteen columns, so the row wraps once");
         Assert::AreEqual (16, view.HitTest (POINT { 6 + 6 * 8, 6 + 16 + 4 }).offset,
             L"the wrapped line starts six columns in, with CCCC under AAAA");
+    }
+
+
+    //  An inverse span is filled with its color, and its characters are drawn
+    //  in the background color over the fill.
+    TEST_METHOD (Span_Inverse_FillsItsColorAndDrawsInTheBackground)
+    {
+        DxuiTextView           view;
+        DxuiTextView::Row      row     = MakeRow ({ L"10", L"PRINT \"^DX\"" });
+        DxuiTextView::Span     span;
+        MockDxuiPainter        painter;
+        MockDxuiTextRenderer   text;
+        MockDxuiTheme          theme;
+        bool                   filled  = false;
+        bool                   drawn   = false;
+
+        span.cell    = 1;
+        span.start   = 7;
+        span.length  = 2;
+        span.argb    = 0xFF112233;
+        span.inverse = true;
+        row.spans.push_back (span);
+
+        LayOut (view, 400, 400);
+        view.SetRows ({ row });
+        view.Paint (painter, text, theme);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            filled = filled || (call.kind == RecordedPaintKind::FillRect && call.argb == 0xFF112233 && call.width == 16.0f && call.height == 16.0f);
+        }
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            drawn = drawn || (call.text == L"^D" && call.argb == theme.ContentBackground());
+        }
+
+        Assert::IsTrue (filled, L"The span's two cells are filled with its color");
+        Assert::IsTrue (drawn,  L"and its characters are drawn in the background color");
     }
 
 
@@ -184,6 +275,32 @@ public:
         view.SetNoWrap (false);
         Assert::AreEqual (0, view.GetLeftColumn());
         Assert::IsTrue   (view.GetLineCount() > 1, L"wrapped again");
+    }
+
+
+    //  A bold run is measured bold, so the text after it starts where the
+    //  bold run ends, not where the same characters end in the regular face.
+    TEST_METHOD (Proportional_MeasuresABoldRunBold)
+    {
+        DxuiTextView          view;
+        DxuiTextView::Row     row = MakeRow ({ L"XXXYY" });
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        DxuiTextView::Span    bold;
+
+        bold.length = 3;
+        bold.bold   = true;
+        row.spans.push_back (bold);
+        text.SetBoldGlyphWidth (9.0f);
+
+        LayOut (view, 400, 400);
+        view.SetProportional (true);
+        view.SetRows ({ row });
+        view.Paint (painter, text, theme);
+
+        Assert::AreEqual (2, view.HitTest (POINT { 6 + 18, 6 + 4 }).offset, L"Two bold characters are 18 wide, not 14");
+        Assert::AreEqual (4, view.HitTest (POINT { 6 + 27 + 7, 6 + 4 }).offset, L"and a regular one after them starts at 27");
     }
 
 

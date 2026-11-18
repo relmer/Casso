@@ -55,7 +55,7 @@ public:
             stretches.Sync (&store);
         }
 
-        Assert::IsTrue (store.GetCount() > 1000, L"the store has many keyframes, so a walk over them would be measurable");
+        Assert::IsTrue (store.GetArena().GetCount() > 1000, L"the store has many keyframes, so a walk over them would be measurable");
         Assert::IsTrue (stretches.GetMadeCount() < kCount + kCount / 100, std::format (L"made {} stretches for {} keyframes", stretches.GetMadeCount(), kCount).c_str());
 
         made = stretches.GetMadeCount();
@@ -102,19 +102,19 @@ public:
         stretches.Sync (&store);
         AssertMatchesRebuild (store, stretches, L"after the budget dropped the oldest");
 
-        hr = store.TruncateAfter (store.GetInfo (store.GetCount() - 5).cycle);
+        hr = store.TruncateAfter (store.GetArena().GetInfo (store.GetArena().GetCount() - 5).cycle);
         AssertSucceeded (hr, L"TruncateAfter");
         stretches.Sync (&store);
         AssertMatchesRebuild (store, stretches, L"after a trim by cycle");
 
-        hr = store.DropAfterPosition (store.GetInfo (store.GetCount() - 3).position);
+        hr = store.DropAfterPosition (store.GetArena().GetInfo (store.GetArena().GetCount() - 3).position);
         AssertSucceeded (hr, L"DropAfterPosition");
         stretches.Sync (&store);
         AssertMatchesRebuild (store, stretches, L"after a trim by position");
 
         //  A trim followed by adds before the next sync: the newest stretches
         //  change in place.
-        hr = store.DropAfterPosition (store.GetInfo (store.GetCount() - 2).position);
+        hr = store.DropAfterPosition (store.GetArena().GetInfo (store.GetArena().GetCount() - 2).position);
         AssertSucceeded (hr, L"DropAfterPosition");
 
         for (i = 0; i < 4; i++, next++)
@@ -199,7 +199,7 @@ private:
 
 
 
-        for (i = 0; i + 1 < store.GetCount(); i++)
+        for (i = 0; i + 1 < store.GetArena().GetCount(); i++)
         {
             rebuilt.push_back (KeyframeStretches::MakeStretch (store, i));
         }

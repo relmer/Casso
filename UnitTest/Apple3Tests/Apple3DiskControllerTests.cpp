@@ -2,6 +2,7 @@
 
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Machines/Apple2/Common/Disk2CardSequencer.h"
 #include "Machines/Apple3/Apple3DiskController.h"
 
 // The controller has the Disk II logic's DiskImage instances; each test
@@ -49,7 +50,7 @@ public:
     {
         constexpr std::array<Byte, 3>  kNibbles = { 0xD5, 0xAA, 0x96 };
         constexpr size_t               kRepeats = 200;
-        DiskImage                    * disk     = controller.GetDiskII().GetDisk (0);
+        DiskImage                    * disk     = controller.GetDiskII().GetDrive (0).GetDisk();
         size_t                         bit      = 0;
 
 
@@ -115,10 +116,10 @@ public:
 
 
         controller->Read (kSelectExt);
-        Assert::AreEqual (1, controller->GetDiskII().GetActiveDrive());
+        Assert::AreEqual (1, controller->GetDiskII().GetLines().GetActiveDrive());
 
         controller->Read (kSelectInt);
-        Assert::AreEqual (0, controller->GetDiskII().GetActiveDrive());
+        Assert::AreEqual (0, controller->GetDiskII().GetLines().GetActiveDrive());
     }
 
 
@@ -131,8 +132,8 @@ public:
         controller->Read (kMotorOn);
         controller->Read (kPhase0On);
 
-        Assert::IsTrue   (controller->GetDiskII().IsMotorOn());
-        Assert::AreEqual ((uint8_t) 0x01, controller->GetDiskII().GetPhases());
+        Assert::IsTrue   (controller->GetDiskII().GetLines().IsMotorOn());
+        Assert::AreEqual ((uint8_t) 0x01, controller->GetDiskII().GetLines().GetPhases());
     }
 
 
@@ -175,20 +176,20 @@ public:
 
 
 
-        controller->GetDiskII().GetDisk (0)->ResizeTrack (0, 8192);
+        controller->GetDiskII().GetDrive (0).GetDisk()->ResizeTrack (0, 8192);
         controller->Read (kMotorOn);
         controller->Read (kQ7Off);
-        controller->SyncToMasterClocks (Apple3DiskController::kMasterPerCycle * Disk2Controller::kMotorSpinupCycles);
+        controller->SyncToMasterClocks (Apple3DiskController::kMasterPerCycle * Disk2CardSequencer::kMotorSpinupCycles);
         controller->Read (kQ6Off);
 
-        size_t  before = controller->GetDiskII().GetEngine (0).GetBitPosition();
+        size_t  before = controller->GetDiskII().GetDrive (0).GetEngine().GetBitPosition();
 
 
 
-        controller->SyncToMasterClocks (Apple3DiskController::kMasterPerCycle * Disk2Controller::kMotorSpinupCycles + kMasterPerBit * 10 + 13);
+        controller->SyncToMasterClocks (Apple3DiskController::kMasterPerCycle * Disk2CardSequencer::kMotorSpinupCycles + kMasterPerBit * 10 + 13);
         controller->Read (kQ6Off);
 
-        Assert::AreEqual ((size_t) 10, controller->GetDiskII().GetEngine (0).GetBitPosition() - before);
+        Assert::AreEqual ((size_t) 10, controller->GetDiskII().GetDrive (0).GetEngine().GetBitPosition() - before);
     }
 
 
@@ -198,7 +199,7 @@ public:
 
 
 
-        controller->GetDiskII().GetDisk (0)->SetWriteProtected (true);
+        controller->GetDiskII().GetDrive (0).GetDisk()->SetWriteProtected (true);
 
         controller->Read (kQ7Off);
         Assert::AreEqual ((Byte) 0x80, (Byte) (controller->Read (kQ6On) & 0x80));

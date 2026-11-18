@@ -243,10 +243,10 @@ namespace DebuggerTests
             snapshot = rig.view.BuildCaptured (session, true);
 
             Assert::IsTrue  (snapshot.codeFind == nullptr, L"not between steps");
-            Assert::IsFalse (rig.view.IsFindTextDue (GetTickCount64()), L"not before the delay");
-            Assert::IsTrue  (rig.view.IsFindTextDue (GetTickCount64() + DebuggerViewState::kFindTextIdleMs), L"due after it");
+            Assert::IsFalse (rig.view.GetCodeViews().IsFindTextDue (GetTickCount64()), L"not before the delay");
+            Assert::IsTrue  (rig.view.GetCodeViews().IsFindTextDue (GetTickCount64() + DebuggerViewState::kFindTextIdleMs), L"due after it");
 
-            rig.view.SetFindTextIdle (0);
+            rig.view.GetCodeViews().SetFindTextIdle (0);
             snapshot = rig.view.BuildCaptured (session, true);
 
             Assert::IsTrue  (snapshot.codeFind != nullptr && !snapshot.codeFind->empty(), L"made once idle");
@@ -265,7 +265,7 @@ namespace DebuggerTests
 
 
 
-            rig.view.SetFindTextIdle (0);
+            rig.view.GetCodeViews().SetFindTextIdle (0);
             (void) rig.view.BuildCaptured (session, true);
 
             session.GetSymbols().Add (SymbolTableId::User, "ZZFINDME", pc);
@@ -294,7 +294,7 @@ namespace DebuggerTests
 
 
 
-            rig.view.SetFindTextIdle (0);
+            rig.view.GetCodeViews().SetFindTextIdle (0);
             (void) session.ExecuteLine ("F 6000,3 4C 34 12", CommandMode::AppleWin);
             (void) rig.view.BuildCaptured (session, true);
             snapshot = rig.view.BuildCaptured (session, true);

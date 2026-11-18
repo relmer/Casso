@@ -65,6 +65,7 @@ public:
     uint64_t          GetHistoryCycles   () const  { return m_cpu6502->GetHistoryCycleCount(); }
     const uint64_t  * GetCycleBasePtr    () const  { return m_cpu6502->GetCycleBasePtr(); }
     uint64_t        * GetBusCyclePtr     ()        { return m_cpu6502->GetBusCyclePtr (); }
+    void              SyncBusCycle       ()        { m_cpu6502->SyncBusCycle(); }
     void              AddCycles          (Byte n);
 
     // Phase 5 / FR-033. Optional sink ticked once per AddCycles call so
@@ -103,13 +104,13 @@ public:
     bool             TryStepInterrupt() { return m_cpu6502->TryStepInterrupt(); }
 
     // Execution trace (--trace switch). Forwarded to the underlying 6502.
-    void             EnableTrace     (size_t capacity)  { m_cpu6502->EnableTrace (capacity); }
-    bool             IsTraceEnabled  () const           { return m_cpu6502->IsTraceEnabled (); }
-    uint64_t         GetTraceCount   () const           { return m_cpu6502->GetTraceCount (); }
+    void             EnableTrace     (size_t capacity)  { m_cpu6502->GetTrace().Enable (capacity); }
+    bool             IsTraceEnabled  () const           { return m_cpu6502->GetTrace().IsEnabled(); }
+    uint64_t         GetTraceCount   () const           { return m_cpu6502->GetTrace().GetCount(); }
     HRESULT          DumpTraceToFile (const std::wstring & path,
                                       const std::string  & preamble,
                                       const std::function<void (uint64_t, uint64_t)> & onProgress) const
-                                                        { return m_cpu6502->DumpTraceToFile (path, preamble, onProgress); }
+                                                        { return m_cpu6502->GetTrace().DumpToFile (path, preamble, onProgress); }
 
     // 6502 register accessors
     Word             GetPC      () const  { return m_cpu6502->GetPC (); }

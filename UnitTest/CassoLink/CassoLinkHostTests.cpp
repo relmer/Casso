@@ -9,6 +9,7 @@
 #include "Core/TextEncoding.h"
 #include "CassoLink/CassoLinkCodec.h"
 #include "CassoLink/CassoLinkHost.h"
+#include "CassoLink/Host/CassoLinkVirtualDrives.h"
 #include "Seams/InProcessByteStream.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -408,6 +409,54 @@ public:
         Assert::IsTrue   (std::equal (data.begin(), data.end(), blocks.begin() + (ptrdiff_t) (kBlock * 512)));
         Assert::AreEqual (2, folder.blockWrites, L"one write for each sector");
         Assert::AreEqual (0, folder.writes);
+    }
+
+
+    //  The CassoLink ProDOS disk's driver writes a block and reads it back:
+    //  each reply has ProDOS's error first, and the read has the block.
+    TEST_METHOD (ACassoLinkVirtualBlock_IsWrittenToTheImage_AndReadBack)
+    {
+        InMemoryCassoLinkFolder  folder;
+        FakeDiskFileIo           io;
+        CassoLinkVirtualDrives   drives (io);
+        std::vector<Byte>        data (CassoLinkVirtualDrives::kBlockSize);
+        std::vector<Byte>        payload = { 1, CassoLinkCodec::kVirtualWrite, 0x07, 0x00 };
+        std::vector<Byte>        wire;
+        std::vector<Byte>        reply;
+        Word                     crc     = 0;
+
+        for (size_t i = 0; i < data.size(); i++)
+        {
+            data[i] = (Byte) (i * 5 + 3);
+        }
+
+        crc = CassoLinkCodec::ComputeCrc (data);
+        payload.insert (payload.end(), data.begin(), data.end());
+        payload.push_back ((Byte) (crc & 0xFF));
+        payload.push_back ((Byte) (crc >> 8));
+
+        io.files["C:\Disks\Drive1.po"]  = std::vector<Byte> (280 * 512, 0);
+        io.stamps["C:\Disks\Drive1.po"] = FileStamp { 280 * 512, 1 };
+        drives.SetImage (1, "C:\Disks\Drive1.po");
+
+        Session  session (folder);
+
+        session.host->SetVirtualDrives (&drives);
+
+        AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kVirtualBlock, payload, wire));
+        session.Send (wire);
+        reply = session.Receive (7);
+        Assert::AreEqual ((size_t) 7, reply.size(), L"the write has a reply");
+        Assert::AreEqual (CassoLinkVirtualDrives::kNoError, reply[5]);
+        Assert::IsTrue (std::equal (data.begin(), data.end(), io.files["C:\Disks\Drive1.po"].begin() + 7 * 512), L"the block is in the image");
+
+        wire.clear();
+        AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kVirtualBlock, std::vector<Byte> { 1, CassoLinkCodec::kVirtualRead, 0x07, 0x00 }, wire));
+        session.Send (wire);
+        reply = session.Receive (5 + 1 + 512 + 2 + 1);
+        Assert::AreEqual ((size_t) 521, reply.size(), L"the read has a reply");
+        Assert::AreEqual (CassoLinkVirtualDrives::kNoError, reply[5]);
+        Assert::IsTrue (std::equal (data.begin(), data.end(), reply.begin() + 6), L"the read has the block");
     }
 
 

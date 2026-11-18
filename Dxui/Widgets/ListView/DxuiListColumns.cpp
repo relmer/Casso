@@ -554,6 +554,25 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListColumns::EnsureMeasured
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListColumns::EnsureMeasured (IDxuiTextRenderer & text) const
+{
+    if (m_measuredWPx.size() != m_list.m_columns.size() || (m_preciseAutoFit && m_measureDirty))
+    {
+        MeasureColumnsPx (text);
+        m_measureDirty = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetColumnNaturalWidthPx
 //
 //  Natural pixel width of a single column ignoring any stretch fill:
@@ -577,6 +596,12 @@ int DxuiListColumns::GetColumnNaturalWidthPx (size_t c) const
         if (c < m_overrideWPx.size() && m_overrideWPx[c] >= 0)
         {
             wpx = m_overrideWPx[c];
+        }
+        else if (m_list.m_rows.IsWrapped() && m_list.m_columns[c].stretch)
+        {
+            //  A wrapped column fills the width the other columns don't use;
+            //  this is its narrowest before the list scrolls sideways.
+            wpx = m_list.m_scaler.ToPx (DxuiListRows::s_kWrapMinWidthDip);
         }
         else if (m_list.m_columns[c].widthDip > 0)
         {
@@ -985,6 +1010,9 @@ int DxuiListColumns::GetContentWidthPx() const
 //
 //  GetCellTextRectPx
 //
+//  The cell, from where its text starts: past the column's padding, the
+//  check box and the icon.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiListColumns::GetCellTextRectPx (int row, size_t column, RECT & outRect) const
@@ -1006,6 +1034,35 @@ bool DxuiListColumns::GetCellTextRectPx (int row, size_t column, RECT & outRect)
         return true;
     }
 
+    if (!GetCellRectPx (row, column, outRect))
+    {
+        return false;
+    }
+
+    outRect.left += GetCellPadLeftPx (column);
+
+    if (column < m_list.GetRowCells (row).size())
+    {
+        outRect.left += GetCellLeadPx (m_list.GetRowCells (row)[column], column);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCellRectPx
+//
+//  A Details row's cell in view: the column's width and the row's height.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListColumns::GetCellRectPx (int row, size_t column, RECT & outRect) const
+{
     int               rowH    = m_list.GetRowHeightPx();
     int               headerH = m_list.m_showHeader ? m_list.GetHeaderBarPx() : 0;
     int               hdrGap  = m_list.m_showHeader ? m_list.GetHeaderGapPx()    : 0;
@@ -1027,22 +1084,25 @@ bool DxuiListColumns::GetCellTextRectPx (int row, size_t column, RECT & outRect)
 
     ComputeColumnLayout ((float) fullW, colXPx, colWPx);
 
-    if (colWPx[column] <= 0)
+    if (m_list.IsItemsView() || colWPx.empty() || colWPx[column] <= 0)
     {
         return false;
     }
 
-    left = colXPx[column] + colOff + GetCellPadLeftPx (column);
-
-    if (column < m_list.GetRowCells (row).size())
-    {
-        left += GetCellLeadPx (m_list.GetRowCells (row)[column], column);
-    }
+    left = colXPx[column] + colOff;
 
     outRect.left   = left;
     outRect.top    = headerH + hdrGap + (m_list.m_grouping.GetLineOfRow (row) - m_list.m_topRow) * rowH - m_list.m_scrollbars.GetRowShiftPx();
     outRect.right  = colXPx[column] + colOff + colWPx[column];
     outRect.bottom = outRect.top + rowH;
+
+    //  Wrapped rows are as tall as their text, so a row starts below the
+    //  heights of the rows above it in view.
+    if (m_list.m_rows.IsWrapped())
+    {
+        outRect.top    = headerH + hdrGap + m_list.m_rows.GetRowsHeightPx (m_list.m_topRow, row) - m_list.m_scrollbars.GetRowShiftPx();
+        outRect.bottom = outRect.top + m_list.m_rows.GetRowHeightPx (row);
+    }
 
     return true;
 }

@@ -4,6 +4,7 @@
 #include "Debugger/DebugSession.h"
 #include "Debugger/IDebugNotificationSink.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/DebuggerKeyActions.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "MockDebugTarget.h"
 
@@ -183,13 +184,13 @@ namespace DebuggerTests
             for (Action action : { Action::StepInto, Action::StepOver, Action::StepOut, Action::RunToCursor, Action::RunFrame,
                                    Action::StepBackInto, Action::StepBackOver, Action::StepBackOut })
             {
-                Assert::IsTrue  (DebuggerActions::IsStepAction (action));
-                Assert::IsFalse (DebuggerActions::GetForKey (action, &running, 0, CommandMode::AppleWin).has_value(), L"running: no action");
-                Assert::IsTrue  (DebuggerActions::GetForKey (action, &paused,  0, CommandMode::AppleWin).has_value(), L"paused: the step");
+                Assert::IsTrue  (DebuggerKeyActions::IsStepAction (action));
+                Assert::IsFalse (DebuggerKeyActions::GetForKey (action, &running, 0, CommandMode::AppleWin).has_value(), L"running: no action");
+                Assert::IsTrue  (DebuggerKeyActions::GetForKey (action, &paused,  0, CommandMode::AppleWin).has_value(), L"paused: the step");
             }
 
-            Assert::IsTrue (DebuggerActions::GetForKey (Action::Run,              &running, 0, CommandMode::AppleWin).has_value(), L"Run stays live");
-            Assert::IsTrue (DebuggerActions::GetForKey (Action::ToggleBreakpoint, &running, 0, CommandMode::AppleWin).has_value(), L"so does a breakpoint");
+            Assert::IsTrue (DebuggerKeyActions::GetForKey (Action::Run,              &running, 0, CommandMode::AppleWin).has_value(), L"Run stays live");
+            Assert::IsTrue (DebuggerKeyActions::GetForKey (Action::ToggleBreakpoint, &running, 0, CommandMode::AppleWin).has_value(), L"so does a breakpoint");
         }
     };
 }

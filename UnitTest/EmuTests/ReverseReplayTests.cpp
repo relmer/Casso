@@ -70,21 +70,21 @@ public:
         {
             const Sample  & sample = samples[(i * s_kReplayShuffle) % count];
 
-            hr = controller.SeekToCycle (sample.cycle, result);
+            hr = controller.GetSeeker().SeekToCycle (sample.cycle, result);
             AssertSucceeded (hr, L"SeekToCycle");
 
             Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"a seek inside history moves");
             Assert::AreEqual<uint64_t> (sample.position, result.position, L"the seek lands on the sampled boundary");
             CheckState (sample.state, ReverseSessionRig::Save (machine), sample.position);
-            Assert::IsTrue (controller.IsInHistory(), L"behind the live end, the machine is in history");
+            Assert::IsTrue (controller.GetSpan().IsInHistory(), L"behind the live end, the machine is in history");
         }
 
-        hr = controller.SeekToCycle (UINT64_MAX, result);
+        hr = controller.GetSeeker().SeekToCycle (UINT64_MAX, result);
         AssertSucceeded (hr, L"SeekToCycle live");
 
         Assert::AreEqual<uint64_t> (last.position, result.position, L"a seek past the end stops at the live end");
         CheckState (last.state, ReverseSessionRig::Save (machine), last.position);
-        Assert::IsFalse (controller.IsInHistory(), L"at the live end the machine is live again");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"at the live end the machine is live again");
     }
 
 
@@ -106,17 +106,17 @@ public:
         AssertSucceeded (hr, L"Start");
 
         RecordSession (machine);
-        keyframes = controller.GetKeyframes().GetCount();
+        keyframes = controller.GetKeyframes().GetArena().GetCount();
 
-        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        hr = controller.GetSeeker().SeekToPosition (controller.GetSeeker().GetOldestPosition(), result);
         AssertSucceeded (hr, L"SeekToPosition oldest");
 
-        hr = controller.SeekToCycle (UINT64_MAX, result);
+        hr = controller.GetSeeker().SeekToCycle (UINT64_MAX, result);
         AssertSucceeded (hr, L"SeekToCycle live");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"no keyframe may diverge");
-        Assert::AreEqual (keyframes, controller.GetKeyframes().GetCount(), L"every keyframe survives the replay");
-        Assert::IsFalse (controller.IsInHistory());
+        Assert::AreEqual (keyframes, controller.GetKeyframes().GetArena().GetCount(), L"every keyframe survives the replay");
+        Assert::IsFalse (controller.GetSpan().IsInHistory());
     }
 
 
@@ -144,13 +144,13 @@ public:
 
         RecordSession (machine);
 
-        Assert::IsTrue (store.GetCount() >= 6, L"the session must span several keyframes");
+        Assert::IsTrue (store.GetArena().GetCount() >= 6, L"the session must span several keyframes");
 
         bad = 2;
 
-        for (i = bad; i < store.GetCount(); i++)
+        for (i = bad; i < store.GetArena().GetCount(); i++)
         {
-            infos.push_back (store.GetInfo (i));
+            infos.push_back (store.GetArena().GetInfo (i));
             states.emplace_back();
 
             hr = store.Restore (i, states.back());
@@ -160,7 +160,7 @@ public:
         // Flip one byte of RAM in the bad keyframe, keep the rest intact.
         states[0][states[0].size() / 4] ^= 0x5A;
 
-        hr = store.TruncateAfter (store.GetInfo (bad - 1).cycle);
+        hr = store.TruncateAfter (store.GetArena().GetInfo (bad - 1).cycle);
         AssertSucceeded (hr, L"TruncateAfter");
 
         for (i = 0; i < infos.size(); i++)
@@ -172,19 +172,19 @@ public:
         // A seek loads the keyframe at or before its target, so it reaches
         // no keyframe; the first step back into the stretch before the bad
         // one replays the whole stretch to build its table, and reaches it.
-        hr = controller.SeekToPosition (store.GetInfo (bad).position - 1, result);
+        hr = controller.GetSeeker().SeekToPosition (store.GetArena().GetInfo (bad).position - 1, result);
         AssertSucceeded (hr, L"SeekToPosition before the bad keyframe");
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"nothing is crossed yet");
 
-        hr = controller.StepBack (result);
+        hr = controller.GetStepper().StepBack (result);
         AssertSucceeded (hr, L"StepBack into the stretch before the bad keyframe");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::HistoryCut, L"the replay must catch the bad keyframe");
-        Assert::AreEqual (bad, store.GetCount(), L"history is cut after the last good keyframe");
-        Assert::AreEqual<uint64_t> (store.GetInfo (bad - 1).position, machine.GetPosition(), L"the machine is at the last good keyframe");
-        Assert::AreEqual (store.GetInfo (bad - 1).journalIndex, machine.GetInputJournal().GetEndIndex(), L"the inputs after it are dropped");
+        Assert::AreEqual (bad, store.GetArena().GetCount(), L"history is cut after the last good keyframe");
+        Assert::AreEqual<uint64_t> (store.GetArena().GetInfo (bad - 1).position, machine.GetRunner().GetPosition(), L"the machine is at the last good keyframe");
+        Assert::AreEqual (store.GetArena().GetInfo (bad - 1).journalIndex, machine.GetHostInput().GetJournal().GetEndIndex(), L"the inputs after it are dropped");
         Assert::IsTrue (store.DoesStateMatch (bad - 1, ReverseSessionRig::Save (machine)), L"in that keyframe's state");
-        Assert::IsFalse (controller.IsInHistory(), L"and live there");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"and live there");
     }
 
 
@@ -215,7 +215,7 @@ public:
 
         recordedUs = TimeFrames (recorded, kFrames);
 
-        Assert::AreEqual<uint64_t> (plain.GetPosition(), recorded.GetPosition(), L"both ran the same instructions");
+        Assert::AreEqual<uint64_t> (plain.GetRunner().GetPosition(), recorded.GetRunner().GetPosition(), L"both ran the same instructions");
 
         Logger::WriteMessage (std::format ("{:.2f} emulated seconds without history: {:.1f} ms, {:.1f}x real time; recording: {:.1f} ms, {:.1f}x real time, +{:.1f}%; {} keyframes in {} bytes, {} bytes reserved\n",
                                            seconds,
@@ -224,8 +224,8 @@ public:
                                            recordedUs / 1000,
                                            seconds * 1e6 / recordedUs,
                                            (recordedUs - plainUs) * 100 / plainUs,
-                                           controller.GetKeyframes().GetCount(),
-                                           controller.GetKeyframes().GetByteCount(),
+                                           controller.GetKeyframes().GetArena().GetCount(),
+                                           controller.GetKeyframes().GetArena().GetByteCount(),
                                            controller.GetKeyframes().GetReservedBytes()).c_str());
     }
 private:
@@ -247,7 +247,7 @@ private:
 
         for (frame = 0; frame < frames; frame++)
         {
-            machine.RunCycles (KeyframeSettings::kFrameCycles);
+            machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
         }
 
         QueryPerformanceCounter (&stop);
@@ -271,7 +271,7 @@ private:
             }
 
             ReverseSessionRig::Feed (machine, slice);
-            machine.RunCycles (s_kReplaySliceCycles);
+            machine.GetRunner().RunCycles (s_kReplaySliceCycles);
         }
 
         return samples;
@@ -284,7 +284,7 @@ private:
 
 
 
-        sample.position = machine.GetPosition();
+        sample.position = machine.GetRunner().GetPosition();
         sample.cycle    = machine.GetCpu()->GetTotalCycles();
         sample.state    = ReverseSessionRig::Save (machine);
 
@@ -295,7 +295,7 @@ private:
     //  The session must really have exercised what the test claims to cover.
     static void CheckSessionCoverage (MachineHost & machine, const ReverseController & controller)
     {
-        const InputJournal  & journal = machine.GetInputJournal();
+        const InputJournal  & journal = machine.GetHostInput().GetJournal();
         size_t                keys    = 0;
         size_t                paddles = 0;
         size_t                i       = 0;
@@ -311,11 +311,11 @@ private:
         Assert::IsTrue (keys > 0,    L"the guest must have read keys");
         Assert::IsTrue (paddles > 0, L"the guest must have read paddle moves");
         Assert::IsTrue (machine.GetDiskStore().GetImage (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive)->IsDirty(), L"the guest must have written the disk");
-        Assert::IsTrue (controller.GetKeyframes().GetCount() > 5, L"the session must span several keyframes");
+        Assert::IsTrue (controller.GetKeyframes().GetArena().GetCount() > 5, L"the session must span several keyframes");
 
         Logger::WriteMessage (std::format ("{} keyframes in {} bytes, {} journal records ({} keys, {} paddles)\n",
-                                           controller.GetKeyframes().GetCount(),
-                                           controller.GetKeyframes().GetByteCount(),
+                                           controller.GetKeyframes().GetArena().GetCount(),
+                                           controller.GetKeyframes().GetArena().GetByteCount(),
                                            journal.GetEndIndex() - journal.GetBeginIndex(),
                                            keys,
                                            paddles).c_str());

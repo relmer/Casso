@@ -20,7 +20,8 @@
 class GroupChoices
 {
 public:
-    enum class Folder { Generic, Documents, OneDrive, Search, Drives, Pictures, Music, Videos, RecycleBin, Home, Gallery, Network, Zip };
+    //  Results is Disk list's and Find duplicates'.
+    enum class Folder { Generic, Documents, OneDrive, Search, Drives, Pictures, Music, Videos, RecycleBin, Home, Gallery, Network, Zip, Results };
 
     struct Choice
     {

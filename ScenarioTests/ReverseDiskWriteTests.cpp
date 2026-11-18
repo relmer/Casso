@@ -65,7 +65,7 @@ namespace ReverseDiskWriteTests
             Assert::AreEqual (S_OK, controller.Start (settings), L"Start");
 
             (void) GuestSession::TypeAndCollect (machine, "SAVE X");
-            machine.RunCycles (kWaitCycles);
+            machine.GetRunner().RunCycles (kWaitCycles);
         }
 
         //  Reverse continue with one breakpoint, and the time it took.
@@ -81,7 +81,7 @@ namespace ReverseDiskWriteTests
             session.OnStopConditionsChanged();
 
             startedAt = GetTickCount64();
-            Assert::AreEqual (S_OK, controller.ReverseContinue (stopTest, result), L"ReverseContinue");
+            Assert::AreEqual (S_OK, controller.GetSeeker().ReverseContinue (stopTest, result), L"ReverseContinue");
             elapsedMs = GetTickCount64() - startedAt;
 
             return result;

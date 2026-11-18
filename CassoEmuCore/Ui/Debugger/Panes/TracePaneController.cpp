@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/TracePaneController.h"
+#include "Ui/Debugger/SessionActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/DebuggerCommands.h"
@@ -352,7 +353,7 @@ void TracePaneController::Save()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host.RunAction (DebuggerActions::GetSaveHistory (TextEncoding::WideToNarrow (chosen.wstring()), m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetSaveHistory (TextEncoding::WideToNarrow (chosen.wstring()), m_host.GetMode()));
 
 Error:
     return;

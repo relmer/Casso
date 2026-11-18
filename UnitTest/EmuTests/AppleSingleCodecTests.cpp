@@ -225,8 +225,8 @@ public:
 
 
 
-    //  Decode skips a resource fork, so a rewrite through Encode would drop it.
-    TEST_METHOD (ResourceFork_IsReportedAsAnotherEntry)
+    //  Decode keeps a resource fork, so a rewrite through Encode keeps it.
+    TEST_METHOD (ResourceFork_IsKept)
     {
         std::vector<Byte>  bytes = { 0x00, 0x05, 0x16, 0x00,  0x00, 0x02, 0x00, 0x00 };
         AppleSingleFile    decoded;
@@ -245,6 +245,31 @@ public:
 
         Assert::AreEqual (S_OK, AppleSingleCodec::Decode (bytes, decoded, error), TextEncoding::NarrowToWide (error).c_str());
         Assert::IsTrue   (decoded.data == std::vector<Byte> { 0xAA });
-        Assert::IsTrue   (decoded.hasOtherEntries);
+        Assert::IsTrue   (decoded.hasResourceFork);
+        Assert::IsTrue   (decoded.resourceFork == std::vector<Byte> { 0xBB });
+        Assert::IsFalse  (decoded.hasOtherEntries);
+    }
+
+    TEST_METHOD (Double_RoundTripsTheForkAndFinderInfoWithoutTheData)
+    {
+        AppleSingleFile    file;
+        AppleSingleFile    decoded;
+        std::vector<Byte>  bytes;
+        std::string        error;
+
+
+
+        file.data            = { 1, 2, 3 };
+        file.resourceFork    = { 4, 5 };
+        file.hasResourceFork = true;
+        file.finderInfo.assign (32, 0x77);
+
+        AppleSingleCodec::EncodeDouble (file, bytes);
+
+        Assert::IsTrue (AppleSingleCodec::IsAppleDouble (bytes));
+        Assert::AreEqual (S_OK, AppleSingleCodec::Decode (bytes, decoded, error));
+        Assert::IsTrue (decoded.data.empty());
+        Assert::IsTrue (decoded.resourceFork == file.resourceFork);
+        Assert::IsTrue (decoded.finderInfo == file.finderInfo);
     }
 };

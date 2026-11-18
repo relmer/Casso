@@ -29,7 +29,12 @@
 class DiskMru
 {
 public:
-    static constexpr size_t  k_capacity = 16;
+    static constexpr size_t  k_capacity   = 1000;
+
+    //  The most a list that displays recent images shows at once, such as
+    //  the startup boot disk picker. The rest feed the Casso node's folders
+    //  and its images' last-used times.
+    static constexpr size_t  kMenuEntries = 16;
 
     struct Entry
     {
@@ -65,6 +70,9 @@ public:
     // Replaces the list outright. Caller is responsible for ordering /
     // de-dup / cap; we still cap on the way in defensively.
     void                 ReplaceAll   (std::vector<Entry> entries);
+
+    // Keeps the count most recent entries and drops the rest.
+    void                 TrimTo       (size_t count);
 
     // Distinct parent directories of `entries`, in first-seen order. The
     // picker uses this to decide which folders to scan for sibling disk

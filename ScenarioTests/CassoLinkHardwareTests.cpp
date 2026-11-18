@@ -1,0 +1,1214 @@
+#include "Pch.h"
+
+#include "EhmTestHelper.h"
+#include "GuestSession.h"
+#include "TestMachine.h"
+#include "CassoLink/CassoLinkCodec.h"
+#include "CassoLink/CassoLinkHost.h"
+#include "Core/TextEncoding.h"
+#include "CassoExplorer/Model/PicturePreview.h"
+#include "Devices/Disk/DiskImage.h"
+#include "DiskCheck/BootCheck.h"
+#include "DiskCheck/BootProbe.h"
+#include "DiskCheck/BootSounds.h"
+#include "Devices/Disk/Inspector/DiskAnalyzer.h"
+#include "Devices/Disk/Inspector/FindingFormatter.h"
+#include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
+#include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
+#include "Machines/Apple2/Common/WozLoader.h"
+#include "CassoLink/InMemoryCassoLinkFolder.h"
+#include "CassoLink/LinkProgram.h"
+#include "CassoLink/ProgramRig.h"
+#include "CassoLink/Session/CassoLinkCapture.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/TrackLayoutWriter.h"
+#include "CassoLink/Session/TrackMeasures.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "Seams/ByteStreamSettings.h"
+#include "Seams/Win32ByteStreamFactory.h"
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHardwareTests
+//
+//  A real Apple on a serial port, with the link program running and no
+//  other program on the port: run only when CASSO_LINK_PORT is set, as
+//  COM3, and pass with nothing done otherwise. CASSO_LINK_DRIVE is the drive,
+//  2 when unset, CASSO_LINK_LAST the last track, 34 when unset, and
+//  CASSO_LINK_OUT the folder the files go to, with every packet in trace.log. The host
+//  loads this build's program when the Apple runs another version.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (CassoLinkHardwareTests)
+{
+public:
+
+    static std::string  GetSetting (const char * name, const char * fallback)
+    {
+        char         * value  = nullptr;
+        size_t         length = 0;
+        std::string    text   = fallback;
+
+
+
+        if (_dupenv_s (&value, &length, name) == 0 && value != nullptr)
+        {
+            text = value;
+            free (value);
+        }
+
+        return text;
+    }
+
+    static void  WriteFile (const std::filesystem::path & path, std::span<const Byte> bytes)
+    {
+        std::ofstream  file (path, std::ios::binary);
+
+
+
+        file.write ((const char *) bytes.data(), (std::streamsize) bytes.size());
+    }
+
+    //  The port opened, and an Idle sent on it: the program sends Ready only
+    //  after a packet from the PC arrives.
+    static void  OpenPort (Win32ByteStreamFactory & factory, const std::string & port, const ComSettings & settings, std::unique_ptr<IByteStream> & outStream)
+    {
+        std::vector<Byte>  idle;
+
+
+
+        AssertSucceeded (factory.OpenComPort (TextEncoding::NarrowToWide (port), settings, outStream));
+        AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kIdle, {}, idle));
+        AssertSucceeded (outStream->Write (idle.data(), idle.size()));
+    }
+
+    //  The disk captured into capture.woz, its reads into capture.reads, and
+    //  each read's progress and the totals into capture.log as they come.
+    TEST_METHOD (RealApple_CapturesTheDisk)
+    {
+        std::string                    port    = GetSetting ("CASSO_LINK_PORT", "");
+        int                            drive   = std::stoi (GetSetting ("CASSO_LINK_DRIVE", "2"));
+        std::filesystem::path          folder  = GetSetting ("CASSO_LINK_OUT", ".");
+        Win32ByteStreamFactory         factory;
+        ComSettings                    settings;
+        std::unique_ptr<IByteStream>   opened;
+        InMemoryCassoLinkFolder        files;
+        std::vector<Byte>              module;
+        std::vector<Byte>              reads;
+        CassoLinkCapture::Result       result;
+        std::ofstream                  log;
+
+
+
+        if (port.empty())
+        {
+            Logger::WriteMessage ("CASSO_LINK_PORT isn't set; no Apple to capture from.\n");
+            return;
+        }
+
+        log.open (folder / "capture.log");
+
+        OpenPort (factory, port, settings, opened);
+
+        CassoLinkHost  host (std::shared_ptr<IByteStream> (std::move (opened)), files, [] () { return std::array<Byte, 4> {}; });
+
+        std::ofstream  trace (folder / "trace.log");
+        int            last  = std::stoi (GetSetting ("CASSO_LINK_LAST", "34"));
+
+        ULONGLONG      began = GetTickCount64();
+
+        host.SetTraceSink ([&trace, began] (bool sent, const std::string & text)
+        {
+            trace << std::format ("{:8} ", GetTickCount64() - began) << (sent ? "> " : "< ") << text << "\n";
+            trace.flush();
+        });
+
+        AssertSucceeded (host.BuildCaptureModule (module));
+        AssertSucceeded (CassoLinkCapture::Capture (host, (Byte) drive, module, "2026-11-11T00:00:00Z", [&log] (const CassoLinkCapture::Progress & where)
+        {
+            log << std::format ("pass {} position {} read {} of {}: {}%, {:.0f} s left\n", where.pass, where.position, where.read, where.reads, where.percent, where.secondsLeft);
+            log.flush();
+        }, result, last));
+
+        CassoLinkCapture::SerializeReads (result.positions, reads);
+        WriteFile (folder / "capture.woz",   result.woz);
+        WriteFile (folder / "capture.reads", reads);
+
+        log << std::format ("{} reads, disk {:.1f} s, line {:.1f} s, {} bytes sent for {} stored, {} of {} between read\n",
+                            result.reads, result.diskMs / 1000.0, result.lineMs / 1000.0, result.sentBytes, result.storedBytes,
+                            result.betweenRead, result.betweenTotal);
+        log << std::format ("{} streams, {} weak, {} unstable\n", result.streams.size(), result.weak.size(), result.unstable.size());
+        log << std::format ("revolution {:.0f} cycles\n", result.revolutionCycles);
+    }
+
+    //  The positions of CASSO_READ_POSITIONS, as 120,124, each read
+    //  CassoLinkCapture::kWholeReads times without waiting on a marker, into
+    //  positions.reads and positions.woz in CASSO_LINK_OUT: run only when
+    //  both CASSO_LINK_PORT and CASSO_READ_POSITIONS are set.
+    TEST_METHOD (RealApple_ReadsThePositions)
+    {
+        std::string                              port   = GetSetting ("CASSO_LINK_PORT", "");
+        std::string                              list   = GetSetting ("CASSO_READ_POSITIONS", "");
+        int                                      drive  = std::stoi (GetSetting ("CASSO_LINK_DRIVE", "1"));
+        std::filesystem::path                    folder = GetSetting ("CASSO_LINK_OUT", ".");
+        Win32ByteStreamFactory                   factory;
+        ComSettings                              settings;
+        std::unique_ptr<IByteStream>             opened;
+        InMemoryCassoLinkFolder                  files;
+        std::vector<Byte>                        module;
+        std::vector<CassoLinkCapture::Position>  positions;
+        std::vector<Byte>                        reads;
+        CassoLinkCapture::Result                 result;
+        int                                      last   = 0;
+
+
+
+        if (port.empty() || list.empty())
+        {
+            Logger::WriteMessage ("CASSO_LINK_PORT or CASSO_READ_POSITIONS isn't set; no positions to read.\n");
+            return;
+        }
+
+        OpenPort (factory, port, settings, opened);
+
+        CassoLinkHost  host (std::shared_ptr<IByteStream> (std::move (opened)), files, [] () { return std::array<Byte, 4> {}; });
+
+        AssertSucceeded (host.BuildCaptureModule (module));
+
+        for (size_t at = 0; at < list.size(); )
+        {
+            size_t                      comma = std::min (list.find (',', at), list.size());
+            CassoLinkCapture::Position  position;
+
+            position.position = std::stoi (list.substr (at, comma - at));
+            last              = std::max (last, position.position);
+            at                = comma + 1;
+
+            for (Byte delay : CassoLinkCapture::kWholeDelays)
+            {
+                std::vector<Byte>  bytes;
+                CassoLinkStatus    status;
+                CaptureTiming      timing;
+
+                AssertSucceeded (host.EnsureModule (module));
+                AssertSucceeded (host.CaptureQuarterTrack ((Byte) drive, (Byte) position.position, (Byte) (delay | (positions.empty() && position.reads.empty() ? CassoLinkHost::kRecalibrate : 0)), 0, 0, CassoLinkHost::kNoSync, {}, bytes, status, timing));
+
+                position.reads.push_back (bytes);
+                position.delays.push_back (delay);
+            }
+
+            positions.push_back (std::move (position));
+        }
+
+        CassoLinkCapture::SerializeReads (positions, reads);
+        WriteFile (folder / "positions.reads", reads);
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, last, "2026-11-12T00:00:00Z", (Byte) drive, result));
+        WriteFile (folder / "positions.woz", result.woz);
+    }
+
+    //  A real capture's reads, from CASSO_CAPTURE_READS, built into a WOZ
+    //  again as rebuilt.woz in CASSO_LINK_OUT, with each whole track's
+    //  sectors decoded: run only when CASSO_CAPTURE_READS is set.
+    TEST_METHOD (RealReads_BuildAWoz)
+    {
+        std::string                              path   = GetSetting ("CASSO_CAPTURE_READS", "");
+        std::filesystem::path                    folder = GetSetting ("CASSO_LINK_OUT", ".");
+        std::vector<Byte>                        file;
+        std::vector<CassoLinkCapture::Position>  positions;
+        CassoLinkCapture::Result                 result;
+        std::vector<Byte>                        sectors;
+        SectorDecodeReport                       report;
+        std::string                              log;
+        int                                      last     = 0;
+        int                                      standard = 0;
+
+
+
+        if (path.empty())
+        {
+            Logger::WriteMessage ("CASSO_CAPTURE_READS isn't set; no reads to build.\n");
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            file.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        AssertSucceeded (CassoLinkCapture::ParseReads (file, positions));
+
+        //  With CASSO_CAPTURE_READS_EARLIER, the reads of an earlier capture
+        //  of the disk too, as a disk read again has.
+        if (!GetSetting ("CASSO_CAPTURE_READS_EARLIER", "").empty())
+        {
+            std::ifstream                            in (GetSetting ("CASSO_CAPTURE_READS_EARLIER", ""), std::ios::binary);
+            std::vector<Byte>                        earlierFile ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char>());
+            std::vector<CassoLinkCapture::Position>  earlier;
+
+            AssertSucceeded (CassoLinkCapture::ParseReads (earlierFile, earlier));
+            CassoLinkCapture::MergeReads (positions, earlier);
+        }
+
+        for (const CassoLinkCapture::Position & position : positions)
+        {
+            if (position.position % 4 == 0)
+            {
+                last      = std::max (last, position.position);
+                standard += CassoLinkCapture::IsStandardTrack (position) ? 1 : 0;
+            }
+        }
+
+        AssertSucceeded (CassoLinkCapture::BuildWoz (positions, last, "2026-11-11T00:00:00Z", 2, result));
+        WriteFile (folder / "rebuilt.woz", result.woz);
+
+        AssertSucceeded (VolumeImage::Load (result.woz, "rebuilt.woz", sectors, report));
+
+        log = std::format ("{} standard whole tracks of {}; {} streams, {} weak, {} unstable; {} sectors unrecovered\nweak:",
+                           standard, last / 4 + 1, result.streams.size(), result.weak.size(), result.unstable.size(), report.GetUnrecoveredCount());
+
+        for (int position : result.weak)
+        {
+            log += std::format (" {}", position);
+        }
+
+        log += "\nunstable:";
+
+        for (int position : result.unstable)
+        {
+            log += std::format (" {}", position);
+        }
+
+        Logger::WriteMessage ((log + "\n").c_str());
+
+        LogFindings (result.woz);
+        LogBoot ("the WOZ", result.woz, sectors, true);
+        LogBoot ("its sectors alone", result.woz, sectors, false);
+    }
+
+    //  An emulated //c booted from the image, or from its sectors as a plain
+    //  image, with the text screen and a hash of each hi-res page logged
+    //  every s_kBootStep cycles, so a protected disk's two boots can be
+    //  compared.
+    static void  LogBoot (const char * what, const std::vector<Byte> & woz, const std::vector<Byte> & sectors, bool fromWoz)
+    {
+        TestMachine  machine ("Apple2c");
+        std::string  log    = std::format ("Booting {}:\n", what);
+
+
+
+        if (fromWoz)
+        {
+            GuestSession::MountWoz (machine, woz, sectors);
+        }
+        else
+        {
+            GuestSession::Mount (machine, sectors);
+        }
+
+        for (int step = 1; step <= s_kBootSteps; step++)
+        {
+            std::vector<std::string>  rows;
+            uint32_t                  hash[2] = { 2166136261u, 2166136261u };
+
+            std::set<int>  heads;
+
+            for (int slice = 0; slice < s_kBootSlices; slice++)
+            {
+                machine.GetRunner().RunCycles (s_kBootStep / s_kBootSlices);
+
+                if (machine.GetRefs().diskController != nullptr)
+                {
+                    heads.insert (machine.GetRefs().diskController->GetLines().GetQuarterTrack());
+                }
+            }
+
+            log += "  head at quarter tracks:";
+
+            for (int head : heads)
+            {
+                log += std::format (" {}", head);
+            }
+
+            log += "\n";
+            GuestSession::CollectRows (machine, rows);
+
+            for (int page = 0; page < 2; page++)
+            {
+                for (Word at = 0; at < 0x2000; at++)
+                {
+                    hash[page] = (hash[page] ^ machine.GetMemoryBus().ReadByte ((Word) (0x2000 * (page + 1) + at))) * 16777619u;
+                }
+            }
+
+            log += std::format ("  after {} M cycles, PC ${:04X}, hi-res {:08X} {:08X}\n", step * s_kBootStep / 1000000, machine.GetCpu()->GetPC(), hash[0], hash[1]);
+
+            for (const std::string & row : rows)
+            {
+                if (row.find_first_not_of (' ') != std::string::npos)
+                {
+                    log += "    |" + row + "|\n";
+                }
+            }
+        }
+
+        Logger::WriteMessage (log.c_str());
+
+        {
+            std::vector<Byte>  pages;
+
+            for (Word at = 0x2000; at < 0x6000; at++)
+            {
+                pages.push_back (machine.GetMemoryBus().ReadByte (at));
+            }
+
+            WriteFile (std::filesystem::path (GetSetting ("CASSO_LINK_OUT", ".")) / (fromWoz ? "boot_woz.bin" : "boot_sectors.bin"), pages);
+        }
+    }
+
+    //  A WOZ from CASSO_CAPTURE_WOZ mounted in an emulated //c and captured
+    //  over the link, as a real Apple's disk is, into emulated.woz in
+    //  CASSO_LINK_OUT, then booted: run only when CASSO_CAPTURE_WOZ is set.
+    TEST_METHOD (AnEmulatedWoz_IsCapturedAndBoots)
+    {
+        std::string                path   = GetSetting ("CASSO_CAPTURE_WOZ", "");
+        std::filesystem::path      folder = GetSetting ("CASSO_LINK_OUT", ".");
+        std::vector<Byte>          source;
+        std::vector<Byte>          module;
+        std::vector<Byte>          sectors;
+        SectorDecodeReport         report;
+        CassoLinkCapture::Result   result;
+
+
+
+        if (path.empty())
+        {
+            Logger::WriteMessage ("CASSO_CAPTURE_WOZ isn't set; no image to capture.\n");
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            source.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        ProgramRig  rig (std::vector<Byte> (143360, 0));
+
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, source));
+        AssertSucceeded (LinkProgram::BuildCaptureModule (module));
+        AssertSucceeded (CassoLinkCapture::Capture (*rig.host, 1, module, "2026-11-11T00:00:00Z", {}, result));
+        WriteFile (folder / "emulated.woz", result.woz);
+
+        Logger::WriteMessage (std::format ("{} reads, synchronized {}\n", result.reads, result.synchronized).c_str());
+
+        AssertSucceeded (VolumeImage::Load (result.woz, "emulated.woz", sectors, report));
+        LogBoot ("the emulated capture", result.woz, sectors, true);
+    }
+
+    //  The time from a marker to a read that waited on it, measured without a
+    //  step: each track of CASSO_SYNC_TRACKS is read, its sector 0 address
+    //  field is the marker, and the track is read again waiting on it there.
+    //  The share of a revolution from the marker to the read is computed from
+    //  the marker's place in that read, a revolution after it passed. On the real
+    //  Apple when CASSO_LINK_PORT is set, and on an emulated //c with the
+    //  WOZ from CASSO_CAPTURE_WOZ otherwise; run only when CASSO_SYNC_TRACKS
+    //  is set.
+    TEST_METHOD (SyncDelay_IsMeasuredOnEachTrack)
+    {
+        std::string                    tracks = GetSetting ("CASSO_SYNC_TRACKS", "");
+        std::string                    port   = GetSetting ("CASSO_LINK_PORT", "");
+        int                            drive  = std::stoi (GetSetting ("CASSO_LINK_DRIVE", "1"));
+        Win32ByteStreamFactory         factory;
+        ComSettings                    settings;
+        std::unique_ptr<IByteStream>   opened;
+        InMemoryCassoLinkFolder        files;
+        std::ofstream                  trace;
+        std::unique_ptr<CassoLinkHost> real;
+        std::unique_ptr<ProgramRig>    rig;
+        CassoLinkHost                * host   = nullptr;
+        std::vector<Byte>              module;
+        std::string                    log;
+
+
+
+        if (tracks.empty())
+        {
+            Logger::WriteMessage ("CASSO_SYNC_TRACKS isn't set; no tracks to measure.\n");
+            return;
+        }
+
+        if (!port.empty())
+        {
+            OpenPort (factory, port, settings, opened);
+            real = std::make_unique<CassoLinkHost> (std::shared_ptr<IByteStream> (std::move (opened)), files, [] () { return std::array<Byte, 4> {}; });
+            host = real.get();
+
+            trace.open (std::filesystem::path (GetSetting ("CASSO_LINK_OUT", ".")) / "trace.log");
+            host->SetTraceSink ([&trace] (bool sent, const std::string & text)
+            {
+                trace << (sent ? "> " : "< ") << text << "\n";
+                trace.flush();
+            });
+        }
+        else
+        {
+            std::vector<Byte>  source;
+            std::ifstream      in (GetSetting ("CASSO_CAPTURE_WOZ", ""), std::ios::binary);
+
+            source.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+            rig = std::make_unique<ProgramRig> (std::vector<Byte> (143360, 0));
+            AssertSucceeded (rig->machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, source));
+            host  = rig->host.get();
+            drive = 1;
+        }
+
+        AssertSucceeded (host->BuildCaptureModule (module));
+
+        for (size_t at = 0; at < tracks.size(); )
+        {
+            size_t             comma    = std::min (tracks.find (',', at), tracks.size());
+            int                track    = std::stoi (tracks.substr (at, comma - at));
+            Byte               position = (Byte) (track * 4);
+            std::vector<Byte>  first;
+            std::vector<Byte>  marker;
+            size_t             found    = SIZE_MAX;
+            size_t             again    = SIZE_MAX;
+            CassoLinkStatus    status;
+            CaptureTiming      timing;
+
+            at = comma + 1;
+
+            AssertSucceeded (host->EnsureModule (module));
+            AssertSucceeded (host->CaptureQuarterTrack ((Byte) drive, position, 0, 0, 0, CassoLinkHost::kNoSync, {}, first, status, timing));
+
+            found = FindSectorZero (first, 0);
+            again = found == SIZE_MAX ? SIZE_MAX : FindSectorZero (first, found + 1);
+
+            if (again == SIZE_MAX)
+            {
+                log += std::format ("track {}: sector 0's address field doesn't repeat\n", track);
+                continue;
+            }
+
+            //  A byte the read marked has its top bit clear; the latch has it set.
+            std::transform (first.begin() + (std::ptrdiff_t) found, first.begin() + (std::ptrdiff_t) found + s_kMarkerBytes, std::back_inserter (marker), [] (Byte value) { return (Byte) (value | 0x80); });
+            log += std::format ("track {}: a revolution is {} bytes\n", track, again - found);
+
+            for (int read = 0; read < s_kSyncReads; read++)
+            {
+                std::vector<Byte>  synced;
+                size_t             passed = SIZE_MAX;
+
+                AssertSucceeded (host->EnsureModule (module));
+                AssertSucceeded (host->CaptureQuarterTrack ((Byte) drive, position, 0, 0, 0, position, marker, synced, status, timing));
+
+                passed = status.error == 0 ? FindSectorZero (synced, 0) : SIZE_MAX;
+
+                if (passed == SIZE_MAX)
+                {
+                    log += std::format ("  read {}: error {:02X}, no marker\n", read, status.error);
+                    continue;
+                }
+
+                log += std::format ("  read {}: the marker ends {} bytes before the read starts, {:.4f} of a revolution\n", read,
+                                    again - found - passed - s_kMarkerBytes,
+                                    (double) (again - found - passed - s_kMarkerBytes) / (double) (again - found));
+            }
+        }
+
+        Logger::WriteMessage (log.c_str());
+    }
+
+    //  The bytes from a step to the next track's sector 0, as a protection
+    //  that checks track alignment counts them: for each track of
+    //  CASSO_STEP_TRACKS, the address field of sector CASSO_STEP_MARKER, 0
+    //  when unset, is the marker, and CASSO_STEP_READS reads of the track
+    //  CASSO_STEP_BY on, 1 when unset, wait on it, each the bytes before that
+    //  track's sector 0 address field. On the real Apple
+    //  when CASSO_LINK_PORT is set, and on an emulated //c with the WOZ from
+    //  CASSO_CAPTURE_WOZ otherwise; run only when CASSO_STEP_TRACKS is set.
+    TEST_METHOD (StepToSectorZero_IsCounted)
+    {
+        std::string                    tracks = GetSetting ("CASSO_STEP_TRACKS", "");
+        std::string                    port   = GetSetting ("CASSO_LINK_PORT", "");
+        int                            drive  = std::stoi (GetSetting ("CASSO_LINK_DRIVE", "1"));
+        int                            reads  = std::stoi (GetSetting ("CASSO_STEP_READS", "20"));
+        int                            from   = std::stoi (GetSetting ("CASSO_STEP_MARKER", "0"));
+        int                            step   = std::stoi (GetSetting ("CASSO_STEP_BY", "1"));
+        Win32ByteStreamFactory         factory;
+        ComSettings                    settings;
+        std::unique_ptr<IByteStream>   opened;
+        InMemoryCassoLinkFolder        files;
+        std::unique_ptr<CassoLinkHost> real;
+        std::unique_ptr<ProgramRig>    rig;
+        CassoLinkHost                * host   = nullptr;
+        std::vector<Byte>              module;
+        std::string                    log;
+
+
+
+        if (tracks.empty())
+        {
+            Logger::WriteMessage ("CASSO_STEP_TRACKS isn't set; no steps to count.\n");
+            return;
+        }
+
+        if (!port.empty())
+        {
+            OpenPort (factory, port, settings, opened);
+            real = std::make_unique<CassoLinkHost> (std::shared_ptr<IByteStream> (std::move (opened)), files, [] () { return std::array<Byte, 4> {}; });
+            host = real.get();
+        }
+        else
+        {
+            std::vector<Byte>  source;
+            std::ifstream      in (GetSetting ("CASSO_CAPTURE_WOZ", ""), std::ios::binary);
+
+            source.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+            rig = std::make_unique<ProgramRig> (std::vector<Byte> (143360, 0));
+            AssertSucceeded (rig->machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, source));
+            host  = rig->host.get();
+            drive = 1;
+        }
+
+        AssertSucceeded (host->BuildCaptureModule (module));
+
+        for (size_t at = 0; at < tracks.size(); )
+        {
+            size_t             comma  = std::min (tracks.find (',', at), tracks.size());
+            int                track  = std::stoi (tracks.substr (at, comma - at));
+            std::vector<Byte>  first;
+            std::vector<Byte>  marker;
+            std::vector<int>   counts;
+            size_t             found  = SIZE_MAX;
+            CassoLinkStatus    status;
+            CaptureTiming      timing;
+
+            at = comma + 1;
+
+            AssertSucceeded (host->EnsureModule (module));
+            AssertSucceeded (host->CaptureQuarterTrack ((Byte) drive, (Byte) (track * 4), CassoLinkHost::kRecalibrate, 0, 0, CassoLinkHost::kNoSync, {}, first, status, timing));
+
+            found = FindSector (first, 0, from);
+            Assert::IsTrue (found != SIZE_MAX, L"The track has the marker's sector");
+
+            std::transform (first.begin() + (std::ptrdiff_t) found, first.begin() + (std::ptrdiff_t) found + s_kMarkerBytes, std::back_inserter (marker), [] (Byte value) { return (Byte) (value | 0x80); });
+
+            for (int read = 0; read < reads; read++)
+            {
+                std::vector<Byte>  bytes;
+
+                AssertSucceeded (host->EnsureModule (module));
+                AssertSucceeded (host->CaptureQuarterTrack ((Byte) drive, (Byte) ((track + step) * 4), 0, 0, 0, (Byte) (track * 4), marker, bytes, status, timing));
+
+                found = status.error == 0 ? FindSectorZero (bytes, 0) : SIZE_MAX;
+                counts.push_back (found == SIZE_MAX ? -1 : (int) found);
+            }
+
+            log += std::format ("track {} sector {} to track {} sector 0:", track, from, track + step);
+
+            for (int count : counts)
+            {
+                log += std::format (" {}", count);
+            }
+
+            log += "\n";
+        }
+
+        Logger::WriteMessage (log.c_str());
+    }
+
+    //  The first address field of sector 0 at or after `from`, SIZE_MAX for
+    //  none, with each byte's mark ignored.
+    static size_t  FindSectorZero (const std::vector<Byte> & bytes, size_t from)
+    {
+        return FindSector (bytes, from, 0);
+    }
+
+    //  The first address field of `sector` at or after `from`, SIZE_MAX for
+    //  none, with each byte's mark ignored.
+    static size_t  FindSector (const std::vector<Byte> & bytes, size_t from, int sector)
+    {
+        auto  get = [&bytes] (size_t at) { return (Byte) (bytes[at] | 0x80); };
+
+
+
+        for (size_t at = from; at + s_kMarkerBytes <= bytes.size(); at++)
+        {
+            bool  prolog = get (at) == 0xD5 && get (at + 1) == 0xAA && get (at + 2) == 0x96;
+
+            if (prolog && (((get (at + 7) << 1) | 1) & get (at + 8)) == sector)
+            {
+                return at;
+            }
+        }
+
+        return SIZE_MAX;
+    }
+
+    //  An image from CASSO_BOOT_IMAGE, a WOZ or a DOS-ordered sector image,
+    //  booted as LogBoot boots one: run only when CASSO_BOOT_IMAGE is set.
+    TEST_METHOD (AnImage_Boots)
+    {
+        std::string        path = GetSetting ("CASSO_BOOT_IMAGE", "");
+        std::vector<Byte>  sectors;
+
+
+
+        if (path.empty())
+        {
+            Logger::WriteMessage ("CASSO_BOOT_IMAGE isn't set; no image to boot.\n");
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            sectors.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        if (path.ends_with (".woz"))
+        {
+            std::vector<Byte>   woz = std::move (sectors);
+            SectorDecodeReport  report;
+
+            AssertSucceeded (VolumeImage::Load (woz, "image.woz", sectors, report));
+            LogBoot (path.c_str(), woz, sectors, true);
+        }
+        else
+        {
+            LogBoot (path.c_str(), {}, sectors, false);
+        }
+    }
+
+    //  Each .woz, .dsk, .do and .po file of the folder CASSO_PROBE_IMAGES,
+    //  booted by BootProbe on an enhanced //e: its verdict, reason and
+    //  seconds are written to probe.txt and its last frame to a PNG with the
+    //  image's file name, in CASSO_LINK_OUT. Run only when
+    //  CASSO_PROBE_IMAGES is set.
+    TEST_METHOD (ImagesInAFolder_AreProbed)
+    {
+        std::string            folder = GetSetting ("CASSO_PROBE_IMAGES", "");
+        std::filesystem::path  out    = GetSetting ("CASSO_LINK_OUT", ".");
+        std::ofstream          log;
+
+
+
+        if (folder.empty())
+        {
+            Logger::WriteMessage ("CASSO_PROBE_IMAGES isn't set; no images to probe.\n");
+            return;
+        }
+
+        log.open (out / "probe.txt");
+
+        for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (folder))
+        {
+            std::string        extension = entry.path().extension().string();
+            bool               isWoz     = extension == ".woz";
+            bool               isSectors = extension == ".dsk" || extension == ".do" || extension == ".po";
+            std::vector<Byte>  bytes;
+            std::vector<Byte>  png;
+            BootReport         report;
+            TestMachine        machine (GetSetting ("CASSO_PROBE_MACHINE", "Apple2eEnhanced"));
+            auto               began     = std::chrono::steady_clock::now();
+            double             seconds   = 0.0;
+
+            if (!isWoz && !isSectors)
+            {
+                continue;
+            }
+
+            {
+                std::ifstream  in (entry.path(), std::ios::binary);
+
+                bytes.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+            }
+
+            AssertSucceeded (BootProbe::Probe (machine, machine.GetBuilder(), bytes, isWoz ? DiskFormat::Woz : extension == ".po" ? DiskFormat::Po : DiskFormat::Dsk, BootProbe::Limits(), report));
+
+            seconds = std::chrono::duration<double> (std::chrono::steady_clock::now() - began).count();
+
+            AssertSucceeded (PicturePreview::EncodePng (report.frame, report.width, report.height, png));
+            WriteFile (out / (entry.path().filename().string() + ".png"), png);
+
+            log << entry.path().filename().string() << ": " << BootProbe::GetVerdictName (report.verdict) << ", " << std::format ("{:.1f}", seconds) << " s. " << report.reason << (report.isTextMode ? " Text." : " Graphics.") << std::endl;
+
+            {
+                std::map<Word, int>  counts;
+
+                for (Word pc : report.endPcs) { counts[pc]++; }
+
+                log << "    pcs " << counts.size() << ":";
+
+                for (const auto & [pc, count] : counts) { log << std::format (" {:04X}x{}", pc, count); }
+
+                log << std::endl;
+
+                if (counts.size() <= 24 && !counts.empty())
+                {
+                    Word  from = (Word) (counts.begin()->first & 0xFFF0);
+                    Word  to   = (Word) (counts.rbegin()->first | 0x000F);
+
+                    for (int at = from; at <= to && at - from < 0x100; at++)
+                    {
+                        log << ((at & 0x0F) == 0 ? std::format ("\n    {:04X}:", at) : std::string()) << std::format (" {:02X}", machine.GetMemoryBus().ReadByte ((Word) at));
+                    }
+
+                    log << std::endl;
+                }
+            }
+
+            for (const std::string & row : report.rows)
+            {
+                if (!row.empty())
+                {
+                    log << "    |" << row << "|" << std::endl;
+                }
+            }
+        }
+    }
+
+    //  Each image in the folder CASSO_PROBE_IMAGES checked as Casso Explorer
+    //  checks it, on the installed machines booted at once, and then on each
+    //  machine alone. The results are written to check.txt in CASSO_LINK_OUT.
+    //  Run only when CASSO_PROBE_IMAGES is set.
+    TEST_METHOD (ImagesInAFolder_AreCheckedAsCassoExplorerChecksThem)
+    {
+        std::string            folder = GetSetting ("CASSO_PROBE_IMAGES", "");
+        std::filesystem::path  out    = GetSetting ("CASSO_LINK_OUT", ".");
+        std::ofstream          log;
+
+
+
+        if (folder.empty())
+        {
+            Logger::WriteMessage ("CASSO_PROBE_IMAGES isn't set; no images to check.\n");
+            return;
+        }
+
+        log.open (out / "check.txt");
+
+        for (const std::filesystem::directory_entry & entry : std::filesystem::directory_iterator (folder))
+        {
+            std::string               extension = entry.path().extension().string();
+            DiskFormat                format    = extension == ".woz" ? DiskFormat::Woz : extension == ".po" ? DiskFormat::Po : DiskFormat::Dsk;
+            std::vector<Byte>         bytes;
+            BootReport                report;
+            std::string               machine;
+            std::vector<std::string>  missing;
+
+            if (extension != ".woz" && extension != ".dsk" && extension != ".do" && extension != ".po")
+            {
+                continue;
+            }
+
+            {
+                std::ifstream  in (entry.path(), std::ios::binary);
+
+                bytes.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+            }
+
+            AssertSucceeded (BootCheck::Run (bytes, format, "", BootProbe::Limits(), BootCheck::BuildInstalled, report, machine, missing));
+
+            log << entry.path().filename().string() << ": at once, " << BootProbe::GetVerdictName (report.verdict) << " on " << machine << ". " << report.reason << std::endl;
+
+            for (const std::string & id : BootCheck::GetMachines (""))
+            {
+                BootCheck::Built  built;
+                BootReport        alone;
+                std::string       error;
+
+                AssertSucceeded (BootCheck::BuildInstalled (id, built, error));
+                AssertSucceeded (BootProbe::Probe (*built.host, *built.builder, bytes, format, BootProbe::Limits(), alone));
+
+                log << "    alone on " << id << ", " << BootProbe::GetVerdictName (alone.verdict) << ". " << alone.reason << std::endl;
+            }
+        }
+    }
+
+    //  A track's layout as a raw capture has it: its bits, the nibbles that
+    //  begin in one turn, where sector 0's address field begins, and the
+    //  address fields' volume.
+    static TrackLayout  ReadLayout (const DiskImage & image, int track)
+    {
+        TrackLayout          layout;
+        size_t               length = image.GetTrackBitCount (track);
+        size_t               at     = 0;
+        std::vector<Byte>    nibbles;
+        std::vector<size_t>  starts;
+
+
+
+        layout.bits = (int) length;
+
+        while (at < length * 2 && length > 0)
+        {
+            size_t  start  = at;
+            Byte    nibble = NibblizationLayer::ReadNibbleAt (image, track, at);
+
+            if (nibble == 0)
+            {
+                break;
+            }
+
+            nibbles.push_back (nibble);
+            starts.push_back (start);
+            layout.nibbles += (start >= length / 2 && start < length + length / 2) ? 1 : 0;
+        }
+
+        for (size_t i = 0; i + 10 < nibbles.size(); i++)
+        {
+            bool  isAddress = nibbles[i] == 0xD5 && nibbles[i + 1] == 0xAA && nibbles[i + 2] == 0x96;
+            Byte  sector    = (Byte) (((nibbles[i + 7] << 1) | 1) & nibbles[i + 8]);
+
+            if (isAddress && sector == 0 && starts[i] >= length / 2)
+            {
+                layout.sector0 = (long long) (starts[i] % length);
+                layout.volume  = (Byte) (((nibbles[i + 3] << 1) | 1) & nibbles[i + 4]);
+                break;
+            }
+        }
+
+        return layout;
+    }
+
+    //  Wizardry I's boot disk measures the time from sector 0 on one track to
+    //  sector 0 on the next. A WOZ built from its sector image, CASSO_WIZARDRY_PO,
+    //  with each track's layout from a raw capture of it, CASSO_WIZARDRY_WOZ,
+    //  passes that check: after the boot it isn't in the ROM's BRK handler at
+    //  $FA40, where a failed check ends. The sector image laid out as Casso
+    //  lays out any other is the control, and fails. Run only when both are set.
+    TEST_METHOD (AWozBuiltToTheMeasuredLayouts_PassesWizardrysTrackCheck)
+    {
+        static constexpr uint64_t  kBootCycles = 60'000'000;
+        std::string                capture     = GetSetting ("CASSO_WIZARDRY_WOZ", "");
+        std::string                sectorImage = GetSetting ("CASSO_WIZARDRY_PO", "");
+        std::vector<Byte>          captureBytes;
+        std::vector<Byte>          poBytes;
+        std::vector<Byte>          sectors;
+        std::vector<Byte>          built;
+        std::vector<Byte>          plain;
+        std::vector<TrackLayout>   layouts;
+        SectorDecodeReport         report;
+        DiskImage                  captured;
+        DiskImage                  laidOut;
+
+
+
+        if (capture.empty() || sectorImage.empty())
+        {
+            Logger::WriteMessage ("CASSO_WIZARDRY_WOZ and CASSO_WIZARDRY_PO aren't both set; no image to build.\n");
+            return;
+        }
+
+        captureBytes = ReadBytes (capture);
+        poBytes      = ReadBytes (sectorImage);
+
+        AssertSucceeded (WozLoader::Load (captureBytes, captured));
+        AssertSucceeded (VolumeImage::Load (poBytes, "boot.po", sectors, report));
+
+        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            layouts.push_back (ReadLayout (captured, track));
+        }
+
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (sectors, layouts, built));
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, laidOut));
+        AssertSucceeded (WozLoader::Serialize (laidOut, plain));
+
+        Assert::IsTrue  (PassesBoot (built, kBootCycles), L"The WOZ built to the measured layouts");
+        Assert::IsFalse (PassesBoot (plain, kBootCycles), L"The sector image as Casso lays it out");
+    }
+
+    //  The whole path from a disk to a WOZ that passes Wizardry I's check:
+    //  the raw capture CASSO_WIZARDRY_WOZ mounted on an emulated //c, Measure
+    //  track run by the program on each of its tracks, the layouts computed
+    //  from the measures, and a WOZ built to them from the sector image
+    //  CASSO_WIZARDRY_PO. Run only when both are set.
+    TEST_METHOD (TheMeasuresOfAWizardryDisk_BuildAWozThatPassesItsCheck)
+    {
+        static constexpr uint64_t                 kBootCycles = 60'000'000;
+        std::string                               capture     = GetSetting ("CASSO_WIZARDRY_WOZ", "");
+        std::string                               sectorImage = GetSetting ("CASSO_WIZARDRY_PO", "");
+        std::vector<Byte>                         captureBytes;
+        std::vector<Byte>                         sectors;
+        std::vector<Byte>                         built;
+        std::vector<CassoLinkHost::TrackMeasure>  measures;
+        SectorDecodeReport                        report;
+        DiskImage                                 captured;
+
+
+
+        if (capture.empty() || sectorImage.empty())
+        {
+            Logger::WriteMessage ("CASSO_WIZARDRY_WOZ and CASSO_WIZARDRY_PO aren't both set; no disk to measure.\n");
+            return;
+        }
+
+        captureBytes = ReadBytes (capture);
+
+        AssertSucceeded (WozLoader::Load (captureBytes, captured));
+        AssertSucceeded (VolumeImage::Load (ReadBytes (sectorImage), "boot.po", sectors, report));
+
+        measures = Measure (captureBytes);
+
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (sectors, TrackMeasures::ToLayouts (measures, (int) captured.GetTrackBitCount (0)), built));
+
+        Assert::IsTrue (PassesBoot (built, kBootCycles), L"The WOZ built to the measures");
+    }
+
+    //  As TheMeasuresOfAWizardryDisk_BuildAWozThatPassesItsCheck, read on a
+    //  drive 2% slow. The emulated drive turns as fast as its WOZ's tracks
+    //  allow, so the slow drive's measures are made from the emulated ones:
+    //  the step's cycles cover less of a slow turn, so the nibbles counted
+    //  after it cover that much more, and the turn's nibbles are the disk's.
+    //  The layouts have the disk's track lengths, and the WOZ built to them
+    //  passes the check.
+    TEST_METHOD (TheMeasuresOfAWizardryDiskOnASlowDrive_BuildAWozThatPassesItsCheck)
+    {
+        static constexpr uint64_t                 kBootCycles = 60'000'000;
+        static constexpr double                   kSlow       = 1.02;
+        std::string                               capture     = GetSetting ("CASSO_WIZARDRY_WOZ", "");
+        std::string                               sectorImage = GetSetting ("CASSO_WIZARDRY_PO", "");
+        std::vector<Byte>                         captureBytes;
+        std::vector<Byte>                         sectors;
+        std::vector<Byte>                         built;
+        std::vector<CassoLinkHost::TrackMeasure>  measures;
+        std::vector<TrackLayout>                  layouts;
+        SectorDecodeReport                        report;
+        DiskImage                                 captured;
+        double                                    fastBits    = 0.0;
+        double                                    slowBits    = 0.0;
+
+
+
+        if (capture.empty() || sectorImage.empty())
+        {
+            Logger::WriteMessage ("CASSO_WIZARDRY_WOZ and CASSO_WIZARDRY_PO aren't both set; no disk to measure.\n");
+            return;
+        }
+
+        captureBytes = ReadBytes (capture);
+
+        AssertSucceeded (WozLoader::Load (captureBytes, captured));
+        AssertSucceeded (VolumeImage::Load (ReadBytes (sectorImage), "boot.po", sectors, report));
+
+        measures = Measure (captureBytes);
+        fastBits = (double) captured.GetTrackBitCount (captured.ResolveQuarterTrack (0));
+        slowBits = fastBits * kSlow;
+
+        for (size_t track = 1; track < measures.size(); track++)
+        {
+            double  more = (double) TrackMeasures::kStepBits * measures[track].turn * (1.0 / fastBits - 1.0 / slowBits);
+
+            measures[track].fromStep = (Word) (measures[track].fromStep + llround (more));
+        }
+
+        layouts = TrackMeasures::ToLayouts (measures, (int) llround (slowBits));
+
+        for (const TrackLayout & layout : layouts)
+        {
+            Assert::AreNotEqual (0, layout.nibbles, L"Every track has a layout");
+        }
+
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (sectors, layouts, built));
+
+        Assert::IsTrue (PassesBoot (built, kBootCycles), L"The WOZ built to the slow drive's measures");
+    }
+
+    //  Measure track on each track of a WOZ mounted on an emulated //c.
+    static std::vector<CassoLinkHost::TrackMeasure>  Measure (const std::vector<Byte> & woz)
+    {
+        std::vector<CassoLinkHost::TrackMeasure>  measures;
+        ProgramRig                                rig (std::vector<Byte> (NibblizationLayer::kImageByteSize, 0));
+
+
+
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (ProgramRig::kSlot, 0, "", DiskFormat::Woz, woz));
+
+        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            CassoLinkHost::TrackMeasure  measure;
+            CassoLinkStatus              status;
+
+            AssertSucceeded (rig.host->MeasureTrack (1, (Byte) track, measure, status));
+            measures.push_back (measure);
+        }
+
+        return measures;
+    }
+
+    //  Whether a //c booted from the WOZ for `cycles` is outside the ROM's BRK
+    //  handler at each of a few hundred samples after it.
+    static bool  PassesBoot (const std::vector<Byte> & woz, uint64_t cycles)
+    {
+        static constexpr int   kSamples     = 400;
+        static constexpr Word  kBreakFirst  = 0xFA40;
+        static constexpr Word  kBreakEnd    = 0xFA60;
+        TestMachine            machine ("Apple2c");
+        bool                   passes       = true;
+
+
+
+        machine.PowerCycle();
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "boot.woz", DiskFormat::Woz, woz));
+        machine.GetRunner().RunCycles (cycles);
+
+        for (int i = 0; i < kSamples && passes; i++)
+        {
+            Word  pc = 0;
+
+            machine.GetRunner().RunCycles (997);
+            pc     = machine.GetCpu()->GetPC();
+            passes = pc < kBreakFirst || pc >= kBreakEnd;
+        }
+
+        return passes;
+    }
+
+    static std::vector<Byte>  ReadBytes (const std::string & path)
+    {
+        std::ifstream  in (path, std::ios::binary);
+
+
+
+        return std::vector<Byte> (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+    }
+
+    //  A WOZ from CASSO_RUN_IMAGE booted in a //c, then each key of
+    //  CASSO_KEYS pressed, s_kRunKeyCycles apart, then each paddle step of
+    //  CASSO_JOY applied: x, y and millions of cycles, with a semicolon
+    //  between steps. The text screen is written to run.txt and the two
+    //  hi-res pages to run_pages.bin, in CASSO_LINK_OUT. Run only when
+    //  CASSO_RUN_IMAGE is set.
+    TEST_METHOD (TheBootSounds_AreWrittenAsFiles)
+    {
+        std::filesystem::path  folder = GetSetting ("CASSO_LINK_OUT", "");
+
+        if (GetSetting ("CASSO_BOOT_SOUNDS", "").empty())
+        {
+            Logger::WriteMessage ("CASSO_BOOT_SOUNDS isn't set; no sounds are written.\n");
+            return;
+        }
+
+        WriteFile (folder / "booted.wav", BootSounds::MakeBooted());
+        WriteFile (folder / "did-not-boot.wav", BootSounds::MakeDidNotBoot());
+    }
+
+    TEST_METHOD (AnImage_IsRunWithKeys)
+    {
+        std::string               path   = GetSetting ("CASSO_RUN_IMAGE", "");
+        std::filesystem::path     folder = GetSetting ("CASSO_LINK_OUT", ".");
+        std::string               joy    = GetSetting ("CASSO_JOY", "");
+        std::string               keys   = GetSetting ("CASSO_KEYS", " ");
+        std::vector<Byte>         woz;
+        std::vector<Byte>         sectors;
+        std::vector<Byte>         pages;
+        std::vector<std::string>  rows;
+        SectorDecodeReport        report;
+        TestMachine               machine ("Apple2c");
+        size_t                    at     = 0;
+
+
+
+        if (path.empty())
+        {
+            Logger::WriteMessage ("CASSO_RUN_IMAGE isn't set; no image to run.\n");
+            return;
+        }
+
+        {
+            std::ifstream  in (path, std::ios::binary);
+
+            woz.assign (std::istreambuf_iterator<char> (in), std::istreambuf_iterator<char>());
+        }
+
+        AssertSucceeded (VolumeImage::Load (woz, "image.woz", sectors, report));
+
+        GuestSession::MountWoz (machine, woz, sectors);
+        machine.GetRunner().RunCycles (s_kRunBootCycles);
+
+        for (char key : keys)
+        {
+            machine.GetRefs().iieKeyboard->PressKey ((Byte) key);
+            machine.GetRunner().RunCycles (s_kRunKeyCycles);
+        }
+
+        while (at < joy.size())
+        {
+            size_t       end    = joy.find (';', at);
+            std::string  step   = joy.substr (at, end == std::string::npos ? std::string::npos : end - at);
+            size_t       first  = step.find (',');
+            size_t       second = step.find (',', first + 1);
+
+            at = end == std::string::npos ? joy.size() : end + 1;
+
+            machine.GetRefs().iieSoftSwitches->SetPaddle (0, (Byte) std::stoi (step.substr (0, first)));
+            machine.GetRefs().iieSoftSwitches->SetPaddle (1, (Byte) std::stoi (step.substr (first + 1, second - first - 1)));
+            machine.GetRunner().RunCycles ((uint64_t) (std::stod (step.substr (second + 1)) * 1e6));
+        }
+
+        GuestSession::CollectRows (machine, rows);
+
+        {
+            std::ofstream  text (folder / "run.txt");
+
+            for (const std::string & row : rows)
+            {
+                text << "|" << row << "|\n";
+            }
+        }
+
+        for (Word address = s_kHiResFirst; address < s_kHiResEnd; address++)
+        {
+            pages.push_back (machine.GetMemoryBus().ReadByte (address));
+        }
+
+        WriteFile (folder / "run_pages.bin", pages);
+    }
+
+    //  The disk inspector's summary and findings for the image, as its Issues    //  list has them.
+    static void  LogFindings (const std::vector<Byte> & woz)
+    {
+        DiskImage     image;
+        DiskAnalysis  analysis;
+        std::wstring  log;
+
+
+
+        AssertSucceeded (WozLoader::Load (woz, image));
+        DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (image, 1, "rebuilt.woz", woz.size(), false), DecodeSettings::MakeStandard(), analysis);
+
+        log = std::format (L"Inspector: {} tracks with data, {} of {} sectors good, {} bad\n", analysis.summary.tracksWithData,
+                           analysis.summary.sectorsGood, analysis.summary.sectorsFound, analysis.summary.badSectors);
+
+        for (const Finding & finding : analysis.findings)
+        {
+            log += std::format (L"  {:6.2f}  {}\n", finding.quarterTrack / 4.0, FindingFormatter::Format (finding));
+        }
+
+        Logger::WriteMessage (log.c_str());
+    }
+
+    static constexpr uint64_t  s_kRunBootCycles = 60'000'000ULL;
+    static constexpr uint64_t  s_kRunKeyCycles  = 30'000'000ULL;
+    static constexpr Word      s_kHiResFirst    = 0x2000;
+    static constexpr Word      s_kHiResEnd      = 0x6000;
+
+    static constexpr int       s_kBootSteps   = 6;
+    static constexpr uint64_t  s_kBootStep    = 10'000'000ULL;
+    static constexpr int       s_kBootSlices  = 100;
+    static constexpr size_t    s_kMarkerBytes = 11;
+    static constexpr int       s_kSyncReads   = 3;
+};

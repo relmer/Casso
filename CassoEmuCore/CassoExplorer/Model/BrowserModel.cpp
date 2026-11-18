@@ -3,6 +3,8 @@
 #include "CassoExplorer/Model/BrowserModel.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/Partitions/PartitionAccess.h"
+#include "Devices/Disk/Partitions/PhysicalCards.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 
@@ -220,7 +222,8 @@ void BrowserModel::NavigateTo (const Location & location)
     tab.forward.clear();
     tab.selection.clear();
     tab.previewScroll = 0;
-    tab.location      = location;
+    tab.location        = location;
+    tab.previewExpanded = false;
 }
 
 
@@ -275,7 +278,8 @@ bool BrowserModel::GoBack()
     }
 
     tab.forward.push_back (tab.location);
-    tab.location = tab.back.back();
+    tab.location        = tab.back.back();
+    tab.previewExpanded = false;
     tab.back.pop_back();
     tab.selection.clear();
     tab.previewScroll = 0;
@@ -305,7 +309,8 @@ bool BrowserModel::GoForward()
     }
 
     tab.back.push_back (tab.location);
-    tab.location = tab.forward.back();
+    tab.location        = tab.forward.back();
+    tab.previewExpanded = false;
     tab.forward.pop_back();
     tab.selection.clear();
     tab.previewScroll = 0;
@@ -500,8 +505,10 @@ void BrowserModel::GetLocations (std::vector<Location> & outLocations) const
 std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (const Location & location, const AddressRoot & root)
 {
     std::vector<AddressSegment>  segments;
-    size_t                       slash = 0;
-    size_t                       start = 0;
+    size_t                       slash     = 0;
+    size_t                       start     = 0;
+    int                          partition = 0;
+    int                          drive     = 0;
     std::string                  inner;
 
 
@@ -514,6 +521,36 @@ std::vector<BrowserModel::AddressSegment> BrowserModel::GetAddressSegments (cons
 
         case Location::Kind::DiskImage:
         case Location::Kind::DiskDirectory:
+            //  A card is one segment, which its partitions follow.
+            if (PhysicalCards::ParsePath (TextEncoding::WideToUtf8 (location.path), drive, partition) == PhysicalCards::PathKind::Card)
+            {
+                segments.push_back (AddressSegment { root.getCardLabel ? root.getCardLabel (drive) : std::format (L"Physical drive {}", drive), Location::MakeDiskImage (location.path) });
+                break;
+            }
+
+            //  A partition follows the image it is a partition of.
+            slash = location.path.rfind (L'|');
+
+            if (slash != std::wstring::npos && PartitionAccess::TryParseStepName (TextEncoding::WideToNarrow (location.path.substr (slash + 1)), partition))
+            {
+                segments = GetAddressSegments (Location::MakeDiskImage (location.path.substr (0, slash)), root);
+                segments.push_back (AddressSegment { std::format (L"Partition {}", partition), Location::MakeDiskImage (location.path) });
+                break;
+            }
+
+            //  An image in a ZIP follows the ZIP and its folders, as the
+            //  shell's id for the image would have them.
+            if (location.path.find (L'|') != std::wstring::npos)
+            {
+                std::wstring  shellId = location.path;
+
+                std::replace_if (shellId.begin(), shellId.end(), [] (wchar_t c) { return c == L'|' || c == L'/'; }, L'\\');
+                slash = shellId.rfind (L'\\');
+                AppendArchiveSegments (Location::MakeShellFolder (shellId.substr (0, slash), std::wstring()), root, segments);
+                segments.push_back (AddressSegment { shellId.substr (slash + 1), Location::MakeDiskImage (location.path) });
+                break;
+            }
+
             slash = location.path.rfind (L'\\');
             AppendHostSegments (location.path.substr (0, (slash == std::wstring::npos) ? 0 : slash), root, segments);
             segments.push_back (AddressSegment { location.path.substr (slash + 1), Location::MakeDiskImage (location.path) });

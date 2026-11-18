@@ -81,9 +81,15 @@ public:
     //  durable before it became the target.
     vector<std::string>  flushedPaths;
 
+    //  Whole reads and ranged reads, so a test can see how much was read.
+    int       wholeReads   = 0;
+    uint64_t  bytesReadAt  = 0;
+
     HRESULT  ReadAllBytes (const std::string & path, vector<Byte> & outBytes) override
     {
         auto  found = files.find (path);
+
+        wholeReads++;
 
         if (found == files.end())
         {
@@ -144,6 +150,25 @@ public:
         return S_OK;
     }
 
+    HRESULT  ReadAt (const std::string & path, uint64_t offset, std::span<Byte> outBytes) override
+    {
+        auto  found = files.find (path);
+
+        if (found == files.end())
+        {
+            return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        }
+
+        if (offset + outBytes.size() > found->second.size())
+        {
+            return HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF);
+        }
+
+        std::copy_n (found->second.begin() + (ptrdiff_t) offset, outBytes.size(), outBytes.begin());
+        bytesReadAt += outBytes.size();
+        return S_OK;
+    }
+
     HRESULT  Stat (const std::string & path, FileStamp & outStamp) override
     {
         auto  found = stamps.find (path);
@@ -187,6 +212,39 @@ public:
 
         std::sort (outNames.begin(), outNames.end());
         return S_OK;
+    }
+
+    HRESULT  ListFolders (const std::string & folder, std::vector<std::string> & outNames) override
+    {
+        std::string  prefix = folder + "\\";
+        size_t       slash  = 0;
+
+
+
+        outNames.clear();
+
+        for (const auto & [path, bytes] : files)
+        {
+            slash = path.find ('\\', prefix.size());
+
+            if (path.starts_with (prefix) && slash != std::string::npos)
+            {
+                outNames.push_back (path.substr (prefix.size(), slash - prefix.size()));
+            }
+        }
+
+        std::sort (outNames.begin(), outNames.end());
+        outNames.erase (std::unique (outNames.begin(), outNames.end()), outNames.end());
+        return S_OK;
+    }
+
+    bool  IsFolder (const std::string & path) override
+    {
+        std::string  prefix = path + "\\";
+
+
+
+        return std::any_of (files.begin(), files.end(), [&prefix] (const auto & file) { return file.first.starts_with (prefix); });
     }
 
     HRESULT  Remove (const std::string & path) override
@@ -238,6 +296,14 @@ public:
         return Exists (path) ? S_OK : HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
     }
 
+    HRESULT  SetReadOnly (const std::string & path, bool readOnly) override
+    {
+        readOnlyFiles[path] = readOnly;
+        return S_OK;
+    }
+
+    std::map<std::string, bool>  readOnlyFiles;   // each SetReadOnly, by path
+
     HRESULT  CopyFileMetadata (const std::string & fromPath, const std::string & toPath) override
     {
         metadataCount++;
@@ -287,6 +353,11 @@ public:
         UNREFERENCED_PARAMETER (path);
 
         return reportHeldByOther;
+    }
+
+    uintptr_t  GetFileSystemId () const override
+    {
+        return reinterpret_cast<uintptr_t> (this);
     }
 
     HRESULT  WritePayloadToStandardOutput (const vector<Byte> & bytes) override

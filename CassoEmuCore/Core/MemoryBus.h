@@ -17,6 +17,29 @@ class MemoryDevice;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IIoAccessObserver
+//
+//  Something that watches the $C000-$C0FF soft switches ahead of the devices
+//  that answer them, as the //c Plus accelerator watches the speaker, the
+//  slots and the accelerator's registers. Returns true to take the access:
+//  a read returns `outValue` and a write doesn't go to a device.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IIoAccessObserver
+{
+public:
+    virtual ~IIoAccessObserver() = default;
+
+    virtual bool  OnIoAccess (Word address, bool isWrite, Byte value, Byte & outValue) = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BusEntry
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,8 +107,12 @@ public:
     // value any device drove. Devices whose reads drive no data return
     // ReadFloatingBus for the same reason.
     void SetFloatingBusSource (IFloatingBusSource * source) { m_floatingBusSource = source; }
-    bool HasFloatingBusSource () const                      { return m_floatingBusSource != nullptr; }
-    Byte ReadFloatingBus      ()                            { return (m_floatingBusSource != nullptr) ? m_floatingBusSource->GetFloatingBusByte() : m_floatingBusValue; }
+
+    //  The observer of the $C000-$C0FF soft switches; caller-owned, null for
+    //  none.
+    void  SetIoObserver        (IIoAccessObserver * observer) { m_ioObserver = observer; }
+    bool  HasFloatingBusSource () const                      { return m_floatingBusSource != nullptr; }
+    Byte  ReadFloatingBus      ()                            { return (m_floatingBusSource != nullptr) ? m_floatingBusSource->GetFloatingBusByte() : m_floatingBusValue; }
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('B', 'U', 'S', ' ');
     static constexpr uint16_t  kStateVersion = 1;
@@ -231,6 +258,7 @@ private:
     Byte ReadWatchedPage  (Word address);
     void WriteWatchedPage (Word address, Byte value);
     void StoreToPage      (Byte * page, Word address, Byte value);
+    bool IsIoObserved     (Word address, Byte value);
     void PublishPage      (int pageIndex);
     void ReportAccess     (Word address, Byte value, BusAccess access, std::optional<Byte> previous);
     void ReportIoAccess   (Word address, Byte value, bool isWrite);
@@ -254,6 +282,7 @@ private:
     vector<BusEntry>      m_entries;
     Byte                  m_floatingBusValue  = 0xFF;
     IFloatingBusSource  * m_floatingBusSource = nullptr;
+    IIoAccessObserver   * m_ioObserver        = nullptr;
 
     // I/O dispatch map. FindDevice used to linear-scan the device list on every
     // $C000+ read and write -- I/O plus ROM/language-card fetches, since only

@@ -181,6 +181,18 @@ public:
 
         CopyThrough (VolumeKind::Dos33, VolumeKind::Cpm, MakeText (VolumeKind::Dos33, "A\n"), read, note);
         Assert::AreEqual (std::string ("A\r\n\x1A"), std::string (read.bytes.begin(), read.bytes.begin() + 4));
+
+        CopyThrough (VolumeKind::Dos33, VolumeKind::ProDos, MakeText (VolumeKind::Dos33, "A\n"), read, note);
+        Assert::AreEqual (std::string ("A\r"), std::string (read.bytes.begin(), read.bytes.end()), L"ProDOS text is plain ASCII with $0D line ends, as GS/OS reads it");
+    }
+
+
+    TEST_METHOD (HostTextIsPlainOnProDosAndHfsAndHighBitElsewhere)
+    {
+        Assert::IsTrue (VolumeImage::GetTextConvention (VolumeKind::ProDos)    == AppleTextConvention::PlainAscii);
+        Assert::IsTrue (VolumeImage::GetTextConvention (VolumeKind::Hfs)       == AppleTextConvention::PlainAscii);
+        Assert::IsTrue (VolumeImage::GetTextConvention (VolumeKind::Dos33)     == AppleTextConvention::HighAscii);
+        Assert::IsTrue (VolumeImage::GetTextConvention (VolumeKind::Gutenberg) == AppleTextConvention::HighAscii);
     }
 
     TEST_METHOD (CpmTextIsANameOrAllTextBytes)

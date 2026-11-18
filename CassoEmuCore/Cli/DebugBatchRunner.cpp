@@ -297,13 +297,13 @@ void DebugBatchRunner::RouteDiskIo (bool writeThrough)
 
 void DebugBatchRunner::FollowBays()
 {
-    m_host->GetDiskStore().SetBayChangeSink ([this] (int slot, int drive, BayChange)
+    m_host->GetDiskStore().SetBayChangeSink ([this] (int slot, int drive, BayChange change)
     {
         Disk2Controller * controller = m_host->GetRefs().diskController;
 
 
 
-        if (slot == kDiskSlot && controller != nullptr)
+        if (slot == kDiskSlot && controller != nullptr && change != BayChange::Restored)
         {
             controller->SetExternalDisk (drive, m_host->GetDiskStore().GetImage (slot, drive));
         }
@@ -384,7 +384,7 @@ HRESULT DebugBatchRunner::InsertTape (const std::string & path, DebugBatchResult
     hr = TapeImageLoader::Load (std::span<const Byte> ((const Byte *) content.data(), content.size()), path, true, mp3, image, error);
     CHR (hr);
 
-    m_host->GetTapeDeck().Insert (std::move (image));
+    m_host->GetTape().GetDeck().Insert (std::move (image));
 
 Error:
     if (FAILED (hr))

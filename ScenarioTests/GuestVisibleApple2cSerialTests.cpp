@@ -143,11 +143,11 @@ private:
         for (const char * c = line; *c != '\0'; c++)
         {
             KeystrokeInjector::InjectKey (machine, static_cast<Byte> (*c));
-            machine.RunCycles (kKeyGapCycles);
+            machine.GetRunner().RunCycles (kKeyGapCycles);
         }
 
         KeystrokeInjector::InjectKey (machine, KeystrokeInjector::kAppleReturn);
-        machine.RunCycles (kLineCycles);
+        machine.GetRunner().RunCycles (kLineCycles);
     }
 
 

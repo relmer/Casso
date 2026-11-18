@@ -167,6 +167,11 @@
 // Live: neither needs a reset, and each is saved with the machine.
 #define IDM_STORAGE_DRIVE2          40087
 #define IDM_STORAGE_RECORDER        40088
+#define IDM_DISK_INSPECT1           40194
+#define IDM_DISK_INSPECT2           40195
+#define IDM_DISK_THUMBNAIL1         40510  // the screen as the mounted image's thumbnail
+#define IDM_DISK_THUMBNAIL2         40511
+#define IDM_DISK_INSPECTOR_SERVICE  40196  // internal: the CPU thread answers the disk inspector's requests
 #define IDM_SSC_SWITCHES            40400  // Settings: the Super Serial Card's DIP switches
 
 // Apply the Uthernet II's LAN access and port forwards to the running card.
@@ -198,8 +203,29 @@
 #define IDM_VIEW_SCENE_VIEW         40073
 
 // Collapse the drives off the bottom edge until the pointer comes near it.
+#define IDM_FLOPPY35_INSERT         40496
+#define IDM_FLOPPY35_EJECT          40497
+#define IDM_HARDDISK_ATTACH         40494
+#define IDM_VIEW_FLOPPIES_ON_DESK   40498
+#define IDM_VIEW_HARD_DISKS_ON_DESK 40499
+#define IDM_VIEW_FLOPPY_PAIR_BESIDE 40495
+
 // Taken from a separate block: open branches use the 40089-40499 range.
 #define IDM_VIEW_AUTOHIDE_DRIVES    40500
+
+// Attach an Apple 3.5 Drive or a 5.25-inch drive to the //c Plus's disk port.
+// The chain is rebuilt, so the machine restarts.
+#define IDM_STORAGE_ATTACH_APPLE35  40501
+#define IDM_STORAGE_ATTACH_FLOPPY   40502
+
+// The //c Plus's second 5.25-inch drive on its disk port, slot 6 drive 2.
+// Taken from a separate block above every open branch's ids.
+#define IDM_DISK_INSERT3            40600
+#define IDM_DISK_EJECT3             40601
+#define IDM_DISK_WP3                40602
+#define IDM_DISK_SALVAGE3           40603
+#define IDM_DISK_INSPECT3           40604
+#define IDM_DISK_THUMBNAIL3         40605
 
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_CHECK_UPDATES      40041
@@ -238,6 +264,7 @@
 #define IDR_MACHINE_APPLE2E         202
 #define IDR_MACHINE_APPLE2C         203
 #define IDR_MACHINE_APPLE2E_ENHANCED 204
+#define IDR_MACHINE_APPLE2C_PLUS    205
 
 // Embedded built-in theme files (RCDATA). Per spec 007-ui-overhaul
 // The three built-in themes are extracted to
@@ -284,6 +311,11 @@
 #define IDR_MODEL_DISK2C_MESH                408
 #define IDR_MODEL_DUODISK_MESH               410
 #define IDR_MODEL_CASSETTE_RECORDER_MESH     412
+#define IDR_MODEL_HARDDISK20SC_MESH          414
+#define IDR_MODEL_PROFILE_MESH               416
+#define IDR_MODEL_UNIDISK35_MESH             418
+#define IDR_MODEL_APPLE35_MESH               420
+#define IDR_MODEL_APPLE35PLUS_MESH           422
 
 // Embedded ImageWriter II mechanical sound set (extracted to
 // %LOCALAPPDATA%\Casso\ImageWriter II Sounds\ by EnsureImageWriterSounds).

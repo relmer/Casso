@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/ExplorerWindowFinder.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -292,6 +293,12 @@ public:
         Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments ({ L"C:\\One" }, options));
         Assert::IsFalse  (options.newWindow);
         Assert::AreEqual (E_INVALIDARG, CassoExplorerShell::ParseArguments ({ L"--new-window", L"--new-window" }, options));
+
+        //  A raw capture's reads are saved only when the argument is given.
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments ({}, options));
+        Assert::IsFalse (options.saveReads);
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments ({ L"--full-send-save-reads" }, options));
+        Assert::IsTrue (options.saveReads);
     }
 
 
@@ -349,6 +356,18 @@ public:
                           CassoExplorerShell::ComposeTitle (L"", L"v1.0.0 x64 (Sep 14 2026 12:00:00)"));
         Assert::AreEqual (std::wstring (L"worktree - Casso Explorer [Debug] - v1.0.0 x64 (Sep 14 2026 12:00:00)"),
                           CassoExplorerShell::ComposeTitle (L"worktree", L"v1.0.0 x64 (Sep 14 2026 12:00:00)"));
+    }
+
+
+    TEST_METHOD (MakeWindowClass_DiffersPerProfileFolder)
+    {
+        std::wstring  first  = ExplorerWindowFinder::MakeWindowClass (LR"(C:\Temp\ProfileA)");
+        std::wstring  second = ExplorerWindowFinder::MakeWindowClass (LR"(C:\Temp\ProfileB)");
+
+        Assert::AreEqual (std::wstring (ExplorerWindowFinder::kWindowClass), ExplorerWindowFinder::MakeWindowClass (L""));
+        Assert::IsTrue (first.starts_with (ExplorerWindowFinder::kTestCopyClass));
+        Assert::AreNotEqual (first, second);
+        Assert::AreEqual (first, ExplorerWindowFinder::MakeWindowClass (LR"(c:\temp\profilea)"));
     }
 
 

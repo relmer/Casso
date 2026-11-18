@@ -7,6 +7,7 @@
 #include "Core/TextEncoding.h"
 #include "ChangePrompt.h"
 #include "CommitPlan.h"
+#include "DiskCheck/ThumbnailStore.h"
 
 
 
@@ -279,6 +280,9 @@ Error:
 //  controller attached to the old image reads freed memory after a failed
 //  remount.
 //
+//  A WOZ image of any disk but a 5.25-inch one is refused before the bay is
+//  touched, as a file in another bay is: the bay keeps its disk.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImageStore::LoadIntoBay (
@@ -289,8 +293,10 @@ HRESULT DiskImageStore::LoadIntoBay (
     const vector<Byte>  &  bytes,
     MountDiagnosis      &  outDiagnosis)
 {
-    HRESULT   hr         = S_OK;
-    bool      wasMounted = false;
+    HRESULT                 hr         = S_OK;
+    bool                    wasMounted = false;
+    bool                    is525      = true;
+    WozLoader::Description  about;
 
 
 
@@ -299,6 +305,16 @@ HRESULT DiskImageStore::LoadIntoBay (
     outDiagnosis.fileByteSize = bytes.size();
 
     CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
+
+    if (fmt == DiskFormat::Woz)
+    {
+        WozLoader::Describe (bytes, about);
+
+        //  A file that isn't a WOZ at all fails in the loader, with its reason.
+        is525 = !about.isWoz || about.diskType == WozLoader::kDiskType525;
+    }
+
+    CBRFEx (is525, HRESULT_FROM_WIN32 (ERROR_BAD_FORMAT), outDiagnosis.failure = MountFailure::WozNot525);
 
     {
         Entry &   entry = GetEntry (slot, drive);
@@ -517,6 +533,7 @@ bool DiskImageStore::RescueOnTheWayOut (Entry & entry, const string & original)
     }
 
     entry.image->ClearDirty();
+    entry.image->NoteSaved();
 
     return true;
 }
@@ -1295,6 +1312,7 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
     // must not repeat on every later eject or power cycle.
     entry.image->SetSourceCrcMismatch (false);
     entry.image->ClearDirty();
+    entry.image->NoteSaved();
 
     //  The file this store just wrote is a change to it, and without this the
     //  next flush would find its own commit sitting where the mount-time
@@ -1339,6 +1357,7 @@ HRESULT DiskImageStore::WriteFileAtomically (const string & path, const vector<B
     string            tempPath;
     std::error_code   ec;
     size_t            byteCount = bytes.size();
+    HRESULT           hrThumb   = S_OK;
 
 
 
@@ -1404,6 +1423,11 @@ HRESULT DiskImageStore::WriteFileAtomically (const string & path, const vector<B
         CBREx (ok, HRESULT_FROM_WIN32 (lastErr));
         CBREx (written == expected, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
     }
+
+    //  The image's thumbnail is in a stream of the file, which the rename
+    //  would replace with the temporary's.
+    hrThumb = ThumbnailStore::CopyStream (fs::path (path), fs::path (tempPath));
+    IGNORE_RETURN_VALUE (hrThumb, S_OK);
 
     // Rename replaces an existing target, so the swap is one filesystem
     // operation: readers see either the old file or the new one. The code the
@@ -2513,6 +2537,40 @@ DiskImage * DiskImageStore::GetImage (int slot, int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetViewerMediaId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t DiskImageStore::GetViewerMediaId (int slot, int drive) const
+{
+    return IsValidBay (slot, drive) ? GetEntry (slot, drive).mediaId : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NoteStateRestored
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::NoteStateRestored (int slot, int drive)
+{
+    if (IsValidBay (slot, drive) && GetEntry (slot, drive).image != nullptr)
+    {
+        GetEntry (slot, drive).mediaId = ++m_lastMediaId;
+        EmitBayChange (slot, drive, BayChange::Restored);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsMounted
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2753,6 +2811,11 @@ int64_t DiskImageStore::GetNowMs() const
 
 void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
 {
+    if (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount)
+    {
+        m_entries[slot][drive].mediaId = ++m_lastMediaId;
+    }
+
     if (m_bayChangeSink)
     {
         m_bayChangeSink (slot, drive, change);
@@ -3653,6 +3716,7 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
     //  The identity is refreshed from the file the bytes came from, so the
     //  swap does not immediately look like another external change.
     entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+    entry.mediaId = ++m_lastMediaId;
 
     hrAssess             = AssessSalvage (slot, drive, assessment);
     entry.salvageOffered = SUCCEEDED (hrAssess) && assessment.isOffered;

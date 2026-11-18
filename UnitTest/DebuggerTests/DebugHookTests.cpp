@@ -120,10 +120,10 @@ namespace DebuggerTests
 
             LoadLoop (plain);
             LoadLoop (hooked);
-            hooked.SetDebugHook (&hook);
+            hooked.GetRunner().SetDebugHook (&hook);
 
-            plainSpent  = plain.RunCycles  (kShortRun);
-            hookedSpent = hooked.RunCycles (kShortRun);
+            plainSpent  = plain.GetRunner().RunCycles (kShortRun);
+            hookedSpent = hooked.GetRunner().RunCycles (kShortRun);
 
             Assert::AreEqual (plainSpent,              hookedSpent);
             Assert::AreEqual (GetRegisters (plain).x,  GetRegisters (hooked).x);
@@ -142,10 +142,10 @@ namespace DebuggerTests
 
             LoadLoop (machine);
             hook.stopAddresses.insert (kProgramStart + 1);
-            machine.SetDebugHook (&hook);
+            machine.GetRunner().SetDebugHook (&hook);
 
-            Assert::IsTrue   (machine.StepOne() > 0);
-            Assert::AreEqual ((Byte) 0,                    machine.StepOne());
+            Assert::IsTrue   (machine.GetRunner().StepOne() > 0);
+            Assert::AreEqual ((Byte) 0,                    machine.GetRunner().StepOne());
             Assert::AreEqual ((uint16_t) (kProgramStart + 1), GetRegisters (machine).pc);
             Assert::AreEqual ((uint8_t) 1,                 GetRegisters (machine).x);
         }
@@ -162,9 +162,9 @@ namespace DebuggerTests
 
             LoadLoop (machine);
             hook.stopAddresses.insert (kProgramStart + 2);
-            machine.SetDebugHook (&hook);
+            machine.GetRunner().SetDebugHook (&hook);
 
-            spent = machine.RunCycles (kLongRun);
+            spent = machine.GetRunner().RunCycles (kLongRun);
 
             Assert::IsTrue   (spent < kShortSpent);
             Assert::AreEqual ((uint16_t) (kProgramStart + 2), GetRegisters (machine).pc);
@@ -183,9 +183,9 @@ namespace DebuggerTests
 
             LoadLoop (machine);
             hook.pendingAt = kProgramStart + 1;
-            machine.SetDebugHook (&hook);
+            machine.GetRunner().SetDebugHook (&hook);
 
-            spent = machine.RunCycles (kLongRun);
+            spent = machine.GetRunner().RunCycles (kLongRun);
 
             Assert::IsTrue   (spent < kShortSpent);
             Assert::AreEqual ((uint16_t) (kProgramStart + 2), GetRegisters (machine).pc);

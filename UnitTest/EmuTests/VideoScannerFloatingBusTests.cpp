@@ -189,7 +189,7 @@ private:
 
         while (machine.GetCpu()->GetPC() != kSpin && steps < kStepLimit)
         {
-            machine.StepOne();
+            machine.GetRunner().StepOne();
             steps++;
         }
 

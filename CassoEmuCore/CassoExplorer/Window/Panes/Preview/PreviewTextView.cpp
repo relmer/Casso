@@ -40,6 +40,8 @@ PreviewTextView::PreviewTextView (ExplorerPreviewManager & manager, ExplorerCont
 void PreviewTextView::Create()
 {
     m_text = m_context.window.CreateChild<DxuiTextView>();
+
+    m_context.window.SetMouseHandler (m_text, [this] (const DxuiMouseEvent & ev) { return HandleTextMouse (ev); });
 }
 
 
@@ -137,11 +139,12 @@ void PreviewTextView::Fill (const PreviewContent & preview)
 {
     //  An image's details are metadata, which reads better in the body face
     //  than in the fixed-width face an Apple's text is drawn in.
-    m_text->SetProportional (preview.kind == PreviewContent::Kind::Details);
+    m_text->SetProportional (preview.kind == PreviewContent::Kind::Details || preview.kind == PreviewContent::Kind::Document);
 
     //  A catalog is a table, so its rows stay whole and scroll sideways.
     m_text->SetNoWrap (preview.kind == PreviewContent::Kind::Catalog);
-    m_text->SetRows (PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme)));
+    m_text->SetRows (m_crossReference ? PreviewText::BuildCrossReferenceRows (preview, m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme))
+                                      : PreviewText::BuildTextRows (preview, m_context.prefs.lineAddresses, PreviewText::GetSourceColors (m_context.theme)));
 }
 
 
@@ -195,49 +198,32 @@ bool PreviewTextView::IsShowing() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreviewTextView::HandleCapturedMouse
+//  PreviewTextView::HandleTextMouse
+//
+//  The text's mouse handler. A press moves focus to the preview; the status
+//  bar follows the selection.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PreviewTextView::HandleCapturedMouse (const DxuiMouseEvent & ev)
+bool PreviewTextView::HandleTextMouse (const DxuiMouseEvent & ev)
 {
-    if (!m_text->IsInteracting())
-    {
-        return false;
-    }
-
-    m_text->OnMouse (ev);
-    m_context.statusBar.Fill();
-    m_context.window.Invalidate();
-    return true;
-}
+    bool  handled = false;
 
 
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PreviewTextView::HandleMouse
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool PreviewTextView::HandleMouse (const DxuiMouseEvent & ev)
-{
-    if (!m_text->IsVisible() || !ExplorerLayout::Contains (m_text->GetBounds(), ev.positionDip))
-    {
-        return false;
-    }
 
     if (ev.kind == DxuiMouseEventKind::Down)
     {
         m_context.input.SetFocusPane (ExplorerPane::Preview);
     }
 
-    m_text->OnMouse (ev);
-    m_context.statusBar.Fill();
-    m_context.window.Invalidate();
-    return true;
+    handled = m_text->OnMouse (ev);
+
+    if (ev.kind != DxuiMouseEventKind::Move || m_text->IsInteracting())
+    {
+        m_context.statusBar.Fill();
+    }
+
+    return handled || ev.kind != DxuiMouseEventKind::Move;
 }
 
 
@@ -248,18 +234,18 @@ bool PreviewTextView::HandleMouse (const DxuiMouseEvent & ev)
 //
 //  PreviewTextView::GetCursorForPoint
 //
-//  The text selects as text does, so the cursor over it is the I-beam,
-//  except over its scrollbars.
+//  The text selects as text does, so the cursor over it is the I-beam;
+//  over its scrollbars it is the arrow, so no control under them sets it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 LPCWSTR PreviewTextView::GetCursorForPoint (POINT clientPx) const
 {
-    bool  over = m_text->IsVisible() && ExplorerLayout::Contains (m_text->GetBounds(), clientPx) && !m_text->IsOverScrollbar (clientPx);
+    bool  inside = m_text->IsVisible() && ExplorerLayout::Contains (m_text->GetBounds(), clientPx);
 
 
 
-    return over ? IDC_IBEAM : nullptr;
+    return !inside ? nullptr : m_text->IsOverScrollbar (clientPx) ? IDC_ARROW : IDC_IBEAM;
 }
 
 
@@ -329,6 +315,27 @@ bool PreviewTextView::TryGetSelectionDetail (std::wstring & outDetail) const
 void PreviewTextView::ToggleLineAddresses()
 {
     m_context.prefs.lineAddresses = !m_context.prefs.lineAddresses;
+
+    Fill (m_context.browser.GetPreview());
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewTextView::ToggleCrossReference
+//
+//  The choice lasts until the window closes, and applies to each BASIC
+//  program previewed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PreviewTextView::ToggleCrossReference()
+{
+    m_crossReference = !m_crossReference;
 
     Fill (m_context.browser.GetPreview());
     m_context.window.Invalidate();

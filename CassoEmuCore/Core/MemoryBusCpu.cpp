@@ -313,6 +313,25 @@ HRESULT MemoryBusCpu::SaveState (StateWriter & writer) const
 {
     writer.BeginSection (kStateTag, kStateVersion);
 
+    SaveRegisters (writer);
+
+    m_pages.Save (writer, memory.data(), kStateRamSize);
+
+    return writer.EndSection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveRegisters
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBusCpu::SaveRegisters (StateWriter & writer) const
+{
     writer.WriteWord   (PC);
     writer.WriteByte   (SP);
     writer.WriteByte   (A);
@@ -334,11 +353,6 @@ HRESULT MemoryBusCpu::SaveState (StateWriter & writer) const
     writer.WriteWord   (m_lastBranchTo);
     writer.WriteBool   (m_hasLastBranchTo);
     writer.WriteUInt64 (m_cycleBase);
-
-
-    m_pages.Save (writer, memory.data(), kStateRamSize);
-
-    return writer.EndSection();
 }
 
 
@@ -361,6 +375,31 @@ HRESULT MemoryBusCpu::LoadState (StateReader & reader)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
+    LoadRegisters (reader, version);
+
+    reader.ReadBytes  (memory.data(), kStateRamSize);
+
+    m_pages.MarkAllWritten();
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadRegisters
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBusCpu::LoadRegisters (StateReader & reader, uint16_t version)
+{
     reader.ReadWord   (PC);
     reader.ReadByte   (SP);
     reader.ReadByte   (A);
@@ -396,14 +435,4 @@ HRESULT MemoryBusCpu::LoadState (StateReader & reader)
     {
         reader.ReadUInt64 (m_cycleBase);
     }
-
-    reader.ReadBytes  (memory.data(), kStateRamSize);
-
-    m_pages.MarkAllWritten();
-
-    hr = reader.EndSection();
-    CHR (hr);
-
-Error:
-    return hr;
 }

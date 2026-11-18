@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ControllerRig.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 
@@ -33,7 +34,7 @@ namespace BreakpointUndoLineTests
             BreakpointStep  step;
 
             step.actions = std::move (actions);
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<std::string>  Do (BreakpointStep::Kind kind)
@@ -41,7 +42,7 @@ namespace BreakpointUndoLineTests
             BreakpointStep  step;
 
             step.kind = kind;
-            return view.ExecuteBreakpointStep (controller.GetSession(), step);
+            return view.GetCommands().ExecuteBreakpointStep (controller.GetSession(), step);
         }
 
         std::vector<BreakpointInfo>  List()
@@ -83,7 +84,7 @@ namespace BreakpointUndoLineTests
             id = rig.List().at (0).id;
             rig.Run (std::format ("BPCHANGE {} eTs", id));
 
-            rig.Step ({ DebuggerActions::GetEditBreakpoint (id, { BreakpointDefinition::Type::Write, false, false, "0400" }, CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetEditBreakpoint (id, { BreakpointDefinition::Type::Write, false, false, "0400" }, CommandMode::AppleWin) });
             lines = rig.Do (BreakpointStep::Kind::Undo);
 
             Assert::AreEqual ((size_t) 1, lines.size(), L"one line, no echoed command");
@@ -111,7 +112,7 @@ namespace BreakpointUndoLineTests
             rig.Run ("BP 0300");
             id = rig.List().at (0).id;
 
-            rig.Step ({ DebuggerActions::GetEditBreakpoint (id, BreakpointDefinition::MakeExecute ("0302"), CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetEditBreakpoint (id, BreakpointDefinition::MakeExecute ("0302"), CommandMode::AppleWin) });
             rig.Do (BreakpointStep::Kind::Undo);
             lines = rig.Do (BreakpointStep::Kind::Redo);
 
@@ -132,7 +133,7 @@ namespace BreakpointUndoLineTests
             rig.Run ("BP C000");
             id = rig.List().at (0).id;
 
-            rig.Step ({ DebuggerActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
             lines = rig.Do (BreakpointStep::Kind::Undo);
 
             Assert::AreEqual ((size_t) 1, lines.size());
@@ -151,7 +152,7 @@ namespace BreakpointUndoLineTests
             rig.Run ("BP C000");
             id = rig.List().at (0).id;
 
-            rig.Step ({ DebuggerActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
             rig.Do (BreakpointStep::Kind::Undo);
             id    = rig.List().at (0).id;
             lines = rig.Do (BreakpointStep::Kind::Redo);
@@ -173,7 +174,7 @@ namespace BreakpointUndoLineTests
             rig.Run ("BP 0300");
             id = rig.List().at (0).id;
 
-            rig.Step ({ DebuggerActions::GetEnableBreakpoint (id, false, CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetEnableBreakpoint (id, false, CommandMode::AppleWin) });
             lines = rig.Do (BreakpointStep::Kind::Undo);
 
             Assert::AreEqual ((size_t) 1, lines.size());
@@ -191,7 +192,7 @@ namespace BreakpointUndoLineTests
 
             rig.Run ("BP 0300");
             rig.Run ("BPMW 0400:0410");
-            rig.Step ({ DebuggerActions::GetClearAllBreakpoints (CommandMode::AppleWin) });
+            rig.Step ({ BreakpointActions::GetClearAllBreakpoints (CommandMode::AppleWin) });
             lines = rig.Do (BreakpointStep::Kind::Undo);
 
             Assert::AreEqual ((size_t) 2, lines.size());

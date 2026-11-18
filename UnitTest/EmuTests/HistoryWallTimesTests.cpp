@@ -71,10 +71,10 @@ public:
         Add (store, added, kMoreAdds);
         wallTimes.Sync (store);
 
-        Assert::IsTrue (store.GetInfo (0).position > 0, L"the budget dropped the oldest keyframes");
+        Assert::IsTrue (store.GetArena().GetInfo (0).position > 0, L"the budget dropped the oldest keyframes");
         Check (store, wallTimes, L"after the oldest were dropped");
 
-        hr = store.TruncateAfter (store.GetInfo (store.GetCount() / 2).cycle + s_kWallInterval / 2);
+        hr = store.TruncateAfter (store.GetArena().GetInfo (store.GetArena().GetCount() / 2).cycle + s_kWallInterval / 2);
         AssertSucceeded (hr, L"TruncateAfter");
 
         wallTimes.Sync (store);
@@ -130,8 +130,8 @@ private:
     //  newest, as the store gives it.
     static void Check (const KeyframeStore & store, const HistoryWallTimes & wallTimes, PCWSTR what)
     {
-        uint64_t  first    = store.GetInfo (0).cycle;
-        uint64_t  last     = store.GetInfo (store.GetCount() - 1).cycle + s_kWallInterval;
+        uint64_t  first    = store.GetArena().GetInfo (0).cycle;
+        uint64_t  last     = store.GetArena().GetInfo (store.GetArena().GetCount() - 1).cycle + s_kWallInterval;
         uint64_t  cycle    = 0;
         uint64_t  expected = 0;
         size_t    index    = 0;
@@ -139,12 +139,12 @@ private:
 
 
 
-        Assert::AreEqual (store.GetCount(), wallTimes.GetCount(), what);
+        Assert::AreEqual (store.GetArena().GetCount(), wallTimes.GetCount(), what);
 
         for (cycle = (first > s_kWallProbeStep) ? first - s_kWallProbeStep : 0; cycle <= last; cycle += s_kWallProbeStep)
         {
-            isHeld   = store.TryFindAtOrBefore (cycle, index);
-            expected = isHeld ? HistoryStatus::GetWallTimeAt (store.GetInfo (index).wallTime, store.GetInfo (index).cycle, cycle) : 0;
+            isHeld   = store.GetArena().TryFindAtOrBefore (cycle, index);
+            expected = isHeld ? HistoryStatus::GetWallTimeAt (store.GetArena().GetInfo (index).wallTime, store.GetArena().GetInfo (index).cycle, cycle) : 0;
 
             Assert::AreEqual (expected, wallTimes.GetWallTimeAt (cycle), what);
         }

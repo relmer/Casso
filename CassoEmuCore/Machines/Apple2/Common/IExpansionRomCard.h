@@ -26,21 +26,30 @@ class IExpansionRomCard
 public:
     virtual ~IExpansionRomCard() = default;
 
-    // An access to the card's $Cs00-$CsFF page. Returns the value of a read;
-    // the return value is ignored for a write.
+    // An access to the card's $Cs00-$CsFF page. Makes the access's changes,
+    // then returns PeekSlotPage's byte; the byte is ignored for a write.
     virtual Byte OnSlotPageAccess       (Word address, bool isWrite, Byte value) = 0;
 
     // The byte a read of the card's $Cs00-$CsFF page returns, without the
-    // read's selection of the expansion ROM. False where the byte cannot be
-    // worked out without the read; the default is false.
-    virtual bool TryPeekSlotPage        (Word address, Byte & value) const { (void) address; value = 0; return false; }
+    // read's changes.
+    virtual Byte PeekSlotPage           (Word address) const = 0;
 
     virtual bool IsExpansionRomSelected () const = 0;
 
-    // A read of $C800-$CEFF while selected.
+    // A read of $C800-$CEFF while selected: the read's changes, then
+    // PeekExpansionRom's byte.
     virtual Byte ReadExpansionRom       (Word address) = 0;
+    virtual Byte PeekExpansionRom       (Word address) const = 0;
 
     virtual void DeselectExpansionRom   () = 0;
 
     virtual int  GetSlot                () const = 0;
+
+    // A write to $C800-$CFFE while selected, for a card with RAM there.
+    virtual void WriteExpansionRom      (Word address, Byte value) { (void) address; (void) value; }
+
+    // True for a card that decodes only $CFFF as I/O STROBE's deselect and
+    // drives $CF00-$CFFE like the rest of its window, as the Apple II SCSI
+    // Card does.
+    virtual bool UsesStrobePage         () const { return false; }
 };

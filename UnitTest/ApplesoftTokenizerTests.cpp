@@ -569,20 +569,177 @@ public:
     //  ------------------------------------------------------------------
     //
 
-    TEST_METHOD (AControlCharacterInsideAString_RoundTrips)
+    TEST_METHOD (ARawControlCharacterInsideAString_IsListedAsCaretAndLetter)
     {
         // Applesoft stores a control character typed inside quotes (a Ctrl-D
-        // ahead of a DOS command, a Ctrl-K in TS on the ADTPro disks), and
-        // LIST writes it out as the byte it is. So does this listing.
-        std::string            source = "10  PRINT \"\x04" "CATALOG\"\n"
-                                        "20  REM \x07" "BELL\n"
-                                        "30  DATA \x0B" "X,Y\n";
+        // ahead of a DOS command, a Ctrl-K in TS on the ADTPro disks). A raw
+        // one in a listing is stored as it is, and lists as ^ and its letter.
+        std::string            source  = "10  PRINT \"\x04" "CATALOG\"\n"
+                                         "20  REM \x07" "BELL\n"
+                                         "30  DATA \x0B" "X,Y\n";
         std::vector<Byte>      program = Tokenized (source);
         std::string            listing;
         ApplesoftListingError  error;
 
         AssertSucceeded (ApplesoftTokenizer::Detokenize (program, listing, error));
-        Assert::AreEqual (source, listing);
+        Assert::AreEqual (std::string ("10  PRINT \"^DCATALOG\"\n"
+                                       "20  REM ^GBELL\n"
+                                       "30  DATA ^KX,Y\n"),
+                          listing);
+
+        AssertBytesAre (Tokenized (listing), program, L"the caret form reads back as the same bytes");
+    }
+
+
+    //  Lines 140 and 150 of TANK COMBAT on the owner's classwork disk. Line
+    //  140 is a REM whose text is two line feeds, BEGIN GAME and two more line
+    //  feeds, so LIST on the Apple prints blank lines around it.
+    static std::vector<Byte> TankCombatBytes()
+    {
+        return
+        {
+            0x15, 0x08, 0x8C, 0x00, 0xB2, 0x0A, 0x0A,
+            'B',  'E',  'G',  'I',  'N',  ' ',  'G',  'A',  'M',  'E',
+            0x0A, 0x0A, 0x00,
+            0x1B, 0x08, 0x96, 0x00, 0x97, 0x00,
+            0x00, 0x00,
+        };
+    }
+
+
+    TEST_METHOD (ALineFeedInARem_IsListedAsALineBreak_AndRoundTrips)
+    {
+        std::vector<Byte>  program = TankCombatBytes();
+        std::string        listing = Detokenized (program);
+
+        Assert::AreEqual (std::string ("140  REM\n"
+                                       "\n"
+                                       "BEGIN GAME\n"
+                                       "\n"
+                                       "\n"
+                                       "150  HOME\n"),
+                          listing);
+
+        AssertBytesAre (Tokenized (listing), program,
+            L"the blank lines after the REM are its line feeds, so the bytes come back identical");
+    }
+
+
+    TEST_METHOD (ALineFeedInARem_RoundTripsWithWindowsLineEndings)
+    {
+        std::vector<Byte>  program = TankCombatBytes();
+
+        AssertBytesAre (Tokenized ("140  REM\r\n\r\nBEGIN GAME\r\n\r\n\r\n150  HOME\r\n"), program,
+            L"a CR LF in a continuation reads back as the one line feed");
+    }
+
+
+    TEST_METHOD (ALineFeedBeforeADigit_IsListedAsCaretJ)
+    {
+        // The text after the line feed would read back as line 1984, so it is
+        // listed as ^J rather than as a line break.
+        std::vector<Byte>  program = Tokenized ("10 REM ^J  1984\n20 END\n");
+        std::string        listing = Detokenized (program);
+
+        Assert::AreEqual (std::string ("10  REM ^J  1984\n20  END\n"), listing);
+        AssertBytesRoundTrip (program);
+    }
+
+
+    TEST_METHOD (ALineFeedInAStringAndInData_ContinueTheirLines)
+    {
+        std::vector<Byte>  program = Tokenized ("10 PRINT \"ONE\n"
+                                                "TWO\";X\n"
+                                                "20 DATA 1\n"
+                                                "\n"
+                                                "30 END\n");
+        std::string        listing = Detokenized (program);
+
+        Assert::AreEqual (std::string ("10  PRINT \"ONE\nTWO\";X\n"
+                                       "20  DATA 1\n"
+                                       "\n"
+                                       "30  END\n"),
+                          listing);
+        AssertBytesRoundTrip (program);
+    }
+
+
+    TEST_METHOD (ABlankLineAfterAClosedStatement_IsSkipped)
+    {
+        AssertBytesAre (Tokenized ("10 PRINT \"A\"\n\n20 END\n"), Tokenized ("10 PRINT \"A\"\n20 END\n"),
+            L"a blank line continues only a REM, a DATA payload or an open string");
+    }
+
+
+    TEST_METHOD (AnUnnumberedLineAfterAClosedStatement_IsStillRefused)
+    {
+        ApplesoftListingError  error = RefusalFor ("10 PRINT \"A\"\nBEGIN GAME\n");
+
+        Assert::IsFalse (error.hasLineNumber);
+        Assert::AreEqual ((size_t) 2, error.sourceLineIndex);
+    }
+
+
+    TEST_METHOD (ACtrlDInAPrintString_IsListedAsCaretD_AndRoundTrips)
+    {
+        std::vector<Byte>  program = { 0x11, 0x08, 0x0A, 0x00, 0xBA, '"', 0x04, 'C', 'A', 'T', 'A', 'L', 'O', 'G', '"', 0x00, 0x00, 0x00 };
+        std::string        listing = Detokenized (program);
+
+        Assert::AreEqual (std::string ("10  PRINT \"^DCATALOG\"\n"), listing);
+        AssertBytesAre (Tokenized (listing), program, L"^D reads back as $04");
+    }
+
+
+    TEST_METHOD (ALiteralCaretInAString_IsListedAsTwoCarets_AndRoundTrips)
+    {
+        std::vector<Byte>  program = { 0x0C, 0x08, 0x0A, 0x00, 0xBA, '"', 'A', '^', 'B', '"', 0x00, 0x00, 0x00 };
+        std::vector<Byte>  ctrlB   = { 0x0B, 0x08, 0x0A, 0x00, 0xBA, '"', 'A', 0x02, '"', 0x00, 0x00, 0x00 };
+        std::string        listing = Detokenized (program);
+
+        Assert::AreEqual (std::string ("10  PRINT \"A^^B\"\n"), listing);
+        AssertBytesAre (Tokenized (listing), program, L"^^ reads back as one caret");
+        AssertBytesAre (Tokenized ("10 PRINT \"A^B\"\n"), ctrlB, L"where ^B alone is Ctrl-B");
+    }
+
+
+    TEST_METHOD (ACaretBeforeAnyOtherCharacter_IsALiteralCaret)
+    {
+        std::vector<Byte>  program = Tokenized ("10 REM X^2 ^a ^\n");
+
+        AssertBytesAre (program,
+                        { 0x10, 0x08, 0x0A, 0x00, 0xB2, ' ', 'X', '^', '2', ' ', '^', 'a', ' ', '^', 0x00, 0x00, 0x00 },
+                        L"a caret before a digit, a lowercase letter or the end of the line is stored as typed");
+        AssertBytesRoundTrip (program);
+    }
+
+
+    TEST_METHOD (ACtrlCaret_IsListedAsTheRawByte_AndRoundTrips)
+    {
+        // ^^ is a literal caret, so Ctrl-^ has no caret form.
+        std::vector<Byte>  program = { 0x08, 0x08, 0x0A, 0x00, 0xB2, 0x1E, 0x00, 0x00, 0x00 };
+
+        Assert::AreEqual (std::string ("10  REM\x1E\n"), Detokenized (program));
+        AssertBytesRoundTrip (program);
+    }
+
+
+    TEST_METHOD (CaretAt_IsRefused_BecauseAZeroByteEndsTheLine)
+    {
+        ApplesoftListingError  error = RefusalFor ("10 PRINT \"^@\"\n");
+
+        Assert::AreEqual ((uint32_t) 10, error.lineNumber);
+        Assert::IsTrue   (error.reason.find ("^@") != std::string::npos);
+    }
+
+
+    TEST_METHOD (Detokenize_DelInAString_IsRefused)
+    {
+        std::vector<Byte>      program = { 0x08, 0x08, 0x0A, 0x00, 0xB2, 0x7F, 0x00, 0x00, 0x00 };
+        std::string            listing;
+        ApplesoftListingError  error;
+
+        AssertFailed (ApplesoftTokenizer::Detokenize (program, listing, error),
+            L"DEL has no listing form");
     }
 
 

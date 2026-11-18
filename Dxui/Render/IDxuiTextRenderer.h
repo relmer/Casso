@@ -162,6 +162,14 @@ public:
     virtual void     PushMonochromeGlyphs ()                     {}
     virtual void     PopMonochromeGlyphs  ()                     {}
 
+    // Record what is drawn until EndShadowCapture, which draws it instead as
+    // a soft black shadow: its ink grown by `spreadDip`, blurred with a
+    // standard deviation of `blurDip`, at `opacity`. A renderer without
+    // effects returns E_NOTIMPL from the begin, and the caller then draws the
+    // shadow another way. Not nestable.
+    virtual HRESULT  BeginShadowCapture ()                                             { return E_NOTIMPL; }
+    virtual HRESULT  EndShadowCapture   (float spreadDip, float blurDip, float opacity) { (void) spreadDip; (void) blurDip; (void) opacity; return E_NOTIMPL; }
+
     // Font-handle convenience overloads: unpack a theme DxuiFontHandle into
     // the face / size / weight triple. Defaulted (not pure) so existing
     // mocks need not implement them.

@@ -63,7 +63,7 @@ struct ProgramRig
         }
 
         InProcessByteStream::CreatePair (machineEnd, pcEnd);
-        AssertSucceeded (machine.AttachSerialStream (kPort, machineEnd));
+        AssertSucceeded (machine.GetConnectors().AttachSerialStream (kPort, machineEnd));
 
         stream = std::make_shared<SteppedByteStream> (machine, pcEnd);
         host   = std::make_unique<CassoLinkHost> (stream, folder, [] () { return std::array<Byte, 4> {}; });

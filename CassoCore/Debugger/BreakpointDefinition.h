@@ -15,7 +15,7 @@
 //  BRK, an interrupt, a BASIC error, an unwritten read, a video line or a
 //  beam position.
 //
-//  AppleWinParser::TryMakeBreakpoint evaluates the fields into the
+//  AppleWinBreakpointParser::TryMakeBreakpoint evaluates the fields into the
 //  DebugCommand the session runs, with no command text in between.
 //
 ////////////////////////////////////////////////////////////////////////////////

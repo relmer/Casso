@@ -34,18 +34,18 @@ ProDosVolumeWriter::ProDosVolumeWriter (const ProDosVolume & volume)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProDosVolumeWriter::WriteByteAt (vector<Byte> & buffer, int block, size_t offset, Byte value)
+void ProDosVolumeWriter::WriteByteAt (BlockBuffer  & buffer, int block, size_t offset, Byte value)
 {
     size_t  at = 0;
 
 
 
-    if (block < 0 || block >= ProDosSkeleton::kTotalBlocks)
+    if (block < 0 || block >= ProDosSkeleton::GetBlockCount (buffer.size()))
     {
         return;
     }
 
-    at = ProDosSkeleton::GetBlockByteOffset (block, offset);
+    at = ProDosSkeleton::GetBlockByteOffset (buffer.size(), block, offset);
 
     if (at < buffer.size())
     {
@@ -63,7 +63,7 @@ void ProDosVolumeWriter::WriteByteAt (vector<Byte> & buffer, int block, size_t o
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProDosVolumeWriter::WriteWordAt (vector<Byte> & buffer, int block, size_t offset, Word value)
+void ProDosVolumeWriter::WriteWordAt (BlockBuffer  & buffer, int block, size_t offset, Word value)
 {
     WriteByteAt (buffer, block, offset,     (Byte) (value & 0xFF));
     WriteByteAt (buffer, block, offset + 1, (Byte) (value >> 8));
@@ -79,7 +79,7 @@ void ProDosVolumeWriter::WriteWordAt (vector<Byte> & buffer, int block, size_t o
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProDosVolumeWriter::SetFreeInBitmap (vector<Byte> & buffer, uint32_t block, bool isFree)
+void ProDosVolumeWriter::SetFreeInBitmap (BlockBuffer  & buffer, uint32_t block, bool isFree)
 {
     size_t  at   = 0;
     Byte    mask = (Byte) (0x80 >> (block % 8));
@@ -87,12 +87,12 @@ void ProDosVolumeWriter::SetFreeInBitmap (vector<Byte> & buffer, uint32_t block,
 
 
 
-    if (block >= (uint32_t) ProDosSkeleton::kTotalBlocks)
+    if (block >= (uint32_t) ProDosSkeleton::GetBlockCount (buffer.size()))
     {
         return;
     }
 
-    at = ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kBitmapBlock, (size_t) (block / 8));
+    at = ProDosSkeleton::GetBitmapByteOffset (BlockImage (buffer), block);
 
     if (at >= buffer.size())
     {
@@ -199,6 +199,15 @@ bool ProDosVolumeWriter::TryEncodeDirectoryName (const std::string & name, std::
         outName += (char) ((c >= 'a' && c <= 'z') ? (c - 'a' + 'A') : c);
     }
 
+    //  An upper-case name has no case word, as ProDOS 8 and SOS write it. SOS
+    //  reads the word's high byte as the file's minimum version and fails to
+    //  open a file whose minimum version is past the version of SOS, so with
+    //  only the present bit set an Apple /// failed to start.
+    if (outCaseFlags == ProDosSkeleton::kCaseFlagsPresent)
+    {
+        outCaseFlags = 0;
+    }
+
     return true;
 }
 
@@ -282,7 +291,7 @@ size_t ProDosVolumeWriter::GetOverheadBlocks (size_t dataBlockCount)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ProDosVolumeWriter::WriteIndexPointer (
-    vector<Byte>  & buffer,
+    BlockBuffer   & buffer,
     int             indexBlock,
     size_t          slot,
     Word            target)
@@ -312,15 +321,16 @@ void ProDosVolumeWriter::WriteIndexPointer (
 
 bool ProDosVolumeWriter::TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlock, size_t & outOffset, bool & outIsBroken) const
 {
-    ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+    ChainWalkGuard  guard ((uint32_t) m_volume.GetBlockCount());
     int             dirBlock = dirKeyBlock;
     int             n        = 0;
+    int             perBlock = m_volume.GetEntriesPerBlock (dirKeyBlock);
 
 
 
     while (dirBlock != 0)
     {
-        bool  inRange = dirBlock > 0 && dirBlock < ProDosSkeleton::kTotalBlocks;
+        bool  inRange = dirBlock > 0 && dirBlock < m_volume.GetBlockCount();
         bool  stepOk  = inRange && guard.TryVisit ((uint32_t) dirBlock);
         int   first   = (dirBlock == dirKeyBlock) ? 1 : 0;
 
@@ -331,7 +341,7 @@ bool ProDosVolumeWriter::TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlo
             break;
         }
 
-        for (n = first; n < (int) ProDosSkeleton::kEntriesPerBlock; n++)
+        for (n = first; n < perBlock; n++)
         {
             size_t  at      = ProDosSkeleton::kOffFirstEntry
                             + (size_t) n * ProDosSkeleton::kEntryLength;
@@ -384,9 +394,9 @@ bool ProDosVolumeWriter::TryAllocateBlocks (
 
     outBlocks.clear();
 
-    for (block = 0; block < (uint32_t) ProDosSkeleton::kTotalBlocks && taken < count; block++)
+    for (block = 0; block < (uint32_t) m_volume.GetBlockCount() && taken < count; block++)
     {
-        bool  isFree  = ProDosVolume::IsFreeInBitmap (m_volume.AccessBlock (ProDosSkeleton::kBitmapBlock), block);
+        bool  isFree  = m_volume.IsBitmapBitFree (block);
         bool  claimed = report.IsClaimed (block);
 
         if (isFree && !claimed)
@@ -414,7 +424,7 @@ bool ProDosVolumeWriter::TryAllocateBlocks (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProDosVolumeWriter::ZeroBlocks (vector<Byte> & buffer, const vector<uint32_t> & blocks)
+void ProDosVolumeWriter::ZeroBlocks (BlockBuffer  & buffer, const vector<uint32_t> & blocks)
 {
     for (uint32_t block : blocks)
     {
@@ -453,7 +463,7 @@ void ProDosVolumeWriter::ZeroBlocks (vector<Byte> & buffer, const vector<uint32_
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ProDosVolumeWriter::PlaceFile (
-    vector<Byte>            & buffer,
+    BlockBuffer             & buffer,
     const vector<uint32_t>  & blocks,
     size_t                    dataBlockCount,
     const vector<Byte>      & bytes)
@@ -544,7 +554,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 void ProDosVolumeWriter::WriteDirectoryEntry (
-    vector<Byte>       & buffer,
+    BlockBuffer        & buffer,
     int                  dirBlock,
     size_t               entryOffset,
     const std::string  & name,
@@ -614,11 +624,11 @@ void ProDosVolumeWriter::WriteDirectoryEntry (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProDosVolumeWriter::AdjustFileCount (vector<Byte> & buffer, int dirKeyBlock, int delta)
+void ProDosVolumeWriter::AdjustFileCount (BlockBuffer  & buffer, int dirKeyBlock, int delta)
 {
     size_t  countAt = ProDosSkeleton::kOffFirstEntry + ProDosSkeleton::kHdrOffFileCount;
-    size_t  at      = ProDosSkeleton::GetBlockByteOffset (dirKeyBlock, countAt);
-    size_t  atHigh  = ProDosSkeleton::GetBlockByteOffset (dirKeyBlock, countAt + 1);
+    size_t  at      = ProDosSkeleton::GetBlockByteOffset (buffer.size(), dirKeyBlock, countAt);
+    size_t  atHigh  = ProDosSkeleton::GetBlockByteOffset (buffer.size(), dirKeyBlock, countAt + 1);
     int     count   = 0;
 
 
@@ -654,10 +664,10 @@ void ProDosVolumeWriter::AdjustFileCount (vector<Byte> & buffer, int dirKeyBlock
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProDosVolumeWriter::LinkDirectoryBlock (vector<Byte> & buffer, int dirKeyBlock, uint32_t newBlock)
+void ProDosVolumeWriter::LinkDirectoryBlock (BlockBuffer  & buffer, int dirKeyBlock, uint32_t newBlock)
 {
-    ProDosVolume    volume (buffer);
-    ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+    ProDosVolume    volume { BlockImage (buffer) };
+    ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::GetBlockCount (buffer.size()));
     size_t          headerAt    = ProDosSkeleton::kOffFirstEntry;
     int             last        = dirKeyBlock;
     int             parent      = 0;
@@ -672,7 +682,7 @@ void ProDosVolumeWriter::LinkDirectoryBlock (vector<Byte> & buffer, int dirKeyBl
     while (true)
     {
         int   next   = volume.ReadWord (last, ProDosSkeleton::kOffNextBlock);
-        bool  stepOk = next > 0 && next < ProDosSkeleton::kTotalBlocks && guard.TryVisit ((uint32_t) next);
+        bool  stepOk = next > 0 && next < ProDosSkeleton::GetBlockCount (buffer.size()) && guard.TryVisit ((uint32_t) next);
 
         if (!stepOk)
         {
@@ -698,7 +708,7 @@ void ProDosVolumeWriter::LinkDirectoryBlock (vector<Byte> & buffer, int dirKeyBl
     entryNumber = volume.ReadByte (dirKeyBlock, headerAt + ProDosSkeleton::kHdrOffParentEntryNumber);
     entryLength = volume.ReadByte (dirKeyBlock, headerAt + ProDosSkeleton::kHdrOffParentEntryLength);
 
-    if (parent <= 0 || parent >= ProDosSkeleton::kTotalBlocks || entryNumber == 0 || entryLength == 0)
+    if (parent <= 0 || parent >= volume.GetBlockCount() || entryNumber == 0 || entryLength == 0)
     {
         return;
     }
@@ -739,7 +749,7 @@ void ProDosVolumeWriter::LinkDirectoryBlock (vector<Byte> & buffer, int dirKeyBl
 ////////////////////////////////////////////////////////////////////////////////
 
 void ProDosVolumeWriter::WriteSubdirectoryHeader (
-    vector<Byte>       & buffer,
+    BlockBuffer        & buffer,
     int                  keyBlock,
     const std::string  & name,
     int                  parentBlock,
@@ -787,10 +797,11 @@ void ProDosVolumeWriter::WriteSubdirectoryHeader (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ProDosVolumeWriter::CreateDirectory (const FilePath & path, vector<Byte> & outBuffer) const
+HRESULT ProDosVolumeWriter::CreateDirectory (const FilePath & path, BlockBuffer  & outBuffer) const
 {
     HRESULT                         hr          = S_OK;
     size_t                          bufferBytes = m_volume.m_sectors.size();
+    bool                            sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
     bool                            nameOk      = false;
     bool                            exists      = false;
     bool                            slotOk      = false;
@@ -808,13 +819,13 @@ HRESULT ProDosVolumeWriter::CreateDirectory (const FilePath & path, vector<Byte>
     std::string                     name;
     vector<ProDosVolume::RawEntry>  entries;
     vector<std::string>             damage;
-    vector<Byte>                    result;
+    BlockBuffer                     result;
     vector<uint32_t>                blocks;
     VolumeIntegrityReport           report;
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (sizeOk, E_INVALIDARG);
 
     nameOk = TryEncodeDirectoryName (path.GetLeaf(), name, caseFlags);
     CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
@@ -842,7 +853,7 @@ HRESULT ProDosVolumeWriter::CreateDirectory (const FilePath & path, vector<Byte>
     CBREx (allocated, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
 
     keyBlock = blocks[0];
-    result   = m_volume.m_sectors;
+    result   = BlockBuffer (m_volume.m_sectors);
 
     if (!slotOk)
     {
@@ -963,7 +974,7 @@ HRESULT ProDosVolumeWriter::AddFileWithCase (
     Byte                  fileType,
     Word                  auxType,
     const vector<Byte>  & bytes,
-    vector<Byte>        & outBuffer) const
+    BlockBuffer         & outBuffer) const
 {
     HRESULT                hr           = S_OK;
     size_t                 payloadSize  = bytes.size();
@@ -977,7 +988,7 @@ HRESULT ProDosVolumeWriter::AddFileWithCase (
     size_t                 slotOffset   = 0;
     size_t                 dataBlocks   = 0;
     size_t                 overhead     = 0;
-    vector<Byte>           result;
+    BlockBuffer            result;
     vector<uint32_t>       blocks;
     VolumeIntegrityReport  report;
 
@@ -1014,7 +1025,7 @@ HRESULT ProDosVolumeWriter::AddFileWithCase (
     haveKeyBlock = !blocks.empty();
     CBRA (haveKeyBlock);
 
-    result = m_volume.m_sectors;
+    result = BlockBuffer (m_volume.m_sectors);
 
     if (!slotOk)
     {
@@ -1067,6 +1078,187 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProDosVolumeWriter::AddExtendedFile
+//
+//  A file with a resource fork: a key block, then each fork laid out as a
+//  file of its own is. The key block has each fork's entry, with its storage
+//  type as a value from 1 to 3, its key block, its blocks and its length,
+//  then the Finder information as two 18-byte entries of size, type and 16
+//  bytes. The directory entry's length is the key block's, 512.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ProDosVolumeWriter::AddExtendedFile (
+    int                   dirKeyBlock,
+    const std::string   & name,
+    Word                  caseFlags,
+    Byte                  fileType,
+    Word                  auxType,
+    const FilePayload   & payload,
+    BlockBuffer         & outBuffer) const
+{
+    constexpr Byte  kFInfoType  = 1;
+    constexpr Byte  kFXInfoType = 2;
+
+
+
+    HRESULT                hr         = S_OK;
+    bool                   slotOk     = false;
+    bool                   rooted     = false;
+    bool                   allocated  = false;
+    bool                   isBroken   = false;
+    int                    slotBlock  = 0;
+    uint32_t               growBlock  = 0;
+    uint32_t               keyBlock   = 0;
+    size_t                 slotOffset = 0;
+    size_t                 dataData   = GetDataBlockCount (payload.bytes.size());
+    size_t                 forkData   = GetDataBlockCount (payload.resourceFork.size());
+    size_t                 dataTotal  = dataData + GetOverheadBlocks (dataData);
+    size_t                 forkTotal  = forkData + GetOverheadBlocks (forkData);
+    size_t                 entry      = 0;
+    size_t                 i          = 0;
+    BlockBuffer            result;
+    vector<uint32_t>       blocks;
+    vector<uint32_t>       dataBlocks;
+    vector<uint32_t>       forkBlocks;
+    VolumeIntegrityReport  report;
+
+
+
+    slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset, isBroken);
+    CBREx (!isBroken, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+    rooted = dirKeyBlock == ProDosSkeleton::kDirKeyBlock;
+    CBREx (slotOk || !rooted, HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE));
+
+    hr = m_volume.BuildIntegrityReport (report);
+    CHRA (hr);
+
+    allocated = TryAllocateBlocks (report, 1 + dataTotal + forkTotal + (slotOk ? 0 : 1), blocks);
+    CBREx (allocated, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+    result = BlockBuffer (m_volume.m_sectors);
+
+    if (!slotOk)
+    {
+        growBlock = blocks.back();
+        blocks.pop_back();
+
+        ZeroBlocks (result, vector<uint32_t> { growBlock });
+        LinkDirectoryBlock (result, dirKeyBlock, growBlock);
+        SetFreeInBitmap (result, growBlock, false);
+
+        slotBlock  = (int) growBlock;
+        slotOffset = ProDosSkeleton::kOffFirstEntry;
+    }
+
+    ZeroBlocks (result, blocks);
+
+    keyBlock = blocks[0];
+    dataBlocks.assign (blocks.begin() + 1, blocks.begin() + 1 + (ptrdiff_t) dataTotal);
+    forkBlocks.assign (blocks.begin() + 1 + (ptrdiff_t) dataTotal, blocks.end());
+
+    hr = PlaceFile (result, dataBlocks, dataData, payload.bytes);
+    CHRA (hr);
+
+    hr = PlaceFile (result, forkBlocks, forkData, payload.resourceFork);
+    CHRA (hr);
+
+    WriteMiniEntry (result, (int) keyBlock, ProDosSkeleton::kExtOffDataFork,     GetStorageType (dataData), dataBlocks, (uint32_t) payload.bytes.size());
+    WriteMiniEntry (result, (int) keyBlock, ProDosSkeleton::kExtOffResourceFork, GetStorageType (forkData), forkBlocks, (uint32_t) payload.resourceFork.size());
+
+    if (payload.finderInfo.size() == ProDosSkeleton::kFinderInfoBytes)
+    {
+        for (entry = 0; entry < ProDosSkeleton::kFinderInfoEntries; entry++)
+        {
+            size_t  at   = ProDosSkeleton::kExtOffFinderInfo + entry * ProDosSkeleton::kFinderInfoEntryBytes;
+            size_t  half = ProDosSkeleton::kFinderInfoBytes / ProDosSkeleton::kFinderInfoEntries;
+
+            WriteByteAt (result, (int) keyBlock, at,     (Byte) ProDosSkeleton::kFinderInfoEntryBytes);
+            WriteByteAt (result, (int) keyBlock, at + 1, entry == 0 ? kFInfoType : kFXInfoType);
+
+            for (i = 0; i < half; i++)
+            {
+                WriteByteAt (result, (int) keyBlock, at + 2 + i, payload.finderInfo[entry * half + i]);
+            }
+        }
+    }
+
+    for (uint32_t block : blocks)
+    {
+        SetFreeInBitmap (result, block, false);
+    }
+
+    WriteDirectoryEntry (result,
+                         slotBlock,
+                         slotOffset,
+                         name,
+                         ProDosSkeleton::kStorageExtended,
+                         fileType,
+                         (Word) keyBlock,
+                         (Word) blocks.size(),
+                         (uint32_t) ProDosSkeleton::kBlockByteSize,
+                         auxType,
+                         dirKeyBlock,
+                         caseFlags);
+
+    AdjustFileCount (result, dirKeyBlock, 1);
+
+    hr = ProDosVolume::HandBackVerifiedResult (report, result, outBuffer);
+    CHRA (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolumeWriter::WriteMiniEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolumeWriter::WriteMiniEntry (BlockBuffer  & buffer, int keyBlock, size_t at, Byte storage, const vector<uint32_t> & forkBlocks, uint32_t eof)
+{
+    WriteByteAt (buffer, keyBlock, at,     (Byte) (storage >> 4));
+    WriteWordAt (buffer, keyBlock, at + 1, (Word) forkBlocks[0]);
+    WriteWordAt (buffer, keyBlock, at + 3, (Word) forkBlocks.size());
+    WriteByteAt (buffer, keyBlock, at + 5, (Byte) (eof & 0xFF));
+    WriteByteAt (buffer, keyBlock, at + 6, (Byte) ((eof >> 8) & 0xFF));
+    WriteByteAt (buffer, keyBlock, at + 7, (Byte) ((eof >> 16) & 0xFF));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolumeWriter::GetDataBlockCount
+//
+//  The data blocks a fork of this many bytes takes. An empty fork still has
+//  its key block, which is what makes it a fork rather than nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t ProDosVolumeWriter::GetDataBlockCount (size_t bytes)
+{
+    size_t  blocks = (bytes + (size_t) ProDosSkeleton::kBlockByteSize - 1) / (size_t) ProDosSkeleton::kBlockByteSize;
+
+
+
+    return std::max (blocks, (size_t) 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProDosVolumeWriter::Write
 //
 //  Adds a file, or replaces one of the same name.
@@ -1090,10 +1282,11 @@ Error:
 HRESULT ProDosVolumeWriter::Write (
     const FilePath     & path,
     const FilePayload  & payload,
-    vector<Byte>       & outBuffer) const
+    BlockBuffer        & outBuffer) const
 {
     HRESULT                         hr          = S_OK;
     size_t                          bufferBytes = m_volume.m_sectors.size();
+    bool                            sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
     size_t                          payloadSize = payload.bytes.size();
     bool                            fits        = payloadSize <= ProDosVolume::kMaxFileBytes;
     int                             dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
@@ -1105,19 +1298,19 @@ HRESULT ProDosVolumeWriter::Write (
     Word                            auxType     = 0;
     Word                            caseFlags   = 0;
     std::string                     name;
-    vector<Byte>                    staged;
+    BlockBuffer                     staged;
     vector<ProDosVolume::RawEntry>  entries;
     vector<std::string>             damage;
     DeleteOutcome                   removal;
 
 
 
-    //  Binds to `staged` by reference, and is read only once it is filled.
-    ProDosVolume           stagedVolume (staged);
+    //  Reads `staged` as it is filled.
+    ProDosVolume  stagedVolume = ProDosVolume (BlockImage (staged));
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (sizeOk, E_INVALIDARG);
 
     nameOk = TryEncodeDirectoryName (path.GetLeaf(), name, caseFlags);
 
@@ -1145,7 +1338,9 @@ HRESULT ProDosVolumeWriter::Write (
 
     if (!exists)
     {
-        hr = AddFileWithCase (dirKeyBlock, name, caseFlags, payload.type, auxType, payload.bytes, outBuffer);
+        hr = payload.hasResourceFork
+           ? AddExtendedFile (dirKeyBlock, name, caseFlags, payload.type, auxType, payload, outBuffer)
+           : AddFileWithCase (dirKeyBlock, name, caseFlags, payload.type, auxType, payload.bytes, outBuffer);
         CHR (hr);
     }
     else
@@ -1156,7 +1351,9 @@ HRESULT ProDosVolumeWriter::Write (
         hr = m_volume.m_remover.Delete (path, staged, removal);
         CHR (hr);
 
-        hr = stagedVolume.m_writer.AddFileWithCase (dirKeyBlock, name, caseFlags, payload.type, auxType, payload.bytes, outBuffer);
+        hr = payload.hasResourceFork
+           ? stagedVolume.m_writer.AddExtendedFile (dirKeyBlock, name, caseFlags, payload.type, auxType, payload, outBuffer)
+           : stagedVolume.m_writer.AddFileWithCase (dirKeyBlock, name, caseFlags, payload.type, auxType, payload.bytes, outBuffer);
         CHR (hr);
     }
 
@@ -1180,9 +1377,9 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProDosVolumeWriter::StampEntry (vector<Byte> & buffer, int dirKeyBlock, const std::string & name, const FilePayload & payload)
+void ProDosVolumeWriter::StampEntry (BlockBuffer  & buffer, int dirKeyBlock, const std::string & name, const FilePayload & payload)
 {
-    ProDosVolume         written (buffer);
+    ProDosVolume                    written = ProDosVolume (BlockImage (buffer));
     vector<ProDosVolume::RawEntry>  entries;
     vector<std::string>             damage;
     bool                            parsed  = true;
@@ -1241,10 +1438,11 @@ void ProDosVolumeWriter::StampEntry (vector<Byte> & buffer, int dirKeyBlock, con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ProDosVolumeWriter::SetStartupProgram (const FilePath & path, vector<Byte> & outBuffer) const
+HRESULT ProDosVolumeWriter::SetStartupProgram (const FilePath & path, BlockBuffer  & outBuffer) const
 {
     HRESULT                         hr          = S_OK;
     size_t                          bufferBytes = m_volume.m_sectors.size();
+    bool                            sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
     bool                            single      = path.IsSingleComponent();
     bool                            found       = false;
     bool                            launchable  = false;
@@ -1255,12 +1453,12 @@ HRESULT ProDosVolumeWriter::SetStartupProgram (const FilePath & path, vector<Byt
     size_t                          i           = 0;
     vector<ProDosVolume::RawEntry>  entries;
     vector<std::string>             damage;
-    vector<Byte>                    result;
+    BlockBuffer                     result;
     VolumeIntegrityReport           report;
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (sizeOk, E_INVALIDARG);
     CBREx (single, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
 
     m_volume.CollectEntries (ProDosSkeleton::kDirKeyBlock, entries, damage, fullyParsed);
@@ -1290,7 +1488,7 @@ HRESULT ProDosVolumeWriter::SetStartupProgram (const FilePath & path, vector<Byt
         }
     }
 
-    result = m_volume.m_sectors;
+    result = BlockBuffer (m_volume.m_sectors);
 
     // A file already in front of every other candidate leaves the volume
     // exactly as it was, rather than being rewritten to what it already says.
@@ -1338,10 +1536,11 @@ Error:
 HRESULT ProDosVolumeWriter::Rename (
     const FilePath     & from,
     const std::string  & to,
-    vector<Byte>       & outBuffer) const
+    BlockBuffer        & outBuffer) const
 {
     HRESULT                         hr          = S_OK;
     size_t                          bufferBytes = m_volume.m_sectors.size();
+    bool                            sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
     bool                            nameOk      = false;
     bool                            found       = false;
     bool                            taken       = false;
@@ -1356,12 +1555,12 @@ HRESULT ProDosVolumeWriter::Rename (
     std::string                     name;
     vector<ProDosVolume::RawEntry>  entries;
     vector<std::string>             damage;
-    vector<Byte>                    result;
+    BlockBuffer                     result;
     VolumeIntegrityReport           report;
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (sizeOk, E_INVALIDARG);
 
     nameOk = TryEncodeDirectoryName (to, name, caseFlags);
     CBREx (nameOk, HRESULT_FROM_WIN32 (ERROR_INVALID_NAME));
@@ -1386,7 +1585,7 @@ HRESULT ProDosVolumeWriter::Rename (
     hr = m_volume.BuildIntegrityReport (report);
     CHRA (hr);
 
-    result = m_volume.m_sectors;
+    result = BlockBuffer (m_volume.m_sectors);
 
     WriteByteAt (result,
                  entries[owner].dirBlock,
@@ -1435,10 +1634,11 @@ Error:
 HRESULT ProDosVolumeWriter::SetAttributes (
     const FilePath        & path,
     const FileAttributes  & attributes,
-    vector<Byte>          & outBuffer) const
+    BlockBuffer           & outBuffer) const
 {
     HRESULT                         hr          = S_OK;
     size_t                          bufferBytes = m_volume.m_sectors.size();
+    bool                            sizeOk      = ProDosSkeleton::IsValidVolumeSize (bufferBytes);
     bool                            found       = false;
     bool                            isDirectory = false;
     bool                            fullyParsed = true;
@@ -1448,12 +1648,12 @@ HRESULT ProDosVolumeWriter::SetAttributes (
     size_t                          entry       = 0;
     vector<ProDosVolume::RawEntry>  entries;
     vector<std::string>             damage;
-    vector<Byte>                    result;
+    BlockBuffer                     result;
     VolumeIntegrityReport           report;
 
 
 
-    CBREx (bufferBytes == (size_t) NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    CBREx (sizeOk, E_INVALIDARG);
 
     hr = m_volume.ResolveDirectory (ProDosVolume::GetParentPath (path), dirKeyBlock);
     CHR (hr);
@@ -1469,7 +1669,7 @@ HRESULT ProDosVolumeWriter::SetAttributes (
     hr = m_volume.BuildIntegrityReport (report);
     CHRA (hr);
 
-    result = m_volume.m_sectors;
+    result = BlockBuffer (m_volume.m_sectors);
     block  = entries[owner].dirBlock;
     entry  = entries[owner].entryOffset;
 

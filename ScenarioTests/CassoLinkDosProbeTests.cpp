@@ -66,17 +66,17 @@ public:
             if (underDos)
             {
                 AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
-                machine.RunCycles (15 * kClockHz);
+                machine.GetRunner().RunCycles (15 * kClockHz);
             }
             else
             {
-                machine.RunCycles (2 * kClockHz);
+                machine.GetRunner().RunCycles (2 * kClockHz);
                 machine.GetCpu()->SetPC (0xE000);
-                machine.RunCycles (2 * kClockHz);
+                machine.GetRunner().RunCycles (2 * kClockHz);
             }
 
             InProcessByteStream::CreatePair (machineEnd, pcEnd);
-            Assert::AreEqual (S_OK, machine.AttachSerialStream (kPort, machineEnd));
+            Assert::AreEqual (S_OK, machine.GetConnectors().AttachSerialStream (kPort, machineEnd));
 
             Type ("IN#2\r");
             Type ("\x01" "14B");
@@ -87,7 +87,7 @@ public:
             for (size_t i = 0; text[i] != '\0'; i++)
             {
                 machine.GetRefs().iieKeyboard->PressKey ((Byte) text[i]);
-                machine.RunCycles (kKeyCycles);
+                machine.GetRunner().RunCycles (kKeyCycles);
             }
         }
 
@@ -100,10 +100,10 @@ public:
                 for (size_t at = std::min (dropped, line.size()); at < line.size(); at++)
                 {
                     AssertSucceeded (pcEnd->Write (reinterpret_cast<const Byte *> (line.data() + at), 1));
-                    machine.RunCycles (kCharCycles);
+                    machine.GetRunner().RunCycles (kCharCycles);
                 }
 
-                machine.RunCycles (kLineCycles);
+                machine.GetRunner().RunCycles (kLineCycles);
             }
         }
 
@@ -124,7 +124,7 @@ public:
                     return spent;
                 }
 
-                machine.RunCycles (kStepCycles);
+                machine.GetRunner().RunCycles (kStepCycles);
                 spent += kStepCycles;
             }
 
@@ -244,10 +244,10 @@ public:
         }
 
         screen = rig.Screen();
-        Assert::AreNotEqual (std::string::npos, screen.find ("CASSOLINK"), L"the program's status screen, before Escape");
+        Assert::AreNotEqual (std::string::npos, screen.find ("CassoLink"), L"the program's status screen, before Escape");
 
         rig.machine.GetRefs().iieKeyboard->PressKey (0x1B);
-        rig.machine.RunCycles (2 * kClockHz);
+        rig.machine.GetRunner().RunCycles (2 * kClockHz);
 
         for (size_t i = 0; i < rwts.size(); i++)
         {
@@ -257,7 +257,7 @@ public:
         }
 
         rig.Type ("CATALOG\r");
-        rig.machine.RunCycles (5 * kClockHz);
+        rig.machine.GetRunner().RunCycles (5 * kClockHz);
 
         screen = rig.Screen();
         Assert::AreEqual (std::string::npos, screen.find ("ERROR"), TextEncoding::NarrowToWide (screen).c_str());

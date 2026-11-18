@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerDragOut.h"
+#include "CassoExplorer/Model/CopyOutConversion.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/TextEncoding.h"
@@ -155,14 +156,20 @@ DiskOperations::Encoding CassoExplorerDragOut::GetEncoding (const DragPayload::D
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoExplorerDragOut::CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style, std::wstring & outFailure,
-                                               bool cut, std::function<void()> onMovePasted)
+                                               bool cut, std::function<void()> onMovePasted, bool raw)
 {
-    HRESULT                                  hr      = S_OK;
-    std::shared_ptr<RenderLog>               log     = std::make_shared<RenderLog>();
-    std::vector<DxuiDragDropSource::Format>  formats = BuildFormats (browser, style, log);
-    std::vector<DxuiDragDropSource::Format>  held;
-    DxuiDragDropSource                     * source  = nullptr;
-    bool                                     empty   = formats.empty();
+    HRESULT                                         hr       = S_OK;
+    std::shared_ptr<RenderLog>                      log      = std::make_shared<RenderLog>();
+    std::vector<DxuiDragDropSource::Format>         formats  = BuildFormats (browser, style, log, raw);
+    std::vector<DxuiDragDropSource::Format>         held;
+    DxuiDragDropSource                            * source   = nullptr;
+    bool                                            empty    = formats.empty();
+    CLIPFORMAT                                      contents = (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS);
+    std::vector<std::vector<std::vector<uint8_t>>>  rendered;
+    std::vector<bool>                               skipped;
+    std::vector<std::wstring>                       failures;
+    HRESULT                                         failure  = S_OK;
+    bool                                            anyKept  = false;
 
 
 
@@ -170,22 +177,56 @@ HRESULT CassoExplorerDragOut::CopyToClipboard (CassoExplorerBrowser & browser, H
 
     CBR (!empty);
 
-    //  Everything the formats would render on demand, read now.
+    //  Everything the formats would render on demand, read now. A file that
+    //  fails to convert is left out of a copy with its reason, and the rest
+    //  are copied. A cut fails whole, since its originals are deleted once
+    //  the paste is reported.
     for (DxuiDragDropSource::Format & format : formats)
     {
-        std::shared_ptr<std::vector<std::vector<uint8_t>>>  bytes = std::make_shared<std::vector<std::vector<uint8_t>>>();
+        std::vector<std::vector<uint8_t>>  bytes;
 
         for (int index = 0; index < (format.count > 0 ? format.count : 1); index++)
         {
             std::vector<uint8_t>  one;
 
             hr = format.render (index, one);
+
+            if (FAILED (hr) && format.format == contents && !cut)
+            {
+                skipped.resize ((size_t) format.count, false);
+                skipped[(size_t) index] = true;
+                failures.push_back (log->GetFailure());
+                failure = hr;
+                hr      = S_OK;
+            }
+
             CHR (hr);
 
-            bytes->push_back (std::move (one));
+            bytes.push_back (std::move (one));
         }
 
-        held.push_back (DxuiDragDropSource::Format { format.format, format.count,
+        rendered.push_back (std::move (bytes));
+    }
+
+    anyKept = skipped.empty() || std::find (skipped.begin(), skipped.end(), false) != skipped.end();
+    CBREx (anyKept, failure);
+
+    for (size_t i = 0; i < formats.size(); i++)
+    {
+        auto  bytes = std::make_shared<std::vector<std::vector<uint8_t>>> (std::move (rendered[i]));
+        int   count = formats[i].count;
+
+        if (!skipped.empty() && formats[i].format == contents)
+        {
+            DropSkipped (*bytes, skipped);
+            count = (int) bytes->size();
+        }
+        else if (!skipped.empty() && formats[i].format == (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW))
+        {
+            (*bytes)[0] = DropSkippedDescriptors ((*bytes)[0], skipped);
+        }
+
+        held.push_back (DxuiDragDropSource::Format { formats[i].format, count,
                                                      [bytes] (int index, std::vector<uint8_t> & out)
                                                      {
                                                          size_t  at = (index >= 0 && (size_t) index < bytes->size()) ? (size_t) index : 0;
@@ -238,12 +279,87 @@ Error:
         source->Release();
     }
 
-    if (FAILED (hr))
+    if (FAILED (hr) && failures.empty())
     {
         outFailure = log->GetFailure();
     }
 
+    for (const std::wstring & reason : failures)
+    {
+        outFailure += (outFailure.empty() ? L"" : L"\n") + reason;
+    }
+
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::DropSkipped
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerDragOut::DropSkipped (std::vector<std::vector<uint8_t>> & ioFiles, const std::vector<bool> & skipped)
+{
+    std::vector<std::vector<uint8_t>>  kept;
+
+
+
+    for (size_t i = 0; i < ioFiles.size(); i++)
+    {
+        if (i >= skipped.size() || !skipped[i])
+        {
+            kept.push_back (std::move (ioFiles[i]));
+        }
+    }
+
+    ioFiles = std::move (kept);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::DropSkippedDescriptors
+//
+//  A FILEGROUPDESCRIPTORW without the files at the skipped positions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<uint8_t> CassoExplorerDragOut::DropSkippedDescriptors (const std::vector<uint8_t> & group, const std::vector<bool> & skipped)
+{
+    const FILEGROUPDESCRIPTORW  * in      = (const FILEGROUPDESCRIPTORW *) group.data();
+    UINT                          count   = group.size() >= sizeof (UINT) ? in->cItems : 0;
+    UINT                          kept    = 0;
+    std::vector<uint8_t>          out;
+    FILEGROUPDESCRIPTORW        * trimmed = nullptr;
+
+
+
+    for (UINT i = 0; i < count; i++)
+    {
+        kept += (i < skipped.size() && skipped[i]) ? 0 : 1;
+    }
+
+    out.assign (sizeof (FILEGROUPDESCRIPTORW) + (kept > 0 ? (kept - 1) * sizeof (FILEDESCRIPTORW) : 0), 0);
+    trimmed         = (FILEGROUPDESCRIPTORW *) out.data();
+    trimmed->cItems = kept;
+    kept            = 0;
+
+    for (UINT i = 0; i < count; i++)
+    {
+        if (i >= skipped.size() || !skipped[i])
+        {
+            trimmed->fgd[kept++] = in->fgd[i];
+        }
+    }
+
+    return out;
 }
 
 
@@ -757,7 +873,7 @@ HRESULT CassoExplorerDragOut::GetDropError (HRESULT hr)
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style,
-                                                                       std::shared_ptr<RenderLog> log)
+                                                                       std::shared_ptr<RenderLog> log, bool raw, bool offerRawCopy)
 {
     std::vector<DxuiDragDropSource::Format>                  formats;
     std::vector<FileEntry>                                   entries;
@@ -771,6 +887,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
     std::vector<CassoExplorerBrowser::SearchMatch>           matches;
     std::shared_ptr<std::vector<std::string>>                images;
     std::shared_ptr<std::vector<VolumeKind>>                 kinds;
+    std::shared_ptr<std::vector<DecodeOptions>>              options     = std::make_shared<std::vector<DecodeOptions>>();
 
 
 
@@ -797,7 +914,17 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
                                        return browser.GetOperations().List (image, directory, outListing, listed).hr;
                                    },
-                                   {}, browser.GetLocation().innerPath);
+                                   {}, browser.GetLocation().innerPath,
+                                   [&browser, image, kind = browser.GetVolumeKind()] (const std::string & catalogPath, const FileEntry & entry)
+                                   {
+                                       return CopyOutConversion::Find (browser.GetOperations(), image, catalogPath, entry, kind);
+                                   },
+                                   raw);
+
+        for (const DragPayload::Descriptor & descriptor : plan.descriptors)
+        {
+            options->push_back (browser.GetDecodeOptions (browser.GetLocation().path, descriptor.catalogPath));
+        }
 
         descriptors = std::make_shared<std::vector<DragPayload::Descriptor>> (plan.descriptors);
         group       = std::make_shared<std::vector<uint8_t>> (MakeFileGroupDescriptor (plan.descriptors));
@@ -809,14 +936,23 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
         }
 
         formats.push_back (MakeFilesMarker());
+
+        //  A right-drag into File Explorer offers the raw copy beside its Copy
+        //  here when a file has a conversion, through RawCopyDropHandler.
+        if (offerRawCopy && !raw && std::any_of (plan.descriptors.begin(), plan.descriptors.end(), [] (const DragPayload::Descriptor & d) { return d.converted || d.format != FileFormat::None; }))
+        {
+            formats.push_back (MakeRawCopyMarker());
+        }
+
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), 1,
                              [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
 
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS), (int) descriptors->size(),
-                             [&browser, image, kind = browser.GetVolumeKind(), descriptors, log] (int index, std::vector<uint8_t> & out)
+                             [&browser, image, kind = browser.GetVolumeKind(), descriptors, options, log] (int index, std::vector<uint8_t> & out)
                              {
                                  const DragPayload::Descriptor &  descriptor = (*descriptors)[(size_t) index];
                                  DiskOperations::Result           result;
+                                 std::wstring                     decodeFailure;
 
                                  out.clear();
 
@@ -825,7 +961,8 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                                      return S_OK;
                                  }
 
-                                 result = browser.GetOperations().Get (image, descriptor.catalogPath, GetEncoding (descriptor), "", descriptor.catalogIndex);
+                                 result = CopyOutConversion::Get (browser.GetOperations(), (*options)[(size_t) index], image, descriptor.catalogPath, descriptor.entry, kind,
+                                                                  descriptor.format, GetEncoding (descriptor), decodeFailure);
 
                                  if (result.Succeeded() && descriptor.appleSingle)
                                  {
@@ -848,7 +985,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
                                  if (log && FAILED (result.hr))
                                  {
-                                     log->SetFailure (DescribeReadFailure (descriptor, result.hr, kind));
+                                     log->SetFailure (decodeFailure.empty() ? DescribeReadFailure (descriptor, result.hr, kind) : decodeFailure);
                                  }
 
                                  return GetDropError (result.hr);
@@ -890,10 +1027,16 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
                                            return browser.GetOperations().List (from, directory, outListing, listed).hr;
                                        },
-                                       {}, matches[first].directory);
+                                       {}, matches[first].directory,
+                                       [&browser, from, kind = matches[first].kind] (const std::string & catalogPath, const FileEntry & entry)
+                                       {
+                                           return CopyOutConversion::Find (browser.GetOperations(), from, catalogPath, entry, kind);
+                                       },
+                                       raw);
 
             for (DragPayload::Descriptor & descriptor : plan.descriptors)
             {
+                options->push_back (browser.GetDecodeOptions (matches[first].imagePath, descriptor.catalogPath));
                 descriptors->push_back (descriptor);
                 images->push_back (from);
                 kinds->push_back (matches[first].kind);
@@ -909,10 +1052,11 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                              [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
 
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS), (int) descriptors->size(),
-                             [&browser, images, kinds, descriptors, log] (int index, std::vector<uint8_t> & out)
+                             [&browser, images, kinds, descriptors, options, log] (int index, std::vector<uint8_t> & out)
                              {
                                  const DragPayload::Descriptor &  descriptor = (*descriptors)[(size_t) index];
                                  DiskOperations::Result           result;
+                                 std::wstring                     decodeFailure;
 
                                  out.clear();
 
@@ -921,7 +1065,8 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                                      return S_OK;
                                  }
 
-                                 result = browser.GetOperations().Get ((*images)[(size_t) index], descriptor.catalogPath, GetEncoding (descriptor), "", descriptor.catalogIndex);
+                                 result = CopyOutConversion::Get (browser.GetOperations(), (*options)[(size_t) index], (*images)[(size_t) index], descriptor.catalogPath, descriptor.entry,
+                                                                  (*kinds)[(size_t) index], descriptor.format, GetEncoding (descriptor), decodeFailure);
 
                                  if (result.Succeeded() && descriptor.appleSingle)
                                  {
@@ -937,7 +1082,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
                                  if (log && FAILED (result.hr))
                                  {
-                                     log->SetFailure (DescribeReadFailure (descriptor, result.hr, (*kinds)[(size_t) index]));
+                                     log->SetFailure (decodeFailure.empty() ? DescribeReadFailure (descriptor, result.hr, (*kinds)[(size_t) index]) : decodeFailure);
                                  }
 
                                  return GetDropError (result.hr);
@@ -973,6 +1118,25 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 DxuiDragDropSource::Format CassoExplorerDragOut::MakeFilesMarker()
 {
     return { (CLIPFORMAT) RegisterClipboardFormatW (kFilesFormatName), 1, [] (int, std::vector<uint8_t> & out)
+    {
+        out.assign (1, 0);
+        return S_OK;
+    } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::MakeRawCopyMarker
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiDragDropSource::Format CassoExplorerDragOut::MakeRawCopyMarker()
+{
+    return { (CLIPFORMAT) RegisterClipboardFormatW (RawCopyDropHandler::kOfferedFormat), 1, [] (int, std::vector<uint8_t> & out)
     {
         out.assign (1, 0);
         return S_OK;

@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Debugger/AppleWinParser.h"
+#include "Debugger/AppleWinArgumentForms.h"
 #include "Debugger/HeatMapRangeSets.h"
 #include "Debugger/HeatMapSymbols.h"
 
@@ -798,7 +798,7 @@ bool HeatMapRangeSets::TryResolve (const HeatMapRange & range, const HeatMapSymb
         text = start + ":" + end;
     }
 
-    if (!AppleWinParser::TryParseRange (text, symbols, command, error))
+    if (!AppleWinArgumentForms::TryParseRange (text, symbols, command, error))
     {
         return false;
     }

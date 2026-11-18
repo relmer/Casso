@@ -253,7 +253,7 @@ namespace UthernetCardTests
                 bus.WriteByte (kSlot3Data, each);
             }
 
-            hr = machine.SaveState (writer);
+            hr = machine.GetStateStream().SaveState (writer);
             Assert::AreEqual (S_OK, hr, L"SaveState");
 
             bus.WriteByte (kSlot3High, 0x00);
@@ -264,7 +264,7 @@ namespace UthernetCardTests
             {
                 StateReader  reader (writer.GetBytes());
 
-                hr = machine.LoadState (reader);
+                hr = machine.GetStateStream().LoadState (reader);
                 Assert::AreEqual (S_OK, hr, L"LoadState");
             }
 

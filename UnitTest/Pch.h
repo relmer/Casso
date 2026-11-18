@@ -33,3 +33,10 @@
 #endif
 
 #include "HResultAssert.h"
+
+//  Master's tests take these through headers that now declare them only.
+#include "Core/JsonValue.h"
+#include "Devices/Disk/MountDiagnosis.h"
+#include "Devices/Printer/RgbaImage.h"
+#include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/MachineDefinition.h"

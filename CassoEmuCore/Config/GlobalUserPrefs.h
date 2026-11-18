@@ -6,6 +6,7 @@
 
 #include "Core/JsonValue.h"
 #include "Config/CrtTypes.h"
+#include "Config/DiskInspectorPrefs.h"
 #include "Ui/UiCommandTypes.h"
 #include "Ui/ColorUtil.h"
 
@@ -50,6 +51,14 @@ struct GlobalUserPrefs
     // collapsed they reserve no space, and the picture takes the room. Every
     // theme, flat or desk scene.
     bool         autoHideDrives      = false;
+
+    // Where the floppy drives and the hard disks go: "auto", "desk" or
+    // "bar" (DeskDrivePlan::ParsePlace).
+    std::string  deskFloppies        = "auto";
+    std::string  deskHardDisks       = "auto";
+
+    // Two floppies on the desk stack beside the monitor rather than under it.
+    bool         deskFloppyPairBeside = false;
 
     // The frames-per-second readout over the picture.
     //
@@ -291,6 +300,8 @@ struct GlobalUserPrefs
 
     // Sets the update check and pending update fields above to those of `other`.
     void  CopyUpdateFieldsFrom (const GlobalUserPrefs & other);
+    // The disk inspector window's state (FR-080).
+    DiskInspectorPrefs  diskInspector;
 
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;

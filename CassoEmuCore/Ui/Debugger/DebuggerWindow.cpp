@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/OpenViewsText.h"
+#include "Ui/Debugger/RunActions.h"
+#include "Ui/Debugger/SessionActions.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DroppedFiles.h"
 #include "Ui/Debugger/BranchArrow.h"
@@ -56,7 +59,6 @@
 
 
 
-static constexpr LPCWSTR  s_kpszWindowTitle = L"Debugger";
 static constexpr LPCWSTR  s_kpszClassName   = L"CassoDebuggerWindow";
 
 
@@ -122,30 +124,6 @@ DebuggerWindow::~DebuggerWindow()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetCaption
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebuggerWindow::GetCaption (const std::wstring & titlePrefix, const std::wstring & projectLabel)
-{
-    std::wstring  caption = titlePrefix.empty() ? std::wstring (s_kpszWindowTitle) : titlePrefix + L" - " + s_kpszWindowTitle;
-
-
-
-    if (!projectLabel.empty())
-    {
-        caption += L" - " + projectLabel;
-    }
-
-    return caption;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::UpdateProjectCaption
 //
 //  The project's label, read at most every kProjectLabelMs, since a switch
@@ -175,7 +153,7 @@ void DebuggerWindow::UpdateProjectCaption (int64_t now)
     if (label != m_projectLabel)
     {
         m_projectLabel = label;
-        SetTitle (GetCaption (m_titlePrefix, m_projectLabel));
+        SetTitle (DebuggerWindowText::GetCaption (m_titlePrefix, m_projectLabel));
     }
 }
 
@@ -203,7 +181,7 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     m_host          = host;
     m_hInstance = hInstance;
 
-    params.title                    = s_kpszWindowTitle;
+    params.title                    = DebuggerWindowText::kpszWindowTitle;
     params.hInstance                = hInstance;
     //  A PEER OF THE EMULATOR WINDOW, NOT AN OWNED ONE. An owned window is
     //  z-locked above its owner forever: the debugger could never be put
@@ -314,7 +292,7 @@ void DebuggerWindow::ConfigureWidgets()
 
     for (DxuiListView * list : GetLists())
     {
-        MakeDense (list);
+        DensePaneList::MakeDense (list);
     }
 
     //  Every list but the disassemblies is in the proportional face, as
@@ -386,17 +364,6 @@ void DebuggerWindow::ConfigureWidgets()
 
 void DebuggerWindow::ConfigureCommandBar()
 {
-    DebuggerCommands::Handlers  handlers;
-
-
-
-    handlers.dispatch  = [this] (int id) { RunCommandBarEntry (id); };
-    handlers.isEnabled = [this] (int id) { return IsCommandBarEntryEnabled (id); };
-    handlers.isChecked = [this] (int id) { return id == DebuggerCommands::kTrace && m_snapshot != nullptr && m_snapshot->trace.isOn; };
-    handlers.isDark    = [this]          { return IsDarkTheme(); };
-
-    m_commands = std::make_unique<DebuggerCommands> (std::move (handlers));
-
     m_commandBar->SetTextRenderer (GetTextRenderer());
     m_commandBar->SetPopupHost    (GetPopupHost());
     m_tooltip.SetPopupHost        (GetPopupHost());
@@ -406,7 +373,7 @@ void DebuggerWindow::ConfigureCommandBar()
     m_commandBar->SetIconFace     (DxuiToolbar::kMdl2IconFace);
     m_commandBar->EnableSeeMore   (s_kpszMdl2More, L"See more");
     m_commandBar->SetGrabHandle   (true);
-    m_commandBar->SetEntries      (m_commands->BuildEntries());
+    m_commandBar->SetEntries      (m_runControls.CreateEntries());
 
     ConfigureCommandBarHost();
     ConfigureTimeline();
@@ -465,169 +432,13 @@ std::string DebuggerWindow::GetMenuState() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::RunCommandBarEntry
-//
-//  A click on the strip runs what the same key would: the key schemes' own
-//  actions go through the mapped-command path, and the bar's own entries are
-//  handled here.
+//  DebuggerWindow::HasSelectedCodeRow
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::RunCommandBarEntry (int id)
+bool DebuggerWindow::HasSelectedCodeRow() const
 {
-    //  Pause while there is something to stop, Run otherwise.
-    if (id == DebuggerCommands::kRunOrPause)
-    {
-        id = IsCommandBarEntryEnabled (DebuggerCommands::kPause) ? DebuggerCommands::kPause : DebuggerCommands::kRun;
-
-        if (!IsCommandBarEntryEnabled (id))
-        {
-            return;
-        }
-    }
-
-    if (id == DebuggerCommands::kShowNext)
-    {
-        ShowNextStatement();
-        return;
-    }
-
-    if (id == DebuggerCommands::kTrace)
-    {
-        if (IsCommandBarEntryEnabled (id))
-        {
-            RunAction (DebuggerActions::GetTraceToggle (m_snapshot != nullptr && m_snapshot->trace.isOn, GetMode()));
-        }
-
-        return;
-    }
-
-    if (id == DebuggerCommands::kReverseContinue || id == DebuggerCommands::kGoLive)
-    {
-        RunAction (DebuggerActions::GetReverse ((id == DebuggerCommands::kGoLive) ? DebugVerb::GoLive : DebugVerb::ReverseGo, GetMode()));
-        return;
-    }
-
-    if (id == DebuggerCommands::kLoadFile)
-    {
-        LoadFileIntoMemory();
-        return;
-    }
-
-    (void) OnMappedCommand (id);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::IsCommandBarEntryEnabled
-//
-//  A running machine has no state to step through, so everything that acts
-//  on a stopped one is off while it runs, and Pause is off while it is
-//  already stopped. Run to Cursor needs a line to run to as well. The
-//  choices that only change what the window shows stay live throughout.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
-{
-    bool  paused = m_snapshot != nullptr && m_snapshot->isPaused;
-
-
-
-    //  While history recording is on, the trace is rebuilt from history, so
-    //  there is nothing to turn on or off.
-    if (id == DebuggerCommands::kTrace)
-    {
-        return m_snapshot == nullptr || !m_snapshot->history.isRecording;
-    }
-
-    if (id == DebuggerCommands::kRun)
-    {
-        return paused;
-    }
-
-    if (id == DebuggerCommands::kRunOrPause)
-    {
-        return IsCommandBarEntryEnabled (DebuggerCommands::kRun) || IsCommandBarEntryEnabled (DebuggerCommands::kPause);
-    }
-
-    //  A replay runs with the machine stopped, and Pause stops it.
-    if (id == DebuggerCommands::kPause)
-    {
-        return !paused || (m_host != nullptr && m_host->IsReplayingHistory());
-    }
-
-    //  A load writes memory, which BLOAD does only with the machine stopped.
-    if (id == DebuggerCommands::kStepInto || id == DebuggerCommands::kStepOver ||
-        id == DebuggerCommands::kStepOut  || id == DebuggerCommands::kShowNext ||
-        id == DebuggerCommands::kRunFrame || id == DebuggerCommands::kLoadFile)
-    {
-        return paused;
-    }
-
-    if (id == DebuggerCommands::kRunToCursor)
-    {
-        return paused && m_code->GetCodeList (m_code->GetActive())->GetSelectedRow() >= 0;
-    }
-
-    //  Moving through history needs a stopped machine and a recording, and
-    //  going live needs the machine to be behind live.
-    if (id == DebuggerCommands::kStepBackInto || id == DebuggerCommands::kStepBackOver ||
-        id == DebuggerCommands::kStepBackOut  || id == DebuggerCommands::kReverseContinue)
-    {
-        return paused && m_snapshot->history.isRecording;
-    }
-
-    if (id == DebuggerCommands::kGoLive)
-    {
-        return paused && m_snapshot->history.isBehindLive;
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::MakeDense
-//
-//  One setting for every pane, so the panes read as one listing rather than
-//  seven lists that happen to share a window.
-//
-//  A pane narrower than its columns scrolls sideways, as Visual Studio's do:
-//  the columns fit their contents, so without the scroll whatever was right
-//  of the pane's edge -- the code pane's annotations, the call stack's Found
-//  by -- could not be seen at all.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::MakeDense (DxuiListView * list)
-{
-    list->SetShowHeader              (true);
-    list->SetMonospace               (true);
-    list->SetFontSizeDip             (kPaneFontDip);
-    list->SetRowHeightDip            (kPaneRowDip);
-    list->SetHeaderHeightDip         (kPaneHeaderDip);
-    list->SetCellPaddingDip          (kPanePadDip, kPanePadDip);
-    list->SetPreciseAutoFit          (true);
-    list->SetRefitOnSetRows          (true);
-    list->SetHorizontalScrollEnabled (true);
-    list->SetPaneTextInset           (true);
-
-    //  The arrows, the page keys, Home and End move the selection, and Ctrl+C
-    //  copies it, so F9, run to cursor and the edit keys can act on a row
-    //  chosen without the mouse. A keyboard move is reported as a click is,
-    //  so the pane's record of the selection, which each snapshot restores,
-    //  follows it.
-    list->SetKeyboardColumnNav       (true);
-    list->SetKeyboardMoveNotify      (true);
+    return m_code->GetCodeList (m_code->GetActive())->GetSelectedRow() >= 0;
 }
 
 
@@ -646,14 +457,7 @@ void DebuggerWindow::MakeDense (DxuiListView * list)
 
 void DebuggerWindow::StepTextZoom (int steps)
 {
-    int  smallest = (int) std::lround (kMinTextZoom / kTextZoomStep);
-    int  largest  = (int) std::lround (kMaxTextZoom / kTextZoomStep);
-    int  step     = (int) std::lround (m_textZoom / kTextZoomStep);
-
-
-
-    step = std::clamp (step + steps, smallest, largest);
-    ApplyTextZoom ((float) step * kTextZoomStep);
+    ApplyTextZoom (TextZoomLevels::Step (m_textZooms.GetWindowZoom(), steps));
 }
 
 
@@ -670,7 +474,7 @@ void DebuggerWindow::StepTextZoom (int steps)
 
 void DebuggerWindow::ResetTextZoom()
 {
-    ApplyTextZoom (kDefaultTextZoom);
+    ApplyTextZoom (TextZoomLevels::kDefaultZoom);
 }
 
 
@@ -691,11 +495,11 @@ void DebuggerWindow::ResetTextZoom()
 
 void DebuggerWindow::ApplyTextZoom (float zoom)
 {
-    m_textZoom = std::clamp (zoom, kMinTextZoom, kMaxTextZoom);
+    m_textZooms.SetWindowZoom (zoom);
 
     if (m_host != nullptr)
     {
-        m_host->SetDebuggerTextZoomPercent ((int) std::lround (m_textZoom * DebuggerStatusText::kPercent));
+        m_host->SetDebuggerTextZoomPercent ((int) std::lround (m_textZooms.GetWindowZoom() * DebuggerStatusText::kPercent));
     }
 
     //  The status bar's zoom and its panel follow a change from anywhere, the
@@ -703,27 +507,6 @@ void DebuggerWindow::ApplyTextZoom (float zoom)
     UpdateStatusBar();
 
     ApplyTextSizes();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetPaneTextZoom
-//
-//  A pane's text size over the window's, 1 for a pane never zoomed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DebuggerWindow::GetPaneTextZoom (const std::wstring & pane) const
-{
-    auto  found = m_paneTextZooms.find (pane);
-
-
-
-    return (found != m_paneTextZooms.end()) ? found->second : 1.0f;
 }
 
 
@@ -743,27 +526,12 @@ float DebuggerWindow::GetPaneTextZoom (const std::wstring & pane) const
 
 void DebuggerWindow::StepPaneTextZoom (const std::wstring & pane, int steps)
 {
-    int  smallest = (int) std::lround (kMinTextZoom / kTextZoomStep);
-    int  largest  = (int) std::lround (kMaxTextZoom / kTextZoomStep);
-    int  step     = (int) std::lround (GetPaneTextZoom (pane) / kTextZoomStep);
-
-
-
     if (pane.empty() || FindPane (pane) == nullptr)
     {
         return;
     }
 
-    if (steps == 0)
-    {
-        m_paneTextZooms.erase (pane);
-    }
-    else
-    {
-        step                  = std::clamp (step + steps, smallest, largest);
-        m_paneTextZooms[pane] = (float) step * kTextZoomStep;
-    }
-
+    m_textZooms.StepPaneZoom (pane, steps);
     ApplyTextSizes();
 }
 
@@ -784,15 +552,15 @@ void DebuggerWindow::ApplyTextSizes()
 {
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
-        float  zoom = std::clamp (m_textZoom * GetPaneTextZoom (pane->GetId()), kMinTextZoom, kMaxTextZoom);
+        float  zoom = m_textZooms.GetEffectiveZoom (pane->GetId());
 
 
 
         for (DxuiListView * list : pane->GetLists())
         {
-            list->SetFontSizeDip     (kPaneFontDip * zoom);
-            list->SetRowHeightDip    ((int) std::lround (kPaneRowDip * zoom));
-            list->SetHeaderHeightDip ((int) std::lround (kPaneHeaderDip * zoom));
+            list->SetFontSizeDip     (DensePaneList::kFontDip * zoom);
+            list->SetRowHeightDip    ((int) std::lround (DensePaneList::kRowDip * zoom));
+            list->SetHeaderHeightDip ((int) std::lround (DensePaneList::kHeaderDip * zoom));
             list->ResetAutoFit();
         }
 
@@ -871,7 +639,7 @@ int DebuggerWindow::GetSourceSlotOf (const std::wstring & pane) const
 
 void DebuggerWindow::RunToCursor (Word address)
 {
-    RunAction (DebuggerActions::GetRunToCursor (address));
+    RunAction (RunActions::GetRunToCursor (address));
 }
 
 
@@ -987,10 +755,7 @@ void DebuggerWindow::ApplyKeyScheme (DebuggerKeyScheme scheme)
         m_timelineHost.GetFloatWindow()->SetKeyMap (&map);
     }
 
-    if (m_commands != nullptr)
-    {
-        m_commands->ApplyKeyScheme (scheme);
-    }
+    m_runControls.ApplyKeyScheme (scheme);
 
     if (m_menuBar != nullptr)
     {
@@ -1217,13 +982,9 @@ void DebuggerWindow::LayoutWidgets()
 
 void DebuggerWindow::RenderFrame()
 {
-    std::shared_ptr<const DebuggerViewSnapshot>  snapshot;
-    std::vector<std::string>                     console;
-    int64_t                                      now         = (int64_t) GetTickCount64();
-    bool                                         hasUpdate   = false;
-    bool                                         isAnimating = GetCapture() != nullptr;
-    const DxuiTextInput                        * caret       = nullptr;
-    bool                                         isCaretOn   = false;
+    int64_t  now         = (int64_t) GetTickCount64();
+    bool     hasUpdate   = false;
+    bool     isAnimating = GetCapture() != nullptr;
 
 
 
@@ -1231,6 +992,34 @@ void DebuggerWindow::RenderFrame()
     {
         return;
     }
+
+    hasUpdate = TakeHostUpdates (now);
+    RefreshFrame (now);
+    isAnimating = TickFrame (now) || isAnimating;
+    PlaceFrameParts();
+    PaintFrameIfDue (hasUpdate, isAnimating);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TakeHostUpdates
+//
+//  The project state and the snapshot and console lines the CPU thread
+//  published since the last frame. Returns true when an update came in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TakeHostUpdates (int64_t now)
+{
+    std::shared_ptr<const DebuggerViewSnapshot>  snapshot;
+    std::vector<std::string>                     console;
+    bool                                         hasUpdate = false;
+
+
 
     SaveUndoHistories();
     UpdateProjectCaption (now);
@@ -1257,6 +1046,25 @@ void DebuggerWindow::RenderFrame()
         AppendConsole (console);
     }
 
+    return hasUpdate;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RefreshFrame
+//
+//  The parts that follow the snapshot or the clock: the command line's
+//  ghost text, the status bar, the reply banner, the lists, the heat map's
+//  recording, the focus accent and the code views' line counts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RefreshFrame (int64_t now)
+{
     m_consolePane->GetCommandLine().RefreshGhost();
     UpdateStatusBar();
     PlaceReplyBanner (now);
@@ -1277,40 +1085,30 @@ void DebuggerWindow::RenderFrame()
     //  and each of those has been missed in turn. Measured once a frame, the
     //  view fills whatever room it has; only a change is sent.
     m_code->UpdateLines();
+}
 
-    //  A drop-down slides open on ticks its host supplies. Without them the
-    //  menu stayed at the first frame of its reveal, a sliver under the
-    //  entry, and Panels, Dialect and Keys looked as if they did nothing.
-    //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar })
-    {
-        if (strip != nullptr && strip->WantsTick())
-        {
-            strip->TickMenus (now);
-            isAnimating = true;
-        }
-    }
 
-    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
-    {
-        for (DxuiToolbar * strip : pane->GetBars())
-        {
-            if (strip != nullptr && strip->WantsTick())
-            {
-                strip->TickMenus (now);
-                isAnimating = true;
-            }
-        }
-    }
 
-    if (m_menuBar->WantsTick())
-    {
-        m_menuBar->TickMenus (now);
-        isAnimating = true;
-    }
 
-    //  A menu dismissed by a click outside closes in its own popup, so the
-    //  theme it previewed is put back here.
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TickFrame
+//
+//  Advances everything that moves: menus, tips, floating panes, the panes,
+//  the timeline scrub, the window zoom and a pane pinned or unpinned.
+//  Returns true while any of them is moving.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TickFrame (int64_t now)
+{
+    bool  isAnimating = TickMenuStrips (now);
+
+
+
+    //  A menu dismissed by a click outside closes in its popup, so the theme
+    //  it previewed is put back here.
     EndThemePreview();
 
     if (GetPopupHost() != nullptr && GetPopupHost()->GetContextMenu().WantsTick())
@@ -1337,12 +1135,76 @@ void DebuggerWindow::RenderFrame()
     //  A pane pinned or unpinned morphs between its place and its edge tab.
     isAnimating = (m_dockSite != nullptr && m_dockSite->TickAnimation()) || isAnimating;
 
+    return isAnimating;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TickMenuStrips
+//
+//  A drop-down slides open on ticks its host supplies. Without them the menu
+//  stayed at the first frame of its reveal, a sliver under the entry, and
+//  Panels, Dialect and Keys looked as if they did nothing. Returns true while
+//  a menu on the command bar, a pane's bar or the menu bar is moving.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TickMenuStrips (int64_t now)
+{
+    std::vector<DxuiToolbar *>  strips      { m_commandBar };
+    bool                        isAnimating = false;
+
+
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        std::ranges::copy (pane->GetBars(), std::back_inserter (strips));
+    }
+
+    for (DxuiToolbar * strip : strips)
+    {
+        if (strip != nullptr && strip->WantsTick())
+        {
+            strip->TickMenus (now);
+            isAnimating = true;
+        }
+    }
+
+    if (m_menuBar->WantsTick())
+    {
+        m_menuBar->TickMenus (now);
+        isAnimating = true;
+    }
+
+    return isAnimating;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PlaceFrameParts
+//
+//  The floating panes, the command bar, the timeline, the pane bars and the
+//  controls that lie over the panes, placed for this frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PlaceFrameParts()
+{
     m_floating->Sync();
     m_barHost.Sync();
     SyncCommandBarFloatTip();
     SyncTimeline();
     m_floating->CarryTornOff();
     m_floating->ActivateMoved();
+
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->PlaceBar();
@@ -1353,17 +1215,32 @@ void DebuggerWindow::RenderFrame()
     ClipPaneControls();
 
     m_sources->FollowMarkedLines();
-
-
     m_floating->PollCaptionDrags();
+}
 
-    //  A caret on screen blinks: the window paints when its phase turns.
-    caret       = GetBlinkingBox();
-    isCaretOn   = caret != nullptr && caret->IsCaretOn();
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PaintFrameIfDue
+//
+//  A caret on screen blinks: the window paints when its phase turns. The
+//  history bar's shimmer, while it is all that moves, paints alone over the
+//  frame saved under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PaintFrameIfDue (bool hasUpdate, bool isAnimating)
+{
+    const DxuiTextInput  * caret     = GetBlinkingBox();
+    bool                   isCaretOn = caret != nullptr && caret->IsCaretOn();
+
+
+
     isAnimating = isAnimating || caret != m_paintedCaret || isCaretOn != m_isPaintedCaretOn;
 
-    //  The history bar's shimmer, while it is all that moves, paints alone
-    //  over the frame saved under it.
     if (!IsFramePaintDue (hasUpdate, isAnimating))
     {
         if (IsTimelineShimmering())
@@ -1729,7 +1606,7 @@ void DebuggerWindow::UpdateLiveTrace()
     }
 
     m_liveTraceRequest = isWanted;
-    action             = DebuggerActions::GetTraceToggle (m_snapshot->trace.isOn, GetMode());
+    action             = SessionActions::GetTraceToggle (m_snapshot->trace.isOn, GetMode());
     action.quiet       = true;
     RunAction (action);
 }
@@ -1749,8 +1626,8 @@ void DebuggerWindow::UpdateLiveTrace()
 
 void DebuggerWindow::KeepOpenViews()
 {
-    std::string                   text;
-    DebuggerViewState::OpenViews  views;
+    std::string               text;
+    OpenViewsText::OpenViews  views;
     auto                          nameOf = [this] (int fileId)
     {
         std::string  name;
@@ -1774,7 +1651,7 @@ void DebuggerWindow::KeepOpenViews()
     }
 
     //  The source documents open, each at the line at its top (FR-113).
-    text  = DebuggerViewState::FormatOpenViews (*m_snapshot);
+    text  = OpenViewsText::FormatOpenViews (*m_snapshot);
     text += m_sources->FormatOpen (nameOf);
     text += BreakpointColumns::FormatShown (m_breakpointsPane->GetShown());
     text += DebuggerLayout::FormatBasicOpened (m_basicOpened);
@@ -1784,16 +1661,15 @@ void DebuggerWindow::KeepOpenViews()
         text.erase (0, 1);
     }
 
-    if (!m_openViewsRestored)
+    if (m_openViews.IsRestoreDue())
     {
-        m_openViewsRestored = true;
-        m_openViewsSaved    = m_host->GetDebuggerOpenViews();
-        m_openViewsSettling = m_openViewsSaved.empty() ? 0 : kSettlingSnapshots;
-        views               = DebuggerViewState::ParseOpenViews (m_openViewsSaved);
-        m_basicOpened       = DebuggerLayout::ParseBasicOpened (m_openViewsSaved);
+        m_openViews.BeginRestore (m_host->GetDebuggerOpenViews());
 
-        m_sources->SetSaved         (SourceDocuments::Parse (m_openViewsSaved));
-        m_breakpointsPane->SetShown (BreakpointColumns::ParseShown (m_openViewsSaved));
+        views         = OpenViewsText::ParseOpenViews (m_openViews.GetSaved());
+        m_basicOpened = DebuggerLayout::ParseBasicOpened (m_openViews.GetSaved());
+
+        m_sources->SetSaved         (SourceDocuments::Parse (m_openViews.GetSaved()));
+        m_breakpointsPane->SetShown (BreakpointColumns::ParseShown (m_openViews.GetSaved()));
 
         for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
         {
@@ -1820,7 +1696,7 @@ void DebuggerWindow::KeepOpenViews()
         //  console shows only what the user did.
         for (const std::string & panel : views.panels)
         {
-            DebuggerAction  reopen = DebuggerActions::GetPanel (panel, true, GetMode());
+            DebuggerAction  reopen = SessionActions::GetPanel (panel, true, GetMode());
 
             reopen.quiet = true;
             RunAction (reopen);
@@ -1838,47 +1714,10 @@ void DebuggerWindow::KeepOpenViews()
         return;
     }
 
-    //  Until the reopened views show up, the set on screen is the one the
-    //  window started with, not a choice the user made. Once they have, what
-    //  is on screen is taken as the starting point WITHOUT being written: a
-    //  view reopened on its address can land a line away from where it was
-    //  saved, and writing that back would walk it further every restart.
-    if (m_openViewsSettling > 0)
+    if (m_openViews.ShouldSave (text))
     {
-        m_openViewsSettling = (text == m_openViewsSaved) ? 0 : m_openViewsSettling - 1;
-
-        if (m_openViewsSettling == 0)
-        {
-            m_openViewsSaved = text;
-        }
-
-        return;
-    }
-
-    if (text != m_openViewsSaved)
-    {
-        m_openViewsSaved = text;
         m_host->SetDebuggerOpenViews (text);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetUndoLabel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebuggerWindow::GetUndoLabel (bool redo, const std::wstring & text)
-{
-    std::wstring  verb = redo ? L"Redo" : L"Undo";
-
-
-
-    return text.empty() ? verb : verb + L" " + text;
 }
 
 
@@ -1936,7 +1775,7 @@ void DebuggerWindow::UpdateChanges()
 
 bool DebuggerWindow::IsRestoringViews() const
 {
-    return !m_openViewsRestored || m_openViewsSettling > 0;
+    return m_openViews.IsRestoring();
 }
 
 
@@ -2073,8 +1912,3 @@ void DebuggerWindow::SyncCommandBarFloatTip()
         tip->Tick ((int64_t) GetTickCount64());
     }
 }
-
-
-
-
-

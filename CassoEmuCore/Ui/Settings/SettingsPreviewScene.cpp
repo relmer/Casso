@@ -99,7 +99,7 @@ void SettingsPreviewScene::Render (ID3D11RenderTargetView * rtv, int widthPx, in
 
     // The machine can change under a staged pick, and the desk wears what the
     // machine wore.
-    if (m_sheet.m_emuShell != nullptr && m_sheet.m_emuShell->GetDisks().MachineHasBuiltInDrive() != m_previewSceneIsC)
+    if (m_sheet.m_emuShell != nullptr && m_sheet.m_emuShell->GetDisks().HasDiskIicDrives() != m_previewSceneIsC)
     {
         hr = LoadModels();
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -174,7 +174,7 @@ void SettingsPreviewScene::Render (ID3D11RenderTargetView * rtv, int widthPx, in
 HRESULT SettingsPreviewScene::LoadModels()
 {
     HRESULT  hr  = S_OK;
-    bool     isC = (m_sheet.m_emuShell != nullptr) && m_sheet.m_emuShell->GetDisks().MachineHasBuiltInDrive();
+    bool     isC = (m_sheet.m_emuShell != nullptr) && m_sheet.m_emuShell->GetDisks().HasDiskIicDrives();
 
 
 

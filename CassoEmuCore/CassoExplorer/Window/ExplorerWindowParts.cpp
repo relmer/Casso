@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/ExplorerWindowParts.h"
+#include "Seams/IDiskPictures.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
@@ -82,6 +83,8 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .listPane         = listPane,
                  .folderSync       = folderSync,
                  .cassoLinkManager = cassoLinkManager,
+                 .linkDrives       = linkDrives,
+                 .fullSendWindows  = fullSendWindows,
                  .dragDrop         = dragDrop,
                  .tabManager       = tabManager,
                  .preview          = preview,
@@ -102,7 +105,9 @@ ExplorerWindowParts::ExplorerWindowParts (IExplorerWindow             & window,
                  .themes           = themes,
                  .statusBar        = statusBar,
                  .toolbars         = toolbars,
-                 .treePane         = treePane }
+                 .treePane         = treePane,
+                 .pickerMode       = pickerMode,
+                 .pickerBar        = pickerBar }
 {
 }
 
@@ -159,6 +164,7 @@ void ExplorerWindowParts::CreateControls()
 
     layout.SetSplitters (treeSplitter, previewSplitter);
     statusBar.Create();
+    pickerBar.Create();
     tabManager.Create();
     toolbars.CreateNavBar();
     addressBar.Create();
@@ -263,6 +269,36 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
+    if (msg == (UINT) AppMessage::ExplorerElevation)
+    {
+        *(bool *) wParam = opener.ConfirmElevation (*(const std::wstring *) lParam);
+        return true;
+    }
+
+    if (msg == (UINT) AppMessage::ExplorerCardWrite)
+    {
+        *(bool *) wParam = opener.ConfirmCardWrite (*(const std::wstring *) lParam);
+        return true;
+    }
+
+    if (msg == (UINT) AppMessage::ExplorerCardProgress)
+    {
+        opener.HandleCardProgress();
+        return true;
+    }
+
+    if (msg == (UINT) AppMessage::ExplorerCardArrivals)
+    {
+        listPane.GetBars().OfferArrived();
+        return true;
+    }
+
+    if (msg == (UINT) AppMessage::ExplorerThumbnail)
+    {
+        preview.TakeThumbnail();
+        return true;
+    }
+
     //  The bin's changes come in bursts, as a folder's do, and matter only
     //  while it is shown.
     if (msg == (UINT) AppMessage::ExplorerRecycleBin)
@@ -328,9 +364,38 @@ bool ExplorerWindowParts::HandleAppMessage (UINT msg, WPARAM wParam, LPARAM lPar
         return true;
     }
 
+    if (msg == (UINT) AppMessage::ExplorerVolumeFacts)
+    {
+        if (context.browser.ApplyVolumeFacts())
+        {
+            listPane.RefreshVolumeCells();
+        }
+
+        return true;
+    }
+
     if (msg == (UINT) AppMessage::ExplorerIconsLoaded)
     {
         listPane.HandleIconsLoaded();
+        return true;
+    }
+
+    if (msg == (UINT) AppMessage::ExplorerPicturesReady && wParam == IDiskPictures::kQueueChanged)
+    {
+        statusBar.Fill();
+        return true;
+    }
+
+    if (msg == (UINT) AppMessage::ExplorerPicturesReady)
+    {
+        listPane.HandlePicturesReady (wParam);
+        preview.HandlePicturesReady();
+
+        if (context.app.host != nullptr)
+        {
+            context.app.host->OfferBootRoms (context.window.GetHwnd(), context.theme);
+        }
+
         return true;
     }
 
@@ -449,9 +514,15 @@ bool ExplorerWindowParts::HandleTimer (UINT_PTR timerId)
         return true;
     }
 
+    if (timerId == (UINT_PTR) AppTimerId::ExplorerDeviceSoon || timerId == (UINT_PTR) AppTimerId::ExplorerDeviceLate)
+    {
+        folderSync.HandleDeviceTimer (timerId);
+        return true;
+    }
+
     if (timerId == (UINT_PTR) AppTimerId::ExplorerDrive)
     {
-        folderSync.CheckDrives();
+        folderSync.PollDrives();
         cassoLinkManager.PollFirewall();
 
         //  An announcement since the last look is listed, on the same poll

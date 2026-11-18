@@ -53,6 +53,9 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "activeTheme",
     "crtMonitor",
     "autoHideDrives",
+    "deskFloppies",
+    "deskHardDisks",
+    "deskFloppyPairBeside",
     "showFrameRate",
     "showSceneView",
     "sceneAntiAliasing",
@@ -125,7 +128,8 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerTextZoomPercent",
     "debuggerSourceFolders",
     "debuggerProgramSourceFolders",
-    "debuggerWindowState"
+    "debuggerWindowState",
+    "diskInspector"
 };
 
 
@@ -1217,6 +1221,9 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("activeTheme",          JsonValue (activeTheme));
     root.emplace_back ("crtMonitor",            JsonValue (crtMonitor));
     root.emplace_back ("autoHideDrives",        JsonValue (autoHideDrives));
+    root.emplace_back ("deskFloppies",          JsonValue (deskFloppies));
+    root.emplace_back ("deskHardDisks",         JsonValue (deskHardDisks));
+    root.emplace_back ("deskFloppyPairBeside",  JsonValue (deskFloppyPairBeside));
     root.emplace_back ("showFrameRate",         JsonValue (showFrameRate));
     root.emplace_back ("showSceneView",         JsonValue (showSceneView));
     root.emplace_back ("sceneAntiAliasing",     JsonValue ((double) sceneAntiAliasing));
@@ -1372,6 +1379,12 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("pendingUpdateKind",    JsonValue (pendingUpdateKind));
     root.emplace_back ("pendingUpdateFailure", JsonValue ((double) pendingUpdateFailure));
 
+    // The disk inspector's state, once the window has been opened.
+    if (diskInspector.IsSaved())
+    {
+        root.emplace_back ("diskInspector", diskInspector.ToJson (true));
+    }
+
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
     {
@@ -1429,6 +1442,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     const JsonValue  * loadedArr        = nullptr;
     const JsonValue  * sourceFolderArr  = nullptr;
     const JsonValue  * programFolderObj = nullptr;
+    const JsonValue  * inspectorObj     = nullptr;
     std::string        inputModeStr;
     std::string        textModeStr;
     bool               legacyArrows     = false;
@@ -1448,6 +1462,9 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
     crtMonitor            = TryGetBoolOpt   (v, "crtMonitor",              crtMonitor);
     autoHideDrives        = TryGetBoolOpt   (v, "autoHideDrives",          autoHideDrives);
+    deskFloppies          = GetStringOpt    (v, "deskFloppies",            deskFloppies);
+    deskHardDisks         = GetStringOpt    (v, "deskHardDisks",           deskHardDisks);
+    deskFloppyPairBeside  = TryGetBoolOpt   (v, "deskFloppyPairBeside",    deskFloppyPairBeside);
     showFrameRate         = TryGetBoolOpt   (v, "showFrameRate",           showFrameRate);
     showSceneView         = TryGetBoolOpt   (v, "showSceneView",           showSceneView);
 
@@ -1677,6 +1694,12 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     pendingUpdateVersion = GetStringOpt (v, "pendingUpdateVersion", pendingUpdateVersion);
     pendingUpdateKind    = GetStringOpt (v, "pendingUpdateKind",    pendingUpdateKind);
     pendingUpdateFailure = (int) GetNumberOpt (v, "pendingUpdateFailure", (double) pendingUpdateFailure);
+
+    // The disk inspector's state; a field whose key is absent is its default.
+    if (v.HasObject ("diskInspector", inspectorObj))
+    {
+        diskInspector.FromJson (*inspectorObj);
+    }
 
     // Capture unknown top-level keys for round-tripping.
     for (const auto & entry : v.GetObjectEntries())

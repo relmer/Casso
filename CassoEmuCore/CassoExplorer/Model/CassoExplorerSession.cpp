@@ -265,11 +265,12 @@ JsonValue CassoExplorerSession::TabToJson (const BrowserModel::Tab & tab)
     fields.emplace_back ("back",            LocationsToJson (tab.back));
     fields.emplace_back ("forward",         LocationsToJson (tab.forward));
     fields.emplace_back ("selection",       JsonValue (std::move (selection)));
-    fields.emplace_back ("sortColumn",      JsonValue ((double) tab.sortColumn));
+    fields.emplace_back ("sortColumn",      JsonValue ((double) ((tab.sortColumn == CatalogModel::kRelevance) ? (int) CatalogModel::kRelevance : CatalogModel::GetColumnId ((size_t) tab.sortColumn))));
     fields.emplace_back ("sortDescending",  JsonValue (tab.sortDescending));
     fields.emplace_back ("groupBy",         JsonValue ((double) tab.groupBy));
     fields.emplace_back ("groupDescending", JsonValue (tab.groupDescending));
     fields.emplace_back ("previewScroll",   JsonValue ((double) tab.previewScroll));
+    fields.emplace_back ("previewExpanded", JsonValue (tab.previewExpanded));
 
     return JsonValue (std::move (fields));
 }
@@ -311,6 +312,12 @@ bool CassoExplorerSession::TryTabFromJson (const JsonValue & value, BrowserModel
         && value.HasBool ("groupDescending", tab.groupDescending)
         && value.HasInt  ("previewScroll",   tab.previewScroll);
 
+    //  Sessions saved before the preview could be expanded don't have it.
+    if (read && !value.HasBool ("previewExpanded", tab.previewExpanded))
+    {
+        tab.previewExpanded = false;
+    }
+
     //  A sort by a shell property or by relevance is past the fixed columns; a
     //  column no longer known falls back to Name when the folder's view is
     //  applied.
@@ -328,7 +335,18 @@ bool CassoExplorerSession::TryTabFromJson (const JsonValue & value, BrowserModel
 
     if (read)
     {
-        tab.sortColumn = (CatalogModel::Column) column;
+        size_t  sortColumn = 0;
+
+        if (column == (int) CatalogModel::kRelevance)
+        {
+            sortColumn = (size_t) CatalogModel::kRelevance;
+        }
+        else if (!CatalogModel::TryGetColumn (column, sortColumn))
+        {
+            sortColumn = 0;
+        }
+
+        tab.sortColumn = (CatalogModel::Column) sortColumn;
         tab.groupBy    = (RowGrouping::Field) group;
         outTab         = std::move (tab);
     }

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/CallStackPane.h"
+#include "Ui/Debugger/SessionActions.h"
 #include "Ui/Debugger/ColorLegend.h"
 
 #include "Debugger/CallStack.h"
@@ -65,7 +66,7 @@ void CallStackPane::Configure()
     {
         std::string  mechanism = GetNextMechanism (m_mechanism);
 
-        m_run ([mechanism] (CommandMode mode) { return DebuggerActions::GetCallStackMode (mechanism, mode); });
+        m_run ([mechanism] (CommandMode mode) { return SessionActions::GetCallStackMode (mechanism, mode); });
     });
 }
 

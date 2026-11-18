@@ -7,6 +7,7 @@
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/LinkBootstrap.h"
 #include "CassoLink/LinkFault.h"
+#include "CassoLink/Session/TrackMeasures.h"
 #include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
@@ -17,6 +18,7 @@
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Machines/Apple2/Common/TrackLayoutWriter.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -49,6 +51,42 @@ public:
         std::vector<std::string>                      activities;
         std::vector<std::shared_ptr<LinkOperation>>   queued;
         std::string                                   fullSendFolder;
+
+        //  With a boot result, each image written is booted: the result is
+        //  given to the session from another thread a moment later.
+        std::string                                   bootResult;
+        CassoLinkSession                            * session = nullptr;
+        std::vector<std::string>                      images;
+        std::vector<std::thread>                      boots;
+
+        ~Sink()
+        {
+            for (std::thread & boot : boots)
+            {
+                boot.join();
+            }
+        }
+
+        bool  OnImageWritten (const std::string & path, const std::string &) override
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+            std::string                  file = path.substr (path.find_last_of ('\\') + 1);
+
+            images.push_back (path);
+
+            if (bootResult.empty())
+            {
+                return false;
+            }
+
+            boots.emplace_back ([this, file] ()
+            {
+                Sleep (150);
+                session->NoteBoot (file, bootResult, file + " was booted.");
+            });
+
+            return true;
+        }
 
         bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) override
         {
@@ -412,6 +450,68 @@ public:
 
 
 
+    //  An 800K ProDOS volume with a file, as a block device's disk.
+    static std::vector<Byte>  BuildBlockVolume()
+    {
+        std::vector<Byte>  buffer (1600 * 512, 0);
+        std::vector<Byte>  next;
+
+        AssertSucceeded (ProDosSkeleton::Write (buffer, "BIGDISK"));
+        AssertSucceeded (ProDosVolume (buffer).Write (FilePath::Parse ("HELLO"), Binary (ProDosVolume::kTypeBinary, 3000, 3), next));
+
+        return next;
+    }
+
+
+
+
+    //  A block device is listed as a drive from kFirstDrive, its catalog
+    //  read, a file written to it and read back, and the whole device read
+    //  to an image, with the device and the block on the Apple's label.
+    TEST_METHOD (ABlockDevice_IsListedBrowsedWritten_AndReadToAnImage)
+    {
+        static constexpr const char *  kImage = "C:\\Images\\BigDisk.po";
+
+        Rig          rig;
+        FilePayload  payload = Binary (ProDosVolume::kTypeBinary, 2500, 9);
+        int          drive   = CassoLinkBlockDevices::kFirstDrive;
+
+        rig.apple.blockDisk = BuildBlockVolume();
+        rig.Start();
+
+        AssertSucceeded (rig.Finish (rig.session->ListBlockDevices())->result);
+
+        std::vector<CassoLinkBlockDevice>  devices = rig.session->GetBlockDevices();
+
+        Assert::AreEqual ((size_t) 1, devices.size());
+        Assert::AreEqual ((Byte) 7, devices[0].slot);
+        Assert::AreEqual ((uint32_t) 1600, devices[0].blocks);
+        Assert::AreEqual (std::string ("BIGDISK"), devices[0].volume);
+
+        auto  listing = rig.Finish (rig.session->Enumerate (drive, FilePath()));
+
+        AssertSucceeded (listing->result);
+        Assert::IsTrue  (Names (listing->listing) == std::vector<std::string> { "HELLO" });
+
+        AssertSucceeded (rig.Finish (rig.session->WriteFile (drive, FilePath::Parse ("NEWFILE"), payload))->result);
+
+        auto  read = rig.Finish (rig.session->ReadFile (drive, FilePath::Parse ("NEWFILE")));
+
+        AssertSucceeded (read->result);
+        Assert::IsTrue  (read->file.bytes == payload.bytes, L"the file written is read back");
+
+        AssertSucceeded (rig.Finish (rig.session->ReadBlockDevice (drive, kImage, false))->result);
+
+        std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+        Assert::IsTrue (rig.fileIo.files[kImage] == rig.apple.blockDisk, L"the image is the device");
+        Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "READ S7,U1 BLOCK 1600 OF 1600") != rig.apple.labels.end(), L"the label has the device and the block");
+        Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "CATALOG S7,U1 (/BIGDISK)") != rig.apple.labels.end(), L"and the catalog's label, its volume");
+    }
+
+
+
+
     TEST_METHOD (WriteFile_ThenReadFile_OnBothDrives)
     {
         Rig          rig;
@@ -650,6 +750,33 @@ public:
 
 
 
+    //  A disk with no recognized file system, as the CassoLink disk is, then
+    //  a ProDOS disk put in its place: the next listing is the ProDOS disk's,
+    //  not the first disk's error again.
+    TEST_METHOD (AnUnrecognizedDisk_ThenAnotherInItsPlace_ListsTheOther)
+    {
+        Rig  rig;
+
+        rig.apple.drives[1] = std::vector<Byte> (NibblizationLayer::kImageByteSize, 0x5A);
+        rig.Start();
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), rig.Finish (rig.session->Enumerate (2, FilePath()))->result);
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            rig.apple.drives[1] = BuildProDos();
+        }
+
+        auto  changed = rig.Finish (rig.session->Enumerate (2, FilePath()));
+
+        AssertSucceeded (changed->result);
+        Assert::IsTrue (changed->volumeKind == VolumeKind::ProDos);
+    }
+
+
+
+
     TEST_METHOD (AWriteProtectedDisk_FailsTheWrite)
     {
         Rig  rig;
@@ -801,6 +928,33 @@ public:
 
         Assert::IsTrue (rig.fileIo.files["out.dsk"] == rig.Drive (2), L"a .dsk is the sectors in DOS 3.3 order");
         Assert::AreEqual (NibbleImageCodec::kNb2ImageSize, rig.fileIo.files["out.nb2"].size(), L"a .nb2 has .nb2's tracks");
+    }
+
+
+
+    //  A WOZ is built to each track's layout as Measure track measured it,
+    //  and no other image type measures.
+    TEST_METHOD (ReadDisk_ToAWoz_BuildsItToEachTracksMeasuredLayout)
+    {
+        Rig                                       rig;
+        std::vector<CassoLinkHost::TrackMeasure>  measures;
+        std::vector<Byte>                         built;
+
+        rig.Start();
+
+        AssertSucceeded (rig.Finish (rig.session->ReadDisk (2, "out.dsk", false))->result);
+        Assert::AreEqual (0, rig.apple.measuredTracks.load(), L"a .dsk isn't measured");
+
+        AssertSucceeded (rig.Finish (rig.session->ReadDisk (2, "out.woz", false))->result);
+        Assert::AreEqual (NibblizationLayer::kTrackCount, rig.apple.measuredTracks.load());
+
+        for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
+        {
+            measures.push_back (FakeApple::GetMeasure (track));
+        }
+
+        AssertSucceeded (TrackLayoutWriter::BuildWoz (rig.Drive (2), TrackMeasures::ToLayouts (measures, TrackLayoutWriter::kDefaultBits), built));
+        Assert::IsTrue (rig.fileIo.files["out.woz"] == built, L"the WOZ is built to the measured layouts");
     }
 
 
@@ -1183,7 +1337,7 @@ public:
         auto  send = rig.Finish (rig.session->FullSend ("C:\\Box", "", ""));
 
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
-        Assert::IsTrue (rig.fileIo.files["C:\\Box\\0001 HELLO.dsk"] == rig.Drive (1));
+        Assert::IsTrue (rig.fileIo.files["C:\\Box\\0001.dsk"] == rig.Drive (1));
         Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\0002 LINKED.po"));
         Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\manifest.fullsend"));
         Assert::AreEqual (2, rig.apple.keyWaits.load(), L"the entry screen and the pause");
@@ -1200,6 +1354,41 @@ public:
 
 
 
+
+    //  An image that is booted is awaited with VALIDATING on the Apple, and
+    //  its result is in the session's status when the Full Send goes on.
+    TEST_METHOD (FullSend_AwaitsEachImagesBoot_WithValidatingOnTheApple)
+    {
+        Rig          rig;
+        std::string  validating = "VALIDATING IMAGE ON PC, PLEASE WAIT";      // in capitals: the rig's Ready has no ROM bytes
+        bool         shown      = false;
+
+        rig.sink.session    = rig.session.get();
+        rig.sink.bootResult = "booted";
+        rig.apple.keys.push_back (CassoLinkCodec::kKeySpace);
+        rig.apple.keys.push_back (CassoLinkCodec::kKeyQuit);
+        rig.Start();
+
+        rig.Finish (rig.session->FullSend ("C:\\Box", "", ""));
+
+        FullSendSnapshot  snapshot = rig.session->GetFullSendStatus().GetSnapshot();
+
+        Assert::AreEqual ((size_t) 2, rig.sink.images.size(), L"Each image is reported for its boot");
+        Assert::AreEqual ((size_t) 2, snapshot.disks.size());
+        Assert::AreEqual (std::string ("booted"), snapshot.disks[0].row.boot);
+        Assert::AreEqual (std::string ("booted"), snapshot.disks[1].row.boot, L"The result arrived before the next disk was read");
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            for (const std::vector<Byte> & screen : rig.apple.screens)
+            {
+                shown = shown || std::search (screen.begin(), screen.end(), validating.begin(), validating.end()) != screen.end();
+            }
+        }
+
+        Assert::IsTrue (shown, L"The Apple had the wait on its screen");
+    }
 
     TEST_METHOD (FullSend_FromTheAppleKeyboard_UsesTheSinksTarget)
     {
@@ -1229,7 +1418,7 @@ public:
 
         rig.Finish (send);
 
-        Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\0001 HELLO.do"));
+        Assert::IsTrue (rig.fileIo.files.contains ("C:\\Box\\0001.do"));
     }
 
 
@@ -1258,7 +1447,8 @@ public:
 
     TEST_METHOD (FullSend_CancelDuringThePause_EndsTheSession)
     {
-        Rig  rig;
+        Rig                       rig;
+        std::vector<std::string>  logs;
 
         rig.apple.drives[1].clear();
         rig.Start();
@@ -1278,6 +1468,54 @@ public:
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
         Assert::AreEqual (1, rig.apple.cancels.load());
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready), L"the link goes on");
+
+        for (int polls = 0; polls < 400 && logs.empty(); polls++)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            logs = rig.apple.logs;
+        }
+
+        Assert::IsFalse (logs.empty(), L"the Apple's history has the session");
+        Assert::IsTrue (logs.back().starts_with ("ENDED ON PC: "), L"how it ended, in capitals: the rig's Ready has no ROM bytes");
+    }
+
+
+
+
+    //  A Full Send has the drives until it ends: a listing queued during
+    //  its pause fails at once, and the Full Send goes on.
+    TEST_METHOD (FullSend_AnOperationQueuedDuringIt_FailsAtOnce)
+    {
+        Rig  rig;
+
+        rig.apple.drives[1].clear();
+        rig.Start();
+
+        auto  send = rig.session->FullSend ("C:\\Box", "", "");
+
+        for (int tries = 0; tries < 2000 && rig.apple.keyWaits == 0; tries++)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (5));
+        }
+
+        Assert::IsTrue (rig.session->IsFullSendRunning());
+
+        auto  list = rig.session->Enumerate (1, FilePath());
+
+        Assert::IsTrue (list->state == LinkOperationState::Failed, L"failed at once, not queued");
+        Assert::IsTrue (list->isBlocked);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BUSY), list->result);
+        Assert::AreEqual (std::string (CassoLinkSession::kFullSendBusy), list->message);
+        Assert::IsTrue (send->state == LinkOperationState::Running, L"the Full Send goes on");
+
+        rig.session->Cancel();
+        rig.Finish (send);
+
+        Assert::IsFalse (rig.session->IsFullSendRunning());
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
     }
 
 
@@ -1305,7 +1543,7 @@ public:
 
         Assert::IsTrue (send->state == LinkOperationState::Canceled);
         Assert::IsTrue (rig.fileIo.files.empty(), L"no image, no manifest");
-        Assert::IsTrue (send->message.find ("Q was") != std::string::npos);
+        Assert::IsTrue (send->message.find ("Full Send exited on the") != std::string::npos);
     }
 
 
@@ -1368,7 +1606,7 @@ public:
         }
 
         Assert::AreEqual ((size_t) 2, labels.size());
-        Assert::AreEqual (std::string ("READING THE CATALOG OF D1"), labels[0]);
+        Assert::AreEqual (std::string ("READING THE CATALOG OF D1"), labels[0], L"In capitals: the rig's Ready has no ROM bytes");
         Assert::AreEqual (std::string ("COPYING NOTES TO D1 (VOL 254)"), labels[1]);
     }
 
@@ -1384,21 +1622,21 @@ public:
         operation.drive   = 2;
         operation.path    = FilePath::Parse ("GAMES/OLD");
         operation.newName = "NEW";
-        Assert::AreEqual (std::string ("RENAMING GAMES/OLD TO NEW"), CassoLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("Renaming GAMES/OLD to NEW"), CassoLinkSession::DescribeOperation (operation));
 
         operation.kind = LinkOperationKind::ReadDisk;
-        Assert::AreEqual (std::string ("SENDING D2 TO PC"), CassoLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("Sending D2 to PC"), CassoLinkSession::DescribeOperation (operation));
 
         listing.hasVolumeName = true;
         listing.volumeName    = "GAMES";
-        Assert::AreEqual (std::string ("SENDING D2 (/GAMES) TO PC"), CassoLinkSession::DescribeOperation (operation, listing));
+        Assert::AreEqual (std::string ("Sending D2 (/GAMES) to PC"), CassoLinkSession::DescribeOperation (operation, listing));
 
         listing.hasVolumeName   = false;
         listing.hasVolumeNumber = true;
         listing.volumeNumber    = 254;
         operation.kind          = LinkOperationKind::WriteDisk;
         operation.imagePath     = "C:\\Disks\\GAMES.DSK";
-        Assert::AreEqual (std::string ("WRITING IMAGE GAMES.DSK TO D2"), CassoLinkSession::DescribeOperation (operation, listing), L"not the volume the write replaces");
+        Assert::AreEqual (std::string ("Writing image GAMES.DSK to D2"), CassoLinkSession::DescribeOperation (operation, listing), L"not the volume the write replaces");
     }
 
 
@@ -1426,19 +1664,45 @@ public:
         operation.drive     = 1;
         operation.imagePath = "C:\\Temp\\casso-format-1.dsk";
         operation.formatted = "VOL 254";
-        Assert::AreEqual (std::string ("FORMATTING VOL 254 IN D1"), CassoLinkSession::DescribeOperation (operation));
-        Assert::AreEqual (std::string ("FORMATTED VOL 254 IN D1"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+        Assert::AreEqual (std::string ("Formatting VOL 254 in D1"), CassoLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("Formatted VOL 254 in D1"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
 
         operation.formatted.clear();
         operation.imagePath = "C:\\Disks\\GAMES.DSK";
-        Assert::AreEqual (std::string ("WROTE IMAGE GAMES.DSK TO D1"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+        Assert::AreEqual (std::string ("Wrote image GAMES.DSK to D1"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
 
         operation.kind = LinkOperationKind::ReadDisk;
-        Assert::AreEqual (std::string ("SENT D1 TO PC"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+        Assert::AreEqual (std::string ("Sent D1 to PC"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
 
         operation.kind = LinkOperationKind::Krunch;
-        Assert::AreEqual (std::string ("KRUNCHING D1"), CassoLinkSession::DescribeOperation (operation));
-        Assert::AreEqual (std::string ("KRUNCHED D1"),  CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+        Assert::AreEqual (std::string ("Krunching D1"), CassoLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("Krunched D1"),  CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+    }
+
+
+
+    //  A history line longer than the Apple's line has the image's name cut
+    //  short, so the drive is drawn; a line with no name in it is cut at
+    //  the end; a line that fits is as it is.
+    TEST_METHOD (FitToApple_CutsTheNameShort_SoTheDriveIsDrawn)
+    {
+        LinkOperation  operation;
+        std::string    line;
+
+        operation.kind      = LinkOperationKind::WriteDisk;
+        operation.drive     = 2;
+        operation.imagePath = "C:\\Disks\\DOS 3.3 System Master.dsk";
+
+        line = CassoLinkSession::FitToApple (operation, "OK " + CassoLinkSession::DescribeOperation (operation, std::nullopt, true), CassoLinkCodec::kLogLength);
+        Assert::AreEqual (std::string ("OK Wrote image DOS 3.3 Sy... to D2"), line);
+        Assert::AreEqual (CassoLinkCodec::kLogLength, line.size());
+
+        line = CassoLinkSession::FitToApple (operation, "OK Wrote image GAMES.DSK to D2", CassoLinkCodec::kLogLength);
+        Assert::AreEqual (std::string ("OK Wrote image GAMES.DSK to D2"), line, L"a line that fits");
+
+        operation.imagePath.clear();
+        line = CassoLinkSession::FitToApple (operation, "ERR The Apple stopped answering in the middle", CassoLinkCodec::kLogLength);
+        Assert::AreEqual (std::string ("ERR The Apple stopped answering..."), line);
     }
 
 

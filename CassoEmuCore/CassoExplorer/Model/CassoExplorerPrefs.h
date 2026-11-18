@@ -3,11 +3,13 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkSettings.h"
+#include "CassoLink/FullSend/FullSendProtection.h"
 #include "CassoExplorer/Model/FilesystemChoices.h"
 #include "CassoExplorer/Model/FolderViews.h"
 #include "CassoExplorer/Model/Location.h"
 #include "CassoExplorer/Model/PicturePreview.h"
 #include "Config/CrtTypes.h"
+#include "Config/DiskInspectorPrefs.h"
 #include "Config/IFileSystem.h"
 #include "Core/JsonValue.h"
 
@@ -53,6 +55,13 @@ struct CassoExplorerPrefs
     //  The preview pane opens for a selected file of a type Casso Explorer can
     //  preview, and closes for any other, until the pane is turned on manually.
     bool                   autoPreview     = true;
+
+    //  Enter on a file in the list expands its preview over the tab, as an
+    //  Open in viewer setting would.
+    bool                   enterExpandsPreview = false;
+    bool                   autoThumbnails      = true;     // a disk image in view with no thumbnail is booted for one
+    bool                   rawCopyMenu         = true;     // a drag into File Explorer offers Copy here without conversion (raw bytes)
+
     std::string            hostNaming      = kNamingDescriptive;
 
     //  Where a Full Send started on an Apple writes: the folder, empty for the
@@ -60,6 +69,9 @@ struct CassoExplorerPrefs
     //  .po on ProDOS and .dsk otherwise.
     std::wstring           fullSendFolder;
     std::string            fullSendExtension;
+
+    //  The Full Send options' Copy-protected disks section.
+    FullSendProtectionChoices  fullSendProtection;
 
     //  When each CassoLink receiving folder was last listed, in file time ticks.
     //  Files newer than this are counted on its tree row.
@@ -72,17 +84,41 @@ struct CassoExplorerPrefs
     bool                   verifyWrites = false;
     bool                   autoVerify   = true;
 
+    //  Where the sound for the boot result of each image a connection
+    //  writes is played.
+    enum BootSoundPlace : int
+    {
+        kBootSoundPc,
+        kBootSoundApple,
+        kBootSoundBoth,
+        kBootSoundNeither,
+    };
+
+    int                    bootSoundPlace = kBootSoundPc;
+
 
     //  Each folder's view as last chosen, most recent first. A folder with
     //  none opens in its type's view, as Explorer's do; the single listView
     //  of earlier builds is not read.
     FolderViews            folderViews;
     Placement              placement;
+
+    //  Where the Full Send window was last put: its x and y alone.
+    Placement              fullSendWindow;
     int                    treeWidthDip    = kDefaultTreeWidthDip;
     int                    previewWidthDip = kDefaultPreviewWidthDip;
 
     //  Bytes between the spaces in a hex preview: 1, 2, 4 or 8.
     int                    hexGrouping     = kDefaultHexGrouping;
+
+    //  The adapter Initialize card for Apple last had chosen, as a
+    //  CardLayoutModel::Adapter. 0 until one is chosen, for the dialog's
+    //  default.
+    int                    cffaAdapter     = 0;
+
+    //  Whether the explanation before the storage card broker's UAC prompt
+    //  was turned off with its "Don't show this again" checkbox.
+    bool                   skipElevationNotice = false;
 
     //  Whether a BASIC listing shows where each line starts in memory.
     bool                   lineAddresses   = false;
@@ -136,13 +172,22 @@ struct CassoExplorerPrefs
     //  columnWidths key held another column order and is not read.
     std::vector<int>           columnWidthsDip;
 
+    //  The widths of the columns from CatalogModel::kFirstAddedColumnId on,
+    //  from that id. Stored as listAddedColumnWidths, apart from
+    //  listColumnWidths, whose positions are column ids an older build reads.
+    std::vector<int>           addedColumnWidthsDip;
+
     //  The order the list's columns were dragged into, left to right, as
-    //  column indexes; empty for their own order.
+    //  column ids; empty for the default order.
     std::vector<int>           columnOrder;
 
     //  The columns last hidden from the header's menu, which a folder with no
     //  choice of its own follows. Stored as listHiddenColumns.
     std::vector<int>           hiddenColumns;
+
+    //  The columns hidden until they are chosen, which the user chose. Stored
+    //  as listShownColumns.
+    std::vector<int>           shownColumns;
 
     //  The shell properties added as columns from Choose Details, each by its
     //  canonical name, as System.Author. Each is a column after the fixed
@@ -154,11 +199,19 @@ struct CassoExplorerPrefs
     //  read is not read.
     std::vector<CassoLinkSettings>  links;
 
+    //  The disk inspector windows' state, without the parts specific to
+    //  Casso (FR-080).
+    DiskInspectorPrefs              diskInspector;
+
     //  Absent file: defaults, with the theme seeded from the emulator's
     //  preferences when they can be read. Reports the read's own result for
     //  a file that exists and will not parse.
     HRESULT  Load (const std::wstring & baseDir, IFileSystem & fs);
     HRESULT  Save (const std::wstring & baseDir, IFileSystem & fs) const;
+
+    //  The same for a file at a path. An absent file is the defaults.
+    HRESULT  LoadFile (const std::wstring & path, IFileSystem & fs);
+    HRESULT  SaveFile (const std::wstring & path, IFileSystem & fs) const;
 
     JsonValue  ToJson   () const;
     HRESULT    FromJson (const JsonValue & root);
@@ -205,6 +258,7 @@ struct CassoExplorerPrefs
 
     static constexpr int  kViewCount              = 8;
     static constexpr int  kDefaultHexGrouping     = 1;
+    static constexpr int  kCffaAdapterCount       = 8;
     static constexpr int  kDefaultPreviewZoom     = 100;
     static constexpr int  kMinPreviewZoom         = 50;
     static constexpr int  kMaxPreviewZoom         = 300;

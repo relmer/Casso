@@ -5,6 +5,7 @@
 #include "AssetBootstrap.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/ExplorerWindowFinder.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Config/Win32FileSystem.h"
 #include "Seams/ShellVerbs/Win32FilterHost.h"
@@ -122,7 +123,7 @@ extern "C" int WINAPI wCassoExplorerMain (
     CassoExplorerShell::WaitForUpdatedProcess (options.cleanupOldPid);
 
     //  A /select goes through the running app, which picks the tab.
-    existing = (options.newWindow || !options.selectPath.empty()) ? nullptr : CassoExplorerShell::FindWindowForOwner (options.owner);
+    existing = (options.newWindow || !options.selectPath.empty()) ? nullptr : ExplorerWindowFinder::FindWindowForOwner (options.owner);
 
     if (existing != nullptr)
     {
@@ -140,7 +141,7 @@ extern "C" int WINAPI wCassoExplorerMain (
     //  Every window is in one process: a launch with no window of its own to
     //  front sends its command line to the running app, which opens the
     //  window, and allows that window to come forward.
-    existing = FindWindowW (CassoExplorerShell::kWindowClass, nullptr);
+    existing = FindWindowW (ExplorerWindowFinder::GetWindowClass(), nullptr);
 
     if (existing != nullptr)
     {

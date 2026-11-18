@@ -467,7 +467,7 @@ void DxuiPopupMenu::ShowCore (
     }
 
     PlaceIconRow (OpensUpward (originX, originY, m_layout.GetContentHeightPx(), anchoring));
-    DropStraySeparators();
+    DropHiddenRows();
 
     //  A face pinned for popups is the one the rows are drawn in, so they are
     //  measured in the popup's renderer rather than the owner's.
@@ -932,14 +932,16 @@ void DxuiPopupMenu::CommitIcon (int index, int button)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiPopupMenu::DropStraySeparators
+//  DxuiPopupMenu::DropHiddenRows
 //
-//  A caller building a menu from conditional groups can leave a separator
-//  first, last, or beside another; each draws as an empty band, so they go.
+//  Removes the rows whose command is hidden. A menu built from conditional
+//  groups, or with a hidden row removed, can end up with a separator first,
+//  last, or beside another; each draws as an empty band, so it is removed
+//  too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupMenu::DropStraySeparators()
+void DxuiPopupMenu::DropHiddenRows()
 {
     std::vector<DxuiPopupMenuItem>  kept;
 
@@ -948,8 +950,9 @@ void DxuiPopupMenu::DropStraySeparators()
     for (DxuiPopupMenuItem & row : m_rows)
     {
         bool  isSeparator = row.kind == DxuiPopupMenuItem::Kind::Separator;
+        bool  isHidden    = row.command != nullptr && row.command->isVisible && !row.command->isVisible();
 
-        if (isSeparator && (kept.empty() || kept.back().kind == DxuiPopupMenuItem::Kind::Separator))
+        if (isHidden || (isSeparator && (kept.empty() || kept.back().kind == DxuiPopupMenuItem::Kind::Separator)))
         {
             continue;
         }

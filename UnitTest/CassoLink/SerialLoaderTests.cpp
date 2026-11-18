@@ -47,7 +47,7 @@ public:
         for (size_t i = 0; text[i] != '\0'; i++)
         {
             machine.GetRefs().iieKeyboard->PressKey ((Byte) text[i]);
-            machine.RunCycles (kKeyCycles);
+            machine.GetRunner().RunCycles (kKeyCycles);
         }
     }
 
@@ -70,13 +70,13 @@ public:
 
 
         machine.PowerCycle();
-        machine.RunCycles (kBootCycles);
+        machine.GetRunner().RunCycles (kBootCycles);
 
         machine.GetCpu()->SetPC (0xE000);
-        machine.RunCycles (kBootCycles);
+        machine.GetRunner().RunCycles (kBootCycles);
 
         InProcessByteStream::CreatePair (machineEnd, pcEnd);
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (kPort, machineEnd));
+        Assert::AreEqual (S_OK, machine.GetConnectors().AttachSerialStream (kPort, machineEnd));
 
         Type (machine, "IN#2\r");
         Type (machine, "\x01" "14B");
@@ -92,7 +92,7 @@ public:
 
         while (!readySeen && spent < kReadyBudget)
         {
-            machine.RunCycles (kStepCycles);
+            machine.GetRunner().RunCycles (kStepCycles);
             spent += kStepCycles;
 
             AssertSucceeded (pcEnd->Read (got, sizeof (got), 0, read));
@@ -102,7 +102,7 @@ public:
         Assert::IsTrue (readySeen, L"the loader sends its ready byte");
 
         AssertSucceeded (pcEnd->Write (transfer.data(), transfer.size()));
-        machine.RunCycles (kTransferCycles);
+        machine.GetRunner().RunCycles (kTransferCycles);
 
         return machine.GetCpu()->GetPC();
     }

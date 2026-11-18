@@ -5,6 +5,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Shell/MachineHost.h"
 #include "TestMachine.h"
 #include "TextScreenScraper.h"
@@ -182,7 +183,7 @@ public:
 
         machine.SetPrng (std::make_unique<Prng> (kFormerlyHangingSeed));
         machine.PowerCycle();
-        machine.RunCycles (kBootCycles);
+        machine.GetRunner().RunCycles (kBootCycles);
 
         rows = TextScreenScraper::Scrape (machine);
 
@@ -236,6 +237,32 @@ public:
     }
 
 
+    //  Disk2Controller::PowerCycle selects the controller's internal empty
+    //  disks. A disk mounted from memory has no file for the shell to remount
+    //  afterward, so unless the host points the drives back at the store, the
+    //  machine powers on with an empty drive while the store reports a
+    //  mounted disk.
+    TEST_METHOD (APowerCycleLeavesTheDrivesReadingTheMountedDisks)
+    {
+        TestMachine        machine ("Apple2e");
+        DiskImageStore &   store      = machine.GetDiskStore();
+        Disk2Controller *  controller = machine.GetRefs().diskController;
+        std::vector<Byte>  disk (143360, 0);
+
+
+
+        Assert::IsNotNull (controller);
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "one.dsk", DiskFormat::Dsk, disk));
+        AssertSucceeded (store.MountFromBytes (6, 1, "two.dsk", DiskFormat::Dsk, disk));
+
+        machine.PowerCycle();
+
+        Assert::IsTrue (controller->GetDrive (0).GetDisk() == store.GetImage (6, 0), L"drive 1 reads the store's disk");
+        Assert::IsTrue (controller->GetDrive (1).GetDisk() == store.GetImage (6, 1), L"drive 2 reads the store's disk");
+    }
+
+
     TEST_METHOD (SteppingRetiresExactlyOneInstruction)
     {
         MachineHost  host;
@@ -248,14 +275,14 @@ public:
         pc = host.GetCpu()->GetPC();
         Assert::AreEqual<Word> (s_kEntryPoint, pc);
 
-        cycles = host.StepOne();
+        cycles = host.GetRunner().StepOne();
 
         Assert::AreEqual<Word> (static_cast<Word> (s_kEntryPoint + 1), host.GetCpu()->GetPC(),
             L"NOP is one byte, so the program counter advances by one");
         Assert::AreEqual<Byte> (2, cycles,
             L"and costs two cycles");
 
-        cycles = host.StepOne();
+        cycles = host.GetRunner().StepOne();
 
         Assert::AreEqual<Word> (static_cast<Word> (s_kEntryPoint + 2), host.GetCpu()->GetPC(),
             L"INX is also one byte");
@@ -273,7 +300,7 @@ public:
 
         before = host.GetCpu()->GetTotalCycles();
 
-        host.StepOne();
+        host.GetRunner().StepOne();
 
         //  The clock is what the //e video timing and the //c mouse measure
         //  themselves against. A step that ticked the disk controller but
@@ -292,7 +319,7 @@ public:
         Build (host);
         host.SoftReset();
 
-        spent = host.RunCycles (100);
+        spent = host.GetRunner().RunCycles (100);
 
         //  The machine cannot stop mid-opcode, so the budget is a floor and
         //  the overshoot is bounded by the longest instruction. Callers
@@ -312,8 +339,8 @@ public:
 
         //  Nothing built. Every lifecycle entry point is reachable from the
         //  menu before a machine finishes coming up, so each has to answer.
-        Assert::AreEqual<Byte> (0, host.StepOne());
-        Assert::AreEqual<uint64_t> (0, host.RunCycles (100));
+        Assert::AreEqual<Byte> (0, host.GetRunner().StepOne());
+        Assert::AreEqual<uint64_t> (0, host.GetRunner().RunCycles (100));
 
         host.SoftReset();
         host.PowerCycle();

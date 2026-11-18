@@ -2,6 +2,8 @@
 
 #include "Debugger/WinDbgParser.h"
 
+#include "Debugger/AppleWinArgumentForms.h"
+#include "Debugger/AppleWinBreakpointParser.h"
 #include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/CommandModeHelp.h"
 #include "Debugger/DebugExpressionEvaluator.h"
@@ -436,7 +438,7 @@ bool WinDbgParser::TryBuild (
             return false;
         }
 
-        return AppleWinParser::TryEvaluate (rest, context, command.a1, build.error);
+        return AppleWinArgumentForms::TryEvaluate (rest, context, command.a1, build.error);
     }
     else if (name == "l+s" || name == "l-s")
     {
@@ -473,7 +475,7 @@ bool WinDbgParser::TryBuild (
         build.error.clear();
         command.verb  = DebugVerb::Go;
         command.hasA1 = !args.empty();
-        return args.empty() || AppleWinParser::TryEvaluate (args[0], context, command.a1, build.error);
+        return args.empty() || AppleWinArgumentForms::TryEvaluate (args[0], context, command.a1, build.error);
     }
     else if (name == "u")
     {
@@ -484,7 +486,7 @@ bool WinDbgParser::TryBuild (
         }
 
         command.verb = DebugVerb::Disassemble;
-        return args.empty() || AppleWinParser::TryParseRange (args[0], context, command, build.error);
+        return args.empty() || AppleWinArgumentForms::TryParseRange (args[0], context, command, build.error);
     }
     else if (name == "k")
     {
@@ -539,7 +541,7 @@ bool WinDbgParser::TryBuildStep (const Tokens & args, const IDebugExpressionCont
 
 
 
-    if (!args.empty() && !AppleWinParser::TryEvaluate (args[0], context, value, build.error))
+    if (!args.empty() && !AppleWinArgumentForms::TryEvaluate (args[0], context, value, build.error))
     {
         return false;
     }
@@ -578,7 +580,7 @@ bool WinDbgParser::TryBuildIdOrAll (const std::string & name, const Tokens & arg
         return false;
     }
 
-    return AppleWinParser::TryParseIdOrAll (args, build.command, build.error, NumberSyntax::WinDbg);
+    return AppleWinArgumentForms::TryParseIdOrAll (args, build.command, build.error, NumberSyntax::WinDbg);
 }
 
 
@@ -650,7 +652,7 @@ bool WinDbgParser::TryBuildEnter (
         return false;
     }
 
-    return AppleWinParser::TryEvaluate (args[0], context, command.a1, build.error) &&
+    return AppleWinArgumentForms::TryEvaluate (args[0], context, command.a1, build.error) &&
            TryAddValues (args, 1, isWords, context, command, build.error);
 }
 
@@ -682,7 +684,7 @@ bool WinDbgParser::TryAddValues (
 
     for (size_t i = first; i < tokens.size(); i++)
     {
-        if (!AppleWinParser::TryEvaluate (tokens[i], context, value, error))
+        if (!AppleWinArgumentForms::TryEvaluate (tokens[i], context, value, error))
         {
             return false;
         }
@@ -903,7 +905,7 @@ bool WinDbgParser::TryBuildAddressBreakpoint (
 
     command.verb = DebugVerb::SetBreakpoint;
 
-    if (!isComparison && !AppleWinParser::TryParseIfClause (tokens, command, build.error, context.GetNumberSyntax()))
+    if (!isComparison && !AppleWinBreakpointParser::TryParseIfClause (tokens, command, build.error, context.GetNumberSyntax()))
     {
         return false;
     }
@@ -923,7 +925,7 @@ bool WinDbgParser::TryBuildAddressBreakpoint (
     if (isComparison)
     {
         command.verb = DebugVerb::SetConditionalBreakpoint;
-        return AppleWinParser::TryParseCondition ("PC", tokens, 0, command, build.error, context.GetNumberSyntax());
+        return AppleWinBreakpointParser::TryParseCondition ("PC", tokens, 0, command, build.error, context.GetNumberSyntax());
     }
 
     if (tokens.empty())
@@ -932,7 +934,7 @@ bool WinDbgParser::TryBuildAddressBreakpoint (
         return false;
     }
 
-    if (size == "1" && AppleWinParser::TryParseSourceLine (tokens[0], context, command))
+    if (size == "1" && AppleWinArgumentForms::TryParseSourceLine (tokens[0], context, command))
     {
         return true;
     }
@@ -963,7 +965,7 @@ bool WinDbgParser::TryBuildWatchpoint (
 
 
 
-    if (!AppleWinParser::TryParseIfClause (tokens, command, build.error, context.GetNumberSyntax()))
+    if (!AppleWinBreakpointParser::TryParseIfClause (tokens, command, build.error, context.GetNumberSyntax()))
     {
         return false;
     }
@@ -1018,7 +1020,7 @@ bool WinDbgParser::TryBuildAccessRange (
 
     if (size == "1")
     {
-        return AppleWinParser::TryParseRange (text, context, command, error);
+        return AppleWinArgumentForms::TryParseRange (text, context, command, error);
     }
 
     length = (size.size() > kMaxDigits) ? kMaxWord + 1 : (uint32_t) std::stoul (size);
@@ -1032,7 +1034,7 @@ bool WinDbgParser::TryBuildAccessRange (
     command.hasA1 = true;
     command.hasA2 = true;
 
-    if (!AppleWinParser::TryEvaluate (text, context, command.a1, error))
+    if (!AppleWinArgumentForms::TryEvaluate (text, context, command.a1, error))
     {
         return false;
     }
@@ -1139,7 +1141,7 @@ bool WinDbgParser::TryBuildRegister (const std::string & rest, const IDebugExpre
         command.verb  = DebugVerb::SetRegister;
         command.text  = register6502;
         command.hasA1 = true;
-        return AppleWinParser::TryEvaluate (value, context, command.a1, build.error);
+        return AppleWinArgumentForms::TryEvaluate (value, context, command.a1, build.error);
     }
 
     build.error = std::format ("{} is not a register. The registers are a, x, y, sp, pc and fl.", name);
@@ -1180,7 +1182,7 @@ bool WinDbgParser::TryBuildText (
     command.verb  = DebugVerb::EnterBytes;
     command.hasA1 = true;
 
-    if (!AppleWinParser::TryEvaluate (args[0], context, command.a1, build.error))
+    if (!AppleWinArgumentForms::TryEvaluate (args[0], context, command.a1, build.error))
     {
         return false;
     }
@@ -1245,14 +1247,14 @@ bool WinDbgParser::TryBuildRange (
     {
         command.hasA3 = true;
 
-        if (!AppleWinParser::TryEvaluate (args[next], context, command.a3, build.error))
+        if (!AppleWinArgumentForms::TryEvaluate (args[next], context, command.a3, build.error))
         {
             return false;
         }
     }
 
-    if (!AppleWinParser::TryEvaluate (args[0], context, command.a1, build.error) ||
-        !AppleWinParser::TryEvaluate (length,  context, count,      build.error) ||
+    if (!AppleWinArgumentForms::TryEvaluate (args[0], context, command.a1, build.error) ||
+        !AppleWinArgumentForms::TryEvaluate (length,  context, count,      build.error) ||
         !TrySetLength (command.a1, count, command, build.error))
     {
         return false;
@@ -1263,7 +1265,7 @@ bool WinDbgParser::TryBuildRange (
         return TryAddValues (args, next, false, context, command, build.error);
     }
 
-    return name == "m" || AppleWinParser::TryParseSearchItems (GetTail (rest, next), context, command, build.error);
+    return name == "m" || AppleWinArgumentForms::TryParseSearchItems (GetTail (rest, next), context, command, build.error);
 }
 
 

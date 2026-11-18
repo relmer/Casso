@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "GuestSession.h"
 #include "TestMachine.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "HResultAssert.h"
@@ -47,8 +48,6 @@ TEST_CLASS (BootRomDecoderTests)
 {
 public:
 
-    static constexpr Word       kBootRomEntry        = 0xC600;
-    static constexpr Word       kIntCxRomOff         = 0xC006;
     static constexpr Word       kBootLoadAddress     = 0x0800;
     static constexpr int        kSlot6               = 6;
     static constexpr int        kDrive1              = 0;
@@ -127,11 +126,8 @@ public:
         external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
 
-        // Surface the Disk2.rom slot ROM at $C600 (CxxxRomRouter /
-        // INTCXROM=0; audit C1).
-        machine.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
+        GuestSession::StartFromPowerOn (machine);
 
-        machine.GetCpu()->SetPC (kBootRomEntry);
         return external;
     }
 
@@ -202,9 +198,9 @@ public:
                     "cyc=%llu PC=$%04X X=$%02X A=$%02X bp=%zu trk=%d latch=$%02X\n",
                     (unsigned long long) cyc, pc,
                     machine.GetCpu()->GetX(), machine.GetCpu()->GetA(),
-                    machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition(),
-                    machine.GetRefs().diskController->GetCurrentTrack(),
-                    machine.GetRefs().diskController->GetEngine (kDrive1).PeekReadLatch());
+                    machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition(),
+                    machine.GetRefs().diskController->GetLines().GetCurrentTrack(),
+                    machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().PeekReadLatch());
             }
         }
 

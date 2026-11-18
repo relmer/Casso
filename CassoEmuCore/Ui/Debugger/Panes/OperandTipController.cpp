@@ -4,6 +4,7 @@
 
 #include "Ui/Debugger/DisassemblyCells.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceRows.h"
 #include "Ui/Debugger/SourceSyntax.h"
 
 
@@ -783,7 +784,7 @@ bool OperandTipController::TryAddListSegment (
     int                            size      = (int) cell.text.size();
     int                            first     = isOperand ? std::clamp (parts.operandChar, 0, size) : 0;
     int                            lineEnd   = first;
-    size_t                         resultAt  = cell.text.find (SourcePane::kpszResultPrefix, (size_t) first);
+    size_t                         resultAt  = cell.text.find (SourceRows::kpszResultPrefix, (size_t) first);
     OperandResultTip::Segment      segment;
     OperandResultTip::Segment      line;
 
@@ -918,7 +919,7 @@ std::vector<uint32_t> OperandTipController::GetCellColors (
 bool OperandTipController::HasLineComment (const DxuiTextView & view, int row)
 {
     const std::vector<std::wstring>  & cells = view.GetRows()[(size_t) row].cells;
-    size_t                             at    = (size_t) SourcePane::kTextCell;
+    size_t                             at    = (size_t) SourceRows::kTextCell;
 
 
 
@@ -1063,7 +1064,7 @@ void OperandTipController::AddTextSegments (
 
         if (c == parts.operandColumn)
         {
-            segment.resultAt    = (int) segment.text.find (SourcePane::kpszResultPrefix);
+            segment.resultAt    = (int) segment.text.find (SourceRows::kpszResultPrefix);
             placement.operand   = (int) placement.segments.size();
             placement.symbolInk = segment.colors.front();
         }

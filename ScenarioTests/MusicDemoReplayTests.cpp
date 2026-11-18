@@ -42,7 +42,7 @@ namespace MusicDemoReplayTests
         {
             for (uint64_t frame = 0; frame < seconds * s_kFramesPerSecond; frame++)
             {
-                machine.RunCycles (s_kFrameCycles);
+                machine.GetRunner().RunCycles (s_kFrameCycles);
             }
         }
 
@@ -77,18 +77,18 @@ namespace MusicDemoReplayTests
             hr = controller.GetKeyframes().WaitForPending();
             AssertSucceeded (hr, L"WaitForPending");
 
-            keyframes = controller.GetKeyframes().GetCount();
+            keyframes = controller.GetKeyframes().GetArena().GetCount();
 
-            hr = controller.SeekToCycle (middle, result);
+            hr = controller.GetSeeker().SeekToCycle (middle, result);
             AssertSucceeded (hr, L"SeekToCycle");
-            Assert::IsTrue (controller.IsInHistory(), L"the seek is behind live");
+            Assert::IsTrue (controller.GetSpan().IsInHistory(), L"the seek is behind live");
 
             RunSeconds (machine, 4);
 
-            Assert::AreEqual ((size_t) 0, controller.GetCutCount(),
-                              TextEncoding::NarrowToWide ("history was cut: " + controller.GetLastDivergence()).c_str());
-            Assert::IsFalse  (controller.IsInHistory(), L"the run got to the end of history");
-            Assert::IsTrue   (controller.GetKeyframes().GetCount() >= keyframes, L"no keyframe of the recording was dropped");
+            Assert::AreEqual ((size_t) 0, controller.GetSeeker().GetCutCount(),
+                              TextEncoding::NarrowToWide ("history was cut: " + controller.GetSeeker().GetLastDivergence()).c_str());
+            Assert::IsFalse  (controller.GetSpan().IsInHistory(), L"the run got to the end of history");
+            Assert::IsTrue   (controller.GetKeyframes().GetArena().GetCount() >= keyframes, L"no keyframe of the recording was dropped");
         }
     };
 }

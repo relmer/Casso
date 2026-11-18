@@ -83,6 +83,7 @@ public:
     int                              GetHoverIndex () const { return m_hover;    }
 
     int   HitTest        (int x, int y) const;
+    int   GetLabelRight  (int index, IDxuiTextRenderer & text) const;
     void  SetMouseHover  (int x, int y);
     bool  OnLButtonDown  (int x, int y);
     bool  OnLButtonUp    (int x, int y);
@@ -100,6 +101,10 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Radio; }
 
 private:
+    static constexpr float  kBoxSizeDip  = 16.0f;
+    static constexpr float  kLabelGapDip = 6.0f;
+    static constexpr float  kFontDip     = 13.0f;
+
     void  Commit (int newIndex);
 
 

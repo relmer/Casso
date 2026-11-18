@@ -196,6 +196,9 @@ RowGrouping::Group RowGrouping::GetGroup (const CatalogRow & row, Field field, c
         case Field::Relevance:
             return { std::to_wstring (row.searchRank), row.searchRank };
 
+        case Field::DuplicateSet:
+            return { std::format (L"Set {}: {}", row.collection.set, row.collection.isDisk ? L"disks" : L"files"), row.collection.set };
+
         case Field::DateDeleted:
             return row.hasDeleted ? GetUnixDateGroup (row.deletedUnix, false, today) : GetDateGroup (false, 0, 0, 0, today);
 

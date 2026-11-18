@@ -2,6 +2,7 @@
 
 #include "Debugger/DisassemblyLineList.h"
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/CodeViews.h"
 #include "Disassembler.h"
 #include "TestHelpers.h"
 
@@ -246,7 +247,7 @@ namespace DebuggerTests
             rig.image.fetched.set (0x7200);
             rig.image.fetched.set (0x7300);
 
-            targets = DebuggerViewState::GetBranchTargets (Disassembler (cpu.GetInstructionSet()), rig.image);
+            targets = CodeViews::GetBranchTargets (Disassembler (cpu.GetInstructionSet()), rig.image);
 
             Assert::IsTrue (targets == std::vector<Word> { 0x6004, 0x7304 }, L"the executed JMP's and the executed branch's targets");
 
@@ -284,7 +285,7 @@ namespace DebuggerTests
             gone.callSite = 0x0720;
             calls.rows    = { { call, std::nullopt }, { irq, std::nullopt }, { gone, std::nullopt } };
 
-            rig.inputs.starts = DebuggerViewState::GetKnownStarts (calls, 0x0300, rig.image);
+            rig.inputs.starts = CodeViews::GetKnownStarts (calls, 0x0300, rig.image);
             rig.list.Build (rig.inputs);
 
             Assert::AreEqual ((size_t) 2, rig.inputs.starts.size(), L"the PC and the JSR");

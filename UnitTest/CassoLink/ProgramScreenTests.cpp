@@ -63,7 +63,7 @@ public:
 
 
 
-        rig.machine.RunCycles (kSettleCycles);
+        rig.machine.GetRunner().RunCycles (kSettleCycles);
 
         text = TextScreenScraper::Scrape40 (rig.machine.GetMemoryBus(), 0x0400)[(size_t) row];
         return text.substr (0, text.find_last_not_of (' ') + 1);
@@ -95,8 +95,14 @@ public:
 
     //  Once a request is over, the host's Idle clears the label, and the
     //  program draws the connection, the link's speed and an idle drive.
+    //  The Idle is the reply to the program's next Ready. An Idle sent
+    //  before the Ready arrives while the program draws and sends, and each
+    //  byte is overwritten by the next in the //c's serial chip, which has a
+    //  one-byte receive register.
     TEST_METHOD (AfterARequest_TheLabelIsClear_AndTheConnectionShown)
     {
+        static constexpr DWORD  kReadyTimeoutMs = 2000;   // the program sends a Ready each second
+
         ProgramRig         rig (Dos33());
         const Byte         sector[] = { 0 };
         std::vector<Byte>  data;
@@ -109,13 +115,13 @@ public:
         AssertRow (rig, kRowLabel, "READING THE CATALOG OF D1", L"the label");
 
         AssertSucceeded (rig.host->ReadSectors (1, kCatalogTrack, sector, data, status));
-        AssertSucceeded (rig.host->PromptReady());
+        AssertSucceeded (rig.host->ServeOne (kReadyTimeoutMs));
 
-        AssertRow (rig, kRowStatus, "CASSOLINK: CONNECTED",  L"the status");
-        AssertRow (rig, kRowPort,   "SERIAL PORT 2, 115200", L"the link's speed");
+        AssertRow (rig, kRowStatus, "CassoLink: Connected",  L"the status");
+        AssertRow (rig, kRowPort,   "Serial port 2, 115200", L"the link's speed");
         AssertRow (rig, kRowLabel,  "",                      L"no label after the request");
         AssertRow (rig, kRowError,  "",                      L"no error");
-        AssertRow (rig, kRowDrive1, "D1: IDLE",              L"drive 1");
+        AssertRow (rig, kRowDrive1, "D1: Idle",              L"drive 1");
     }
 
 
@@ -136,8 +142,8 @@ public:
         AssertSucceeded (rig.host->WriteSectors (1, 9, sector, data, status));
         Assert::AreEqual<int> (CassoLinkHost::kErrorWriteProtected, status.error);
 
-        AssertRow (rig, kRowError, "ERROR: WRITE-PROTECTED DISK IN D1", L"the error row");
-        AssertRow (rig, kRowError, "ERROR: WRITE-PROTECTED DISK IN D1", L"the error row, a moment later");
+        AssertRow (rig, kRowError, "Error: Write-protected disk in D1", L"the error row");
+        AssertRow (rig, kRowError, "Error: Write-protected disk in D1", L"the error row, a moment later");
     }
 
 
@@ -154,7 +160,7 @@ public:
         AssertSucceeded (rig.host->SendLog (12, 30, "PC CONNECTED"));
         AssertSucceeded (rig.host->SendLog (12, 34, "OK  COPIED FROMPC TO D1"));
 
-        AssertRow (rig, kRowHistoryTitle, "HISTORY:",                      L"the heading");
+        AssertRow (rig, kRowHistoryTitle, "History:",                      L"the heading");
         AssertRow (rig, kRowHistory1,     "12:34 OK  COPIED FROMPC TO D1", L"the newest line");
         AssertRow (rig, kRowHistory2,     "12:30 PC CONNECTED",            L"the line before it");
     }
@@ -167,9 +173,9 @@ public:
     {
         struct Cell { Word at; char c; const wchar_t * what; };
 
-        static constexpr Cell  kCells[] = { { 0x0400, 'A', L"column 1 of CASSOLINK" },
-                                            { 0x0401, 'S', L"column 3" },
-                                            { 0x0406, 'N', L"column 13, in CONNECTED" },
+        static constexpr Cell  kCells[] = { { 0x0400, 'a', L"column 1 of CassoLink" },
+                                            { 0x0401, 's', L"column 3" },
+                                            { 0x0406, 'n', L"column 13, in Connected" },
                                             { 0x0426, '2', L"column 77, in the connection at the right edge" },
                                             { 0x0427, '0', L"column 79, the speed's last digit" } };
 
@@ -179,7 +185,7 @@ public:
 
         AssertSucceeded (rig.host->SetSpeed (kFastControl));
         AssertSucceeded (rig.host->SetColumns (true));
-        rig.machine.RunCycles (kSettleCycles);
+        rig.machine.GetRunner().RunCycles (kSettleCycles);
 
         for (const Cell & cell : kCells)
         {
@@ -208,5 +214,76 @@ public:
         rig.host->SetProgress (0, 100);
         AssertSucceeded (rig.host->ReadSectors (2, kCatalogTrack, sector, data, status));
         Assert::AreNotEqual (std::string(), Row (rig, kRowBar2), L"a whole-disk transfer's read");
+    }
+
+    //  Measure track has its read's share of the bar: the bar is drawn at the
+    //  share's start, where a read with no sector done yet draws it.
+    TEST_METHOD (AMeasure_DrawsTheBarAtItsShare)
+    {
+        ProgramRig                   rig ({}, Dos33());
+        const Byte                   sector[] = { 0 };
+        std::vector<Byte>            data;
+        CassoLinkStatus              status;
+        CassoLinkHost::TrackMeasure  measure;
+        std::string                  bar;
+
+
+
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+
+        rig.host->SetProgress (60, 63);
+        AssertSucceeded (rig.host->ReadSectors (2, kCatalogTrack, sector, data, status));
+
+        rig.host->SetProgress (40, 43);
+        AssertSucceeded (rig.host->MeasureTrack (2, kCatalogTrack, measure, status));
+        Assert::AreEqual ((Byte) 0, status.error);
+
+        bar = Row (rig, kRowBar2);
+        Assert::IsTrue (bar.ends_with ("40%"), TextEncoding::NarrowToWide ("the measure's share: " + bar).c_str());
+    }
+
+    //  A Full Send whose PC goes silent during a read, as when the line is
+    //  closed during a raw capture, ends on the standard screen with empty
+    //  bars, not the read's.
+    TEST_METHOD (AFullSendWhosePCIsGone_EndsWithEmptyBars)
+    {
+        static constexpr uint64_t  kGoneCycles = 7 * 1'020'484;   // past the program's PCGONE seconds
+        ProgramRig                 rig ({}, Dos33());
+        const Byte                 sector[] = { 0 };
+        std::vector<Byte>          data;
+        CassoLinkStatus            status;
+
+
+
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+        AssertSucceeded (rig.host->SendSessionScreen (true, 0, { "Full Send" }));
+
+        rig.host->SetProgress (0, 100);
+        AssertSucceeded (rig.host->ReadSectors (2, kCatalogTrack, sector, data, status));
+
+        rig.machine.GetRunner().RunCycles (kGoneCycles);
+        AssertRow (rig, kRowBar2, "", L"with the PC gone");
+    }
+
+    //  A Full Send the PC ends, as with Cancel during a raw capture, ends on the
+    //  standard screen with empty bars, not the last read's.
+    TEST_METHOD (AFullSendThePCEnds_EndsWithEmptyBars)
+    {
+        ProgramRig         rig ({}, Dos33());
+        const Byte         sector[] = { 0 };
+        std::vector<Byte>  data;
+        CassoLinkStatus    status;
+
+
+
+        AssertSucceeded (rig.host->SetSpeed (kFastControl));
+        AssertSucceeded (rig.host->SendSessionScreen (true, 0, { "Full Send" }));
+
+        rig.host->SetProgress (0, 100);
+        AssertSucceeded (rig.host->ReadSectors (2, kCatalogTrack, sector, data, status));
+
+        rig.host->SetProgress (0, 0);
+        AssertSucceeded (rig.host->SendSessionScreen (false, 0, {}));
+        AssertRow (rig, kRowBar2, "", L"after the session");
     }
 };

@@ -60,7 +60,7 @@ namespace ShellDebuggerViewStateTests
 
             shell->GetMachine().PowerCycle();
             shell->GetDebugger().PrepareFramebuffers();
-            shell->GetDebugger().SetClock ([this] () { return nowMs; });
+            shell->GetDebugger().GetView().SetClock ([this] () { return nowMs; });
 
             controller = std::make_unique<DebuggerController> (shell->GetMachine(), ControllerRig::Paused (shell->GetCpuManager()), transport, files, nullptr, 1);
 
@@ -68,14 +68,14 @@ namespace ShellDebuggerViewStateTests
             AssertSucceeded (hr, L"the debugger opens");
 
             shell->GetDebugger().AttachDebugger (std::move (controller));
-            shell->GetDebugger().SetDebugWindowShown (true);
+            shell->GetDebugger().GetView().SetWindowShown (true);
         }
 
 
 
         ~ViewRig()
         {
-            shell->GetDebugger().SetDebugWindowShown (false);
+            shell->GetDebugger().GetView().SetWindowShown (false);
 
             if (shell->GetDebugger().IsDebuggerOpen())
             {
@@ -127,7 +127,7 @@ namespace ShellDebuggerViewStateTests
         //  shell's count rather than after waiting out a timeout.
         bool PassBuilds (bool isLater)
         {
-            uint64_t  before = shell->GetDebugger().GetBuildsSubmitted();
+            uint64_t  before = shell->GetDebugger().GetView().GetBuildsSubmitted();
 
 
 
@@ -140,7 +140,7 @@ namespace ShellDebuggerViewStateTests
                 shell->GetDebugger().ServiceDebugger();
             }
 
-            return shell->GetDebugger().GetBuildsSubmitted() != before;
+            return shell->GetDebugger().GetView().GetBuildsSubmitted() != before;
         }
 
 
@@ -267,7 +267,7 @@ namespace ShellDebuggerViewStateTests
 
 
                 {
-                    std::lock_guard<std::mutex>  held (rig.shell->GetDebugger().GetViewStateLock());
+                    std::lock_guard<std::mutex>  held (rig.shell->GetDebugger().GetViewModel().GetLock());
 
 
 

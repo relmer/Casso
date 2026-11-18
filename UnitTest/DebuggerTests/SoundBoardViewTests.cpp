@@ -92,8 +92,8 @@ namespace DebuggerTests
             Assert::AreEqual (5, channel);
             Assert::IsFalse (isMuted, L"muted before");
 
-            Assert::IsTrue  (view.OnMouse (MakeClick (view.GetMuteRect (SoundBoardView::kVoiceMuteChannel))));
-            Assert::AreEqual (SoundBoardView::kVoiceMuteChannel, channel);
+            Assert::IsTrue  (view.OnMouse (MakeClick (view.GetMuteRect (SoundVoiceCard::kVoiceMuteChannel))));
+            Assert::AreEqual (SoundVoiceCard::kVoiceMuteChannel, channel);
         }
 
 
@@ -131,7 +131,7 @@ namespace DebuggerTests
 
             view.OnFocusChanged (true);
             view.OnFocusEntered (true);
-            Assert::AreEqual (SoundBoardView::kVoiceMuteChannel, view.GetFocusedMute(), L"Tab enters at the speech chip's mute");
+            Assert::AreEqual (SoundVoiceCard::kVoiceMuteChannel, view.GetFocusedMute(), L"Tab enters at the speech chip's mute");
 
             Assert::IsTrue   (view.OnKey (MakeKey (VK_TAB)));
             Assert::AreEqual (0, view.GetFocusedMute(), L"then channel A of AY #1");
@@ -216,7 +216,7 @@ namespace DebuggerTests
 
             LayOut (view);
             view.SetBoard (MakeBoard (false));
-            voice = view.GetMuteRect (SoundBoardView::kVoiceMuteChannel);
+            voice = view.GetMuteRect (SoundVoiceCard::kVoiceMuteChannel);
             first = view.GetMuteRect (0);
 
             Assert::IsTrue (IsRectEmpty (&voice) != FALSE);
@@ -366,14 +366,14 @@ namespace DebuggerTests
             LayOut (view);
             view.SetBoard (board);
 
-            view.ScrollPhonemes (SoundBoardView::kPhonemesPerNotch);
-            Assert::AreEqual ((size_t) SoundBoardView::kPhonemesPerNotch, view.GetPhonemesBack());
+            view.GetVoice().ScrollPhonemes (SoundBoardView::kPhonemesPerNotch);
+            Assert::AreEqual ((size_t) SoundBoardView::kPhonemesPerNotch, view.GetVoice().GetPhonemesBack());
 
-            view.ScrollPhonemes (1000);
-            Assert::AreEqual ((size_t) 9, view.GetPhonemesBack(), L"as far back as the oldest");
+            view.GetVoice().ScrollPhonemes (1000);
+            Assert::AreEqual ((size_t) 9, view.GetVoice().GetPhonemesBack(), L"as far back as the oldest");
 
-            view.ScrollPhonemes (-1000);
-            Assert::AreEqual ((size_t) 0, view.GetPhonemesBack(), L"the newest again");
+            view.GetVoice().ScrollPhonemes (-1000);
+            Assert::AreEqual ((size_t) 0, view.GetVoice().GetPhonemesBack(), L"the newest again");
         }
 
 
@@ -410,16 +410,16 @@ namespace DebuggerTests
             wheel.wheelHorizontal = true;
             wheel.wheelDelta      = -1.0f;
             Assert::IsTrue   (view.OnMouse (wheel));
-            Assert::AreEqual ((size_t) SoundBoardView::kPhonemesPerNotch, view.GetPhonemesBack(), L"the tilt to the left");
+            Assert::AreEqual ((size_t) SoundBoardView::kPhonemesPerNotch, view.GetVoice().GetPhonemesBack(), L"the tilt to the left");
 
             wheel.wheelDelta = 1.0f;
             Assert::IsTrue   (view.OnMouse (wheel));
-            Assert::AreEqual ((size_t) 0, view.GetPhonemesBack(), L"the tilt to the right");
+            Assert::AreEqual ((size_t) 0, view.GetVoice().GetPhonemesBack(), L"the tilt to the right");
 
             wheel.wheelHorizontal = false;
             wheel.shift           = true;
             Assert::IsTrue   (view.OnMouse (wheel));
-            Assert::AreEqual ((size_t) SoundBoardView::kPhonemesPerNotch, view.GetPhonemesBack(), L"Shift with the wheel up");
+            Assert::AreEqual ((size_t) SoundBoardView::kPhonemesPerNotch, view.GetVoice().GetPhonemesBack(), L"Shift with the wheel up");
         }
 
 
@@ -461,7 +461,7 @@ namespace DebuggerTests
             wheel.wheelDelta = -1.0f;
             Assert::IsTrue   (view.OnMouse (wheel));
             Assert::IsTrue   (view.GetScrollTop() > 0, L"the board scrolled");
-            Assert::AreEqual ((size_t) 0, view.GetPhonemesBack(), L"the strip didn't move");
+            Assert::AreEqual ((size_t) 0, view.GetVoice().GetPhonemesBack(), L"the strip didn't move");
         }
 
 

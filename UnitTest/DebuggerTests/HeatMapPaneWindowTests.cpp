@@ -103,17 +103,15 @@ namespace HeatMapPaneWindowTests
         using DebuggerWindow::ShowPane;
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::GetViewMenuPanes;
-        using DebuggerWindow::GetPaneLayout;
         using DebuggerWindow::SyncHeatMapRecording;
         using DebuggerWindow::IsHeatMapRecording;
         using DebuggerWindow::GetHeatMapPane;
         using DebuggerWindow::GetTooltip;
         using DebuggerWindow::GetTextZoom;
-        using DebuggerWindow::GetPaneTextZoom;
+        using DebuggerWindow::GetTextZooms;
         using DebuggerWindow::OnMouse;
         using DebuggerWindow::OnKey;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::GetDockSite;
         using DebuggerWindow::GetFloatingPanes;
         using DebuggerWindow::GetPaneContentForTest;
@@ -591,7 +589,7 @@ namespace HeatMapPaneWindowTests
             button = view->GetZoomWidget().GetButtonRect();
 
             Assert::IsTrue   (button.right > button.left, L"the widget is placed");
-            Assert::AreEqual (view->GetBounds().right  - HeatMapZoomWidget::kMarginDip - (view->HasVerticalScroll()   ? HeatMapView::kScrollbarDip : 0), button.right,
+            Assert::AreEqual (view->GetBounds().right  - HeatMapZoomWidget::kMarginDip - (view->HasVerticalScroll()   ? HeatMapGrid::kScrollbarDip : 0), button.right,
                               L"its margin in from the pane's right, inside a scrollbar that shows");
             Assert::AreEqual (view->GetBounds().bottom - HeatMapZoomWidget::kMarginDip, button.bottom, L"and its bottom");
             Assert::AreEqual (100, HeatMapZoomWidget::GetPercent (view->GetCellPx(), view->GetStartCellPx()), L"the starting zoom is 100%");
@@ -607,7 +605,7 @@ namespace HeatMapPaneWindowTests
 
             track = view->GetZoomWidget().GetTrackRect();
             ClickAt (window, POINT { track.right - 1, GetCenter (track).y });
-            Assert::AreEqual ((int) HeatMapView::kMaxCellPx, view->GetCellPx(), L"the right end is the largest cell");
+            Assert::AreEqual ((int) HeatMapGrid::kMaxCellPx, view->GetCellPx(), L"the right end is the largest cell");
 
             moved = view->GetZoomWidget().GetTrackRect();
             Assert::IsTrue   (EqualRect (&track, &moved) != FALSE, L"the slider stays put as the zoom changes the map");
@@ -702,7 +700,7 @@ namespace HeatMapPaneWindowTests
 
             console = window.GetPaneContentForTest (DebuggerLayout::kConsole)->GetBounds();
             Assert::IsTrue   (window.OnMouse (MakeCtrlWheel (GetCenter (console), 1.0f)));
-            Assert::IsTrue   (window.GetPaneTextZoom (DebuggerLayout::kConsole) > 1.0f, L"over the console, Ctrl+wheel sizes the console's text");
+            Assert::IsTrue   (window.GetTextZooms().GetPaneZoom (DebuggerLayout::kConsole) > 1.0f, L"over the console, Ctrl+wheel sizes the console's text");
             Assert::AreEqual (zoom, window.GetTextZoom(), L"and not every pane's");
             Assert::AreEqual (2, view->GetCellPx(), L"and the map stays at its zoom");
         }
@@ -735,9 +733,9 @@ namespace HeatMapPaneWindowTests
             cell = view->GetCellRect (0x2000);
             map  = view->GetMapRect();
 
-            Assert::AreEqual (HeatMapView::kMaxCellPx, view->GetCellPx(), L"the largest zoom");
+            Assert::AreEqual (HeatMapGrid::kMaxCellPx, view->GetCellPx(), L"the largest zoom");
             Assert::IsTrue   (view->GetShownAddress() == std::optional<Word> (0x2000), L"$2000 is outlined");
-            Assert::IsTrue   (std::abs ((cell.top + cell.bottom) / 2 - (map.top + map.bottom) / 2) <= HeatMapView::kMaxCellPx, L"and centered");
+            Assert::IsTrue   (std::abs ((cell.top + cell.bottom) / 2 - (map.top + map.bottom) / 2) <= HeatMapGrid::kMaxCellPx, L"and centered");
 
             symbol->goTo = DebuggerViewSnapshot::GoTo { DebuggerViewState::kHeatMapGoTo, Word (0x0300), "start", "", 1 };
             window.TakeSnapshot (symbol);
@@ -791,7 +789,7 @@ namespace HeatMapPaneWindowTests
             window.FocusControl (window.FindPaneForTest (DebuggerLayout::kRegisters)->GetLists().front());
 
             Assert::IsTrue   (window.OnKey (plus));
-            Assert::IsTrue   (window.GetPaneTextZoom (DebuggerLayout::kRegisters) > 1.0f, L"with the focus on the registers, Ctrl+Plus sizes the registers' text");
+            Assert::IsTrue   (window.GetTextZooms().GetPaneZoom (DebuggerLayout::kRegisters) > 1.0f, L"with the focus on the registers, Ctrl+Plus sizes the registers' text");
             Assert::AreEqual (zoom, window.GetTextZoom(), L"and not every pane's");
             Assert::AreEqual (view->GetStartCellPx(), view->GetCellPx(), L"and the map stays at its zoom");
         }
@@ -806,7 +804,7 @@ namespace HeatMapPaneWindowTests
 
 
 
-            Assert::IsTrue (window.EditPaneLayout().Float (DebuggerLayout::kHeatMap, L"", RECT { 0, 0, 700, 600 }), L"the heat map is in the layout");
+            Assert::IsTrue (window.GetDockSite()->EditPaneLayout().Float (DebuggerLayout::kHeatMap, L"", RECT { 0, 0, 700, 600 }), L"the heat map is in the layout");
 
             window.GetFloatingPanes().MarkSyncNeeded();
             window.GetFloatingPanes().Sync();
@@ -1005,7 +1003,7 @@ namespace HeatMapPaneWindowTests
                 window = std::make_unique<HeatMapWindow> (theme, host);
                 BuildShown (*window);
 
-                Assert::IsTrue (window->EditPaneLayout().AutoHide (DebuggerLayout::kConsole, side));
+                Assert::IsTrue (window->GetDockSite()->EditPaneLayout().AutoHide (DebuggerLayout::kConsole, side));
                 window->GetDockSite()->Relayout();
                 Relayout (*window);
                 window->GetDockSite()->SlideOut (DebuggerLayout::kConsole);

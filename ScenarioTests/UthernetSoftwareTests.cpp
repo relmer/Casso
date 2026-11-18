@@ -142,7 +142,7 @@ namespace UthernetSoftwareTests
         void  Boot (const std::vector<Byte> & disk)
         {
             GuestSession::Mount (m_machine, disk);
-            m_machine.RunCycles (kBootCycles);
+            m_machine.GetRunner().RunCycles (kBootCycles);
         }
 
         // Runs `ms` of the guest's time, polling the test's sockets after each
@@ -214,13 +214,13 @@ namespace UthernetSoftwareTests
             for (moves = 0; moves < kMaxMoves && !ShowsText (marker); moves++)
             {
                 Press (key);
-                m_machine.RunCycles (kSettleCycles);
+                m_machine.GetRunner().RunCycles (kSettleCycles);
             }
 
             Assert::IsTrue (ShowsText (marker), std::format (L"no highlight on \"{}\"\n{}", TextEncoding::NarrowToWide (marker), Screen()).c_str());
         }
 
-        void  Settle (uint64_t cycles) { m_machine.RunCycles (cycles); }
+        void  Settle (uint64_t cycles) { m_machine.GetRunner().RunCycles (cycles); }
 
         std::wstring  Screen()
         {

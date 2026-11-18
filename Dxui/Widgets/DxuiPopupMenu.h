@@ -433,7 +433,7 @@ private:
     int   GetIconButtonAt     (int index, int localX) const;
     void  CommitIcon          (int index, int button);
     void  PlaceIconRow        (bool atBottom);
-    void  DropStraySeparators ();
+    void  DropHiddenRows      ();
     bool  OpensUpward         (int originX, int originY, int heightPx, Anchoring anchoring) const;
     int   HitTestIndex        (int x, int y) const;
     void  FindCutRows         (IDxuiTextRenderer & text);

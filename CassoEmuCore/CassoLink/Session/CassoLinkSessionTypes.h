@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoLink/FullSend/FullSendProtection.h"
 #include "CassoLink/LinkedDisk.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 
@@ -71,6 +72,8 @@ enum class LinkOperationKind
     SaveLink,
     FullSend,
     Krunch,
+    CaptureDisk,
+    ListBlockDevices,
 };
 
 enum class LinkOperationState
@@ -119,6 +122,13 @@ struct LinkOperation
     std::string                      imagePrefix;
     bool                             blankUnreadable = false;
 
+    //  Read disk and Write disk of a block device: continue a transfer the
+    //  link cut short, from its record beside the image.
+    bool                             resume          = false;
+
+    //  Full Send: the Copy-protected disks section's choices.
+    FullSendProtectionChoices        protection;
+
     //  Full Send: set while the Apple waits for a disk and a key, and while a
     //  drive's disk is checked, so the status bar reads that rather than the
     //  last read's percentage; and once it ends, the disks sent, duplicated
@@ -126,6 +136,15 @@ struct LinkOperation
     std::atomic<bool>                fullSendWaiting  { false };
     std::atomic<bool>                fullSendChecking { false };
     std::string                      fullSendSummary;
+
+    //  Set for an operation queued while a Full Send runs, which isn't run:
+    //  the Full Send has the drives until it ends.
+    bool                             isBlocked        = false;
+
+    //  What a long operation is doing, for the status bar, as a capture's
+    //  track and read; set on the session's thread and read on the UI's.
+    void         SetDetail (const std::string & text) { std::lock_guard<std::mutex> lock (m_detailLock); m_detail = text; }
+    std::string  GetDetail () const                   { std::lock_guard<std::mutex> lock (m_detailLock); return m_detail; }
 
     //  Write disk for a format: the new volume, as VOL 254 or /NAME, so the
     //  label for a format differs from one for an image written.
@@ -144,6 +163,10 @@ struct LinkOperation
     std::atomic<bool>                krunchTaken   { false };
     std::atomic<int>                 krunchParts   { 0 };
     std::atomic<int>                 krunchMoved   { 0 };
+
+private:
+    mutable std::mutex               m_detailLock;
+    std::string                      m_detail;
 };
 
 
@@ -182,6 +205,20 @@ public:
     //  The folder and extension of a Full Send started from the Apple, with
     //  the folder ready to use; false when there is no folder to send to.
     virtual bool  TryGetFullSendTarget (std::string & outFolder, std::string & outExtension) { UNREFERENCED_PARAMETER (outFolder); UNREFERENCED_PARAMETER (outExtension); return false; }
+
+    //  The Copy-protected disks section's choices for that Full Send.
+    virtual FullSendProtectionChoices  GetFullSendProtection () { return {}; }
+
+    //  A disk image the session wrote, by its path, and the model of Apple
+    //  it was read from, as Apple //c (ROM 3), for the boot check. True
+    //  when the image is booted.
+    virtual bool  OnImageWritten       (const std::string & path, const std::string & model) { UNREFERENCED_PARAMETER (path); UNREFERENCED_PARAMETER (model); return false; }
+
+    //  Whether the Apple sounds a tone for an image's boot result.
+    virtual bool  HasAppleBootSounds   () { return false; }
+
+    //  Whether a Full Send saves a raw capture's reads beside its image.
+    virtual bool  HasFullSendReadsOn   () { return false; }
 
     //  An operation the Apple started, so the window can track and cancel it.
     virtual void  OnOperationQueued (const std::shared_ptr<LinkOperation> & operation) { UNREFERENCED_PARAMETER (operation); }

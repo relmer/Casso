@@ -83,7 +83,8 @@ public:
     }
 
     //  The filesystem of an image with no recognized filesystem.
-    void  SetChosenKind (VolumeKind kind) { m_chosenKind = kind; }
+    void        SetChosenKind (VolumeKind kind) { m_chosenKind = kind; }
+    VolumeKind  GetChosenKind () const          { return m_chosenKind; }
 
     //  Loads the image, identifies its filesystem and records its stamp, or
     //  explains why not.
@@ -147,6 +148,9 @@ public:
     //  how much of the surface the track map claims.
     static std::string  DescribeWozChunks (const std::vector<Byte> & fileBytes);
 
+    //  A 2IMG or Disk Copy 4.2 image's header, listed as the WOZ chunks are.
+    static std::string  DescribeContainerHeader (const std::vector<Byte> & fileBytes);
+
     //  The heading of the keys the WOZ reference doesn't define, whose keys and
     //  values are listed exactly as the image has them.
     static constexpr const char *  kCustomHeading = "Custom";
@@ -157,8 +161,14 @@ public:
     static constexpr const char *  kMetaHeading   = "WOZ metadata";
 
     //  What the decoded surface shows: geometry, how the tracks read, and
-    //  whether the first sector a boot reads carries anything.
-    static std::string  DescribeSurface (const OpenedImage & opened);
+    //  whether the first sector a boot reads has anything in it. A save
+    //  disk's first sector is the save, not a boot, so with `bootSector`
+    //  false that line is left out.
+    static std::string  DescribeSurface (const OpenedImage & opened, bool bootSector = true);
+
+    //  The games an Infocom save disk has saved, under their heading, or
+    //  nothing for any other disk.
+    static std::string  DescribeInfocomSaves (const OpenedImage & opened);
 
     //  One `  label   value` line, or nothing at all when the value is empty --
     //  so a caller can offer every field it knows about without also deciding

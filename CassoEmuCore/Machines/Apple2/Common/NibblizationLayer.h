@@ -131,6 +131,10 @@ public:
     static HRESULT  NibblizeDo  (const vector<Byte> & raw, DiskImage & out);
     static HRESULT  NibblizePo  (const vector<Byte> & raw, DiskImage & out);
 
+    //  The volume a sector image's address fields are nibblized with: a DOS
+    //  3.3 VTOC's, or 254 for any other disk. The sectors are in DOS 3.3 order.
+    static Byte     GetImageVolume (const vector<Byte> & sectors);
+
     // Decode a nibble image back to a plain sector image. Reports what it
     // managed to decode, because a buffer holding zeroed and misfiled sectors
     // is indistinguishable from a clean one -- and the caller writes it over

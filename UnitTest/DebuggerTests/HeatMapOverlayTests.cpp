@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "../Dxui/MockDxuiPainter.h"
+#include "Ui/Debugger/HeatMapReader.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"
 #include "ControllerRig.h"
@@ -48,7 +49,7 @@ namespace DebuggerTests
         static constexpr uint32_t  kWriteWatch    = 0xFFFF8000;
         static constexpr uint32_t  kSymbol        = 0xFF40C0C0;
         static constexpr uint32_t  kSelfModifying = 0xFFE000E0;
-        static constexpr size_t    kCount         = (size_t) HeatMapView::kAddressCount;
+        static constexpr size_t    kCount         = (size_t) HeatMapSections::kAddressCount;
 
         using Mode      = HeatMapView::Mode;
         using BreakKind = HeatMapView::BreakKind;
@@ -112,10 +113,10 @@ namespace DebuggerTests
 
         TEST_METHOD (DetailShowsOnlyWhereACellHoldsLegibleText)
         {
-            HeatMapView::Detail  tiny   = HeatMapView::GetDetail (14, 14, 13.0f, 9.0f, 2.0f);
-            HeatMapView::Detail  one    = HeatMapView::GetDetail (20, 20, 13.0f, 9.0f, 2.0f);
-            HeatMapView::Detail  narrow = HeatMapView::GetDetail (30, 64, 13.0f, 9.0f, 2.0f);
-            HeatMapView::Detail  two    = HeatMapView::GetDetail (64, 64, 13.0f, 9.0f, 2.0f);
+            HeatMapView::Detail  tiny   = HeatMapCellText::GetDetail (14, 14, 13.0f, 9.0f, 2.0f);
+            HeatMapView::Detail  one    = HeatMapCellText::GetDetail (20, 20, 13.0f, 9.0f, 2.0f);
+            HeatMapView::Detail  narrow = HeatMapCellText::GetDetail (30, 64, 13.0f, 9.0f, 2.0f);
+            HeatMapView::Detail  two    = HeatMapCellText::GetDetail (64, 64, 13.0f, 9.0f, 2.0f);
 
 
 
@@ -131,9 +132,9 @@ namespace DebuggerTests
 
         TEST_METHOD (TheSecondLineIsTheOpcodesFormOrTheBits)
         {
-            Assert::AreEqual (std::wstring (L"LDA (..),Y"), HeatMapView::GetDetailLine (0xB1, true,  "LDA (..),Y"));
-            Assert::AreEqual (std::wstring (L"01011010"),   HeatMapView::GetDetailLine (0x5A, false, "LSR ....,X"), L"data, its bits");
-            Assert::AreEqual (std::wstring (L"00000010"),   HeatMapView::GetDetailLine (0x02, true,  ""),           L"no form known");
+            Assert::AreEqual (std::wstring (L"LDA (..),Y"), HeatMapCellText::GetDetailLine (0xB1, true,  "LDA (..),Y"));
+            Assert::AreEqual (std::wstring (L"01011010"),   HeatMapCellText::GetDetailLine (0x5A, false, "LSR ....,X"), L"data, its bits");
+            Assert::AreEqual (std::wstring (L"00000010"),   HeatMapCellText::GetDetailLine (0x02, true,  ""),           L"no form known");
         }
 
 
@@ -145,8 +146,8 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (kPage, HeatMapView::GetDetailTextColor (0xFFFFE000, kText, kPage), L"on a bright cell, the page's color");
-            Assert::AreEqual (kText, HeatMapView::GetDetailTextColor (0xFF303030, kText, kPage), L"on a dim cell, the text's");
+            Assert::AreEqual (kPage, HeatMapCellText::GetDetailTextColor (0xFFFFE000, kText, kPage), L"on a bright cell, the page's color");
+            Assert::AreEqual (kText, HeatMapCellText::GetDetailTextColor (0xFF303030, kText, kPage), L"on a dim cell, the text's");
         }
 
 
@@ -157,11 +158,11 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (std::string ("LDA (..),Y"),   DebuggerViewState::GetOpcodeForm (set, 0xB1));
-            Assert::AreEqual (std::string ("LDA #.."),      DebuggerViewState::GetOpcodeForm (set, 0xA9));
-            Assert::AreEqual (std::string ("LDA ...."),     DebuggerViewState::GetOpcodeForm (set, 0xAD));
-            Assert::AreEqual (std::string ("JMP (....,X)"), DebuggerViewState::GetOpcodeForm (set, 0x7C));
-            Assert::AreEqual (std::string ("INX"),          DebuggerViewState::GetOpcodeForm (set, 0xE8));
+            Assert::AreEqual (std::string ("LDA (..),Y"),   HeatMapReader::GetOpcodeForm (set, 0xB1));
+            Assert::AreEqual (std::string ("LDA #.."),      HeatMapReader::GetOpcodeForm (set, 0xA9));
+            Assert::AreEqual (std::string ("LDA ...."),     HeatMapReader::GetOpcodeForm (set, 0xAD));
+            Assert::AreEqual (std::string ("JMP (....,X)"), HeatMapReader::GetOpcodeForm (set, 0x7C));
+            Assert::AreEqual (std::string ("INX"),          HeatMapReader::GetOpcodeForm (set, 0xE8));
         }
 
 
@@ -199,7 +200,7 @@ namespace DebuggerTests
             view.ScrollBy (-1000000);
             Paint (view, text);
 
-            Assert::AreEqual (HeatMapView::kMaxCellPx, view.GetCellPx());
+            Assert::AreEqual (HeatMapGrid::kMaxCellPx, view.GetCellPx());
             Assert::IsTrue  (HasText (text, L"LDA #$41"), L"the instruction across its opcode's and operand's cells");
             Assert::IsTrue  (HasText (text, L"A9 41"),    L"its bytes under it");
             Assert::IsFalse (HasText (text, L"01000001"), L"the operand drawn as part of the instruction");
@@ -225,7 +226,7 @@ namespace DebuggerTests
                 return std::ranges::any_of (text.Calls(), [&cell] (const RecordedTextCall & call)
                 {
                     return call.kind == RecordedTextKind::FillRect && call.argb == kPc &&
-                           call.x == (float) (cell.left - HeatMapView::kStreetPx) && call.y == (float) (cell.top - HeatMapView::kStreetPx);
+                           call.x == (float) (cell.left - HeatMapSections::kStreetPx) && call.y == (float) (cell.top - HeatMapSections::kStreetPx);
                 });
             };
 
@@ -369,7 +370,7 @@ namespace DebuggerTests
             isFramed = std::ranges::any_of (text.Calls(), [&cell] (const RecordedTextCall & call)
             {
                 return call.kind == RecordedTextKind::FillRect && call.argb == kPc &&
-                       call.x == (float) (cell.left - HeatMapView::kStreetPx) && call.y == (float) (cell.top - HeatMapView::kStreetPx);
+                       call.x == (float) (cell.left - HeatMapSections::kStreetPx) && call.y == (float) (cell.top - HeatMapSections::kStreetPx);
             });
 
             Assert::IsTrue (isFramed, L"a ring in the street around the PC's cell");
@@ -386,11 +387,11 @@ namespace DebuggerTests
 
 
 
-            rig.view.SetHeatMapShown (true);
+            rig.view.GetHeatMap().SetHeatMapShown (true);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             //  LDA #$41 at $0300.
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             snapshot = rig.view.Build (rig.controller.GetSession());
             sp       = rig.controller.GetSession().GetTarget().GetRegisters().sp;
 
@@ -409,14 +410,14 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("LDA #.."), (*snapshot.heatMap.opcodeForms)[0xA9]);
 
             options.bank = HeatMapOptions::Bank::Main;
-            rig.view.SetHeatMapOptions (options);
+            rig.view.GetHeatMap().SetHeatMapOptions (options);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue   (snapshot.heatMap.pc == Word (0x0302), L"the code is in main RAM");
             Assert::AreEqual ((int16_t) 0xA9, snapshot.heatMap.values[0x0300], L"main RAM's own byte");
 
             options.bank = HeatMapOptions::Bank::Aux;
-            rig.view.SetHeatMapOptions (options);
+            rig.view.GetHeatMap().SetHeatMapOptions (options);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsFalse  (snapshot.heatMap.pc.has_value(), L"not in aux RAM");
@@ -432,27 +433,27 @@ namespace DebuggerTests
 
 
             info.kind = BreakpointKind::Address;
-            Assert::IsTrue (HeatMapView::GetBreakKind (info) == BreakKind::Execute);
+            Assert::IsTrue (HeatMapCells::GetBreakKind (info) == BreakKind::Execute);
 
             info.enabled = false;
-            Assert::IsFalse (HeatMapView::GetBreakKind (info).has_value(), L"disabled, not outlined");
+            Assert::IsFalse (HeatMapCells::GetBreakKind (info).has_value(), L"disabled, not outlined");
 
             info.enabled = true;
             info.kind    = BreakpointKind::Memory;
             info.access  = WatchAccess::Read;
-            Assert::IsTrue (HeatMapView::GetBreakKind (info) == BreakKind::Read);
+            Assert::IsTrue (HeatMapCells::GetBreakKind (info) == BreakKind::Read);
 
             info.access = WatchAccess::Write;
-            Assert::IsTrue (HeatMapView::GetBreakKind (info) == BreakKind::Write);
+            Assert::IsTrue (HeatMapCells::GetBreakKind (info) == BreakKind::Write);
 
             info.access = WatchAccess::ReadWrite;
-            Assert::IsTrue (HeatMapView::GetBreakKind (info) == BreakKind::ReadWrite);
+            Assert::IsTrue (HeatMapCells::GetBreakKind (info) == BreakKind::ReadWrite);
 
             info.kind = BreakpointKind::MemoryValue;
-            Assert::IsTrue (HeatMapView::GetBreakKind (info) == BreakKind::Write);
+            Assert::IsTrue (HeatMapCells::GetBreakKind (info) == BreakKind::Write);
 
             info.kind = BreakpointKind::Opcode;
-            Assert::IsFalse (HeatMapView::GetBreakKind (info).has_value(), L"on no address");
+            Assert::IsFalse (HeatMapCells::GetBreakKind (info).has_value(), L"on no address");
         }
 
 
@@ -496,7 +497,7 @@ namespace DebuggerTests
         {
             HeatMapView                      view;
             std::shared_ptr<HeatMapSymbols>  symbols = std::make_shared<HeatMapSymbols>();
-            uint32_t                         tinted  = DxuiColor::Mix (kCold, kSymbol, HeatMapView::kSymbolTint) | 0xFF000000u;
+            uint32_t                         tinted  = DxuiColor::Mix (kCold, kSymbol, HeatMapCells::kSymbolTint) | 0xFF000000u;
 
 
 
@@ -530,7 +531,7 @@ namespace DebuggerTests
             MemoryRegionKeys::Colors         colors;
             MemoryRegionKeys::SlotCards      cards;
             uint32_t                         stroke  = DxuiColor::ComputeInkForContrast (DxuiColor::Mix (kBackground | 0xFF000000u, colors.io, 0.6f) | 0xFF000000u,
-                                                                                         kBackground | 0xFF000000u, HeatMapView::kMinLineContrast) | 0xFF000000u;
+                                                                                         kBackground | 0xFF000000u, HeatMapPainter::kMinLineContrast) | 0xFF000000u;
             RECT                             first   = {};
             auto                             findInk = [&text] (const std::wstring & wanted)
             {
@@ -581,7 +582,7 @@ namespace DebuggerTests
 
             view.ZoomAt ({ 300, 200 }, 40.0f);
             Assert::IsTrue   (view.IsSplit(), L"and zoomed in");
-            Assert::AreEqual ((size_t) (HeatMapView::GetSectionStarts().size() + 1), view.GetBands().size());
+            Assert::AreEqual ((size_t) (HeatMapSections::GetSectionStarts().size() + 1), view.GetBands().size());
             Assert::AreEqual ((int) 0x0080, findBand (0xC000).count, L"the I/O to $C07F");
             Assert::AreEqual ((int) 0x0010, findBand (0xC0A0).count, L"slot 2's sixteen addresses");
             Assert::AreEqual ((int) 0x0100, findBand (0x0000).count, L"zero page, a separate section");
@@ -591,7 +592,7 @@ namespace DebuggerTests
             view.ScrollBy ((int) (view.GetCellRect (0xC000).top - view.GetMapRect().top - 60));
             first = view.GetCellRect (0xC090);
             Assert::AreEqual (view.GetCellRect (0xC000).left, first.left, L"a section starts a row at the first column");
-            Assert::IsTrue   (first.top - view.GetCellRect (0xC08F).bottom > HeatMapView::kStreetPx, L"under a header's room");
+            Assert::IsTrue   (first.top - view.GetCellRect (0xC08F).bottom > HeatMapSections::kStreetPx, L"under a header's room");
 
             Paint (view, text);
 
@@ -613,8 +614,8 @@ namespace DebuggerTests
                               {
                                   return call.kind == RecordedTextKind::DrawLine && call.y < (float) first.top && call.height < (float) first.top && call.x < (float) first.left;
                               }), L"a section of RAM is boxed too");
-            Assert::AreEqual (std::wstring (L"Text page 1"), HeatMapView::GetRamLabel (0x0400));
-            Assert::AreEqual (std::wstring (L"RAM"),         HeatMapView::GetRamLabel (0x0300), L"between the built-in ranges");
+            Assert::AreEqual (std::wstring (L"Text page 1"), HeatMapSections::GetRamLabel (0x0400));
+            Assert::AreEqual (std::wstring (L"RAM"),         HeatMapSections::GetRamLabel (0x0300), L"between the built-in ranges");
 
             view.SetRegions ({});
             Assert::IsFalse  (view.IsSplit(), L"a bank with no regions is one range again");
@@ -719,7 +720,7 @@ namespace DebuggerTests
                 {
                     clipX = call.x;
                 }
-                else if (call.kind == RecordedTextKind::FillRect && call.x == (float) (cell.left - HeatMapView::kStreetPx) && call.width == (float) HeatMapView::kStreetPx)
+                else if (call.kind == RecordedTextKind::FillRect && call.x == (float) (cell.left - HeatMapSections::kStreetPx) && call.width == (float) HeatMapSections::kStreetPx)
                 {
                     isDrawn = isDrawn || clipX <= call.x;
                 }
@@ -736,7 +737,7 @@ namespace DebuggerTests
 
 
 
-            bands = HeatMapView::SplitAtSections ({ HeatMapView::Band { L"Mixed", 0xBF00, 0x0190 } }, false);
+            bands = HeatMapSections::SplitAtSections ({ HeatMapView::Band { L"Mixed", 0xBF00, 0x0190 } }, false);
             Assert::AreEqual ((size_t) 3, bands.size());
             Assert::AreEqual ((int) 0xBF00, (int) bands[0].first);
             Assert::AreEqual ((int) 0x0100, bands[0].count);
@@ -745,19 +746,19 @@ namespace DebuggerTests
             Assert::AreEqual ((int) 0xC080, (int) bands[2].first);
             Assert::IsTrue   (bands[0].isSection && bands[2].isSection, L"each piece a section");
 
-            bands = HeatMapView::SplitAtSections ({ HeatMapView::Band { L"Text", 0x0400, 0x0400 } }, false);
+            bands = HeatMapSections::SplitAtSections ({ HeatMapView::Band { L"Text", 0x0400, 0x0400 } }, false);
             Assert::AreEqual ((size_t) 1, bands.size());
             Assert::IsTrue   (bands[0].isSection && bands[0].isTitled, L"a range no start is inside is boxed under the set's title");
-            Assert::IsFalse  (HeatMapView::SplitAtSections ({ HeatMapView::Band { L"Mixed", 0xBF00, 0x0190 } }, false)[0].isTitled, L"a cut piece is labeled by its region");
-            Assert::AreEqual (std::wstring (L"Text  $0400-$07FF"), HeatMapView::GetBandTitle (bands[0]));
+            Assert::IsFalse  (HeatMapSections::SplitAtSections ({ HeatMapView::Band { L"Mixed", 0xBF00, 0x0190 } }, false)[0].isTitled, L"a cut piece is labeled by its region");
+            Assert::AreEqual (std::wstring (L"Text  $0400-$07FF"), HeatMapSections::GetBandTitle (bands[0]));
 
-            bands = HeatMapView::SplitAtSections ({ HeatMapView::Band { {}, 0, HeatMapView::kAddressCount } }, true, "Apple2eEnhanced");
+            bands = HeatMapSections::SplitAtSections ({ HeatMapView::Band { {}, 0, HeatMapSections::kAddressCount } }, true, "Apple2eEnhanced");
             Assert::AreEqual ((int) 0xF800, (int) bands.back().first, L"the Monitor, a separate section");
             Assert::AreEqual ((int) 0x0800, bands.back().count);
             Assert::AreEqual ((int) 0xD000, (int) bands[bands.size() - 2].first);
             Assert::AreEqual ((int) 0x2800, bands[bands.size() - 2].count, L"Applesoft to the Monitor");
 
-            bands = HeatMapView::SplitAtSections ({ HeatMapView::Band { {}, 0, HeatMapView::kAddressCount } }, true, "Apple2");
+            bands = HeatMapSections::SplitAtSections ({ HeatMapView::Band { {}, 0, HeatMapSections::kAddressCount } }, true, "Apple2");
             Assert::AreEqual ((int) 0xE000, (int) bands[bands.size() - 2].first, L"Integer BASIC, a separate section on the original Apple ][");
             Assert::AreEqual ((int) 0xD000, (int) bands[bands.size() - 3].first);
         }
@@ -770,12 +771,12 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (kExecute,       HeatMapView::GetColor (Mode::All,  255, 0,   255, palette),               L"without Blend, the hottest kind");
-            Assert::AreEqual (kSelfModifying, HeatMapView::GetColor (Mode::All,  255, 0,   255, palette, true));
-            Assert::AreEqual (0xFFCDCAF4u,    HeatMapView::GetColor (Mode::All,  0,   255, 255, palette, true),  L"read and written alike, half each");
-            Assert::AreEqual (kExecute,       HeatMapView::GetColor (Mode::Code, 255, 0,   255, palette, true),  L"Code shows the code alone");
-            Assert::AreEqual (kWrite,         HeatMapView::GetColor (Mode::Data, 255, 0,   255, palette, true),  L"Data shows the data alone");
-            Assert::AreEqual (kCold,          HeatMapView::GetColor (Mode::All,  0,   0,   0,   palette, true));
+            Assert::AreEqual (kExecute,       HeatMapCells::GetColor (Mode::All,  255, 0,   255, palette),               L"without Blend, the hottest kind");
+            Assert::AreEqual (kSelfModifying, HeatMapCells::GetColor (Mode::All,  255, 0,   255, palette, true));
+            Assert::AreEqual (0xFFCDCAF4u,    HeatMapCells::GetColor (Mode::All,  0,   255, 255, palette, true),  L"read and written alike, half each");
+            Assert::AreEqual (kExecute,       HeatMapCells::GetColor (Mode::Code, 255, 0,   255, palette, true),  L"Code shows the code alone");
+            Assert::AreEqual (kWrite,         HeatMapCells::GetColor (Mode::Data, 255, 0,   255, palette, true),  L"Data shows the data alone");
+            Assert::AreEqual (kCold,          HeatMapCells::GetColor (Mode::All,  0,   0,   0,   palette, true));
         }
 
 

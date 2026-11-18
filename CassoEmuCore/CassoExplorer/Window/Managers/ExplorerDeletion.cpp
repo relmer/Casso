@@ -5,6 +5,7 @@
 #include "CassoExplorer/Window/IExplorerWindow.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Model/DiskImagePictures.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
@@ -12,6 +13,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerUndo.h"
 #include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "Seams/IDiskPictures.h"
 #include "Seams/IShellItemVerbs.h"
 
 
@@ -68,7 +70,9 @@ void ExplorerDeletion::DeleteSelectionPermanently()
 //
 //  To the Recycle Bin rather than gone, so a move whose files a disk image
 //  has in another form can be undone. Through the shell's delete, so a file
-//  too large for the bin is deleted only once the user confirms.
+//  too large for the bin is deleted only once the user confirms. A disk
+//  image's thumbnail isn't removed: the image's bytes are in the image it
+//  was moved into, and a copy out of it finds the thumbnail by its content.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,6 +125,7 @@ void ExplorerDeletion::DeleteHostSelection()
 {
     HRESULT                    hr = S_OK;
     std::vector<std::wstring>  hostPaths;
+    std::vector<std::string>   thumbnails;
 
 
 
@@ -140,10 +145,23 @@ void ExplorerDeletion::DeleteHostSelection()
     if (m_context.browser.AreSelectedRowsSearchFiles())
     {
         m_context.browser.GetSelectedHostPaths (hostPaths);
-        hr = m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), hostPaths);
+        thumbnails = GetThumbnailKeys (hostPaths);
+        hr         = m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), hostPaths);
     }
     else if (m_context.browser.TryGetSelectedShellIds (hostPaths))
     {
+        //  Before an A2Pico card's drive image is deleted, a message lists
+        //  its drive, since deleting it empties the drive.
+        if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder && !ConfirmA2PicoDrives (hostPaths))
+        {
+            return;
+        }
+
+        if (m_context.browser.GetLocation().kind == Location::Kind::HostFolder)
+        {
+            thumbnails = GetThumbnailKeys (hostPaths);
+        }
+
         hr = (m_context.browser.GetLocation().kind == Location::Kind::ShellFolder)
            ? m_context.shellVerbs.RunItemVerb (m_context.window.GetHwnd(), hostPaths, "delete")
            : m_context.shellVerbs.Recycle (m_context.window.GetHwnd(), hostPaths);
@@ -158,9 +176,87 @@ void ExplorerDeletion::DeleteHostSelection()
     {
         m_context.undo.Push (ExplorerUndoStep { ExplorerUndoStep::Kind::Recycle, Location(), hostPaths });
         m_context.manifestSync.NoteDeletes (hostPaths);
+
+        for (const std::wstring & path : hostPaths)
+        {
+            m_context.actions.GetA2retroNet().NoteDelete (path);
+        }
+
+        RemoveThumbnails (hostPaths, thumbnails);
     }
 
     m_context.folderSync.RefreshAfterHostChange();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDeletion::GetThumbnailKeys
+//
+//  Read before the delete: a file in the Recycle Bin can't be read for its
+//  hash.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> ExplorerDeletion::GetThumbnailKeys (const std::vector<std::wstring> & paths)
+{
+    return (m_context.app.pictures != nullptr) ? m_context.app.pictures->GetKeys (paths) : std::vector<std::string>();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDeletion::RemoveThumbnails
+//
+//  Only once the files are gone: a delete canceled in Windows'
+//  confirmation removes nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerDeletion::RemoveThumbnails (const std::vector<std::wstring> & paths, const std::vector<std::string> & keys)
+{
+    bool  areGone = std::none_of (paths.begin(), paths.end(), [] (const std::wstring & path) { std::error_code  failed; return std::filesystem::exists (path, failed); });
+
+
+
+    if (areGone && m_context.app.pictures != nullptr)
+    {
+        m_context.app.pictures->RemoveDeleted (keys);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerDeletion::ConfirmA2PicoDrives
+//
+//  True when none of the files is an A2Pico card's drive image, or the user
+//  goes on with the delete.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerDeletion::ConfirmA2PicoDrives (const std::vector<std::wstring> & paths)
+{
+    std::wstring  drives = m_context.actions.GetA2retroNet().DescribeDrives (paths);
+    int           choice = IDYES;
+
+
+
+    if (!drives.empty())
+    {
+        choice = DxuiMessageBox (m_context.window.GetHwnd(), m_context.theme, drives.c_str(), L"Delete A2Pico drive images", MB_YESNO | MB_DEFBUTTON2, { L"Delete", L"Cancel" });
+    }
+
+    return choice == IDYES;
 }
 
 

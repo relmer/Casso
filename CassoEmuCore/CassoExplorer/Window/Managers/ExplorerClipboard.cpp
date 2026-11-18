@@ -69,19 +69,23 @@ std::wstring ExplorerClipboard::GetPasteFolder() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerClipboard::CopyEntriesToClipboard (HostFileNaming::Style style)
+void ExplorerClipboard::CopyEntriesToClipboard (HostFileNaming::Style style, bool raw)
 {
     std::wstring  failure;
-    HRESULT       hr      = CassoExplorerDragOut::CopyToClipboard (m_context.browser, style, failure);
+    HRESULT       hr      = CassoExplorerDragOut::CopyToClipboard (m_context.browser, style, failure, false, nullptr, raw);
 
 
 
-    //  A file that could not be read has a message with the file's name; for
-    //  any other failure, as the clipboard in use, the text comes from
-    //  its code.
-    if (FAILED (hr))
+    //  A file that could not be read has a message with the file's name, as
+    //  has one left out of the copy; for any other failure, as the clipboard
+    //  in use, the text comes from its code.
+    if (!failure.empty())
     {
-        m_context.window.ShowMessage ((failure.empty() ? L"The files could not be copied: " + CassoExplorerDragOut::DescribeCopyFailure (hr) : failure + L"."), MB_ICONWARNING);
+        m_context.window.ShowMessage (failure.ends_with (L'.') ? failure : failure + L".", MB_ICONWARNING);
+    }
+    else if (FAILED (hr))
+    {
+        m_context.window.ShowMessage (L"The files could not be copied: " + CassoExplorerDragOut::DescribeCopyFailure (hr), MB_ICONWARNING);
     }
 }
 
@@ -265,6 +269,16 @@ void ExplorerClipboard::PasteHere (const std::wstring & folder)
         m_context.listPane.ClearCutPaths();
     }
 
+    //  A file cut from an A2Pico card is a drive's image there no longer.
+    for (size_t i = 0; pasted.moved && i < pasted.sources.size() && i < pasted.created.size(); i++)
+    {
+        m_context.actions.GetA2retroNet().NoteMove (pasted.sources[i], pasted.created[i]);
+    }
+
+    //  An image pasted onto an A2Pico card that A2retroNET doesn't read is
+    //  offered as a .po once it is listed.
+    m_context.actions.GetA2retroNet().ExpectArrivals (pasted.created);
+
     if (!pasted.created.empty())
     {
         ExplorerUndoStep  step;
@@ -326,6 +340,15 @@ void ExplorerClipboard::PasteIntoVolume()
         return;
     }
 
+    //  Files with no path, as a ZIP member copied in File Explorer, are
+    //  written to a temporary folder first, as a drop writes them.
+    m_context.dragDrop.RemoveVirtualFiles();
+
+    if (source.isVirtual && !m_context.dragDrop.WriteVirtualFiles (data.Get(), source))
+    {
+        return;
+    }
+
     if (m_context.browser.IsAppleDriveLocation())
     {
         outcome = source.fromImage ? m_context.actions.CopyEntriesToAppleDrive (source.image, source.kind, source.catalogPaths)
@@ -333,6 +356,7 @@ void ExplorerClipboard::PasteIntoVolume()
 
         m_context.commandManager.ReportOutcome (outcome, L"Put");
         ReportPasted (data.Get(), outcome);
+        m_context.dragDrop.RemoveVirtualFiles();
         return;
     }
 
@@ -341,6 +365,7 @@ void ExplorerClipboard::PasteIntoVolume()
     if (!m_context.browser.GetOperations().List (TextEncoding::WideToNarrow (location.path), inner, listing, targetKind).Succeeded())
     {
         m_context.window.ShowMessage (L"The disk image could not be read.", MB_ICONWARNING);
+        m_context.dragDrop.RemoveVirtualFiles();
         return;
     }
 
@@ -356,6 +381,7 @@ void ExplorerClipboard::PasteIntoVolume()
         ReportPasted (data.Get(), outcome);
     }
 
+    m_context.dragDrop.RemoveVirtualFiles();
     m_context.folderSync.RefreshAfterHostChange();
 }
 

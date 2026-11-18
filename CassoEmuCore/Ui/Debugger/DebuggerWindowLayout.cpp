@@ -546,7 +546,7 @@ void DebuggerWindow::ConfigureDockSite()
     constexpr int   kMemoryBarDip = DxuiToolbar::kCompactBandDp;
     auto            boxHeight     = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (30); };
     auto            barHeight     = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kMemoryBarDip); };
-    auto            bandHeight    = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (HistoryBand::GetHeightDip (kPaneRowDip)); };
+    auto            bandHeight    = [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (HistoryBand::GetHeightDip (DensePaneList::kRowDip)); };
     std::wstring    savedText;
     DxuiPaneLayout  restored;
     InputFilter     dragFilter;
@@ -679,7 +679,7 @@ void DebuggerWindow::PaintTopLayer (IDxuiPainter & painter, IDxuiTextRenderer & 
     //  Under a slid-out pane, which lies over the disassembly and the source.
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews + SourceDocuments::kMaxDocuments; view++)
     {
-        m_code->PaintBranchArrow (painter, view);
+        m_code->GetArrows().PaintBranchArrow (painter, view);
     }
 
     m_dockSite->PaintSlidUnder (painter, theme);
@@ -1496,36 +1496,6 @@ void DebuggerWindow::ShowFocusAccent()
 void DebuggerWindow::CloseFloatingPane (const std::wstring & pane)
 {
     ClosePane (pane);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetPaneLayout
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const DxuiPaneLayout & DebuggerWindow::GetPaneLayout() const
-{
-    return m_dockSite->GetPaneLayout();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::EditPaneLayout
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiPaneLayout & DebuggerWindow::EditPaneLayout()
-{
-    return m_dockSite->EditPaneLayout();
 }
 
 

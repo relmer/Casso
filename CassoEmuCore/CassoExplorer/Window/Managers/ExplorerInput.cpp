@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Window/Managers/ExplorerPickerMode.h"
+#include "CassoExplorer/Window/Panes/ExplorerPickerBar.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Model/FocusRing.h"
@@ -64,6 +66,7 @@ void ExplorerInput::SetFocusPane (ExplorerPane pane)
     m_context.listPane.HandleFocusChanged     (pane == ExplorerPane::List);
     m_context.tabManager.HandleFocusChanged     (pane == ExplorerPane::Tabs);
     m_context.addressBar.HandleFocusChanged   (pane);
+    m_context.pickerBar.HandleFocusChanged    (pane == ExplorerPane::PickerName);
     m_context.toolbars.GetNavToolbar().SetFocusIndex      (pane == ExplorerPane::Toolbar ? m_toolbarFocus : -1);
     m_context.toolbars.GetCommandBar().SetFocusIndex   (pane == ExplorerPane::CommandBar ? m_commandBarFocus : -1);
     m_context.preview.HandleFocusChanged  (pane);
@@ -219,9 +222,14 @@ std::vector<FocusStop> ExplorerInput::BuildFocusStops() const
         enabled.push_back (m_context.commandManager.IsToolbarEntryAvailable (i));
     }
 
-    for (int id : (m_context.preview.GetBarMode() != CassoExplorerCommands::kPreviewBarNone) ? CassoExplorerCommands::GetPreviewToolbarCommandIds (m_context.preview.GetBarMode()) : std::vector<int>())
+    for (int id : CassoExplorerCommands::GetPreviewToolbarCommandIds (m_context.preview.GetBarMode(), m_context.preview.IsExpanded()))
     {
         previewEnabled.push_back (m_context.commandManager.IsEnabled (id));
+    }
+
+    if (m_context.preview.IsExpanded())
+    {
+        return FocusRing::BuildExpandedStops (previewEnabled);
     }
 
     for (int i = 0; i < m_context.toolbars.GetCommandBar().GetEntryCount(); i++)
@@ -295,7 +303,7 @@ void ExplorerInput::StepToolbarFocus (bool preview, bool forward)
 
     if (preview)
     {
-        ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (m_context.preview.GetBarMode());
+        ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (m_context.preview.GetBarMode(), m_context.preview.IsExpanded());
     }
     else
     {
@@ -323,11 +331,138 @@ void ExplorerInput::StepToolbarFocus (bool preview, bool forward)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerInput::RouteToControls
+//
+//  A move or the pointer's exit is offered to every such control, so the
+//  hover on a control the pointer left is cleared, and isn't consumed. A
+//  press, a release or the wheel is offered to the controls under the
+//  pointer until one takes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerInput::RouteToControls (const DxuiMouseEvent & ev)
+{
+    DxuiPanel  & panel   = m_context.window.GetChildPanel();
+    bool         hover   = ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave;
+    bool         handled = false;
+    bool         over    = false;
+
+
+
+    for (size_t index = panel.GetChildCount(); index > 0 && !handled; index--)
+    {
+        IDxuiControl  * child  = panel.GetChild (index - 1);
+        bool            routed = child->IsVisible() && child->IsEnabled();
+        bool            inside = routed && ev.kind != DxuiMouseEventKind::Leave && ExplorerLayout::Contains (child->GetBounds(), ev.positionDip);
+
+        over = over || inside;
+
+        if (routed && hover)
+        {
+            m_context.window.OfferMouse (*child, ev);
+        }
+        else if (inside)
+        {
+            //  The press is the control's before it is offered, so a handler
+            //  that opens a menu can end it with ReleasePressed.
+            m_pressed = (ev.kind == DxuiMouseEventKind::Down) ? child : m_pressed;
+            handled   = m_context.window.OfferMouse (*child, ev);
+            m_pressed = (!handled && m_pressed == child) ? nullptr : m_pressed;
+        }
+    }
+
+    //  A repaint for a hover that began, moved or ended.
+    if (handled || over || m_overControl)
+    {
+        m_context.window.Invalidate();
+    }
+
+    m_overControl = over;
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerInput::RouteToPressed
+//
+//  The release or the pointer leaving the window ends the press. The
+//  pointer leaving is offered to every control after, so it isn't taken.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerInput::RouteToPressed (const DxuiMouseEvent & ev)
+{
+    IDxuiControl  * pressed = m_pressed;
+
+
+
+    if (pressed == nullptr || ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel)
+    {
+        return false;
+    }
+
+    if (ev.kind != DxuiMouseEventKind::Move)
+    {
+        m_pressed = nullptr;
+    }
+
+    m_context.window.OfferMouse (*pressed, ev);
+    m_context.window.Invalidate();
+
+    return ev.kind != DxuiMouseEventKind::Leave;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerInput::RouteToCapture
+//
+//  A press the control takes is its press, as one under the pointer is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerInput::RouteToCapture (const DxuiMouseEvent & ev)
+{
+    IDxuiControl  * holder  = m_context.window.GetCaptureHolder();
+    bool            handled = false;
+
+
+
+    if (holder == nullptr)
+    {
+        return false;
+    }
+
+    m_pressed = (ev.kind == DxuiMouseEventKind::Down) ? holder : m_pressed;
+    handled   = m_context.window.OfferMouse (*holder, ev);
+    m_pressed = (!handled && m_pressed == holder) ? nullptr : m_pressed;
+
+    m_context.window.Invalidate();
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerInput::HandleMouse
 //
-//  The menu bar and the splitters take first refusal, since both reach over
-//  the panes. A press in a pane moves focus to it; a list that is mid-drag
-//  keeps every event until the button comes up.
+//  A control that took a press has each event until the button comes up,
+//  and a control with the mouse captured, as for an open menu or a rename,
+//  is offered each event next. The rest go to the control under the pointer.
+//  The tips, the scrollbars' hover and the gestures of the whole window are
+//  here as well.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -342,22 +477,12 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
 
     m_context.treePane.UpdateLabelTip (ev);
     m_context.preview.GetListing().UpdateValueTipAt (ev);
-    m_context.tabManager.ClearHoverOnLeave (ev);
-    m_context.listPane.ClearHoverOutside (ev);
-    m_context.addressBar.CloseSuggestionsOnPress (ev);
-
-    if (m_context.preview.HandleMessageMouse (ev))
-    {
-        return true;
-    }
-
-    m_context.toolbars.CloseMenusOutside (ev);
 
     //  A five-button mouse's back and forward buttons move through the tab's
     //  history wherever the pointer is, as in Explorer.
-    if (ev.kind == DxuiMouseEventKind::Up && (ev.button == DxuiMouseButton::X1 || ev.button == DxuiMouseButton::X2))
+    if (ev.kind == DxuiMouseEventKind::Up && (ev.button == DxuiMouseButton::Back || ev.button == DxuiMouseButton::Forward))
     {
-        m_context.commandManager.Dispatch (ev.button == DxuiMouseButton::X1 ? CassoExplorerCommands::kBack : CassoExplorerCommands::kForward);
+        m_context.commandManager.Dispatch (ev.button == DxuiMouseButton::Back ? CassoExplorerCommands::kBack : CassoExplorerCommands::kForward);
         return true;
     }
 
@@ -376,12 +501,7 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    if (m_context.rename.HandleRenameMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_context.statusBar.HandleZoomClick (ev))
+    if (RouteToPressed (ev) || RouteToCapture (ev))
     {
         return true;
     }
@@ -445,58 +565,17 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (m_context.toolbars.HandleMenuBarMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_context.addressBar.HandleMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_context.preview.GetToolbar().IsVisible()
-        && (ExplorerLayout::Contains (m_context.preview.GetToolbar().GetBounds(), point) || ev.kind == DxuiMouseEventKind::Up)
-        && m_context.toolbars.RouteToolbarMouse (m_context.preview.GetToolbar(), ev))
+    //  The wheel over a disk image's preview scrolls its thumbnail away
+    //  before the catalog under it.
+    if (m_context.preview.HandleWheel (ev))
     {
         m_context.window.Invalidate();
         return true;
     }
 
-    if (m_context.toolbars.HandleMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_context.layout.GetTreeSplitter()->OnMouse (ev) || (m_context.layout.GetPreviewSplitter()->IsVisible() && m_context.layout.GetPreviewSplitter()->OnMouse (ev)))
-    {
-        m_context.window.Invalidate();
-        return true;
-    }
-
-    if (m_context.tabManager.HandleCapturedMouse (ev))
-    {
-        return true;
-    }
-
-    //  A right-click on a scrollbar opens the bar's own menu, as Windows'
-    //  bars do.
+    //  A right-click on a scrollbar opens the bar's menu, as Windows' bars
+    //  do.
     if (press && ev.button == DxuiMouseButton::Right && m_context.menus.ShowScrollbarMenu (ev))
-    {
-        return true;
-    }
-
-    if (m_context.tabManager.HandleMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_context.listPane.HandleCapturedMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_context.treePane.HandleCapturedMouse (ev))
     {
         return true;
     }
@@ -505,28 +584,12 @@ bool ExplorerInput::HandleMouse (const DxuiMouseEvent & ev)
     m_context.statusBar.UpdateTip  (ev, point);
     m_context.listPane.UpdateTip   (ev, point);
 
-    if (m_context.statusBar.HandleActivityClick (ev))
+    if (RouteToControls (ev))
     {
         return true;
     }
 
-    if (m_context.treePane.HandleMouse (ev))
-    {
-        return true;
-    }
-
-    //  The buttons under the list's message.
-    if (m_context.cassoLinkManager.HandleListActionMouse (ev))
-    {
-        return true;
-    }
-
-    if (m_context.listPane.HandleMouse (ev))
-    {
-        return true;
-    }
-
-    return m_context.preview.HandleMouse (ev);
+    return m_context.listPane.HandleMessageMouse (ev);
 }
 
 
@@ -638,6 +701,18 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         }
     }
 
+    //  A save form's file name box, as the search box above.
+    if (m_focus == ExplorerPane::PickerName)
+    {
+        handled = m_context.pickerBar.HandleNameKey (ev);
+
+        if (handled || ev.kind != DxuiKeyEventKind::Down)
+        {
+            m_context.window.Invalidate();
+            return handled;
+        }
+    }
+
     if (m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo)
     {
         handled = m_context.preview.GetFind().HandleBoxKey (m_focus, ev);
@@ -663,6 +738,20 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         }
     }
 
+    //  Enter on a file expands its preview, when Options sets it to.
+    if (m_focus == ExplorerPane::List && !m_context.IsPicker() && m_context.preview.HandleEnterKey (ev))
+    {
+        m_context.window.Invalidate();
+        return true;
+    }
+
+    //  An expanded preview's Esc, Left and Right.
+    if (m_context.preview.HandleExpandedKey (ev, m_focus))
+    {
+        m_context.window.Invalidate();
+        return true;
+    }
+
     //  The preview's shortcuts, for an archive's files and a message.
     if (m_focus == ExplorerPane::Preview && m_context.preview.HandleShortcutKey (ev))
     {
@@ -683,7 +772,7 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
     //  Ctrl+Z on the files undoes the last file operation; in a text box it is
     //  the box's own, which has the keys before this.
-    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_focus == ExplorerPane::List || m_focus == ExplorerPane::Tree) && !m_context.rename.IsRenaming())
+    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_focus == ExplorerPane::List || m_focus == ExplorerPane::Tree) && !m_context.rename.IsRenaming() && !m_context.IsPicker())
     {
         m_context.undo.UndoLast();
         return true;
@@ -694,6 +783,12 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
     if (command != 0)
     {
         m_context.commandManager.Dispatch (command);
+        return true;
+    }
+
+    //  Esc closes a picker, once nothing above had a use for it.
+    if (m_context.pickerMode.HandleKey (ev))
+    {
         return true;
     }
 
@@ -748,6 +843,7 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
         case ExplorerPane::GoTo:                                                 break;
         case ExplorerPane::Address: handled = m_context.addressBar.HandleKey (ev); break;
         case ExplorerPane::LocationSearch: handled = m_context.addressBar.HandleFindBoxKey (ev);  break;
+        case ExplorerPane::PickerName:                                           break;
         case ExplorerPane::Tabs:    handled = m_context.tabManager.HandleKey (ev); break;
         case ExplorerPane::Tree:    handled = m_context.treePane.HandleKey (ev); break;
         case ExplorerPane::List:    handled = m_context.listPane.HandleKey (ev); break;

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/DiskManager.h"
 #include "Shell/EmulatorShell.h"
@@ -37,6 +38,7 @@
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/MachineDefinition.h"
 #include "Machines/MachineDefinitions.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Shell/FramePacing.h"
 #include "Shell/Input/AppleKeyMapping.h"
 #include "Shell/Layout/DriveRowLayout.h"
@@ -592,89 +594,89 @@ void ShellDisks::Eject (int slot, int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BrowseForDisk
+//  ShellDisks::GetDoorNowMs
 //
-//  UI helper: start the drive-door-open animation and show the disk
-//  picker IN PARALLEL. The picker's modal GetMessage loop owns the UI
-//  thread, so RunMessageLoop stops driving frames; the host's modal
-//  keep-alive tick (the same one that carries chrome through an OS
-//  move / size loop) drives TryPresentUiFrame for the dialog's whole
-//  lifetime, so the door visibly opens behind the picker instead of
-//  stalling until it is dismissed. This replaces a blocking pre-dialog
-//  wait that pumped the full animation before the picker appeared --
-//  dead time at best, and a frozen door whenever the present gate
-//  declined the frames.
-//
-//  Mount-on-success runs through DiskManager::Mount, which queues
-//  to the CPU thread and posts a DoorClose sync event picked up
-//  by UpdateDriveWidgets -- so we don't need to touch the door on
-//  the success path here; BeginInsert closes it naturally. Cancel
-//  restores the door to match the mount state: a mounted drive
-//  closes back, an empty drive rests open (matches a real Disk II).
+//  The time base MUST match DiskManager::GetNowMs (steady_clock ms):
+//  TickDoorAnimation diffs the current frame time against
+//  animationStartTimeMs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDisks::BrowseForDisk (int drive, const RECT * anchorClientPx)
+int64_t ShellDisks::GetDoorNowMs()
 {
-    DriveWidgetState *  pSt          = nullptr;
-    HRESULT             hrBrowse     = S_OK;
-    bool                mountStarted = false;
-    RECT                anchorScreen = {};
-    const RECT *        pAnchor      = nullptr;
+    return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 
 
 
-    using std::chrono::steady_clock;
-    using std::chrono::duration_cast;
-    using std::chrono::milliseconds;
-
-    auto  nowMs = []() -> int64_t {
-        return (int64_t) duration_cast<milliseconds> (steady_clock::now().time_since_epoch()).count();
-    };
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::BrowseForDisk
+//
+//  Opens the drive's picker, or brings it to the front when it is open.
+//
+////////////////////////////////////////////////////////////////////////////////
 
+void ShellDisks::BrowseForDisk (int drive)
+{
+    if (drive >= 0 && drive < (int) m_driveWidgetState.size())
+    {
+        m_shell.m_drivePickers->OpenForDiskII (drive);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::OpenDoorForPicker
+//
+//  The door opens while the drive's picker is open. An empty drive rests
+//  with its door already open, so StartDoorTransition does nothing there.
+//  The picker is not modal, so the message loop draws the animation.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::OpenDoorForPicker (int drive)
+{
     if (drive < 0 || drive >= (int) m_driveWidgetState.size())
     {
         return;
     }
 
-    pSt = &m_driveWidgetState[drive];
-
-    // The time base MUST match DiskManager::GetNowMs (steady_clock ms):
-    // TickDoorAnimation diffs the current frame time against
-    // animationStartTimeMs. An empty drive rests with its door already
-    // Open, so StartDoorTransition is a no-op there.
-    pSt->StartDoorTransition (DriveWidgetState::Door::Opening, nowMs());
+    m_driveWidgetState[drive].StartDoorTransition (DriveWidgetState::Door::Opening, GetDoorNowMs());
     m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+}
 
-    // The keep-alive spans the whole modal picker (including its nested
-    // IFileOpenDialog when the user clicks Browse...), animating the door
-    // and keeping the printer preview live behind the dialog.
-    // An empty rect (a drive not laid out this frame) is no anchor at all.
-    if (anchorClientPx != nullptr && !IsRectEmpty (anchorClientPx))
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::RestoreDoorAfterPicker
+//
+//  After an insert the door is left alone: the queued mount completes on
+//  the CPU thread and BeginInsert runs the close. With nothing inserted the
+//  door follows the mount state: a mounted drive closes back, and an empty
+//  drive rests open, as a real Disk II does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::RestoreDoorAfterPicker (int drive, bool isInserted)
+{
+    if (drive < 0 || drive >= (int) m_driveWidgetState.size())
     {
-        anchorScreen = *anchorClientPx;
-        MapWindowPoints (m_shell.m_hwnd, HWND_DESKTOP, reinterpret_cast<POINT *> (&anchorScreen), 2);
-        pAnchor = &anchorScreen;
+        return;
     }
 
-    m_shell.m_host->BeginModalKeepAlive();
-
-    hrBrowse = m_shell.m_windowCommandManager->PromptInsertDiskMru (drive + 1, pAnchor, mountStarted);
-    IGNORE_RETURN_VALUE (hrBrowse, S_OK);
-
-    m_shell.m_host->EndModalKeepAlive();
-
-    // No-mount path (cancel or failure): the door follows the mount
-    // state -- a mounted drive closes back, an empty drive rests open
-    // (matches a real Disk II). mountStarted is the discriminator
-    // because a cancel returns S_OK by design. When a mount DID start,
-    // the door is left alone: the queued mount completes on the CPU
-    // thread and BeginInsert runs the close choreography.
-    if (!mountStarted && pSt->IsMounted())
+    if (!isInserted && m_driveWidgetState[drive].IsMounted())
     {
-        pSt->StartDoorTransition (DriveWidgetState::Door::Closing, nowMs());
+        m_driveWidgetState[drive].StartDoorTransition (DriveWidgetState::Door::Closing, GetDoorNowMs());
         m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
     }
 }
@@ -1366,6 +1368,11 @@ bool ShellDisks::AskWhereToSaveLostDisk (const std::string & imagePath,
     spec.filters       = { { L"Disk image", L"*.dsk;*.do;*.po;*.woz" } };
     spec.initialFolder = original.parent_path();
 
+    //  The picker while the machine runs. This is also the last-chance route
+    //  at shutdown, after the message loop has gone, where only Windows'
+    //  dialog can open.
+    spec.content       = m_shell.m_cpuManager.IsRunning() ? FileDialogContent::Images : FileDialogContent::Any;
+
     if (!original.filename().empty())
     {
         std::string  suggested = PreservedCopy::MakePath (
@@ -1539,7 +1546,7 @@ bool ShellDisks::IsSecondDriveOffered() const
 
     if (config.systemRom.romBankSize != 0)
     {
-        return true;
+        return MachineHasBuiltInDrive();
     }
 
     for (const SlotConfig & slot : config.slots)
@@ -1582,6 +1589,12 @@ bool ShellDisks::ShouldShowExternalDrive() const
 
 
 
+    // The //c Plus's two 5.25-inch drives are both on the disk port's chain.
+    if (externalIsOptional && !MachineHasBuiltInDrive())
+    {
+        return m_shell.m_machine.GetConfig().CountDiskPortFloppies() >= kDiskIiPortCount;
+    }
+
     if (externalIsOptional)
     {
         return m_externalDriveConnected;
@@ -1610,6 +1623,71 @@ bool ShellDisks::MachineHasBuiltInDrive() const
 
 
     return (definition != nullptr && definition->hasBuiltInDrive);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::GetMenuDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskMenuDrive ShellDisks::GetMenuDrive (int menuDrive) const
+{
+    const MachineConfig  & config = m_shell.m_machine.GetConfig();
+
+
+
+    return DiskMenuRule::Resolve (menuDrive, DiskMenuRule::HasBuiltIn35Drive (config), config.CountDiskPortFloppies());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::GetMenuIndex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ShellDisks::GetMenuIndex (int diskIiDrive) const
+{
+    int  index = -1;
+
+
+
+    for (int menuDrive = 0; menuDrive < 3 && index < 0; menuDrive++)
+    {
+        index = (GetMenuDrive (menuDrive).diskIiDrive == diskIiDrive) ? menuDrive : -1;
+    }
+
+    return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::HasDiskIicDrives
+//
+//  Whether the machine's 5.25-inch drives are the //c family's, on a disk
+//  port, rather than Disk II drives on a card: the //c and the //c Plus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDisks::HasDiskIicDrives() const
+{
+    const MachineDefinition *  definition = MachineDefinitions::Find (m_shell.m_machine.GetConfig().machineId);
+
+
+
+    return (definition != nullptr && definition->diskPortFloppyCount > 0);
 }
 
 
@@ -1712,4 +1790,90 @@ HRESULT ShellDisks::ToggleImageWriteProtect (int drive)
 void ShellDisks::ResolvePendingChange (int slot, int drive, int action, const std::string & savePath)
 {
     m_shell.m_machine.GetDiskStore().ResolvePendingChange (slot, drive, (ChangeAction) action, savePath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InsertFloppy35
+//
+//  CPU thread. A disk that doesn't go in is reported in a notice, and the
+//  drive stays empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::InsertFloppy35 (int slot, int drive, const std::string & path)
+{
+    std::wstring  error;
+    HRESULT       hr = m_shell.m_machine.GetStorage().InsertFloppy35 (slot, drive, path, error);
+
+
+
+    if (FAILED (hr))
+    {
+        m_shell.m_chrome->PostNotice (error.empty() ? std::wstring (L"The disk could not be inserted.") : error);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EjectFloppy35
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::EjectFloppy35 (int slot, int drive)
+{
+    HRESULT  hr = m_shell.m_machine.GetStorage().EjectFloppy35 (slot, drive);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachHardDisk
+//
+//  CPU thread. An image that doesn't attach is reported in a notice, and the
+//  drive has its image from before. An attached one is posted to the UI
+//  thread to be saved with the machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ShellDisks::AttachHardDisk (int slot, int drive, const std::string & path)
+{
+    std::wstring                          error;
+    HRESULT                               hr     = m_shell.m_machine.GetStorage().AttachHardDisk (slot, drive, path, error);
+    std::unique_ptr<HardDiskImageChange>  change;
+
+
+
+    if (FAILED (hr))
+    {
+        m_shell.m_chrome->PostNotice (error.empty() ? std::wstring (L"The hard disk image could not be attached.") : error);
+    }
+    else if (m_shell.m_hwnd != nullptr)
+    {
+        // The message handler deletes the change once it is saved, so the
+        // change is released only when the post succeeds.
+        change = std::make_unique<HardDiskImageChange> (HardDiskImageChange { slot, drive, path });
+
+        if (PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellHardDiskImage, 0, reinterpret_cast<LPARAM> (change.get())))
+        {
+            (void) change.release();
+        }
+    }
+
+    return hr;
 }

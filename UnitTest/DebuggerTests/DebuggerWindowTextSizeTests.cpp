@@ -108,7 +108,7 @@ namespace DebuggerTests
         using DebuggerWindow::ApplyTextZoom;
         using DebuggerWindow::StepTextZoom;
         using DebuggerWindow::GetTextZoom;
-        using DebuggerWindow::GetPaneTextZoom;
+        using DebuggerWindow::GetTextZooms;
         using DebuggerWindow::OnMouse;
         using DebuggerWindow::FindPaneForTest;
         using DebuggerWindow::GetMemoryGroup;
@@ -346,14 +346,14 @@ namespace DebuggerTests
             Assert::IsTrue (window.OnKey (plus));
             Assert::IsTrue (window.OnKey (plus));
             Assert::IsTrue (window.OnKey (plus));
-            Assert::AreEqual (1.3f, window.GetPaneTextZoom (DebuggerLayout::kConsole), 0.001f, L"three steps up with Ctrl+Plus");
+            Assert::AreEqual (1.3f, window.GetTextZooms().GetPaneZoom (DebuggerLayout::kConsole), 0.001f, L"three steps up with Ctrl+Plus");
 
             Assert::IsTrue (window.OnKey (minus));
-            Assert::AreEqual (1.2f, window.GetPaneTextZoom (DebuggerLayout::kConsole), 0.001f, L"one back with Ctrl+Minus");
+            Assert::AreEqual (1.2f, window.GetTextZooms().GetPaneZoom (DebuggerLayout::kConsole), 0.001f, L"one back with Ctrl+Minus");
             Assert::AreEqual (1.0f, window.GetTextZoom(), 0.001f, L"the status bar's size is the window's, not the focused pane's");
 
             Assert::IsTrue (window.OnKey (zero));
-            Assert::AreEqual (1.0f, window.GetPaneTextZoom (DebuggerLayout::kConsole), 0.001f, L"Ctrl+0 back to the usual size");
+            Assert::AreEqual (1.0f, window.GetTextZooms().GetPaneZoom (DebuggerLayout::kConsole), 0.001f, L"Ctrl+0 back to the usual size");
         }
 
 
@@ -446,14 +446,14 @@ namespace DebuggerTests
 
             Assert::IsTrue   (grown > 0, std::format (L"{}: the pane has text that zooms", pane).c_str());
             Assert::AreEqual (1.0f, window.GetTextZoom(), 0.001f, L"the status bar's size did not change");
-            Assert::AreEqual (1.1f, window.GetPaneTextZoom (pane), 0.001f, L"one step up");
+            Assert::AreEqual (1.1f, window.GetTextZooms().GetPaneZoom (pane), 0.001f, L"one step up");
 
             window.FocusControl (over);
             Assert::IsTrue   (window.OnKey (plus));
-            Assert::AreEqual (1.2f, window.GetPaneTextZoom (pane), 0.001f, L"Ctrl+Plus with the focus in the pane");
+            Assert::AreEqual (1.2f, window.GetTextZooms().GetPaneZoom (pane), 0.001f, L"Ctrl+Plus with the focus in the pane");
 
             Assert::IsTrue   (window.OnKey (zero));
-            Assert::AreEqual (1.0f, window.GetPaneTextZoom (pane), 0.001f, L"Ctrl+0 puts the pane back");
+            Assert::AreEqual (1.0f, window.GetTextZooms().GetPaneZoom (pane), 0.001f, L"Ctrl+0 puts the pane back");
 
             after = GetTextSizes (window);
 

@@ -7,6 +7,7 @@
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/GutenbergVolume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -48,11 +49,12 @@ bool CrossVolumeCopy::IsText (VolumeKind kind, const std::string & name, const F
 
     switch (kind)
     {
-        case VolumeKind::Pascal: isText = payload.type == PascalVolume::kKindText;  break;
-        case VolumeKind::Dos33:  isText = payload.type == Dos33Volume::kTypeText;   break;
-        case VolumeKind::ProDos: isText = payload.type == ProDosVolume::kTypeText;  break;
-        case VolumeKind::Cpm:    isText = EndsWith (name, ".TXT") || PreviewDecoder::DecideCpm (payload) == PreviewContent::Kind::Text; break;
-        default:                 break;
+        case VolumeKind::Pascal:    isText = payload.type == PascalVolume::kKindText;  break;
+        case VolumeKind::Dos33:     isText = payload.type == Dos33Volume::kTypeText;   break;
+        case VolumeKind::ProDos:    isText = payload.type == ProDosVolume::kTypeText;  break;
+        case VolumeKind::Cpm:       isText = EndsWith (name, ".TXT") || PreviewDecoder::DecideCpm (payload) == PreviewContent::Kind::Text; break;
+        case VolumeKind::Gutenberg: isText = GutenbergVolume::IsDocumentType (payload.type); break;
+        default:                    break;
     }
 
     return isText;
@@ -135,9 +137,16 @@ bool CrossVolumeCopy::TryEncodeText (const std::string & text, VolumeKind target
             inOutPayload.textForm = PayloadTextForm::CpmRecords;
             break;
 
+        case VolumeKind::Gutenberg:
+            hr = AppleTextCodec::Encode (text, AppleTextConvention::HighAscii, encoded, badOffset);
+            inOutPayload.type     = GutenbergVolume::kTypeDocument;
+            inOutPayload.textForm = PayloadTextForm::AppleHighAscii;
+            break;
+
         case VolumeKind::Dos33:
         case VolumeKind::ProDos:
-            hr = AppleTextCodec::Encode (text, AppleTextConvention::HighAscii, encoded, badOffset);
+        case VolumeKind::Hfs:
+            hr = AppleTextCodec::Encode (text, VolumeImage::GetTextConvention (target), encoded, badOffset);
             inOutPayload.type     = (target == VolumeKind::Dos33) ? Dos33Volume::kTypeText : ProDosVolume::kTypeText;
             inOutPayload.textForm = PayloadTextForm::AppleHighAscii;
             break;
@@ -201,12 +210,27 @@ void CrossVolumeCopy::Convert (VolumeKind source, VolumeKind target, const std::
 {
     bool         storesNoAddress = target == VolumeKind::Pascal || target == VolumeKind::Cpm;
     bool         lostAddress     = storesNoAddress && inOutPayload.hasLoadAddress;
+    bool         storesForks     = target == VolumeKind::ProDos;
+    bool         lostFork        = !storesForks && inOutPayload.hasResourceFork;
     Word         address         = inOutPayload.loadAddress;
     std::string  text;
 
 
 
     outNote.clear();
+
+    //  Only ProDOS has a resource fork. Elsewhere the data fork is written
+    //  alone, and the note says so.
+    if (lostFork)
+    {
+        inOutPayload.resourceFork.clear();
+        inOutPayload.finderInfo.clear();
+        inOutPayload.hasResourceFork = false;
+
+        outNote = std::format (L"{}: {} has no resource fork, so only the data fork was copied.",
+                               TextEncoding::NarrowToWide (name),
+                               TextEncoding::NarrowToWide (VolumeImage::GetSystemName (target)));
+    }
 
     if (source == target)
     {
@@ -227,7 +251,7 @@ void CrossVolumeCopy::Convert (VolumeKind source, VolumeKind target, const std::
 
     if (lostAddress)
     {
-        outNote = std::format (L"{}: {} has no load address, so ${:04X} is not on the copy.",
+        outNote += std::format (L"{}: {} has no load address, so ${:04X} is not on the copy.",
                                TextEncoding::NarrowToWide (name),
                                TextEncoding::NarrowToWide (VolumeImage::GetSystemName (target)),
                                address);

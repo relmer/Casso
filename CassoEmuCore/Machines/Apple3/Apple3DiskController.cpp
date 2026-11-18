@@ -34,7 +34,7 @@ static constexpr int   s_kDriveD4      = 4;
 Apple3DiskController::Apple3DiskController()
     : m_diskII (std::make_unique<Disk2Controller> (kDiskIiSlot))
 {
-    m_diskII->SetCpuCycleSource (&m_diskCycles);
+    m_diskII->GetClock().SetSource (&m_diskCycles);
 }
 
 

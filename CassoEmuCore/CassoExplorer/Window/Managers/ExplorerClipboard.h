@@ -27,7 +27,7 @@ public:
     void                               PasteHere                  (const std::wstring & folder);
     void                               PasteIntoVolume            ();
     std::wstring                       GetPasteFolder             () const;
-    void                               CopyEntriesToClipboard     (HostFileNaming::Style style);
+    void                               CopyEntriesToClipboard     (HostFileNaming::Style style, bool raw = false);
 
     //  Cut on an image's or an Apple drive's entries: they go on the
     //  clipboard as Copy puts them, and are deleted once a target reports

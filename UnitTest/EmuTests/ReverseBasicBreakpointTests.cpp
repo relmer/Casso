@@ -91,11 +91,11 @@ public:
         //  nothing; then the hook is put back.
         void Record()
         {
-            DebugHook  * hook = rig.machine.GetDebugHook();
+            DebugHook  * hook = rig.machine.GetRunner().GetDebugHook();
 
 
 
-            rig.machine.SetDebugHook (nullptr);
+            rig.machine.GetRunner().SetDebugHook (nullptr);
 
             while (live.size() < kRunSteps)
             {
@@ -103,14 +103,14 @@ public:
 
 
 
-                step.position = rig.machine.GetPosition();
+                step.position = rig.machine.GetRunner().GetPosition();
                 step.isStop   = stopTest.ShouldStopBefore (rig.machine, rig.machine.GetCpu()->GetPC());
                 step.line     = Line();
                 live.push_back (step);
-                rig.machine.StepOne();
+                rig.machine.GetRunner().StepOne();
             }
 
-            rig.machine.SetDebugHook (hook);
+            rig.machine.GetRunner().SetDebugHook (hook);
             rig.session.OnStopConditionsChanged();
         }
 
@@ -160,14 +160,14 @@ public:
 
         for (size_t at = hits.size(); at > 0; at--)
         {
-            AssertSucceeded (basic.controller.ReverseContinue (basic.stopTest, result), L"ReverseContinue");
+            AssertSucceeded (basic.controller.GetSeeker().ReverseContinue (basic.stopTest, result), L"ReverseContinue");
 
             Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, std::format (L"hit {}", at - 1).c_str());
             Assert::AreEqual<uint64_t> (hits[at - 1].position, result.position, std::format (L"hit {}", at - 1).c_str());
             Assert::AreEqual<Word>     (kLines[hits.size() - at], basic.Line(), std::format (L"hit {}", at - 1).c_str());
         }
 
-        AssertSucceeded (basic.controller.ReverseContinue (basic.stopTest, result), L"ReverseContinue past the first hit");
+        AssertSucceeded (basic.controller.GetSeeker().ReverseContinue (basic.stopTest, result), L"ReverseContinue past the first hit");
         Assert::IsTrue   (result.outcome != ReverseOutcome::Moved, L"no hit before the first");
         Assert::AreEqual (0u, basic.GetHitCount(), L"reverse continue counted nothing");
         Assert::IsTrue   (basic.rig.sink.stops.empty());
@@ -188,7 +188,7 @@ public:
 
         Assert::AreEqual ((size_t) 1, hits.size());
 
-        AssertSucceeded (basic.controller.ReverseContinue (basic.stopTest, result), L"ReverseContinue");
+        AssertSucceeded (basic.controller.GetSeeker().ReverseContinue (basic.stopTest, result), L"ReverseContinue");
         Assert::AreEqual<uint64_t> (hits[0].position, result.position);
         Assert::AreEqual<Word>     (BasicStopMonitor::kError, basic.rig.machine.GetCpu()->GetPC());
         Assert::AreEqual<Word>     (20, basic.Line());

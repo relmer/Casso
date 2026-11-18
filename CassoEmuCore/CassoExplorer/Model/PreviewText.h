@@ -40,6 +40,18 @@ public:
     //  and a disassembly have their syntax colored.
     static std::vector<DxuiTextView::Row>  BuildTextRows      (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {});
     static std::vector<DxuiTextView::Row>  BuildDetailRows    (const std::vector<std::pair<std::wstring, std::wstring>> & details);
+    static std::vector<DxuiTextView::Row>  BuildWarningRows   (const std::wstring & warning);
+    static std::vector<DxuiTextView::Row>  BuildDocumentRows  (const std::vector<Paragraph> & paragraphs, const SourceSyntax::Colors & colors = {});
+
+    //  A document run's color: green for Good, red for Bad and the muted
+    //  text color for Muted, from the source colors, or zero for the text
+    //  color.
+    static uint32_t                        GetRunColor        (RunColor color, const SourceSyntax::Colors & colors);
+
+    //  A BASIC program's cross-reference, a row a line of it. Any other
+    //  preview, and a program that cannot be cross-referenced, has the rows
+    //  of BuildTextRows.
+    static std::vector<DxuiTextView::Row>  BuildCrossReferenceRows (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {});
 
     //  Visual Studio's code colors for the theme's background, dark or light,
     //  as Casso's debugger colors its source.
@@ -48,15 +60,43 @@ public:
     //  Where each line of a BASIC program starts in memory.
     static std::vector<Word>               GetLineAddresses   (const std::vector<Byte> & program, bool integerBasic);
     static std::vector<std::wstring>       SplitLineNumber    (const std::wstring & line);
+
+    //  Where a source line's operand starts, after its label and its
+    //  mnemonic, or zero for a comment line or one with no operand.
+    static int                             GetOperandColumn   (const std::wstring & line);
     static std::wstring                    FormatPreviewError (const std::wstring & message);
 
     //  An NMOS 6502 undocumented instruction's mnemonic, which a disassembly
     //  colors as an instruction.
     static bool  IsUndocumentedMnemonic (const std::wstring & word);
 
+    //  Where a point in a BASIC listing's statements is: outside any string,
+    //  REM or DATA payload, or inside one of them.
+    enum class BasicContext { Normal, Rem, String, Data, DataString };
+
+    //  A BASIC listing's rows. A line with no line number continues the line
+    //  above it, and has an empty number cell and no address.
+    static void                            AddListingRows    (const std::vector<std::wstring>  & lines,
+                                                              const std::vector<Word>          & addresses,
+                                                              bool                               applesoft,
+                                                              const SourceSyntax::Colors       & colors,
+                                                              std::vector<DxuiTextView::Row>   & ioRows);
+
     //  A BASIC listing's coloring: a row's address and line number cells, and
-    //  its statements' keywords, variables, strings, numbers and REM.
-    static void                            AddBasicSpans     (DxuiTextView::Row & ioRow, const SourceSyntax::Colors & colors);
+    //  its statements' keywords, variables, strings, numbers and REM. `context`
+    //  indicates where the row starts, so a row that continues a REM or a
+    //  string starts in its color.
+    static void                            AddBasicSpans     (DxuiTextView::Row           & ioRow,
+                                                              const SourceSyntax::Colors  & colors,
+                                                              BasicContext                  context);
+
+    //  Adds an inverse span over each ^ escape of an Applesoft control
+    //  character in a REM, a string or a DATA payload, and returns the context
+    //  the row ends in.
+    static BasicContext                    AddEscapeSpans    (DxuiTextView::Row           & ioRow,
+                                                              const SourceSyntax::Colors  & colors,
+                                                              BasicContext                  context,
+                                                              bool                          applesoft);
     static std::vector<SourceSyntax::Run>  GetBasicRuns      (const std::wstring & statements);
     static size_t                          MatchBasicKeyword (const std::wstring & text, size_t at);
 };

@@ -115,4 +115,21 @@ public:
         Assert::AreEqual (std::string (kText), rows[0].substr (0, length),
             L"under 80STORE, PAGE2 banks the CPU to aux and the display stays on main page 1");
     }
+
+
+    //  Each block of the //e character set, with inverse punctuation in the
+    //  lowercase range so a highlight shows, and the second normal uppercase
+    //  block at $80-$9F that Apple Pascal writes.
+    TEST_METHOD (Glyph_ReadsEachBlock)
+    {
+        Assert::AreEqual ('A', TextScreenScraper::Glyph (0x01), L"inverse uppercase");
+        Assert::AreEqual ('`', TextScreenScraper::Glyph (0x20), L"inverse space, a highlight or the cursor");
+        Assert::AreEqual ('q', TextScreenScraper::Glyph (0x31), L"inverse digit, in the lowercase range");
+        Assert::AreEqual ('A', TextScreenScraper::Glyph (0x41), L"flashing uppercase");
+        Assert::AreEqual ('.', TextScreenScraper::Glyph (0x7F), L"flashing ?, which reads as DEL");
+        Assert::AreEqual ('A', TextScreenScraper::Glyph (0x81), L"Apple Pascal's uppercase");
+        Assert::AreEqual ('A', TextScreenScraper::Glyph (0xC1), L"normal uppercase");
+        Assert::AreEqual ('a', TextScreenScraper::Glyph (0xE1), L"normal lowercase");
+        Assert::AreEqual ('.', TextScreenScraper::Glyph (0xFF), L"DEL has no glyph to print");
+    }
 };

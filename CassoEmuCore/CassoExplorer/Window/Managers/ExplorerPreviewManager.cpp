@@ -2,6 +2,12 @@
 #include "Core/AppTimerIds.h"
 
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/InspectorWindowSet.h"
+#include "CassoExplorer/CassoExplorerPromptDialog.h"
+#include "CassoExplorer/Window/Managers/ExplorerCassoTarget.h"
+#include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Model/PreviewSteps.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewOutput.h"
 #include "CassoExplorer/Model/PreviewText.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
@@ -51,12 +57,18 @@ void ExplorerPreviewManager::Create()
     ExplorerTextStyles::Apply (*m_message, ExplorerTextStyles::kPaneMessage);
     m_message->SetAlign    (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
 
+    m_context.window.SetMouseHandler (m_message, [this] (const DxuiMouseEvent & ev) { return HandleMessageMouse (ev); });
+
     m_summary = m_context.window.CreateChild<DxuiTextView>();
     ExplorerTextStyles::Apply (*m_summary, ExplorerTextStyles::kPreviewText);
     m_summary->SetProportional (true);
     m_summary->SetVisible      (false);
 
     m_find.Create();
+    m_thumbnail.Create();
+
+    m_thumbnail.GetScrollbar().SetOnScroll ([this] (int posPx) { ScrollTo (posPx); });
+    m_thumbnail.GetScrollbar().SetOnSync   ([this] () { SyncScrollbar(); });
 }
 
 
@@ -75,6 +87,10 @@ void ExplorerPreviewManager::Create()
 void ExplorerPreviewManager::CreateToolbar()
 {
     m_toolbar = m_context.window.CreateChild<DxuiToolbar>();
+
+    m_context.window.SetMouseHandler     (m_toolbar, [this] (const DxuiMouseEvent & ev) { return m_context.toolbars.HandleBarMouse (*m_toolbar, ev); });
+    m_context.window.SetCaptureCondition (m_toolbar, [this]() { return m_toolbar->IsMenuOpen(); });
+
     m_toolbar->SetFlatStyle    (true);
     m_toolbar->SetTextRenderer (m_context.window.GetTextRenderer());
     m_toolbar->SetPopupHost    (m_context.window.GetPopupHost());
@@ -127,9 +143,9 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
 
     m_rect     = rect;
     m_ruleBand = RECT {};
-    m_toolbar->SetVisible (m_barMode != CassoExplorerCommands::kPreviewBarNone);
+    m_toolbar->SetVisible (true);
 
-    if (m_barMode != CassoExplorerCommands::kPreviewBarNone)
+    //  Expand is on every file's toolbar.
     {
         m_toolbar->PlanForWidth (rect.right - rect.left, scaler);
         barPx = scaler.ToPx (m_toolbar->GetBandDp());
@@ -137,6 +153,50 @@ void ExplorerPreviewManager::Layout (const RECT & rect)
         m_toolbar->SetHostClientRect (m_context.layout.GetClient());
         m_toolbar->Layout (RECT { rect.left, rect.top, rect.right, rect.top + barPx }, scaler);
         content.top += barPx;
+    }
+
+    //  A disk image's small platter and chips, under the toolbar (FR-072),
+    //  scrolled away by the wheel no further than the view under them
+    //  overflows the pane.
+    m_headerTop = content.top;
+
+    if (m_thumbnail.IsShown())
+    {
+        //  The thumbnail is laid out no narrower than the pane's least width,
+        //  and clipped at the pane's edge when the window forces it narrower.
+        int  thumbW = (std::max) (static_cast<int> (content.right - content.left), scaler.ToPx (ExplorerLayout::kMinPreviewWidthDip));
+        int  height = m_thumbnail.GetHeightPx (thumbW);
+        int  need   = 0;
+
+        for (const PreviewView * view : m_views)
+        {
+            need = (std::max) (need, view->GetContentHeightPx());
+        }
+
+        m_headerRange  = (std::max) (0, height + need - static_cast<int> (content.bottom - content.top));
+        m_headerMax    = (std::min) (m_headerRange, height);
+        m_headerScroll = std::clamp (m_headerScroll, 0, m_headerMax);
+        m_headerPage   = static_cast<int> (content.bottom - content.top);
+        content.top    = m_thumbnail.Layout (RECT { content.left, content.top, content.left + thumbW - scaler.ToPx (ThumbnailScrollbar::kWidthDip), content.top + height },
+                                             m_headerScroll, content.bottom, content.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip));
+
+        m_thumbnail.GetScrollbar().Layout     (RECT { m_rect.right - scaler.ToPx (ThumbnailScrollbar::kWidthDip), m_headerTop, m_rect.right, m_rect.bottom }, scaler);
+        m_thumbnail.GetScrollbar().SetVisible (m_headerRange > 0);
+        SyncScrollbar();
+    }
+    else
+    {
+        m_headerRange  = 0;
+        m_headerMax    = 0;
+        m_headerScroll = 0;
+        m_thumbnail.Hide();
+    }
+
+    //  The views' bars are hidden while the pane's bar scrolls the thumbnail
+    //  and the view as one.
+    for (PreviewView * view : m_views)
+    {
+        view->SetScrollbarHidden (m_thumbnail.IsShown());
     }
 
     //  A WOZ image's details, between the toolbar and the catalog, as tall as
@@ -188,6 +248,7 @@ void ExplorerPreviewManager::Hide()
     m_message->SetVisible (false);
     m_summary->SetVisible (false);
     m_toolbar->SetVisible (false);
+    m_thumbnail.Hide();
 }
 
 
@@ -219,12 +280,16 @@ void ExplorerPreviewManager::FillPreview()
     bool                    hex      = preview.kind == PreviewContent::Kind::Hex && (!preview.bytes.empty() || opened);
     bool                    disasm   = preview.kind == PreviewContent::Kind::Hex && preview.disassembly;
     bool                    vars     = preview.kind == PreviewContent::Kind::Variables;
-    bool                    columns  = (preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty()) || vars;
+    bool                    columns  = (preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty()) || vars || preview.kind == PreviewContent::Kind::Grid;
     bool                    program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
     bool                    forms    = picture && m_context.browser.CanTogglePictureColor();
     bool                    shell    = preview.kind == PreviewContent::Kind::Shell;
     bool                    woz      = !preview.wozPath.empty();
+    bool                    random   = preview.recordLength > 0;
+    bool                    sets     = preview.charset != Charset::Default;
+    bool                    sheet    = preview.sheetForm != SheetForm::None;
     bool                    details  = visible && woz && preview.kind == PreviewContent::Kind::Catalog && !preview.details.empty();
+    bool                    warned   = visible && hex && !preview.warning.empty();
     bool                    hadThem  = m_summary->IsVisible();
     int                     mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
                                      : hex      ? CassoExplorerCommands::kPreviewBarHex
@@ -233,6 +298,9 @@ void ExplorerPreviewManager::FillPreview()
                                      : forms    ? CassoExplorerCommands::kPreviewBarPicture
                                      : picture  ? CassoExplorerCommands::kPreviewBarSave
                                      : vars     ? CassoExplorerCommands::kPreviewBarVariables
+                                     : random   ? CassoExplorerCommands::kPreviewBarRecords
+                                     : sets     ? CassoExplorerCommands::kPreviewBarText
+                                     : sheet    ? CassoExplorerCommands::kPreviewBarSheet
                                      : woz      ? CassoExplorerCommands::kPreviewBarWoz
                                                 : CassoExplorerCommands::kPreviewBarNone;
 
@@ -246,29 +314,52 @@ void ExplorerPreviewManager::FillPreview()
 
     m_lastKind = preview.kind;
 
+    //  The thumbnail of an image or a card's partition selected alone, in a
+    //  format the inspector reads; none for one that fails to open (FR-072).
+    {
+        bool          wasShown = m_thumbnail.IsShown();
+        bool          isOne    = visible && !error && m_context.browser.GetSelectedRows().size() == 1;
+        std::wstring  path     = isOne && m_context.browser.AreSelectedRowsImages() ? m_context.cassoTarget.GetSelectedImagePath() : std::wstring();
+
+        if (isOne && m_context.browser.IsPartitionListLocation())
+        {
+            (void) m_context.actions.TryGetPartition (path);
+        }
+
+        m_headerScroll = (InspectorWindowSet::CanInspect (path) && path == m_thumbnail.GetPath()) ? m_headerScroll : 0;
+        m_thumbnail.SetPath (InspectorWindowSet::CanInspect (path) ? path : std::wstring());
+
+        if (m_thumbnail.IsShown() != wasShown || m_thumbnail.IsShown())
+        {
+            m_context.layout.RecomputeLayout();
+        }
+    }
+
     m_shell.Update   (preview, m_content);
     m_picture.Fill   (preview, picture, shell && m_shell.IsPicture());
     m_listing.Fill   (preview, columns);
-    m_text.Fill      (preview);
+    FillText         (preview);
 
     //  A WOZ image's details above its catalog, which moves the catalog down.
     //  An image with no file system has its details in place of a catalog.
-    m_summary->SetRows    (details ? PreviewText::BuildDetailRows (preview.details) : std::vector<DxuiTextView::Row>());
-    m_summary->SetVisible (details);
+    //  A file whose format's decoder failed has the reason above its bytes.
+    m_summary->SetRows    (details ? PreviewText::BuildDetailRows (preview.details)
+                         : warned  ? PreviewText::BuildWarningRows (preview.warning)
+                                   : std::vector<DxuiTextView::Row>());
+    m_summary->SetVisible (details || warned);
 
-    if (details || hadThem)
+    if (details || warned || hadThem)
     {
         m_context.layout.RecomputeLayout();
     }
 
-    if (mode != m_barMode)
+    if (mode != m_barMode || !m_isBarBuilt || m_isBarExpanded != IsExpanded())
     {
-        m_barMode = mode;
+        m_barMode       = mode;
+        m_isBarBuilt    = true;
+        m_isBarExpanded = IsExpanded();
 
-        if (mode != CassoExplorerCommands::kPreviewBarNone)
-        {
-            m_toolbar->SetEntries (m_context.commands.BuildPreviewToolbarEntries (mode, m_find.GetSearchBox(), m_find.GetGoToBox()));
-        }
+        m_toolbar->SetEntries (m_context.commands.BuildPreviewToolbarEntries (mode, m_isBarExpanded, m_find.GetSearchBox(), m_find.GetGoToBox()));
 
         //  The boxes go with the hex view's toolbar, and their focus with it;
         //  the variables' toolbar has the search box alone.
@@ -279,6 +370,18 @@ void ExplorerPreviewManager::FillPreview()
         }
 
         m_context.layout.RecomputeLayout();
+    }
+
+    //  View as lists the file's default view and the others that apply.
+    {
+        std::vector<DxuiPopupMenuItem>  views = { DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kViewAsDefault)) };
+
+        for (ViewChoice view : preview.viewChoices)
+        {
+            views.push_back (DxuiPopupMenuItem::ForCommand (m_context.commands.Find (CassoExplorerCommands::kViewAsDefault + (int) view)));
+        }
+
+        m_toolbar->SetDropDownItems (CassoExplorerCommands::kViewAs, std::move (views));
     }
 
     m_hex.Fill (preview, hex, opened, charset);
@@ -314,6 +417,85 @@ void ExplorerPreviewManager::FillPreview()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPreviewManager::HandlePicturesReady
+//
+//  A disk image was booted: the selected image's picture is read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::HandlePicturesReady()
+{
+    if (m_thumbnail.IsShown())
+    {
+        m_thumbnail.RefreshScreen();
+        m_context.layout.RecomputeLayout();
+        m_context.window.Invalidate();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::TakeThumbnail
+//
+//  A built thumbnail, on the UI thread; the pane is laid out again around
+//  it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::TakeThumbnail()
+{
+    m_thumbnail.TakeResult();
+    FillText (m_context.browser.GetPreview());
+    m_context.layout.RecomputeLayout();
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::FillText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::FillText (const PreviewContent & preview)
+{
+    std::wstring    system = m_thumbnail.GetFileSystemText();
+    PreviewContent  found;
+
+
+
+    if (preview.kind != PreviewContent::Kind::Details || system.empty())
+    {
+        m_text.Fill (preview);
+        return;
+    }
+
+    found = preview;
+
+    for (std::pair<std::wstring, std::wstring> & detail : found.details)
+    {
+        if (detail.first == L"File system")
+        {
+            detail.second = system;
+        }
+    }
+
+    m_text.Fill (found);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPreviewManager::IsKnownPreview
 //
 //  A file of a type with a preview: a listing, text, a picture, 6502 code in
@@ -329,6 +511,7 @@ bool ExplorerPreviewManager::IsKnownPreview (const PreviewContent & preview)
 
     return preview.kind == Kind::Listing || preview.kind == Kind::Text    || preview.kind == Kind::Catalog
         || preview.kind == Kind::Details || preview.kind == Kind::Shell   || preview.kind == Kind::Variables || preview.executable
+        || preview.kind == Kind::Document || preview.kind == Kind::Grid
         || (preview.kind == Kind::Picture && !preview.bgra.empty());
 }
 
@@ -552,28 +735,24 @@ uint32_t ExplorerPreviewManager::GetBackground (const IDxuiTheme & theme)
 //
 //  ExplorerPreviewManager::HandleMessageMouse
 //
-//  A preview's message selects with the mouse, as text does, and has the
-//  text's menu. The window routes events to the message ahead of its other
-//  panes.
+//  The message's mouse handler. A preview's message selects with the mouse,
+//  as text does, and has the text's menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExplorerPreviewManager::HandleMessageMouse (const DxuiMouseEvent & ev)
 {
-    POINT  point = ev.positionDip;
+    POINT  point   = ev.positionDip;
+    bool   handled = false;
 
 
-
-    if (!m_message->IsVisible() || (!m_message->IsInteracting() && !ExplorerLayout::Contains (m_message->GetBounds(), point)))
-    {
-        return false;
-    }
 
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right)
     {
         std::vector<DxuiPopupMenuItem>  items;
 
         m_context.input.SetFocusPane (ExplorerPane::Preview);
+        m_context.input.ReleasePressed();
         m_context.menus.GetMenuCommands().clear();
         m_context.menus.AddMenuCommand (items, L"&Copy",       [this]() { m_message->Copy(); });
         m_context.menus.AddMenuCommand (items, L"Select &all", [this]() { m_message->SelectAll(); m_context.window.Invalidate(); });
@@ -586,43 +765,14 @@ bool ExplorerPreviewManager::HandleMessageMouse (const DxuiMouseEvent & ev)
         m_context.input.SetFocusPane (ExplorerPane::Preview);
     }
 
-    if (!m_message->OnMouse (ev))
-    {
-        return false;
-    }
+    handled = m_message->OnMouse (ev);
 
-    m_context.window.Invalidate();
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerPreviewManager::HandleMouse
-//
-//  Events go to a view mid-drag until the button comes up, wherever the
-//  pointer is, and otherwise to the view under the pointer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerPreviewManager::HandleMouse (const DxuiMouseEvent & ev)
-{
-    if (m_listing.IsArchive() && m_listing.GetArchive().HandleMouse (ev, ev.positionDip))
+    if (handled)
     {
         m_context.window.Invalidate();
-        return true;
     }
 
-    return m_listing.HandleCapturedMouse (ev)
-        || m_hex.HandleCapturedMouse     (ev)
-        || m_picture.HandleMouse         (ev)
-        || m_text.HandleCapturedMouse    (ev)
-        || m_hex.HandleMouse             (ev)
-        || m_text.HandleMouse            (ev)
-        || m_listing.HandleMouse         (ev);
+    return handled;
 }
 
 
@@ -663,6 +813,13 @@ bool ExplorerPreviewManager::HandleShortcutKey (const DxuiKeyEvent & ev)
         GetFocusedControl()->InvokeCommand ((ev.vk == 'C') ? DxuiStandardCommand::Copy : DxuiStandardCommand::SelectAll);
         m_context.statusBar.Fill();
         m_context.window.Invalidate();
+        return true;
+    }
+
+    //  Any other preview copies the whole view.
+    if (ev.ctrl && !ev.shift && ev.vk == 'C' && ExplorerPreviewOutput::CanCopy (m_context))
+    {
+        ExplorerPreviewOutput::Copy (m_context);
         return true;
     }
 
@@ -734,6 +891,8 @@ bool ExplorerPreviewManager::UpdateScrollbarHover (POINT at)
         changed = view->UpdateScrollbarHover (at) || changed;
     }
 
+    changed = m_thumbnail.GetScrollbar().SetHover (at) || changed;
+
     return changed;
 }
 
@@ -757,6 +916,8 @@ bool ExplorerPreviewManager::TickScrollbars (int64_t nowMs)
     {
         moved = view->TickScrollbars (nowMs) || moved;
     }
+
+    moved = m_thumbnail.GetScrollbar().TickBar (nowMs) || moved;
 
     return moved;
 }
@@ -782,25 +943,146 @@ bool ExplorerPreviewManager::IsOverPane (POINT point) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerPreviewManager::SyncScrollbar
+//
+//  The pane's bar at the thumbnail's scroll plus the view's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::SyncScrollbar()
+{
+    int  viewPx = 0;
+
+
+
+    for (const PreviewView * view : m_views)
+    {
+        viewPx = (std::max) (viewPx, view->GetScrollPx());
+    }
+
+    m_thumbnail.GetScrollbar().SetRange (m_headerRange, m_headerPage, m_headerScroll + viewPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::ScrollTo
+//
+//  A position of the pane's bar: the thumbnail scrolled away as far as it
+//  goes, then the view by the rest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::ScrollTo (int posPx)
+{
+    int  header = std::clamp (posPx, 0, m_headerMax);
+
+
+
+    for (PreviewView * view : m_views)
+    {
+        view->SetScrollPx ((std::max) (0, posPx - header));
+    }
+
+    if (header != m_headerScroll)
+    {
+        m_headerScroll = header;
+        Layout (m_rect);
+    }
+
+    m_context.window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::HandleWheel
+//
+//  A notch moves the thumbnail as far as three of the catalog's rows. The
+//  wheel over the thumbnail is always the thumbnail's, so the thumbnail
+//  doesn't scroll by itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::HandleWheel (const DxuiMouseEvent & ev)
+{
+    static constexpr float  kStepDip = 3.0f * PreviewListingView::kRowHeightDip;
+
+
+
+    POINT  point    = ev.positionDip;
+    bool   isOver   = m_shown && m_thumbnail.IsShown() && point.x >= m_rect.left && point.x < m_rect.right && point.y >= m_headerTop && point.y < m_rect.bottom;
+    bool   isHeader = isOver && point.y < m_content.top;
+    int    step     = static_cast<int> (std::lround (std::abs (ev.wheelDelta) * m_context.scaler.ToPxf (kStepDip)));
+    int    before   = m_headerScroll;
+    bool   isAtTop  = std::all_of (m_views.begin(), m_views.end(), [] (const PreviewView * view) { return view->IsAtTop(); });
+
+
+
+    if (ev.kind != DxuiMouseEventKind::Wheel || ev.ctrl || ev.wheelHorizontal || !isOver)
+    {
+        return false;
+    }
+
+    if (ev.wheelDelta < 0.0f && m_headerScroll < m_headerMax)
+    {
+        m_headerScroll = (std::min) (m_headerMax, m_headerScroll + step);
+    }
+    else if (ev.wheelDelta > 0.0f && m_headerScroll > 0 && isAtTop)
+    {
+        m_headerScroll = (std::max) (0, m_headerScroll - step);
+    }
+
+    if (m_headerScroll != before)
+    {
+        Layout (m_rect);
+    }
+
+    return m_headerScroll != before || isHeader;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerPreviewManager::GetCursorForPoint
 //
 //  The preview's text -- a listing, a catalog, a hex dump -- selects as text
 //  does, so the cursor over it is the I-beam, except over its scrollbars.
+//  The pane's bar beside a disk image's thumbnail is drawn over the view, so
+//  the bar is checked first. Over the thumbnail's platter or block map,
+//  which opens the inspector on a click, the cursor is IDC_HAND.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 LPCWSTR ExplorerPreviewManager::GetCursorForPoint (POINT clientPx) const
 {
-    LPCWSTR  cursor = m_text.GetCursorForPoint (clientPx);
+    LPCWSTR  cursor = m_thumbnail.IsShown() && m_thumbnail.GetScrollbar().IsOverScrollbar (clientPx) ? IDC_ARROW : nullptr;
 
 
 
+    cursor = (cursor != nullptr) ? cursor : (m_thumbnail.IsShown() && m_thumbnail.IsOverPlatter (clientPx) ? IDC_HAND : nullptr);
+    cursor = (cursor != nullptr) ? cursor : m_text.GetCursorForPoint (clientPx);
     cursor = (cursor != nullptr) ? cursor : m_hex.GetCursorForPoint (clientPx);
     cursor = (cursor != nullptr) ? cursor : m_listing.GetCursorForPoint (clientPx);
 
     if (cursor == nullptr && m_message->IsVisible())
     {
         cursor = m_message->GetCursorForPoint (clientPx);
+    }
+
+    //  A click on the small platter opens the inspector.
+    if (cursor == nullptr && m_thumbnail.IsOverPlatter (clientPx))
+    {
+        cursor = IDC_HAND;
     }
 
     return cursor;
@@ -1023,7 +1305,7 @@ bool ExplorerPreviewManager::IsArchiveLocation() const
 
 int ExplorerPreviewManager::GetPreviewStopIndex (int commandId) const
 {
-    std::vector<int>  ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (m_barMode);
+    std::vector<int>  ids = CassoExplorerCommands::GetPreviewToolbarCommandIds (m_barMode, IsExpanded());
 
 
 
@@ -1041,4 +1323,337 @@ int ExplorerPreviewManager::GetPreviewStopIndex (int commandId) const
     }
 
     return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::IsExpanded
+//
+//  The tab's preview over the whole tab, while a file is selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::IsExpanded() const
+{
+    return m_shown && m_context.browser.IsTabPreviewExpanded();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::SetExpanded
+//
+//  With more than one file selected, the files are the step set and the
+//  first of them is selected alone. Collapsing ends the step set and puts
+//  the keyboard on the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::SetExpanded (bool expanded)
+{
+    const std::vector<int> &   selected = m_context.browser.GetSelectedRows();
+    std::vector<std::wstring>  keys;
+    int                        first    = -1;
+
+
+
+    m_stepSet.clear();
+
+    if (expanded && selected.size() > 1)
+    {
+        m_context.browser.GetRowKeys (keys);
+
+        for (int row : selected)
+        {
+            if (row >= 0 && (size_t) row < keys.size())
+            {
+                m_stepSet.push_back (keys[(size_t) row]);
+            }
+        }
+
+        first = PreviewSteps::GetTarget (m_context.browser.GetRows(), keys, m_stepSet, -1, true);
+
+        if (first >= 0)
+        {
+            SelectStep (first);
+        }
+    }
+
+    m_context.browser.SetTabPreviewExpanded (expanded);
+    FillPreview();
+    m_context.layout.RecomputeLayout();
+    m_context.input.SetFocusPane (IsExpanded() ? ExplorerPane::Preview : ExplorerPane::List);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::GetStepTarget
+//
+//  The row previous or next goes to, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ExplorerPreviewManager::GetStepTarget (bool forward) const
+{
+    const std::vector<int> &   selected = m_context.browser.GetSelectedRows();
+    std::vector<std::wstring>  keys;
+    int                        current  = (selected.size() == 1) ? selected[0] : -1;
+
+
+
+    m_context.browser.GetRowKeys (keys);
+
+    return PreviewSteps::GetTarget (m_context.browser.GetRows(), keys, m_stepSet, current, forward);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::CanStep
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::CanStep (bool forward) const
+{
+    return IsExpanded() && GetStepTarget (forward) >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::Step
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::Step (bool forward)
+{
+    int  target = IsExpanded() ? GetStepTarget (forward) : -1;
+
+
+
+    if (target >= 0)
+    {
+        SelectStep (target);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::SelectStep
+//
+//  The row selected alone and scrolled to, as a click would select it,
+//  keeping the step set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::SelectStep (int row)
+{
+    m_isStepping = true;
+    m_context.listPane.SetListSelection ({ row });
+    m_context.listPane.GetListView()->EnsureVisible (row);
+    m_isStepping = false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::HandleSelectionChanged
+//
+//  A selection made any way but by a step ends the step set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::HandleSelectionChanged()
+{
+    if (!m_isStepping)
+    {
+        m_stepSet.clear();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::HandleEnterKey
+//
+//  Enter on a file, not a folder, disk image or archive, which open as they
+//  always do, expands its preview when Options sets Enter to, turning the
+//  pane on first if it's off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::HandleEnterKey (const DxuiKeyEvent & ev)
+{
+    const std::vector<int> &  selected = m_context.browser.GetSelectedRows();
+    bool                      plain    = ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_RETURN && !ev.ctrl && !ev.alt && !ev.shift;
+    bool                      isFile   = selected.size() == 1 && selected[0] >= 0 && (size_t) selected[0] < m_context.browser.GetRows().size();
+
+
+
+    if (!plain || !m_context.prefs.enterExpandsPreview || !isFile)
+    {
+        return false;
+    }
+
+    {
+        const CatalogRow &  row = m_context.browser.GetRows()[(size_t) selected[0]];
+
+        if (row.isDirectory || row.isDiskImage || row.isArchive)
+        {
+            return false;
+        }
+    }
+
+    if (!m_context.prefs.previewVisible)
+    {
+        m_context.prefs.previewVisible = true;
+        SetPinned (true);
+        FillPreview();
+    }
+
+    SetExpanded (true);
+
+    return IsExpanded();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::HandleExpandedKey
+//
+//  Esc collapses the preview. Left and Right step while the keyboard is on
+//  the preview, since the toolbar takes them to move between its buttons.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::HandleExpandedKey (const DxuiKeyEvent & ev, ExplorerPane focus)
+{
+    bool  plain = ev.kind == DxuiKeyEventKind::Down && !ev.ctrl && !ev.alt && !ev.shift;
+
+
+
+    if (!IsExpanded() || !plain)
+    {
+        return false;
+    }
+
+    if (ev.vk == VK_ESCAPE)
+    {
+        SetExpanded (false);
+        return true;
+    }
+
+    if ((ev.vk == VK_LEFT || ev.vk == VK_RIGHT) && focus == ExplorerPane::Preview)
+    {
+        Step (ev.vk == VK_RIGHT);
+        m_context.window.Invalidate();
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::ChooseRecordLength
+//
+//  Opens the prompt for the record length of the previewed random-access
+//  text file, prefilled with the current one, and opens it again after text
+//  that isn't a length. An empty answer or 0 is the length found in the file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreviewManager::ChooseRecordLength()
+{
+    std::wstring  text   = std::to_wstring (m_context.browser.GetPreview().recordLength);
+    size_t        length = 0;
+    bool          parsed = false;
+
+
+
+    while (!parsed && CassoExplorerPromptDialog::Ask (m_context.window.GetHwnd(), m_context.theme, L"Record length",
+                                                       L"Bytes in each record, or 0 for the length found in the file:", text, kRecordLengthDigits, text))
+    {
+        parsed = TryParseRecordLength (text, length);
+
+        if (!parsed)
+        {
+            m_context.window.ShowMessage (L"Type a length from 1 to 65535, or 0.", MB_ICONWARNING);
+        }
+    }
+
+    if (parsed)
+    {
+        m_context.browser.SetPreviewRecordLength (length);
+        FillPreview();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreviewManager::TryParseRecordLength
+//
+//  A record length in decimal digits, from 0 to 65535. Empty text is 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerPreviewManager::TryParseRecordLength (const std::wstring & text, size_t & outLength)
+{
+    size_t  value = 0;
+    bool    valid = text.size() <= kRecordLengthDigits;
+
+
+
+    for (wchar_t ch : text)
+    {
+        valid = valid && ch >= L'0' && ch <= L'9';
+        value = value * 10 + (size_t) (ch - L'0');
+    }
+
+    valid = valid && value <= kRecordLengthMax;
+
+    if (valid)
+    {
+        outLength = value;
+    }
+
+    return valid;
 }

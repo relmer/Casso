@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/MemoryWindows.h"
+#include "Ui/Debugger/MemoryActions.h"
+#include "Ui/Debugger/WatchActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -1550,7 +1552,7 @@ void MemoryWindowGroup::AddWindowMenuItems (MemoryWindowPane & window, POINT cli
 
     if (byte.has_value() && *byte < 0x100)
     {
-        items.push_back ({ L"Add as pointer watch", [this, at = (Byte) *byte] { m_host.RunAction (DebuggerActions::GetAddZeroPagePointer (at, m_host.GetMode())); } });
+        items.push_back ({ L"Add as pointer watch", [this, at = (Byte) *byte] { m_host.RunAction (WatchActions::GetAddZeroPagePointer (at, m_host.GetMode())); } });
     }
 
     if (byte.has_value())
@@ -1656,7 +1658,7 @@ void MemoryWindowGroup::FillSelection (MemoryWindowPane * window)
 
     if (typed.has_value() && TextDialog::TryParseBytes (*typed, bytes))
     {
-        m_host.RunAction (DebuggerActions::GetFillMemory (range->first, range->second, bytes, m_host.GetMode()));
+        m_host.RunAction (MemoryActions::GetFillMemory (range->first, range->second, bytes, m_host.GetMode()));
     }
 }
 
@@ -1693,7 +1695,7 @@ void MemoryWindowGroup::CopySelection (MemoryWindowPane * window)
 
     if (typed.has_value() && TextDialog::TryParseAddress (*typed, to))
     {
-        m_host.RunAction (DebuggerActions::GetMoveMemory (to, range->first, range->second, m_host.GetMode()));
+        m_host.RunAction (MemoryActions::GetMoveMemory (to, range->first, range->second, m_host.GetMode()));
     }
 }
 
@@ -1734,6 +1736,6 @@ void MemoryWindowGroup::CompareSelection (MemoryWindowPane * window)
     if (typed.has_value() && TextDialog::TryParseAddress (*typed, other))
     {
         m_compare = Compare { window->GetWindowId(), m_compareSerial, true };
-        m_host.RunAction (DebuggerActions::GetCompareMemory (other, range->first, range->second, m_host.GetMode()));
+        m_host.RunAction (MemoryActions::GetCompareMemory (other, range->first, range->second, m_host.GetMode()));
     }
 }

@@ -188,8 +188,8 @@ public:
             HistoryThumbnails::PlanCells (store, kCount, step, cells);
 
             Assert::AreEqual<size_t>   (kCount, cells.size(), L"every cell has a point");
-            Assert::AreEqual<uint64_t> (store.GetInfo (0).position, cells.front().position, L"the first cell is the oldest keyframe");
-            Assert::AreEqual<uint64_t> (store.GetInfo (store.GetCount() - 1).position, cells.back().position, L"the last is the newest");
+            Assert::AreEqual<uint64_t> (store.GetArena().GetInfo (0).position, cells.front().position, L"the first cell is the oldest keyframe");
+            Assert::AreEqual<uint64_t> (store.GetArena().GetInfo (store.GetArena().GetCount() - 1).position, cells.back().position, L"the last is the newest");
             Assert::IsTrue (cells.back().isLive, L"and stands for live");
 
             grown += (cells[1].position > cells.front().position) ? 1 : 0;
@@ -443,17 +443,17 @@ public:
 
         Assert::IsTrue (isShown, L"a point has labels");
         Assert::AreEqual<uint64_t> (5000, cycle, L"its own cycle, a quarter of the way past the second cell");
-        Assert::AreEqual<uint64_t> (store.GetInfo (kAfterStop).wallTime, wall, L"the clock at the keyframe there, after the hour stopped");
+        Assert::AreEqual<uint64_t> (store.GetArena().GetInfo (kAfterStop).wallTime, wall, L"the clock at the keyframe there, after the hour stopped");
 
         thumbnails.TryGetLabelsAt (1, 1.3f, top, bottom);
 
         Assert::AreEqual<uint64_t> (5200, cycle, L"a pixel on is a cycle of its own");
-        Assert::AreEqual<uint64_t> (HistoryStatus::GetWallTimeAt (store.GetInfo (kAfterStop).wallTime, 5000, 5200), wall, L"counted on from that keyframe");
+        Assert::AreEqual<uint64_t> (HistoryStatus::GetWallTimeAt (store.GetArena().GetInfo (kAfterStop).wallTime, 5000, 5200), wall, L"counted on from that keyframe");
 
         thumbnails.TryGetLabelsAt (0, 0.5f, top, bottom);
 
         Assert::AreEqual<uint64_t> (2000, cycle, L"halfway along the first cell");
-        Assert::AreEqual<uint64_t> (store.GetInfo (2).wallTime, wall, L"the clock at the keyframe there");
+        Assert::AreEqual<uint64_t> (store.GetArena().GetInfo (2).wallTime, wall, L"the clock at the keyframe there");
     }
 
 
@@ -1000,7 +1000,7 @@ public:
             now += s_kThumbTurnMs;
         }
 
-        Assert::IsTrue (store.GetInfo (0).position > 0, L"and the oldest keyframes were dropped along the way");
+        Assert::IsTrue (store.GetArena().GetInfo (0).position > 0, L"and the oldest keyframes were dropped along the way");
     }
 
 
@@ -1029,7 +1029,7 @@ public:
 
         Assert::IsNull (thumbnails.GetPreviewImage (kOldestCell).get(), L"the oldest point is asked for");
 
-        while (store.GetInfo (0).position == 0)
+        while (store.GetArena().GetInfo (0).position == 0)
         {
             AddInFlight (store, position, seed);
         }
@@ -1122,7 +1122,7 @@ public:
 
             if (round < kWarmUpRounds)
             {
-                dropped = store.GetInfo (0).position;
+                dropped = store.GetArena().GetInfo (0).position;
                 continue;
             }
 
@@ -1151,7 +1151,7 @@ public:
             Assert::IsNotNull (thumbnails.GetCellImage (kLiveCell).get(), L"the live end is drawn");
         }
 
-        Assert::IsTrue (store.GetInfo (0).position > dropped, L"the oldest kept being dropped");
+        Assert::IsTrue (store.GetArena().GetInfo (0).position > dropped, L"the oldest kept being dropped");
         Assert::IsTrue (ownGrid * kMostNumerator > checked * kMostDenominator, L"the grid points nearly always show their own pictures");
     }
 
@@ -1543,14 +1543,14 @@ private:
         thumbnails.SetVisible (true);
         DrawAll (thumbnails, queue, store, now);
 
-        newest = store.GetInfo (store.GetCount() - 1).position;
+        newest = store.GetArena().GetInfo (store.GetArena().GetCount() - 1).position;
 
         hr = store.DropAfterPosition (newest - 1);
         AssertSucceeded (hr, L"DropAfterPosition");
 
         state[0] = kNewTag;
 
-        hr = store.Add (newest, store.GetInfo (store.GetCount() - 1).cycle + s_kThumbInterval, state);
+        hr = store.Add (newest, store.GetArena().GetInfo (store.GetArena().GetCount() - 1).cycle + s_kThumbInterval, state);
         AssertSucceeded (hr, L"Add");
 
         DrawAll (thumbnails, queue, store, now);
@@ -1661,7 +1661,7 @@ private:
 
 
 
-        for (j = 0; j < KeyframeStore::kBufferCount; j++)
+        for (j = 0; j < KeyframeLayout::kJobCount; j++)
         {
             for (i = 0; i < state.size(); i++)
             {

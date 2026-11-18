@@ -123,7 +123,7 @@ public:
             machine.GetMemoryBus().AddDevice (log.get());
 
             InProcessByteStream::CreatePair (machineEnd, pcEnd);
-            Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
+            Assert::AreEqual (S_OK, machine.GetConnectors().AttachSerialStream (2, machineEnd));
 
             host = std::make_unique<CassoLinkHost> (std::make_shared<SteppedByteStream> (machine, pcEnd), folder, [] () { return std::array<Byte, 4> {}; });
 

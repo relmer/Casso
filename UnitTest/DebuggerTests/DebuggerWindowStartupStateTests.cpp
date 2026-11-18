@@ -96,12 +96,11 @@ namespace DebuggerStartupStateTests
         }
 
         using DebuggerWindow::OnCreate;
+        using DebuggerWindow::GetDockSite;
         using DebuggerWindow::Layout;
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::SetWindowMenus;
         using DebuggerWindow::GetMenuBarItems;
-        using DebuggerWindow::GetPaneLayout;
-        using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::ShowPane;
         using DebuggerWindow::ClosePane;
         using DebuggerWindow::GetFocused;
@@ -135,10 +134,10 @@ namespace DebuggerStartupStateTests
         //  emulator's window has it ahead of Casso.
         TEST_METHOD (TheCaptionHasTheTitleLabelFirst)
         {
-            Assert::AreEqual (std::wstring (L"Debugger"),                DebuggerWindow::GetCaption (L""));
-            Assert::AreEqual (std::wstring (L"035-debugger - Debugger"), DebuggerWindow::GetCaption (L"035-debugger"));
-            Assert::AreEqual (std::wstring (L"035-debugger - Debugger - symbols-demo.dbg"), DebuggerWindow::GetCaption (L"035-debugger", L"symbols-demo.dbg"));
-            Assert::AreEqual (std::wstring (L"Debugger - Apple //e booting Sixies.po"),     DebuggerWindow::GetCaption (L"", L"Apple //e booting Sixies.po"));
+            Assert::AreEqual (std::wstring (L"Debugger"),                DebuggerWindowText::GetCaption (L""));
+            Assert::AreEqual (std::wstring (L"035-debugger - Debugger"), DebuggerWindowText::GetCaption (L"035-debugger"));
+            Assert::AreEqual (std::wstring (L"035-debugger - Debugger - symbols-demo.dbg"), DebuggerWindowText::GetCaption (L"035-debugger", L"symbols-demo.dbg"));
+            Assert::AreEqual (std::wstring (L"Debugger - Apple //e booting Sixies.po"),     DebuggerWindowText::GetCaption (L"", L"Apple //e booting Sixies.po"));
         }
 
 
@@ -249,13 +248,13 @@ namespace DebuggerStartupStateTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            before = GetActive (window.GetPaneLayout().GetRoot(), mmu);
+            before = GetActive (window.GetDockSite()->GetPaneLayout().GetRoot(), mmu);
             Assert::AreNotEqual (mmu, before, L"the saved layout shows another tab of the panel's group");
 
             window.TakeSnapshot (std::make_shared<DebuggerViewSnapshot>());
             window.TakeSnapshot (MakeSnapshotWithPanel ("mmu"));
 
-            Assert::AreEqual (before, GetActive (window.GetPaneLayout().GetRoot(), mmu), L"the reopened panel does not come forward");
+            Assert::AreEqual (before, GetActive (window.GetDockSite()->GetPaneLayout().GetRoot(), mmu), L"the reopened panel does not come forward");
         }
 
 
@@ -276,7 +275,7 @@ namespace DebuggerStartupStateTests
             snapshot->codeOpen[1] = true;
             window.TakeSnapshot (snapshot);
 
-            Assert::AreEqual (std::wstring (DebuggerLayout::kCode), GetActive (window.GetPaneLayout().GetRoot(), DebuggerLayout::kCode));
+            Assert::AreEqual (std::wstring (DebuggerLayout::kCode), GetActive (window.GetDockSite()->GetPaneLayout().GetRoot(), DebuggerLayout::kCode));
         }
 
 
@@ -297,9 +296,9 @@ namespace DebuggerStartupStateTests
 
             Assert::AreEqual ((size_t) 1, host.actions.size(), L"the panel reopens through the window's own action");
 
-            lines = rig->view.ExecuteAction (rig->controller.GetSession(), host.actions[0]);
+            lines = rig->view.GetCommands().ExecuteAction (rig->controller.GetSession(), host.actions[0]);
 
-            Assert::IsTrue (rig->view.IsPanelOpen ("mmu"));
+            Assert::IsTrue (rig->view.GetPanels().IsPanelOpen ("mmu"));
             Assert::IsTrue (lines.empty(), L"no echo and no reply");
         }
 
@@ -348,13 +347,13 @@ namespace DebuggerStartupStateTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (window.EditPaneLayout().AutoHide (DebuggerLayout::kRegisters, DxuiDockSide::Right));
+            Assert::IsTrue (window.GetDockSite()->EditPaneLayout().AutoHide (DebuggerLayout::kRegisters, DxuiDockSide::Right));
             window.ClosePane (DebuggerLayout::kRegisters);
 
             window.ShowPane (DebuggerLayout::kRegisters);
 
-            Assert::IsTrue  (window.GetPaneLayout().IsDocked     (DebuggerLayout::kRegisters));
-            Assert::IsFalse (window.GetPaneLayout().IsAutoHidden (DebuggerLayout::kRegisters));
+            Assert::IsTrue  (window.GetDockSite()->GetPaneLayout().IsDocked     (DebuggerLayout::kRegisters));
+            Assert::IsFalse (window.GetDockSite()->GetPaneLayout().IsAutoHidden (DebuggerLayout::kRegisters));
         }
 
 
@@ -410,7 +409,7 @@ namespace DebuggerStartupStateTests
             isMain = dynamic_cast<DxuiListView *> (focused) != nullptr || dynamic_cast<DxuiHexView *> (focused) != nullptr || dynamic_cast<DxuiTextView *> (focused) != nullptr;
 
             Assert::AreEqual (pane, window.GetPaneOfControl (focused),                  L"the saved pane has the focus");
-            Assert::AreEqual (pane, GetActive (window.GetPaneLayout().GetRoot(), pane), L"its tab is in front");
+            Assert::AreEqual (pane, GetActive (window.GetDockSite()->GetPaneLayout().GetRoot(), pane), L"its tab is in front");
             Assert::IsTrue   (isMain,                                                   L"the pane's main control");
             Assert::IsTrue   (focused->IsVisible(),                                     L"a control that shows");
         }
@@ -418,7 +417,7 @@ namespace DebuggerStartupStateTests
 
         static void  AssertConsoleHasTheFocus (StartupWindow & window)
         {
-            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), GetActive (window.GetPaneLayout().GetRoot(), DebuggerLayout::kConsole), L"the console tab is in front");
+            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), GetActive (window.GetDockSite()->GetPaneLayout().GetRoot(), DebuggerLayout::kConsole), L"the console tab is in front");
             Assert::IsTrue   (window.GetFocused() == window.GetConsolePane().GetCommandLine().GetBox(), L"the console's command line has the focus");
             Assert::IsTrue   (window.GetConsolePane().GetCommandLine().GetBox()->IsVisible(),          L"the command line shows");
         }
@@ -454,7 +453,7 @@ namespace DebuggerStartupStateTests
             OpenWindow (window);
 
             AssertPaneHasTheFocus (window, DebuggerLayout::kWatches);
-            Assert::AreEqual (std::wstring (DebuggerLayout::kTrace), GetActive (window.GetPaneLayout().GetRoot(), DebuggerLayout::kConsole), L"another group keeps its saved tab");
+            Assert::AreEqual (std::wstring (DebuggerLayout::kTrace), GetActive (window.GetDockSite()->GetPaneLayout().GetRoot(), DebuggerLayout::kConsole), L"another group keeps its saved tab");
         }
 
 

@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/RunActions.h"
+#include "Ui/Debugger/WatchActions.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DroppedFiles.h"
 #include "Ui/Debugger/BranchArrow.h"
@@ -600,13 +602,13 @@ void DebuggerWindow::AddSkipItem (const std::string & name, Word address, PaneMe
 
     if (m_snapshot != nullptr && found != m_snapshot->stepFilters.end())
     {
-        items.push_back ({ PaneMenu::MakeChecked (kpszLabel), [this, entry = *found] { RunAction (DebuggerActions::GetRemoveSkip (entry, GetMode())); } });
+        items.push_back ({ PaneMenu::MakeChecked (kpszLabel), [this, entry = *found] { RunAction (RunActions::GetRemoveSkip (entry, GetMode())); } });
         return;
     }
 
     items.push_back ({ kpszLabel, [this, name, address]
     {
-        RunAction (DebuggerActions::GetSkipRoutine (name, address, GetMode()));
+        RunAction (RunActions::GetSkipRoutine (name, address, GetMode()));
         ShowSkipNotice (name.empty() ? std::format ("{:04X}", address) : name);
     } });
 }
@@ -630,11 +632,11 @@ void DebuggerWindow::AddBookmarkItem (Word address, PaneMenuItems & items)
 
     if (m_snapshot != nullptr && found != m_snapshot->bookmarks.end())
     {
-        items.push_back ({ L"Remove bookmark", [this, id = found->id] { RunAction (DebuggerActions::GetClearBookmark (id, GetMode())); } });
+        items.push_back ({ L"Remove bookmark", [this, id = found->id] { RunAction (WatchActions::GetClearBookmark (id, GetMode())); } });
     }
     else
     {
-        items.push_back ({ L"Add bookmark", [this, address] { RunAction (DebuggerActions::GetAddBookmark (address, GetMode())); } });
+        items.push_back ({ L"Add bookmark", [this, address] { RunAction (WatchActions::GetAddBookmark (address, GetMode())); } });
     }
 }
 

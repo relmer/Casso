@@ -40,7 +40,7 @@ void DebuggerWindow::CreateStatusBar()
     fields[kStatusSpeed].widthDip   = kStatusSpeedDip;
     fields[kStatusSpeed].onClick    = [this] (const RECT &) { m_isSpeedPressed = true; };
     fields[kStatusZoom].widthDip    = kStatusZoomDip;
-    fields[kStatusZoom].text        = DebuggerStatusText::GetZoomText (m_textZoom);
+    fields[kStatusZoom].text        = DebuggerStatusText::GetZoomText (m_textZooms.GetWindowZoom());
     fields[kStatusZoom].onClick     = [this] (const RECT &) { OpenZoomPopup(); };
 
     m_statusBar = CreateChild<DxuiStatusBar>();
@@ -167,7 +167,7 @@ void DebuggerWindow::UpdateStatusBar()
     m_statusBar->SetText  (kStatusHistory, DebuggerStatusText::GetHistoryText (status));
     m_statusBar->SetBar   (kStatusHistory, fill, DebuggerStatusText::kEmptyArgb, DebuggerStatusText::GetBudgetColor (fill));
     m_statusBar->SetText  (kStatusSpeed,   DebuggerStatusText::GetSpeedText ((m_host != nullptr) ? m_host->GetEmulatorSpeed() : SpeedMode::Authentic));
-    m_statusBar->SetText  (kStatusZoom,    DebuggerStatusText::GetZoomText (m_textZoom));
+    m_statusBar->SetText  (kStatusZoom,    DebuggerStatusText::GetZoomText (m_textZooms.GetWindowZoom()));
 }
 
 
@@ -336,7 +336,7 @@ bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
     {
         if (ev.kind == DxuiMouseEventKind::Move)
         {
-            ApplyTextZoom (GetTextZoomAt (m_windowZoom.GetPositionAt (point)));
+            ApplyTextZoom (TextZoomLevels::GetZoomAtSlider (m_windowZoom.GetPositionAt (point)));
         }
         else if (ev.kind == DxuiMouseEventKind::Up)
         {
@@ -386,7 +386,7 @@ bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
         else if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && hit == Hit::Track)
         {
             m_windowZoom.SetDragging (true);
-            ApplyTextZoom (GetTextZoomAt (m_windowZoom.GetPositionAt (point)));
+            ApplyTextZoom (TextZoomLevels::GetZoomAtSlider (m_windowZoom.GetPositionAt (point)));
         }
 
         Invalidate();
@@ -456,52 +456,7 @@ void DebuggerWindow::PaintZoomPopup (IDxuiPainter & painter, IDxuiTextRenderer &
 {
     UNREFERENCED_PARAMETER (painter);
 
-    m_windowZoom.PaintPanel (text, theme, DebuggerStatusText::GetZoomText (m_textZoom), GetTextZoomPosition (m_textZoom));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetTextZoomPosition
-//
-//  The size's logarithm across the slider, from kMinTextZoom at the left to
-//  kMaxTextZoom at the right, as the heat map's cell size is.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DebuggerWindow::GetTextZoomPosition (float zoom)
-{
-    double  span = std::log ((double) kMaxTextZoom / (double) kMinTextZoom);
-
-
-
-    return (float) std::clamp (std::log ((double) zoom / (double) kMinTextZoom) / span, 0.0, 1.0);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetTextZoomAt
-//
-//  The size at a slider position, to the nearest kTextZoomStep.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DebuggerWindow::GetTextZoomAt (float position)
-{
-    double  span = std::log ((double) kMaxTextZoom / (double) kMinTextZoom);
-    double  zoom = (double) kMinTextZoom * std::exp (std::clamp ((double) position, 0.0, 1.0) * span);
-
-
-
-    zoom = std::round (zoom / (double) kTextZoomStep) * (double) kTextZoomStep;
-    return (float) std::clamp (zoom, (double) kMinTextZoom, (double) kMaxTextZoom);
+    m_windowZoom.PaintPanel (text, theme, DebuggerStatusText::GetZoomText (m_textZooms.GetWindowZoom()), TextZoomLevels::GetSliderPosition (m_textZooms.GetWindowZoom()));
 }
 
 

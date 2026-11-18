@@ -19,7 +19,7 @@ class MachineHost;
 //  Draws a snapshot's screen with the emulator's own video modes, on a
 //  second machine of its own built from the running machine's configuration
 //  with no disks, no audio and no printer: the snapshot is loaded into it
-//  for its picture alone (MachineHost::LoadStateForPicture), and the running
+//  for its picture alone (MachineStateStream::LoadStateForPicture), and the running
 //  machine is never touched.
 //
 //  SetMachine is called on the thread that builds the running machine, each

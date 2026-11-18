@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/ToolPanes.h"
+#include "Ui/Debugger/SymbolActions.h"
+#include "Ui/Debugger/WatchActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
@@ -253,7 +255,7 @@ void SymbolsPane::Configure()
 
         if (each != nullptr && each->isHeading)
         {
-            m_host.RunAction (DebuggerActions::GetEnableSymbols (SymbolTable::ToUpper (each->table), checked, m_host.GetMode()));
+            m_host.RunAction (SymbolActions::GetEnableSymbols (SymbolTable::ToUpper (each->table), checked, m_host.GetMode()));
         }
     });
 }
@@ -482,7 +484,7 @@ bool SymbolsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         items.push_back ({ L"Go to",  [this, at = each->address] { m_host.GoToCode (at); } });
         items.push_back ({ L"Remove", [this, table = each->table, name = each->name]
         {
-            m_host.RunAction (DebuggerActions::GetRemoveSymbol (SymbolTable::ToUpper (table), name, m_host.GetMode()));
+            m_host.RunAction (SymbolActions::GetRemoveSymbol (SymbolTable::ToUpper (table), name, m_host.GetMode()));
         } });
     }
 
@@ -492,7 +494,7 @@ bool SymbolsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & it
         std::string  file  = (m_symbols != nullptr) ? GetFileOf (*m_symbols, each->table) : std::string();
         std::wstring label = file.empty() ? std::wstring (L"Clear table") : L"Unload " + TextEncoding::NarrowToWide (file);
 
-        items.push_back ({ label,            [this, table = each->table] { m_host.RunAction (DebuggerActions::GetClearSymbols (SymbolTable::ToUpper (table), m_host.GetMode())); } });
+        items.push_back ({ label,            [this, table = each->table] { m_host.RunAction (SymbolActions::GetClearSymbols (SymbolTable::ToUpper (table), m_host.GetMode())); } });
         items.push_back ({ L"Save table...", [this, table = each->table] { SaveTable (table); } });
     }
 
@@ -518,7 +520,7 @@ void SymbolsPane::SaveTable (const std::string & table)
 
     if (!path.empty())
     {
-        m_host.RunAction (DebuggerActions::GetSaveSymbols (SymbolTable::ToUpper (table), TextEncoding::WideToNarrow (path), m_host.GetMode()));
+        m_host.RunAction (SymbolActions::GetSaveSymbols (SymbolTable::ToUpper (table), TextEncoding::WideToNarrow (path), m_host.GetMode()));
     }
 }
 
@@ -913,7 +915,7 @@ void BookmarksPane::DeleteRows (const std::vector<int> & rows)
 
     for (int id : ids)
     {
-        m_host.RunAction (DebuggerActions::GetClearBookmark (id, m_host.GetMode()));
+        m_host.RunAction (WatchActions::GetClearBookmark (id, m_host.GetMode()));
     }
 }
 
@@ -1295,7 +1297,7 @@ void DataBlocksPane::Rename (const DataBlockEntry & block)
 
     if (typed.has_value() && TextEncoding::WideToNarrow (*typed) != block.name)
     {
-        m_host.RunAction (DebuggerActions::GetMarkData (GetDirective (block), block.first, block.last, m_host.GetMode(), TextEncoding::WideToNarrow (*typed)));
+        m_host.RunAction (SymbolActions::GetMarkData (GetDirective (block), block.first, block.last, m_host.GetMode(), TextEncoding::WideToNarrow (*typed)));
     }
 }
 
@@ -1357,7 +1359,7 @@ void DataBlocksPane::DeleteRows (const std::vector<int> & rows)
 
     for (const DataBlockEntry & block : blocks)
     {
-        m_host.RunAction (DebuggerActions::GetClearData (block.first, block.last, m_host.GetMode()));
+        m_host.RunAction (SymbolActions::GetClearData (block.first, block.last, m_host.GetMode()));
     }
 }
 

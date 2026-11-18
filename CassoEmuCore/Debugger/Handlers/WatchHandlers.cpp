@@ -3,7 +3,7 @@
 #include "Debugger/Handlers/WatchHandlers.h"
 
 #include "Config/IFileSystem.h"
-#include "Debugger/AppleWinParser.h"
+#include "Debugger/AppleWinArgumentForms.h"
 #include "Debugger/Basic/ApplesoftProgram.h"
 #include "Debugger/Basic/BasicStopMonitor.h"
 #include "Debugger/DebugExpressionEvaluator.h"
@@ -203,7 +203,7 @@ void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, W
     {
         id = table.AddBasic (name);
     }
-    else if (kind == WatchListKind::Watch && !command.text.empty() && !AppleWinParser::TryEvaluate (command.text, session, address, error))
+    else if (kind == WatchListKind::Watch && !command.text.empty() && !AppleWinArgumentForms::TryEvaluate (command.text, session, address, error))
     {
         reply.SetError (CommandStatus::Error, "invalid arguments", error);
         return;
@@ -325,7 +325,7 @@ bool WatchHandlers::TryResolveTyped (DebugSession & session, const std::string &
         return true;
     }
 
-    if (trimmed.find_first_not_of ("$0123456789ABCDEFabcdef") == std::string::npos && AppleWinParser::TryEvaluate (trimmed, session, address, error))
+    if (trimmed.find_first_not_of ("$0123456789ABCDEFabcdef") == std::string::npos && AppleWinArgumentForms::TryEvaluate (trimmed, session, address, error))
     {
         item.kind       = WatchItem::Kind::Address;
         item.address    = address;

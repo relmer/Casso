@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/BreakpointActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/BreakpointBarCommands.h"
@@ -182,7 +183,7 @@ void BreakpointsPane::Configure()
         }
         else if (bp != nullptr && bp->id >= 0)
         {
-            RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp->id, checked, m_host.GetMode()) }, {} });
+            RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetEnableBreakpoint (bp->id, checked, m_host.GetMode()) }, {} });
         }
     });
 
@@ -402,7 +403,7 @@ void BreakpointsPane::AddHeadingItems (const std::string & group, PaneMenuItems 
 
 void BreakpointsPane::RunGroupAction (const std::string & arguments)
 {
-    RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetGroupBreakpoints (arguments, m_host.GetMode()) }, {} });
+    RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetGroupBreakpoints (arguments, m_host.GetMode()) }, {} });
 }
 
 
@@ -623,7 +624,7 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
         items.push_back ({ L"Rename", [this, bp] { BeginNameEdit (GetRowOfId (bp.id)); } });
         AddGroupItems (GetSelected(), items);
         items.push_back ({ L"", {} });
-        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, m_host.GetMode()) }, {} }); } });
+        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetEnableBreakpoint (bp.id, !bp.enabled, m_host.GetMode()) }, {} }); } });
     }
 
     if (BreakpointColumns::HasAddress (bp.info))
@@ -718,12 +719,12 @@ void BreakpointsPane::RunBarEntry (int id)
     case BreakpointBarCommands::kDeleteAll:
         if (ConfirmDeleteAll())
         {
-            RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetClearAllBreakpoints (mode) }, {} });
+            RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetClearAllBreakpoints (mode) }, {} });
         }
 
         break;
 
-    case BreakpointBarCommands::kDisableAll: RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableAllBreakpoints (!anyEnabled, mode) }, {} }); break;
+    case BreakpointBarCommands::kDisableAll: RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetEnableAllBreakpoints (!anyEnabled, mode) }, {} }); break;
     case BreakpointBarCommands::kUndo:       RunStep ({ BreakpointStep::Kind::Undo,    {}, {} });                                                      break;
     case BreakpointBarCommands::kRedo:       RunStep ({ BreakpointStep::Kind::Redo,    {}, {} });                                                      break;
     case BreakpointBarCommands::kExport:     Export();                                                                                                 break;
@@ -913,7 +914,7 @@ std::shared_ptr<DxuiCommand> BreakpointsPane::MakeTypeCommand (BreakpointDialog:
 
     return DebuggerMenuCommand::Make (label, isOn, [this, type, isOn]
     {
-        RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (type, !isOn), m_host.GetMode()) }, {} });
+        RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (type, !isOn), m_host.GetMode()) }, {} });
     });
 }
 
@@ -937,8 +938,8 @@ DebuggerAction BreakpointsPane::GetClearAction (const DebuggerViewSnapshot::Brea
 
 
 
-    return (bp.id >= 0) ? DebuggerActions::GetClearBreakpoint (bp.id, m_host.GetMode())
-                        : DebuggerActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (type, false), m_host.GetMode());
+    return (bp.id >= 0) ? BreakpointActions::GetClearBreakpoint (bp.id, m_host.GetMode())
+                        : BreakpointActions::GetDefineBreakpoint (BreakpointDefinition::MakeSwitch (type, false), m_host.GetMode());
 }
 
 
@@ -1041,17 +1042,17 @@ std::vector<DebuggerAction> BreakpointsPane::GetDialogActions (const BreakpointD
 
 
 
-    actions.push_back (editedId.has_value() ? DebuggerActions::GetEditBreakpoint (*editedId, result.definition, mode)
-                                            : DebuggerActions::GetDefineBreakpoint (result.definition, mode));
+    actions.push_back (editedId.has_value() ? BreakpointActions::GetEditBreakpoint (*editedId, result.definition, mode)
+                                            : BreakpointActions::GetDefineBreakpoint (result.definition, mode));
 
     if (isLogChanged)
     {
-        actions.push_back (DebuggerActions::GetLogBreakpoint (id, result.log, result.isLogGo, mode));
+        actions.push_back (BreakpointActions::GetLogBreakpoint (id, result.log, result.isLogGo, mode));
     }
 
     if (result.log.empty() && isStopping != isStopsAfter)
     {
-        actions.push_back (DebuggerActions::GetChangeBreakpoint (id, !editedId.has_value() || original.enabled, editedId.has_value() && original.temporary, isStopping, mode));
+        actions.push_back (BreakpointActions::GetChangeBreakpoint (id, !editedId.has_value() || original.enabled, editedId.has_value() && original.temporary, isStopping, mode));
     }
 
     return actions;
@@ -1093,7 +1094,7 @@ BreakpointDialog::Validator BreakpointsPane::MakeValidator (std::optional<int> e
 
 void BreakpointsPane::RunStep (BreakpointStep step)
 {
-    m_host.RunAction (DebuggerActions::GetBreakpointStep (std::move (step)));
+    m_host.RunAction (BreakpointActions::GetBreakpointStep (std::move (step)));
 }
 
 
@@ -1174,7 +1175,7 @@ void BreakpointsPane::Export()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    m_host.RunAction (DebuggerActions::GetSaveBreakpoints (TextEncoding::WideToNarrow (chosen.wstring()), m_host.GetMode()));
+    m_host.RunAction (BreakpointActions::GetSaveBreakpoints (TextEncoding::WideToNarrow (chosen.wstring()), m_host.GetMode()));
 
 Error:
     return;
@@ -1298,7 +1299,7 @@ void BreakpointsPane::EndNameEdit (bool commit)
 
     if (isNew)
     {
-        RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetNameBreakpoint (id, typed, m_host.GetMode()) }, {} });
+        RunStep ({ BreakpointStep::Kind::Actions, { BreakpointActions::GetNameBreakpoint (id, typed, m_host.GetMode()) }, {} });
     }
 }
 

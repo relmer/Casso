@@ -226,10 +226,92 @@ Prerequisites: the link running on an emulated //c with two drives, then on a re
 2. Swap the idle drive during each transfer. The session continues with no key press, at under 30 seconds a disk at 115,200 baud (SC-038).
 3. Make no swap. A prompt appears on the Apple, and neither drive spins until Space.
 4. Press Space with a repeated disk present. It is sent, and its hash marks it as a duplicate, and no second image is on the PC (SC-039).
-5. Send the disk with an unreadable sector. Its unreadable list is beside its image, the row has `likely-copy-protected`, and the session continues.
+5. Send the disk with an unreadable sector. Its unreadable list is beside its image, and the session continues. Send a copy-protected disk with whole tracks that don't read, as Archon. It is captured raw, its image is a `.woz`, and its row has `raw-capture`.
 6. Press Esc during a transfer. Nothing happens. Press Q. No partial image remains, the CassoLink screen returns, and a catalog read works.
 7. Press F again with the same folder. Sequence numbers continue, and a disk from the first run is not sent without Space.
 8. Compare each image with one from Read disk to image on the same disk.
+
+## 7d. File types (Story 18, FR-156 to FR-171)
+
+Prerequisites: the fixture disks from Phase 32 step 1, and Word or WordPad, Excel, Notepad and Photos on the PC.
+
+1. For each row of [contracts/file-types.md](contracts/file-types.md), select its fixture in Casso Explorer. Result: the preview matches the program that saved it, run in Casso on the same disk (SC-047), within half a second (SC-049).
+2. Drag each fixture to a PC folder and open the result. Result: the suffix in the contract, and the same text, values or pixels in the PC program.
+3. Right-drag one fixture of each preview kind out. Result: the menu offers the conversion and a raw copy, and the raw copy matches `casso disk get` byte for byte.
+4. Drag `NAME.Merlin.txt` back onto a DOS 3.3 and a ProDOS image. Result: each file is identical to the original (SC-048), and Merlin, run in Casso, loads it.
+5. Drop a `.txt` file on a Pascal volume and open it in Apple Pascal's editor in Casso. Result: the same text, and `.TEXT` on the catalog name.
+6. Run `casso disk get` on a fixture of each kind. Result: the same file as the drag in step 2 (FR-170).
+7. Select a fixture with a byte changed so that its check fails. Result: the reason above the bytes, and a copy out that skips it with the reason and copies the rest (FR-169).
+## 7e. Large volumes, resource forks and archives (Stories 19 to 21)
+
+Prerequisites: CiderPress II and NuLib2 on the PC; CiderPress II's
+`test-files.sdk` and `dos-files.do.gz` from the fetch script (T478); 800K and
+32 MB images and a Disk Copy 4.2 image made by CiderPress II; MAME's //c Plus
+script in `scripts/EmuTargets/`.
+
+1. Open each image, copy a file in and out, and make a folder. Run
+   CiderPress II's Test on each. Result: no errors (SC-050).
+2. Boot the 800K image in MAME's //c Plus and CAT it from ProDOS. Result:
+   the file and folder from step 1.
+3. List a Teach document on an 800K IIgs disk. Copy it to another image and
+   to a PC folder in each host name style, and put the PC copy back. Result:
+   both forks and the Finder information match (SC-051).
+4. Open `test-files.sdk`, copy every file out, and compare with CiderPress
+   II's extraction. Result: identical (SC-052). Create an archive and an
+   `.sdk` and run CiderPress II's Test and `nulib2 t` on each.
+5. Open an archive on a ProDOS image inside a ZIP. Result: it opens in place,
+   and a file copied out matches.
+
+## 7f. CassoLink additions (Stories 23 to 29)
+
+Prerequisites: the emulator targets in `scripts/EmuTargets/`, and the
+owner's //c.
+
+1. Block devices: on AppleWin with a hard disk and on MAME's //c with ROM 4
+   and a UniDisk 3.5, list the devices, copy a file each way, and read each
+   volume to an image. Result: identical to the emulator's image (SC-054).
+   Pull the null modem halfway through; the next read offers to continue.
+2. Raw capture: capture Archon on the //c and boot it in Casso; capture each
+   protected WOZ in an emulated //c. Result: each boots, in under 5 minutes
+   on the //c (SC-055).
+3. Virtual drives: make the CassoLink ProDOS disk from the user's ProDOS,
+   boot it in Casso and on the //c, and SAVE a file to each drive. Result:
+   it is in the image on the PC when SAVE returns (SC-056).
+4. Cassette disks: on an emulated ][+ and //e, send a disk each way. Result:
+   identical (SC-057). Repeat with ADTPro's audio client.
+5. Tape recordings: write a recording in each format, load each file in an
+   emulated ][+, and read the recording back. Result: each file runs and
+   matches (SC-058).
+6. Interfaces and the Apple ///: run Story 14's scenarios on each target in
+   Story 28's list and on MAME's Apple /// (SC-059).
+
+## 7g. File systems and layouts (Stories 30 to 34)
+
+1. Open DOS 3.2, 40-, 50- and 80-track DOS 3.3, each layout in
+   [contracts/volumes-and-archives.md](contracts/volumes-and-archives.md),
+   HFS, SOS and RDOS images. Change each that can be written, and run
+   CiderPress II's Test; copy every file out and compare with CiderPress II's
+   extraction (SC-060).
+2. Boot GS/OS in KEGS or GSplus on a changed HFS image and open each changed
+   file (SC-061).
+3. Write a Gutenberg document, open it in Gutenberg in Casso and save it
+   again (SC-062).
+4. With a USB card reader, write a CFFA image to a CF card, read it back,
+   and compare. Result: identical, with one administrator prompt.
+
+## 7h. Tools (Stories 22 and 35 to 38)
+
+1. Preview each sample VisiCalc sheet. Result: every cell matches VisiCalc
+   in Casso after a recalculation (SC-053).
+2. Expand the preview on a picture, step to the end and back, view a binary file as a picture, save one, and collapse.
+   Result: each step within half a second (SC-063).
+3. Run Disk list and Find duplicates over the 5,000-image test set. Result:
+   done within five minutes, every known duplicate found and none false
+   (SC-064).
+4. Tokenize each sample listing and renumber each sample program. Result:
+   identical to BASIC's, and the same output when run (SC-065).
+5. Preview the Wizardry and Infocom samples. Result: the game's monsters,
+   items, words and text (SC-066).
 
 ## 8. Headless tests
 

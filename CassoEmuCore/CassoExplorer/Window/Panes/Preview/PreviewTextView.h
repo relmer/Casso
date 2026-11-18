@@ -38,14 +38,21 @@ public:
     bool            TryGetScrollbarMenu   (const DxuiMouseEvent & ev, std::vector<DxuiPopupMenuItem> & outItems) const;
     bool            TryGetSelectionDetail (std::wstring & outDetail) const;
     void            ToggleLineAddresses   ();
+    void            ToggleCrossReference  ();
+    bool            IsCrossReference      () const { return m_crossReference; }
     IDxuiControl  * GetControl            () const { return m_text; }
+    int             GetContentHeightPx    () const override { return m_text->IsVisible() ? m_text->GetContentHeightPx() : 0; }
+    bool            IsAtTop               () const override { return !m_text->IsVisible() || m_text->GetTopLine() == 0; }
+    int             GetScrollPx           () const override { return m_text->GetTopLine() * m_text->GetLineHeightPx(); }
+    void            SetScrollPx           (int scrollPx) override { m_text->SetTopLine ((scrollPx + m_text->GetLineHeightPx() / 2) / (std::max) (1, m_text->GetLineHeightPx())); }
+    void            SetScrollbarHidden    (bool isHidden) override { m_text->SetVerticalScrollbarHidden (isHidden); }
 
-    bool            HandleCapturedMouse   (const DxuiMouseEvent & ev);
-    bool            HandleMouse           (const DxuiMouseEvent & ev);
     bool            HandleKey             (const DxuiKeyEvent & ev) { return m_text->OnKey (ev); }
 
 private:
     void  ShowContextMenu (int x, int y);
+    bool  HandleTextMouse (const DxuiMouseEvent & ev);
 
-    DxuiTextView  * m_text = nullptr;
+    DxuiTextView  * m_text           = nullptr;
+    bool            m_crossReference = false;
 };

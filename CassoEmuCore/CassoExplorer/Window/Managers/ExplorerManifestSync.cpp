@@ -6,6 +6,7 @@
 #include "CassoLink/FullSend/FullSendManifestFile.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/IDiskFileIo.h"
+#include "DiskCheck/GivenNames.h"
 
 
 
@@ -31,21 +32,33 @@ ExplorerManifestSync::ExplorerManifestSync (ExplorerContext & context)
 //  ExplorerManifestSync::NoteRename
 //
 //  An image renamed in a Full Send folder is renamed in its manifest as
-//  well. A manifest that can't be updated doesn't undo the rename.
+//  well, and the name is stored for its disk's fingerprint, for a later
+//  capture of the disk. A manifest that can't be updated doesn't undo the
+//  rename.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerManifestSync::NoteRename (const std::wstring & oldPath, const std::wstring & newName)
 {
-    std::filesystem::path  old (oldPath);
-    HRESULT                hr  = FullSendManifestFile::NoteRename (m_context.browser.GetOperations().GetFileIo(),
-                                                                   TextEncoding::WideToNarrow (old.parent_path().wstring()),
-                                                                   TextEncoding::WideToNarrow (old.filename().wstring()),
-                                                                   TextEncoding::WideToNarrow (newName));
+    std::filesystem::path    old (oldPath);
+    IDiskFileIo            & io          = m_context.browser.GetOperations().GetFileIo();
+    std::string              folder      = TextEncoding::WideToNarrow (old.parent_path().wstring());
+    std::string              name        = TextEncoding::WideToNarrow (newName);
+    std::string              fingerprint;
+    bool                     isRaw       = false;
+    HRESULT                  hr          = FullSendManifestFile::NoteRename (io, folder, TextEncoding::WideToNarrow (old.filename().wstring()), name);
 
 
 
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = FullSendManifestFile::FindFingerprint (io, folder, name, fingerprint, isRaw);
+
+    if (SUCCEEDED (hr) && !fingerprint.empty() && m_context.app.givenNames != nullptr)
+    {
+        hr = m_context.app.givenNames->Set (fingerprint, GivenNames::GetGivenPart (name));
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }
 
 

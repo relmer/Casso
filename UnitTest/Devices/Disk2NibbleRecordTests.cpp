@@ -65,15 +65,15 @@ namespace Disk2NibbleRecordTests
             Assert::IsNotNull (image);
 
             ctrl->SetExternalDisk (kDrive1, image);
-            ctrl->SetInstructionAddressSource (&address);
+            ctrl->GetRecorder().SetInstructionAddressSource (&address);
         }
 
-        const Disk2NibbleRecord &  GetRecord() const { return ctrl->GetNibbleRecord(); }
+        const Disk2NibbleRecord &  GetRecord() const { return ctrl->GetRecorder().GetNibbleRecord(); }
 
         void StartReading (bool waitForSpinUp)
         {
             ctrl->Read (kMotorOn);
-            ctrl->Tick (waitForSpinUp ? Disk2Controller::kMotorSpinupCycles : 0);
+            ctrl->Tick (waitForSpinUp ? Disk2CardSequencer::kMotorSpinupCycles : 0);
             ctrl->Read (kQ7Off);
             ctrl->Read (kQ6Off);
         }
@@ -81,7 +81,7 @@ namespace Disk2NibbleRecordTests
         void StartWriting()
         {
             ctrl->Read (kMotorOn);
-            ctrl->Tick (Disk2Controller::kMotorSpinupCycles);
+            ctrl->Tick (Disk2CardSequencer::kMotorSpinupCycles);
             ctrl->Read (kQ6On);
             ctrl->Read (kQ7On);
         }
@@ -131,7 +131,7 @@ namespace Disk2NibbleRecordTests
 
 
             rig.StartReading (true);
-            assembled = rig.ctrl->GetEngine (kDrive1).GetReadNibbles();
+            assembled = rig.ctrl->GetDrive (kDrive1).GetEngine().GetReadNibbles();
 
             for (int i = 0; i < kReadLoops; i++)
             {
@@ -143,7 +143,7 @@ namespace Disk2NibbleRecordTests
                 wrong   += (first != 0 && rig.GetRecord().GetEntry (rig.GetRecord().GetCount() - 1).address != at) ? 1 : 0;
             }
 
-            assembled = rig.ctrl->GetEngine (kDrive1).GetReadNibbles() - assembled;
+            assembled = rig.ctrl->GetDrive (kDrive1).GetEngine().GetReadNibbles() - assembled;
 
             Assert::IsTrue   (added > 100, L"the loop read nibbles");
             Assert::AreEqual (assembled, added,        L"one entry per nibble assembled");
@@ -214,7 +214,7 @@ namespace Disk2NibbleRecordTests
 
             rig.StartReading (false);
 
-            for (uint32_t cycles = 0; cycles + Disk2NibbleEngine::kCyclesPerBit < Disk2Controller::kMotorSpinupCycles; cycles += Disk2NibbleEngine::kCyclesPerBit)
+            for (uint32_t cycles = 0; cycles + Disk2NibbleEngine::kCyclesPerBit < Disk2CardSequencer::kMotorSpinupCycles; cycles += Disk2NibbleEngine::kCyclesPerBit)
             {
                 rig.ReadTwice (kSearch, first, second);
 
@@ -254,9 +254,9 @@ namespace Disk2NibbleRecordTests
 
 
 
-            ctrl->GetDisk (kDrive1)->ResizeTrack (0, kTrackBits);
+            ctrl->GetDrive (kDrive1).GetDisk()->ResizeTrack (0, kTrackBits);
             ctrl->Read (kMotorOn);
-            ctrl->Tick (Disk2Controller::kMotorSpinupCycles);
+            ctrl->Tick (Disk2CardSequencer::kMotorSpinupCycles);
 
             for (int i = 0; i < kReadLoops; i++)
             {
@@ -264,7 +264,7 @@ namespace Disk2NibbleRecordTests
                 ctrl->Read (kQ6Off);
             }
 
-            Assert::AreEqual ((uint64_t) 0, ctrl->GetNibbleRecord().GetCount());
+            Assert::AreEqual ((uint64_t) 0, ctrl->GetRecorder().GetNibbleRecord().GetCount());
         }
 
         TEST_METHOD (TheFirstEntryAfterADiskChangeIsFlagged)

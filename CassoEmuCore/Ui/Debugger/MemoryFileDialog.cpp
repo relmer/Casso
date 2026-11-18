@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/MemoryFileDialog.h"
+#include "Ui/Debugger/MemoryActions.h"
 #include "Debugger/Source/SourcePathList.h"
 
 
@@ -108,7 +109,7 @@ bool MemoryFileDialog::TryMakeLoad (const std::string & path, const Fields & fie
 
     at     = hasAddress ? std::optional<Word> ((Word) address) : std::nullopt;
     count  = hasLength  ? std::optional<uint32_t> (length)      : std::nullopt;
-    action = DebuggerActions::GetLoadBinary (path, s_kFormatWords[(size_t) fields.format], at, count, mode);
+    action = MemoryActions::GetLoadBinary (path, s_kFormatWords[(size_t) fields.format], at, count, mode);
     return true;
 }
 
@@ -143,7 +144,7 @@ bool MemoryFileDialog::TryMakeSave (const std::string & path, const Fields & fie
         return false;
     }
 
-    action = DebuggerActions::GetSaveBinary (path, (Word) address, length, mode);
+    action = MemoryActions::GetSaveBinary (path, (Word) address, length, mode);
     return true;
 }
 

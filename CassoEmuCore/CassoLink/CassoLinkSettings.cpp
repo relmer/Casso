@@ -25,6 +25,7 @@ const char * CassoLinkSettings::GetTransportName (LinkTransport transport)
         case LinkTransport::Emulated:     name = "Emulated";     break;
         case LinkTransport::Uthernet:     name = "Uthernet";     break;
         case LinkTransport::AdtProServer: name = "AdtProServer"; break;
+        case LinkTransport::Cassette:     name = "Cassette";     break;
         default:                          name = "Serial";       break;
     }
 
@@ -47,7 +48,7 @@ bool CassoLinkSettings::TryParseTransport (const std::string & name, LinkTranspo
 
 
 
-    for (LinkTransport transport : { LinkTransport::Serial, LinkTransport::Tcp, LinkTransport::WifiModem, LinkTransport::Emulated, LinkTransport::Uthernet, LinkTransport::AdtProServer })
+    for (LinkTransport transport : { LinkTransport::Serial, LinkTransport::Tcp, LinkTransport::WifiModem, LinkTransport::Emulated, LinkTransport::Uthernet, LinkTransport::AdtProServer, LinkTransport::Cassette })
     {
         if (!found && name == GetTransportName (transport))
         {
@@ -86,6 +87,7 @@ std::string CassoLinkSettings::MakeName (const CassoLinkSettings & settings)
                                                                           : std::format ("Uthernet II at {}", settings.address);        break;
         case LinkTransport::AdtProServer: name = settings.IsComPort() ? std::format ("ADTPro server on {}", settings.port)
                                                                       : std::format ("ADTPro server at {}", settings.address);          break;
+        case LinkTransport::Cassette:     name = "Cassette ports (audio)";                                                               break;
         default:                          name = std::format ("TCP {}", settings.address);                                              break;
     }
 

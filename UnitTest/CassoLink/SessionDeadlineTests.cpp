@@ -53,7 +53,7 @@ public:
 
         while (pcEnd.GetReadableCount() == 0 && spent < limit)
         {
-            machine.RunCycles (kStepCycles);
+            machine.GetRunner().RunCycles (kStepCycles);
             spent += kStepCycles;
         }
 
@@ -105,7 +105,7 @@ public:
 
 
 
-        rig.machine.RunCycles (limit);
+        rig.machine.GetRunner().RunCycles (limit);
         CyclesToNextByte (rig.machine, *rig.pcEnd, limit);
 
         AssertSucceeded (rig.host->PromptReady());
@@ -132,7 +132,7 @@ public:
         AssertSucceeded (LinkProgram::BuildBootDisk (CassoLinkSettings::kDefaultBaud, boot));
 
         InProcessByteStream::CreatePair (machineEnd, pcEnd);
-        AssertSucceeded (machine.AttachSerialStream (2, machineEnd));
+        AssertSucceeded (machine.GetConnectors().AttachSerialStream (2, machineEnd));
         GuestSession::Mount (machine, boot);
 
         taken = CyclesToNextByte (machine, *pcEnd, limit);

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -103,7 +104,6 @@ namespace DebuggerCodeMenuTests
         using DebuggerWindow::GetCodeEdits;
         using DebuggerWindow::GetPaneHostForTest;
         using DebuggerWindow::GetCodeGroup;
-        using DebuggerWindow::ScrollCodeAtEdge;
         using DebuggerWindow::OnMouse;
 
         std::optional<std::wstring> RunTextDialog (const std::wstring &, const std::wstring &, const std::wstring & placeholder, TextDialog::CheckFn check) override
@@ -243,13 +243,13 @@ namespace DebuggerCodeMenuTests
             Assert::IsTrue (code->GetRowCount() > 1, L"the view has its lines");
             code->SetSelectedRow (0);
 
-            Assert::IsTrue  (window.ScrollCodeAtEdge (VK_UP, code),    L"Up on the first line");
-            Assert::IsFalse (window.ScrollCodeAtEdge (VK_DOWN, code),  L"Down on the first line moves the selection");
-            Assert::IsTrue  (window.ScrollCodeAtEdge (VK_PRIOR, code), L"Page Up on the first line");
-            Assert::IsFalse (window.ScrollCodeAtEdge (VK_UP, nullptr), L"only for the focused view");
+            Assert::IsTrue  (window.GetCodeGroup().ScrollCodeAtEdge (VK_UP, code),    L"Up on the first line");
+            Assert::IsFalse (window.GetCodeGroup().ScrollCodeAtEdge (VK_DOWN, code),  L"Down on the first line moves the selection");
+            Assert::IsTrue  (window.GetCodeGroup().ScrollCodeAtEdge (VK_PRIOR, code), L"Page Up on the first line");
+            Assert::IsFalse (window.GetCodeGroup().ScrollCodeAtEdge (VK_UP, nullptr), L"only for the focused view");
 
             code->SetSelectedRow (code->GetRowCount() - 1);
-            Assert::IsTrue  (window.ScrollCodeAtEdge (VK_DOWN, code),  L"Down on the last line");
+            Assert::IsTrue  (window.GetCodeGroup().ScrollCodeAtEdge (VK_DOWN, code),  L"Down on the last line");
 
             Assert::AreEqual ((size_t) 3, host.scrolls.size());
             Assert::AreEqual (-1, host.scrolls[0]);
@@ -548,7 +548,7 @@ namespace DebuggerCodeMenuTests
             }
 
             Run (items, L"Enable breakpoint");
-            Assert::AreEqual (DebuggerActions::GetEnableBreakpoint (1, true, snapshot->mode).echo, host.commands.back());
+            Assert::AreEqual (BreakpointActions::GetEnableBreakpoint (1, true, snapshot->mode).echo, host.commands.back());
         }
 
 

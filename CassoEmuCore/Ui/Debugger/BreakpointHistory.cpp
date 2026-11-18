@@ -5,6 +5,7 @@
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Ui/Debugger/BreakpointHistory.h"
 #include "Ui/Debugger/DebuggerActions.h"
+#include "Ui/Debugger/BreakpointActions.h"
 #include "Ui/Debugger/UndoText.h"
 
 
@@ -151,7 +152,7 @@ bool BreakpointHistory::TryRedo (DebugSession & session, std::vector<std::string
 
 DebuggerAction BreakpointHistory::GetFlagsAction (int id, const BreakpointInfo & info, CommandMode mode)
 {
-    return DebuggerActions::GetChangeBreakpoint (id, info.enabled, info.temporary, info.stops, mode);
+    return BreakpointActions::GetChangeBreakpoint (id, info.enabled, info.temporary, info.stops, mode);
 }
 
 

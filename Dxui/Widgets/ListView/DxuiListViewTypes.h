@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/DxuiTextElide.h"
 
 struct DxuiIconImage;
 
@@ -49,6 +50,10 @@ struct DxuiListViewTypes
         //  as a heat column's, is not, and the pointer is an arrow over it.
         bool            isText     = true;
         bool            filterable = false;
+
+        //  How a cell too wide for the column is cut; None cuts its end, as
+        //  Explorer's do.
+        DxuiElide       elide      = DxuiElide::None;
     };
 
     struct Cell
@@ -175,6 +180,15 @@ struct DxuiListViewTypes
         //  text alone.
         std::vector<uint32_t>  tipGradient;
         float                  tipGradientMark = -1.0f;
+
+        //  How a cell too wide for its column is cut; None takes the column's.
+        DxuiElide          elide     = DxuiElide::None;
+
+        //  Semibold text with a chevron before it, for a group's heading. The
+        //  cell's text starts with spaces for the chevron.
+        bool               isStrong  = false;
+        bool               isHeading = false;
+        bool               isOpen    = false;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates
@@ -353,6 +367,7 @@ struct DxuiListViewTypes
         int   viewportW = 0;
         int   contentW  = 0;
         int   partialPx = 0;   // the part of a row the body shows past its last whole one
+        int   bodyH     = 0;   // the rows' height, under the header and over a horizontal bar
     };
 
     //  A group opening or closing slides its rows out from under its header,

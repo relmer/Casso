@@ -84,7 +84,7 @@ namespace DebuggerTests
 
             for (int i = 0; i < kSteps; i++)
             {
-                rig.machine.StepOne();
+                rig.machine.GetRunner().StepOne();
             }
         }
 
@@ -98,10 +98,10 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (kChanged, HeatMapView::GetChannelColor (Mode::Changed, 0, 255, kWrite, palette));
-            Assert::AreEqual (kCold,    HeatMapView::GetChannelColor (Mode::Changed, 0, 0,   kWrite, palette), L"a write that changed nothing is cold there");
-            Assert::AreEqual (kWrite,   HeatMapView::GetChannelColor (Mode::Data,    0, 255, kWrite, palette));
-            Assert::AreEqual (std::wstring (L"Changed"), HeatMapView::GetModeLabel (Mode::Changed));
+            Assert::AreEqual (kChanged, HeatMapCells::GetChannelColor (Mode::Changed, 0, 255, kWrite, palette));
+            Assert::AreEqual (kCold,    HeatMapCells::GetChannelColor (Mode::Changed, 0, 0,   kWrite, palette), L"a write that changed nothing is cold there");
+            Assert::AreEqual (kWrite,   HeatMapCells::GetChannelColor (Mode::Data,    0, 255, kWrite, palette));
+            Assert::AreEqual (std::wstring (L"Changed"), HeatMapCells::GetModeLabel (Mode::Changed));
         }
 
 
@@ -114,10 +114,10 @@ namespace DebuggerTests
 
 
 
-            Assert::AreEqual (kUnwritten, HeatMapView::GetChannelColor (Mode::All,  255, 0, kExecute, palette));
-            Assert::AreEqual (kUnwritten, HeatMapView::GetChannelColor (Mode::Data, 255, 0, kRead,    palette));
-            Assert::AreEqual (kExecute,   HeatMapView::GetChannelColor (Mode::Code, 255, 0, kExecute, palette));
-            Assert::AreEqual (kRead,      HeatMapView::GetChannelColor (Mode::All,  0,   0, kRead,    palette), L"none, the color stands");
+            Assert::AreEqual (kUnwritten, HeatMapCells::GetChannelColor (Mode::All,  255, 0, kExecute, palette));
+            Assert::AreEqual (kUnwritten, HeatMapCells::GetChannelColor (Mode::Data, 255, 0, kRead,    palette));
+            Assert::AreEqual (kExecute,   HeatMapCells::GetChannelColor (Mode::Code, 255, 0, kExecute, palette));
+            Assert::AreEqual (kRead,      HeatMapCells::GetChannelColor (Mode::All,  0,   0, kRead,    palette), L"none, the color stands");
         }
 
 
@@ -273,18 +273,18 @@ namespace DebuggerTests
 
 
 
-            Assert::IsTrue (Kind::Code          == HeatMapView::GetCellKind (Mode::All,     9, 0, 0, 0, 0, false, false));
-            Assert::IsTrue (Kind::Operand       == HeatMapView::GetCellKind (Mode::All,     9, 0, 0, 0, 0, true,  false));
-            Assert::IsTrue (Kind::Written       == HeatMapView::GetCellKind (Mode::All,     1, 0, 9, 0, 0, false, false), L"the hotter kind is drawn");
-            Assert::IsTrue (Kind::Read          == HeatMapView::GetCellKind (Mode::Data,    9, 5, 2, 0, 0, false, false), L"Data omits code");
-            Assert::IsTrue (Kind::Untouched     == HeatMapView::GetCellKind (Mode::Code,    0, 9, 9, 0, 0, false, false));
-            Assert::IsTrue (Kind::Unwritten     == HeatMapView::GetCellKind (Mode::All,     0, 9, 0, 3, 0, false, false));
-            Assert::IsTrue (Kind::Untouched     == HeatMapView::GetCellKind (Mode::Code,    0, 9, 0, 3, 0, false, false), L"Code omits it");
-            Assert::IsTrue (Kind::Changed       == HeatMapView::GetCellKind (Mode::Changed, 9, 9, 9, 3, 2, false, false));
-            Assert::IsTrue (Kind::Untouched     == HeatMapView::GetCellKind (Mode::Changed, 9, 9, 9, 3, 0, false, false), L"a write of the same value");
-            Assert::IsTrue (Kind::SelfModifying == HeatMapView::GetCellKind (Mode::All,     9, 0, 9, 0, 0, false, true));
-            Assert::IsTrue (Kind::Code          == HeatMapView::GetCellKind (Mode::All,     9, 0, 9, 0, 0, false, false), L"Blend is off");
-            Assert::IsTrue (Kind::Blended       == HeatMapView::GetCellKind (Mode::All,     9, 4, 0, 0, 0, false, true));
+            Assert::IsTrue (Kind::Code          == HeatMapCells::GetCellKind (Mode::All,     9, 0, 0, 0, 0, false, false));
+            Assert::IsTrue (Kind::Operand       == HeatMapCells::GetCellKind (Mode::All,     9, 0, 0, 0, 0, true,  false));
+            Assert::IsTrue (Kind::Written       == HeatMapCells::GetCellKind (Mode::All,     1, 0, 9, 0, 0, false, false), L"the hotter kind is drawn");
+            Assert::IsTrue (Kind::Read          == HeatMapCells::GetCellKind (Mode::Data,    9, 5, 2, 0, 0, false, false), L"Data omits code");
+            Assert::IsTrue (Kind::Untouched     == HeatMapCells::GetCellKind (Mode::Code,    0, 9, 9, 0, 0, false, false));
+            Assert::IsTrue (Kind::Unwritten     == HeatMapCells::GetCellKind (Mode::All,     0, 9, 0, 3, 0, false, false));
+            Assert::IsTrue (Kind::Untouched     == HeatMapCells::GetCellKind (Mode::Code,    0, 9, 0, 3, 0, false, false), L"Code omits it");
+            Assert::IsTrue (Kind::Changed       == HeatMapCells::GetCellKind (Mode::Changed, 9, 9, 9, 3, 2, false, false));
+            Assert::IsTrue (Kind::Untouched     == HeatMapCells::GetCellKind (Mode::Changed, 9, 9, 9, 3, 0, false, false), L"a write of the same value");
+            Assert::IsTrue (Kind::SelfModifying == HeatMapCells::GetCellKind (Mode::All,     9, 0, 9, 0, 0, false, true));
+            Assert::IsTrue (Kind::Code          == HeatMapCells::GetCellKind (Mode::All,     9, 0, 9, 0, 0, false, false), L"Blend is off");
+            Assert::IsTrue (Kind::Blended       == HeatMapCells::GetCellKind (Mode::All,     9, 4, 0, 0, 0, false, true));
         }
 
 
@@ -299,12 +299,12 @@ namespace DebuggerTests
 
 
 
-            rig.view.SetHeatMapShown (true);
+            rig.view.GetHeatMap().SetHeatMapShown (true);
             snapshot = rig.view.Build (rig.controller.GetSession());
             RunReadThenStores (rig);
 
             options.cumulative = true;
-            rig.view.SetHeatMapOptions (options);
+            rig.view.GetHeatMap().SetHeatMapOptions (options);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::AreEqual (AccessHeatMap::kAddressCount, snapshot.heatMap.unwritten.size());
@@ -316,7 +316,7 @@ namespace DebuggerTests
             Assert::AreEqual ((uint64_t) 1, rig.controller.GetSession().GetTarget().GetUnwrittenStatus().reads);
 
             options.ignoreSameWrites = true;
-            rig.view.SetHeatMapOptions (options);
+            rig.view.GetHeatMap().SetHeatMapOptions (options);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue (snapshot.heatMap.write == snapshot.heatMap.changed, L"the writes shown are the changes");
@@ -333,7 +333,7 @@ namespace DebuggerTests
 
 
 
-            rig.view.SetHeatMapShown (true);
+            rig.view.GetHeatMap().SetHeatMapShown (true);
             snapshot = rig.view.Build (rig.controller.GetSession());
             rig.controller.GetSession().GetTarget().SetUnwrittenIgnore ({ { 0x2000, 0x20FF } });
             RunReadThenStores (rig);
@@ -343,7 +343,7 @@ namespace DebuggerTests
             Assert::AreEqual ((uint64_t) 0, rig.controller.GetSession().GetTarget().GetUnwrittenStatus().reads);
 
             rig.controller.GetSession().SetUnwrittenBreak (true);
-            rig.view.SetHeatMapShown (false);
+            rig.view.GetHeatMap().SetHeatMapShown (false);
             snapshot = rig.view.Build (rig.controller.GetSession());
 
             Assert::IsTrue (rig.machine.GetMemoryBus().AreAllPagesWatched(), L"the break keeps the map recording");

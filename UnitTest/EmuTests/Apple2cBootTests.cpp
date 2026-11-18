@@ -77,7 +77,7 @@ public:
 
         TestMachine machine ("Apple2c");
         machine.PowerCycle();
-        machine.RunCycles (15'000'000);
+        machine.GetRunner().RunCycles (15'000'000);
 
         for (const auto & row : TextScreenScraper::Scrape (machine))
         {
@@ -177,7 +177,7 @@ public:
 
         // Cold-boot: memory test (~14M cycles) then the IWM boot read. 20M is
         // ample -- ColdBootsToCheckDiskDrive reaches the post-read state in 15M.
-        machine.RunCycles (20'000'000);
+        machine.GetRunner().RunCycles (20'000'000);
 
         Assert::AreEqual<Byte> (0x49, machine.GetCpu()->ReadByte (0x0300),
             L"boot sector must run and write 'I' to $0300 (IWM read failed?)");
@@ -221,14 +221,14 @@ public:
 
         // Pump the engine via Tick(N) rather than CPU cycles (the read path's
         // catch-up needs a live, advancing CPU counter we are not providing).
-        machine.GetRefs().diskController->SetCpuCycleSource (nullptr);
+        machine.GetRefs().diskController->GetClock().SetSource (nullptr);
 
         machine.GetMemoryBus().ReadByte (0xC0EB);   // select drive 2 (external)
         machine.GetMemoryBus().ReadByte (0xC0E9);   // motor on -> drive 2's engine spins
         machine.GetMemoryBus().ReadByte (0xC0ED);   // Q6 high first
         machine.GetMemoryBus().ReadByte (0xC0EC);   // Q6 low
         machine.GetMemoryBus().ReadByte (0xC0EE);   // Q7 low -> read mode
-        machine.GetRefs().diskController->Tick (Disk2Controller::kMotorSpinupCycles);
+        machine.GetRefs().diskController->Tick (Disk2CardSequencer::kMotorSpinupCycles);
 
         for (int i = 0; i < 4000 && !sawValidNibble; i++)
         {
@@ -424,10 +424,10 @@ public:
 
 
         machine.PowerCycle();
-        machine.RunCycles (20000);
+        machine.GetRunner().RunCycles (20000);
 
         InProcessByteStream::CreatePair (machineEnd, pcEnd);
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd, &bridge));
+        Assert::AreEqual (S_OK, machine.GetConnectors().AttachSerialStream (2, machineEnd, &bridge));
         Assert::IsNotNull (bridge);
 
         //  DTR on and the transmitter on, as a program using the port sets them.
@@ -435,13 +435,13 @@ public:
         machine.GetMemoryBus().WriteByte (data, 0x5A);
         Assert::AreEqual<size_t> (0, pcEnd->GetReadableCount(), L"nothing is sent before a character time");
 
-        machine.RunCycles (20000);
+        machine.GetRunner().RunCycles (20000);
         Assert::AreEqual (S_OK, pcEnd->Read (got, std::size (got), 0, count));
         Assert::AreEqual<size_t> (1, count);
         Assert::AreEqual<Byte> (0x5A, got[0]);
 
         Assert::AreEqual (S_OK, pcEnd->Write (&fromPc, 1));
-        machine.RunCycles (20000);
+        machine.GetRunner().RunCycles (20000);
 
         Assert::IsTrue ((machine.GetMemoryBus().ReadByte (status) & Acia6551::kStatusRxFull) != 0, L"the byte arrived at the receiver");
         Assert::AreEqual<Byte> (fromPc, machine.GetMemoryBus().ReadByte (data));
@@ -468,34 +468,34 @@ public:
 
 
         machine.PowerCycle();
-        machine.RunCycles (20000);
+        machine.GetRunner().RunCycles (20000);
 
         InProcessByteStream::CreatePair (firstMachineEnd, firstPcEnd);
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, firstMachineEnd));
+        Assert::AreEqual (S_OK, machine.GetConnectors().AttachSerialStream (2, firstMachineEnd));
 
-        Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "", nullptr, nullptr));
+        Assert::AreEqual (S_OK, machine.GetConnectors().ConnectSerialPort (2, "", nullptr, nullptr));
         Assert::IsTrue (firstPcEnd->IsClosed(), L"the old device's stream is closed");
 
         //  DTR on and the transmitter on, as a program using the port sets them.
         machine.GetMemoryBus().WriteByte (command, kCommandOn);
         machine.GetMemoryBus().WriteByte (data, 0x3C);
-        machine.RunCycles (20000);
+        machine.GetRunner().RunCycles (20000);
         Assert::IsTrue ((machine.GetMemoryBus().ReadByte (status) & Acia6551::kStatusRxFull) != 0, L"an empty device loops back");
         Assert::AreEqual<Byte> (0x3C, machine.GetMemoryBus().ReadByte (data));
 
         InProcessByteStream::CreatePair (secondMachineEnd, secondPcEnd);
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, secondMachineEnd));
+        Assert::AreEqual (S_OK, machine.GetConnectors().AttachSerialStream (2, secondMachineEnd));
 
         machine.GetMemoryBus().WriteByte (data, 0x7E);
-        machine.RunCycles (20000);
+        machine.GetRunner().RunCycles (20000);
         Assert::AreEqual (S_OK, secondPcEnd->Read (got, std::size (got), 0, count));
         Assert::AreEqual<size_t> (1, count);
         Assert::AreEqual<Byte> (0x7E, got[0]);
 
-        hr = machine.ConnectSerialPort (2, "tcp:6502", nullptr, nullptr);
+        hr = machine.GetConnectors().ConnectSerialPort (2, "tcp:6502", nullptr, nullptr);
         Assert::IsTrue (FAILED (hr), L"no stream factory, no TCP port");
         machine.GetMemoryBus().WriteByte (data, 0x11);
-        machine.RunCycles (20000);
+        machine.GetRunner().RunCycles (20000);
         Assert::AreEqual<Byte> (0x11, machine.GetMemoryBus().ReadByte (data), L"a device that fails to open is replaced by loopback");
     }
 
@@ -552,28 +552,28 @@ public:
 
 
         machine.PowerCycle();
-        machine.SetRunningRegistry (&registry);
+        machine.GetConnectors().SetRunningRegistry (&registry);
 
-        Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "tcp:6502", &factory, nullptr));
+        Assert::AreEqual (S_OK, machine.GetConnectors().ConnectSerialPort (2, "tcp:6502", &factory, nullptr));
         AssertSucceeded (registry.Enumerate (running));
         Assert::AreEqual ((size_t) 1, running.size());
         Assert::AreEqual (2, running[0].serialPort);
         Assert::AreEqual (std::string ("127.0.0.1:6502"), running[0].address);
         Assert::AreEqual (machine.GetConfig().name, running[0].machine);
-        Assert::AreEqual (2, machine.GetSerialPortOnTcp (6502), L"port 2 has TCP port 6502");
-        Assert::IsFalse  (machine.IsSerialPortOnCard (2), L"a //c's built-in port");
+        Assert::AreEqual (2, machine.GetConnectors().GetSerialPortOnTcp (6502), L"port 2 has TCP port 6502");
+        Assert::IsFalse  (machine.GetConnectors().IsSerialPortOnCard (2), L"a //c's built-in port");
 
-        Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "", &factory, nullptr));
+        Assert::AreEqual (S_OK, machine.GetConnectors().ConnectSerialPort (2, "", &factory, nullptr));
         AssertSucceeded (registry.Enumerate (running));
         Assert::IsTrue (running.empty(), L"connected elsewhere");
-        Assert::AreEqual (0, machine.GetSerialPortOnTcp (6502), L"and no port has TCP port 6502");
+        Assert::AreEqual (0, machine.GetConnectors().GetSerialPortOnTcp (6502), L"and no port has TCP port 6502");
 
-        Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "tcp:6502", &factory, nullptr));
+        Assert::AreEqual (S_OK, machine.GetConnectors().ConnectSerialPort (2, "tcp:6502", &factory, nullptr));
         machine.DetachSerialPorts();
         AssertSucceeded (registry.Enumerate (running));
         Assert::IsTrue (running.empty(), L"detached");
 
-        machine.SetRunningRegistry (nullptr);
+        machine.GetConnectors().SetRunningRegistry (nullptr);
     }
 
     // The //c 80/40 case switch is a SOFTWARE-read switch: it only sets bit 7
@@ -598,7 +598,7 @@ public:
 
             machine.GetRefs().iieKeyboard->SetEightyColumnSwitchIn (switchIn);
             machine.PowerCycle();
-            machine.RunCycles (15'000'000);
+            machine.GetRunner().RunCycles (15'000'000);
 
             auto  rows = TextScreenScraper::Scrape (machine);
             Assert::IsFalse (rows.empty(), L"scrape must yield rows");

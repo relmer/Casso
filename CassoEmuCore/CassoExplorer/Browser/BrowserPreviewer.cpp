@@ -6,6 +6,7 @@
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/ArchiveProbe.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
+#include "CassoExplorer/Model/PreviewViewChoices.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Devices/Disk/DiskImageSession.h"
 #include "Machines/Apple2/Common/WozLoader.h"
@@ -170,7 +171,10 @@ void BrowserPreviewer::PreviewAppleEntry (const std::string & entryPath, const F
 
     if (SUCCEEDED (hr))
     {
-        hr = PreviewDecoder::Render (entry, m_browser.m_kind, payload, GetHexForm (m_browser.GetLocation().path + L"|" + TextEncoding::NarrowToWide (entryPath)), m_bus, m_preview, m_previewMonitor, m_customArgb);
+        PreviewDecoder::HexForm  hexForm = GetHexForm (m_browser.GetLocation().path + L"|" + TextEncoding::NarrowToWide (entryPath));
+
+        hr = PreviewViewChoices::Render (m_viewAs, entry, m_browser.m_kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb,
+                                         GetDecodeOptions (m_browser.GetLocation().path, entryPath));
     }
 
     if (FAILED (hr) && m_preview.message.empty())
@@ -205,6 +209,25 @@ void BrowserPreviewer::SetHexForm (PreviewDecoder::HexForm form)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserPreviewer::SetViewAs
+//
+//  The view applies to the file previewed now. Another file opens in its
+//  default view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::SetViewAs (ViewChoice view)
+{
+    m_viewAs = view;
+    UpdatePreview();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserPreviewer::GetHexForm
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,9 +238,86 @@ PreviewDecoder::HexForm BrowserPreviewer::GetHexForm (const std::wstring & fileK
     {
         m_hexFormKey = fileKey;
         m_hexForm    = PreviewDecoder::HexForm::Auto;
+        m_viewAs     = ViewChoice::Default;
     }
 
     return m_hexForm;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::SetCharset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::SetCharset (Charset charset)
+{
+    if (!m_hexFormKey.empty())
+    {
+        m_decodeOptions[m_hexFormKey].charset = charset;
+        UpdatePreview();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::SetRecordLength
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::SetRecordLength (size_t recordLength)
+{
+    if (!m_hexFormKey.empty())
+    {
+        m_decodeOptions[m_hexFormKey].recordLength = recordLength;
+        UpdatePreview();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::SetFormulas
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::SetFormulas (bool formulas)
+{
+    if (!m_hexFormKey.empty())
+    {
+        m_decodeOptions[m_hexFormKey].formulas = formulas;
+        UpdatePreview();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::GetDecodeOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DecodeOptions BrowserPreviewer::GetDecodeOptions (const std::wstring & imagePath, const std::string & entryPath) const
+{
+    auto  found = m_decodeOptions.find (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath));
+
+
+
+    return (found != m_decodeOptions.end()) ? found->second : DecodeOptions();
 }
 
 
@@ -238,9 +338,6 @@ void BrowserPreviewer::UpdatePreview()
 {
     const FileEntry         * entry     = nullptr;
     Location                  location  = m_browser.GetLocation();
-    DiskOperations::Result    result;
-    VolumeListing             listing;
-    VolumeKind                kind      = VolumeKind::Unknown;
     std::wstring              imagePath;
     std::wstring              folder    = location.path;
 
@@ -318,6 +415,18 @@ void BrowserPreviewer::UpdatePreview()
         PreviewShellItem (m_browser.m_rows[m_browser.m_selectedRows[0]]);
         return;
     }
+    else if (m_browser.m_isPartitionList && m_browser.m_selectedRows.size() == 1 && !m_browser.m_rows[m_browser.m_selectedRows[0]].containerPath.empty())
+    {
+        //  A partition of a card or a card image previews as its volume's catalog.
+        PreviewImageCatalog (m_browser.m_rows[m_browser.m_selectedRows[0]].containerPath);
+        return;
+    }
+    else if (!m_browser.m_isImage && location == Location::MakeRoot (TreeModel::kCassoRootId) && m_browser.m_selectedRows.size() == 1
+             && !m_browser.m_rows[m_browser.m_selectedRows[0]].isDirectory && !m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath.empty())
+    {
+        //  An image in the Casso node's list previews as it does in its folder.
+        folder = CassoExplorerBrowser::GetParentFolder (m_browser.m_rows[m_browser.m_selectedRows[0]].hostPath);
+    }
     else if (m_browser.m_isImage || location.kind != Location::Kind::HostFolder || m_browser.m_selectedRows.size() != 1)
     {
         return;
@@ -330,54 +439,10 @@ void BrowserPreviewer::UpdatePreview()
         return;
     }
 
-    //  Any other file in a host folder shows its bytes, which the window reads
-    //  from the file as it draws them rather than loading them here.
+    //  Any other file in a host folder.
     if (!m_browser.m_rows[m_browser.m_selectedRows[0]].isDiskImage)
     {
-        if (!m_browser.m_rows[m_browser.m_selectedRows[0]].isDirectory && TryPreviewAppleSingle (folder, m_browser.m_rows[m_browser.m_selectedRows[0]]))
-        {
-            return;
-        }
-
-        //  A Full Send's manifest is Casso's record of the folder, not a file
-        //  to read here.
-        if (!m_browser.m_rows[m_browser.m_selectedRows[0]].isDirectory && _wcsicmp (m_browser.m_rows[m_browser.m_selectedRows[0]].name.c_str(), TextEncoding::NarrowToWide (FullSendManifest::kFileName).c_str()) == 0)
-        {
-            m_preview.kind    = PreviewContent::Kind::Error;
-            m_preview.message = L"Casso's record of the disks a Full Send received in this folder. Don't edit, rename or move it: Casso reads it to pass over disks already received.";
-            return;
-        }
-
-        if (!m_browser.m_rows[m_browser.m_selectedRows[0]].isDirectory)
-        {
-            m_preview.kind     = PreviewContent::Kind::Hex;
-            m_preview.hostPath = folder;
-
-            if (!m_preview.hostPath.empty() && m_preview.hostPath.back() != L'\\')
-            {
-                m_preview.hostPath += L'\\';
-            }
-
-            m_preview.hostPath += m_browser.m_rows[m_browser.m_selectedRows[0]].name;
-
-            //  Windows' own preview, as Explorer's, for a file of a type it
-            //  previews; an assembler's source and an exported Apple file are
-            //  Casso Explorer's to preview.
-            if (m_browser.m_shellVerbs != nullptr && !IsSourceName (m_browser.m_rows[m_browser.m_selectedRows[0]].name) && !IsAppleExportName (m_browser.m_rows[m_browser.m_selectedRows[0]].name)
-                && m_browser.m_shellVerbs->HasShellPreview (m_preview.hostPath))
-            {
-                m_preview.kind = PreviewContent::Kind::Shell;
-                return;
-            }
-
-            //  A source file, or text the hex view cannot draw, is read whole
-            //  as text when it is small and on this computer.
-            if (m_browser.m_rows[m_browser.m_selectedRows[0]].sizeBytes <= s_kTextPreviewMaxBytes && !PathResolver::IsNetworkPath (m_preview.hostPath))
-            {
-                ReadTextPreview (m_preview.hostPath, m_browser.m_rows[m_browser.m_selectedRows[0]].name);
-            }
-        }
-
+        PreviewHostFile (folder, m_browser.m_rows[m_browser.m_selectedRows[0]]);
         return;
     }
 
@@ -389,6 +454,29 @@ void BrowserPreviewer::UpdatePreview()
     }
 
     imagePath += m_browser.m_rows[m_browser.m_selectedRows[0]].name;
+
+    PreviewImageCatalog (imagePath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::PreviewImageCatalog
+//
+//  The image's catalog, cached; its details when it has no file system.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::PreviewImageCatalog (const std::wstring & imagePath)
+{
+    DiskOperations::Result  result;
+    VolumeListing           listing;
+    VolumeKind              kind = VolumeKind::Unknown;
+
+
 
     if (!m_browser.m_model.TryGetCachedCatalog (imagePath, listing, kind))
     {
@@ -455,7 +543,7 @@ void BrowserPreviewer::AddWozDetails (const std::wstring & imagePath)
     //  so a catalog has only the WOZ sections.
     if (m_preview.kind == PreviewContent::Kind::Catalog)
     {
-        parsed   = PreviewDecoder::ParseDetails (DiskImageSession::DescribeWozChunks (bytes), m_preview.details);
+        parsed   = PreviewDecoder::ParseDetails (DiskImageSession::DescribeWozChunks (bytes) + DiskImageSession::DescribeContainerHeader (bytes), m_preview.details);
         analysis = std::find_if (m_preview.details.begin(), m_preview.details.end(), [] (const std::pair<std::wstring, std::wstring> & d) { return d.first == kAnalysisHeading && d.second.empty(); });
 
         m_preview.details.erase (analysis, m_preview.details.end());
@@ -959,17 +1047,26 @@ bool BrowserPreviewer::TryPreviewText (const std::wstring & name, std::span<cons
 //  BrowserPreviewer::IsAppleExportName
 //
 //  A BASIC listing or a text file Casso Explorer exported to the host, by the
-//  suffix the export appends to its catalog name.
+//  suffix the export appends to its catalog name. A conversion of the file
+//  format table counts when it is text: its pictures, documents and tables
+//  have the previews Windows has for them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BrowserPreviewer::IsAppleExportName (const std::wstring & name)
 {
-    ParsedHostName  parsed;
+    static constexpr const wchar_t  * kTextExtension = L".txt";
+    ParsedHostName                    parsed;
+    size_t                            dot            = name.rfind (L'.');
 
 
 
-    return HostFileNaming::Parse (name, parsed) && parsed.converted != ParsedHostName::ConvertedKind::None;
+    if (!HostFileNaming::Parse (name, parsed) || parsed.converted == ParsedHostName::ConvertedKind::None)
+    {
+        return false;
+    }
+
+    return parsed.converted != ParsedHostName::ConvertedKind::Format || _wcsicmp (name.c_str() + dot, kTextExtension) == 0;
 }
 
 
@@ -1190,6 +1287,7 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
     DiskOperations::Result  result;
     FilePayload             payload;
     HRESULT                 hr          = S_OK;
+    PreviewDecoder::HexForm hexForm     = PreviewDecoder::HexForm::Auto;
 
 
 
@@ -1208,7 +1306,9 @@ void BrowserPreviewer::PreviewEntry (const std::wstring & imagePath, const std::
         return;
     }
 
-    hr = PreviewDecoder::Render (entry, kind, payload, GetHexForm (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath)), m_bus, m_preview, m_previewMonitor, m_customArgb);
+    hexForm = GetHexForm (imagePath + L"|" + TextEncoding::NarrowToWide (entryPath));
+    hr      = PreviewViewChoices::Render (m_viewAs, entry, kind, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb,
+                                          GetDecodeOptions (imagePath, entryPath));
 
     //  A double hi-res picture's monitor follows its form, which is known once
     //  it is decoded.
@@ -1435,4 +1535,211 @@ bool BrowserPreviewer::TryPreviewAppleSingle (const std::wstring & folder, const
 
     PreviewDecoder::RenderAppleSingle (file, m_preview);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::PreviewHostFile
+//
+//  A file exported from an Apple disk with its type in its name previews as
+//  it does in its disk. An AppleSingle file previews as its details. Any
+//  other file is displayed as its bytes, which the window reads from the
+//  file as it draws them, through a Windows preview handler, or as text. A
+//  file read whole for View as has the other views of its bytes as well.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::PreviewHostFile (const std::wstring & folder, const CatalogRow & row)
+{
+    std::wstring             path    = CassoExplorerBrowser::JoinPath (folder, row.name);
+    FilePayload              payload;
+    FileEntry                entry;
+    bool                     typed   = false;
+    bool                     loaded  = false;
+    PreviewDecoder::HexForm  hexForm = PreviewDecoder::HexForm::Auto;
+    HRESULT                  hr      = S_OK;
+
+
+
+    if (row.isDirectory)
+    {
+        return;
+    }
+
+    //  A Full Send's manifest is Casso's record of the folder, not a file
+    //  to read here.
+    if (_wcsicmp (row.name.c_str(), TextEncoding::NarrowToWide (FullSendManifest::kFileName).c_str()) == 0)
+    {
+        m_preview.kind    = PreviewContent::Kind::Error;
+        m_preview.message = L"Casso's record of the disks a Full Send received in this folder. Don't edit, rename or move it: Casso reads it to pass over disks already received.";
+        return;
+    }
+
+    loaded  = TryReadHostPayload (path, row, payload, entry, typed);
+    hexForm = GetHexForm (path);
+
+    if (TryPreviewAppleSingle (folder, row))
+    {
+        AttachHostViews (entry, payload, loaded, hexForm);
+        return;
+    }
+
+    if (typed)
+    {
+        hr = PreviewViewChoices::Render (m_viewAs, entry, VolumeKind::ProDos, payload, hexForm, m_bus, m_preview, m_previewMonitor, m_customArgb, DecodeOptions());
+
+        if (SUCCEEDED (hr))
+        {
+            return;
+        }
+
+        m_preview = PreviewContent();
+    }
+
+    m_preview.kind     = PreviewContent::Kind::Hex;
+    m_preview.hostPath = path;
+
+    //  A Windows preview handler, as in Explorer, for a file type with one;
+    //  an assembler's source and an exported Apple file are Casso Explorer's
+    //  to preview.
+    if (m_browser.m_shellVerbs != nullptr && !IsSourceName (row.name) && !IsAppleExportName (row.name) && m_browser.m_shellVerbs->HasShellPreview (m_preview.hostPath))
+    {
+        m_preview.kind = PreviewContent::Kind::Shell;
+    }
+    else if (row.sizeBytes <= s_kTextPreviewMaxBytes && !PathResolver::IsNetworkPath (m_preview.hostPath))
+    {
+        //  A source file, or text the hex view cannot draw, is read whole as
+        //  text when it is small and on this computer.
+        ReadTextPreview (m_preview.hostPath, row.name);
+    }
+
+    AttachHostViews (entry, payload, loaded, hexForm);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::TryReadHostPayload
+//
+//  A local file up to s_kTextPreviewMaxBytes, read whole: an AppleSingle
+//  file's data and resource fork, or the file's bytes. `outTyped` is set for
+//  a name with a ProDOS type and aux type in it, which the entry and payload
+//  take.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BrowserPreviewer::TryReadHostPayload (const std::wstring & path, const CatalogRow & row, FilePayload & outPayload, FileEntry & outEntry, bool & outTyped)
+{
+    std::string            content;
+    std::span<const Byte>  bytes;
+    AppleSingleFile        single;
+    std::string            error;
+    ParsedHostName         parsed;
+    HRESULT                hr      = S_OK;
+    bool                   decoded = false;
+
+
+
+    outPayload = FilePayload();
+    outEntry   = FileEntry();
+    outTyped   = false;
+
+    if (row.sizeBytes > s_kTextPreviewMaxBytes || PathResolver::IsNetworkPath (path))
+    {
+        return false;
+    }
+
+    hr = m_browser.m_fs.ReadAllText (path, content);
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    bytes   = std::span<const Byte> ((const Byte *) content.data(), content.size());
+    hr      = AppleSingleCodec::IsAppleSingle (bytes) ? AppleSingleCodec::Decode (bytes, single, error) : E_FAIL;
+    decoded = SUCCEEDED (hr);
+
+    if (decoded)
+    {
+        outPayload.bytes        = std::move (single.data);
+        outPayload.resourceFork = std::move (single.resourceFork);
+        return true;
+    }
+
+    outPayload.bytes.assign (bytes.begin(), bytes.end());
+    outEntry.name     = TextEncoding::WideToNarrow (row.name);
+    outEntry.eofBytes = (uint32_t) outPayload.bytes.size();
+
+    if (HostFileNaming::Parse (row.name, parsed) && parsed.hasType && parsed.converted == ParsedHostName::ConvertedKind::None)
+    {
+        outEntry.name           = parsed.catalogName;
+        outEntry.type           = parsed.type;
+        outEntry.auxType        = parsed.aux;
+        outEntry.hasAuxType     = parsed.hasAux;
+        outEntry.loadAddress    = parsed.aux;
+        outEntry.hasLoadAddress = parsed.hasAux;
+        outPayload.type           = parsed.type;
+        outPayload.auxType        = parsed.aux;
+        outPayload.hasAuxType     = parsed.hasAux;
+        outPayload.loadAddress    = parsed.aux;
+        outPayload.hasLoadAddress = parsed.hasAux;
+        outTyped                  = true;
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowserPreviewer::AttachHostViews
+//
+//  The other views of a host file read whole, and the chosen one in place
+//  of the default when it applies.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BrowserPreviewer::AttachHostViews (const FileEntry & entry, const FilePayload & payload, bool loaded, PreviewDecoder::HexForm hexForm)
+{
+    std::vector<ViewChoice>  choices;
+    std::wstring             defaultName;
+    PreviewContent           chosen;
+    HRESULT                  hr          = E_FAIL;
+    bool                     applies     = false;
+
+
+
+    if (!loaded)
+    {
+        return;
+    }
+
+    PreviewViewChoices::List (payload, m_preview, choices);
+    defaultName = PreviewViewChoices::DescribeDefault (m_preview);
+    applies     = std::find (choices.begin(), choices.end(), m_viewAs) != choices.end();
+
+    if (applies)
+    {
+        hr = PreviewViewChoices::RenderAs (m_viewAs, entry, VolumeKind::ProDos, payload, hexForm, m_bus, chosen, m_previewMonitor, m_customArgb);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        m_preview = std::move (chosen);
+    }
+
+    m_preview.viewChoices = std::move (choices);
+    m_preview.viewAs      = SUCCEEDED (hr) ? m_viewAs : ViewChoice::Default;
+    m_preview.defaultView = std::move (defaultName);
 }

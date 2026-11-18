@@ -86,7 +86,7 @@ void MachineDebugTarget::SetHeatMapOn (bool on)
 
     if (on)
     {
-        m_heat.SetPositionSource (m_host.GetPositionPtr());
+        m_heat.SetPositionSource (m_host.GetRunner().GetPositionPtr());
         m_heat.Start (GetInstructionSet(), GetHistoryCycleCount());
 
         isConnected = TryConnectHeatMap (m_host, &m_heat);
@@ -138,7 +138,7 @@ bool MachineDebugTarget::TryConnectHeatMap (
 
     host.GetMemoryBus().SetAllPagesWatched (map != nullptr);
     busCpu->SetAccessSink (map);
-    busCpu->SetFetchSink  (map);
+    busCpu->GetFetchObservers().SetFetchSink (map);
 
     if (map != nullptr)
     {
@@ -761,7 +761,7 @@ bool MachineDebugTarget::IsPausePending() const
 
 void MachineDebugTarget::SetHookInstalled (bool installed)
 {
-    m_host.SetDebugHook (installed ? &m_runHook : nullptr);
+    m_host.GetRunner().SetDebugHook (installed ? &m_runHook : nullptr);
 }
 
 
@@ -776,7 +776,7 @@ void MachineDebugTarget::SetHookInstalled (bool installed)
 
 void MachineDebugTarget::SetOpcodeWatch (const bool * opcodes, IOpcodeWatcher * watcher)
 {
-    m_host.SetOpcodeWatch (opcodes, watcher);
+    m_host.GetRunner().SetOpcodeWatch (opcodes, watcher);
 }
 
 
@@ -867,7 +867,7 @@ VideoPosition MachineDebugTarget::GetVideoPosition() const
 
 TapeDeck * MachineDebugTarget::GetTapeDeck()
 {
-    return (m_host.GetRefs().cassettePort != nullptr) ? &m_host.GetTapeDeck() : nullptr;
+    return (m_host.GetRefs().cassettePort != nullptr) ? &m_host.GetTape().GetDeck() : nullptr;
 }
 
 
@@ -916,15 +916,15 @@ bool MachineDebugTarget::TryGetDiskState (DebugDiskState & state) const
 
     state               = DebugDiskState();
     state.slot          = controller->GetSlot();
-    state.selectedDrive = controller->GetActiveDrive();
-    state.isMotorOn     = controller->IsMotorOn();
-    state.isWriteMode   = controller->IsQ7();
-    state.phases        = controller->GetPhases();
+    state.selectedDrive = controller->GetLines().GetActiveDrive();
+    state.isMotorOn     = controller->GetLines().IsMotorOn();
+    state.isWriteMode   = controller->GetLines().IsQ7();
+    state.phases        = controller->GetLines().GetPhases();
 
     for (int drive = 0; drive < Disk2Controller::kDriveCount; drive++)
     {
-        disk                      = controller->GetDisk (drive);
-        state.quarterTrack[drive] = controller->GetQuarterTrack (drive);
+        disk                      = controller->GetDrive (drive).GetDisk();
+        state.quarterTrack[drive] = controller->GetDrive (drive).GetQuarterTrack();
         state.isProtected[drive]  = disk != nullptr && disk->IsWriteProtected();
         state.hasDisk[drive]      = disk != nullptr && disk->IsLoaded();
         state.imageName[drive]    = (disk != nullptr && disk->IsLoaded()) ? disk->GetFilePath() : std::string();
@@ -949,7 +949,7 @@ const Disk2NibbleRecord * MachineDebugTarget::GetDiskRecord() const
 
 
 
-    return (controller != nullptr) ? &controller->GetNibbleRecord() : nullptr;
+    return (controller != nullptr) ? &controller->GetRecorder().GetNibbleRecord() : nullptr;
 }
 
 
@@ -973,7 +973,7 @@ bool MachineDebugTarget::PeekDiskNibbles (int drive, int count, std::vector<Byte
         return false;
     }
 
-    controller->GetEngine (drive).PeekNibbles (count, nibbles, isRandom);
+    controller->GetDrive (drive).GetEngine().PeekNibbles (count, nibbles, isRandom);
     return true;
 }
 
@@ -1261,7 +1261,7 @@ void MachineDebugTarget::GetTraceWindow (size_t first, size_t count, std::vector
 
 std::vector<const IDiagnosticsProvider *> MachineDebugTarget::GetDiagnosticsProviders() const
 {
-    return m_host.GetDiagnosticsProviders();
+    return m_host.GetClockPanel().GetProviders();
 }
 
 

@@ -77,6 +77,10 @@ struct DxuiCommand
     std::function<void()>          dispatch;
     std::function<bool()>          isChecked;
     std::function<bool()>          isEnabled;
+
+    //  Absent or true, the row is in a menu; false removes it when the menu
+    //  opens.
+    std::function<bool()>          isVisible;
     std::function<std::wstring()>  labelText;
 
     //  The tooltip when it moves with state, as "Undo changed 2 bytes at
@@ -121,6 +125,10 @@ struct DxuiCommand
 
     //  Absent means the label is drawn at its full width.
     std::optional<DxuiLabelFit>    labelFit;
+
+    //  True when a menu row draws the glyph in its check column, so a user
+    //  can learn a toolbar button's icon from the menu.
+    bool                           isGlyphInMenus = false;
 
     //  Absent means never checked.
     bool          IsChecked    () const { return isChecked ? isChecked() : false; }

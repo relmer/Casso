@@ -21,6 +21,7 @@
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellSerialCard.h"
 #include "Shell/Components/ShellNetworkCard.h"
@@ -36,6 +37,7 @@
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Ui/PrinterPanel.h"
+#include "Ui/DiskInspector/DiskInspectorWindow.h"
 #include "Core/PathResolver.h"
 #include "Version.h"
 #include "BuildInfo.h"
@@ -88,6 +90,7 @@
 #include "Machines/MachineDefinition.h"
 #include "Shell/MachineGamePortSink.h"
 #include "Seams/Win32ControllerBackend.h"
+#include "Devices/BlockDevice/BlockDeviceAttachments.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/IProcessProbe.h"
@@ -156,6 +159,7 @@ EmulatorShell::EmulatorShell() :
     m_tapeDeck      = std::make_unique<ShellTapeDeck> (*this);
     m_printer       = std::make_unique<ShellPrinter> (*this);
     m_disks         = std::make_unique<ShellDisks> (*this);
+    m_drivePickers  = std::make_unique<ShellDrivePickers> (*this);
     m_serialCard    = std::make_unique<ShellSerialCard> (*this);
     m_networkCard   = std::make_unique<ShellNetworkCard> (*this);
     m_scene         = std::make_unique<ShellDeskScene> (*this);
@@ -175,7 +179,7 @@ EmulatorShell::EmulatorShell() :
 
     // A pause stops the machine on the instruction boundary after it is asked
     // for, rather than at the end of the frame the CPU thread is running.
-    m_machine.SetStopFlag (&m_cpuManager.GetPauseFlag());
+    m_machine.GetRunner().SetStopFlag (&m_cpuManager.GetPauseFlag());
 
     m_clipboardManager = std::make_unique<ClipboardManager> (m_hostClipboard,
                                                               m_machine.GetMemoryBus(),
@@ -198,7 +202,7 @@ EmulatorShell::EmulatorShell() :
     m_linkFileSystem  = std::make_unique<Win32FileSystem>();
     m_processProbe    = std::make_unique<Win32ProcessProbe>();
     m_runningRegistry = std::make_unique<RunningCassoRegistry> (*m_linkFileSystem, *m_processProbe, RunningCassoRegistry::GetDefaultFolder());
-    m_machine.SetRunningRegistry (m_runningRegistry.get());
+    m_machine.GetConnectors().SetRunningRegistry (m_runningRegistry.get());
 
     m_audio->BindBuildServices (services);
 
@@ -279,6 +283,8 @@ EmulatorShell::~EmulatorShell()
 
     m_cpuManager.Stop();
 
+    m_diskInspectors.clear();
+    m_drivePickers.reset();
     // The printer panel holds no machine sinks -- just close its window.
     m_printer->ClosePrinterPanel();
 
@@ -325,8 +331,8 @@ EmulatorShell::~EmulatorShell()
 
     //  This Casso's ports are no longer for Casso Explorer to find, and the
     //  registry goes before the machine does.
-    m_machine.WithdrawSerialPorts();
-    m_machine.SetRunningRegistry (nullptr);
+    m_machine.GetConnectors().WithdrawSerialPorts();
+    m_machine.GetConnectors().SetRunningRegistry (nullptr);
 
     m_window->UninitializeOle();
 }
@@ -876,6 +882,7 @@ HRESULT EmulatorShell::Initialize (
     m_tapeDeck->InsertStartupTape (tapePath);
 
     ApplyPersistedMachinePrefs();
+    ReopenDiskInspector();
 
     // A launch whose command line mounts media starts cold with them; any
     // other resumes the machine's automatic state, before the CPU thread
@@ -899,16 +906,27 @@ Error:
 
 void EmulatorShell::InitAssetPathsAndStores()
 {
-    fs::path  assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
+    fs::path         assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
+    fs::path         stockDir     = assetBaseDir / L"Disks";
+    std::error_code  ec;
 
 
 
     m_machine.SetAssetBaseDir (assetBaseDir.wstring());
     m_settings->CreateConfigStore (assetBaseDir.wstring());
 
+    // The stock hard disk image is made here the first time a machine lists
+    // it. A folder that can't be made leaves those drives empty.
+    fs::create_directories (stockDir, ec);
+
+    if (!ec)
+    {
+        m_machine.GetStorage().SetStockImageFolder (stockDir.string());
+    }
+
     m_disks->Initialize (*m_settings->GetConfigStore(), m_settings->GetFileSystem(), m_imageWatchDisabled);
 
-    m_audio->AttachTape (&m_machine.GetTapeDeck(),
+    m_audio->AttachTape (&m_machine.GetTape().GetDeck(),
                          [this] () { return m_machine.GetCpu() != nullptr ? *m_machine.GetCpu()->GetBusCyclePtr() : 0; });
 
     m_tapeDeck->Initialize (*m_settings->GetConfigStore(), m_settings->GetFileSystem());
@@ -1016,12 +1034,32 @@ Error:
 
 HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
 {
-    HRESULT  hr = S_OK;
+    HRESULT        hr        = S_OK;
+    HRESULT        hrAttach  = S_OK;
+    MachineConfig  built     = config;
+    std::string    error;
 
 
 
-    hr = m_machineBuilder->Build (config);
+    // --hd and --smartport apply to the first machine only, and are never
+    // saved: the copy built from has them, the config does not.
+    if (!m_runHdAttachments.empty() || !m_runSmartPortAttachments.empty())
+    {
+        hrAttach = BlockDeviceAttachments::Apply (m_runHdAttachments, m_runSmartPortAttachments, built, error);
+
+        if (FAILED (hrAttach))
+        {
+            QueueNotice (TextEncoding::NarrowToWide (error));
+        }
+
+        m_runHdAttachments.clear();
+        m_runSmartPortAttachments.clear();
+    }
+
+    hr = m_machineBuilder->Build (built);
     CHR (hr);
+
+    QueueBlockMediaNotices();
 
     // The Super Serial Card's infobar reads the card's state from the build
     // just finished; the UI thread displays it on its next frame.
@@ -1060,17 +1098,80 @@ void EmulatorShell::QueueUthernetNotices()
 
     for (const std::string & error : m_machine.GetRefs().uthernet->GetNetworkErrors())
     {
-        std::wstring  text = TextEncoding::NarrowToWide (error);
+        QueueNotice (TextEncoding::NarrowToWide (error));
+    }
+}
 
-        if (m_hwnd != nullptr && m_chrome != nullptr)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  QueueNotice
+//
+//  Posts a notice to the window, or keeps it for the end of
+//  InitializeUiShell when the window does not exist yet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::QueueNotice (std::wstring text)
+{
+    if (m_hwnd != nullptr && m_chrome != nullptr)
+    {
+        m_chrome->PostNotice (text);
+    }
+    else
+    {
+        m_pendingNotices.push_back (std::move (text));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  QueueBlockMediaNotices
+//
+//  An image the machine file lists that did not attach, and a card that
+//  could not be installed, each as a notice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::QueueBlockMediaNotices()
+{
+    for (const std::wstring & problem : m_machine.GetStorage().GetBlockMediaProblems())
+    {
+        QueueNotice (problem);
+    }
+
+    for (const SlotConfig & slot : m_machine.GetConfig().slots)
+    {
+        if (!slot.deviceProblem.empty())
         {
-            m_chrome->PostNotice (text);
-        }
-        else
-        {
-            m_pendingNotices.push_back (std::move (text));
+            QueueNotice (std::format (L"Slot {}: {}", slot.slot, TextEncoding::NarrowToWide (slot.deviceProblem)));
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetRunBlockAttachments
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetRunBlockAttachments (
+    const std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment> & hd,
+    const std::vector<CommandLineOptions::EmulatorOptions::BlockAttachment> & smartPort)
+{
+    m_runHdAttachments        = hd;
+    m_runSmartPortAttachments = smartPort;
 }
 
 
@@ -1250,10 +1351,10 @@ HRESULT EmulatorShell::FinishUiShellLayout()
     // chrome controls) on top of the Apple ][ framebuffer. The
     // per-frame drive-widget tick + door-animation redraw that
     // used to live in that hook now run in RunMessageLoop.
-    if (DeskSceneActive())
+    if (DeskSceneActive() || m_scene->AreDrivesOnBar())
     {
-        // The 3D scene owns the drives: widgets hidden, drop-target rects
-        // from the composition's projected drive bounds.
+        // The 3D scene or the drive bar has the drives: drop-target rects
+        // from the composition's projected drive bounds and the bar's slots.
         m_scene->SyncSceneDriveChrome();
     }
     else if (!fHasDisk)
@@ -1274,7 +1375,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
         m_disks->GetDriveChrome()[1].Hide();
     }
 
-    if (!DeskSceneActive())
+    if (!DeskSceneActive() && !m_scene->AreDrivesOnBar())
     {
         m_uiShell.GetHitTester().Clear();
         RegisterScreenDropTarget();

@@ -4,6 +4,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/TextZoomLevels.h"
 
 #include "CppUnitTest.h"
 
@@ -93,8 +94,6 @@ namespace DebuggerStatusBarTests
         using DebuggerWindow::GetZoomResetRect;
         using DebuggerWindow::GetStatusBar;
         using DebuggerWindow::GetWindowZoom;
-        using DebuggerWindow::GetTextZoomPosition;
-        using DebuggerWindow::GetTextZoomAt;
         using DebuggerWindow::IsZoomPopupOpen;
         using DebuggerWindow::GetZoomPopupRect;
         using DebuggerWindow::UpdateStatusBar;
@@ -254,9 +253,9 @@ namespace DebuggerStatusBarTests
             window.ApplyTextZoom (1.5f);
 
             Assert::AreEqual (std::wstring (L"150%"), window.GetStatusBar()->GetField (window.kStatusZoom).text);
-            Assert::AreEqual (0.0f, StatusBarWindow::GetTextZoomPosition (0.5f), 0.001f, L"the smallest at the left");
-            Assert::AreEqual (1.0f, StatusBarWindow::GetTextZoomPosition (3.0f), 0.001f, L"the largest at the right");
-            Assert::AreEqual (1.5f, StatusBarWindow::GetTextZoomAt (StatusBarWindow::GetTextZoomPosition (1.5f)), 0.001f, L"the thumb at 150%");
+            Assert::AreEqual (0.0f, TextZoomLevels::GetSliderPosition (0.5f), 0.001f, L"the smallest at the left");
+            Assert::AreEqual (1.0f, TextZoomLevels::GetSliderPosition (3.0f), 0.001f, L"the largest at the right");
+            Assert::AreEqual (1.5f, TextZoomLevels::GetZoomAtSlider (TextZoomLevels::GetSliderPosition (1.5f)), 0.001f, L"the thumb at 150%");
         }
 
 

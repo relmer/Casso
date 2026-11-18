@@ -171,7 +171,7 @@ namespace SuperSerialCardMachineTestNs
                 (void) bus.ReadByte (0xC205);
                 Assert::IsTrue (card->IsExpansionRomSelected(), name.c_str());
 
-                hr = machine.SaveState (writer);
+                hr = machine.GetStateStream().SaveState (writer);
                 Assert::AreEqual (S_OK, hr, (name + L": SaveState").c_str());
 
                 bus.WriteByte (0xC0AA, 0x00);
@@ -180,7 +180,7 @@ namespace SuperSerialCardMachineTestNs
                 {
                     StateReader  reader (writer.GetBytes());
 
-                    hr = machine.LoadState (reader);
+                    hr = machine.GetStateStream().LoadState (reader);
                     Assert::AreEqual (S_OK, hr, (name + L": LoadState").c_str());
                 }
 
@@ -250,7 +250,7 @@ namespace SuperSerialCardMachineTestNs
             card->GetAcia().SetEndpoint (&recorder);
 
             LoadProgram (machine, caller, size (caller));
-            machine.RunCycles (20000);
+            machine.GetRunner().RunCycles (20000);
 
             Assert::AreEqual<size_t> (1, recorder.m_bytes.size());
             Assert::AreEqual<Byte> (0x41, recorder.m_bytes.front());
@@ -299,7 +299,7 @@ namespace SuperSerialCardMachineTestNs
             }
 
             LoadProgram (machine, program, size (program));
-            machine.RunCycles (20000);
+            machine.GetRunner().RunCycles (20000);
 
             for (size_t i = 0; i < size (data); ++i)
             {
@@ -345,7 +345,7 @@ namespace SuperSerialCardMachineTestNs
 
             acia.EnqueueReceivedBytes (stream.data(), stream.size());
             budget = static_cast<uint64_t> (static_cast<double> (machine.GetConfig().clockSpeed) * 10.0 / 19200.0 * (kBytes + 4));
-            machine.RunCycles (budget);
+            machine.GetRunner().RunCycles (budget);
 
             Assert::AreEqual<size_t> (0, acia.GetQueuedReceiveCount(), L"every byte was delivered");
             Assert::AreEqual<int> (static_cast<int> (kBytes), machine.GetCpu()->ReadByte (0x00) | (machine.GetCpu()->ReadByte (0x01) << 8),
@@ -381,7 +381,7 @@ namespace SuperSerialCardMachineTestNs
             machine.PowerCycle();
             LoadProgram (machine, program.data(), program.size());
             acia.EnqueueReceivedBytes (stream.data(), stream.size());
-            machine.RunCycles (200000);
+            machine.GetRunner().RunCycles (200000);
 
             Assert::AreEqual<Byte> (Acia6551::kStatusOverrun,
                                     static_cast<Byte> (machine.GetCpu()->ReadByte (0x02) & Acia6551::kStatusOverrun),
@@ -454,24 +454,24 @@ namespace SuperSerialCardMachineTestNs
 
 
             machine.PowerCycle();
-            machine.SetRunningRegistry (&registry);
+            machine.GetConnectors().SetRunningRegistry (&registry);
 
-            Assert::AreEqual (S_OK, machine.ConnectSerialPort (5, "tcp:6505", &factory, nullptr));
+            Assert::AreEqual (S_OK, machine.GetConnectors().ConnectSerialPort (5, "tcp:6505", &factory, nullptr));
             Assert::AreEqual<uint16_t> (6505, factory.port);
             AssertSucceeded (registry.Enumerate (running));
             Assert::AreEqual ((size_t) 1, running.size());
             Assert::AreEqual (5, running[0].serialPort);
             Assert::IsTrue   (running[0].onCard);
 
-            Assert::AreEqual (S_OK, machine.ConnectSerialPort (5, "", &factory, nullptr));
+            Assert::AreEqual (S_OK, machine.GetConnectors().ConnectSerialPort (5, "", &factory, nullptr));
 
             machine.GetMemoryBus().WriteByte ((Word) (data + Acia6551::kRegCommand), 0x0B);
             machine.GetMemoryBus().WriteByte (data, 0x11);
-            machine.RunCycles (20000);
+            machine.GetRunner().RunCycles (20000);
             Assert::AreEqual<Byte> (0, (Byte) (machine.GetMemoryBus().ReadByte ((Word) (data + Acia6551::kRegStatus)) & Acia6551::kStatusRxFull),
                                     L"an empty connector, not a loopback plug");
 
-            machine.SetRunningRegistry (nullptr);
+            machine.GetConnectors().SetRunningRegistry (nullptr);
         }
 
 
@@ -490,7 +490,7 @@ namespace SuperSerialCardMachineTestNs
             machine.PowerCycle();
             StartTransmitter (machine);
             machine.GetMemoryBus().WriteByte (0xC0A8, 'P');
-            machine.RunCycles (5000);
+            machine.GetRunner().RunCycles (5000);
 
             Assert::IsTrue (ring->TryPop (out));
             Assert::AreEqual<Byte> ('P', out);
@@ -519,14 +519,14 @@ namespace SuperSerialCardMachineTestNs
             }
 
             machine.GetMemoryBus().WriteByte (0xC0A8, 'Q');
-            machine.RunCycles (5000);
+            machine.GetRunner().RunCycles (5000);
             Assert::IsFalse (acia.IsCtsTrue(), L"busy near full");
 
             while (ring.TryPop (out))
             {
             }
 
-            machine.RunCycles (5000);
+            machine.GetRunner().RunCycles (5000);
             Assert::IsTrue (acia.IsCtsTrue(), L"ready once drained");
         }
 
@@ -546,12 +546,12 @@ namespace SuperSerialCardMachineTestNs
 
 
             Assert::IsTrue (machine.GetRefs().printerRing == &machine.GetPrinterRing(), L"port 1 has the printer");
-            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BUSY), machine.ConnectSerialPort (2, kpszImageWriterDevice, nullptr, nullptr));
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BUSY), machine.GetConnectors().ConnectSerialPort (2, kpszImageWriterDevice, nullptr, nullptr));
 
-            Assert::AreEqual (S_OK, machine.ConnectSerialPort (1, "", nullptr, nullptr));
+            Assert::AreEqual (S_OK, machine.GetConnectors().ConnectSerialPort (1, "", nullptr, nullptr));
             Assert::IsNull (machine.GetRefs().printerRing, L"unplugged from port 1");
 
-            Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, kpszImageWriterDevice, nullptr, nullptr));
+            Assert::AreEqual (S_OK, machine.GetConnectors().ConnectSerialPort (2, kpszImageWriterDevice, nullptr, nullptr));
             Assert::IsTrue (machine.GetRefs().printerRing == &machine.GetPrinterRing(), L"now on port 2");
         }
 
@@ -572,19 +572,19 @@ namespace SuperSerialCardMachineTestNs
 
 
             Assert::IsTrue   (machine.GetRefs().printerRing == &machine.GetPrinterRing(), L"the parallel card has the printer");
-            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BUSY), machine.ConnectSerialPort (2, kpszImageWriterDevice, nullptr, nullptr));
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BUSY), machine.GetConnectors().ConnectSerialPort (2, kpszImageWriterDevice, nullptr, nullptr));
 
-            Assert::AreEqual (S_OK, machine.ConnectParallelPrinter (1, false));
+            Assert::AreEqual (S_OK, machine.GetConnectors().ConnectParallelPrinter (1, false));
             Assert::IsNull   (machine.GetRefs().printerRing, L"taken off the parallel card");
             Assert::AreEqual (PrinterCard::kStatusBusy, machine.GetMemoryBus().ReadByte (0xC091));
 
-            Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, kpszImageWriterDevice, nullptr, nullptr));
+            Assert::AreEqual (S_OK, machine.GetConnectors().ConnectSerialPort (2, kpszImageWriterDevice, nullptr, nullptr));
             Assert::IsTrue   (machine.GetRefs().printerRing == &machine.GetPrinterRing(), L"now on the serial card");
 
-            Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, kpszSerialLoopback, nullptr, nullptr));
+            Assert::AreEqual (S_OK, machine.GetConnectors().ConnectSerialPort (2, kpszSerialLoopback, nullptr, nullptr));
             Assert::IsNull   (machine.GetRefs().printerRing, L"a loopback plug in its place");
 
-            Assert::AreEqual (S_OK, machine.ConnectParallelPrinter (1, true));
+            Assert::AreEqual (S_OK, machine.GetConnectors().ConnectParallelPrinter (1, true));
             Assert::IsTrue   (machine.GetRefs().printerRing == &machine.GetPrinterRing(), L"back on the parallel card");
             Assert::AreEqual (PrinterCard::kStatusReady, machine.GetMemoryBus().ReadByte (0xC091));
         }

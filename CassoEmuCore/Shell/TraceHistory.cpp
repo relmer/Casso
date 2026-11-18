@@ -17,7 +17,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::unique_ptr<IDebugEventProbe<Cpu::TraceEntry>> MakeProbe (TraceEventProbe *& outProbe)
+static std::unique_ptr<IDebugEventProbe<CpuTrace::Entry>> MakeProbe (TraceEventProbe *& outProbe)
 {
     auto  probe = std::make_unique<TraceEventProbe>();
 
@@ -124,7 +124,7 @@ void TraceHistory::OnHistoryChanged()
 
 bool TraceHistory::Pump()
 {
-    DebugEventStretchResult<Cpu::TraceEntry>  result;
+    DebugEventStretchResult<CpuTrace::Entry>  result;
     bool                                      isAny  = false;
 
 
@@ -164,7 +164,7 @@ bool TraceHistory::Pump()
 
 void TraceHistory::GetSpans (std::vector<TraceSpan> & outSpans)
 {
-    uint64_t          position = m_machine.GetPosition();
+    uint64_t          position = m_machine.GetRunner().GetPosition();
     bool              isJoined = false;
     DebugEventBounds  live;
 
@@ -332,11 +332,11 @@ uint64_t TraceHistory::FindCycle (uint64_t cycle)
 
     for (i = bounds.size(); i > 0 && found == UINT64_MAX; i--)
     {
-        bool  isFound = keyframes != nullptr && keyframes->TryFindByPosition (bounds[i - 1].startPosition, index);
+        bool  isFound = keyframes != nullptr && keyframes->GetArena().TryFindByPosition (bounds[i - 1].startPosition, index);
 
 
 
-        if (!isFound || keyframes->GetInfo (index).cycle > cycle)
+        if (!isFound || keyframes->GetArena().GetInfo (index).cycle > cycle)
         {
             continue;
         }
@@ -389,7 +389,7 @@ void TraceHistory::GetBounds (
     uint64_t                         to,
     std::vector<DebugEventBounds>  & outBounds) const
 {
-    uint64_t                    position = m_machine.GetPosition();
+    uint64_t                    position = m_machine.GetRunner().GetPosition();
     size_t                      i        = 0;
     const KeyframeStretches   * synced   = nullptr;
     DebugEventBounds            live;
@@ -451,10 +451,10 @@ void TraceHistory::GetBounds (
 bool TraceHistory::TryGetLive (DebugEventBounds & outLive) const
 {
     const KeyframeStore  & keyframes = m_controller->GetKeyframes();
-    uint64_t               position  = m_machine.GetPosition();
-    uint64_t               newest    = keyframes.GetInfo (keyframes.GetCount() - 1).position;
+    uint64_t               position  = m_machine.GetRunner().GetPosition();
+    uint64_t               newest    = keyframes.GetArena().GetInfo (keyframes.GetArena().GetCount() - 1).position;
     bool                   isGrowing = m_controller->IsRecordingLive() && !IsStopped();
-    bool                   isLive    = newest < position && !isGrowing && !m_controller->IsPaused();
+    bool                   isLive    = newest < position && !isGrowing && !m_controller->GetSpan().IsPaused();
 
 
 
@@ -480,7 +480,7 @@ bool TraceHistory::TryGetLive (DebugEventBounds & outLive) const
 
 bool TraceHistory::IsReadable() const
 {
-    return m_controller != nullptr && m_controller->IsRecording() && m_controller->GetKeyframes().GetCount() > 0;
+    return m_controller != nullptr && m_controller->GetSpan().IsRecording() && m_controller->GetKeyframes().GetArena().GetCount() > 0;
 }
 
 
@@ -528,7 +528,7 @@ HRESULT TraceHistory::Rebuild (const std::vector<DebugEventBounds> & stretches)
 {
     HRESULT                                               hr = S_OK;
     DebugEventJob                                         job;
-    std::vector<DebugEventStretchResult<Cpu::TraceEntry>> results;
+    std::vector<DebugEventStretchResult<CpuTrace::Entry>> results;
     size_t                                                i  = 0;
 
 
@@ -610,7 +610,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TraceHistory::Store (const DebugEventBounds & bounds, DebugEventStretchResult<Cpu::TraceEntry> && result)
+void TraceHistory::Store (const DebugEventBounds & bounds, DebugEventStretchResult<CpuTrace::Entry> && result)
 {
     Rebuilt   rebuilt;
     uint64_t  length  = bounds.endPosition - bounds.startPosition;
@@ -619,9 +619,9 @@ void TraceHistory::Store (const DebugEventBounds & bounds, DebugEventStretchResu
 
     rebuilt.bounds        = bounds;
     rebuilt.isUnavailable = result.isUnavailable || FAILED (result.hr);
-    rebuilt.entries.assign ((size_t) length, TraceHistoryEntry { Cpu::TraceEntry {}, false });
+    rebuilt.entries.assign ((size_t) length, TraceHistoryEntry { CpuTrace::Entry {}, false });
 
-    for (const DebugEventEntry<Cpu::TraceEntry> & each : result.entries)
+    for (const DebugEventEntry<CpuTrace::Entry> & each : result.entries)
     {
         if (!rebuilt.isUnavailable && each.position >= bounds.startPosition && each.position < bounds.endPosition)
         {

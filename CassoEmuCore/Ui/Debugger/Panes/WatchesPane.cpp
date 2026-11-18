@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/WatchesPane.h"
+#include "Ui/Debugger/WatchEdits.h"
+#include "Ui/Debugger/WatchActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -233,7 +235,7 @@ void WatchesPane::Apply (const DebuggerViewSnapshot & snapshot)
 
 void WatchesPane::RecordAdded (const DebuggerViewSnapshot & snapshot)
 {
-    DebuggerViewState::WatchUndo  undo;
+    WatchEdits::WatchUndo  undo;
 
 
 
@@ -255,8 +257,8 @@ void WatchesPane::RecordAdded (const DebuggerViewSnapshot & snapshot)
             continue;
         }
 
-        undo.actions = { DebuggerActions::GetClearWatch (watch.id, m_host.GetMode()) };
-        m_history.Record (std::move (undo), { DebuggerActions::GetAddWatchAt (watch.id, m_addedText, m_host.GetMode()) }, std::format (L"add watch {}", watch.id));
+        undo.actions = { WatchActions::GetClearWatch (watch.id, m_host.GetMode()) };
+        m_history.Record (std::move (undo), { WatchActions::GetAddWatchAt (watch.id, m_addedText, m_host.GetMode()) }, std::format (L"add watch {}", watch.id));
         m_addedText.clear();
         return;
     }
@@ -648,7 +650,7 @@ std::wstring WatchesPane::GetWatchType (const DebuggerViewSnapshot::WatchLine & 
         return L"BASIC";
     }
 
-    if (DebuggerViewState::IsRegisterWatch (watch))
+    if (WatchEdits::IsRegisterWatch (watch))
     {
         return L"Register";
     }
@@ -747,13 +749,13 @@ void WatchesPane::EndEdit (bool commit)
 
 bool WatchesPane::CommitCell (int row, int column, const std::wstring & typed, std::wstring & outError)
 {
-    const DebuggerViewSnapshot                  * snapshot = m_host.GetLatestSnapshot();
-    Edit                                          edit     = m_edit;
-    std::optional<int>                            watchId;
-    std::optional<int>                            autoAt;
-    std::optional<DebuggerViewState::WatchUndo>   undo;
-    std::vector<DebuggerAction>                   actions;
-    std::string                                   error;
+    const DebuggerViewSnapshot            * snapshot = m_host.GetLatestSnapshot();
+    Edit                                    edit     = m_edit;
+    std::optional<int>                      watchId;
+    std::optional<int>                      autoAt;
+    std::optional<WatchEdits::WatchUndo>    undo;
+    std::vector<DebuggerAction>             actions;
+    std::string                             error;
 
 
 
@@ -771,7 +773,7 @@ bool WatchesPane::CommitCell (int row, int column, const std::wstring & typed, s
     //  watch it would replace remains.
     if (snapshot != nullptr && edit.isOpen && column == 0 && edit.what.kind == RowKind::Manual)
     {
-        error = DebuggerViewState::GetWatchError (*snapshot, TextEncoding::WideToNarrow (typed));
+        error = WatchEdits::GetWatchError (*snapshot, TextEncoding::WideToNarrow (typed));
 
         if (!error.empty())
         {
@@ -807,8 +809,8 @@ bool WatchesPane::CommitCell (int row, int column, const std::wstring & typed, s
         return true;
     }
 
-    actions = DebuggerViewState::GetWatchEditActions (*snapshot, watchId, autoAt, column, TextEncoding::WideToNarrow (typed), m_host.GetMode());
-    undo    = actions.empty() ? std::nullopt : DebuggerViewState::GetWatchUndo (*snapshot, watchId, autoAt, column, m_host.GetMode());
+    actions = WatchEdits::GetWatchEditActions (*snapshot, watchId, autoAt, column, TextEncoding::WideToNarrow (typed), m_host.GetMode());
+    undo    = actions.empty() ? std::nullopt : WatchEdits::GetWatchUndo (*snapshot, watchId, autoAt, column, m_host.GetMode());
 
     if (undo.has_value())
     {
@@ -883,7 +885,7 @@ bool WatchesPane::AddWatch (const std::wstring & typed, std::wstring & outError)
         return true;
     }
 
-    error = (snapshot != nullptr) ? DebuggerViewState::GetWatchError (*snapshot, expression) : std::string();
+    error = (snapshot != nullptr) ? WatchEdits::GetWatchError (*snapshot, expression) : std::string();
 
     if (!error.empty())
     {
@@ -903,7 +905,7 @@ bool WatchesPane::AddWatch (const std::wstring & typed, std::wstring & outError)
     m_addedBy             = m_clock() + kAddedWaitMs;
     m_addedText           = expression;
     SetError ({});
-    m_host.RunAction (DebuggerActions::GetAddWatch (expression, m_host.GetMode()));
+    m_host.RunAction (WatchActions::GetAddWatch (expression, m_host.GetMode()));
     return true;
 }
 
@@ -997,11 +999,11 @@ void WatchesPane::RemoveSelected()
 
 void WatchesPane::RemoveRows (const std::vector<Row> & rows)
 {
-    const DebuggerViewSnapshot      * snapshot = m_host.GetLatestSnapshot();
-    std::vector<int>                  ids;
-    std::vector<int>                  slots;
-    std::vector<DebuggerAction>       clears;
-    DebuggerViewState::WatchUndo      undo;
+    const DebuggerViewSnapshot   * snapshot = m_host.GetLatestSnapshot();
+    std::vector<int>               ids;
+    std::vector<int>               slots;
+    std::vector<DebuggerAction>    clears;
+    WatchEdits::WatchUndo          undo;
 
 
 
@@ -1034,7 +1036,7 @@ void WatchesPane::RemoveRows (const std::vector<Row> & rows)
     {
         if (std::ranges::binary_search (ids, watch.id))
         {
-            undo.actions.push_back (DebuggerActions::GetAddWatchAt (watch.id, GetRestoreText (watch), m_host.GetMode()));
+            undo.actions.push_back (WatchActions::GetAddWatchAt (watch.id, GetRestoreText (watch), m_host.GetMode()));
         }
     }
 
@@ -1042,18 +1044,18 @@ void WatchesPane::RemoveRows (const std::vector<Row> & rows)
     {
         if (std::ranges::binary_search (slots, pointer.id))
         {
-            undo.actions.push_back (DebuggerActions::GetAddZeroPagePointerAt (pointer.id, (Byte) pointer.address, m_host.GetMode()));
+            undo.actions.push_back (WatchActions::GetAddZeroPagePointerAt (pointer.id, (Byte) pointer.address, m_host.GetMode()));
         }
     }
 
     for (auto id = ids.rbegin(); id != ids.rend(); ++id)
     {
-        clears.push_back (DebuggerActions::GetClearWatch (*id, m_host.GetMode()));
+        clears.push_back (WatchActions::GetClearWatch (*id, m_host.GetMode()));
     }
 
     for (auto slot = slots.rbegin(); slot != slots.rend(); ++slot)
     {
-        clears.push_back (DebuggerActions::GetClearZeroPagePointer (*slot, m_host.GetMode()));
+        clears.push_back (WatchActions::GetClearZeroPagePointer (*slot, m_host.GetMode()));
     }
 
     m_history.Record (std::move (undo), clears, L"remove watches");
@@ -1096,9 +1098,9 @@ void WatchesPane::RemoveFromMenu (const Row & row)
 
 void WatchesPane::RemoveWatch (int id)
 {
-    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
-    DebuggerViewState::WatchUndo     undo;
-    DebuggerAction                   clear    = DebuggerActions::GetClearWatch (id, m_host.GetMode());
+    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    WatchEdits::WatchUndo         undo;
+    DebuggerAction                clear    = WatchActions::GetClearWatch (id, m_host.GetMode());
 
 
 
@@ -1106,7 +1108,7 @@ void WatchesPane::RemoveWatch (int id)
     {
         if (watch.id == id)
         {
-            undo.actions = { DebuggerActions::GetAddWatchAt (id, GetRestoreText (watch), m_host.GetMode()) };
+            undo.actions = { WatchActions::GetAddWatchAt (id, GetRestoreText (watch), m_host.GetMode()) };
             m_history.Record (std::move (undo), { clear }, std::format (L"remove watch {}", id));
             break;
         }
@@ -1129,9 +1131,9 @@ void WatchesPane::RemoveWatch (int id)
 
 void WatchesPane::RemovePointer (int slot)
 {
-    const DebuggerViewSnapshot     * snapshot = m_host.GetLatestSnapshot();
-    DebuggerViewState::WatchUndo     undo;
-    DebuggerAction                   clear    = DebuggerActions::GetClearZeroPagePointer (slot, m_host.GetMode());
+    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    WatchEdits::WatchUndo         undo;
+    DebuggerAction                clear    = WatchActions::GetClearZeroPagePointer (slot, m_host.GetMode());
 
 
 
@@ -1139,7 +1141,7 @@ void WatchesPane::RemovePointer (int slot)
     {
         if (pointer.id == slot)
         {
-            undo.actions = { DebuggerActions::GetAddZeroPagePointerAt (slot, (Byte) pointer.address, m_host.GetMode()) };
+            undo.actions = { WatchActions::GetAddZeroPagePointerAt (slot, (Byte) pointer.address, m_host.GetMode()) };
             m_history.Record (std::move (undo), { clear }, std::format (L"remove zero-page pointer {}", slot));
             break;
         }

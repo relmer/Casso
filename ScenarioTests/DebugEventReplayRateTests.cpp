@@ -33,14 +33,14 @@ namespace DebugEventReplayRateTests
             m_machine = &machine;
             m_entries = &entries;
 
-            machine.AttachObservers ({ this, nullptr }, ObserverSlot::History);
+            machine.GetObserverWiring().AttachObservers ({ this, nullptr }, ObserverSlot::History);
 
             return S_OK;
         }
 
         void  Detach (MachineHost & machine) override
         {
-            machine.AttachObservers ({}, ObserverSlot::History);
+            machine.GetObserverWiring().AttachObservers ({}, ObserverSlot::History);
 
             m_machine = nullptr;
             m_entries = nullptr;
@@ -62,7 +62,7 @@ namespace DebugEventReplayRateTests
     private:
         void  Add (int kind)
         {
-            m_entries->push_back (DebugEventEntry<int> { DebugEventEntryKind::Event, m_machine->GetPosition(), m_machine->GetCpu()->GetTotalCycles(), kind });
+            m_entries->push_back (DebugEventEntry<int> { DebugEventEntryKind::Event, m_machine->GetRunner().GetPosition(), m_machine->GetCpu()->GetTotalCycles(), kind });
         }
 
         MachineHost                        * m_machine = nullptr;

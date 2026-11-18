@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/RegisterHistory.h"
+#include "Ui/Debugger/MemoryActions.h"
 #include "Ui/Debugger/UndoText.h"
 #include "Core/TextEncoding.h"
 
@@ -81,7 +82,7 @@ std::optional<DebuggerAction> RegisterHistory::TryUndo (CommandMode mode)
     step = m_undo.back();
     m_undo.pop_back();
     m_redo.push_back (step);
-    return DebuggerActions::GetSetRegister (step.name, step.before, mode);
+    return MemoryActions::GetSetRegister (step.name, step.before, mode);
 }
 
 
@@ -108,7 +109,7 @@ std::optional<DebuggerAction> RegisterHistory::TryRedo (CommandMode mode)
     step = m_redo.back();
     m_redo.pop_back();
     m_undo.push_back (step);
-    return DebuggerActions::GetSetRegister (step.name, step.after, mode);
+    return MemoryActions::GetSetRegister (step.name, step.after, mode);
 }
 
 

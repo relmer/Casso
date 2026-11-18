@@ -152,6 +152,21 @@ public:
         Assert::AreEqual ((int) CassoExplorerCommands::kReadDiskToImage,     bar[10].command->id);
         Assert::AreEqual ((int) CassoExplorerCommands::kWriteImageToDisk,    bar[11].command->id);
         Assert::AreEqual ((int) CassoExplorerCommands::kCancelLinkOperation, bar[12].command->id);
+
+        //  The disk inspector's Inspect after View, and Compare after it for
+        //  two images.
+        bar = commands.BuildCommandBarEntries (CassoExplorerCommands::CommandBarExtra::DiskImage);
+
+        Assert::AreEqual ((int) CassoExplorerCommands::kInspectDiskImage, bar[9].command->id);
+        Assert::IsFalse  (bar[9].iconOnly);
+        Assert::IsTrue   (bar[9].vectorIcon != nullptr);
+        Assert::IsTrue   (bar[10].seeMoreOnly, L"no Compare for one image");
+
+        bar = commands.BuildCommandBarEntries (CassoExplorerCommands::CommandBarExtra::DiskImagePair);
+
+        Assert::AreEqual ((int) CassoExplorerCommands::kInspectDiskImage,  bar[9].command->id);
+        Assert::AreEqual ((int) CassoExplorerCommands::kCompareDiskImages, bar[10].command->id);
+        Assert::IsTrue   (bar[10].vectorIcon != nullptr);
     }
 
 
@@ -163,13 +178,20 @@ public:
     {
         CassoExplorerCommands  commands ({});
 
-        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarListing) == std::vector<int> { CassoExplorerCommands::kLineAddresses });
-        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarHex)     == std::vector<int> { CassoExplorerCommands::kShowDisassembly, CassoExplorerCommands::kShowBytes, CassoExplorerCommands::kGoToOffset, CassoExplorerCommands::kFind });
-        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarPicture) == std::vector<int> { CassoExplorerCommands::kPictureMonochrome, CassoExplorerCommands::kPictureColor, CassoExplorerCommands::kSavePicture });
-        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarSave)    == std::vector<int> { CassoExplorerCommands::kSavePicture });
-        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarNone).empty());
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarListing) == std::vector<int> { CassoExplorerCommands::kViewAs, CassoExplorerCommands::kLineAddresses, CassoExplorerCommands::kCrossReference, CassoExplorerCommands::kCopyPreview, CassoExplorerCommands::kSavePreviewAs, CassoExplorerCommands::kExpandPreview });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarHex)     == std::vector<int> { CassoExplorerCommands::kViewAs, CassoExplorerCommands::kShowDisassembly, CassoExplorerCommands::kShowBytes, CassoExplorerCommands::kGoToOffset, CassoExplorerCommands::kFind, CassoExplorerCommands::kCopyPreview, CassoExplorerCommands::kSavePreviewAs, CassoExplorerCommands::kExpandPreview });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarPicture) == std::vector<int> { CassoExplorerCommands::kViewAs, CassoExplorerCommands::kPictureMonochrome, CassoExplorerCommands::kPictureColor, CassoExplorerCommands::kCopyPreview, CassoExplorerCommands::kSavePreviewAs, CassoExplorerCommands::kExpandPreview });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarSave)    == std::vector<int> { CassoExplorerCommands::kViewAs, CassoExplorerCommands::kCopyPreview, CassoExplorerCommands::kSavePreviewAs, CassoExplorerCommands::kExpandPreview });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarText)    == std::vector<int> { CassoExplorerCommands::kViewAs, CassoExplorerCommands::kCharsetAppleText, CassoExplorerCommands::kCharsetMacOsRoman, CassoExplorerCommands::kCharsetIso8859, CassoExplorerCommands::kCopyPreview, CassoExplorerCommands::kSavePreviewAs, CassoExplorerCommands::kExpandPreview });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarRecords) == std::vector<int> { CassoExplorerCommands::kViewAs, CassoExplorerCommands::kCharsetAppleText, CassoExplorerCommands::kCharsetMacOsRoman, CassoExplorerCommands::kCharsetIso8859, CassoExplorerCommands::kRecordLength, CassoExplorerCommands::kCopyPreview, CassoExplorerCommands::kSavePreviewAs, CassoExplorerCommands::kExpandPreview });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarSheet)   == std::vector<int> { CassoExplorerCommands::kViewAs, CassoExplorerCommands::kSheetValues, CassoExplorerCommands::kSheetFormulas, CassoExplorerCommands::kCopyPreview, CassoExplorerCommands::kSavePreviewAs, CassoExplorerCommands::kExpandPreview });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarNone)          == std::vector<int> { CassoExplorerCommands::kViewAs, CassoExplorerCommands::kCopyPreview, CassoExplorerCommands::kSavePreviewAs, CassoExplorerCommands::kExpandPreview });
+        Assert::IsTrue (CassoExplorerCommands::GetPreviewToolbarCommandIds (CassoExplorerCommands::kPreviewBarNone, true)    == std::vector<int> { CassoExplorerCommands::kPreviousFile, CassoExplorerCommands::kNextFile, CassoExplorerCommands::kViewAs, CassoExplorerCommands::kCopyPreview, CassoExplorerCommands::kSavePreviewAs, CassoExplorerCommands::kExpandPreview });
 
         Assert::IsTrue (commands.Find (CassoExplorerCommands::kPictureMonochrome)->radio);
         Assert::IsTrue (commands.Find (CassoExplorerCommands::kPictureColor)->radio);
         Assert::IsFalse (commands.Find (CassoExplorerCommands::kSavePicture)->radio);
+        Assert::IsTrue (commands.Find (CassoExplorerCommands::kCharsetMacOsRoman)->radio);
+        Assert::IsFalse (commands.Find (CassoExplorerCommands::kRecordLength)->radio);
+        Assert::IsTrue (commands.Find (CassoExplorerCommands::kSheetFormulas)->radio);
     }};

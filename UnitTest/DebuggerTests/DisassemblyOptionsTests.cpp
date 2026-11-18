@@ -809,7 +809,7 @@ namespace DisassemblyOptionsTests
             half = (float) list->GetRowHeightDip() / 2.0f;
             list->Paint (painter, text, theme);
 
-            Assert::IsTrue (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken));
+            Assert::IsTrue (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken));
             Assert::IsTrue (input.sourceY.has_value() && input.targetY.has_value());
             Assert::IsTrue (std::abs (*input.sourceY - (float) GetRowMiddle (*list, 0)) < half, L"from the BNE's source row");
             Assert::IsTrue (std::abs (*input.targetY - (float) GetRowMiddle (*list, 2)) < half, L"to the RTS's source row");
@@ -1033,11 +1033,11 @@ namespace DisassemblyOptionsTests
 
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue  (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken), L"the default: the arrow is drawn");
+            Assert::IsTrue  (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken), L"the default: the arrow is drawn");
             Assert::AreEqual ((int) 0x0303, (int) goesTo);
 
             window.GetCodeGroup().ToggleOption (Option::BranchArrow);
-            Assert::IsFalse (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken));
+            Assert::IsFalse (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken));
         }
 
 
@@ -1086,10 +1086,10 @@ namespace DisassemblyOptionsTests
 
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue   (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken, true), L"the stepped branch's arrow");
+            Assert::IsTrue   (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken, true), L"the stepped branch's arrow");
             Assert::AreEqual ((int) 0x0303, (int) goesTo);
             Assert::IsTrue   (input.sourceY.has_value() && input.targetY.has_value() && *input.sourceY < *input.targetY);
-            Assert::IsFalse  (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken), L"the PC's RTS has none");
+            Assert::IsFalse  (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken), L"the PC's RTS has none");
         }
 
 
@@ -1135,7 +1135,7 @@ namespace DisassemblyOptionsTests
             window.ApplyCodeSnapshot (snapshot, 0);
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue   (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken, true), L"drawn though $0300 is not in view");
+            Assert::IsTrue   (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken, true), L"drawn though $0300 is not in view");
             Assert::AreEqual ((int) 0x0401, (int) goesTo);
             Assert::IsFalse  (input.sourceY.has_value(), L"no source row: it runs in from the edge");
             Assert::IsTrue   (input.isTargetBelow,        L"from above, $0300 being before the lines");
@@ -1185,7 +1185,7 @@ namespace DisassemblyOptionsTests
             window.ApplyCodeSnapshot (snapshot, 0);
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue   (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken), L"drawn though the PC's line is not in view");
+            Assert::IsTrue   (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken), L"drawn though the PC's line is not in view");
             Assert::AreEqual ((int) 0x0500, (int) goesTo);
             Assert::IsTrue   (isTaken);
             Assert::IsFalse  (input.sourceY.has_value(), L"it runs in from the top edge");
@@ -1197,7 +1197,7 @@ namespace DisassemblyOptionsTests
             window.GetCodeList (0)->Paint (painter, text, theme);
 
             input = BranchArrow::Input();
-            Assert::IsFalse  (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken), L"from above the lines to above them");
+            Assert::IsFalse  (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken), L"from above the lines to above them");
         }
 
 
@@ -1229,7 +1229,7 @@ namespace DisassemblyOptionsTests
             rig.controller.GetSession().GetTarget().SetRegisters (r);
 
             (void) rig.view.Build (rig.controller.GetSession());
-            rig.machine.StepOne();
+            rig.machine.GetRunner().StepOne();
             snapshot = std::make_shared<DebuggerViewSnapshot> (rig.view.Build (rig.controller.GetSession()));
 
             Assert::AreEqual ((int) 0x0300, (int) snapshot->pc);
@@ -1241,7 +1241,7 @@ namespace DisassemblyOptionsTests
             window.ApplyCodeSnapshot (snapshot, 0);
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue   (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken, true), L"the BPL's arrow, after the step took it");
+            Assert::IsTrue   (window.GetCodeGroup().GetArrows().GetBranchArrow (0, input, goesTo, isTaken, true), L"the BPL's arrow, after the step took it");
             Assert::AreEqual ((int) 0x0300, (int) goesTo);
             Assert::IsTrue   (window.HasTopLayer(), L"and the layer it is drawn on is painted, though the PC's NOP has no arrow");
         }
@@ -1265,7 +1265,7 @@ namespace DisassemblyOptionsTests
 
 
             scaler.SetDpi (96);
-            DebuggerWindow::MakeDense   (&list);
+            DensePaneList::MakeDense   (&list);
             DisassemblyCells::Configure (list);
             list.Layout (RECT { 0, 0, kPaneWidth, 400 }, scaler);
 

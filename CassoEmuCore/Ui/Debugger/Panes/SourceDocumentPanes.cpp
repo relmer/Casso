@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
+#include "Ui/Debugger/BreakpointActions.h"
+#include "Ui/Debugger/SymbolActions.h"
 
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/DebuggerLayout.h"
@@ -9,6 +11,7 @@
 #include "Ui/Debugger/GutterGlyph.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/SourceMacroPlaces.h"
 #include "Debugger/Source/SourcePathList.h"
 
 namespace fs = std::filesystem;
@@ -341,8 +344,8 @@ void SourceDocumentPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & it
     }
 
     PaneMenu::AddBreakpointRows (items, breakpoint->isEnabled, nullptr,
-                                 [this, id = breakpoint->id] (bool enable) { m_host.RunAction (DebuggerActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); },
-                                 [this, id = breakpoint->id] { m_host.RunAction (DebuggerActions::GetClearBreakpoint (id, m_host.GetMode())); });
+                                 [this, id = breakpoint->id] (bool enable) { m_host.RunAction (BreakpointActions::GetEnableBreakpoint (id, enable, m_host.GetMode())); },
+                                 [this, id = breakpoint->id] { m_host.RunAction (BreakpointActions::GetClearBreakpoint (id, m_host.GetMode())); });
 }
 
 
@@ -537,7 +540,7 @@ void SourceDocumentGroup::Apply()
 
     if (source.has_value())
     {
-        m_macroLevel = SourcePane::GetMacroLevel (*source, m_macroLevel);
+        m_macroLevel = SourceMacroPlaces::GetMacroLevel (*source, m_macroLevel);
 
         Restore  (snapshot);
         FollowPc (snapshot);
@@ -604,7 +607,7 @@ void SourceDocumentGroup::Apply()
 void SourceDocumentGroup::FollowPc (const DebuggerViewSnapshot & snapshot)
 {
     const DebuggerViewSnapshot::SourceState & source  = *snapshot.source;
-    std::pair<int, int>                       place   = SourcePane::GetPlace (source, SourcePane::GetMacroLevel (source, m_macroLevel));
+    std::pair<int, int>                       place   = SourceMacroPlaces::GetPlace (source, SourceMacroPlaces::GetMacroLevel (source, m_macroLevel));
     bool                                      wasLine = m_pcPlace.first >= 0;
     bool                                      isOpen  = (size_t) snapshot.followView < snapshot.codeOpen.size() && snapshot.codeOpen[(size_t) snapshot.followView];
     int                                       slot    = -1;
@@ -815,7 +818,7 @@ void SourceDocumentGroup::ToggleMacroBody()
 
     if (snapshot != nullptr && snapshot->source.has_value())
     {
-        m_macroLevel = SourcePane::GetNextMacroLevel (m_macroLevel, SourcePane::GetMacroLevel (*snapshot->source, -1));
+        m_macroLevel = SourceMacroPlaces::GetNextMacroLevel (m_macroLevel, SourceMacroPlaces::GetMacroLevel (*snapshot->source, -1));
     }
 
     m_pcPlace = { -1, 0 };
@@ -885,7 +888,7 @@ bool SourceDocumentGroup::ShowPc()
         return false;
     }
 
-    place = SourcePane::GetPlace (*snapshot->source, SourcePane::GetMacroLevel (*snapshot->source, m_macroLevel));
+    place = SourceMacroPlaces::GetPlace (*snapshot->source, SourceMacroPlaces::GetMacroLevel (*snapshot->source, m_macroLevel));
 
     if (place.first < 0)
     {
@@ -1176,7 +1179,7 @@ void SourceDocumentGroup::OpenSourcePath (const std::wstring & path)
     {
         if (host->DoesDebuggerFileExist (beside))
         {
-            m_host.RunAction (DebuggerActions::GetLoadSymbols (SourcePathList::WideToUtf8 (beside), m_host.GetMode()));
+            m_host.RunAction (SymbolActions::GetLoadSymbols (SourcePathList::WideToUtf8 (beside), m_host.GetMode()));
             m_pendingLoose = path;
             break;
         }

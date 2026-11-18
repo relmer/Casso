@@ -21,7 +21,7 @@ StripEffects FullscreenStripState::Tick (const StripInputs & inputs)
 {
     StripEffects  effects;
     bool          guestOwns = inputs.guestPointer != GuestPointerMode::None;
-    bool          engaged   = inputs.pointerOverStrip || inputs.pinned;
+    bool          engaged   = inputs.pointerOverStrip || inputs.pinned || (inputs.pointerAtBottomEdge && !guestOwns);
 
 
 

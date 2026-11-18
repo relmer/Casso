@@ -434,7 +434,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     // Reverse execution's history belongs to the machine being left, whose
     // devices are about to go; stopping it also lets the flush below write.
-    m_shell.m_debugger->StopReverseRecording();
+    m_shell.m_debugger->GetHistory().StopRecording();
 
     // Auto-flush every dirty disk before tearing down the previous
     // machine so user writes survive the machine switch.
@@ -488,12 +488,13 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
         // The recorder outlives the machine; stop it while the old CPU's
         // cycle count is still valid. The tape stays inserted.
-        m_shell.m_machine.StopTape();
+        m_shell.m_machine.GetTape().Stop();
 
         m_shell.m_machine.SetCpu (nullptr);
         // The //c ROM-bank coordinator holds references into the language card
         // (owned) + MMU; drop it before those owners are torn down.
         m_shell.m_machine.SetApple2cRomBank (nullptr);
+        m_shell.m_machine.SetAccelerator (nullptr);
         m_shell.m_machine.DetachSerialPorts();
         m_shell.m_machine.GetOwnedDevices().clear();
         m_shell.m_machine.GetVideoModes().clear();
@@ -595,7 +596,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     // The new machine's history starts here, built, power cycled and with
     // its disks in.
-    m_shell.m_debugger->StartReverseRecording();
+    m_shell.m_debugger->GetHistory().StartRecording();
 
     // Same rule as the color mode: a machine with no saved speed gets the
     // default, never the outgoing machine's.

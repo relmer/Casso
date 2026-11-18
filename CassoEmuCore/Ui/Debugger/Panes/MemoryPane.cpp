@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/MemoryActions.h"
 
 
 
@@ -31,7 +32,7 @@ MemoryPane::MemoryPane (int id, DxuiHexView * view, MoveFn move, ActionFn run, R
         std::vector<Byte>  values (bytes.begin(), bytes.end());
         std::vector<Byte>  before (required.begin(), required.end());
 
-        run ([address, values, before] (CommandMode mode) { return DebuggerActions::GetPatch (address, values, mode, before); });
+        run ([address, values, before] (CommandMode mode) { return MemoryActions::GetPatch (address, values, mode, before); });
     });
     m_view->SetSource (&m_model);
 }
@@ -211,7 +212,7 @@ uint32_t MemoryPane::GetHeatFill (const DebuggerViewSnapshot::HeatColumnLevels &
         return 0;
     }
 
-    heat = HeatMapView::GetColor (HeatMapView::Mode::All, execute, read, write, palette);
+    heat = HeatMapCells::GetColor (HeatMapView::Mode::All, execute, read, write, palette);
     fill = DxuiColor::Mix (page, heat, tint) | 0xFF000000u;
 
     if (DxuiColor::ComputeRelativeLuminance (page) < kLightPage)

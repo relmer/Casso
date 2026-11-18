@@ -71,6 +71,9 @@ public:
     //  Apple's, and the switches for IN# and Ctrl-A commands.
     static void  ConfigureCard (MachineConfig & config, bool firmware)
     {
+        // The //e's default card in slot 5 is taken out for this one.
+        std::erase_if (config.slots, [] (const SlotConfig & slot) { return slot.slot == kSlot && slot.device != kpszSuperSerialCardDevice; });
+
         for (SlotConfig & slot : config.slots)
         {
             if (slot.device == kpszSuperSerialCardDevice)
@@ -140,7 +143,7 @@ public:
             machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
 
             InProcessByteStream::CreatePair (machineEnd, pcEnd);
-            AssertSucceeded (machine.AttachSerialStream (kSlot, machineEnd));
+            AssertSucceeded (machine.GetConnectors().AttachSerialStream (kSlot, machineEnd));
 
             stream = std::make_shared<SteppedByteStream> (machine, pcEnd);
             host   = std::make_unique<CassoLinkHost> (stream, folder, [] () { return std::array<Byte, 4> {}; });
@@ -155,9 +158,9 @@ public:
         void  StartAtThePrompt()
         {
             machine.PowerCycle();
-            machine.RunCycles (2 * kClockHz);
+            machine.GetRunner().RunCycles (2 * kClockHz);
             machine.GetCpu()->SetPC (0xE000);
-            machine.RunCycles (2 * kClockHz);
+            machine.GetRunner().RunCycles (2 * kClockHz);
         }
 
         void  Type (const char * text)
@@ -165,7 +168,7 @@ public:
             for (size_t i = 0; text[i] != '\0'; i++)
             {
                 machine.GetRefs().iieKeyboard->PressKey ((Byte) text[i]);
-                machine.RunCycles (100'000ULL);
+                machine.GetRunner().RunCycles (100'000ULL);
             }
         }
 
@@ -189,10 +192,10 @@ public:
                 for (char c : line)
                 {
                     AssertSucceeded (pcEnd->Write (reinterpret_cast<const Byte *> (&c), 1));
-                    machine.RunCycles (kCharCycles);
+                    machine.GetRunner().RunCycles (kCharCycles);
                 }
 
-                machine.RunCycles (kLineCycles);
+                machine.GetRunner().RunCycles (kLineCycles);
             }
 
             while (!ready && spent <= kLoaderWait)
@@ -200,7 +203,7 @@ public:
                 AssertSucceeded (pcEnd->Read (got, sizeof (got), 0, read));
                 ready = std::find (got, got + read, LinkBootstrap::kLoaderReady) != got + read;
 
-                machine.RunCycles (kStepCycles);
+                machine.GetRunner().RunCycles (kStepCycles);
                 spent += kStepCycles;
             }
 
@@ -309,10 +312,10 @@ public:
             rig.Type (command.c_str());
         }
 
-        rig.machine.GetTapeDeck().Insert (std::move (image));
-        rig.machine.GetTapeDeck().Play (*rig.machine.GetCpu()->GetBusCyclePtr());
-        rig.machine.RunCycles ((uint64_t) ((seconds + 1.0) * rig.machine.GetConfig().clockSpeed));
-        rig.machine.GetTapeDeck().Update (*rig.machine.GetCpu()->GetBusCyclePtr());
+        rig.machine.GetTape().GetDeck().Insert (std::move (image));
+        rig.machine.GetTape().GetDeck().Play (*rig.machine.GetCpu()->GetBusCyclePtr());
+        rig.machine.GetRunner().RunCycles ((uint64_t) ((seconds + 1.0) * rig.machine.GetConfig().clockSpeed));
+        rig.machine.GetTape().GetDeck().Update (*rig.machine.GetCpu()->GetBusCyclePtr());
     }
 
     //  Faults on for the test, and off with none left armed after it.
@@ -343,7 +346,7 @@ public:
 
         GuestSession::Mount (rig.machine, boot);
         rig.MountDisk();
-        rig.machine.RunCycles (kBootCycles);
+        rig.machine.GetRunner().RunCycles (kBootCycles);
 
         Assert::IsTrue (rig.Screen()[2].starts_with ("WAITING FOR THE PC ON:"), TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
         Assert::IsTrue (rig.Screen()[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (rig.Screen()[4]).c_str());
@@ -358,8 +361,8 @@ public:
         AssertSucceeded (rig.host->ReadSectors (2, 20, sector, data, status));
         Assert::IsTrue (data == pattern, L"a sector written over the card reads back");
 
-        rig.machine.RunCycles (kBootCycles / 40);
-        Assert::IsTrue (rig.Screen()[1].find ("SSC, SLOT 5, 115200") != std::string::npos, TextEncoding::NarrowToWide (rig.Screen()[1]).c_str());
+        rig.machine.GetRunner().RunCycles (kBootCycles / 40);
+        Assert::IsTrue (rig.Screen()[1].find ("SSC, slot 5, 115200") != std::string::npos, TextEncoding::NarrowToWide (rig.Screen()[1]).c_str());
         Assert::AreEqual<Byte> (0x50, rig.machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is slot 5's");
     }
 
@@ -379,7 +382,7 @@ public:
 
         GuestSession::Mount (rig.machine, boot);
         rig.MountDisk();
-        rig.machine.RunCycles (kBootCycles);
+        rig.machine.GetRunner().RunCycles (kBootCycles);
 
         Assert::IsTrue (rig.Screen()[2].starts_with ("WAITING FOR THE PC ON:"), TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
         Assert::IsTrue (rig.Screen()[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (rig.Screen()[4]).c_str());
@@ -409,7 +412,7 @@ public:
         rig.Bootstrap();
 
         Assert::IsTrue (rig.ReadTrack (kTrack) == rig.ImageTrack (kTrack), L"drive 2's catalog over the bootstrapped link");
-        Assert::IsTrue (rig.Screen()[0].starts_with ("CASSOLINK"), TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
+        Assert::IsTrue (rig.Screen()[0].starts_with ("CassoLink"), TextEncoding::NarrowToWide (JoinRows (rig.Screen())).c_str());
     }
 
 
@@ -447,8 +450,8 @@ public:
         rig.ReadTrack (kTrack);
 
         rig.machine.GetRefs().iieKeyboard->PressKey (0x1B);
-        rig.machine.RunCycles (2 * kClockHz);
-        Assert::IsFalse (rig.Screen()[0].starts_with ("CASSOLINK"), L"Escape ended CassoLink");
+        rig.machine.GetRunner().RunCycles (2 * kClockHz);
+        Assert::IsFalse (rig.Screen()[0].starts_with ("CassoLink"), L"Escape ended CassoLink");
 
         after = ReadScreenHoles (rig.machine);
 

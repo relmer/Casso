@@ -4,6 +4,7 @@
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "Machines/Apple2/Common/RdosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 
 
@@ -77,7 +78,9 @@ std::wstring DragPayload::GetHostName (
     const FileEntry        & entry,
     VolumeKind               kind,
     HostFileNaming::Style    style,
-    bool                   & outConverted)
+    bool                   & outConverted,
+    FileFormat               format,
+    bool                     raw)
 {
     bool  isDos       = kind == VolumeKind::Dos33;
     bool  isApple     = isDos || kind == VolumeKind::ProDos;
@@ -88,7 +91,14 @@ std::wstring DragPayload::GetHostName (
 
 
 
-    outConverted = (isApplesoft || isInteger || isText) && style != HostFileNaming::Style::AppleSingle;
+    if (format != FileFormat::None && style != HostFileNaming::Style::AppleSingle && !raw)
+    {
+        outConverted = true;
+
+        return HostFileNaming::ForConverted (entry.name, format);
+    }
+
+    outConverted = (isApplesoft || isInteger || isText) && style != HostFileNaming::Style::AppleSingle && !raw;
 
     if (!outConverted)
     {
@@ -132,10 +142,11 @@ AppleSingleFile DragPayload::MakeAppleSingle (const FileEntry & entry, VolumeKin
     file.realName      = entry.name;
     file.hasProDosInfo = true;
     file.access        = entry.isLocked ? 0x01 : 0xC3;
-    file.fileType      = isDos                       ? HostFileNaming::MapDos33ToProDosType (entry.type)
-                       : (kind == VolumeKind::Pascal) ? HostFileNaming::MapPascalToProDosType (entry.type)
-                       : (kind == VolumeKind::Cpm)    ? (Byte) 0
-                                                      : entry.type;
+    file.fileType      = isDos                                                      ? HostFileNaming::MapDos33ToProDosType (entry.type)
+                       : (kind == VolumeKind::Pascal)                               ? HostFileNaming::MapPascalToProDosType (entry.type)
+                       : (kind == VolumeKind::Rdos)                                 ? RdosVolume::GetProDosType (entry.type)
+                       : (kind == VolumeKind::Cpm || kind == VolumeKind::Gutenberg) ? (Byte) 0
+                                                                                    : entry.type;
     file.auxType       = entry.hasLoadAddress ? entry.loadAddress : entry.auxType;
 
     if (entry.hasModified)
@@ -167,7 +178,7 @@ std::string DragPayload::EncodeCatalogEntries (
 
     bytes += sourceImage;
     bytes += '\n';
-    bytes += (kind == VolumeKind::Dos33) ? "dos33" : (kind == VolumeKind::Pascal) ? "pascal" : (kind == VolumeKind::Cpm) ? "cpm" : "prodos";
+    bytes += (kind == VolumeKind::Dos33) ? "dos33" : (kind == VolumeKind::Pascal) ? "pascal" : (kind == VolumeKind::Cpm) ? "cpm" : (kind == VolumeKind::Gutenberg) ? "gutenberg" : (kind == VolumeKind::Rdos) ? "rdos" : (kind == VolumeKind::Infocom) ? "infocom" : "prodos";
     bytes += '\n';
 
     for (const std::string & path : catalogPaths)
@@ -218,11 +229,14 @@ bool DragPayload::DecodeCatalogEntries (
 
     outSourceImage = lines[0];
 
-    if (lines[1] == "dos33")       { outKind = VolumeKind::Dos33; }
-    else if (lines[1] == "prodos") { outKind = VolumeKind::ProDos; }
-    else if (lines[1] == "pascal") { outKind = VolumeKind::Pascal; }
-    else if (lines[1] == "cpm")    { outKind = VolumeKind::Cpm; }
-    else                           { return false; }
+    if (lines[1] == "dos33")          { outKind = VolumeKind::Dos33; }
+    else if (lines[1] == "prodos")    { outKind = VolumeKind::ProDos; }
+    else if (lines[1] == "pascal")    { outKind = VolumeKind::Pascal; }
+    else if (lines[1] == "cpm")       { outKind = VolumeKind::Cpm; }
+    else if (lines[1] == "gutenberg") { outKind = VolumeKind::Gutenberg; }
+    else if (lines[1] == "rdos")      { outKind = VolumeKind::Rdos; }
+    else if (lines[1] == "infocom")   { outKind = VolumeKind::Infocom; }
+    else                              { return false; }
 
     outCatalogPaths.assign (lines.begin() + 2, lines.end());
 
@@ -249,6 +263,8 @@ void DragPayload::AppendEntry (
     const std::wstring       & relativeFolder,
     const std::string        & catalogFolder,
     const DirectoryLister    & listDirectory,
+    const FormatFinder       & findFormat,
+    bool                       raw,
     int                        depth,
     std::vector<Descriptor>  & inOutDescriptors)
 {
@@ -263,6 +279,12 @@ void DragPayload::AppendEntry (
     descriptor.catalogPath  = catalogPath;
     descriptor.isDirectory  = entry.isDirectory;
     descriptor.catalogIndex = entry.catalogIndex;
+    descriptor.entry        = entry;
+
+    if (!entry.isDirectory && findFormat && style != HostFileNaming::Style::AppleSingle && !raw)
+    {
+        descriptor.format = findFormat (catalogPath, entry);
+    }
 
     if (entry.isDirectory)
     {
@@ -270,7 +292,7 @@ void DragPayload::AppendEntry (
     }
     else
     {
-        descriptor.relativePath = relativeFolder + GetHostName (entry, kind, style, descriptor.converted);
+        descriptor.relativePath = relativeFolder + GetHostName (entry, kind, style, descriptor.converted, descriptor.format, raw);
         descriptor.appleSingle  = style == HostFileNaming::Style::AppleSingle;
 
         if (descriptor.appleSingle)
@@ -296,7 +318,7 @@ void DragPayload::AppendEntry (
     for (const FileEntry & child : listing.entries)
     {
         AppendEntry (child, kind, style, descriptor.relativePath + L"\\", catalogPath,
-                     listDirectory, depth + 1, inOutDescriptors);
+                     listDirectory, findFormat, raw, depth + 1, inOutDescriptors);
     }
 }
 
@@ -323,7 +345,9 @@ DragPayload::Plan DragPayload::Build (
     HostFileNaming::Style              style,
     const DirectoryLister            & listDirectory,
     const std::vector<std::wstring>  & hostPaths,
-    const std::string                & catalogFolder)
+    const std::string                & catalogFolder,
+    const FormatFinder               & findFormat,
+    bool                               raw)
 {
     Plan                      plan;
     std::vector<std::string>  catalogPaths;
@@ -337,7 +361,7 @@ DragPayload::Plan DragPayload::Build (
             {
                 catalogPaths.push_back (catalogFolder.empty() ? entry.name : catalogFolder + "/" + entry.name);
 
-                AppendEntry (entry, kind, style, L"", catalogFolder, listDirectory, 0, plan.descriptors);
+                AppendEntry (entry, kind, style, L"", catalogFolder, listDirectory, findFormat, raw, 0, plan.descriptors);
             }
 
             plan.privateBytes = EncodeCatalogEntries (sourceImage, kind, catalogPaths);

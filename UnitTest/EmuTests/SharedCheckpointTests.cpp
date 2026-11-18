@@ -80,7 +80,7 @@ public:
         disk = machine.GetDiskStore().GetImage (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
         Assert::IsNotNull (disk, L"the rig's disk");
 
-        machine.RunCycles (KeyframeSettings::kFrameCycles);
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
 
         before = KeepTracks (SaveSharedAndCompare (machine, L"before the disk is written"));
         Assert::AreEqual<size_t> (static_cast<size_t> (disk->GetTrackCount()), before.size(), L"one shared run per track");
@@ -90,7 +90,7 @@ public:
             generations.push_back (disk->GetTrackGeneration (static_cast<int> (track)));
         }
 
-        machine.RunCycles (KeyframeSettings::kFrameCycles * s_kSharedFrames);
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles * s_kSharedFrames);
 
         after = KeepTracks (SaveSharedAndCompare (machine, L"after the guest wrote the disk"));
 
@@ -116,11 +116,11 @@ public:
 
 
         ReverseSessionRig::Prepare (machine);
-        machine.RunCycles (KeyframeSettings::kFrameCycles);
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
 
         earlier = ReverseSessionRig::Save (machine);
 
-        machine.RunCycles (KeyframeSettings::kFrameCycles * s_kSharedFrames);
+        machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles * s_kSharedFrames);
         SaveSharedAndCompare (machine, L"before the load");
 
         hr = Load (machine, earlier);
@@ -225,7 +225,7 @@ private:
 
 
 
-        return machine.LoadState (reader);
+        return machine.GetStateStream().LoadState (reader);
     }
 
 
@@ -240,7 +240,7 @@ private:
 
         writer.SetSharing (true);
 
-        hr = machine.SaveState (writer);
+        hr = machine.GetStateStream().SaveState (writer);
         AssertSucceeded (hr, L"sharing SaveState");
 
         segments = writer.TakeSegments();

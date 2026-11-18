@@ -148,7 +148,7 @@ public:
 
 
     //  A shim built at the link's speed takes the program, and the program's
-    //  status is CONNECTED.
+    //  status is Connected.
     TEST_METHOD (AShimAtTheLinksSpeed_LoadsTheProgram_AndConnects)
     {
         ProgramRig  rig ({});
@@ -156,10 +156,10 @@ public:
 
 
         AssertSucceeded (rig.host->SetColumns (false));
-        rig.machine.RunCycles (kSettleCycles);
+        rig.machine.GetRunner().RunCycles (kSettleCycles);
 
         Assert::AreEqual<int> (LinkProgram::kProgramVersion, rig.host->GetClient().programVersion);
-        Assert::IsTrue (Row (rig, kRowStatus).starts_with ("CASSOLINK: CONNECTED"), TextEncoding::NarrowToWide (Row (rig, kRowStatus)).c_str());
+        Assert::IsTrue (Row (rig, kRowStatus).starts_with ("CassoLink: Connected"), TextEncoding::NarrowToWide (Row (rig, kRowStatus)).c_str());
     }
 
 

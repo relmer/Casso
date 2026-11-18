@@ -138,4 +138,19 @@ public:
         Assert::IsTrue (stops[at + 2] == FocusStop { FocusStop::Kind::CommandBarEntry, 2 }, L"A button that cannot be used is passed over");
         Assert::IsTrue (stops[at + 3].kind == FocusStop::Kind::Tabs);
     }
+
+    //  An expanded preview's stops: the tab strip, the preview's usable
+    //  buttons and the preview.
+    TEST_METHOD (ExpandedPreview_HasTheTabsItsButtonsAndThePreview)
+    {
+        std::vector<FocusStop>  stops = FocusRing::BuildExpandedStops ({ true, false, true });
+
+
+
+        Assert::AreEqual ((size_t) 4, stops.size());
+        Assert::IsTrue (stops[0].kind == FocusStop::Kind::Tabs);
+        Assert::IsTrue (stops[1] == FocusStop { FocusStop::Kind::PreviewToolbarEntry, 0 });
+        Assert::IsTrue (stops[2] == FocusStop { FocusStop::Kind::PreviewToolbarEntry, 2 });
+        Assert::IsTrue (stops[3].kind == FocusStop::Kind::Preview);
+    }
 };

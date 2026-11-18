@@ -83,7 +83,9 @@ public:
     void          PickTape               ();
     void          BrowseForTape          ();
     void          InsertTape             (const std::wstring & path);
-    void          CreateBlankTape        ();
+
+    // True when a blank tape was made, which is then in the recorder.
+    bool          CreateBlankTape        ();
 
     // The desk recorder's keys. Record, Rewind, Fast-forward and Play stay
     // down once pressed, as the RQ-309DS's do, and only Stop, Eject or a

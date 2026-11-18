@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/ProfilerPane.h"
+#include "Ui/Debugger/SessionActions.h"
 
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
@@ -801,7 +802,7 @@ void ProfilerPane::Refresh()
 
 void ProfilerPane::RunProfile (const char * words)
 {
-    m_host.RunAction (DebuggerActions::GetProfile (words, m_host.GetMode()));
+    m_host.RunAction (SessionActions::GetProfile (words, m_host.GetMode()));
 }
 
 
@@ -1582,7 +1583,7 @@ bool ProfilerPane::IsOverTimeline (POINT positionDip) const
 
 bool ProfilerPane::RouteEarlyMouse (const DxuiMouseEvent & ev)
 {
-    bool  isBackOrForward = ev.kind == DxuiMouseEventKind::Up && (ev.button == DxuiMouseButton::X1 || ev.button == DxuiMouseButton::X2);
+    bool  isBackOrForward = ev.kind == DxuiMouseEventKind::Up && (ev.button == DxuiMouseButton::Back || ev.button == DxuiMouseButton::Forward);
 
 
 
@@ -1597,7 +1598,7 @@ bool ProfilerPane::RouteEarlyMouse (const DxuiMouseEvent & ev)
         return false;
     }
 
-    (void) ((ev.button == DxuiMouseButton::X1) ? GoBack() : GoForward());
+    (void) ((ev.button == DxuiMouseButton::Back) ? GoBack() : GoForward());
     return true;
 }
 

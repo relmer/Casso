@@ -76,6 +76,22 @@ public:
         Assert::IsTrue (fsm.Mode() == StripMode::Shown);
     }
 
+    //  The strip stays up while the pointer rests in the reveal zone, as it
+    //  does while the pointer rests on it, so a strip that rises below the
+    //  pointer does not hide and rise again.
+    TEST_METHOD (Pointer_At_Bottom_Edge_Keeps_It_Shown)
+    {
+        FullscreenStripState  fsm;
+        StripInputs           inputs;
+        int64_t               now = 1000;
+
+
+
+        inputs.pointerAtBottomEdge = true;
+        RunFor (fsm, inputs, now, FullscreenStripState::kSlideMs + FullscreenStripState::kAutoHideGraceMs * 4);
+        Assert::IsTrue (fsm.Mode() == StripMode::Shown);
+    }
+
     TEST_METHOD (Pinned_Blocks_Hidden_Until_Released)
     {
         FullscreenStripState  fsm;

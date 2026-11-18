@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Seams/Win32DiskFileIo.h"
+#include "Core/TextEncoding.h"
+#include "DiskCheck/ThumbnailStore.h"
 
 #pragma comment(lib, "cldapi.lib")
 
@@ -229,6 +231,66 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32DiskFileIo::ReadAt
+//
+//  Exactly the bytes asked for, from an offset inside the file, or an error:
+//  a range that runs past the end is refused rather than read short.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::ReadAt (const std::string & path, uint64_t offset, std::span<Byte> outBytes)
+{
+    HRESULT        hr       = S_OK;
+    std::wstring   widePath = std::filesystem::path (path).wstring();
+    HANDLE         file     = INVALID_HANDLE_VALUE;
+    LARGE_INTEGER  size     = {};
+    LARGE_INTEGER  at       = {};
+    DWORD          read     = 0;
+    size_t         count    = outBytes.size();
+    BOOL           ok       = FALSE;
+    bool           fits     = false;
+
+
+
+    CBRAEx (count <= MAXDWORD, E_INVALIDARG);
+
+    file = CreateFileW (widePath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    CWR (file != INVALID_HANDLE_VALUE);
+
+    ok = GetFileSizeEx (file, &size);
+    CWR (ok);
+
+    fits = offset + count <= (uint64_t) size.QuadPart;
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+
+    at.QuadPart = (LONGLONG) offset;
+
+    ok = SetFilePointerEx (file, at, nullptr, FILE_BEGIN);
+    CWR (ok);
+
+    if (!outBytes.empty())
+    {
+        ok = ReadFile (file, outBytes.data(), (DWORD) count, &read, nullptr);
+        CWR (ok);
+        CBREx (read == (DWORD) count, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+    }
+
+Error:
+    if (file != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (file);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32DiskFileIo::Stat
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -309,6 +371,58 @@ HRESULT Win32DiskFileIo::ListFiles (const std::string & folder, std::vector<std:
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::ListFolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::ListFolders (const std::string & folder, std::vector<std::string> & outNames)
+{
+    HRESULT          hr = S_OK;
+    std::error_code  ec;
+
+
+
+    outNames.clear();
+
+    for (std::filesystem::directory_iterator it (std::filesystem::path (folder), ec), end; !ec && it != end; it.increment (ec))
+    {
+        if (it->is_directory (ec))
+        {
+            outNames.push_back (it->path().filename().string());
+        }
+    }
+
+    CBREx (!ec, HRESULT_FROM_WIN32 ((DWORD) ec.value()));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::IsFolder
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32DiskFileIo::IsFolder (const std::string & path)
+{
+    std::error_code  ec;
+
+
+
+    return std::filesystem::is_directory (std::filesystem::path (path), ec);
 }
 
 
@@ -419,7 +533,8 @@ Error:
 //  What a replace would otherwise lose: the hidden, system and
 //  not-content-indexed attributes, the creation time, and the access control
 //  list when the old file's is protected or has entries of its own. An
-//  inherited list is left for the new file to inherit from its folder.
+//  inherited list is left for the new file to inherit from its folder. A
+//  disk image's thumbnail stream is copied as well.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -445,11 +560,16 @@ HRESULT Win32DiskFileIo::CopyFileMetadata (const std::string & fromPath, const s
     DWORD                          i        = 0;
     void                         * ace      = nullptr;
     BOOL                           ok       = FALSE;
+    HRESULT                        hrThumb  = S_OK;
 
 
 
     ok = GetFileAttributesExW (wideFrom.c_str(), GetFileExInfoStandard, &from);
     CWR (ok);
+
+    //  A disk image's thumbnail, which is in a stream of the file.
+    hrThumb = ThumbnailStore::CopyStream (std::filesystem::path (wideFrom), std::filesystem::path (wideTo));
+    IGNORE_RETURN_VALUE (hrThumb, S_OK);
 
     toAttrs = GetFileAttributesW (wideTo.c_str());
     CWR (toAttrs != INVALID_FILE_ATTRIBUTES);
@@ -823,3 +943,32 @@ void Win32DiskFileIo::AbortProcessNow (const wchar_t * stage)
 }
 
 #endif
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::SetReadOnly
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::SetReadOnly (const std::string & path, bool readOnly)
+{
+    HRESULT       hr    = S_OK;
+    std::wstring  wide  = TextEncoding::NarrowToWide (path);
+    DWORD         attrs = GetFileAttributesW (wide.c_str());
+    BOOL          isSet = FALSE;
+
+
+
+    CWR (attrs != INVALID_FILE_ATTRIBUTES);
+
+    isSet = SetFileAttributesW (wide.c_str(), readOnly ? (attrs | FILE_ATTRIBUTE_READONLY) : (attrs & ~(DWORD) FILE_ATTRIBUTE_READONLY));
+    CWR (isSet);
+
+Error:
+    return hr;
+}
+

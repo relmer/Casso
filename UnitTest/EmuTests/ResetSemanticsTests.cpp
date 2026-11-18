@@ -267,16 +267,16 @@ public:
     {
         unique_ptr<Disk2Controller> ctrl = make_unique<Disk2Controller> (6);
 
-        ctrl->GetDisk (0)->SetLoadedForTest (true, true);
-        ctrl->GetDisk (1)->SetLoadedForTest (true, false);
+        ctrl->GetDrive (0).GetDisk()->SetLoadedForTest (true, true);
+        ctrl->GetDrive (1).GetDisk()->SetLoadedForTest (true, false);
 
         ctrl->SoftReset();
 
-        Assert::IsTrue (ctrl->GetDisk (0)->IsLoaded(),
+        Assert::IsTrue (ctrl->GetDrive (0).GetDisk()->IsLoaded(),
             L"FR-034: SoftReset must preserve drive 0 mount");
-        Assert::IsTrue (ctrl->GetDisk (1)->IsLoaded(),
+        Assert::IsTrue (ctrl->GetDrive (1).GetDisk()->IsLoaded(),
             L"FR-034: SoftReset must preserve drive 1 mount");
-        Assert::IsTrue (ctrl->GetDisk (0)->IsDirty(),
+        Assert::IsTrue (ctrl->GetDrive (0).GetDisk()->IsDirty(),
             L"the controller's reset leaves the disk unsaved; the store saves it");
     }
 
@@ -411,14 +411,14 @@ public:
         unique_ptr<Disk2Controller> ctrl = make_unique<Disk2Controller> (6);
         Prng                              prng (kPinnedSeed);
 
-        ctrl->GetDisk (0)->SetLoadedForTest (true, true);
-        ctrl->GetDisk (1)->SetLoadedForTest (true, false);
+        ctrl->GetDrive (0).GetDisk()->SetLoadedForTest (true, true);
+        ctrl->GetDrive (1).GetDisk()->SetLoadedForTest (true, false);
 
         ctrl->PowerCycle (prng);
 
-        Assert::IsFalse (ctrl->GetDisk (0)->IsLoaded(),
+        Assert::IsFalse (ctrl->GetDrive (0).GetDisk()->IsLoaded(),
             L"FR-035: PowerCycle must eject drive 0");
-        Assert::IsFalse (ctrl->GetDisk (1)->IsLoaded(),
+        Assert::IsFalse (ctrl->GetDrive (1).GetDisk()->IsLoaded(),
             L"FR-035: PowerCycle must eject drive 1");
     }
 

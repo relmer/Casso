@@ -4,7 +4,9 @@
 ; its drive map, the ROM's identification and a CRC of the program as loaded,
 ; and the host's reply is the next operation:
 ;
-;   Idle            nothing to do; Ready again after 100 ms
+;   Idle            nothing to do; Ready again after 100 ms. With a byte,
+;                   the PC is at work between an operation's requests,
+;                   and the label and the motor stay.
 ;   Set speed       a 6551 control byte; ACK, then the new speed
 ;   Read sectors    drive, track, count, sectors: Sector data for each
 ;   Write sectors   drive, track, count, sectors: for each, an Acknowledge
@@ -19,6 +21,10 @@
 ;   Time drive      drive, track, revolutions: $A5 the moment each pass of
 ;                   sector 0's address field after the first is read, so the
 ;                   PC times the drive's revolution
+;   Measure track   drive, track and the read's percentages: Track
+;                   measure with the nibbles read from the step from the track
+;                   before to sector 0's address field, the nibbles in a turn,
+;                   and the field's volume
 ;   Cancel          during an operation: it stops, and Ready follows
 ;   Label           the user's operation, as text: drawn, and Ready again
 ;   Log             the PC's hour and minute, then text: a history line,
@@ -84,6 +90,14 @@
 ; booted from the universal disk sends its announcement each second, so Casso
 ; Explorer finds it again. Set speed is acknowledged and
 ; changes nothing, and Exit disconnects the socket.
+;
+; The cassette build, for a ][+ or //e with no serial card, is loaded from
+; tape by the monitor and talks through the cassette ports in Casso's audio
+; encoding (R45). Its bytes to send go in TXBUF and are sent as one burst
+; before each wait for a byte, or once TXBUF is full; a burst received goes
+; into RXBUF whole, and the program reads it from there. Set speed is
+; acknowledged and changes nothing, Load program returns to the main loop, and
+; a Cancel is taken only when the program next waits for a byte.
 
         ifndef PROGVER
 PROGVER = 1
@@ -92,12 +106,17 @@ PROGVER = 1
 SHIMVER = 1
         endif
 
-; Ready's shim version: a W5100 build sets bit 7, so the host sends the
-; program built for the chip whatever the link it connected through.
+; Ready's shim version: a W5100 build sets bit 7 and a cassette build bit 6,
+; so the host sends the program built for the chip whatever the link it
+; connected through.
         ifdef W5100
 READYVER = SHIMVER + $80
         else
+        ifdef CASSETTE
+READYVER = SHIMVER + $40
+        else
 READYVER = SHIMVER
+        endif
         endif
 
 ; The 6551, through slotx: slot * 16, $20 for the //c's port 2.
@@ -140,6 +159,39 @@ ANNREG   = $05                  ; socket 1's registers' page, for the announceme
 ANNTX    = $50                  ; and its transmit memory's page, for 4 KB
         endif
 
+        ifdef CASSETTE
+; The cassette ports, and the buffers above the program's, where DOS would be.
+CASOUT   = $C020                ; any access toggles the output
+CASIN    = $C060                ; the input's level, in bit 7
+RXBUF    = $9600                ; a burst received, to $A7FF
+RXEND    = $A800
+TXBUF    = $A800                ; the bytes put, sent as a burst, to $B9FF
+TXEND    = $BA00
+; Casso's audio encoding, in cycles of the delay loops and rounds of the
+; edge loop (cedge, 14 cycles a round) at 1.0227 MHz. A bit is a full cycle,
+; 511 cycles for a 0 and 1,023 for a 1, a tone half 1,023, as
+; CassetteCodec has them in microseconds.
+TONES    = 64                   ; the tone's half cycles
+TONEX    = 200                  ; 5 * 200 + 22 cycles a tone half
+ZEROX    = 44                   ; 10 * 44 + 68 cycles a 0 cycle
+ONEX     = 95                   ; 10 * 95 + 69 cycles a 1 cycle
+CRPRE    = 5                    ; the rounds a cycle's code takes between edges
+CRTLO    = 55                   ; a tone half: 750 to 1,500 microseconds
+CRTHI    = 110
+CRMARK   = 46                   ; a half shorter than 625 microseconds ends the tone
+CRBIT    = 55                   ; a cycle of 750 microseconds or more is a 1
+CRCYC    = 110                  ; and one of 1,500 or more ends the burst
+CRSECOND = 285                  ; units of 256 rounds in a second
+        endif
+
+; The transports that send what they put when they next wait for a byte.
+        ifdef W5100
+BUFFERED = 1
+        endif
+        ifdef CASSETTE
+BUFFERED = 1
+        endif
+
 ; The Disk II, through diskx: slot * 16, $60 for slot 6.
 PHASEOFF = $C080                ; + phase * 2
 PHASEON  = $C081
@@ -151,34 +203,32 @@ Q6L      = $C08C
 Q6H      = $C08D
 Q7L      = $C08E
 Q7H      = $C08F
+RDALTCHAR = $C01E               ; a //e's or //c's alternate characters, in bit 7
+ALTCHAROFF = $C00E              ; the primary characters, which flash
+ALTCHARON = $C00F               ; the alternate characters, which have inverse lowercase
 
-; Commands.
-CMDREADY  = $D2
-CMDIDLE   = $C9
-CMDDATA   = $CA
-CMDNIBS   = $CC                 ; a sector's data field nibbles, for Write sectors
-CMDACK    = $CB
-CMDSPEED  = $D7
-CMDREAD   = $D5
-CMDWRITE  = $D6
-CMDFORMAT = $C8
-CMDWTRACK = $DB
-CMDSTATUS = $D4
-CMDCANCEL = $D1
-CMDLOAD   = $CF
-CMDLABEL  = $DC
-CMDLOG    = $DD
-CMDTIME   = $DE
-CMDEXIT   = $DF
-CMDBLANK  = $E0                 ; Write track's sector of zeros: its numbers alone
-CMDSCREEN = $E1                 ; a Full Send's screen
-CMDCOLS   = $E3                 ; 40 or 80 columns
-CMDREADCRC = $E4                ; Read CRCs
-CMDCRCS   = $E5                 ; and the CRCs in reply
-CMDKEY    = $E2                 ; Wait for key, and the key in reply
-CMDFAULT  = $E6                 ; Debug builds: a fault for the next operation
-CMDKRUNCH = $E7                 ; Krunch
-CMDKPROG  = $E8                 ; and its progress in reply
+; Commands: CMDREADY and the rest are assigned ahead of this source by
+; LinkProgram, from CassoLinkCodec::kCommands, the one list of them.
+
+; A module: code the PC loads at MODBASE for requests that aren't the
+; program's. It is on the disk buffers, RAWBUF to the end of ENCBUF, so an
+; operation that uses them clears modok, and the PC loads the module again.
+; Its header is MODMAGIC, its id and version, the PROGVER it
+; was assembled against, its length with the header, the CRC-16/XMODEM of
+; the bytes after the CRC, and its requests: a count, then each one's
+; command and entry. An entry is jumped to with the request's payload in
+; PKTBUF, and ends at opdone or main.
+MODBASE   = $5000
+MODLIMIT  = $9000
+MODMAGIC0 = 'C'
+MODMAGIC1 = 'M'
+MODID     = 2                   ; the header's fields, by offset
+MODVER    = 3
+MODPROG   = 4
+MODLEN    = 6
+MODCRC    = 8
+MODCOUNT  = 10
+MODTABLE  = 11
 
 ; Fault's kinds, in Debug builds alone. The first three change a byte the
 ; Apple sends, counted from the operation's first: flipped, dropped, or sent
@@ -212,8 +262,10 @@ OPWRITE  = 2
 OPFORMAT = 3
 OPSPEED  = 4
 OPDISK   = 5                    ; a Full Send's pause, on the status row alone
+OPCAPT   = 6                    ; a raw capture: the bar has the quarter track
 
 QUIETDRIVE = $80                ; the drive's bit for a check the PC reports itself
+STATWP     = $40                ; Status's drive bit for a write-protected disk
 
 ; Errors.
 ERRNONE    = $00
@@ -317,6 +369,17 @@ wnum     = $2E                  ; and $2F: putword's value
 wdig     = $30                  ; putword: the digit
 wlead    = $31                  ; putword: nonzero once a digit is drawn
         endif
+        ifdef CASSETTE
+rxptr    = $24                  ; and $25: the next byte of RXBUF to read
+rxn      = $26                  ; and $27: bytes in RXBUF not yet read
+txn      = $28                  ; and $29: bytes in TXBUF
+cptr     = $2A                  ; and $2B: a burst's next byte
+clen     = $2C                  ; and $2D: a burst's bytes left
+cbyte    = $2E                  ; the byte being sent or received
+cbits    = $2F                  ; its bits left
+clast    = $30                  ; the input's level at its last edge, in bit 7
+wsavy    = $31                  ; getbt and putb: Y as it came
+        endif
 
         .org $0800
 
@@ -334,6 +397,15 @@ entry:  sei
         lda #$20
         sta slotx
 slotok:
+        ifdef CASSETTE
+        lda #0
+        sta rxn
+        sta rxn+1
+        sta txn
+        sta txn+1
+        lda CASIN
+        sta clast
+        else
         ifdef W5100
         ora #<WZDATA            ; each write of the data is absolute, as an
         sta wzput+1             ; indexed store reads it first, which would
@@ -346,6 +418,7 @@ slotok:
         clc                     ; absolute for the same reason as putb's
         adc #1
         sta sdwait+1
+        endif
         endif
         lda #$60
         sta diskx
@@ -440,21 +513,25 @@ mnokey: lda #OPIDLE
         lda #3                  ; and three for each byte of an operation
         sta tmolen
         bcc mreply
-        jsr motoroff            ; with no PC, the drive stops
         jsr nopc
-        jmp main
+        lda pcflag              ; the drive stops with no PC; a PC that
+        bne mnspin              ; replies later, as a capture's analysis
+        jsr motoroff            ; between reads does, finds it spinning
+mnspin: jmp main
 mreply: jsr getpayload
         ifdef FAULTS
         bcc mrgot               ; main is out of a branch's range
         jmp main
 mrgot:
         else
-        bcs main
+        bcs mnspin              ; main is out of a branch's range
         endif
         jsr pcok
         lda envcmd
         cmp #CMDIDLE
         bne notidle
+        lda lenlo               ; an Idle with a byte is the PC at work between
+        bne mnwait              ; an operation's requests: the label and motor stay
         jsr clrlabel            ; the user's operation is over
         lda idles               ; the motor runs on for IDLEOFF Idles, about
         cmp #IDLEOFF            ; two seconds, so the user's next operation
@@ -489,7 +566,10 @@ notlabel: cmp #CMDLOG
 notlog: cmp #CMDTIME
         bne nottime
         jmp dotime
-nottime: cmp #CMDLOAD
+nottime: cmp #CMDMEASURE
+        bne notmeasure
+        jmp domeasure
+notmeasure: cmp #CMDLOAD
         bne notload
         jmp doload
 notload: cmp #CMDEXIT
@@ -510,7 +590,13 @@ notcrc: cmp #CMDKEY
 notkey: cmp #CMDKRUNCH
         bne notkrunch
         jmp dokrunch
-notkrunch:
+notkrunch: cmp #CMDMODULE
+        bne notmodule
+        jmp domodule
+notmodule: jsr modfind          ; a request of the module loaded
+        bcs notmodreq
+        jmp modjmp
+notmodreq: lda envcmd
         ifdef FAULTS
         cmp #CMDFAULT
         bne tomain
@@ -528,12 +614,19 @@ tomain: jmp main
 exitlink: sei
         cld
         jsr col40
+        bit lcase               ; the primary characters again, for BASIC
+        bpl xlprim
+        sta ALTCHAROFF
+xlprim:
         ldx #$FF
         txs
         ldx diskx
         lda Q7L,x
         lda Q6L,x
         jsr motoroff
+        ifdef CASSETTE
+        jmp lvbasic             ; no shim saved the machine's state
+        else
         ifdef W5100
         lda #CMDISCON           ; the PC's connection ended, then the socket
         jsr wzcmd               ; closed, after at most a few seconds
@@ -552,6 +645,7 @@ xlclose: lda #CMCLOSE
         ldx slotx
         lda #$0A                ; DTR off, as the shim set it otherwise
         sta ACIACMD,x
+        endif
         endif
         lda SHIMSAVED          ; 1 once the shim saved them; an older shim
         cmp #1                  ; has code there, which is left alone
@@ -604,7 +698,8 @@ lvwarm: jmp $E003               ; Applesoft's warm start, at its ] prompt
 ; Time drive: sector 0's address field found on the track, then $A5 sent as
 ; each later pass of it is read, one a revolution; the time between the
 ; PC's timestamps on them is the drive's revolution.
-dotime: lda PKTBUF+2
+dotime: jsr modoff           ; the disk buffers, and the module on them
+        lda PKTBUF+2
         sta revs
         lda #0
         sta PKTBUF+2            ; no sector count for begin
@@ -619,12 +714,204 @@ tmloop: jsr findsector
         bcs tmdone
         lda #$A5
         jsr putb
-        ifdef W5100
+        ifdef BUFFERED
         jsr flush               ; sent at once, as the PC times its arrival
         endif
         dec revs
         bne tmloop
 tmdone: jmp opdone
+
+; Measure track: on the track before `track`, sector 0's address field found;
+; the arm stepped to `track` by stepto, whose time is always the same; and the
+; nibbles read counted until sector 0's address field on it is read through
+; its sector number, then on to its next pass. Every nibble read is counted,
+; so a count is a time. Track measure has the first count, the second less
+; the field's nine nibbles, so a turn's, each low byte first, and the field's
+; volume; then the status. On track 0 the first count is 0.
+domeasure: jsr modoff           ; the disk buffers, and the module on them
+        lda PKTBUF+1
+        sta mtrack
+        lda PKTBUF+3            ; the percentages, after the sector count begin takes,
+        sta PKTBUF+4            ; so the bar is drawn with the read's share
+        lda PKTBUF+2
+        sta PKTBUF+3
+        lda #0
+        sta PKTBUF+2            ; no sector count for begin
+        sta mfirst
+        sta mfirst+1
+        lda mtrack
+        beq msbegin
+        dec PKTBUF+1            ; begun on the track before
+msbegin: lda #OPREAD
+        jsr begin
+        bcs msdone
+        lda #0
+        sta mcnt
+        sta mcnt+1
+        lda mtrack
+        beq msturn
+        lda #0
+        sta sector
+        jsr findsector
+        bcs msdone
+        lda mtrack
+        sta track
+        asl a
+        sta target
+        jsr stepto
+        jsr msfind
+        bcs msnone
+        lda mcnt
+        sta mfirst
+        lda mcnt+1
+        sta mfirst+1
+        jmp msagain
+msturn: jsr msfind
+        bcs msnone
+msagain: lda #9                 ; the field's nibbles read so far
+        sta mcnt
+        lda #0
+        sta mcnt+1
+        jsr msfind
+        bcs msnone
+        sec
+        lda mcnt
+        sbc #9
+        sta mcnt
+        lda mcnt+1
+        sbc #0
+        sta mcnt+1
+        jsr sendmeasure
+        jmp msdone
+msnone: lda #ERRNOTFND
+        sta err
+msdone: jmp opdone
+
+; msfind's loop has few cycles to spare for each nibble, so none of its
+; branches may cross a page, which costs a cycle more; it starts at a page
+; boundary.
+        .align 256
+
+; msfind: the nibbles read counted in mcnt until sector 0's address field on
+; `track` is read through its sector number, with the field's volume in mvol.
+; Each nibble is compared as it arrives, so none is missed while another is
+; decoded. C is set when the count is $5000, about three turns.
+msfind: lda track
+        lsr a
+        ora #$AA
+        sta mtodd
+        lda track
+        ora #$AA
+        sta mteven
+        ldx diskx
+msread: lda Q6L,x
+        bpl msread
+        inc mcnt
+        bne msd5
+        inc mcnt+1
+        ldy mcnt+1
+        cpy #$50
+        bcc msd5
+        jmp msover
+msd5:   cmp #$D5
+        bne msread
+msr1:   lda Q6L,x
+        bpl msr1
+        inc mcnt
+        bne msaa
+        inc mcnt+1
+msaa:   cmp #$AA
+        bne msd5
+msr2:   lda Q6L,x
+        bpl msr2
+        inc mcnt
+        bne ms96
+        inc mcnt+1
+ms96:   cmp #$96
+        bne msd5
+msv1:   lda Q6L,x
+        bpl msv1
+        inc mcnt
+        bne msv1s
+        inc mcnt+1
+msv1s:  sta mvodd
+msv2:   lda Q6L,x
+        bpl msv2
+        inc mcnt
+        bne msv2s
+        inc mcnt+1
+msv2s:  sta mveven
+mst1:   lda Q6L,x
+        bpl mst1
+        inc mcnt
+        bne mst1c
+        inc mcnt+1
+mst1c:  cmp mtodd
+        bne msd5
+mst2:   lda Q6L,x
+        bpl mst2
+        inc mcnt
+        bne mst2c
+        inc mcnt+1
+mst2c:  cmp mteven
+        bne msmiss
+mss1:   lda Q6L,x
+        bpl mss1
+        inc mcnt
+        bne mss1c
+        inc mcnt+1
+mss1c:  cmp #$AA                ; sector 0's odd bits
+        bne msmiss
+mss2:   lda Q6L,x
+        bpl mss2
+        inc mcnt
+        bne mss2c
+        inc mcnt+1
+mss2c:  cmp #$AA                ; and its even bits
+        bne msmiss
+        lda mvodd
+        sec
+        rol a
+        and mveven
+        sta mvol
+        clc
+        rts
+msmiss: jmp msd5                ; out of a branch's range
+msover: sec
+        rts
+
+; sendmeasure: Track measure, with mfirst, mcnt and mvol.
+sendmeasure: ldx #0
+mshead: lda mshdr,x
+        jsr putb
+        inx
+        cpx #mshend-mshdr
+        bne mshead
+        lda #0
+        sta peor
+        lda mfirst
+        jsr putpe
+        lda mfirst+1
+        jsr putpe
+        lda mcnt
+        jsr putpe
+        lda mcnt+1
+        jsr putpe
+        lda mvol
+        jsr putpe
+        lda peor
+        jmp putb
+
+mshdr:  .byte $C1, $05, $00, CMDMEASURED, $C1 ^ $05 ^ $00 ^ CMDMEASURED
+mshend:
+mtrack: .byte 0                 ; the track measured
+mfirst: .byte 0, 0              ; the nibbles from the step to sector 0
+mcnt:   .byte 0, 0              ; the nibbles counted
+mvol:   .byte 0                 ; sector 0's address field's volume
+mvodd:  .byte 0                 ; and its two nibbles
+mveven: .byte 0
+mtodd:  .byte 0                 ; the track's two nibbles
+mteven: .byte 0
 
 ; getgap: fgap from the request's byte after its percentages, or 10 when the
 ; request has none or it is outside 4 to 40.
@@ -645,6 +932,9 @@ ggdone: rts
 ; speed the host sends the program at; and with the dial command marked as
 ; dialed, as a modem link is connected already. A W5100's connection is left open, with what
 ; was read given back and what was put sent.
+        ifdef CASSETTE
+doload: jmp main                ; the program came from the cassette input, with no shim
+        else
         ifdef W5100
 doload: jsr col40
         jsr flush
@@ -687,6 +977,181 @@ dlgo:   lda SHIMDIAL            ; the dial command marked as dialed, which the
         sta SHIMDIAL
 dlnone: jmp SHIM
         endif
+        endif
+; domodule: Load module. With no payload, the module's id and version in
+; reply, or 0 and 0 with none loaded. With an offset into the module and
+; bytes, the bytes stored there and an Acknowledge with the offset. With
+; $FFFF alone, the module checked, and its id and version in reply, or 0 and
+; 0 when it fails a check.
+domodule: lda lenlo
+        bne dmdata
+        jmp sendmodule
+dmdata: cmp #2
+        bne dmstore
+        lda PKTBUF
+        and PKTBUF+1
+        cmp #$FF
+        bne dmstore
+        jsr modcheck
+        jmp sendmodule
+dmstore: lda #0
+        sta modok
+        lda lenlo               ; an offset and at least one byte, inside the area
+        cmp #3
+        bcc dmbad
+        lda PKTBUF+1
+        cmp #>(MODLIMIT-MODBASE)
+        bcs dmbad
+        lda PKTBUF
+        clc
+        adc #<MODBASE
+        sta ptr
+        lda PKTBUF+1
+        adc #>MODBASE
+        sta ptr+1
+        lda lenlo               ; the last byte stored must be below MODLIMIT
+        sec
+        sbc #3
+        clc
+        adc ptr
+        lda ptr+1
+        adc #0
+        cmp #>MODLIMIT
+        bcs dmbad
+        ldx #2
+        ldy #0
+dmcopy: lda PKTBUF,x
+        sta (ptr),y
+        iny
+        inx
+        cpx lenlo
+        bne dmcopy
+        lda #ACK
+        ldx PKTBUF
+        ldy PKTBUF+1
+        jsr sendack
+        jmp main
+dmbad:  lda #NAK
+        ldx PKTBUF
+        ldy PKTBUF+1
+        jsr sendack
+        jmp main
+
+; modcheck: modok set when the module at MODBASE has the magic, this
+; program's version, a length that fits and a CRC that matches.
+modcheck: lda #0
+        sta modok
+        lda MODBASE
+        cmp #MODMAGIC0
+        bne mcdone
+        lda MODBASE+1
+        cmp #MODMAGIC1
+        bne mcdone
+        lda MODBASE+MODPROG
+        cmp #<PROGVER
+        bne mcdone
+        lda MODBASE+MODPROG+1
+        cmp #>PROGVER
+        bne mcdone
+        lda MODBASE+MODLEN+1
+        cmp #>(MODLIMIT-MODBASE)
+        bcs mcdone
+        lda #<(MODBASE+MODCOUNT) ; the CRC from the count to the end
+        sta ptr
+        lda #>(MODBASE+MODCOUNT)
+        sta ptr+1
+        lda MODBASE+MODLEN
+        sec
+        sbc #MODCOUNT
+        sta tmp
+        lda MODBASE+MODLEN+1
+        sbc #0
+        sta tmp2
+        lda #0
+        sta crclo
+        sta crchi
+        ldy #0
+mcloop: lda tmp
+        ora tmp2
+        beq mcend
+        lda (ptr),y
+        jsr crcupd
+        inc ptr
+        bne mcdec
+        inc ptr+1
+mcdec:  lda tmp
+        bne mcdec2
+        dec tmp2
+mcdec2: dec tmp
+        jmp mcloop
+mcend:  lda crclo
+        cmp MODBASE+MODCRC
+        bne mcdone
+        lda crchi
+        cmp MODBASE+MODCRC+1
+        bne mcdone
+        lda #1
+        sta modok
+mcdone: rts
+
+; modfind: the entry of the loaded module's request for envcmd into
+; modjmp, with the carry clear; the carry is set when no module is
+; loaded or it has no such request.
+modfind: lda modok
+        beq mffail
+        ldx MODBASE+MODCOUNT
+        beq mffail
+        ldy #0
+mfloop: lda MODBASE+MODTABLE,y
+        cmp envcmd
+        beq mffound
+        iny
+        iny
+        iny
+        dex
+        bne mfloop
+mffail: sec
+        rts
+mffound: lda MODBASE+MODTABLE+1,y
+        sta modjmp+1
+        lda MODBASE+MODTABLE+2,y
+        sta modjmp+2
+        clc
+        rts
+
+; sendmodule: the module's id and version, or 0 and 0 with none loaded.
+sendmodule: ldx #0
+smhdr:  lda modhdr,x
+        jsr putb
+        inx
+        cpx #modend-modhdr
+        bne smhdr
+        lda #0
+        sta peor
+        ldx #0
+        ldy #0
+        lda modok
+        beq smsend
+        ldx MODBASE+MODID
+        ldy MODBASE+MODVER
+smsend: txa
+        jsr putpe
+        tya
+        jsr putpe
+        lda peor
+        jsr putb
+        jmp main
+
+modhdr: .byte $C1, $02, $00, CMDMODULE, $C1 ^ $02 ^ $00 ^ CMDMODULE
+modend:
+; modoff: the module marked as overwritten.
+modoff: lda #0
+        sta modok
+        rts
+
+modok:  .byte 0                 ; 1 once a module passes modcheck
+modjmp: jmp main                ; modfind sets the entry
+
 ; cancel: the operation stops where it is, and the loop starts again.
 cancel: jsr motoroff
         jsr kmapoff             ; the history again, after a krunch's block map
@@ -707,8 +1172,8 @@ dospeed: lda #OPSPEED
         ldx #0
         ldy #0
         jsr sendack
-        ifdef W5100
-        jmp main                ; a W5100 has no speed to set
+        ifdef BUFFERED
+        jmp main                ; a W5100 or the cassette has no speed to set
         else
         ldx slotx
 spdwait: lda ACIASTAT,x
@@ -728,7 +1193,8 @@ spdwait: lda ACIASTAT,x
 ; sending in turn would wait most of a revolution for every sector. A sector
 ; not read is skipped and the status has NOT FOUND. The PC then requests
 ; only those sectors again.
-doread: lda #OPREAD
+doread: jsr modoff           ; the disk buffers, and the module on them
+        lda #OPREAD
         jsr begin
         bcs opdone
         jsr readtrack
@@ -803,11 +1269,13 @@ nddone: rts
 
 nodisk: .byte 0, 0
 quiet:  .byte 0                 ; nonzero for a check the PC reports itself
+wpbit:  .byte 0                 ; STATWP when begin found the disk write-protected
 
 ; Read CRCs: the requested sectors read as for Read sectors, and each one's CRC
 ; sent with a flag for whether it was read. A sector not read isn't an error here,
 ; as the host is counting them.
-docrcs: lda #OPREAD
+docrcs: jsr modoff           ; the disk buffers, and the module on them
+        lda #OPREAD
         jsr begin
         ifdef FAULTS
         bcc crbegun             ; crdone is out of a branch's range
@@ -876,6 +1344,7 @@ cradv:  jsr pollcancel
         bne crnext
         lda peor
         jsr putb
+        jsr showprog            ; the last sector's share, so the bar is drawn to the request's end
 crdone: jmp opdone
 
 ; sectorcrc: crclo and crchi for the sector at dst and dstp, from its raw values
@@ -935,7 +1404,8 @@ scdone: rts
 ; sector and reading it back before asking for the next takes more than a
 ; revolution a sector, and encoding each here took more time than sending
 ; its nibbles.
-dowrite: lda #OPWRITE
+dowrite: jsr modoff           ; the disk buffers, and the module on them
+        lda #OPWRITE
         jsr begin
         bcs wrdone
         jsr protected
@@ -977,7 +1447,8 @@ wrgot:  jsr frameslot
 ; Format track: 16 sectors of zeros, numbered 0 to 15 in order around the
 ; track, under the given volume; then the track read back, so a format that
 ; did not take ends with the first sector that does not read.
-doformat: lda PKTBUF+2
+doformat: jsr modoff           ; the disk buffers, and the module on them
+        lda PKTBUF+2
         sta volume
         jsr getgap
         lda #0
@@ -1004,7 +1475,8 @@ fmtdone: jmp opdone
 ; which writes it in one revolution, and read back and compared. Writing
 ; sector by sector waits for each sector to come round twice, once to write
 ; and once to read back.
-dowtrack: lda PKTBUF+2
+dowtrack: jsr modoff           ; the disk buffers, and the module on them
+        lda PKTBUF+2
         sta volume
         jsr getgap
         lda #0
@@ -1172,6 +1644,7 @@ bgarmed:
         sta index
         sta idles
         sta misses
+        sta wpbit
         lda PKTBUF
         and #QUIETDRIVE
         sta quiet
@@ -1204,6 +1677,11 @@ drvok:  ldx drive               ; the drive's FAILED, cleared by its next operat
         sta barfail-1,x
         jsr motoron
         jsr seek
+        jsr wpsense             ; the disk's write-protect, for the Status
+        lda #0
+        bcc bgwp
+        lda #STATWP
+bgwp:   sta wpbit
         clc
         rts
 
@@ -1238,7 +1716,12 @@ readyend:
 ; on an enhanced //e's bytes.
 readid: lda $FBB3
         sta readyrom
-        lda $FBC0
+        cmp #$06                ; a //e, //c or IIgs has lowercase, and in
+        bne ridcaps             ; its alternate characters, inverse lowercase
+        lda #$80
+        sta lcase
+        sta ALTCHARON
+ridcaps: lda $FBC0
         sta readyrom+1
         lda $FBBF
         sta readyrom+2
@@ -1341,6 +1824,7 @@ ssloop: lda stathdr,x
         lda op
         jsr putpe
         lda drive
+        ora wpbit
         jsr putpe
         lda track
         jsr putpe
@@ -1396,7 +1880,7 @@ sddata: lda (dstp),y             ; the byte: the value << 2 | its two bits
         asl a
 sdora:  ora AUXA0,x             ; the third's array, set before each pass
         sta sbyte
-        ifdef W5100
+        ifdef BUFFERED
         jsr putb
         else
         ifdef FAULTS
@@ -1595,6 +2079,9 @@ gpfail: sec
 ; for only the packet's first byte, so any byte is taken as Cancel. A W5100
 ; takes the one byte the same way.
 pollcancel:
+        ifdef CASSETTE
+        rts
+        else
         ifdef W5100
         lda rxn
         ora rxn+1
@@ -1613,6 +2100,7 @@ pcany:  jsr getbtq
         beq pcdone
         lda ACIADATA,x
         jmp cancel
+        endif
         endif
 pcdone: rts
 
@@ -1668,6 +2156,305 @@ slfend: cpy #<progend
         sta readycrc+1
         rts
 
+        ifdef CASSETTE
+; getbt: a byte of the burst in RXBUF, or with none left, the bytes put sent
+; as a burst and the next burst received, waiting tmolen seconds for its tone.
+; The carry is set on a timeout or a damaged burst. X and Y are saved and
+; restored. getbtq waits a second for a burst, for a byte inside a packet
+; that came in more than one.
+getbt:  stx savex
+        sty wsavy
+        lda rxn
+        ora rxn+1
+        bne gbtake
+        jsr flush
+        lda tmolen
+gbrecv: jsr crecv
+        bcs gbnone
+gbtake: ldy #0
+        lda (rxptr),y
+        inc rxptr
+        bne gbcount
+        inc rxptr+1
+gbcount: pha
+        lda rxn
+        bne gbdec
+        dec rxn+1
+gbdec:  dec rxn
+        pla
+        ldx savex
+        ldy wsavy
+        clc
+        rts
+gbnone: ldx savex
+        ldy wsavy
+        sec
+        rts
+getbtq: stx savex
+        sty wsavy
+        lda rxn
+        ora rxn+1
+        bne gbtake
+        lda #1
+        bne gbrecv              ; always
+
+; putraw: A into TXBUF, sent with the next wait for a byte, or at once when
+; TXBUF is full. A, X and Y are saved and restored.
+putraw: stx savex
+        sty wsavy
+        pha
+        lda #<TXBUF
+        clc
+        adc txn
+        sta cptr
+        lda #>TXBUF
+        adc txn+1
+        sta cptr+1
+        pla
+        pha
+        ldy #0
+        sta (cptr),y
+        inc txn
+        bne txfull
+        inc txn+1
+txfull: lda txn+1
+        cmp #>(TXEND-TXBUF)
+        bcc txdone
+        jsr flush
+txdone: pla
+        ldx savex
+        ldy wsavy
+        rts
+
+; flush: TXBUF's bytes as a burst: the tone, a 0 as its mark, the count and
+; its complement, the bytes, and a 0 after them so the last bit ends at an
+; edge another follows. Every path from one toggle of the output to the next
+; is counted, so a cycle is the same length wherever it falls.
+flush:  lda txn
+        ora txn+1
+        bne flsend
+        rts
+flsend: ldy #TONES
+fltone: ldx #TONEX
+        jsr chalf
+        dey
+        bne fltone
+        clc
+        jsr cbit
+        lda txn
+        jsr csbyte
+        lda txn+1
+        jsr csbyte
+        lda txn
+        eor #$FF
+        jsr csbyte
+        lda txn+1
+        eor #$FF
+        jsr csbyte
+        lda #<TXBUF
+        sta cptr
+        lda #>TXBUF
+        sta cptr+1
+flbyte: ldy #0
+        lda (cptr),y
+        jsr csbyte
+        inc cptr
+        bne flcount
+        inc cptr+1
+flcount: lda txn
+        bne fldec
+        dec txn+1
+fldec:  dec txn
+        lda txn
+        ora txn+1
+        bne flbyte
+        clc
+        jmp cbit
+
+; csbyte: A's bits, most significant first.
+csbyte: sta cbyte
+        lda #8
+        sta cbits
+csbit:  asl cbyte
+        jsr cbit
+        dec cbits
+        bne csbit
+        rts
+
+; cbit: the bit in C as one cycle of two halves.
+cbit:   ldx #ZEROX
+        bcc cbgo
+        ldx #ONEX
+cbgo:   stx chx
+        jsr chalf
+        ldx chx
+        jsr chalf
+        rts
+
+; chalf: the output toggled, then X rounds of 5 cycles.
+chalf:  bit CASOUT
+chwait: dex
+        bne chwait
+        rts
+
+; crecv: a burst into RXBUF, rxptr at its start and rxn its count, waiting
+; A seconds for its tone. The carry is set on a timeout or a damaged burst.
+crecv:  tax
+        lda #0
+        sta climit
+        sta climit+1
+        sta tmo
+        sta tmo+1
+        sta tmo+2
+        sta ctones
+crsecs: lda climit
+        clc
+        adc #<CRSECOND
+        sta climit
+        lda climit+1
+        adc #>CRSECOND
+        sta climit+1
+        dex
+        bne crsecs
+        lda CASIN
+        sta clast
+crhunt: ldx #3
+        jsr cedge
+        php
+        txa
+        clc
+        adc tmo
+        sta tmo
+        bcc crclock
+        inc tmo+1
+        bne crclock
+        inc tmo+2
+crclock: lda tmo+2              ; tmo+1 and tmo+2 against the limit
+        cmp climit+1
+        bcc crlive
+        bne crtime
+        lda tmo+1
+        cmp climit
+        bcs crtime
+crlive: plp
+        bcs crreset             ; no edge for 3.5 ms
+        cpx #CRTLO
+        bcc crshort
+        cpx #CRTHI
+        bcs crreset
+        inc ctones
+        bne crhunt
+        dec ctones
+        jmp crhunt
+crtime: plp
+        sec
+        rts
+crreset: lda #0
+        sta ctones
+        jmp crhunt
+crshort: cpx #CRMARK            ; the mark's first half, after enough tone
+        bcs crreset
+        lda ctones
+        cmp #16
+        bcc crreset
+        jsr cedge               ; and its second, counted on from the first
+        bcs crreset
+        cpx #CRBIT
+        bcs crreset
+        jsr crbyte              ; the count and its complement
+        bcs crbad
+        sta clen
+        jsr crbyte
+        bcs crbad
+        sta clen+1
+        jsr crbyte
+        bcs crbad
+        eor clen
+        cmp #$FF
+        bne crbad
+        jsr crbyte
+        bcs crbad
+        eor clen+1
+        cmp #$FF
+        bne crbad
+        lda #<RXBUF
+        sta cptr
+        sta rxptr
+        lda #>RXBUF
+        sta cptr+1
+        sta rxptr+1
+        lda clen
+        sta rxn
+        ora clen+1
+        beq crbad
+        lda clen+1
+        sta rxn+1
+        cmp #>(RXEND-RXBUF)
+        bcc crdata
+        bne crbad
+        lda clen
+        bne crbad
+crdata: jsr crbyte
+        bcs crbad
+        ldy #0
+        sta (cptr),y
+        inc cptr
+        bne crcount
+        inc cptr+1
+crcount: lda clen
+        bne crdec
+        dec clen+1
+crdec:  dec clen
+        lda clen
+        ora clen+1
+        bne crdata
+        clc
+        rts
+crbad:  lda #0
+        sta rxn
+        sta rxn+1
+        sec
+        rts
+
+; crbyte: a byte in A, each bit a full cycle counted from CRPRE rounds. The
+; carry is set for a cycle too long, or no edge.
+crbyte: lda #8
+        sta cbits
+crbit:  ldx #CRPRE
+        jsr cedge
+        bcs crbyfail
+        jsr cedge
+        bcs crbyfail
+        cpx #CRCYC
+        bcs crbyfail
+        cpx #CRBIT
+        rol cbyte
+        dec cbits
+        bne crbit
+        lda cbyte
+        clc
+crbyfail: rts
+
+; cedge: the input watched until its level changes, X counting the rounds of
+; 14 cycles. The carry is set when X counts to 255 first, about 3.5 ms.
+cedge:  inx
+        beq cewrap
+        lda CASIN
+        eor clast
+        bpl cedge
+        eor clast
+        sta clast
+        clc
+        rts
+cewrap: dex
+        sec
+        rts
+
+chx:    .byte 0                 ; cbit: the half's rounds
+ctones: .byte 0                 ; crecv: tone halves in a row
+climit: .word 0                 ; and its limit, in units of 256 rounds
+
+        else
         ifdef W5100
 ; getbt: a byte from the W5100, waiting tmolen seconds; the bytes put are
 ; sent first. The carry is set on a timeout, after which a socket that has
@@ -2048,6 +2835,7 @@ pbsta:  sta ACIADATA
 
 txstuck: .byte 0                ; a byte was dropped, and the 6551 hasn't sent since
         endif
+        endif
 
 ; putb: a byte through the chip. In Debug builds, the fault armed for the
 ; operation is applied to it first. A, X and Y are saved and restored.
@@ -2361,17 +3149,22 @@ stepdone: lda #25
         rts
 
 ; protected: the carry is set, with err, when the disk is write-protected.
-protected: ldx diskx
-        lda Q6H,x
-        lda Q7L,x
-        asl a
-        lda Q6L,x
+protected: jsr wpsense
         bcc wpok
         lda #ERRPROTECT
         sta err
         sec
         rts
 wpok:   clc
+        rts
+
+; wpsense: C is set when the disk is write-protected, and err isn't
+; changed. Q7 stays low, so the drive is never in write mode.
+wpsense: ldx diskx
+        lda Q6H,x
+        lda Q7L,x
+        asl a
+        lda Q6L,x
         rts
 
 ; findsector: the address field of `sector` on `track`. The carry is set,
@@ -3205,7 +3998,7 @@ dsdone: jsr fschrome
         jsr showaddr
         jmp showstatus
 
-titletxt: .text "CASSOLINK"
+titletxt: .text "CassoLink"
         .byte 0
 
 ; 40 or 80 columns. wide has its high bit set for 80, whose odd columns are in
@@ -3214,6 +4007,7 @@ PAGE2OFF = $C054
 PAGE2ON  = $C055
 wide:     .byte 0
 rowwidth: .byte 40
+lcase:    .byte 0               ; bit 7 set on a machine with lowercase: a //e, //c or IIgs
 
 ; col40: 40 columns, as the shim and BASIC expect.
 col40:  sta $C00C
@@ -3290,10 +4084,25 @@ ptdone: ldy tmp
 
 ; putch: A into the field at Y, and Y on, in inverse left of barcells, so that
 ; text over a bar inverts where the bar has passed. Nothing is drawn at a Y of 40 or
-; more, so a text from a row's start is never drawn on the row below it.
+; more, so a text from a row's start is never drawn on the row below it. A
+; lowercase letter is drawn as a capital on a ][ or ][ plus, and in inverse
+; while the primary characters are selected, which have no inverse lowercase.
 putch:  cpy rowwidth
         bcs pcnext
+        cmp #$61
+        bcc pcbar
+        cmp #$7B
+        bcs pcbar
+        bit lcase
+        bpl pccaps
         cpy barcells
+        bcs pcnorm
+        bit RDALTCHAR
+        bpl pccaps
+        and #$7F                ; inverse lowercase, $60 to $7F in the alternate characters
+        bcc pcput
+pccaps: and #$DF
+pcbar:  cpy barcells
         bcs pcnorm
         and #$3F
         bcc pcput
@@ -3404,6 +4213,9 @@ conndraw: lda #<conntext
         lda #>conntext
         sta ptr+1
         jsr puttext
+        ifdef CASSETTE
+        rts
+        else
         ifdef W5100
         lda slotx               ; the card and its slot, as UTHERNET II,
         lsr a                   ; SLOT 3; the port is in the address below
@@ -3455,9 +4267,14 @@ scfound: lda speeds+1,x
         sta ptr+1
         jmp puttext
         endif
+        endif
 
+        ifdef CASSETTE
+conntext: .text "Cassette ports (audio)"
+        .byte 0
+        else
         ifdef W5100
-conntext: .text "UTHERNET II, SLOT "
+conntext: .text "Uthernet II, slot "
         .byte 0
 
 ; putword: wnum in decimal, without leading zeros, into the field from Y.
@@ -3495,13 +4312,13 @@ pwtablo: .byte <1, <10, <100, <1000, <10000
 pwtabhi: .byte >1, >10, >100, >1000, >10000
         else
 conntext: .byte 0
-connssc: .text "SSC, SLOT "
+connssc: .text "SSC, slot "
         .byte 0
-connsscm: .text "WI-FI, SLOT "
+connsscm: .text "Wi-Fi, slot "
         .byte 0
-connport: .text "SERIAL PORT "
+connport: .text "Serial port "
         .byte 0
-connportm: .text "WI-FI, PORT "
+connportm: .text "Wi-Fi, port "
         .byte 0
 conncomma: .text ", "
         .byte 0
@@ -3509,6 +4326,7 @@ conncomma: .text ", "
 ; the assembler sizes a forward < or > in .byte wrongly.
 connnames: .byte <connssc, >connssc, <connsscm, >connsscm
         .byte <connport, >connport, <connportm, >connportm
+        endif
         endif
 
 
@@ -3520,6 +4338,9 @@ connnames: .byte <connssc, >connssc, <connsscm, >connsscm
 ; first column. It is drawn after the connection, whose rows are cleared
 ; first.
 showaddr:
+        ifdef CASSETTE
+        rts
+        else
         ifdef W5100
         ldx #<ROW2
         lda #>ROW2
@@ -3590,13 +4411,14 @@ sacaps: jsr putch
         bne satext
 sadone: rts
         endif
+        endif
 
 pcend:  .byte 0                  ; the top row's column where the PC's blanks end
         ifdef W5100
 sacount: .byte 0                ; showaddr: the address's bytes drawn
 salen:  .byte 0                 ; and in 80 columns, its length
         else
-addrlabel: .text "DIALED"
+addrlabel: .text "Dialed"
         .byte $3A, 0
         endif
 
@@ -3613,7 +4435,7 @@ s2400:   .text "2400"
          .byte 0
 s1200:   .text "1200"
          .byte 0
-sother:  .text "OTHER"
+sother:  .text "Other"
          .byte 0
 ; The 6551's rate bits and their text; the last entry matches any other.
 ; After the text, as the assembler sizes a forward < or > in .byte wrongly.
@@ -3702,6 +4524,8 @@ sdidle: lda pcsum+1
         bne sdput
         lda op
         beq sdput
+        cmp #OPCAPT
+        beq sdcapt
         cmp #OPSPEED
         bcs sdput
         asl a
@@ -3717,6 +4541,11 @@ sdidle: lda pcsum+1
         lda #>overify
         sta ptr+1
 sdput:  jmp puttext
+sdcapt: lda #<ocapt
+        sta ptr
+        lda #>ocapt
+        sta ptr+1
+        jmp puttext
 
 ; drawbar: drive X + 1's bar, with the track and sector over it when A is
 ; nonzero, or FAILED after the drive's operation failed, and the percentage
@@ -3784,6 +4613,9 @@ dbtrack: lda #'T'
         jsr putch
         lda track
         jsr putdec2
+        lda op                  ; a capture's quarter, as .25, .50 or .75
+        cmp #OPCAPT
+        beq dbquart
         lda vflag
         bne dbtext
         lda #' '
@@ -3792,6 +4624,20 @@ dbtrack: lda #'T'
         jsr putch
         lda sector
         jsr putdec2
+        jmp dbtext
+dbquart: ldx sector
+        beq dbtext
+        lda #'.'
+        jsr putch
+        ldx sector
+        lda qtens-1,x
+        jsr putch
+        lda #'5'
+        ldx sector
+        cpx #2
+        bne dbq5
+        lda #'0'
+dbq5:   jsr putch
 dbtext: lda #0
         sta barcells
         ldy barwidth
@@ -3845,19 +4691,22 @@ stsector: .byte $2C
 
 optext: .word oidle, oread, owrite, oformat
 
-oidle:   .text "IDLE"
+oidle:   .text "Idle"
          .byte 0
-onodisk: .text "EMPTY OR NO RECOGNIZED SECTORS"
+onodisk: .text "Empty or no recognized sectors"
          .byte 0
-oread:   .text "READING"
+oread:   .text "Reading"
          .byte 0
-owrite:  .text "WRITING"
+owrite:  .text "Writing"
          .byte 0
-oformat: .text "FORMATTING"
+oformat: .text "Formatting"
          .byte 0
-overify: .text "VERIFYING"
+overify: .text "Verifying"
          .byte 0
-ofailed: .text "FAILED"
+ocapt:   .text "Capturing"
+         .byte 0
+qtens:   .text "257"            ; a quarter's tens digit
+ofailed: .text "Failed"
          .byte 0
 
 ; percent: the whole operation's percentage in A, plo plus index / count of
@@ -3993,8 +4842,8 @@ pcsame: rts
 
 ; nopc: a second with no reply. The host ends its session after a few
 ; seconds with no packet, so after PCGONE of them the PC is gone: the label
-; of its operation is cleared, and the PC is waited for again. Before a
-; first reply there is no silence to count.
+; of its operation and the bars are cleared, and the PC is waited for again.
+; Before a first reply there is no silence to count.
 nopc:   lda pcflag
         beq npdraw
         inc silent
@@ -4005,16 +4854,21 @@ nopc:   lda pcflag
         sta pcflag
         sta silent
         jsr clrlabel
+        lda #0                  ; and so are its operation and the bars
+        sta op
+        sta barpct
+        sta barpct+1
+        jsr stplain
         lda fsmode              ; a session with no PC is over
         beq npdraw
         jsr fsleave
 npdraw: jmp showpc
 
-pcwait: .text "WAITING"
+pcwait: .text "Waiting"
         .byte 0
-pcconn: .text "CONNECTED"
+pcconn: .text "Connected"
         .byte 0
-pcnone: .text "NO REPLY "
+pcnone: .text "No reply "
         .byte 0
 
 ; showerr: the last operation's error, as ERROR: WRITE-PROTECTED DISK IN D2 or
@@ -4075,27 +4929,27 @@ senotwp: cmp #ERRNOTFND          ; a sector that cannot be read or verified:
 sedone: rts
 ; The error codes are $10 apart, so the code shifted right three times is
 ; the index of its text's address; the first entry is for any other code.
-ertext:  .text "ERROR"
+ertext:  .text "Error"
          .byte $3A, $20, 0
 
 errtext: .word eother, eprotect, enotfnd, edata, everify, elink, edrive, echanged
 errtextend:
 
-eother:   .text "FAILED"
+eother:   .text "Failed"
           .byte 0
-eprotect: .text "WRITE-PROTECTED DISK IN D"
+eprotect: .text "Write-protected disk in D"
           .byte 0
-enotfnd:  .text "NO SECTOR"
+enotfnd:  .text "No sector"
           .byte 0
-edata:    .text "BAD DATA"
+edata:    .text "Bad data"
           .byte 0
-everify:  .text "VERIFY FAILED"
+everify:  .text "Verify failed"
           .byte 0
-elink:    .text "LINK DATA DAMAGED"
+elink:    .text "Link data damaged"
           .byte 0
-edrive:   .text "NO SUCH DRIVE"
+edrive:   .text "No such drive"
           .byte 0
-echanged: .text "DISK CHANGED"
+echanged: .text "Disk changed"
           .byte 0
 
 ; dolabel: the host's text for the user's operation across the label row,
@@ -4294,7 +5148,7 @@ wkhost: jsr pollcancel
         bne wkpoll
         lda #0
         jsr sendkey
-        ifdef W5100
+        ifdef BUFFERED
         jsr flush
         endif
         jmp wksec
@@ -4374,7 +5228,7 @@ fcclear: jsr fsrow
 
 ; fsleave: back to the standard screen: the session's rows cleared, the
 ; history saved when the session began drawn again, and the heading, keys and
-; drives drawn.
+; drives drawn, with the bars empty.
 fsleave: lda fssaved
         beq flnosave
         lda #1
@@ -4382,6 +5236,9 @@ fsleave: lda fssaved
 flnosave: lda #0
         sta fssaved
         sta fsmode
+        sta op                  ; no bar after the session from its last read
+        sta barpct
+        sta barpct+1
         sta sbyte
 flrow:  ldx sbyte
         lda fsrowhi,x
@@ -4432,19 +5289,19 @@ fckeys80: bit wide
         tay
 fckeys: jmp puttext
 
-histtxt: .text "HISTORY"
+histtxt: .text "History"
         .byte $3A, 0
 keystxt: .text "F"
         .byte $3A
-        .text " FULL SEND   PRESS ESC TO EXIT"
+        .text " Full Send   Press Esc to exit"
         .byte 0
 fskeystxt: .text "V"
         .byte $3A
-        .text " VERIFY  P"
+        .text " Verify  P"
         .byte $3A
-        .text " PREFIX  Q"
+        .text " Prefix  Q"
         .byte $3A
-        .text " CASSOLINK"
+        .text " CassoLink"
         .byte 0
 
 ; fsrow: scr at the history row of index X, and the row cleared. Y is 0.
@@ -4455,10 +5312,15 @@ fsrow:  lda logrowlo,x
         jmp clrscr
 
 ; fssound: the tone, by $C030, with the request's byte: one note for a finished
-; disk, two for a duplicate and a low pair for bad sectors. Nothing else is
+; disk, two for a duplicate, a low pair for bad sectors, four rising for an
+; image that booted on the host and a buzz for one that did not. Nothing else is
 ; happening: the drive is not being read and the host is waiting for Ready.
 fssound: lda PKTBUF+FSTONE
         beq fsndone
+        cmp #5
+        beq fsnboot
+        cmp #6
+        beq fsnfail
         cmp #4
         beq fsnprot
         cmp #2
@@ -4488,6 +5350,25 @@ fsnprot: lda #60                ; three rising notes for a likely copy-protected
         jsr beep
         lda #27
         ldx #160
+        jmp beep
+
+fsnboot: lda #40                ; four quick rising notes for an image that booted
+        ldx #70
+        jsr beep
+        lda #32
+        ldx #90
+        jsr beep
+        lda #27
+        ldx #110
+        jsr beep
+        lda #20
+        ldx #255
+        jmp beep
+fsnfail: lda #200               ; a low buzz, then a lower one, for an image that did not
+        ldx #160
+        jsr beep
+        lda #240
+        ldx #200
         jmp beep
 
 ; beep: X half-cycles of about 9 times A CPU cycles each.
@@ -4545,11 +5426,9 @@ KCINVSP  = $20                  ; an inverse space
 KLEGCOL80 = 15                 ; the legend's column in 80 columns, centered
 KNAMEAT  = 6                    ; a directory entry's name length, then its name
 KNAMEMAX = 15                   ; the characters a name has at most
-RDALTCHAR = $C01E               ; a //e's or //c's alternate characters, in bit 7
-ALTCHAROFF = $C00E              ; the primary characters, which flash
-ALTCHARON = $C00F
 
-dokrunch: lda PKTBUF+1
+dokrunch: jsr modoff           ; the disk buffers, and the module on them
+        lda PKTBUF+1
         sta kcrc
         lda PKTBUF+2
         sta kcrc+1
@@ -5189,7 +6068,7 @@ kpghdr: lda kproghdr,x
         jsr putpe
         lda peor
         jsr putb
-        ifdef W5100
+        ifdef BUFFERED
         jsr flush               ; at once, as nothing is read until the krunch ends
         endif
         rts
@@ -5615,22 +6494,22 @@ pidone: ldx #0
         ldy tmp
         rts
 
-kmaptxt: .text "BLOCKS"
+kmaptxt: .text "Blocks"
         .byte $3A, 0
 ; The legend, a high bit for inverse, and in 80 columns with its cells doubled.
 klegend: .byte $A0
-        .text " DONE  # TO GO  . FREE  "
+        .text " done  # to go  . free  "
         .byte KCREAD-$40
-        .text " READ  "
+        .text " read  "
         .byte KCWRITE-$40
-        .text " WRITE"
+        .text " write"
         .byte 0
 klegend80: .byte $A0, $A0
-        .text " DONE   ## TO GO   .. FREE   "
+        .text " done   ## to go   .. free   "
         .byte KCREAD-$40, KCREAD-$40
-        .text " READ   "
+        .text " read   "
         .byte KCWRITE-$40, KCWRITE-$40
-        .text " WRITE"
+        .text " write"
         .byte 0
 
 kcrc:    .byte 0, 0             ; the host's CRC of the directory

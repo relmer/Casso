@@ -55,7 +55,7 @@ HRESULT CpuManagerRunDriver::Start (const RunRequest & request)
     m_isStepRun      = request.kind == RunKind::StepOver || request.kind == RunKind::StepOut;
     m_spent          = 0;
     m_budget         = request.budget;
-    m_previousHook   = m_host.GetDebugHook();
+    m_previousHook   = m_host.GetRunner().GetDebugHook();
 
     //  `GG` asks for the run to go as fast as the host can manage. The speed
     //  the operator chose is put back when the run stops, so a debugger run
@@ -70,7 +70,7 @@ HRESULT CpuManagerRunDriver::Start (const RunRequest & request)
     }
 
     m_hook.Begin (request);
-    m_host.SetDebugHook (&m_hook);
+    m_host.GetRunner().SetDebugHook (&m_hook);
 
     m_isRunning = true;
 
@@ -279,7 +279,7 @@ void CpuManagerRunDriver::Finish (StopReason reason, uint64_t cycles)
 
     if (m_isRunning)
     {
-        m_host.SetDebugHook (m_previousHook);
+        m_host.GetRunner().SetDebugHook (m_previousHook);
     }
 
     if (m_speedChanged)

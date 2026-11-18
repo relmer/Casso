@@ -5,13 +5,14 @@
 #include "Core/ThreadName.h"
 #include "WindowCommandManager.h"
 
-#include "../AssetBootstrap.h"
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
 #include "Shell/ClipboardManager.h"
+#include "Shell/DiskMenuRule.h"
 #include "Shell/Components/ShellWindow.h"
+#include "Shell/Components/ShellDrivePickers.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellDeskScene.h"
@@ -20,13 +21,13 @@
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
 #include "../Ui/Dialogs/KeyboardMapText.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
-#include "Machines/Apple2/Common/BlankDiskBuilder.h"
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PngCodec.h"
 #include "Devices/Printer/PrintDelivery.h"
@@ -41,8 +42,6 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Dialogs/AttributionsText.h"
-#include "Ui/Dialogs/CreateDiskDialog.h"
-#include "Ui/FileBrowseModel.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
 #include "Shell/MachineManager.h"
@@ -192,11 +191,17 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WP2)                { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_SALVAGE1  || id == IDM_DISK_SALVAGE2)           { route = WindowCommandRoute::Disk; }
     else if (id == IDM_DISK_OPEN_CASSO_EXPLORER)                            { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_DISK_INSPECT1  || id == IDM_DISK_INSPECT2)           { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_DISK_THUMBNAIL1 || id == IDM_DISK_THUMBNAIL2)        { route = WindowCommandRoute::Disk; }
+    else if (id >= IDM_DISK_INSERT3   && id <= IDM_DISK_THUMBNAIL3)         { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_TAPE_INSERT    && id <= IDM_TAPE_FASTFORWARD)        { route = WindowCommandRoute::Disk; }
     else if (id == IDM_STORAGE_DRIVE2 || id == IDM_STORAGE_RECORDER)        { route = WindowCommandRoute::Disk; }
+    else if (id == IDM_STORAGE_ATTACH_APPLE35 || id == IDM_STORAGE_ATTACH_FLOPPY) { route = WindowCommandRoute::Disk; }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_DRIVE_STRIP)                                   { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_AUTOHIDE_DRIVES)                               { route = WindowCommandRoute::View; }
+    else if (id == IDM_VIEW_FLOPPIES_ON_DESK || id == IDM_VIEW_HARD_DISKS_ON_DESK) { route = WindowCommandRoute::View; }
+    else if (id == IDM_VIEW_FLOPPY_PAIR_BESIDE)                            { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_FRAME_RATE)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_SCENE_VIEW)                                    { route = WindowCommandRoute::View; }
     else if (id == IDM_VIEW_DEBUGGER)                                      { route = WindowCommandRoute::View; }
@@ -354,6 +359,7 @@ void WindowCommandManager::OnExternalDriveCommand (int id)
     // than tearing state out from under the running machine.
     if (!connected && m_shell.m_disks->GetManager() != nullptr)
     {
+        m_shell.m_drivePickers->Close (DriveAddress { 6, 1, false });
         m_shell.m_disks->GetManager()->Eject (6, 1);
     }
 
@@ -719,6 +725,19 @@ void WindowCommandManager::OnViewCommand (int id)
             break;
         }
 
+        case IDM_VIEW_FLOPPIES_ON_DESK:
+        case IDM_VIEW_HARD_DISKS_ON_DESK:
+        {
+            m_shell.m_scene->ToggleClassOnDesk ((id == IDM_VIEW_FLOPPIES_ON_DESK) ? DeskDriveClass::Floppy : DeskDriveClass::HardDisk);
+            break;
+        }
+
+        case IDM_VIEW_FLOPPY_PAIR_BESIDE:
+        {
+            m_shell.m_scene->ToggleFloppyPairBeside();
+            break;
+        }
+
         case IDM_VIEW_RESET_SIZE:
         {
             // One key puts everything back: the machine faces front at its
@@ -881,254 +900,6 @@ void WindowCommandManager::OnViewCommand (int id)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PromptForDiskImage
-//
-//  Shows the file picker and mounts whatever the user chose into the given
-//  drive.
-//
-//  A CANCEL is reported as success. Backing out of a picker is a decision, not
-//  a failure -- there is simply nothing to mount -- and the sole caller only
-//  tests FAILED, so returning a distinct code would have told nobody anything
-//  while inviting a spurious error dialog.
-//
-//  The drive number is converted from the menu's 1-based numbering to the
-//  controller's 0-based index here, so the command handlers can keep speaking
-//  in the numbers printed on the drives.
-//
-//  The path buffer is shell-allocated and is freed on every exit, including
-//  the failure paths that never reach the mount.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT WindowCommandManager::PromptForDiskImage (int drive, bool & outMountStarted)
-{
-    HRESULT         hr     = S_OK;
-    FileDialogSpec  spec;
-    fs::path        chosen;
-    bool            picked = false;
-
-
-
-    outMountStarted = false;
-
-    spec.filters = { { L"Disk images", L"*.dsk;*.do;*.woz;*.po" },
-                     { L"All files",   L"*.*" } };
-
-    hr = m_shell.GetHostDialogs().PickFileToOpen (m_shell.m_hwnd, spec, chosen, picked);
-    CHR (hr);
-
-    // Backing out of the file picker means there is nothing to mount -- not
-    // an error; outMountStarted (still false) is what tells the caller no
-    // mount happened.
-    BAIL_OUT_IF (!picked, S_OK);
-
-    hr = m_shell.m_disks->Mount (6, drive - 1, chosen.wstring());
-    CHR (hr);
-
-    outMountStarted = true;
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CreateBlankDiskForDrive
-//
-//  The create-a-blank-disk flow: a themed save-style dialog over a
-//  FileBrowseModel picks the target; BlankDiskBuilder produces the image
-//  bytes; the file lands through the filesystem's atomic temp+rename write;
-//  and the standard Mount path takes it from there (drive widget, MRU,
-//  persistence, door choreography all behave as for any insert).
-//
-//  Every backing-out path -- cancel, refused target, replace declined --
-//  returns S_OK with no mount started, so the caller's door choreography
-//  restores the drive. A failed build or write reports the cause and leaves
-//  the prior mount and the host filesystem untouched (the atomic write can
-//  never leave a partial image).
-//
-//  The default folder is Documents\Casso Disks, created on demand; the
-//  dialog's model refuses any target currently mounted in a drive.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, const RECT * placeAtPx, bool & outMountStarted)
-{
-    HRESULT                    hr        = S_OK;
-    int                        choice    = IDYES;
-    bool                       occupied  = false;
-    std::wstring               folder;
-    std::wstring               message;
-    std::vector<std::wstring>  mountedPaths;
-    std::vector<int>           mountedDrives;
-    vector<Byte>               imageBytes;
-    std::string                imageContent;
-    BootPayload                payload;
-    FileBrowseModel            model;
-    CreateDiskDialog           dialog;
-    DxuiWindow::CreateParams   params;
-
-
-
-    outMountStarted = false;
-
-    folder = GetDiskCreateFolder();
-
-    // The model refuses a target that is currently mounted in any drive; the
-    // store's backing paths are UTF-8 and go wide through the same u8string
-    // interpretation the MRU uses.
-    for (const DiskImageStore::MountedSource & mounted : m_shell.m_machine.GetDiskStore().GetMountedSourcePaths())
-    {
-        std::u8string  u8 (reinterpret_cast<const char8_t *> (mounted.path.data()),
-                           mounted.path.size());
-
-        mountedPaths.push_back (std::filesystem::path (u8).wstring());
-        mountedDrives.push_back (mounted.drive);
-    }
-
-    model.Bind (&m_shell.m_settings->GetFileSystem());
-    model.SetExtensionFilter (L".woz");
-    model.SetMountedPaths (std::move (mountedPaths), std::move (mountedDrives));
-
-    hr = model.SetFolder (folder);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
-                              L"Could not open the disk folder.",
-                              L"Create new disk", MB_OK | MB_ICONERROR));
-
-    // Boot-payload plumbing: availability answers from the download cache;
-    // the download callback runs on the dialog's explicit button click.
-    dialog.Configure (&model, &m_shell.m_chrome->GetTheme(),
-        [] (BlankDiskContents contents)
-        {
-            return AssetBootstrap::IsStockBootDiskCached (
-                (contents == BlankDiskContents::ProDos)
-                    ? AssetBootstrap::StockBootDisk::ProDosUsersDisk
-                    : AssetBootstrap::StockBootDisk::Dos33Master);
-        },
-        [] (BlankDiskContents contents)
-        {
-            std::wstring  path;
-            std::string   error;
-
-            return AssetBootstrap::EnsureStockBootDisk (
-                (contents == BlankDiskContents::ProDos)
-                    ? AssetBootstrap::StockBootDisk::ProDosUsersDisk
-                    : AssetBootstrap::StockBootDisk::Dos33Master,
-                path, error);
-        });
-
-    params.title                    = std::format (L"Create new disk (Drive {})", drive);
-    params.hInstance                = GetModuleHandle (nullptr);
-    params.ownerHwnd                = m_shell.m_hwnd;
-    params.initialSizeDip           = { 560, 480 };
-    params.minSizeDip               = { 420, 360 };
-    params.resizable                = true;
-    params.insetContentBelowCaption = true;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
-
-    hr = dialog.Create (params);
-    CHRA (hr);
-
-    //  Opened from the picker, it takes the picker's place, so it reads as
-    //  the same window moving on to its next step.
-    if (placeAtPx != nullptr && placeAtPx->right > placeAtPx->left)
-    {
-        SetWindowPos (dialog.GetHwnd(), nullptr, placeAtPx->left, placeAtPx->top,
-                      placeAtPx->right - placeAtPx->left, placeAtPx->bottom - placeAtPx->top,
-                      SWP_NOZORDER | SWP_NOACTIVATE);
-    }
-
-    dialog.SetTheme (&m_shell.m_chrome->GetTheme());
-    dialog.ShowModalDialog (IDOK);
-
-    // Cancel / Escape / close box: nothing to do, and no mount started.
-    BAIL_OUT_IF (!dialog.GetOutcome().confirmed, S_OK);
-
-    // The target drive may already hold a disk; replacing it needs a yes.
-    occupied = m_shell.m_machine.GetDiskStore().IsMounted (6, drive - 1);
-
-    if (occupied)
-    {
-        message = std::format (L"Drive {} already has a disk. Replace it with the new disk?", drive);
-        choice  = DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(), message.c_str(),
-                                  L"Create new disk", MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
-
-        BAIL_OUT_IF (choice != IDYES, S_OK);
-    }
-
-    // A bootable spec needs the OS master's bytes. The dialog only enables
-    // the toggle when the cache has them, but the file is re-read here so a
-    // master that vanished in between reports instead of failing silently.
-    if (dialog.GetOutcome().spec.bootable)
-    {
-        bool  isProDos = (dialog.GetOutcome().spec.contents == BlankDiskContents::ProDos);
-
-        std::filesystem::path  masterPath = AssetBootstrap::GetStockBootDiskPath (
-            isProDos ? AssetBootstrap::StockBootDisk::ProDosUsersDisk
-                     : AssetBootstrap::StockBootDisk::Dos33Master);
-
-        std::ifstream  master (masterPath, std::ios::binary);
-
-        bool  opened = master.good();
-
-        CBRF (opened, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
-                                      L"The OS master disk is missing from the download cache.",
-                                      L"Create new disk", MB_OK | MB_ICONERROR));
-
-        vector<Byte> &  dest = isProDos ? payload.proDosUsersDisk
-                                        : payload.dosMasterSectors;
-
-        dest.assign (std::istreambuf_iterator<char> (master),
-                     std::istreambuf_iterator<char> ());
-    }
-
-    hr = BlankDiskBuilder::Build (dialog.GetOutcome().spec, payload, imageBytes);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
-                              L"Could not build the new disk image.",
-                              L"Create new disk", MB_OK | MB_ICONERROR));
-
-    // Atomic: the filesystem stages a sibling temp file and swaps it in, so
-    // a failure here leaves no partial image behind.
-    imageContent.assign (reinterpret_cast<const char *> (imageBytes.data()), imageBytes.size());
-
-    hr = m_shell.m_settings->GetFileSystem().WriteAllText (dialog.GetOutcome().targetPath, imageContent);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
-                              (L"Could not write \"" + dialog.GetOutcome().targetPath + L"\".\n\n"
-                               + FormatSystemError (hr)).c_str(),
-                              L"Create new disk", MB_OK | MB_ICONERROR));
-
-    // Remember where this disk landed (the user may have navigated away
-    // from the starting folder); the next create opens there.
-    {
-        std::u8string  u8folder = std::filesystem::path (dialog.GetOutcome().targetPath)
-                                      .parent_path().u8string();
-
-        m_shell.m_settings->GetPrefs().lastDiskCreateFolder.assign (u8folder.begin(), u8folder.end());
-        m_shell.m_settings->SaveGlobalPrefs();
-    }
-
-    hr = m_shell.m_disks->Mount (6, drive - 1, dialog.GetOutcome().targetPath);
-    CHRF (hr, DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chrome->GetTheme(),
-                              L"The disk was created but could not be mounted.",
-                              L"Create new disk", MB_OK | MB_ICONERROR));
-
-    outMountStarted = true;
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  GetDiskCreateFolder
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1178,191 +949,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetRecentMedia
-//
-//  The picker's list for one kind of media: the recent entries of that kind
-//  that still exist, then the files of that kind in the shared known-folder
-//  list and in the folders of every recent entry, then the bundled demos.
-//  Disks and tapes share the recent list and the folders; the filter is the
-//  only difference.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void WindowCommandManager::GetRecentMedia (MediaFilter isWanted, std::vector<DiskMru::Entry> & entries)
-{
-    DiskMru                      mru        = DiskMru::FromUtf8 (m_shell.m_settings->GetPrefs().recentDisks,
-                                                                 m_shell.m_settings->GetPrefs().recentDiskLoadedAt);
-    std::vector<DiskMru::Entry>  existing   = mru.Prune ([] (const std::filesystem::path & p)
-                                                         {
-                                                             std::error_code  ignore;
-
-                                                             return std::filesystem::exists (p, ignore)
-                                                                    && !AssetBootstrap::IsForeignCheckoutDisk (p);
-                                                         });
-    Win32FileSystem              fileSystem;
-    int64_t                      nowUnix    = (int64_t) std::chrono::duration_cast<std::chrono::seconds> (
-                                                  std::chrono::system_clock::now().time_since_epoch()).count();
-
-
-
-    entries.clear();
-
-    for (const DiskMru::Entry & entry : existing)
-    {
-        if (isWanted (entry.path.wstring()))
-        {
-            entries.push_back (entry);
-        }
-    }
-
-    AssetBootstrap::AppendSiblingDisksFromFolders (KnownFolderStore::LoadPickerFolders (fileSystem,
-                                                                                        AssetBootstrap::GetAssetBaseDirectory().wstring(),
-                                                                                        existing,
-                                                                                        nowUnix),
-                                                   entries,
-                                                   isWanted);
-    AssetBootstrap::AppendSiblingDisksFromMruFolders (entries, existing, isWanted);
-    AssetBootstrap::AppendBundledDemoDisks (entries, isWanted);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PromptInsertTapeMru
-//
-//  The disk picker, choosing a tape: same recent list, same folders, tape
-//  files only, and no stock downloads. Browse and create-new go to the tape
-//  versions of those flows.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT WindowCommandManager::PromptInsertTapeMru (const RECT * anchorRectPx)
-{
-    HRESULT                      hr            = S_OK;
-    std::vector<DiskMru::Entry>  entries;
-    std::wstring                 chosenPath;
-    std::string                  error;
-    bool                         userBrowsed   = false;
-    bool                         userCreateNew = false;
-    RECT                         pickerRectPx  = {};
-
-
-
-    GetRecentMedia (TapeImageLoader::IsTapeFileExtension, entries);
-
-    hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),
-                                              m_shell.m_hwnd,
-                                              AssetBootstrap::MakeTapePickerKind(),
-                                              anchorRectPx,
-                                              entries,
-                                              AssetBootstrap::GetDiskDirectory(),
-                                              m_shell.m_settings->GetPrefs().activeTheme,
-                                              chosenPath,
-                                              userBrowsed,
-                                              userCreateNew,
-                                              pickerRectPx,
-                                              error);
-    CHR (hr);
-
-    if (userBrowsed)
-    {
-        m_shell.m_tapeDeck->BrowseForTape();
-    }
-    else if (userCreateNew)
-    {
-        m_shell.m_tapeDeck->CreateBlankTape();
-    }
-    else if (!chosenPath.empty())
-    {
-        m_shell.m_tapeDeck->InsertTape (chosenPath);
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PromptInsertDiskMru
-//
-//  Shows the themed disk MRU picker. Routes the user's chosen disk
-//  (recent image or stock master download) to Mount(); if the user
-//  clicks "Browse..." this falls through to the IFileOpenDialog path
-//  via PromptForDiskImage. The pinned <Create new disk...> row routes to
-//  CreateBlankDiskForDrive.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT WindowCommandManager::PromptInsertDiskMru (int drive, const RECT * anchorRectPx, bool & outMountStarted)
-{
-    HRESULT                      hr            = S_OK;
-    DiskMru                      mru;
-    std::vector<DiskMru::Entry>  mruPruned;
-    std::filesystem::path        diskDir;
-    std::wstring                 chosenPath;
-    std::string                  error;
-    bool                         userBrowsed   = false;
-    bool                         userCreateNew = false;
-    RECT                         pickerRectPx  = {};
-
-
-
-    outMountStarted = false;
-
-
-
-    diskDir = AssetBootstrap::GetDiskDirectory();
-    GetRecentMedia (IsSupportedDiskImageExtension, mruPruned);
-
-    hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),
-                                              m_shell.m_hwnd,
-                                              AssetBootstrap::MakeDiskPickerKind (drive),
-                                              anchorRectPx,
-                                              mruPruned,
-                                              diskDir,
-                                              m_shell.m_settings->GetPrefs().activeTheme,
-                                              chosenPath,
-                                              userBrowsed,
-                                              userCreateNew,
-                                              pickerRectPx,
-                                              error);
-    CHR (hr);
-
-    if (userBrowsed)
-    {
-        hr = PromptForDiskImage (drive, outMountStarted);
-        CHR (hr);
-    }
-    else if (userCreateNew)
-    {
-        hr = CreateBlankDiskForDrive (drive, &pickerRectPx, outMountStarted);
-        CHR (hr);
-    }
-    else if (!chosenPath.empty())
-    {
-        hr = m_shell.m_disks->Mount (6, drive - 1, chosenPath);
-        CHR (hr);
-
-        outMountStarted = true;
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnDiskCommand
 //
 //  The Disk menu: insert and eject, per drive.
@@ -1380,46 +966,110 @@ Error:
 //  picker is up, closes back on cancel, and the picker path already
 //  reports anything worth reporting.
 //
+//  On a //c Plus, drive 1 is the built-in 3.5-inch drive, which has only
+//  insert and eject, and drives 2 and 3 are the 5.25-inch drives on the
+//  disk port. The posted commands address the Disk II drive.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void WindowCommandManager::OnDiskCommand (int id)
 {
+    bool           isDrive1 = (id == IDM_DISK_INSERT1  || id == IDM_DISK_EJECT1   || id == IDM_DISK_WP1 ||
+                               id == IDM_DISK_SALVAGE1 || id == IDM_DISK_INSPECT1 || id == IDM_DISK_THUMBNAIL1);
+    bool           isDrive3 = (id >= IDM_DISK_INSERT3 && id <= IDM_DISK_THUMBNAIL3);
+    DiskMenuDrive  target   = m_shell.m_disks->GetMenuDrive (isDrive1 ? 0 : (isDrive3 ? 2 : 1));
+    int            drive    = target.diskIiDrive;
+
+
+
     switch (id)
     {
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
+        case IDM_DISK_INSERT3:
         {
-            m_shell.m_disks->BrowseForDisk ((id == IDM_DISK_INSERT1) ? 0 : 1);
+            if (target.isBuiltIn35 && m_shell.m_scene)
+            {
+                m_shell.m_scene->BrowseDeskDrive (DiskMenuRule::GetBuiltIn35Drive());
+            }
+            else if (target.IsDiskIi())
+            {
+                m_shell.m_disks->BrowseForDisk (drive);
+            }
+
             break;
         }
 
         case IDM_DISK_EJECT1:
         case IDM_DISK_EJECT2:
+        case IDM_DISK_EJECT3:
         {
-            m_shell.PostCommand (static_cast<WORD> (id));
+            if (target.isBuiltIn35)
+            {
+                m_shell.m_disks->Eject (DiskMenuRule::GetBuiltIn35Drive().slot, DiskMenuRule::GetBuiltIn35Drive().drive);
+            }
+            else if (target.IsDiskIi())
+            {
+                m_shell.PostCommand (static_cast<WORD> ((drive == 0) ? IDM_DISK_EJECT1 : IDM_DISK_EJECT2));
+            }
+
             break;
         }
 
         case IDM_DISK_WP1:
         case IDM_DISK_WP2:
+        case IDM_DISK_WP3:
         {
             // The toggle runs on the CPU thread (like mount / eject) so its
             // flush never races the drive engine.
-            m_shell.PostCommand (static_cast<WORD> (id));
+            if (target.IsDiskIi())
+            {
+                m_shell.PostCommand (static_cast<WORD> ((drive == 0) ? IDM_DISK_WP1 : IDM_DISK_WP2));
+            }
+
             break;
         }
 
         case IDM_DISK_SALVAGE1:
         case IDM_DISK_SALVAGE2:
+        case IDM_DISK_SALVAGE3:
         {
             // Stays on the UI thread: the flow opens Dxui modals.
-            m_shell.m_disks->RunSalvageFlow ((id == IDM_DISK_SALVAGE1) ? 0 : 1);
+            if (target.IsDiskIi())
+            {
+                m_shell.m_disks->RunSalvageFlow (drive);
+            }
+
             break;
         }
 
         case IDM_DISK_OPEN_CASSO_EXPLORER:
         {
             OpenCassoExplorer();
+            break;
+        }
+
+        case IDM_DISK_INSPECT1:
+        case IDM_DISK_INSPECT2:
+        case IDM_DISK_INSPECT3:
+        {
+            if (target.IsDiskIi())
+            {
+                m_shell.OpenDiskInspector (drive);
+            }
+
+            break;
+        }
+
+        case IDM_DISK_THUMBNAIL1:
+        case IDM_DISK_THUMBNAIL2:
+        case IDM_DISK_THUMBNAIL3:
+        {
+            if (target.IsDiskIi())
+            {
+                m_shell.SetDiskThumbnail (drive);
+            }
+
             break;
         }
 
@@ -1436,6 +1086,9 @@ void WindowCommandManager::OnDiskCommand (int id)
         // Each flips its device, connected to disconnected or back.
         case IDM_STORAGE_DRIVE2:   m_shell.SetSecondDriveConnected  (!m_shell.m_disks->ShouldShowExternalDrive()); break;
         case IDM_STORAGE_RECORDER: m_shell.SetTapeRecorderConnected (!m_shell.m_tapeDeck->IsRecorderConnected());  break;
+
+        case IDM_STORAGE_ATTACH_APPLE35: m_shell.ChangePortDrive (PortDriveChange::PlugIn, kpszApple35DriveDevice, 0); break;
+        case IDM_STORAGE_ATTACH_FLOPPY:  m_shell.ChangePortDrive (PortDriveChange::PlugIn, kpszDiskIicDevice,      0); break;
     }
 }
 

@@ -12,9 +12,12 @@
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
+#include "CassoExplorer/Model/CollectionResultsItems.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/AppleSingleCodec.h"
 #include "Machines/Apple2/Common/AppleFileName.h"
+#include "Devices/Disk/Archives/ContainerDiskFileIo.h"
+#include "Update/ZipArchive.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -391,6 +394,52 @@ public:
     }
 
 
+    //  A disk image in a ZIP is listed as an image, and opens by the ZIP's
+    //  path and its path in the ZIP.
+    TEST_METHOD (Archive_ImageInsideOpensThroughTheZip)
+    {
+        static constexpr Byte  kEmptyZip[22] = { 0x50, 0x4B, 0x05, 0x06 };
+
+        InMemoryFileSystem                fs;
+        FakeDiskFileIo                    io;
+        ContainerDiskFileIo               nested  { io };
+        CassoExplorerBrowser              browser { fs, nested };
+        FakeRecycleBin                    shell;
+        IShellItemVerbs::ShellFolderItem  inside;
+        FixtureProvider                   fixtures;
+        std::vector<Byte>                 image;
+        std::vector<Byte>                 zip;
+        Location                          target;
+        int                               row     = 0;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", image));
+        AssertSucceeded (ZipArchive::Replace (kEmptyZip, "disks/dos33.dsk", image, zip));
+        AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\set.zip", std::string (zip.begin(), zip.end())));
+        io.files["C:\\Disks\\set.zip"]  = zip;
+        io.stamps["C:\\Disks\\set.zip"] = FileStamp { zip.size(), 100 };
+
+        inside.id       = L"C:\\Disks\\set.zip\\disks\\dos33.dsk";
+        inside.name     = L"dos33.dsk";
+        inside.typeText = L"Disk image";
+        shell.shellItems.push_back (inside);
+        browser.SetShellVerbs (&shell);
+
+        browser.NavigateToLocation (Location::MakeShellFolder (L"C:\\Disks\\set.zip\\disks", L"disks"));
+        row = FindRow (browser, L"dos33.dsk");
+
+        Assert::IsTrue (browser.GetRows()[(size_t) row].isDiskImage);
+        Assert::IsTrue (browser.TryGetRowLocation (row, target));
+        Assert::IsTrue (target.kind == Location::Kind::DiskImage);
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\set.zip|disks/dos33.dsk"), target.path);
+
+        Assert::IsTrue (browser.OpenRow (row));
+        Assert::IsFalse (browser.GetRows().empty(), L"The image's catalog is listed");
+        Assert::AreEqual (std::wstring (L"dos33.dsk"), BrowserCells::GetLocationLabel (target));
+    }
+
+
     //  Explorer's navigation pane below Casso's root: Home, Gallery and
     //  OneDrive; a line; the pinned folders; a line; the rest, with Casso's
     //  own This PC in the shell's place and the Recycle Bin last.
@@ -759,6 +808,58 @@ public:
         Assert::IsTrue   (matches[0].kind == VolumeKind::Dos33);
     }
 
+
+    //  Disk list's results: a row for each image, with its columns, which
+    //  opens as the image and goes up to the folder walked.
+    TEST_METHOD (DiskListResults_ListEachImage_AndGoUpToTheFolder)
+    {
+        Host            host;
+        FakeRecycleBin  shell;
+        std::wstring    id   = CollectionQuery::MakeId (CollectionQuery::Tool::DiskList, kDisks);
+        Location        up;
+        int             row  = 0;
+
+
+
+        AssertSucceeded (CollectionResultsItems::Read (host.io, id, shell.shellItems));
+        host.browser.SetShellVerbs (&shell);
+
+        host.browser.NavigateToLocation (Location::MakeShellFolder (id, CollectionQuery::GetLabel (CollectionQuery::Tool::DiskList, kDisks)));
+
+        Assert::AreEqual ((size_t) 2, host.browser.GetRows().size());
+
+        row = FindRow (host.browser, L"prodos.po");
+
+        Assert::IsTrue   (host.browser.GetRows()[(size_t) row].isDiskImage);
+        Assert::AreEqual (std::wstring (L"ProDOS"), host.browser.GetRows()[(size_t) row].collection.fileSystem);
+        Assert::IsFalse  (host.browser.GetRows()[(size_t) row].collection.csvLine.empty());
+
+        Assert::IsTrue   (host.browser.TryGetUpTarget (up));
+        Assert::IsTrue   (up.kind == Location::Kind::HostFolder);
+        Assert::AreEqual (std::wstring (kDisks), up.path);
+    }
+
+
+    //  Find duplicates' results: two copies of one disk, in one set.
+    TEST_METHOD (DuplicateResults_PutTheCopiesInOneSet)
+    {
+        Host            host;
+        FakeRecycleBin  shell;
+        std::wstring    id = CollectionQuery::MakeId (CollectionQuery::Tool::Duplicates, kDisks);
+
+
+
+        host.Seed ("CassoExplorer/prodos.po", L"C:\\Disks\\copy.po");
+
+        AssertSucceeded (CollectionResultsItems::Read (host.io, id, shell.shellItems));
+        host.browser.SetShellVerbs (&shell);
+
+        host.browser.NavigateToLocation (Location::MakeShellFolder (id, CollectionQuery::GetLabel (CollectionQuery::Tool::Duplicates, kDisks)));
+
+        Assert::IsTrue   (host.browser.GetRows().size() >= 2);
+        Assert::AreEqual (1, host.browser.GetRows()[(size_t) FindRow (host.browser, L"copy.po")].collection.set);
+        Assert::AreEqual (1, host.browser.GetRows()[(size_t) FindRow (host.browser, L"prodos.po")].collection.set);
+    }
 
     //  A match in a directory inside an image is read from that directory.
     TEST_METHOD (SearchMatchInAnImagesDirectory_PreviewsAndCopiesFromThere)
@@ -1216,21 +1317,21 @@ public:
     }
 
 
-    TEST_METHOD (SelectRoot_ListsItsChildrenAndOpensThem)
+    //  The Casso root lists the images of its folders, not the folders, and
+    //  an image opens from there as it does in its own folder.
+    TEST_METHOD (CassoRoot_ListsItsFoldersImages_AndOpensThem)
     {
         Host                       host;
         std::vector<DxuiTreeNode>  roots;
-        int                        missing = 0;
 
         host.browser.GetTreeRoots (roots);
 
         AssertSucceeded (host.browser.SelectTreeNode (roots[1].id));
-        Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
-        Assert::IsTrue   (host.browser.GetRows()[0].isDirectory);
+        Assert::AreEqual ((size_t) 2, host.browser.GetRows().size(), L"dos33.dsk and prodos.po, without readme.txt");
+        Assert::IsFalse  (host.browser.GetRows()[0].isDirectory);
 
-        Assert::IsTrue   (host.browser.OpenRow (0));
-        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeHostFolder (kDisks));
-        Assert::AreEqual ((size_t) 3, host.browser.GetRows().size());
+        Assert::IsTrue   (host.browser.OpenRow (FindRow (host.browser, L"dos33.dsk")));
+        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeDiskImage (L"C:\\Disks\\dos33.dsk"));
     }
 
 
@@ -1255,7 +1356,7 @@ public:
         //  The root is in the history like any other location.
         AssertSucceeded (host.browser.SelectTreeNode (TreeModel::kCassoRootId));
         Assert::AreEqual (std::wstring (L"Casso"), host.browser.GetTabLabel (0));
-        Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
+        Assert::AreEqual ((size_t) 2, host.browser.GetRows().size(), L"the known folder's two images");
 
         Assert::IsTrue   (host.browser.GoBack());
         Assert::IsTrue   (host.browser.GetLocation() == Location::MakeRoot (TreeModel::kThisPcRootId));
@@ -1264,15 +1365,59 @@ public:
         //  And its label, typed, goes there.
         Assert::IsTrue   (host.browser.NavigateToAddress (L"casso"));
         Assert::IsTrue   (host.browser.GetLocation() == Location::MakeRoot (TreeModel::kCassoRootId));
-        Assert::AreEqual ((size_t) 1, host.browser.GetRows().size());
+        Assert::AreEqual ((size_t) 2, host.browser.GetRows().size());
     }
 
 
-    TEST_METHOD (CassoRoot_MissingFolder_IsDimmedAndDoesNotOpen)
+    //  Drive information for E: and F:, both with media, and A:, a drive
+    //  with none.
+    struct DriveIcons : public IShellIcons
+    {
+        std::shared_ptr<const DxuiIconImage>  GetForPath (const std::wstring &, bool) override { return nullptr; }
+        std::shared_ptr<const DxuiIconImage>  GetForKind (Kind) override                       { return nullptr; }
+
+        bool  GetDriveInfo (const std::wstring & root, DriveInfo & outInfo) override
+        {
+            outInfo.name       = L"Removable Disk (" + root.substr (0, 2) + L")";
+            outInfo.typeName   = L"Removable Disk";
+            outInfo.totalBytes = root[0] == L'A' ? 0 : 1ull << 30;
+            return true;
+        }
+    };
+
+
+    //  A drive with A2retroNET.txt in its root is an A2Pico card. A drive
+    //  with no media isn't read, so an empty floppy drive doesn't stall the
+    //  list.
+    TEST_METHOD (ThisPc_ListsAnA2PicoCardByItsType)
+    {
+        Host                       host;
+        DriveIcons                 icons;
+        std::vector<DxuiTreeNode>  roots;
+
+
+
+        AssertSucceeded (host.fs.WriteAllText (L"E:\\A2retroNET.txt", "[drives]\n"));
+        host.browser.SetShellIcons (&icons);
+        host.browser.GetTreeModel().SetDrives ({ L"A:\\", L"E:\\", L"F:\\" });
+
+        host.browser.GetTreeRoots (roots);
+
+        AssertSucceeded (host.browser.SelectTreeNode (TreeModel::kThisPcRootId));
+        Assert::AreEqual ((size_t) 3, host.browser.GetRows().size());
+
+        Assert::AreEqual (std::wstring (L"Removable Disk"), host.browser.GetRows()[0].typeText);
+        Assert::AreEqual (std::wstring (L"A2Pico card"),    host.browser.GetRows()[1].typeText);
+        Assert::AreEqual (std::wstring (L"Removable Disk"), host.browser.GetRows()[2].typeText);
+    }
+
+
+    //  A known folder whose drive is gone adds no rows; the others' images
+    //  are listed.
+    TEST_METHOD (CassoRoot_SkipsAMissingFolder)
     {
         Host                       host;
         std::vector<DxuiTreeNode>  roots;
-        int                        missing = 0;
 
         host.browser.GetTreeModel().SetKnownFolders ({ L"H:\\Games", kDisks });
         host.browser.GetTreeRoots (roots);
@@ -1280,14 +1425,14 @@ public:
 
         Assert::AreEqual ((size_t) 2, host.browser.GetRows().size());
 
-        missing = _wcsicmp (host.browser.GetRows()[0].hostPath.c_str(), L"H:\\Games") == 0 ? 0 : 1;
-
-        Assert::IsTrue   (host.browser.GetRows()[(size_t) missing].isMissing);
-        Assert::IsTrue   (BrowserCells::ToCells (host.browser.GetRows()[(size_t) missing])[0].dim);
-        Assert::IsFalse  (host.browser.GetRows()[(size_t) (1 - missing)].isMissing);
-        Assert::IsFalse  (host.browser.OpenRow (missing));
-        Assert::IsTrue   (host.browser.GetLocation() == Location::MakeRoot (TreeModel::kCassoRootId));
+        for (const CatalogRow & row : host.browser.GetRows())
+        {
+            Assert::AreEqual (std::wstring (kDisks), row.folderPath);
+            Assert::IsFalse  (row.isMissing);
+        }
     }
+
+
 
     TEST_METHOD (OpenRow_EntersImagesAndRefusesPlainFiles)
     {
@@ -1762,80 +1907,6 @@ public:
     }
 
 
-    //  Until the shell's own lines arrive, a host file's Content row has its
-    //  date and size at the right, each with its name, and no type under its
-    //  name; a file in a disk image has its type there; a folder with no date
-    //  has a blank first line in the right column.
-    TEST_METHOD (ContentLines_DateAndSizeForAHostFileTypeForAnAppleFile)
-    {
-        CatalogRow                       file;
-        CatalogRow                       apple;
-        CatalogRow                       folder;
-        std::vector<DxuiListView::Cell>  hostCells;
-        std::vector<DxuiListView::Cell>  appleCells;
-        std::vector<DxuiListView::Cell>  folderCells;
-
-        file.name         = L"readme.txt";
-        file.typeText     = L"Text Document";
-        file.sizeBytes    = 302;
-        file.hasModified  = true;
-        file.modifiedUnix = 1700000000;
-
-        apple.name     = L"HELLO";
-        apple.typeText = L"Applesoft BASIC";
-
-        folder.name        = L"Games";
-        folder.isDirectory = true;
-
-        hostCells   = BrowserCells::ToCells (file,   Location::MakeHostFolder (L"C:\\Disks"));
-        appleCells  = BrowserCells::ToCells (apple,  Location::MakeDiskImage (L"C:\\Disks\\a.dsk"));
-        folderCells = BrowserCells::ToCells (folder, Location::MakeHostFolder (L"C:\\Disks"));
-
-        Assert::IsTrue   (hostCells[0].contentLeft.empty(), L"No type under a host file's name");
-        Assert::AreEqual ((size_t) 2, hostCells[0].contentRight.size());
-        Assert::AreEqual (std::wstring (L"Date modified:"), hostCells[0].contentRight[0].label);
-        Assert::AreEqual (std::wstring (L"Size:"),          hostCells[0].contentRight[1].label);
-        Assert::AreEqual (std::wstring (L"302 bytes"),      hostCells[0].contentRight[1].text, L"The value apart from its name");
-
-        Assert::AreEqual ((size_t) 1, appleCells[0].contentLeft.size());
-        Assert::AreEqual (std::wstring (L"Type:"),           appleCells[0].contentLeft[0].label);
-        Assert::AreEqual (std::wstring (L"Applesoft BASIC"), appleCells[0].contentLeft[0].text);
-
-        Assert::AreEqual ((size_t) 1, folderCells[0].contentRight.size());
-        Assert::IsTrue   (folderCells[0].contentRight[0].text.empty(), L"The date's line is blank, not removed");
-    }
-
-
-    TEST_METHOD (HostTextCharsets)
-    {
-        const Byte  ascii[]   = { 'R', 'E', 'A', 'D', '\r', '\n', '\t', 'x', 0x0C, 0x1A };
-        const Byte  dos[]     = { ' ', 0xC4, 0xC4, 0xCD, 0xB3, 'Z', 0x82, '\r', '\n' };
-        const Byte  windows[] = { 'c', 'a', 'f', 0xE9, ' ', 0xFC, 'r' };
-        const Byte  utf8[]    = { 'c', 'a', 'f', 0xC3, 0xA9 };
-        const Byte  cutOff[]  = { 'a', 0xE2, 0x80 };
-        const Byte  binary[]  = { 'M', 'Z', 0x90, 0x00, 0x03 };
-
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (ascii)   == HostCharset::Ascii,   L"Tabs, line breaks, form feeds and DOS's end mark are text");
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (dos)     == HostCharset::Dos,     L"Mostly box drawing is DOS text");
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (windows) == HostCharset::Windows, L"Accented letters are Windows text");
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (utf8)    == HostCharset::Utf8,    L"Well-formed UTF-8 is UTF-8");
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (cutOff)  == HostCharset::Utf8,    L"A sequence cut off at the end of the sample is UTF-8");
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (binary)  == HostCharset::None,    L"A control code other than those is binary");
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset ({})      == HostCharset::None,    L"An empty file is no text");
-
-        //  DOS text draws a control code now and then as a symbol, such as a
-        //  menu's pointer; more than one byte in a hundred is no text.
-        std::vector<Byte>  pointer (200, 'a');
-
-        pointer[50] = 0x10;
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (pointer) == HostCharset::Dos,     L"A DOS symbol among text is DOS text");
-
-        pointer[51] = 0x10;
-        pointer[52] = 0x11;
-        Assert::IsTrue (BrowserPreviewer::GetHostCharset (pointer) == HostCharset::None,    L"but too many are binary");
-    }
-
-
     //  An assembler's source previews as text with its line numbers, in
     //  whatever character set it is; UTF-8 text of any kind previews as text,
     //  which the hex view cannot draw; plain ASCII text stays in the hex view.
@@ -1910,67 +1981,5 @@ public:
         Assert::IsTrue (host.browser.GetRows().empty());
         Assert::AreEqual (std::wstring (L"blank.dsk can't be previewed because it doesn't have a recognized file system."),
                           host.browser.GetListError(), L"with the reason the list is empty");
-    }
-
-
-    TEST_METHOD (LocationLabels)
-    {
-        Assert::AreEqual (std::wstring (L"C:\\"),    BrowserCells::GetLocationLabel (Location::MakeHostFolder (L"C:\\")));
-        Assert::AreEqual (std::wstring (L"Disks"),   BrowserCells::GetLocationLabel (Location::MakeHostFolder (L"C:\\Disks\\")));
-        Assert::AreEqual (std::wstring (L"SUB"),     BrowserCells::GetLocationLabel (Location::MakeDiskDirectory (L"C:\\a.po", "/CASSQUE/SUB")));
-    }
-
-
-    TEST_METHOD (Formatting)
-    {
-        Assert::AreEqual (std::wstring (L"777 bytes"), BrowserCells::FormatSize (777));
-        Assert::AreEqual (std::wstring (L"8.00 KB"),   BrowserCells::FormatSize (8192));
-
-        //  The Size column, as the property system formats System.Size, which
-        //  varies by Windows build.
-        auto shellSize = [] (uint64_t bytes)
-        {
-            HRESULT      hr    = S_OK;
-            PROPERTYKEY  key   = {};
-            PROPVARIANT  value = {};
-            PWSTR        shown = nullptr;
-            std::wstring text;
-
-            value.vt             = VT_UI8;
-            value.uhVal.QuadPart = bytes;
-
-            hr = PSGetPropertyKeyFromName (L"System.Size", &key);
-            Assert::IsTrue (SUCCEEDED (hr));
-
-            hr = PSFormatForDisplayAlloc (key, value, PDFF_DEFAULT, &shown);
-            Assert::IsTrue (SUCCEEDED (hr));
-
-            text = shown;
-            CoTaskMemFree (shown);
-            return text;
-        };
-
-        Assert::AreEqual (shellSize (187),    BrowserCells::FormatSizeColumn (187));
-        Assert::AreEqual (shellSize (5539),   BrowserCells::FormatSizeColumn (5539));
-        Assert::AreEqual (shellSize (933616), BrowserCells::FormatSizeColumn (933616));
-        Assert::AreEqual (std::wstring (L"1 item"),    BrowserCells::FormatSelection (0, 1));
-        Assert::AreEqual (std::wstring (L"7 items, 3 selected"), BrowserCells::FormatSelection (3, 7));
-
-        //  Explorer's selection field, the size after two spaces.
-        Assert::AreEqual (std::wstring (L"1 item selected"),           BrowserCells::FormatSelected (1, 0, false));
-        Assert::AreEqual (std::wstring (L"4 items selected  777 bytes"), BrowserCells::FormatSelected (4, 777, true));
-
-        //  1984-08-17 12:34, as the scratch ProDOS volume records it.
-        //  In the user's own short date and time, whatever they are set to.
-        {
-            SYSTEMTIME  st       = { 1984, 8, 0, 17, 12, 34, 0, 0 };
-            wchar_t     date[80] = {};
-            wchar_t     time[80] = {};
-            int         dateLen  = GetDateFormatEx (LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &st, nullptr, date, 80, nullptr);
-            int         timeLen  = GetTimeFormatEx (LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, &st, nullptr, time, 80);
-
-            Assert::IsTrue   (dateLen > 0 && timeLen > 0);
-            Assert::AreEqual (std::wstring (date) + L" " + time, BrowserCells::FormatModified (461594040, true));
-        }
     }
 };

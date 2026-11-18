@@ -4,6 +4,7 @@
 #include "JsonParser.h"
 #include "PathResolver.h"
 
+#include "Devices/BlockDevice/BlockDeviceCatalog.h"
 #include "Machines/MachineDefinitions.h"
 #include "Core/JsonValue.h"
 #include "Machines/MachineDefinition.h"
@@ -13,6 +14,10 @@ static constexpr int    kMinSlot       = 1;
 static constexpr int    kMaxSlot       = 7;
 static constexpr Word   kRamMaxAddress = 0xFFFF;
 static constexpr size_t kRamMaxSize    = 0x10000;
+
+// The //c disk port's device while its external drive is connected, as
+// Settings and MachineConfigUpgrade write it.
+static constexpr const char *  s_kpszDiskIicDrive = "disk-iic-drive";
 
 
 
@@ -655,9 +660,29 @@ void MachineConfigLoader::ParsePorts (
         return;
     }
 
-    for (size_t idx = 0; idx < portsArray->GetArraySize(); idx++)
+    ParsePortArray (*portsArray, outPorts);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParsePortArray
+//
+//  The entries of a `ports` or `chain` array, each in the short or object
+//  form.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineConfigLoader::ParsePortArray (
+    const JsonValue    & portsArray,
+    vector<PortConfig> & outPorts)
+{
+    for (size_t idx = 0; idx < portsArray.GetArraySize(); idx++)
     {
-        const JsonValue & entry = portsArray->GetArrayElement (idx);
+        const JsonValue & entry = portsArray.GetArrayElement (idx);
         PortConfig        port;
 
         if (entry.GetType() == JsonType::String)
@@ -666,18 +691,50 @@ void MachineConfigLoader::ParsePorts (
         }
         else if (entry.GetType() == JsonType::Object)
         {
-            HRESULT hrName = entry.GetString ("name",   port.name);
-            HRESULT hrDev  = entry.GetString ("device", port.device);
-            HRESULT hrPath = entry.GetString ("path",   port.path);
-
-            IGNORE_RETURN_VALUE (hrName, S_OK);
-            IGNORE_RETURN_VALUE (hrDev,  S_OK);
-            IGNORE_RETURN_VALUE (hrPath, S_OK);
+            ParsePort (entry, port);
         }
 
         // Anything else (null, a number, a nested array) leaves both fields
         // empty and lands here as an unoccupied connector, on purpose.
         outPorts.push_back (port);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParsePort
+//
+//  One port in the object form: its name, device, host file, disk image,
+//  real timing switch, and, for a //c disk port, the chain of drives on it
+//  in the same forms as a `ports` array.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineConfigLoader::ParsePort (const JsonValue & entry, PortConfig & outPort)
+{
+    const JsonValue  * chain    = nullptr;
+    HRESULT            hrName   = entry.GetString ("name",       outPort.name);
+    HRESULT            hrDev    = entry.GetString ("device",     outPort.device);
+    HRESULT            hrPath   = entry.GetString ("path",       outPort.path);
+    HRESULT            hrImage  = entry.GetString ("image",      outPort.image);
+    HRESULT            hrTiming = entry.GetBool   ("realTiming", outPort.realTiming);
+    bool               hasChain = entry.HasArray  ("chain", chain);
+
+
+
+    IGNORE_RETURN_VALUE (hrName,   S_OK);
+    IGNORE_RETURN_VALUE (hrDev,    S_OK);
+    IGNORE_RETURN_VALUE (hrPath,   S_OK);
+    IGNORE_RETURN_VALUE (hrImage,  S_OK);
+    IGNORE_RETURN_VALUE (hrTiming, S_OK);
+
+    if (hasChain)
+    {
+        ParsePortArray (*chain, outPort.chain);
     }
 }
 
@@ -730,6 +787,284 @@ void MachineConfigLoader::ResolveSlotFirmware (
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineConfig::CountDiskPortFloppies
+//
+//  A port with no chain and a 5.25-inch drive as its device has that one
+//  drive: `disk-iic-drive`, as the //c's disk port lists its external
+//  drive, or the chain's `disk-iic`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int MachineConfig::CountDiskPortFloppies() const
+{
+    int  floppies = 0;
+
+
+
+    for (const PortConfig & port : ports)
+    {
+        if (port.chain.empty())
+        {
+            floppies += (port.device == s_kpszDiskIicDrive || port.device == kpszDiskIicDevice) ? 1 : 0;
+        }
+
+        for (const PortConfig & entry : port.chain)
+        {
+            floppies += (entry.device == kpszDiskIicDevice) ? 1 : 0;
+        }
+    }
+
+    return floppies;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveDiskPortChains
+//
+//  A machine port's SmartPort chain: at most `maxApple35` Apple 3.5 Drives,
+//  first, then UniDisk 3.5 drives, then at most `maxFloppies` 5.25-inch
+//  drives, last, and at most kMaxChainDrives drives in all. Each UniDisk
+//  3.5's ROM is resolved into its entry. A chain out of that order or over
+//  a limit fails the load.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineConfigLoader::ResolveDiskPortChains (
+    const vector<fs::path> & searchPaths,
+    const FileResolver     & resolver,
+    vector<PortConfig>     & ports,
+    string                 & outError,
+    size_t                   maxFloppies,
+    size_t                   maxApple35)
+{
+    static constexpr const char *  kCounts[] = { "no", "one", "two", "three" };
+    HRESULT                        hr        = S_OK;
+
+
+
+    for (PortConfig & port : ports)
+    {
+        size_t  apple35   = 0;
+        size_t  smartPort = 0;
+        size_t  floppies  = 0;
+        string  problem;
+
+
+
+        for (PortConfig & entry : port.chain)
+        {
+            bool  isApple35   = entry.device == kpszApple35DriveDevice && maxApple35 > 0;
+            bool  isSmartPort = entry.device == kpszUniDisk35Device;
+            bool  isFloppy    = entry.device == kpszDiskIicDevice;
+
+
+
+            if (!isApple35 && !isSmartPort && !isFloppy)
+            {
+                outError = format ("The {} port's chain doesn't take '{}'.", port.name, entry.device);
+                CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+            }
+
+            if (isApple35 && (smartPort > 0 || floppies > 0))
+            {
+                outError = format ("The Apple 3.5 Drives are the first drives on the {} port's chain.", port.name);
+                CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+            }
+
+            if (isSmartPort && floppies > 0)
+            {
+                outError = format ("The 5.25-inch drives are the last drives on the {} port's chain.", port.name);
+                CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+            }
+
+            apple35   += isApple35 ? 1 : 0;
+            floppies  += isFloppy ? 1 : 0;
+            smartPort += isSmartPort ? 1 : 0;
+
+            if (apple35 > maxApple35)
+            {
+                outError = format ("The {} port's chain takes at most {} Apple 3.5 Drive{}.", port.name,
+                                   kCounts[std::min (maxApple35, std::size (kCounts) - 1)], maxApple35 == 1 ? "" : "s");
+                CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+            }
+
+            if (floppies > maxFloppies)
+            {
+                outError = format ("The {} port's chain takes at most {} 5.25-inch drive{}.", port.name,
+                                   kCounts[std::min (maxFloppies, std::size (kCounts) - 1)], maxFloppies == 1 ? "" : "s");
+                CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+            }
+
+            if (apple35 + smartPort + floppies > kMaxChainDrives)
+            {
+                outError = format ("The {} port's chain takes at most {} drives.", port.name, kCounts[kMaxChainDrives]);
+                CBREx (false, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+            }
+
+            ResolveDriveFirmware (searchPaths, resolver, entry, problem);
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveDriveFirmware
+//
+//  The ROM of a drive with a separate controller, under its folder in
+//  `Devices/`. For a missing or wrong-size ROM the path is empty, and the
+//  reason is added to the problem text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineConfigLoader::ResolveDriveFirmware (
+    const vector<fs::path> & searchPaths,
+    const FileResolver     & resolver,
+    PortConfig             & port,
+    string                 & problem)
+{
+    const BlockDriveSpec  * drive   = BlockDeviceCatalog::FindDrive (port.device);
+    fs::path                relPath;
+    fs::path                found;
+    std::error_code         ec;
+    uintmax_t               size    = 0;
+    bool                    isFit   = false;
+
+
+
+    port.firmwarePath.clear();
+
+    if (drive == nullptr || drive->firmware == nullptr)
+    {
+        return;
+    }
+
+    relPath = (fs::path (drive->firmwareDir) / drive->firmware).make_preferred();
+    found   = resolver (searchPaths, relPath);
+
+    if (!found.empty())
+    {
+        size  = fs::file_size (found, ec);
+        isFit = !ec && size == drive->firmwareSize;
+    }
+
+    if (isFit)
+    {
+        port.firmwarePath = found.string();
+        return;
+    }
+
+    problem += format ("{}The {}'s ROM, {}, is missing.", problem.empty() ? "" : " ", drive->label, relPath.generic_string());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveBlockCard
+//
+//  A SmartPort or hard disk card's firmware, resolved under its folder in
+//  `Devices/` and checked for its size. A machine that cannot host the card
+//  has the card removed from the slot, and a port whose drive the card does
+//  not accept is emptied. Each reason is added to the slot's problem text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineConfigLoader::ResolveBlockCard (
+    const string           & machineId,
+    const vector<fs::path> & searchPaths,
+    const FileResolver     & resolver,
+    SlotConfig             & slot)
+{
+    const BlockCardSpec  * card     = BlockDeviceCatalog::FindCard (slot.device);
+    fs::path               relPath;
+    fs::path               found;
+    std::error_code        ec;
+    uintmax_t              size     = 0;
+    bool                   canHost  = false;
+    bool                   wasFound = false;
+
+
+
+    if (card == nullptr)
+    {
+        return;
+    }
+
+    canHost = BlockDeviceCatalog::CanHost (*card, machineId);
+
+    if (!canHost)
+    {
+        slot.deviceProblem = format ("The {} works in the {}.", card->label, BlockDeviceCatalog::GetHostList (*card));
+        slot.device.clear();
+        slot.firmware.clear();
+        slot.ports.clear();
+        return;
+    }
+
+    for (PortConfig & port : slot.ports)
+    {
+        bool  accepted = port.device.empty() || BlockDeviceCatalog::AcceptsDrive (*card, port.device);
+
+
+
+        if (!accepted)
+        {
+            slot.deviceProblem += format ("{}The {} doesn't accept '{}'.",
+                                          slot.deviceProblem.empty() ? "" : " ",
+                                          card->label,
+                                          port.device);
+            port = PortConfig {};
+        }
+    }
+
+    if (slot.ports.size() > (size_t) card->portCount)
+    {
+        slot.ports.resize ((size_t) card->portCount);
+    }
+
+    for (PortConfig & port : slot.ports)
+    {
+        ResolveDriveFirmware (searchPaths, resolver, port, slot.deviceProblem);
+    }
+
+    relPath  = (fs::path (card->firmwareDir) / slot.firmware).make_preferred();
+    found    = resolver (searchPaths, relPath);
+    wasFound = !found.empty();
+
+    slot.firmwarePath   = relPath.string();
+    slot.firmwareStatus = SlotFirmwareStatus::Missing;
+
+    if (!wasFound)
+    {
+        return;
+    }
+
+    size = fs::file_size (found, ec);
+
+    slot.firmwarePath   = found.string();
+    slot.firmwareStatus = (!ec && size == card->firmwareSize) ? SlotFirmwareStatus::Present
+                                                              : SlotFirmwareStatus::WrongSize;
 }
 
 
@@ -821,9 +1156,10 @@ HRESULT MachineConfigLoader::LoadSlots (
 
     for (idx = 0; idx < slotsArray.GetArraySize(); idx++)
     {
-        const JsonValue & entry = slotsArray.GetArrayElement (idx);
-        SlotConfig        slot;
-        fs::path          slotRomRel;
+        const JsonValue      & entry     = slotsArray.GetArrayElement (idx);
+        SlotConfig             slot;
+        fs::path               slotRomRel;
+        const BlockCardSpec  * blockCard = nullptr;
 
 
 
@@ -843,6 +1179,18 @@ HRESULT MachineConfigLoader::LoadSlots (
         HRESULT hrRom = entry.GetString ("rom", slot.rom);
         IGNORE_RETURN_VALUE (hrRom, S_OK);
         hasRom = !slot.rom.empty();
+
+        // A SmartPort or hard disk card's `rom` is its whole firmware, not a
+        // 256-byte slot page, and a missing one leaves the card out rather
+        // than failing the load.
+        blockCard = BlockDeviceCatalog::FindCard (slot.device);
+
+        if (blockCard != nullptr)
+        {
+            slot.firmware = hasRom ? slot.rom : string (blockCard->defaultFirmware);
+            slot.rom.clear();
+            hasRom = false;
+        }
 
         CBRF (hasDev || hasRom,
               outError = format ("slots[{}]: must specify 'device' and/or 'rom'", idx));
@@ -908,8 +1256,16 @@ HRESULT MachineConfigLoader::LoadSlots (
             IGNORE_RETURN_VALUE (hrFirmware, S_OK);
         }
 
-        ResolveSlotFirmware (searchPaths, resolver, slot);
-        ParseSwitches       (entry, slot);
+        if (blockCard != nullptr)
+        {
+            ResolveBlockCard (machineName, searchPaths, resolver, slot);
+        }
+        else
+        {
+            ResolveSlotFirmware (searchPaths, resolver, slot);
+        }
+
+        ParseSwitches (entry, slot);
 
         // Optional: the network card's settings. A bad value takes its
         // default instead of failing the load.
@@ -1008,6 +1364,17 @@ HRESULT MachineConfigLoader::CollectRomFiles (
         {
             const JsonValue & entry  = pSlots->GetArrayElement (idx);
             HRESULT           hrFile = entry.GetString ("rom", file);
+            string            device;
+            HRESULT           hrDev  = entry.GetString ("device", device);
+
+            // A SmartPort or hard disk card's ROM is optional firmware, which
+            // a missing file leaves out rather than stopping the machine.
+            IGNORE_RETURN_VALUE (hrDev, S_OK);
+
+            if (BlockDeviceCatalog::FindCard (device) != nullptr)
+            {
+                continue;
+            }
 
             if (SUCCEEDED (hrFile) && !file.empty())
             {
@@ -1202,6 +1569,17 @@ HRESULT MachineConfigLoader::Load (
     // card in slot 6 and are read above; a //c's belong to the machine, so a
     // slotless machine still gets to say what it has and what is on it.
     ParsePorts (root, outConfig.ports);
+
+    {
+        const MachineDefinition *  definition = MachineDefinitions::Find (machineName);
+
+
+
+        hr = ResolveDiskPortChains (searchPaths, resolver, outConfig.ports, outError,
+                                    definition != nullptr ? (size_t) definition->diskPortFloppyCount : 1,
+                                    definition != nullptr ? (size_t) definition->diskPortApple35Count : 0);
+        CHR (hr);
+    }
 
     // Required unless the machine's definition supplies them: video, keyboard
     if (!fDefined)

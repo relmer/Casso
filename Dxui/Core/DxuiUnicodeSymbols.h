@@ -20,6 +20,7 @@ static constexpr LPCWSTR s_kpszTriangleDown  = L"\x25BC";       // U+25BC BLACK 
 static constexpr wchar_t s_kchBlackCircle    = L'\x25CF';       // U+25CF BLACK CIRCLE
 static constexpr LPCWSTR s_kpszTriangleRight = L"\x25B6";       // U+25B6 BLACK RIGHT-POINTING TRIANGLE
 static constexpr LPCWSTR s_kpszTriangleLeft  = L"\x25C0";       // U+25C0 BLACK LEFT-POINTING TRIANGLE
+static constexpr LPCWSTR s_kpszMinusSign     = L"\x2212";       // U+2212 MINUS SIGN (-)
 
 // Segoe MDL2 Assets icon-font glyphs (private use area; render only with
 // the "Segoe MDL2 Assets" family).

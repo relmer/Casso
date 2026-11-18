@@ -4,6 +4,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/GoToAddressText.h"
 #include "resource.h"
 
 #include "CppUnitTest.h"
@@ -97,6 +98,7 @@ namespace DebuggerMenuBarTests
         }
 
         using DebuggerWindow::OnCreate;
+        using DebuggerWindow::GetDockSite;
         using DebuggerWindow::Layout;
         using DebuggerWindow::ApplyKeyScheme;
         using DebuggerWindow::SetWindowMenus;
@@ -105,8 +107,6 @@ namespace DebuggerMenuBarTests
         using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetPaneOfControl;
         using DebuggerWindow::GetViewMenuPanes;
-        using DebuggerWindow::GetPaneLayout;
-        using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::SetSnapshotForTest;
         using DebuggerWindow::kDialectEntry;
 
@@ -467,14 +467,14 @@ namespace DebuggerMenuBarTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (window.EditPaneLayout().Float (DebuggerLayout::kWatches, L"monitor", RECT { 100, 100, 500, 400 }));
+            Assert::IsTrue (window.GetDockSite()->EditPaneLayout().Float (DebuggerLayout::kWatches, L"monitor", RECT { 100, 100, 500, 400 }));
 
             reset = MenuRows::GetRow (window.GetMenuBarItems(), L"&View", L"Reset window layout");
             Assert::IsNotNull (reset);
             reset->command->dispatch();
 
-            Assert::IsFalse (window.GetPaneLayout().IsFloating (DebuggerLayout::kWatches));
-            Assert::IsTrue  (window.GetPaneLayout().IsDocked   (DebuggerLayout::kWatches));
+            Assert::IsFalse (window.GetDockSite()->GetPaneLayout().IsFloating (DebuggerLayout::kWatches));
+            Assert::IsTrue  (window.GetDockSite()->GetPaneLayout().IsDocked   (DebuggerLayout::kWatches));
         }
 
 
@@ -639,7 +639,6 @@ namespace DebuggerMenuBarTests
 
     struct GoToProbe : public DebuggerWindow
     {
-        using DebuggerWindow::TryParseGoTo;
     };
 
     TEST_CLASS (GoToParseTests)
@@ -658,16 +657,16 @@ namespace DebuggerMenuBarTests
             symbols->symbols.push_back (SymbolInfo { "TXTPTR", 0x00B8 });
             snapshot.symbols = symbols;
 
-            Assert::IsTrue   (GoToProbe::TryParseGoTo (L"0300", &snapshot, address));
+            Assert::IsTrue   (GoToAddressText::TryParseGoTo (L"0300", &snapshot, address));
             Assert::AreEqual ((Word) 0x0300, address);
-            Assert::IsTrue   (GoToProbe::TryParseGoTo (L" $FD1B ", &snapshot, address));
+            Assert::IsTrue   (GoToAddressText::TryParseGoTo (L" $FD1B ", &snapshot, address));
             Assert::AreEqual ((Word) 0xFD1B, address);
-            Assert::IsTrue   (GoToProbe::TryParseGoTo (L"pc", &snapshot, address));
+            Assert::IsTrue   (GoToAddressText::TryParseGoTo (L"pc", &snapshot, address));
             Assert::AreEqual ((Word) 0x1234, address);
-            Assert::IsTrue   (GoToProbe::TryParseGoTo (L"txtptr", &snapshot, address));
+            Assert::IsTrue   (GoToAddressText::TryParseGoTo (L"txtptr", &snapshot, address));
             Assert::AreEqual ((Word) 0x00B8, address);
-            Assert::IsFalse  (GoToProbe::TryParseGoTo (L"NOSUCH", &snapshot, address));
-            Assert::IsFalse  (GoToProbe::TryParseGoTo (L"12345", &snapshot, address), L"more than four digits");
+            Assert::IsFalse  (GoToAddressText::TryParseGoTo (L"NOSUCH", &snapshot, address));
+            Assert::IsFalse  (GoToAddressText::TryParseGoTo (L"12345", &snapshot, address), L"more than four digits");
         }
     };
 }

@@ -65,14 +65,14 @@ public:
             AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, std::vector<Byte> (bytes.begin(), bytes.end())));
 
             InProcessByteStream::CreatePair (machineEnd, pcEnd);
-            AssertSucceeded (machine.AttachSerialStream (port, machineEnd));
+            AssertSucceeded (machine.GetConnectors().AttachSerialStream (port, machineEnd));
 
             stream = std::make_shared<SteppedByteStream> (machine, pcEnd);
         }
 
         void  Boot()
         {
-            machine.RunCycles (kBootCycles);
+            machine.GetRunner().RunCycles (kBootCycles);
         }
 
         std::string  Row (int row)
@@ -106,7 +106,7 @@ public:
             Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, L"drive 2's catalog");
             Assert::AreEqual (LinkProgram::kProgramVersion, (Word) (machine.GetCpu()->ReadByte (0x0803) | (machine.GetCpu()->ReadByte (0x0804) << 8)), L"the program was loaded");
 
-            machine.RunCycles (kBootCycles / 40);
+            machine.GetRunner().RunCycles (kBootCycles / 40);
         }
     };
 
@@ -134,7 +134,7 @@ public:
         AssertRowStarts (rig, 4, "SERIAL PORT 2, 115200");
 
         rig.Link();
-        AssertRowStarts (rig, 0, "CASSOLINK");
+        AssertRowStarts (rig, 0, "CassoLink");
     }
 
 
@@ -183,7 +183,7 @@ public:
 
         while (dialed.find ('\r') == std::string::npos && spent < kDialBudget)
         {
-            rig.machine.RunCycles (kStepCycles);
+            rig.machine.GetRunner().RunCycles (kStepCycles);
             spent += kStepCycles;
 
             AssertSucceeded (rig.pcEnd->Read (chunk, sizeof (chunk), 0, got));
@@ -192,13 +192,13 @@ public:
 
         Assert::AreEqual (std::string (kDial) + "\r", dialed, L"the dial command");
 
-        rig.machine.RunCycles (kBootCycles / 20);
+        rig.machine.GetRunner().RunCycles (kBootCycles / 20);
         AssertRowStarts (rig, 2, "DIALING CASSO.LOCAL:6400");
 
         AssertSucceeded (rig.pcEnd->Write (reinterpret_cast<const Byte *> ("CONNECT\r\n"), 9));
 
         rig.Link();
-        AssertRowStarts (rig, 1, "WI-FI, PORT 2, 115200");
-        AssertRowStarts (rig, 2, "DIALED:     CASSO.LOCAL:6400");
+        AssertRowStarts (rig, 1, "Wi-Fi, port 2, 115200");
+        AssertRowStarts (rig, 2, "Dialed:     CASSO.LOCAL:6400");
     }
 };

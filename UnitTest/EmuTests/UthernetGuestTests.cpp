@@ -639,7 +639,7 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
                     onSlice();
                 }
 
-                spent += m_machine.RunCycles (kSlice);
+                spent += m_machine.GetRunner().RunCycles (kSlice);
             }
         }
 
@@ -767,7 +767,7 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
             HRESULT                           hr         = S_OK;
             auto                              take       = [&machine] ()
             {
-                return Sample { machine.GetPosition(), machine.GetCpu()->GetTotalCycles(), ReverseSessionRig::Save (machine) };
+                return Sample { machine.GetRunner().GetPosition(), machine.GetCpu()->GetTotalCycles(), ReverseSessionRig::Save (machine) };
             };
 
 
@@ -806,14 +806,14 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
             {
                 const Sample  & sample = samples[(i * kShuffle) % samples.size()];
 
-                hr = controller.SeekToCycle (sample.cycle, result);
+                hr = controller.GetSeeker().SeekToCycle (sample.cycle, result);
                 AssertSucceeded (hr, L"SeekToCycle");
 
                 Assert::AreEqual<uint64_t> (sample.position, result.position, L"the seek lands on the sampled boundary");
                 Assert::IsTrue (sample.state == ReverseSessionRig::Save (machine), std::format (L"the replayed state at position {} matches live", sample.position).c_str());
             }
 
-            hr = controller.SeekToCycle (UINT64_MAX, result);
+            hr = controller.GetSeeker().SeekToCycle (UINT64_MAX, result);
             AssertSucceeded (hr, L"SeekToCycle live");
 
             Assert::IsTrue (last.state == ReverseSessionRig::Save (machine), L"the live end matches");
@@ -915,14 +915,14 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
             connected = machine.GetCpu()->GetTotalCycles();
             guest.RunUntil ([&] { return machine.GetCpu()->GetTotalCycles() > connected + 4 * kSlice; }, L"the session runs on");
 
-            hr = controller.SeekToCycle (connected, result);
+            hr = controller.GetSeeker().SeekToCycle (connected, result);
             AssertSucceeded (hr, L"SeekToCycle");
-            Assert::IsTrue (controller.IsInHistory(), L"the machine is behind live");
+            Assert::IsTrue (controller.GetSpan().IsInHistory(), L"the machine is behind live");
 
-            hr = controller.OnMachineChanged();
+            hr = controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
-            Assert::IsFalse  (controller.IsInHistory(), L"the machine is live where it stands");
+            Assert::IsFalse  (controller.GetSpan().IsInHistory(), L"the machine is live where it stands");
             Assert::AreEqual (R::kSockEstablished, chip.GetSocketStatus (0), L"the guest's socket is connected");
             Assert::IsFalse  (peer->destroyed, L"and the host connection is open");
 
@@ -971,10 +971,10 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
             arrived = machine.GetCpu()->GetTotalCycles();
             guest.RunUntil ([&] { return machine.GetCpu()->GetTotalCycles() > arrived + 4 * kSlice; }, L"the guest takes it");
 
-            hr = controller.SeekToCycle (sent, result);
+            hr = controller.GetSeeker().SeekToCycle (sent, result);
             AssertSucceeded (hr, L"SeekToCycle");
 
-            hr = controller.OnMachineChanged();
+            hr = controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
             peer->inbound.assign (reply.begin() + kFirst, reply.end());
@@ -1010,11 +1010,11 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
 
             guest.RunUntil ([&] { return peer->sent.size() > 0; }, L"the guest starts sending");
 
-            hr = controller.SeekToCycle (before, result);
+            hr = controller.GetSeeker().SeekToCycle (before, result);
             AssertSucceeded (hr, L"SeekToCycle");
             Assert::AreEqual (R::kSockClosed, chip.GetSocketStatus (0), L"the socket is closed at that point");
 
-            hr = controller.OnMachineChanged();
+            hr = controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
             Assert::AreEqual (R::kSockClosed, chip.GetSocketStatus (0), L"the guest's socket is closed");
@@ -1051,11 +1051,11 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
             peer->inboundEof = true;
             guest.RunUntil ([&] { return chip.GetSocketStatus (0) == R::kSockCloseWait; }, L"the peer closes");
 
-            hr = controller.SeekToCycle (connected, result);
+            hr = controller.GetSeeker().SeekToCycle (connected, result);
             AssertSucceeded (hr, L"SeekToCycle");
             Assert::AreEqual (R::kSockEstablished, chip.GetSocketStatus (0), L"the socket is connected at that point");
 
-            hr = controller.OnMachineChanged();
+            hr = controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
             Assert::AreEqual (R::kSockCloseWait, chip.GetSocketStatus (0), L"the guest's socket is closed by the peer");
@@ -1402,10 +1402,10 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
             receiveAll();
             Assert::IsTrue (peer->inbound.empty(), L"the peer has sent all of it");
 
-            hr = controller.SeekToCycle (point, result);
+            hr = controller.GetSeeker().SeekToCycle (point, result);
             AssertSucceeded (hr, L"SeekToCycle");
 
-            hr = controller.OnMachineChanged();
+            hr = controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
             pump.RestartReceive();
