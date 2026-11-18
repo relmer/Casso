@@ -97,13 +97,13 @@ HRESULT PicturePreview::Render (
     outHeight = kHeight;
     outBgra.assign ((size_t) kWidth * kHeight, 0xFF000000u);
 
-    if (mode == Mode::DoubleHiResMono || mode == Mode::DoubleHiResWindowed)
+    if (mode == Mode::DoubleHiResMono || mode == Mode::DoubleHiResWindowed || mode == Mode::DoubleHiResLatched)
     {
         RenderMonochrome (bytes, address, outBgra);
 
-        if (mode == Mode::DoubleHiResWindowed && !mono)
+        if (mode != Mode::DoubleHiResMono && !mono)
         {
-            RenderWindowed (outBgra);
+            RenderWindowed (outBgra, mode == Mode::DoubleHiResLatched);
         }
 
         Tint (outBgra, monitor, customArgb);
@@ -412,17 +412,32 @@ void PicturePreview::RenderMonochrome (std::span<const Byte> bytes, Word address
 //  color number is set by its place in the color clock, which runs a dot
 //  ahead of the byte boundary: the first dot of a four-dot cell is bit 1,
 //  the second bit 2, the third bit 3 and the fourth bit 0, as
-//  AppleDoubleHiResMode reads a cell. Dots before the left edge are dark.
+//  AppleDoubleHiResMode reads a cell. Dots before the left edge and after
+//  the right edge are dark.
+//
+//  Latched, a dot whose color differs from the dot before it is white when
+//  one of the three windows ending after it is all lit, and otherwise black
+//  when one of them is all dark. This is the picture CiderPress II's
+//  latched mode draws.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PicturePreview::RenderWindowed (std::vector<uint32_t> & ioBgra)
+void PicturePreview::RenderWindowed (std::vector<uint32_t> & ioBgra, bool latched)
 {
+    static constexpr int  kLookAhead = 3;
+    static constexpr int  kWhite     = 15;
+    static constexpr int  kBlack     = 0;
+
+
+
     for (int y = 0; y < kHeight; y += 2)
     {
-        uint32_t  * row         = ioBgra.data() + (size_t) y * kWidth;
-        int         index       = 0;
-        bool        lit[kWidth] = {};
+        uint32_t  * row                      = ioBgra.data() + (size_t) y * kWidth;
+        int         index                    = 0;
+        int         previous                 = kBlack;
+        bool        white                    = false;
+        bool        dark                     = false;
+        bool        lit[kWidth + kLookAhead] = {};
 
 
 
@@ -440,10 +455,52 @@ void PicturePreview::RenderWindowed (std::vector<uint32_t> & ioBgra)
                 index |= lit[dot] ? (1 << ((dot + 1) & 3)) : 0;
             }
 
+            if (latched && index != previous)
+            {
+                white = false;
+                dark  = false;
+
+                for (int end = x + 1; end <= x + kLookAhead; end++)
+                {
+                    white = white || CountLit (lit, end) == 4;
+                    dark  = dark  || CountLit (lit, end) == 0;
+                }
+
+                index = white ? kWhite : dark ? kBlack : index;
+            }
+
+            previous        = index;
             row[x]          = kAppleColors[index];
             row[x + kWidth] = kAppleColors[index];
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PicturePreview::CountLit
+//
+//  The lit dots of the four that end at `end`, those before the left edge
+//  counted as dark. `lit` has three dark dots after the right edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PicturePreview::CountLit (const bool * lit, int end)
+{
+    int  count = 0;
+
+
+
+    for (int dot = (std::max) (0, end - 3); dot <= end; dot++)
+    {
+        count += lit[dot] ? 1 : 0;
+    }
+
+    return count;
 }
 
 

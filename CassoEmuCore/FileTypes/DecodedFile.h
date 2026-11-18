@@ -74,7 +74,7 @@ enum class SheetForm { None, Values, Formulas };
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class DoubleHiResForm { Auto, BlackAndWhite, SimpleColor, WindowedColor };
+enum class DoubleHiResForm { Auto, BlackAndWhite, SimpleColor, WindowedColor, LatchedColor };
 
 
 

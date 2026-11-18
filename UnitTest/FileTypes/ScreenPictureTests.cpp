@@ -189,6 +189,36 @@ public:
         Assert::AreEqual (0xFFFFFFFFu, mono.bgra[2]);
         Assert::AreEqual (0xFF000000u, mono.bgra[3]);
     }
+
+
+    TEST_METHOD (ALatchedPicture_HasNoFringeAtAWhiteBand)
+    {
+        std::vector<Byte>  screen (PicturePreview::kDoubleHiResLength, 0);
+        DecodeOptions      options;
+        DecodedFile        windowed;
+        DecodedFile        latched;
+        FileEntry          entry    = ScreenPictureFiles::MakeEntry ("PIC", 0x06, 0x2000);
+
+
+
+        //  Dots 4 to 11 of the first row: 4 to 6 in the auxiliary half's
+        //  first byte, 7 to 11 in the main half's.
+        screen[0]      = 0x70;
+        screen[0x2000] = 0x1F;
+
+        options.doubleHiRes = DoubleHiResForm::WindowedColor;
+        windowed            = ScreenPictureFiles::DecodeAs (FileFormat::DoubleHiResScreen, entry, screen, options);
+
+        options.doubleHiRes = DoubleHiResForm::LatchedColor;
+        latched             = ScreenPictureFiles::DecodeAs (FileFormat::DoubleHiResScreen, entry, screen, options);
+
+        Assert::AreNotEqual (kAppleColors[15], windowed.bgra[4], L"a window is colored at the band's left edge");
+        Assert::AreNotEqual (kAppleColors[0],  windowed.bgra[12], L"and at its right edge");
+        Assert::AreEqual    (kAppleColors[15], latched.bgra[4],   L"latched, the band is white from its first dot");
+        Assert::AreEqual    (kAppleColors[15], latched.bgra[11]);
+        Assert::AreEqual    (kAppleColors[0],  latched.bgra[12],  L"and black from the first dot after it");
+        Assert::AreEqual    (kAppleColors[0],  latched.bgra[3]);
+    }
 };
 
 

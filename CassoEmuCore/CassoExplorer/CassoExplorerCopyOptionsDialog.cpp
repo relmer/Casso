@@ -192,7 +192,7 @@ const std::vector<std::wstring> & CassoExplorerCopyOptionsDialog::GetRowChoices 
     static const std::vector<std::wstring>  s_charset     = { L"Automatic", L"Apple text", L"Mac OS Roman", L"ISO 8859-1" };
     static const std::vector<std::wstring>  s_spreadsheet = { L"Values", L"Formulas" };
     static const std::vector<std::wstring>  s_hiRes       = { L"Color", L"Black and white" };
-    static const std::vector<std::wstring>  s_doubleHiRes = { L"Automatic", L"Black and white", L"Simple color", L"Windowed color" };
+    static const std::vector<std::wstring>  s_doubleHiRes = { L"Automatic", L"Black and white", L"Simple color", L"Windowed color", L"Latched color" };
     static const std::vector<std::wstring>  s_basic       = { L"Text listing", L"Text listing, control characters as bytes", L"Colored listing (RTF)" };
     static const std::vector<std::wstring>  s_code        = { L"Bytes", L"6502 disassembly", L"6502 disassembly, undocumented opcodes", L"65C02 disassembly", L"65816 disassembly" };
     static const std::vector<std::wstring>  s_none;

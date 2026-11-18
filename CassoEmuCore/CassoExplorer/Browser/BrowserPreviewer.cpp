@@ -1180,7 +1180,7 @@ PicturePreview::Monitor BrowserPreviewer::ChooseMonitor (PicturePreview::Monitor
 
 
 
-    if (mode == PicturePreview::Mode::DoubleHiRes || mode == PicturePreview::Mode::DoubleHiResWindowed)
+    if (mode == PicturePreview::Mode::DoubleHiRes || mode == PicturePreview::Mode::DoubleHiResWindowed || mode == PicturePreview::Mode::DoubleHiResLatched)
     {
         monitor = PicturePreview::Monitor::Color;
     }

@@ -343,7 +343,7 @@ void CassoExplorerPrefs::ReadOptions (const JsonValue & value, DecodeOptions & o
         outOptions.charset = (Charset) number;
     }
 
-    if (value.HasInt ("doubleHiRes", number) && number >= (int) DoubleHiResForm::Auto && number <= (int) DoubleHiResForm::WindowedColor)
+    if (value.HasInt ("doubleHiRes", number) && number >= (int) DoubleHiResForm::Auto && number <= (int) DoubleHiResForm::LatchedColor)
     {
         outOptions.doubleHiRes = (DoubleHiResForm) number;
     }

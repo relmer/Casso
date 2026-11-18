@@ -204,6 +204,7 @@ PicturePreview::Mode ScreenPicture::ChooseMode (FileFormat format, const FileFac
         case DoubleHiResForm::BlackAndWhite:  return PicturePreview::Mode::DoubleHiResMono;
         case DoubleHiResForm::SimpleColor:    return PicturePreview::Mode::DoubleHiRes;
         case DoubleHiResForm::WindowedColor:  return PicturePreview::Mode::DoubleHiResWindowed;
+        case DoubleHiResForm::LatchedColor:   return PicturePreview::Mode::DoubleHiResLatched;
         default:                              break;
     }
 

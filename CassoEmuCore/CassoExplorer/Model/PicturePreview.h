@@ -23,8 +23,11 @@ class MemoryBus;
 //  A2FC/A2FM naming has it, and one named .A2FC is color. One named neither
 //  way is color when its dots repeat every four far more than at nearby
 //  spacings, as color's four-dot cells make them, and monochrome otherwise.
-//  Windowed color is never chosen by the rule; it is a double hi-res
-//  picture drawn with each dot the color of the four dots that end at it.
+//  Windowed and latched color are never chosen by the rule. Windowed color
+//  draws each dot the color of the four dots that end at it; latched color
+//  draws the same colors, except that where the color changes and the next
+//  dots are all lit or all dark, the dot is white or black, which removes
+//  the color fringes at the edges of white and black areas.
 //  A file that misses by a byte is a hex dump,
 //  which is the honest answer for something nobody can prove is a picture.
 //
@@ -37,10 +40,10 @@ class MemoryBus;
 class PicturePreview
 {
 public:
-    enum class Mode { None, HiRes, DoubleHiRes, DoubleHiResMono, DoubleHiResWindowed, LoRes };
+    enum class Mode { None, HiRes, DoubleHiRes, DoubleHiResMono, DoubleHiResWindowed, DoubleHiResLatched, LoRes };
 
     //  Whether a mode is one of the double hi-res forms.
-    static bool  IsDoubleHiRes (Mode mode) { return mode == Mode::DoubleHiRes || mode == Mode::DoubleHiResMono || mode == Mode::DoubleHiResWindowed; }
+    static bool  IsDoubleHiRes (Mode mode) { return mode == Mode::DoubleHiRes || mode == Mode::DoubleHiResMono || mode == Mode::DoubleHiResWindowed || mode == Mode::DoubleHiResLatched; }
 
     //  The monitor a picture is drawn for, in the order of Casso's own
     //  monitor list, then a custom one in a color the user picks. A
@@ -102,5 +105,6 @@ private:
     static bool  IsColorName      (std::string_view name);
     static bool  HasSuffix        (std::string_view name, std::string_view suffix);
     static void  RenderMonochrome (std::span<const Byte> bytes, Word address, std::vector<uint32_t> & outBgra);
-    static void  RenderWindowed   (std::vector<uint32_t> & ioBgra);
+    static void  RenderWindowed   (std::vector<uint32_t> & ioBgra, bool latched);
+    static int   CountLit         (const bool * lit, int end);
 };
