@@ -257,7 +257,7 @@ reads the clock and both joystick ports.
 **Goal**: measured models and the stacked arrangement. Independent of
 Phases 3 to 11; can start after T001.
 
-- [ ] T106 [US10] Resolve the height discrepancy between Apple's stated size and the patent drawings (see `contracts/desk-models.md`), then fill the dimension tables of `specs/050-apple3/contracts/desk-models.md` from the Service Reference Manual and Owner's Guides; where a dimension is in no Apple document, measure it from photographs as a fraction of a documented one and mark it `measured`; tell the owner which dimensions are measured
+- [ ] T106 [US10] Find a square-on side photograph of the Apple ///, replace each estimate in `contracts/desk-models.md` with a value measured by script from the photographs listed there, and fill the remaining dimension tables of `specs/050-apple3/contracts/desk-models.md` from the Service Reference Manual and Owner's Guides; where a dimension is in no Apple document, measure it from photographs as a fraction of a documented one and mark it `measured`; tell the owner which dimensions are measured
 - [ ] T107 [P] [US10] Write `scripts/modelgen/cad_apple3.py` (body ending at the front of the upper body, drive bay with door, latch and lamp in the existing palette colors, back panel with every connector at its position, badge variants) and `Resources/Models/Apple3/README.md` with sources
 - [ ] T108 [P] [US10] Write `scripts/modelgen/cad_monitor3.py` (case, spherical-sag glass, anti-glare mesh, controls, lamp, brand stamp) and `Resources/Models/Monitor3/README.md`
 - [ ] T109 [P] [US10] Write `scripts/modelgen/cad_disk3.py` and `Resources/Models/Disk3/README.md`

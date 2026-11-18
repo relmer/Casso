@@ -5,128 +5,142 @@ for the existing models. Each model has a generator in `scripts/modelgen/`,
 output under `Resources/Models/<Name>/`, a README listing its sources, and a
 preview render checked before the model is wired into the app.
 
-## Dimensions
+## Sources and their order
 
-**Source** is `spec sheet` (Apple's Apple /// specifications), `document`
-(an Apple manual, to be cited by page), or `measured` (from a photograph, as
-a fraction of a documented dimension). Empty cells are not yet sourced and
-block the model's generator.
+Photographs and Apple's service and owner's manuals come first. The design
+patent's drawings are used only for a view that is missing from the
+photographs, and never for a dimension that is in a photograph or a manual.
 
-### Apple /// body (`Apple3`, `cad_apple3.py`)
+- **POG**: Apple /// Plus Owner's Guide, appendix D and chapter 2
+- **MON**: Monitor III Owner's Manual
+- **PFS**: "Apple III ProFile Hard Drive Specifications"
+- **TCD**: photographs of a real Apple /// with a ProFile, Trinity College
+  Dublin computer science collection, catalog entry TCD-SCSS-T.20251212.001
+  (`fig01` to `fig15b`, saved in `%USERPROFILE%\Downloads\Casso\apple3\photos\tcd`,
+  never in the repo). `fig06` is a square-on view of the whole rear;
+  `fig07` and `fig08` are close-ups of the connector strip; `fig03` is the
+  front; `fig13a` is the base.
+- **PAT**: design patent Des. 268,584 (`Apple 3 Design Patent Case.pdf`)
+
+**Scale of the photographs**: `fig06` has the ProFile resting on the
+Apple ///. Apple's figures for the ProFile are 438.9 mm wide and 111.5 mm
+high (PFS). Its width and the Apple ///'s 444.5 mm width (POG) produce the
+same scale to within 0.5 percent, and the ProFile's height in the photograph
+matches that scale, so one scale applies to the whole rear view.
+
+Values below marked **estimate** were read from the photographs by eye at
+that scale and are good to about 3 mm. Before a generator uses one, it is
+replaced by a value measured in pixels by a script, with the script and the
+image listed in the model's README. SC-010's 1 mm tolerance applies to
+documented dimensions; a measured dimension is listed with the tolerance
+its source supports.
+
+## Apple /// body (`Apple3`, `cad_apple3.py`)
 
 | Dimension | Value | Source |
 |---|---|---|
-| Width | 444.5 mm (17.5 in) | Apple /// Plus Owner's Guide, appendix D; specifications sheet |
-| Height | 121.9 mm (4.8 in) | the same |
-| Depth of the whole machine, keyboard included | 462.3 mm (18.2 in) | the same |
-| Construction | cast aluminum base, molded plastic cover | the same |
-| Text interlace switch (Plus) | left side, about halfway back, just above the bottom of the cover | Apple /// Plus Owner's Guide p. 16 |
-| Depth of the modeled body (front of the upper body to the back) | about 0.56 of the whole depth, about 257 mm | first estimate, measured on the patent's side view (Des. 268,584, Fig. 4) |
-| Top surface | flat for about 220 mm back from the front slope, then a ribbed band about 30 mm deep at the rear; the front face slopes back | first estimate, patent Fig. 2 and Fig. 4 |
-| Drive bay | right half of the front face, the slot centered about 0.79 of the width from the left; door, latch and lamp positions not yet measured | first estimate, patent Fig. 3 |
-| Badge | lower left of the front face, about 0.10 to 0.19 of the width from the left; size not yet measured | first estimate, patent Fig. 3 |
-| Feet | four, near the corners of the base; height not yet measured | patent Fig. 7 |
+| Width | 444.5 mm (17.5 in) | POG appendix D |
+| Depth of the whole machine, keyboard included | 462.3 mm (18.2 in) | POG appendix D |
+| Height at the rear, desk to the top of the fins | about 150 mm (5.9 in), estimate | TCD `fig06` |
+| Apple's stated height | 121.9 mm (4.8 in) | POG appendix D |
+| Finned upper section, height | about 111 mm, estimate | TCD `fig06` |
+| Connector strip below the fins, height | about 38 mm, estimate | TCD `fig06` |
+| Feet | about 3 mm, estimate | TCD `fig06`, `fig13a` |
+| Construction | cast aluminum base, molded plastic cover | POG appendix D |
+| Depth of the modeled body (front of the upper body to the back) | about 0.56 of the whole depth, about 257 mm, estimate | PAT Fig. 4 (no side photograph yet) |
+| Top surface | flat for about 220 mm back from the front slope, then the top of the fins | PAT Fig. 2, Fig. 4 |
+| Front face | sloped back; badge at the lower left, about 42 to 133 mm from the left edge and about 25 mm high; drive at the right, the slot spanning about 293 to 437 mm from the left and the door about 341 to 386 mm, estimates | TCD `fig03` (taken from above, so heights are foreshortened) |
+| Text interlace switch (Plus) | left side, about halfway back, just above the bottom of the cover | POG p. 16 |
+
+**The stated height and the photograph differ.** Apple's 4.8 inches is not
+the height of the rear body: the photograph, scaled by the ProFile, puts
+the top of the fins about 150 mm above the desk, and the patent's front view
+has the same proportion (0.35 of the width). The 4.8 inches may be measured
+at another point of the case. The model uses the photograph. A square-on
+side photograph has not been found yet. It is the source for the body's
+depth, the slope of the front face and the height of the top's front edge.
 
 The model ends at the front of the upper body. The sloped keyboard section
 is not modeled; the cut face is closed with a plain surface in the case
 color.
 
-### Back panel
+## Back panel
 
-Each connector is modeled with its real outline and at its measured
-position. Positions are from the left edge and the bottom edge of the back
-panel, viewed from behind.
+The rear is a dark finned casting above a light connector strip. Labels on
+the strip, left to right from the rear: FLOPPY DISKS, PORT A, PORT B,
+OUTPUT (COLOR VIDEO, B/W VIDEO, AUDIO), PORT C RS-232-C; then, on a
+separate plate at the right, the power inlet and a POWER rocker switch
+marked O and I (TCD `fig07`, `fig08`; POG Figure 2-1).
 
-| Item | Form | Position | Source |
+Horizontal positions are of each item's center, from the left edge of the
+case as seen from the rear. Every position is an estimate from TCD `fig06`.
+
+| Item | Form | Center from left | Source of the form |
 |---|---|---|---|
-| Power switch | rocker | about 0.86 to 0.93 of the width, in a separate right-hand section | first estimate, patent Fig. 6 |
-| Power inlet | 3-pin | about 0.76 to 0.82 of the width | first estimate, patent Fig. 6 |
-| Black and white video | RCA jack | about 143 mm right of the disk connector's center | first estimate, main board photograph |
-| Color video | DB-15 | about 115 mm right of the disk connector's center | first estimate, main board photograph |
-| Audio | miniature phone jack | between the black and white jack and the serial connector | order only, Plus Owner's Guide Figure 2-1 |
-| Port A | DB-9 | about 44 mm right of the disk connector's center | first estimate, main board photograph |
-| Port B | DB-9 | about 77 mm right of the disk connector's center | first estimate, main board photograph |
-| RS-232-C | DB-25 female | about 180 mm right of the disk connector's center | first estimate, main board photograph |
-| Disk drive | a D connector on the Plus (a 26-pin header behind it on the board); far left, its center about 0.13 of the width from the left edge | first estimate, main board photograph and patent Fig. 6 |
-| Slot openings 1 to 4 | vertical cutouts in the finned upper section, above the connector strip | about 0.38 to 0.62 of the width; the slots' pitch is about 24 mm | first estimate, patent Fig. 6 and main board photograph |
-| ProFile interface card | the card's cable connector in its slot opening | | |
+| Floppy disks | 26-pin shrouded header (a D connector on the Plus) | 63 mm | TCD `fig07`; POG chapter 2 |
+| Port A | 9-pin D, female | 104 mm | TCD `fig07`; SPEC |
+| Port B | 9-pin D, female | 136 mm | TCD `fig07`; SPEC |
+| Color video | 15-pin D, female | 171 mm | TCD `fig07`; SPEC |
+| B/W video | RCA jack | 202 mm | TCD `fig07`; SPEC |
+| Audio | miniature phone jack | 214 mm | TCD `fig07`; SPEC |
+| Port C, RS-232-C | 25-pin D, female | 245 mm | TCD `fig08`; SPEC |
+| Power inlet | 3-pin IEC, two screws | 337 mm | TCD `fig08` |
+| Power switch | rocker, OFF and ON | 386 mm | TCD `fig08` |
+| Slot openings 1 to 4 | four tall openings in the finned section, between ribs | 171 to 265 mm, from about 39 mm to 128 mm above the desk | TCD `fig06`, `fig07` |
+| Connector plate | light, with printed labels | 34 to 283 mm | TCD `fig06` |
+| Power plate | light, separate | 309 to 404 mm | TCD `fig06` |
 
-Order, from the rear, left to right: disk drive connector, port A, port B,
-color video, black and white video, audio, serial, power plug, power switch,
-with the slot openings above the strip (Apple /// Plus Owner's Guide,
-Figure 2-1). Connector types are from Apple's specifications sheet. The
-positions come from the Service Reference Manual's assembly drawings
-(chapter 16) and photographs, and are not yet measured.
+The connectors' centers are about 19 mm above the bottom of the base.
+Neighboring 9-pin connectors are about 32 mm apart, which matches the
+same pair measured on a photograph of the main board
+(`AppleIIIPlusBoardRear.jpg`) scaled by D connector mounting hole spacing.
 
-The Monitor /// weighs 16.5 pounds and rests directly on the Apple ///
-(Monitor III Owner's Manual p. 4, p. 6). Its 436.6 mm width is 7.9 mm
-narrower than the body's 444.5 mm.
+The fins are vertical ribs of even pitch across the whole rear; a few have
+light tabs at the top. Their count and pitch are measured by script from
+`fig06`.
 
-### How the first estimates were made, and what they are worth
+A card installed by default (the ProFile interface card) is modeled where
+its connector appears in its slot opening.
 
-No dimensioned drawing of the case has been found. The estimates above are
-read by eye from two sources, and are good to a few millimeters at best:
-
-- **The design patent's orthographic views** (`Apple 3 Design Patent
-  Case.pdf`, Des. 268,584: top, front, both sides, rear, bottom), as
-  fractions of the overall width or depth.
-- **A photograph of the Apple /// Plus main board** (`AppleIIIPlusBoardRear.jpg`),
-  scaled by the standard mounting hole spacing of its D connectors
-  (47.04 mm for a 25-pin shell, 33.32 mm for 15 pins, 24.99 mm for 9 pins).
-
-**The patent drawings and Apple's stated size disagree.** Apple gives 17.5 by
-18.2 by 4.8 inches. In the patent's front view the height is about 0.35 of
-the width, which is about 6.1 inches at a 17.5 inch width, and in its side
-view the depth is about 0.91 of the width, against 1.04 from Apple's
-figures. The patent was filed in November 1980 and may be of an earlier
-case, or Apple's 4.8 inches may be measured somewhere other than the top of
-the rear body. A model built from either alone would be wrong by an inch in
-height. This has to be resolved before `cad_apple3.py` is written, from a
-measured real unit, a dimensioned Apple drawing (the Service Reference
-Manual's chapter 16 has assembly drawings that have not been read), or
-front and side photographs taken square-on.
-
-Each estimate is replaced by a value measured in pixels by a script, with
-the script and the source image listed in the model's README, before the
-generator uses it. SC-010's 1 mm tolerance applies to the documented
-dimensions; a measured dimension is listed with the tolerance its source
-supports.
-
-### Apple Monitor /// (`Monitor3`, `cad_monitor3.py`)
+## Apple Monitor /// (`Monitor3`, `cad_monitor3.py`)
 
 | Dimension | Value | Source |
 |---|---|---|
-| Width | 436.6 mm (17 3/16 in) | Monitor III Owner's Manual p. 6 |
-| Height | 269.9 mm (10 5/8 in) | the same |
-| Depth | 317.5 mm (12 1/2 in) | the same |
-| Display zone | 214.3 by 160.3 mm (8 7/16 by 6 5/16 in) | the same |
-| Tube | 12 in (30.5 cm) diagonal; 78 degrees horizontal, 61 vertical, 90 diagonal deflection | the same |
-| Glare filter | a microporous filter in front of the tube | Monitor III Owner's Manual p. 4 |
-| Front | power switch and contrast knob, right of the tube | Monitor III Owner's Manual p. 3 |
-| Back | hand grip, brightness, vertical hold, vertical size, RCA video input, power cord | the same |
-| Glass sag radius; case edge radii and taper | | measured from the manual's drawings and photographs |
-| Base footprint | | |
-| Control and badge positions | | measured from the manual's drawings |
+| Width | 436.6 mm (17 3/16 in) | MON p. 6 |
+| Height | 269.9 mm (10 5/8 in) | MON p. 6 |
+| Depth | 317.5 mm (12 1/2 in) | MON p. 6 |
+| Display zone | 214.3 by 160.3 mm (8 7/16 by 6 5/16 in) | MON p. 6 |
+| Tube | 12 in (30.5 cm) diagonal; 78 degrees horizontal, 61 vertical, 90 diagonal deflection | MON p. 6 |
+| Glare filter | a microporous filter in front of the tube | MON p. 4 |
+| Front | power switch and contrast knob, right of the tube | MON p. 3 |
+| Back | hand grip, brightness, vertical hold, vertical size, RCA video input, power cord | MON p. 3 |
+| Glass sag radius; case edge radii and taper; control and badge positions | | measured from the manual's drawings and photographs |
 
 Phosphor: green (A3M0039). The catalog entry is `AppleMonitorIII`, default
-color mode green.
+color mode green. The monitor weighs 16.5 pounds and rests directly on the
+Apple /// (MON p. 4, p. 6). Its width is 7.9 mm less than the body's.
 
-### Disk /// (`Disk3`, `cad_disk3.py`)
+The monitor in the TCD photographs is a Monitor II, so they are not a
+source for this model.
+
+## Disk /// (`Disk3`, `cad_disk3.py`)
 
 | Dimension | Value | Source |
 |---|---|---|
-| Width, height, depth | | |
-| Door, latch, lamp positions | | |
+| Width, height, depth | | not yet sourced |
+| Door, latch, lamp positions | | not yet sourced |
 
-### ProFile
+## ProFile
 
-From 048. Its generator's dimensions (439 by 110 by 226 mm for the 5 MB) are
-checked against the body's top surface here.
+From 048. Apple's figures are 438.9 mm wide, 111.5 mm high and 223.8 mm
+deep (PFS), against the generator's 439 by 110 by 226 for the 5 MB; the
+generator is checked against PFS when 048 arrives. The ProFile's rear, with
+its 25-pin connector, power inlet and switch, is in TCD `fig06`.
 
 ## Fit rules (unit-tested on the measured metrics)
 
-- The ProFile's footprint is inside the body's flat top area, centered in X,
-  with its back aligned as on the real pair.
+- The ProFile's footprint is inside the body's top, centered in X, with its
+  back flush with the back of the fins, as in TCD `fig06`.
 - The monitor's base footprint is inside the top of whatever it rests on.
 - Each item's bottom is at the top surface height of the item below. No gap
   and no intersection.
@@ -136,8 +150,9 @@ checked against the body's top surface here.
 
 Sub-meshes are split by material color, per `scripts/modelgen/README.md`.
 The body uses the existing drive lamp, door and latch colors for its
-built-in drive so the existing interaction code applies, and a new back
-panel connector color at least one channel step clear of the palette.
+built-in drive so the existing interaction code applies. New colors, each
+at least one channel step clear of the palette: the dark casting of the
+rear fins, the light connector plates, the connector shells, and the badge.
 
 ## Interactions
 

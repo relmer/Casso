@@ -287,11 +287,29 @@ boot) when the device is built.
 | Beeper | `$C040-$C04D`. `$C04E/F` is a character RAM enable that software does not rely on | SVC 10.3 |
 | CPU and VIA clocks | CPU nominal clock is 14.31818 MHz / 7; the VIAs run at 14.31818 MHz / 14; the 6551 has a 1.8432 MHz clock | SVC 5.1, 3.10 |
 
+## Settled from the PROM equations and the schematics
+
+Apple's logic expressions for the PROMs (SVC 17.11 to 17.17) and the
+schematic sheets (drawing 050-0039-H, in `docs\schematics`).
+
+| Item | Fact | Checked |
+|---|---|---|
+| 1 MHz rule | PROM 341-0046: `PHASEN = ((SEL2M'*C07X')'*IOSTOPD'*FSPACE + FSPACE*C1M' + C1M'*SEL2M' + C1M'*DSPLY*RAMEN)'`. A cycle runs at 1 MHz when the 1 MHz mode is selected; when the address is in `FSPACE` (the VIAs, the ACIA, the clock chip at `$C07x`); and when the CPU accesses RAM while `DSPLY` is active. Accesses to ROM and I/O during the display are not slowed | SVC 17.14, 5.8 |
+| Write protection | PROM 341-0046: `WRAMEN = RAMEN*(RWRPROT*C-FXXX)'*R/WN'*(DSPLY*C1M')'`. It applies to `$C000-$FFFF` | SVC 17.14 |
+| Video mode logic | PROM 341-0032, with inputs `AIISW'`, `HIRES`, `MIX`, `TEXT`, `PAGE2`, `V2`, `V4`, `VBL`. In Apple II mode it also produces lo-res and the mixed text window; in Apple /// mode `AHIRES = HIRES*MIX*TEXT` | SVC 17.13, 17.10 |
+| RAM selection | PROMs 341-0042, 341-0044, 341-0056, from three bank lines `ABK1` to `ABK3`, the indirect line `IND'` and `ZPAGE` | SVC 17.12, 17.15, 17.16 |
+| E VIA port A | bits 0-2 `BCKSW1` to `BCKSW3`, bit 3 not connected, bit 4 `IRQ4`, bit 5 `IRQ3`, bit 6 `AII SW`, bit 7 `IRQ` | schematic sheet 8 |
+| E VIA port B | bits 0-5 to a resistor ladder of 320K, 160K, 80K, 40K, 20K and 10K (bit 5 is the most significant); bit 6 is `BL`, the blanking signal; bit 7 is the slots' NMI | schematic sheet 8 (SVC 3.17's "I/O count" for bit 6 is not what the sheet has) |
+| Switch register `$C06x` | an 8-input selector on bit 7: `$C060` SW0, `$C061` SW1 or the margin switch, `$C062` SW2, `$C063` SW3 or SCO, `$C064` IRQ2, `$C065` IRQ1, `$C066` the A/D timeout | schematic sheet 8 |
+| Beeper and speaker | `$C04x` triggers a pair of 556 timers; `$C03x` toggles a flip-flop; both and the DAC ladder are summed into an LM380 amplifier, the speaker and the audio jack | schematic sheet 8 |
+| Character generator | two 1K by 4 RAMs addressed by the character code and three row lines, written under `ENCWRT`; a `FLASH` signal gates the inverse logic | schematic sheet 6 |
+| Monochrome output | the four color bits `RGB1`, `RGB2`, `RGB4`, `RGB8` are summed through binary-weighted resistors: a linear gray scale, the gray level equal to the color number | schematic sheet 6; SVC 10.2 |
+| Color output | the color connector's `XRGB1`, `2`, `4`, `8` are the four color bits as TTL levels; the composite color signal is encoded from the same four bits. The machine defines color numbers, not RGB values | schematic sheet 6; SVC 10.2 |
+| The 16 colors | the Apple II lo-res set, in the same order | SVC 6.3 ("as in the Apple ][ Lores Graphics"); the color list in SDD |
+
 ## Open rows
 
 | Item | What is missing |
 |---|---|
-| CPU speed | The exact conditions for a 1 MHz cycle. The emulator read above runs at 1 MHz across the displayed part of each of the 192 lines when video is on and at 2 MHz otherwise, and cites a logic analyzer measurement of 1.905 MHz at full speed with the screen off. That does not reproduce Apple's 1.4 MHz average exactly. The gearshift PROM's listing (SVC chapter 17) settles it |
-| E VIA port B bit 6 | In SVC 3.17 it is the slots' I/O count line; the emulator read above drives it from horizontal blanking. The schematic (`Sound-Serial Logic.jpg`) settles it |
-| Color values | The RGB value of each of the 16 colors and of each gray level, and whether the two gray entries are in a different order in text and in graphics. Measured from the resistor weights on the schematic (`Video Logic.jpg`) and SVC 10.2 |
+| `DSPLY` | The exact span of the display signal within a line and a frame, which with the rule above fixes the average speed. From the timing sheet (`Timing Logic.jpg`) and SVC 5.9; then checked by a timing test against the 1.4 and 1.8 MHz averages |
 | `ENSEL`, `ENSIO` | Their effect on the port A serial lines. Used only by the Silentype, which is out of scope; the switches are accepted and do nothing |

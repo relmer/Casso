@@ -55,14 +55,24 @@ hardware map's "Settled from an existing emulator" table. The main ones:
 - The clock chip's register is selected by the zero page register's value.
 - A character is 7 dots by 8 rows; bit 7 of a glyph row selects flashing.
 
-Four rows stay open: the exact 1 MHz rule, E VIA port B bit 6, the color
-values, and `ENSEL`/`ENSIO` (unused without the Silentype).
+**Fourth pass, 2026-11-17**: Apple's PROM logic expressions (Service
+Reference Manual 17.11 to 17.17) and two schematic sheets settled three of
+the four rows left open. The 1 MHz rule is the gearshift PROM's equation:
+slow for the 1 MHz mode, for the VIAs, ACIA and clock chip, and for RAM
+accesses while the display signal is active. E VIA port B bit 6 is the
+blanking signal. The machine outputs a color number, drawn as a linear gray
+level in monochrome and as the Apple II lo-res color in color. Two rows
+stay open: the exact span of the display signal, and `ENSEL`/`ENSIO`
+(unused without the Silentype).
 
-**Case dimensions**: no dimensioned drawing has been found. First estimates
-from the design patent's views and a main board photograph are in
-`contracts/desk-models.md`, with a discrepancy that blocks the body model:
-by the patent's proportions the height is near 6.1 inches at a 17.5 inch width,
-against Apple's stated 4.8 inches.
+**Case dimensions**: no dimensioned drawing exists in the service manual;
+its chapter 16 drawings are exploded views. Photographs of a real
+Apple /// with a ProFile on top (Trinity College Dublin's collection) are
+the source instead. Scaled by the ProFile's documented size, the rear body
+is about 150 mm tall, so Apple's stated 4.8 inches is not the rear height.
+The back panel's layout and labels are measured from the same photographs.
+A square-on side photograph has not been found yet. Details are in
+`contracts/desk-models.md`.
 
 **Not yet read**: the Apple /// Owner's Guide (page images), the schematics,
 the Service Reference Manual's chapters 7, 11 to 17, and its assembly
