@@ -46,6 +46,12 @@ public:
     // operation is in flight (PumpIdle).
     void  SetIdleCallback (std::function<void ()> cb) { m_idleCallback = std::move (cb); }
 
+    //  The drive number the select and write-mode events report for each of
+    //  the logic's two drive lines: the line itself, or on the Apple ///
+    //  the external drive connected to the second line.
+    void  SetReportedDrive  (int line, int drive) { if (line >= 0 && line < (int) m_reportedDrive.size()) { m_reportedDrive[(size_t) line] = drive; } }
+    int   GetReportedDrive  (int line) const      { return (line >= 0 && line < (int) m_reportedDrive.size()) ? m_reportedDrive[(size_t) line] : line; }
+
     void  OnMotorEngaged    ();
     void  OnMotorDisengaged ();
     void  OnMotorCommand    (bool isOn);
@@ -64,6 +70,7 @@ public:
 
 private:
     IDriveAudioSink                 * m_audioSink               = nullptr;
+    std::array<int, 2>                m_reportedDrive           = { 0, 1 };
     ObserverSlots<IDisk2EventSink>    m_eventSinks;
     std::function<void ()>            m_motorOffFlushCallback;
     std::function<void ()>            m_idleCallback;

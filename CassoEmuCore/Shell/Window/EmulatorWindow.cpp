@@ -581,8 +581,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_DISK_SALVAGE4: return drive4 >= 0 && m_disks->IsSalvageOffered (drive4);
             case IDM_DISK_INSPECT1: return isShown (drive1) && m_disks->GetManager()->HasSlot6Controller();
             case IDM_DISK_INSPECT2: return isShown (drive2) && m_disks->GetManager()->HasSlot6Controller();
-            case IDM_DISK_INSPECT3: return isShown (drive3) && m_disks->GetManager()->HasSlot6Controller();
-            case IDM_DISK_INSPECT4: return isShown (drive4) && m_disks->GetManager()->HasSlot6Controller();
+            case IDM_DISK_INSPECT3: return isShown (drive3) && drive3 < ShellInspectorHost::kDriveCount && m_disks->GetManager()->HasSlot6Controller();
+            case IDM_DISK_INSPECT4: return isShown (drive4) && drive4 < ShellInspectorHost::kDriveCount && m_disks->GetManager()->HasSlot6Controller();
             case IDM_DISK_THUMBNAIL1: return isShown (drive1) && !m_disks->GetMountedImagePath (drive1).empty();
             case IDM_DISK_THUMBNAIL2: return isShown (drive2) && !m_disks->GetMountedImagePath (drive2).empty();
             case IDM_DISK_THUMBNAIL3: return isShown (drive3) && !m_disks->GetMountedImagePath (drive3).empty();

@@ -131,7 +131,11 @@ void Disk2Signals::OnHeadMoved (const Disk2HeadMove & move)
 
 void Disk2Signals::OnDriveSelect (int drive)
 {
-    m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDriveSelect (drive); });
+    int  reported = GetReportedDrive (drive);
+
+
+
+    m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnDriveSelect (reported); });
 }
 
 
@@ -146,7 +150,11 @@ void Disk2Signals::OnDriveSelect (int drive)
 
 void Disk2Signals::OnWriteMode (int drive, bool isWriting)
 {
-    m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnWriteMode (drive, isWriting); });
+    int  reported = GetReportedDrive (drive);
+
+
+
+    m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnWriteMode (reported, isWriting); });
 }
 
 

@@ -93,6 +93,9 @@ public:
 
     DriveActivity  GetDriveActivity (int drive) const;
 
+    //  The disk in drive 0 to 3, or null for an empty drive.
+    DiskImage    * GetDisk          (int drive) const;
+
     Disk2Controller        & GetDiskII ()       { return *m_diskII; }
     const Disk2Controller  & GetDiskII () const { return *m_diskII; }
 

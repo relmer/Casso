@@ -13,6 +13,7 @@
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple3/Apple3DiskController.h"
 #include "Machines/Apple2/Common/ExpansionRomBus.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
@@ -904,8 +905,9 @@ void MachineDebugTarget::SetDiskEventSink (IDisk2EventSink * sink)
 
 bool MachineDebugTarget::TryGetDiskState (DebugDiskState & state) const
 {
-    Disk2Controller  * controller = m_host.GetRefs().diskController;
-    DiskImage        * disk       = nullptr;
+    Disk2Controller             * controller = m_host.GetRefs().diskController;
+    const Apple3DiskController  * apple3Disk = m_host.GetRefs().apple3Disk;
+    DiskImage                   * disk       = nullptr;
 
 
 
@@ -916,15 +918,25 @@ bool MachineDebugTarget::TryGetDiskState (DebugDiskState & state) const
 
     state               = DebugDiskState();
     state.slot          = controller->GetSlot();
-    state.selectedDrive = controller->GetLines().GetActiveDrive();
+    state.selectedDrive = controller->GetSignals().GetReportedDrive (controller->GetLines().GetActiveDrive());
     state.isMotorOn     = controller->GetLines().IsMotorOn();
     state.isWriteMode   = controller->GetLines().IsQ7();
     state.phases        = controller->GetLines().GetPhases();
+    state.driveCount    = (apple3Disk != nullptr) ? Apple3DiskController::kDriveCount : Disk2Controller::kDriveCount;
 
-    for (int drive = 0; drive < Disk2Controller::kDriveCount; drive++)
+    for (int drive = 0; drive < state.driveCount; drive++)
     {
-        disk                      = controller->GetDrive (drive).GetDisk();
-        state.quarterTrack[drive] = controller->GetDrive (drive).GetQuarterTrack();
+        if (apple3Disk != nullptr)
+        {
+            disk                      = apple3Disk->GetDisk (drive);
+            state.quarterTrack[drive] = apple3Disk->GetDriveActivity (drive).quarterTrack;
+        }
+        else
+        {
+            disk                      = controller->GetDrive (drive).GetDisk();
+            state.quarterTrack[drive] = controller->GetDrive (drive).GetQuarterTrack();
+        }
+
         state.isProtected[drive]  = disk != nullptr && disk->IsWriteProtected();
         state.hasDisk[drive]      = disk != nullptr && disk->IsLoaded();
         state.imageName[drive]    = (disk != nullptr && disk->IsLoaded()) ? disk->GetFilePath() : std::string();
@@ -964,16 +976,25 @@ const Disk2NibbleRecord * MachineDebugTarget::GetDiskRecord() const
 
 bool MachineDebugTarget::PeekDiskNibbles (int drive, int count, std::vector<Byte> & nibbles, bool & isRandom) const
 {
-    Disk2Controller  * controller = m_host.GetRefs().diskController;
+    Disk2Controller             * controller = m_host.GetRefs().diskController;
+    const Apple3DiskController  * apple3Disk = m_host.GetRefs().apple3Disk;
+    int                           line       = drive;
 
 
 
-    if (controller == nullptr || drive < 0 || drive >= Disk2Controller::kDriveCount)
+    // On the Apple ///, an external drive is under a head only while it is
+    // connected to the logic's second drive line.
+    if (apple3Disk != nullptr && drive > 0)
+    {
+        line = (drive - 1 == apple3Disk->GetConnectedExternal()) ? 1 : -1;
+    }
+
+    if (controller == nullptr || line < 0 || line >= Disk2Controller::kDriveCount)
     {
         return false;
     }
 
-    controller->GetDrive (drive).GetEngine().PeekNibbles (count, nibbles, isRandom);
+    controller->GetDrive (line).GetEngine().PeekNibbles (count, nibbles, isRandom);
     return true;
 }
 

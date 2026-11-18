@@ -336,4 +336,23 @@ public:
 
         Assert::IsTrue (rig->controller->IsInternalSelected());
     }
+
+
+    //  The debugger and the drive widgets count drives as the Apple /// does:
+    //  .D3 is drive index 2, whichever logic line it is on.
+    TEST_METHOD (FourDrives_TheSecondLineReportsTheConnectedDrive)
+    {
+        auto  rig = std::make_unique<FourDrives>();
+
+
+
+        Select (*rig->controller, 3);
+        Assert::AreEqual (2, rig->controller->GetDiskII().GetSignals().GetReportedDrive (1));
+        Assert::AreEqual (0, rig->controller->GetDiskII().GetSignals().GetReportedDrive (0));
+
+        Select (*rig->controller, 4);
+        Assert::AreEqual (3, rig->controller->GetDiskII().GetSignals().GetReportedDrive (1));
+        Assert::IsTrue   (rig->controller->GetDisk (3) == &rig->disks[2]);
+        Assert::IsFalse  (rig->controller->GetDriveActivity (2).isMotorOn, L"a drive off the line has its motor off");
+    }
 };

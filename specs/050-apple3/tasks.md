@@ -114,7 +114,8 @@ it back with Casso's disk tools.
 ### Implementation
 
 - [x] T041 [US2] Add the external drives and the Apple /// drive selection to `CassoEmuCore/Machines/Apple3/Apple3DiskController.cpp`, with the count from `externalDrives`
-- [ ] T042 [US2] Change each two-drive assumption listed by T034 (event drive field, `DebugDiskState`, audio sources, mount and eject paths) in `CassoEmuCore/Machines/Apple2/Common/` and `CassoEmuCore/Debugger/`, with the Apple II behavior the same
+- [x] T042 [US2] Change each two-drive assumption listed by T034 (event drive field, `DebugDiskState`, audio sources, mount and eject paths) in `CassoEmuCore/Machines/Apple2/Common/` and `CassoEmuCore/Debugger/`, with the Apple II behavior the same
+- [ ] T042a [US2] Extend the disk inspector (`ShellInspectorHost`, `InspectorStatusPublisher`, `InspectorRequestQueue`), the nibble record's drive flag, `DiskFieldTracker` and the disk breakpoint drive filter to the Apple ///'s four drives. They count the Disk II logic's two drive lines, so Inspect is offered for drives 1 and 2 only
 - [x] T043 [P] [US2] Add Drive 3 and Drive 4 to the disk menus, drop targets, drive widgets and `--disk3`, `--disk4` (errors on an Apple II machine; both in `--help`) in `CassoEmuCore/Shell/` and `CassoEmuCore/Cli/`
 - [x] T044 [P] [US2] Give each of the four drives the Disk II drive sounds through `Disk2AudioSource` in `CassoEmuCore/Shell/Apple3MachineBuilder.cpp`
 - [x] T045 [US2] Make the boot disk picker work for the built-in drive (FR-017), with SOS disks offered from `CassoEmuCore/Machines/Apple2/Common/StockBootDisks.h` and the picker in `CassoEmuCore/Ui/Dialogs/`

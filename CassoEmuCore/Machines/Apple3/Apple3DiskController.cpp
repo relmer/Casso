@@ -70,6 +70,8 @@ void Apple3DiskController::PowerOn (Prng & prng)
     m_isInternalSelected = false;
     m_isExternal1        = false;
     m_isExternal2        = false;
+
+    m_diskII->GetSignals().SetReportedDrive (s_kExternalLine, 1 + m_connected);
 }
 
 
@@ -296,6 +298,14 @@ void Apple3DiskController::ConnectExternal (int index)
     drive.GetEngine().SetMotorOn (m_diskII->GetLines().IsMotorOn());
 
     m_connected = index;
+
+    // The debugger's drive is the Apple /// drive: .D2 to .D4 are drives 1 to 3.
+    m_diskII->GetSignals().SetReportedDrive (s_kExternalLine, 1 + index);
+
+    if (m_diskII->GetLines().GetActiveDrive() == s_kExternalLine)
+    {
+        m_diskII->GetSignals().OnDriveSelect (s_kExternalLine);
+    }
 }
 
 
@@ -328,6 +338,34 @@ int Apple3DiskController::GetSelectedExternal() const
     }
 
     return drive;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskImage * Apple3DiskController::GetDisk (int drive) const
+{
+    DiskImage  * disk = nullptr;
+
+
+
+    if (drive == 0)
+    {
+        disk = m_diskII->GetDrive (0).GetDisk();
+    }
+    else if (drive > 0 && drive <= m_externalCount)
+    {
+        disk = m_externals[(size_t) (drive - 1)].disk;
+    }
+
+    return disk;
 }
 
 
@@ -475,6 +513,7 @@ HRESULT Apple3DiskController::LoadState (StateReader & reader)
         reader.ReadByte (connected);
         CBREx (connected < kMaxExternal, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
         m_connected = connected;
+        m_diskII->GetSignals().SetReportedDrive (s_kExternalLine, 1 + m_connected);
 
         for (External & external : m_externals)
         {

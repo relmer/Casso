@@ -62,18 +62,22 @@ struct DebugMachineInfo
 
 //  The Disk II controller's state, read from its getters, never through the
 //  bus: the selected drive, each drive's head, the motor, write mode, the
-//  magnets on, and each drive's disk.
+//  magnets on, and each drive's disk. An Apple II has drives 0 and 1, and
+//  the Apple /// up to four.
 struct DebugDiskState
 {
-    int                          slot          = 0;
-    int                          selectedDrive = 0;
-    std::array<int, 2>           quarterTrack  = {};
-    bool                         isMotorOn     = false;
-    bool                         isWriteMode   = false;
-    Byte                         phases        = 0;
-    std::array<bool, 2>          isProtected   = {};
-    std::array<bool, 2>          hasDisk       = {};
-    std::array<std::string, 2>   imageName;
+    static constexpr int  kDriveCount = 4;
+
+    int                                     slot          = 0;
+    int                                     driveCount    = 2;
+    int                                     selectedDrive = 0;
+    std::array<int, kDriveCount>            quarterTrack  = {};
+    bool                                    isMotorOn     = false;
+    bool                                    isWriteMode   = false;
+    Byte                                    phases        = 0;
+    std::array<bool, kDriveCount>           isProtected   = {};
+    std::array<bool, kDriveCount>           hasDisk       = {};
+    std::array<std::string, kDriveCount>    imageName;
 };
 
 static constexpr size_t  s_kDebugPageCount = 256;
