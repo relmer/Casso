@@ -24,9 +24,10 @@
 
       1. `Disks/Apple/<name>` under the repo root, which is where this script
          puts what it downloads and where the tests look first.
-      2. `%LOCALAPPDATA%\Casso\Disks\<name>`, the emulator's own download
-         cache. Picking the DOS 3.3 or ProDOS row in Casso's Boot Disk or
-         Insert Disk picker fills it, and that copy counts.
+      2. `CassoData\Disks\<name>` under the repo root, the data folder a
+         developer build from this checkout uses as its download cache.
+         Picking the DOS 3.3 or ProDOS row in Casso's Boot Disk or Insert
+         Disk picker fills it, and that copy counts.
 
     NOTHING IS WRITTEN TO THE EMULATOR'S CACHE. A test run must not alter
     what the application installed for the user, so a missing image is
@@ -224,17 +225,17 @@ function Get-AssetProblem {
 }
 
 #
-#  The emulator's cache path for an image, or $null when this machine has no
-#  LOCALAPPDATA to speak of. Read-only: nothing here creates that directory.
+#  The cache path for an image in this checkout's data folder, or $null when
+#  the image has no cache name. Read-only: nothing here creates that directory.
 #
 function Get-CachedImagePath {
     param([hashtable]$Asset)
 
-    if (-not $env:LOCALAPPDATA -or -not $Asset.CacheName) {
+    if (-not $Asset.CacheName) {
         return $null
     }
 
-    return Join-Path $env:LOCALAPPDATA "Casso/Disks/$($Asset.CacheName)"
+    return Join-Path $repoRoot "CassoData/Disks/$($Asset.CacheName)"
 }
 
 function Write-Status {

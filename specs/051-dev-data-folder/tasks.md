@@ -46,10 +46,10 @@ Every user story depends on this phase.
 
 **Independent test**: Quickstart checks 1 and 2.
 
-- [ ] T010 [US1] Point `scripts/FetchRoms.ps1`'s default layout at `<repo root>\CassoData\<Subdir>`, and update its help text.
-- [ ] T011 [P] [US1] Make `scripts/FetchStockDisks.ps1` look for its cache under `<repo root>\CassoData\Disks` in place of `%LOCALAPPDATA%\Casso\Disks`, and update its help text and the comment at line 228.
-- [ ] T012 [P] [US1] Point `scripts/RunBuildLoopGate.ps1:76` at `<repo root>\CassoData\Disks\DOS 3.3 System Master.dsk`.
-- [ ] T013 [US1] Run `scripts/FetchRoms.ps1` in this checkout and launch Debug x64 with `--title` per quickstart check 1. Confirm `CassoData\UserPrefs.json` exists and the hash comparison of `%LOCALAPPDATA%\Casso` is empty.
+- [x] T010 [US1] Point `scripts/FetchRoms.ps1`'s default layout at `<repo root>\CassoData\<Subdir>`, and update its help text.
+- [x] T011 [P] [US1] Make `scripts/FetchStockDisks.ps1` look for its cache under `<repo root>\CassoData\Disks` in place of `%LOCALAPPDATA%\Casso\Disks`, and update its help text and the comment at line 228.
+- [x] T012 [P] [US1] Point `scripts/RunBuildLoopGate.ps1:76` at `<repo root>\CassoData\Disks\DOS 3.3 System Master.dsk`.
+- [x] T013 [US1] Run `scripts/FetchRoms.ps1` in this checkout and launch Debug x64 with `--title` per quickstart check 1. Confirm `CassoData\UserPrefs.json` exists and the hash comparison of `%LOCALAPPDATA%\Casso` is empty.
 
 ---
 

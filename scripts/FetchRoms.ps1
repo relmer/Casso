@@ -13,10 +13,14 @@
     first launch. The two are kept in step by hand; a ROM added to one belongs
     in the other.
 
-    Default layout is the product's, relative to the repo root:
+    Default layout is the data folder a developer build uses, CassoData under
+    the repo root. A build run from this checkout reads its ROMs from there:
 
-      Machines/<MachineName>/<rom>     per-machine system + character ROMs
-      Devices/DiskII/<rom>             shared device firmware
+      CassoData/Machines/<MachineName>/<rom>   per-machine system + character ROMs
+      CassoData/Devices/DiskII/<rom>           shared device firmware
+
+    Every checkout and worktree has its own CassoData folder, so a new
+    worktree gets its ROMs by running this script once.
 
     -Fixtures writes the flat layout the unit suite reads instead:
 
@@ -26,7 +30,7 @@
     right size is left alone unless -Force is given.
 
 .PARAMETER Fixtures
-    Write into UnitTest/Fixtures/ (flat) rather than the product layout.
+    Write into UnitTest/Fixtures/ (flat) rather than into CassoData.
 
 .PARAMETER Verify
     Download nothing. Report which files are present at the right size and
@@ -54,6 +58,7 @@ $ErrorActionPreference = 'Stop'
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $repoRoot  = Split-Path -Parent $scriptDir
+$dataRoot  = Join-Path $repoRoot 'CassoData'
 
 #  AppleWin master as of 2026-09-09.
 $appleWinRef = '3e8054b4627624398e4589f7f27b3d40a6b9718e'
@@ -130,9 +135,9 @@ $present    = 0
 $failed     = 0
 
 foreach ($rom in $romFiles) {
-    $destDir  = if ($Fixtures) { Join-Path $repoRoot 'UnitTest/Fixtures' } else { Join-Path $repoRoot $rom.Subdir }
+    $destDir  = if ($Fixtures) { Join-Path $repoRoot 'UnitTest/Fixtures' } else { Join-Path $dataRoot $rom.Subdir }
     $destPath = Join-Path $destDir $rom.Dest
-    $label    = if ($Fixtures) { "UnitTest/Fixtures/$($rom.Dest)" } else { "$($rom.Subdir)/$($rom.Dest)" }
+    $label    = if ($Fixtures) { "UnitTest/Fixtures/$($rom.Dest)" } else { "CassoData/$($rom.Subdir)/$($rom.Dest)" }
 
     if (-not $Verify -and -not (Test-Path $destDir)) {
         New-Item -ItemType Directory -Path $destDir -Force | Out-Null

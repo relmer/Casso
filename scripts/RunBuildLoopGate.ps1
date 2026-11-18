@@ -73,7 +73,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path $PSScriptRoot -Parent
 $cli      = Join-Path $repoRoot "$Platform\$Configuration\CassoCli.exe"
 $casso    = Join-Path $repoRoot "$Platform\$Configuration\Casso.exe"
-$master   = Join-Path $env:LOCALAPPDATA 'Casso\Disks\DOS 3.3 System Master.dsk'
+$master   = Join-Path $repoRoot 'CassoData\Disks\DOS 3.3 System Master.dsk'
 
 # The emulated cost of a DOS 3.3 boot reaching a BRUN'd binary, and the clock
 # it is spent at. Both are measured elsewhere in this feature and are quoted
