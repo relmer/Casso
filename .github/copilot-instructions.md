@@ -957,6 +957,12 @@ in conversation.
   fully drivable, because posted `WM_MOUSEMOVE` / `WM_LBUTTONDOWN` and
   `PrintWindow` capture need neither focus nor foreground. When the user
   asks to start Casso, launch it in the foreground as usual.
+- **A developer build stores its data in `CassoData\` at its repo root,**
+  not in `%LOCALAPPDATA%\Casso`. The owner's `UserPrefs.json` is
+  the same after a test launch, so there is no backup and restore step. A new worktree
+  starts from defaults and has no ROMs until `scripts/FetchRoms.ps1` runs in
+  it. `CASSO_PROFILE_DIR` sets the folder for any build. The rules are in
+  [docs/testing.md](../docs/testing.md).
 - **Every agent launch of Casso passes `--title <label>`, without exception.**
   Several sessions run at once, each in its own worktree, and every caption
   otherwise reads `Casso - Apple //e`: the user cannot tell which window
