@@ -1,12 +1,17 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "FakeDiskFileIo.h"
+#include "PartitionCard.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/BlockImage.h"
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/Blocks/BlockMapBuilder.h"
 #include "Devices/Disk/Inspector/Blocks/BlockRepair.h"
+#include "Devices/Disk/Inspector/Blocks/Dos33SectorLayout.h"
+#include "Machines/Apple2/Common/HfsVolume.h"
+#include "Machines/Apple2/Common/HfsWriter.h"
+#include "Machines/Apple2/Common/PascalVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Ui/DiskInspector/Blocks/BlockBrowser.h"
@@ -21,12 +26,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  BlockRepairTests
 //
-//  The file system verdict and the repair of a ProDOS volume of blocks,
-//  on a volume of 10,000 blocks, whose bitmap is three blocks long: a
-//  block a file uses marked free, a block in no file marked used, a
-//  directory's file count, a block in two files, the changes chosen, and
-//  the repair written to a copy in block mode, with its finding on the
-//  Volume level.
+//  The file system verdict and the repair of volumes of blocks. A ProDOS
+//  volume of 10,000 blocks, whose bitmap is three blocks long: a block a
+//  file uses marked free, a block in no file marked used, a directory's
+//  file count, a block in two files, the changes chosen, and the repair
+//  written to a copy in block mode, with its finding on the Volume level.
+//  An 800K Apple Pascal volume's file count, an 800K HFS volume's bitmap
+//  and free block count, and a DOS 3.3 volume of 50 tracks of 32 sectors,
+//  alone and as half of a UniDOS disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -342,5 +349,224 @@ public:
 
         Assert::AreEqual (kBlocks * kBlockBytes, io.files["partition.po"].size());
         Assert::IsTrue   (BlockRepair::GetVerdict (BuildMap (io.files["partition.po"])) == FileSystemVerdict::Ok);
+    }
+
+
+    TEST_METHOD (Pascal_FileCountDiffers_IsSetToTheEntries)
+    {
+        constexpr size_t  kPascalCountAt = kKeyBlock * kBlockBytes + 16;
+
+
+
+        vector<Byte>  buffer (1600 * kBlockBytes, 0);
+        vector<Byte>  next;
+        FilePayload   payload;
+        BlockMap      map;
+        RepairPlan    plan;
+
+
+
+        PascalVolume::WriteBlank ("BLOCKS", PascalVolume::MakeDate (1985, 1, 1), buffer);
+
+        payload.bytes.assign (2000, 0x5A);
+        payload.type = PascalVolume::kKindData;
+        AssertSucceeded (PascalVolume (buffer).Write (FilePath::Parse ("A.DATA"), payload, next));
+        AssertSucceeded (PascalVolume (next).Write (FilePath::Parse ("B.DATA"), payload, buffer));
+
+        Assert::IsTrue (BlockRepair::GetVerdict (BuildMap (buffer)) == FileSystemVerdict::Ok);
+
+        buffer[kPascalCountAt] = 3;
+        map = BuildMap (buffer);
+
+        Assert::AreEqual ((size_t) 1, map.counts.size());
+        Assert::AreEqual (std::wstring (L"Expected a directory file count of 2, but found 3"), map.counts[0].finding);
+
+        plan = BlockRepair::Plan (BlockImage (buffer), map, 0, {});
+
+        Assert::IsTrue   (plan.canRepair, plan.reason.c_str());
+        Assert::AreEqual (std::wstring (L"Set the directory's file count to 2"), plan.changes[0].text);
+
+        ApplyPlan (plan, buffer);
+
+        Assert::AreEqual ((Byte) 2, buffer[kPascalCountAt]);
+        Assert::IsTrue   (BlockRepair::GetVerdict (BuildMap (buffer)) == FileSystemVerdict::Ok);
+    }
+
+
+    //  An HFS allocation block's bit in the volume bitmap, set when it's in use.
+    static void SetHfsUsed (vector<Byte> & buffer, uint32_t allocation, bool isUsed)
+    {
+        uint32_t  bitmap = (buffer[kKeyBlock * kBlockBytes + 14] << 8) | buffer[kKeyBlock * kBlockBytes + 15];
+        size_t    at     = (bitmap + allocation / kBitsPerBlock) * kBlockBytes + (allocation % kBitsPerBlock) / 8;
+        Byte      mask   = (Byte) (0x80 >> (allocation % 8));
+
+
+
+        buffer[at] = isUsed ? (Byte) (buffer[at] | mask) : (Byte) (buffer[at] & ~mask);
+    }
+
+
+    static vector<Byte> MakeHfs()
+    {
+        vector<Byte>  image;
+        vector<Byte>  next;
+        FilePayload   payload;
+
+
+
+        AssertSucceeded (HfsWriter::Format (image, 1600, "Untitled"));
+
+        payload.bytes.assign (3000, 0x5A);
+        payload.type = ProDosVolume::kTypeBinary;
+        AssertSucceeded (HfsVolume (image).Write (FilePath::Parse ("Doc"), payload, next));
+
+        return next;
+    }
+
+
+    TEST_METHOD (Hfs_FileMarkedFreeInTheBitmap_IsMarkedUsed)
+    {
+        vector<Byte>  buffer = MakeHfs();
+        BlockMap      map    = BuildMap (buffer);
+        int           doc    = FindEntry (map, L"Doc");
+        uint32_t      first  = map.GetBlocksOf (doc)[0];
+        RepairPlan    plan;
+
+
+
+        Assert::IsTrue (BlockRepair::GetVerdict (map) == FileSystemVerdict::Ok, L"a new HFS volume is OK");
+        Assert::IsTrue (map.counts.empty(), L"its free block count matches its bitmap");
+
+        SetHfsUsed (buffer, (first - map.allocationStart) / map.blocksPerAllocation, false);
+        SetHfsUsed (buffer, 1500 / map.blocksPerAllocation, true);
+
+        map  = BuildMap (buffer);
+        plan = BlockRepair::Plan (BlockImage (buffer), map, 0, {});
+
+        Assert::IsTrue (BlockRepair::GetVerdict (map) == FileSystemVerdict::Bad);
+        Assert::IsTrue (plan.canRepair, plan.reason.c_str());
+        Assert::IsTrue (HasKey (plan, L"used:Doc"));
+        Assert::IsTrue (HasKey (plan, L"unowned"));
+
+        ApplyPlan (plan, buffer);
+
+        Assert::IsTrue (BlockRepair::GetVerdict (BuildMap (buffer)) == FileSystemVerdict::Ok, L"the bitmap and the free block count agree again");
+    }
+
+
+    TEST_METHOD (Hfs_FreeBlockCountDiffers_IsSetFromTheBitmap)
+    {
+        vector<Byte>  buffer = MakeHfs();
+        size_t        at     = kKeyBlock * kBlockBytes + 34;
+        Word          free   = (Word) ((buffer[at] << 8) | buffer[at + 1]);
+        BlockMap      map;
+        RepairPlan    plan;
+
+
+
+        buffer[at]     = 0;
+        buffer[at + 1] = 7;
+
+        map = BuildMap (buffer);
+
+        Assert::AreEqual ((size_t) 1, map.counts.size());
+        Assert::IsTrue   (map.counts[0].isFreeCount);
+
+        plan = BlockRepair::Plan (BlockImage (buffer), map, 0, {});
+
+        Assert::IsTrue (plan.canRepair, plan.reason.c_str());
+        Assert::IsTrue (HasKey (plan, L"freecount"));
+
+        ApplyPlan (plan, buffer);
+
+        Assert::AreEqual (free, (Word) ((buffer[at] << 8) | buffer[at + 1]));
+        Assert::IsTrue   (BuildMap (buffer).counts.empty());
+    }
+
+
+    //  A DOS 3.3 sector's bit in the VTOC of a volume of 50 tracks of 32
+    //  sectors, set when the sector is free.
+    static void SetDosFree (vector<Byte> & sectors, int track, int sector, bool isFree)
+    {
+        size_t  at   = (size_t) (17 * 32) * 256 + 0x38 + track * 4 + (3 - sector / 8);
+        Byte    mask = (Byte) (1 << (sector % 8));
+
+
+
+        sectors[at] = isFree ? (Byte) (sectors[at] | mask) : (Byte) (sectors[at] & ~mask);
+    }
+
+
+    TEST_METHOD (Dos33Sectors_BitmapDamage_IsRepaired)
+    {
+        vector<Byte>  sectors = PartitionCard::MakeDos (50, 32);
+        BlockMap      map;
+        RepairPlan    plan;
+
+
+
+        Dos33SectorLayout::Walk (sectors, 50, 32, map);
+        Assert::IsTrue (BlockRepair::GetVerdict (map) == FileSystemVerdict::Ok, L"a new DOS 3.3 volume is OK");
+
+        SetDosFree (sectors, 20, 5, false);
+        SetDosFree (sectors, 17, 0, true);
+
+        Dos33SectorLayout::Walk (sectors, 50, 32, map);
+        plan = BlockRepair::PlanSectors (sectors, map, 32, {});
+
+        Assert::IsTrue (plan.canRepair, plan.reason.c_str());
+        Assert::IsTrue (HasKey (plan, L"unowned"));
+        Assert::IsTrue (HasKey (plan, L"structures"));
+        Assert::IsTrue (plan.blocks.empty());
+        Assert::AreEqual ((size_t) 1, plan.sectors.size(), L"the VTOC is the one sector changed");
+
+        for (const RepairSector & sector : plan.sectors)
+        {
+            std::copy (sector.bytes.begin(), sector.bytes.end(), sectors.begin() + (ptrdiff_t) (sector.track * 32 + sector.sector) * 256);
+        }
+
+        Dos33SectorLayout::Walk (sectors, 50, 32, map);
+        Assert::IsTrue (BlockRepair::GetVerdict (map) == FileSystemVerdict::Ok);
+    }
+
+
+    TEST_METHOD (Model_UniDosVolume_IsRepairedInItsHalfOfTheDisk)
+    {
+        FakeDiskFileIo                   io;
+        BlockInspectorModel              model;
+        std::unique_ptr<BlockImageFile>  file;
+        std::wstring                     error;
+        vector<Byte>                     disk  = PartitionCard::MakeUniDosDisk();
+        size_t                           vtoc  = (size_t) (17 * 32) * 256;
+        RepairPlan                       plan;
+        BlockMap                         map;
+
+
+
+        disk[vtoc + 0x38 + 20 * 4 + 3] = (Byte) (disk[vtoc + 0x38 + 20 * 4 + 3] & ~(1 << 5));
+
+        io.files["unidos.po"]           = disk;
+        io.stamps["unidos.po"]          = { disk.size(), kTime };
+        io.files["unidos (repaired).po"]  = disk;
+        io.stamps["unidos (repaired).po"] = { disk.size(), kTime };
+
+        AssertSucceeded (BlockImageFile::Open (io, "unidos.po", file, error));
+        AssertSucceeded (model.Open (std::move (file)));
+
+        Assert::IsTrue (model.IsSectorVolume (0));
+
+        plan = model.PlanRepair (0, {});
+        Assert::IsTrue (plan.canRepair, plan.reason.c_str());
+
+        AssertSucceeded (model.WriteRepairTo (io, "unidos (repaired).po", 0, plan, false, error));
+
+        Assert::IsTrue (io.files["unidos.po"] == disk, L"the image isn't written");
+        Assert::AreNotEqual (disk[vtoc + 0x38 + 20 * 4 + 3], io.files["unidos (repaired).po"][vtoc + 0x38 + 20 * 4 + 3], L"the copy's VTOC is repaired");
+
+        AssertSucceeded (model.WriteRepairTo (io, "volume.dsk", 0, plan, true, error));
+        Assert::AreEqual ((size_t) 50 * 32 * 256, io.files["volume.dsk"].size());
+
+        Dos33SectorLayout::Walk (io.files["volume.dsk"], 50, 32, map);
+        Assert::IsTrue (BlockRepair::GetVerdict (map) == FileSystemVerdict::Ok, L"the volume written alone is repaired");
     }
 };

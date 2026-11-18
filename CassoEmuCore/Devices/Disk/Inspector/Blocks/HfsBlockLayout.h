@@ -45,6 +45,7 @@ private:
     static constexpr uint32_t  kAllocBlocks   = 18;
     static constexpr uint32_t  kAllocSize     = 20;
     static constexpr uint32_t  kAllocStart    = 28;
+    static constexpr uint32_t  kFreeBlocks    = 34;
     static constexpr uint32_t  kVolumeName    = 36;
     static constexpr uint32_t  kExtentsSize   = 130;
     static constexpr uint32_t  kExtentsExtent = 134;
@@ -125,6 +126,7 @@ private:
     static void          ReadCatalog  (Walker & walker, const vector<uint32_t> & nodes);
     static void          ReadOverflow (Walker & walker, const vector<uint32_t> & nodes);
     static void          ClaimFork    (Walker & walker, const ForkRecord & fork);
+    static void          CheckFree    (Walker & walker, const Block & mdb, uint32_t bitmap, uint32_t allocations);
     static std::wstring  GetPath      (const Walker & walker, uint32_t parent, const std::wstring & name);
 
     static void      AnnotateBoot         (BlockFieldList & list);

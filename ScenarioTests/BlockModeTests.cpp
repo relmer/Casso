@@ -8,6 +8,8 @@
 #include "Devices/Disk/FilePath.h"
 #include "Devices/Disk/Inspector/Blocks/BlockInspectorModel.h"
 #include "Devices/Disk/Inspector/Blocks/BlockMapBuilder.h"
+#include "Devices/Disk/Inspector/Blocks/BlockRepair.h"
+#include "Ui/DiskInspector/Blocks/BlockBrowser.h"
 #include "Machines/Apple2/Common/HfsVolume.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
@@ -260,6 +262,83 @@ public:
                 Assert::AreEqual (std::wstring (loader), model.FindMap (0, inner)->bootLoader, TextEncoding::Utf8ToWide (image).c_str());
             }
         }
+    }
+
+
+    //  Each volume of CiderPress II's images of blocks: ProDOS, Apple
+    //  Pascal, HFS, 800K DOS 3.3 layouts, DOS Master partitions, a
+    //  MicroDrive card and a partitioned hard disk.
+    TEST_METHOD (StockImages_EveryVolumeIsOkAndNeedsNoRepair)
+    {
+        static const char * const  s_kImages[] =
+        {
+            "prodos/simple-sparse.po",     "prodos/blank-800k.po",        "2img/prodos-disk.2mg",
+            "pascal/Apple Pascal1.po",     "pascal/Apple Pascal 1.3.po.gz",
+            "hfs/simple-gsos.po",          "diskcopy/Installer Disk 1.image",
+            "dos800/AmDOS-sample.po.gz",   "dos800/OzDOS-sample.po.gz",   "dos800/OzDOS10.po.gz",   "dos800/UniDOS-sample.po.gz",
+            "dos.master/dm-140x5.po.gz",   "dos.master/dm-200x3.po.gz",   "dos.master/dm-400x2+.po.gz",
+            "microdrive/HD120MB.po.gz",    "turducken/MultiPart.hdv",
+        };
+
+        int  checked = 0;
+
+
+
+        for (const char * image : s_kImages)
+        {
+            std::vector<Byte>    bytes;
+            FakeDiskFileIo       io;
+            BlockInspectorModel  model;
+            std::wstring         name = TextEncoding::Utf8ToWide (image);
+
+            if (!OpenImage (image, bytes))
+            {
+                continue;
+            }
+
+            OpenModel (bytes, io, model);
+
+            for (int volume = 0; volume < model.GetVolumeCount(); volume++)
+            {
+                const BlockMap     & map     = model.GetVolumeMap (volume);
+                FileSystemVerdict    verdict = BlockRepair::GetVerdict (map);
+                RepairPlan           plan    = model.PlanRepair (volume, {});
+                std::wstring         line    = std::format (L"{} volume {} ({}): verdict {}, plan: {}\n", name, volume, BlockBrowser::GetFileSystemName (map.fileSystem),
+                                                            (int) verdict, plan.canRepair ? std::to_wstring (plan.changes.size()) + L" changes" : plan.reason);
+
+                for (const BlockCount & count : map.counts)
+                {
+                    line += L"    " + count.finding + L"\n";
+                }
+
+                for (const RepairChange & change : plan.changes)
+                {
+                    line += L"    " + change.problem + L"\n";
+                }
+
+                Logger::WriteMessage (line.c_str());
+
+                //  DOS Master's larger DOS image is in track 3 and the second
+                //  half of track 4 of its first volume, sectors that aren't in
+                //  any file and that the VTOC marks used. MultiPart's ProDOS
+                //  volume has 1,400 blocks in use by the volumes inside it.
+                if ((name == L"dos.master/dm-400x2+.po.gz" || name == L"turducken/MultiPart.hdv") && volume == 0)
+                {
+                    Assert::IsTrue   (verdict == FileSystemVerdict::Suspect, line.c_str());
+                    Assert::AreEqual ((size_t) 1, plan.changes.size(), line.c_str());
+                    Assert::AreEqual (std::wstring (L"unowned"), plan.changes[0].key);
+                }
+                else
+                {
+                    Assert::IsTrue  (verdict == FileSystemVerdict::Ok, line.c_str());
+                    Assert::IsFalse (plan.canRepair, line.c_str());
+                }
+
+                checked++;
+            }
+        }
+
+        Logger::WriteMessage (std::format ("{} volumes checked\n", checked).c_str());
     }
 
 

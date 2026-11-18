@@ -50,6 +50,7 @@ public:
     static constexpr int       kMinWidthDip      = 960;
     static constexpr int       kMinHeightDip     = 640;
     static constexpr int       kRepairIntroLines = 3;
+    static constexpr int       kCautionLines     = 3;
     static constexpr uint64_t  kRoomMarginBytes  = 1024 * 1024;
 
     BlockInspectorWindow  ();
@@ -125,6 +126,7 @@ private:
     bool                                  PickRepairTarget    (const std::wstring & why, uint64_t bytes, fs::path & ioTarget);
     void                                  QueueRepairCopy     (int volume, const RepairPlan & plan, bool isCard, const fs::path & target);
     static std::wstring                   FormatCardIntro     (const std::wstring & fileName);
+    static std::wstring                   FormatCaution       (bool isDos);
     static bool                           IsOnRemovableDrive  (const fs::path & path);
     static bool                           HasRoomFor          (const fs::path & folder, uint64_t bytes);
     void                                  CopyBlock           ();

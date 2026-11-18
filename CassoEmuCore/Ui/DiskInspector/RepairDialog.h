@@ -77,7 +77,8 @@ public:
     void  Configure (const IDxuiTheme * theme, const std::wstring & fileName, const DiskAnalysis & analysis, const std::set<std::wstring> & chosen);
 
     //  The same for any volume: the intro and its lines, the plan with every
-    //  change, and the plan of the checked changes.
+    //  change, the plan of the checked changes, and the changes that start
+    //  checked, which can be none.
     void  Configure (const IDxuiTheme * theme, const std::wstring & intro, int introLines, const RepairPlan & fullPlan, PlanFn planChosen, const std::set<std::wstring> & chosen);
 
     //  The dialog created over `owner` and run until it closes.

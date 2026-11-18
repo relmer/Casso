@@ -338,6 +338,7 @@
     <ClCompile Include="Devices\Disk\ImageClassCache.cpp" />
     <ClCompile Include="Devices\Disk\DriveImageRule.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockInspectorModel.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockInspectorModelRepair.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockInspectorWorker.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockFieldList.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMap.cpp" />

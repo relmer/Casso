@@ -1241,17 +1241,20 @@ int BlockInspectorWindow::GetRepairVolume() const
 
 void BlockInspectorWindow::Repair()
 {
-    int              volume = GetRepairVolume();
-    bool             isCard = IsOnCard();
-    std::wstring     name   = RepairDialog::FormatName (GetFileName());
-    RepairPlan       full   = m_model.PlanRepair (volume, {});
-    RepairDialog     dialog;
-    fs::path         target;
-    uint64_t         bytes  = 0;
-    std::wstring     why;
-    std::wstring     label;
-    std::error_code  error;
-    HRESULT          hr     = S_OK;
+    int                     volume = GetRepairVolume();
+    bool                    isCard = IsOnCard();
+    std::wstring            name   = RepairDialog::FormatName (GetFileName());
+    RepairPlan              full   = m_model.PlanRepair (volume, {});
+    RepairDialog            dialog;
+    fs::path                target;
+    uint64_t                bytes  = 0;
+    std::wstring            why;
+    std::wstring            label;
+    std::wstring            intro;
+    int                     lines  = 0;
+    std::set<std::wstring>  chosen;
+    std::error_code         error;
+    HRESULT                 hr     = S_OK;
 
 
 
@@ -1261,8 +1264,21 @@ void BlockInspectorWindow::Repair()
         return;
     }
 
-    dialog.Configure (m_theme, isCard ? FormatCardIntro (GetFileName()) : RepairDialog::FormatIntro (GetFileName()), kRepairIntroLines, full,
-                      [this, volume] (const std::set<std::wstring> & keys) { return m_model.PlanRepair (volume, keys); }, {});
+    intro = isCard ? FormatCardIntro (GetFileName()) : RepairDialog::FormatIntro (GetFileName());
+    lines = kRepairIntroLines;
+
+    if (full.before == FileSystemVerdict::Suspect)
+    {
+        intro += L"\n\n" + FormatCaution (m_model.IsSectorVolume (volume));
+        lines += kCautionLines;
+    }
+
+    //  Blocks in no file can be another file system's on a hybrid disk or a
+    //  larger DOS image, so freeing them starts unchecked.
+    chosen = DiskRepair::GetKeys (full);
+    chosen.erase (L"unowned");
+
+    dialog.Configure (m_theme, intro, lines, full, [this, volume] (const std::set<std::wstring> & keys) { return m_model.PlanRepair (volume, keys); }, chosen);
 
     hr = dialog.ShowModal (GetHwnd(), m_theme);
 
@@ -1275,7 +1291,7 @@ void BlockInspectorWindow::Repair()
     {
         label  = m_model.GetVolumeMap (volume).volumeName;
         bytes  = (uint64_t) m_model.GetVolumeSize (volume) * BlockInspectorModel::kBlockBytes;
-        target = fs::path ((label.empty() ? std::wstring (L"Partition") : label) + L" (repaired).po");
+        target = fs::path ((label.empty() ? std::wstring (L"Partition") : label) + (m_model.IsSectorVolume (volume) ? L" (repaired).dsk" : L" (repaired).po"));
     }
     else
     {
@@ -1435,6 +1451,28 @@ std::wstring BlockInspectorWindow::FormatCardIntro (const std::wstring & fileNam
 
     return L"Repairing a partition writes a repaired copy of it to an image file you choose. " + name + L" on the card isn't changed. "
            L"Select the repairs below to apply to the repaired image.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlockInspectorWindow::FormatCaution
+//
+//  For a volume that is only Possible inconsistencies, whose findings can
+//  be normal for the disk: a DOS volume has the track inspector's caution,
+//  as DOS Master's larger DOS image is in sectors that aren't in any file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BlockInspectorWindow::FormatCaution (bool isDos)
+{
+    return isDos ? L"These findings can be normal on a disk made by another DOS or by a program that uses the VTOC or catalog differently. "
+                   L"Repair a disk like this only when it doesn't work."
+                 : L"These findings can be normal on a disk made by a program that allocates blocks differently. "
+                   L"Repair a disk like this only when it doesn't work.";
 }
 
 

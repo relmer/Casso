@@ -264,6 +264,67 @@ void HfsBlockLayout::Walk (const BlockImage & image, BlockMap & outMap)
     {
         ClaimFork (walker, fork);
     }
+
+    CheckFree (walker, mdb, bitmap, allocations);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HfsBlockLayout::CheckFree
+//
+//  The master directory block's free block count against the allocation
+//  blocks the bitmap marks free, a set bit an allocation block in use, the
+//  first in the high bit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HfsBlockLayout::CheckFree (Walker & walker, const Block & mdb, uint32_t bitmap, uint32_t allocations)
+{
+    constexpr uint32_t  kBitsPerBlock = kBlockBytes * 8;
+    constexpr int       kBitsPerByte  = 8;
+    constexpr Byte      kFirstBit     = 0x80;
+
+
+
+    Block       bits     = {};
+    uint32_t    loaded   = UINT32_MAX;
+    uint32_t    used     = 0;
+    uint32_t    i        = 0;
+    int         recorded = GetWord (&mdb[kFreeBlocks]);
+    int         actual   = 0;
+    BlockCount  mismatch;
+
+
+
+    for (i = 0; i < allocations; i++)
+    {
+        if (i / kBitsPerBlock != loaded)
+        {
+            loaded = i / kBitsPerBlock;
+            ReadBlock (walker.image, bitmap + loaded, bits);
+        }
+
+        used += (bits[(i % kBitsPerBlock) / kBitsPerByte] & (kFirstBit >> (i % kBitsPerByte))) != 0 ? 1 : 0;
+    }
+
+    actual = (int) (allocations - used);
+
+    if (actual != recorded)
+    {
+        mismatch.keyBlock    = kMdbBlock;
+        mismatch.offset      = kFreeBlocks;
+        mismatch.recorded    = recorded;
+        mismatch.actual      = actual;
+        mismatch.isFreeCount = true;
+        mismatch.what        = L"the free block count";
+        mismatch.finding     = L"Expected a free block count of " + NumberFormat::FormatInteger (actual) + L", but found " + NumberFormat::FormatInteger (recorded);
+
+        walker.map.counts.push_back (std::move (mismatch));
+    }
 }
 
 

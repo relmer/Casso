@@ -254,6 +254,9 @@ private:
     };
 
     HRESULT  WriteBlocks        (const std::map<uint32_t, Block> & blocks, std::wstring & outError, BlockJobProgress * progress);
+    HRESULT  ReadSectors        (const Volume & volume, vector<Byte> & outSectors) const;
+    HRESULT  WriteSectorRepair  (IDiskFileIo & fileIo, const std::string & path, const Volume & volume, const RepairPlan & plan, bool isVolumeOnly, std::wstring & outError);
+    uint32_t GetSectorOffset    (const Volume & volume, uint32_t unit) const;
     HRESULT  IsStoredAs         (const std::map<uint32_t, Block> & blocks, bool & outIsSame);
     HRESULT  BuildVolumes       ();
     void     AddVolume          (uint32_t first, uint32_t count, const std::wstring & label);

@@ -151,7 +151,7 @@ void RepairDialog::Configure (const IDxuiTheme * theme, const std::wstring & fil
 
 
     Configure (theme, FormatIntro (fileName, full), GetIntroLines (full), full,
-               [&analysis] (const std::set<std::wstring> & keys) { return DiskRepair::PlanChosen (analysis, {}, keys); }, chosen);
+               [&analysis] (const std::set<std::wstring> & keys) { return DiskRepair::PlanChosen (analysis, {}, keys); }, chosen.empty() ? DiskRepair::GetKeys (full) : chosen);
 }
 
 
@@ -171,7 +171,7 @@ void RepairDialog::Configure (const IDxuiTheme * theme, const std::wstring & int
     m_introLines = introLines;
     m_fullPlan   = fullPlan;
     m_planChosen = std::move (planChosen);
-    m_chosen     = chosen.empty() ? DiskRepair::GetKeys (m_fullPlan) : chosen;
+    m_chosen     = chosen;
     m_plan       = m_planChosen (m_chosen);
 }
 
