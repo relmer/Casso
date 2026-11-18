@@ -331,12 +331,13 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple35ControllerCard::SetHostClock (const uint64_t * cycles, uint32_t clockHz)
+void Apple35ControllerCard::SetHostClock (const uint64_t * cycles, const uint64_t * stateCycles, uint32_t clockHz)
 {
-    m_hostCycles = cycles;
-    m_hostHz     = clockHz;
-    m_hostSynced = (cycles != nullptr) ? *cycles : 0;
-    m_cardTarget = m_cpu.GetCycles();
+    m_hostCycles  = cycles;
+    m_stateCycles = stateCycles;
+    m_hostHz      = clockHz;
+    m_hostSynced  = (cycles != nullptr) ? *cycles : 0;
+    m_cardTarget  = m_cpu.GetCycles();
 }
 
 
@@ -565,20 +566,22 @@ void Apple35ControllerCard::GetReplayMedia (std::vector<IReplayMedia *> & outDri
 
 HRESULT Apple35ControllerCard::SaveState (StateWriter & writer) const
 {
-    HRESULT  hr = S_OK;
+    HRESULT   hr       = S_OK;
+    uint64_t  appleNow = (m_stateCycles != nullptr) ? *m_stateCycles : 0;
 
 
 
     writer.BeginSection (kStateTag, kStateVersion);
 
+    writer.WriteUInt64 (appleNow - m_hostSynced);
+    writer.WriteUInt64 (m_cardTarget);
+
+    hr = m_cpu.SaveState (writer, m_cardTarget);
+    CHR (hr);
+
     hr = m_memory.SaveState (writer);
     CHR (hr);
 
-    hr = m_cpu.SaveState (writer);
-    CHR (hr);
-
-    writer.WriteUInt64 (m_hostSynced);
-    writer.WriteUInt64 (m_cardTarget);
     writer.WriteByte   (m_bank);
     writer.WriteBool   (m_selected);
 
@@ -600,22 +603,29 @@ Error:
 
 HRESULT Apple35ControllerCard::LoadState (StateReader & reader)
 {
-    HRESULT   hr      = S_OK;
-    uint16_t  version = 0;
+    HRESULT   hr        = S_OK;
+    uint16_t  version   = 0;
+    uint64_t  appleNow  = (m_stateCycles != nullptr) ? *m_stateCycles : 0;
+    uint64_t  syncedAgo = 0;
 
 
 
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
+    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    reader.ReadUInt64 (syncedAgo);
+    reader.ReadUInt64 (m_cardTarget);
+
+    m_hostSynced = appleNow - syncedAgo;
+
+    hr = m_cpu.LoadState (reader, m_cardTarget);
+    CHR (hr);
+
     hr = m_memory.LoadState (reader);
     CHR (hr);
 
-    hr = m_cpu.LoadState (reader);
-    CHR (hr);
-
-    reader.ReadUInt64 (m_hostSynced);
-    reader.ReadUInt64 (m_cardTarget);
     reader.ReadByte   (m_bank);
     reader.ReadBool   (m_selected);
 

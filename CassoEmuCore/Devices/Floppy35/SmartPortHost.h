@@ -44,8 +44,10 @@ public:
     //  was.
     void  Reset ();
 
-    //  The Apple's cycle count and clock rate.
-    void  SetHostClock (const uint64_t * cycles, uint32_t clockHz);
+    //  The Apple's cycle count at each access, its cycle count as a saved
+    //  state has it, which the saved stamps are measured from, and its clock
+    //  rate.
+    void  SetHostClock (const uint64_t * cycles, const uint64_t * stateCycles, uint32_t clockHz);
 
     //  A drive added to the end of the chain.
     void  AddDrive (std::unique_ptr<UniDisk35Drive> drive);
@@ -60,19 +62,25 @@ public:
     Iwm                 & GetIwm        () { return m_iwm; }
     const Iwm           & GetIwm        () const { return m_iwm; }
 
-    //  The IWM, the bus, each drive on the chain and the chain's clock
-    //  against the Apple's, written into and read from the owner's state
+    //  The chain's clock against the Apple's, the IWM, the bus and each
+    //  drive on the chain, written into and read from the owner's state
     //  section. A state saved with another number of drives doesn't load.
+    //  The clock's last stamps are saved as distances from the Apple's cycle
+    //  count and from the time at that count, and the IWM's and the
+    //  drives' stamps as distances from the clock's last time, so a chain
+    //  caught up while idle saves the same bytes each frame.
     HRESULT  SaveState (StateWriter & writer) const;
     HRESULT  LoadState (StateReader & reader);
 
 private:
-    uint64_t  GetNowNs ();
+    uint64_t  GetNowNs  ();
+    uint64_t  GetTimeAt (uint64_t cycles) const;
 
     Iwm                                           m_iwm;
     SmartPortBus                                  m_bus;
     std::vector<std::unique_ptr<UniDisk35Drive>>  m_drives;
     const uint64_t                              * m_hostCycles  = nullptr;
+    const uint64_t                              * m_stateCycles = nullptr;
     uint32_t                                      m_hostHz      = 0;
     uint64_t                                      m_epochCycles = 0;
     uint64_t                                      m_epochNs     = 0;

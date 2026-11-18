@@ -500,6 +500,8 @@ HRESULT Disk2Controller::LoadState (StateReader & reader)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
+    CBREx (version != kUnreleasedStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
     reader.ReadByte (phases);
     reader.ReadByte (phase);
     reader.ReadByte (quarterTrack);

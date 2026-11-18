@@ -210,10 +210,10 @@ void Disk2IwmPort::Reset()
 
 void Disk2IwmPort::SaveState (StateWriter & writer) const
 {
-    m_iwm.SaveState (writer);
+    writer.WriteUInt64 (m_cycles);
+    m_iwm.SaveState    (writer, m_cycles * Disk2IwmDriveBus::kNsPerCycle);
     writer.WriteBool   (m_buses[0].IsEnabled());
     writer.WriteBool   (m_buses[1].IsEnabled());
-    writer.WriteUInt64 (m_cycles);
 }
 
 
@@ -234,12 +234,13 @@ HRESULT Disk2IwmPort::LoadState (StateReader & reader)
 
 
 
-    hr = m_iwm.LoadState (reader);
+    reader.ReadUInt64 (m_cycles);
+
+    hr = m_iwm.LoadState (reader, m_cycles * Disk2IwmDriveBus::kNsPerCycle);
     CHR (hr);
 
     reader.ReadBool   (enabled1);
     reader.ReadBool   (enabled2);
-    reader.ReadUInt64 (m_cycles);
 
     hr = reader.GetResult();
     CHR (hr);

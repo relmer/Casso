@@ -152,6 +152,8 @@ HRESULT Apple2cSmartPort::LoadState (StateReader & reader)
     hr = reader.BeginSection (kStateTag, kStateVersion, version);
     CHR (hr);
 
+    CBREx (version >= kOldestStateVersion, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
     hr = m_port.LoadState (reader);
     CHR (hr);
 

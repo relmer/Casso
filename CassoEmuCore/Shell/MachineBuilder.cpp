@@ -1826,22 +1826,22 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
 
     for (Apple35ControllerCard * apple35Card : m_host.GetRefs().apple35Cards)
     {
-        apple35Card->SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
+        apple35Card->SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetCpu()->GetCycleCounterPtr(), m_host.GetConfig().clockSpeed);
     }
 
     for (LironCard * lironCard : m_host.GetRefs().lironCards)
     {
-        lironCard->SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
+        lironCard->SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetCpu()->GetCycleCounterPtr(), m_host.GetConfig().clockSpeed);
     }
 
     if (m_host.GetRefs().apple2cSmartPort != nullptr)
     {
-        m_host.GetRefs().apple2cSmartPort->GetPort().SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
+        m_host.GetRefs().apple2cSmartPort->GetPort().SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetCpu()->GetCycleCounterPtr(), m_host.GetConfig().clockSpeed);
     }
 
     if (m_host.GetRefs().apple2cPlusDiskPort != nullptr)
     {
-        m_host.GetRefs().apple2cPlusDiskPort->GetPort().SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed);
+        m_host.GetRefs().apple2cPlusDiskPort->GetPort().SetHostClock (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetCpu()->GetCycleCounterPtr(), m_host.GetConfig().clockSpeed);
         m_host.SetAccelerator (std::make_unique<Apple2cPlusAccelerator> (m_host.GetCpu()->GetBusCyclePtr(), m_host.GetConfig().clockSpeed));
     }
 

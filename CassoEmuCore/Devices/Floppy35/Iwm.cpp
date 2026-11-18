@@ -741,7 +741,7 @@ void Iwm::UpdateEnables()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Iwm::SaveState (StateWriter & writer) const
+void Iwm::SaveState (StateWriter & writer, uint64_t nowNs) const
 {
     writer.WriteBool   (m_phases[0]);
     writer.WriteBool   (m_phases[1]);
@@ -764,7 +764,7 @@ void Iwm::SaveState (StateWriter & writer) const
     writer.WriteBool   (m_bufferFull);
     writer.WriteUInt32 (static_cast<uint32_t> (m_writeBits));
     writer.WriteBool   (m_underrun);
-    writer.WriteUInt64 (m_lastNs);
+    writer.WriteUInt64 (nowNs - m_lastNs);
     writer.WriteUInt64 (m_cellCarryNs);
     writer.WriteBool   (m_ism);
     writer.WriteByte   (m_ismHistory);
@@ -786,12 +786,13 @@ void Iwm::SaveState (StateWriter & writer) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Iwm::LoadState (StateReader & reader)
+HRESULT Iwm::LoadState (StateReader & reader, uint64_t nowNs)
 {
     HRESULT   hr          = S_OK;
     uint32_t  driveSelect = 0;
     uint32_t  writeBits   = 0;
     uint64_t  paramIndex  = 0;
+    uint64_t  lastNsAgo   = 0;
 
 
 
@@ -816,7 +817,7 @@ HRESULT Iwm::LoadState (StateReader & reader)
     reader.ReadBool   (m_bufferFull);
     reader.ReadUInt32 (writeBits);
     reader.ReadBool   (m_underrun);
-    reader.ReadUInt64 (m_lastNs);
+    reader.ReadUInt64 (lastNsAgo);
     reader.ReadUInt64 (m_cellCarryNs);
     reader.ReadBool   (m_ism);
     reader.ReadByte   (m_ismHistory);
@@ -834,6 +835,7 @@ HRESULT Iwm::LoadState (StateReader & reader)
     m_driveSelect = static_cast<int> (driveSelect);
     m_writeBits   = static_cast<int> (writeBits);
     m_paramIndex  = static_cast<size_t> (paramIndex);
+    m_lastNs      = nowNs - lastNsAgo;
 
 Error:
     return hr;

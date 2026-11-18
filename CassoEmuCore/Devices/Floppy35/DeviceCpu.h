@@ -99,9 +99,12 @@ public:
 
     //  The CPU's registers and its cycle and instruction counts, written
     //  into and read from the owner's state section. Its memory is the
-    //  owner's.
-    HRESULT  SaveState (StateWriter & writer) const;
-    HRESULT  LoadState (StateReader & reader);
+    //  owner's. The cycle count is saved as its distance behind nowCycle,
+    //  the owner's time in the CPU's cycles, so a CPU caught up to an idle
+    //  owner saves the same bytes each frame; the load takes the same time
+    //  back.
+    HRESULT  SaveState (StateWriter & writer, uint64_t nowCycle) const;
+    HRESULT  LoadState (StateReader & reader, uint64_t nowCycle);
 
 private:
     std::unique_ptr<MemoryBus>     m_bus;
