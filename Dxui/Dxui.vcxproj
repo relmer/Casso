@@ -280,7 +280,7 @@
     <ClCompile Include="Widgets\DxuiDockMenus.cpp" />
     <ClCompile Include="Widgets\DxuiDockMorph.cpp" />
     <ClCompile Include="Widgets\DxuiDockPanes.cpp" />
-    <ClCompile Include="Widgets\DxuiDockQuery.cpp" />
+    <ClCompile Include="Widgets\DxuiDockGroups.cpp" />
     <ClCompile Include="Window\DxuiCaptionDragTracker.cpp" />
     <ClCompile Include="Window\DxuiDockedWindow.cpp" />
     <ClCompile Include="Window\DxuiToolbarWindow.cpp" />
@@ -488,11 +488,10 @@
     <ClInclude Include="Widgets\DxuiDockMenus.h" />
     <ClInclude Include="Widgets\DxuiDockMorph.h" />
     <ClInclude Include="Widgets\DxuiDockPanes.h" />
-    <ClInclude Include="Widgets\DxuiDockQuery.h" />
+    <ClInclude Include="Widgets\DxuiDockGroups.h" />
     <ClInclude Include="Widgets\IDxuiDockDragHost.h" />
     <ClInclude Include="Widgets\IDxuiDockEdgesHost.h" />
     <ClInclude Include="Widgets\IDxuiDockMenuHost.h" />
-    <ClInclude Include="Widgets\IDxuiDockQueryHost.h" />
     <ClInclude Include="Window\DxuiCaptionDragTracker.h" />
     <ClInclude Include="Window\DxuiDockedWindow.h" />
     <ClInclude Include="Window\DxuiToolbarWindow.h" />

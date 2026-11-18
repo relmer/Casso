@@ -23,9 +23,9 @@
 
 DxuiDockSite::DxuiDockSite()
 {
-    m_slidGroup.SetKind    (DxuiTabGroup::Kind::ToolWindow);
-    m_slidGroup.SetVisible (false);
-    WireGroup (&m_slidGroup);
+    m_groups.GetSlid().SetKind    (DxuiTabGroup::Kind::ToolWindow);
+    m_groups.GetSlid().SetVisible (false);
+    WireGroup (&m_groups.GetSlid());
 }
 
 
@@ -43,10 +43,7 @@ void DxuiDockSite::SetNewTab (DxuiTabGroup::NewTabShownFn shown, DxuiTabGroup::N
     m_newTabShown = std::move (shown);
     m_newTab      = std::move (add);
 
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        group->SetNewTab (m_newTabShown, m_newTab);
-    }
+    m_groups.SetNewTab (m_newTabShown, m_newTab);
 }
 
 
@@ -85,12 +82,7 @@ void DxuiDockSite::SetTitle (const std::wstring & pane, const std::wstring & tit
         return;
     }
 
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        group->SetTitle (content, title);
-    }
-
-    m_slidGroup.SetTitle (content, title);
+    m_groups.SetTitle (content, title);
 
     //  A hidden pane's edge tab is as long as its title.
     if (m_layout.IsAutoHidden (pane))
@@ -196,21 +188,11 @@ void DxuiDockSite::Arrange()
     m_gaps.SetSplits (m_layout.ArrangeSplits (m_paneArea, m_shown, minSize));
     m_arranging = true;
 
-    while (m_groups.size() < groups.size())
-    {
-        m_groups.push_back (std::make_unique<DxuiTabGroup>());
-        WireGroup (m_groups.back().get());
-    }
-
-    while (m_groups.size() > groups.size())
-    {
-        m_retired.push_back (std::move (m_groups.back()));
-        m_groups.pop_back();
-    }
+    m_groups.SetCount (groups.size(), [this] (DxuiTabGroup * group) { WireGroup (group); });
 
     for (size_t i = 0; i < groups.size(); i++)
     {
-        DxuiTabGroup  * group    = m_groups[i].get();
+        DxuiTabGroup  * group    = m_groups.Get (i);
         int             active   = 0;
         bool            document = !m_isDocument;
         bool            focused  = false;
@@ -282,18 +264,18 @@ void DxuiDockSite::Arrange()
 
     slid = m_edges.GetSlidPane().empty() ? nullptr : m_panes.Find (m_edges.GetSlidPane());
 
-    while (m_slidGroup.GetTabCount() > 0)
+    while (m_groups.GetSlid().GetTabCount() > 0)
     {
-        m_slidGroup.RemoveTab (m_slidGroup.GetContent (0));
+        m_groups.GetSlid().RemoveTab (m_groups.GetSlid().GetContent (0));
     }
 
-    m_slidGroup.SetVisible (slid != nullptr && slid->content != nullptr);
+    m_groups.GetSlid().SetVisible (slid != nullptr && slid->content != nullptr);
 
-    if (m_slidGroup.IsVisible())
+    if (m_groups.GetSlid().IsVisible())
     {
-        m_slidGroup.AddTab         (slid->title, slid->content);
-        m_slidGroup.SetFocusedLook (m_edges.GetSlidPane() == m_focusedPane);
-        m_slidGroup.Layout         (m_edges.GetSlidRect(), m_scaler);
+        m_groups.GetSlid().AddTab         (slid->title, slid->content);
+        m_groups.GetSlid().SetFocusedLook (m_edges.GetSlidPane() == m_focusedPane);
+        m_groups.GetSlid().Layout         (m_edges.GetSlidRect(), m_scaler);
     }
 
     m_arranging = false;
@@ -593,12 +575,12 @@ void DxuiDockSite::SetOnClosePane (PaneFn fn, PaneTestFn canClose)
     m_onClosePane  = std::move (fn);
     m_canClosePane = std::move (canClose);
 
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups.GetAll())
     {
         WireGroup (group.get());
     }
 
-    WireGroup (&m_slidGroup);
+    WireGroup (&m_groups.GetSlid());
     Arrange();
 }
 
@@ -695,10 +677,7 @@ void DxuiDockSite::SetFocusedPane (const std::wstring & pane)
 
     m_focusedPane = pane;
 
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        group->SetFocusedLook (content != nullptr && group->IndexOf (content) >= 0);
-    }
+    m_groups.SetFocusedLook (content);
 
     if (!m_edges.GetSlidPane().empty() && m_edges.GetSlidPane() != pane)
     {
@@ -706,7 +685,7 @@ void DxuiDockSite::SetFocusedPane (const std::wstring & pane)
         return;
     }
 
-    m_slidGroup.SetFocusedLook (!m_edges.GetSlidPane().empty() && m_edges.GetSlidPane() == pane);
+    m_groups.GetSlid().SetFocusedLook (!m_edges.GetSlidPane().empty() && m_edges.GetSlidPane() == pane);
 }
 
 
@@ -769,7 +748,7 @@ void DxuiDockSite::SlideIn()
 
 void DxuiDockSite::PaintSlidUnder (IDxuiPainter & painter, const IDxuiTheme & theme)
 {
-    if (!m_slidGroup.IsVisible())
+    if (!m_groups.GetSlid().IsVisible())
     {
         return;
     }
@@ -794,13 +773,13 @@ void DxuiDockSite::PaintSlidUnder (IDxuiPainter & painter, const IDxuiTheme & th
 
 void DxuiDockSite::PaintSlidOver (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    if (!m_slidGroup.IsVisible())
+    if (!m_groups.GetSlid().IsVisible())
     {
         return;
     }
 
-    m_slidGroup.Paint      (painter, text, theme);
-    m_slidGroup.PaintFrame (painter, theme);
+    m_groups.GetSlid().Paint      (painter, text, theme);
+    m_groups.GetSlid().PaintFrame (painter, theme);
 }
 
 
@@ -861,12 +840,7 @@ void DxuiDockSite::SetIndicator (const std::wstring & pane, bool on)
         return;
     }
 
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        group->SetIndicator (content, on);
-    }
-
-    m_slidGroup.SetIndicator (content, on);
+    m_groups.SetIndicator (content, on);
 }
 
 
@@ -890,12 +864,7 @@ void DxuiDockSite::SetLeadingMark (const std::wstring & pane, const DxuiTabGroup
         return;
     }
 
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        group->SetLeadingMark (content, mark);
-    }
-
-    m_slidGroup.SetLeadingMark (content, mark);
+    m_groups.SetLeadingMark (content, mark);
 
     Relayout();
 }
@@ -939,12 +908,7 @@ void DxuiDockSite::SetTitleExtra (const std::wstring & pane, int widthDip)
         return;
     }
 
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        group->SetTitleExtra (content, widthDip);
-    }
-
-    m_slidGroup.SetTitleExtra (content, widthDip);
+    m_groups.SetTitleExtra (content, widthDip);
 }
 
 
@@ -975,7 +939,7 @@ bool DxuiDockSite::IsHitAt (POINT pointPx) const
         return true;
     }
 
-    return HitTestEdgeTab (pointPx) >= 0 || HitTestSash (pointPx) >= 0 || m_query.IsChromeAt (pointPx);
+    return HitTestEdgeTab (pointPx) >= 0 || HitTestSash (pointPx) >= 0 || m_groups.IsChromeAt (pointPx);
 }
 
 
@@ -1044,7 +1008,7 @@ std::wstring DxuiDockSite::GetPaneAt (POINT pointDip) const
         return m_edges.GetTabPane (tab);
     }
 
-    return m_query.GetGroupPaneAt (pointDip);
+    return m_groups.GetGroupPaneAt (pointDip);
 }
 
 
@@ -1238,12 +1202,7 @@ void DxuiDockSite::BeginGroupDrag (const std::vector<std::wstring> & panes, cons
 
 void DxuiDockSite::CancelDrag()
 {
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        group->CancelPress();
-    }
-
-    m_slidGroup.CancelPress();
+    m_groups.CancelPress();
     m_drag.Cancel();
 
     //  A sash moved as it was dragged, so it stays where it is.
@@ -1308,16 +1267,7 @@ void DxuiDockSite::OnDragMouseLost (bool isButtonDown)
 
 bool DxuiDockSite::HasPointerDrag() const
 {
-    bool  isTitlePressed = m_slidGroup.IsTitlePressed();
-
-
-
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        isTitlePressed = isTitlePressed || group->IsTitlePressed();
-    }
-
-    return (IsDragging() && m_drag.IsPointerDrag()) || m_sashDrag >= 0 || isTitlePressed;
+    return (IsDragging() && m_drag.IsPointerDrag()) || m_sashDrag >= 0 || m_groups.IsTitlePressed();
 }
 
 
@@ -1382,7 +1332,7 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
 
 
     //  Whatever handler retired these has returned by now.
-    m_retired.clear();
+    m_groups.ClearRetired();
 
     if (IsDragging())
     {
@@ -1396,14 +1346,14 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
         }
         else if (ev.kind == DxuiMouseEventKind::Up)
         {
-            for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+            for (const std::unique_ptr<DxuiTabGroup> & group : m_groups.GetAll())
             {
                 (void) group->OnMouse (ev);
             }
 
             //  The slid group, hidden as its title bar's drag began, still
             //  holds that press.
-            (void) m_slidGroup.OnMouse (ev);
+            (void) m_groups.GetSlid().OnMouse (ev);
             EndDrag (ev.positionDip);
         }
 
@@ -1468,13 +1418,13 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
     //  chrome it means nothing to the pane below, so it stops here either way.
     if (ev.kind == DxuiMouseEventKind::Wheel)
     {
-        if (m_slidGroup.IsVisible() && m_slidGroup.IsChromeAt (ev.positionDip))
+        if (m_groups.GetSlid().IsVisible() && m_groups.GetSlid().IsChromeAt (ev.positionDip))
         {
-            (void) m_slidGroup.OnMouse (ev);
+            (void) m_groups.GetSlid().OnMouse (ev);
             return true;
         }
 
-        for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+        for (const std::unique_ptr<DxuiTabGroup> & group : m_groups.GetAll())
         {
             if (group->IsVisible() && group->IsChromeAt (ev.positionDip) && !Contains (m_edges.GetSlidRect(), ev.positionDip))
             {
@@ -1485,9 +1435,9 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
     }
 
     //  The slid pane's title bar is the site's; its controls are the window's.
-    if (ev.kind == DxuiMouseEventKind::Down && m_slidGroup.IsVisible() && m_slidGroup.IsChromeAt (ev.positionDip))
+    if (ev.kind == DxuiMouseEventKind::Down && m_groups.GetSlid().IsVisible() && m_groups.GetSlid().IsChromeAt (ev.positionDip))
     {
-        (void) m_slidGroup.OnMouse (ev);
+        (void) m_groups.GetSlid().OnMouse (ev);
         return true;
     }
 
@@ -1500,7 +1450,7 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
             return true;
         }
 
-        for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+        for (const std::unique_ptr<DxuiTabGroup> & group : m_groups.GetAll())
         {
             if (group->IsChromeAt (ev.positionDip))
             {
@@ -1518,12 +1468,12 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
     {
         std::vector<DxuiTabGroup *>  groups;
 
-        for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+        for (const std::unique_ptr<DxuiTabGroup> & group : m_groups.GetAll())
         {
             groups.push_back (group.get());
         }
 
-        groups.push_back (&m_slidGroup);
+        groups.push_back (&m_groups.GetSlid());
 
         for (DxuiTabGroup * group : groups)
         {
@@ -1598,33 +1548,6 @@ void DxuiDockSite::RequestDragFloat (const std::wstring & pane, POINT pointDip)
     {
         m_onFloat (pane, pointDip);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetActivePanes
-//
-//  The active pane of each group, in the groups' order; empty for a group with
-//  no pane of the site's.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<std::wstring> DxuiDockSite::GetActivePanes() const
-{
-    std::vector<std::wstring>  panes;
-
-
-
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        panes.push_back (GetPaneOf (group->GetActiveContent()));
-    }
-
-    return panes;
 }
 
 
@@ -1711,11 +1634,7 @@ void DxuiDockSite::FloatGroupFromMenu (const std::vector<std::wstring> & panes, 
 void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     m_gaps.Paint (painter, theme, m_dockedArea, m_paneArea, m_scaler);
-
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        group->Paint (painter, text, theme);
-    }
+    m_groups.Paint (painter, text, theme);
 
     m_edges.Paint (painter, text, theme);
 }
@@ -1740,10 +1659,7 @@ void DxuiDockSite::PaintAfterSiblings (IDxuiPainter & painter, IDxuiTextRenderer
 {
     UNREFERENCED_PARAMETER (text);
 
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        group->PaintFrame (painter, theme);
-    }
+    m_groups.PaintFrames (painter, theme);
 }
 
 
