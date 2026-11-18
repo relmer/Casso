@@ -652,13 +652,12 @@ void ExplorerBootWorker::Run()
                 return;
             }
 
-            item      = m_queue.front();
-            isBusy    = m_isBusy;
-            m_working = true;
-
-            m_queue.pop_front();
+            isBusy = m_isBusy;
         }
 
+        //  The image stays in the queue until the emulator is free, so the
+        //  same path queued again meanwhile is found there and isn't booted
+        //  twice, and an image a connection writes meanwhile goes first.
         while (isBusy && isBusy())
         {
             std::unique_lock  lock (m_lock);
@@ -667,6 +666,20 @@ void ExplorerBootWorker::Run()
             {
                 return;
             }
+        }
+
+        {
+            std::lock_guard  lock (m_lock);
+
+            if (m_stop)
+            {
+                return;
+            }
+
+            item      = m_queue.front();
+            m_working = true;
+
+            m_queue.pop_front();
         }
 
         result        = Check (item.path, item.model);
