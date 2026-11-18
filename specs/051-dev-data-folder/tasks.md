@@ -92,15 +92,15 @@ Every user story depends on this phase.
 
 **Independent test**: The two acceptance scenarios in spec.md US4.
 
-- [ ] T029 [US4] Add cases to `UnitTest/EmuTests/MachineConfigUpgradeTests.cpp`: a lower stamp whose hash matches a known prior default returns `OverwriteSilent`; a lower stamp whose hash doesn't match returns `BackupAndReplace`.
-- [ ] T030 [US4] In `MachineConfigUpgrade::Plan` (`CassoEmuCore/Core/MachineConfigUpgrade.cpp`), send a lower positive stamp through the known-hash check in place of returning `OverwriteSilent`. Run T029 and confirm the second case fails without the change.
-- [ ] T031 [US4] Correct the decision table in the `Plan` header comment so a missing stamp or a stamp of zero goes through the hash check, and a lower stamp does too.
+- [x] T029 [US4] Add cases to `UnitTest/EmuTests/MachineConfigUpgradeTests.cpp`: a lower stamp whose hash matches a known prior default returns `OverwriteSilent`; a lower stamp whose hash doesn't match returns `BackupAndReplace`.
+- [x] T030 [US4] In `MachineConfigUpgrade::Plan` (`CassoEmuCore/Core/MachineConfigUpgrade.cpp`), send a lower positive stamp through the known-hash check in place of returning `OverwriteSilent`. Run T029 and confirm the second case fails without the change.
+- [x] T031 [US4] Correct the decision table in the `Plan` header comment so a missing stamp or a stamp of zero goes through the hash check, and a lower stamp does too.
 
 ---
 
 ## Phase 7: Polish and cross-cutting
 
-- [ ] T032 [P] Correct the `env` comment at `.github/workflows/ci.yml:220`: the release job fails an unsigned release at line 447.
+- [x] T032 [P] Correct the `env` comment at `.github/workflows/ci.yml:220`: the release job fails an unsigned release at line 447.
 - [ ] T033 [P] Document the data folder rules in `docs/testing.md`, the launch guidance in `.github/copilot-instructions.md` (Workspace Hygiene), and `CLAUDE.md` Hazards: where a developer build's data lives, that test launches don't require a prefs backup, and that a new worktree gets its ROMs from `scripts/FetchRoms.ps1`.
 - [ ] T034 Measure `PathResolver::GetDataFolder` per research.md R4 on Debug and Release, on a signed zip copy and on an unsigned build, and add the numbers to `specs/051-dev-data-folder/validation.md`. If Release is over 50 ms, report it to the owner before changing anything.
 - [ ] T035 Add a CHANGELOG entry under `[Unreleased]`, `### Changed`: developer builds store their settings in the checkout, and an older release starts over files a newer release wrote. Get the owner's approval of the text before pushing.

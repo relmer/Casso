@@ -228,11 +228,11 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  Plan — OverwriteSilent (stale stamp)
+    //  Plan — OverwriteSilent (stale stamp, known prior hash)
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (Plan_StaleStamp_OverwriteSilent)
+    TEST_METHOD (Plan_StaleStampKnownPrior_OverwriteSilent)
     {
         string                          hashHex;
         vector<MachineConfigPriorHash>  priors;
@@ -240,7 +240,7 @@ public:
 
 
         string  content = "{ \"$cassoDefault\": 1, \"name\": \"x\" }";
-        hashHex = MakeHashHex ('1');
+        hashHex = MakeHashHex ('a');
         priors = MakePriors();
         auto    action  = MachineConfigUpgrade::Plan (
             "Apple2", 3, MakeHashHex ('e'),
@@ -1057,36 +1057,35 @@ public:
     //
     //  Multi-version-jump chain (T140 / SC-003 / SC-007)
     //
-    //  Plan() is a pure integer comparison: any diskVersion strictly less
-    //  than embeddedVersion lands as OverwriteSilent (regardless of how
-    //  many schema bumps were skipped). These tests exercise that path
-    //  across multi-hop deltas to prove SC-003's "old user file gets
-    //  forward-migrated cleanly" promise holds without needing per-hop
+    //  Any diskVersion strictly less than embeddedVersion goes through the
+    //  known-hash check (regardless of how many schema bumps were skipped),
+    //  and an untouched extract lands as OverwriteSilent. These tests
+    //  exercise that path across multi-hop deltas, without needing per-hop
     //  migration code. The user-customization-preservation half of
     //  SC-007 lives in UserConfigStore's shadow/fallthrough merge tests
     //  -- this file only owns the upgrade-action half.
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (Plan_VersionJump_1To4_OverwriteSilent)
+    TEST_METHOD (Plan_VersionJump_1To4_KnownPrior_OverwriteSilent)
     {
         vector<MachineConfigPriorHash>  priors;
 
 
 
         // User file is stamped v1; embedded jumped to v4 (three schema
-        // bumps skipped). No backup needed because the file is a known
-        // extracted default carrying a current-form stamp.
+        // bumps skipped). No backup needed because the file matches a known
+        // extracted default.
         string                          content = "{\"$cassoMachineVersion\":1,\"speed\":\"2x\"}";
         priors = MakePriors();
         MachineConfigUpgradeAction      action  = MachineConfigUpgrade::Plan (
-            "Apple2e", 4, MakeHashHex ('e'), &content, "", priors);
+            "Apple2", 4, MakeHashHex ('e'), &content, MakeHashHex ('a'), priors);
 
         Assert::IsTrue (action == MachineConfigUpgradeAction::OverwriteSilent,
-            L"v1 -> v4 must OverwriteSilent (file is stamped, so user customizations live in a separate user JSON that survives independently)");
+            L"v1 -> v4 must OverwriteSilent when the file matches a known default");
     }
 
-    TEST_METHOD (Plan_VersionJump_LegacyKeyV1ToCurrentV5_OverwriteSilent)
+    TEST_METHOD (Plan_VersionJump_LegacyKeyV1ToCurrentV5_KnownPrior_OverwriteSilent)
     {
         vector<MachineConfigPriorHash>  priors;
 
@@ -1094,14 +1093,47 @@ public:
 
         // User file uses legacy $cassoDefault key at v1 and we've
         // shipped through v5 since. ParseStamp accepts the legacy
-        // key, so Plan still resolves to OverwriteSilent.
+        // key, so a file that matches a known default still resolves to
+        // OverwriteSilent.
         string                          content = "{\"$cassoDefault\":1,\"slots\":[]}";
         priors = MakePriors();
         MachineConfigUpgradeAction      action  = MachineConfigUpgrade::Plan (
-            "Apple2", 5, MakeHashHex ('e'), &content, "", priors);
+            "Apple2", 5, MakeHashHex ('e'), &content, MakeHashHex ('a'), priors);
 
         Assert::IsTrue (action == MachineConfigUpgradeAction::OverwriteSilent,
             L"legacy-keyed v1 file must still upgrade cleanly across multiple version bumps");
+    }
+
+    TEST_METHOD (Plan_LowerStampUnknownContent_BackupAndReplace)
+    {
+        vector<MachineConfigPriorHash>  priors;
+
+
+
+        // The stamp is lower, but the content matches no known default, so
+        // the file was edited and is renamed aside before it is replaced.
+        string                          content = "{\"$cassoMachineVersion\":1,\"speed\":\"2x\"}";
+        priors = MakePriors();
+        MachineConfigUpgradeAction      action  = MachineConfigUpgrade::Plan (
+            "Apple2", 4, MakeHashHex ('e'), &content, MakeHashHex ('9'), priors);
+
+        Assert::IsTrue (action == MachineConfigUpgradeAction::BackupAndReplace,
+            L"a lower stamp with content that matches no known default must back up first");
+    }
+
+    TEST_METHOD (Plan_LowerStampKnownPriorHash_OverwriteSilent)
+    {
+        vector<MachineConfigPriorHash>  priors;
+
+
+
+        string                          content = "{\"$cassoMachineVersion\":3,\"name\":\"x\"}";
+        priors = MakePriors();
+        MachineConfigUpgradeAction      action  = MachineConfigUpgrade::Plan (
+            "Apple2Plus", 4, MakeHashHex ('e'), &content, MakeHashHex ('b'), priors);
+
+        Assert::IsTrue (action == MachineConfigUpgradeAction::OverwriteSilent,
+            L"a lower stamp with content that matches a known default needs no backup");
     }
 
     TEST_METHOD (Plan_VersionJump_NewerThanEmbedded_Skip)
