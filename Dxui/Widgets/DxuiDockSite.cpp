@@ -6,9 +6,7 @@
 #include "Widgets/DxuiPaneFrame.h"
 #include "Core/DxuiEvents.h"
 #include "Core/DxuiTip.h"
-#include "Render/DxuiCoverageRaster.h"
 #include "Core/DxuiPaneMetrics.h"
-#include "Core/DxuiSystemSettings.h"
 
 
 
@@ -175,8 +173,8 @@ void DxuiDockSite::Arrange()
 {
     std::vector<DxuiPaneLayout::GroupRect>    groups;
     std::unordered_set<const IDxuiControl *>  placed;
-    long                                      margin  = m_scaler.ToPx (m_marginDip);
-    long                                      gap     = m_scaler.ToPx (m_gapDip);
+    long                                      margin  = m_scaler.ToPx (m_gaps.GetMarginDip());
+    long                                      gap     = m_scaler.ToPx (m_gaps.GetGapDip());
     DxuiPaneLayout::MinSizeFn                 minSize = GetMinSizeWithGap();
     auto                                      slid    = m_panes.end();
 
@@ -194,10 +192,10 @@ void DxuiDockSite::Arrange()
     m_paneArea.bottom = std::max (m_paneArea.bottom, m_paneArea.top);
 
     //  A slid-out pane lies over the docked panes, which keep their places.
-    ArrangeEdges (m_dockedArea, m_paneArea);
+    m_edges.Arrange (m_dockedArea, m_paneArea);
 
     groups      = m_layout.Arrange (m_paneArea, m_shown, minSize);
-    m_splits    = m_layout.ArrangeSplits (m_paneArea, m_shown, minSize);
+    m_gaps.SetSplits (m_layout.ArrangeSplits (m_paneArea, m_shown, minSize));
     m_arranging = true;
 
     while (m_groups.size() < groups.size())
@@ -283,7 +281,7 @@ void DxuiDockSite::Arrange()
         }
     }
 
-    slid = m_slidPane.empty() ? m_panes.end() : m_panes.find (m_slidPane);
+    slid = m_edges.GetSlidPane().empty() ? m_panes.end() : m_panes.find (m_edges.GetSlidPane());
 
     while (m_slidGroup.GetTabCount() > 0)
     {
@@ -295,19 +293,19 @@ void DxuiDockSite::Arrange()
     if (m_slidGroup.IsVisible())
     {
         m_slidGroup.AddTab         (slid->second.title, slid->second.content);
-        m_slidGroup.SetFocusedLook (m_slidPane == m_focusedPane);
-        m_slidGroup.Layout         (m_slidRect, m_scaler);
+        m_slidGroup.SetFocusedLook (m_edges.GetSlidPane() == m_focusedPane);
+        m_slidGroup.Layout         (m_edges.GetSlidRect(), m_scaler);
     }
 
     m_arranging = false;
 
-    if (m_slidNotified != m_slidPane)
+    if (m_slidNotified != m_edges.GetSlidPane())
     {
-        m_slidNotified = m_slidPane;
+        m_slidNotified = m_edges.GetSlidPane();
 
         if (m_onSlid)
         {
-            m_onSlid (m_slidPane);
+            m_onSlid (m_edges.GetSlidPane());
         }
     }
 }
@@ -359,7 +357,7 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
         if (!TearOff (group, pane, pointDip, true))
         {
             BeginDrag (pane);
-            m_pointerDrag = IsDragging();
+            m_drag.SetPointerDrag (IsDragging());
         }
     });
 
@@ -415,7 +413,7 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
         }
 
         BeginGroupDrag (panes, GetPaneOf (group->GetContent (index)));
-        m_pointerDrag = IsDragging();
+        m_drag.SetPointerDrag (IsDragging());
     });
 
     group->SetOnTitleButton ([this, group] (DxuiTabGroup::TitleButton button, int index, POINT pointDip)
@@ -484,7 +482,7 @@ void DxuiDockSite::OnTitleButton (DxuiTabGroup::TitleButton button, const std::w
 
         for (const MenuItem & item : GetDockToMenu (pane))
         {
-            if (item.label == kAutoHideLabel)
+            if (item.label == DxuiDockMenus::kAutoHideLabel)
             {
                 (void) item.action();
                 break;
@@ -554,7 +552,7 @@ bool DxuiDockSite::PinPane (const std::wstring & pane, DxuiDockSide edge)
 bool DxuiDockSite::UnpinPane (const std::wstring & pane)
 {
     bool  wasHidden = m_layout.IsAutoHidden (pane);
-    RECT  from      = !wasHidden ? RECT {} : (pane == m_slidPane) ? m_slidRect : GetEdgeTabRect (pane);
+    RECT  from      = !wasHidden ? RECT {} : (pane == m_edges.GetSlidPane()) ? m_edges.GetSlidRect() : GetEdgeTabRect (pane);
     bool  changed   = false;
 
 
@@ -579,115 +577,6 @@ bool DxuiDockSite::UnpinPane (const std::wstring & pane)
     }
 
     return changed;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetPaneTabRect
-//
-//  The pane's tab in its group's strip, or the whole group when the pane is
-//  alone in it; empty when the pane is not docked.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DxuiDockSite::GetPaneTabRect (const std::wstring & pane) const
-{
-    RECT  rect = {};
-
-
-
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        for (int i = 0; group->IsVisible() && i < (int) group->GetTabCount(); i++)
-        {
-            if (GetPaneOf (group->GetContent (i)) == pane)
-            {
-                rect = (group->GetTabCount() > 1) ? group->GetTabRect (i) : group->GetBounds();
-            }
-        }
-    }
-
-    return rect;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::StartMorph
-//
-//  Visual only: the layout is changed before this is called, and no state
-//  depends on the morph ending.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::StartMorph (const RECT & from, const RECT & to)
-{
-    bool     isAnimated = m_animations.has_value() ? *m_animations : DxuiSystemSettings::Instance().AreAnimationsEnabled();
-    int64_t  nowMs      = m_clock();
-
-
-
-    m_morph   = DxuiRectMorph::Start (from, to, nowMs, isAnimated);
-    m_morphOn = !m_morph.IsDone (nowMs);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::IsMorphing
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiDockSite::IsMorphing() const
-{
-    return m_morphOn && !m_morph.IsDone (m_clock());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetMorphRect
-//
-//  Where the morph's rect is now; empty when there is no morph.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DxuiDockSite::GetMorphRect() const
-{
-    return IsMorphing() ? m_morph.GetRect (m_clock()) : RECT {};
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::TickAnimation
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiDockSite::TickAnimation()
-{
-    bool  isDue = m_morphOn;
-
-
-
-    m_morphOn = IsMorphing();
-    return isDue;
 }
 
 
@@ -785,129 +674,6 @@ UINT DxuiDockSite::GetWindowCorners (const RECT & group) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockSite::ClassifyHit
-//
-//  In a floating window, a group's title bar off its buttons is the
-//  window's caption, so the system moves the window by it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiHitTestKind DxuiDockSite::ClassifyHit (POINT clientDip) const
-{
-    static constexpr DxuiTabGroup::TitleButton  kButtons[] = { DxuiTabGroup::TitleButton::Menu, DxuiTabGroup::TitleButton::Pin,
-                                                               DxuiTabGroup::TitleButton::Close };
-
-
-
-    if (m_onDock == nullptr)
-    {
-        return DxuiHitTestKind::Client;
-    }
-
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        if (!group->IsVisible() || !Contains (group->GetTitleRect(), clientDip))
-        {
-            continue;
-        }
-
-        for (DxuiTabGroup::TitleButton button : kButtons)
-        {
-            if (Contains (group->GetTitleButtonRect (button), clientDip))
-            {
-                return DxuiHitTestKind::Client;
-            }
-        }
-
-        //  A pane's own control in the title bar is pressed, not dragged.
-        if (Contains (group->GetTitleExtraRect(), clientDip))
-        {
-            return DxuiHitTestKind::Client;
-        }
-
-        return DxuiHitTestKind::Caption;
-    }
-
-    return DxuiHitTestKind::Client;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetTitleButtonTipAt
-//
-//  The pin's tip gives what pressing it does in OnTitleButton: docks the
-//  pane or hides it against its edge. A tab's pin and close button are its
-//  pane's title bar buttons.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DxuiDockSite::GetTitleButtonTipAt (POINT pointDip, RECT & button) const
-{
-    static constexpr DxuiTabGroup::TitleButton  kButtons[] = { DxuiTabGroup::TitleButton::Menu, DxuiTabGroup::TitleButton::Pin,
-                                                               DxuiTabGroup::TitleButton::Close };
-    auto                                        pinTip     = [this] (const std::wstring & pane)
-    {
-        return (m_onDock != nullptr || m_layout.IsAutoHidden (pane)) ? L"Dock" : L"Auto hide";
-    };
-
-
-
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        std::wstring               pane;
-        DxuiTabGroup::TitleButton  onTab = DxuiTabGroup::TitleButton::Close;
-        int                        index = -1;
-
-        if (group->IsVisible() && group->TryGetTabButtonAt (pointDip, onTab, index, button))
-        {
-            pane = GetPaneOf (group->GetContent (index));
-            return (onTab == DxuiTabGroup::TitleButton::Pin) ? pinTip (pane) : L"Close";
-        }
-
-        if (!group->IsVisible() || !Contains (group->GetTitleRect(), pointDip))
-        {
-            continue;
-        }
-
-        pane = GetPaneOf (group->GetActiveContent());
-
-        for (DxuiTabGroup::TitleButton kind : kButtons)
-        {
-            button = group->GetTitleButtonRect (kind);
-
-            if (!Contains (button, pointDip))
-            {
-                continue;
-            }
-
-            switch (kind)
-            {
-            case DxuiTabGroup::TitleButton::Menu:
-                return L"Window position";
-
-            case DxuiTabGroup::TitleButton::Pin:
-                return pinTip (pane);
-
-            case DxuiTabGroup::TitleButton::Close:
-                return L"Close";
-            }
-        }
-    }
-
-    button = {};
-    return std::wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiDockSite::SetFocusedPane
 //
 //  Only the looks change, so nothing is laid out again, unless the focus
@@ -935,229 +701,13 @@ void DxuiDockSite::SetFocusedPane (const std::wstring & pane)
         group->SetFocusedLook (found != m_panes.end() && group->IndexOf (found->second.content) >= 0);
     }
 
-    if (!m_slidPane.empty() && m_slidPane != pane)
+    if (!m_edges.GetSlidPane().empty() && m_edges.GetSlidPane() != pane)
     {
         SlideIn();
         return;
     }
 
-    m_slidGroup.SetFocusedLook (!m_slidPane.empty() && m_slidPane == pane);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::SetEdgeShare
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::SetEdgeShare (DxuiDockSide edge, long thickness, long start, long end)
-{
-    m_shareOn    = true;
-    m_shareEdge  = edge;
-    m_shareDepth = thickness;
-    m_shareStart = start;
-    m_shareEnd   = end;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::ClearEdgeShare
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::ClearEdgeShare()
-{
-    m_shareOn = false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetDockedArea
-//
-//  The site less a strip along each edge that holds an auto-hidden pane.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DxuiDockSite::GetDockedArea() const
-{
-    RECT  area     = m_boundsDip;
-    bool  used[4]  = {};
-    long  depth[4] = {};
-
-
-
-    for (const DxuiPaneLayout::AutoHidden & hidden : m_layout.GetAutoHidden())
-    {
-        if (!m_shown || m_shown (hidden.pane))
-        {
-            used[(size_t) hidden.edge] = true;
-        }
-    }
-
-    //  Every edge's strip is one tab high: along a side the tabs run down it,
-    //  their titles turned to read top to bottom.
-    //  A shared edge is as deep as the deeper of its tabs and what shares it.
-    for (size_t edge = 0; edge < 4; edge++)
-    {
-        depth[edge] = used[edge] ? m_scaler.ToPx (kEdgeStripDip) : 0;
-
-        if (m_shareOn && (size_t) m_shareEdge == edge)
-        {
-            depth[edge] = std::max (depth[edge], m_shareDepth);
-        }
-    }
-
-    area.left   += depth[(size_t) DxuiDockSide::Left];
-    area.top    += depth[(size_t) DxuiDockSide::Top];
-    area.right  -= depth[(size_t) DxuiDockSide::Right];
-    area.bottom -= depth[(size_t) DxuiDockSide::Bottom];
-
-    area.right  = std::max (area.right,  area.left);
-    area.bottom = std::max (area.bottom, area.top);
-
-    return area;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::ArrangeEdges
-//
-//  The edge tabs, in the order the panes were hidden, between the site's edge
-//  and the docked area, and the area a slid-out pane covers: a third of the
-//  pane area from its edge, and never less than it needs to be usable. The
-//  pane area is the docked area less its margin, so the slid-out pane lines
-//  up with the docked ones.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::ArrangeEdges (const RECT & dockedArea, const RECT & paneArea)
-{
-    long          along[4]  = { dockedArea.top, dockedArea.left, dockedArea.top, dockedArea.left };
-    long          minSlide  = m_scaler.ToPx (kSlideMinDip);
-    long          width     = paneArea.right - paneArea.left;
-    long          height    = paneArea.bottom - paneArea.top;
-    bool          slidFound = false;
-    DxuiDockSide  slidEdge  = DxuiDockSide::Left;
-
-
-
-    m_edgeTabs.clear();
-
-    for (const DxuiPaneLayout::AutoHidden & hidden : m_layout.GetAutoHidden())
-    {
-        EdgeTab  tab;
-        long     length = m_scaler.ToPx (2 * DxuiTabGroup::kTabPadDip + (int) GetTitle (hidden.pane).size() * DxuiTabGroup::kCharDip);
-        long   & at     = along[(size_t) hidden.edge];
-
-        if (m_shown && !m_shown (hidden.pane))
-        {
-            continue;
-        }
-
-        tab.pane = hidden.pane;
-        tab.edge = hidden.edge;
-
-        //  A tab that would run into the shared stretch goes on past it.
-        if (m_shareOn && hidden.edge == m_shareEdge && at < m_shareEnd && at + length > m_shareStart)
-        {
-            at = m_shareEnd;
-        }
-
-        switch (hidden.edge)
-        {
-        case DxuiDockSide::Left:   tab.rect = RECT { m_boundsDip.left,  at, dockedArea.left,   at + length };  at += length;  break;
-        case DxuiDockSide::Right:  tab.rect = RECT { dockedArea.right,  at, m_boundsDip.right, at + length };  at += length;  break;
-        case DxuiDockSide::Top:    tab.rect = RECT { at, m_boundsDip.top, at + length, dockedArea.top };       at += length;  break;
-        case DxuiDockSide::Bottom: tab.rect = RECT { at, dockedArea.bottom, at + length, m_boundsDip.bottom }; at += length;  break;
-        }
-
-        m_edgeTabs.push_back (tab);
-
-        if (tab.pane == m_slidPane)
-        {
-            slidFound = true;
-            slidEdge  = tab.edge;
-        }
-    }
-
-    if (!slidFound)
-    {
-        m_slidPane.clear();
-        m_slidRect = RECT {};
-        return;
-    }
-
-    m_slidEdge = slidEdge;
-
-    switch (slidEdge)
-    {
-    case DxuiDockSide::Left:   m_slidRect = RECT { paneArea.left, paneArea.top, paneArea.left + std::min (width, std::max (minSlide, width / 3)), paneArea.bottom };       break;
-    case DxuiDockSide::Right:  m_slidRect = RECT { paneArea.right - std::min (width, std::max (minSlide, width / 3)), paneArea.top, paneArea.right, paneArea.bottom };     break;
-    case DxuiDockSide::Top:    m_slidRect = RECT { paneArea.left, paneArea.top, paneArea.right, paneArea.top + std::min (height, std::max (minSlide, height / 3)) };       break;
-    case DxuiDockSide::Bottom: m_slidRect = RECT { paneArea.left, paneArea.bottom - std::min (height, std::max (minSlide, height / 3)), paneArea.right, paneArea.bottom }; break;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::HitTestEdgeTab
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiDockSite::HitTestEdgeTab (POINT pointDip) const
-{
-    for (size_t i = 0; i < m_edgeTabs.size(); i++)
-    {
-        if (Contains (m_edgeTabs[i].rect, pointDip))
-        {
-            return (int) i;
-        }
-    }
-
-    return -1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetEdgeTabRect
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DxuiDockSite::GetEdgeTabRect (const std::wstring & pane) const
-{
-    for (const EdgeTab & tab : m_edgeTabs)
-    {
-        if (tab.pane == pane)
-        {
-            return tab.rect;
-        }
-    }
-
-    return RECT {};
+    m_slidGroup.SetFocusedLook (!m_edges.GetSlidPane().empty() && m_edges.GetSlidPane() == pane);
 }
 
 
@@ -1184,7 +734,7 @@ void DxuiDockSite::SlideOut (const std::wstring & pane)
     }
 
     found->second.indicator = false;
-    m_slidPane              = pane;
+    m_edges.SetSlidPane (pane);
     Arrange();
 }
 
@@ -1200,99 +750,13 @@ void DxuiDockSite::SlideOut (const std::wstring & pane)
 
 void DxuiDockSite::SlideIn()
 {
-    if (m_slidPane.empty())
+    if (m_edges.GetSlidPane().empty())
     {
         return;
     }
 
-    m_slidPane.clear();
+    m_edges.ClearSlidPane();
     Arrange();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::PaintEdges
-//
-//  The edge strips and their tabs. The slid-out pane itself is drawn by
-//  PaintSlidUnder and PaintSlidOver.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::PaintEdges (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    DxuiFontHandle  font  = theme.BodyFont();
-    float           pad   = m_scaler.ToPxf ((float) DxuiTabGroup::kTabPadDip / 2);
-    float           bar   = m_scaler.ToPxf ((float) kEdgeBarDip);
-    float           inset = m_scaler.ToPxf ((float) kEdgeBarInsetDip);
-    HRESULT         hr    = S_OK;
-
-
-
-    //  As Visual Studio draws them: no box, only the title and a bar above
-    //  it, gray at rest and in the focus accent while the pointer is over the
-    //  tab or its pane is out.
-    for (const EdgeTab & tab : m_edgeTabs)
-    {
-        const RECT  & r        = tab.rect;
-        bool          lit      = (tab.pane == m_slidPane) || (tab.pane == m_hoverEdge);
-        auto          found    = m_panes.find (tab.pane);
-        bool          sideways = tab.edge == DxuiDockSide::Left || tab.edge == DxuiDockSide::Right;
-        float         cx       = (float) (r.left + r.right) / 2;
-        float         cy       = (float) (r.top + r.bottom) / 2;
-        float         along    = (float) (sideways ? r.bottom - r.top : r.right - r.left);
-        float         across   = (float) (sideways ? r.right - r.left : r.bottom - r.top);
-        uint32_t      barArgb  = lit ? theme.FocusAccent() : theme.Border();
-
-        painter.FillRect ((float) r.left, (float) r.top, (float) (r.right - r.left), (float) (r.bottom - r.top), theme.Background());
-
-        //  Against the window's outer edge, as Visual Studio draws it: left
-        //  of a tab on the left edge, below one on the bottom edge.
-        switch (tab.edge)
-        {
-        case DxuiDockSide::Left:
-            painter.FillRect ((float) r.left, (float) r.top + inset, bar, along - 2 * inset, barArgb);
-            break;
-
-        case DxuiDockSide::Right:
-            painter.FillRect ((float) r.right - bar, (float) r.top + inset, bar, along - 2 * inset, barArgb);
-            break;
-
-        case DxuiDockSide::Top:
-            painter.FillRect ((float) r.left + inset, (float) r.top, along - 2 * inset, bar, barArgb);
-            break;
-
-        case DxuiDockSide::Bottom:
-            painter.FillRect ((float) r.left + inset, (float) r.bottom - bar, along - 2 * inset, bar, barArgb);
-            break;
-        }
-
-        //  A side tab is laid out level about its center and turned a
-        //  quarter clockwise, so its title reads down the edge.
-        if (sideways)
-        {
-            text.PushTextRotation (90.0f, cx, cy);
-        }
-
-        hr = text.DrawString (GetTitle (tab.pane).c_str(), cx - along / 2 + pad, cy - across / 2,
-                              along - 2 * pad, across,
-                              lit ? theme.Foreground() : theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,
-                              DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        if (sideways)
-        {
-            text.PopTextRotation();
-        }
-
-        if (found != m_panes.end() && found->second.indicator)
-        {
-            painter.FillCircle ((float) r.right - pad, (float) r.top + pad, m_scaler.ToPxf (3.0f), theme.Accent());
-        }
-    }
 }
 
 
@@ -1315,8 +779,8 @@ void DxuiDockSite::PaintSlidUnder (IDxuiPainter & painter, const IDxuiTheme & th
         return;
     }
 
-    painter.FillRect ((float) m_slidRect.left, (float) m_slidRect.top, (float) (m_slidRect.right - m_slidRect.left),
-                      (float) (m_slidRect.bottom - m_slidRect.top), theme.ContentBackground());
+    painter.FillRect ((float) m_edges.GetSlidRect().left, (float) m_edges.GetSlidRect().top, (float) (m_edges.GetSlidRect().right - m_edges.GetSlidRect().left),
+                      (float) (m_edges.GetSlidRect().bottom - m_edges.GetSlidRect().top), theme.ContentBackground());
 }
 
 
@@ -1507,41 +971,6 @@ void DxuiDockSite::SetTitleExtra (const std::wstring & pane, int widthDip)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockSite::TryGetTitleExtraRect
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiDockSite::TryGetTitleExtraRect (const std::wstring & pane, RECT & rect) const
-{
-    auto  found = m_panes.find (pane);
-
-
-
-    rect = {};
-
-    if (found == m_panes.end() || found->second.content == nullptr)
-    {
-        return false;
-    }
-
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        if (group->IsVisible() && group->GetActiveContent() == found->second.content)
-        {
-            rect = group->GetTitleExtraRect();
-            break;
-        }
-    }
-
-    return rect.right > rect.left;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiDockSite::IsHitAt
 //
 //  The site lies over the whole of its panes, but only its chrome is under
@@ -1559,25 +988,12 @@ bool DxuiDockSite::IsHitAt (POINT pointPx) const
         return false;
     }
 
-    if (!m_slidPane.empty() && Contains (m_slidRect, pointPx))
+    if (!m_edges.GetSlidPane().empty() && Contains (m_edges.GetSlidRect(), pointPx))
     {
         return true;
     }
 
-    if (HitTestEdgeTab (pointPx) >= 0 || HitTestSash (pointPx) >= 0)
-    {
-        return true;
-    }
-
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        if (group != nullptr && group->IsVisible() && (Contains (group->GetTitleRect(), pointPx) || Contains (group->GetStripRect(), pointPx)))
-        {
-            return true;
-        }
-    }
-
-    return false;
+    return HitTestEdgeTab (pointPx) >= 0 || HitTestSash (pointPx) >= 0 || m_query.IsChromeAt (pointPx);
 }
 
 
@@ -1618,43 +1034,6 @@ bool DxuiDockSite::TryGetTip (POINT pointPx, DxuiTip & tip) const
     tip.text   = text;
     tip.anchor = rect;
     return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetTabAt
-//
-//  Over a tab's pin or close button the tab gives no tip of its own; the
-//  button's is GetTitleButtonTipAt's.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DxuiDockSite::GetTabAt (POINT pointDip, RECT & tab, std::wstring & tip) const
-{
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        int  index = group->IsVisible() ? group->HitTestTab (pointDip) : -1;
-
-        if (index >= 0)
-        {
-            std::wstring               pane     = GetPaneOf (group->GetContent (index));
-            auto                       found    = m_panes.find (pane);
-            DxuiTabGroup::TitleButton  button   = DxuiTabGroup::TitleButton::Close;
-            int                        onButton = -1;
-            RECT                       rect     = {};
-            bool                       isButton = group->TryGetTabButtonAt (pointDip, button, onButton, rect);
-
-            tab = group->GetTabRect (index);
-            tip = (found != m_panes.end() && !isButton) ? found->second.tip : std::wstring();
-            return pane;
-        }
-    }
-
-    return {};
 }
 
 
@@ -1705,37 +1084,6 @@ IDxuiControl * DxuiDockSite::GetPaneContent (const std::wstring & pane) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockSite::GetTabNeighbor
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DxuiDockSite::GetTabNeighbor (const std::wstring & pane) const
-{
-    IDxuiControl  * content = GetPaneContent (pane);
-
-
-
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        int  index = (content != nullptr && group->IsVisible()) ? group->IndexOf (content) : -1;
-
-
-
-        if (index >= 0 && group->GetTabCount() > 1)
-        {
-            return GetPaneOf (group->GetContent ((index + 1 < (int) group->GetTabCount()) ? index + 1 : index - 1));
-        }
-    }
-
-    return std::wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiDockSite::GetPaneAt
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1746,31 +1094,17 @@ std::wstring DxuiDockSite::GetPaneAt (POINT pointDip) const
 
 
 
-    if (!m_slidPane.empty() && Contains (m_slidRect, pointDip))
+    if (!m_edges.GetSlidPane().empty() && Contains (m_edges.GetSlidRect(), pointDip))
     {
-        return m_slidPane;
+        return m_edges.GetSlidPane();
     }
 
     if (tab >= 0)
     {
-        return m_edgeTabs[(size_t) tab].pane;
+        return m_edges.GetTabPane (tab);
     }
 
-    //  Over a tab, the tab's pane, so a right click on a tab that isn't active
-    //  targets that tab.
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        int  index = group->IsVisible() ? group->HitTestTab (pointDip) : -1;
-
-
-
-        if (Contains (group->GetBounds(), pointDip))
-        {
-            return GetPaneOf ((index >= 0) ? group->GetContent (index) : group->GetActiveContent());
-        }
-    }
-
-    return std::wstring();
+    return m_query.GetGroupPaneAt (pointDip);
 }
 
 
@@ -1790,214 +1124,6 @@ std::wstring DxuiDockSite::GetTitle (const std::wstring & pane) const
 
 
     return (found != m_panes.end()) ? found->second.title : pane;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetDockToMenu
-//
-//  Against each edge of the site, into each other shown group, and out into
-//  a window of its own; or back, for a pane that is floating or hidden.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetDockToMenu (const std::wstring & pane)
-{
-    static constexpr DxuiDockSide  kSides[]    = { DxuiDockSide::Left, DxuiDockSide::Top, DxuiDockSide::Right, DxuiDockSide::Bottom };
-    static const wchar_t * const   kNames[]    = { L"Dock left", L"Dock top", L"Dock right", L"Dock bottom" };
-    std::vector<MenuItem>          items;
-    std::vector<std::wstring>      mine        = m_layout.GetGroup (pane);
-    auto                           commit      = [this] (bool changed)
-    {
-        if (changed)
-        {
-            Arrange();
-            NotifyChanged();
-        }
-
-        return changed;
-    };
-
-
-
-    if (!m_layout.Contains (pane))
-    {
-        return items;
-    }
-
-    if (!m_layout.IsDocked (pane))
-    {
-        items.push_back ({ L"Dock", [this, pane] { return UnpinPane (pane); } });
-        return items;
-    }
-
-    for (size_t i = 0; i < std::size (kSides); i++)
-    {
-        DxuiDockSide  side = kSides[i];
-
-        items.push_back ({ kNames[i], [this, pane, side, commit] { return commit (m_layout.DockToEdge (pane, side)); } });
-    }
-
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        std::wstring  target = GetPaneOf (group->GetActiveContent());
-
-        if (target.empty() || std::find (mine.begin(), mine.end(), target) != mine.end())
-        {
-            continue;
-        }
-
-        items.push_back ({ L"Tab with " + GetTitle (target),
-                           [this, pane, target, commit] { return commit (m_layout.TabWith (pane, target)); } });
-    }
-
-    for (const DxuiPaneLayout::GroupRect & group : m_layout.Arrange (GetDockedArea(), m_shown, m_minSize))
-    {
-        RECT          area  = GetDockedArea();
-        long          gaps[] = { group.rect.left - area.left, group.rect.top - area.top,
-                                 area.right - group.rect.right, area.bottom - group.rect.bottom };
-        size_t        nearest = 0;
-
-        if (std::find (group.panes.begin(), group.panes.end(), pane) == group.panes.end())
-        {
-            continue;
-        }
-
-        //  Against the edge the pane's group lies nearest. Between a side and
-        //  the top or bottom it touches, a group no wider than half the
-        //  window is in a side bar and hides to its side; a wider one hides
-        //  to the top or bottom. So the top of the right-hand column hides
-        //  right, and the memory row under the code hides to the bottom.
-        bool   sideBar = 2 * (group.rect.right - group.rect.left) <= (area.right - area.left);
-
-        for (size_t i = 1; i < std::size (gaps); i++)
-        {
-            bool  sideways = (i % 2) == 0;
-
-            nearest = (gaps[i] < gaps[nearest] || (gaps[i] == gaps[nearest] && sideways == sideBar)) ? i : nearest;
-        }
-
-        items.push_back ({ kAutoHideLabel, [this, pane, nearest] { return PinPane (pane, kSides[nearest]); } });
-    }
-
-    if (m_onFloat)
-    {
-        items.push_back ({ L"Float", [this, pane]
-        {
-            RECT  area = m_boundsDip;
-
-            m_onFloat (pane, POINT { (area.left + area.right) / 2, (area.top + area.bottom) / 2 });
-            return true;
-        } });
-    }
-
-    return items;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetPaneMenu
-//
-//  Dock returns a floating or hidden pane to its place. Dock in tab group
-//  tabs a tool window in with the documents. Auto hide pins the pane to the
-//  edge its pin would. Move to new window floats the pane; All to new
-//  window floats its whole group in one window, and the group's selected tab
-//  is selected in the window. Close is the application's.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<DxuiDockSite::MenuItem> DxuiDockSite::GetPaneMenu (const std::wstring & pane, bool fromTab)
-{
-    std::vector<MenuItem>      items;
-    std::vector<MenuItem>      dockTo     = GetDockToMenu (pane);
-    std::vector<std::wstring>  mine       = m_layout.GetGroup (pane);
-    bool                       docked     = m_layout.IsDocked (pane);
-    bool                       canFloat   = docked && m_onFloat != nullptr && !IsFloatingSite();
-    bool                       canClose   = m_onClosePane && (!m_canClosePane || m_canClosePane (pane));
-    std::wstring               documents;
-    MenuItem                   autoHide   = { kAutoHideLabel, nullptr, false };
-    MenuItem                   dock       = { L"Dock", nullptr, false };
-    auto                       commit     = [this] (bool changed)
-    {
-        if (changed)
-        {
-            Arrange();
-            NotifyChanged();
-        }
-
-        return changed;
-    };
-    auto                       floatPane  = [this, pane]
-    {
-        RECT  area = m_boundsDip;
-
-        m_onFloat (pane, POINT { (area.left + area.right) / 2, (area.top + area.bottom) / 2 });
-        return true;
-    };
-    std::wstring               active     = pane;
-
-
-
-    if (!m_layout.Contains (pane))
-    {
-        return items;
-    }
-
-    for (const MenuItem & item : dockTo)
-    {
-        autoHide = (item.label == kAutoHideLabel) ? item : autoHide;
-        dock     = (!docked && item.label == L"Dock") ? item : dock;
-    }
-
-    //  The documents' group, when this pane is a tool window outside it.
-    for (const DxuiPaneLayout::GroupRect & group : m_layout.Arrange (GetDockedArea(), m_shown, m_minSize))
-    {
-        bool  holdsDocument = m_isDocument && std::any_of (group.panes.begin(), group.panes.end(), m_isDocument);
-        bool  holdsMe       = std::find (group.panes.begin(), group.panes.end(), pane) != group.panes.end();
-
-        documents = (documents.empty() && holdsDocument && !holdsMe) ? group.active : documents;
-        active    = holdsMe ? group.active : active;
-    }
-
-    documents = (m_isDocument && !m_isDocument (pane)) ? documents : std::wstring();
-
-    items.push_back ({ L"Dock", dock.action, dock.action != nullptr });
-    items.push_back ({ L"Dock in tab group", [this, pane, documents, commit] { return commit (m_layout.TabWith (pane, documents)); },
-                       !documents.empty() && !IsFloatingSite() });
-    items.push_back ({ kAutoHideLabel, autoHide.action, autoHide.action != nullptr });
-
-    if (fromTab)
-    {
-        items.push_back ({ L"Move to new window", floatPane, canFloat });
-    }
-
-    if (mine.size() > 1 && m_onFloatGroup)
-    {
-        items.push_back ({ L"All to new window", [this, mine, active]
-        {
-            RECT  area = m_boundsDip;
-
-            m_onFloatGroup (mine, active, POINT { (area.left + area.right) / 2, (area.top + area.bottom) / 2 });
-            return true;
-        }, canFloat });
-    }
-    else
-    {
-        items.push_back ({ L"All to new window", floatPane, canFloat && mine.size() == 1 });
-    }
-
-    items.push_back ({ L"", nullptr, false });
-    items.push_back ({ L"Close", [this, pane] { m_onClosePane (pane); return true; }, canClose, L"Shift+Esc" });
-
-    return items;
 }
 
 
@@ -2052,31 +1178,6 @@ void DxuiDockSite::SetCarriedPane (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockSite::GetCarriedTabRect
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DxuiDockSite::GetCarriedTabRect() const
-{
-    DxuiTabGroup  * group = m_carriedPane.empty() ? nullptr : FindGroupOf (m_carriedPane);
-    auto            found = m_panes.find (m_carriedPane);
-
-
-
-    if (group == nullptr || found == m_panes.end())
-    {
-        return RECT {};
-    }
-
-    return group->GetTabRect (group->IndexOf (found->second.content));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DxuiDockSite::IsDocumentGroup
 //
 //  As Arrange decides a group's kind: with no predicate every group is a
@@ -2096,87 +1197,6 @@ bool DxuiDockSite::IsDocumentGroup (const std::vector<std::wstring> & panes) con
     }
 
     return document && m_onDock == nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::FindGroupOf
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiTabGroup * DxuiDockSite::FindGroupOf (const std::wstring & pane) const
-{
-    auto            found = m_panes.find (pane);
-    DxuiTabGroup  * group = nullptr;
-
-
-
-    if (found == m_panes.end() || found->second.content == nullptr)
-    {
-        return nullptr;
-    }
-
-    for (const std::unique_ptr<DxuiTabGroup> & candidate : m_groups)
-    {
-        group = (group == nullptr && candidate->IndexOf (found->second.content) >= 0) ? candidate.get() : group;
-    }
-
-    return group;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetOutlineStrips
-//
-//  The filled rectangles that draw an outlined mark: four strips along the
-//  inside of its rectangle, or for a dotted one a square dot every other
-//  dot's width along each side.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<RECT> DxuiDockSite::GetOutlineStrips (const DxuiDockDragMark & mark)
-{
-    const RECT &       r = mark.rect;
-    long               t = mark.outlinePx;
-    std::vector<RECT>  strips;
-
-
-
-    if (t <= 0)
-    {
-        return strips;
-    }
-
-    if (!mark.dotted)
-    {
-        strips.push_back (RECT { r.left,      r.top,        r.right,    r.top + t    });
-        strips.push_back (RECT { r.left,      r.bottom - t, r.right,    r.bottom     });
-        strips.push_back (RECT { r.left,      r.top + t,    r.left + t, r.bottom - t });
-        strips.push_back (RECT { r.right - t, r.top + t,    r.right,    r.bottom - t });
-        return strips;
-    }
-
-    for (long x = r.left; x + t <= r.right; x += 2 * t)
-    {
-        strips.push_back (RECT { x, r.top,        x + t, r.top + t });
-        strips.push_back (RECT { x, r.bottom - t, x + t, r.bottom  });
-    }
-
-    for (long y = r.top + 2 * t; y + t <= r.bottom - t; y += 2 * t)
-    {
-        strips.push_back (RECT { r.left,      y, r.left + t, y + t });
-        strips.push_back (RECT { r.right - t, y, r.right,    y + t });
-    }
-
-    return strips;
 }
 
 
@@ -2206,46 +1226,14 @@ bool DxuiDockSite::TearOff (DxuiTabGroup * group, const std::wstring & pane, POI
 
     group->CancelPress();
 
-    if (pane == m_slidPane)
+    if (pane == m_edges.GetSlidPane())
     {
-        m_slidPane.clear();
+        m_edges.ClearSlidPane();
         Arrange();
     }
 
     m_onTearOff (pane, pointDip);
     return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::TryGetPaneGroupRect
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiDockSite::TryGetPaneGroupRect (const std::wstring & pane, RECT & rect) const
-{
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        if (!group->IsVisible())
-        {
-            continue;
-        }
-
-        for (int i = 0; i < (int) group->GetTabCount(); i++)
-        {
-            if (GetPaneOf (group->GetContent (i)) == pane)
-            {
-                rect = group->GetBounds();
-                return rect.right > rect.left && rect.bottom > rect.top;
-            }
-        }
-    }
-
-    return false;
 }
 
 
@@ -2272,9 +1260,9 @@ bool DxuiDockSite::TearOffGroup (DxuiTabGroup * group, const std::vector<std::ws
 
     group->CancelPress();
 
-    if (std::ranges::find (panes, m_slidPane) != panes.end())
+    if (std::ranges::find (panes, m_edges.GetSlidPane()) != panes.end())
     {
-        m_slidPane.clear();
+        m_edges.ClearSlidPane();
         Arrange();
     }
 
@@ -2305,367 +1293,11 @@ void DxuiDockSite::BeginDrag (const std::wstring & pane)
 //
 //  DxuiDockSite::BeginGroupDrag
 //
-//  A group dragged whole offers no zone on itself, since every drop there
-//  would put it back where it is. The edge guides lie along the docked
-//  area, the margin around the panes included, and each target's shade is
-//  worked out now, while the layout is as the drag found it.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDockSite::BeginGroupDrag (const std::vector<std::wstring> & panes, const std::wstring & active)
 {
-    std::vector<DxuiPaneLayout::GroupRect>  groups;
-    long                                    gap     = m_scaler.ToPx (m_gapDip);
-    auto                                    dragged = [&panes] (const std::wstring & pane)
-    {
-        return std::find (panes.begin(), panes.end(), pane) != panes.end();
-    };
-
-
-
-    if (active.empty() || !dragged (active))
-    {
-        return;
-    }
-
-    //  A slid-out pane slides back as its drag starts, so the drop zones
-    //  beneath it show; it stays hidden against its edge unless dropped.
-    if (active == m_slidPane)
-    {
-        m_slidPane.clear();
-        Arrange();
-    }
-
-    //  The groups as Arrange lays them out, each less its share of the gaps,
-    //  so a group's cross sits on the middle of the pane as it is drawn.
-    groups = m_layout.Arrange (GetPaneArea(), m_shown, GetMinSizeWithGap());
-
-    for (DxuiPaneLayout::GroupRect & group : groups)
-    {
-        group.rect = GetInsetForGap (group.rect, GetPaneArea(), gap);
-    }
-
-    m_dragPane     = active;
-    m_dragPanes    = panes;
-    m_zones        = DxuiDockDropZones::Build (groups, GetDockedArea(), active, m_scaler,
-                                               [this] (const DxuiPaneLayout::GroupRect & group) { return IsDocumentGroup (group.panes); });
-    m_hoverZone    = -1;
-    m_compassGroup = -1;
-    m_pointerDrag  = false;
-
-    if (panes.size() > 1)
-    {
-        std::erase_if (m_zones, [&] (const DxuiDockDropZone & zone) { return dragged (zone.targetPane); });
-    }
-
-    for (DxuiDockDropZone & zone : m_zones)
-    {
-        SetDropPreview (zone);
-    }
-
-    ClearStripTarget();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::UpdateStripTarget
-//
-//  The group whose tabs or title bar lie under the pointer takes the drop,
-//  opening a gap where it would land. A group the drag would leave as it is
-//  -- the dragged group itself, or a pane's own group of one -- takes none.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::UpdateStripTarget (POINT pointDip)
-{
-    int  found = -1;
-    int  index = -1;
-
-
-
-    for (size_t i = 0; i < m_groups.size() && found < 0; i++)
-    {
-        DxuiTabGroup  * group  = m_groups[i].get();
-        size_t          inside = 0;
-
-        if (!group->IsVisible() || !group->IsChromeAt (pointDip))
-        {
-            continue;
-        }
-
-        for (int t = 0; t < (int) group->GetTabCount(); t++)
-        {
-            inside += std::find (m_dragPanes.begin(), m_dragPanes.end(), GetPaneOf (group->GetContent (t))) != m_dragPanes.end() ? 1 : 0;
-        }
-
-        if (inside == group->GetTabCount() || (inside > 0 && m_dragPanes.size() > 1))
-        {
-            break;
-        }
-
-        found = (int) i;
-        index = group->GetInsertIndexAt (pointDip);
-    }
-
-    if (found == m_stripGroup && index == m_stripIndex)
-    {
-        return;
-    }
-
-    ClearStripTarget();
-    m_stripGroup = found;
-    m_stripIndex = index;
-
-    if (found >= 0)
-    {
-        m_groups[(size_t) found]->SetInsertGap (index, m_scaler.ToPx (kInsertGapDip));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::ClearStripTarget
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::ClearStripTarget()
-{
-    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
-    {
-        group->SetInsertGap (-1, 0);
-    }
-
-    m_stripGroup = -1;
-    m_stripIndex = -1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::DropOnStrip
-//
-//  The dragged panes go into the group ahead of the tab at `index`, in their
-//  order, and the pane dragged is made the active tab. `index` counts the
-//  visible tabs, while the layout's group also has the hidden panes, so the
-//  drop goes ahead of that tab's pane, or after the last tab's, wherever it
-//  is in the whole group.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiDockSite::DropOnStrip (int group, int index)
-{
-    DxuiTabGroup               * target  = (group >= 0 && group < (int) m_groups.size()) ? m_groups[(size_t) group].get() : nullptr;
-    std::wstring                 anchor;
-    std::wstring                 edge;
-    std::vector<std::wstring>    panes;
-    bool                         changed = false;
-    int                          tabs    = 0;
-    int                          at      = 0;
-
-
-
-    if (target == nullptr)
-    {
-        return false;
-    }
-
-    for (int t = 0; t < (int) target->GetTabCount() && anchor.empty(); t++)
-    {
-        std::wstring  pane = GetPaneOf (target->GetContent (t));
-
-        if (std::find (m_dragPanes.begin(), m_dragPanes.end(), pane) == m_dragPanes.end())
-        {
-            anchor = pane;
-        }
-    }
-
-    if (anchor.empty())
-    {
-        return false;
-    }
-
-    tabs  = (int) target->GetTabCount();
-    edge  = GetPaneOf (target->GetContent (std::clamp (index, 0, tabs - 1)));
-    panes = m_layout.GetGroup (anchor);
-    at    = (int) (std::find (panes.begin(), panes.end(), edge) - panes.begin()) + ((index >= tabs) ? 1 : 0);
-
-    for (const std::wstring & pane : m_dragPanes)
-    {
-        changed = m_layout.TabWithAt (pane, anchor, at) || changed;
-        panes   = m_layout.GetGroup (anchor);
-        at      = (int) (std::find (panes.begin(), panes.end(), pane) - panes.begin()) + 1;
-    }
-
-    return m_layout.Activate (m_dragPane) || changed;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::DropOnZone
-//
-//  The zone's operation moves the first pane; the rest follow it into its
-//  new group, in order. A drop is made on the site's own layout, and on a
-//  copy of it to see where the panes would go.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiDockSite::DropOnZone (
-    const DxuiDockDropZone  & zone,
-    DxuiPaneLayout          & layout) const
-{
-    std::vector<std::wstring>  panes;
-    int                        at      = 0;
-
-
-
-    if (m_dragPanes.empty() || !DxuiDockDropZones::Apply (zone, layout, m_dragPanes.front(),
-                                                                  [this] (const std::vector<std::wstring> & panes) { return IsDocumentGroup (panes); }))
-    {
-        return false;
-    }
-
-    for (size_t i = 1; i < m_dragPanes.size(); i++)
-    {
-        panes   = layout.GetGroup (m_dragPanes.front());
-        at      = (int) (std::find (panes.begin(), panes.end(), m_dragPanes[i - 1]) - panes.begin()) + 1;
-        (void) layout.TabWithAt (m_dragPanes[i], m_dragPanes.front(), at);
-    }
-
-    (void) layout.Activate (m_dragPane);
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::SetDropPreview
-//
-//  What a target shades while the pointer is on it: what the drop would give
-//  the dragged panes, as Visual Studio shows it. A tab drop is the target
-//  group with its new tab (SetTabDropPreview). Any other drop is the group
-//  the panes would form, as the layout would lay it out with the drop made,
-//  less its share of the gaps; a window edge's also reaches over the margin
-//  to the docked area's edges. A drop the layout cannot make keeps the shade
-//  DxuiDockDropZones gave it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::SetDropPreview (DxuiDockDropZone & zone) const
-{
-    DxuiPaneLayout                          layout = m_layout;
-    std::vector<DxuiPaneLayout::GroupRect>  groups;
-    RECT                                    area   = GetPaneArea();
-    RECT                                    docked = GetDockedArea();
-    long                                    gap    = m_scaler.ToPx (m_gapDip);
-    bool                                    isEdge = zone.kind == DxuiDockDropZone::Kind::Edge;
-
-
-
-    if (zone.kind == DxuiDockDropZone::Kind::Tab)
-    {
-        SetTabDropPreview (zone);
-        return;
-    }
-
-    if (!DropOnZone (zone, layout))
-    {
-        return;
-    }
-
-    groups = layout.Arrange (area, m_shown, GetMinSizeWithGap());
-
-    for (const DxuiPaneLayout::GroupRect & group : groups)
-    {
-        const RECT  & r = group.rect;
-
-        if (std::find (group.panes.begin(), group.panes.end(), m_dragPanes.front()) == group.panes.end())
-        {
-            continue;
-        }
-
-        zone.preview = GetInsetForGap (r, area, gap);
-
-        if (isEdge)
-        {
-            zone.preview.left   = (r.left   <= area.left)   ? docked.left   : zone.preview.left;
-            zone.preview.top    = (r.top    <= area.top)    ? docked.top    : zone.preview.top;
-            zone.preview.right  = (r.right  >= area.right)  ? docked.right  : zone.preview.right;
-            zone.preview.bottom = (r.bottom >= area.bottom) ? docked.bottom : zone.preview.bottom;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::SetTabDropPreview
-//
-//  A tab drop's shade, as Visual Studio draws it: the target pane up to its
-//  tabs, short of the line between them, and a tab kPreviewTabDip wide at
-//  the start of the band, over the band and that line. The rows are where a
-//  group of the target's kind puts its tabs, so a tool window showing no
-//  tabs yet shows the strip the drop gives it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::SetTabDropPreview (DxuiDockDropZone & zone) const
-{
-    const DxuiTabGroup  * target = FindGroupOf (zone.targetPane);
-    DxuiTabGroup          probe;
-    RECT                  pane   = {};
-    RECT                  band   = {};
-    long                  line   = DxuiPaneMetrics::GetLinePx (m_scaler);
-    long                  tabEnd = 0;
-    long                  edge   = 0;
-
-
-
-    if (target == nullptr)
-    {
-        return;
-    }
-
-    pane   = target->GetBounds();
-    tabEnd = std::min (pane.right, pane.left + (long) m_scaler.ToPx (kPreviewTabDip));
-
-    probe.SetKind        (target->GetKind());
-    probe.SetStripForced (true);
-    probe.Layout         (pane, m_scaler);
-    band = probe.GetStripRect();
-
-    if (target->GetKind() == DxuiTabGroup::Kind::Document)
-    {
-        edge            = std::min (pane.bottom, band.bottom + line);
-        zone.preview    = RECT { pane.left, edge,     pane.right, pane.bottom };
-        zone.previewTab = RECT { pane.left, pane.top, tabEnd,     edge        };
-    }
-    else
-    {
-        edge            = std::max (pane.top, band.top - line);
-        zone.preview    = RECT { pane.left, pane.top, pane.right, edge        };
-        zone.previewTab = RECT { pane.left, edge,     tabEnd,     pane.bottom };
-    }
+    m_drag.Begin (panes, active);
 }
 
 
@@ -2691,13 +1323,7 @@ void DxuiDockSite::CancelDrag()
     }
 
     m_slidGroup.CancelPress();
-    ClearStripTarget();
-    m_dragPane.clear();
-    m_dragPanes.clear();
-    m_zones.clear();
-    m_hoverZone    = -1;
-    m_compassGroup = -1;
-    m_pointerDrag  = false;
+    m_drag.Cancel();
 
     //  A sash moved as it was dragged, so it stays where it is.
     if (m_sashDrag >= 0)
@@ -2770,338 +1396,7 @@ bool DxuiDockSite::HasPointerDrag() const
         isTitlePressed = isTitlePressed || group->IsTitlePressed();
     }
 
-    return (IsDragging() && m_pointerDrag) || m_sashDrag >= 0 || isTitlePressed;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::UpdateCompass
-//
-//  The one cross a drag shows is the cross of the group under the pointer.
-//  It stays while the pointer is anywhere on it, so a cross wider than its
-//  group's pane can still be used to its ends; off it, the group under the
-//  pointer takes the cross, and outside every group none shows.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::UpdateCompass (POINT pointDip)
-{
-    DxuiDockGuideKind  kind   = DxuiDockGuideKind::SmallCross;
-    POINT              origin = {};
-
-
-
-    if (TryGetCompass (m_compassGroup, kind, origin) && DxuiDockGuide::IsInside (kind, origin, pointDip, m_scaler))
-    {
-        return;
-    }
-
-    m_compassGroup = -1;
-
-    for (const DxuiDockDropZone & zone : m_zones)
-    {
-        if (zone.group >= 0 && Contains (zone.groupRect, pointDip))
-        {
-            m_compassGroup = zone.group;
-            break;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::TrackDrag
-//
-//  What a drag targets with the pointer at a point: a button of a guide on
-//  show, or else a group's tabs or title bar. Off the docked area -- over a
-//  menu, a toolbar or a status bar, or out of the window -- the drag targets
-//  nothing, so the cross and the shade go at once and only the edge guides
-//  stay, even where a cross reaches past the area.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::TrackDrag (POINT pointDip)
-{
-    if (!Contains (GetDockedArea(), pointDip))
-    {
-        ClearDragTarget();
-        return;
-    }
-
-    UpdateCompass (pointDip);
-    m_hoverZone = HitTestShown (pointDip);
-
-    if (GetHoveredZone() != nullptr)
-    {
-        ClearStripTarget();
-    }
-    else
-    {
-        UpdateStripTarget (pointDip);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::ClearDragTarget
-//
-//  The cross, the hovered button and the strip under the pointer, gone; the
-//  edge guides stay for as long as the drag does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::ClearDragTarget()
-{
-    m_compassGroup = -1;
-    m_hoverZone    = -1;
-    ClearStripTarget();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::HitTestShown
-//
-//  As DxuiDockDropZones::HitTest, the last zone holding the point, but only
-//  among the zones on show: the edge guides and the one cross.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiDockSite::HitTestShown (POINT pointDip) const
-{
-    int  hit = -1;
-
-
-
-    for (size_t i = 0; i < m_zones.size(); i++)
-    {
-        const DxuiDockDropZone  & zone  = m_zones[i];
-        bool                      shown = zone.kind == DxuiDockDropZone::Kind::Edge || (m_compassGroup >= 0 && zone.group == m_compassGroup);
-
-        hit = (shown && Contains (zone.target, pointDip)) ? (int) i : hit;
-    }
-
-    return hit;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::TryGetCompass
-//
-//  A group's cross, as Build placed it: large when the group has split
-//  zones, centered on the group. False when the group has no zones.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiDockSite::TryGetCompass (int group, DxuiDockGuideKind & kind, POINT & origin) const
-{
-    const DxuiDockDropZone  * found = nullptr;
-    bool                      split = false;
-
-
-
-    for (const DxuiDockDropZone & zone : m_zones)
-    {
-        if (group >= 0 && zone.group == group)
-        {
-            found = &zone;
-            split = split || zone.kind == DxuiDockDropZone::Kind::Split;
-        }
-    }
-
-    if (found == nullptr)
-    {
-        return false;
-    }
-
-    kind   = split ? DxuiDockGuideKind::LargeCross : DxuiDockGuideKind::SmallCross;
-    origin = DxuiDockGuide::GetOrigin (kind, POINT { (found->groupRect.left + found->groupRect.right) / 2,
-                                                     (found->groupRect.top + found->groupRect.bottom) / 2 }, m_scaler);
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetGuideImage
-//
-//  Drawn once for each look of each guide and kept, so the frames of a drag
-//  draw the same buffers and a renderer's bitmap cache stays warm. The cache
-//  starts over once it fills, which takes a change of theme or DPI.
-//
-//  Where `shades` lie over the guide, the drop's shade is laid over the
-//  picture, so the guide looks to lie under the shade even though it is
-//  drawn after it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::shared_ptr<const DxuiIconImage> DxuiDockSite::GetGuideImage (
-    DxuiDockGuideKind                       kind,
-    DxuiDockSide                            edge,
-    int                                     hovered,
-    const std::vector<DxuiCoverageRect>   & shades,
-    const IDxuiTheme                      & theme) const
-{
-    GuideImage     wanted;
-    DxuiIconImage  image;
-
-
-
-    wanted.key.kind                = kind;
-    wanted.key.edge                = edge;
-    wanted.key.hovered             = hovered;
-    wanted.key.dpi                 = m_scaler.GetDpi();
-    wanted.key.colors.border       = theme.DockGuideBorder();
-    wanted.key.colors.fill         = theme.DockGuideFill();
-    wanted.key.colors.buttonBorder = theme.DockGuideButtonBorder();
-    wanted.key.colors.buttonFill   = theme.DockGuideButtonFill();
-    wanted.key.colors.glyph        = theme.DockGuideGlyph();
-    wanted.key.colors.arrow        = theme.DockGuideArrow();
-    wanted.key.shades              = shades;
-    wanted.key.shadeArgb           = theme.DockPreview();
-
-    for (const GuideImage & cached : m_guideImages)
-    {
-        if (cached.key == wanted.key)
-        {
-            return cached.image;
-        }
-    }
-
-    if (m_guideImages.size() >= kGuideCacheMax)
-    {
-        m_guideImages.clear();
-    }
-
-    image = DxuiDockGuide::Render (kind, edge, hovered, wanted.key.colors, m_scaler);
-
-    for (const DxuiCoverageRect & shade : shades)
-    {
-        DxuiCoverageRaster::TintCovered (image, shade, wanted.key.shadeArgb);
-    }
-
-    wanted.image = std::make_shared<const DxuiIconImage> (std::move (image));
-    m_guideImages.push_back (wanted);
-
-    return wanted.image;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::EndDrag
-//
-//  A drop on a zone is that zone's operation; a drop outside the site asks
-//  for the pane to float there; a drop anywhere else changes nothing. The
-//  zone is found as a move to the drop point would have shown it, so a drop
-//  with no move before it still lands in the group under the point.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiDockSite::EndDrag (POINT pointDip)
-{
-    const DxuiDockDropZone           * hit     = nullptr;
-    std::optional<DxuiDockDropZone>    zone;
-    std::wstring                       pane    = m_dragPane;
-    bool                               changed = false;
-    int                                strip   = -1;
-    int                                index   = -1;
-
-
-
-    TrackDrag (pointDip);
-    hit = GetHoveredZone();
-
-    //  Copied before the list is cleared, since hit points into it.
-    if (hit != nullptr)
-    {
-        zone = *hit;
-    }
-    else
-    {
-        strip = m_stripGroup;
-        index = m_stripIndex;
-    }
-
-    ClearStripTarget();
-    m_zones.clear();
-    m_hoverZone    = -1;
-    m_compassGroup = -1;
-    m_pointerDrag  = false;
-
-    if (pane.empty())
-    {
-        m_dragPanes.clear();
-        return false;
-    }
-
-    //  A group dropped outside floats only the pane shown. With a group
-    //  tear-off handler a group's title bar floats the whole group before
-    //  any drag starts here (TearOffGroup), so this is the drag of a site
-    //  without one.
-    if (zone.has_value())
-    {
-        changed = DropOnZone (*zone, m_layout);
-    }
-    else if (strip >= 0)
-    {
-        changed = DropOnStrip (strip, index);
-    }
-    else if (!Contains (m_boundsDip, pointDip) && m_onFloat)
-    {
-        m_onFloat (pane, pointDip);
-    }
-
-    m_dragPane.clear();
-    m_dragPanes.clear();
-
-    if (changed)
-    {
-        Arrange();
-        NotifyChanged();
-    }
-
-    return changed;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetHoveredZone
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const DxuiDockDropZone * DxuiDockSite::GetHoveredZone() const
-{
-    return (m_hoverZone >= 0 && m_hoverZone < (int) m_zones.size()) ? &m_zones[(size_t) m_hoverZone] : nullptr;
+    return (IsDragging() && m_drag.IsPointerDrag()) || m_sashDrag >= 0 || isTitlePressed;
 }
 
 
@@ -3119,201 +1414,10 @@ const DxuiDockDropZone * DxuiDockSite::GetHoveredZone() const
 
 void DxuiDockSite::SetPaneGap (int gapDip, int marginDip)
 {
-    m_gapDip    = gapDip;
-    m_marginDip = marginDip;
+    m_gaps.Set (gapDip, marginDip);
 
     //  Before the site has bounds, its first layout takes these up.
     Relayout();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetInsetForGap
-//
-//  A group's rect less its share of the gaps. A side inside the pane area
-//  moves in by half the gap, a left or top side by the larger half, so the
-//  neighbors at a split are exactly the gap apart; a side on the pane area's
-//  edge stays where it is.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DxuiDockSite::GetInsetForGap (const RECT & rect, const RECT & paneArea, long gapPx)
-{
-    long  lo    = gapPx / 2;
-    long  hi    = gapPx - lo;
-    RECT  inset = rect;
-
-
-
-    if (gapPx <= 0)
-    {
-        return rect;
-    }
-
-    if (rect.left > paneArea.left)
-    {
-        inset.left += hi;
-    }
-
-    if (rect.top > paneArea.top)
-    {
-        inset.top += hi;
-    }
-
-    if (rect.right < paneArea.right)
-    {
-        inset.right -= lo;
-    }
-
-    if (rect.bottom < paneArea.bottom)
-    {
-        inset.bottom -= lo;
-    }
-
-    inset.right  = std::max (inset.right,  inset.left);
-    inset.bottom = std::max (inset.bottom, inset.top);
-    return inset;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetMinSizeWithGap
-//
-//  Each pane's minimum size as the layout takes it. A pane loses up to the
-//  gap on each axis, so while a gap is set it needs that much more.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiPaneLayout::MinSizeFn DxuiDockSite::GetMinSizeWithGap() const
-{
-    long                       gap     = m_scaler.ToPx (m_gapDip);
-    DxuiPaneLayout::MinSizeFn  minSize = m_minSize;
-
-
-
-    if (gap > 0 && m_minSize)
-    {
-        minSize = [base = m_minSize, gap] (const std::wstring & pane)
-        {
-            SIZE  size = base (pane);
-
-            return SIZE { size.cx + gap, size.cy + gap };
-        };
-    }
-
-    return minSize;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::PaintGaps
-//
-//  The margin around the panes and the gap at every split, in the theme's
-//  DockGap. None of it lies under a group: the main window's site paints
-//  after the pane controls, so a fill there would cover a pane.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiDockSite::PaintGaps (IDxuiPainter & painter, const IDxuiTheme & theme) const
-{
-    uint32_t  argb      = theme.DockGap();
-    RECT      margins[] =
-    {
-        { m_dockedArea.left,  m_dockedArea.top,  m_dockedArea.right, m_paneArea.top       },
-        { m_dockedArea.left,  m_paneArea.bottom, m_dockedArea.right, m_dockedArea.bottom  },
-        { m_dockedArea.left,  m_paneArea.top,    m_paneArea.left,    m_paneArea.bottom    },
-        { m_paneArea.right,   m_paneArea.top,    m_dockedArea.right, m_paneArea.bottom    },
-    };
-    auto      fill      = [&painter, argb] (const RECT & r)
-    {
-        if (r.right > r.left && r.bottom > r.top)
-        {
-            painter.FillRect ((float) r.left, (float) r.top, (float) (r.right - r.left), (float) (r.bottom - r.top), argb);
-        }
-    };
-
-
-
-    if (m_gapDip == 0 && m_marginDip == 0)
-    {
-        return;
-    }
-
-    for (const RECT & margin : margins)
-    {
-        fill (margin);
-    }
-
-    if (m_gapDip <= 0)
-    {
-        return;
-    }
-
-    for (const DxuiPaneLayout::SplitRect & split : m_splits)
-    {
-        fill (GetSashRect (split));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::GetSashRect
-//
-//  With a gap, exactly the gap, so a press anywhere between two panes drags
-//  their split and a press on a pane never does; without one, a band
-//  centered on the split.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DxuiDockSite::GetSashRect (const DxuiPaneLayout::SplitRect & split) const
-{
-    long  gap = m_scaler.ToPx (m_gapDip);
-    long  lo  = (m_gapDip > 0) ? gap / 2 : m_scaler.ToPx (kSashDip) / 2;
-    long  hi  = (m_gapDip > 0) ? gap - lo : lo;
-
-
-
-    return split.horizontal ? RECT { split.position - lo, split.area.top,  split.position + hi, split.area.bottom }
-                            : RECT { split.area.left, split.position - lo, split.area.right, split.position + hi };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiDockSite::HitTestSash
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiDockSite::HitTestSash (POINT pointDip) const
-{
-    for (size_t i = 0; i < m_splits.size(); i++)
-    {
-        if (Contains (GetSashRect (m_splits[i]), pointDip))
-        {
-            return (int) i;
-        }
-    }
-
-    return -1;
 }
 
 
@@ -3363,11 +1467,11 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
     {
         if (ev.kind == DxuiMouseEventKind::Move)
         {
-            TrackDrag (ev.positionDip);
+            m_drag.Track (ev.positionDip);
         }
         else if (ev.kind == DxuiMouseEventKind::Leave)
         {
-            ClearDragTarget();
+            m_drag.ClearTarget();
         }
         else if (ev.kind == DxuiMouseEventKind::Up)
         {
@@ -3385,9 +1489,9 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (m_sashDrag >= 0 && m_sashDrag < (int) m_splits.size())
+    if (m_sashDrag >= 0 && m_sashDrag < (int) m_gaps.GetSplits().size())
     {
-        split = &m_splits[(size_t) m_sashDrag];
+        split = &m_gaps.GetSplits()[(size_t) m_sashDrag];
 
         if (ev.kind == DxuiMouseEventKind::Move)
         {
@@ -3412,17 +1516,17 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
     //  the same tab again slides it back. A hover does nothing. A press
     //  anywhere else slides a slid-out pane back too.
     tab      = HitTestEdgeTab (ev.positionDip);
-    edgePane = (tab >= 0) ? m_edgeTabs[(size_t) tab].pane : std::wstring();
+    edgePane = (tab >= 0) ? m_edges.GetTabPane (tab) : std::wstring();
 
     //  The tab under the pointer lights its bar.
     if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
     {
-        m_hoverEdge = (ev.kind == DxuiMouseEventKind::Move) ? edgePane : std::wstring();
+        m_edges.SetHoveredTab ((ev.kind == DxuiMouseEventKind::Move) ? edgePane : std::wstring());
     }
 
     if (tab >= 0 && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left)
     {
-        if (edgePane == m_slidPane)
+        if (edgePane == m_edges.GetSlidPane())
         {
             SlideIn();
         }
@@ -3434,7 +1538,7 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (ev.kind == DxuiMouseEventKind::Down && !m_slidPane.empty() && !Contains (m_slidRect, ev.positionDip))
+    if (ev.kind == DxuiMouseEventKind::Down && !m_edges.GetSlidPane().empty() && !Contains (m_edges.GetSlidRect(), ev.positionDip))
     {
         SlideIn();
     }
@@ -3451,7 +1555,7 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
 
         for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
         {
-            if (group->IsVisible() && group->IsChromeAt (ev.positionDip) && !Contains (m_slidRect, ev.positionDip))
+            if (group->IsVisible() && group->IsChromeAt (ev.positionDip) && !Contains (m_edges.GetSlidRect(), ev.positionDip))
             {
                 (void) group->OnMouse (ev);
                 return true;
@@ -3466,7 +1570,7 @@ bool DxuiDockSite::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && !Contains (m_slidRect, ev.positionDip))
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left && !Contains (m_edges.GetSlidRect(), ev.positionDip))
     {
         m_sashDrag = HitTestSash (ev.positionDip);
 
@@ -3525,12 +1629,12 @@ LPCWSTR DxuiDockSite::GetCursorForPoint (POINT clientPx) const
 
 
 
-    if (sash < 0 || sash >= (int) m_splits.size())
+    if (sash < 0 || sash >= (int) m_gaps.GetSplits().size())
     {
         return nullptr;
     }
 
-    return m_splits[(size_t) sash].horizontal ? IDC_SIZEWE : IDC_SIZENS;
+    return m_gaps.GetSplits()[(size_t) sash].horizontal ? IDC_SIZEWE : IDC_SIZENS;
 }
 
 
@@ -3539,95 +1643,174 @@ LPCWSTR DxuiDockSite::GetCursorForPoint (POINT clientPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDockSite::GetDragMarks
+//  DxuiDockSite::SlideInForDrag
 //
-//  The shade over what the hovered target would give the dragged panes, in
-//  the theme's DockPreview, and a hovered strip's group tinted with the gap
-//  its tab will take; then the guides, one at the middle of each window edge
-//  and the cross of the group under the pointer.
-//
-//  As Visual Studio stacks them, the shade lies over the guide holding the
-//  button under the pointer, and under every other guide. That guide comes
-//  first among the guides, with the shade laid over its picture where the
-//  two meet, so it shows under the shade whichever way the marks are drawn.
+//  A slid-out pane slides back as its drag starts, so the drop zones beneath
+//  it show; it stays hidden against its edge unless dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & theme) const
+void DxuiDockSite::SlideInForDrag (const std::wstring & pane)
 {
-    constexpr uint32_t              kColor   = 0x00FFFFFFu;
-    constexpr uint32_t              kGapTint = 0xA0000000u;
-    std::vector<DxuiDockDragMark>   marks;
-    std::vector<DxuiDockDragMark>   guides;
-    std::vector<RECT>               shades;
-    const DxuiDockDropZone        * hover    = GetHoveredZone();
-    uint32_t                        preview  = theme.DockPreview();
-    DxuiDockGuideKind               kind     = DxuiDockGuideKind::SmallCross;
-    DxuiDockGuideButton             button   = DxuiDockGuideButton::Center;
-    POINT                           origin   = {};
-    int                             hovered  = -1;
-    auto                            addGuide = [&] (DxuiDockGuideKind guide, DxuiDockSide edge, POINT at, int lit)
+    if (pane == m_edges.GetSlidPane())
     {
-        DxuiDockDragMark               mark;
-        SIZE                           size = DxuiDockGuide::GetSizePx (guide, m_scaler);
-        std::vector<DxuiCoverageRect>  over;
-
-        for (size_t i = 0; lit >= 0 && i < shades.size(); i++)
-        {
-            over.push_back (DxuiCoverageRect { (float) (shades[i].left - at.x),  (float) (shades[i].top - at.y),
-                                               (float) (shades[i].right - at.x), (float) (shades[i].bottom - at.y) });
-        }
-
-        mark.rect  = RECT { at.x, at.y, at.x + size.cx, at.y + size.cy };
-        mark.image = GetGuideImage (guide, edge, lit, over, theme);
-        guides.insert ((lit >= 0) ? guides.begin() : guides.end(), mark);
-    };
+        m_edges.ClearSlidPane();
+        Arrange();
+    }
+}
 
 
 
-    if (!IsDragging())
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::RequestDragFloat
+//
+//  A drop outside the site floats the pane there, through the application.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::RequestDragFloat (const std::wstring & pane, POINT pointDip)
+{
+    if (!Contains (m_boundsDip, pointDip) && m_onFloat)
     {
-        return marks;
+        m_onFloat (pane, pointDip);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::HasEdgePaneIndicator
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::HasEdgePaneIndicator (const std::wstring & pane) const
+{
+    auto  found = m_panes.find (pane);
+
+
+
+    return found != m_panes.end() && found->second.indicator;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetQueryPaneTip
+//
+//  A pane's tab tip, empty for a pane the site does not have.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiDockSite::GetQueryPaneTip (const std::wstring & pane) const
+{
+    auto  found = m_panes.find (pane);
+
+
+
+    return (found != m_panes.end()) ? found->second.tip : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::GetActivePanes
+//
+//  The active pane of each group, in the groups' order; empty for a group with
+//  no pane of the site's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DxuiDockSite::GetActivePanes() const
+{
+    std::vector<std::wstring>  panes;
+
+
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        panes.push_back (GetPaneOf (group->GetActiveContent()));
     }
 
-    if (hover != nullptr)
+    return panes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::CommitMenuChange
+//
+//  A menu item that changed the layout lays the site out again and reports
+//  the change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::CommitMenuChange (bool changed)
+{
+    if (changed)
     {
-        for (const RECT & shade : { hover->preview, hover->previewTab })
-        {
-            if (shade.right > shade.left && shade.bottom > shade.top)
-            {
-                shades.push_back (shade);
-                marks.push_back ({ shade, preview, 0 });
-            }
-        }
+        Arrange();
+        NotifyChanged();
     }
 
-    if (m_stripGroup >= 0 && m_stripGroup < (int) m_groups.size())
-    {
-        marks.push_back ({ m_groups[(size_t) m_stripGroup]->GetBodyRect(),      preview,                                0 });
-        marks.push_back ({ m_groups[(size_t) m_stripGroup]->GetInsertGapRect(), (theme.Accent() & kColor) | kGapTint, 0 });
-    }
+    return changed;
+}
 
-    for (const DxuiDockDropZone & zone : m_zones)
-    {
-        if (zone.kind != DxuiDockDropZone::Kind::Edge)
-        {
-            continue;
-        }
 
-        button  = DxuiDockGuide::GetDockButton (zone.side);
-        hovered = (&zone == hover) ? (int) button : -1;
-        addGuide (DxuiDockGuideKind::Edge, zone.side, DxuiDockGuide::GetOriginOfButton (DxuiDockGuideKind::Edge, button, zone.target, m_scaler), hovered);
-    }
 
-    if (TryGetCompass (m_compassGroup, kind, origin))
-    {
-        hovered = (hover != nullptr && hover->group == m_compassGroup) ? (int) DxuiDockDropZones::GetGuideButton (*hover) : -1;
-        addGuide (kind, DxuiDockSide::Left, origin, hovered);
-    }
 
-    marks.insert (marks.end(), guides.begin(), guides.end());
-    return marks;
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::FloatAtCenter
+//
+//  The pane floats through the application, centered on the site.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::FloatAtCenter (const std::wstring & pane)
+{
+    RECT  area = m_boundsDip;
+
+
+
+    m_onFloat (pane, POINT { (area.left + area.right) / 2, (area.top + area.bottom) / 2 });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::FloatGroupFromMenu
+//
+//  Every pane of a group floats through the application in one window,
+//  centered on the site, with `active` its selected tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDockSite::FloatGroupFromMenu (const std::vector<std::wstring> & panes, const std::wstring & active)
+{
+    RECT  area = m_boundsDip;
+
+
+
+    m_onFloatGroup (panes, active, POINT { (area.left + area.right) / 2, (area.top + area.bottom) / 2 });
 }
 
 
@@ -3646,14 +1829,14 @@ std::vector<DxuiDockDragMark> DxuiDockSite::GetDragMarks (const IDxuiTheme & the
 
 void DxuiDockSite::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    PaintGaps (painter, theme);
+    m_gaps.Paint (painter, theme, m_dockedArea, m_paneArea, m_scaler);
 
     for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
     {
         group->Paint (painter, text, theme);
     }
 
-    PaintEdges (painter, text, theme);
+    m_edges.Paint (painter, text, theme);
 }
 
 
@@ -3696,7 +1879,7 @@ void DxuiDockSite::PaintAfterSiblings (IDxuiPainter & painter, IDxuiTextRenderer
 
 RECT DxuiDockSite::GetPaneArea() const
 {
-    return (m_gapDip != 0 || m_marginDip != 0) ? m_paneArea : GetDockedArea();
+    return m_gaps.IsSet() ? m_paneArea : GetDockedArea();
 }
 
 
