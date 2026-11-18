@@ -113,6 +113,7 @@ public:
     static constexpr DWORD   kFallbackBaud      = 115200;
     static constexpr Word    kZeroPageSave      = 0x3900;   // the shim's copy of the machine's zero page, below it
     static constexpr Word    kProgramAddress    = 0x0800;
+    static constexpr Word    kUpdateImage       = 0x0900;
     static constexpr size_t  kShimLimit         = 0xA00;   // $3A00-$43FF, the shim and its startup part
     static constexpr Word    kShimResidentEnd   = 0x4000;  // the program's tables, over the startup part
 
@@ -235,6 +236,11 @@ public:
     //  The shim, starting at the given speed. A boot disk and an emulated
     //  link use the link's speed; the typed bootstrap uses its own.
     static HRESULT      BuildShim        (const LinkShimOptions & options, std::vector<Byte> & outShim);
+
+    //  The program an older 6551 shim is sent in place of the program: the
+    //  current shim, given the old one's settings and started over it. The
+    //  updater is at kProgramAddress and the shim's image at kUpdateImage.
+    static HRESULT      BuildShimUpdate  (std::vector<Byte> & outBytes);
     static HRESULT      BuildShim        (DWORD baud, std::vector<Byte> & outShim, const std::string & dial = std::string());
 
     //  A boot disk, as a .dsk's bytes, whose boot sector loads the shim at its

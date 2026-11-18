@@ -547,6 +547,8 @@ private:
     HRESULT  SendBlock         (uint32_t block, std::span<const Byte> data);
     HRESULT  SendPacket        (Byte command, std::span<const Byte> payload);
     HRESULT  LoadProgram       ();
+    HRESULT  LoadImage         (const std::vector<Byte> & image, bool restartOnReady = false);
+    HRESULT  LoadImageOnce     (const std::vector<Byte> & image, bool restartOnReady, bool & outRestart);
     HRESULT  SendSectors       (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
                                 std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer = {});
 

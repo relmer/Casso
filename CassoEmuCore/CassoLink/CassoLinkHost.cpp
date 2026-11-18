@@ -1264,18 +1264,22 @@ Error:
 //  CassoLinkHost::ServeReady
 //
 //  A client of another version is sent the current program, and so is one
-//  whose CRC differs from the image. A shim of another version can't run
-//  the current program, so its boot disk is made again instead.
+//  whose CRC differs from the image. A 6551 shim of another version is
+//  sent the current shim first, whose Ready is then sent the program; the other
+//  shims, of a network card, a cassette or SOS, are made again from the
+//  connection's menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkHost::ServeReady (const CassoLinkPacket & packet)
 {
-    HRESULT  hr          = S_OK;
-    bool     whole       = IsWholeReady (packet);
-    bool     current     = false;
-    bool     intact      = false;
-    bool     shimMatches = false;
+    HRESULT            hr          = S_OK;
+    bool               whole       = IsWholeReady (packet);
+    bool               current     = false;
+    bool               intact      = false;
+    bool               shimMatches = false;
+    bool               updatable   = false;
+    std::vector<Byte>  update;
 
 
 
@@ -1317,6 +1321,23 @@ HRESULT CassoLinkHost::ServeReady (const CassoLinkPacket & packet)
     CBREx (intact || m_programChip != LinkChip::Sos, HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH));
 
     shimMatches = m_programChip == LinkChip::Sos || m_client.shimVersion == LinkProgram::kShimVersion;
+    updatable   = !shimMatches && m_programChip == LinkChip::Acia;
+
+    if (updatable)
+    {
+        if (m_adtProServer.m_activity)
+        {
+            m_adtProServer.m_activity ("Updating the CassoLink shim on the Apple to this version of Casso.");
+        }
+
+        hr = LinkProgram::BuildShimUpdate (update);
+        CHR (hr);
+
+        hr = LoadImage (update, true);
+        CHR (hr);
+
+        BAIL_OUT_IF (true, S_OK);
+    }
 
     if (!shimMatches && m_adtProServer.m_activity)
     {
@@ -1888,13 +1909,76 @@ Error:
 //
 //  CassoLinkHost::LoadProgram
 //
-//  Load program and the program's pages, each followed by the shim's bare
-//  ACK or NAK. Sent to a running program instead, Load program alone
-//  returns it to the shim.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkHost::LoadProgram()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = AssembleProgram();
+    CHR (hr);
+
+    hr = LoadImage (m_program);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::LoadImage
+//
+//  The image loaded, and loaded again while the shim restarts in the first
+//  page with `restartOnReady`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::LoadImage (const std::vector<Byte> & image, bool restartOnReady)
+{
+    HRESULT  hr      = S_OK;
+    bool     restart = false;
+
+
+
+    for (int start = 0; start == 0 || (restart && start <= kMaxResends); start++)
+    {
+        hr = LoadImageOnce (image, restartOnReady, restart);
+        CHR (hr);
+    }
+
+    CBREx (!restart, HRESULT_FROM_WIN32 (ERROR_RETRY));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::LoadImageOnce
+//
+//  Load program and the image's pages, each followed by the shim's bare
+//  ACK or NAK. Sent to a running program instead, Load program alone
+//  returns it to the shim.
+//
+//  With `restartOnReady`, a Ready in place of the first page's reply sets
+//  `outRestart`: after the Idle a connection sends first, a shim older than
+//  version 12 draws its screen again and sends Ready again, and doesn't read
+//  a Load program sent while it draws.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::LoadImageOnce (const std::vector<Byte> & image, bool restartOnReady, bool & outRestart)
 {
     HRESULT            hr      = S_OK;
     std::vector<Byte>  page (kSectorSize, 0);
@@ -1910,11 +1994,9 @@ HRESULT CassoLinkHost::LoadProgram()
 
 
 
-    hr = AssembleProgram();
-    CHR (hr);
-
-    pages    = (m_program.size() + kSectorSize - 1) / kSectorSize;
-    count[0] = (Byte) pages;
+    outRestart = false;
+    pages      = (image.size() + kSectorSize - 1) / kSectorSize;
+    count[0]   = (Byte) pages;
 
     hr = SendPacket (CassoLinkCodec::kLoadProgram, count);
     CHR (hr);
@@ -1922,12 +2004,12 @@ HRESULT CassoLinkHost::LoadProgram()
     //  A running program goes back to the shim, whose Ready comes next.
     BAIL_OUT_IF (m_client.programVersion != 0, S_OK);
 
-    for (size_t i = 0; i < pages; i++)
+    for (size_t i = 0; i < pages && !outRestart; i++)
     {
         from = i * kSectorSize;
 
         std::fill (page.begin(), page.end(), (Byte) 0);
-        std::copy_n (m_program.begin() + (ptrdiff_t) from, std::min (kSectorSize, m_program.size() - from), page.begin());
+        std::copy_n (image.begin() + (ptrdiff_t) from, std::min (kSectorSize, image.size() - from), page.begin());
 
         encoded.clear();
 
@@ -1936,7 +2018,7 @@ HRESULT CassoLinkHost::LoadProgram()
 
         acked = false;
 
-        for (int attempt = 0; attempt <= kMaxResends && !acked; attempt++)
+        for (int attempt = 0; attempt <= kMaxResends && !acked && !outRestart; attempt++)
         {
             hr = Send (encoded);
             CHR (hr);
@@ -1962,19 +2044,20 @@ HRESULT CassoLinkHost::LoadProgram()
                     hr = (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA)) ? S_OK : hr;
                     CHR (hr);
 
-                    reply = 0;
+                    reply      = 0;
+                    outRestart = restartOnReady && i == 0 && stray.command == CassoLinkCodec::kReady;
                 }
                 else if (!running)
                 {
                     Consume (1);
                 }
             }
-            while (!running && reply != CassoLinkCodec::kAck && reply != CassoLinkCodec::kNak);
+            while (!running && !outRestart && reply != CassoLinkCodec::kAck && reply != CassoLinkCodec::kNak);
 
             acked = running || reply == CassoLinkCodec::kAck;
         }
 
-        CBREx (acked, HRESULT_FROM_WIN32 (ERROR_RETRY));
+        CBREx (acked || outRestart, HRESULT_FROM_WIN32 (ERROR_RETRY));
     }
 
 Error:

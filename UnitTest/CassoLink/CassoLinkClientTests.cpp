@@ -244,22 +244,27 @@ public:
 
 
 
-    //  A boot disk from another version of Casso has a shim the current
-    //  program can't run with, so no program is sent to it.
-    TEST_METHOD (Ready_FromAnotherShim_IsNotSentTheProgram)
+    //  An older 6551 shim, from a boot disk written before the shim changed,
+    //  is sent the current shim in place of the program.
+    TEST_METHOD (Ready_FromAnOlderShim_IsSentTheCurrentShim)
     {
         Client             client;
-        const Byte         sectors[] = { 0 };
-        std::vector<Byte>  data;
-        CassoLinkStatus    status;
-        auto               reading   = std::async (std::launch::async, [&] () { return client.host->ReadSectors (1, 0, sectors, data, status); });
+        std::vector<Byte>  update;
+        CassoLinkPacket    packet;
+        auto               serving = std::async (std::launch::async, [&] () { return client.host->ServeOne (1000); });
 
 
+
+        AssertSucceeded (LinkProgram::BuildShimUpdate (update));
 
         client.SendPacket (CassoLinkCodec::kReady, { 0, 0, (Byte) (LinkProgram::kShimVersion - 1), 0x03 });
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_REVISION_MISMATCH), reading.get());
-        Assert::IsTrue   (client.IsQuiet(), L"no Load program");
+        packet = client.ReceivePacket();
+        Assert::AreEqual<int> (CassoLinkCodec::kLoadProgram, packet.command);
+        Assert::AreEqual ((update.size() + 255) / 256, (size_t) packet.payload.at (0), L"the updater's pages, not the program's");
+
+        client.hostEnd->Close();
+        serving.wait();
     }
 
 

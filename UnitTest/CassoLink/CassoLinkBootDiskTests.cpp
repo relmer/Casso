@@ -166,6 +166,29 @@ public:
 
 
 
+    //  A boot disk written before the shim changed, its shim version 11 at
+    //  19,200 baud: the host sends it the current shim, with the disk's
+    //  settings, and then the current program.
+    TEST_METHOD (AnOlderBootDisk_IsSentTheCurrentShim_AndLinks)
+    {
+        FixtureProvider       fixtures;
+        std::vector<uint8_t>  bytes;
+
+
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoLink/link-shim11-19200.dsk", bytes));
+
+        Rig  rig (std::vector<Byte> (bytes.begin(), bytes.end()), 2);
+
+        rig.Boot();
+        AssertRowStarts (rig, 2, "WAITING FOR THE PC ON:");
+
+        rig.Link (true);
+        AssertRowStarts (rig, 0, "CassoLink");
+        AssertRowStarts (rig, 1, "Serial port 2");
+    }
+
+
     //  The link disk for a Wi-Fi modem sends its dial command and draws the
     //  target while it waits; after CONNECT, the link is over the modem.
     TEST_METHOD (AWifiModemLinkDisk_DialsThePc_AndConnects)

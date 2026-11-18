@@ -103,6 +103,97 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LinkProgram::BuildShimUpdate
+//
+//  A boot disk works after the shim changes: an older shim loads
+//  this in place of the program, as it loads any program. The updater
+//  copies the old shim's settings into the current shim's image, which are
+//  the same bytes of the header in every version: the 6551 control byte at
+//  +$02, the speed's text and the dial command from +$06, the saved state,
+//  reset vector and slot to +$38, the firmware flag at +$39 and a IIgs's
+//  speed register at +$43. It then copies the image over the old shim and
+//  starts it. The saved state is copied too, so the new shim doesn't save
+//  the zero page again, and the host sends the program after its Ready.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildShimUpdate (std::vector<Byte> & outBytes)
+{
+    static constexpr const char *  kSource =
+        "SHIM     = $3A00\n"
+        "IMAGE    = $0900\n"
+        "        .org $0800\n"
+        "        jmp entry\n"
+        "        .word 0\n"
+        "entry:  sei\n"
+        "        cld\n"
+        "        lda SHIM+$02\n"
+        "        sta IMAGE+$02\n"
+        "        ldx #$06\n"
+        "keep:   lda SHIM,x\n"
+        "        sta IMAGE,x\n"
+        "        inx\n"
+        "        cpx #$3A\n"
+        "        bne keep\n"
+        "        lda SHIM+$43\n"
+        "        sta IMAGE+$43\n"
+        "        ldx #0\n"
+        "copy:   lda IMAGE,x\n"
+        "        sta SHIM,x\n"
+        "        lda IMAGE+$100,x\n"
+        "        sta SHIM+$100,x\n"
+        "        lda IMAGE+$200,x\n"
+        "        sta SHIM+$200,x\n"
+        "        lda IMAGE+$300,x\n"
+        "        sta SHIM+$300,x\n"
+        "        lda IMAGE+$400,x\n"
+        "        sta SHIM+$400,x\n"
+        "        lda IMAGE+$500,x\n"
+        "        sta SHIM+$500,x\n"
+        "        lda IMAGE+$600,x\n"
+        "        sta SHIM+$600,x\n"
+        "        lda IMAGE+$700,x\n"
+        "        sta SHIM+$700,x\n"
+        "        lda IMAGE+$800,x\n"
+        "        sta SHIM+$800,x\n"
+        "        lda IMAGE+$900,x\n"
+        "        sta SHIM+$900,x\n"
+        "        inx\n"
+        "        bne copy\n"
+        "        jmp SHIM\n";
+
+
+
+    HRESULT            hr     = S_OK;
+    std::vector<Byte>  shim;
+    std::string        errors;
+    LinkShimOptions    options;
+    bool               fits   = false;
+
+
+
+    hr = Assemble (kSource, kProgramAddress, LinkChip::Acia, outBytes, errors);
+    CHR (hr);
+
+    hr = BuildShim (options, shim);
+    CHR (hr);
+
+    fits = outBytes.size() <= (size_t) (kUpdateImage - kProgramAddress) && shim.size() <= kShimLimit;
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_BUFFER_OVERFLOW));
+
+    outBytes.resize (kUpdateImage - kProgramAddress, 0);
+    outBytes.insert (outBytes.end(), shim.begin(), shim.end());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkProgram::BuildShim
 //
 ////////////////////////////////////////////////////////////////////////////////
