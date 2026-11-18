@@ -45,7 +45,7 @@ from the default, as 033 does now.
 | `?telnet` suffix on either TCP form | Telnet on. Off by default for TCP. |
 | `modem`, `modem:6400` | The Hayes modem; optional listen port for incoming calls. |
 | `?telnet=0` suffix on a modem | Telnet off. On by default for the modem. |
-| `com:COM3` | A PC COM port. Rate: see question 1. |
+| `com:COM3` | A PC COM port at the rate the guest sets in the 6551 (owner decision 2026-11-18). |
 | `com:COM3@9600` | A PC COM port fixed at 9600 baud. |
 
 The loader converts 047's `serial-tcp`, `serial-modem` and `serial-com-port`
@@ -94,17 +94,14 @@ stays and selects `imagewriter` through the same staging.
 - 047's replay, resume and state-file checks run on the new wiring.
 - The running registry has a listening port and drops it on a change.
 
-## Questions for the owner
+## Owner decisions, 2026-11-18
 
-1. What `com:COM3` with no rate means. In 033 it is a fixed 115,200 baud,
-   which CassoLink over a null-modem cable depends on for speed. In 047 it
-   follows the rate the Apple program sets, as a real cable does. Proposal:
-   `com:COM3` follows the 6551, and `com:COM3@115200` is a fixed rate, which
-   CassoLink writes when it sets a port up. 033 is not released, so no saved
-   configuration changes meaning.
-2. CassoLink over a link that stays open across a resume from the past.
-   Casso Explorer's CassoLink session has separate protocol state and times
-   its reads by the wall clock, so after a resume the Apple and Casso Explorer
-   are at different points. Proposal: the emulator closes a connection on a
-   registry-published port on a resume, so Casso Explorer reconnects and
-   starts its session again; other TCP and modem links stay open.
+1. `com:COM3` with no rate follows the rate the guest sets in the 6551, as a
+   real cable does. `com:COM3@115200` is a fixed rate, and CassoLink writes
+   that form when it sets a port up. 033 has not been in a release, so no
+   saved configuration changes meaning.
+2. On a resume from the past, the emulator closes a connection on a
+   registry-published port, so Casso Explorer reconnects and starts its
+   CassoLink session again. Casso Explorer's session has separate protocol
+   state and times its reads by the wall clock, so after a resume the two
+   ends are at different points. Other TCP and modem connections stay open.
