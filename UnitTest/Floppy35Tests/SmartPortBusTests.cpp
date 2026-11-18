@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Core/MemoryBus.h"
+#include "Core/StateWriter.h"
 #include "Devices/Floppy35/LironCard.h"
 #include "Devices/Floppy35/SmartPortBus.h"
 #include "Devices/Floppy35/UniDisk35Drive.h"
@@ -255,6 +256,53 @@ public:
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BAD_LENGTH), drive.SetFirmware (std::vector<Byte> (0x1000, 0)));
         Assert::IsFalse (drive.HasFirmware());
+    }
+
+
+    //  The host's time can fall inside the drive CPU's cycle. A catch-up
+    //  runs the drive's IWM to the host's time even so, so the bits it ends
+    //  before then are on the bus when the host reads it.
+    TEST_METHOD (UniDisk_CatchUpRunsTheIwmToTheHostsTime)
+    {
+        constexpr size_t    kRomSize    = 0x2000;
+        constexpr uint64_t  kNsPerCycle = 1'000'000'000 / UniDisk35Drive::kClockHz;
+        constexpr uint64_t  kNowNs      = 1'000 * kNsPerCycle + kNsPerCycle / 2;
+
+        UniDisk35Drive     drive;
+        std::vector<Byte>  rom (kRomSize, 0xEA);
+        std::vector<Byte>  caughtUp;
+        std::vector<Byte>  advanced;
+
+
+
+        //  JMP $E000 at $E000, and the reset vector at it.
+        rom[0x0000] = 0x4C;
+        rom[0x0001] = 0x00;
+        rom[0x0002] = 0xE0;
+        rom[kRomSize - 4] = 0x00;
+        rom[kRomSize - 3] = 0xE0;
+
+        Assert::AreEqual (S_OK, drive.SetFirmware (rom));
+        drive.Reset();
+
+        drive.CatchUp (kNowNs, CatchUpKind::Access);
+        caughtUp = SaveIwm (drive, kNowNs);
+
+        drive.GetIwm().AdvanceTo (kNowNs);
+        advanced = SaveIwm (drive, kNowNs);
+
+        Assert::IsTrue (caughtUp == advanced, L"the IWM was at the host's time");
+    }
+
+
+    static std::vector<Byte> SaveIwm (UniDisk35Drive & drive, uint64_t nowNs)
+    {
+        StateWriter  writer;
+
+
+
+        drive.GetIwm().SaveState (writer, nowNs);
+        return writer.GetBytes();
     }
 
 

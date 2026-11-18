@@ -209,6 +209,18 @@ void UniDisk35Drive::Connect (SmartPortBus * bus, size_t position)
 //  than a second, skips the time instead: its firmware is waiting for the
 //  bus either way.
 //
+//  The IWM's shift register moves between the CPU's accesses too, so its
+//  bits up to the host's time are on the bus before the host reads them.
+//  The CPU's time is in whole cycles, and the host's time can fall inside
+//  the CPU's current cycle, so the IWM runs through that cycle as far as
+//  the host's time. A bit the IWM ends in that part of a cycle is then on
+//  the bus before the host's IWM reads past it; were it written after, the
+//  host's IWM would drop it as too old, and the packet would arrive short.
+//  The CPU's next access starts by the end of its current cycle, so the
+//  IWM's clock runs ahead of it by less than a cycle.
+//  A CPU in its idle loop short of the host's time takes the IWM only
+//  through its current cycle.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void UniDisk35Drive::CatchUp (uint64_t nowNs, CatchUpKind kind)
@@ -218,30 +230,32 @@ void UniDisk35Drive::CatchUp (uint64_t nowNs, CatchUpKind kind)
 
 
 
-    if (m_rom.empty() || target <= current)
+    if (m_rom.empty())
     {
         return;
     }
 
     if (m_resetHeld)
     {
-        m_cpu.SkipTo (target);
+        if (target > current)
+        {
+            m_cpu.SkipTo (target);
+        }
+
         return;
     }
 
-    if (target - current > kMaxCatchUp)
+    if (target > current)
     {
-        m_cpu.SkipTo (target - kMaxCatchUp);
+        if (target - current > kMaxCatchUp)
+        {
+            m_cpu.SkipTo (target - kMaxCatchUp);
+        }
+
+        m_cpu.RunUntil (target, kind);
     }
 
-    m_cpu.RunUntil (target, kind);
-
-    //  The IWM's shift register moves between the CPU's accesses too, so
-    //  its bits up to the host's time are on the bus before the host reads
-    //  them. The CPU's last access is before the host's time, so the IWM's
-    //  clock never runs ahead of the host's writes. A CPU in its idle loop
-    //  short of the host's time takes the IWM only to the CPU's time.
-    m_iwm.AdvanceTo (std::min (nowNs, GetNowNs()));
+    m_iwm.AdvanceTo (std::min (nowNs, (m_cpu.GetCycles() + 1) * kNsPerCycle));
 }
 
 
