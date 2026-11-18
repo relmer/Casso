@@ -12,6 +12,7 @@
 #include "Config/DiskInspectorPrefs.h"
 #include "Config/IFileSystem.h"
 #include "Core/JsonValue.h"
+#include "FileTypes/DecodedFile.h"
 
 
 
@@ -61,6 +62,11 @@ struct CassoExplorerPrefs
     bool                   enterExpandsPreview = false;
     bool                   autoThumbnails      = true;     // a disk image in view with no thumbnail is booted for one
     bool                   rawCopyMenu         = true;     // a drag into File Explorer offers Copy here without conversion (raw bytes)
+
+    //  The conversion options of a copy, set by Copy to folder with options,
+    //  for a file whose preview hasn't set any. A record length is the
+    //  file's, so it isn't saved.
+    DecodeOptions          copyOptions;
 
     std::string            hostNaming      = kNamingDescriptive;
 
@@ -273,6 +279,8 @@ struct CassoExplorerPrefs
 private:
     static JsonValue  LocationToJson  (const Location & location);
     static JsonValue  LinkToJson      (const CassoLinkSettings & link);
+    static JsonValue  OptionsToJson   (const DecodeOptions & options);
+    static void       ReadOptions     (const JsonValue & value, DecodeOptions & outOptions);
     static bool       TryLinkFromJson (const JsonValue & value, CassoLinkSettings & outLink);
 
     //  A list of column indexes, and the one under a key; an entry that is

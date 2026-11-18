@@ -76,7 +76,7 @@ void PreviewViewChoices::List (const FilePayload & payload, const PreviewContent
     bool                  hasData = bytes > 0;
     bool                  isHex   = defaultView.kind == PreviewContent::Kind::Hex;
     PicturePreview::Mode  mode    = (defaultView.kind == PreviewContent::Kind::Picture) ? defaultView.pictureMode : PicturePreview::Mode::None;
-    bool                  isDhr   = mode == PicturePreview::Mode::DoubleHiRes || mode == PicturePreview::Mode::DoubleHiResMono;
+    bool                  isDhr   = PicturePreview::IsDoubleHiRes (mode);
 
 
 

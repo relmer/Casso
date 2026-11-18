@@ -24,7 +24,8 @@ enum class FileFormat
     SuperHiRes3200, DreamGrafix, SuperHiRes3201, IigsAnimation,
     Lz4fh, PrintShopGraphic, PrintShopGsClipArt, ShapeTable,
     IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
-    IigsFont, WizardryScenario, InfocomStory,
+    IigsFont, WizardryScenario, InfocomStory, HiResScreen,
+    DoubleHiResScreen, LoResScreen, MacPaint, Disassembly,
 };
 
 
@@ -63,6 +64,40 @@ enum class SheetForm { None, Values, Formulas };
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DoubleHiResForm
+//
+//  How a double hi-res picture is drawn. Auto is black and white for a
+//  picture whose name ends .A2FM or whose dots are drawn as black and white,
+//  and simple color otherwise. Simple color
+//  is each four dots one of the sixteen colors, as Casso draws the screen;
+//  windowed color is each dot the color of the four dots that end at it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DoubleHiResForm { Auto, BlackAndWhite, SimpleColor, WindowedColor };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyCpu
+//
+//  The processor code is disassembled for on a copy, None for a code file
+//  copied as its bytes: the 6502's documented opcodes, the 6502's with its
+//  undocumented ones, the 65C02, or the 65816.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DisassemblyCpu { None, Mos6502, Mos6502Undocumented, Wdc65C02, Wdc65816 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DecodeOptions
 //
 //  Chosen in a file's preview while its tab is open: the record length
@@ -73,9 +108,16 @@ enum class SheetForm { None, Values, Formulas };
 
 struct DecodeOptions
 {
-    size_t   recordLength = 0;
-    Charset  charset      = Charset::Default;
-    bool     formulas     = false;      // a spreadsheet's formulas as typed, not their values
+    size_t           recordLength     = 0;
+    Charset          charset          = Charset::Default;
+    bool             formulas         = false;                    // a spreadsheet's formulas as typed, not their values
+    bool             hiResMono        = false;                    // a hi-res picture's dots in black and white
+    DoubleHiResForm  doubleHiRes      = DoubleHiResForm::Auto;
+    bool             basicColor       = false;                    // a BASIC listing as RTF, its keywords, strings and remarks colored
+    bool             basicRawControls = false;                    // an Applesoft listing's control characters as the bytes, not ^D
+    DisassemblyCpu   disassembly      = DisassemblyCpu::None;     // a code file copied as a disassembly for this processor
+    bool             longRegisters    = true;                     // 65816 code starts with 16-bit registers
+    bool             followFlags      = true;                     // 65816 register widths follow REP and SEP
 };
 
 
@@ -95,7 +137,7 @@ struct DecodeOptions
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class RunColor { Text, Good, Bad, Muted };
+enum class RunColor { Text, Good, Bad, Muted, Keyword, String, Comment };
 
 
 

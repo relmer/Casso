@@ -97,10 +97,11 @@ std::vector<DxuiTextView::Row> PreviewText::BuildDetailRows (const std::vector<s
 
 uint32_t PreviewText::GetRunColor (RunColor color, const SourceSyntax::Colors & colors)
 {
-    return (color == RunColor::Good)  ? colors.comment
-         : (color == RunColor::Bad)   ? colors.string
-         : (color == RunColor::Muted) ? colors.address
-                                      : 0u;
+    return (color == RunColor::Good || color == RunColor::Comment) ? colors.comment
+         : (color == RunColor::Bad  || color == RunColor::String)  ? colors.string
+         : (color == RunColor::Muted)                              ? colors.address
+         : (color == RunColor::Keyword)                            ? colors.mnemonic
+                                                                   : 0u;
 }
 
 

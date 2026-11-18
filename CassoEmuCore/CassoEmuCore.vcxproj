@@ -522,6 +522,9 @@
     <ClCompile Include="CassoExplorer\Picker\StartupDiskPicker.cpp" />
     <ClCompile Include="CassoExplorer\Model\AppleFileProperties.cpp" />
     <ClCompile Include="CassoExplorer\Model\BasicConversion.cpp" />
+    <ClCompile Include="CassoExplorer\Model\BasicListingOutput.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CopyOptionRows.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerCopyOptionsDialog.cpp" />
     <ClCompile Include="CassoExplorer\Model\HostAppleFile.cpp" />
     <ClCompile Include="CassoExplorer\AppleFilePropertiesDialog.cpp" />
     <ClCompile Include="CassoExplorer\WozPropertiesDialog.cpp" />
@@ -621,6 +624,10 @@
     <ClCompile Include="FileTypes\TeachDocument.cpp" />
     <ClCompile Include="FileTypes\SuperHiRes.cpp" />
     <ClCompile Include="FileTypes\HiResFormats.cpp" />
+    <ClCompile Include="FileTypes\CodeListing.cpp" />
+    <ClCompile Include="FileTypes\Disassembler65816.cpp" />
+    <ClCompile Include="FileTypes\MacPaintPicture.cpp" />
+    <ClCompile Include="FileTypes\ScreenPicture.cpp" />
     <ClCompile Include="FileTypes\SuperHiRes3200.cpp" />
     <ClCompile Include="Devices\Disk\Archives\ZipAppleDouble.cpp" />
     <ClCompile Include="Devices\Disk\Archives\ContainerDiskFileIo.cpp" />
@@ -1676,6 +1683,9 @@
     <ClInclude Include="CassoExplorer\Picker\StartupDiskPicker.h" />
     <ClInclude Include="CassoExplorer\Model\AppleFileProperties.h" />
     <ClInclude Include="CassoExplorer\Model\BasicConversion.h" />
+    <ClInclude Include="CassoExplorer\Model\BasicListingOutput.h" />
+    <ClInclude Include="CassoExplorer\Model\CopyOptionRows.h" />
+    <ClInclude Include="CassoExplorer\CassoExplorerCopyOptionsDialog.h" />
     <ClInclude Include="CassoExplorer\Model\HostAppleFile.h" />
     <ClInclude Include="CassoExplorer\AppleFilePropertiesDialog.h" />
     <ClInclude Include="CassoExplorer\WozPropertiesDialog.h" />
@@ -1785,6 +1795,10 @@
     <ClInclude Include="FileTypes\TeachDocument.h" />
     <ClInclude Include="FileTypes\SuperHiRes.h" />
     <ClInclude Include="FileTypes\HiResFormats.h" />
+    <ClInclude Include="FileTypes\CodeListing.h" />
+    <ClInclude Include="FileTypes\Disassembler65816.h" />
+    <ClInclude Include="FileTypes\MacPaintPicture.h" />
+    <ClInclude Include="FileTypes\ScreenPicture.h" />
     <ClInclude Include="Devices\Disk\Archives\ZipAppleDouble.h" />
     <ClInclude Include="Devices\Disk\Archives\ContainerDiskFileIo.h" />
     <ClInclude Include="Devices\Disk\Archives\Bzip2Decoder.h" />

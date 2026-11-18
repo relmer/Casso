@@ -126,6 +126,7 @@ public:
     static constexpr const wchar_t *  kApplesoftSuffix = L".Applesoft BASIC.txt";
     static constexpr const wchar_t *  kIntegerSuffix   = L".Integer BASIC.txt";
     static constexpr const wchar_t *  kTextSuffix      = L".Text.txt";
+    static constexpr const wchar_t *  kColorSuffix     = L".rtf";
     static constexpr const wchar_t *  kBinaryWord      = L"Binary";
     static constexpr const wchar_t *  kProDosWord      = L"ProDOS";
     static constexpr const wchar_t *  kDosWord         = L"DOS";

@@ -1984,28 +1984,18 @@ void ExplorerListMenus::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
 //
 //  A BASIC program converts to its text listing, and a text file to an
 //  Applesoft BASIC program. A file has one conversion, so it is a row of the
-//  menu rather than a submenu.
+//  menu rather than a submenu. The row is offered only for a selection with
+//  a BASIC program or a text file in it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerListMenus::AddConvertMenu (std::vector<DxuiPopupMenuItem> & items)
 {
-    std::vector<FileEntry>          entries;
-    std::shared_ptr<DxuiCommand>    command = std::make_shared<DxuiCommand>();
-    BasicConversion::Kind           kind    = BasicConversion::Kind::None;
+    std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
 
 
 
-    m_context.browser.GetSelectedEntries (entries);
-
-    if (entries.size() != 1)
-    {
-        return;
-    }
-
-    kind = BasicConversion::GetKind (m_context.browser.GetVolumeKind(), entries[0].type);
-
-    command->label    = (kind == BasicConversion::Kind::ToListing) ? L"Con&vert to text listing" : L"Con&vert to Applesoft BASIC";
+    command->label    = L"Con&vert BASIC and text files";
     command->dispatch = [this]() { m_context.commandManager.RunVerb (CassoExplorerActions::Verb::ConvertTo); };
 
     items.push_back (DxuiPopupMenuItem::ForCommand (command));

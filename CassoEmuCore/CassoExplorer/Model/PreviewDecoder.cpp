@@ -10,6 +10,9 @@
 #include "ApplesoftTokenizer.h"
 #include "Cpu.h"
 #include "Disassembler.h"
+#include "Core/Cpu65C02.h"
+#include "Core/MemoryBus.h"
+#include "FileTypes/Disassembler65816.h"
 #include "IntegerBasicDetokenizer.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
@@ -22,6 +25,7 @@
 #include "Ui/Debugger/SourceSyntax.h"
 #include "FileTypes/FileFormatTable.h"
 #include "FileTypes/HiResFormats.h"
+#include "FileTypes/ScreenPicture.h"
 #include "FileTypes/TextCharset.h"
 
 
@@ -209,6 +213,67 @@ const Microcode * PreviewDecoder::GetNmosTable()
 
 
     return cpu.GetInstructionSet();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::GetCmosTable
+//
+//  The 65C02's table, from a core whose bus is never read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const Microcode * PreviewDecoder::GetCmosTable()
+{
+    static MemoryBus  bus;
+    static Cpu65C02   cpu (bus);
+
+
+
+    return cpu.GetInstructionSet();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::GetCodeOrigin
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word PreviewDecoder::GetCodeOrigin (Byte type, VolumeKind kind, bool hasLoadAddress, Word loadAddress, bool hasAuxType, Word auxType)
+{
+    bool  proDos = kind == VolumeKind::ProDos;
+
+
+
+    if (proDos && type == ProDosVolume::kTypeRelocatable)
+    {
+        return hasAuxType ? auxType : 0;
+    }
+
+    if (hasLoadAddress)
+    {
+        return loadAddress;
+    }
+
+    if (proDos && type == ProDosVolume::kTypeSystem)
+    {
+        return s_kSystemLoadAddress;
+    }
+
+    if (proDos && type == ProDosVolume::kTypeCommand)
+    {
+        return s_kCommandLoadAddress;
+    }
+
+    return hasAuxType ? auxType : 0;
 }
 
 
@@ -622,7 +687,10 @@ void PreviewDecoder::RenderDisassembly (
     Word                         origin,
     VolumeKind                   kind,
     bool                         relocatable,
-    std::vector<std::wstring>  & outLines)
+    std::vector<std::wstring>  & outLines,
+    DisassemblyCpu               cpu,
+    bool                         longRegisters,
+    bool                         followFlags)
 {
     std::vector<DisassembledLine>  lines;
     DisassemblyOptions             options;
@@ -635,7 +703,7 @@ void PreviewDecoder::RenderDisassembly (
     outLines.clear();
 
     options.symbols          = &GetSymbols (kind);
-    options.nmosUndocumented = true;
+    options.nmosUndocumented = cpu == DisassemblyCpu::Mos6502Undocumented || cpu == DisassemblyCpu::None;
 
     if (kind == VolumeKind::ProDos)
     {
@@ -656,7 +724,14 @@ void PreviewDecoder::RenderDisassembly (
         }
     }
 
-    Disassembler::Disassemble (code, origin, GetNmosTable(), lines, options);
+    if (cpu == DisassemblyCpu::Wdc65816)
+    {
+        Disassembler65816::Disassemble (code, origin, longRegisters, followFlags, lines);
+    }
+    else
+    {
+        Disassembler::Disassemble (code, origin, (cpu == DisassemblyCpu::Wdc65C02) ? GetCmosTable() : GetNmosTable(), lines, options);
+    }
 
     if (!trailer.empty())
     {
@@ -822,25 +897,38 @@ HRESULT PreviewDecoder::Render (
     uint32_t                 customArgb,
     const DecodeOptions    & options)
 {
-    HRESULT            hr     = S_OK;
-    FileFormat         format = FileFormatTable::Identify (entry, kind, payload.bytes);
-    DecodedFile        decoded;
-    std::wstring       error;
-    std::vector<Byte>  page;
+    HRESULT               hr      = S_OK;
+    FileFormat            format  = FileFormatTable::Identify (entry, kind, payload.bytes);
+    FileFacts             facts   = FileFacts::From (entry, kind);
+    DecodedFile           decoded;
+    std::wstring          error;
+    std::vector<Byte>     page;
+    Word                  address = s_kHiResPage;
+    PicturePreview::Mode  mode    = PicturePreview::Mode::HiRes;
+    bool                  screen  = format == FileFormat::Lz4fh || format == FileFormat::HiResScreen
+                                 || format == FileFormat::DoubleHiResScreen || format == FileFormat::LoResScreen;
 
 
 
-    //  An LZ4FH picture unpacks to a hi-res page, drawn by the Display
-    //  page's monitor as any other hi-res picture.
-    if (format == FileFormat::Lz4fh)
+    //  A saved screen, an LZ4FH picture unpacked to a hi-res page among them,
+    //  is drawn by the Display page's monitor as Casso draws the screen.
+    if (screen)
     {
         outContent = PreviewContent();
 
-        hr = Lz4fh::Unpack (payload.bytes, page);
+        if (format == FileFormat::Lz4fh)
+        {
+            hr = Lz4fh::Unpack (payload.bytes, page);
+        }
+        else
+        {
+            hr   = ScreenPicture::Unpack (format, payload.bytes, facts, page, address, error);
+            mode = ScreenPicture::ChooseMode (format, facts, page, options);
+        }
 
         if (SUCCEEDED (hr))
         {
-            hr = PicturePreview::Render (PicturePreview::Mode::HiRes, page, s_kHiResPage, bus,
+            hr = PicturePreview::Render (mode, page, address, bus,
                                          outContent.bgra, outContent.width, outContent.height, monitor, customArgb);
         }
 
@@ -848,17 +936,15 @@ HRESULT PreviewDecoder::Render (
         {
             outContent.kind          = PreviewContent::Kind::Picture;
             outContent.bytes         = page;
-            outContent.origin        = s_kHiResPage;
-            outContent.pictureMode   = PicturePreview::Mode::HiRes;
-            outContent.pictureChosen = PicturePreview::Mode::HiRes;
+            outContent.origin        = address;
+            outContent.pictureMode   = mode;
+            outContent.pictureChosen = mode;
             return S_OK;
         }
     }
 
-    if (format != FileFormat::None)
+    if (format != FileFormat::None && !screen)
     {
-        FileFacts  facts = FileFacts::From (entry, kind);
-
         facts.resourceFork = payload.resourceFork;
         hr                 = FileFormatTable::Decode (format, payload.bytes, facts, options, decoded, error);
 
