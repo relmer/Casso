@@ -152,8 +152,6 @@ public:
             AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
             disk.assign (bytes.begin(), bytes.end());
 
-            machine.SetVideoTiming (std::make_unique<VideoTiming>());
-            machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
 
             //  At the BASIC prompt, then the disk in drive 1.
             machine.PowerCycle();

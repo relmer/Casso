@@ -129,7 +129,7 @@ public:
         std::vector<Byte>                     disk;
 
         explicit Rig (bool firmware)
-            : machine ("Apple2e", [firmware] (MachineConfig & config) { ConfigureCard (config, firmware); })
+            : machine ("Apple2e", TestMachine::Video::Timed, [firmware] (MachineConfig & config) { ConfigureCard (config, firmware); })
         {
             FixtureProvider       fixtures;
             std::vector<uint8_t>  bytes;
@@ -139,8 +139,6 @@ public:
             AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
             disk.assign (bytes.begin(), bytes.end());
 
-            machine.SetVideoTiming (std::make_unique<VideoTiming>());
-            machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
 
             InProcessByteStream::CreatePair (machineEnd, pcEnd);
             AssertSucceeded (machine.GetConnectors().AttachSerialStream (kSlot, machineEnd));

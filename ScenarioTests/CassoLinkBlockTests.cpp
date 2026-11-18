@@ -133,8 +133,6 @@ public:
             diskPort[0].chain[0].image  = kDiskPath;
 
             machine = std::make_unique<TestMachine> ("Apple2c", diskPort, io);
-            machine->SetVideoTiming (std::make_unique<VideoTiming>());
-            machine->GetCpu()->SetVideoTiming (machine->GetVideoTiming());
             machine->PowerCycle();
 
             //  The ROM boots ProDOS from the UniDisk first, as a real //c has
