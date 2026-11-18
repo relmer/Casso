@@ -92,7 +92,7 @@ public:
 
         Assert::IsTrue (firstRead > 100'000,
             std::format (L"the //c read the buttons at cycle {}, before its drive check", firstRead).c_str());
-        Assert::IsTrue (firstRead < Disk2Controller::kMotorSpindownCycles,
+        Assert::IsTrue (firstRead < Disk2CardSequencer::kMotorSpindownCycles,
             std::format (L"the //c read the buttons at cycle {}, only after a spin-down it should not wait for",
                          firstRead).c_str());
         Assert::IsTrue (firstRead < Apple2eKeyboard::kResetHoldCycles,
@@ -128,14 +128,14 @@ public:
 
         plain.SoftReset();
         RunTickingTheHold (plain, kIIcSettleCycles);
-        Assert::IsFalse (plain.GetRefs().diskController->IsMotorOn(),
+        Assert::IsFalse (plain.GetRefs().diskController->GetLines().IsMotorOn(),
             L"a plain reset returns a //c to BASIC without touching the drive");
 
         held.GetRefs().iieKeyboard->HoldAppleKeysThroughReset (true, false);
         held.GetRefs().iieKeyboard->SetOpenApple (false);
         held.SoftReset();
         RunTickingTheHold (held, kIIcSettleCycles);
-        Assert::IsTrue (held.GetRefs().diskController->IsMotorOn(),
+        Assert::IsTrue (held.GetRefs().diskController->GetLines().IsMotorOn(),
             L"with Open Apple held through the reset the //c reboots through its drive");
     }
 

@@ -121,7 +121,7 @@ public:
     {
         uint64_t   spent = 0;
 
-        outTracksVisited.insert (machine.GetRefs().diskController->GetCurrentTrack());
+        outTracksVisited.insert (machine.GetRefs().diskController->GetLines().GetCurrentTrack());
 
         while (spent < totalBudget)
         {
@@ -130,7 +130,7 @@ public:
             machine.RunCycles (chunk);
             spent += chunk;
 
-            outTracksVisited.insert (machine.GetRefs().diskController->GetCurrentTrack());
+            outTracksVisited.insert (machine.GetRefs().diskController->GetLines().GetCurrentTrack());
 
             if (outTracksVisited.size() >= static_cast<size_t> (earlyExitThreshold))
             {
@@ -192,9 +192,9 @@ public:
 
         RunAndSampleTracks (machine, kBootCycleBudget, tracksVisited, minTracks);
 
-        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
-        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->GetLines().IsMotorOn(),
             L"Boot ROM must turn the motor on");
 
         // Either the bit cursor advanced OR the head walked off track 0.
@@ -272,7 +272,7 @@ public:
             // IWM. No forced $C600 entry -- this is the real //c boot path.
             RunAndSampleTracks (machine, kApple2cBootBudget, tracksVisited, minTracks);
 
-            Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
+            Assert::IsTrue (machine.GetRefs().diskController->GetLines().IsMotorOn(),
                 L"Boot ROM must turn the motor on");
 
             swprintf_s (failMsg,

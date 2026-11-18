@@ -87,7 +87,7 @@ void MachineEventFeed::Attach (MachineHost & machine)
 
     m_machine  = &machine;
     m_position = machine.GetPositionPtr();
-    m_drive    = (controller != nullptr) ? controller->GetActiveDrive() : 0;
+    m_drive    = (controller != nullptr) ? controller->GetLines().GetActiveDrive() : 0;
 
     m_decoder.Seed (machine);
     m_decoder.GetFilter (m_ioFilter);
@@ -151,7 +151,7 @@ void MachineEventFeed::Reseed()
     }
 
     controller = m_machine->GetRefs().diskController;
-    m_drive    = (controller != nullptr) ? controller->GetActiveDrive() : 0;
+    m_drive    = (controller != nullptr) ? controller->GetLines().GetActiveDrive() : 0;
 
     m_decoder.Seed (*m_machine);
 }

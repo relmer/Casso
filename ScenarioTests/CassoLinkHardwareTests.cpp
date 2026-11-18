@@ -328,7 +328,7 @@ public:
 
                 if (machine.GetRefs().diskController != nullptr)
                 {
-                    heads.insert (machine.GetRefs().diskController->GetQuarterTrack());
+                    heads.insert (machine.GetRefs().diskController->GetLines().GetQuarterTrack());
                 }
             }
 

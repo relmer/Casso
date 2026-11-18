@@ -200,17 +200,17 @@ void MachineHost::SetOutputMuted (bool isSoundMuted, bool isPrinterMuted)
 
     if (isSoundMuted)
     {
-        m_mutedDiskAudio   = m_refs.diskController->GetAudioSink();
-        m_wasMotorOnAtMute = m_refs.diskController->IsMotorOn();
-        m_refs.diskController->SetAudioSink (nullptr);
+        m_mutedDiskAudio   = m_refs.diskController->GetSignals().GetAudioSink();
+        m_wasMotorOnAtMute = m_refs.diskController->GetLines().IsMotorOn();
+        m_refs.diskController->GetSignals().SetAudioSink (nullptr);
         return;
     }
 
-    m_refs.diskController->SetAudioSink (m_mutedDiskAudio);
+    m_refs.diskController->GetSignals().SetAudioSink (m_mutedDiskAudio);
 
     // The motor's hum follows the drive's state, so a motor that started or
     // stopped while muted is told to the sink now.
-    if (m_mutedDiskAudio != nullptr && m_refs.diskController->IsMotorOn() != m_wasMotorOnAtMute)
+    if (m_mutedDiskAudio != nullptr && m_refs.diskController->GetLines().IsMotorOn() != m_wasMotorOnAtMute)
     {
         if (m_wasMotorOnAtMute)
         {

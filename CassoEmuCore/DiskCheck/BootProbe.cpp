@@ -53,8 +53,8 @@ HRESULT BootProbe::Probe (MachineHost & host, MachineBuilder & builder, const st
         RenderFrame (host, builder, outReport.frame, outReport.width, outReport.height);
 
         sample.frameHash    = HashFrame (outReport.frame);
-        sample.quarterTrack = drive != nullptr ? drive->GetQuarterTrack() : 0;
-        sample.isMotorOn    = drive != nullptr && drive->IsMotorOn();
+        sample.quarterTrack = drive != nullptr ? drive->GetLines().GetQuarterTrack() : 0;
+        sample.isMotorOn    = drive != nullptr && drive->GetLines().IsMotorOn();
         sample.pc           = host.GetCpu()->GetPC();
 
         trace.samples.push_back (sample);

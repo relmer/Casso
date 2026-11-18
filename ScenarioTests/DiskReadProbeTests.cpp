@@ -217,7 +217,7 @@ namespace DiskReadProbeTests
 
 
 
-            return (controller == nullptr) ? 0 : controller->GetEngine (0).GetReadNibbles() + controller->GetEngine (1).GetReadNibbles();
+            return (controller == nullptr) ? 0 : controller->GetDrive (0).GetEngine().GetReadNibbles() + controller->GetDrive (1).GetEngine().GetReadNibbles();
         }
 
         //  The boot ROM enters its routine again for each address field that is

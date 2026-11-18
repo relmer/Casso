@@ -198,9 +198,9 @@ public:
                     "cyc=%llu PC=$%04X X=$%02X A=$%02X bp=%zu trk=%d latch=$%02X\n",
                     (unsigned long long) cyc, pc,
                     machine.GetCpu()->GetX(), machine.GetCpu()->GetA(),
-                    machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition(),
-                    machine.GetRefs().diskController->GetCurrentTrack(),
-                    machine.GetRefs().diskController->GetEngine (kDrive1).PeekReadLatch());
+                    machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition(),
+                    machine.GetRefs().diskController->GetLines().GetCurrentTrack(),
+                    machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().PeekReadLatch());
             }
         }
 

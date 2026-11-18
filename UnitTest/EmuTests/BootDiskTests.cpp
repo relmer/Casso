@@ -188,7 +188,7 @@ public:
         Assert::AreEqual (']', screen[kPromptRow][0],
             L"Applesoft's prompt must be in column 0 of the bottom row");
 
-        Assert::IsFalse (machine.GetRefs().diskController->IsMotorOn(),
+        Assert::IsFalse (machine.GetRefs().diskController->GetLines().IsMotorOn(),
             L"the drive must be stopped by the time the demo hands over");
 
         //  AND IT LEAVES QUIETLY. The //e's reset handler bells on its way

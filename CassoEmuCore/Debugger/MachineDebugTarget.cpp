@@ -916,15 +916,15 @@ bool MachineDebugTarget::TryGetDiskState (DebugDiskState & state) const
 
     state               = DebugDiskState();
     state.slot          = controller->GetSlot();
-    state.selectedDrive = controller->GetActiveDrive();
-    state.isMotorOn     = controller->IsMotorOn();
-    state.isWriteMode   = controller->IsQ7();
-    state.phases        = controller->GetPhases();
+    state.selectedDrive = controller->GetLines().GetActiveDrive();
+    state.isMotorOn     = controller->GetLines().IsMotorOn();
+    state.isWriteMode   = controller->GetLines().IsQ7();
+    state.phases        = controller->GetLines().GetPhases();
 
     for (int drive = 0; drive < Disk2Controller::kDriveCount; drive++)
     {
-        disk                      = controller->GetDisk (drive);
-        state.quarterTrack[drive] = controller->GetQuarterTrack (drive);
+        disk                      = controller->GetDrive (drive).GetDisk();
+        state.quarterTrack[drive] = controller->GetDrive (drive).GetQuarterTrack();
         state.isProtected[drive]  = disk != nullptr && disk->IsWriteProtected();
         state.hasDisk[drive]      = disk != nullptr && disk->IsLoaded();
         state.imageName[drive]    = (disk != nullptr && disk->IsLoaded()) ? disk->GetFilePath() : std::string();
@@ -949,7 +949,7 @@ const Disk2NibbleRecord * MachineDebugTarget::GetDiskRecord() const
 
 
 
-    return (controller != nullptr) ? &controller->GetNibbleRecord() : nullptr;
+    return (controller != nullptr) ? &controller->GetRecorder().GetNibbleRecord() : nullptr;
 }
 
 
@@ -973,7 +973,7 @@ bool MachineDebugTarget::PeekDiskNibbles (int drive, int count, std::vector<Byte
         return false;
     }
 
-    controller->GetEngine (drive).PeekNibbles (count, nibbles, isRandom);
+    controller->GetDrive (drive).GetEngine().PeekNibbles (count, nibbles, isRandom);
     return true;
 }
 

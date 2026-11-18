@@ -731,7 +731,7 @@ public:
         store->GetImage (6, 0)->WriteBit (0, flippedBit, 0);   // dirty guest write
 
         auto  ctrl = std::make_unique<Disk2Controller> (6);   // the controller and both stores are too big for the stack
-        ctrl->SetMotorOffFlushCallback ([&] () { store->FlushAll(); });
+        ctrl->GetSignals().SetMotorOffFlushCallback ([&] () { store->FlushAll(); });
 
         ctrl->Write (0xC0E9, 0x00);    // motor on
         ctrl->Write (0xC0E8, 0x00);    // motor off (arm spindown)

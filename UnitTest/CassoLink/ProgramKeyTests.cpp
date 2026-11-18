@@ -172,7 +172,7 @@ public:
 
             if (!pressed && now >= kCheckFrom)
             {
-                spun = spun || rig.machine.GetRefs().diskController->IsMotorOn();
+                spun = spun || rig.machine.GetRefs().diskController->GetLines().IsMotorOn();
                 checked++;
             }
 

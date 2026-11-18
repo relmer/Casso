@@ -63,7 +63,7 @@ public:
 
         machine.PowerCycle();
 
-        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (ReverseSessionRig::kDiskDrive) ==
+        Assert::IsTrue (machine.GetRefs().diskController->GetDrive (ReverseSessionRig::kDiskDrive).GetDisk() ==
                         machine.GetDiskStore().GetImage (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive),
                         L"drive 1 reads the disk in its bay after the power cycle");
     }

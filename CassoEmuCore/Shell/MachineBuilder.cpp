@@ -790,7 +790,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         // when the machine actually has the Disk ][ controller realized.
         if (m_host.GetRefs().diskController != nullptr && !m_services.diskAudioSources->empty())
         {
-            m_host.GetRefs().diskController->SetAudioSink ((*m_services.diskAudioSources)[0].get());
+            m_host.GetRefs().diskController->GetSignals().SetAudioSink ((*m_services.diskAudioSources)[0].get());
         }
 
         StorageCardWiring (*this, m_host, m_services).WireDeviceAudio();
@@ -1819,8 +1819,8 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
 
     if (m_host.GetRefs().diskController != nullptr)
     {
-        m_host.GetRefs().diskController->SetCpuCycleSource (m_host.GetCpu()->GetBusCyclePtr());
-        m_host.GetRefs().diskController->SetInstructionAddressSource (m_host.GetCpu()->GetInstructionStartPtr());
+        m_host.GetRefs().diskController->GetClock().SetSource (m_host.GetCpu()->GetBusCyclePtr());
+        m_host.GetRefs().diskController->GetRecorder().SetInstructionAddressSource (m_host.GetCpu()->GetInstructionStartPtr());
 
         // Motor-idle auto-flush: when the drive spins down (operation done),
         // persist dirty images so writes survive a crash / kill before the
@@ -1828,7 +1828,7 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         // Tick, which owns the disk writes, so it races nothing. It skips clean
         // images, does nothing while reverse execution holds the disks or a
         // replay runs, and the flush-error reporter surfaces failures.
-        m_host.GetRefs().diskController->SetMotorOffFlushCallback ([this] ()
+        m_host.GetRefs().diskController->GetSignals().SetMotorOffFlushCallback ([this] ()
         {
             m_host.GetDiskStore().FlushAllUnlessHeld();
 
@@ -1851,7 +1851,7 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
         //  is what has to carry the guarantee on its own.
         if (!m_services.IsImageWatchDisabled())
         {
-            m_host.GetRefs().diskController->SetIdleCallback ([this] ()
+            m_host.GetRefs().diskController->GetSignals().SetIdleCallback ([this] ()
             {
                 m_host.GetDiskStore().ApplyPendingReload();
             });

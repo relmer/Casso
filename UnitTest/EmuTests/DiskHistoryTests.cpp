@@ -10,7 +10,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 static constexpr uint64_t  s_kDiskWarmupCycles  = 60000;
 static constexpr uint64_t  s_kDiskAfterCycles   = 30000;
-static constexpr uint64_t  s_kPastSpindown      = Disk2Controller::kMotorSpindownCycles + 100000;
+static constexpr uint64_t  s_kPastSpindown      = Disk2CardSequencer::kMotorSpindownCycles + 100000;
 static constexpr size_t    s_kNibPattern        = 29;
 static constexpr Byte      s_kHighBit           = 0x80;
 
@@ -415,7 +415,7 @@ public:
         AssertSucceeded (hr, L"SeekToPosition before the eject");
 
         Assert::IsTrue (machine.GetDiskStore().IsMounted (6, 0), L"the disk is back in the drive");
-        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (0) == machine.GetDiskStore().GetImage (6, 0), L"and the drive reads it");
+        Assert::IsTrue (machine.GetRefs().diskController->GetDrive (0).GetDisk() == machine.GetDiskStore().GetImage (6, 0), L"and the drive reads it");
         Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"the whole machine as it was before the eject");
 
         hr = controller.SeekToPosition (liveEnd, result);
@@ -713,7 +713,7 @@ public:
         AssertSucceeded (hr, L"SeekToPosition back before the reload");
 
         Assert::AreEqual<uint64_t> (outgoing, store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"the disk that went out is back in the drive");
-        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (0) == store.GetImage (6, 0), L"and the drive reads it");
+        Assert::IsTrue (machine.GetRefs().diskController->GetDrive (0).GetDisk() == store.GetImage (6, 0), L"and the drive reads it");
         Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"the whole machine as it was before the reload");
 
         hr = controller.SeekToPosition (liveEnd, result);
@@ -756,7 +756,7 @@ public:
         });
 
         //  As the machine builder installs it, noting each time it runs.
-        machine.GetRefs().diskController->SetIdleCallback ([&store, &hasIdled] ()
+        machine.GetRefs().diskController->GetSignals().SetIdleCallback ([&store, &hasIdled] ()
         {
             hasIdled = true;
             store.ApplyPendingReload();
@@ -771,7 +771,7 @@ public:
             machine.StepOne();
         }
 
-        while (sinceIdle + kLongestInstruction < Disk2Controller::kIdleCallbackCycles)
+        while (sinceIdle + kLongestInstruction < Disk2Signals::kIdleCallbackCycles)
         {
             sinceIdle += machine.StepOne();
         }
@@ -816,7 +816,7 @@ public:
         AssertSucceeded (hr, L"SeekToPosition back to the keyframe before the reload");
 
         Assert::AreEqual<uint64_t> (outgoing, store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"the disk that went out is back in the drive");
-        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (0) == store.GetImage (6, 0), L"and the drive reads it");
+        Assert::IsTrue (machine.GetRefs().diskController->GetDrive (0).GetDisk() == store.GetImage (6, 0), L"and the drive reads it");
     }
 
 

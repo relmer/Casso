@@ -499,9 +499,9 @@ public:
 
         machine.RunCycles (kBootDiskCycles);
 
-        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
-        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->GetLines().IsMotorOn(),
             L"Boot ROM must turn the motor on (FR-021)");
         Assert::IsTrue (bitsAfter > 0,
             L"DOS 3.3 boot ROM must read at least one nibble from track 0");
@@ -551,9 +551,9 @@ public:
 
         machine.RunCycles (kBootDiskCycles);
 
-        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
-        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->GetLines().IsMotorOn(),
             L"Boot ROM must spin up the drive on a .po mount");
         Assert::IsTrue (bitsAfter > 0,
             L"ProDOS boot ROM must read at least one nibble from a .po image");
@@ -610,11 +610,11 @@ public:
 
         machine.RunCycles (kBootDiskCycles);
 
-        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
         Assert::IsTrue (bitsAfter > 0,
             L"WOZ nibble engine must advance through the bit stream (FR-022)");
-        Assert::IsTrue (machine.GetRefs().diskController->IsMotorOn(),
+        Assert::IsTrue (machine.GetRefs().diskController->GetLines().IsMotorOn(),
             L"Boot ROM must spin up the drive on a WOZ mount");
     }
 
@@ -648,7 +648,7 @@ public:
 
         machine.RunCycles (kBootDiskCycles);
 
-        bitsAfter = machine.GetRefs().diskController->GetEngine (kDrive1).GetBitPosition();
+        bitsAfter = machine.GetRefs().diskController->GetDrive (kDrive1).GetEngine().GetBitPosition();
 
         Assert::IsTrue (bitsAfter > 0,
             L"Engine must advance through the variable-length CP track (FR-024)");

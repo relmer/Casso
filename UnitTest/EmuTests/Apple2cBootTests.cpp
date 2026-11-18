@@ -221,14 +221,14 @@ public:
 
         // Pump the engine via Tick(N) rather than CPU cycles (the read path's
         // catch-up needs a live, advancing CPU counter we are not providing).
-        machine.GetRefs().diskController->SetCpuCycleSource (nullptr);
+        machine.GetRefs().diskController->GetClock().SetSource (nullptr);
 
         machine.GetMemoryBus().ReadByte (0xC0EB);   // select drive 2 (external)
         machine.GetMemoryBus().ReadByte (0xC0E9);   // motor on -> drive 2's engine spins
         machine.GetMemoryBus().ReadByte (0xC0ED);   // Q6 high first
         machine.GetMemoryBus().ReadByte (0xC0EC);   // Q6 low
         machine.GetMemoryBus().ReadByte (0xC0EE);   // Q7 low -> read mode
-        machine.GetRefs().diskController->Tick (Disk2Controller::kMotorSpinupCycles);
+        machine.GetRefs().diskController->Tick (Disk2CardSequencer::kMotorSpinupCycles);
 
         for (int i = 0; i < 4000 && !sawValidNibble; i++)
         {

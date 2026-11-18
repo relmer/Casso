@@ -74,7 +74,7 @@ public:
 
         Assert::AreEqual (uint64_t (5), disk->GetGuestWriteCount (disk->ResolveQuarterTrack (0)));
         Assert::AreEqual (uint64_t (0), disk->GetGuestWriteCount (disk->ResolveQuarterTrack (8)), L"only the record under the head");
-        Assert::IsFalse (ctrl->IsWriteBlocked (0));
+        Assert::IsFalse (ctrl->GetDrive (0).IsWriteBlocked());
     }
 
 
@@ -131,8 +131,8 @@ public:
         WriteNibbles (*ctrl, 3);
 
         Assert::AreEqual (uint64_t (0), disk->GetGuestWriteCount (disk->ResolveQuarterTrack (0)));
-        Assert::IsTrue (ctrl->IsWriteBlocked (0));
-        Assert::IsFalse (ctrl->IsWriteBlocked (1), L"the other drive");
+        Assert::IsTrue (ctrl->GetDrive (0).IsWriteBlocked());
+        Assert::IsFalse (ctrl->GetDrive (1).IsWriteBlocked(), L"the other drive");
     }
 
 
@@ -148,9 +148,9 @@ public:
         (void) ctrl->Read (kMotorOn);
         (void) ctrl->Read (kPhase1On);
 
-        Assert::AreEqual (1u, ctrl->GetVisitCount (0, 2), L"phase 1 moves the head two quarter tracks");
-        Assert::AreEqual (0u, ctrl->GetVisitCount (1, 2), L"per drive");
-        Assert::AreEqual (0u, ctrl->GetVisitCount (0, -1));
+        Assert::AreEqual (1u, ctrl->GetDrive (0).GetVisitCount (2), L"phase 1 moves the head two quarter tracks");
+        Assert::AreEqual (0u, ctrl->GetDrive (1).GetVisitCount (2), L"per drive");
+        Assert::AreEqual (0u, ctrl->GetDrive (0).GetVisitCount (-1));
     }
 
 
@@ -178,12 +178,12 @@ public:
 
         //  The store reloads a file into the same image object and re-points
         //  the drive at it.
-        Assert::AreEqual (1u, ctrl->GetVisitCount (0, 2));
+        Assert::AreEqual (1u, ctrl->GetDrive (0).GetVisitCount (2));
         ctrl->SetExternalDisk (0, disk.get());
-        Assert::AreEqual (0u, ctrl->GetVisitCount (0, 2), L"a reload starts the visits over");
-        Assert::IsTrue   (ctrl->GetAccessLog (0).GetWrites()[2].empty(), L"and the access marks");
+        Assert::AreEqual (0u, ctrl->GetDrive (0).GetVisitCount (2), L"a reload starts the visits over");
+        Assert::IsTrue   (ctrl->GetDrive (0).GetAccessLog().GetWrites()[2].empty(), L"and the access marks");
 
         ctrl->SetExternalDisk (0, other.get());
-        Assert::AreEqual (0u, ctrl->GetVisitCount (0, 2), L"another disk starts the visits over");
+        Assert::AreEqual (0u, ctrl->GetDrive (0).GetVisitCount (2), L"another disk starts the visits over");
     }
 };

@@ -268,10 +268,10 @@ InspectorDriveMotion ShellInspectorHost::GetMotion (int drive)
 
     if (controller != nullptr && drive >= 0 && drive < kDriveCount)
     {
-        const Disk2NibbleEngine &  engine = controller->GetEngine (drive);
+        const Disk2NibbleEngine &  engine = controller->GetDrive (drive).GetEngine();
 
-        motion.isTurning    = controller->IsMotorOn() && controller->GetActiveDrive() == drive;
-        motion.isWriting    = motion.isTurning && controller->IsQ7();
+        motion.isTurning    = controller->GetLines().IsMotorOn() && controller->GetLines().GetActiveDrive() == drive;
+        motion.isWriting    = motion.isTurning && controller->GetLines().IsQ7();
         motion.slot         = engine.GetSlot();
         motion.angle        = engine.GetAngle();
         motion.writeNibbles = engine.GetWriteNibbles();

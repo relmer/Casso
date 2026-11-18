@@ -87,11 +87,11 @@ public:
 
             if (controller != nullptr)
             {
-                motion.isTurning    = controller->IsMotorOn() && controller->GetActiveDrive() == drive;
-                motion.isWriting    = motion.isTurning && controller->IsQ7();
-                motion.slot         = controller->GetEngine (drive).GetSlot();
-                motion.angle        = controller->GetEngine (drive).GetAngle();
-                motion.writeNibbles = controller->GetEngine (drive).GetWriteNibbles();
+                motion.isTurning    = controller->GetLines().IsMotorOn() && controller->GetLines().GetActiveDrive() == drive;
+                motion.isWriting    = motion.isTurning && controller->GetLines().IsQ7();
+                motion.slot         = controller->GetDrive (drive).GetEngine().GetSlot();
+                motion.angle        = controller->GetDrive (drive).GetEngine().GetAngle();
+                motion.writeNibbles = controller->GetDrive (drive).GetEngine().GetWriteNibbles();
             }
 
             return motion;

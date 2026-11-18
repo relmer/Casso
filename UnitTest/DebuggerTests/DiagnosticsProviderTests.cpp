@@ -175,7 +175,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string ("reading"), FindRow (after, "Activity").value, L"the motor is on");
             Assert::AreNotEqual (FindRow (before, "Quarter track").value, FindRow (after, "Quarter track").value, L"the head moved");
-            Assert::AreEqual (std::format ("{}", disk->GetQuarterTrack()), FindRow (after, "Quarter track").value);
+            Assert::AreEqual (std::format ("{}", disk->GetLines().GetQuarterTrack()), FindRow (after, "Quarter track").value);
             Assert::IsTrue   (IsBitSet (FindRow (after, "Phases"), "PH1"));
             Assert::IsFalse  (IsBitSet (FindRow (after, "Phases"), "PH0"));
             Assert::AreEqual (std::string ("read"), FindRow (after, "Mode").value);
@@ -183,9 +183,9 @@ namespace DebuggerTests
 
             head = std::get_if<DiagnosticsDiskHead> (&after.visual);
             Assert::IsNotNull (head, L"the head graphic's payload");
-            Assert::AreEqual  (disk->GetQuarterTrack(), head->quarterTrack);
+            Assert::AreEqual  (disk->GetLines().GetQuarterTrack(), head->quarterTrack);
             Assert::IsTrue    (head->motorOn);
-            Assert::AreEqual  ((int) Disk2Controller::kMaxQuarterTrack, head->maxQuarterTrack);
+            Assert::AreEqual  ((int) Disk2Drive::kMaxQuarterTrack, head->maxQuarterTrack);
             Assert::AreEqual  ((Byte) 0x02, head->phases);
         }
 

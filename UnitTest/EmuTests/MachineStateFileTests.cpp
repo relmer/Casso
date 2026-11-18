@@ -335,8 +335,8 @@ public:
 
         Assert::AreEqual<uint64_t> (diskId,  store.GetMediaId (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive), L"drive 1 holds the disk it held, not the state's");
         Assert::AreEqual<uint64_t> (otherId, store.GetMediaId (ReverseSessionRig::kDiskSlot, kOtherDrive),                   L"drive 2 still holds the disk the state had no place for");
-        Assert::AreEqual<uint64_t> (diskId,  controller->GetDisk (ReverseSessionRig::kDiskDrive)->GetImageId(),              L"drive 1 reads its own disk");
-        Assert::AreEqual<uint64_t> (otherId, controller->GetDisk (kOtherDrive)->GetImageId(),                                L"drive 2 reads its own disk");
+        Assert::AreEqual<uint64_t> (diskId,  controller->GetDrive (ReverseSessionRig::kDiskDrive).GetDisk()->GetImageId(),              L"drive 1 reads its own disk");
+        Assert::AreEqual<uint64_t> (otherId, controller->GetDrive (kOtherDrive).GetDisk()->GetImageId(),                                L"drive 2 reads its own disk");
         Assert::IsTrue (before == ReverseSessionRig::Save (target), L"and the machine is unchanged");
 
         Assert::IsFalse          (store.IsRetainingMedia(),         L"the store keeps no disks once the load is over");

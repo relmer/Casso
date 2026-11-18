@@ -541,7 +541,7 @@ void ComparisonSession::StartB (std::shared_ptr<const DiskCopy> copy)
     m_b.mediaId   = copy->mediaId;
     m_b.copy      = copy;
     m_b.settings  = m_settings;
-    m_b.headLimit = Disk2Controller::kMaxQuarterTrack;
+    m_b.headLimit = Disk2Drive::kMaxQuarterTrack;
     m_b.tracks.resize (copy->tracks.size());
     DiskAnalyzer::Assemble (m_b);
     m_bScheduler->Restart (copy, m_settings);

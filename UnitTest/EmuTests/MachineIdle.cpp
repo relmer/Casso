@@ -33,7 +33,7 @@ bool MachineIdle::IsIdle (
         return false;
     }
 
-    if (host.GetRefs().diskController != nullptr && host.GetRefs().diskController->IsMotorOn())
+    if (host.GetRefs().diskController != nullptr && host.GetRefs().diskController->GetLines().IsMotorOn())
     {
         return false;
     }

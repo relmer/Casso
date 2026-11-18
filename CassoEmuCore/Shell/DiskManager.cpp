@@ -582,11 +582,11 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
     {
         if (inserted)
         {
-            controller->NotifyDiskInserted (drive);
+            controller->GetSignals().OnDiskInserted (drive);
         }
         else
         {
-            controller->NotifyDiskEjected (drive);
+            controller->GetSignals().OnDiskEjected (drive);
         }
     }
 
@@ -884,7 +884,7 @@ void DiskManager::UpdateDriveWidgets()
 
         if (controller != nullptr)
         {
-            auto &  engine = controller->GetEngine (drive);
+            auto &  engine = controller->GetDrive (drive).GetEngine();
             motorOn = engine.IsMotorOn();
             reads   = engine.GetReadNibbles();
             writes  = engine.GetWriteNibbles();

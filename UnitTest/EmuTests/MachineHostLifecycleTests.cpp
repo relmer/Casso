@@ -258,8 +258,8 @@ public:
 
         machine.PowerCycle();
 
-        Assert::IsTrue (controller->GetDisk (0) == store.GetImage (6, 0), L"drive 1 reads the store's disk");
-        Assert::IsTrue (controller->GetDisk (1) == store.GetImage (6, 1), L"drive 2 reads the store's disk");
+        Assert::IsTrue (controller->GetDrive (0).GetDisk() == store.GetImage (6, 0), L"drive 1 reads the store's disk");
+        Assert::IsTrue (controller->GetDrive (1).GetDisk() == store.GetImage (6, 1), L"drive 2 reads the store's disk");
     }
 
 

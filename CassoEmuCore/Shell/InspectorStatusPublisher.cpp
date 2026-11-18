@@ -85,10 +85,10 @@ DriveHeadState InspectorStatusPublisher::Build (const Disk2Controller * controll
 
     if (controller != nullptr)
     {
-        const Disk2NibbleEngine &  engine = controller->GetEngine (drive);
+        const Disk2NibbleEngine &  engine = controller->GetDrive (drive).GetEngine();
 
-        state.isMotorOn        = controller->IsMotorOn();
-        state.isEnabled        = controller->GetActiveDrive() == drive;
+        state.isMotorOn        = controller->GetLines().IsMotorOn();
+        state.isEnabled        = controller->GetLines().GetActiveDrive() == drive;
         state.isTurning        = state.isMotorOn && state.isEnabled;
         state.headQuarterTrack = engine.GetCurrentTrack();
         state.trackRecord      = engine.GetSlot();
@@ -98,7 +98,7 @@ DriveHeadState InspectorStatusPublisher::Build (const Disk2Controller * controll
 
         if (state.isTurning && engine.IsWriteMode())
         {
-            state.activity = controller->IsWriteBlocked (drive) ? HeadActivity::WriteBlocked : HeadActivity::Writing;
+            state.activity = controller->GetDrive (drive).IsWriteBlocked() ? HeadActivity::WriteBlocked : HeadActivity::Writing;
         }
         else if (state.isTurning)
         {
@@ -107,12 +107,12 @@ DriveHeadState InspectorStatusPublisher::Build (const Disk2Controller * controll
 
         for (int qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
         {
-            state.visitCounts[qt]  = controller->GetVisitCount (drive, qt);
-            state.nibblesTaken[qt] = controller->GetAccessLog (drive).GetNibblesTaken (qt);
+            state.visitCounts[qt]  = controller->GetDrive (drive).GetVisitCount (qt);
+            state.nibblesTaken[qt] = controller->GetDrive (drive).GetAccessLog().GetNibblesTaken (qt);
         }
 
         //  The spans are copied only when the log has changed.
-        state.accessGeneration = controller->GetAccessLog (drive).GetGeneration();
+        state.accessGeneration = controller->GetDrive (drive).GetAccessLog().GetGeneration();
 
         if (previous != nullptr && previous->access != nullptr && previous->accessGeneration == state.accessGeneration)
         {
@@ -122,9 +122,9 @@ DriveHeadState InspectorStatusPublisher::Build (const Disk2Controller * controll
         {
             auto  access = std::make_shared<DriveAccess>();
 
-            access->reads  = controller->GetAccessLog (drive).GetReads();
-            access->writes = controller->GetAccessLog (drive).GetWrites();
-            access->scans  = controller->GetAccessLog (drive).GetScans();
+            access->reads  = controller->GetDrive (drive).GetAccessLog().GetReads();
+            access->writes = controller->GetDrive (drive).GetAccessLog().GetWrites();
+            access->scans  = controller->GetDrive (drive).GetAccessLog().GetScans();
             state.access   = access;
         }
     }

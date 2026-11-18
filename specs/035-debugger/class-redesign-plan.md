@@ -111,37 +111,72 @@ it against the code.
 **Problem.** The class is five things: the slot's I/O device, the Disk II card's
 sequencer, two drives, the debugger's nibble and access logs, and the //c's IWM front end. The
 first cut moved the IWM front end out behind `IDisk2IwmOwner`, whose ten callbacks
-all operate on a drive or on the notifications. The missing object is the drive.
+all operate on a drive, on the lines both front ends share, or on the reports. The
+missing objects are the drive and the shared lines.
+
+**State, at `4b20fcd8c`.** "Card" is the Disk II path (`Read`, `Write`, `Tick`,
+`HandleSwitch`); "IWM" is `Disk2IwmPort` through `IDisk2IwmOwner`. Everything
+runs on the CPU thread; `TryPeekIo` and `GetDiagnostics` run there too.
+
+| Field | Written by | Read by | Group |
+|---|---|---|---|
+| `m_slot`, `m_ioStart`, `m_ioEnd` | constructor | `Read`, `Write`, `TryPeekIo`, `GetStart`, `GetEnd` | controller |
+| `m_iwmMode`, `m_portHook` | `SetIwmMode`, `SetPortHook` | `Read`, `Write`, `TryPeekIo`, `Tick`, `PollFloppyEnable`, state | controller |
+| `m_quarterTrack[d]` | `MoveHeadToPull`, `Reset`, `LoadState` | engines, diagnostics, access log, state | drive |
+| `m_visits[d]` | `MoveHeadToPull`, `SetExternalDisk` | `GetVisitCount` | drive |
+| `m_access[d]` | read path (card and IWM), `CountLatchLoad`, motor off, `SetExternalDisk` | `GetAccessLog` | drive |
+| `m_isWriteBlocked[d]` | `CountLatchLoad`, `SetExternalDisk` | `IsWriteBlocked` | drive |
+| `m_disks[d]`, `m_activeDisk[d]` | `MountDisk`, `EjectDisk`, `SetExternalDisk`, `PowerCycle` | every path that tests write protection or a loaded disk | drive |
+| `m_engine[d]` | every path | every path, state | drive |
+| `m_phases`, `m_phase` | `HandlePhase` (card and IWM), `Reset`, `LoadState` | head moves, diagnostics, state | lines |
+| `m_motorOn` | card switch 9, card `Tick`, IWM `OnIwmMotor`, `Reset`, `LoadState` | head moves, latch loads, diagnostics, state | lines |
+| `m_activeDrive` | card switches A and B, IWM `OnIwmSequencer` and `OnIwmPhases`, `Reset`, `LoadState` | every path | lines |
+| `m_q6`, `m_q7` | card switches C to F, IWM `OnIwmSequencer`, `Reset`, `LoadState` | read dispatch, engine selection, diagnostics, state | lines |
+| `m_motorSpindownCycles`, `m_motorSpinupRemaining` | card switches 8 and 9, card `Tick`, `PollFloppyEnable`, `Reset`, `LoadState` | card read dispatch, idle pump, diagnostics, state | card |
+| `m_switchAccesses` | `HandleSwitch` | `GetSwitchAccessCount` | card |
+| `m_cpuCycleSource`, `m_lastCpuSync` | `SetCpuCycleSource`, `CatchUpToCpu`, `AdvanceIwmClock`, `LoadState` | card catch-up, IWM clock, peek, state | clock |
+| `m_peekBase`, `m_peekEngine`, `m_peekDrive`, `m_peekSync`, `m_peekDelta` | `PeekLatch` | `PeekLatch` | latch peek |
+| `m_audioSink`, `m_eventSinks`, `m_motorOffFlushCallback`, `m_idleCallback` | setters | every report | signals |
+| `m_cyclesSinceIdleCallback`, `m_busySinceIdleCallback` | `PumpIdleCallback`, `LoadState` | `PumpIdleCallback`, state | signals |
+| `m_addrMarkWatcher`, `m_nibbleRecord`, `m_instructionAddressSource` | read and write paths, head moves, disk changes, `Reset`, `PowerCycle`, `LoadState` | diagnostics, `GetNibbleRecord`, state | recorder |
+| `m_iwmPort` (the `Iwm`, two enables, IWM cycle count) | IWM path | diagnostics, state | IWM |
+
+The IWM path writes the lines (`m_activeDrive`, `m_q6`, `m_q7`, `m_motorOn`) so
+that diagnostics, state and `GetQuarterTrack` work in both modes, and it steps the
+head through the card's `HandlePhase`. The lines are therefore a separate class, not part of
+either front end.
 
 **Classes.**
 
 | Class | State | Responsibility |
 |---|---|---|
-| `Disk2Drive` (two instances) | quarter track, `Disk2NibbleEngine`, the internal empty `DiskImage`, the active disk pointer, visit counts, `DiskAccessLog`, the write-blocked flag | One drive. `Pull (phases)` moves the head and returns the move (from, to, bumped). `SetMotorOn`, `StepCell`, `Mount`, `Eject`, `SetExternalDisk`, `IsWriteProtected`. `static GetPull` is here; its test moves here. |
-| `Disk2Signals` | audio sink, the event sink slots, the motor-off flush callback, the idle callback and its cycle count | Everything the controller reports outward: motor engaged and disengaged, head step and bump, drive select, motor commands, idle pump. Both front ends call it. |
-| `Disk2Recorder` | `Disk2NibbleRecord`, `Disk2AddressMarkWatcher`, the latch-load count, the instruction address source | `NoteRead (drive, nibble, flags)` and `NoteWrite (drive, nibble, isDropped)`. Replaces the duplicated blocks in `HandleReadDispatch`, `Write` and the IWM path. |
-| `Disk2Clock` | the CPU cycle source, the last synced cycle | `TakeElapsed ()` returns the cycles since the last call. Both front ends use it. |
-| `Disk2LatchPeek` | the base copy, the advanced copy, drive, sync, delta | The side-effect-free read of the data latch. |
-| `Disk2CardSequencer` | Q6, Q7, the phase latches, the last phase, the motor flag, spin-up and spin-down counters, the active drive, the switch access count | The Disk II card's logic: `HandleSwitch`, `HandlePhase`, the read dispatch, `Tick`'s motor timing, catch-up. Operates the drives, signals, recorder and clock by reference. |
-| `Disk2IwmPort` | the `Iwm`, the two enables, the IWM cycle count | The //c front end. Its two `IDiskDriveBus` adapters call `Disk2Drive` directly. It calls `Disk2Signals` and `Disk2Recorder`. `IDisk2IwmOwner` is deleted. |
-| `Disk2Controller` | slot, I/O range, mode flag, port hook, and the parts above | `MemoryDevice`, `IMachineState`, `IDiagnosticsProvider`. `Read`, `Write` and `TryPeekIo` pick the front end by mode, then call the port hook. |
+| `Disk2Drive` (two instances) | quarter track, `Disk2NibbleEngine`, the internal empty `DiskImage`, the active disk pointer, visit counts, `DiskAccessLog`, the write-blocked flag | One drive. `MoveHead (phases)` moves the head where the phases pull it and returns a `Disk2HeadMove` (from, to, bumped). `Mount`, `Eject`, `SetExternalDisk`, `HasExternalDisk`, `GetDisk`, `IsWriteProtected`, `HasDisk`, `NoteRead (nibble)`, `CountLatchLoad`, `EndRead`, `Reset`. `static GetPull` and the quarter-track constants are here; the `GetPull` tests move here. |
+| `Disk2Lines` | phases, phase, motor flag, active drive, Q6, Q7 | The lines both front ends set and the controller reports: one copy. `SetPhase (phase, on)` and `SetPhases (phases)` latch the magnets and, with the motor on, move the selected drive's head, reporting the move to the recorder and the signals. `SelectDrive`, `SetMotorOn`, `SetQ6`, `SetQ7`, the queries, and the saved fields. Has references to the drives, the recorder and the signals. |
+| `Disk2Signals` | audio sink, event sink slots, motor-off flush callback, idle callback and its window | Everything the controller reports outward: motor engaged and disengaged (with the flush), motor commands, head step and bump, drive select, write mode, write protect, disk inserted and ejected, and `PumpIdle (cycles, isBusy)`. Both front ends call it. |
+| `Disk2Recorder` | `Disk2AddressMarkWatcher`, `Disk2NibbleRecord`, the instruction address source | `NoteRead (drive, index, nibble, flags, cycle)` and `NoteWrite (drive, index, nibble)`. Replaces the duplicated blocks in `HandleReadDispatch`, `Write` and the IWM path, and the virtual `OnLatchLoad`: its test reads the nibble record. |
+| `Disk2Clock` | the CPU cycle source, the last synced cycle | `TakeElapsed (out)` returns whether there is a source and the cycles since the last call; both front ends use it, so the card's re-anchor after a power cycle and the IWM's are one rule. `GetPending` for a peek. |
+| `Disk2LatchPeek` | the base copy, the run-on copy, drive, sync, delta | `Peek (engine, drive, sync, delta)`: the side-effect-free read of the data latch. |
+| `Disk2CardSequencer` | spin-down and spin-up counters, the switch access count, the `Disk2LatchPeek` | The Disk II card's logic: `Read`, `Write`, `TryPeek`, `Tick` (motor timing), the read dispatch, the catch-up. Has references to the lines, the drives, the signals, the recorder and the clock. |
+| `Disk2IwmPort` | the `Iwm`, the two enables, the IWM cycle count | The //c front end. Its two `IDiskDriveBus` adapters call `Disk2Drive` directly. It sets the lines and calls `Disk2Signals` and `Disk2Recorder`. `IDisk2IwmOwner` is deleted. |
+| `Disk2Controller` | slot, I/O range, IWM mode flag, port hook, and the parts above | `MemoryDevice`, `IMachineState`, `IDiagnosticsProvider`. `Read`, `Write` and `TryPeekIo` pick the front end by mode, then call the port hook. `SetEventSink` sets the signals' slot and the watcher's, so it stays on the controller. Getters: `GetDrive (d)`, `GetLines()`, `GetSignals()`, `GetRecorder()`, `GetClock()`, `GetCard()`, `GetIwmPort()`. |
 
-**Shared sequencer state.** Today the IWM path writes `m_activeDrive`, `m_q6`,
-`m_q7` and `m_motorOn` so that diagnostics, state and `GetQuarterTrack` work in
-both modes. Put those four in one small struct (`Disk2Lines`) that both front ends
-write and `Disk2Controller` reads, or have `Disk2Controller` read them from the
-active front end. Choose in step 2 of the method; there must be one copy.
+**State.** `Disk2Controller::SaveState` writes the same fields in the same order
+from the parts' getters: phases, phase, both heads, motor, spin-down, spin-up,
+active drive, Q6, Q7, IWM mode, the IWM mode register, the idle window, the last
+sync, both engines, the watcher, the record, the IWM port. `LoadState` validates
+as today, then sets each part. The golden test confirms the bytes.
 
-**State.** `Disk2Controller::SaveState` and `LoadState` call a `SaveState` on each
-part in today's field order. Check the order against the current function line by
-line; the golden test confirms it.
-
-**Callers.** `GetEngine (drive)`, `GetAccessLog`, `GetVisitCount`,
-`IsWriteBlocked`, `GetDisk`, `MountDisk`, `EjectDisk`, `SetExternalDisk` become
-`GetDrive (drive).X`. `SetAudioSink`, `SetEventSink`, `SetMotorOffFlushCallback`,
-`SetIdleCallback` become `GetSignals().X`. `GetNibbleRecord` becomes
-`GetRecorder().GetNibbleRecord ()`. The virtual `OnLatchLoad` hook (used by
-`Disk2LatchLoadHookTests`) becomes a sink on `Disk2Recorder`.
+**Callers.** `GetEngine (d)`, `GetDisk`, `MountDisk`, `EjectDisk`,
+`SetExternalDisk`, `HasExternalDisk`, `GetVisitCount`, `GetAccessLog`,
+`IsWriteBlocked` and `GetQuarterTrack (d)` become `GetDrive (d).X`.
+`GetActiveDrive`, `IsMotorOn`, `GetQuarterTrack()`, `GetCurrentTrack`, `IsQ6`,
+`IsQ7` and `GetPhases` become `GetLines().X`. `SetAudioSink`, `GetAudioSink`,
+`SetMotorOffFlushCallback`, `SetIdleCallback`, `NotifyDiskInserted` and
+`NotifyDiskEjected` become `GetSignals().X`. `GetNibbleRecord` and
+`SetInstructionAddressSource` become `GetRecorder().X`. `SetCpuCycleSource`
+becomes `GetClock().SetSource`. `IsMotorAtSpeed`, `GetMotorSpinupRemaining` and
+`GetSwitchAccessCount` become `GetCard().X`. `GetIwm` becomes
+`GetIwmPort().GetIwm()`.
 
 ### 2. MachineHost
 

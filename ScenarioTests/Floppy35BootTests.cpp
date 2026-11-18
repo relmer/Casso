@@ -714,7 +714,7 @@ public:
         TestMachine  machine ("Apple2cPlus", ports, io);
 
         AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "master.dsk", DiskFormat::Dsk, GuestSession::RequireDos33Master()));
-        machine.GetRefs().diskController->GetDisk (0)->SetUserWriteProtected (true);
+        machine.GetRefs().diskController->GetDrive (0).GetDisk()->SetUserWriteProtected (true);
 
         machine.PowerCycle();
         GuestSession::StartFromPowerOn (machine);

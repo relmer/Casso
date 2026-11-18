@@ -28,7 +28,7 @@ void DiskAnalyzer::Analyze (std::shared_ptr<const DiskCopy> copy, const DecodeSe
     out           = DiskAnalysis();
     out.mediaId   = copy->mediaId;
     out.settings  = settings;
-    out.headLimit = Disk2Controller::kMaxQuarterTrack;
+    out.headLimit = Disk2Drive::kMaxQuarterTrack;
 
     for (slot = 0; slot < static_cast<int> (copy->tracks.size()); slot++)
     {

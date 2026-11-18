@@ -148,8 +148,8 @@ public:
 
         const Disk2Controller &  controller = *machine.GetRefs().diskController;
 
-        readsBefore  = controller.GetAccessLog (kDrive).GetReads();
-        writesBefore = controller.GetAccessLog (kDrive).GetWrites();
+        readsBefore  = controller.GetDrive (kDrive).GetAccessLog().GetReads();
+        writesBefore = controller.GetDrive (kDrive).GetAccessLog().GetWrites();
 
         RunTraced (machine, "CATALOG",      tracedReads, tracedWrites);
         KeystrokeInjector::InjectLine (machine, "",                  kSettleCycles);
@@ -162,8 +162,8 @@ public:
 
         DiskAnalyzer::Analyze (DiskCopy::MakeFromImage (*machine.GetDiskStore().GetImage (kSlot, kDrive), 1, kImagePath, 0, false), DecodeSettings::MakeStandard(), analysis);
 
-        std::set<SectorKey>  markedReads  = GetMarked (analysis, readsBefore,  controller.GetAccessLog (kDrive).GetReads(),  false);
-        std::set<SectorKey>  markedWrites = GetMarked (analysis, writesBefore, controller.GetAccessLog (kDrive).GetWrites(), true);
+        std::set<SectorKey>  markedReads  = GetMarked (analysis, readsBefore,  controller.GetDrive (kDrive).GetAccessLog().GetReads(),  false);
+        std::set<SectorKey>  markedWrites = GetMarked (analysis, writesBefore, controller.GetDrive (kDrive).GetAccessLog().GetWrites(), true);
 
         Assert::AreEqual (Describe (tracedReads),  Describe (markedReads),  L"the sectors marked read are the ones RWTS read");
         Assert::AreEqual (Describe (tracedWrites), Describe (markedWrites), L"the sectors marked written are the ones RWTS wrote");

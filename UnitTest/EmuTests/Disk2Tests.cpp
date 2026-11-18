@@ -76,11 +76,11 @@ static size_t WriteBytesThroughLss (Disk2Controller & disk, const Byte * data, i
 
 
     disk.Read (s_kMotorOn);
-    disk.Tick (Disk2Controller::kMotorSpinupCycles);
+    disk.Tick (Disk2CardSequencer::kMotorSpinupCycles);
     disk.Read (s_kQ6On);
     disk.Read (s_kQ7On);
 
-    startBit = disk.GetEngine (0).GetBitPosition();
+    startBit = disk.GetDrive (0).GetEngine().GetBitPosition();
 
     for (i = 0; i < count; i++)
     {
@@ -119,7 +119,7 @@ static void StepOutward (Disk2Controller & disk, int halfTracks)
 
     for (i = 0; i < halfTracks; i++)
     {
-        phase   = ((disk.GetQuarterTrack() / 2) + 1) & 3;
+        phase   = ((disk.GetLines().GetQuarterTrack() / 2) + 1) & 3;
         onAddr  = static_cast<Word> (s_kSlot6Base + 1 + phase * 2);
         offAddr = static_cast<Word> (s_kSlot6Base + phase * 2);
 
@@ -165,7 +165,7 @@ public:
         disk->Read (s_kPhase0Off);
         disk->Read (s_kPhase1On);
 
-        Assert::IsTrue (disk->GetQuarterTrack() > 0,
+        Assert::IsTrue (disk->GetLines().GetQuarterTrack() > 0,
             L"Phase magnet stepping must move the head");
     }
 
@@ -198,18 +198,18 @@ public:
             int   phase    = (step + 1) & 3;
             Word  onAddr   = static_cast<Word> (s_kSlot6Base + 1 + phase * 2);
             Word  offAddr  = static_cast<Word> (s_kSlot6Base + phase * 2);
-            int   beforeQt = disk->GetQuarterTrack();
+            int   beforeQt = disk->GetLines().GetQuarterTrack();
 
             disk->Read (onAddr);
             disk->Read (offAddr);
 
-            Assert::AreEqual (beforeQt + 2, disk->GetQuarterTrack(),
+            Assert::AreEqual (beforeQt + 2, disk->GetLines().GetQuarterTrack(),
                 L"Each phase energize must advance exactly one half-track");
-            Assert::AreEqual (0, disk->GetQuarterTrack() & 1,
+            Assert::AreEqual (0, disk->GetLines().GetQuarterTrack() & 1,
                 L"Head must rest on an even quarter-track after every step");
         }
 
-        Assert::AreEqual (16, disk->GetQuarterTrack(),
+        Assert::AreEqual (16, disk->GetLines().GetQuarterTrack(),
             L"Eight half-steps must land the head at quarter-track 16 (track 4)");
     }
 
@@ -218,18 +218,18 @@ public:
         unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->Read (s_kMotorOn);
-        Assert::IsTrue  (disk->IsMotorOn(), L"$C0E9 must enable the motor");
+        Assert::IsTrue  (disk->GetLines().IsMotorOn(), L"$C0E9 must enable the motor");
 
         // $C0E8 starts the ~1 second motor-spindown timer (UTAIIe ch. 9
         // / AppleWin SPINNING_CYCLES). The motor stays on until the
         // timer expires; the controller advances the timer in Tick().
         // A sufficiently large Tick must drop the motor.
         disk->Read (s_kMotorOff);
-        Assert::IsTrue (disk->IsMotorOn(),
+        Assert::IsTrue (disk->GetLines().IsMotorOn(),
             L"$C0E8 must keep the motor spinning for the spindown window");
 
         disk->Tick (2'000'000);  // > 1M cycle spindown
-        Assert::IsFalse (disk->IsMotorOn(),
+        Assert::IsFalse (disk->GetLines().IsMotorOn(),
             L"$C0E8 must disable the motor after the spindown timer expires");
     }
 
@@ -251,7 +251,7 @@ public:
         disk->Read (s_kMotorOff);
 
         Assert::AreEqual<Byte> (0x00, disk->Read (s_kQ7Off) & 0x20, L"motor commanded off: bit 5 clears at once");
-        Assert::IsTrue (disk->IsMotorOn(), L"while the disk itself is still spinning down");
+        Assert::IsTrue (disk->GetLines().IsMotorOn(), L"while the disk itself is still spinning down");
 
         //  The mode register is likewise writable as soon as the motor is
         //  commanded off: the //c reset routine writes it and reads it back
@@ -261,9 +261,9 @@ public:
 
         Assert::AreEqual<Byte> (0x1B, disk->Read (s_kQ7Off) & 0x1F, L"the mode written reads back through the spin-down");
 
-        disk->Tick (Disk2Controller::kMotorSpindownCycles);
+        disk->Tick (Disk2CardSequencer::kMotorSpindownCycles);
 
-        Assert::IsFalse (disk->IsMotorOn(), L"and stops when the spin-down runs out");
+        Assert::IsFalse (disk->GetLines().IsMotorOn(), L"and stops when the spin-down runs out");
         Assert::AreEqual<Byte> (0x00, disk->Read (s_kQ7Off) & 0x20);
     }
 
@@ -277,7 +277,7 @@ public:
         for (int drive : { 0, 1 })
         {
             unique_ptr<Disk2Controller>   disk    = make_unique<Disk2Controller> (6);
-            DiskImage                   * image   = disk->GetDisk (drive);
+            DiskImage                   * image   = disk->GetDrive (drive).GetDisk();
             size_t                        cleared = 0;
             size_t                        i       = 0;
 
@@ -288,7 +288,7 @@ public:
 
             disk->Read (drive == 0 ? s_kDrive1 : s_kDrive2);
             disk->Read (s_kMotorOn);
-            disk->Tick (Disk2Controller::kMotorSpinupCycles);
+            disk->Tick (Disk2CardSequencer::kMotorSpinupCycles);
             disk->Read (s_kMotorOff);
 
             disk->Read  (s_kQ6On);
@@ -312,7 +312,7 @@ public:
     TEST_METHOD (IwmWriteWithTheMotorOnReachesTheDisk)
     {
         unique_ptr<Disk2Controller>   disk    = make_unique<Disk2Controller> (6);
-        DiskImage                   * image   = disk->GetDisk (1);
+        DiskImage                   * image   = disk->GetDrive (1).GetDisk();
         size_t                        cleared = 0;
         size_t                        i       = 0;
 
@@ -323,7 +323,7 @@ public:
 
         disk->Read (s_kDrive2);
         disk->Read (s_kMotorOn);
-        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+        disk->Tick (Disk2CardSequencer::kMotorSpinupCycles);
 
         disk->Read  (s_kQ6On);
         disk->Write (s_kQ7On, 0x00);
@@ -353,7 +353,7 @@ public:
         disk->SetIwmMode (true);
         disk->Read (s_kDrive2);
         disk->Read (s_kMotorOn);
-        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+        disk->Tick (Disk2CardSequencer::kMotorSpinupCycles);
 
         disk->Read  (s_kQ6On);
         disk->Write (s_kQ7On, 0xFF);
@@ -391,10 +391,10 @@ public:
         unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->Read (s_kDrive2);
-        Assert::AreEqual (1, disk->GetActiveDrive(), L"$C0EB selects drive 2");
+        Assert::AreEqual (1, disk->GetLines().GetActiveDrive(), L"$C0EB selects drive 2");
 
         disk->Read (s_kDrive1);
-        Assert::AreEqual (0, disk->GetActiveDrive(), L"$C0EA selects drive 1");
+        Assert::AreEqual (0, disk->GetLines().GetActiveDrive(), L"$C0EA selects drive 1");
     }
 
     ////////////////////////////////////////////////////////////////////////
@@ -419,28 +419,28 @@ public:
         disk->Read (s_kMotorOn);
         disk->Read (s_kDrive1);
         StepOutward (*disk, kTrack20HalfTracks);
-        Assert::AreEqual (kTrack20, disk->GetCurrentTrack(),
+        Assert::AreEqual (kTrack20, disk->GetLines().GetCurrentTrack(),
             L"Drive 1 must seek to track 20");
 
         disk->Read (s_kDrive2);
-        Assert::AreEqual (0, disk->GetQuarterTrack(),
+        Assert::AreEqual (0, disk->GetLines().GetQuarterTrack(),
             L"Selecting drive 2 must not move its head to drive 1's track");
 
         StepOutward (*disk, kTrack5HalfTracks);
-        Assert::AreEqual (kTrack5, disk->GetCurrentTrack(),
+        Assert::AreEqual (kTrack5, disk->GetLines().GetCurrentTrack(),
             L"Drive 2 must seek to track 5");
 
         disk->Read (s_kDrive1);
-        Assert::AreEqual (kTrack20, disk->GetCurrentTrack(),
+        Assert::AreEqual (kTrack20, disk->GetLines().GetCurrentTrack(),
             L"Drive 1's head must still be on track 20 after drive 2 seeks");
-        Assert::AreEqual (kTrack20QuarterTrack, disk->GetEngine (0).GetCurrentTrack(),
+        Assert::AreEqual (kTrack20QuarterTrack, disk->GetDrive (0).GetEngine().GetCurrentTrack(),
             L"Drive 1's engine must read from track 20");
-        Assert::AreEqual (kTrack5QuarterTrack, disk->GetEngine (1).GetCurrentTrack(),
+        Assert::AreEqual (kTrack5QuarterTrack, disk->GetDrive (1).GetEngine().GetCurrentTrack(),
             L"Drive 2's engine must stay on track 5 while drive 1 is selected");
 
         StepOutward (*disk, 1);
         disk->Read (s_kDrive2);
-        Assert::AreEqual (kTrack5QuarterTrack, disk->GetQuarterTrack(),
+        Assert::AreEqual (kTrack5QuarterTrack, disk->GetLines().GetQuarterTrack(),
             L"A step on drive 1 must not move drive 2's head");
     }
 
@@ -463,7 +463,7 @@ public:
         unique_ptr<Disk2Controller>  disk = make_unique<Disk2Controller> (6);
         Byte                         v    = 0;
 
-        disk->GetDisk (0)->SetWriteProtected (true);
+        disk->GetDrive (0).GetDisk()->SetWriteProtected (true);
 
         disk->Read (s_kQ7Off);
         v = disk->Read (s_kQ6On);
@@ -479,8 +479,8 @@ public:
         disk->Read (s_kQ7On);
         disk->Read (s_kQ6Off);
 
-        Assert::IsTrue  (disk->IsQ7(), L"$C0EF sets Q7");
-        Assert::IsFalse (disk->IsQ6(), L"$C0EC clears Q6");
+        Assert::IsTrue  (disk->GetLines().IsQ7(), L"$C0EF sets Q7");
+        Assert::IsFalse (disk->GetLines().IsQ6(), L"$C0EC clears Q6");
     }
 
     TEST_METHOD (Q7SetQ6SetWritesNibble)
@@ -489,7 +489,7 @@ public:
         size_t                         bitOffset = 0;
 
         // Provide a writable track so the engine has somewhere to push bits.
-        disk->GetDisk (0)->ResizeTrack (0, s_kSyntheticTrackBytes * s_kBitsPerNibble);
+        disk->GetDrive (0).GetDisk()->ResizeTrack (0, s_kSyntheticTrackBytes * s_kBitsPerNibble);
 
         disk->Read  (s_kMotorOn);
         disk->Read  (s_kQ6On);
@@ -498,7 +498,7 @@ public:
         disk->Write (s_kQ7On, 0xFF);
         disk->Tick (Disk2NibbleEngine::kCyclesPerBit * s_kBitsPerNibble);
 
-        Assert::IsTrue (disk->IsQ7() && disk->IsQ6(),
+        Assert::IsTrue (disk->GetLines().IsQ7() && disk->GetLines().IsQ6(),
             L"Q7=Q6=1 must be set after $C0ED + $C0EF");
 
         UNREFERENCED_PARAMETER (bitOffset);
@@ -510,17 +510,17 @@ public:
         size_t                       posBefore = 0;
         size_t                       posAfter  = 0;
 
-        disk->GetDisk (0)->ResizeTrack (0, 64);
+        disk->GetDrive (0).GetDisk()->ResizeTrack (0, 64);
 
         disk->Read (s_kMotorOn);
         disk->Read (s_kQ7Off);
         disk->Read (s_kQ6Off);
 
-        posBefore = disk->GetEngine (0).GetBitPosition();
+        posBefore = disk->GetDrive (0).GetEngine().GetBitPosition();
 
         disk->Tick (Disk2NibbleEngine::kCyclesPerBit * 4);
 
-        posAfter = disk->GetEngine (0).GetBitPosition();
+        posAfter = disk->GetDrive (0).GetEngine().GetBitPosition();
 
         Assert::AreEqual (size_t (4), posAfter - posBefore,
             L"4 bits should advance per 16 CPU cycles (4 cycles/bit)");
@@ -538,7 +538,7 @@ public:
 
 
 
-        disk->GetDisk (0)->ResizeTrack (0, kTrackBits);
+        disk->GetDrive (0).GetDisk()->ResizeTrack (0, kTrackBits);
 
         disk->Read (s_kMotorOn);
         disk->Read (s_kQ7Off);
@@ -546,15 +546,15 @@ public:
 
         // Drain the spin-up window so the bit cursor is the only
         // thing advancing under us.
-        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+        disk->Tick (Disk2CardSequencer::kMotorSpinupCycles);
 
         disk->Read (s_kQ6Off);
-        posFirst  = disk->GetEngine (0).GetBitPosition();
+        posFirst  = disk->GetDrive (0).GetEngine().GetBitPosition();
 
         disk->Tick (kGap);
 
         disk->Read (s_kQ6Off);
-        posSecond = disk->GetEngine (0).GetBitPosition();
+        posSecond = disk->GetDrive (0).GetEngine().GetBitPosition();
 
         advanced  = (posSecond + kTrackBits - posFirst) % kTrackBits;
 
@@ -566,11 +566,11 @@ public:
     {
         unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
-        disk->GetDisk (0)->ResizeTrack    (0, 8);
-        disk->GetDisk (0)->SetWriteProtected (true);
-        disk->GetDisk (0)->WriteBit       (0, 0, 1);
+        disk->GetDrive (0).GetDisk()->ResizeTrack    (0, 8);
+        disk->GetDrive (0).GetDisk()->SetWriteProtected (true);
+        disk->GetDrive (0).GetDisk()->WriteBit       (0, 0, 1);
 
-        Assert::AreEqual (static_cast<uint8_t> (0), disk->GetDisk (0)->ReadBit (0, 0),
+        Assert::AreEqual (static_cast<uint8_t> (0), disk->GetDrive (0).GetDisk()->ReadBit (0, 0),
             L"Write-protected disk must ignore WriteBit");
     }
 
@@ -592,16 +592,16 @@ public:
             disk->Read (off);
         }
 
-        Assert::IsTrue (disk->GetQuarterTrack() >= 0,
+        Assert::IsTrue (disk->GetLines().GetQuarterTrack() >= 0,
             L"Quarter-track must remain in legal range after long forward walk");
-        Assert::IsTrue (disk->GetQuarterTrack() <= Disk2Controller::kMaxQuarterTrack,
+        Assert::IsTrue (disk->GetLines().GetQuarterTrack() <= Disk2Drive::kMaxQuarterTrack,
             L"Quarter-track must clamp to kMaxQuarterTrack");
     }
 
     TEST_METHOD (LSS_ReadsKnownNibblePattern)
     {
         unique_ptr<Disk2Controller>    disk  = make_unique<Disk2Controller> (6);
-        DiskImage *                    img   = disk->GetDisk (0);
+        DiskImage *                    img   = disk->GetDrive (0).GetDisk();
         size_t                         off   = 0;
         Byte                           value = 0;
         int                            i     = 0;
@@ -616,9 +616,9 @@ public:
         // the test nibbles. The bit cursor advances during spin-up, so
         // we write the pattern at wherever the engine ends up so the LSS
         // sees the MSB-set nibble on the very next bit cells.
-        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+        disk->Tick (Disk2CardSequencer::kMotorSpinupCycles);
 
-        off = disk->GetEngine (0).GetBitPosition();
+        off = disk->GetDrive (0).GetEngine().GetBitPosition();
         WriteNibbleToImage (*img, 0, off, 0xD5);
         WriteNibbleToImage (*img, 0, off, 0xAA);
         WriteNibbleToImage (*img, 0, off, 0x96);
@@ -640,7 +640,7 @@ public:
     TEST_METHOD (LSS_WritesPatternRoundTrip)
     {
         unique_ptr<Disk2Controller>    disk = make_unique<Disk2Controller> (6);
-        DiskImage *                    img  = disk->GetDisk (0);
+        DiskImage *                    img  = disk->GetDrive (0).GetDisk();
         int                            i    = 0;
 
         img->ResizeTrack (0, s_kSyntheticTrackBytes * s_kBitsPerNibble);
@@ -676,7 +676,7 @@ public:
     TEST_METHOD (LSS_WriteAdvancesHeadAndDepositsFlux)
     {
         unique_ptr<Disk2Controller>    disk                    = make_unique<Disk2Controller> (6);
-        DiskImage                    * img                     = disk->GetDisk (0);
+        DiskImage                    * img                     = disk->GetDrive (0).GetDisk();
         size_t                         startBit                = 0;
         size_t                         endBit                  = 0;
         size_t                         advanced                = 0;
@@ -690,7 +690,7 @@ public:
         img->ResizeTrack (0, trackBits);
 
         startBit = WriteBytesThroughLss (*disk, kOnesData, kNibbleCount);
-        endBit   = disk->GetEngine (0).GetBitPosition();
+        endBit   = disk->GetDrive (0).GetEngine().GetBitPosition();
 
         advanced = (endBit + trackBits - startBit) % trackBits;
         Assert::AreEqual (static_cast<size_t> (kRegionBits), advanced,
@@ -722,20 +722,20 @@ public:
         disk->Read (s_kPhase1On);
         disk->Reset();
 
-        Assert::IsFalse (disk->IsMotorOn(),
+        Assert::IsFalse (disk->GetLines().IsMotorOn(),
             L"Reset must clear the motor flag");
-        Assert::AreEqual (0, disk->GetActiveDrive(),
+        Assert::AreEqual (0, disk->GetLines().GetActiveDrive(),
             L"Reset must select drive 0");
     }
 
-    TEST_METHOD (GetDisk_Bounds)
+    TEST_METHOD (GetDrive_ClampsTheIndex)
     {
         unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
-        Assert::IsNotNull (disk->GetDisk (0));
-        Assert::IsNotNull (disk->GetDisk (1));
-        Assert::IsNull    (disk->GetDisk (2));
-        Assert::IsNull    (disk->GetDisk (-1));
+        Assert::IsNotNull (disk->GetDrive (0).GetDisk());
+        Assert::IsNotNull (disk->GetDrive (1).GetDisk());
+        Assert::IsTrue    (&disk->GetDrive (2)  == &disk->GetDrive (1), L"past the last drive is the last drive");
+        Assert::IsTrue    (&disk->GetDrive (-1) == &disk->GetDrive (0), L"before the first drive is the first drive");
     }
 
     TEST_METHOD (MountDisk_InvalidDrive_ReturnsError)
@@ -770,24 +770,24 @@ public:
     {
         unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
-        Assert::AreEqual (uint32_t (0), disk->GetMotorSpinupRemaining(),
+        Assert::AreEqual (uint32_t (0), disk->GetCard().GetMotorSpinupRemaining(),
             L"Cold controller must not have a pending spin-up");
 
         disk->Read (s_kMotorOn);
 
-        Assert::IsTrue  (disk->IsMotorOn(),
+        Assert::IsTrue  (disk->GetLines().IsMotorOn(),
             L"Motor flag must be true immediately on $C0E9");
-        Assert::IsFalse (disk->IsMotorAtSpeed(),
+        Assert::IsFalse (disk->GetCard().IsMotorAtSpeed(),
             L"Motor must NOT be at speed inside the spin-up window");
-        Assert::AreEqual (Disk2Controller::kMotorSpinupCycles,
-            disk->GetMotorSpinupRemaining(),
+        Assert::AreEqual (Disk2CardSequencer::kMotorSpinupCycles,
+            disk->GetCard().GetMotorSpinupRemaining(),
             L"Spin-up cycle counter must equal the full window on motor-on edge");
     }
 
     TEST_METHOD (Spinup_ReadsReturn80InsideWindow)
     {
         unique_ptr<Disk2Controller>    disk  = make_unique<Disk2Controller> (6);
-        DiskImage *                    img   = disk->GetDisk (0);
+        DiskImage *                    img   = disk->GetDrive (0).GetDisk();
         size_t                         off   = 0;
         Byte                           value = 0;
         int                            i     = 0;
@@ -816,14 +816,14 @@ public:
 
         Assert::AreEqual (static_cast<Byte> (0x80), value,
             L"Reads inside the LSS-stability window must return 0x80");
-        Assert::IsFalse (disk->IsMotorAtSpeed(),
+        Assert::IsFalse (disk->GetCard().IsMotorAtSpeed(),
             L"Motor must still report not-at-speed after 32 cycles");
     }
 
     TEST_METHOD (Spinup_RealDataAfterWindowExpires)
     {
         unique_ptr<Disk2Controller>    disk    = make_unique<Disk2Controller> (6);
-        DiskImage                    * img     = disk->GetDisk (0);
+        DiskImage                    * img     = disk->GetDrive (0).GetDisk();
         size_t                         off     = 0;
         Byte                           value   = 0;
         uint64_t                       i       = 0;
@@ -841,9 +841,9 @@ public:
 
         // Drain the spin-up window in a single big tick, then poll
         // until the latch produces an MSB-set nibble.
-        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+        disk->Tick (Disk2CardSequencer::kMotorSpinupCycles);
 
-        Assert::IsTrue (disk->IsMotorAtSpeed(),
+        Assert::IsTrue (disk->GetCard().IsMotorAtSpeed(),
             L"Motor must be at speed once the spin-up counter drains");
 
         for (i = 0; i < kBudget; i += Disk2NibbleEngine::kCyclesPerBit)
@@ -866,27 +866,27 @@ public:
         unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
 
         disk->Read (s_kMotorOn);
-        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+        disk->Tick (Disk2CardSequencer::kMotorSpinupCycles);
 
-        Assert::IsTrue (disk->IsMotorAtSpeed(),
+        Assert::IsTrue (disk->GetCard().IsMotorAtSpeed(),
             L"Precondition: motor reached speed");
 
         // Issue motor-off; this only arms the spindown timer -- the
         // physical disk keeps spinning at 300 RPM.
         disk->Read (s_kMotorOff);
 
-        Assert::IsTrue (disk->IsMotorOn(),
+        Assert::IsTrue (disk->GetLines().IsMotorOn(),
             L"Motor flag stays true during spindown window");
-        Assert::IsTrue (disk->IsMotorAtSpeed(),
+        Assert::IsTrue (disk->GetCard().IsMotorAtSpeed(),
             L"Disk is still at speed during the spindown window");
 
         // Motor-on inside the spindown window: cancels the spindown
         // and must NOT re-arm spin-up (the disk never lost speed).
         disk->Read (s_kMotorOn);
 
-        Assert::AreEqual (uint32_t (0), disk->GetMotorSpinupRemaining(),
+        Assert::AreEqual (uint32_t (0), disk->GetCard().GetMotorSpinupRemaining(),
             L"Motor-on inside spindown must not re-arm the spin-up window");
-        Assert::IsTrue (disk->IsMotorAtSpeed(),
+        Assert::IsTrue (disk->GetCard().IsMotorAtSpeed(),
             L"Reads must remain at-speed across an intra-spindown motor toggle");
     }
 
@@ -896,12 +896,12 @@ public:
 
         disk->Read (s_kMotorOn);
 
-        Assert::AreNotEqual (uint32_t (0), disk->GetMotorSpinupRemaining(),
+        Assert::AreNotEqual (uint32_t (0), disk->GetCard().GetMotorSpinupRemaining(),
             L"Precondition: spin-up armed");
 
         disk->Reset();
 
-        Assert::AreEqual (uint32_t (0), disk->GetMotorSpinupRemaining(),
+        Assert::AreEqual (uint32_t (0), disk->GetCard().GetMotorSpinupRemaining(),
             L"Reset must clear the spin-up counter");
     }
 };

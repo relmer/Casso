@@ -1493,8 +1493,8 @@ void ReverseController::NoteActivity (bool isFirst)
 
     activity.pagesRun       = m_pagesRun;
     activity.isKnown        = !isFirst;
-    activity.diskSwitches   = (controller != nullptr) ? controller->GetSwitchAccessCount() : 0;
-    activity.isDiskSpinning = controller != nullptr && controller->IsMotorOn();
+    activity.diskSwitches   = (controller != nullptr) ? controller->GetCard().GetSwitchAccessCount() : 0;
+    activity.isDiskSpinning = controller != nullptr && controller->GetLines().IsMotorOn();
 
     m_keyframes.SetNewestActivity (activity);
     m_pagesRun = {};

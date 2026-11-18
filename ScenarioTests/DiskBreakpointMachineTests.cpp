@@ -189,11 +189,11 @@ namespace DiskBreakpointMachineTests
 
             Assert::AreEqual (S_OK, rig.machine.GetDiskStore().MountFromBytes (kSlot, kDrive1, "blank.dsk", DiskFormat::Dsk, blank));
             rig.machine.GetRefs().diskController->SetExternalDisk (kDrive1, rig.machine.GetDiskStore().GetImage (kSlot, kDrive1));
-            rig.machine.GetRefs().diskController->NotifyDiskInserted (kDrive1);
+            rig.machine.GetRefs().diskController->GetSignals().OnDiskInserted (kDrive1);
             (void) rig.machine.RunCycles (kSettle);
 
             rig.machine.GetRefs().diskController->SetExternalDisk (kDrive1, nullptr);
-            rig.machine.GetRefs().diskController->NotifyDiskEjected (kDrive1);
+            rig.machine.GetRefs().diskController->GetSignals().OnDiskEjected (kDrive1);
             (void) rig.machine.RunCycles (kSettle);
 
             Assert::AreEqual (1u, rig.Hits (insert));

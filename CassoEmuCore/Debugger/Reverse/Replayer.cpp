@@ -139,7 +139,7 @@ HRESULT Replayer::RunTo (
     DebugHook         * hook       = m_machine.GetDebugHook();
     IWatchSink        * watchSink  = m_machine.GetMemoryBus().GetWatchSink();
     Disk2Controller   * controller = m_machine.GetRefs().diskController;
-    IDisk2EventSink   * diskSink   = (controller != nullptr) ? controller->GetEventSink (ObserverSlot::Breakpoints) : nullptr;
+    IDisk2EventSink   * diskSink   = (controller != nullptr) ? controller->GetSignals().GetEventSink (ObserverSlot::Breakpoints) : nullptr;
     EmuCpu            * cpu        = m_machine.GetCpu();
     uint64_t            position   = 0;
     uint64_t            cycle      = 0;
@@ -561,7 +561,7 @@ Error:
 void Replayer::ReportMedia (const InputRecord & record)
 {
     Disk2Controller  * controller = m_machine.GetRefs().diskController;
-    IDisk2EventSink  * sink       = (controller != nullptr) ? controller->GetEventSink (ObserverSlot::Breakpoints) : nullptr;
+    IDisk2EventSink  * sink       = (controller != nullptr) ? controller->GetSignals().GetEventSink (ObserverSlot::Breakpoints) : nullptr;
 
 
 

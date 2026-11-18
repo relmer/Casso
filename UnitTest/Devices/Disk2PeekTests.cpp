@@ -122,34 +122,34 @@ public:
 
         MakeDisk (disk);
         ctrl.SetExternalDisk   (0, &disk);
-        ctrl.SetCpuCycleSource (&now);
+        ctrl.GetClock().SetSource (&now);
 
         //  The motor on, and its spin-up, which the machine's tick drains,
         //  over before the first peek.
         (void) ctrl.Read (0xC0E9);
-        now += Disk2Controller::kMotorSpinupCycles + 10;
-        ctrl.Tick (Disk2Controller::kMotorSpinupCycles + 10);
+        now += Disk2CardSequencer::kMotorSpinupCycles + 10;
+        ctrl.Tick (Disk2CardSequencer::kMotorSpinupCycles + 10);
         (void) ctrl.Read (0xC0EC);
 
         for (int frame = 1; frame <= 40; frame++)
         {
             uint64_t  delta = (uint64_t) frame * 17030;
 
-            now = 1000 + Disk2Controller::kMotorSpinupCycles + 10 + delta;
+            now = 1000 + Disk2CardSequencer::kMotorSpinupCycles + 10 + delta;
 
             for (int each = 0; each < 16; each++)
             {
                 Assert::IsTrue (ctrl.TryPeekIo (0xC0EC, peeked));
             }
 
-            Assert::AreEqual ((int) ctrl.GetEngine (0).PeekLatchAfter ((uint32_t) delta), (int) peeked, std::format (L"frame {}", frame).c_str());
+            Assert::AreEqual ((int) ctrl.GetDrive (0).GetEngine().PeekLatchAfter ((uint32_t) delta), (int) peeked, std::format (L"frame {}", frame).c_str());
         }
 
         (void) ctrl.Read (0xC0EC);
         now += 777;
 
         Assert::IsTrue   (ctrl.TryPeekIo (0xC0EC, peeked));
-        Assert::AreEqual ((int) ctrl.GetEngine (0).PeekLatchAfter (777), (int) peeked, L"after an access, from that access");
+        Assert::AreEqual ((int) ctrl.GetDrive (0).GetEngine().PeekLatchAfter (777), (int) peeked, L"after an access, from that access");
 
         ctrl.SetExternalDisk (0, nullptr);
     }

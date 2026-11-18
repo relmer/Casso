@@ -119,10 +119,10 @@ public:
         AssertSucceeded (rig.host->ReadSectors (1, 0, sector, data, status));
 
         rig.machine.RunCycles (kPause);
-        Assert::IsTrue (rig.machine.GetRefs().diskController->IsMotorOn(), L"the motor runs while the PC pauses");
+        Assert::IsTrue (rig.machine.GetRefs().diskController->GetLines().IsMotorOn(), L"the motor runs while the PC pauses");
 
         rig.machine.RunCycles (kGone - kPause);
-        Assert::IsFalse (rig.machine.GetRefs().diskController->IsMotorOn(), L"the motor stops once the PC is gone");
+        Assert::IsFalse (rig.machine.GetRefs().diskController->GetLines().IsMotorOn(), L"the motor stops once the PC is gone");
     }
 
 
@@ -151,7 +151,7 @@ public:
             AssertSucceeded (rig.host->AnswerBusy (0));
         }
 
-        Assert::IsTrue (rig.machine.GetRefs().diskController->IsMotorOn(), L"the motor runs while the PC is busy");
+        Assert::IsTrue (rig.machine.GetRefs().diskController->GetLines().IsMotorOn(), L"the motor runs while the PC is busy");
 
         AssertSucceeded (rig.host->ReadSectors (1, 0, sector, data, status));
         Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error, L"the next request is served");

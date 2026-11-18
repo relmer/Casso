@@ -295,18 +295,18 @@ namespace DebugEventLogsTests
             Run (session.machine, 0, 30);
             session.WaitForKeyframes();
 
-            Assert::AreEqual (0, disk->GetActiveDrive(), L"drive 1 while the loop runs");
+            Assert::AreEqual (0, disk->GetLines().GetActiveDrive(), L"drive 1 while the loop runs");
 
             past = session.machine.GetPosition();
             Run (session.machine, 30, 30);
 
             (void) session.machine.GetMemoryBus().ReadByte (0xC0EB);
-            Assert::AreEqual (1, disk->GetActiveDrive(), L"drive 2 selected live");
+            Assert::AreEqual (1, disk->GetLines().GetActiveDrive(), L"drive 2 selected live");
 
             hr = session.controller.SeekToPosition (past, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
-            Assert::AreEqual (0, disk->GetActiveDrive(), L"drive 1 again in the past");
+            Assert::AreEqual (0, disk->GetLines().GetActiveDrive(), L"drive 1 again in the past");
 
             hr = session.controller.OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
