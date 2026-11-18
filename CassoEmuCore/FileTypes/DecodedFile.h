@@ -25,7 +25,7 @@ enum class FileFormat
     Lz4fh, PrintShopGraphic, PrintShopGsClipArt, ShapeTable,
     IigsIcons, HiResFont, Apple3Font, FontrixFont, PrintShopFont,
     IigsFont, WizardryScenario, InfocomStory, HiResScreen,
-    DoubleHiResScreen, LoResScreen, MacPaint,
+    DoubleHiResScreen, LoResScreen, MacPaint, Disassembly,
 };
 
 
@@ -82,6 +82,22 @@ enum class DoubleHiResForm { Auto, BlackAndWhite, SimpleColor, WindowedColor };
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyCpu
+//
+//  The processor code is disassembled for on a copy, None for a code file
+//  copied as its bytes: the 6502's documented opcodes, the 6502's with its
+//  undocumented ones, the 65C02, or the 65816.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DisassemblyCpu { None, Mos6502, Mos6502Undocumented, Wdc65C02, Wdc65816 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DecodeOptions
 //
 //  Chosen in a file's preview while its tab is open: the record length
@@ -99,6 +115,9 @@ struct DecodeOptions
     DoubleHiResForm  doubleHiRes      = DoubleHiResForm::Auto;
     bool             basicColor       = false;                    // a BASIC listing as RTF, its keywords, strings and remarks colored
     bool             basicRawControls = false;                    // an Applesoft listing's control characters as the bytes, not ^D
+    DisassemblyCpu   disassembly      = DisassemblyCpu::None;     // a code file copied as a disassembly for this processor
+    bool             longRegisters    = true;                     // 65816 code starts with 16-bit registers
+    bool             followFlags      = true;                     // 65816 register widths follow REP and SEP
 };
 
 

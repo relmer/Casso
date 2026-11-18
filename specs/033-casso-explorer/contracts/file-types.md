@@ -100,6 +100,13 @@ bytes, not a caret and a letter (`basicRawControls`), and the listing as
 `NAME.Applesoft BASIC.rtf` or `NAME.Integer BASIC.rtf`, its line numbers,
 keywords, strings and remarks each in a color (`basicColor`).
 
+A code file, a DOS 3.3 B file or a ProDOS BIN, SYS, CMD or REL file, with
+no other row is copied as `NAME.Disassembly.txt` when `DecodeOptions::disassembly`
+sets a processor: the 6502 with its documented opcodes, the 6502 with its
+undocumented ones, the 65C02, or the 65816. 65816 code starts with 16-bit
+registers when `longRegisters` is set, and the widths follow REP and SEP
+when `followFlags` is set.
+
 `Decode` fails with `ERROR_INVALID_DATA` and a reason in words for a file
 that fails its check, which FR-169's preview and copy report. `Export`
 writes RTF, CSV, text or PNG by the `DecodedFile`'s kind.

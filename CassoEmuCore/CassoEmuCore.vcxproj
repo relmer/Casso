@@ -622,6 +622,8 @@
     <ClCompile Include="FileTypes\TeachDocument.cpp" />
     <ClCompile Include="FileTypes\SuperHiRes.cpp" />
     <ClCompile Include="FileTypes\HiResFormats.cpp" />
+    <ClCompile Include="FileTypes\CodeListing.cpp" />
+    <ClCompile Include="FileTypes\Disassembler65816.cpp" />
     <ClCompile Include="FileTypes\MacPaintPicture.cpp" />
     <ClCompile Include="FileTypes\ScreenPicture.cpp" />
     <ClCompile Include="FileTypes\SuperHiRes3200.cpp" />
@@ -1789,6 +1791,8 @@
     <ClInclude Include="FileTypes\TeachDocument.h" />
     <ClInclude Include="FileTypes\SuperHiRes.h" />
     <ClInclude Include="FileTypes\HiResFormats.h" />
+    <ClInclude Include="FileTypes\CodeListing.h" />
+    <ClInclude Include="FileTypes\Disassembler65816.h" />
     <ClInclude Include="FileTypes\MacPaintPicture.h" />
     <ClInclude Include="FileTypes\ScreenPicture.h" />
     <ClInclude Include="Devices\Disk\Archives\ZipAppleDouble.h" />

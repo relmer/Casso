@@ -918,7 +918,8 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                                    {}, browser.GetLocation().innerPath,
                                    [&browser, image, kind = browser.GetVolumeKind()] (const std::string & catalogPath, const FileEntry & entry)
                                    {
-                                       return CopyOutConversion::Find (browser.GetOperations(), image, catalogPath, entry, kind);
+                                       return CopyOutConversion::Find (browser.GetOperations(), image, catalogPath, entry, kind,
+                                                                       browser.GetDecodeOptions (browser.GetLocation().path, catalogPath));
                                    },
                                    raw);
 
@@ -1036,7 +1037,8 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                                        {}, matches[first].directory,
                                        [&browser, from, kind = matches[first].kind] (const std::string & catalogPath, const FileEntry & entry)
                                        {
-                                           return CopyOutConversion::Find (browser.GetOperations(), from, catalogPath, entry, kind);
+                                           return CopyOutConversion::Find (browser.GetOperations(), from, catalogPath, entry, kind,
+                                                                           browser.GetDecodeOptions (TextEncoding::NarrowToWide (from), catalogPath));
                                        },
                                        raw);
 

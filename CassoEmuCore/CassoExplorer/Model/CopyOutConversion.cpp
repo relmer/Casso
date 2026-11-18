@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Model/CopyOutConversion.h"
 #include "CassoExplorer/Model/BasicListingOutput.h"
+#include "CassoExplorer/Model/PreviewDecoder.h"
 #include "Core/TextEncoding.h"
 #include "FileTypes/TextCharset.h"
 
@@ -16,11 +17,12 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 FileFormat CopyOutConversion::Find (
-    DiskOperations     & operations,
-    const std::string  & image,
-    const std::string  & catalogPath,
-    const FileEntry    & entry,
-    VolumeKind           kind)
+    DiskOperations         & operations,
+    const std::string      & image,
+    const std::string      & catalogPath,
+    const FileEntry        & entry,
+    VolumeKind               kind,
+    const DecodeOptions    & options)
 {
     FilePayload             payload;
     DiskOperations::Result  result;
@@ -35,6 +37,11 @@ FileFormat CopyOutConversion::Find (
         if (result.Succeeded())
         {
             format = FileFormatTable::Identify (entry, kind, payload.bytes);
+        }
+
+        if (format == FileFormat::None && options.disassembly != DisassemblyCpu::None && PreviewDecoder::IsExecutableType (entry.type, kind))
+        {
+            format = FileFormat::Disassembly;
         }
     }
 

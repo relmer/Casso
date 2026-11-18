@@ -26,12 +26,14 @@ class CopyOutConversion
 {
 public:
     //  The format of a file in an image, or None for a file with no row and
-    //  for one that can't be read.
-    static FileFormat  Find (DiskOperations     & operations,
-                             const std::string  & image,
-                             const std::string  & catalogPath,
-                             const FileEntry    & entry,
-                             VolumeKind           kind);
+    //  for one that can't be read. A code file with no row is Disassembly
+    //  when the options set a processor to disassemble it for.
+    static FileFormat  Find (DiskOperations         & operations,
+                             const std::string      & image,
+                             const std::string      & catalogPath,
+                             const FileEntry        & entry,
+                             VolumeKind               kind,
+                             const DecodeOptions    & options = DecodeOptions());
 
     //  Whether Get decodes the file itself: it has a format, or it is text
     //  with a chosen character set.

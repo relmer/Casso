@@ -10,6 +10,9 @@
 #include "ApplesoftTokenizer.h"
 #include "Cpu.h"
 #include "Disassembler.h"
+#include "Core/Cpu65C02.h"
+#include "Core/MemoryBus.h"
+#include "FileTypes/Disassembler65816.h"
 #include "IntegerBasicDetokenizer.h"
 #include "Machines/Apple2/Common/CpmVolume.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
@@ -210,6 +213,67 @@ const Microcode * PreviewDecoder::GetNmosTable()
 
 
     return cpu.GetInstructionSet();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::GetCmosTable
+//
+//  The 65C02's table, from a core whose bus is never read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const Microcode * PreviewDecoder::GetCmosTable()
+{
+    static MemoryBus  bus;
+    static Cpu65C02   cpu (bus);
+
+
+
+    return cpu.GetInstructionSet();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PreviewDecoder::GetCodeOrigin
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Word PreviewDecoder::GetCodeOrigin (Byte type, VolumeKind kind, bool hasLoadAddress, Word loadAddress, bool hasAuxType, Word auxType)
+{
+    bool  proDos = kind == VolumeKind::ProDos;
+
+
+
+    if (proDos && type == ProDosVolume::kTypeRelocatable)
+    {
+        return hasAuxType ? auxType : 0;
+    }
+
+    if (hasLoadAddress)
+    {
+        return loadAddress;
+    }
+
+    if (proDos && type == ProDosVolume::kTypeSystem)
+    {
+        return s_kSystemLoadAddress;
+    }
+
+    if (proDos && type == ProDosVolume::kTypeCommand)
+    {
+        return s_kCommandLoadAddress;
+    }
+
+    return hasAuxType ? auxType : 0;
 }
 
 
@@ -623,7 +687,10 @@ void PreviewDecoder::RenderDisassembly (
     Word                         origin,
     VolumeKind                   kind,
     bool                         relocatable,
-    std::vector<std::wstring>  & outLines)
+    std::vector<std::wstring>  & outLines,
+    DisassemblyCpu               cpu,
+    bool                         longRegisters,
+    bool                         followFlags)
 {
     std::vector<DisassembledLine>  lines;
     DisassemblyOptions             options;
@@ -636,7 +703,7 @@ void PreviewDecoder::RenderDisassembly (
     outLines.clear();
 
     options.symbols          = &GetSymbols (kind);
-    options.nmosUndocumented = true;
+    options.nmosUndocumented = cpu == DisassemblyCpu::Mos6502Undocumented || cpu == DisassemblyCpu::None;
 
     if (kind == VolumeKind::ProDos)
     {
@@ -657,7 +724,14 @@ void PreviewDecoder::RenderDisassembly (
         }
     }
 
-    Disassembler::Disassemble (code, origin, GetNmosTable(), lines, options);
+    if (cpu == DisassemblyCpu::Wdc65816)
+    {
+        Disassembler65816::Disassemble (code, origin, longRegisters, followFlags, lines);
+    }
+    else
+    {
+        Disassembler::Disassemble (code, origin, (cpu == DisassemblyCpu::Wdc65C02) ? GetCmosTable() : GetNmosTable(), lines, options);
+    }
 
     if (!trailer.empty())
     {

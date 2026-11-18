@@ -3,6 +3,7 @@
 #include "FileTypes/FileFormatRows.h"
 #include "FileTypes/AppleWorks.h"
 #include "FileTypes/BusinessBasic.h"
+#include "FileTypes/CodeListing.h"
 #include "FileTypes/GutenbergDocument.h"
 #include "FileTypes/HiResFormats.h"
 #include "FileTypes/IigsFormats.h"
@@ -70,6 +71,7 @@ std::vector<FileFormatTable::Row> FileFormatRows::Make()
         Row { FileFormat::DoubleHiResScreen,  &ScreenPicture::MatchesDoubleHiRes,  &ScreenPicture::DecodeDoubleHiRes,  nullptr, L".Double Hi-Res.png", false },
         Row { FileFormat::LoResScreen,        &ScreenPicture::MatchesLoRes,        &ScreenPicture::DecodeLoRes,        nullptr, L".Lo-Res.png",        false },
         Row { FileFormat::MacPaint,           &MacPaintPicture::Matches,           &MacPaintPicture::Decode,           nullptr, L".MacPaint.png",      false },
+        Row { FileFormat::Disassembly,        nullptr,                             &CodeListing::Decode,               nullptr, L".Disassembly.txt",   false },
         Row { FileFormat::PrintShopGsClipArt, &PrintShopGraphic::MatchesGs,        &PrintShopGraphic::Decode,          nullptr, L".Print Shop.png",   true },
         Row { FileFormat::PrintShopGraphic,   &PrintShopGraphic::Matches,          &PrintShopGraphic::Decode,          nullptr, L".Print Shop.png",   false },
         Row { FileFormat::PrintShopFont,      &PrintShopFont::Matches,             &PrintShopFont::Decode,             nullptr, L".Font.png",         false },

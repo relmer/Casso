@@ -1413,7 +1413,8 @@ ActionsTypes::Outcome CassoExplorerActions::GetSelected (const std::wstring & ho
     for (const FileEntry & entry : entries)
     {
         formats.push_back ((raw || style == HostFileNaming::Style::AppleSingle) ? FileFormat::None
-                                                                                : CopyOutConversion::Find (m_browser.GetOperations(), image, m_browser.GetEntryPath (entry), entry, kind));
+                                                                                : CopyOutConversion::Find (m_browser.GetOperations(), image, m_browser.GetEntryPath (entry), entry, kind,
+                                                                                                           m_browser.GetDecodeOptions (m_browser.GetLocation().path, m_browser.GetEntryPath (entry))));
         hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, kind, style, converted, formats.back(), raw));
 
         if (converted)

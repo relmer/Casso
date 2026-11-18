@@ -300,8 +300,8 @@ void ActionsCopy::ExtractDirectory (const std::string & image, VolumeKind kind, 
         std::string             catalogPath = directory.empty() ? entry.name : directory + "/" + entry.name;
         bool                    altered     = false;
         bool                    appleSingle = style == HostFileNaming::Style::AppleSingle;
-        FileFormat              format      = appleSingle ? FileFormat::None : CopyOutConversion::Find (m_actions.m_browser.GetOperations(), image, catalogPath, entry, kind);
         DecodeOptions           options     = m_actions.m_browser.GetDecodeOptions (TextEncoding::NarrowToWide (image), catalogPath);
+        FileFormat              format      = appleSingle ? FileFormat::None : CopyOutConversion::Find (m_actions.m_browser.GetOperations(), image, catalogPath, entry, kind, options);
         std::wstring            hostName    = entry.isDirectory ? HostFileNaming::MakeHostFolderName (entry.name, altered)
                                                                 : DragPayload::GetHostName (entry, kind, style, altered, format);
         std::wstring            hostPath;

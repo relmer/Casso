@@ -347,6 +347,7 @@
     <ClCompile Include="FileTypes\TextFormatTests.cpp" />
     <ClCompile Include="FileTypes\PictureFormatTests.cpp" />
     <ClCompile Include="FileTypes\ScreenPictureTests.cpp" />
+    <ClCompile Include="FileTypes\Disassembler65816Tests.cpp" />
     <ClCompile Include="FileTypes\AppleWorksTests.cpp" />
     <ClCompile Include="FileTypes\TeachDocumentTests.cpp" />
     <ClCompile Include="FileTypes\IigsFormatTests.cpp" />
