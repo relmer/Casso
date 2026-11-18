@@ -210,7 +210,7 @@ void ConfigHandlers::RunScriptLine (DebugSession & session, const std::string & 
 
 void ConfigHandlers::PrintDirectory (DebugSession & session, Reply & reply)
 {
-    std::wstring     directory = session.GetCurrentDirectory();
+    std::wstring     directory = session.GetHostFiles().GetCurrentDirectory();
     std::error_code  code;
 
 
@@ -238,7 +238,7 @@ void ConfigHandlers::PrintDirectory (DebugSession & session, Reply & reply)
 
 void ConfigHandlers::ChangeDirectory (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    std::wstring  directory = session.ResolvePath (command.text);
+    std::wstring  directory = session.GetHostFiles().ResolvePath (command.text);
 
 
 
@@ -256,12 +256,12 @@ void ConfigHandlers::ChangeDirectory (DebugSession & session, const DebugCommand
         directory.pop_back();
     }
 
-    if (!session.CheckHostAccess (directory, HostAccess::Read, reply))
+    if (!session.GetHostFiles().CheckHostAccess (directory, HostAccess::Read, reply))
     {
         return;
     }
 
-    session.SetCurrentDirectory (directory);
+    session.GetHostFiles().SetCurrentDirectory (directory);
     PrintDirectory (session, reply);
 }
 
@@ -281,7 +281,7 @@ void ConfigHandlers::ChangeDirectory (DebugSession & session, const DebugCommand
 
 void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, std::optional<CommandMode> mode, Reply & reply)
 {
-    IFileSystem  * files = session.GetFileSystem();
+    IFileSystem  * files = session.GetHostFiles().GetFileSystem();
     std::string    content;
     HRESULT        hr    = S_OK;
 
@@ -299,13 +299,13 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
         return;
     }
 
-    session.NoteScriptRun (session.ResolvePath (name));
+    session.GetHostFiles().NoteScriptRun (session.GetHostFiles().ResolvePath (name));
 
-    hr = files->ReadAllText (session.ResolvePath (name), content);
+    hr = files->ReadAllText (session.GetHostFiles().ResolvePath (name), content);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetHostFiles().GetFullPath (name)));
         return;
     }
 
@@ -339,7 +339,7 @@ void ConfigHandlers::RunFile (DebugSession & session, const std::string & name, 
 
 void ConfigHandlers::SaveAll (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    IFileSystem  * files  = session.GetFileSystem();
+    IFileSystem  * files  = session.GetHostFiles().GetFileSystem();
     std::string    script;
     HRESULT        hr     = S_OK;
 
@@ -362,15 +362,15 @@ void ConfigHandlers::SaveAll (DebugSession & session, const DebugCommand & comma
     script += WatchHandlers::MakeScript (session, WatchListKind::ZeroPage);
     script += WatchHandlers::MakeScript (session, WatchListKind::Bookmark);
 
-    hr = files->WriteAllText (session.ResolvePath (command.text), script);
+    hr = files->WriteAllText (session.GetHostFiles().ResolvePath (command.text), script);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (command.text)));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetHostFiles().GetFullPath (command.text)));
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the breakpoints, watches, zero-page pointers and bookmarks{}.", session.GetPathEcho (command.text, "to", reply)) } };
+    reply.data = MessageData { { std::format ("Saved the breakpoints, watches, zero-page pointers and bookmarks{}.", session.GetHostFiles().GetPathEcho (command.text, "to", reply)) } };
 }
 
 
@@ -508,9 +508,9 @@ void ConfigHandlers::InsertOrEject (DebugSession & session, const DebugCommand &
         return;
     }
 
-    path = session.ResolvePath (name);
+    path = session.GetHostFiles().ResolvePath (name);
 
-    if (!session.CheckHostAccess (path, HostAccess::Read, reply))
+    if (!session.GetHostFiles().CheckHostAccess (path, HostAccess::Read, reply))
     {
         return;
     }
@@ -610,7 +610,7 @@ void ConfigHandlers::Tape (DebugSession & session, const DebugCommand & command,
 
 void ConfigHandlers::InsertTape (DebugSession & session, TapeDeck & deck, const std::string & name, Reply & reply)
 {
-    IFileSystem           * files = session.GetFileSystem();
+    IFileSystem           * files = session.GetHostFiles().GetFileSystem();
     ITapeControl          * keys  = session.GetTapeControl();
     NullTapeAudioDecoder    mp3;
     TapeImage               image;
@@ -628,13 +628,13 @@ void ConfigHandlers::InsertTape (DebugSession & session, TapeDeck & deck, const 
 
     if (keys != nullptr)
     {
-        if (!session.CheckHostAccess (session.ResolvePath (name), HostAccess::Read, reply))
+        if (!session.GetHostFiles().CheckHostAccess (session.GetHostFiles().ResolvePath (name), HostAccess::Read, reply))
         {
             return;
         }
 
-        keys->InsertTapeFile (session.ResolvePath (name));
-        reply.data = MessageData { { std::format ("Loading the tape{}.", session.GetPathEcho (name, "from", reply)) } };
+        keys->InsertTapeFile (session.GetHostFiles().ResolvePath (name));
+        reply.data = MessageData { { std::format ("Loading the tape{}.", session.GetHostFiles().GetPathEcho (name, "from", reply)) } };
         return;
     }
 
@@ -644,11 +644,11 @@ void ConfigHandlers::InsertTape (DebugSession & session, TapeDeck & deck, const 
         return;
     }
 
-    hr = files->ReadAllText (session.ResolvePath (name), content);
+    hr = files->ReadAllText (session.GetHostFiles().ResolvePath (name), content);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetHostFiles().GetFullPath (name)));
         return;
     }
 
@@ -662,7 +662,7 @@ void ConfigHandlers::InsertTape (DebugSession & session, TapeDeck & deck, const 
 
     deck.Insert (std::move (image));
 
-    reply.data = MessageData { { std::format ("Inserted the tape{}.", session.GetPathEcho (name, "from", reply)) } };
+    reply.data = MessageData { { std::format ("Inserted the tape{}.", session.GetHostFiles().GetPathEcho (name, "from", reply)) } };
 }
 
 

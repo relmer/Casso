@@ -75,8 +75,8 @@ namespace DebuggerTests
             }
 
             rig.Load (kOrigin, {}, program.Symbol (start));
-            rig.session.SetDebugFile (DebugFileWriter::Build (program.result, { { "", { "callstack.a65", 0 } } }), L"C:\\Work\\callstack.dbg");
-            rig.session.SetCallRecording (true);
+            rig.session.GetFiles().SetDebugFile (DebugFileWriter::Build (program.result, { { "", { "callstack.a65", 0 } } }), L"C:\\Work\\callstack.dbg");
+            rig.session.GetCallRecords().SetRecording (true);
             return program;
         }
 
@@ -668,7 +668,7 @@ namespace DebuggerTests
             rig.Load (0x0910,  { 0xA9, (Byte) (kLanding - 1), 0x48, 0xEA, 0x68, 0x60 }, kCaller); // LDA; PHA; NOP; PLA; RTS
             rig.Load (kMoved,  { 0x60 }, kCaller);                                           // RTS
             rig.Load (kLanding, { 0x4C, (Byte) (kLanding & 0xFF), (Byte) (kLanding >> 8) }, kCaller);   // JMP to itself
-            rig.session.SetCallRecording (true);
+            rig.session.GetCallRecords().SetRecording (true);
             rig.session.SetBudget (100'000);
         }
 
@@ -760,8 +760,8 @@ namespace DebuggerTests
 
             //  Two calls made before the debugger attached.
             RunTo (rig, program.Symbol ("two"));
-            rig.session.SetCallRecording (false);
-            rig.session.SetCallRecording (true);
+            rig.session.GetCallRecords().SetRecording (false);
+            rig.session.GetCallRecords().SetRecording (true);
 
             RunTo (rig, program.Symbol ("threein"));
             data = Calls (rig);
@@ -842,7 +842,7 @@ namespace DebuggerTests
             rig.target.TryPoke (kHandler + 1, kRti);
             rig.target.TryPoke (kIrqUserVector,     (Byte) (kHandler & 0xFF));
             rig.target.TryPoke (kIrqUserVector + 1, (Byte) (kHandler >> 8));
-            rig.session.SetCallRecording (true);
+            rig.session.GetCallRecords().SetRecording (true);
 
             FreeRunTo (rig, kLoop);
             rig.machine.GetRunner().RunCycles (kSpinCycles);
@@ -871,7 +871,7 @@ namespace DebuggerTests
 
 
 
-            rig.session.SetCallRecording (true);
+            rig.session.GetCallRecords().SetRecording (true);
             Assert::IsNull (rig.machine.GetRunner().GetDebugHook(), L"the CPU reports what the record needs");
 
             rig.session.GetBreakpoints().AddAddress (0x1234, 0x1234);
@@ -940,7 +940,7 @@ namespace DebuggerTests
 
 
 
-                rig.session.SetCallRecording (isRecording);
+                rig.session.GetCallRecords().SetRecording (isRecording);
                 rig.session.GetBreakpoints().AddAddress (stop, stop);
                 rig.session.OnStopConditionsChanged();
                 rig.machine.GetRunner().RunCycles (kBudget);

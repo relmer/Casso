@@ -683,8 +683,8 @@ void CodeViews::RefreshLineList (DebugSession & session, bool isPaused, const Ca
         mix (((uint64_t) block.first << 16) | block.last);
     }
 
-    mix (session.GetDebugFileLines().size());
-    mix (session.GetFilesRevision());
+    mix (session.GetFiles().GetDebugFileLines().size());
+    mix (session.GetFiles().GetFilesRevision());
     mix (session.GetSymbols().GetRevision());
 
     if (m_lineList.IsBuilt() && hash == m_lineListInputs)
@@ -708,7 +708,7 @@ void CodeViews::RefreshLineList (DebugSession & session, bool isPaused, const Ca
     inputs.labels.erase (std::unique (inputs.labels.begin(), inputs.labels.end()), inputs.labels.end());
 
     inputs.image      = image.get();
-    inputs.debugLines = session.GetDebugFileLines();
+    inputs.debugLines = session.GetFiles().GetDebugFileLines();
     inputs.dataLine   = [&session] (Word address, bool & isMarked) -> int
     {
         DataBlockEntry   block;
@@ -835,10 +835,10 @@ std::shared_ptr<const std::vector<DebuggerViewSnapshot::CodeLine>> CodeViews::Ma
             row.shownOperand  = line.GetShownOperand();
         }
 
-        if (!session.GetLineTable().GetPositionsAt (each.address).empty())
+        if (!session.GetFiles().GetLineTable().GetPositionsAt (each.address).empty())
         {
-            row.sourceFileId = session.GetLineTable().GetPositionsAt (each.address).front().file;
-            row.sourceLine   = session.GetLineTable().GetPositionsAt (each.address).front().line;
+            row.sourceFileId = session.GetFiles().GetLineTable().GetPositionsAt (each.address).front().file;
+            row.sourceLine   = session.GetFiles().GetLineTable().GetPositionsAt (each.address).front().line;
         }
 
         lines->push_back (std::move (row));

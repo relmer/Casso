@@ -272,7 +272,7 @@ namespace DebuggerTests
             //  requests its rebuild.
             void Attach()
             {
-                base.session.SetCallRecording (true);
+                base.session.GetCallRecords().SetRecording (true);
                 history.Service();
             }
 
@@ -308,7 +308,7 @@ namespace DebuggerTests
             {
                 LoadProgram (base);
                 RunTo (base.machine, recordFrom);
-                base.session.SetCallRecording (true);
+                base.session.GetCallRecords().SetRecording (true);
             }
         };
 
@@ -712,7 +712,7 @@ namespace DebuggerTests
 
             RunTo (reference.base.machine, stop);
             actual = GetRecord (rig.base.session);
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
 
             AssertSameRecord (GetRecord (reference.base.session), actual, true);
 
@@ -770,7 +770,7 @@ namespace DebuggerTests
             RunTo (rig.base.machine, kAttachAt);
             rig.Attach();
 
-            rig.base.session.SetCallRecording (false);
+            rig.base.session.GetCallRecords().SetRecording (false);
             rig.history.Service();
 
             Assert::IsFalse (rig.history.IsRebuilding(), L"closing dropped it");
@@ -779,7 +779,7 @@ namespace DebuggerTests
             rig.queue.WaitAll();
             rig.history.Service();
 
-            Assert::IsFalse (rig.base.session.IsCallRecording(), L"no record was brought back by it");
+            Assert::IsFalse (rig.base.session.GetCallRecords().IsRecording(), L"no record was brought back by it");
 
             rig.Attach();
             Assert::IsTrue (rig.history.IsRebuilding(), L"opening again starts a rebuild of its own");
@@ -815,7 +815,7 @@ namespace DebuggerTests
             rig.queue.WaitAll();
             rig.history.Service();
 
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
 
             Assert::IsTrue  (bottom.has_value() && bottom->kind == CallBreakKind::Reset, L"the record begins at the reset");
             Assert::IsFalse (rig.history.IsRebuilding(), L"and no rebuild came back");
@@ -988,7 +988,7 @@ namespace DebuggerTests
             rig.Drain();
 
             RunTo (reference.base.machine, stop);
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
 
             Assert::IsTrue (bottom.has_value() && bottom->kind == CallBreakKind::HistoryBegan, L"the record begins at the change of disk");
 
@@ -1156,7 +1156,7 @@ namespace DebuggerTests
 
             rig.controller.GetStepper().SetCallerProbe ([] (uint64_t) { return true; });
 
-            generation = rig.base.session.GetCallRecordGeneration();
+            generation = rig.base.session.GetCallRecords().GetGeneration();
             before     = GetRecord (rig.base.session);
 
             rig.history.OnMoving();
@@ -1168,7 +1168,7 @@ namespace DebuggerTests
             rig.history.Service();
 
             Assert::IsTrue   (result.outcome == ReverseOutcome::NoCaller,                  L"no caller: the machine stays");
-            Assert::AreEqual (generation, rig.base.session.GetCallRecordGeneration(),     L"the record did not start again");
+            Assert::AreEqual (generation, rig.base.session.GetCallRecords().GetGeneration(),     L"the record did not start again");
             Assert::IsFalse  (rig.history.IsRebuilding(),                                  L"and nothing is rebuilt");
             Assert::AreEqual ((size_t) 0, rig.queue.GetPendingCount(),                     L"nothing on the worker");
 
@@ -1204,7 +1204,7 @@ namespace DebuggerTests
             rig.Drain();
 
             landing    = rig.base.machine.GetRunner().GetPosition();
-            generation = rig.base.session.GetCallRecordGeneration();
+            generation = rig.base.session.GetCallRecords().GetGeneration();
             replayed   = rig.controller.GetReplayer().GetReplayedCount();
 
             rig.history.OnMoving();
@@ -1216,7 +1216,7 @@ namespace DebuggerTests
 
             Assert::AreEqual (landing, rig.base.machine.GetRunner().GetPosition(),                  L"the machine is put back");
             Assert::IsTrue   (rig.controller.GetReplayer().GetReplayedCount() > replayed, L"after a replay");
-            Assert::AreNotEqual (generation, rig.base.session.GetCallRecordGeneration(), L"so the record starts again");
+            Assert::AreNotEqual (generation, rig.base.session.GetCallRecords().GetGeneration(), L"so the record starts again");
         }
 
 
@@ -1258,7 +1258,7 @@ namespace DebuggerTests
             rig.Drain();
 
             RunTo (reference.base.machine, kAttachAt);
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
 
             Assert::IsTrue (bottom.has_value() && bottom->kind == CallBreakKind::HistoryBegan, L"the record begins after the gap");
 
@@ -1373,12 +1373,12 @@ namespace DebuggerTests
                 rebuilder.results.push_back (result);
                 rig.history.Service();
 
-                bottom = rig.base.session.GetCallRecordBottom();
+                bottom = rig.base.session.GetCallRecords().GetBottom();
 
                 Assert::IsFalse (rig.history.IsRebuilding(), std::format (L"{}: the result was taken in", name).c_str());
                 Assert::IsTrue  (bottom.has_value() && bottom->kind == left, std::format (L"{}: and its record left, its bottom marking what it holds", name).c_str());
 
-                rig.base.session.RestartCallRecording();
+                rig.base.session.GetCallRecords().Restart();
                 rig.history.Service();
 
                 left = CallBreakKind::TrackingRestarted;
@@ -1387,7 +1387,7 @@ namespace DebuggerTests
             rebuilder.results.push_back (MakeHandFedResult (rig, rebuilder));
             rig.history.Service();
 
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
 
             Assert::IsTrue (bottom.has_value() && bottom->kind == CallBreakKind::PowerOn, L"the same state's record is taken");
         }
@@ -1419,7 +1419,7 @@ namespace DebuggerTests
             rig.history.OnMoved (false);
             rig.history.Service();
 
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
             rows   = CallStackPane::GetRows (rig.base.session.GetCallStack());
 
             Assert::AreEqual (kHistoryStart, rig.base.machine.GetRunner().GetPosition(), L"at the start of history");
@@ -1462,7 +1462,7 @@ namespace DebuggerTests
 
             ReverseSessionRig::Prepare (rig.machine);
             ReverseSessionRig::Prepare (reference.machine);
-            reference.session.SetCallRecording (true);
+            reference.session.GetCallRecords().SetRecording (true);
 
             hr = controller.Start (ReverseSessionRig::MakeSettings (1));
             AssertSucceeded (hr, L"Start");
@@ -1476,7 +1476,7 @@ namespace DebuggerTests
                 FeedSlice (rig.machine, reference.machine, slice);
             }
 
-            rig.session.SetCallRecording (true);
+            rig.session.GetCallRecords().SetRecording (true);
             history.Service();
 
             for (; slice < kAttachSlices + kRunOnSlices; slice++)
@@ -1851,7 +1851,7 @@ namespace DebuggerTests
             rig.queue.WaitAll();
             rig.history.Service();
 
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
             rows   = CallStackPane::GetRows (rig.base.session.GetCallStack());
 
             Assert::IsFalse (rig.history.IsRebuilding(), L"the rebuild is given up");
@@ -1903,7 +1903,7 @@ namespace DebuggerTests
             rig.history.OnMoved (false);
             rig.Drain();
 
-            generation = rig.base.session.GetCallRecordGeneration();
+            generation = rig.base.session.GetCallRecords().GetGeneration();
 
             RunTo (rig.base.machine, stop);
 
@@ -1911,9 +1911,9 @@ namespace DebuggerTests
 
             rig.Drain();
 
-            bottom = rig.base.session.GetCallRecordBottom();
+            bottom = rig.base.session.GetCallRecords().GetBottom();
 
-            Assert::AreNotEqual (generation, rig.base.session.GetCallRecordGeneration(), L"the record started again");
+            Assert::AreNotEqual (generation, rig.base.session.GetCallRecords().GetGeneration(), L"the record started again");
             Assert::IsTrue      (bottom.has_value() && bottom->kind == CallBreakKind::HistoryBegan, L"and begins after the gap");
 
             RunTo (reference.base.machine, stop);

@@ -42,10 +42,10 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("C:\\Work"),        rig.RunOk ("PWD").text.at (0));
             Assert::AreEqual (std::string ("D:\\disks"),       rig.RunOk ("CD D:\\disks").text.at (0));
             Assert::AreEqual (std::string ("D:\\disks\\sub"),  rig.RunOk ("cd sub").text.at (0), L"a relative directory is under the current one");
-            Assert::AreEqual (std::wstring (L"D:\\disks\\sub"), rig.session.GetCurrentDirectory());
+            Assert::AreEqual (std::wstring (L"D:\\disks\\sub"), rig.session.GetHostFiles().GetCurrentDirectory());
             rig.RunFails ("CD", "invalid arguments");
             rig.RunFails ("CD \"\"", "invalid arguments");
-            Assert::AreEqual (std::wstring (L"D:\\disks\\sub"), rig.session.GetCurrentDirectory(), L"a quoted empty name leaves the directory alone");
+            Assert::AreEqual (std::wstring (L"D:\\disks\\sub"), rig.session.GetHostFiles().GetCurrentDirectory(), L"a quoted empty name leaves the directory alone");
         }
 
 
@@ -58,7 +58,7 @@ namespace DebuggerTests
 
 
 
-            rig.session.SetCurrentDirectory (L"");
+            rig.session.GetHostFiles().SetCurrentDirectory (L"");
 
             Assert::AreEqual (TextEncoding::WideToNarrow (std::filesystem::current_path (code).wstring()), rig.RunOk ("PWD").text.at (0));
         }
@@ -113,7 +113,7 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("C:\\Work"), rig.RunOk ("CD ..").text.at (0));
             Assert::AreEqual (std::string ("C:\\Work"), rig.RunOk ("CD .").text.at (0));
             Assert::AreEqual (std::string ("C:\\"),     rig.RunOk ("CD ..\\..").text.at (0));
-            Assert::AreEqual (std::wstring (L"C:\\"),   rig.session.GetCurrentDirectory());
+            Assert::AreEqual (std::wstring (L"C:\\"),   rig.session.GetHostFiles().GetCurrentDirectory());
         }
 
 

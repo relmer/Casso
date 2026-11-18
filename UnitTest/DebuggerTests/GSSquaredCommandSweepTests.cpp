@@ -53,8 +53,8 @@ namespace DebuggerTests
             target.instructionSet = cpu.GetInstructionSet();
 
             handlers.Attach             (session);
-            session.SetFileSystem       (&files);
-            session.SetCurrentDirectory (L"C:\\Work");
+            session.GetHostFiles().SetFileSystem (&files);
+            session.GetHostFiles().SetCurrentDirectory (L"C:\\Work");
 
             std::copy (std::begin (kProgram), std::end (kProgram), target.memory.begin() + 0x300);
             files.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));

@@ -152,13 +152,13 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
     m_sink.SetJson    (options.json);
     m_sink.SetSession (&session);
     m_handlers.Attach (session);
-    session.SetFileSystem (&m_files);
+    session.GetHostFiles().SetFileSystem (&m_files);
 
     logs.Start (nullptr);
     session.SetIoEventSource (&logs);
 
     //  A batch run is the debugger attached from the first instruction.
-    session.SetCallRecording (true);
+    session.GetCallRecords().SetRecording (true);
 
     //  Set directly: a BUDGET command carries 32 bits, and --max-cycles 64.
     session.SetBudget ((options.maxCycles == 0) ? std::nullopt : std::optional<uint64_t> (options.maxCycles));

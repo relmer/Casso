@@ -70,8 +70,8 @@ namespace DebuggerTests
             Rig()
             {
                 handlers.Attach (session);
-                session.SetFileSystem       (&files);
-                session.SetCurrentDirectory (L"C:\\Work");
+                session.GetHostFiles().SetFileSystem (&files);
+                session.GetHostFiles().SetCurrentDirectory (L"C:\\Work");
 
                 //  Into Monitor mode the way a reader gets there.
                 session.ExecuteLine ("MODE MONITOR");
@@ -411,7 +411,7 @@ namespace DebuggerTests
 
 
 
-            rig.session.SetFileSystem (nullptr);
+            rig.session.GetHostFiles().SetFileSystem (nullptr);
             reply = rig.Run ("300.301W out.bin");
 
             Assert::AreEqual ((int) CommandStatus::Error, (int) reply.status);
@@ -881,7 +881,7 @@ namespace DebuggerTests
                 target.SetRegisters (registers);
 
                 handlers.Attach (session);
-                session.SetFileSystem (&files);
+                session.GetHostFiles().SetFileSystem (&files);
 
                 //  No test may run unbounded. A run that does not reach its
                 //  stop hangs the whole suite rather than failing, which is a

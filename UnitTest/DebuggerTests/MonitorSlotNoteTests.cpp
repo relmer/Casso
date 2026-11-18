@@ -42,8 +42,8 @@ namespace DebuggerTests
             Rig()
             {
                 handlers.Attach (session);
-                session.SetFileSystem       (&files);
-                session.SetCurrentDirectory (L"C:\\Work");
+                session.GetHostFiles().SetFileSystem (&files);
+                session.GetHostFiles().SetCurrentDirectory (L"C:\\Work");
                 session.ExecuteLine         ("MODE MONITOR");
             }
 

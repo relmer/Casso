@@ -896,7 +896,7 @@ bool ExecutionHandlers::TryGetProfileList (const std::string & word, ProfileList
 
 void ExecutionHandlers::SaveProfile (DebugSession & session, const std::string & name, Reply & reply) const
 {
-    IFileSystem  * files     = session.GetFileSystem();
+    IFileSystem  * files     = session.GetHostFiles().GetFileSystem();
     std::string    text;
     HRESULT        hr        = S_OK;
 
@@ -925,15 +925,15 @@ void ExecutionHandlers::SaveProfile (DebugSession & session, const std::string &
         }
     }
 
-    hr = files->WriteAllText (session.ResolvePath (name), text);
+    hr = files->WriteAllText (session.GetHostFiles().ResolvePath (name), text);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (name)));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetHostFiles().GetFullPath (name)));
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved the profile{}.", session.GetPathEcho (name, "to", reply)) } };
+    reply.data = MessageData { { std::format ("Saved the profile{}.", session.GetHostFiles().GetPathEcho (name, "to", reply)) } };
 }
 
 
@@ -1330,7 +1330,7 @@ void ExecutionHandlers::ToggleTrace (DebugSession & session, const DebugCommand 
         name      = TrimSpaces (name.substr (1));
     }
 
-    if (session.GetFileSystem() == nullptr)
+    if (session.GetHostFiles().GetFileSystem() == nullptr)
     {
         reply.SetError (CommandStatus::Error, "no file access", "This session cannot read or write host files.");
         return;
@@ -1340,18 +1340,18 @@ void ExecutionHandlers::ToggleTrace (DebugSession & session, const DebugCommand 
 
     //  A path that cannot be written is reported now rather than lost at the
     //  first stop, where no reply is sent.
-    hr = ProbeWritable (*session.GetFileSystem(), session.ResolvePath (name));
+    hr = ProbeWritable (*session.GetHostFiles().GetFileSystem(), session.GetHostFiles().ResolvePath (name));
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (name)));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetHostFiles().GetFullPath (name)));
         return;
     }
 
     m_trace.isOn      = true;
     m_trace.withVideo = withVideo;
     m_trace.name      = name;
-    m_trace.path      = session.ResolvePath (m_trace.name);
+    m_trace.path      = session.GetHostFiles().ResolvePath (m_trace.name);
     reply.data        = MessageData { { std::format ("Trace on: {}", m_trace.name) } };
 }
 
@@ -1468,10 +1468,10 @@ HRESULT ExecutionHandlers::FlushTrace (DebugSession & session)
 
 
 
-    if (m_trace.isOn && !m_trace.lines.empty() && session.GetFileSystem() != nullptr)
+    if (m_trace.isOn && !m_trace.lines.empty() && session.GetHostFiles().GetFileSystem() != nullptr)
     {
-        hr = m_trace.isStarted ? session.GetFileSystem()->AppendAllText (m_trace.path, m_trace.lines)
-                               : session.GetFileSystem()->WriteAllText  (m_trace.path, m_trace.lines);
+        hr = m_trace.isStarted ? session.GetHostFiles().GetFileSystem()->AppendAllText (m_trace.path, m_trace.lines)
+                               : session.GetHostFiles().GetFileSystem()->WriteAllText  (m_trace.path, m_trace.lines);
 
         if (FAILED (hr))
         {

@@ -245,7 +245,7 @@ void ShellHistory::StartRecording()
 
         m_reverseHost->GetController().GetStepper().SetCallerProbe ([this] (uint64_t historyStartCycle)
         {
-            return m_context.GetDebugSession() != nullptr && m_context.GetDebugSession()->HasNoCallSince (historyStartCycle);
+            return m_context.GetDebugSession() != nullptr && m_context.GetDebugSession()->GetCallRecords().HasNoCallSince (historyStartCycle);
         });
 
         m_reverseHost->GetController().GetStepper().SetCallerLinksProbe ([this] (std::vector<CallerLink> & outLinks)
@@ -254,7 +254,7 @@ void ShellHistory::StartRecording()
 
             if (m_context.GetDebugSession() != nullptr)
             {
-                m_context.GetDebugSession()->GetCallerLinks (outLinks);
+                m_context.GetDebugSession()->GetCallRecords().GetCallerLinks (outLinks);
             }
         });
 

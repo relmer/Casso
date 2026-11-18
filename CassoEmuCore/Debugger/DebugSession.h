@@ -184,27 +184,19 @@ public:
     //  while the file matches memory and no data directive covers them; after
     //  X over one, its bytes are disassembled as code until the file loads
     //  again.
-    void                 SetDebugFileData (std::vector<DataBlockEntry> blocks) { m_files.SetDebugFileData (std::move (blocks)); }
     bool                 TryFindData      (Word address, DataBlockEntry & block, DataOrigin & origin) const;
     void                 RemoveData       (Word first, Word last);
     SymbolTable        & GetSymbols       ()       { return m_symbols; }
     const SymbolTable  & GetSymbols       () const { return m_symbols; }
 
-    // The program's debug file, loaded by SYM LOAD, and its lines indexed both
-    // ways. The path is where it was read from, so its sources are looked for
-    // beside it.
-    void                  SetDebugFile     (DebugFile file, const std::wstring & path, const std::string & key = {}) { m_files.SetDebugFile (std::move (file), path, key); }
-    void                  ClearDebugFile   ()       { m_files.ClearDebugFile(); }
-    bool                  HasDebugFile     () const { return m_files.HasDebugFile(); }
-    const DebugFile     & GetDebugFile     () const { return m_files.GetDebugFile(); }
-    const std::wstring  & GetDebugFilePath () const { return m_files.GetDebugFilePath(); }
-    const std::string   & GetDebugFileKey  () const { return m_files.GetDebugFileKey(); }
-    const LineTable     & GetLineTable     () const { return m_files.GetLineTable(); }
-
-    // The symbol table the debug file's symbols went into. Clearing that
-    // table unloads the file as well.
-    void                          SetDebugFileTable (SymbolTableId table) { m_files.SetDebugFileTable (table); }
-    std::optional<SymbolTableId>  GetDebugFileTable () const { return m_files.GetDebugFileTable(); }
+    //  The session's parts: the program's debug files and symbol loads, the
+    //  call records, and the host file rules for paths typed to commands.
+    DebugProgramFiles        & GetFiles       ()       { return m_files; }
+    const DebugProgramFiles  & GetFiles       () const { return m_files; }
+    CallRecordKeeper         & GetCallRecords ()       { return m_callRecords; }
+    const CallRecordKeeper   & GetCallRecords () const { return m_callRecords; }
+    DebugHostFiles           & GetHostFiles   ()       { return m_hostFiles; }
+    const DebugHostFiles     & GetHostFiles   () const { return m_hostFiles; }
 
     // Whether the program in memory is the one each loaded file was made for
     // (ProgramCheck), checked at each stop and when a check is set while
@@ -214,16 +206,6 @@ public:
     // symbol file without lines loads into it.
     void                  SetDebugFileCheck (std::vector<ProgramCheck::Entry> entries);
     void                  SetLabelCheck     (SymbolTableId table);
-    void                  CheckProgram      ()       { m_files.CheckProgram(); }
-    bool                  IsDebugFileStale  () const { return m_files.IsDebugFileStale(); }
-
-    // Every instruction line of the debug file, as a check entry, and the
-    // lines among them whose bytes in memory are not the line's now.
-    void                           SetDebugFileLines       (std::vector<ProgramCheck::Entry> entries) { m_files.SetDebugFileLines (std::move (entries)); }
-    std::set<std::pair<int, int>>  GetUnmatchedSourceLines () const { return m_files.GetUnmatchedSourceLines(); }
-
-    // The debug file's instruction lines, as SetDebugFileLines set them.
-    const std::vector<ProgramCheck::Entry> &  GetDebugFileLines () const { return m_files.GetDebugFileLines(); }
 
     // The messages logging breakpoints and watchpoints wrote at their hits
     // since the last call, in that order. The debugger window and the batch
@@ -235,18 +217,6 @@ public:
     // for a client that doesn't receive them as they are written.
     static constexpr size_t                   kRecentHitLogs    = 1000;
     std::vector<std::string>                  GetRecentHitLogs  (size_t count) const;
-
-    // A count that goes up with each change to the debug file, its source
-    // lines or the symbol table it loads into.
-    uint64_t                                  GetFilesRevision  () const { return m_files.GetFilesRevision(); }
-
-    // The files whose program isn't in memory, by name, for the banners.
-    std::vector<std::string>  GetStaleFileNames () const { return m_files.GetStaleFileNames(); }
-
-    // Whether T, P and RTS, and every dialect's step commands, step by source
-    // line. Only while a debug file is loaded; otherwise by instruction.
-    void                  SetStepBySource (bool bySource) { m_files.SetStepBySource (bySource); }
-    bool                  IsStepBySource  () const        { return m_files.IsStepBySource(); }
 
     //  The cycle count RCC last reset the trip count at: CYCLES PART and the
     //  Registers pane's Trip row count from it.
@@ -265,85 +235,20 @@ public:
     //  a debug project to load again (DebugProgramFiles::SymbolLoad).
     using SymbolLoad = DebugProgramFiles::SymbolLoad;
 
-    void                              NoteSymbolLoad    (SymbolTableId table, const std::wstring & path, int offset) { m_files.NoteSymbolLoad (table, path, offset); }
-    void                              ForgetSymbolLoads (SymbolTableId table) { m_files.ForgetSymbolLoads (table); }
-    const std::vector<SymbolLoad>   & GetSymbolLoads    () const { return m_files.GetSymbolLoads(); }
 
     //  Each symbol the user added, for a debug project to add again after
     //  its symbol files load (DebugProgramFiles::AddedSymbol).
     using AddedSymbol = DebugProgramFiles::AddedSymbol;
 
-    void                              NoteAddedSymbol    (SymbolTableId table, const std::string & name, Word address) { m_files.NoteAddedSymbol (table, name, address); }
-    void                              ForgetAddedSymbol  (SymbolTableId table, const std::string & name) { m_files.ForgetAddedSymbol (table, name); }
-    void                              ForgetAddedSymbols (SymbolTableId table) { m_files.ForgetAddedSymbols (table); }
-    const std::vector<AddedSymbol>  & GetAddedSymbols    () const { return m_files.GetAddedSymbols(); }
-
-    //  The binary BLOAD last loaded, as its content's SHA-1 and its address,
-    //  and its file's name and full path; a debug project's key while no
-    //  debug file is loaded (FR-167).
-    void                  NoteBinaryLoad   (const std::string & hash, Word address, const std::string & name, const std::wstring & path) { m_files.NoteBinaryLoad (hash, address, name, path); }
-    void                  ForgetBinaryLoad ()       { m_files.ForgetBinaryLoad(); }
-    const std::string   & GetBinaryKey     () const { return m_files.GetBinaryKey(); }
-    const std::string   & GetBinaryName    () const { return m_files.GetBinaryName(); }
-    const std::wstring  & GetBinaryPath    () const { return m_files.GetBinaryPath(); }
-
-    // The call-stack record (FR-068), kept only while the debugger is attached:
-    // while the window or the channel is open, and for a batch run. Turning it
-    // on starts a new record at PC; off discards it.
-    void                  SetCallRecording (bool isOn) { m_callRecords.SetRecording (isOn); }
-    bool                  IsCallRecording  () const    { return m_callRecords.IsRecording(); }
-
-    // A record started at PC again for a machine that moved through history,
-    // its bottom where history starts until a rebuild from history replaces
-    // it, or power-on at cycle 0. Nothing happens while it is off.
-    void                  RestartCallRecording () { m_callRecords.Restart(); }
-
-    // A record started again after a move that no rebuild from history will
-    // replace: its bottom stops claiming that history starts there.
-    void                  MarkCallRecordUnrebuilt () { m_callRecords.MarkUnrebuilt(); }
-
-    // Counts each time the record starts, ends, or is reset, so a rebuild of
-    // it from history can detect that the record it was for has gone.
-    uint64_t              GetCallRecordGeneration () const { return m_callRecords.GetGeneration(); }
-
-    // The break at the bottom of the record: where it began, power-on, a
-    // reset or where history starts. Empty while nothing is recorded.
-    std::optional<CallStackBreak>  GetCallRecordBottom () const { return m_callRecords.GetBottom(); }
-
-    // A copy of the record, its last instruction settled; called only
-    // between instructions.
-    CallRecord            GetCallRecord    () { return m_callRecords.GetRecord(); }
-
-    // A record rebuilt from history up to where the machine stands, taken as
-    // this one, so recording goes on from it.
-    void                  AdoptCallRecord  (const CallRecord & record) { m_callRecords.Adopt (record); }
-
-    // How far along a rebuild of the record from history is, 0 to 1, while
-    // one runs; the call stack the session builds has it for the pane.
-    void                  SetCallRebuildProgress (std::optional<float> progress) { m_callRecords.SetRebuildProgress (progress); }
 
     // CALLS and the call-stack pane: the chain to PC by the chosen mechanism,
     // each frame's target named from the symbol tables.
-    CallStackMechanism    GetCallMechanism () const                       { return m_callRecords.GetMechanism(); }
-    void                  SetCallMechanism (CallStackMechanism mechanism) { m_callRecords.SetMechanism (mechanism); }
     CallStackData         GetCallStack     ();
 
     // What the debugger's panes read, copied for a second session that builds
     // them on another thread, and that copy installed into the second session.
     void                  TakeView         (DebugSessionView & out);
     void                  InstallView      (const DebugSessionView & view);
-
-    // Step back out's quick answer: true when the record shows that no call
-    // made at or after cycle entered the code now running.
-    bool                  HasNoCallSince   (uint64_t cycle) { return m_callRecords.HasNoCallSince (cycle); }
-
-    // Step back out's seek: the calls the code now running is still inside
-    // of, outermost first.
-    void                  GetCallerLinks   (std::vector<CallerLink> & outLinks) { m_callRecords.GetCallerLinks (outLinks); }
-
-    // The innermost source line at an address, as file name and line; false
-    // where no loaded line produced it.
-    bool                  TryGetSourceLine (Word address, std::string & file, int & line) const { return m_files.TryGetSourceLine (address, file, line); }
 
     // What the Monitor's line scan carries between lines: where the last
     // examine stopped, where a bare `:` stores, and whether `^E` armed the
@@ -353,24 +258,6 @@ public:
     // The shipped tables for the target's machine into Main, Basic, Dos33
     // and ProDos; the constructor and a machine switch do this.
     void   LoadRomSymbols        ();
-
-    // Host files, through the injected file system; a relative path is taken
-    // from the current directory. Absent a file system, file commands fail.
-    void                  SetFileSystem        (IFileSystem * fileSystem)         { m_hostFiles.SetFileSystem (fileSystem); }
-    IFileSystem         * GetFileSystem        () const                           { return m_hostFiles.GetFileSystem(); }
-    const std::wstring  & GetCurrentDirectory  () const                           { return m_hostFiles.GetCurrentDirectory(); }
-    void                  SetCurrentDirectory  (const std::wstring & directory)   { m_hostFiles.SetCurrentDirectory (directory); }
-    std::wstring          ResolvePath          (const std::string & path) const   { return m_hostFiles.ResolvePath (path); }
-
-    //  The host file access rules of the debug channel client whose line is
-    //  running; null while a console line or a batch line runs, where the
-    //  rules don't apply. A command that reads or writes a host file other
-    //  than through the file system checks the path here; false sets the
-    //  reply's error to the reason.
-    void                  SetHostAccessGuard   (HostAccessGuard * guard)          { m_hostFiles.SetHostAccessGuard (guard); }
-    HostAccessGuard     * GetHostAccessGuard   () const                           { return m_hostFiles.GetHostAccessGuard(); }
-    bool                  CheckHostAccess      (const std::wstring & path, HostAccess access, Reply & reply) { return m_hostFiles.CheckHostAccess (path, access, reply); }
-    void                  NoteScriptRun        (const std::wstring & path)        { m_hostFiles.NoteScriptRun (path); }
 
     // The video and sound logs VIDEOLOG and SOUNDLOG list; only the debugger
     // window's shell and a batch run have them, and without them both
@@ -388,17 +275,6 @@ public:
     // available.
     void                  SetMachineControl    (IMachineControl * control)        { m_machineControl = control; }
     IMachineControl     * GetMachineControl    () const                           { return m_machineControl; }
-
-    // For a reply: empty when the path was given rooted, since the command
-    // already shows it; otherwise " to C:\Work\out.bin", with the preposition
-    // given and the absolute path the relative one resolved to. With the
-    // reply, an echoed path is added to its files, which are linked in the console.
-    std::string           GetPathEcho          (const std::string & path, const char * preposition) const { return m_hostFiles.GetPathEcho (path, preposition); }
-    std::string           GetPathEcho          (const std::string & path, const char * preposition, Reply & reply) const { return m_hostFiles.GetPathEcho (path, preposition, reply); }
-
-    //  The full path a file name typed to a command resolves to, for a
-    //  message about the file.
-    std::string           GetFullPath          (const std::string & path) const   { return m_hostFiles.GetFullPath (path); }
 
     // The last S or SH results, reachable as @1, @2 and so on.
     const std::vector<Word>  & GetSearchResults () const                          { return m_searchResults; }

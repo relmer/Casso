@@ -549,7 +549,7 @@ void DebuggerViewCommands::ImportBreakpoints (
     const BreakpointImport::LineRunner   & run,
     std::vector<std::string>             & lines)
 {
-    IFileSystem  * files   = session.GetFileSystem();
+    IFileSystem  * files   = session.GetHostFiles().GetFileSystem();
     std::string    script;
     std::string    line;
     int            skipped = 0;
@@ -559,13 +559,13 @@ void DebuggerViewCommands::ImportBreakpoints (
 
     CBRF (files != nullptr, lines.push_back ("This session cannot read or write host files."));
 
-    hr = files->ReadAllText (session.ResolvePath (path), script);
+    hr = files->ReadAllText (session.GetHostFiles().ResolvePath (path), script);
     CHRF (hr, lines.push_back (std::format ("{} could not be read.", path)));
 
     skipped = BreakpointImport::Run (session, script, run);
     line    = std::format ("Imported the breakpoints{}; skipped {} line{} that {} not breakpoints.",
-                           session.GetPathEcho (path, "from"), skipped, skipped == 1 ? "" : "s", skipped == 1 ? "is" : "are");
-    lines.push_back (ConsoleLinks::LinkFiles (line, { TextEncoding::WideToNarrow (session.ResolvePath (path)) }));
+                           session.GetHostFiles().GetPathEcho (path, "from"), skipped, skipped == 1 ? "" : "s", skipped == 1 ? "is" : "are");
+    lines.push_back (ConsoleLinks::LinkFiles (line, { TextEncoding::WideToNarrow (session.GetHostFiles().ResolvePath (path)) }));
 
 Error:
     return;

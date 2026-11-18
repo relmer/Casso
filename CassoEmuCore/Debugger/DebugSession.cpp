@@ -678,7 +678,7 @@ void DebugSession::OnUserPaused()
     stop.registers = m_target.GetRegisters();
     stop.pc        = stop.registers.pc;
 
-    TryGetSourceLine (stop.pc, stop.sourceFile, stop.sourceLine);
+    m_files.TryGetSourceLine (stop.pc, stop.sourceFile, stop.sourceLine);
     m_sink.OnStopped (stop);
 }
 
@@ -806,7 +806,7 @@ void DebugSession::OnStopped (const StopEvent & stop)
 
     m_stops.ReportStop (event);
     m_files.CheckProgram();
-    TryGetSourceLine (event.pc, event.sourceFile, event.sourceLine);
+    m_files.TryGetSourceLine (event.pc, event.sourceFile, event.sourceLine);
 
     m_lastStopReason     = event.reason;
     m_lastStopBreakpoint = event.breakpointId;

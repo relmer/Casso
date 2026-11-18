@@ -42,16 +42,16 @@ void CallStackHandlers::SetMode (DebugSession & session, const DebugCommand & co
 {
     if (command.text == "RECORDED")
     {
-        session.SetCallMechanism (CallStackMechanism::Recorded);
+        session.GetCallRecords().SetMechanism (CallStackMechanism::Recorded);
     }
     else if (command.text == "WALK")
     {
-        session.SetCallMechanism (CallStackMechanism::Walk);
+        session.GetCallRecords().SetMechanism (CallStackMechanism::Walk);
     }
     else if (command.text == "HYBRID")
     {
-        session.SetCallMechanism (CallStackMechanism::Hybrid);
+        session.GetCallRecords().SetMechanism (CallStackMechanism::Hybrid);
     }
 
-    reply.data = CallStackModeData { session.GetCallMechanism() };
+    reply.data = CallStackModeData { session.GetCallRecords().GetMechanism() };
 }

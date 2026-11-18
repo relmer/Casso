@@ -99,7 +99,7 @@ namespace DebuggerTests
             }
 
             rig.Load (0x0300, {}, start);
-            rig.session.SetDebugFile (DebugFileWriter::Build (program.result, { { "", { "prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
+            rig.session.GetFiles().SetDebugFile (DebugFileWriter::Build (program.result, { { "", { "prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
             return program;
         }
 
@@ -233,9 +233,9 @@ namespace DebuggerTests
 
             (void) program;
 
-            Assert::IsTrue  (rig.session.HasDebugFile(), L"loaded");
+            Assert::IsTrue  (rig.session.GetFiles().HasDebugFile(), L"loaded");
             rig.RunOk ("SRC CLEAR");
-            Assert::IsFalse (rig.session.HasDebugFile(), L"unloaded");
+            Assert::IsFalse (rig.session.GetFiles().HasDebugFile(), L"unloaded");
             rig.RunOk ("SRC CLEAR");
         }
 
@@ -305,7 +305,7 @@ namespace DebuggerTests
             }
 
             rig.Load (0x0300, {}, 0x0300);
-            rig.session.SetDebugFile (DebugFileWriter::Build (result, { { "", { "pull.a65", 0 } } }), L"C:\\Work\\pull.dbg");
+            rig.session.GetFiles().SetDebugFile (DebugFileWriter::Build (result, { { "", { "pull.a65", 0 } } }), L"C:\\Work\\pull.dbg");
             rig.RunOk ("SRC ON");
 
             Step (rig, "P");
@@ -424,8 +424,8 @@ namespace DebuggerTests
                 "seg\tid=0,name=\"CODE\",start=0x0300,size=3,addrsize=absolute,type=rw\n"
                 "sym\tid=0,name=\"start\",addrsize=absolute,scope=0,val=0x0300,seg=0,type=lab\n"
                 "scope\tid=0,name=\"\",mod=0\n", debugFile, error));
-            rig.session.SetDebugFile (debugFile, L"C:\\Work\\syms.dbg");
-            Assert::IsTrue   (rig.session.HasDebugFile());
+            rig.session.GetFiles().SetDebugFile (debugFile, L"C:\\Work\\syms.dbg");
+            Assert::IsTrue   (rig.session.GetFiles().HasDebugFile());
 
             Assert::AreEqual (std::string ("The debug file has no source lines."),                     rig.RunOk ("SRC").text.at (0));
             Assert::AreEqual (std::string ("Source mode. The debug file has no source lines, so steps go by instruction."), rig.RunOk ("SRC ON").text.at (1));
@@ -443,7 +443,7 @@ namespace DebuggerTests
 
 
             result = Assembler (cpu.GetInstructionSet(), opts).Assemble (s_kProgram);
-            rig.session.SetDebugFile (DebugFileWriter::Build (result, { { "", { "src/prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
+            rig.session.GetFiles().SetDebugFile (DebugFileWriter::Build (result, { { "", { "src/prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
 
             lines = rig.RunOk ("BP prog.a65:10").text;
             Assert::IsTrue   (lines.at (0).ends_with (" at $0309, prog.a65 line 10."));
@@ -475,7 +475,7 @@ namespace DebuggerTests
 
 
             result = Assembler (cpu.GetInstructionSet(), opts).Assemble (s_kProgram);
-            rig.session.SetDebugFile (DebugFileWriter::Build (result, { { "", { "src/prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
+            rig.session.GetFiles().SetDebugFile (DebugFileWriter::Build (result, { { "", { "src/prog.a65", 0 } } }), L"C:\\Work\\prog.dbg");
 
             (void) rig.RunOk ("BP prog.a65:3");
             (void) rig.RunOk ("BPEDIT 0 BP prog.a65:10");

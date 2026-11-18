@@ -282,7 +282,7 @@ void SymbolHandlers::List (DebugSession & session, const DebugCommand & command,
 
 void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    IFileSystem               * files  = session.GetFileSystem();
+    IFileSystem               * files  = session.GetHostFiles().GetFileSystem();
     SymbolTableId               table  = SymbolTableId::User;
     std::string                 name;
     std::string                 content;
@@ -308,11 +308,11 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
         return;
     }
 
-    hr = files->ReadAllText (session.ResolvePath (name), content);
+    hr = files->ReadAllText (session.GetHostFiles().ResolvePath (name), content);
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetFullPath (name)));
+        reply.SetError (CommandStatus::Error, "file not found", std::format ("{} could not be read.", session.GetHostFiles().GetFullPath (name)));
         return;
     }
 
@@ -346,16 +346,16 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
 
     //  The table's symbols are replaced, and with them the debug file loaded
     //  into it: its lines and labels are a program no longer loaded.
-    if (session.GetDebugFileTable() == table)
+    if (session.GetFiles().GetDebugFileTable() == table)
     {
-        session.ClearDebugFile();
+        session.GetFiles().ClearDebugFile();
     }
 
     session.GetSymbols().AddOrigin (table, name.substr (name.find_last_of ("/\\") + 1));
-    session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
+    session.GetFiles().NoteSymbolLoad (table, session.GetHostFiles().ResolvePath (name), offset);
     session.SetLabelCheck (table);
 
-    lines.push_back (std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "from", reply)));
+    lines.push_back (std::format ("Loaded {} symbols into {}{}.", loaded, ReplyJson::GetSymbolTableName (table), session.GetHostFiles().GetPathEcho (name, "from", reply)));
     AddRegisterNameNote (session, table, lines);
     BreakpointHandlers::FollowSymbols (session, lines);
 
@@ -419,8 +419,8 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
     }
 
     lines = file.lines.size();
-    session.SetDebugFile (std::move (file), session.ResolvePath (name), Sha1::ComputeTextHex (content));
-    session.SetDebugFileTable (table);
+    session.GetFiles().SetDebugFile (std::move (file), session.GetHostFiles().ResolvePath (name), Sha1::ComputeTextHex (content));
+    session.GetFiles().SetDebugFileTable (table);
 
     hr = session.GetSymbols().LoadFrom (table, content, offset, loaded, error);
 
@@ -434,17 +434,17 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
         session.GetSymbols().AddOrigin (table, base);
     }
 
-    session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
+    session.GetFiles().NoteSymbolLoad (table, session.GetHostFiles().ResolvePath (name), offset);
 
     //  A listing has the bytes of each of its lines; a debug file's source
     //  has the mnemonic of each instruction line, and its data directives.
-    sources = isListing ? std::map<int, std::vector<std::string>>() : ReadSources (session, session.GetDebugFile(), session.ResolvePath (name));
-    session.SetDebugFileCheck (ProgramCheck::GetDebugFileEntries (session.GetDebugFile(), sources));
-    session.SetDebugFileLines (ProgramCheck::GetDebugFileLineEntries (session.GetDebugFile(), sources));
-    session.SetDebugFileData  (DebugFileData::GetBlocks (session.GetDebugFile(), sources));
+    sources = isListing ? std::map<int, std::vector<std::string>>() : ReadSources (session, session.GetFiles().GetDebugFile(), session.GetHostFiles().ResolvePath (name));
+    session.SetDebugFileCheck (ProgramCheck::GetDebugFileEntries (session.GetFiles().GetDebugFile(), sources));
+    session.GetFiles().SetDebugFileLines (ProgramCheck::GetDebugFileLineEntries (session.GetFiles().GetDebugFile(), sources));
+    session.GetFiles().SetDebugFileData (DebugFileData::GetBlocks (session.GetFiles().GetDebugFile(), sources));
 
     message.push_back (std::format ("Loaded {} symbols into {} and {} source lines{}.",
-                                    loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetPathEcho (name, "from", reply)));
+                                    loaded, ReplyJson::GetSymbolTableName (table), lines, session.GetHostFiles().GetPathEcho (name, "from", reply)));
     AddRegisterNameNote (session, table, message);
     BreakpointHandlers::FollowSymbols (session, message);
 
@@ -467,7 +467,7 @@ void SymbolHandlers::LoadDebugFile (DebugSession & session, SymbolTableId table,
 std::map<int, std::vector<std::string>> SymbolHandlers::ReadSources (DebugSession & session, const DebugFile & file, const std::wstring & debugFilePath)
 {
     std::map<int, std::vector<std::string>>  sources;
-    IFileSystem                            * files  = session.GetFileSystem();
+    IFileSystem                            * files  = session.GetHostFiles().GetFileSystem();
     fs::path                                 folder = fs::path (debugFilePath).parent_path();
 
 
@@ -663,7 +663,7 @@ bool SymbolHandlers::IsListingWithLines (const std::string & content)
 
 void SymbolHandlers::Save (DebugSession & session, const DebugCommand & command, Reply & reply)
 {
-    IFileSystem   * files  = session.GetFileSystem();
+    IFileSystem   * files  = session.GetHostFiles().GetFileSystem();
     SymbolTableId   table  = SymbolTableId::User;
     std::string     name;
     std::string     error;
@@ -692,15 +692,15 @@ void SymbolHandlers::Save (DebugSession & session, const DebugCommand & command,
         return;
     }
 
-    hr = files->WriteAllText (session.ResolvePath (name), session.GetSymbols().Format (table));
+    hr = files->WriteAllText (session.GetHostFiles().ResolvePath (name), session.GetSymbols().Format (table));
 
     if (FAILED (hr))
     {
-        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetFullPath (name)));
+        reply.SetError (CommandStatus::Error, "file not written", std::format ("{} could not be written.", session.GetHostFiles().GetFullPath (name)));
         return;
     }
 
-    reply.data = MessageData { { std::format ("Saved {} symbols from {}{}.", session.GetSymbols().GetCount (table), ReplyJson::GetSymbolTableName (table), session.GetPathEcho (name, "to", reply)) } };
+    reply.data = MessageData { { std::format ("Saved {} symbols from {}{}.", session.GetSymbols().GetCount (table), ReplyJson::GetSymbolTableName (table), session.GetHostFiles().GetPathEcho (name, "to", reply)) } };
 }
 
 
@@ -721,12 +721,12 @@ void SymbolHandlers::Clear (DebugSession & session, const DebugCommand & command
 
     TryGetTable (command, table);
     session.GetSymbols().Clear (table);
-    session.ForgetSymbolLoads (table);
-    session.ForgetAddedSymbols (table);
+    session.GetFiles().ForgetSymbolLoads (table);
+    session.GetFiles().ForgetAddedSymbols (table);
 
-    if (session.GetDebugFileTable() == table)
+    if (session.GetFiles().GetDebugFileTable() == table)
     {
-        session.ClearDebugFile();
+        session.GetFiles().ClearDebugFile();
     }
 
     reply.data = MessageData { { std::format ("Cleared {}.", ReplyJson::GetSymbolTableName (table)) } };
@@ -773,7 +773,7 @@ void SymbolHandlers::Add (DebugSession & session, const DebugCommand & command, 
 
     TryGetTable (command, table);
     session.GetSymbols().Add (table, command.text, command.a1);
-    session.NoteAddedSymbol (table, command.text, command.a1);
+    session.GetFiles().NoteAddedSymbol (table, command.text, command.a1);
     data.symbols.push_back ({ command.text, command.a1, table });
     reply.data = data;
 }
@@ -803,7 +803,7 @@ void SymbolHandlers::Remove (DebugSession & session, const DebugCommand & comman
         return;
     }
 
-    session.ForgetAddedSymbol (table, command.text);
+    session.GetFiles().ForgetAddedSymbol (table, command.text);
     reply.data = MessageData { { std::format ("Removed {} from {}.", command.text, ReplyJson::GetSymbolTableName (table)) } };
 }
 

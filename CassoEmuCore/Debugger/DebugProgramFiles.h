@@ -52,7 +52,7 @@ public:
 
     DebugProgramFiles (IDebugTarget & target, SymbolTable & symbols) : m_target (target), m_symbols (symbols) {}
 
-    void                  SetDebugFile     (DebugFile file, const std::wstring & path, const std::string & key);
+    void                  SetDebugFile     (DebugFile file, const std::wstring & path, const std::string & key = {});
     void                  ClearDebugFile   ();
     bool                  HasDebugFile     () const { return !m_debugFilePath.empty(); }
     const DebugFile     & GetDebugFile     () const { return m_debugFile; }

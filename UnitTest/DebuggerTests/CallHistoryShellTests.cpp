@@ -219,7 +219,7 @@ namespace CallHistoryShellTests
 
         uint64_t GetGeneration()
         {
-            return debugger->GetSession().GetCallRecordGeneration();
+            return debugger->GetSession().GetCallRecords().GetGeneration();
         }
 
 
@@ -402,7 +402,7 @@ namespace CallHistoryShellTests
             rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, [=] (IDebugCommandTarget & debug) { debug.ApplyReverseOptions (false, ShellRig::kBudgetMb); });
             rig.shell->GetDebugger().ServiceDebugger();
 
-            bottom = rig.debugger->GetSession().GetCallRecordBottom();
+            bottom = rig.debugger->GetSession().GetCallRecords().GetBottom();
             rows   = CallStackPane::GetRows (rig.debugger->GetSession().GetCallStack());
 
             Assert::AreEqual (end, rig.shell->GetMachine().GetRunner().GetPosition(),        L"live again, where history ended");

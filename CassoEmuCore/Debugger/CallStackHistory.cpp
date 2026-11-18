@@ -101,7 +101,7 @@ void CallStackHistory::Attach (
     m_rebuilder    = rebuilder;
     m_restoresSeen = GetRestoreCount();
 
-    m_session.SetCallRebuildProgress (std::nullopt);
+    m_session.GetCallRecords().SetRebuildProgress (std::nullopt);
 }
 
 
@@ -174,7 +174,7 @@ void CallStackHistory::OnMoved (bool isInterim)
 
     if (!isStill)
     {
-        m_session.RestartCallRecording();
+        m_session.GetCallRecords().Restart();
     }
 }
 
@@ -197,7 +197,7 @@ void CallStackHistory::OnMoved (bool isInterim)
 void CallStackHistory::Service()
 {
     uint64_t  record   = 0;
-    bool      isOn     = m_session.IsCallRecording();
+    bool      isOn     = m_session.GetCallRecords().IsRecording();
     bool      isLinked = m_history != nullptr && m_rebuilder != nullptr && m_history->GetSpan().IsRecording();
     bool      isOwed   = false;
 
@@ -205,7 +205,7 @@ void CallStackHistory::Service()
 
     CheckLoads();
 
-    record = m_session.GetCallRecordGeneration();
+    record = m_session.GetCallRecords().GetGeneration();
 
     if (record != m_seenRecord)
     {
@@ -435,7 +435,7 @@ void CallStackHistory::Abandon()
 {
     Stop();
 
-    m_session.MarkCallRecordUnrebuilt();
+    m_session.GetCallRecords().MarkUnrebuilt();
 }
 
 
@@ -721,7 +721,7 @@ bool CallStackHistory::TryInstall (const CallStackRebuildResult & result)
 
     if (isSame)
     {
-        m_session.AdoptCallRecord (result.record);
+        m_session.GetCallRecords().Adopt (result.record);
 
         NoteWhole();
         CommitCopies();
@@ -747,7 +747,7 @@ bool CallStackHistory::TryInstall (const CallStackRebuildResult & result)
 void CallStackHistory::NoteWhole()
 {
     m_isWhole     = true;
-    m_wholeRecord = m_session.GetCallRecordGeneration();
+    m_wholeRecord = m_session.GetCallRecords().GetGeneration();
 }
 
 
@@ -847,7 +847,7 @@ void CallStackHistory::CheckLoads()
 
     m_session.ResolveDiskCalls();
     m_session.TakeBasicValues();
-    m_session.RestartCallRecording();
+    m_session.GetCallRecords().Restart();
 }
 
 
@@ -870,7 +870,7 @@ void CallStackHistory::OnRecordChanged (
     uint64_t  record,
     bool      isOn)
 {
-    std::optional<CallStackBreak>  bottom   = m_session.GetCallRecordBottom();
+    std::optional<CallStackBreak>  bottom   = m_session.GetCallRecords().GetBottom();
     bool                           hasKind  = bottom.has_value();
     CallBreakKind                  kind     = hasKind ? bottom->kind : CallBreakKind::TrackingBegan;
     bool                           isMidRun = hasKind && (kind == CallBreakKind::TrackingBegan || kind == CallBreakKind::HistoryBegan);
@@ -907,7 +907,7 @@ void CallStackHistory::OnKeyframeTaken (uint64_t position)
         return;
     }
 
-    CallRecordCopies::Pack (m_session.GetCallRecord(), m_packed);
+    CallRecordCopies::Pack (m_session.GetCallRecords().GetRecord(), m_packed);
 
     m_copies.SetBudget (m_history->GetKeyframes().GetSettings().budgetBytes / kCopyBudgetParts);
     m_copies.Set (position, m_packed);
@@ -962,8 +962,8 @@ void CallStackHistory::OnKeyframeDrop (KeyframeDrop drop)
 
 bool CallStackHistory::IsCopying() const
 {
-    return m_isWhole && m_history != nullptr && m_session.IsCallRecording() &&
-           m_session.GetCallRecordGeneration() == m_wholeRecord && GetRestoreCount() == m_restoresSeen;
+    return m_isWhole && m_history != nullptr && m_session.GetCallRecords().IsRecording() &&
+           m_session.GetCallRecords().GetGeneration() == m_wholeRecord && GetRestoreCount() == m_restoresSeen;
 }
 
 
@@ -1206,7 +1206,7 @@ void CallStackHistory::Publish()
         progress = 0.0f;
     }
 
-    m_session.SetCallRebuildProgress (progress);
+    m_session.GetCallRecords().SetRebuildProgress (progress);
 }
 
 

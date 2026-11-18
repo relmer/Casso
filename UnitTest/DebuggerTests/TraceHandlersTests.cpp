@@ -154,7 +154,7 @@ namespace DebuggerTests
             rig.RunFails ("HISTORY SAVE trace.txt", "no trace");
 
             Fill (rig, 1);
-            rig.session.SetFileSystem (nullptr);
+            rig.session.GetHostFiles().SetFileSystem (nullptr);
             rig.RunFails ("HISTORY SAVE trace.txt", "no file access");
         }
 

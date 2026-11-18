@@ -44,7 +44,7 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
 
     //  The symbols the user added first, so a breakpoint or watch set by
     //  such a symbol's name resolves.
-    for (const DebugSession::AddedSymbol & added : session.GetAddedSymbols())
+    for (const DebugSession::AddedSymbol & added : session.GetFiles().GetAddedSymbols())
     {
         script += std::format ("SYM{} {} = {:04X}\n", SymbolTable::ToUpper (ReplyJson::GetSymbolTableName (added.table)), added.name, added.address);
     }
@@ -76,9 +76,9 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
                                              session.GetSymbols().IsEnabled ((SymbolTableId) table) ? "ON" : "OFF"));
     }
 
-    if (!session.GetCurrentDirectory().empty())
+    if (!session.GetHostFiles().GetCurrentDirectory().empty())
     {
-        engineScript.push_back (std::format ("CD \"{}\"", TextEncoding::WideToNarrow (session.GetCurrentDirectory())));
+        engineScript.push_back (std::format ("CD \"{}\"", TextEncoding::WideToNarrow (session.GetHostFiles().GetCurrentDirectory())));
     }
 
     engineScript.push_back (session.GetTarget().IsTraceOn() ? "HISTORY ON" : "HISTORY OFF");
@@ -143,7 +143,7 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
 
     symbolFiles.clear();
 
-    for (const DebugSession::SymbolLoad & load : session.GetSymbolLoads())
+    for (const DebugSession::SymbolLoad & load : session.GetFiles().GetSymbolLoads())
     {
         if (!IsOtherDebugFile (session, load.path))
         {
@@ -172,12 +172,12 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
 
 bool DebugProject::IsOtherDebugFile (const DebugSession & session, const std::wstring & path) const
 {
-    bool  isLoaded = path == session.GetDebugFilePath();
+    bool  isLoaded = path == session.GetFiles().GetDebugFilePath();
     bool  isDebug  = _wcsicmp (fs::path (path).extension().c_str(), L".dbg") == 0;
 
 
 
-    return scope.kind == ProjectScopeKind::DebugFile && (isLoaded ? session.GetDebugFileKey() != scope.key : isDebug);
+    return scope.kind == ProjectScopeKind::DebugFile && (isLoaded ? session.GetFiles().GetDebugFileKey() != scope.key : isDebug);
 }
 
 
@@ -227,7 +227,7 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
         const SymbolFile  & file     = symbolFiles[i];
         auto                isUsable = [] (const SymbolFile & each) { return !SymbolHandlers::IsBasicListing (TextEncoding::WideToNarrow (each.path), std::string()); };
         bool                isLater  = std::any_of (symbolFiles.begin() + (std::ptrdiff_t) i + 1, symbolFiles.end(), [&] (const SymbolFile & each) { return each.table == file.table && isUsable (each); });
-        bool                isLoaded = std::ranges::any_of (session.GetSymbolLoads(), [&] (const DebugSession::SymbolLoad & load)
+        bool                isLoaded = std::ranges::any_of (session.GetFiles().GetSymbolLoads(), [&] (const DebugSession::SymbolLoad & load)
         {
             return load.table == file.table && load.path == file.path;
         });
