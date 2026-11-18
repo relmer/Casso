@@ -506,11 +506,12 @@ public:
 
         AssertSucceeded (rig.Finish (rig.session->ReadBlockDevice (drive, kImage, false))->result);
 
+        Assert::IsTrue (rig.apple.WaitForLabel ("READ S7,U1 BLOCK 1600 OF 1600"), L"the label has the device and the block");
+        Assert::IsTrue (rig.apple.WaitForLabel ("CATALOG S7,U1 (/BIGDISK)"), L"and the catalog's label, its volume");
+
         std::lock_guard<std::mutex>  guard (rig.apple.lock);
 
         Assert::IsTrue (rig.fileIo.files[kImage] == rig.apple.blockDisk, L"the image is the device");
-        Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "READ S7,U1 BLOCK 1600 OF 1600") != rig.apple.labels.end(), L"the label has the device and the block");
-        Assert::IsTrue (std::find (rig.apple.labels.begin(), rig.apple.labels.end(), "CATALOG S7,U1 (/BIGDISK)") != rig.apple.labels.end(), L"and the catalog's label, its volume");
     }
 
 
