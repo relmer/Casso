@@ -1577,7 +1577,7 @@ namespace OperandResultTipTests
             scaler.SetDpi (96);
             Build (window, theme, text);
 
-            Assert::IsTrue (window.EditPaneLayout().AutoHide (DebuggerLayout::kConsole, DxuiDockSide::Top));
+            Assert::IsTrue (window.GetDockSite()->EditPaneLayout().AutoHide (DebuggerLayout::kConsole, DxuiDockSide::Top));
             window.GetDockSite()->Relayout();
             window.Layout (RECT { 0, 0, kWindowWidth, kWindowHeight }, scaler);
             window.GetCodeList (0)->Paint (painter, text, theme);
@@ -1623,7 +1623,7 @@ namespace OperandResultTipTests
             {
                 if (!pane.starts_with (DebuggerLayout::kCode) && window.IsPaneShown (pane))
                 {
-                    Assert::IsTrue (window.EditPaneLayout().AutoHide (pane, DxuiDockSide::Left), pane.c_str());
+                    Assert::IsTrue (window.GetDockSite()->EditPaneLayout().AutoHide (pane, DxuiDockSide::Left), pane.c_str());
                 }
             }
 

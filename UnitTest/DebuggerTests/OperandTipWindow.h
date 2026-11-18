@@ -79,7 +79,6 @@ namespace OperandResultTipTests
         using DebuggerWindow::GetOperandTips;
         using DebuggerWindow::GetTooltip;
         using DebuggerWindow::GetDockSite;
-        using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::GetColorKeys;
         using DebuggerWindow::GetStatusBar;

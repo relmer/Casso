@@ -98,6 +98,7 @@ namespace DebuggerMenuBarTests
         }
 
         using DebuggerWindow::OnCreate;
+        using DebuggerWindow::GetDockSite;
         using DebuggerWindow::Layout;
         using DebuggerWindow::ApplyKeyScheme;
         using DebuggerWindow::SetWindowMenus;
@@ -106,8 +107,6 @@ namespace DebuggerMenuBarTests
         using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetPaneOfControl;
         using DebuggerWindow::GetViewMenuPanes;
-        using DebuggerWindow::GetPaneLayout;
-        using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::SetSnapshotForTest;
         using DebuggerWindow::kDialectEntry;
 
@@ -468,14 +467,14 @@ namespace DebuggerMenuBarTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (window.EditPaneLayout().Float (DebuggerLayout::kWatches, L"monitor", RECT { 100, 100, 500, 400 }));
+            Assert::IsTrue (window.GetDockSite()->EditPaneLayout().Float (DebuggerLayout::kWatches, L"monitor", RECT { 100, 100, 500, 400 }));
 
             reset = MenuRows::GetRow (window.GetMenuBarItems(), L"&View", L"Reset window layout");
             Assert::IsNotNull (reset);
             reset->command->dispatch();
 
-            Assert::IsFalse (window.GetPaneLayout().IsFloating (DebuggerLayout::kWatches));
-            Assert::IsTrue  (window.GetPaneLayout().IsDocked   (DebuggerLayout::kWatches));
+            Assert::IsFalse (window.GetDockSite()->GetPaneLayout().IsFloating (DebuggerLayout::kWatches));
+            Assert::IsTrue  (window.GetDockSite()->GetPaneLayout().IsDocked   (DebuggerLayout::kWatches));
         }
 
 

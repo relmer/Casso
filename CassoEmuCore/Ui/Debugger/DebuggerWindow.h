@@ -260,9 +260,7 @@ protected:
 
     //  Protected so a test can close a floating pane as its close button
     //  does, and see the layout it leaves.
-    void                    CloseFloatingPane (const std::wstring & pane);
-    const DxuiPaneLayout  & GetPaneLayout     () const;
-    DxuiPaneLayout        & EditPaneLayout    ();
+    void  CloseFloatingPane (const std::wstring & pane);
 
     //  Protected so a test can work the View menu as a click does: the
     //  panes it lists, and showing or closing one.

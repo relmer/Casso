@@ -103,7 +103,6 @@ namespace HeatMapPaneWindowTests
         using DebuggerWindow::ShowPane;
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::GetViewMenuPanes;
-        using DebuggerWindow::GetPaneLayout;
         using DebuggerWindow::SyncHeatMapRecording;
         using DebuggerWindow::IsHeatMapRecording;
         using DebuggerWindow::GetHeatMapPane;
@@ -113,7 +112,6 @@ namespace HeatMapPaneWindowTests
         using DebuggerWindow::OnMouse;
         using DebuggerWindow::OnKey;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::EditPaneLayout;
         using DebuggerWindow::GetDockSite;
         using DebuggerWindow::GetFloatingPanes;
         using DebuggerWindow::GetPaneContentForTest;
@@ -806,7 +804,7 @@ namespace HeatMapPaneWindowTests
 
 
 
-            Assert::IsTrue (window.EditPaneLayout().Float (DebuggerLayout::kHeatMap, L"", RECT { 0, 0, 700, 600 }), L"the heat map is in the layout");
+            Assert::IsTrue (window.GetDockSite()->EditPaneLayout().Float (DebuggerLayout::kHeatMap, L"", RECT { 0, 0, 700, 600 }), L"the heat map is in the layout");
 
             window.GetFloatingPanes().MarkSyncNeeded();
             window.GetFloatingPanes().Sync();
@@ -1005,7 +1003,7 @@ namespace HeatMapPaneWindowTests
                 window = std::make_unique<HeatMapWindow> (theme, host);
                 BuildShown (*window);
 
-                Assert::IsTrue (window->EditPaneLayout().AutoHide (DebuggerLayout::kConsole, side));
+                Assert::IsTrue (window->GetDockSite()->EditPaneLayout().AutoHide (DebuggerLayout::kConsole, side));
                 window->GetDockSite()->Relayout();
                 Relayout (*window);
                 window->GetDockSite()->SlideOut (DebuggerLayout::kConsole);
