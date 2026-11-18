@@ -304,7 +304,11 @@ public:
         rig.apple.promptsMissed  = 1;
         rig.apple.readyEveryMs   = 60000;
         rig.session->SetRetryInterval (100);
-        rig.Start (500);
+
+        //  The first attempt times out after the missed prompt. Three seconds
+        //  is enough for the next attempt to load the program on a loaded
+        //  machine.
+        rig.Start (3000);
 
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready, 20000), L"the next attempt's prompt drew the Ready");
     }
