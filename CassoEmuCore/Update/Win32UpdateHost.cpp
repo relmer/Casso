@@ -2,6 +2,8 @@
 
 #include "Update/Win32UpdateHost.h"
 
+#include "Core/PathResolver.h"
+
 
 
 
@@ -230,24 +232,24 @@ Error:
 //
 //  Win32UpdateHost::GetDownloadFolder
 //
-//  %LOCALAPPDATA%\Casso\Updates, beside the rest of Casso's per-user data.
+//  <data folder>\Updates, beside the rest of Casso's per-user data.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32UpdateHost::GetDownloadFolder (std::wstring & outPath)
 {
-    HRESULT  hr        = S_OK;
-    PWSTR    localData = nullptr;
+    HRESULT   hr         = S_OK;
+    fs::path  dataFolder;
+    bool      hasFolder  = false;
 
 
 
-    hr = SHGetKnownFolderPath (FOLDERID_LocalAppData, KF_FLAG_DEFAULT, nullptr, &localData);
-    CHR (hr);
+    dataFolder = PathResolver::GetDataFolder();
+    hasFolder  = !dataFolder.empty();
+    CBREx (hasFolder, HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND));
 
-    outPath  = localData;
-    outPath += L"\\Casso\\Updates";
+    outPath = (dataFolder / L"Updates").wstring();
 
 Error:
-    CoTaskMemFree (localData);
     return hr;
 }

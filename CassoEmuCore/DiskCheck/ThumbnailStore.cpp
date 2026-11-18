@@ -5,6 +5,7 @@
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
 #include "Core/JsonWriter.h"
+#include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 
 
@@ -34,12 +35,11 @@ ThumbnailStore::ThumbnailStore (std::filesystem::path folder) :
 
 std::filesystem::path ThumbnailStore::GetDefaultFolder()
 {
-    wchar_t  local[MAX_PATH] = {};
-    DWORD    length          = ::GetEnvironmentVariableW (L"LOCALAPPDATA", local, MAX_PATH);
+    std::filesystem::path  dataFolder = PathResolver::GetDataFolder();
 
 
 
-    return (length == 0 || length >= MAX_PATH) ? std::filesystem::path() : std::filesystem::path (local) / L"Casso" / L"Thumbnails";
+    return dataFolder.empty() ? std::filesystem::path() : dataFolder / L"Thumbnails";
 }
 
 
