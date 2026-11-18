@@ -234,7 +234,7 @@ public:
         Prepare (machine, kNone, sizeof (kNone));
         RunToWait (machine, controller, recorder, kWaitLoop);
 
-        controller.SetCallerLinksProbe ([&machine, &recorder] (std::vector<CallerLink> & outLinks)
+        controller.GetStepper().SetCallerLinksProbe ([&machine, &recorder] (std::vector<CallerLink> & outLinks)
         {
             recorder.Settle (machine.GetCpu()->GetPC(), machine.GetCpu()->GetSP());
             recorder.GetCallerLinks (outLinks);
@@ -246,7 +246,7 @@ public:
 
         replayed = controller.GetReplayer().GetReplayedCount();
 
-        hr = controller.StepBackOut (result);
+        hr = controller.GetStepper().StepBackOut (result);
         AssertSucceeded (hr, L"StepBackOut");
 
         Assert::IsTrue         (result.outcome == ReverseOutcome::Moved, L"the search found the call");
@@ -306,7 +306,7 @@ private:
         hr = controller.Start (ReverseSessionRig::MakeSettings (1));
         AssertSucceeded (hr, L"Start");
 
-        controller.SetCallerProbe ([&machine, &recorder] (uint64_t historyStartCycle)
+        controller.GetStepper().SetCallerProbe ([&machine, &recorder] (uint64_t historyStartCycle)
         {
             recorder.Settle (machine.GetCpu()->GetPC(), machine.GetCpu()->GetSP());
 
@@ -322,7 +322,7 @@ private:
 
     static void SetLinksProbe (TestMachine & machine, ReverseController & controller, CallStackRecorder & recorder)
     {
-        controller.SetCallerLinksProbe ([&machine, &recorder] (std::vector<CallerLink> & outLinks)
+        controller.GetStepper().SetCallerLinksProbe ([&machine, &recorder] (std::vector<CallerLink> & outLinks)
         {
             recorder.Settle (machine.GetCpu()->GetPC(), machine.GetCpu()->GetSP());
             recorder.GetCallerLinks (outLinks);
@@ -359,7 +359,7 @@ private:
             replayed = controller.GetReplayer().GetReplayedCount();
             restores = controller.GetReplayer().GetRestoreCount();
 
-            hr = controller.StepBackOut (fast[i]);
+            hr = controller.GetStepper().StepBackOut (fast[i]);
             AssertSucceeded (hr, L"StepBackOut by the record");
 
             Assert::IsTrue (controller.GetReplayer().GetReplayedCount() - replayed <= s_kSeekStretchWork,
@@ -368,18 +368,18 @@ private:
             Assert::AreEqual<size_t> (restores + 1, controller.GetReplayer().GetRestoreCount(), L"one keyframe loaded");
         }
 
-        hr = controller.SeekToPosition (liveEnd, result);
+        hr = controller.GetSeeker().SeekToPosition (liveEnd, result);
         AssertSucceeded (hr, L"SeekToPosition at the end of history");
-        Assert::IsFalse (controller.IsInHistory(), L"live again");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"live again");
 
-        controller.SetCallerLinksProbe (nullptr);
+        controller.GetStepper().SetCallerLinksProbe (nullptr);
 
         replayed = controller.GetReplayer().GetReplayedCount();
-        builds   = controller.GetTableBuildCount();
+        builds   = controller.GetStepTable().GetBuildCount();
 
         for (i = 0; i < count; i++)
         {
-            hr = controller.StepBackOut (search[i]);
+            hr = controller.GetStepper().StepBackOut (search[i]);
             AssertSucceeded (hr, L"StepBackOut by the search");
 
             Assert::IsTrue             (search[i].outcome == ReverseOutcome::Moved, L"the search found a call");
@@ -389,7 +389,7 @@ private:
 
         Assert::IsTrue (controller.GetReplayer().GetReplayedCount() - replayed > s_kSeekStretchWork * s_kSeekFarStretches,
                         L"the call is many stretches back");
-        Assert::AreEqual<size_t> (builds, controller.GetTableBuildCount(), L"the search builds no step table");
+        Assert::AreEqual<size_t> (builds, controller.GetStepTable().GetBuildCount(), L"the search builds no step table");
 
         SetLinksProbe (machine, controller, recorder);
 

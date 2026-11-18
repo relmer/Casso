@@ -84,7 +84,7 @@ void CallStackHistory::Attach (
     {
         if (m_history != nullptr)
         {
-            m_history->SetKeyframeListener (this, nullptr);
+            m_history->GetCapturer().SetKeyframeListener (this, nullptr);
             m_history->GetKeyframes().SetDropListener (this, nullptr);
         }
 
@@ -92,7 +92,7 @@ void CallStackHistory::Attach (
 
         if (history != nullptr)
         {
-            history->SetKeyframeListener (this, [this] (uint64_t position) { OnKeyframeTaken (position); });
+            history->GetCapturer().SetKeyframeListener (this, [this] (uint64_t position) { OnKeyframeTaken (position); });
             history->GetKeyframes().SetDropListener (this, [this] (KeyframeDrop drop) { OnKeyframeDrop (drop); });
         }
     }
@@ -198,7 +198,7 @@ void CallStackHistory::Service()
 {
     uint64_t  record   = 0;
     bool      isOn     = m_session.IsCallRecording();
-    bool      isLinked = m_history != nullptr && m_rebuilder != nullptr && m_history->IsRecording();
+    bool      isLinked = m_history != nullptr && m_rebuilder != nullptr && m_history->GetSpan().IsRecording();
     bool      isOwed   = false;
 
 
@@ -460,7 +460,7 @@ void CallStackHistory::Request()
     HRESULT                               hr         = S_OK;
     KeyframeStore                       & keyframes  = m_history->GetKeyframes();
     uint64_t                              target     = m_machine.GetRunner().GetPosition();
-    uint64_t                              recorded   = m_history->GetRecordedEnd();
+    uint64_t                              recorded   = m_history->GetSeeker().GetRecordedEnd();
     uint64_t                              recordFrom = 0;
     size_t                                start      = 0;
     bool                                  hasJob     = false;
@@ -630,7 +630,7 @@ HRESULT CallStackHistory::Continue (
     HRESULT                               hr       = S_OK;
     const EmuCpu                        * cpu      = m_machine.GetCpu();
     uint64_t                              target   = m_machine.GetRunner().GetPosition();
-    uint64_t                              recorded = m_history->GetRecordedEnd();
+    uint64_t                              recorded = m_history->GetSeeker().GetRecordedEnd();
     uint64_t                              cycle    = 0;
     uint64_t                              limit    = 0;
     bool                                  hasJob   = false;

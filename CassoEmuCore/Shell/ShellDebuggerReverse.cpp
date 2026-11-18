@@ -60,14 +60,14 @@ void ShellDebugger::StartReverseRecording()
     if (m_reverseHost == nullptr)
     {
         m_reverseHost = std::make_unique<ReverseHost> (m_machine);
-        m_reverseHost->GetController().SetReplayControl (&m_replayControl);
+        m_reverseHost->GetController().GetSeeker().SetReplayControl (&m_replayControl);
 
-        m_reverseHost->GetController().SetCallerProbe ([this] (uint64_t historyStartCycle)
+        m_reverseHost->GetController().GetStepper().SetCallerProbe ([this] (uint64_t historyStartCycle)
         {
             return m_debugSession != nullptr && m_debugSession->HasNoCallSince (historyStartCycle);
         });
 
-        m_reverseHost->GetController().SetCallerLinksProbe ([this] (std::vector<CallerLink> & outLinks)
+        m_reverseHost->GetController().GetStepper().SetCallerLinksProbe ([this] (std::vector<CallerLink> & outLinks)
         {
             outLinks.clear();
 
@@ -388,9 +388,9 @@ std::string ShellDebugger::GetLandingText (ReverseOutcome outcome)
         return std::string();
     }
 
-    if (m_reverseHost != nullptr && m_reverseHost->GetController().IsInHistory())
+    if (m_reverseHost != nullptr && m_reverseHost->GetController().GetSpan().IsInHistory())
     {
-        wallTime = m_reverseHost->GetController().GetWallTimeAtPosition (position, cpu->GetHistoryCycles());
+        wallTime = m_reverseHost->GetController().GetTimeline().GetWallTimeAtPosition (position, cpu->GetHistoryCycles());
         clock    = DebuggerStatusText::FormatWallClock (wallTime, LOCALE_NAME_USER_DEFAULT);
     }
 
@@ -1064,7 +1064,7 @@ void ShellDebugger::UpdateReplayCaption()
     if (isBehind)
     {
         cycle   = cpu->GetHistoryCycles();
-        caption = DebuggerStatusText::GetReplayCaption (m_reverseHost->GetController().GetWallTimeAt (cycle), cycle, LOCALE_NAME_USER_DEFAULT);
+        caption = DebuggerStatusText::GetReplayCaption (m_reverseHost->GetController().GetTimeline().GetWallTimeAt (cycle), cycle, LOCALE_NAME_USER_DEFAULT);
     }
 
     {
@@ -1322,7 +1322,7 @@ bool ShellDebugger::TryPublishHistoryPlayhead()
     keyframes = &m_reverseHost->GetController().GetKeyframes();
 
     m_historyThumbnails.SetPlayhead     (m_machine.GetRunner().GetPosition(), isBehind);
-    m_historyThumbnails.SetPlayheadTime (cycle, m_reverseHost->GetController().GetWallTimeAt (cycle), isBehind ? m_reverseHost->GetController().GetLiveEndCycle() : cycle);
+    m_historyThumbnails.SetPlayheadTime (cycle, m_reverseHost->GetController().GetTimeline().GetWallTimeAt (cycle), isBehind ? m_reverseHost->GetController().GetSeeker().GetLiveEndCycle() : cycle);
 
     if (keyframes->GetArena().GetCount() > 0)
     {
@@ -1420,7 +1420,7 @@ void ShellDebugger::SyncHeatHistory (bool isAttached)
 
     if (controller != nullptr)
     {
-        controller->SetHistoryObserver (isLinked ? target->GetHistoryObserver() : nullptr);
+        controller->GetCapturer().SetObserver (isLinked ? target->GetHistoryObserver() : nullptr);
     }
 
     if (target != nullptr)

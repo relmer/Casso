@@ -93,7 +93,7 @@ public:
         PrepareRecording (machine, host, control);
 
         from   = machine.GetRunner().GetPosition();
-        oldest = host.GetController().GetOldestPosition();
+        oldest = host.GetController().GetSeeker().GetOldestPosition();
 
         hr = host.Execute (ReverseCommand::ReverseContinue, 0, &test, result);
         AssertSucceeded (hr, L"ReverseContinue");
@@ -205,7 +205,7 @@ private:
         hr = host.StartRecording (ReverseHost::MakeSettings (s_kStopBudgetMb, 1));
         AssertSucceeded (hr, L"StartRecording");
 
-        host.GetController().SetReplayControl (&control);
+        host.GetController().GetSeeker().SetReplayControl (&control);
 
         machine.GetRefs().iieSoftSwitches->SetPaddle (0, 0);
         machine.GetRunner().RunCycles (s_kStopWarmupCycles);

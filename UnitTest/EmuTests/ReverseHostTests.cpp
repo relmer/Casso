@@ -112,7 +112,7 @@ public:
         hr = host.OnFrame (cpu.IsUserMaximumSpeed());
         AssertSucceeded (hr, L"OnFrame at an automatic Maximum");
 
-        Assert::IsFalse (host.GetController().IsPaused(), L"an automatic raise keeps recording");
+        Assert::IsFalse (host.GetController().GetSpan().IsPaused(), L"an automatic raise keeps recording");
 
         count = host.GetController().GetKeyframes().GetArena().GetCount();
         machine.GetRunner().RunCycles (s_kHostGapCycles);
@@ -124,7 +124,7 @@ public:
         hr = host.OnFrame (cpu.IsUserMaximumSpeed());
         AssertSucceeded (hr, L"OnFrame at the user's Maximum");
 
-        Assert::IsTrue (host.GetController().IsPaused(), L"the user's Maximum pauses recording");
+        Assert::IsTrue (host.GetController().GetSpan().IsPaused(), L"the user's Maximum pauses recording");
 
         count = host.GetController().GetKeyframes().GetArena().GetCount();
         machine.GetRunner().RunCycles (s_kHostGapCycles);
@@ -138,7 +138,7 @@ public:
 
         resumed = host.GetController().GetKeyframes().GetArena().GetInfo (host.GetController().GetKeyframes().GetArena().GetCount() - 1);
 
-        Assert::IsFalse (host.GetController().IsPaused(), L"recording resumed");
+        Assert::IsFalse (host.GetController().GetSpan().IsPaused(), L"recording resumed");
         Assert::IsTrue  (resumed.hasGapBefore, L"the keyframe where it resumed follows a gap");
     }
 
@@ -335,7 +335,7 @@ public:
         live   = machine.GetCpu()->GetHistoryCycles();
         target = ReverseHost::GetCycleBack (live, kBackMs);
 
-        Assert::AreEqual (live, host.GetController().GetLiveEndCycle(), L"live, the live end is the machine's cycle");
+        Assert::AreEqual (live, host.GetController().GetSeeker().GetLiveEndCycle(), L"live, the live end is the machine's cycle");
 
         hr = host.Execute (ReverseCommand::SeekBack, kBackMs, nullptr, result);
         AssertSucceeded (hr, L"SeekBack");
@@ -393,7 +393,7 @@ public:
 
         Assert::IsFalse (host.IsBehindLive(), L"live where it stood");
         Assert::AreEqual<uint64_t> (target, machine.GetRunner().GetPosition(), L"the machine did not move");
-        Assert::AreEqual<uint64_t> (target, host.GetController().GetLiveEndPosition(), L"the future is gone");
+        Assert::AreEqual<uint64_t> (target, host.GetController().GetSeeker().GetLiveEndPosition(), L"the future is gone");
         Assert::IsFalse (machine.GetHostInput().GetGate().IsHeld(), L"host input flows again");
         Assert::AreEqual (1, lives, L"the live callback ran once");
     }
@@ -435,7 +435,7 @@ public:
 
         PrepareRecording (machine, host);
 
-        hr = host.Execute (ReverseCommand::Seek, host.GetController().GetOldestPosition(), nullptr, result);
+        hr = host.Execute (ReverseCommand::Seek, host.GetController().GetSeeker().GetOldestPosition(), nullptr, result);
         AssertSucceeded (hr, L"Seek to the oldest position");
 
         hr = host.Execute (ReverseCommand::StepBack, 0, nullptr, result);

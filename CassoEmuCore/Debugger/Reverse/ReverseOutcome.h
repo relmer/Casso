@@ -30,3 +30,20 @@ enum class ReverseOutcome
     Stopped,
     NoCaller,
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReverseResult
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct ReverseResult
+{
+    ReverseOutcome  outcome  = ReverseOutcome::Moved;
+    uint64_t        position = 0;
+    uint64_t        cycle    = 0;
+};

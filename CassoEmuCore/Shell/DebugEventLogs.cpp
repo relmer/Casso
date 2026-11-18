@@ -106,7 +106,7 @@ void DebugEventLogs::Start (ReverseController * controller)
 
     if (controller != nullptr)
     {
-        controller->SetKeyframeListener (this, [this] (uint64_t at) { OnKeyframe (at); });
+        controller->GetCapturer().SetKeyframeListener (this, [this] (uint64_t at) { OnKeyframe (at); });
         controller->SetLiveListener     (this, [this] (uint64_t at) { OnLive (at); });
         controller->GetKeyframes().SetDropListener (this, [this] (KeyframeDrop drop) { OnDrop (drop); });
     }
@@ -138,7 +138,7 @@ void DebugEventLogs::Stop()
 
     if (m_controller != nullptr)
     {
-        m_controller->SetKeyframeListener (this, nullptr);
+        m_controller->GetCapturer().SetKeyframeListener (this, nullptr);
         m_controller->SetLiveListener     (this, nullptr);
         m_controller->GetKeyframes().SetDropListener (this, nullptr);
     }
@@ -784,7 +784,7 @@ Error:
 
 bool DebugEventLogs::IsRecording() const
 {
-    return m_controller == nullptr || !m_controller->IsRecording() || m_controller->IsRecordingLive();
+    return m_controller == nullptr || !m_controller->GetSpan().IsRecording() || m_controller->IsRecordingLive();
 }
 
 
@@ -810,9 +810,9 @@ uint64_t DebugEventLogs::GetWallTime (
 
 
 
-    if (m_controller != nullptr && m_controller->IsRecording())
+    if (m_controller != nullptr && m_controller->GetSpan().IsRecording())
     {
-        return m_controller->GetWallTimeAtPosition (position, historyCycle);
+        return m_controller->GetTimeline().GetWallTimeAtPosition (position, historyCycle);
     }
 
     GetSystemTimeAsFileTime (&now);
@@ -860,7 +860,7 @@ uint64_t DebugEventLogs::GetCycleBase() const
 
 uint64_t DebugEventLogs::GetOldest() const
 {
-    bool  hasHistory = m_controller != nullptr && m_controller->IsRecording() && m_controller->GetKeyframes().GetArena().GetCount() > 0;
+    bool  hasHistory = m_controller != nullptr && m_controller->GetSpan().IsRecording() && m_controller->GetKeyframes().GetArena().GetCount() > 0;
 
 
 

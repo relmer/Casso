@@ -167,11 +167,11 @@ private:
 
         live      = Save (machine);
         keyframes = controller.GetKeyframes().GetArena().GetCount();
-        oldest    = controller.GetOldestPosition();
+        oldest    = controller.GetSeeker().GetOldestPosition();
 
         Assert::IsTrue (keyframes > kSeconds, (name + L": the run spans many keyframes").c_str());
 
-        hr = controller.ReverseContinue (neverStops, result);
+        hr = controller.GetSeeker().ReverseContinue (neverStops, result);
         AssertSucceeded (hr, (name + L": ReverseContinue over the whole history").c_str());
 
         Assert::IsTrue (result.outcome != ReverseOutcome::HistoryCut, (name + L": the replay matched every keyframe").c_str());
@@ -179,11 +179,11 @@ private:
         Assert::AreEqual<uint64_t> (oldest, machine.GetRunner().GetPosition(), (name + L": at the oldest position").c_str());
         Assert::AreEqual<size_t>   (keyframes, controller.GetKeyframes().GetArena().GetCount(), (name + L": no keyframe was dropped").c_str());
 
-        hr = controller.SeekToCycle (UINT64_MAX, result);
+        hr = controller.GetSeeker().SeekToCycle (UINT64_MAX, result);
         AssertSucceeded (hr, (name + L": SeekToCycle live").c_str());
 
         CheckState (live, Save (machine), name);
-        Assert::IsFalse (controller.IsInHistory(), (name + L": live again").c_str());
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), (name + L": live again").c_str());
 
         Logger::WriteMessage (std::format ("{}: {} keyframes, {} journal records, all matched\n",
                                            label,

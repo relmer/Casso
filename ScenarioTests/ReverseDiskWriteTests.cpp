@@ -81,7 +81,7 @@ namespace ReverseDiskWriteTests
             session.OnStopConditionsChanged();
 
             startedAt = GetTickCount64();
-            Assert::AreEqual (S_OK, controller.ReverseContinue (stopTest, result), L"ReverseContinue");
+            Assert::AreEqual (S_OK, controller.GetSeeker().ReverseContinue (stopTest, result), L"ReverseContinue");
             elapsedMs = GetTickCount64() - startedAt;
 
             return result;

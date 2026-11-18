@@ -249,7 +249,7 @@ namespace ProfileHistoryTests
 
             rig.machine.GetMemoryBus().WriteByte (kEdited, 0x5A);
 
-            hr = rig.controller.OnMachineChanged();
+            hr = rig.controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
             boundary = keyframes.GetArena().GetInfo (keyframes.GetArena().GetCount() - 1).position;

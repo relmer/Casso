@@ -205,3 +205,21 @@ uint64_t HistoryTimeline::GetSegmentEnd (size_t keyframe, uint64_t newestEnd) co
 
     return end;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryTimeline::GetOldestPosition
+//
+//  The first keyframe is the oldest position any replay can start from;
+//  with none, the machine's position now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t HistoryTimeline::GetOldestPosition (uint64_t current) const
+{
+    return (m_keyframes.GetArena().GetCount() > 0) ? m_keyframes.GetArena().GetInfo (0).position : current;
+}

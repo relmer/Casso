@@ -302,7 +302,7 @@ public:
 
         ReverseSessionRig::Prepare (machine);
 
-        controller.SetWorkQueue (&queue);
+        controller.GetCapturer().SetWorkQueue (&queue);
 
         hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
         AssertSucceeded (hr, L"Start");
@@ -316,7 +316,7 @@ public:
 
         Assert::IsTrue (queue.GetPendingCount() > 0, L"keyframes are still in flight");
 
-        hr = controller.SeekToPosition (target, result);
+        hr = controller.GetSeeker().SeekToPosition (target, result);
         AssertSucceeded (hr, L"SeekToPosition");
 
         Assert::AreEqual<size_t> (0, queue.GetPendingCount(), L"the seek ran them first");

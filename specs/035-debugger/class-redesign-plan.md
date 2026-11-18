@@ -283,31 +283,51 @@ results cross.
 
 ### 4. ReverseController
 
-**Problem.** One class has the recording state machine, keyframe capture, seeking,
-the step table, the step-back commands and divergence handling.
-`ReverseStepSearch` reads its private members as a friend.
+**Problem.** One class had the recording state machine, keyframe capture,
+seeking, the step table, the step-back commands and divergence handling.
+`ReverseStepSearch` read its private members as a friend.
+
+**State, at `aa449d56d`.** All on the thread that runs the machine, except
+`m_control`, which the shell sets and reads from the UI thread.
+
+| Field | Written by | Read by | Group |
+|---|---|---|---|
+| `m_isRecording`, `m_isLive`, `m_isPaused`, `m_isEditPending`, `m_pauseStart`, `m_liveEndPosition`, `m_liveEndCycle`, `m_hereStart`, `m_hereEnd` | `Start`, `Stop`, `SetUserMaximumSpeed`, `LeaveLive`, `BecomeLive`, `OnMachineEdited`, `CaptureBoundary`, `ReplayHere` | every command, the search | span |
+| `m_steps`, `m_stepsStart`, `m_stepsEnd`, `m_hasSteps`, `m_tableBuilds` | `BuildStepTable`, `DiscardStepTable` | `GetStep`, `LandAt`, `GetRecentSteps`, the search | step table |
+| `m_writer`, `m_hostWriter`, `m_side`, `m_observer`, `m_keyframeListeners`, `m_workQueueOverride` | `CaptureNow`, setters | `CaptureNow`, the replayer's load callback | capturer |
+| `m_isCut`, `m_cutResult`, `m_isStopped` | `BuildStepTable`, the search | the step commands | stepper |
+| `m_lastDivergence`, `m_cutCount`, `m_control` | `HandleDivergence`, setter | the debugger, `IsStopDue` | seeker |
+| `m_search` (caller probes and links, stack pointers) | the search | the search | stepper |
+| `m_liveListeners`, and the base class's `m_nextDueCycle`, `m_isArrivalDue`, `m_pagesRun` | `BecomeLive`, `LeaveLive`, `ScheduleCaptures`, `CaptureNow` | the per-instruction hooks | controller |
+| `m_workQueue`, `m_keyframes`, `m_timeline`, `m_replayer` | as now | every part | parts |
 
 **Classes.**
 
 | Class | State | Responsibility |
 |---|---|---|
-| `HistorySpan` | recording, live, paused, pause start, live end position and cycle, edit pending, the stretch the machine last ran in | The recording state machine and its queries: `IsInHistory`, `GetLiveEndPosition`, `GetLiveEndCycle`, `GetRecordedEnd`, `GetOldestPosition`. Pure state transitions, with direct tests. |
-| `KeyframeCapturer` | the two `StateWriter`s, the side buffer, the observer, the keyframe listeners, the work queue and its test replacement | `CaptureNow`, `CaptureBoundary`, `OnCaptureDue`, `ScheduleCaptures`, `NoteActivity`, `PruneRetainedMedia`. |
-| `ReplayStepTable` | the steps, their start and end, the build count | `IsBuiltFor (stretch)`, `Get (position)`, `GetRecent (position, count)`, `Discard`, and filling from a replay. |
-| `ReverseSeeker` | the cut flag and result, the stopped flag, the last divergence text, the cut count | `Seek`, `RestoreAtOrBefore`, `ReplayHere`, `LeaveLive`, `BecomeLive`, `LandAt`, `HandleDivergence`. Implements `IReverseSeeker` (see below). |
-| `ReverseStepper` | `ReverseStepSearch`'s state (caller links, stack pointers, the probes) | `StepBack`, `StepBackOver`, `StepBackOut`, `StepBackCycles`, `PrepareRecentSteps`. Absorbs `ReverseStepSearch`. Uses `IReverseSeeker`, `ReplayStepTable` and `HistoryTimeline`. |
-| `HistoryTimeline` | as now | as now, with `HistorySpan` supplying the newest end |
-| `ReverseController` | the parts above, `KeyframeStore`, `Replayer` | `Start`, `Stop`, `SetUserMaximumSpeed`, `ChangeBudget`, the `HistoryRecorder` callbacks, `ReverseContinue`, `SeekToCycle`, `SeekToPosition`, and getters for the parts. |
+| `HistorySpan` | recording, live, paused, pause start, edit pending, live end position and cycle, the stretch the machine last ran in | The recording state machine: `Start`, `Stop`, `SetPaused`, `Leave`, `BecomeLive`, `NotePause`, `MarkEdit`, `TakeEdit`, and queries that take the machine's position or cycle. Pure state, with direct tests. |
+| `ReplayStepTable` | the steps, their start and end, the build count | `BeginFill`, `Commit`, `IsBuiltFor`, `Contains`, `Leads`, `Get`, `GetRecent`, `Discard`. Direct tests. |
+| `KeyframeCapturer` | the two `StateWriter`s, the side buffer, the observer, the keyframe listeners, the work queue override | `CaptureNow`, `CaptureBoundary`, `UseWorkQueue`, and the activity, journal and retained-media bookkeeping of each capture. A callback after each capture schedules the next. |
+| `ReverseSeeker` | the replay control, the last divergence, the cut count | Moves the machine between live and history: `SeekToPosition`, `SeekToCycle`, `StepForward`, `ReverseContinue`, `LandAt`, `LeaveLive`, `BecomeLive`, `ReplayHere`, `OnMachineChanged`, `HandleDivergence`, `IsStopDue`, and the position queries. A callback on each change between live and history. Implements `IReverseSeeker`. |
+| `ReverseStepper` | the caller probes and links, the stack pointers, the cut flag and result, the stopped flag | `StepBack`, `StepBackOver`, `StepBackOut`, `StepBackCycles`, `PrepareRecentSteps`, `GetRecentSteps`. Absorbs `ReverseStepSearch`, which is deleted. Uses `IReverseSeeker`, the step table and the timeline. |
+| `HistoryTimeline` | as now | with `GetOldestPosition` |
+| `ReverseController` | the parts above, `KeyframeStore`, `Replayer`, the work queue, the live listeners | `Start`, `Stop`, `SetUserMaximumSpeed`, `ChangeBudget`, `IsRecordingLive`, the `HistoryRecorder` callbacks, the capture schedule, and getters for the parts. |
 
-**`IReverseSeeker`.** The calls the stepper makes on the seeker, to be confirmed against
-`ReverseStepSearch.cpp`: replay a stretch into a step or stack-pointer table, land
-at a position with an outcome, and report whether the last replay cut history. If
-it grows past four methods, apply rule 3.
+**`IReverseSeeker`.** Six methods: `LeaveLive`, `LandAt`, `SeekToPosition`,
+`SeekToCycle`, `HandleDivergence`, `IsStopDue`. More than four, but each is one
+of the moves the stepper makes, and none goes past the seeker; the cut state
+moved to the stepper, since only the step commands read it.
 
-**Callers.** `HasStepTable`, `GetTableBuildCount`, `GetRecentSteps` move to the
-step table. `GetLastDivergence`, `GetCutCount` move to the seeker. The step
-commands move to `GetStepper ()`. `GetWallTimeAt` and `GetWallTimeAtPosition`
-forwarders are removed; callers use `GetTimeline ()`.
+**Callers.** The step commands, `PrepareRecentSteps`, `GetRecentSteps` and the
+caller probes use `GetStepper()`. `SeekToCycle`, `SeekToPosition`, `StepForward`,
+`ReverseContinue`, `OnMachineChanged`, the position queries, `GetLastDivergence`,
+`GetCutCount` and `SetReplayControl` use `GetSeeker()`. `IsInHistory`,
+`IsPaused` and `IsRecording` use `GetSpan()`. `GetWallTimeAt` and
+`GetWallTimeAtPosition` use `GetTimeline()`. `HasStepTable` and
+`GetTableBuildCount` use `GetStepTable()`. `SetHistoryObserver`,
+`SetKeyframeListener` and `SetWorkQueue` use `GetCapturer()`.
+`ReverseController::CallerProbe` is `ReverseStepper::CallerProbe`, and
+`ReverseController::KeyframeListener` is `KeyframeCapturer::KeyframeListener`.
 
 ### 5. Cpu
 

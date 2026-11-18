@@ -70,21 +70,21 @@ public:
         {
             const Sample  & sample = samples[(i * s_kReplayShuffle) % count];
 
-            hr = controller.SeekToCycle (sample.cycle, result);
+            hr = controller.GetSeeker().SeekToCycle (sample.cycle, result);
             AssertSucceeded (hr, L"SeekToCycle");
 
             Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"a seek inside history moves");
             Assert::AreEqual<uint64_t> (sample.position, result.position, L"the seek lands on the sampled boundary");
             CheckState (sample.state, ReverseSessionRig::Save (machine), sample.position);
-            Assert::IsTrue (controller.IsInHistory(), L"behind the live end, the machine is in history");
+            Assert::IsTrue (controller.GetSpan().IsInHistory(), L"behind the live end, the machine is in history");
         }
 
-        hr = controller.SeekToCycle (UINT64_MAX, result);
+        hr = controller.GetSeeker().SeekToCycle (UINT64_MAX, result);
         AssertSucceeded (hr, L"SeekToCycle live");
 
         Assert::AreEqual<uint64_t> (last.position, result.position, L"a seek past the end stops at the live end");
         CheckState (last.state, ReverseSessionRig::Save (machine), last.position);
-        Assert::IsFalse (controller.IsInHistory(), L"at the live end the machine is live again");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"at the live end the machine is live again");
     }
 
 
@@ -108,15 +108,15 @@ public:
         RecordSession (machine);
         keyframes = controller.GetKeyframes().GetArena().GetCount();
 
-        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        hr = controller.GetSeeker().SeekToPosition (controller.GetSeeker().GetOldestPosition(), result);
         AssertSucceeded (hr, L"SeekToPosition oldest");
 
-        hr = controller.SeekToCycle (UINT64_MAX, result);
+        hr = controller.GetSeeker().SeekToCycle (UINT64_MAX, result);
         AssertSucceeded (hr, L"SeekToCycle live");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"no keyframe may diverge");
         Assert::AreEqual (keyframes, controller.GetKeyframes().GetArena().GetCount(), L"every keyframe survives the replay");
-        Assert::IsFalse (controller.IsInHistory());
+        Assert::IsFalse (controller.GetSpan().IsInHistory());
     }
 
 
@@ -172,11 +172,11 @@ public:
         // A seek loads the keyframe at or before its target, so it reaches
         // no keyframe; the first step back into the stretch before the bad
         // one replays the whole stretch to build its table, and reaches it.
-        hr = controller.SeekToPosition (store.GetArena().GetInfo (bad).position - 1, result);
+        hr = controller.GetSeeker().SeekToPosition (store.GetArena().GetInfo (bad).position - 1, result);
         AssertSucceeded (hr, L"SeekToPosition before the bad keyframe");
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"nothing is crossed yet");
 
-        hr = controller.StepBack (result);
+        hr = controller.GetStepper().StepBack (result);
         AssertSucceeded (hr, L"StepBack into the stretch before the bad keyframe");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::HistoryCut, L"the replay must catch the bad keyframe");
@@ -184,7 +184,7 @@ public:
         Assert::AreEqual<uint64_t> (store.GetArena().GetInfo (bad - 1).position, machine.GetRunner().GetPosition(), L"the machine is at the last good keyframe");
         Assert::AreEqual (store.GetArena().GetInfo (bad - 1).journalIndex, machine.GetHostInput().GetJournal().GetEndIndex(), L"the inputs after it are dropped");
         Assert::IsTrue (store.DoesStateMatch (bad - 1, ReverseSessionRig::Save (machine)), L"in that keyframe's state");
-        Assert::IsFalse (controller.IsInHistory(), L"and live there");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"and live there");
     }
 
 

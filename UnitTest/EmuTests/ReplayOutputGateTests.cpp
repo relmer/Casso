@@ -57,22 +57,22 @@ public:
         Assert::IsFalse (machine.GetRefs().speaker->GetToggleTimestamps().empty(), L"live, the speaker clicks");
         Assert::AreNotEqual<uint32_t> (0, machine.GetRefs().printerRing->GetApproxSize(), L"and the printer gets bytes");
 
-        oldest = controller.GetOldestPosition();
+        oldest = controller.GetSeeker().GetOldestPosition();
         live   = machine.GetRunner().GetPosition();
 
         Drain (machine);
 
-        hr = controller.SeekToPosition (oldest + (live - oldest) / 2, result);
+        hr = controller.GetSeeker().SeekToPosition (oldest + (live - oldest) / 2, result);
         AssertSucceeded (hr, L"SeekToPosition halfway");
         AssertSilent (machine, L"seek");
 
-        hr = controller.StepBack (result);
+        hr = controller.GetStepper().StepBack (result);
         AssertSucceeded (hr, L"StepBack");
         AssertSilent (machine, L"step back");
 
         probe.breakPc = s_kGatePrintSite;
 
-        hr = controller.ReverseContinue (probe, result);
+        hr = controller.GetSeeker().ReverseContinue (probe, result);
         AssertSucceeded (hr, L"ReverseContinue");
         Assert::AreEqual<int> (s_kGatePrintSite, machine.GetCpu()->GetPC(), L"reverse continue stopped at the print");
         AssertSilent (machine, L"reverse continue");
@@ -82,12 +82,12 @@ public:
         //  Running on from the past replays the recorded future, heard but
         //  not printed, until the machine is live again.
         machine.GetRunner().RunCycles (s_kGateAfterCycles);
-        Assert::IsTrue   (controller.IsInHistory(), L"still behind live");
+        Assert::IsTrue   (controller.GetSpan().IsInHistory(), L"still behind live");
         Assert::IsFalse  (machine.GetRefs().speaker->GetToggleTimestamps().empty(), L"running on behind live, the speaker clicks");
         Assert::AreEqual<uint32_t> (0, machine.GetRefs().printerRing->GetApproxSize(), L"but the printer gets nothing");
         Drain (machine);
 
-        while (controller.IsInHistory())
+        while (controller.GetSpan().IsInHistory())
         {
             machine.GetRunner().RunCycles (s_kGateAfterCycles);
         }
@@ -119,12 +119,12 @@ public:
 
         machine.GetRunner().RunCycles (s_kGateLiveCycles);
 
-        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        hr = controller.GetSeeker().SeekToPosition (controller.GetSeeker().GetOldestPosition(), result);
         AssertSucceeded (hr, L"SeekToPosition back to the start");
 
         machine.GetRunner().StepOne();
 
-        Assert::IsTrue  (controller.IsInHistory(), L"the step left the machine behind live");
+        Assert::IsTrue  (controller.GetSpan().IsInHistory(), L"the step left the machine behind live");
         Assert::IsTrue  (machine.GetOutputMute().IsPrinterMuted(), L"with the printer quiet");
 
         controller.Stop();

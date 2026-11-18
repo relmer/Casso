@@ -2,21 +2,19 @@
 
 #include "Pch.h"
 
-#include "Core/StateWriter.h"
 #include "Core/ThreadPoolWorkQueue.h"
-#include "Debugger/Reverse/CallerLink.h"
 #include "Debugger/Reverse/HistoryRecorder.h"
+#include "Debugger/Reverse/HistorySpan.h"
 #include "Debugger/Reverse/HistoryTimeline.h"
+#include "Debugger/Reverse/KeyframeCapturer.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/Replayer.h"
+#include "Debugger/Reverse/ReplayStepTable.h"
 #include "Debugger/Reverse/ReverseOutcome.h"
+#include "Debugger/Reverse/ReverseSeeker.h"
+#include "Debugger/Reverse/ReverseStepper.h"
 
-class IHistoryObserver;
-class IReverseStopTest;
 class MachineHost;
-class ReverseStepSearch;
-struct ReplayControl;
-struct StretchSummary;
 
 
 
@@ -31,23 +29,6 @@ struct StretchSummary;
 struct ReverseSettings
 {
     KeyframeSettings  keyframes;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReverseResult
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct ReverseResult
-{
-    ReverseOutcome  outcome  = ReverseOutcome::Moved;
-    uint64_t        position = 0;
-    uint64_t        cycle    = 0;
 };
 
 
@@ -76,7 +57,8 @@ struct ReverseResult
 //  Running backward leaves the recorded future in place: seeking forward
 //  replays it, and reaching its end makes the machine live again. A change
 //  made in the past (memory, registers, a disk) must be reported through
-//  OnMachineChanged, which drops the future and keyframes the changed state.
+//  ReverseSeeker::OnMachineChanged, which drops the future and keyframes the
+//  changed state.
 //  Running the machine from the past without a seek replays the recorded
 //  future instead, inputs and all, until it reaches the end of it. A disk
 //  change reaches it through OnMediaChanged, and a debugger edit through
@@ -117,19 +99,7 @@ public:
     static constexpr uint64_t  kScanlineCycles = 65;
     static constexpr uint64_t  kFrameCycles    = KeyframeSettings::kFrameCycles;
 
-    //  Asked, live, whether the call record shows that no call made at or
-    //  after the given cycle, where history begins, entered the code now
-    //  running. False when the record cannot tell.
-    using CallerProbe = std::function<bool (uint64_t historyStartCycle)>;
-
-    //  Asked, live, for the calls the code now running is still inside of,
-    //  so step back out can seek straight to the innermost.
-    using CallerLinksProbe = std::function<void (std::vector<CallerLink> & outLinks)>;
-
-    //  Called, live, just after each keyframe is taken, with its position.
-    using KeyframeListener = std::function<void (uint64_t position)>;
-
-    //  Called with the machine's position each time it becomes live.
+    //  Called with the position each time the machine becomes live.
     using LiveListener = std::function<void (uint64_t position)>;
 
     explicit ReverseController (MachineHost & machine);
@@ -139,121 +109,44 @@ public:
     ReverseController & operator= (const ReverseController &) = delete;
 
     HRESULT   Start               (const ReverseSettings & settings);
-    void      SetWorkQueue        (IWorkQueue * queue) { m_workQueueOverride = queue; }
-    void      SetReplayControl    (ReplayControl * control) { m_control = control; }
-    void      SetCallerProbe      (CallerProbe probe);
-    void      SetCallerLinksProbe (CallerLinksProbe probe);
-    void      SetHistoryObserver  (IHistoryObserver * observer) { m_observer = observer; }
-    void      SetKeyframeListener (const void * owner, KeyframeListener listener);
-    void      SetLiveListener     (const void * owner, LiveListener listener);
     void      Stop                ();
-    bool      IsRecording         () const { return m_isRecording; }
+    void      SetLiveListener     (const void * owner, LiveListener listener);
     bool      IsRecordingLive     () const;
     HRESULT   SetUserMaximumSpeed (bool isMaximum);
     HRESULT   ChangeBudget        (size_t budgetBytes);
-    bool      IsPaused            () const { return m_isPaused; }
 
     void      OnMediaChanged      (MachineHost & machine) override;
     void      OnMachineEdited     (MachineHost & machine) override;
-    HRESULT   OnMachineChanged    ();
 
-    HRESULT   StepBack            (ReverseResult & result);
-    HRESULT   StepForward         (ReverseResult & result);
-    HRESULT   StepBackOver        (ReverseResult & result);
-    HRESULT   StepBackOut         (ReverseResult & result);
-    HRESULT   StepBackCycles      (uint64_t cycles, ReverseResult & result);
-    HRESULT   ReverseContinue     (IReverseStopTest & stopTest, ReverseResult & result);
-    HRESULT   SeekToCycle         (uint64_t cycle, ReverseResult & result);
-    HRESULT   SeekToPosition      (uint64_t position, ReverseResult & result);
-
-    bool      IsInHistory           () const;
-    uint64_t  GetOldestPosition     () const;
-    uint64_t  GetLiveEndPosition    () const;
-    uint64_t  GetRecordedEnd        () const;
-    uint64_t  GetLiveEndCycle       () const;
-    uint64_t  GetWallTimeAt         (uint64_t cycle) const                    { return m_timeline.GetWallTimeAt (cycle); }
-    uint64_t  GetWallTimeAtPosition (uint64_t position, uint64_t cycle) const { return m_timeline.GetWallTimeAtPosition (position, cycle); }
-    size_t    GetTableBuildCount    () const { return m_tableBuilds; }
-    bool      HasStepTable          () const { return m_hasSteps; }
-
-    HRESULT   PrepareRecentSteps  (ReverseResult & result);
-    void      GetRecentSteps      (size_t count, std::vector<ReplayStep> & outSteps) const;
-
-    KeyframeStore        & GetKeyframes ()       { return m_keyframes; }
-    Replayer             & GetReplayer  ()       { return m_replayer; }
-    const KeyframeStore  & GetKeyframes () const { return m_keyframes; }
-
-    //  The last replay that diverged and cut history: where the replayed
-    //  machine first differed from its keyframe (StateDiff::Describe), and
-    //  how many times history has been cut. Empty and 0 for none.
-    const std::string    & GetLastDivergence () const { return m_lastDivergence; }
-    size_t                 GetCutCount       () const { return m_cutCount; }
+    KeyframeStore            & GetKeyframes ()       { return m_keyframes; }
+    const KeyframeStore      & GetKeyframes () const { return m_keyframes; }
+    const HistoryTimeline    & GetTimeline  () const { return m_timeline; }
+    Replayer                 & GetReplayer  ()       { return m_replayer; }
+    const HistorySpan        & GetSpan      () const { return m_span; }
+    const ReplayStepTable    & GetStepTable () const { return m_stepTable; }
+    KeyframeCapturer         & GetCapturer  ()       { return m_capturer; }
+    ReverseSeeker            & GetSeeker    ()       { return m_seeker; }
+    const ReverseSeeker      & GetSeeker    () const { return m_seeker; }
+    ReverseStepper           & GetStepper   ()       { return m_stepper; }
+    const ReverseStepper     & GetStepper   () const { return m_stepper; }
 
 private:
-    friend class ReverseStepSearch;
+    void  OnCaptureDue     (uint64_t cycle) override;
+    void  OnArrived        () override;
+    void  OnLiveChanged    (bool isLive);
+    void  ScheduleCaptures ();
 
-    using Stretch = HistoryTimeline::Stretch;
+    MachineHost                                         & m_machine;
+    ThreadPoolWorkQueue                                   m_workQueue;     // before the store, which waits on it as it goes
+    KeyframeStore                                         m_keyframes;
+    HistoryTimeline                                       m_timeline       { m_keyframes };
+    Replayer                                              m_replayer;
+    HistorySpan                                           m_span;
+    ReplayStepTable                                       m_stepTable;
+    KeyframeCapturer                                      m_capturer       { m_machine, m_keyframes, m_span, m_workQueue, m_pagesRun };
+    ReverseSeeker                                         m_seeker         { m_machine, m_keyframes, m_timeline, m_replayer, m_span, m_stepTable, m_capturer };
+    ReverseStepper                                        m_stepper        { m_machine, m_keyframes, m_timeline, m_replayer, m_span, m_stepTable, m_seeker };
 
-    HRESULT   Seek               (const ReplayTarget & target, bool isByCycle, IReverseStopTest * stopTest, ReplayReport & report, ReverseResult & result);
-    HRESULT   RestoreAtOrBefore  (uint64_t position, uint64_t cycle, bool isByCycle, Stretch & outStretch);
-    HRESULT   HandleDivergence   (const ReplayReport & report, ReverseResult & result);
-    HRESULT   GetStep            (uint64_t position, ReplayStep & outStep, bool & outIsInGap, uint64_t & outGapStart);
-    HRESULT   BuildStepTable     (const Stretch & stretch);
-    HRESULT   LandAt             (uint64_t position, ReverseOutcome outcome, ReverseResult & result);
-    HRESULT   CaptureNow         (bool isNotifying = true);
-    void      NotifyKeyframe     (uint64_t position);
-    HRESULT   CaptureBoundary    (bool isAfterGap, uint64_t gapStart);
-    void      OnCaptureDue       (uint64_t cycle) override;
-    void      OnArrived          () override;
-    HRESULT   ReplayHere         (bool isStarting);
-    HRESULT   LeaveLive          ();
-    bool      IsStopDue          (uint64_t from, uint64_t reached);
-    void      BecomeLive         ();
-    void      ScheduleCaptures   ();
-    void      DiscardStepTable   ();
-    void      PruneRetainedMedia ();
-    HRESULT   UseWorkQueue       ();
-    void      FillResult         (ReverseResult & result) const;
-
-    bool      TryFindStretch     (uint64_t position, Stretch & outStretch) const      { return m_timeline.TryFindStretch (position, GetRecordedEnd(), outStretch); }
-    uint64_t  GetSegmentEnd      (size_t keyframe) const                              { return m_timeline.GetSegmentEnd (keyframe, GetRecordedEnd()); }
-    bool      TryGetSummary      (size_t keyframe, StretchSummary & outSummary) const { return m_timeline.TryGetSummary (keyframe, outSummary); }
-    void      NoteActivity       (bool isFirst);
-
-    MachineHost                         & m_machine;
-    std::unique_ptr<ReverseStepSearch>    m_search;   // where step back over and step back out land
-    ThreadPoolWorkQueue                   m_workQueue;   // before the store, which waits on it as it goes
-    KeyframeStore                         m_keyframes;
-    HistoryTimeline                       m_timeline          { m_keyframes };
-    Replayer                              m_replayer;
-    StateWriter                           m_writer;   // kept so its section and segment lists keep their capacity
-    StateWriter                           m_hostWriter;   // the host input state taken with every capture
-    std::vector<Byte>                     m_side;   // the observer's bytes for the keyframe being taken, kept for its capacity
-    IHistoryObserver                    * m_observer          = nullptr;
-    IWorkQueue                          * m_workQueueOverride = nullptr;   // set by a test
-    ReplayControl                       * m_control           = nullptr;   // the shell's, read and set from another thread
-
-    //  Each owner's keyframe listener, in the order they were set.
-    std::vector<std::pair<const void *, KeyframeListener>>  m_keyframeListeners;
-    std::vector<std::pair<const void *, LiveListener>>      m_liveListeners;
-
-    std::vector<ReplayStep>    m_steps;                  // one stretch's registers and bytes per position
-    uint64_t                   m_stepsStart        = 0;
-    uint64_t                   m_stepsEnd          = 0;
-    size_t                     m_tableBuilds       = 0;
-    bool                       m_hasSteps          = false;
-    bool                       m_isCut             = false;  // a table's replay diverged and cut history; m_cutResult says where
-    bool                       m_isStopped         = false;  // a search for a step's target was stopped short
-    ReverseResult              m_cutResult;
-    bool                       m_isRecording       = false;
-    bool                       m_isLive            = true;
-    bool                       m_isPaused          = false;
-    bool                       m_isEditPending     = false;  // a debugger edit or disk change while live, kept as a boundary before the next instruction
-    uint64_t                   m_pauseStart        = 0;      // while paused and live: where recording stopped
-    uint64_t                   m_liveEndPosition   = 0;
-    uint64_t                   m_liveEndCycle      = 0;
-    uint64_t                   m_hereStart         = 0;      // the stretch the machine last ran an instruction in behind live
-    uint64_t                   m_hereEnd           = 0;
-    std::string                m_lastDivergence;
-    size_t                     m_cutCount          = 0;
+    //  Each owner's live listener, in the order they were set.
+    std::vector<std::pair<const void *, LiveListener>>    m_liveListeners;
 };

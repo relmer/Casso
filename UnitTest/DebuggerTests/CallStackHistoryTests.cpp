@@ -841,7 +841,7 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (landing, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (landing, result);
             AssertSucceeded (hr, L"SeekToPosition");
             Assert::AreEqual (landing, rig.base.machine.GetRunner().GetPosition(), L"the seek lands at the position given");
 
@@ -882,7 +882,7 @@ namespace DebuggerTests
             {
                 rig.history.OnMoving();
 
-                hr = rig.controller.SeekToPosition (at, result);
+                hr = rig.controller.GetSeeker().SeekToPosition (at, result);
                 AssertSucceeded (hr, L"SeekToPosition");
 
                 rig.history.OnMoved (true);
@@ -1122,7 +1122,7 @@ namespace DebuggerTests
             AssertSucceeded (hr, L"MakeJob");
 
             Assert::IsTrue (hasJob, L"history holds the run");
-            Assert::IsTrue (job.parts.front().startPosition > rig.controller.GetOldestPosition(), L"not from the oldest keyframe");
+            Assert::IsTrue (job.parts.front().startPosition > rig.controller.GetSeeker().GetOldestPosition(), L"not from the oldest keyframe");
             Assert::IsTrue (job.parts.front().startPosition <= kFarAhead,                      L"but from one before the power cycle");
 
             rig.Attach();
@@ -1154,14 +1154,14 @@ namespace DebuggerTests
             rig.Attach();
             rig.Drain();
 
-            rig.controller.SetCallerProbe ([] (uint64_t) { return true; });
+            rig.controller.GetStepper().SetCallerProbe ([] (uint64_t) { return true; });
 
             generation = rig.base.session.GetCallRecordGeneration();
             before     = GetRecord (rig.base.session);
 
             rig.history.OnMoving();
 
-            hr = rig.controller.StepBackOut (result);
+            hr = rig.controller.GetStepper().StepBackOut (result);
             AssertSucceeded (hr, L"StepBackOut");
 
             rig.history.OnMoved (false);
@@ -1197,7 +1197,7 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (kAttachAt, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (kAttachAt, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             rig.history.OnMoved (false);
@@ -1209,7 +1209,7 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.PrepareRecentSteps (result);
+            hr = rig.controller.GetStepper().PrepareRecentSteps (result);
             AssertSucceeded (hr, L"PrepareRecentSteps");
 
             rig.history.OnMoved (false);
@@ -1413,7 +1413,7 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (rig.controller.GetOldestPosition(), result);
+            hr = rig.controller.GetSeeker().SeekToPosition (rig.controller.GetSeeker().GetOldestPosition(), result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             rig.history.OnMoved (false);
@@ -1553,7 +1553,7 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.StepBack (result);
+            hr = rig.controller.GetStepper().StepBack (result);
             AssertSucceeded (hr, L"StepBack");
 
             rig.history.OnMoved (false);
@@ -1618,7 +1618,7 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (landing, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (landing, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             rig.history.OnMoved (false);
@@ -1683,27 +1683,27 @@ namespace DebuggerTests
             rig.Attach();
             rig.Drain();
 
-            while (rig.controller.GetOldestPosition() == 0 && rig.base.machine.GetRunner().GetPosition() < kRunLimit)
+            while (rig.controller.GetSeeker().GetOldestPosition() == 0 && rig.base.machine.GetRunner().GetPosition() < kRunLimit)
             {
                 rig.base.machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
             }
 
-            Assert::IsTrue (rig.controller.GetOldestPosition() > 0,  L"history let its oldest keyframes go");
+            Assert::IsTrue (rig.controller.GetSeeker().GetOldestPosition() > 0,  L"history let its oldest keyframes go");
             Assert::IsTrue (rig.history.GetCopies().GetCount() > 0,  L"copies of the record are kept");
             Assert::IsTrue (AreCopiesAtKeyframes (rig),               L"none where history no longer holds a keyframe");
             Assert::IsTrue (rig.history.GetCopies().GetCount() <= rig.controller.GetKeyframes().GetArena().GetCount(), L"at most one a keyframe");
 
-            middle = (rig.controller.GetOldestPosition() + rig.base.machine.GetRunner().GetPosition()) / 2;
+            middle = (rig.controller.GetSeeker().GetOldestPosition() + rig.base.machine.GetRunner().GetPosition()) / 2;
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (middle, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (middle, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             rig.history.OnMoved (false);
             rig.Drain();
 
-            hr = rig.controller.OnMachineChanged();
+            hr = rig.controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
             isFound = rig.history.GetCopies().TryFindAtOrBefore (UINT64_MAX, newest);
@@ -1733,12 +1733,12 @@ namespace DebuggerTests
 
             Assert::IsTrue (rig.history.IsRebuilding(), L"the rebuild waits on the worker");
 
-            while (rig.controller.GetOldestPosition() == 0 && rig.base.machine.GetRunner().GetPosition() < kRunLimit)
+            while (rig.controller.GetSeeker().GetOldestPosition() == 0 && rig.base.machine.GetRunner().GetPosition() < kRunLimit)
             {
                 rig.base.machine.GetRunner().RunCycles (KeyframeSettings::kFrameCycles);
             }
 
-            Assert::IsTrue (rig.controller.GetOldestPosition() > 0, L"history let keyframes the rebuild replays past go");
+            Assert::IsTrue (rig.controller.GetSeeker().GetOldestPosition() > 0, L"history let keyframes the rebuild replays past go");
 
             rig.Drain();
 
@@ -1815,7 +1815,7 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (kAttachAt, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (kAttachAt, result);
             AssertSucceeded (hr, L"SeekToPosition back");
 
             rig.history.OnMoved (false);
@@ -1823,7 +1823,7 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (rig.controller.GetLiveEndPosition(), result);
+            hr = rig.controller.GetSeeker().SeekToPosition (rig.controller.GetSeeker().GetLiveEndPosition(), result);
             AssertSucceeded (hr, L"SeekToPosition to the end");
 
             rig.history.OnMoved (false);
@@ -1831,7 +1831,7 @@ namespace DebuggerTests
 
             pc = rig.base.machine.GetCpu()->GetPC();
 
-            Assert::IsFalse (rig.controller.IsInHistory(), L"live again");
+            Assert::IsFalse (rig.controller.GetSpan().IsInHistory(), L"live again");
             Assert::IsTrue  (rig.history.IsRebuilding(),   L"its record being rebuilt");
 
             hr = rig.controller.SetUserMaximumSpeed (true);
@@ -1897,7 +1897,7 @@ namespace DebuggerTests
 
             rig.history.OnMoving();
 
-            hr = rig.controller.SeekToPosition (kGapStart / 2, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (kGapStart / 2, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             rig.history.OnMoved (false);
@@ -1907,7 +1907,7 @@ namespace DebuggerTests
 
             RunTo (rig.base.machine, stop);
 
-            Assert::IsTrue (rig.controller.IsInHistory(), L"still behind live");
+            Assert::IsTrue (rig.controller.GetSpan().IsInHistory(), L"still behind live");
 
             rig.Drain();
 

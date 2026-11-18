@@ -385,7 +385,11 @@
     <ClCompile Include="Debugger\Reverse\Replayer.cpp" />
     <ClCompile Include="Debugger\Reverse\ReplayDiskCopier.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseController.cpp" />
-    <ClCompile Include="Debugger\Reverse\ReverseStepSearch.cpp" />
+    <ClCompile Include="Debugger\Reverse\HistorySpan.cpp" />
+    <ClCompile Include="Debugger\Reverse\KeyframeCapturer.cpp" />
+    <ClCompile Include="Debugger\Reverse\ReplayStepTable.cpp" />
+    <ClCompile Include="Debugger\Reverse\ReverseSeeker.cpp" />
+    <ClCompile Include="Debugger\Reverse\ReverseStepper.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseHost.cpp" />
     <ClCompile Include="Debugger\Reverse\DivergenceGate.cpp" />
     <ClCompile Include="Debugger\Reverse\DeferredHistoryEdits.cpp" />
@@ -1939,7 +1943,12 @@
     <ClInclude Include="Debugger\Reverse\Replayer.h" />
     <ClInclude Include="Debugger\Reverse\ReplayDiskCopier.h" />
     <ClInclude Include="Debugger\Reverse\ReverseController.h" />
-    <ClInclude Include="Debugger\Reverse\ReverseStepSearch.h" />
+    <ClInclude Include="Debugger\Reverse\HistorySpan.h" />
+    <ClInclude Include="Debugger\Reverse\IReverseSeeker.h" />
+    <ClInclude Include="Debugger\Reverse\KeyframeCapturer.h" />
+    <ClInclude Include="Debugger\Reverse\ReplayStepTable.h" />
+    <ClInclude Include="Debugger\Reverse\ReverseSeeker.h" />
+    <ClInclude Include="Debugger\Reverse\ReverseStepper.h" />
     <ClInclude Include="Debugger\Reverse\ReverseCommand.h" />
     <ClInclude Include="Debugger\Reverse\ReverseHost.h" />
     <ClInclude Include="Debugger\Reverse\DivergenceGate.h" />

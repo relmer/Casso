@@ -65,7 +65,7 @@ public:
 
         for (index = steps.size() - 1; index > 0; index--)
         {
-            hr = controller.StepBack (result);
+            hr = controller.GetStepper().StepBack (result);
             AssertSucceeded (hr, L"StepBack");
 
             Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
@@ -74,14 +74,14 @@ public:
 
         for (index = 1; index < steps.size(); index++)
         {
-            hr = controller.StepForward (result);
+            hr = controller.GetSeeker().StepForward (result);
             AssertSucceeded (hr, L"StepForward");
 
             Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
             CheckStep (machine, steps[index], L"forward");
         }
 
-        Assert::IsFalse (controller.IsInHistory(), L"forward to the end of history makes the machine live");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"forward to the end of history makes the machine live");
     }
 
 

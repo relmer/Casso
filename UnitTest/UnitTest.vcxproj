@@ -1260,6 +1260,7 @@
     <ClCompile Include="EmuTests\KeyframeBudgetChangeTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeStoreTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeArenaTests.cpp" />
+    <ClCompile Include="EmuTests\HistorySpanTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeStretchesTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeSideTests.cpp" />
     <ClCompile Include="EmuTests\HeatHistoryTests.cpp" />

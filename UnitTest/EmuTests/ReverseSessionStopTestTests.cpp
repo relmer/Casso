@@ -59,13 +59,13 @@ public:
 
         probe.breakPc = ReverseSessionRig::kWriteRoutine;
 
-        hr = controller.ReverseContinue (probe, expected);
+        hr = controller.GetSeeker().ReverseContinue (probe, expected);
         AssertSucceeded (hr, L"ReverseContinue with the probe");
 
-        hr = controller.SeekToPosition (live, result);
+        hr = controller.GetSeeker().SeekToPosition (live, result);
         AssertSucceeded (hr, L"SeekToPosition live");
 
-        hr = controller.ReverseContinue (stopTest, result);
+        hr = controller.GetSeeker().ReverseContinue (stopTest, result);
         AssertSucceeded (hr, L"ReverseContinue with the session");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"the breakpoint stopped it");
@@ -99,7 +99,7 @@ public:
 
         probe.Watch (machine, ReverseSessionRig::kKeyStore);
 
-        hr = controller.ReverseContinue (probe, expected);
+        hr = controller.GetSeeker().ReverseContinue (probe, expected);
         AssertSucceeded (hr, L"ReverseContinue with the probe");
         Assert::IsTrue (expected.outcome == ReverseOutcome::Moved, L"the recording wrote the watched byte");
 
@@ -107,10 +107,10 @@ public:
         session.ExecuteLine ("BPMW 300");
         Assert::AreEqual<size_t> (1, session.GetWatchpoints().GetAll().size(), L"the watchpoint was set");
 
-        hr = controller.SeekToPosition (live, result);
+        hr = controller.GetSeeker().SeekToPosition (live, result);
         AssertSucceeded (hr, L"SeekToPosition live");
 
-        hr = controller.ReverseContinue (stopTest, result);
+        hr = controller.GetSeeker().ReverseContinue (stopTest, result);
         AssertSucceeded (hr, L"ReverseContinue with the session");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"the watchpoint stopped it");
@@ -145,7 +145,7 @@ public:
         session.ExecuteLine ("BPMR 835");
         Assert::AreEqual<size_t> (1, session.GetWatchpoints().GetAll().size(), L"the watchpoint was set");
 
-        hr = controller.ReverseContinue (stopTest, result);
+        hr = controller.GetSeeker().ReverseContinue (stopTest, result);
         AssertSucceeded (hr, L"ReverseContinue");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryStart, L"no fetch of the JSR's operand counts");
@@ -175,7 +175,7 @@ public:
         id = AddBreakpoint (session, "BP 900");
         session.GetBreakpoints().TrySetEnabled (id, false);
 
-        hr = controller.ReverseContinue (stopTest, result);
+        hr = controller.GetSeeker().ReverseContinue (stopTest, result);
         AssertSucceeded (hr, L"ReverseContinue");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryStart, L"ran back to the start of history");

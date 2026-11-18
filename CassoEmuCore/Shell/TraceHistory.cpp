@@ -454,7 +454,7 @@ bool TraceHistory::TryGetLive (DebugEventBounds & outLive) const
     uint64_t               position  = m_machine.GetRunner().GetPosition();
     uint64_t               newest    = keyframes.GetArena().GetInfo (keyframes.GetArena().GetCount() - 1).position;
     bool                   isGrowing = m_controller->IsRecordingLive() && !IsStopped();
-    bool                   isLive    = newest < position && !isGrowing && !m_controller->IsPaused();
+    bool                   isLive    = newest < position && !isGrowing && !m_controller->GetSpan().IsPaused();
 
 
 
@@ -480,7 +480,7 @@ bool TraceHistory::TryGetLive (DebugEventBounds & outLive) const
 
 bool TraceHistory::IsReadable() const
 {
-    return m_controller != nullptr && m_controller->IsRecording() && m_controller->GetKeyframes().GetArena().GetCount() > 0;
+    return m_controller != nullptr && m_controller->GetSpan().IsRecording() && m_controller->GetKeyframes().GetArena().GetCount() > 0;
 }
 
 

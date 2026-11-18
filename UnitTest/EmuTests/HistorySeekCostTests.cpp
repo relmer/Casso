@@ -81,7 +81,7 @@ public:
                                 TimeAlternating (controller, early + offset, late + offset));
         }
 
-        hr = controller.SeekToCycle (early + 1, result);
+        hr = controller.GetSeeker().SeekToCycle (early + 1, result);
         AssertSucceeded (hr, L"SeekToCycle");
 
         forward = early + 1;
@@ -90,7 +90,7 @@ public:
                             TimeMs ([&]
                             {
                                 forward += s_kSeekPixel;
-                                hr = controller.SeekToCycle (forward, result);
+                                hr = controller.GetSeeker().SeekToCycle (forward, result);
                             }));
         AssertSucceeded (hr, L"SeekToCycle forward");
 
@@ -113,7 +113,7 @@ private:
         ms = TimeMs ([&]
         {
             isLate = !isLate;
-            hr     = controller.SeekToCycle (isLate ? second : first, result);
+            hr     = controller.GetSeeker().SeekToCycle (isLate ? second : first, result);
         });
 
         AssertSucceeded (hr, L"SeekToCycle");

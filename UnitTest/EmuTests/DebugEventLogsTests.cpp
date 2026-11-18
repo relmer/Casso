@@ -303,12 +303,12 @@ namespace DebugEventLogsTests
             (void) session.machine.GetMemoryBus().ReadByte (0xC0EB);
             Assert::AreEqual (1, disk->GetLines().GetActiveDrive(), L"drive 2 selected live");
 
-            hr = session.controller.SeekToPosition (past, result);
+            hr = session.controller.GetSeeker().SeekToPosition (past, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             Assert::AreEqual (0, disk->GetLines().GetActiveDrive(), L"drive 1 again in the past");
 
-            hr = session.controller.OnMachineChanged();
+            hr = session.controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
             live = session.machine.GetRunner().GetPosition();
@@ -424,7 +424,7 @@ namespace DebugEventLogsTests
             Run (session.machine, 30, 2);
             session.WaitForKeyframes();
 
-            hr = session.controller.SeekToPosition (rewound, result);
+            hr = session.controller.GetSeeker().SeekToPosition (rewound, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             hr = session.logs.GetIoEntries (IoLogKind::Sound, SIZE_MAX, listing);
@@ -459,14 +459,14 @@ namespace DebugEventLogsTests
 
             for (i = 0; i < 3; i++)
             {
-                hr = session.controller.StepBack (result);
+                hr = session.controller.GetStepper().StepBack (result);
                 AssertSucceeded (hr, L"StepBack");
             }
 
-            hr = session.controller.SeekToPosition (session.machine.GetRunner().GetPosition() - 5000, result);
+            hr = session.controller.GetSeeker().SeekToPosition (session.machine.GetRunner().GetPosition() - 5000, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
-            Assert::IsTrue   (session.controller.IsInHistory());
+            Assert::IsTrue   (session.controller.GetSpan().IsInHistory());
             Assert::AreEqual (diskEnd,  session.logs.GetDiskCache().GetEndSerial(),  L"no disk event cached behind live");
             Assert::AreEqual (inputEnd, session.logs.GetInputCache().GetEndSerial(), L"no input event cached behind live");
         }
@@ -497,10 +497,10 @@ namespace DebugEventLogsTests
 
             cut = cache.GetAt (cache.GetCount() / 2).position;
 
-            hr = session.controller.SeekToPosition (cut, result);
+            hr = session.controller.GetSeeker().SeekToPosition (cut, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
-            hr = session.controller.OnMachineChanged();
+            hr = session.controller.GetSeeker().OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
             Assert::IsTrue (cache.GetAt (cache.GetCount() - 1).position < cut, L"nothing cached from the cut on");

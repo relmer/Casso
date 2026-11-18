@@ -209,7 +209,7 @@ void ProfileHistory::GetBounds (uint64_t fromCycle, std::vector<DebugEventBounds
 {
     uint64_t                         position  = m_machine.GetRunner().GetPosition();
     const KeyframeStore            * keyframes = (m_controller != nullptr) ? &m_controller->GetKeyframes() : nullptr;
-    size_t                           count     = (keyframes != nullptr && m_controller->IsRecording()) ? keyframes->GetArena().GetCount() : 0;
+    size_t                           count     = (keyframes != nullptr && m_controller->GetSpan().IsRecording()) ? keyframes->GetArena().GetCount() : 0;
     size_t                           first     = 0;
     uint64_t                         start     = 0;
     uint64_t                         newest    = 0;
@@ -267,7 +267,7 @@ void ProfileHistory::GetBounds (uint64_t fromCycle, std::vector<DebugEventBounds
 
     newest = keyframes->GetArena().GetInfo (count - 1).position;
 
-    if (newest < position && newest >= start && !(m_controller->IsRecordingLive() && !IsStopped()) && !m_controller->IsPaused())
+    if (newest < position && newest >= start && !(m_controller->IsRecordingLive() && !IsStopped()) && !m_controller->GetSpan().IsPaused())
     {
         if (!outBounds.empty() && !outBounds.back().hasGapAfter && outBounds.back().endPosition == newest && !isBoundary (newest))
         {

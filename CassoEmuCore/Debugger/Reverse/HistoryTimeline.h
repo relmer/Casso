@@ -39,6 +39,7 @@ public:
     bool      TryGetSummary         (size_t keyframe, StretchSummary & outSummary) const;
     bool      TryFindStretch        (uint64_t position, uint64_t newestEnd, Stretch & outStretch) const;
     uint64_t  GetSegmentEnd         (size_t keyframe, uint64_t newestEnd) const;
+    uint64_t  GetOldestPosition     (uint64_t current) const;
 
 private:
     const KeyframeStore  & m_keyframes;

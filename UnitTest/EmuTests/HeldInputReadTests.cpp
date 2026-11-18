@@ -67,7 +67,7 @@ public:
         Assert::IsTrue (watch.HasHit(), L"the guest read the keyboard");
         Assert::AreEqual<uint64_t> (expected, watch.GetHitPosition(), L"at the first LDA $C000");
         Assert::AreEqual<uint64_t> (expected + 1, machine.GetRunner().GetPosition(), L"the run ended after that instruction");
-        Assert::IsTrue (controller.IsInHistory(), L"still replaying");
+        Assert::IsTrue (controller.GetSpan().IsInHistory(), L"still replaying");
 
         Rewind (machine, controller, watch.GetHitPosition());
 
@@ -126,7 +126,7 @@ public:
         RunWatched (machine, controller, watch, lines);
 
         Assert::IsFalse (watch.HasHit(), L"nothing read the held lines");
-        Assert::IsFalse (controller.IsInHistory(), L"the replay reached live");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"the replay reached live");
     }
 
 
@@ -232,7 +232,7 @@ public:
         RunWatched (machine, controller, watch, lines);
 
         Assert::IsFalse (watch.HasHit(), L"every read agrees with the recording");
-        Assert::IsFalse (controller.IsInHistory(), L"so the replay reached live");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"so the replay reached live");
     }
 
 
@@ -456,7 +456,7 @@ public:
             else
             {
                 Assert::IsTrue  (host.IsBehindLive(), L"still replaying");
-                Assert::AreEqual<uint64_t> (liveEnd, host.GetController().GetLiveEndPosition(), L"history kept");
+                Assert::AreEqual<uint64_t> (liveEnd, host.GetController().GetSeeker().GetLiveEndPosition(), L"history kept");
                 Assert::IsTrue  (read != kHeldKey, L"the read saw the recording");
             }
         }
@@ -593,7 +593,7 @@ private:
     //  A point the given fraction of the way into the recorded history.
     static uint64_t GetPointIn (TestMachine & machine, ReverseController & controller, uint64_t divisor)
     {
-        uint64_t  oldest = controller.GetOldestPosition();
+        uint64_t  oldest = controller.GetSeeker().GetOldestPosition();
 
 
 
@@ -608,11 +608,11 @@ private:
 
 
 
-        hr = controller.SeekToPosition (position, result);
+        hr = controller.GetSeeker().SeekToPosition (position, result);
         AssertSucceeded (hr, L"SeekToPosition");
 
         Assert::AreEqual<uint64_t> (position, machine.GetRunner().GetPosition(), L"landed where asked");
-        Assert::IsTrue (controller.IsInHistory(), L"behind live");
+        Assert::IsTrue (controller.GetSpan().IsInHistory(), L"behind live");
     }
 
 
@@ -643,7 +643,7 @@ private:
 
         machine.SetHeldInputWatch (&watch);
 
-        while (!watch.HasHit() && controller.IsInHistory())
+        while (!watch.HasHit() && controller.GetSpan().IsInHistory())
         {
             machine.GetRunner().RunCycles (kSliceCycles);
         }

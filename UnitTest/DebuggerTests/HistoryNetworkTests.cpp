@@ -220,7 +220,7 @@ namespace HistoryNetworkTests
             rig.CloseSocket();
             rig.RunFrames (3);
             Assert::IsTrue (rig.IsRecording(), L"and after it closes");
-            Assert::IsTrue (rig.shell->GetDebugger().GetReverseHost()->GetController().GetOldestPosition() < openedAt,
+            Assert::IsTrue (rig.shell->GetDebugger().GetReverseHost()->GetController().GetSeeker().GetOldestPosition() < openedAt,
                             L"history starts before the time the card was in use");
         }
 

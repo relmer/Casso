@@ -63,7 +63,7 @@ public:
         {
             index = steps.size() - 1 - i;
 
-            hr = controller.StepBack (result);
+            hr = controller.GetStepper().StepBack (result);
             AssertSucceeded (hr, L"StepBack");
 
             Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
@@ -97,17 +97,17 @@ public:
             back++;
         }
 
-        hr = controller.SeekToPosition (steps[back].position, result);
+        hr = controller.GetSeeker().SeekToPosition (steps[back].position, result);
         AssertSucceeded (hr, L"SeekToPosition after the return");
 
-        hr = controller.StepBackOver (result);
+        hr = controller.GetStepper().StepBackOver (result);
         AssertSucceeded (hr, L"StepBackOver");
 
         Assert::AreEqual<uint64_t> (steps[call].position, result.position, L"back over the whole call");
         Assert::AreEqual<Word>     (ReverseSessionRig::kCallSite, machine.GetCpu()->GetPC());
         Assert::AreEqual<uint64_t> (steps[call].checksum, ReverseSessionRig::Checksum (machine), L"the state the JSR began with");
 
-        hr = controller.StepBackOver (result);
+        hr = controller.GetStepper().StepBackOver (result);
         AssertSucceeded (hr, L"StepBackOver an ordinary instruction");
 
         Assert::AreEqual<uint64_t> (steps[call - 1].position, result.position, L"an ordinary instruction is one step");
@@ -138,10 +138,10 @@ public:
             inside++;
         }
 
-        hr = controller.SeekToPosition (steps[inside].position, result);
+        hr = controller.GetSeeker().SeekToPosition (steps[inside].position, result);
         AssertSucceeded (hr, L"SeekToPosition inside the routine");
 
-        hr = controller.StepBackOut (result);
+        hr = controller.GetStepper().StepBackOut (result);
         AssertSucceeded (hr, L"StepBackOut");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
@@ -149,11 +149,11 @@ public:
         Assert::AreEqual<uint64_t> (steps[call].checksum, ReverseSessionRig::Checksum (machine));
 
         // The guest loop was entered by setting the PC, not by a call.
-        hr = controller.StepBackOut (result);
+        hr = controller.GetStepper().StepBackOut (result);
         AssertSucceeded (hr, L"StepBackOut of the top level");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryStart, L"no call entered the top level");
-        Assert::AreEqual<uint64_t> (controller.GetOldestPosition(), result.position);
+        Assert::AreEqual<uint64_t> (controller.GetSeeker().GetOldestPosition(), result.position);
     }
 
 
@@ -174,7 +174,7 @@ public:
         probe.breakPc = ReverseSessionRig::kWriteRoutine;
         hit           = FindLast (steps, ReverseSessionRig::kWriteRoutine, steps.size());
 
-        hr = controller.ReverseContinue (probe, result);
+        hr = controller.GetSeeker().ReverseContinue (probe, result);
         AssertSucceeded (hr, L"ReverseContinue");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
@@ -183,7 +183,7 @@ public:
 
         hit = FindLast (steps, ReverseSessionRig::kWriteRoutine, hit);
 
-        hr = controller.ReverseContinue (probe, result);
+        hr = controller.GetSeeker().ReverseContinue (probe, result);
         AssertSucceeded (hr, L"ReverseContinue again");
 
         Assert::AreEqual<uint64_t> (steps[hit].position, result.position, L"the time before that");
@@ -224,7 +224,7 @@ public:
             }
         }
 
-        hr = controller.ReverseContinue (probe, result);
+        hr = controller.GetSeeker().ReverseContinue (probe, result);
         AssertSucceeded (hr, L"ReverseContinue");
 
         Assert::AreEqual<uint64_t> (steps[hit].position, result.position, L"the latest loop top where the counter held the value");
@@ -250,13 +250,13 @@ public:
 
         Assert::IsTrue (writes.size() >= 2, L"the guest must have stored at least two keys");
 
-        hr = controller.ReverseContinue (probe, result);
+        hr = controller.GetSeeker().ReverseContinue (probe, result);
         AssertSucceeded (hr, L"ReverseContinue");
 
         Assert::AreEqual<uint64_t> (writes.back().position, result.position, L"just after the latest store to the watched byte");
         Assert::AreEqual<uint64_t> (writes.back().checksum, ReverseSessionRig::Checksum (machine));
 
-        hr = controller.ReverseContinue (probe, result);
+        hr = controller.GetSeeker().ReverseContinue (probe, result);
         AssertSucceeded (hr, L"ReverseContinue again");
 
         Assert::AreEqual<uint64_t> (writes[writes.size() - 2].position, result.position, L"the store before that");
@@ -283,13 +283,13 @@ public:
         {
             target = machine.GetCpu()->GetTotalCycles() - span;
 
-            hr = controller.StepBackCycles (span, result);
+            hr = controller.GetStepper().StepBackCycles (span, result);
             AssertSucceeded (hr, L"StepBackCycles");
 
             Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
             Assert::IsTrue (result.cycle >= target, L"at or after the target");
 
-            hr = controller.StepBack (before);
+            hr = controller.GetStepper().StepBack (before);
             AssertSucceeded (hr, L"StepBack");
 
             Assert::IsTrue (before.cycle < target, L"and the boundary before it is short of the target");
@@ -319,10 +319,10 @@ public:
         liveEnd = machine.GetRunner().GetPosition();
         start   = steps.size() / 4;
 
-        hr = controller.SeekToPosition (steps[start].position, result);
+        hr = controller.GetSeeker().SeekToPosition (steps[start].position, result);
         AssertSucceeded (hr, L"SeekToPosition");
 
-        Assert::IsTrue (controller.IsInHistory());
+        Assert::IsTrue (controller.GetSpan().IsInHistory());
 
         for (index = start + 1; index < steps.size(); index++)
         {
@@ -339,8 +339,8 @@ public:
 
             if (index + 1 < steps.size())
             {
-                Assert::IsTrue (controller.IsInHistory(), L"still replaying");
-                Assert::AreEqual<uint64_t> (liveEnd, controller.GetLiveEndPosition(), L"the recorded future is kept");
+                Assert::IsTrue (controller.GetSpan().IsInHistory(), L"still replaying");
+                Assert::AreEqual<uint64_t> (liveEnd, controller.GetSeeker().GetLiveEndPosition(), L"the recorded future is kept");
             }
         }
 
@@ -348,7 +348,7 @@ public:
 
         machine.GetRunner().StepOne();
 
-        Assert::IsFalse (controller.IsInHistory(), L"live once the end of history is reached");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"live once the end of history is reached");
         Assert::AreEqual<uint64_t> (liveEnd + 1, machine.GetRunner().GetPosition());
     }
 
@@ -370,14 +370,14 @@ public:
 
         liveEnd = machine.GetRunner().GetPosition();
 
-        hr = controller.SeekToPosition (steps[steps.size() / 2].position, result);
+        hr = controller.GetSeeker().SeekToPosition (steps[steps.size() / 2].position, result);
         AssertSucceeded (hr, L"SeekToPosition");
 
-        hr = controller.OnMachineChanged();
+        hr = controller.GetSeeker().OnMachineChanged();
         AssertSucceeded (hr, L"OnMachineChanged");
 
-        Assert::IsFalse (controller.IsInHistory(), L"live where the change was made");
-        Assert::IsTrue (controller.GetLiveEndPosition() < liveEnd, L"and the future is gone");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"live where the change was made");
+        Assert::IsTrue (controller.GetSeeker().GetLiveEndPosition() < liveEnd, L"and the future is gone");
     }
 
 
@@ -423,12 +423,12 @@ public:
 
         machine.GetMemoryBus().WriteByte (kEdited, kValue);
 
-        hr = controller.OnMachineChanged();
+        hr = controller.GetSeeker().OnMachineChanged();
         AssertSucceeded (hr, L"OnMachineChanged");
 
         machine.GetRunner().RunCycles (kRunCycles);
 
-        hr = controller.SeekToPosition (before, result);
+        hr = controller.GetSeeker().SeekToPosition (before, result);
         AssertSucceeded (hr, L"SeekToPosition before the edit");
 
         Assert::AreEqual ((int) original, (int) machine.GetMemoryBus().ReadByte (kEdited), L"not yet edited there");
@@ -484,7 +484,7 @@ public:
 
         position = controller.GetKeyframes().GetArena().GetInfo (1).position + 1;
 
-        hr = controller.SeekToPosition (position, result);
+        hr = controller.GetSeeker().SeekToPosition (position, result);
         AssertSucceeded (hr, L"SeekToPosition");
 
         hr = controller.ChangeBudget (controller.GetKeyframes().GetArena().GetByteCount() * 2 / 3);
@@ -495,7 +495,7 @@ public:
         machine.GetRunner().StepOne();
 
         Assert::AreEqual<uint64_t> (position + 1, machine.GetRunner().GetPosition(), L"the machine stepped on");
-        Assert::IsTrue             (controller.IsInHistory(), L"still in history");
+        Assert::IsTrue             (controller.GetSpan().IsInHistory(), L"still in history");
     }
 
 
@@ -526,26 +526,26 @@ public:
 
         for (index = steps.size() - 1; index > 0; index--)
         {
-            hr = controller.StepBack (result);
+            hr = controller.GetStepper().StepBack (result);
             AssertSucceeded (hr, L"StepBack");
 
             Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
             CheckStep (machine, steps[index - 1], L"back");
         }
 
-        builds = controller.GetTableBuildCount();
+        builds = controller.GetStepTable().GetBuildCount();
         Assert::IsTrue (builds >= crossings + 1 && builds <= crossings + 2, std::format (L"one table per stretch stepped into, not one per step: {} for {} keyframes crossed", builds, crossings).c_str());
 
         for (index = 1; index < steps.size(); index++)
         {
-            hr = controller.StepForward (result);
+            hr = controller.GetSeeker().StepForward (result);
             AssertSucceeded (hr, L"StepForward");
 
             Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
             CheckStep (machine, steps[index], L"forward");
         }
 
-        Assert::IsFalse (controller.IsInHistory(), L"forward to the end of history makes the machine live");
+        Assert::IsFalse (controller.GetSpan().IsInHistory(), L"forward to the end of history makes the machine live");
     }
 
 
@@ -586,20 +586,20 @@ public:
 
         for (i = 0; i < s_kCommandHookSteps; i++)
         {
-            hr = controller.StepBack (result);
+            hr = controller.GetStepper().StepBack (result);
             AssertSucceeded (hr, L"StepBack");
         }
 
-        hr = controller.StepBackOver (result);
+        hr = controller.GetStepper().StepBackOver (result);
         AssertSucceeded (hr, L"StepBackOver");
 
-        hr = controller.StepBackOut (result);
+        hr = controller.GetStepper().StepBackOut (result);
         AssertSucceeded (hr, L"StepBackOut");
 
-        hr = controller.SeekToPosition (steps.back().position, result);
+        hr = controller.GetSeeker().SeekToPosition (steps.back().position, result);
         AssertSucceeded (hr, L"SeekToPosition");
 
-        hr = controller.ReverseContinue (probe, result);
+        hr = controller.GetSeeker().ReverseContinue (probe, result);
         AssertSucceeded (hr, L"ReverseContinue");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"the stop test saw a replayed write to the watched byte");
@@ -613,7 +613,7 @@ public:
         // breakpoint goes first, or the machine would stop on it.
         session.GetBreakpoints().TryClear (stopping);
 
-        hr = controller.SeekToPosition (steps.back().position, result);
+        hr = controller.GetSeeker().SeekToPosition (steps.back().position, result);
         AssertSucceeded (hr, L"SeekToPosition live");
 
         for (i = 0; i < s_kCommandSteps && GetBreakpointHits (session, counting) == 0; i++)
@@ -675,30 +675,30 @@ public:
 
         for (i = after.size() - 1; i > 0; i--)
         {
-            hr = controller.StepBack (result);
+            hr = controller.GetStepper().StepBack (result);
             AssertSucceeded (hr, L"StepBack after the gap");
 
             CheckStep (machine, after[i - 1], L"after the gap");
         }
 
-        hr = controller.StepBack (result);
+        hr = controller.GetStepper().StepBack (result);
         AssertSucceeded (hr, L"StepBack into the gap");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryGap, L"a step into the gap reports it");
         CheckStep (machine, gapStart, L"at the edge of the gap");
 
-        hr = controller.StepBack (result);
+        hr = controller.GetStepper().StepBack (result);
         AssertSucceeded (hr, L"StepBack before the gap");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved);
         CheckStep (machine, before[before.size() - 2], L"before the gap");
 
-        hr = controller.StepForward (result);
+        hr = controller.GetSeeker().StepForward (result);
         AssertSucceeded (hr, L"StepForward to the edge");
 
         CheckStep (machine, gapStart, L"forward to the edge");
 
-        hr = controller.StepForward (result);
+        hr = controller.GetSeeker().StepForward (result);
         AssertSucceeded (hr, L"StepForward across the gap");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryGap, L"a step across the gap reports it");

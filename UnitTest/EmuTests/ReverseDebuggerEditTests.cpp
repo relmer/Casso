@@ -191,7 +191,7 @@ private:
     {
         Assert::IsFalse (host.IsBehindLive(), L"the edit made the machine live");
         Assert::AreEqual<uint64_t> (here, machine.GetRunner().GetPosition(), L"where it stood");
-        Assert::AreEqual<uint64_t> (here, host.GetController().GetLiveEndPosition(), L"history now ends here");
+        Assert::AreEqual<uint64_t> (here, host.GetController().GetSeeker().GetLiveEndPosition(), L"history now ends here");
 
         host.SyncInputGate();
 

@@ -169,7 +169,7 @@ public:
 
         for (size_t at = hits.size(); at > 0; at--)
         {
-            AssertSucceeded (disk.controller.ReverseContinue (disk.stopTest, result), L"ReverseContinue");
+            AssertSucceeded (disk.controller.GetSeeker().ReverseContinue (disk.stopTest, result), L"ReverseContinue");
 
             Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, std::format (L"hit {}", at - 1).c_str());
             Assert::AreEqual<uint64_t> (hits[at - 1].position, result.position, std::format (L"hit {}", at - 1).c_str());
@@ -177,7 +177,7 @@ public:
             Assert::AreEqual<Word>     (hits[at - 1].atrack, disk.Value ("DISK.ATRACK"));
         }
 
-        AssertSucceeded (disk.controller.ReverseContinue (disk.stopTest, result), L"ReverseContinue past the first hit");
+        AssertSucceeded (disk.controller.GetSeeker().ReverseContinue (disk.stopTest, result), L"ReverseContinue past the first hit");
         Assert::IsTrue   (result.outcome != ReverseOutcome::Moved, L"no hit before the first");
         Assert::AreEqual (0u, disk.GetHitCount(), L"reverse continue counted nothing");
         Assert::IsTrue   (disk.rig.sink.stops.empty());
@@ -199,9 +199,9 @@ public:
 
         Assert::IsTrue (hits.size() >= 3, std::format (L"{} hits", hits.size()).c_str());
 
-        AssertSucceeded (disk.controller.StepBack (result), L"StepBack");
-        AssertSucceeded (disk.controller.SeekToPosition (hits[hits.size() - 2].position - 1, result), L"SeekToPosition");
-        AssertSucceeded (disk.controller.ReverseContinue (disk.stopTest, result), L"ReverseContinue");
+        AssertSucceeded (disk.controller.GetStepper().StepBack (result), L"StepBack");
+        AssertSucceeded (disk.controller.GetSeeker().SeekToPosition (hits[hits.size() - 2].position - 1, result), L"SeekToPosition");
+        AssertSucceeded (disk.controller.GetSeeker().ReverseContinue (disk.stopTest, result), L"ReverseContinue");
         Assert::AreEqual<uint64_t> (hits[hits.size() - 3].position, result.position);
         Assert::AreEqual (0u, disk.GetHitCount(), L"history moves count nothing");
 
@@ -238,11 +238,11 @@ public:
 
         Assert::AreEqual ((size_t) 1, hits.size(), L"only the call after the JMP");
 
-        AssertSucceeded (disk.controller.ReverseContinue (disk.stopTest, result), L"ReverseContinue");
+        AssertSucceeded (disk.controller.GetSeeker().ReverseContinue (disk.stopTest, result), L"ReverseContinue");
         Assert::AreEqual<uint64_t> (hits[0].position, result.position);
         Assert::AreEqual<Word>     (0x2000, disk.rig.machine.GetCpu()->GetPC());
 
-        AssertSucceeded (disk.controller.ReverseContinue (disk.stopTest, result), L"ReverseContinue again");
+        AssertSucceeded (disk.controller.GetSeeker().ReverseContinue (disk.stopTest, result), L"ReverseContinue again");
         Assert::IsTrue (result.outcome != ReverseOutcome::Moved, L"the first call is not a hit");
     }
 };

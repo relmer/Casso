@@ -132,13 +132,13 @@ public:
             AssertSucceeded (hr, L"Start");
 
             target.AttachHistory (&controller.GetKeyframes(), rebuilder);
-            controller.SetHistoryObserver (target.GetHistoryObserver());
+            controller.GetCapturer().SetObserver (target.GetHistoryObserver());
             target.SetHeatMapOn (true);
         }
 
         ~Rig()
         {
-            controller.SetHistoryObserver (nullptr);
+            controller.GetCapturer().SetObserver (nullptr);
             target.AttachHistory (nullptr, nullptr);
         }
 
@@ -161,7 +161,7 @@ public:
 
 
 
-            hr = controller.SeekToPosition (position, result);
+            hr = controller.GetSeeker().SeekToPosition (position, result);
             AssertSucceeded (hr, L"SeekToPosition");
             Assert::AreEqual<uint64_t> (position, machine.GetRunner().GetPosition(), L"the seek lands where asked");
 
@@ -422,7 +422,7 @@ public:
     //  Positions spread over the history held, oldest to newest.
     static std::vector<uint64_t> SpreadPositions (const ReverseController & controller, uint64_t liveEnd)
     {
-        uint64_t               oldest = controller.GetOldestPosition();
+        uint64_t               oldest = controller.GetSeeker().GetOldestPosition();
         std::vector<uint64_t>  spread;
 
 
@@ -485,14 +485,14 @@ public:
         {
             rig.Seek (position);
 
-            hr = rig.controller.StepBack (result);
+            hr = rig.controller.GetStepper().StepBack (result);
             AssertSucceeded (hr, L"StepBack");
             rig.target.NoteHistoryMoved (false);
             AssertSameTotals (straight[position - 1], GetShown (rig.GetMap()), std::format (L"step back from {}", position));
 
-            hr = rig.controller.StepForward (result);
+            hr = rig.controller.GetSeeker().StepForward (result);
             AssertSucceeded (hr, L"StepForward");
-            hr = rig.controller.StepForward (result);
+            hr = rig.controller.GetSeeker().StepForward (result);
             AssertSucceeded (hr, L"StepForward");
             rig.target.NoteHistoryMoved (false);
             AssertSameTotals (straight[position + 1], GetShown (rig.GetMap()), std::format (L"two steps forward from {}", position - 1));
@@ -506,11 +506,11 @@ public:
         }
 
         //  Back to the live end, and the live end again after a seek back.
-        hr = rig.controller.SeekToCycle (UINT64_MAX, result);
+        hr = rig.controller.GetSeeker().SeekToCycle (UINT64_MAX, result);
         AssertSucceeded (hr, L"SeekToCycle live");
         rig.target.NoteHistoryMoved (false);
 
-        Assert::IsFalse (rig.controller.IsInHistory(), L"live again");
+        Assert::IsFalse (rig.controller.GetSpan().IsInHistory(), L"live again");
         AssertSameTotals (straight[firstEnd], GetShown (rig.GetMap()), L"back at the live end");
     }
 
@@ -567,7 +567,7 @@ public:
 
             rig.Seek (position);
 
-            hr = rig.controller.StepBack (result);
+            hr = rig.controller.GetStepper().StepBack (result);
             AssertSucceeded (hr, L"StepBack");
             rig.target.NoteHistoryMoved (false);
             AssertSameLast (straight[position - 1], LookUpSample (rig.target, sample), std::format (L"step back from {}", position));
@@ -606,7 +606,7 @@ public:
         //  An address written well inside history.
         for (size_t address = 0; address < AccessHeatMap::kAddressCount && !written.has_value(); address++)
         {
-            if (rig.GetMap().GetLastAccess (HeatSpace::Main, true, (Word) address, access) == HeatAccessState::Found && access.GetPosition() > rig.controller.GetOldestPosition() + s_kHeatRunOn)
+            if (rig.GetMap().GetLastAccess (HeatSpace::Main, true, (Word) address, access) == HeatAccessState::Found && access.GetPosition() > rig.controller.GetSeeker().GetOldestPosition() + s_kHeatRunOn)
             {
                 written = (Word) address;
             }
@@ -619,7 +619,7 @@ public:
         request.bank     = HeatMapOptions::Bank::Main;
         request.address  = written.value_or (0);
 
-        plan = HeatAccessJump::Plan (request, HeatAccessState::Found, access, rig.controller.IsRecording(), rig.controller.GetOldestPosition());
+        plan = HeatAccessJump::Plan (request, HeatAccessState::Found, access, rig.controller.GetSpan().IsRecording(), rig.controller.GetSeeker().GetOldestPosition());
         Assert::AreEqual ((int) HeatAccessPlan::Kind::Seek, (int) plan.kind);
 
         rig.Seek (plan.position);
@@ -628,7 +628,7 @@ public:
         Assert::AreEqual ((int) HeatAccessState::Found, (int) rig.target.LookUpHeatMapAccess (HeatSpace::Main, true, request.address, there), L"the write is there");
         Assert::IsTrue (there == access, L"and it is the last");
 
-        hr = rig.controller.StepBack (result);
+        hr = rig.controller.GetStepper().StepBack (result);
         AssertSucceeded (hr, L"StepBack");
         rig.target.NoteHistoryMoved (false);
 
@@ -655,11 +655,11 @@ public:
         rig.script.RunTo (rig.machine, UINT64_MAX);
         end = rig.machine.GetRunner().GetPosition();
 
-        midway = rig.controller.GetOldestPosition() + (end - rig.controller.GetOldestPosition()) / 2;
+        midway = rig.controller.GetSeeker().GetOldestPosition() + (end - rig.controller.GetSeeker().GetOldestPosition()) / 2;
 
         rig.Seek (midway);
 
-        hr = rig.controller.SeekToCycle (UINT64_MAX, result);
+        hr = rig.controller.GetSeeker().SeekToCycle (UINT64_MAX, result);
         AssertSucceeded (hr, L"SeekToCycle live");
         rig.target.NoteHistoryMoved (false);
 
@@ -720,7 +720,7 @@ public:
                 AssertSucceeded (hr, L"Start");
 
                 target.AttachHistory (&controller.GetKeyframes(), nullptr);
-                controller.SetHistoryObserver (target.GetHistoryObserver());
+                controller.GetCapturer().SetObserver (target.GetHistoryObserver());
                 target.SetHeatMapOn (true);
 
                 finder.SetMachine (machine.GetConfig(), machine.GetCurrentMachineName());
@@ -730,14 +730,14 @@ public:
             ~ProgramRig()
             {
                 target.SetHeatAccessFinder (nullptr);
-                controller.SetHistoryObserver (nullptr);
+                controller.GetCapturer().SetObserver (nullptr);
                 target.AttachHistory (nullptr, nullptr);
             }
 
             void Seek (uint64_t position)
             {
                 ReverseResult  result;
-                HRESULT        hr     = controller.SeekToPosition (position, result);
+                HRESULT        hr     = controller.GetSeeker().SeekToPosition (position, result);
 
 
 
@@ -846,10 +846,10 @@ public:
             rig.script.RunTo (rig.machine, UINT64_MAX);
             end = rig.machine.GetRunner().GetPosition();
 
-            Assert::IsTrue (rig.controller.GetOldestPosition() > reset,
+            Assert::IsTrue (rig.controller.GetSeeker().GetOldestPosition() > reset,
                             std::format (L"history dropped everything up to the reset at {}, or the test proves nothing: oldest {}, {} keyframes in {} bytes",
                                          reset,
-                                         rig.controller.GetOldestPosition(),
+                                         rig.controller.GetSeeker().GetOldestPosition(),
                                          rig.controller.GetKeyframes().GetArena().GetCount(),
                                          rig.controller.GetKeyframes().GetArena().GetByteCount()).c_str());
 
@@ -971,30 +971,30 @@ public:
         end     = rig.machine.GetRunner().GetPosition();
         through = on + s_kHeatRunOn;
 
-        Assert::AreEqual<uint64_t> (end, rig.controller.GetLiveEndPosition(), L"history ends where the session did");
+        Assert::AreEqual<uint64_t> (end, rig.controller.GetSeeker().GetLiveEndPosition(), L"history ends where the session did");
 
         //  With the map on, through the stretch recorded with it off.
         rig.Seek (early);
 
-        while (rig.machine.GetRunner().GetPosition() < through && rig.controller.IsInHistory())
+        while (rig.machine.GetRunner().GetPosition() < through && rig.controller.GetSpan().IsInHistory())
         {
             rig.machine.GetRunner().StepOne();
         }
 
-        Assert::AreEqual<uint64_t> (end, rig.controller.GetLiveEndPosition(), L"running on with the map on across the stretch recorded with it off cut history");
-        Assert::IsTrue (rig.controller.IsInHistory(), L"still in history after running on with the map on");
+        Assert::AreEqual<uint64_t> (end, rig.controller.GetSeeker().GetLiveEndPosition(), L"running on with the map on across the stretch recorded with it off cut history");
+        Assert::IsTrue (rig.controller.GetSpan().IsInHistory(), L"still in history after running on with the map on");
 
         //  With the map off, through the stretches recorded with it on.
         rig.target.SetHeatMapOn (false);
         rig.Seek (early);
 
-        while (rig.machine.GetRunner().GetPosition() < through && rig.controller.IsInHistory())
+        while (rig.machine.GetRunner().GetPosition() < through && rig.controller.GetSpan().IsInHistory())
         {
             rig.machine.GetRunner().StepOne();
         }
 
-        Assert::AreEqual<uint64_t> (end, rig.controller.GetLiveEndPosition(), L"running on with the map off across the stretches recorded with it on cut history");
-        Assert::IsTrue (rig.controller.IsInHistory(), L"still in history after running on with the map off");
+        Assert::AreEqual<uint64_t> (end, rig.controller.GetSeeker().GetLiveEndPosition(), L"running on with the map off across the stretches recorded with it on cut history");
+        Assert::IsTrue (rig.controller.GetSpan().IsInHistory(), L"still in history after running on with the map off");
     }
 
 
@@ -1035,7 +1035,7 @@ public:
             hr = rig.controller.GetKeyframes().ChangeBudget (512 * 1024);
             AssertSucceeded (hr, L"ChangeBudget");
 
-            Assert::IsTrue (rig.controller.GetOldestPosition() > spread.front(), L"the new budget dropped where the machine stands, or the test proves nothing");
+            Assert::IsTrue (rig.controller.GetSeeker().GetOldestPosition() > spread.front(), L"the new budget dropped where the machine stands, or the test proves nothing");
 
             for (size_t i = 1; i < spread.size(); i++)
             {
@@ -1043,7 +1043,7 @@ public:
 
 
 
-                if (at < rig.controller.GetOldestPosition())
+                if (at < rig.controller.GetSeeker().GetOldestPosition())
                 {
                     continue;
                 }
@@ -1084,7 +1084,7 @@ public:
             AssertSucceeded (hr, L"MakeRebuildJob");
             Assert::IsTrue (hasWindow, L"history holds a window to replay");
             Assert::AreEqual ((size_t) 1, job.parts.size(), L"less than the newest part's seconds of history is one part");
-            Assert::AreEqual<uint64_t> (rig.controller.GetOldestPosition(), job.parts[0].startPosition, L"a fade time longer than history reaches back to its start");
+            Assert::AreEqual<uint64_t> (rig.controller.GetSeeker().GetOldestPosition(), job.parts[0].startPosition, L"a fade time longer than history reaches back to its start");
 
             hr = replayer.Rebuild (job, results);
             AssertSucceeded (hr, L"Rebuild");
@@ -1165,7 +1165,7 @@ public:
             script.RunTo (rig.machine, UINT64_MAX);
             at = rig.machine.GetRunner().GetPosition() - 1000;
 
-            hr = rig.controller.SeekToPosition (at, result);
+            hr = rig.controller.GetSeeker().SeekToPosition (at, result);
             AssertSucceeded (hr, L"SeekToPosition");
 
             hr = rig.target.GetHeatHistory().MakeRebuildJob (job, hasWindow);
@@ -1296,7 +1296,7 @@ public:
 
             for (uint64_t position : spread)
             {
-                hr = rig.controller.SeekToPosition (position, result);
+                hr = rig.controller.GetSeeker().SeekToPosition (position, result);
                 AssertSucceeded (hr, L"SeekToPosition");
 
                 rig.target.NoteHistoryMoved (true);
@@ -1610,13 +1610,13 @@ private:
             AssertSucceeded (hr, L"Start");
 
             target.AttachHistory (&controller.GetKeyframes(), rebuilder);
-            controller.SetHistoryObserver (target.GetHistoryObserver());
+            controller.GetCapturer().SetObserver (target.GetHistoryObserver());
             target.SetHeatMapOn (true);
         }
 
         ~FillRig()
         {
-            controller.SetHistoryObserver (nullptr);
+            controller.GetCapturer().SetObserver (nullptr);
             target.AttachHistory (nullptr, nullptr);
         }
 
@@ -1638,7 +1638,7 @@ private:
 
 
 
-            hr = controller.SeekToPosition (position, result);
+            hr = controller.GetSeeker().SeekToPosition (position, result);
             AssertSucceeded (hr, L"SeekToPosition");
             target.NoteHistoryMoved (false);
         }
@@ -1737,7 +1737,7 @@ private:
         {
             rig.Seek (position);
 
-            hr = rig.controller.StepBack (result);
+            hr = rig.controller.GetStepper().StepBack (result);
             AssertSucceeded (hr, L"StepBack");
             rig.target.NoteHistoryMoved (false);
             AssertSameTotals (straight[position - 1], GetShown (rig.GetMap()), std::format (L"step back from {}", position));

@@ -53,7 +53,7 @@ public:
         probe.breakPc = ReverseSessionRig::kProgramStart + 3;
 
         startedAt = GetTickCount64();
-        hr        = controller.ReverseContinue (probe, result);
+        hr        = controller.GetSeeker().ReverseContinue (probe, result);
         elapsed   = GetTickCount64() - startedAt;
         AssertSucceeded (hr, L"ReverseContinue");
 
@@ -102,7 +102,7 @@ public:
         rig.RunOk ("BPDISK WRITE");
 
         startedAt = GetTickCount64();
-        hr        = controller.ReverseContinue (stopTest, result);
+        hr        = controller.GetSeeker().ReverseContinue (stopTest, result);
         elapsed   = GetTickCount64() - startedAt;
         AssertSucceeded (hr, L"ReverseContinue");
 
@@ -150,7 +150,7 @@ public:
         rig.RunOk ("BP 0900");
 
         startedAt = GetTickCount64();
-        hr        = controller.ReverseContinue (stopTest, result);
+        hr        = controller.GetSeeker().ReverseContinue (stopTest, result);
         elapsed   = GetTickCount64() - startedAt;
         AssertSucceeded (hr, L"ReverseContinue");
 

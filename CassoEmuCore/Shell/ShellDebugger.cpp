@@ -1533,7 +1533,7 @@ void ShellDebugger::RunDebugHeatMapAccess (const HeatAccessRequest & request)
 
     if (isRecording)
     {
-        oldest = m_reverseHost->GetController().GetOldestPosition();
+        oldest = m_reverseHost->GetController().GetSeeker().GetOldestPosition();
     }
 
     plan = HeatAccessJump::Plan (request, state, access, isRecording, oldest);
@@ -2192,15 +2192,15 @@ void ShellDebugger::ReportHistoryCuts()
 
 
 
-    if (controller.GetCutCount() == m_reportedCuts)
+    if (controller.GetSeeker().GetCutCount() == m_reportedCuts)
     {
         return;
     }
 
-    m_reportedCuts = controller.GetCutCount();
+    m_reportedCuts = controller.GetSeeker().GetCutCount();
 
     AddConsoleLines ({ "History diverged from its recording on a replay, so the history after the last keyframe that matched was dropped.",
-                       "  Differs in: " + (controller.GetLastDivergence().empty() ? std::string ("unknown") : controller.GetLastDivergence()) });
+                       "  Differs in: " + (controller.GetSeeker().GetLastDivergence().empty() ? std::string ("unknown") : controller.GetSeeker().GetLastDivergence()) });
 }
 
 
