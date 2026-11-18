@@ -20,7 +20,14 @@ photographs, and never for a dimension that is in a photograph or a manual.
   never in the repo). `fig06` is a square-on view of the whole rear;
   `fig07` and `fig08` are close-ups of the connector strip; `fig03` is the
   front; `fig13a` is the base.
+- **WMC**: Wikimedia Commons photographs, saved in
+  `%USERPROFILE%\Downloads\Casso\apple3\photos\commons`: "Apple III+ back.jpg"
+  (a square-on studio view of the rear, the best single source for the back
+  panel), "Apple III+.jpg" and "Apple Museum (Prague) Apple III (1980).jpg"
+  (both with a Monitor /// on top)
 - **PAT**: design patent Des. 268,584 (`Apple 3 Design Patent Case.pdf`)
+- **MPAT**: the Monitor ///'s design patent, Des. 273,191 (front, top, right
+  side, rear and bottom views)
 
 **Scale of the photographs**: `fig06` has the ProFile resting on the
 Apple ///. Apple's figures for the ProFile are 438.9 mm wide and 111.5 mm
@@ -41,10 +48,10 @@ its source supports.
 |---|---|---|
 | Width | 444.5 mm (17.5 in) | POG appendix D |
 | Depth of the whole machine, keyboard included | 462.3 mm (18.2 in) | POG appendix D |
-| Height at the rear, desk to the top of the fins | about 150 mm (5.9 in), estimate | TCD `fig06` |
+| Height at the rear, desk to the top of the fins | about 148 mm (5.8 in), estimate: 147 mm on WMC, 151 mm on TCD `fig06` | WMC "Apple III+ back.jpg"; TCD `fig06` |
 | Apple's stated height | 121.9 mm (4.8 in) | POG appendix D |
-| Finned upper section, height | about 111 mm, estimate | TCD `fig06` |
-| Connector strip below the fins, height | about 38 mm, estimate | TCD `fig06` |
+| Finned upper section, height | about 114 mm, estimate | WMC; TCD `fig06` |
+| Connector strip below the fins, height | about 34 mm, estimate | WMC; TCD `fig06` |
 | Feet | about 3 mm, estimate | TCD `fig06`, `fig13a` |
 | Construction | cast aluminum base, molded plastic cover | POG appendix D |
 | Depth of the modeled body (front of the upper body to the back) | about 0.56 of the whole depth, about 257 mm, estimate | PAT Fig. 4 (no side photograph yet) |
@@ -73,20 +80,20 @@ separate plate at the right, the power inlet and a POWER rocker switch
 marked O and I (TCD `fig07`, `fig08`; POG Figure 2-1).
 
 Horizontal positions are of each item's center, from the left edge of the
-case as seen from the rear. Every position is an estimate from TCD `fig06`.
+case as seen from the rear. Every position is an estimate: the first figure
 
-| Item | Form | Center from left | Source of the form |
+| Item | Form | Center from left (WMC / TCD) | Source of the form |
 |---|---|---|---|
-| Floppy disks | 26-pin shrouded header (a D connector on the Plus) | 63 mm | TCD `fig07`; POG chapter 2 |
-| Port A | 9-pin D, female | 104 mm | TCD `fig07`; SPEC |
-| Port B | 9-pin D, female | 136 mm | TCD `fig07`; SPEC |
-| Color video | 15-pin D, female | 171 mm | TCD `fig07`; SPEC |
-| B/W video | RCA jack | 202 mm | TCD `fig07`; SPEC |
-| Audio | miniature phone jack | 214 mm | TCD `fig07`; SPEC |
-| Port C, RS-232-C | 25-pin D, female | 245 mm | TCD `fig08`; SPEC |
-| Power inlet | 3-pin IEC, two screws | 337 mm | TCD `fig08` |
-| Power switch | rocker, OFF and ON | 386 mm | TCD `fig08` |
-| Slot openings 1 to 4 | four tall openings in the finned section, between ribs | 171 to 265 mm, from about 39 mm to 128 mm above the desk | TCD `fig06`, `fig07` |
+| Floppy disks | 26-pin shrouded header (a D connector on the Plus) | 68 / 63 mm | TCD `fig07`; POG chapter 2 |
+| Port A | 9-pin D, female | 110 / 104 mm | TCD `fig07`; SPEC |
+| Port B | 9-pin D, female | 142 / 136 mm | TCD `fig07`; SPEC |
+| Color video | 15-pin D, female | 180 / 171 mm | TCD `fig07`; SPEC |
+| B/W video | RCA jack | 210 / 202 mm | TCD `fig07`; SPEC |
+| Audio | miniature phone jack | 222 / 214 mm | TCD `fig07`; SPEC |
+| Port C, RS-232-C | 25-pin D, female | 253 / 245 mm | TCD `fig08`; SPEC |
+| Power inlet | 3-pin IEC, two screws | 344 / 337 mm | TCD `fig08` |
+| Power switch | rocker, OFF and ON | 388 / 386 mm | TCD `fig08` |
+| Slot openings 1 to 4 | four tall openings in the finned section, between ribs | 174 to 270 / 171 to 265 mm, from about 42 mm to 125 mm above the desk | TCD `fig06`, `fig07` |
 | Connector plate | light, with printed labels | 34 to 283 mm | TCD `fig06` |
 | Power plate | light, separate | 309 to 404 mm | TCD `fig06` |
 
@@ -114,7 +121,7 @@ its connector appears in its slot opening.
 | Glare filter | a microporous filter in front of the tube | MON p. 4 |
 | Front | power switch and contrast knob, right of the tube | MON p. 3 |
 | Back | hand grip, brightness, vertical hold, vertical size, RCA video input, power cord | MON p. 3 |
-| Glass sag radius; case edge radii and taper; control and badge positions | | measured from the manual's drawings and photographs |
+| Case form | a front face tilted back, the tube and a control panel to its right behind one bezel, four feet, and a tapered tube housing at the rear | MPAT Fig. 2 to Fig. 6; WMC photographs |
 
 Phosphor: green (A3M0039). The catalog entry is `AppleMonitorIII`, default
 color mode green. The monitor weighs 16.5 pounds and rests directly on the
@@ -127,7 +134,7 @@ source for this model.
 
 | Dimension | Value | Source |
 |---|---|---|
-| Width, height, depth | | not yet sourced |
+| Width, height, depth | about 6 by 4 by 9 in (152 by 102 by 229 mm) | a Computer History Museum catalog entry for an external Apple /// drive; not an Apple document, and to be confirmed |
 | Door, latch, lamp positions | | not yet sourced |
 
 ## ProFile

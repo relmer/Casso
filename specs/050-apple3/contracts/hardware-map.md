@@ -311,5 +311,5 @@ schematic sheets (drawing 050-0039-H, in `docs\schematics`).
 
 | Item | What is missing |
 |---|---|
-| `DSPLY` | The exact span of the display signal within a line and a frame, which with the rule above fixes the average speed. From the timing sheet (`Timing Logic.jpg`) and SVC 5.9; then checked by a timing test against the 1.4 and 1.8 MHz averages |
+| Refresh cycles | Schematic sheet 10 has `DSPLY` as the OR of two signals: the unblanked part of the display (blanking gated by the screen bit, `SCRN`) and `RFSH`, the RAM refresh signal from the video scan decode ROM. The unblanked part is 40 of 65 states on 192 of 262 lines, 45 percent of the time. Apple's averages (1.8 MHz with the screen off, 1.4 MHz with it on) imply refresh takes about 20 percent of the time with the screen off. Which states are refresh states is in the decode ROM, whose contents are not listed; they are set by a timing test against the two averages |
 | `ENSEL`, `ENSIO` | Their effect on the port A serial lines. Used only by the Silentype, which is out of scope; the switches are accepted and do nothing |
