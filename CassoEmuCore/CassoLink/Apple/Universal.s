@@ -151,13 +151,21 @@ svrst:  lda $03F2,x
 scan:   lda #1
         sta scslot
 scloop: jsr isssc
+        bcs scacia
+        jsr ispas
+        bcc scnot
+        lda scslot              ; a card with the Pascal firmware signature and
+        asl a                   ; a 6551 is driven as the SSC is
+        asl a
+        asl a
+        asl a
+        tay
+        jsr is6551
         bcc scpas
-        lda scslot
+scacia: lda scslot
         jsr addacia
         jmp scnext
-scpas:  jsr ispas               ; the first card run through its firmware
-        bcc scnot
-        lda passlot
+scpas:  lda passlot             ; the first card run through its firmware
         bne scnext
         lda scslot
         sta passlot
@@ -500,6 +508,28 @@ isw5100: lda scslot
         sec
         rts
 w5no:   clc                     ; no and yes are out of a branch's range
+        rts
+
+; is6551: the carry set when the 6551 control register at Y, slot * 16,
+; reads back two values written to it, as a 6551's does; it is then put back.
+; A card with another serial chip, or none there, reads back something else.
+is6551: lda ACIACTL,y
+        pha
+        lda #$1E
+        sta ACIACTL,y
+        cmp ACIACTL,y
+        bne i51no
+        lda #$11
+        sta ACIACTL,y
+        cmp ACIACTL,y
+        bne i51no
+        pla
+        sta ACIACTL,y
+        sec
+        rts
+i51no:  pla
+        sta ACIACTL,y
+        clc
         rts
 
 ; pasup: the entries of the card in scslot set from its offsets at $Cn0D to
@@ -1276,7 +1306,7 @@ msgport: .text "SERIAL PORT "    ; each interface by what it is, as
         .byte 0                 ; SSC, SLOT 2, 115200
 msgslot: .text "SSC, SLOT "
         .byte 0
-msgpas: .text "PASCAL CARD, SLOT "
+msgpas: .text "PASCAL FIRMWARE CARD, SLOT "
         .byte 0
 msgw5:  .text "UTHERNET II, SLOT "
         .byte 0

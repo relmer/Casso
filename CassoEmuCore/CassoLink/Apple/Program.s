@@ -4322,8 +4322,8 @@ conndraw: lda #<conntext
         lsr a
         jmp putdec
         else
-        bit SHIMPAS             ; a card run through its firmware: PASCAL CARD,
-        bpl cdacia              ; SLOT 3
+        bit SHIMPAS             ; a card run through its firmware: Pascal
+        bpl cdacia              ; firmware card, slot 3
         lda #<connpas
         sta ptr
         lda #>connpas
@@ -4423,7 +4423,7 @@ pwtablo: .byte <1, <10, <100, <1000, <10000
 pwtabhi: .byte >1, >10, >100, >1000, >10000
         else
 conntext: .byte 0
-connpas: .text "Pascal card, slot "
+connpas: .text "Pascal firmware card, slot "
         .byte 0
 connssc: .text "SSC, slot "
         .byte 0

@@ -921,12 +921,34 @@ ppwait: lda #0                  ; ready for output
         ldy psavy
         rts
 
+; is6551: the carry set when the 6551 control register at Y, slot * 16,
+; reads back two values written to it, as a 6551's does; it is then put back.
+; A card with another serial chip, or none there, reads back something else.
+is6551: lda ACIACTL,y
+        pha
+        lda #$1E
+        sta ACIACTL,y
+        cmp ACIACTL,y
+        bne i51no
+        lda #$11
+        sta ACIACTL,y
+        cmp ACIACTL,y
+        bne i51no
+        pla
+        sta ACIACTL,y
+        sec
+        rts
+i51no:  pla
+        sta ACIACTL,y
+        clc
+        rts
+
 ; pasinit: for a card in the slot with the Pascal 1.1 signature, $38, $18
-; and $01 at $Cn05, $Cn07 and $Cn0B, and an ID byte at $Cn0C of a serial
-; card's or a modem's class, 3 or 4 in its high nibble, but not the Super
-; Serial Card's, $31: its entries set, its init called and pascal set, with
-; the carry set; otherwise the carry clear. A //e's 80-column firmware, of
-; class 8, is passed over.
+; and $01 at $Cn05, $Cn07 and $Cn0B, an ID byte at $Cn0C of a serial card's
+; or a modem's class, 3 or 4 in its high nibble, but not the Super Serial
+; Card's, $31, and no 6551: its entries set, its init called and pascal set,
+; with the carry set; otherwise the carry clear. A //e's 80-column firmware,
+; of class 8, is passed over.
 pasinit: lda slot
         ora #$C0
         sta ptr+1
@@ -957,6 +979,9 @@ pasinit: lda slot
         cmp #$40
         bne pinone
 pinclass:
+        ldy slotx               ; a clone with a 6551 is driven as the SSC is
+        jsr is6551
+        bcs pinone
         lda slotx
         sta pcy+1
         ldx #0
@@ -1045,7 +1070,7 @@ msgport: .text "SERIAL PORT "
         .byte 0
 msgportm: .text "WI-FI MODEM, PORT "
         .byte 0
-msgpas: .text "PASCAL CARD, SLOT "
+msgpas: .text "PASCAL FIRMWARE CARD, SLOT "
         .byte 0
         endif
 msgload: .text "LOADING PROGRAM "
