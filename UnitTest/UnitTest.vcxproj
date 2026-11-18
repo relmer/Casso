@@ -404,6 +404,7 @@
     <ClCompile Include="DebuggerTests\BranchArrowTests.cpp" />
     <ClCompile Include="DebuggerTests\DisassemblyArrowTests.cpp" />
     <ClCompile Include="DebuggerTests\OperandResultTipTests.cpp" />
+    <ClCompile Include="DebuggerTests\OperandTipWindowTests.cpp" />
     <ClCompile Include="DebuggerTests\ConsoleHistoryTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerKeySchemesTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWindowThemeTests.cpp" />
@@ -1407,6 +1408,7 @@
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />
     <ClInclude Include="EmuTests\ReverseSessionRig.h" />
     <ClInclude Include="EmuTests\HeatHistoryChecks.h" />
+    <ClInclude Include="DebuggerTests\OperandTipWindow.h" />
     <ClInclude Include="EmuTests\ThreadAllocationCounter.h" />
     <ClInclude Include="EmuTests\EventCacheRebuild.h" />
     <ClInclude Include="EmuTests\InlineWorkQueue.h" />
