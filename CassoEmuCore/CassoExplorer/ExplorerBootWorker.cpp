@@ -251,7 +251,7 @@ void ExplorerBootWorker::WaitUntilIdle()
 
 
 
-    m_idle.wait (lock, [this]() { return m_queue.empty() && !m_working; });
+    m_idle.wait (lock, [this]() { return m_queue.empty() && !m_working && !m_reporting; });
 }
 
 
@@ -699,20 +699,24 @@ void ExplorerBootWorker::Run()
         {
             std::lock_guard  lock (m_lock);
 
-            m_working = false;
-        }
-
-        m_idle.notify_all();
-
-        {
-            std::lock_guard  lock (m_lock);
-
-            onCount = m_onCount;
+            m_working   = false;
+            m_reporting = true;
+            onCount     = m_onCount;
         }
 
         if (onCount)
         {
             onCount();
         }
+
+        //  m_reporting stays set until the count is reported, so every
+        //  callback has returned by the time WaitUntilIdle does.
+        {
+            std::lock_guard  lock (m_lock);
+
+            m_reporting = false;
+        }
+
+        m_idle.notify_all();
     }
 }
