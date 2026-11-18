@@ -127,9 +127,9 @@ public:
     // come back when the disk does not turn. Only for a drive not writing.
     void       PeekNibbles (int count, std::vector<Byte> & outNibbles, bool & outIsRandom) const;
 
-    void       Tick (uint32_t cpuCycles);
-    uint8_t    ReadLatch();
-    void       WriteLatch (uint8_t value);
+    void     Tick       (uint32_t cpuCycles);
+    uint8_t  ReadLatch  ();
+    void     WriteLatch (uint8_t value);
 
     // One bit cell for an IWM, which has a shift register in place of the
     // sequencer: returns 1 when the read head finds a transition in the
