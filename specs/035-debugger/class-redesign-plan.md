@@ -20,11 +20,8 @@ result, not a goal.
   `MachineConnectors`, `MachineStateStream`, `MachineRomIdentity`,
   `MachineReplayMedia`, `KeyframeCodec`, `HistoryTimeline`, `InstructionSetBuilder`,
   `AppleWinBreakpointParser`, `AppleWinText`, `Disk2IwmPort`.
-- Three other sessions are splitting other files of T1533 on their branches
-  (`claude/035-split-debugger-ui-2c6403`, `claude/035-split-debug-engine-080423`,
-  `claude/035-split-dxui-b5f537`). Their files are listed at the end. Do not edit
-  those files except for call-site renames, and make those renames after the
-  branch that contains the file is merged here.
+- Other T1533 files are on three unmerged branches. See "The overseer", section 8
+  and "Dxui" below for which files, and for what to do with each branch.
 - Read `.github/copilot-instructions.md`, `CLAUDE.md` and `~/.claude/CLAUDE.md`
   before any edit.
 
@@ -355,27 +352,69 @@ change found necessary here requires the owner's decision and a version bump.
 `IoPeekTests`) and its mutation checks are the net for 7a. `BlockDeviceMediaTests`
 and the replay tests are the net for 7b.
 
-## The other files of T1533
+## The overseer
 
-The same method and rules apply to the files the other sessions have. Their
-reports list which of their seams were chosen for line count; those are redone to
-this standard before their branches merge.
+The session that implements this plan is also the overseer of every T1533
+refactor except Dxui. The owner's decision, 2026-11-18: one overseer for the
+rules, the interfaces between groups and the merge order; Dxui stays separate.
 
-- **Debugger UI** (`claude/035-split-debugger-ui-2c6403`): `DebuggerViewState.cpp`,
-  `DebuggerViewStateTests.cpp`, `DebuggerWindow.cpp`, `DebuggerWindowInput.cpp`,
-  `DebuggerActions.cpp`, `SourcePane.cpp`, `DisassemblyViews.cpp`,
-  `BreakpointHandlers.cpp`.
-- **Debug engine** (`claude/035-split-debug-engine-080423`): `DebugSession.cpp`,
-  `ShellDebugger.cpp`, `HeatMapView.cpp`, `SoundBoardView.cpp`,
-  `HeatHistoryTests.cpp`, `OperandResultTipTests.cpp`.
-- **Dxui** (`claude/035-split-dxui-b5f537`): `DxuiTextView.cpp`,
-  `DxuiDockSite.cpp`, `DxuiWindow.cpp`, `DxuiPaneLayout.cpp`, `DxuiTooltip.cpp`,
-  `DxuiImageStrip.cpp`. Its report: four are sound; `DxuiDockSite` and
-  `DxuiTextView` are not.
+**Duties.**
 
-**Merge order.** Merge a split branch here only after its seams pass rules 1 to
-5. After each merge, redo the call-site renames this plan made in the merged
-files, build, and run that area's tests.
+1. **One standard.** The Method, Rules and Guards sections above apply to every
+   group. Each group writes a design note in the form of the notes above (the
+   state table, the classes, the callers that change) before it moves code, and
+   the overseer reads it first.
+2. **Core first.** The classes in sections 1 to 7 are called by the debugger
+   groups. Publish each new component's getter and method list (in this file)
+   as soon as its design note is final, before the code lands, so the debugger
+   groups write against the new calls.
+3. **One design for the debugger pair.** The debugger UI files and the debug
+   engine files call each other (`DebuggerViewState`, `ShellDebugger`,
+   `DebugSession`). They get one joint design note, section 8 below, written
+   before either side continues, whoever implements it.
+4. **No duplicate classes.** Before a new class is added anywhere, search the
+   tree and the other groups' notes for one with the same job.
+5. **Merges go through the overseer.** A branch merges into `035-debugger` only
+   after its design note is reviewed and its seams pass rules 1 to 5. After a
+   merge, redo this plan's call-site renames in the merged files, build, and run
+   that area's tests.
+6. **Record who has which files** in `CLAUDE.md` under "Who is where" while more
+   than one session is writing.
+
+### 8. The debugger pair (to be designed)
+
+Files: `DebuggerViewState.cpp`, `DebuggerViewStateTests.cpp`,
+`DebuggerWindow.cpp`, `DebuggerWindowInput.cpp`, `DebuggerActions.cpp`,
+`SourcePane.cpp`, `DisassemblyViews.cpp`, `BreakpointHandlers.cpp`,
+`DebugSession.cpp`, `ShellDebugger.cpp`, `HeatMapView.cpp`, `SoundBoardView.cpp`,
+`HeatHistoryTests.cpp`, `OperandResultTipTests.cpp`.
+
+Existing work, not merged, for reference and for the parts that pass the rules:
+
+- `refs/heads/claude/035-split-debugger-ui-2c6403`. Its report rates the
+  `DebuggerViewState` split (into `CodeViews` and other state classes) as sound,
+  and the window files (`DebuggerWindow`, `DebuggerWindowInput`,
+  `DebuggerActions`, `SourcePane`) as chosen for line count. The owner's instruction to that
+  session: redo those four as redesigns and drop forwarders.
+- `refs/heads/claude/035-split-debug-engine-080423`. Its report rates
+  `CallRecordKeeper` and others as sound and some boundaries as weaker.
+- `specs/044-debugger-window-refactor/` has an earlier plan for `DebuggerWindow`
+  (pane interface, host interface, pane list). Use it.
+
+Write the joint note with the method above: state tables for `DebugSession`,
+`ShellDebugger`, `DebuggerViewState` and `DebuggerWindow` first, since the other
+files hang off those four. Take from the two branches the classes that pass rules
+1 to 5 as they are, and redesign the rest.
+
+### Dxui (separate)
+
+`claude/035-split-dxui-b5f537`: `DxuiTextView.cpp`, `DxuiDockSite.cpp`,
+`DxuiWindow.cpp`, `DxuiPaneLayout.cpp`, `DxuiTooltip.cpp`, `DxuiImageStrip.cpp`.
+The owner runs this one apart from the overseer. Its session wrote
+`group3-redesign-plan.md` for `DxuiTextView` and `DxuiDockSite`. Dxui's public
+control APIs are the only contact with the other groups: if one changes, the
+Dxui session reports the change, and the overseer updates the callers after the
+merge. Do not edit files under `Dxui/`.
 
 ## Done
 
@@ -386,4 +425,5 @@ files, build, and run that area's tests.
 - Per-instruction cost within 2% of the baseline.
 - The full suite passes and `CheckStyle -Mode Tree` is clean for these files.
 - `specs/035-debugger/tasks.md` T1533 has a line per class with what it became.
+- Section 8 has its design note, and the debugger pair's files pass the same rules.
 - `035-debugger` is pushed, and session 050-apple-III has the message to merge it.
