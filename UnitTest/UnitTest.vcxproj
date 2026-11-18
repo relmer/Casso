@@ -327,6 +327,7 @@
     <ClCompile Include="EmuTests\BlockInspectorPanelTests.cpp" />
     <ClCompile Include="EmuTests\BlockBrowserTests.cpp" />
     <ClCompile Include="EmuTests\BlockMapTests.cpp" />
+    <ClCompile Include="EmuTests\BootLoaderIdTests.cpp" />
     <ClCompile Include="EmuTests\BlankDiskBuilderTests.cpp" />
     <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />
     <ClCompile Include="EmuTests\StockDisk800KTests.cpp" />
@@ -500,7 +501,6 @@
     <ClCompile Include="CassoExplorer\CassoExplorerShellIconsTests.cpp" />
     <ClCompile Include="CassoExplorer\FocusRingTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowserTests.cpp" />
-    <ClCompile Include="CassoExplorer\NestedContainerTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserFormattingTests.cpp" />
     <ClCompile Include="CassoExplorer\ChooseDetailsModelTests.cpp" />
     <ClCompile Include="CassoExplorer\IconSizeStepsTests.cpp" />

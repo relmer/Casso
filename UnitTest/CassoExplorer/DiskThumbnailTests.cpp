@@ -191,6 +191,7 @@ public:
         Assert::AreEqual  (std::wstring (L"1,600 blocks"), result.chips[2].text);
         Assert::AreEqual  (static_cast<int> (SummaryChipKind::BlocksUsed), static_cast<int> (result.chips[3].kind));
         Assert::AreEqual  (static_cast<int> (SummaryChipKind::Files),      static_cast<int> (result.chips[4].kind));
+        Assert::AreEqual  (std::wstring (L"1 file"),        result.chips[4].text);
         Assert::IsFalse   (result.chips[3].isBad);
     }
 

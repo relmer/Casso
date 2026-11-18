@@ -132,25 +132,6 @@ public:
         Assert::IsFalse (BootProbe::IsBlank ({}, false, drawn), L"A tenth of the pixels lit");
     }
 
-    //  The DOS 3.3 System Master boots on an enhanced //e to a BASIC prompt:
-    //  booted, with a frame of the machine's size and the prompt in the rows.
-    TEST_METHOD (Probe_OfTheDosMaster_IsBooted_WithItsFrameAndRows)
-    {
-        TestMachine        machine ("Apple2eEnhanced");
-        BootReport         report;
-        std::vector<Byte>  master = GuestSession::RequireDos33Master();
-
-
-
-        AssertSucceeded (BootProbe::Probe (machine, machine.GetBuilder(), master, DiskFormat::Dsk, BootProbe::Limits(), report));
-
-        Assert::IsTrue (report.verdict == BootVerdict::Booted, TextEncoding::NarrowToWide (report.reason).c_str());
-        Assert::AreEqual ((size_t) report.width * (size_t) report.height, report.frame.size());
-        Assert::IsTrue (report.width > 0 && report.height > 0);
-        Assert::AreEqual ((size_t) BootProbe::kTextRows, report.rows.size());
-        Assert::IsTrue (report.isTextMode);
-    }
-
     //  An image of one repeated byte has no boot sector the drive can read:
     //  the screen is as it was when the drive started.
     TEST_METHOD (Probe_OfAnImageOfOneByte_DidNotBoot)

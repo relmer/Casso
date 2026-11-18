@@ -22,6 +22,11 @@
 ; //c's port 2 or the card in the highest slot, since no connection from the
 ; PC is possible before the modem dials it.
 ;
+; A serial card with the Pascal 1.1 firmware signature and not the Super
+; Serial Card's ID byte is waited on too, the first one found, through its
+; firmware's status and read entries (R47). Its start byte starts the 6551
+; shim with its slot, and the shim runs it through its firmware.
+;
 ; NMOS 6502 code throughout.
 
 ACIMG    = $2C00                ; the 6551 shim, as built for SHIM
@@ -146,9 +151,17 @@ svrst:  lda $03F2,x
 scan:   lda #1
         sta scslot
 scloop: jsr isssc
-        bcc scnot
+        bcc scpas
         lda scslot
         jsr addacia
+        jmp scnext
+scpas:  jsr ispas               ; the first card run through its firmware
+        bcc scnot
+        lda passlot
+        bne scnext
+        lda scslot
+        sta passlot
+        jsr pasup
         jmp scnext
 scnot:  jsr isdisk
         bcs scnext
@@ -166,6 +179,7 @@ scnext: inc scslot
 
 found:  lda nacia
         ora w5slot
+        ora passlot
         bne foundany
         ldx #msgnone-msgs
         jsr drawstate
@@ -212,7 +226,8 @@ shspd:  lda ACIMG+HSPEED,x
         inx
         bne shacia
 
-shw5:   lda w5slot
+shw5:   jsr pasrow
+        lda w5slot
         bne w5show
         jmp wait
 w5show: lda nacia
@@ -261,7 +276,7 @@ w5blank: cpy #40
 ; the pass too slow to catch the start byte at 115,200 baud.
 wait:   ldx #0
 wtacia: cpx nacia
-        beq wtw5
+        beq wtpas
         lda acslots,x
         asl a
         asl a
@@ -278,6 +293,17 @@ wtacia: cpx nacia
         jmp acgo
 wtnext: inx
         bne wtacia
+wtpas:  lda passlot             ; the card run through its firmware
+        beq wtw5
+        lda #1                  ; input ready
+        jsr pstat
+        bcc wtw5
+        jsr pread
+        and #$7F                ; a firmware's read can set bit 7 or clear it
+        cmp #$41
+        bne wtw5
+        lda passlot
+        jmp acgoslot
 wtw5:   lda w5slot
         beq wait
         lda #$04
@@ -315,7 +341,7 @@ w5still: rts
 ; acgo: the 6551 shim, for the 6551 at sel, given the zero page and started.
 acgo:   ldx sel
         lda acslots,x
-        sta ACIMG+HSLOT
+acgoslot: sta ACIMG+HSLOT
         ldx #0
 acgocopy: lda ZPCOPY,x
         sta ZPSAVE,x
@@ -398,6 +424,33 @@ yes:    sec
 no:     clc
         rts
 
+; ispas: the carry set when scslot has a card with the Pascal 1.1 signature,
+; of a serial card's or a modem's class, and not the Super Serial Card's ID
+; byte.
+ispas:  jsr romptr
+        ldy #$05
+        lda (ptr),y
+        cmp #$38
+        bne no
+        ldy #$07
+        lda (ptr),y
+        cmp #$18
+        bne no
+        ldy #$0B
+        lda (ptr),y
+        cmp #$01
+        bne no
+        ldy #$0C                ; a serial card's or a modem's class, but not
+        lda (ptr),y             ; the SSC's ID
+        cmp #$31
+        beq no
+        and #$F0
+        cmp #$30
+        beq yes
+        cmp #$40
+        beq yes
+        bne no
+
 isdisk: jsr romptr
         ldy #$01
         lda (ptr),y
@@ -440,11 +493,65 @@ isw5100: lda scslot
         sta WZLO,x
         lda WZHI,x
         cmp #$2A
-        bne no
+        bne w5no
         lda WZLO,x
         cmp #$55
-        bne no
-        beq yes
+        bne w5no
+        sec
+        rts
+w5no:   clc                     ; no and yes are out of a branch's range
+        rts
+
+; pasup: the entries of the card in scslot set from its offsets at $Cn0D to
+; $Cn10, and its init called.
+pasup:  jsr romptr
+        lda ptr+1
+        sta pcx+1
+        sta pjmp+2
+        lda scslot
+        asl a
+        asl a
+        asl a
+        asl a
+        sta pcy+1
+        ldx #0
+        ldy #$0D
+pucopy: lda (ptr),y
+        sta pentry,x
+        iny
+        inx
+        cpx #4
+        bne pucopy
+        ldx #0                  ; init
+        jmp pcall
+
+; pstat and pread: the card's firmware entry, with A as it came, X at $Cn
+; and Y at $n0, as Pascal 1.1 calls take them; X and Y are changed.
+pstat:  ldx #3
+        bne pcall
+pread:  ldx #1
+pcall:  pha
+        lda pentry,x
+        sta pjmp+1
+        bit $CFFF               ; the $C800 space freed for the card's ROM: Apple's
+        pla                     ; entries jump into it, and the //e's ROM is
+                                ; there after a read of $C3xx
+pcx:    ldx #$C0
+pcy:    ldy #$00
+pjmp:   jmp $C000
+
+; pasrow: the card run through its firmware, when there is one, on the
+; screen's last row.
+pasrow: lda passlot
+        beq prdone
+        lda #7
+        jsr rowat
+        ldx #msgpas-msgs
+        ldy #0
+        jsr puttext
+        lda passlot
+        jsr putdec
+prdone: rts
 
 romptr: lda #0
         sta ptr
@@ -1169,6 +1276,8 @@ msgport: .text "SERIAL PORT "    ; each interface by what it is, as
         .byte 0                 ; SSC, SLOT 2, 115200
 msgslot: .text "SSC, SLOT "
         .byte 0
+msgpas: .text "PASCAL CARD, SLOT "
+        .byte 0
 msgw5:  .text "UTHERNET II, SLOT "
         .byte 0
 msgat:  .text ", "
@@ -1177,6 +1286,8 @@ msgdhcp: .text ", GETTING AN ADDRESS"
         .byte 0
 
 acslots: .ds 8                  ; each 6551's slot, or a //c's port
+passlot: .byte 0                ; the card run through its firmware's slot, or 0
+pentry: .byte 0, 0, 0, 0        ; its init, read, write and status offsets
 yip:    .ds 4                   ; the address offered
 smask:  .ds 4                   ; its mask
 sgw:    .ds 4                   ; its router

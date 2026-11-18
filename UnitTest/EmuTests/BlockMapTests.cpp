@@ -357,6 +357,35 @@ public:
     }
 
 
+    TEST_METHOD (Hfs_AFolderIsADirectoryEntryWithItsFilesUnderIt)
+    {
+        vector<Byte>  image;
+        vector<Byte>  folder;
+        vector<Byte>  next;
+        BlockMap      map;
+        int           games   = 0;
+        int           doc     = 0;
+
+
+
+        AssertSucceeded (HfsWriter::Format (image, k800KBlocks, "Untitled"));
+        AssertSucceeded (HfsVolume (image).CreateDirectory (FilePath::Parse ("Games"), folder));
+        AssertSucceeded (HfsVolume (folder).Write (FilePath::Parse ("Games/Doc"), MakePayload (3000), next));
+
+        map   = Build (next);
+        games = FindFile (map, L"Games");
+        doc   = FindFile (map, L"Games/Doc");
+
+        Assert::IsTrue   (games >= 0 && doc >= 0);
+        Assert::AreEqual (map.files.size(), map.entries.size(), L"an entry for each path");
+        Assert::IsTrue   (map.entries[(size_t) games].isDirectory);
+        Assert::AreEqual (-1, map.entries[(size_t) games].parent, L"in the root, which is the volume");
+        Assert::AreEqual (games, map.entries[(size_t) doc].parent, L"the file is under its folder");
+        Assert::AreEqual (std::wstring (L"Doc"), map.entries[(size_t) doc].name);
+        Assert::AreEqual (3000u, map.entries[(size_t) doc].eof);
+    }
+
+
     TEST_METHOD (Hfs_AnnotatesTheMasterDirectoryAndTheCatalogHeader)
     {
         vector<Byte>        image;

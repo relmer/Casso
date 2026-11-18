@@ -17,9 +17,11 @@
 //  //c Plus's drives in a compact theme, which has no Disk ][ controller.
 //  The bar is drawn at the window's scale rather than the scene's: the scene
 //  zooms out to fit the desk, and a bar zoomed with it was too small to
-//  read. With auto-hide on,
-//  the drives slide up over the picture from the bottom edge, so the band
-//  collapses too. Otherwise the band zooms with the scene so it hugs the
+//  read. The bar is zoomed separately instead, with Ctrl+wheel over it, and
+//  the band grows with it. The band is the closed row's height, so the //c's
+//  switch strip sits right above the row and an open class fans out over it.
+//  With auto-hide on, the drives slide up over the picture from the bottom
+//  edge, so the band collapses too. Otherwise the band zooms with the scene so it hugs the
 //  scaled widgets instead of leaving dead space around them.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,13 +30,14 @@ int ChromeBandLayout::DriveBandDp (const ChromeBandInputs & inputs)
 {
     int   dp    = 0;
     bool  bar   = inputs.drivesOnBar;
-    float scale = bar ? 1.0f : inputs.chromeSceneScale;
+    int   rowDp = bar ? kDriveBarRowDp : inputs.driveBarThicknessDp;
+    float scale = bar ? inputs.driveBarZoom : inputs.chromeSceneScale;
 
 
 
     if (((inputs.hasDiskController && !inputs.crtMonitorActive) || bar) && !inputs.drivesOnStrip)
     {
-        dp = (int) lroundf ((float) inputs.driveBarThicknessDp * scale);
+        dp = (int) lroundf ((float) rowDp * scale);
     }
 
     return dp;

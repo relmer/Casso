@@ -531,4 +531,13 @@ public:
 
         Assert::AreEqual (4, checked, L"Every second-drive label was checked");
     }
+
+
+    TEST_METHOD (Drive_Place_Rows_Give_Where_The_Drives_Go)
+    {
+        Assert::AreEqual (std::wstring (L"Show f&loppy drives in the drive dock"), EmulatorCommands::GetDrivePlaceLabel (false, true));
+        Assert::AreEqual (std::wstring (L"Show f&loppy drives on the desk"),       EmulatorCommands::GetDrivePlaceLabel (false, false));
+        Assert::AreEqual (std::wstring (L"Show &hard disks in the drive dock"),    EmulatorCommands::GetDrivePlaceLabel (true,  true));
+        Assert::AreEqual (std::wstring (L"Show &hard disks on the desk"),          EmulatorCommands::GetDrivePlaceLabel (true,  false));
+    }
 };

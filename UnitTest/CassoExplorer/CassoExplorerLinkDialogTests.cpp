@@ -136,6 +136,30 @@ public:
         Assert::IsTrue  (CassoExplorerLinkChoices::UsesFolder    (LinkTransport::AdtProServer));
         Assert::IsTrue  (CassoExplorerLinkChoices::UsesDrives    (LinkTransport::Serial), L"a serial link's virtual drives");
         Assert::IsFalse (CassoExplorerLinkChoices::UsesDrives    (LinkTransport::AdtProServer));
+        Assert::IsTrue  (CassoExplorerLinkChoices::UsesSound     (LinkTransport::Cassette), L"a cassette link's sound devices");
+        Assert::IsFalse (CassoExplorerLinkChoices::UsesSound     (LinkTransport::Serial));
+        Assert::IsFalse (CassoExplorerLinkChoices::UsesPort      (LinkTransport::Cassette));
+        Assert::IsFalse (CassoExplorerLinkChoices::UsesSpeed     (LinkTransport::Cassette, 0));
+    }
+
+
+
+    TEST_METHOD (SoundChoices_AreTheDefaultThenTheDevices)
+    {
+        std::vector<AudioDeviceChoice>  devices = { { L"{a}", L"Speakers" }, { L"{b}", L"Line out" } };
+        CassoLinkSettings               cassette;
+
+
+
+        Assert::IsTrue (CassoExplorerLinkChoices::GetSoundLabels (devices) == std::vector<std::wstring> ({ L"Default device", L"Speakers", L"Line out" }));
+        Assert::AreEqual (std::wstring (L"{b}"), CassoExplorerLinkChoices::GetSoundId (devices, 2));
+        Assert::IsTrue   (CassoExplorerLinkChoices::GetSoundId (devices, 0).empty(), L"the default device has no id");
+        Assert::AreEqual (1, CassoExplorerLinkChoices::GetSoundIndex (devices, L"{a}"));
+        Assert::AreEqual (0, CassoExplorerLinkChoices::GetSoundIndex (devices, L"{gone}"), L"a device not found now is the default");
+
+        cassette = CassoExplorerLinkChoices::MakeSettings (CassoExplorerLinkChoices::GetTransportIndex (LinkTransport::Cassette), {}, 0, L"", 0, 0, false, L"");
+        Assert::AreEqual (std::string ("Cassette ports (audio)"), cassette.name);
+        Assert::IsTrue   (CassoExplorerLinkChoices::IsComplete (cassette));
     }
 
 

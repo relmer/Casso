@@ -745,20 +745,28 @@ public:
 
 
 
-    //  The CassoLink ProDOS disk made from the ProDOS Users Disk has its
+    //  The CassoLink ProDOS disk made from a user's ProDOS disk has its
     //  PRODOS and BASIC.SYSTEM, the installer and the STARTUP that runs it;
-    //  a ProDOS disk with neither is turned down with the reason.
+    //  a ProDOS disk with neither is turned down with the reason. The user's
+    //  disk is made here, with small files in place of the two.
     TEST_METHOD (SaveLinkProDosDisk_WritesADiskWithTheUsersProDos)
     {
+        static constexpr Byte  kSystemType = 0xFF;
+
         Rig                rig;
         CassoLinkSettings  serial;
+        std::vector<Byte>  users (NibblizationLayer::kImageByteSize, 0);
         std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
         std::vector<Byte>  file;
         Byte               fileType = 0;
         Word               auxType  = 0;
 
-        rig.io.files["C:/Disks/Users.dsk"]  = GuestSession::RequireProDosUsersDisk();
-        rig.io.stamps["C:/Disks/Users.dsk"] = FileStamp { rig.io.files["C:/Disks/Users.dsk"].size(), 1 };
+        AssertSucceeded (ProDosSkeleton::Write (users, "USERS"));
+        AssertSucceeded (ProDosFileWriter::WriteFile (users, "PRODOS", kSystemType, 0x0000, std::vector<Byte> (3000, 0x4C)));
+        AssertSucceeded (ProDosFileWriter::WriteFile (users, "BASIC.SYSTEM", kSystemType, 0x2000, std::vector<Byte> (10240, 0x60)));
+
+        rig.io.files["C:/Disks/Users.dsk"]  = users;
+        rig.io.stamps["C:/Disks/Users.dsk"] = FileStamp { users.size(), 1 };
 
         AssertSucceeded (rig.actions->SaveLinkProDosDisk (L"C:/Disks/Users.dsk", L"C:/Disks/Link.dsk", serial).hr);
 

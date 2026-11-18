@@ -431,7 +431,7 @@ public:
         Assert::IsTrue (loaded.links[0] == serial);
         Assert::IsTrue (loaded.links[1] == server, L"its folder, and the name made from its settings");
         Assert::IsTrue (loaded.links[2] == cassette, L"its sound devices");
-        Assert::AreEqual (std::string ("Cassette ports"), loaded.links[2].name);
+        Assert::AreEqual (std::string ("Cassette ports (audio)"), loaded.links[2].name);
         Assert::IsTrue (loaded.tabs.size() == 1 && loaded.tabs[0] == saved.tabs[0], L"a tab on an Apple drive");
     }
 

@@ -316,6 +316,7 @@
     <ClCompile Include="CassoLink\LinkAnnouncement.cpp" />
     <ClCompile Include="CassoLink\Audio\CassetteByteStream.cpp" />
     <ClCompile Include="CassoLink\Audio\CassetteCodec.cpp" />
+    <ClCompile Include="CassoLink\Audio\DiskAudioRecording.cpp" />
     <ClCompile Include="CassoLink\Audio\WasapiCassetteAudio.cpp" />
     <ClCompile Include="CassoLink\LinkAudioBootstrap.cpp" />
     <ClCompile Include="CassoLink\LinkBootstrap.cpp" />
@@ -353,6 +354,7 @@
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockFieldList.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMap.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.cpp" />
+    <ClCompile Include="Devices\Disk\Inspector\Blocks\BootLoaderId.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\Dos33SectorLayout.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\HfsBlockLayout.cpp" />
     <ClCompile Include="Devices\Disk\Inspector\Blocks\PascalBlockLayout.cpp" />
@@ -507,6 +509,7 @@
     <ClCompile Include="CassoExplorer\Picker\FileMaskSet.cpp" />
     <ClCompile Include="CassoExplorer\Picker\ExplorerPickerHost.cpp" />
     <ClCompile Include="CassoExplorer\Picker\PickerPrefs.cpp" />
+    <ClCompile Include="CassoExplorer\Picker\PickerShellRoots.cpp" />
     <ClCompile Include="CassoExplorer\Picker\PickerScope.cpp" />
     <ClCompile Include="CassoExplorer\Picker\StartupDiskPicker.cpp" />
     <ClCompile Include="CassoExplorer\Model\AppleFileProperties.cpp" />
@@ -1488,6 +1491,7 @@
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockFieldList.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMap.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\BlockMapBuilder.h" />
+    <ClInclude Include="Devices\Disk\Inspector\Blocks\BootLoaderId.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\Dos33SectorLayout.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\HfsBlockLayout.h" />
     <ClInclude Include="Devices\Disk\Inspector\Blocks\PascalBlockLayout.h" />
@@ -1573,6 +1577,7 @@
     <ClInclude Include="CassoExplorer\RawCopyDropHandler.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNamedControl.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNewDiskDialog.h" />
+    <ClInclude Include="CassoExplorer\CassetteLevelMeter.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerLinkDialog.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerProperties.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerRawDialog.h" />
@@ -1657,6 +1662,7 @@
     <ClInclude Include="CassoExplorer\Picker\PickerRequest.h" />
     <ClInclude Include="CassoExplorer\Picker\ExplorerPickerHost.h" />
     <ClInclude Include="CassoExplorer\Picker\PickerPrefs.h" />
+    <ClInclude Include="CassoExplorer\Picker\PickerShellRoots.h" />
     <ClInclude Include="CassoExplorer\Picker\PickerScope.h" />
     <ClInclude Include="CassoExplorer\Picker\StartupDiskPicker.h" />
     <ClInclude Include="CassoExplorer\Model\AppleFileProperties.h" />
@@ -1962,6 +1968,7 @@
     <ClInclude Include="CassoLink\LinkAnnouncement.h" />
     <ClInclude Include="CassoLink\Audio\CassetteByteStream.h" />
     <ClInclude Include="CassoLink\Audio\CassetteCodec.h" />
+    <ClInclude Include="CassoLink\Audio\DiskAudioRecording.h" />
     <ClInclude Include="CassoLink\Audio\ICassetteAudio.h" />
     <ClInclude Include="CassoLink\Audio\WasapiCassetteAudio.h" />
     <ClInclude Include="CassoLink\LinkAudioBootstrap.h" />

@@ -290,7 +290,7 @@ std::string CassoLinkHost::DescribeBlockError (Byte error, uint32_t block)
         case kBlockNoDevice:     text = std::format ("The device is offline (block {}).", block);                       break;
         case kBlockIoError:      text = std::format ("I/O error at block {}.", block);                                  break;
         case kErrorVerify:       text = std::format ("Block {} read back differently from what was written.", block);   break;
-        case kErrorLink:         text = std::format ("Block {} didn't arrive whole over the link.", block);              break;
+        case kErrorLink:         text = std::format ("Block {} arrived damaged on every attempt. Check the cable and the port's speed.", block); break;
         case kErrorDrive:        text = "There's no block device in that slot.";                                         break;
         default:                 text = std::format ("Error ${:02X} at block {}.", error, block);                       break;
     }

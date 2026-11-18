@@ -91,6 +91,12 @@
 ; Explorer finds it again. Set speed is acknowledged and
 ; changes nothing, and Exit disconnects the socket.
 ;
+; The 6551 build also runs a card the shim found with the Pascal 1.1
+; firmware signature and no 6551 driver: SHIMPAS is $80, and the byte
+; routines call the firmware through the shim, which stays resident. The
+; card's switches or firmware set its speed, so Set speed is acknowledged
+; and changes nothing.
+;
 ; The cassette build, for a ][+ or //e with no serial card, is loaded from
 ; tape by the monitor and talks through the cassette ports in Casso's audio
 ; encoding (R45). Its bytes to send go in TXBUF and are sent as one burst
@@ -251,6 +257,10 @@ SHIMPORT  = SHIM + $1E            ; a W5100 shim's TCP port, high byte first
 SHIMMAC   = SHIM + $18            ; a W5100 shim's MAC address
 SHIMSAVED = SHIM + $34            ; nonzero once the shim saved the machine's state
 SHIMRESET = SHIM + $35            ; the reset vector the shim found, and its check
+SHIMPAS   = SHIM + $39            ; $80 when the card is run through its Pascal 1.1 firmware
+SHIMPSTAT = SHIM + $3A            ; the shim's calls of that firmware: status,
+SHIMPREAD = SHIM + $3D            ; read
+SHIMPWRITE = SHIM + $40           ; and write, X and Y changed
 ZPSAVE    = $3A00                 ; the zero page the shim found, below the shim
 ACK       = $06
 NAK       = $15
@@ -642,9 +652,12 @@ xlwait: jsr wzstat
 xlclose: lda #CMCLOSE
         jsr wzcmd
         else
+        bit SHIMPAS             ; a card run through its firmware has no DTR here
+        bmi xlnodtr
         ldx slotx
         lda #$0A                ; DTR off, as the shim set it otherwise
         sta ACIACMD,x
+xlnodtr:
         endif
         endif
         lda SHIMSAVED          ; 1 once the shim saved them; an older shim
@@ -933,7 +946,7 @@ ggdone: rts
 ; dialed, as a modem link is connected already. A W5100's connection is left open, with what
 ; was read given back and what was put sent.
         ifdef CASSETTE
-doload: jmp main                ; the program came from the tape, with no shim
+doload: jmp main                ; the program came from the cassette input, with no shim
         else
         ifdef W5100
 doload: jsr col40
@@ -942,7 +955,10 @@ doload: jsr col40
         jmp SHIM
         else
 doload: jsr col40
-        ldx slotx
+        bit SHIMPAS             ; the firmware's card has no 6551 speed to set
+        bpl dlacia
+        jmp SHIM
+dlacia: ldx slotx
         lda ACIACTL,x
         sta SHIMSPEED
         and #$0F
@@ -1175,7 +1191,10 @@ dospeed: lda #OPSPEED
         ifdef BUFFERED
         jmp main                ; a W5100 or the cassette has no speed to set
         else
-        ldx slotx
+        bit SHIMPAS             ; nor a card run through its firmware
+        bpl spdacia
+        jmp main
+spdacia: ldx slotx
 spdwait: lda ACIASTAT,x
         and #TDRE
         beq spdwait
@@ -1883,6 +1902,12 @@ sdora:  ora AUXA0,x             ; the third's array, set before each pass
         ifdef BUFFERED
         jsr putb
         else
+        bit SHIMPAS             ; through putb for a card run through its firmware
+        bpl sdacia
+        lda sbyte
+        jsr putb
+        jmp sdpdone
+sdacia:
         ifdef FAULTS
         lda fltact              ; through putb while a fault is armed
         beq sdwait
@@ -1899,6 +1924,7 @@ sdsta:  sta ACIADATA            ; set for the port at startup
 sdsent:
         endif
         endif
+sdpdone:
         eor peor
         sta peor
         lda sbyte
@@ -2094,7 +2120,14 @@ pollcancel:
 pcany:  jsr getbtq
         jmp cancel
         else
-        ldx slotx
+        bit SHIMPAS
+        bpl pcacia
+        lda #1                  ; input ready
+        jsr SHIMPSTAT
+        bcc pcdone
+        jsr SHIMPREAD
+        jmp cancel
+pcacia: ldx slotx
         lda ACIASTAT,x
         and #RDRF
         beq pcdone
@@ -2298,7 +2331,9 @@ chwait: dex
         rts
 
 ; crecv: a burst into RXBUF, rxptr at its start and rxn its count, waiting
-; A seconds for its tone. The carry is set on a timeout or a damaged burst.
+; A seconds for its tone. Once 16 halves of tone are counted, the wait lasts to
+; the burst's end, so a tone longer than the wait isn't cut off. The carry is
+; set on a timeout or a damaged burst.
 crecv:  tax
         lda #0
         sta climit
@@ -2329,7 +2364,10 @@ crhunt: ldx #3
         inc tmo+1
         bne crclock
         inc tmo+2
-crclock: lda tmo+2              ; tmo+1 and tmo+2 against the limit
+crclock: lda ctones             ; no timeout once a tone is under way
+        cmp #16
+        bcs crlive
+        lda tmo+2              ; tmo+1 and tmo+2 against the limit
         cmp climit+1
         bcc crlive
         bne crtime
@@ -2766,6 +2804,8 @@ wzput:  sta WZDATA
 ; piece: a byte lost on the line then costs a tenth of a second before the
 ; NAK, not three. A USB serial adapter can hold bytes for 16 ms.
 getbt:  stx savex
+        bit SHIMPAS
+        bmi gbpas
         ldx slotx
         lda #0
         sta tmo
@@ -2773,6 +2813,8 @@ getbt:  stx savex
         lda tmolen
         bne gbset               ; always: tmolen is 1 or more
 getbtq: stx savex
+        bit SHIMPAS
+        bmi gbpasq
         ldx slotx
         lda #0
         sta tmo
@@ -2808,6 +2850,8 @@ gbgot:  lda ACIADATA,x
 ; without the limit the program would wait here forever, and never count
 ; the PC's silence or read the keyboard. tmo is free here: getbt sets it.
 putraw: stx savex
+        bit SHIMPAS
+        bmi pwpas
         ldx slotx
         pha
         lda #0
@@ -2834,6 +2878,60 @@ pbsta:  sta ACIADATA
         rts
 
 txstuck: .byte 0                ; a byte was dropped, and the 6551 hasn't sent since
+
+; gbpas and gbpasq: getbt and getbtq through the card's firmware, about
+; 10,000 status calls a second; pwpas, putraw through it. A status call takes
+; about 100 cycles, so a round of tmo and tmo+1 is counted from PASROUND.
+PASROUND = $10000 - 10000
+gbpas:  lda tmolen
+        bne gpset               ; always
+gbpasq: lda #1                  ; about a tenth of a second: 1,000 calls
+        sta tmo+2
+        lda #<($10000 - 1000)
+        sta tmo
+        lda #>($10000 - 1000)
+        sta tmo+1
+        bne gpwait              ; always
+gpset:  sta tmo+2
+gpround: lda #<PASROUND
+        sta tmo
+        lda #>PASROUND
+        sta tmo+1
+gpwait: sty pasavy
+        lda #1                  ; input ready
+        jsr SHIMPSTAT
+        ldy pasavy
+        bcs gpgot
+        inc tmo
+        bne gpwait
+        inc tmo+1
+        bne gpwait
+        dec tmo+2
+        bne gpround
+        ldx savex
+        sec
+        rts
+gpgot:  sty pasavy
+        jsr SHIMPREAD
+        ldy pasavy
+        ldx savex
+        clc
+        rts
+
+pwpas:  sty pasavy
+        pha
+pwwait: lda #0                  ; ready for output
+        jsr SHIMPSTAT
+        bcc pwwait
+        pla
+        pha
+        jsr SHIMPWRITE
+        pla
+        ldy pasavy
+        ldx savex
+        rts
+
+pasavy: .byte 0                 ; Y across a firmware call
         endif
         endif
 
@@ -4224,7 +4322,20 @@ conndraw: lda #<conntext
         lsr a
         jmp putdec
         else
-        ldx #0                  ; what the 6551 is: a card or a //c's port,
+        bit SHIMPAS             ; a card run through its firmware: PASCAL CARD,
+        bpl cdacia              ; SLOT 3
+        lda #<connpas
+        sta ptr
+        lda #>connpas
+        sta ptr+1
+        jsr puttext
+        lda slotx
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        jmp putdec
+cdacia: ldx #0                  ; what the 6551 is: a card or a //c's port,
         lda $FBB3               ; by cable or through a Wi-Fi modem, as
         eor #$06                ; SSC, SLOT 2 or WI-FI MODEM, PORT 2. A //c
         ora $FBC0               ; has $06 at $FBB3 and $00 at $FBC0
@@ -4270,7 +4381,7 @@ scfound: lda speeds+1,x
         endif
 
         ifdef CASSETTE
-conntext: .text "Cassette ports"
+conntext: .text "Cassette ports (audio)"
         .byte 0
         else
         ifdef W5100
@@ -4312,6 +4423,8 @@ pwtablo: .byte <1, <10, <100, <1000, <10000
 pwtabhi: .byte >1, >10, >100, >1000, >10000
         else
 conntext: .byte 0
+connpas: .text "Pascal card, slot "
+        .byte 0
 connssc: .text "SSC, slot "
         .byte 0
 connsscm: .text "Wi-Fi, slot "

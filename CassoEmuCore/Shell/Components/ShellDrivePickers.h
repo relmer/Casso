@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Picker/PickerShellRoots.h"
 #include "Shell/DrivePickers.h"
 #include "Ui/Scene/DeskDrivePlan.h"
 
@@ -16,10 +17,9 @@ class EmulatorShell;
 //  ShellDrivePickers
 //
 //  The emulator's drive pickers: Casso Explorer windows in picker mode,
-//  one for each drive that was clicked, owned by the emulator's window and
-//  run by its message loop. A pick is inserted in the drive the picker was
-//  opened for: mounted in a floppy drive, loaded in the recorder, or staged
-//  for a hard disk.
+//  one for each drive that was clicked, run by the emulator's message loop.
+//  A pick is inserted in the drive the picker was opened for: mounted in a
+//  floppy drive, loaded in the recorder, or staged for a hard disk.
 //
 //  The pickers close on a machine switch and when the emulator's window
 //  closes, since their drives may be gone after either.
@@ -49,6 +49,10 @@ public:
 
     DrivePickers &  GetPickers () { return m_pickers; }
 
+    //  Reads the shell's roots for the first picker's tree, in the
+    //  background, once the emulator's window is up.
+    void  ReadShellRootsAhead ()                          { m_shellRoots.Refresh(); }
+
     //  A modal picker over owner for a caller that waits for a path. The
     //  emulator's frames are drawn while it is open.
     HRESULT  RunModal (HWND owner, PickerRequest request, PickerOutcome & outOutcome);
@@ -64,6 +68,7 @@ private:
 
     std::unique_ptr<class ExplorerPickerHost>  MakeHost (PickerRequest request, HWND owner, bool cascade);
 
-    EmulatorShell  & m_shell;
-    DrivePickers     m_pickers;
+    EmulatorShell     & m_shell;
+    PickerShellRoots    m_shellRoots;
+    DrivePickers        m_pickers;
 };

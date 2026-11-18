@@ -89,6 +89,17 @@ public:
     static std::wstring         FormatOrdinal       (int n);
     static std::wstring         FormatCount         (int count, LPCWSTR singular, LPCWSTR plural);
 
+    //  The disk inspector's title: "Disk inspector - ", a lock while the disk
+    //  is write-protected, the image's path, and "(mounted in ...)" while
+    //  the disk is in a drive. outMarkAt is the end of the path while edits
+    //  are unsaved, where the title bar draws the unsaved-changes dot, and
+    //  npos otherwise.
+    static std::wstring         FormatWindowTitle   (const std::wstring & path, bool isWriteProtected, bool hasEdits, const std::wstring & mount, size_t & outMarkAt);
+
+    //  "There are unsaved changes to 3 sectors in GAME.dsk." for the
+    //  question before unsaved changes are discarded.
+    static std::wstring         FormatUnsavedChanges (int count, LPCWSTR singular, LPCWSTR plural, const std::wstring & fileName);
+
     static std::wstring         FormatTrackTitle    (int quarterTrack);
 
     //  Each reason the drive's disk is write-protected, separated by

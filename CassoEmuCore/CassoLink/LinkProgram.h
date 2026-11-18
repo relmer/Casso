@@ -96,8 +96,8 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 98;
-    static constexpr Byte    kShimVersion       = 8;
+    static constexpr Word    kProgramVersion    = 99;
+    static constexpr Byte    kShimVersion       = 9;
     static constexpr Word    kShimAddress       = 0x3B00;
     static constexpr Word    kZeroPageSave      = 0x3A00;   // the shim's copy of the machine's zero page, below it
     static constexpr Word    kProgramAddress    = 0x0800;

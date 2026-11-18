@@ -9,6 +9,7 @@
 #include "CassoExplorer/Picker/ExplorerPickerHost.h"
 #include "CassoExplorer/Picker/PickerPrefs.h"
 #include "CassoExplorer/Picker/PickerRequest.h"
+#include "CassoExplorer/Picker/PickerShellRoots.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -129,6 +130,87 @@ public:
         Assert::AreEqual (std::string (CassoExplorerPrefs::kThemeDark), host.GetPrefs().theme);
         Assert::IsTrue (host.GetPrefs().links.empty());
         Assert::IsTrue (host.GetPrefs().tabs.empty());
+    }
+
+
+
+    //  A drive's picker lists every image under the Casso node, so the node
+    //  starts closed.
+    TEST_METHOD (DrivePicker_HasTheCassoNodeClosed)
+    {
+        InMemoryFileSystem  fs;
+        FakeDiskFileIo      io;
+        ExplorerPickerHost  host (fs, io, kBaseDir);
+
+
+
+        SeedCassoExplorerFiles (fs);
+
+        host.Prepare (MakeDriveRequest(), CassoExplorerPrefs::kThemeDark, nullptr, false);
+
+        Assert::IsFalse (host.GetPrefs().treeCassoOpen);
+    }
+
+
+
+    //  A drive's picker can go behind the emulator's window. It still opens
+    //  centered over it.
+    TEST_METHOD (DrivePicker_IsNotOwned)
+    {
+        InMemoryFileSystem          fs;
+        FakeDiskFileIo              io;
+        ExplorerPickerHost          host (fs, io, kBaseDir);
+        CassoExplorerWindowContext  context;
+        HWND                        owner = (HWND) (UINT_PTR) 0x1234;
+
+
+
+        SeedCassoExplorerFiles (fs);
+
+        host.Prepare (MakeDriveRequest(), CassoExplorerPrefs::kThemeDark, owner, false);
+        context = host.MakeContext();
+
+        Assert::IsTrue  (context.request.owner == owner);
+        Assert::IsFalse (context.request.isOwned);
+    }
+
+
+
+    //  The shell's roots are read on a background thread, before a picker
+    //  opens.
+    TEST_METHOD (ShellRoots_AreReadAhead_OnAThread)
+    {
+        PickerShellRoots           roots ([] (PickerShellRoots::Folders & outNavRoots, PickerShellRoots::Folders & outPinned)
+        {
+            outNavRoots = { IShellItemVerbs::ShellFolderItem { L"::{HOME}", L"Home" } };
+            outPinned   = { IShellItemVerbs::ShellFolderItem { L"C:\\Disks", L"Disks", L"C:\\Disks" } };
+
+            return S_OK;
+        });
+        PickerShellRoots::Folders  navRoots;
+        PickerShellRoots::Folders  pinned;
+        ULONGLONG                  deadline = 0;
+        bool                       isRead   = false;
+
+
+
+        Assert::IsFalse (roots.TryGet (navRoots, pinned), L"nothing before the first read");
+
+        roots.Refresh();
+
+        deadline = GetTickCount64() + 5000;
+
+        while (!isRead && GetTickCount64() < deadline)
+        {
+            isRead = roots.TryGet (navRoots, pinned);
+            Sleep (1);
+        }
+
+        Assert::IsTrue (isRead);
+        Assert::AreEqual ((size_t) 1, navRoots.size());
+        Assert::AreEqual (std::wstring (L"Home"), navRoots[0].name);
+        Assert::AreEqual ((size_t) 1, pinned.size());
+        Assert::AreEqual (std::wstring (L"Disks"), pinned[0].name);
     }
 
 

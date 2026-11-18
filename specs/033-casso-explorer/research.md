@@ -1125,6 +1125,8 @@ files as they are fails SC-037.
 
 **Decision**: an SCC module, a Pascal firmware module and two Ethernet modules, each with the transport entries the program calls today: open, send, receive and close. The Ethernet modules implement in software the UDP and TCP the Uthernet II implements in hardware, as a minimal stack of ARP, IPv4, UDP and TCP with one connection. The program sets the IIgs to normal speed around each 5.25" read and write and restores $C036 after. Test targets are scripted: KEGS or GSplus for the SCC, MAME for a IIgs with a Super Serial Card, the Laser 128 and the LANceGS, AppleWin for the Uthernet.
 
+**Update (2026-11-17)**: the Pascal firmware path is in the shim, not a module. The shim selects it at run time for a card with the signature whose ID byte at $Cn0C has a serial card's or a modem's class, 3 or 4 in its high nibble, and is not the Super Serial Card's $31; a //e's 80-column firmware, of class 8, is passed over. The universal disk lists the first such card and waits on it as on a 6551. Apple's SSC firmware, measured through Casso, treats its Pascal entries as text: a read sets bit 7 and can drop a line feed or return a key press, and a write adds a line feed after a return. So each link byte goes through the firmware as two characters, $40 plus its high nibble and then $60 plus its low nibble, with bit 7 ignored, which halves the speed. The host takes that form when a Ready arrives in it. The entries also jump straight into the card's $C800 ROM, so each call first reads $CFFF: after a read of $C3xx a //e maps its internal ROM there.
+
 ## R48. The Apple /// client (Story 29)
 
 **Finding**: SOS boots `SOS.KERNEL`, `SOS.DRIVER` and `SOS.INTERP` from a disk. Drivers are configured into `SOS.DRIVER` with the System Configuration Program. `.RS232` is the serial driver and `.D1` to `.D4` and `.PROFILE` the block drivers. An interpreter calls SOS through BRK with a call number.
@@ -1267,7 +1269,7 @@ CiderPress II's file viewer, from its GUI manual, was compared feature by featur
   of a disk to the name its image has from the user, written when an image
   with a manifest row is renamed in Casso Explorer.
 
-## R64. One number formatter for all of Casso (FR-297)
+## R64. One number formatter for all of Casso (FR-303)
 
 - **Decision**: `NumberFormat` in `CassoEmuCore/Core` writes every number
   on screen with `GetNumberFormatEx` and the user's `LOCALE_STHOUSAND`,

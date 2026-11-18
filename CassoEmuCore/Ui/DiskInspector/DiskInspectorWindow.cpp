@@ -977,7 +977,6 @@ bool DiskInspectorWindow::RunCommand (const InspectorCommands::Command & command
 void DiskInspectorWindow::UpdateTitle()
 {
     std::wstring  title  = s_kpszWindowTitle;
-    std::wstring  mount  = m_session.host->GetMountDescription();
     size_t        markAt = std::wstring::npos;
     std::wstring  path   = (m_session.analysis.copy != nullptr) ? TextEncoding::Utf8ToWide (m_session.analysis.copy->fileName) : std::wstring();
 
@@ -985,11 +984,8 @@ void DiskInspectorWindow::UpdateTitle()
 
     if (m_session.context.hasDisk)
     {
-        title += L" - ";
-        title += m_session.IsWriteProtected() ? std::wstring (s_kpszLock) + L" " : std::wstring();
-        title += path.empty() ? m_session.GetFileName() : path;
-        markAt = m_session.edits.IsEmpty() ? std::wstring::npos : title.size();
-        title += mount.empty() ? std::wstring() : L" (mounted in " + mount + L")";
+        title = InspectorText::FormatWindowTitle (path.empty() ? m_session.GetFileName() : path, m_session.IsWriteProtected(), !m_session.edits.IsEmpty(),
+                                                  m_session.host->GetMountDescription(), markAt);
     }
 
     if (title != m_title || markAt != m_titleMark)

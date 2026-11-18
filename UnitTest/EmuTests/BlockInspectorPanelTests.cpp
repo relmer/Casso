@@ -774,4 +774,29 @@ public:
         Assert::IsFalse (BlockInspectorPanel::TryParseBlock (L"", block));
         Assert::IsFalse (BlockInspectorPanel::TryParseBlock (L"-4", block));
     }
+
+
+
+    TEST_METHOD (Panel_WithGermanSettings_WritesAndParsesBlockNumbersWithDots)
+    {
+        NumberSettings  english;
+        NumberSettings  german;
+        uint32_t        block    = 0;
+        std::wstring    written;
+        bool            isParsed = false;
+
+
+
+        german.thousands = L".";
+        german.decimal   = L",";
+
+        NumberFormat::SetSettings (&german);
+        written  = NumberFormat::FormatInteger (47790);
+        isParsed = BlockInspectorPanel::TryParseBlock (L"47.790", block);
+        NumberFormat::SetSettings (&english);
+
+        Assert::AreEqual (std::wstring (L"47.790"), written);
+        Assert::IsTrue   (isParsed, L"a Go to of 47.790 is a block number");
+        Assert::AreEqual (47790u, block);
+    }
 };

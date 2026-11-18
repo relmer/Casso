@@ -57,6 +57,11 @@ struct GlobalUserPrefs
     // Two floppies on the desk stack beside the monitor rather than under it.
     bool         deskFloppyPairBeside = false;
 
+    // The drive bar's zoom, Ctrl+wheel over it: every widget on the bar is
+    // drawn at the window's scale times this. ShellChrome::GetDriveBarZoom
+    // clamps it to the bar's limits.
+    float        driveBarZoom        = 1.0f;
+
     // The frames-per-second readout over the picture.
     //
     // OFF UNTIL ASKED FOR, in every build. It used to default on in a debug

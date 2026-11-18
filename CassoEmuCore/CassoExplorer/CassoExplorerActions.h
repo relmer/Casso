@@ -70,6 +70,7 @@ public:
     Outcome  MakeShrinkItDisk       (const std::wstring & imagePath, std::wstring & outPath)              { return m_archiver.MakeShrinkItDisk (imagePath, outPath); }
     Outcome  TestImage              (const std::wstring & imagePath, std::wstring & outReport)            { return m_archiver.Test (imagePath, outReport); }
     Outcome  MakeTapeRecording      (const std::wstring & target)                                         { return m_tapes.MakeRecording (target); }
+    Outcome  MakeDiskRecording      (const std::wstring & imagePath, const std::wstring & target, std::string & outCommand, double & outSeconds) { return m_tapes.MakeDiskRecording (imagePath, target, outCommand, outSeconds); }
     Outcome  AddToA2retroNet        (const std::wstring & imagePath)                                      { return m_a2retroNet.Add (imagePath); }
     bool     CanAddToA2retroNet     (const std::wstring & imagePath) const                              { return m_a2retroNet.CanAdd (imagePath); }
     Outcome  CreateA2retroNetConfig (const std::wstring & root)                                       { return m_a2retroNet.CreateConfig (root); }

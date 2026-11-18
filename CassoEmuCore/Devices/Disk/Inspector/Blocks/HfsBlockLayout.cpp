@@ -455,7 +455,9 @@ void HfsBlockLayout::ReadOverflow (Walker & walker, const vector<uint32_t> & nod
 //
 //  Each directory's ID, parent and name, then each file's two forks. A
 //  catalog key is a length, a reserved byte, the parent directory's ID and
-//  the name as a length and its characters.
+//  the name as a length and its characters. Every directory but the root,
+//  which is the volume, has an entry ahead of the files, so the Files
+//  level has the volume's tree of directories.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -473,11 +475,14 @@ void HfsBlockLayout::ReadCatalog (Walker & walker, const vector<uint32_t> & node
         uint32_t        parent = 0;
         std::wstring    name;
         uint32_t        id     = 0;
+        uint32_t        eof    = 0;
         vector<Extent>  data;
         vector<Extent>  fork;
     };
 
-    vector<FileRecord>  files;
+    vector<FileRecord>       files;
+    std::map<uint32_t, int>  folderEntries;
+    BlockFileEntry           entry;
 
 
 
@@ -498,6 +503,7 @@ void HfsBlockLayout::ReadCatalog (Walker & walker, const vector<uint32_t> & node
             file.parent = parent;
             file.name   = name;
             file.id     = GetLong (&bytes[data + kFileId]);
+            file.eof    = GetLong (&bytes[data + kDataSize]);
 
             ReadExtents (&bytes[data + kDataExtents], file.data);
             ReadExtents (&bytes[data + kForkExtents], file.fork);
@@ -506,11 +512,38 @@ void HfsBlockLayout::ReadCatalog (Walker & walker, const vector<uint32_t> & node
         }
     });
 
+    //  The extents and catalog files ahead of the catalog's entries.
+    walker.map.CompleteEntries();
+
+    for (const auto & [id, folder] : walker.folders)
+    {
+        if (id != kRootId)
+        {
+            folderEntries[id] = (int) walker.map.files.size();
+            walker.map.files.push_back (GetPath (walker, folder.parent, folder.name));
+            walker.map.entries.push_back ({ .name = folder.name, .isDirectory = true });
+        }
+    }
+
+    for (const auto & [id, index] : folderEntries)
+    {
+        auto  parent = folderEntries.find (walker.folders[id].parent);
+
+        walker.map.entries[(size_t) index].parent = (parent != folderEntries.end()) ? parent->second : -1;
+    }
+
     for (FileRecord & file : files)
     {
-        int  index = (int) walker.map.files.size();
+        int   index  = (int) walker.map.files.size();
+        auto  parent = folderEntries.find (file.parent);
+
+        entry        = BlockFileEntry();
+        entry.name   = file.name;
+        entry.parent = (parent != folderEntries.end()) ? parent->second : -1;
+        entry.eof    = file.eof;
 
         walker.map.files.push_back (GetPath (walker, file.parent, file.name));
+        walker.map.entries.push_back (entry);
 
         for (const auto & [forkType, first] : { std::pair<Byte, vector<Extent> *> (kDataFork, &file.data), std::pair<Byte, vector<Extent> *> (kResourceFork, &file.fork) })
         {

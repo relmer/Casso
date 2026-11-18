@@ -23,6 +23,7 @@ struct ChromeBandInputs
     bool   hasCaseSwitches     = false;   // only the //c has the switch strip
     int    driveBarThicknessDp = 0;
     float  chromeSceneScale    = 1.0f;    // the drive band zooms with the scene
+    float  driveBarZoom        = 1.0f;    // or, with drives on the bar, with the bar's zoom
     int    toolbarBandDp       = 0;
     int    changeBandPx        = 0;       // already measured against the client width
     int    captureBandPx       = 0;
@@ -81,6 +82,10 @@ public:
     static constexpr int  kTitleBarBandDp = 32;
     static constexpr int  kNavStripBandDp = 32;
     static constexpr int  kSwitchBandDp   = 40;
+
+    //  The drive bar's closed row: the compact drive widget's 36 dp, an 8 dp
+    //  gap above it and a 2 dp bottom margin, at a zoom of 100%.
+    static constexpr int  kDriveBarRowDp  = 46;
 
     static int  DriveBandDp  (const ChromeBandInputs & inputs);
     static int  SwitchBandDp (const ChromeBandInputs & inputs);

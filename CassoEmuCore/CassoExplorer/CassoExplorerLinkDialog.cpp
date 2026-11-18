@@ -263,11 +263,80 @@ const wchar_t * CassoExplorerLinkChoices::GetNote (LinkTransport transport)
                    L"this PC.";
             break;
 
+        case LinkTransport::Cassette:
+            note = L"Two audio cables to a ][+ or //e with no serial card, and no cassette tape: this PC's sound "
+                   L"output to the Apple's cassette input, and the Apple's cassette output to this PC's sound input. "
+                   L"A 140K disk takes about 15 minutes each way.";
+            break;
+
         default:
             break;
     }
 
     return note;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerLinkChoices::GetSoundLabels
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> CassoExplorerLinkChoices::GetSoundLabels (const std::vector<AudioDeviceChoice> & devices)
+{
+    std::vector<std::wstring>  labels = { L"Default device" };
+
+
+
+    for (const AudioDeviceChoice & device : devices)
+    {
+        labels.push_back (device.name);
+    }
+
+    return labels;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerLinkChoices::GetSoundId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerLinkChoices::GetSoundId (const std::vector<AudioDeviceChoice> & devices, int index)
+{
+    return (index >= 1 && index <= (int) devices.size()) ? devices[(size_t) index - 1].id : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerLinkChoices::GetSoundIndex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerLinkChoices::GetSoundIndex (const std::vector<AudioDeviceChoice> & devices, const std::wstring & id)
+{
+    int  index = 0;
+
+
+
+    for (size_t at = 0; at < devices.size() && !id.empty(); at++)
+    {
+        index = (devices[at].id == id) ? (int) at + 1 : index;
+    }
+
+    return index;
 }
 
 
@@ -466,6 +535,7 @@ void CassoExplorerLinkPanel::Init (const Children & children)
              children.speedLabel, children.speed,
              children.handshakeLabel, children.handshakeTip, children.handshake, children.columnsLabel, children.columns, children.verifyLabel, children.verify,
              children.folderNote, children.folderLabel, children.folder, children.browse,
+             children.outputLabel, children.output, children.inputLabel, children.input, children.levelLabel, children.level, children.soundNote,
              children.drivesNote, children.drive1Label, children.drive1, children.browse1,
              children.drive2Label, children.drive2, children.browse2,
              children.duplicate })
@@ -533,8 +603,8 @@ bool CassoExplorerLinkPanel::TryMeasureHeightPx (IDxuiTextRenderer & text, const
 //  CassoExplorerLinkPanel::ArrangeRows
 //
 //  The transport's row, its note under it across the field's column, the
-//  rows the transport uses with their notes, then the error for a connection
-//  listed already.
+//  rows the transport uses with their notes, a cassette link's sound devices
+//  first, then the error for a connection listed already.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -549,6 +619,10 @@ int CassoExplorerLinkPanel::ArrangeRows (const RECT & bounds, const DxuiDpiScale
 
     y = PlaceRow  (bounds, y, m_kids.transportLabel, m_kids.transport, nullptr,             scaler, place);
     y = PlaceNote (bounds, y, m_kids.note,                                                  scaler, place);
+    y = PlaceRow  (bounds, y, m_kids.outputLabel,    m_kids.output,    nullptr,             scaler, place);
+    y = PlaceRow  (bounds, y, m_kids.inputLabel,     m_kids.input,     nullptr,             scaler, place);
+    y = PlaceRow  (bounds, y, m_kids.levelLabel,     m_kids.level,     nullptr,             scaler, place);
+    y = PlaceNote (bounds, y, m_kids.soundNote,                                             scaler, place);
     y = PlaceRow  (bounds, y, m_kids.portLabel,      m_kids.port,      nullptr,             scaler, place);
     y = PlaceNote (bounds, y, m_kids.portNote,                                              scaler, place);
     y = PlaceRow  (bounds, y, m_kids.addressLabel,   m_kids.address,   m_kids.addressError, scaler, place);
@@ -809,11 +883,12 @@ void CassoExplorerLinkDialog::OnCreate()
     using Choices = CassoExplorerLinkChoices;
 
     CassoExplorerLinkPanel::Children  kids;
+    HRESULT                           listed = S_OK;
 
 
 
     for (DxuiLabel * label : { &m_transportLabel, &m_portLabel, &m_addressLabel, &m_bootstrapLabel, &m_speedLabel, &m_handshakeLabel, &m_columnsLabel, &m_verifyLabel, &m_folderLabel,
-                              &m_drive1Label, &m_drive2Label })
+                              &m_drive1Label, &m_drive2Label, &m_outputLabel, &m_inputLabel, &m_levelLabel })
     {
         ExplorerTextStyles::Apply (*label, ExplorerTextStyles::kFormLabel);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
@@ -830,8 +905,11 @@ void CassoExplorerLinkDialog::OnCreate()
     m_folderLabel.SetText    (L"Folder:");
     m_drive1Label.SetText    (L"Virtual drive 1:");
     m_drive2Label.SetText    (L"Virtual drive 2:");
+    m_outputLabel.SetText    (L"Sound output:");
+    m_inputLabel.SetText     (L"Sound input:");
+    m_levelLabel.SetText     (L"Input level:");
 
-    for (DxuiLabel * note : { &m_note, &m_portNote, &m_bootstrapNote, &m_folderNote, &m_drivesNote })
+    for (DxuiLabel * note : { &m_note, &m_portNote, &m_bootstrapNote, &m_folderNote, &m_drivesNote, &m_soundNote })
     {
         ExplorerTextStyles::Apply (*note, ExplorerTextStyles::kFormNote);
         note->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
@@ -841,6 +919,7 @@ void CassoExplorerLinkDialog::OnCreate()
     m_bootstrapNote.SetText (Choices::kBootstrapNote);
     m_folderNote.SetText    (Choices::kFolderNote);
     m_drivesNote.SetText    (Choices::kDrivesNote);
+    m_soundNote.SetText     (Choices::kSoundNote);
 
     m_handshakeTip.SetText      (Choices::kHandshakeTip);
     m_handshakeTip.SetPopupHost (GetPopupHost());
@@ -859,7 +938,7 @@ void CassoExplorerLinkDialog::OnCreate()
     m_drive2.SetText  (m_initial.virtualDrives.drive2);
     m_shownTransport = m_initial.transport;
 
-    for (DxuiComboBox * combo : { &m_transport, &m_port, &m_speed, &m_bootstrap, &m_verify })
+    for (DxuiComboBox * combo : { &m_transport, &m_port, &m_speed, &m_bootstrap, &m_verify, &m_output, &m_input })
     {
         combo->SetPopupHost (GetPopupHost());
         combo->SetSelect    ([this] (int) { Revalidate(); });
@@ -875,6 +954,17 @@ void CassoExplorerLinkDialog::OnCreate()
     m_bootstrap.SetSelected (Choices::GetSpeedIndex (m_initial.bootstrapBaud));
     m_verify.SetItems       ({ L"Use Casso Explorer's global setting in Options", L"Verify reads and writes", L"Never verify" });
     m_verify.SetSelected    (m_initial.verify);
+
+    //  With no sound devices listed, each drop-down has the default alone.
+    listed = WasapiCassetteAudio::ListDevices (false, m_outputs);
+    IGNORE_RETURN_VALUE (listed, S_OK);
+    listed = WasapiCassetteAudio::ListDevices (true, m_inputs);
+    IGNORE_RETURN_VALUE (listed, S_OK);
+
+    m_output.SetItems    (Choices::GetSoundLabels (m_outputs));
+    m_output.SetSelected (Choices::GetSoundIndex (m_outputs, m_initial.cassetteAudio.output));
+    m_input.SetItems     (Choices::GetSoundLabels (m_inputs));
+    m_input.SetSelected  (Choices::GetSoundIndex (m_inputs, m_initial.cassetteAudio.input));
 
     m_handshake.SetSingleLineLabel (true);
     m_handshake.SetChecked         (m_initial.hardwareHandshake);
@@ -921,6 +1011,13 @@ void CassoExplorerLinkDialog::OnCreate()
     kids.folderLabel    = &m_folderLabel;
     kids.folder         = &m_folder;
     kids.browse         = &m_browse;
+    kids.outputLabel    = &m_outputLabel;
+    kids.output         = &m_output;
+    kids.inputLabel     = &m_inputLabel;
+    kids.input          = &m_input;
+    kids.levelLabel     = &m_levelLabel;
+    kids.level          = &m_level;
+    kids.soundNote      = &m_soundNote;
     kids.drivesNote     = &m_drivesNote;
     kids.drive1Label    = &m_drive1Label;
     kids.drive1         = &m_drive1;
@@ -1047,6 +1144,12 @@ CassoLinkSettings CassoExplorerLinkDialog::MakeChosen() const
         settings.virtualDrives = { m_drive1.GetText(), m_drive2.GetText() };
     }
 
+    if (CassoExplorerLinkChoices::UsesSound (settings.transport))
+    {
+        settings.cassetteAudio = { CassoExplorerLinkChoices::GetSoundId (m_outputs, m_output.GetSelectedIndex()),
+                                   CassoExplorerLinkChoices::GetSoundId (m_inputs,  m_input.GetSelectedIndex()) };
+    }
+
     return settings;
 }
 
@@ -1144,6 +1247,11 @@ void CassoExplorerLinkDialog::ShowTransportRows()
     {
         control->SetVisible (Choices::UsesDrives (transport));
     }
+
+    for (IDxuiControl * control : std::initializer_list<IDxuiControl *> { &m_outputLabel, &m_output, &m_inputLabel, &m_input, &m_levelLabel, &m_level, &m_soundNote })
+    {
+        control->SetVisible (Choices::UsesSound (transport));
+    }
 }
 
 
@@ -1229,8 +1337,75 @@ void CassoExplorerLinkDialog::OnDialogTick()
         FitToContent();
     }
 
+    UpdateLevel();
+
     //  The Handshake info tip gets the tick, as the Settings sheet's do.
     //  Nothing else ticks it, and it opens only once its dwell has passed,
     //  so a hover never opened it.
     m_handshakeTip.Tick ((int64_t) GetTickCount64());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerLinkDialog::UpdateLevel
+//
+//  While the cassette ports are chosen, the chosen input is opened and its
+//  peak drawn on the meter, falling back slowly. A device that doesn't open
+//  isn't opened again until another input is chosen, and the meter stays empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerLinkDialog::UpdateLevel()
+{
+    constexpr float     kFall = 0.85f;
+    HRESULT             hr    = S_OK;
+    std::wstring        input = CassoExplorerLinkChoices::GetSoundId (m_inputs, m_input.GetSelectedIndex());
+    bool                shown = CassoExplorerLinkChoices::UsesSound (CassoExplorerLinkChoices::GetTransport (m_transport.GetSelectedIndex()));
+    std::vector<float>  samples;
+    float               peak  = 0.0f;
+
+
+
+    if (!shown || input != m_meterInput)
+    {
+        m_meterAudio.reset();
+        m_meterInput  = input;
+        m_meterFailed = false;
+    }
+
+    BAIL_OUT_IF (!shown || m_meterFailed, S_OK);
+
+    if (!m_meterAudio)
+    {
+        m_meterAudio = std::make_unique<WasapiCassetteAudio>();
+
+        hr = m_meterAudio->Open (CassoExplorerLinkChoices::GetSoundId (m_outputs, m_output.GetSelectedIndex()), input);
+
+        if (FAILED (hr))
+        {
+            m_meterAudio.reset();
+            m_meterFailed = true;
+        }
+
+        CHR (hr);
+    }
+
+    hr = m_meterAudio->Capture (0, samples);
+    CHR (hr);
+
+    for (float sample : samples)
+    {
+        peak = std::max (peak, fabsf (sample));
+    }
+
+    m_peak = std::max (peak, m_peak * kFall);
+    m_level.SetLevel (m_peak);
+    Invalidate();
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }

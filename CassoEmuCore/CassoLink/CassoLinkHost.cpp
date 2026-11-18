@@ -56,13 +56,63 @@ HRESULT CassoLinkHost::Fill (size_t count, DWORD timeoutMs, bool & outFilled)
         BAIL_OUT_IF (got == 0, S_OK);
 
         m_lastHeardMs = GetTickCount64();
-        m_adtProServer.m_buffer.insert (m_adtProServer.m_buffer.end(), chunk, chunk + got);
+        TakeReceived (std::span<const Byte> (chunk, got));
     }
 
     outFilled = true;
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::TakeReceived
+//
+//  The bytes appended to the buffer, decoded from two characters each once
+//  the Apple sends in that form.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkHost::TakeReceived (std::span<const Byte> bytes)
+{
+    std::vector<Byte> &  buffer = m_adtProServer.m_buffer;
+    std::vector<Byte>    pending;
+
+
+
+    if (!m_textForm)
+    {
+        buffer.insert (buffer.end(), bytes.begin(), bytes.end());
+
+        if (buffer.size() < 2 || (buffer[0] & 0x7F) != (kTextHigh | (CassoLinkCodec::kStart >> 4)) || (buffer[1] & 0x7F) != (kTextLow | (CassoLinkCodec::kStart & 0x0F)))
+        {
+            return;
+        }
+
+        m_textForm = true;
+        pending.swap (buffer);
+        bytes      = pending;
+    }
+
+    for (Byte b : bytes)
+    {
+        b &= 0x7F;
+
+        if ((b & 0xF0) == kTextHigh)
+        {
+            m_textNibble = b & 0x0F;
+        }
+        else if ((b & 0xF0) == kTextLow && m_textNibble >= 0)
+        {
+            buffer.push_back ((Byte) ((m_textNibble << 4) | (b & 0x0F)));
+            m_textNibble = -1;
+        }
+    }
 }
 
 
@@ -87,6 +137,7 @@ HRESULT CassoLinkHost::DiscardReceived()
 
 
     m_adtProServer.m_buffer.clear();
+    m_textNibble = -1;
 
     for (int read = 0; read < kDiscardReads && got > 0; read++)
     {
@@ -192,10 +243,24 @@ Error:
 HRESULT CassoLinkHost::Send (std::span<const Byte> bytes)
 {
     std::lock_guard<std::mutex>  lock (m_sendLock);
+    std::vector<Byte>            text;
 
 
 
     m_lastPacketMs = GetTickCount64();
+
+    if (m_textForm)
+    {
+        text.reserve (bytes.size() * 2);
+
+        for (Byte b : bytes)
+        {
+            text.push_back ((Byte) (kTextHigh | (b >> 4)));
+            text.push_back ((Byte) (kTextLow  | (b & 0x0F)));
+        }
+
+        bytes = text;
+    }
 
     if (m_pcFault.IsArmed())
     {
@@ -1279,7 +1344,7 @@ HRESULT CassoLinkHost::ServeReady (const CassoLinkPacket & packet)
 
     //  A program that fails again after it is loaded again points to the
     //  Apple's memory, which another load would not fix. The cassette build
-    //  came from the tape, so the tape is started again instead.
+    //  came from the cassette input, so its audio is sent again instead.
     CBREx (m_badProgramLoads <= kMaxProgramReloads, HRESULT_FROM_WIN32 (ERROR_CRC));
     CBREx (intact || m_programChip != LinkChip::Cassette, HRESULT_FROM_WIN32 (ERROR_CRC));
 
