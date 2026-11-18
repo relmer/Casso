@@ -368,7 +368,7 @@ public:
     //  SC-002: adjusting one monitor and mode cannot disturb another.
     TEST_METHOD (MakeKey_EveryMonitorAndModePairIsDistinct)
     {
-        const char *       monitors[] = { "AppleMonitorII", "AppleMonitorIIc" };
+        const char *       monitors[] = { "AppleMonitorII", "AppleMonitorIIc", "AppleMonitorIII" };
         std::set<std::string>  keys;
         size_t                 m     = 0;
         size_t                 mode  = 0;

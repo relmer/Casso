@@ -61,6 +61,11 @@ inline constexpr MonitorSpec s_kMonitors[] =
     // The Monitor //c (A2M4090): the platinum 9-inch that shipped with the
     // //c, green as well.
     { "AppleMonitorIIc", DeskDeviceKind::Monitor2c, IDR_MODEL_MONITOR2C_MESH, ColorMode::GreenMono },
+
+    // The Monitor ///: the 12-inch green monitor sold with the Apple ///.
+    // The scene draws the Monitor II mesh for it until the Monitor /// mesh
+    // is built.
+    { "AppleMonitorIII", DeskDeviceKind::Monitor2,  IDR_MODEL_MONITOR2_MESH,  ColorMode::GreenMono },
 };
 
 

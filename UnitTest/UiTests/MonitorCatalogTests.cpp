@@ -76,6 +76,8 @@ public:
     {
         Assert::IsTrue (MonitorCatalog::ByName ("AppleMonitorII").configName  == "AppleMonitorII");
         Assert::IsTrue (MonitorCatalog::ByName ("AppleMonitorIIc").configName == "AppleMonitorIIc");
+        Assert::IsTrue (MonitorCatalog::ByName ("AppleMonitorIII").configName == "AppleMonitorIII");
+        Assert::IsTrue (MonitorCatalog::ByName ("AppleMonitorIII").phosphor   == ColorMode::GreenMono);
     }
 
 
