@@ -67,11 +67,11 @@ void DebuggerWindow::ConfigureTimeline()
     if (thumbnails != nullptr)
     {
         thumbnails->SetOnSeek  ([this] (const HistoryThumbnailCell & cell) { OnTimelineSeek (cell); });
-        thumbnails->SetOnScrub ([this] (uint64_t cycle, bool isFinal) { OnTimelineScrub (cycle, isFinal); });
+        thumbnails->GetPlayhead().SetOnScrub ([this] (uint64_t cycle, bool isFinal) { OnTimelineScrub (cycle, isFinal); });
 
         //  The host's time of day above, or the time since power-on alone
         //  when the host's time is unknown, and the time since power-on below.
-        thumbnails->SetLabeler ([] (uint64_t cycle, uint64_t wallTime, std::wstring & outTop, std::wstring & outBottom)
+        thumbnails->GetPlayhead().SetLabeler ([] (uint64_t cycle, uint64_t wallTime, std::wstring & outTop, std::wstring & outBottom)
         {
             outTop    = DebuggerStatusText::FormatWallClock (wallTime, LOCALE_NAME_USER_DEFAULT);
             outBottom = DebuggerStatusText::GetPowerText (cycle, LOCALE_NAME_USER_DEFAULT);
@@ -351,7 +351,7 @@ void DebuggerWindow::OnTimelineSeek (const HistoryThumbnailCell & cell)
 {
     HistoryThumbnails         * thumbnails = (m_host != nullptr) ? m_host->GetHistoryThumbnails() : nullptr;
     bool                        paused     = m_snapshot != nullptr && m_snapshot->isPaused;
-    bool                        behindLive = (thumbnails != nullptr) ? thumbnails->IsBehindLive() : m_snapshot != nullptr && m_snapshot->history.isBehindLive;
+    bool                        behindLive = (thumbnails != nullptr) ? thumbnails->GetPlayhead().IsBehindLive() : m_snapshot != nullptr && m_snapshot->history.isBehindLive;
     HistoryTimelineClickPlan    plan       = HistoryTimelineClick::Plan (cell, paused, behindLive);
 
 

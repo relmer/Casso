@@ -437,6 +437,8 @@
     <ClCompile Include="Debugger\Reverse\KeyframeUnpacker.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryImageCache.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryThumbnails.cpp" />
+    <ClCompile Include="Debugger\Reverse\HistoryCellGrid.cpp" />
+    <ClCompile Include="Debugger\Reverse\HistoryPlayhead.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryTimelineClick.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryTimelineScrub.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryWallTimes.cpp" />
@@ -2059,6 +2061,8 @@
     <ClInclude Include="Debugger\Reverse\KeyframeUnpacker.h" />
     <ClInclude Include="Debugger\Reverse\HistoryImageCache.h" />
     <ClInclude Include="Debugger\Reverse\HistoryThumbnails.h" />
+    <ClInclude Include="Debugger\Reverse\HistoryCellGrid.h" />
+    <ClInclude Include="Debugger\Reverse\HistoryPlayhead.h" />
     <ClInclude Include="Debugger\Reverse\HistoryTimelineClick.h" />
     <ClInclude Include="Debugger\Reverse\HistoryTimelineScrub.h" />
     <ClInclude Include="Debugger\Reverse\HistoryWallTimes.h" />

@@ -318,7 +318,7 @@ void HistoryThumbnails::OnCellClicked (int index)
 
 std::wstring HistoryThumbnails::GetTrailingTip()
 {
-    return IsBehindLive() ? L"Return to live" : L"Running live";
+    return m_playhead.IsBehindLive() ? L"Return to live" : L"Running live";
 }
 
 
@@ -358,7 +358,7 @@ void HistoryThumbnails::OnTrailingLabelClicked()
 
 
 
-    if (!IsBehindLive() || !m_onSeek)
+    if (!m_playhead.IsBehindLive() || !m_onSeek)
     {
         return;
     }
@@ -452,7 +452,7 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
     BAIL_OUT_IF (copy != KeyframeCopy::Copied, S_OK);
 
     //  The snapshot the picture is of, so a cell showing it gives its time.
-    isHeld = TryFindAtOrBefore (keyframes, position, index);
+    isHeld = HistoryCellGrid::TryFindAtOrBefore (keyframes, position, index);
     CBRA (isHeld);
 
     m_job.point.position = keyframes.GetArena().GetInfo (index).position;
@@ -515,7 +515,7 @@ void HistoryThumbnails::LayOutCells (const KeyframeStore & keyframes)
 
 
 
-    m_wallTimes.Sync (keyframes);
+    m_playhead.GetWallTimes().Sync (keyframes);
 
     {
         std::lock_guard<std::mutex>  held (m_lock);
@@ -523,7 +523,7 @@ void HistoryThumbnails::LayOutCells (const KeyframeStore & keyframes)
         count = m_count;
     }
 
-    PlanCells (keyframes, count, m_step, cells);
+    HistoryCellGrid::PlanCells (keyframes, count, m_step, cells);
 
     {
         std::lock_guard<std::mutex>  held (m_lock);
@@ -569,7 +569,7 @@ void HistoryThumbnails::Clear()
         m_useStandIns = false;
     }
 
-    m_wallTimes.Clear();
+    m_playhead.GetWallTimes().Clear();
 
     m_step = 0;
 
@@ -671,234 +671,6 @@ void HistoryThumbnails::ForgetPictures (uint64_t from)
     }
 
     Bump();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::PlanCells
-//
-//  The first cell is the oldest keyframe held and the last the live end,
-//  the newest, so the strip always runs from where history begins to where
-//  it ends. The cells between are the grid points below the live end, one
-//  step apart and ending at the last multiple of the step before it, each
-//  the keyframe at or before it; a point older than history shows the
-//  oldest keyframe. Because the grid is fixed to absolute positions, a point
-//  keeps its keyframe until that keyframe is dropped. A step whose grid
-//  reaches back past the second keyframe is chosen afresh.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HistoryThumbnails::PlanCells (
-    const KeyframeStore                & keyframes,
-    int                                  count,
-    uint64_t                           & ioStep,
-    std::vector<HistoryThumbnailCell>  & outCells)
-{
-    size_t    held   = keyframes.GetArena().GetCount();
-    uint64_t  oldest = 0;
-    uint64_t  newest = 0;
-    uint64_t  top    = 0;
-    uint64_t  back   = 0;
-    size_t    index  = 0;
-    int       i      = 0;
-
-
-
-    outCells.clear();
-
-    if (held == 0 || count <= 0)
-    {
-        return;
-    }
-
-    oldest = keyframes.GetArena().GetInfo (0).position;
-    newest = keyframes.GetArena().GetInfo (held - 1).position;
-    ioStep = ChooseStep (newest - oldest, count, ioStep);
-    top    = GetGridTop (newest, ioStep);
-
-    //  A step kept from a narrower strip or a longer history can reach back
-    //  past the oldest keyframe, which would put the first grid points on
-    //  the oldest keyframe beside the first cell; the step is chosen afresh
-    //  instead, so every cell has a point of its own.
-    if (!DoesGridFit (keyframes, count, ioStep, top))
-    {
-        ioStep = ChooseStep (newest - oldest, count, 0);
-        top    = GetGridTop (newest, ioStep);
-    }
-
-    outCells.resize ((size_t) count);
-
-    for (i = 0; i < count - 1; i++)
-    {
-        back = (uint64_t) (count - 2 - i) * ioStep;
-
-        if (i == 0 || back > top || !TryFindAtOrBefore (keyframes, top - back, index))
-        {
-            index = 0;
-        }
-
-        outCells[(size_t) i].position = keyframes.GetArena().GetInfo (index).position;
-        outCells[(size_t) i].cycle    = keyframes.GetArena().GetInfo (index).cycle;
-        outCells[(size_t) i].wallTime = keyframes.GetArena().GetInfo (index).wallTime;
-    }
-
-    outCells.back().position = newest;
-    outCells.back().cycle    = keyframes.GetArena().GetInfo (held - 1).cycle;
-    outCells.back().wallTime = keyframes.GetArena().GetInfo (held - 1).wallTime;
-    outCells.back().isLive   = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::ChooseStep
-//
-//  The step that spreads `count` cells over `span`: the grid cells cover
-//  count - 1 steps. The step in use is kept while the span stays within a
-//  quarter of the one it was chosen for, so the small swings of a full
-//  history -- a group dropped at the old end, keyframes added at the new --
-//  never move the grid; past that it is chosen afresh.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint64_t HistoryThumbnails::ChooseStep (
-    uint64_t  span,
-    int       count,
-    uint64_t  step)
-{
-    constexpr uint64_t  kLow   = 3;
-    constexpr uint64_t  kHigh  = 5;
-    constexpr uint64_t  kParts = 4;
-
-
-
-    uint64_t  ideal = (std::max) ((uint64_t) 1, span / (uint64_t) (std::max) (count - 1, 1));
-
-
-
-    if (step == 0 || ideal * kParts < step * kLow || ideal * kParts >= step * kHigh)
-    {
-        return ideal;
-    }
-
-    return step;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::GetGridTop
-//
-//  The last multiple of the step before the live end, where the grid's
-//  newest point lies.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint64_t HistoryThumbnails::GetGridTop (
-    uint64_t  newest,
-    uint64_t  step)
-{
-    return (newest > 0) ? (newest - 1) / step * step : 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::DoesGridFit
-//
-//  Whether the oldest grid point, the second cell's, lies at or past the
-//  second keyframe held, so it is not the oldest keyframe the first cell
-//  already shows. With fewer than three cells there are no grid points, and
-//  with one keyframe every cell shows it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool HistoryThumbnails::DoesGridFit (
-    const KeyframeStore  & keyframes,
-    int                    count,
-    uint64_t               step,
-    uint64_t               top)
-{
-    constexpr int     kOffGrid  = 2;    // the first cell and the live end are not on the grid
-    constexpr size_t  kSecond   = 1;
-
-
-
-    size_t    held = keyframes.GetArena().GetCount();
-    uint64_t  back = 0;
-
-
-
-    if (count <= kOffGrid || held <= kSecond)
-    {
-        return true;
-    }
-
-    back = (uint64_t) (count - kOffGrid - 1) * step;
-
-    return back <= top && top - back >= keyframes.GetArena().GetInfo (kSecond).position;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::TryFindAtOrBefore
-//
-//  The newest keyframe taken at or before `position`; positions rise with
-//  the index.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool HistoryThumbnails::TryFindAtOrBefore (
-    const KeyframeStore  & keyframes,
-    uint64_t               position,
-    size_t               & outIndex)
-{
-    size_t  low  = 0;
-    size_t  high = keyframes.GetArena().GetCount();
-    size_t  mid  = 0;
-
-
-
-    outIndex = 0;
-
-    if (high == 0 || keyframes.GetArena().GetInfo (0).position > position)
-    {
-        return false;
-    }
-
-    while (high - low > 1)
-    {
-        mid = low + (high - low) / 2;
-
-        if (keyframes.GetArena().GetInfo (mid).position <= position)
-        {
-            low = mid;
-        }
-        else
-        {
-            high = mid;
-        }
-    }
-
-    outIndex = low;
-    return true;
 }
 
 
@@ -1343,93 +1115,11 @@ HistoryThumbnails::Image HistoryThumbnails::MakeBase (const Image & full)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HistoryThumbnails::SetPlayhead
-//
-//  Machine thread, every turn: where the machine stands, and whether that
-//  is behind live.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HistoryThumbnails::SetPlayhead (
-    uint64_t  position,
-    bool      isBehindLive)
-{
-    m_playhead.store     (position,     std::memory_order_release);
-    m_isBehindLive.store (isBehindLive, std::memory_order_release);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::SetPlayheadTime
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HistoryThumbnails::SetPlayheadTime (
-    uint64_t  cycle,
-    uint64_t  wallTime,
-    uint64_t  endCycle)
-{
-    m_cycle.store    (cycle,    std::memory_order_release);
-    m_wallTime.store (wallTime, std::memory_order_release);
-    m_endCycle.store (endCycle, std::memory_order_release);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::SetBegin
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HistoryThumbnails::SetBegin (
-    uint64_t  cycle,
-    uint64_t  wallTime)
-{
-    m_beginCycle.store (cycle,    std::memory_order_release);
-    m_beginWall.store  (wallTime, std::memory_order_release);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::NoteSeekLanded
-//
-//  Machine thread, after SetPlayheadTime has given where the seek landed, so
-//  the UI thread, seeing the landing, reads that cycle and not the one
-//  before it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HistoryThumbnails::NoteSeekLanded (uint64_t cycle)
-{
-    m_landedCycle.store (cycle, std::memory_order_release);
-    m_landings.fetch_add (1, std::memory_order_acq_rel);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  HistoryThumbnails::TryGetPlayhead
 //
-//  Behind live, the line stands where the machine does among the points,
-//  labeled by the labeler. Live, there is none and the live end is marked.
-//  A line dragged and let go stands where it was dropped, labeled for that
-//  point, until the seek there lands, so it never springs back to where
-//  the machine stood before; the hold is checked first, so a landing seen
-//  comes with the cycle it landed on.
+//  Behind live, the line is at the playhead's cycle among the points,
+//  labeled by the labeler. Live, the strip has no line, and the live end is
+//  marked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1438,13 +1128,14 @@ bool HistoryThumbnails::TryGetPlayhead (
     std::wstring  & outTop,
     std::wstring  & outBottom)
 {
-    bool      isHeld = IsHoldingDrop();
-    uint64_t  cycle  = isHeld ? m_heldCycle : m_cycle.load (std::memory_order_acquire);
-    uint64_t  wall   = isHeld ? m_wallTimes.GetWallTimeAt (cycle) : m_wallTime.load (std::memory_order_acquire);
+    uint64_t  cycle = 0;
+    uint64_t  wall  = 0;
 
 
 
-    if (!IsBehindLive())
+    m_playhead.GetLineTime (GetNowMs(), cycle, wall);
+
+    if (!m_playhead.IsBehindLive())
     {
         return false;
     }
@@ -1452,7 +1143,7 @@ bool HistoryThumbnails::TryGetPlayhead (
     {
         std::lock_guard<std::mutex>  held (m_lock);
 
-        outOffset = GetPlayheadOffset (m_cells, cycle, m_endCycle.load (std::memory_order_acquire));
+        outOffset = HistoryCellGrid::GetPlayheadOffset (m_cells, cycle, m_playhead.GetEndCycle());
     }
 
     if (outOffset < 0.0f)
@@ -1460,53 +1151,9 @@ bool HistoryThumbnails::TryGetPlayhead (
         return false;
     }
 
-    outTop.clear();
-    outBottom.clear();
-
-    if (m_labeler)
-    {
-        m_labeler (cycle, wall, outTop, outBottom);
-    }
+    (void) m_playhead.Label (cycle, wall, outTop, outBottom);
 
     return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::IsHoldingDrop
-//
-//  UI thread: whether the playhead line still stands where it was dragged.
-//  The hold ends once a seek to that cycle has run since the line last
-//  moved; a seek elsewhere landing late, as one made while the line was
-//  still moving, does not end it. A seek that never runs, as one dropped
-//  with the machine it was for, ends it after kSeekPatienceMs.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool HistoryThumbnails::IsHoldingDrop()
-{
-    uint64_t  landings  = 0;
-    bool      hasLanded = false;
-    bool      isOverdue = false;
-
-
-
-    if (!m_isHeld)
-    {
-        return false;
-    }
-
-    landings  = m_landings.load (std::memory_order_acquire);
-    hasLanded = landings != m_heldLandings && m_landedCycle.load (std::memory_order_acquire) == m_heldCycle;
-    isOverdue = GetNowMs() - m_heldAtMs >= kSeekPatienceMs;
-
-    m_isHeld = !hasLanded && !isOverdue;
-
-    return m_isHeld;
 }
 
 
@@ -1533,46 +1180,10 @@ void HistoryThumbnails::OnPlayheadDragged (
     {
         std::lock_guard<std::mutex>  held (m_lock);
 
-        cycle = GetCycleAtOffset (m_cells, offset, m_endCycle.load (std::memory_order_acquire));
+        cycle = HistoryCellGrid::GetCycleAtOffset (m_cells, offset, m_playhead.GetEndCycle());
     }
 
-    m_isHeld       = true;
-    m_heldCycle    = cycle;
-    m_heldLandings = m_landings.load (std::memory_order_acquire);
-    m_heldAtMs     = GetNowMs();
-
-    if (m_onScrub)
-    {
-        m_onScrub (cycle, isFinal);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::GetLeadingLabel
-//
-//  Where history begins, by the labeler's top line, which moves on as the
-//  oldest history is dropped.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring HistoryThumbnails::GetLeadingLabel()
-{
-    std::wstring  top;
-    std::wstring  bottom;
-
-
-
-    if (m_labeler)
-    {
-        m_labeler (m_beginCycle.load (std::memory_order_acquire), m_beginWall.load (std::memory_order_acquire), top, bottom);
-    }
-
-    return top;
+    m_playhead.DropLine (cycle, isFinal, GetNowMs());
 }
 
 
@@ -1591,151 +1202,7 @@ int HistoryThumbnails::GetMarkedCell()
 
 
 
-    return FindPlayheadCell (m_cells, m_playhead.load (std::memory_order_acquire), IsBehindLive());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::FindPlayheadCell
-//
-//  Live, the live end. Behind live, the last cell whose point is at or
-//  before where the machine stands, which is the oldest when it stands
-//  before them all.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int HistoryThumbnails::FindPlayheadCell (
-    const std::vector<HistoryThumbnailCell>  & cells,
-    uint64_t                                   position,
-    bool                                       isBehindLive)
-{
-    int  marked = 0;
-    int  i      = 0;
-
-
-
-    if (cells.empty())
-    {
-        return -1;
-    }
-
-    if (!isBehindLive)
-    {
-        return (int) cells.size() - 1;
-    }
-
-    for (i = 0; i < (int) cells.size(); i++)
-    {
-        if (cells[(size_t) i].position <= position)
-        {
-            marked = i;
-        }
-    }
-
-    return marked;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::GetPlayheadOffset
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float HistoryThumbnails::GetPlayheadOffset (
-    const std::vector<HistoryThumbnailCell>  & cells,
-    uint64_t                                   cycle,
-    uint64_t                                   endCycle)
-{
-    size_t    count = cells.size();
-    size_t    i     = 0;
-    uint64_t  from  = 0;
-    uint64_t  to    = 0;
-
-
-
-    if (count == 0)
-    {
-        return -1.0f;
-    }
-
-    if (cycle <= cells[0].cycle)
-    {
-        return 0.0f;
-    }
-
-    while (i + 1 < count && cells[i + 1].cycle <= cycle)
-    {
-        i++;
-    }
-
-    from = cells[i].cycle;
-    to   = (i + 1 < count) ? cells[i + 1].cycle : endCycle;
-
-    if (to <= from)
-    {
-        return (float) i;
-    }
-
-    return (float) i + (float) (std::min (cycle, to) - from) / (float) (to - from);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::GetCycleAtOffset
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint64_t HistoryThumbnails::GetCycleAtOffset (
-    const std::vector<HistoryThumbnailCell>  & cells,
-    float                                      offset,
-    uint64_t                                   endCycle)
-{
-    size_t    count = cells.size();
-    size_t    i     = 0;
-    float     part  = 0.0f;
-    uint64_t  from  = 0;
-    uint64_t  to    = 0;
-
-
-
-    if (count == 0)
-    {
-        return 0;
-    }
-
-    if (offset <= 0.0f)
-    {
-        return cells[0].cycle;
-    }
-
-    if (offset >= (float) count)
-    {
-        return std::max (endCycle, cells[count - 1].cycle);
-    }
-
-    i    = (size_t) offset;
-    part = offset - (float) i;
-    from = cells[i].cycle;
-    to   = (i + 1 < count) ? cells[i + 1].cycle : endCycle;
-
-    if (to <= from)
-    {
-        return from;
-    }
-
-    return from + (uint64_t) std::llround ((double) part * (double) (to - from));
+    return HistoryCellGrid::FindPlayheadCell (m_cells, m_playhead.GetPosition(), m_playhead.IsBehindLive());
 }
 
 
@@ -1816,14 +1283,7 @@ bool HistoryThumbnails::TryGetCellLabels (
     outTop.clear();
     outBottom.clear();
 
-    if (!isCell || !m_labeler)
-    {
-        return false;
-    }
-
-    m_labeler (cell.cycle, cell.wallTime, outTop, outBottom);
-
-    return !outTop.empty() || !outBottom.empty();
+    return isCell && m_playhead.Label (cell.cycle, cell.wallTime, outTop, outBottom);
 }
 
 
@@ -1860,14 +1320,7 @@ bool HistoryThumbnails::TryGetLabelsAt (
     outTop.clear();
     outBottom.clear();
 
-    if (!isPoint || !m_labeler)
-    {
-        return false;
-    }
-
-    m_labeler (point.cycle, m_wallTimes.GetWallTimeAt (point.cycle), outTop, outBottom);
-
-    return !outTop.empty() || !outBottom.empty();
+    return isPoint && m_playhead.LabelAt (point.cycle, outTop, outBottom);
 }
 
 
@@ -1920,7 +1373,7 @@ bool HistoryThumbnails::TryGetPointAt (
     HistoryThumbnailCell  & outPoint)
 {
     std::lock_guard<std::mutex>  held (m_lock);
-    uint64_t                     end  = m_endCycle.load (std::memory_order_acquire);
+    uint64_t                     end  = m_playhead.GetEndCycle();
 
 
 
@@ -1931,13 +1384,8 @@ bool HistoryThumbnails::TryGetPointAt (
         return false;
     }
 
-    outPoint.cycle  = GetCycleAtOffset (m_cells, offset, end);
+    outPoint.cycle  = HistoryCellGrid::GetCycleAtOffset (m_cells, offset, end);
     outPoint.isLive = outPoint.cycle >= std::max (end, m_cells.back().cycle);
 
     return true;
 }
-
-
-
-
-
