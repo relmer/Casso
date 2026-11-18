@@ -12,11 +12,9 @@
 //
 //  PpmLayout
 //
-//  A Pascal ProFile Manager area: Apple Pascal volumes inside the blocks of
-//  the ProDOS file PASCAL.AREA, with a map in the area's first two blocks.
-//
-//  The map's fields are from CiderPress II's PPM notes, under its Apache
-//  license.
+//  A Pascal ProFile Manager region: Apple Pascal volumes inside the blocks
+//  of the ProDOS file PASCAL.AREA, with a map in the region's first two
+//  blocks. docs/file-formats/ppm-layout.md is the layout.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,5 +25,20 @@ public:
     static HRESULT  TryDetect (IBlockStore & store, std::vector<Partition> & outPartitions);
 
 private:
-    static HRESULT  FindArea (IBlockStore & store, uint32_t & outFirstBlock, uint32_t & outBlockCount, uint32_t & outVolumeBlocks);
+    static constexpr uint32_t  kMaxProDosBlocks = 65535;
+    static constexpr uint32_t  kRootBlock       = 2;
+    static constexpr uint32_t  kMapBlocks       = 2;
+    static constexpr int       kMaxVolumes      = 31;
+
+    //  The region's place, from its directory entry.
+    struct Region
+    {
+        uint32_t  first        = 0;
+        uint32_t  count        = 0;
+        uint32_t  volumeBlocks = 0;
+    };
+
+    static HRESULT  FindRegion  (IBlockStore & store, Region & outRegion);
+    static bool     IsAreaEntry (const std::vector<Byte> & block, size_t entry);
+    static HRESULT  ListVolumes (IBlockStore & store, const Region & region, const std::vector<Byte> & map, std::vector<Partition> & outPartitions);
 };
