@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "FileTypes/OmfFile.h"
+#include "Core/TextEncoding.h"
 #include "FileTypes/AppleWorks.h"
 #include "FileTypes/Disassembler65816.h"
 #include "FileTypes/TextCharset.h"
@@ -392,9 +393,7 @@ void OmfFile::AppendCode (std::span<const Byte> bytes, uint32_t address, const s
 
     for (const DisassembledLine & line : lines)
     {
-        std::string  text = Disassembler::FormatLine (line);
-
-        outLines.push_back (indent + std::wstring (text.begin(), text.end()));
+        outLines.push_back (indent + TextEncoding::NarrowToWide (Disassembler::FormatLine (line)));
     }
 }
 
